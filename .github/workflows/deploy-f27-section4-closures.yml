@@ -227,7 +227,27 @@ jobs:
       # description for all of the sub-issues". Additive: no existing operation
       # changes. File count unchanged at 5 (policy.mjs gains the operation name
       # and the role rule; no new module).
-      PRODUCTION_WRITE_SOURCE_SHA256: 204d0d112fe2e0a7309d5902552ac8cce0a68e7e2cab557710b14dab6b24916f
+      # Re-pinned 2026-09-01 (twenty-seventh release): THREE STAFF REPORTS in
+      # one morning, all of them the Production tab telling somebody something
+      # untrue. (a) A post parent showed four `Missing` asset slots while its
+      # own sub-issue showed the filming plan: the parent is a B1 mirror row on
+      # a `b1_b_` batch with no asset columns while its children sit on the
+      # native `bat_` batch that carries the links -- 5,729 of 6,230 live
+      # deliverables measured on a `b1_b_` batch, so this is the estate's normal
+      # shape. assetSnapshot now borrows the three POST-level links from a
+      # child's batch when its own carries none, pinned to the same client,
+      # bounded at 50 children, reached only on rows blank today. Never
+      # `deliverable_file`, which is per-row. (b) `raw_footage` and
+      # `delivery_folder` accept a FILE as well as a folder -- owner: "the raw
+      # footage says invalid but I want to remove that, even if it is a dropbox
+      # it should work. And it does work." A Dropbox share of one recording is
+      # `/scl/fi/...`, a file, so a working link was painted red on a row nobody
+      # could repair. Same widening deliverable_file got on 2026-08-16, same
+      # reason; the HOST allowlist is untouched, so a Google Doc is still
+      # refused. READ-ONLY plus one write-shape widening: no migration, and the
+      # filming plan stays unwritable at all three layers. No new import: file
+      # count unchanged at 5.
+      PRODUCTION_WRITE_SOURCE_SHA256: 3bfd949312b644ac4dfebce61e61f2b7fbfebdcf5feee369444b78458f5afe12
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

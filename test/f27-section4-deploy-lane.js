@@ -313,7 +313,11 @@ const CANDIDATES = new Map([
     // for every batch not made through the intake path. Read-only, no
     // migration, and the filming plan stays unwritable at all three layers.
     // No new import: file count unchanged at 5.
-    source: '204d0d112fe2e0a7309d5902552ac8cce0a68e7e2cab557710b14dab6b24916f',
+    // Re-pinned 2026-09-01 (twenty-seventh release): the parent/child batch
+    // borrow in assetSnapshot, and raw_footage / delivery_folder accepting a
+    // file as well as a folder. Read-side plus one write-shape widening; no
+    // migration, no new import, file count unchanged at 5.
+    source: '3bfd949312b644ac4dfebce61e61f2b7fbfebdcf5feee369444b78458f5afe12',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

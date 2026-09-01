@@ -51153,7 +51153,17 @@
                designer who pulls a frame out of it. A batch carries a single
                team value, so matching on it would hand the shared folder to
                whichever team happened to be recorded. Mirrors staffOperationAllowed. */
-            if (operation === 'batch_asset' || operation === 'batch_description') return !!memberTeam;
+            if (operation === 'batch_asset') return !!memberTeam;
+            /* `batch_description` is NOT widened alongside it, and this line
+               used to admit a creative for both. staffOperationAllowed returns
+               false for it -- a description is admin/SMM everywhere in the
+               estate, and #1203's review settled that opening the post-level
+               one to creatives is an owner ruling nobody has made. The mismatch
+               was masked while the batch-parent gate refused everyone; fixing
+               that gate makes it reachable, so it is corrected in the same
+               change rather than left to show a creative an Edit button the
+               gateway would refuse. */
+            if (operation === 'batch_description') return false;
             /* `attachment` joins them above the team match, by the owner ruling
                of 2026-09-01: any of graphics, video, SMM or admin may edit
                assets "on any parent issue or sub-issue". Mirrors
@@ -51195,6 +51205,30 @@
             }
             return 'Your staff role cannot perform this action.';
         }
+        /* THE ONE NAME FOR A DESCRIPTION WRITE ON THIS ROW.
+           A batch parent writes the POST's text onto the batch row through the
+           `batch_description` operation; every other row writes its own brief
+           through `description`. Three call sites need to agree on which: the
+           control that renders the Edit button, the write itself, and the
+           sentence shown when the write is refused.
+
+           They did not agree, and #1203 shipped that way on 2026-09-01. The
+           write was renamed to `batch_description` while the gate clause below
+           still named `description`, so on a batch parent the gate refused the
+           very operation the feature exists to perform -- and because the
+           refusal text was computed with the OTHER name, the gate said the
+           write was fine and the reader got the last-resort sentence, "This
+           change is not allowed on this issue." An SMM lost a 10,000-character
+           description to it and had no way to tell what was wrong. Nothing
+           about the row was wrong.
+
+           Derived once, here, so the three can no longer drift apart. */
+        function _prodDescriptionOperation(issue) {
+            return issue && issue.syntheticBatchParent === true ? 'batch_description' : 'description';
+        }
+        function _prodIsDescriptionOperation(operation) {
+            return operation === 'description' || operation === 'batch_description';
+        }
         function _prodCanWrite(issue, operation) {
             /* A synthesized batch parent is not a deliverable: the gateway has
                no row to write for a status, a due date, an assignee or a label,
@@ -51209,7 +51243,8 @@
                was missing, so a post description set at intake was permanent
                from every seat. It routes to the batch_description operation,
                which targets the batch row -- see _prodGatewayWrite. */
-            if (issue && issue.syntheticBatchParent === true && operation !== 'description') return false;
+            if (issue && issue.syntheticBatchParent === true
+                && !_prodIsDescriptionOperation(operation)) return false;
             if (!issue || _prodIdentityRepairGateText(issue)
                 || !_prodAttributionResolved(issue) || !_prodRoleCanWrite(issue, operation)) return false;
             const team = _prodWriteTeam(issue.team);
@@ -51218,7 +51253,8 @@
         function _prodWriteGateText(issue, operation) {
             // Description is writable here now, so it must fall through to the
             // ordinary reasons rather than being told to go somewhere else.
-            if (issue && issue.syntheticBatchParent === true && operation !== 'description') {
+            if (issue && issue.syntheticBatchParent === true
+                && !_prodIsDescriptionOperation(operation)) {
                 return "This is the post's batch parent — open its sub-issues to work on it.";
             }
             if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to write.';
@@ -54444,8 +54480,8 @@
             const issue = _prodIssue(id);
             const state = issue && _prodDescriptionState(id);
             if (!issue || !state) return false;
-            if (!_prodCanWrite(issue, 'description')) {
-                _prodToast(_prodWriteGateText(issue, 'description'));
+            if (!_prodCanWrite(issue, _prodDescriptionOperation(issue))) {
+                _prodToast(_prodWriteGateText(issue, _prodDescriptionOperation(issue)));
                 return false;
             }
             if (state.status !== 'ready' || state.refreshing) {
@@ -54514,8 +54550,8 @@
             const issue = _prodIssue(id);
             const state = issue && _prodDescriptionState(id);
             if (!issue || !state || !state.editing || state.saving) return false;
-            if (!_prodCanWrite(issue, 'description')) {
-                _prodToast(_prodWriteGateText(issue, 'description'));
+            if (!_prodCanWrite(issue, _prodDescriptionOperation(issue))) {
+                _prodToast(_prodWriteGateText(issue, _prodDescriptionOperation(issue)));
                 return false;
             }
             const description = String(state.draft == null ? '' : state.draft);
@@ -54562,7 +54598,7 @@
                 const batchParent = issue.syntheticBatchParent === true;
                 const json = await _prodGatewayWrite(
                     issue,
-                    batchParent ? 'batch_description' : 'description',
+                    _prodDescriptionOperation(issue),
                     { description },
                     state.requestId
                 );
@@ -54632,7 +54668,10 @@
                 state.saving = false;
                 state.editing = true;
                 state.preview = false;
-                state.error = _prodWriteErrorText(error, issue, 'description');
+                /* The SAME operation the write used. Computing the refusal
+                   text with the other name is what turned a gate that had
+                   already decided into the last-resort sentence. */
+                state.error = _prodWriteErrorText(error, issue, _prodDescriptionOperation(issue));
                 state.remoteChanged = !!serverRow;
                 if (String(error && error.code || '') === 'write_conflict') state.requestId = '';
                 _prodToast(state.error);
@@ -54655,7 +54694,9 @@
             const id = String(issue.id || '');
             const status = state.refreshing ? 'refreshing' : state.status;
             const count = String(state.draft || '').length;
-            const gateAttrs = _prodWriteGateAttrs(issue, 'description', { title: 'Edit description', tip: 'Edit Markdown description' });
+            /* The Edit control is gated on the operation the save will send, so a
+               button can never render enabled for a write its own gate refuses. */
+            const gateAttrs = _prodWriteGateAttrs(issue, _prodDescriptionOperation(issue), { title: 'Edit description', tip: 'Edit Markdown description' });
             if (state.editing) {
                 const source = !state.preview;
                 const editor = source
@@ -56070,9 +56111,29 @@
         function _prodDeepLinkNoticeHTML() {
             const missing = String(_prodState.deepLinkMissing || '');
             if (!missing) return '';
+            /* WHAT THIS NOTICE MAY CLAIM.
+               It used to offer two guesses -- "may live only in Linear, or
+               belong to a client this view does not cover" -- and a video
+               editor escalated one on 2026-09-01 where the SECOND was provably
+               false: the client was on the active roster, fully covered, and
+               the issue simply had no row here at all. A reader given two
+               causes, one of them wrong, cannot act on either.
+               So it states the one thing this page can actually establish --
+               it has no row under that identifier -- and then the mechanism
+               that produces this, which is the same every time: SyncView
+               creates the issue in Linear, never the reverse, so anything typed
+               straight into Linear stays there. The stray importer only scans
+               issues changed since its last run (every 30 minutes), and the
+               full re-read refuses to run at all now that SyncView is
+               authoritative, so a Linear-only issue older than that window is
+               not late -- it is never arriving without an admin.
+               No Linear link and no Retry: the page has no Linear credential to
+               check with, and a button that re-asks a question already answered
+               is the dead end this notice exists to replace. */
             return '<div class="prod-deeplink-missing" data-prod-deeplink-missing="' + _calEscAttr(missing) + '">'
-                + '<b>' + _calEsc(missing) + '</b> is not in Production.'
-                + ' It may live only in Linear, or belong to a client this view does not cover.'
+                + '<b>' + _calEsc(missing) + '</b> has no row in Production.'
+                + ' Issues created directly in Linear are not imported, so ask an Admin to run the'
+                + ' Linear import for it — or create the post on the Calendar, which makes both sides at once.'
                 + ' Showing the full list instead.'
                 + '<button class="prod-deeplink-dismiss" type="button" aria-label="Dismiss"'
                 + ' onclick="_prodDismissDeepLinkNotice()">Dismiss</button></div>';

@@ -37,7 +37,7 @@ The dated sections below remain historical evidence: their “current,” “now
 | Writable-state browser proof | ✅ ported | `prod-write-gateway-browser.js` uses a fully intercepted local mock to prove mixed authority, four supported operations, CAS, verified-role attribution, a locked active-TEST row, and stale-tab rejection without reaching a live backend. `test/production-write-ui-source.js` pins the source contract. |
 | Parent/sub-issue creation | 🔒 CLOSED by owner ruling 2026-08-23 | **Neither top-level nor sub-issue creation happens in the Production tab.** Owner ruling: a sub-issue is a card, not a parent issue, and posts that are not on the content calendar should not exist. The reason is in the gateway, not the UI: the create insert hardcodes `card_id: null` for BOTH modes, so a sub-issue created under a parent that HAS a card is just as card-less as a top-level one. Nothing born there reaches the calendar, an approval queue, or a client review link. `_prodCreateGateText` returns a single refusal before every other reason, closing all four of its readers together; the hand-copied fifth gate inside `_prodCreateTopbarButton`'s unscoped branch is deleted (it evaluated to *allowed*, so that button rendered live). `production-write` refuses a new create with `403 production_create_closed`, placed AFTER `productionCreateReplay`. **Retained, deliberately: replay-only recovery.** An `ambiguous` draft may describe a create that already committed, and the replay is the only path that returns that row to its author — so the recovery gate stays open and the server refusal sits after the replay. A draft that earns the definitive 403 (proof nothing committed) is discarded rather than left offering a retry that can only refuse again. Measured before closing: the Production-create signature matches 53 outbox rows, all `test_only`, ZERO real-client rows ever. Posts are created on the Calendar or Samples tab, which creates the deliverable and its Linear issue together, linked. The F203 machinery below the refusal is retained unreachable so reopening at the video flip is a one-line deletion. Record: `OPEN_REPAIRS.md` item 31, `FLIP_BUG_LEDGER.md` §0-7, `ROLLBACK.md`. |
 | Manual assignment candidates | ✅ F94 live | **Wired-only delta from the artifact.** The artifact's assignee menu lists the local roster; the wired picker now lists only the gateway's eligible-assignee projection, fetched per issue through the protected `assignee_options` action. Loading, refused, and unavailable states render a notice (plus Retry on failure) and offer no selectable member — including "Unassigned", because clearing an assignee is also a write. Merged and deployed in the 2026-07-26 Slice 5 window; proven end to end by TEST drill runs #17/#18 (2026-07-28). |
-| Creative status choices | ✅ F136 live | **Wired-only delta from the artifact.** The artifact offers every status. The wired picker offers a creative exactly the transitions the gateway would accept from the row's *current* status, intersected across a multi-select, and the row's write gate additionally requires the row to be assigned to the signed-in member for `status` and `attachment`. Admin/SMM behaviour is unchanged. Merged and deployed in the 2026-07-26 Slice 5 window; the 13x13 transition matrix is proven by TEST drill run #18 (2026-07-28). |
+| Creative status choices | ✅ F136 live | **Wired-only delta from the artifact.** The artifact offers every status. The wired picker offers a creative exactly the transitions the gateway would accept from the row's *current* status, intersected across a multi-select, and the row's write gate additionally requires the row to be assigned to the signed-in member for `status`. Admin/SMM behaviour is unchanged. **Amended 2026-09-01.** This row also named `attachment` as assignee-bound. That stopped being true on 2026-08-18 (#1084, a graphics creative repairing the canonical file on any graphics row) and the row was not amended then; `CREATIVE_ASSIGNEE_BOUND_OPERATIONS` has held `status` alone since. `attachment` is no longer team-bound either -- see item 32. Merged and deployed in the 2026-07-26 Slice 5 window; the 13x13 transition matrix is proven by TEST drill run #18 (2026-07-28). |
 | Foreground freshness control | ✅ F95 live | **Wired-only addition, not in the artifact.** A `.prod-freshness` chip sits in the list, project, and detail top bars: a polite live-region last-success age, a `data-prod-freshness="fresh\|degraded"` state, and a labelled `prod-icon-btn` Refresh reachable by keyboard and touch. At ≤900 px the age text collapses and the button remains. Its glyph is `PROD_REFRESH_ICON`, deliberately outside `PROD_ICON` so the artifact icon-object parity check (`test/port-fidelity-check.js`) still passes byte-for-byte. Merged and deployed in the 2026-07-26 Slice 5 window; convergence proven by TEST drill runs #17/#18 (2026-07-28). |
 | Project moves, issue deletes/undo, favorites, and other unimplemented mutations | 🔒 unsupported/guarded | Historical prototype controls do not create runtime authority. Keep them guarded or absent until a separately designed, server-authorized, tested, and owner-approved milestone. |
 
@@ -506,10 +506,11 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     `filming_doc_url` so the filming plan is unreachable even for a caller that
     names it. `PROD_ASSET_SPECS` gives each slot a `write` operation and the
     filming plan has none, so **no control renders for it at all** rather than a
-    disabled one implying some other role could. `batch_asset` is the one
+    disabled one implying some other role could. `batch_asset` was the FIRST
     operation where a creative is not confined to their own team: a batch is one
     shoot with one set of files worked by both teams and carries a single `team`
-    value. Shape is enforced, reachability only reported — a frame folder made a
+    value. `attachment` joined it on 2026-09-01 under the same reasoning and a
+    second owner ruling -- item 32. Shape is enforced, reachability only reported — a frame folder made a
     minute ago is not shared yet — and an empty value clears the slot, because
     fixing a wrong link was half the original problem. The editor moved from one
     header button onto each row, since three writable slots and one permanently
@@ -579,3 +580,39 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     `unverified` is not gateway vocabulary and `http_status` already reached the
     page, so no gateway change. The probe remains a REPORT, never a gate; a slot
     it could not reach must not be painted like a broken one.
+
+32. **Reading a post's assets and brief is not a team privilege (2026-09-01).**
+    The owner's only active graphics designer opened VID-13513 -- the VIDEO
+    parent of a batch she has thumbnail work in -- and got "Description could
+    not load" over four `Unavailable` rows and "This staff account cannot read
+    assets for this issue." He opened the same screen as admin and saw
+    everything, so it read as her account and was not: `staffAssetReadAllowed`
+    admitted a `creative` on their OWN team only, and had since 2026-07-24. A
+    post's parent row is a VIDEO deliverable on 105 of the batches carrying
+    graphics work, and the brief a designer needs -- filming plan link, general
+    drive, the client's photos -- lives in that parent's DESCRIPTION, which the
+    same gate guards. One gate blanked both halves of her screen on any
+    video-parented post, which is why the two symptoms arrived together.
+    What the team match was not protecting: the caller is authenticated against
+    a declared client scope and the row lookup is pinned to that client, so a
+    cross-CLIENT read was never reachable through it. It separated two people
+    working the same post, and nothing else.
+    Owner ruling: *"I don't want this to be so strict ... anyone, graphic,
+    video, social media manager, or admin to be able to edit assets, except for
+    the filming plan ... on any parent issue or sub-issue or whatever."* So the
+    read opens to any staff role on either team, and `attachment` moves above
+    the team match beside `batch_asset` (item 27), which was widened the same
+    way on 2026-08-30 for the same reason -- a post is the unit of work, not a
+    team. **THE FILMING PLAN is the named exception and needed no new rule:** it
+    is absent from `BATCH_ASSET_SLOTS`, `batchAssetColumn` resolves it to
+    nothing, `PROD_ASSET_SPECS` gives it no `write` key so no Edit control
+    renders, and `production_batch_asset_write` rejects the slot in the
+    database. Three independent refusals, all asserted, none touched.
+    The widening stops where the ruling stopped. `status`, `due` and `comment`
+    keep the team match; `status` stays assignee-bound; descriptions stay
+    admin/SMM on both the deliverable and the post -- reading the brief is not
+    rewriting it. A creative with no roster team may read but not write, and a
+    client principal never reaches either function. The browser gate mirrors the
+    gateway and is asserted to decide `attachment` before the team match,
+    because a mismatch there is exactly what #1203 shipped: a control the
+    gateway would accept, hidden.

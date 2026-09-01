@@ -342,7 +342,11 @@ const seed = new Function('deps', `
   }
   {
     const render = grabFunc('_prodRender');
-    ok(/_prodBatchAssetSource\(_prodIssue\(_prodState\.openId\)\)/.test(render)
+    // The open id is resolved to the canonical row id before anything keys on
+    // it (2026-08-31): a deep link carries the Linear identifier, and every
+    // panel renders from issue.id. The property is unchanged — render asks for
+    // the borrowed read — only the expression that names the row moved.
+    ok(/_prodBatchAssetSource\(_prodIssue\(openRowId\)\)/.test(render)
       && /if \(batchAssetSource\) _prodEnsureAssets\(batchAssetSource\.id, false\)/.test(render),
       'the render loop actually ASKS for the borrowed read -- ensure on the parent id returns without a network call');
   }

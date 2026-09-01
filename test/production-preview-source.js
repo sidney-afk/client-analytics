@@ -30,6 +30,32 @@ function check(name, ok) {
 const prodStart = index.indexOf('PRODUCTION PREVIEW (Track B B2)');
 const prodEnd = index.indexOf('async function init(', prodStart);
 const prodBlock = prodStart >= 0 && prodEnd > prodStart ? index.slice(prodStart, prodEnd) : '';
+
+/* Brace-matches _prodRender out of the block, skipping strings AND comments --
+   index.html comments are prose full of apostrophes and braces, which a
+   quote-only scanner misreads as code. */
+function renderBody() {
+  const start = prodBlock.indexOf('function _prodRender()');
+  if (start < 0) return '';
+  let depth = 0, quote = '', comment = '', escaped = false;
+  for (let i = prodBlock.indexOf('{', start); i < prodBlock.length; i++) {
+    const c = prodBlock[i], n = prodBlock[i + 1];
+    if (comment === 'line') { if (c === '\n') comment = ''; continue; }
+    if (comment === 'block') { if (c === '*' && n === '/') { comment = ''; i++; } continue; }
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === quote) quote = '';
+      continue;
+    }
+    if (c === '/' && n === '/') { comment = 'line'; i++; continue; }
+    if (c === '/' && n === '*') { comment = 'block'; i++; continue; }
+    if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
+    if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return prodBlock.slice(start, i + 1);
+  }
+  return '';
+}
 const navMarkup = id => {
   const match = index.match(new RegExp(`<a[^>]+id="${id}"[\\s\\S]*?<\\/a>`));
   return match ? match[0] : '';
@@ -105,10 +131,15 @@ check('preview never lazy-loads full linear_raw for a detail row',
   && /_prodState\.linearRaw\.set\(id, \{\}\)/.test(prodBlock)
   && !/async function _prodLoadLinearRawFor\(id\)[\s\S]{0,900}_prodRestRows/.test(prodBlock)
   && /_prodLoadLinearRawFor\(id\)/.test(prodBlock)
-  // Window widened 900 -> 1200 on 2026-08-06: _prodRender gained the detail-pane
-  // scroll restore (one guard line) between the innerHTML swap and this call.
-  // The pinned property is unchanged: render itself triggers the lazy load.
-  && /function _prodRender\(\)[\s\S]{0,1200}_prodLoadLinearRawFor\(_prodState\.openId\)/.test(prodBlock));
+  /* The pinned property is that RENDER ITSELF triggers the lazy load. That was
+     expressed as a character-distance window, which is a proxy for "inside
+     _prodRender" and a bad one: the window was widened 900 -> 1200 on
+     2026-08-06 when render gained one guard line, and it broke again on
+     2026-08-31 when the detail branch gained an explanatory comment — neither
+     of which moved the property being asserted. It now brace-matches
+     _prodRender's actual body, so prose and guard lines are free and only a
+     real move of the call fails it. */
+  && renderBody().includes('_prodLoadLinearRawFor(openRowId)'));
 check('preview disables legacy bulk brief hydration outside boot',
   /async function _prodLoadBriefs\(opts\)/.test(prodBlock)
   && !/async function _prodLoadBriefs\(opts\)[\s\S]{0,700}_prodRestRows/.test(prodBlock)

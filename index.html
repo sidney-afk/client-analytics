@@ -49983,6 +49983,43 @@
             const sid = String(id || '');
             return _prodIssues().find(i => i.id === sid || i.displayId === sid) || null;
         }
+        /* The CANONICAL row id for whatever is open, which is not always what
+           `_prodState.openId` holds.
+
+           A deep link carries the LINEAR IDENTIFIER -- ?d=VID-13634, the form
+           every shared card link uses -- and the URL parser stores that string
+           verbatim. _prodIssue() resolves it happily, because it matches on
+           `id` OR `displayId`, so the row opens and the page looks right. But
+           every per-row read was then keyed by "VID-13634" while every panel
+           rendered from issue.id. One row, two cache keys.
+
+           Comments made it visible: render() draws the loading skeleton when it
+           has no state for the key it is given, ensure() does nothing once a
+           state exists for the key IT is given, and refresh() returns early
+           while a load is in flight. The read populated one key for ever and
+           the panel read the other, so the thread sat on the skeleton with no
+           error, no Retry, and no way out inside the tab. Reported 2026-08-31
+           against the shared link for VID-13634. The description, label and
+           asset reads split the same way and degraded more quietly, because
+           their panels seed a state rather than returning a placeholder.
+
+           NORMALISED AT THE POINT OF USE, NEVER IN THE STATE. The first version
+           of this fix rewrote `_prodState.openId` itself, and review caught
+           what that breaks: _prodApplyDeepLinkFallback compares openId against
+           `_prodState.deepLink.id` literally to decide whether the reader has
+           navigated away. Rewriting one side makes every deep link look like
+           `openedElsewhere`, which skips the authoritative re-apply AND
+           suppresses the missing-target notice -- so a row that went away
+           between the cached paint and the live read would drop the reader on
+           the list with no explanation. That is the exact 2026-08-24 report the
+           fallback was written to fix. openId stays the string the URL asked
+           for; only the read keys move. */
+        function _prodOpenRowId() {
+            const id = String(_prodState.openId || '');
+            if (!id) return '';
+            const row = _prodIssue(id);
+            return row ? String(row.id) : id;
+        }
         function _prodClient(slug) {
             return _prodProjects()[String(slug || '')] || null;
         }
@@ -56431,7 +56468,7 @@
                disagreed. */
             _prodState.labels = new Map([..._prodState.labels].filter(([id]) =>
                 _prodState.writes.has(String(id || '') + ':labels')));
-            if (_prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodState.openId);
+            if (_prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodOpenRowId());
             _prodRefreshAuthority({ silent: true });
             _prodLoadData({ silent });
         }
@@ -56671,7 +56708,7 @@
                     if (_prodState.view === 'detail' && _prodState.openId) {
                         // The open thread is operational data too; refresh()
                         // preserves the composer draft and scroll position.
-                        _prodComments.refresh(_prodState.openId);
+                        _prodComments.refresh(_prodOpenRowId());
                     }
                 }
                 _prodState.lastSyncAt = Date.now();
@@ -56752,23 +56789,24 @@
             const detailPane = root.querySelector('.prod-detail-main');
             if (detailPane && _prodState.detailScrollTop && _prodState.detailScrollKey === String(_prodState.openId || _prodState.openBatchId || '')) detailPane.scrollTop = _prodState.detailScrollTop;
             if (_prodState.view === 'detail' && _prodState.openId) {
-                _prodComments.ensure(_prodState.openId);
-                _prodLoadLinearRawFor(_prodState.openId);
-                _prodEnsureLabels(_prodState.openId, false);
-                _prodEnsureDescription(_prodState.openId, false);
-                _prodEnsureAssets(_prodState.openId, false);
+                const openRowId = _prodOpenRowId();
+                _prodComments.ensure(openRowId);
+                _prodLoadLinearRawFor(openRowId);
+                _prodEnsureLabels(openRowId, false);
+                _prodEnsureDescription(openRowId, false);
+                _prodEnsureAssets(openRowId, false);
                 /* A batch parent returns from the call above without a network
                    read -- it has no deliverable row to authorize against. The
                    panel it paints is the CHILD row, so the read that fills it
                    has to be asked for by id. Ensure is idempotent and cached
                    per row, so opening the parent and then the child costs one
                    read between them, not two. */
-                const batchAssetSource = _prodBatchAssetSource(_prodIssue(_prodState.openId));
+                const batchAssetSource = _prodBatchAssetSource(_prodIssue(openRowId));
                 if (batchAssetSource) _prodEnsureAssets(batchAssetSource.id, false);
                 /* The file pills on the sub-issue list. Asked for once per
                    batch, only where a list is actually drawn -- a row with a
                    parent renders no sub-issue section, so it needs none. */
-                const openIssue = _prodIssue(_prodState.openId);
+                const openIssue = _prodIssue(openRowId);
                 if (openIssue && !openIssue.parent && openIssue.batchId) {
                     _prodEnsureBatchFiles(
                         openIssue.batchId,

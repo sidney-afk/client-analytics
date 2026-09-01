@@ -68,6 +68,24 @@ nothing more.
 
 Twelve are direct or trivially derived. The work is in four places.
 
+### …but the row mapper is NOT the whole source contract
+
+Review on #1208 caught two more Linear reads that never pass through
+`_wlV2MapRow`, so a scope built from that table alone would have been costed
+short. Both are named here rather than discovered during the cutover:
+
+- **Tweak comments.** Opening a Tweak Needed popover calls
+  `wlFetchTweakComments()` (index.html), which POSTs the board's row ids to
+  `LINEAR_TWEAK_COMMENTS_WEBHOOK` — an **n8n** webhook,
+  `…/webhook/linear-tweak-comments`. Change the row id to `del_…` and that
+  endpoint matches nothing, immediately; remove Linear and the source is gone
+  entirely, leaving editors without the feedback that sent the work back. This
+  has to move to native comments (`production-comments` already serves them) or
+  keep an explicit Linear-UUID adapter for as long as it exists. **Touching that
+  n8n workflow needs the owner's explicit go-ahead.**
+- **Plan-day writes.** See §3b — the plan sidecar is keyed the same way, and the
+  gateway validates against `workload_issues` itself.
+
 ## 3. The four hard parts
 
 **a. Status vocabulary — and it is an improvement, not a tax.** The board tests
@@ -79,12 +97,31 @@ closed set we own. Linear's is not, and the live data shows why that matters:
 of one state, because the vocabulary is a human-editable display string in
 someone else's product. A native source ends that class of bug outright.
 
-**b. Row identity.** Every board row is currently keyed by a Linear uuid, and
-`_wlV2MapRow` puts it in `id`. Switching to `del_…` touches anything that
-round-trips an id — selection, the due-date write path, deep links. Choosing
-`linear_issue_uuid` instead keeps the change smaller **but keeps a Linear column
-load-bearing**, which is the thing being removed. Recommend native `id`, and
-budget for the call sites.
+**b. Row identity — and it is not only a browser concern.** Every board row is
+currently keyed by a Linear uuid, and `_wlV2MapRow` puts it in `id`. Switching to
+`del_…` touches anything that round-trips an id — selection, the due-date write
+path, deep links.
+
+**Two of those are server-side and must move in the same change, or the board
+silently loses saved work.** Raised by review on #1208 and verified:
+
+- `public.workload_plan` has `issue_id text primary key`, and its own comment
+  says *"keyed by the stable workload issue id"* — the Linear uuid. Every
+  manual plan day already saved is keyed that way. Change the browser's id
+  without migrating this table and those rows stop joining to the board: the
+  days do not error, they simply stop appearing.
+- `workload-plan`'s `requireWritableIssue()` validates every write against
+  `workload_issues` (index.ts:168). A native id fails that lookup, so every
+  subsequent drag or date write returns `issue_not_writable`.
+
+So the identity change needs a key migration (or a compatibility mapping) **and**
+a validation-source change in the gateway, both landed before the browser
+cutover. That is real work and it belongs in the estimate.
+
+Choosing `linear_issue_uuid` instead avoids all of it **but keeps a Linear column
+load-bearing**, which is the thing being removed. The recommendation is still
+native `id` — now with its actual cost stated rather than "budget for the call
+sites".
 
 **c. `url`.** Today every row links to Linear. After the exit there is no Linear
 to link to. This needs an owner answer — a SyncView deep link (`?prod=1&d=…`)
@@ -124,8 +161,18 @@ requires the next to have happened.
 3. **Reconcile the diff to zero** for active-roster clients. Item 95's 40 rows
    should appear on the native side and not the Linear side — that is the
    acceptance test, not an incident.
-4. **Default it on**, keep `?wlnative=0` as the one-browser rollback.
+4. **Default it on**, keep `?wlnative=0` as the one-browser rollback — which is
+   only a rollback while `workload_issues` is still being populated (see below).
 5. **Only then** stop writing Linear sub-issues, and retire the reconcile.
+
+**Steps 4 and 5 contradict each other unless the flag is retired first**, and
+review on #1208 was right to refuse the original wording. `?wlnative=0` falls
+back to `workload_issues`; step 5 stops that table receiving anything new. A
+browser opted out after step 5 would show a board that silently degrades as
+every newly created deliverable fails to appear — the worst shape, because it
+looks like a working board. So either **keep mirroring through the whole
+rollback window**, or **remove/expire the flag and define a different rollback
+before executing step 5**. Do not carry a rollback lever that stops being one.
 
 ## 6. Owner decisions this needs
 

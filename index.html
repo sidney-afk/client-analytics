@@ -51146,14 +51146,20 @@
                team value, so matching on it would hand the shared folder to
                whichever team happened to be recorded. Mirrors staffOperationAllowed. */
             if (operation === 'batch_asset' || operation === 'batch_description') return !!memberTeam;
+            /* `attachment` joins them above the team match, by the owner ruling
+               of 2026-09-01: any of graphics, video, SMM or admin may edit
+               assets "on any parent issue or sub-issue". Mirrors
+               staffOperationAllowed, which decides the same operation in the
+               same place -- if these two ever disagree the browser either hides
+               a control the gateway would accept, or offers one it will refuse.
+               The FILMING PLAN is the named exception and needs no clause: it
+               carries no `write` key in PROD_ASSET_SPECS, so no Edit control is
+               ever rendered for it. */
+            if (operation === 'attachment') return !!memberTeam;
             if (!memberTeam || memberTeam !== _prodWriteTeam(issue.team)) return false;
             if (PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS.includes(operation)
                 && !_prodCreativeOwnsTarget(issue)) return false;
             if (operation === 'comment') return true;
-            // A creative attaches on their OWN team, video included: the team
-            // match above already confines them, so an editor cannot touch a
-            // graphics row and a designer cannot touch a video one.
-            if (operation === 'attachment') return true;
             if (operation === 'status') return _prodCreativeNextStatuses(issue).length > 0;
             return false;
         }

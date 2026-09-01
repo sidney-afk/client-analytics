@@ -298,10 +298,11 @@ const CANDIDATES = new Map([
   // Codex findings: the card is read and locked, and the parent route is
   // inherited from the sibling on a single-team batch. File count still 5.
   ['production-write', {
-    // Re-pinned 2026-09-01 (twenty-third release): the batch_description
-    // operation. See the workflow note for why it is its own operation and
-    // why its event carries no `outbound` key.
-    source: 'd1c2b6666e97b538961e8f9995a792c97e0c7fc96c0a6bd0187440840ab66faf',
+    // Re-pinned 2026-09-01 (twenty-fourth release): asset access opens across
+    // teams -- staffAssetReadAllowed drops the creative team match, and
+    // `attachment` moves above it beside `batch_asset`. See the workflow note
+    // for the ruling and for why the filming plan is untouched.
+    source: '556991c5f5c6c50a3d740c5a74a5100ded103a6d2484b190b3b1a8564f6d6051',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

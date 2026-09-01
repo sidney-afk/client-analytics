@@ -176,7 +176,21 @@ jobs:
       # row of pills was the exact cost this read was written to avoid. Same
       # binding rule, same refusal on a failed lookup; only the query count
       # moves. File count unchanged at 5.
-      # Re-pinned 2026-09-01 (twenty-third release): a POST'S OWN DESCRIPTION
+      # Re-pinned 2026-09-01 (TWENTY-FOURTH release): ASSET ACCESS OPENS ACROSS
+      # TEAMS. staffAssetReadAllowed no longer requires a creative's team to
+      # match the row's, and `attachment` moves above the team match beside
+      # `batch_asset`. Owner ruling the same day, after his only graphics
+      # designer opened the VIDEO parent post her thumbnail work hangs off and
+      # got neither the description nor the assets, while an admin saw both:
+      # "I want anyone, graphic, video, social media manager, or admin to be
+      # able to edit assets, except for the filming plan ... on any parent
+      # issue or sub-issue". The FILMING PLAN is untouched and stays refused in
+      # three independent places. Client principals are refused before either
+      # function is reached, and the client scope is still enforced by the
+      # caller-declared slug, so this widened WHICH TEAM a staff member may
+      # reach and nothing else. File count unchanged at 5.
+      #
+      # Previous (twenty-third release): a POST'S OWN DESCRIPTION
       # becomes writable. New batch_description operation calling
       # production_batch_description_write -- deliberately its own operation
       # rather than `description` with entity=batch, so it cannot acquire the
@@ -188,7 +202,7 @@ jobs:
       # description for all of the sub-issues". Additive: no existing operation
       # changes. File count unchanged at 5 (policy.mjs gains the operation name
       # and the role rule; no new module).
-      PRODUCTION_WRITE_SOURCE_SHA256: d1c2b6666e97b538961e8f9995a792c97e0c7fc96c0a6bd0187440840ab66faf
+      PRODUCTION_WRITE_SOURCE_SHA256: 556991c5f5c6c50a3d740c5a74a5100ded103a6d2484b190b3b1a8564f6d6051
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

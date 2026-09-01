@@ -77,8 +77,9 @@ const parentEntry = (owner) => ({
   video: { uuid: UUID, identifier: 'VID-13555', url: 'https://linear.app/x/VID-13555',
     ...(owner ? { owner_team: 'video' } : {}) },
 });
-const NATIVE = { id: 'bat_native', client_slug: 'acme', name: 'Post', linear_parent_ids: parentEntry(true) };
-const MIRROR = { id: 'b1_b_mirror', client_slug: 'acme', name: 'Post', linear_parent_ids: parentEntry(false) };
+const NATIVE = { id: 'bat_native', client_slug: 'acme', name: 'Post', status: 'active', linear_parent_ids: parentEntry(true) };
+const MIRROR = { id: 'b1_b_mirror', client_slug: 'acme', name: 'Post', status: 'active', linear_parent_ids: parentEntry(false) };
+const archivedOf = (batch, id) => ({ ...batch, id: id || batch.id, status: 'archived' });
 const children = (batchId) => Array.from({ length: 3 }, (_, i) => ({
   id: 'del_' + i, batch_id: batchId, raw_issue_parent_id: UUID, linear_issue_uuid: 'kid-' + i,
 }));
@@ -137,14 +138,70 @@ function run(batches, rows) {
     'a parent that has a REAL deliverable row of its own still mints no synthetic one — the uuid is excluded before any of this');
 }
 
-/* ---- 3. The tie-break is stated in code, not inferred ------------------ */
+/* ---- 3. AN ARCHIVED CLAIMANT NEVER WINS -------------------------------
+   Raised by review, and it is not hypothetical. B1's own
+   dropClaimsOwnedByAnotherBatch skips archived rows when deciding who owns a
+   uuid (b1-linear-backfill.js:1080), so an ACTIVE import is deliberately
+   allowed to reuse a claim held by an ARCHIVED batch -- while this projection
+   loads batches with no status filter and sees both. On a prefix-only rule the
+   archived native row wins and live children hang under a retired post,
+   rendered with its stale title and description.
+   Measured across all 1,658 live batch rows: 1 of the 12 native-plus-mirror
+   pairs is exactly that shape, and the same rule rescues a second post whose
+   two claimants are both mirrors with one archived. */
+
+{
+  const r = run([archivedOf(NATIVE), MIRROR], children('b1_b_mirror'));
+  const node = r.byIdentifier.get('VID-13555');
+  ok(node && node.batchId === 'b1_b_mirror',
+    'an ARCHIVED native loses to an ACTIVE mirror — provenance never outranks being retired, or live children render under a dead post');
+}
+{
+  const r = run([NATIVE, archivedOf(MIRROR)], children('bat_native'));
+  const node = r.byIdentifier.get('VID-13555');
+  ok(node && node.batchId === 'bat_native',
+    'and an archived MIRROR loses to an active native, where both rules point the same way');
+}
+{
+  // Both archived: nothing is live, so provenance decides as before.
+  const r = run([archivedOf(MIRROR), archivedOf(NATIVE)], children('bat_native'));
+  const node = r.byIdentifier.get('VID-13555');
+  ok(node && node.batchId === 'bat_native',
+    'when BOTH are archived the native still wins — the archived rule ranks liveness, it does not veto a post outright');
+}
+{
+  // The rule also settles a mirror-vs-mirror pair, which provenance cannot.
+  const r = run([archivedOf(MIRROR, 'b1_b_old'), MIRROR], children('b1_b_mirror'));
+  const node = r.byIdentifier.get('VID-13555');
+  ok(node && node.batchId === 'b1_b_mirror',
+    'two mirrors with one archived now resolve to the live one — measured to rescue a second post that provenance alone could not');
+}
+{
+  // `done` is a finished post, not a retired one.
+  const doneNative = { ...NATIVE, status: 'done' };
+  const r = run([MIRROR, doneNative], children('bat_native'));
+  const node = r.byIdentifier.get('VID-13555');
+  ok(node && node.batchId === 'bat_native',
+    "a `done` batch is not archived and still competes — a finished post is a real post");
+}
+{
+  const r = run([archivedOf(MIRROR, 'b1_b_a'), archivedOf(MIRROR, 'b1_b_b')], children('b1_b_a'));
+  ok(!r.byIdentifier.has('VID-13555'),
+    'two archived mirrors are still ambiguous and still dropped — the widening reaches only pairs where one side is distinguishable');
+}
+
+/* ---- 4. The tie-break is stated in code, not inferred ------------------ */
 
 const resolver = grabFunc(INDEX, '_prodResolveBatchParentNodes');
-ok(/\/\^bat_\/\.test\(byUuid\.get\(uuid\)\.batchId\)/.test(resolver)
+ok(/\/\^bat_\/\.test\(held\.batchId\)/.test(resolver)
   && /\/\^bat_\/\.test\(batchId\)/.test(resolver),
   'provenance is read from the id prefix on BOTH sides rather than assumed from arrival order');
 ok(/if \(heldIsNative === thisIsNative\) \{ ambiguous\.add\(uuid\); return; \}/.test(resolver),
   'a same-provenance pair takes the ambiguous path, so the widening cannot leak past the case it was measured for');
+ok(/const batchArchived = String\(batch && batch\.status \|\| ''\)\.trim\(\)\.toLowerCase\(\) === 'archived';/.test(resolver),
+  'archived-ness is read off the row and normalised, not inferred from the id or assumed absent');
+ok(resolver.indexOf('heldArchived !== thisArchived') < resolver.indexOf('heldIsNative === thisIsNative'),
+  'and it is checked BEFORE provenance — the ordering IS the fix, since a prefix-first rule hands live children to a retired post');
 ok(/ambiguous\.forEach\(uuid => byUuid\.delete\(uuid\)\)/.test(resolver),
   'and the ambiguous drop itself is still there — this change chooses a winner where one exists, it does not remove the guard');
 

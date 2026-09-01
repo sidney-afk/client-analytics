@@ -529,7 +529,7 @@ executes these files (see `README.md` › Repository layout).
   earlier returned the batch row with its folder URL set.
 
 - **`2026-09-01-batch-description-write.sql`** adds
-  `public.production_batch_description_write(text, text, text, jsonb)`, so a
+  `public.production_batch_description_write(text, text, text, text, jsonb)`, so a
   POST's own description can be edited. Owner request 2026-08-31, on a batch
   parent opened from a shared card link: "any parent issue should be able to ...
   the description should be editable", and on the shape, "I want it like linear,
@@ -562,5 +562,51 @@ executes these files (see `README.md` › Repository layout).
   `f27_authority_generation_stale` → 500 `write_failed` on the asset path.
   `test/batch-description-write.js` pins both lessons and refuses the other five
   operations on a batch parent.
-  **NOT YET APPLIED to production** as of this commit — the owner runs the SQL,
-  then deploys the gateway closure.
+  **APPLIED, and then superseded before it ever committed a row.** The SQL was
+  run and the gateway closure deployed (`production-write` v65, 2026-09-01), and
+  the function still could not save anything — see the next entry. Do NOT
+  reconstruct a database by stopping here.
+  Applied status verified 2026-09-01 rather than assumed, because the previous
+  wording here said the opposite: a `POST /rest/v1/rpc/` to the function with
+  the browser's read-only publishable key answers `401` / `42501 permission
+  denied for function`, which PostgreSQL can only raise for a function that
+  EXISTS, while a name that does not exist answers `404` / `PGRST202 no matches
+  were found in the schema cache`. The same call also confirms the grants are as
+  written — reachable by `service_role`, refused to `anon`.
+
+- **`2026-09-01-batch-description-cas-timestamptz.sql`** replaces the body
+  installed above, keeping the signature
+  `public.production_batch_description_write(text, text, text, text, jsonb)`
+  byte-identical. **Apply this one after it; a database rebuilt from the
+  baseline plus deltas that stops at the previous entry carries a writer that
+  refuses every save.**
+
+  Two bugs, both of which made a post description unsaveable for every user from
+  the hour the feature merged. First, the compare-and-swap compared
+  `updated_at::text` (`2026-08-31 20:18:54.574498+00`) against the ISO rendering
+  PostgREST hands the browser and the browser hands back
+  (`2026-08-31T20:18:54.574498+00:00`) — the same instant, different text — so
+  `is distinct from` was true on an untouched row and refused every save. It was
+  the only writer in the estate declaring `p_expected_updated_at` as `text`;
+  `2026-08-26-production-intake-append-v7.sql`,
+  `2026-08-31-production-component-fill.sql` and
+  `2026-07-23-f34-f53-production-attachments.sql` all declare `timestamptz`.
+  Second, its three `raise exception` messages were spaced English, which
+  matches none of the gateway's underscore guards, so even a correct refusal
+  fell through to 500 `native_write_failed` — a `wait`-class code that told the
+  user to retry something that could never succeed.
+
+  **The parameter stays `text` on purpose**, and that is what keeps this a
+  SQL-only repair: a `timestamptz` parameter changes the function's identity, so
+  `create or replace` would install a second overload beside the broken one, and
+  PostgREST — which resolves an RPC by the argument names in the JSON body, not
+  by type — would answer `PGRST203` ambiguous. The cast moved inside the body,
+  and the raises were renamed to tokens the already-deployed gateway maps
+  (`..._write_conflict` → 409, `..._batch_not_found` → 409). **No edge-function
+  deploy is part of this delta.** Nothing else changed: the three-key whitelist,
+  the scope-then-lock ordering, the union-of-teams authority assertion, the
+  `nullif`-without-`btrim` erase and the service_role-only grants are restated
+  verbatim. `test/batch-description-cas-timestamptz.js` executes the deployed
+  gateway's own mapper regexes against the migration's own raise strings, and
+  its opt-in `BATCH_DESCRIPTION_CAS_PROBE=1` leg runs both bodies against a
+  disposable PostgreSQL 16 database created from `template0`.

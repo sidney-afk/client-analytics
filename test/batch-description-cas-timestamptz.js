@@ -271,77 +271,203 @@ ok(/revoke all on function public\.production_batch_description_write[\s\S]*?fro
 ok(/^begin;$/m.test(fixed) && /^commit;$/m.test(fixed),
   'and the whole file is one transaction');
 
-/* ---- 6. Optional executed proof against a real PostgreSQL -------------- */
+/* ---- 6. The ledgers name this delta, with the signature a drop needs ---- */
+
+/* Both of these were wrong when this PR opened, and both fail SILENTLY, which
+   is why they are pinned rather than trusted. Raised by review on #1216. */
+
+const ROLLBACK = fs.readFileSync(path.join(ROOT, 'ROLLBACK.md'), 'utf8');
+const argTypes = normalize(fixedSig ? fixedSig[1] : '')
+  .split(',')
+  .map(part => (part.trim().split(/\s+/)[1] || '').toLowerCase())
+  .filter(Boolean)
+  .join(', ');
+ok(argTypes === 'text, text, text, text, jsonb',
+  'the function takes five argument types (' + argTypes + ')');
+const drops = ROLLBACK.match(/drop function if exists\s*\n?\s*public\.production_batch_description_write\(([^)]*)\)/g) || [];
+ok(drops.length > 0, 'ROLLBACK.md names a drop for this function');
+drops.forEach(d => {
+  const named = normalize(/\(([^)]*)\)/.exec(d)[1]).toLowerCase();
+  ok(named === argTypes,
+    'and it names ALL FIVE types (' + named + ') — `drop function if exists` with a wrong signature matches nothing and EXITS 0, so a four-type drop reports a successful rollback while leaving the real writer installed');
+});
+
+const MIG_README = fs.readFileSync(path.join(ROOT, 'migrations', 'README.md'), 'utf8');
+ok(MIG_README.includes('2026-09-01-batch-description-cas-timestamptz.sql'),
+  'the migration ledger names this delta — an operator rebuilding from the baseline plus deltas must not stop at the superseded body, which refuses every save');
+ok(!/production_batch_description_write\(text, text, text, jsonb\)/.test(MIG_README)
+  && !/production_batch_description_write\(text, text, text, jsonb\)/.test(ROLLBACK),
+  'and neither ledger still documents the four-argument signature that does not exist');
+
+/* ---- 7. Optional executed proof against a real PostgreSQL -------------- */
 
 if (String(process.env.BATCH_DESCRIPTION_CAS_PROBE || '') === '1') {
-  const harness = `
-create table if not exists public.clients(slug text primary key, active boolean not null default true);
-create table if not exists public.batches (
+  /* THE PROBE MUST BE UNABLE TO REACH ANYTHING REAL, and an opt-in flag does not
+     establish that. Raised by review on #1216, correctly: the harness below
+     `create or replace`s `public.batch_write` and
+     `public.production_assert_authority` -- the estate's actual write and
+     authorization functions -- with one-purpose stubs. Pointed at a real
+     database by ambient PG* variables, it would replace core write logic with a
+     stub that only understands `description`. A flag is a promise; what follows
+     is proof, and it is the same shape test/f63-flip-runbook-sql-gate.js already
+     uses for exactly this reason:
+
+       * the host must be loopback, so there is nothing remote to reach;
+       * PGDATABASE must be the `postgres` bootstrap database, PGPORT and PGUSER
+         explicit, and the environment handed to psql is rebuilt from scratch --
+         no PGSERVICE, no PGOPTIONS, no PGHOSTADDR can redirect it;
+       * every statement then runs inside a database CREATED SECONDS EARLIER
+         from template0 and dropped in `finally`, never the connected one;
+       * and that database is asserted empty of public relations and functions
+         before a single DDL statement runs. A real database fails that check
+         instantly, which is the guarantee a flag cannot give.
+
+     A guard that fails is a FAILURE, never a skip: the flag was set, so the
+     proof was asked for. */
+  const allowedHosts = new Set(['localhost', '127.0.0.1', '::1']);
+  const pgHost = String(process.env.PGHOST || '').trim().toLowerCase();
+  const pgPort = String(process.env.PGPORT || '').trim();
+  const pgUser = String(process.env.PGUSER || '').trim();
+  const pgDatabase = String(process.env.PGDATABASE || '').trim();
+
+  const guards = [
+    [allowedHosts.has(pgHost),
+      'the probe refuses a non-loopback PGHOST (' + (pgHost || '(missing)') + ') — there must be nothing remote to reach'],
+    [pgDatabase === 'postgres',
+      'the probe bootstraps only through the `postgres` database (' + (pgDatabase || '(missing)') + '), never a live one'],
+    [/^\d+$/.test(pgPort), 'the probe requires an explicit numeric PGPORT'],
+    [!!pgUser, 'the probe requires an explicit PGUSER'],
+  ];
+  const guarded = guards.every(([pass, message]) => { ok(pass, message); return pass; });
+
+  if (guarded) {
+    // Rebuilt from scratch so no PGSERVICE / PGOPTIONS / PGHOSTADDR survives to
+    // redirect the connection somewhere this file never checked.
+    const psqlEnv = {};
+    for (const name of ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'HOME', 'LANG', 'LC_ALL']) {
+      if (process.env[name] !== undefined) psqlEnv[name] = process.env[name];
+    }
+    Object.assign(psqlEnv, {
+      PGHOST: pgHost,
+      PGPORT: pgPort,
+      PGUSER: pgUser,
+      PGPASSWORD: String(process.env.PGPASSWORD || ''),
+      PGDATABASE: 'postgres',
+      PGSSLMODE: String(process.env.PGSSLMODE || 'disable'),
+    });
+    ok(Object.keys(psqlEnv).filter(n => /^PG/.test(n)).sort().join(',')
+      === 'PGDATABASE,PGHOST,PGPASSWORD,PGPORT,PGSSLMODE,PGUSER',
+      'and psql receives no service, host-address or options override');
+
+    const database = 'bdcas_' + process.pid + '_' + Date.now();
+
+    const psql = (db, args, opts) => spawnSync('psql',
+      ['-X', '--quiet', '--no-align', '--tuples-only', '--dbname', db].concat(args),
+      Object.assign({ env: psqlEnv, encoding: 'utf8', timeout: 60000 }, opts || {}));
+    const run = (db, sql, stop) => psql(db, ['--set', 'ON_ERROR_STOP=' + (stop === false ? '0' : '1'), '--file', '-'], { input: sql });
+    const runFile = (db, file) => psql(db, ['--set', 'ON_ERROR_STOP=1', '--file', file]);
+    const scalar = (db, sql) => String((run(db, sql + ';\n').stdout || '')).trim();
+
+    const up = psql('postgres', ['--command', 'select 1']);
+    if (up.status !== 0) {
+      ok(false, 'BATCH_DESCRIPTION_CAS_PROBE=1 was set but psql could not connect: '
+        + String(up.stderr || up.error || '').trim());
+    } else {
+      // Roles are cluster-scoped, so create only the ones that are missing and
+      // drop only those again — never a role that was already there.
+      const roleNames = ['anon', 'authenticated', 'service_role'];
+      const mine = roleNames.filter(r =>
+        scalar('postgres', "select count(*) from pg_roles where rolname = '" + r + "'") === '0');
+      mine.forEach(r => run('postgres', 'create role "' + r + '";'));
+
+      let created = false;
+      try {
+        const made = run('postgres', 'create database "' + database + '" template template0;');
+        created = made.status === 0;
+        ok(created, 'a disposable database was created from template0 for this probe');
+
+        if (created) {
+          ok(scalar(database, "select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'") === '0'
+            && scalar(database, "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'") === '0',
+            'and it is PROVEN EMPTY of public relations and functions before any DDL runs — a real database fails this, which is the guarantee the opt-in flag cannot give');
+          ok(/^16\d{4}$/.test(scalar(database, 'show server_version_num')),
+            'on PostgreSQL 16, the version the estate runs');
+
+          run(database, `
+create table public.clients(slug text primary key, active boolean not null default true);
+create table public.batches (
   id text primary key, client_slug text not null references public.clients(slug),
   team text check (team in ('video','graphics')), name text not null, description text,
   status text not null default 'active', updated_at timestamptz not null default now());
-create table if not exists public.deliverables (
+create table public.deliverables (
   id text primary key, batch_id text not null references public.batches(id),
   client_slug text not null references public.clients(slug), team text not null);
-create or replace function public.production_assert_authority(a text, b text, c boolean, d boolean)
+create function public.production_assert_authority(a text, b text, c boolean, d boolean)
 returns void language plpgsql as $$ begin
   if b is null then raise exception 'authority_unavailable'; end if; end $$;
-create or replace function public.batch_write(p_row jsonb, p_event jsonb)
+create function public.batch_write(p_row jsonb, p_event jsonb)
 returns public.batches language plpgsql as $$ declare r public.batches%rowtype; begin
   update public.batches b set
     description = case when p_row ? 'description' then p_row->>'description' else b.description end,
     updated_at = now()
   where b.id = p_row->>'id' returning b.* into r; return r; end $$;
-insert into public.clients values ('probe', true) on conflict do nothing;
-delete from public.deliverables where id = 'probe_d1';
-delete from public.batches where id = 'probe_b1';
+insert into public.clients values ('probe', true);
 insert into public.batches(id, client_slug, team, name, description, updated_at)
   values ('probe_b1','probe','video','Post','seed','${BROWSER_RENDERING}');
 insert into public.deliverables values ('probe_d1','probe_b1','probe','video');
-`;
-  // The migration files wrap themselves in begin/commit; the probe runs each
-  // as its own script so that stays true, then asserts on the outcome.
-  const run = sql => spawnSync('psql', ['-X', '-q', '-tA', '-v', 'ON_ERROR_STOP=0', '-c', sql],
-    { encoding: 'utf8' });
-  const runFile = file => spawnSync('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', file],
-    { encoding: 'utf8' });
+`);
 
-  const up = run('select 1');
-  if (up.status !== 0) {
-    console.error('FAIL  BATCH_DESCRIPTION_CAS_PROBE=1 but psql could not connect: '
-      + String(up.stderr || up.error || '').trim());
-    failures++;
-  } else {
-    run("create role anon; create role authenticated; create role service_role;");
-    run(harness);
-    const call = "select (public.production_batch_description_write("
-      + "'probe_b1','probe','probe text','" + BROWSER_RENDERING + "','{}'::jsonb)).description;";
+          const call = (expectation, text) => run(database,
+            "select (public.production_batch_description_write('probe_b1','probe','" + text + "',"
+            + (expectation === null ? 'null' : "'" + expectation + "'") + ",'{}'::jsonb)).description;\n",
+            false);
+          const reset = () => run(database,
+            "update public.batches set updated_at = '" + BROWSER_RENDERING + "' where id = 'probe_b1';");
 
-    runFile(SHIPPED_PATH);
-    const before = run(call);
-    ok(/production batch description write conflict/.test(String(before.stderr || '') + String(before.stdout || '')),
-      'EXECUTED: the shipped body refuses an UNTOUCHED row when handed the exact string the browser sends');
+          runFile(database, SHIPPED_PATH);
+          const before = call(BROWSER_RENDERING, 'probe text');
+          ok(/production batch description write conflict/.test(String(before.stderr || '')),
+            'EXECUTED: the shipped body refuses an UNTOUCHED row when handed the exact string the browser sends');
 
-    run("update public.batches set updated_at = '" + BROWSER_RENDERING + "' where id = 'probe_b1';");
-    runFile(FIXED_PATH);
-    const after = run(call);
-    ok(String(after.stdout || '').trim() === 'probe text',
-      'EXECUTED: the replacement commits that same save');
+          reset();
+          runFile(database, FIXED_PATH);
+          const after = call(BROWSER_RENDERING, 'probe text');
+          ok(String(after.stdout || '').trim() === 'probe text',
+            'EXECUTED: the replacement commits that same save');
 
-    const stale = run("select (public.production_batch_description_write("
-      + "'probe_b1','probe','nope','2020-01-01T00:00:00+00:00','{}'::jsonb)).description;");
-    ok(/production_batch_description_write_conflict/.test(String(stale.stderr || '')),
-      'EXECUTED: and a genuinely stale expectation is still refused, with the token the gateway maps');
+          ok(/production_batch_description_write_conflict/.test(
+            String(call('2020-01-01T00:00:00+00:00', 'nope').stderr || '')),
+            'EXECUTED: a genuinely stale expectation is still refused, with the token the gateway maps');
 
-    const bad = run("select (public.production_batch_description_write("
-      + "'probe_b1','probe','nope','not-a-timestamp','{}'::jsonb)).description;");
-    ok(/production_batch_description_write_conflict/.test(String(bad.stderr || '')),
-      'EXECUTED: a malformed expectation is a conflict, not a 22007 into the generic 500');
+          ok(/production_batch_description_write_conflict/.test(
+            String(call('not-a-timestamp', 'nope').stderr || '')),
+            'EXECUTED: a malformed expectation is a conflict, not a 22007 into the generic 500');
 
-    run("delete from public.deliverables where id = 'probe_d1'; delete from public.batches where id = 'probe_b1';");
+          // The instant, not the string: a different offset naming the same
+          // moment must be accepted, or the fix is only a different formatting
+          // coincidence.
+          reset();
+          const shifted = scalar(database,
+            "select to_char(timestamptz '" + BROWSER_RENDERING + "' at time zone 'America/New_York', 'YYYY-MM-DD\"T\"HH24:MI:SS.US') || '-04:00'");
+          ok(String(call(shifted, 'via offset').stdout || '').trim() === 'via offset',
+            'EXECUTED: and an offset-shifted rendering of the SAME instant (' + shifted + ') is accepted — the proof it compares instants, not strings');
+
+          reset();
+          ok(String(call(null, 'via null').stdout || '').trim() === 'via null'
+            && String(call('', 'via empty').stdout || '').trim() === 'via empty',
+            'EXECUTED: a null or empty expectation means no expectation, so a repair or a backfill can still write');
+        }
+      } finally {
+        if (created) {
+          run('postgres', "select pg_terminate_backend(pid) from pg_stat_activity where datname = '"
+            + database + "' and pid <> pg_backend_pid();\ndrop database \"" + database + "\";\n");
+        }
+        mine.forEach(r => run('postgres', 'drop role if exists "' + r + '";'));
+      }
+    }
   }
 } else {
-  console.log('  --  executed probe skipped (set BATCH_DESCRIPTION_CAS_PROBE=1 with PG* env to run it)');
+  console.log('  --  executed probe skipped (BATCH_DESCRIPTION_CAS_PROBE=1 with a loopback PG* env runs it)');
 }
 
 console.log(failures === 0

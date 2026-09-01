@@ -452,7 +452,12 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   it. Revert the browser half first (Edit leaves the batch parent's description), then redeploy the
   prior `production-write` closure through `.github/workflows/deploy-f27-section4-closures.yml`,
   and only then, if the function should be gone at all, `drop function if exists
-  public.production_batch_description_write(text, text, text, jsonb);`. Leaving it installed under
+  public.production_batch_description_write(text, text, text, text, jsonb);`. **All five argument
+  types, and the count is load-bearing:** the function takes
+  `(text, text, text, text, jsonb)`, and `drop function if exists` with the wrong signature matches
+  nothing and exits 0 — so a four-type drop reports success while leaving the real writer
+  installed. `test/batch-description-cas-timestamptz.js` fails if this line and the migrations stop
+  agreeing. Leaving it installed under
   a reverted gateway costs nothing — nothing else calls it.
   **One-step containment** is the same lever: set the batch team's `prod_authority` back to
   `linear`, which the function asserts before it writes.

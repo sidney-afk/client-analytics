@@ -36,6 +36,9 @@ const ROOT = path.resolve(__dirname, '..');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const POLICY_SRC = fs.readFileSync(path.join(ROOT, 'supabase/functions/production-write/policy.mjs'), 'utf8');
 const GATEWAY_SRC = fs.readFileSync(path.join(ROOT, 'supabase/functions/production-write/index.ts'), 'utf8');
+// The operator-facing runbook. A permission change that leaves this saying
+// the opposite is a change that will be rolled back wrongly.
+const ROLLBACK = fs.readFileSync(path.join(ROOT, 'ROLLBACK.md'), 'utf8');
 
 let failures = 0;
 function ok(condition, message) {
@@ -123,6 +126,39 @@ function ok(condition, message) {
     'and it decides `attachment` BEFORE the team match, mirroring the gateway -- below it, a designer would see no Edit control the gateway would have honoured');
   ok(!/\/\/ A creative attaches on their OWN team/.test(INDEX),
     'the superseded own-team comment is gone rather than left contradicting the line under it');
+
+  /* ---- 6. THE PROSE THAT AN OPERATOR ACTS ON ----------------------------
+     Raised by review on this PR, and it is the right kind of finding: a
+     permission boundary lives in three places that no test reads -- the
+     rollback runbook, the comment above the assignee-bound set, and the
+     comment explaining why an asset slot seeds unreadable. All three still
+     described the own-team rule after the code stopped implementing it. The
+     runbook one is the one that bites: somebody reads it at 2am to plan a
+     revert and takes away the opposite boundary in BOTH directions, since it
+     also named `batch_description` as cross-team when a creative cannot
+     perform it at all.
+     These assert the SUPERSEDED sentences are gone rather than that some new
+     sentence is present, because the failure mode is prose left behind, and a
+     positive match would pass on a file that says both things. */
+
+  ok(!/`batch_asset` is one of two\s+operations where a creative is NOT confined/.test(ROLLBACK),
+    'ROLLBACK.md no longer tells an operator that batch_asset is one of TWO cross-team operations');
+  ok(!/\(`batch_description`, below, is\s+the other and is widened for the same reason\)/.test(ROLLBACK),
+    'and no longer names batch_description as the other one -- a creative cannot perform it on either team');
+  ok(!/Every other operation keeps\s+the confinement/.test(ROLLBACK),
+    'and no longer claims every other operation keeps the confinement, now that `attachment` does not');
+  ok(/`attachment`/.test(ROLLBACK) && /asset-access-any-team\.js/.test(ROLLBACK),
+    'it names `attachment` as the cross-team operation instead, and points at the test that holds the boundary');
+
+  ok(!/Attachment stays team-bound/.test(POLICY_SRC),
+    'the comment above CREATIVE_ASSIGNEE_BOUND_OPERATIONS no longer says attachment stays team-bound');
+  ok(!/the op is\s*\n\/\/ already graphics-only below/.test(POLICY_SRC),
+    'nor that it is graphics-only -- it is neither, and that comment sits directly above the rule it described');
+
+  ok(!/staffAssetReadAllowed admits a creative key only for/.test(INDEX),
+    'the asset-seed comment no longer lists "a creative opening the other team" as a permanent unreadable group');
+  ok(/Permanent for two groups/.test(INDEX),
+    'and counts the groups that remain, rather than leaving a count that no longer matches its own list');
 
   console.log(failures === 0
     ? '\nasset access any-team checks passed'

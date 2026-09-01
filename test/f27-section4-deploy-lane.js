@@ -302,14 +302,18 @@ const CANDIDATES = new Map([
     // teams -- staffAssetReadAllowed drops the creative team match, and
     // `attachment` moves above it beside `batch_asset`. See the workflow note
     // for the ruling and for why the filming plan is untouched. (Numbered
-    // twenty-FOURTH when written, colliding with the component_fill release
-    // above it; corrected here so the sequence still counts releases.)
+    // twenty-FOURTH when first written, colliding with the component_fill
+    // release above; corrected so the sequence still counts releases.)
+    // Amended before merge for the Codex P2: the comment above
+    // CREATIVE_ASSIGNEE_BOUND_OPERATIONS still said attachment stays
+    // team-bound, sitting directly above the set it describes. Comment-only
+    // inside the closure, but it moves the hash, so the pin moves with it.
     // Re-pinned 2026-09-01 (twenty-sixth release): the filming plan slot falls
     // back to the CLIENT's plan when the batch column is empty -- which it is
     // for every batch not made through the intake path. Read-only, no
     // migration, and the filming plan stays unwritable at all three layers.
     // No new import: file count unchanged at 5.
-    source: 'a987df41803d38584154d7367b1f8e2b51002ce57ad8c147089499dc2ed7eed6',
+    source: 'PLACEHOLDER',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

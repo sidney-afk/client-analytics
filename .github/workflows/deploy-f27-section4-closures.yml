@@ -188,7 +188,16 @@ jobs:
       # three independent places. Client principals are refused before either
       # function is reached, and the client scope is still enforced by the
       # caller-declared slug, so this widened WHICH TEAM a staff member may
-      # reach and nothing else. File count unchanged at 5.
+      # reach and nothing else. File count unchanged at 5. Amended before merge
+      # for a review finding: the comment above
+      # CREATIVE_ASSIGNEE_BOUND_OPERATIONS still said attachment stays
+      # team-bound, sitting directly above the set it describes, and ROLLBACK.md
+      # told an operator the boundary backwards in BOTH directions -- naming
+      # batch_description as cross-team when a creative cannot perform it at
+      # all, and claiming every other operation stays confined when attachment
+      # no longer is. The policy.mjs half is comment-only, but a comment is
+      # inside the closure and moves its hash, so the pin moves with it. File
+      # count still 5.
       # Re-pinned 2026-09-01 (TWENTY-SIXTH release): THE FILMING PLAN SLOT
       # ANSWERS FROM THE CLIENT when the batch carries no copy of its own.
       # `batches.filming_doc_url` is written in exactly one place -- the intake
@@ -218,7 +227,7 @@ jobs:
       # description for all of the sub-issues". Additive: no existing operation
       # changes. File count unchanged at 5 (policy.mjs gains the operation name
       # and the role rule; no new module).
-      PRODUCTION_WRITE_SOURCE_SHA256: a987df41803d38584154d7367b1f8e2b51002ce57ad8c147089499dc2ed7eed6
+      PRODUCTION_WRITE_SOURCE_SHA256: PLACEHOLDER
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

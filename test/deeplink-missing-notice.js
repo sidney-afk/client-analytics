@@ -67,10 +67,21 @@ ok(!/may live only in Linear/.test(rendered),
 
 ok(/has no row in Production\./.test(rendered),
   'it states the one thing this page can establish on its own: there is no row here under that identifier');
-ok(/Issues created directly in Linear are not imported/.test(rendered),
-  'and names the mechanism, which is the same every time rather than a possibility');
-ok(/ask an Admin to run the/.test(rendered) && /create the post on the Calendar/.test(rendered),
-  'then gives the two things a person can actually do — one for a row that already exists in Linear, one for a post that should exist in both');
+/* AMENDED hours later, and this is the second time this copy has been
+   corrected for asserting a cause it cannot establish. The first version
+   offered two guesses, one measurably false. The second named ONE cause --
+   "created directly in Linear" -- and the very issue that prompted it turned
+   out to be OURS: the post existed, and its synthetic parent had been dropped
+   because two batch rows claimed the same Linear parent uuid. So the rule this
+   file now holds is the one that survives both mistakes: the notice states
+   what happened, ranks the possibilities honestly, and routes to a person.
+   It does not diagnose. */
+ok(!/are not imported/.test(rendered),
+  'the notice no longer ASSERTS that a missing issue was created in Linear — twice now that has been a cause it could not establish');
+ok(/Ask an Admin to look it up\./.test(rendered),
+  'it routes to someone who can actually look, which is the only reliably useful thing it can offer');
+ok(/Most often its post could not be resolved here/.test(rendered),
+  'and ranks the likelier cause first rather than presenting one certainty or two coin-flips');
 ok(/Showing the full list instead\./.test(rendered),
   'and still explains what it did with the navigation, which is what the reader asked for');
 
@@ -108,25 +119,27 @@ const renderNotice = (() => {
 
 {
   const issue = renderNotice('VID-13555', 'issue', []);
-  ok(/has no row in Production\./.test(issue) && /ask an Admin to run the/.test(issue),
-    'an ISSUE link keeps the import advice, which is the case that was actually reported');
+  ok(/has no row in Production\./.test(issue) && /Ask an Admin to look it up\./.test(issue),
+    'an ISSUE link states there is no row and sends the reader to someone who can look');
+  ok(!/created directly in Linear/.test(issue),
+    'and no longer ASSERTS that it was created in Linear -- the issue that prompted this copy was created by SyncView, and its post had been dropped by the duplicate-parent guard');
 
   const batch = renderNotice('bat_123', 'batch', []);
-  ok(!/ask an Admin to run the/.test(batch) && !/created directly in Linear/.test(batch),
+  ok(!/never have been imported/.test(batch) && !/created directly in Linear/.test(batch),
     'a BATCH link does NOT get the import advice — nobody creates a post row in Linear, so that instruction is meaningless there');
   ok(/is not a post in Production\./.test(batch) && /every one of its sub-issues is archived/.test(batch),
     'and is told what actually removes a post from this view');
 
   const project = renderNotice('someclient', 'project', []);
-  ok(!/ask an Admin to run the/.test(project) && /not on the active roster/.test(project),
+  ok(!/never have been imported/.test(project) && /not on the active roster/.test(project),
     'a PROJECT link is told the roster reason rather than an import instruction that cannot apply to a client');
 
   const archivedIssue = renderNotice('VID-1', 'issue', [{ id: 'VID-1', live: false }]);
-  ok(/It is archived/.test(archivedIssue) && !/ask an Admin to run the/.test(archivedIssue),
+  ok(/It is archived/.test(archivedIssue) && !/never have been imported/.test(archivedIssue),
     'an ARCHIVED issue is named as archived and explicitly told nothing needs importing — it exists, and importing it would create a duplicate');
 
   const liveButMissing = renderNotice('VID-2', 'issue', [{ id: 'VID-9', live: true }]);
-  ok(!/It is archived/.test(liveButMissing) && /ask an Admin to run the/.test(liveButMissing),
+  ok(!/It is archived/.test(liveButMissing) && /Ask an Admin to look it up\./.test(liveButMissing),
     'a row that is genuinely absent is not called archived — the archived branch keys on a row that EXISTS and was filtered');
 
   [issue, batch, project, archivedIssue].forEach(html => {

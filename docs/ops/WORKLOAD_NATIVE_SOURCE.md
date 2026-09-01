@@ -147,6 +147,43 @@ should be a view, so the browser keeps making one request.
   in `index.html` already says "flip to true once the reconcile only writes
   changed rows."
 
+## 4b. The wider Linear surface — eight live browser endpoints, not one
+
+Review on #1208 found two reads the row mapper does not cover. **Two independent
+misses is a signal about the method, not the document**, so the browser was swept
+for every direct Linear-touching call rather than reasoning from the mapper
+again. Eight, all live — every one is actually fetched today:
+
+| endpoint | called from | direction |
+|---|---|---|
+| `linear-issues` | `loadLinearIssues` | read — **Workload's fallback source**; v2 falls back here on any Supabase failure so the board can never blank |
+| `linear-tweak-comments` | `wlFetchTweakComments` | read — the Tweak Needed popover |
+| `linear-projects` | `fetchLinearProjects` | read |
+| `linear-subissues` | `_calSyncStatusFromLinear` | read |
+| `linear-issue-statuses` | `_calRefreshParentLinkFlags` | read |
+| `linear-set-status` | `_calLegacyPushStatusToLinear` | **write** |
+| `linear-add-comment` | `_calLegacyPostLinearComment` | **write** |
+| `log-linear-submission` | `_submitLinearFormOnce` | write (logging) |
+
+Three consequences for the exit estimate:
+
+- **The Workload board is not the only surface.** Five of the eight are the
+  calendar's legacy Linear path, not Workload's.
+- **`linear-issues` is Workload's safety net, and it dies with Linear.** The v2
+  rollout's whole rollback story is "any Supabase failure falls back to the
+  webhook, so v2 can never blank the board". After the exit there is no fallback,
+  so the native source has to be reliable enough to stand without one — that is a
+  different bar from "correct".
+- **Two are writes.** They cannot simply be deleted; each needs its native
+  replacement confirmed live first.
+
+**Every one of these is an n8n workflow, and those are production sales
+automation — none may be edited without the owner's explicit go-ahead.** This
+table is an inventory, not a work plan.
+
+This section is deliberately not costed. It exists so the one-week question is
+answered against the real surface rather than against the Workload board alone.
+
 ## 5. Suggested phasing
 
 Each step is independently shippable and independently reversible, and no step

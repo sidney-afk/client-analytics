@@ -179,6 +179,27 @@ ok(/return "";/.test(helper) && !/throw/.test(helper),
 ok(!/intakeFilmingPlanForClient/.test(GATEWAY),
   'the old intake-only name is gone rather than left aliased, since a name that says `intake` on a shared helper is the next reader misled');
 
+  /* ---- 5. SYNTHETIC BATCH PARENTS reach this through the borrow ----------
+     Raised by review on this PR as a gap: a synthetic parent returns early from
+     `_prodEnsureAssets`, and the browser projection deliberately seeds its four
+     slots from a batch row whose asset columns the browser key cannot read --
+     both true, and both the reason the panel does not render the parent's own
+     asset state at all. It renders the CHILD's. `_prodBatchAssetSource` picks a
+     readable child of the same batch, the render loop ensures THAT id, and the
+     panel is called with `batchAssetSource || d`. The three post-level slots --
+     filming plan, raw footage, frame folder -- come off the shared batch row,
+     so the child's answer IS the parent's, and the client fallback added here
+     rides in with it for free.
+     Asserted rather than argued, because the whole gateway-side fix reaches
+     that surface only through this borrow, and a refactor that dropped it would
+     silently re-open the bug on 199 rows with nothing failing. The residual
+     case is unchanged and deliberate: with NO qualifying child the parent keeps
+     the honest `Unavailable` hedge rather than inventing an answer. */
+  ok(/_prodAssetsPanelHTML\(batchAssetSource \|\| d,/.test(INDEX),
+    'a synthetic batch parent renders the panel against the borrowed CHILD, so the client fallback reaches it without a parent-scoped read');
+  ok(/if \(batchAssetSource\) _prodEnsureAssets\(batchAssetSource\.id, false\)/.test(INDEX),
+    'and the render loop ensures that child, so the read carrying the derived plan is actually asked for');
+
   console.log(failures === 0
     ? '\nfilming plan from client checks passed'
     : '\n' + failures + ' filming plan check(s) failed');

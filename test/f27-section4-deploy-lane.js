@@ -313,7 +313,7 @@ const CANDIDATES = new Map([
     // for every batch not made through the intake path. Read-only, no
     // migration, and the filming plan stays unwritable at all three layers.
     // No new import: file count unchanged at 5.
-    source: 'PLACEHOLDER',
+    source: '204d0d112fe2e0a7309d5902552ac8cce0a68e7e2cab557710b14dab6b24916f',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

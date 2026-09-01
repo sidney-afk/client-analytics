@@ -49300,6 +49300,7 @@
             batches.forEach(batch => {
                 const batchId = String(batch && batch.id || '').trim();
                 if (!batchId) return;
+                const batchArchived = String(batch && batch.status || '').trim().toLowerCase() === 'archived';
                 const seenHere = new Set();
                 parseEntries(batch.linear_parent_ids).forEach(({ team, entry }) => {
                     const uuid = String(entry.uuid || entry.id || entry.linear_issue_id || '').trim();
@@ -49337,16 +49338,41 @@
                        parent. That is what the guard was written for and it
                        keeps doing it. */
                     if (byUuid.has(uuid) && byUuid.get(uuid).batchId !== batchId) {
-                        const heldIsNative = /^bat_/.test(byUuid.get(uuid).batchId);
-                        const thisIsNative = /^bat_/.test(batchId);
-                        if (heldIsNative === thisIsNative) { ambiguous.add(uuid); return; }
-                        if (heldIsNative) return;
-                        ambiguous.delete(uuid);
+                        /* AN ARCHIVED CLAIMANT NEVER WINS, and it is checked
+                           BEFORE provenance. Raised by review, and it happens:
+                           B1's own dropClaimsOwnedByAnotherBatch skips archived
+                           rows when deciding who owns a uuid
+                           (b1-linear-backfill.js:1080), so an ACTIVE import is
+                           deliberately allowed to reuse a claim held by an
+                           ARCHIVED batch -- while this projection loads batches
+                           with no status filter and sees both. On a
+                           prefix-only rule the archived native row would win
+                           and live children would hang under a retired post,
+                           showing its stale title and description.
+                           Measured across all 1,658 batch rows: 1 of the 12
+                           native-plus-mirror pairs is exactly this shape, so
+                           the rule is written for a case that exists rather
+                           than a hypothetical one. `done` is not archived and
+                           still competes -- a finished post is a real post. */
+                        const held = byUuid.get(uuid);
+                        const heldArchived = held.archived;
+                        const thisArchived = batchArchived;
+                        if (heldArchived !== thisArchived) {
+                            if (thisArchived) return;
+                            ambiguous.delete(uuid);
+                        } else {
+                            const heldIsNative = /^bat_/.test(held.batchId);
+                            const thisIsNative = /^bat_/.test(batchId);
+                            if (heldIsNative === thisIsNative) { ambiguous.add(uuid); return; }
+                            if (heldIsNative) return;
+                            ambiguous.delete(uuid);
+                        }
                     }
                     const ownerTeam = String(entry.owner_team || '').toLowerCase() || team;
                     byUuid.set(uuid, {
                         batchId,
                         batch,
+                        archived: batchArchived,
                         uuid,
                         identifier: String(entry.identifier || '').trim(),
                         url: String(entry.url || '').trim(),

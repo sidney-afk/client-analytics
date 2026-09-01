@@ -778,7 +778,8 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     jennaphillipsballard have three each), and 12 are this native-plus-mirror
     pair. Replayed through the real resolver over the real rows for the reported
     client: before, 0 parents and 32 orphaned children; after, the parent
-    resolves to the NATIVE batch and all 32 link to it.
+    resolves to the NATIVE batch and all 32 link to it. Replayed again over all
+    1,658 rows with statuses: 1,464 parents minted before, 1,477 after.
     **The native row wins, and the tie-break is not arbitrary:** `bat_` is the
     row SyncView writes to -- `batch_description` targets it, intake populates
     its asset columns, and item 36 measured that the mirror's asset columns are
@@ -787,6 +788,20 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     claiming one parent is a real conflict, and inventing a winner there would
     show one batch's description under another's parent. That is what the guard
     was written for and it keeps doing it.
+    **AN ARCHIVED CLAIMANT NEVER WINS, checked before provenance.** Raised by
+    review before merge, and it is not hypothetical: B1's own
+    `dropClaimsOwnedByAnotherBatch` skips archived rows when deciding who owns a
+    uuid (`b1-linear-backfill.js:1080`), so an ACTIVE import is *deliberately*
+    allowed to reuse a claim held by an ARCHIVED batch -- while this projection
+    loads batches with no status filter and sees both. A prefix-first rule would
+    have handed live children to a retired post and rendered them under its
+    stale title and description. Measured across all 1,658 batch rows: exactly
+    1 of the 12 native-plus-mirror pairs is that shape (`VID-13587`), and the
+    same rule rescues a second post (`GRA-6816`) whose two claimants are both
+    mirrors with one archived -- so the recovery is **13 posts, not 12**: 11 by
+    provenance and 2 by liveness. `done` is not archived and still competes; a
+    finished post is a real post. Two claimants that are equally archived fall
+    through to provenance, and two that match on both stay ambiguous.
     **Item 35's copy is corrected a second time.** It shipped asserting a single
     cause -- "issues created directly in Linear are not imported" -- and the
     very report that produced it was ours. Twice now that sentence has named a

@@ -6601,3 +6601,75 @@ a script name cannot. Narrowing the canonicalisation to `dependencies` /
 `devDependencies` would fix it — but it changes the computed hash, so it needs
 the manifest re-stamped, which is an owner call on an audit artifact and not a
 change to make silently.
+
+---
+
+## 96. [2026-09-01] The hand-rolled `grabFunc` in 77 test files mis-extracts, and a mis-extraction can pass
+
+**Found by a suite breaking on its own subject, not by looking.**
+`test/prod-focus-survives-render.js` failed with "unclosed" for
+`_prodFocusSelectorPart`, which balances perfectly. The cause: that function
+contains `.replace(/[\\"]/g, …)` — a double quote inside a regex character
+class. The extractor does not know about regex literals, read the quote as
+opening a string, and swallowed the rest of the function.
+
+**It had been passing by accident.** The broken quote state happened to re-sync
+on a later quote before a brace at depth zero. Editing the function moved the
+text and the accident stopped landing — an unrelated edit failing for a reason
+that is not in it, which is the worst way for this to surface.
+
+### Measured across the whole file
+
+3,067 distinct function definitions in `index.html`, each extracted with the
+naive scanner and with a regex-aware one:
+
+- **8 the naive scanner cannot close at all** — it would throw. Among them
+  `_tplEsc`, `_tplEscAttr`, `_obvEsc`, `_obvLink`. The mechanism is the same
+  class: `_filmsParseMonth` contains `/(\d{1,2})/`, and **those braces are
+  counted**, so depth never returns to zero.
+- **79 extract differently.** Some are unmistakable: `_calEsc` is a 145-character
+  one-liner and the naive scanner returns **49,193**; `wlEscape` is an escape
+  helper and it returns **89,328**.
+
+### Why a mis-extraction is not always a loud failure
+
+Over-extraction usually produces a syntax error in the `vm` sandbox, and the
+suite dies visibly. The dangerous case is over-extraction that still *parses*:
+the symbol under test gets defined, the assertions run, and the suite passes —
+while the sandbox has quietly been given several thousand extra lines of
+`index.html`.
+
+**That is not hypothetical; it happened in this repo on 2026-08-31.** A lifted
+slice spanned `index.html`'s own `const _prodState`, so the sandbox declared the
+real object and shadowed the test's fixture. A mutation that should have failed
+passed, and one assertion was vacuous. It was caught by accident. That incident
+is an instance of this class, and it is the reason to treat this as a defect
+rather than a tidiness item.
+
+### Do NOT sweep the 77 files with the fix in `test/prod-focus-survives-render.js`
+
+The regex-aware version there closes all 3,067 and fixes the class above — **and
+introduces its own false positives.** Its "is this `/` a regex or a division?"
+heuristic reads the preceding significant character, and on at least two
+functions it starts a regex that never ends: `renderMRTab_hooks` goes from 3,416
+characters to **2,040,008**, `renderGeneralBrief` from 4,930 to **252,173**.
+
+So neither scanner is correct, and replacing one with the other estate-wide
+would trade a known set of broken extractions for an unknown one. The honest
+position: it is fixed in the one file where it broke, verified there (all seven
+extractions balance and parse standalone), and the general problem is open.
+
+### What a real fix looks like
+
+A shared, tested extractor — one module in `test/`, not 77 copies — that either
+uses a proper tokenizer or refuses loudly rather than guessing. Two properties it
+must have, both learned here:
+
+1. **Never return a slice that does not parse.** Refusing is safe; a plausible
+   wrong slice is not.
+2. **Refuse a slice that redeclares a symbol the caller also defines.** That is
+   what makes the 2026-08-31 decoy silent, and no brace-matching improvement
+   prevents it.
+
+Not attempted unattended: it touches every suite in the repo, and the failure
+mode it guards against is precisely a test that looks like it passes.

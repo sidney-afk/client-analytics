@@ -13,6 +13,7 @@ export const OPERATIONS = Object.freeze([
   "attachment",
   "intake_create",
   "batch_asset",
+  "batch_description",
   "component_fill",
 ]);
 
@@ -242,6 +243,21 @@ export function staffOperationAllowed(
      is not writable through any role: it is not in BATCH_ASSET_SLOTS, and the
      database function does not accept it either. */
   if (op === "batch_asset") return key === "creative" && !!normalizeTeam(memberTeam);
+  /* `batch_description` is deliberately NOT widened alongside batch_asset, and
+     the first version of it was.
+     A DESCRIPTION is admin/SMM everywhere else in the estate: `description` on
+     a deliverable falls through the team match below and returns false for a
+     creative, and always has. Opening the post-level one to creatives would
+     have made a new write more permissive than the existing one it sits beside,
+     on no ruling -- and it produced a live mismatch, because the browser gate
+     asks with `description` and refused the creatives this line was admitting.
+     Raised by review on #1203, which proposed translating the operation in the
+     browser instead; that resolves the mismatch by widening rather than by
+     matching, which is not a permission change to make without being asked.
+     So it falls through, and admin/SMM keep it through the early return above.
+     If creatives should edit post descriptions, that is an owner ruling and it
+     belongs in one line here plus the browser's own role gate. */
+  if (op === "batch_description") return false;
   if (key !== "creative" || !normalizeTeam(memberTeam)
       || normalizeTeam(memberTeam) !== normalizeTeam(targetTeam)) return false;
   const scope = context && typeof context === "object" ? context : {};

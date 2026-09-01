@@ -416,8 +416,9 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   The write is a plain column update on `public.batches` with a `deliverable_events` audit row, no
   outbox leg and no Linear mirror, so there is no queue to drain and nothing in-flight to reconcile.
   A batch whose link was wrong before this shipped and right after it should stay right.
-  Note the one widening to know about if it is ever questioned: `batch_asset` is the single
-  operation where a creative is NOT confined to their own team. A batch is one shoot with one set
+  Note the widening to know about if it is ever questioned: `batch_asset` is one of two
+  operations where a creative is NOT confined to their own team (`batch_description`, below, is
+  the other and is widened for the same reason). A batch is one shoot with one set
   of files worked by both teams, and it carries a single `team` value, so the match would have
   handed the shared folder to whichever team happened to be recorded. Every other operation keeps
   the confinement, and `test/batch-asset-write.js` fails if that widening ever leaks past this one
@@ -432,3 +433,29 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   go back, drop it (step 3 above) rather than reverting to an earlier definition, and take the
   browser and gateway halves down first in the order already given. `test/batch-asset-write-insert-arm.js`
   fails if a definition ever stops sending a NOT NULL column that `batch_write` does not default.
+- **A post's own description becomes editable 2026-09-01**: three layers, same shape as the folder
+  links above — `migrations/2026-09-01-batch-description-write.sql`
+  (`production_batch_description_write`), the `production-write` `batch_description` operation with
+  its policy gate, and the `index.html` description editor on a batch parent. Deploy bottom-up,
+  roll back TOP-DOWN: dropping the database function while the gateway and browser still offer the
+  control leaves a live Edit button whose save returns 500 `write_failed` with nothing to explain
+  it. Revert the browser half first (Edit leaves the batch parent's description), then redeploy the
+  prior `production-write` closure through `.github/workflows/deploy-f27-section4-closures.yml`,
+  and only then, if the function should be gone at all, `drop function if exists
+  public.production_batch_description_write(text, text, text, jsonb);`. Leaving it installed under
+  a reverted gateway costs nothing — nothing else calls it.
+  **One-step containment** is the same lever: set the batch team's `prod_authority` back to
+  `linear`, which the function asserts before it writes.
+  What a rollback does NOT undo, deliberately: a description somebody corrected stays corrected.
+  The write is a plain column update on `public.batches` with a `deliverable_events` audit row,
+  **no outbox leg and no Linear mirror** — the event deliberately carries no `outbound` key,
+  because that key is the enqueue signal and requesting a mirror for a write with no counterpart is
+  what produced `f27_authority_generation_stale` on the asset path. So there is no queue to drain
+  and nothing in-flight to reconcile.
+  The same team widening as `batch_asset` applies and for the same reason: a post description is
+  read by every sibling on every team, and a two-team post carries a single `team` value, so a
+  match would hand the text to whichever team happened to be recorded. Every other operation keeps
+  the confinement, and `test/batch-description-write.js` fails if a batch parent ever becomes
+  writable for anything except its description.
+  This does NOT touch a sub-issue's own description, which is a different column
+  (`deliverables.brief`), a different operation (`description`), and keeps its Linear mirror leg.

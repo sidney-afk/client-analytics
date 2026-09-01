@@ -51145,7 +51145,7 @@
                designer who pulls a frame out of it. A batch carries a single
                team value, so matching on it would hand the shared folder to
                whichever team happened to be recorded. Mirrors staffOperationAllowed. */
-            if (operation === 'batch_asset') return !!memberTeam;
+            if (operation === 'batch_asset' || operation === 'batch_description') return !!memberTeam;
             if (!memberTeam || memberTeam !== _prodWriteTeam(issue.team)) return false;
             if (PROD_CREATIVE_ASSIGNEE_BOUND_OPERATIONS.includes(operation)
                 && !_prodCreativeOwnsTarget(issue)) return false;
@@ -51182,16 +51182,31 @@
             return 'Your staff role cannot perform this action.';
         }
         function _prodCanWrite(issue, operation) {
-            // A synthesized batch parent is not a deliverable: the gateway has
-            // no row to write, so every control on it is gated, not broken.
-            if (issue && issue.syntheticBatchParent === true) return false;
+            /* A synthesized batch parent is not a deliverable: the gateway has
+               no row to write for a status, a due date, an assignee or a label,
+               so those controls are gated rather than broken.
+               ITS DESCRIPTION IS THE EXCEPTION, and it is not a special case so
+               much as the missing half of one. The parent shows
+               batches.description -- the POST's own text -- while every
+               sub-issue carries its own brief, which is the shape the owner
+               asked for on 2026-08-31: "like linear, so there's a description
+               for the parent issue, and then there is the description for all
+               of the sub-issues". The model was already that; only the write
+               was missing, so a post description set at intake was permanent
+               from every seat. It routes to the batch_description operation,
+               which targets the batch row -- see _prodGatewayWrite. */
+            if (issue && issue.syntheticBatchParent === true && operation !== 'description') return false;
             if (!issue || _prodIdentityRepairGateText(issue)
                 || !_prodAttributionResolved(issue) || !_prodRoleCanWrite(issue, operation)) return false;
             const team = _prodWriteTeam(issue.team);
             return !!(team && _prodState.authority && _prodState.authority[team] === 'syncview');
         }
         function _prodWriteGateText(issue, operation) {
-            if (issue && issue.syntheticBatchParent === true) return "This is the post's batch parent — open its sub-issues to work on it.";
+            // Description is writable here now, so it must fall through to the
+            // ordinary reasons rather than being told to go somewhere else.
+            if (issue && issue.syntheticBatchParent === true && operation !== 'description') {
+                return "This is the post's batch parent — open its sub-issues to work on it.";
+            }
             if (!_syncviewStaffIdentityForHeaders()) return 'Sign in with your staff account to write.';
             const identityGate = _prodIdentityRepairGateText(issue);
             if (identityGate) return identityGate;
@@ -52108,13 +52123,16 @@
                 request_id: requestId || _prodWriteRequestId(operation),
                 source_edited_at: sourceEditedAt || new Date().toISOString()
             }, fields || {});
-            if (operation === 'batch_asset') {
+            if (operation === 'batch_asset' || operation === 'batch_description') {
                 /* The target is the BATCH, not the deliverable whose panel is
                    open. Every sub-issue of a post shows the same two folder
                    links because they are one row, so the write names that row
                    and its clock -- reusing the updated_at of the deliverable
                    here would compare a value against a timestamp from a
-                   different table and fail its CAS forever. */
+                   different table and fail its CAS forever.
+                   batch_description rides the same retarget for the same
+                   reason: the text is on the batch row, so the CAS has to be
+                   against the batch clock. */
                 payload.entity = 'batch';
                 payload.id = String(issue.batchId || '');
                 const batch = _prodBatch(payload.id);
@@ -52145,6 +52163,16 @@
                     error.status = response.status;
                     error.code = String(json && json.error || 'write_failed');
                     error.row = json && json.row || null;
+                    /* A batch write answers with `batch`, never `row`. A
+                       write_conflict on one therefore carried nothing the
+                       caller could adopt, so the loser restored its own stale
+                       text AND stale clock and every retry conflicted again
+                       against the same obsolete timestamp. Raised by review on
+                       #1203. */
+                    error.batch = json && json.batch || null;
+                    error.batchDescription = json && typeof json.description === 'string'
+                        ? json.description
+                        : null;
                     error.assetState = String(json && json.asset_state || '');
                     error.guidance = String(json && json.guidance || '');
                     if (error.code === 'team_is_linear_authoritative' || error.code === 'legacy_parity_not_allowed') {
@@ -53991,6 +54019,24 @@
                 state.status = state.hasValue ? 'stale' : 'idle';
             });
         }
+        /* The batch twin of _prodSyncDescriptionRow.
+           A synthetic parent has no deliverable row to write back into: its
+           `desc` is derived from the BATCH each time _prodAdapter runs, so the
+           optimistic value has to land on the batch or the next render paints
+           the pre-save text over the one just typed. Resolved through the
+           issue's own batchId rather than its node id, because a two-team batch
+           mints a suffixed parent per team and only one of those strings is a
+           real batch id. */
+        function _prodSyncBatchDescriptionRow(id, value, updatedAt) {
+            const issue = _prodIssue(id);
+            const batchId = String(issue && issue.batchId || '');
+            if (!batchId) return;
+            const row = (_prodState.batches || []).find(item => String(item && item.id || '') === batchId);
+            if (!row) return;
+            row.description = value == null ? '' : String(value);
+            if (updatedAt) row.updated_at = updatedAt;
+            _prodState.adapter = null;
+        }
         function _prodSyncDescriptionRow(id, value, updatedAt) {
             const row = (_prodState.deliverables || []).find(item => String(item && item.id || '') === String(id || ''));
             if (!row) return;
@@ -54316,12 +54362,34 @@
             state.error = '';
             state.refreshError = '';
             state.remoteChanged = false;
-            _prodSyncDescriptionRow(id, description, '');
+            if (issue.syntheticBatchParent === true) _prodSyncBatchDescriptionRow(id, description, '');
+            else _prodSyncDescriptionRow(id, description, '');
             _prodRender();
             try {
-                const json = await _prodGatewayWrite(issue, 'description', { description }, state.requestId);
-                if (!json || !json.row) throw new Error('write_failed');
-                const committed = _prodDescriptionText(json.row.brief);
+                /* A batch parent writes the POST's description onto the batch
+                   row, so it uses its own operation and answers with a batch
+                   rather than a deliverable. Everything downstream of the two
+                   lines below is shared, because from the panel's point of view
+                   the only difference is which field carried the committed
+                   text back. */
+                const batchParent = issue.syntheticBatchParent === true;
+                const json = await _prodGatewayWrite(
+                    issue,
+                    batchParent ? 'batch_description' : 'description',
+                    { description },
+                    state.requestId
+                );
+                const committedRow = batchParent ? (json && json.batch) : (json && json.row);
+                if (!json || !committedRow) throw new Error('write_failed');
+                /* The batch answer carries its text at the TOP LEVEL, not on
+                   the row: publicRow is the shared deliverable projection and
+                   has no description field. Reading it off the row returned
+                   undefined on every successful save, which this then wrote
+                   back over the text the user had just typed. Raised by review
+                   on #1203. */
+                const committed = _prodDescriptionText(
+                    batchParent ? json.description : committedRow.brief
+                );
                 state.value = committed;
                 state.baseline = committed;
                 state.draft = committed;
@@ -54333,27 +54401,46 @@
                 state.error = '';
                 state.remoteChanged = false;
                 state.requestId = '';
-                state.sourceUpdatedAt = json.row.updated_at || state.sourceUpdatedAt;
-                _prodSyncDescriptionRow(id, json.row.brief, json.row.updated_at);
+                state.sourceUpdatedAt = committedRow.updated_at || state.sourceUpdatedAt;
+                if (batchParent) _prodSyncBatchDescriptionRow(id, committed, committedRow.updated_at);
+                else _prodSyncDescriptionRow(id, committedRow.brief, committedRow.updated_at);
                 _prodToast('Description updated');
                 _prodRender();
                 _prodFocusDescriptionControl(id, 'edit');
             } catch (error) {
-                const serverRow = error && error.row && Object.prototype.hasOwnProperty.call(error.row, 'brief') ? error.row : null;
+                /* A write_conflict hands back the row that won. For a batch
+                   parent that is a BATCH carrying `description`, not a
+                   deliverable carrying `brief` -- reading the wrong field would
+                   silently replace the loser's text with an empty string and
+                   present it as the server's answer. */
+                const parentConflict = issue.syntheticBatchParent === true;
+                /* The winning row arrives as `batch` with its text beside it,
+                   because publicRow has no description field. Reading `brief`
+                   off it -- which the first version did -- found nothing, so
+                   the loser kept its own stale text and, worse, its own stale
+                   CLOCK, and every retry conflicted again forever. */
+                const serverRow = parentConflict
+                    ? (error && error.batch && typeof error.batchDescription === 'string' ? error.batch : null)
+                    : (error && error.row
+                        && Object.prototype.hasOwnProperty.call(error.row, 'brief') ? error.row : null);
                 if (serverRow) {
-                    state.value = _prodDescriptionText(serverRow.brief);
+                    state.value = _prodDescriptionText(
+                        parentConflict ? error.batchDescription : serverRow.brief
+                    );
                     state.baseline = state.value;
                     state.hasValue = true;
                     state.status = 'ready';
                     state.sourceUpdatedAt = serverRow.updated_at || state.sourceUpdatedAt;
-                    _prodSyncDescriptionRow(id, serverRow.brief, serverRow.updated_at);
+                    if (parentConflict) _prodSyncBatchDescriptionRow(id, state.value, serverRow.updated_at);
+                    else _prodSyncDescriptionRow(id, serverRow.brief, serverRow.updated_at);
                 } else {
                     state.value = previous.value;
                     state.baseline = previous.baseline;
                     state.hasValue = previous.hasValue;
                     state.status = previous.status;
                     state.sourceUpdatedAt = previous.updatedAt;
-                    _prodSyncDescriptionRow(id, previous.value, previous.updatedAt);
+                    if (parentConflict) _prodSyncBatchDescriptionRow(id, previous.value, previous.updatedAt);
+                    else _prodSyncDescriptionRow(id, previous.value, previous.updatedAt);
                 }
                 state.saving = false;
                 state.editing = true;

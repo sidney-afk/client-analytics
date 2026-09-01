@@ -54091,10 +54091,10 @@
             return { id, control };
         }
         function _prodRestoreDescriptionFocus(snapshot) {
-            if (!snapshot || !snapshot.id || !snapshot.control) return;
+            if (!snapshot || !snapshot.id || !snapshot.control) return false;
             const panel = document.querySelector('[data-prod-description="' + CSS.escape(snapshot.id) + '"]');
             const target = panel && panel.querySelector('[data-prod-description-control="' + CSS.escape(snapshot.control) + '"]');
-            if (!target) return;
+            if (!target) return false;
             try {
                 target.focus({ preventScroll: true });
                 if (snapshot.control === 'source' && target.setSelectionRange) {
@@ -54103,7 +54103,107 @@
                     const end = Math.min(Number(state && state.selectionEnd || start), target.value.length);
                     target.setSelectionRange(start, end);
                 }
-            } catch (e) {}
+            } catch (e) { return false; }
+            return document.activeElement === target;
+        }
+        /* FOCUS SURVIVES THE REBUILD -- for every control, not only the
+           description editor.
+
+           _prodRender replaces prodRoot.innerHTML wholesale, which destroys
+           whatever the person was focused on: focus falls back to <body>, the
+           caret disappears, and a keyboard user is dropped at the top of the
+           tab. The description editor had a bespoke rescue for exactly this and
+           nothing else did, so a background tick landing while someone was
+           typing a folder link -- or tabbing across the asset rows -- silently
+           took the focus away mid-keystroke.
+
+           This fires constantly rather than rarely, which is why it is worth a
+           general fix instead of a second special case. _prodRefreshAssetSurfaces
+           IS _prodRender, and _prodEnsureAssets calls it on every status
+           transition, so merely OPENING a row re-renders once on `loading` and
+           again on `ready`. That is the "it still refreshes like two times in a
+           row" the owner reports (2026-09-01): the READS are not duplicated --
+           the ensure guard returns the cached state -- the RENDERS are, and each
+           one was a focus loss. Owner: "for the UI experience, this should never
+           bother anyone."
+
+           The key is built from the identifying `data-prod-*` attributes on the
+           element and its ancestors, so it survives a rebuild that produces
+           equivalent-but-new nodes. Attributes describing transient CONDITION
+           are deliberately excluded, and that exclusion is the load-bearing
+           part: `data-prod-assets-status` flips loading -> ready across exactly
+           the re-render this exists to survive, so a key containing it could
+           never match on the far side. It would fail silently, restoring
+           nothing, and look identical to having no fix at all. */
+        /* The test for "volatile" is what the VALUE carries, not what the name
+           reads like, and getting that backwards costs precision in both
+           directions. `data-prod-pstatus` sounds like a condition and holds a
+           CLIENT ID -- excluding it would drop the only thing identifying which
+           project-status button was focused. `data-prod-disabled` likewise
+           holds a control name ("composer", "bulk-<act>"), not a boolean.
+           Meanwhile `data-prod-assets-status` really does hold loading/ready.
+           So: the tooltip, whose text tracks the value it describes, plus the
+           four suffixes whose values are states. `-error` has no instance yet
+           and is here on purpose -- this filter fails SILENTLY when it is too
+           narrow, so a suffix that could only ever hold a condition is worth
+           pre-empting rather than discovering. */
+        const PROD_FOCUS_VOLATILE_ATTR = /^data-prod-tip$|-(state|status|freshness|error)$/;
+        function _prodFocusSelectorPart(node) {
+            // An id is unique in the document, so it is the whole key by itself.
+            if (node.id) return '#' + CSS.escape(node.id);
+            const parts = [];
+            const attrs = node.attributes || [];
+            for (let i = 0; i < attrs.length; i++) {
+                const name = attrs[i].name;
+                if (name.indexOf('data-prod-') !== 0) continue;
+                if (PROD_FOCUS_VOLATILE_ATTR.test(name)) continue;
+                parts.push('[' + name + '="' + String(attrs[i].value).replace(/[\\"]/g, '\\$&') + '"]');
+            }
+            return parts.join('');
+        }
+        function _prodCaptureFocus(root) {
+            const active = document.activeElement;
+            if (!root || !active || active === root || !root.contains(active)) return null;
+            const chain = [];
+            for (let node = active; node && node !== root; node = node.parentElement) {
+                const part = _prodFocusSelectorPart(node);
+                if (part) chain.unshift(part);
+                if (node.id) break;
+            }
+            if (!chain.length) return null;
+            const snapshot = { selector: chain.join(' ') };
+            // Only text-ish controls report a caret; a number or checkbox reads
+            // null here and is restored as plain focus, which is correct.
+            if (typeof active.selectionStart === 'number') {
+                snapshot.selectionStart = active.selectionStart;
+                snapshot.selectionEnd = active.selectionEnd;
+                snapshot.selectionDirection = active.selectionDirection || 'none';
+            }
+            return snapshot;
+        }
+        function _prodRestoreFocus(snapshot, root) {
+            if (!snapshot || !snapshot.selector || !root) return false;
+            let target = null;
+            // A selector built from live attribute values can still be invalid
+            // CSS if a value carried something exotic; a throw here must not
+            // take the whole render down with it.
+            try { target = root.querySelector(snapshot.selector); } catch (e) { return false; }
+            if (!target || typeof target.focus !== 'function') return false;
+            try {
+                // preventScroll matters: restoring focus must not yank the pane
+                // to the control, or the fix trades a focus jump for a scroll
+                // jump and the reader is no better off.
+                target.focus({ preventScroll: true });
+                if (snapshot.selectionStart != null && typeof target.setSelectionRange === 'function') {
+                    const length = String(target.value == null ? '' : target.value).length;
+                    target.setSelectionRange(
+                        Math.min(snapshot.selectionStart, length),
+                        Math.min(snapshot.selectionEnd, length),
+                        snapshot.selectionDirection
+                    );
+                }
+            } catch (e) { return false; }
+            return document.activeElement === target;
         }
         function _prodFocusDescriptionControl(id, control) {
             setTimeout(() => {
@@ -56918,6 +57018,12 @@
             const root = document.getElementById('prodRoot');
             if (!root) return;
             const descriptionFocus = _prodCaptureDescriptionFocus(root);
+            /* The description capture answers only for an OPEN EDITOR, because
+               it also writes the caret back into description state. Every other
+               focusable control in the tab -- the asset URL inputs, the Edit and
+               Refresh buttons, the comment composer, the sidebar -- is covered
+               by the general snapshot below. */
+            const focusSnapshot = _prodCaptureFocus(root);
             _prodEnsureOverlays();
             _prodHideTip();
             _prodCaptureListScroll(root);
@@ -56956,7 +57062,11 @@
                 const first = _prodBatchRows(_prodState.openBatchId)[0];
                 if (first) _prodEnsureAssets(first.id, false);
             }
-            _prodRestoreDescriptionFocus(descriptionFocus);
+            /* Description first: its snapshot carries the caret from description
+               state, which tracks edits the live element no longer shows. The
+               general restore is the fallback for everything else, and for a
+               description editor whose panel did not come back. */
+            if (!_prodRestoreDescriptionFocus(descriptionFocus)) _prodRestoreFocus(focusSnapshot, root);
         }
         function _prodNavItem(icon, label, active, onClick, cls, tip) {
             return '<button class="prod-nav-btn' + (cls ? ' ' + cls : '') + (active ? ' active' : '') + '" type="button" data-prod-tip="' + _calEscAttr(tip || label) + '" onclick="' + onClick + '"><span class="prod-nav-ico">' + icon + '</span><span>' + _calEsc(label) + '</span></button>';

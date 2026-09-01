@@ -131,6 +131,8 @@ function node(attrs, parent, opts) {
     id: attrs && attrs.id || '',
     tagName: (opts && opts.tag) || 'BUTTON',
     className: (opts && opts.cls) || '',
+    textContent: (opts && opts.text) || '',
+    getAttribute(n) { const a = el.attributes.find(x => x.name === n); return a ? a.value : null; },
     attributes: Object.entries(attrs || {})
       .filter(([k]) => k !== 'id')
       .map(([name, value]) => ({ name, value: String(value) })),
@@ -178,6 +180,7 @@ ok(!!statusSnap && statusSnap.selector === assetSnap.selector,
   ['data-prod-label-state', 'saving'],
   ['data-prod-attribution-state', 'stale'],
   ['data-prod-freshness', 'degraded'],
+  ['data-prod-description-ready', '0'],
 ].forEach(([name, value]) => {
   const n = node({ 'data-prod-row': 'r1', [name]: value });
   ok(ctx.part(n) === '[data-prod-row="r1"]',
@@ -319,14 +322,14 @@ ok(/data-prod-assets="/.test(INDEX) && /data-prod-assets-status="/.test(INDEX),
 const assetsSec = node({ 'data-prod-assets': 'del_9' }, null, { tag: 'SECTION', cls: 'prod-assets' });
 const assetsHead = node({}, assetsSec, { tag: 'DIV', cls: 'prod-assets-head' });
 node({}, assetsHead, { tag: 'SPAN', cls: 'prod-assets-title' });
-const refreshBtn = node({}, assetsHead, { tag: 'BUTTON', cls: 'prod-assets-refresh' });
+const refreshBtn = node({}, assetsHead, { tag: 'BUTTON', cls: 'prod-assets-refresh', text: 'Refresh access' });
 ACTIVE = refreshBtn;
 const refreshSnap = ctx.capture(rootWith({}));
 ok(!!refreshSnap, 'a control with NO data-prod attribute is still captured');
 ok(refreshSnap.selector === '[data-prod-assets="del_9"] > :nth-child(1) > :nth-child(2)',
   'THE FINDING: the key anchors at the identified section and then walks DOWN structurally to the button, instead of stopping at the section and naming the wrong element');
-ok(refreshSnap.shape === 'BUTTON.prod-assets-refresh',
-  'and it records the shape, because a structural step names a position rather than an element');
+ok(refreshSnap.shape === 'BUTTON.prod-assets-refresh#Refresh access',
+  'and it records the shape -- tag, class AND accessible name -- because a structural step names a position rather than an element');
 
 /* A nav button has no identified ancestor anywhere, so the anchor is the root. */
 /* Rooted at prodRoot itself, which is what the real sidebar is: the walk has to
@@ -336,13 +339,13 @@ navRoot.children = [];
 navRoot.contains = () => true;
 const navWrap = node({}, navRoot, { tag: 'DIV', cls: 'prod-nav' });
 node({}, navWrap, { tag: 'BUTTON', cls: 'prod-nav-btn' });
-const navBtn = node({ 'data-prod-tip': 'Issues' }, navWrap, { tag: 'BUTTON', cls: 'prod-nav-btn active' });
+const navBtn = node({ 'data-prod-tip': 'Issues' }, navWrap, { tag: 'BUTTON', cls: 'prod-nav-btn active', text: 'Issues' });
 ACTIVE = navBtn;
 const navSnap = ctx.capture(navRoot);
 ok(!!navSnap && navSnap.selector === ':scope > :nth-child(1) > :nth-child(2)',
   'a nav button, whose only data-prod attribute is the excluded tooltip, is keyed structurally from the root rather than dropped');
-ok(navSnap.shape === 'BUTTON.prod-nav-btn',
-  'and its shape is the FIRST class token, so the `active` state class appended after it is free to change across the rebuild');
+ok(navSnap.shape === 'BUTTON.prod-nav-btn#Issues',
+  'and its shape uses the FIRST class token, so the `active` state class appended after it is free to change across the rebuild');
 
 /* ---- 12. The shape check is what makes a positional key safe ------------- */
 
@@ -351,15 +354,78 @@ ACTIVE = null;
 ok(ctx.restore(refreshSnap, rootWith({ '[data-prod-assets="del_9"] > :nth-child(1) > :nth-child(2)': wrongKind })) === false,
   'if the rebuild moved things and that position now holds a DIFFERENT control, nothing is restored -- a positional key must not put the caret where the reader did not leave it');
 
-const rightKind = node({}, null, { tag: 'BUTTON', cls: 'prod-assets-refresh' });
+const rightKind = node({}, null, { tag: 'BUTTON', cls: 'prod-assets-refresh', text: 'Refresh access' });
 ACTIVE = null;
 ok(ctx.restore(refreshSnap, rootWith({ '[data-prod-assets="del_9"] > :nth-child(1) > :nth-child(2)': rightKind })) === true,
   'and the same control at the same position is restored');
 
-const restyled = node({}, null, { tag: 'BUTTON', cls: 'prod-nav-btn' });
+const restyled = node({}, null, { tag: 'BUTTON', cls: 'prod-nav-btn', text: 'Issues' });
 ACTIVE = null;
 ok(ctx.restore(navSnap, rootWith({ ':scope > :nth-child(1) > :nth-child(2)': restyled })) === true,
   'a state class that came and went does not block the restore, because only the first token is compared');
+
+/* ---- 13. SIBLINGS THAT SHARE A CLASS ------------------------------------ */
+/* Raised by review on #1206 and the sharpest finding on this change. Every
+   comment lifecycle control is <button class="prod-comment-action"> with NO
+   attribute distinguishing it -- only its onclick and its label differ.
+   Resolving a comment during the 30-second refresh removes Reply and shifts
+   Edit, Reopen and Delete up one. A positional key lands on the old ordinal,
+   and tag-plus-class waves it through because all four are identical under
+   that test. Focus moves from Edit to Reopen and the next keypress performs
+   the WRONG lifecycle write -- the exact failure the shape guard was added to
+   prevent, which it did not. */
+
+const actionsRow = node({ 'data-prod-comment': 'c1' }, null, { tag: 'DIV', cls: 'prod-comment-actions' });
+node({}, actionsRow, { tag: 'BUTTON', cls: 'prod-comment-action', text: 'Reply' });
+const editBtn = node({}, actionsRow, { tag: 'BUTTON', cls: 'prod-comment-action', text: 'Edit' });
+node({}, actionsRow, { tag: 'BUTTON', cls: 'prod-comment-action', text: 'Resolve' });
+ACTIVE = editBtn;
+const editSnap = ctx.capture(rootWith({}));
+ok(!!editSnap && editSnap.shape === 'BUTTON.prod-comment-action#Edit',
+  'the shape carries the accessible name, which is the ONLY thing telling these buttons apart');
+
+/* Reply is gone; Edit shifted up; the old ordinal now holds Resolve/Reopen. */
+const reopenAtOldSlot = node({}, null, { tag: 'BUTTON', cls: 'prod-comment-action', text: 'Reopen' });
+ACTIVE = null;
+ok(ctx.restore(editSnap, rootWith({ [editSnap.selector]: reopenAtOldSlot })) === false,
+  'THE FINDING: after Reply is removed, the old position holds Reopen -- focus does NOT move there, so the next keypress cannot perform the wrong lifecycle write');
+
+const editMoved = node({}, null, { tag: 'BUTTON', cls: 'prod-comment-action', text: 'Edit' });
+ACTIVE = null;
+ok(ctx.restore(editSnap, rootWith({ [editSnap.selector]: editMoved })) === true,
+  'and the same button, still Edit, is restored normally');
+
+const labelRoot = rootWith({});
+labelRoot.children = [];
+labelRoot.contains = () => true;
+const labelled = node({ 'aria-label': 'Delete comment' }, labelRoot, { tag: 'BUTTON', cls: 'prod-comment-action', text: '\u00d7' });
+ACTIVE = labelled;
+ok(ctx.capture(labelRoot).shape === 'BUTTON.prod-comment-action#Delete comment',
+  'aria-label wins over text, so an icon-only control is still told apart from its siblings');
+
+/* ---- 14. The readiness flag is state, not identity ---------------------- */
+/* _prodMarkDescriptionsStale() flips data-prod-description-ready 1 -> 0 and is
+   called immediately BEFORE the render this exists to survive, so treating it
+   as identity meant the Description Edit button could never be restored. */
+
+const readyEdit = node({
+  'data-prod-description-control': 'edit',
+  'data-prod-description-edit': '1',
+  'data-prod-description-ready': '1',
+}, null, { tag: 'BUTTON', cls: 'prod-description-action', text: 'Edit' });
+ACTIVE = readyEdit;
+const beforeStale = ctx.capture(rootWith({}));  // has its own identity attrs, so no structural tail needed
+const staleEdit = node({
+  'data-prod-description-control': 'edit',
+  'data-prod-description-edit': '1',
+  'data-prod-description-ready': '0',
+}, null, { tag: 'BUTTON', cls: 'prod-description-action', text: 'Edit' });
+ACTIVE = staleEdit;
+const afterStale = ctx.capture(rootWith({}));
+ok(beforeStale.selector === afterStale.selector,
+  'the Description Edit button keys identically either side of _prodMarkDescriptionsStale, so the refresh it runs before no longer strands it');
+ok(beforeStale.selector.indexOf('ready') === -1,
+  'because data-prod-description-ready is excluded -- it is a readiness condition, not an identity');
 
 console.log(failures === 0
   ? '\nproduction focus-survives-render checks passed'

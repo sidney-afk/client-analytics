@@ -54143,11 +54143,15 @@
            holds a control name ("composer", "bulk-<act>"), not a boolean.
            Meanwhile `data-prod-assets-status` really does hold loading/ready.
            So: the tooltip, whose text tracks the value it describes, plus the
-           four suffixes whose values are states. `-error` has no instance yet
-           and is here on purpose -- this filter fails SILENTLY when it is too
-           narrow, so a suffix that could only ever hold a condition is worth
+           suffixes whose values are states. `-ready` is one of them, found by
+           review on #1206: `data-prod-description-ready` flips 1 -> 0 when
+           `_prodMarkDescriptionsStale()` runs, which is immediately BEFORE the
+           very `_prodRender` this exists to survive, so the Description Edit
+           button could never be restored. `-error` has no instance yet and is
+           here on purpose -- this filter fails SILENTLY when it is too narrow,
+           so a suffix that could only ever hold a condition is worth
            pre-empting rather than discovering. */
-        const PROD_FOCUS_VOLATILE_ATTR = /^data-prod-tip$|-(state|status|freshness|error)$/;
+        const PROD_FOCUS_VOLATILE_ATTR = /^data-prod-tip$|-(state|status|freshness|error|ready)$/;
         function _prodFocusSelectorPart(node) {
             // An id is unique in the document, so it is the whole key by itself.
             if (node.id) return '#' + CSS.escape(node.id);
@@ -54181,9 +54185,30 @@
            tag plus the first class token, which is the component's own class
            (`prod-nav-btn`) while state classes like `active` are appended after
            it and are free to change across the very re-render being survived. */
+        /* Tag and class are NOT enough on their own, and assuming they were is
+           the sharpest thing review caught on #1206. Every comment lifecycle
+           control is `<button class="prod-comment-action">` with no attribute
+           distinguishing it -- only its onclick and its label differ. Resolving
+           a comment during the 30-second refresh removes Reply and shifts Edit,
+           Reopen and Delete up one, so a positional key lands on the old
+           ordinal and a tag-plus-class check waves it through. Focus moves
+           silently from Edit to Reopen and the next keypress performs the wrong
+           lifecycle write.
+
+           So the shape carries the accessible name too. It is the only
+           discriminator these buttons have, and it is the right one: it is what
+           the person thought they were focused on. A label that legitimately
+           changed (Resolve -> Reopen on the same button) refuses the restore
+           rather than taking it, which is correct -- that control now means
+           something else. */
         function _prodFocusShape(el) {
-            const first = String(el && el.className || '').trim().split(/\s+/)[0] || '';
-            return String(el && el.tagName || '') + '.' + first;
+            if (!el) return '';
+            const first = String(el.className || '').trim().split(/\s+/)[0] || '';
+            const label = String(
+                (el.getAttribute && (el.getAttribute('aria-label') || el.getAttribute('title')))
+                || el.textContent || ''
+            ).replace(/\s+/g, ' ').trim().slice(0, 40);
+            return String(el.tagName || '') + '.' + first + '#' + label;
         }
         function _prodFocusStructuralTail(el, anchor) {
             const steps = [];

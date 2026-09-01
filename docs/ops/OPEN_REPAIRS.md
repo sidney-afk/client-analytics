@@ -5598,10 +5598,20 @@ The fix landed 2026-08-30 in `d9fbc2e7` and CHANGED that closure. The lane
 compares the candidate against its pin and refuses on a mismatch, so a dispatch
 today is rejected — correctly, and with nothing touched. **Re-pinning is a
 code change and therefore a PR, not an operator step**, which is the part the
-sentence above hides. That lane needs no rollback capture (its bundle is pinned
-in the workflow as `V39_BUNDLE_SHA256`), so once re-pinned it is a three-input
-one-click deploy: `commit_sha`, `deploy-reviewed-release`,
-`DEPLOY_REVIEWED_LINEAR_INBOUND`.
+sentence above hides. **And `CANDIDATE_SOURCE_SHA256` is not the only pin that has to
+move** — the first version of this correction said it was, and review on #1207
+was right to refuse that. The same workflow also fixes
+`REVIEWED_RELEASE_SHA: 661e5b1b…` (line 51) and requires
+`DEPLOY_COMMIT == REVIEWED_RELEASE_SHA` (line 93), then checks out that exact
+commit and fingerprints ITS source (lines 109, 306). So a PR that updated only
+the closure pin would still be refused at the commit check, and a dispatch that
+somehow got past it would deploy the OLD source. Both pins move together, to a
+commit containing `d9fbc2e7`, along with any guard that restates either.
+
+That lane needs no rollback capture (its bundle is pinned in the workflow as
+`V39_BUNDLE_SHA256`), so once BOTH pins are re-pinned it is a three-input
+one-click deploy: `commit_sha` (= the new reviewed-release SHA),
+`deploy-reviewed-release`, `DEPLOY_REVIEWED_LINEAR_INBOUND`.
 
 Noticed while answering "is there anything else I need to do?" after the
 2026-09-01 Section 4 deploy — which does NOT ship this: that lane deploys

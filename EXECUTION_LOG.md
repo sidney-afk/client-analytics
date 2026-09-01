@@ -5548,3 +5548,57 @@ the closest honest satisfaction.)
 - **Rollback:** revert the commits; nothing here changes a gate, a flag, a
   schema, or a write path, so no rollback scope is added.
 
+
+---
+
+## 2026-09-01 — F27 Section 4 forward deploy executed (post description release)
+
+Dispatched from `15f3a5e0d9d3e7996df534f6083b39a7fc041d36`, run `33464544302`.
+Prior-four sealed bundle `f2d74f9d…` (505119 bytes) fetched and independently
+verified before anything was touched. Deployed versions, recorded here because
+the lane's summary asks for exactly this:
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 34 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | `verify_jwt=false` |
+| `deliverable-write` | 34 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | `verify_jwt=false` |
+| `linear-outbound` | 46 | `d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b` | `verify_jwt=false` |
+| `production-write` | **64** | `d1c2b6666e97b538961e8f9995a792c97e0c7fc96c0a6bd0187440840ab66faf` | `verify_jwt=false` |
+
+`production-write` 63 → 64 is the one that carried work: the `batch_description`
+operation, which makes a POST'S OWN DESCRIPTION writable for the first time.
+Before it, the gateway refused every batch-entity mutation except `comment`, so
+a description set at intake was permanent from every seat in the product —
+1,186 batch parents carry one. The other three functions redeployed at
+identical closures, which is the lane working as designed: it deploys the whole
+set and proves each one byte-for-byte rather than trusting that an untouched
+function stayed untouched.
+
+**The order actually executed, and why it is the only order that works.** SQL
+first (`migrations/2026-09-01-batch-description-write.sql`, additive and safe
+before anything calls it), then merge (#1203), then capture, then deploy. The
+deploy cannot precede the merge: the lane requires `commit_sha` to equal the
+reviewed current-main SHA, so the gateway change has to be ON main before it
+can be deployed. An earlier draft of #1203's body claimed otherwise and was
+corrected.
+
+That leaves a real window between merge and deploy where the Edit control is
+live in the browser and the gateway does not yet know the operation. It was
+about 50 minutes here. **The failure mode is an error toast on save; the
+description is not touched and nothing is written** — the same bottom-up-deploy
+/ top-down-rollback asymmetry `ROLLBACK.md` already documents for the folder
+links. Keep the window short rather than trying to design it away.
+
+**The capture's sanity check is the one worth not skipping.** The receipt's
+`production-write` `source_closure_sha256` read
+`a54b6bad4bc7a34ef44da0be70e86a3ea1d0260b7457cb616fb558e68813265f`, which is
+exactly the pin the workflow carried BEFORE this release. That equality is what
+proves the bundle sealed the live set rather than something else; a bundle that
+seals the wrong set restores the wrong code, and nothing downstream would catch
+it. `docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md` §1 names this check, and it is
+cheap — one string comparison against a value already in the repo.
+
+No `commit_sha` decay this time: nothing else was queued to merge, so main's
+tip was still `15f3a5e0` at dispatch. That is luck, not method — the 2026-08-25
+entry records a dispatch rejected in 16 seconds for exactly this, and the rule
+stands: re-read main's head immediately before pressing Run.

@@ -5590,6 +5590,36 @@ pull-only classification should go detect-only for flipped teams.
 
 ## 77. [FIXED IN REPO 2026-08-30 — **DEPLOY PENDING**: the edge function must be redeployed (owner dispatches the linear-inbound deploy workflow) before this is live; until then production still runs the old gate] linear-inbound cannot see a CLEARED assignee — mechanism corrected, fix shipped with an executing test
 
+**CORRECTION 2026-09-01 — "owner dispatches the linear-inbound deploy workflow"
+is not yet an instruction anyone can follow, and finding that out at dispatch
+time would cost a cycle.** `.github/workflows/deploy-f27-linear-inbound.yml`
+pins `CANDIDATE_SOURCE_SHA256: 3d91b2a2…`, last changed 2026-07-30 in PR #999.
+The fix landed 2026-08-30 in `d9fbc2e7` and CHANGED that closure. The lane
+compares the candidate against its pin and refuses on a mismatch, so a dispatch
+today is rejected — correctly, and with nothing touched. **Re-pinning is a
+code change and therefore a PR, not an operator step**, which is the part the
+sentence above hides. **And `CANDIDATE_SOURCE_SHA256` is not the only pin that has to
+move** — the first version of this correction said it was, and review on #1207
+was right to refuse that. The same workflow also fixes
+`REVIEWED_RELEASE_SHA: 661e5b1b…` (line 51) and requires
+`DEPLOY_COMMIT == REVIEWED_RELEASE_SHA` (line 93), then checks out that exact
+commit and fingerprints ITS source (lines 109, 306). So a PR that updated only
+the closure pin would still be refused at the commit check, and a dispatch that
+somehow got past it would deploy the OLD source. Both pins move together, to a
+commit containing `d9fbc2e7`, along with any guard that restates either.
+
+That lane needs no rollback capture (its bundle is pinned in the workflow as
+`V39_BUNDLE_SHA256`), so once BOTH pins are re-pinned it is a three-input
+one-click deploy: `commit_sha` (= the new reviewed-release SHA),
+`deploy-reviewed-release`, `DEPLOY_REVIEWED_LINEAR_INBOUND`.
+
+Noticed while answering "is there anything else I need to do?" after the
+2026-09-01 Section 4 deploy — which does NOT ship this: that lane deploys
+`linear-outbound`, `production-write`, `deliverable-write` and `batch-write`.
+`linear-inbound` has its own lane and was untouched. Until it ships, an
+unassignment done in Linear still leaves the native `assignee_id` stamped, and
+the owner-SQL half remains the only way to clear one.
+
 PRE_FLIP_HEALTH_CHECK item 11 recorded the symptom (25 unassigns delivered,
 zero applied) and blamed "Linear omits null relations". **Half right, and the
 half matters for the fix.** Measured against 40 real webhook payloads: Linear
@@ -6439,7 +6469,7 @@ and fell through to the generic safe-to-retry text — which it was not, failing
 identically forever. It now says the store is full and that retrying will not
 help.
 
-## 93. [2026-08-31, FIXED] The asset panel refreshed twice on every load, and churned once more on every refresh
+## 93. [2026-08-31, FIXED — **LIVE 2026-09-01**] The asset panel refreshed twice on every load, and churned once more on every refresh
 
 **Both halves are now fixed, and the reasoning that got the first half fixed
 was wrong on the way past. That is the interesting part.**
@@ -6688,3 +6718,75 @@ way Production and Samples already do. Until it does:
 Owner intent recorded 2026-09-01: remove everything Linear within the week. That
 is not reachable while this holds. **Scoped separately in
 `docs/ops/WORKLOAD_NATIVE_SOURCE.md`.**
+
+---
+
+## 96. [2026-09-01] The hand-rolled `grabFunc` in 77 test files mis-extracts, and a mis-extraction can pass
+
+**Found by a suite breaking on its own subject, not by looking.**
+`test/prod-focus-survives-render.js` failed with "unclosed" for
+`_prodFocusSelectorPart`, which balances perfectly. The cause: that function
+contains `.replace(/[\\"]/g, …)` — a double quote inside a regex character
+class. The extractor does not know about regex literals, read the quote as
+opening a string, and swallowed the rest of the function.
+
+**It had been passing by accident.** The broken quote state happened to re-sync
+on a later quote before a brace at depth zero. Editing the function moved the
+text and the accident stopped landing — an unrelated edit failing for a reason
+that is not in it, which is the worst way for this to surface.
+
+### Measured across the whole file
+
+3,067 distinct function definitions in `index.html`, each extracted with the
+naive scanner and with a regex-aware one:
+
+- **8 the naive scanner cannot close at all** — it would throw. Among them
+  `_tplEsc`, `_tplEscAttr`, `_obvEsc`, `_obvLink`. The mechanism is the same
+  class: `_filmsParseMonth` contains `/(\d{1,2})/`, and **those braces are
+  counted**, so depth never returns to zero.
+- **79 extract differently.** Some are unmistakable: `_calEsc` is a 145-character
+  one-liner and the naive scanner returns **49,193**; `wlEscape` is an escape
+  helper and it returns **89,328**.
+
+### Why a mis-extraction is not always a loud failure
+
+Over-extraction usually produces a syntax error in the `vm` sandbox, and the
+suite dies visibly. The dangerous case is over-extraction that still *parses*:
+the symbol under test gets defined, the assertions run, and the suite passes —
+while the sandbox has quietly been given several thousand extra lines of
+`index.html`.
+
+**That is not hypothetical; it happened in this repo on 2026-08-31.** A lifted
+slice spanned `index.html`'s own `const _prodState`, so the sandbox declared the
+real object and shadowed the test's fixture. A mutation that should have failed
+passed, and one assertion was vacuous. It was caught by accident. That incident
+is an instance of this class, and it is the reason to treat this as a defect
+rather than a tidiness item.
+
+### Do NOT sweep the 77 files with the fix in `test/prod-focus-survives-render.js`
+
+The regex-aware version there closes all 3,067 and fixes the class above — **and
+introduces its own false positives.** Its "is this `/` a regex or a division?"
+heuristic reads the preceding significant character, and on at least two
+functions it starts a regex that never ends: `renderMRTab_hooks` goes from 3,416
+characters to **2,040,008**, `renderGeneralBrief` from 4,930 to **252,173**.
+
+So neither scanner is correct, and replacing one with the other estate-wide
+would trade a known set of broken extractions for an unknown one. The honest
+position: it is fixed in the one file where it broke, verified there (all seven
+extractions balance and parse standalone), and the general problem is open.
+
+### What a real fix looks like
+
+A shared, tested extractor — one module in `test/`, not 77 copies — that either
+uses a proper tokenizer or refuses loudly rather than guessing. Two properties it
+must have, both learned here:
+
+1. **Never return a slice that does not parse.** Refusing is safe; a plausible
+   wrong slice is not.
+2. **Refuse a slice that redeclares a symbol the caller also defines.** That is
+   what makes the 2026-08-31 decoy silent, and no brace-matching improvement
+   prevents it.
+
+Not attempted unattended: it touches every suite in the repo, and the failure
+mode it guards against is precisely a test that looks like it passes.

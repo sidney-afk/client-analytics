@@ -7248,6 +7248,52 @@ can already read, BEFORE anyone hits it, without any new instrumentation. It
 cannot see a refusal that has already happened — nothing can — but it can name
 every thread where one is waiting to.
 
+### Points 4 and the browser half of 2 SHIPPED 2026-09-02 — browser-only, live on merge
+
+Neither needs a deploy or a grant, which is why they went first. Points 1 and 3
+still need an edge-function change, and point 5 needs those.
+
+**Point 4, the text.** A reply draft is now mirrored to `sessionStorage` per card
+(`sv_replyDrafts_<pid>`, a parentId → text map beside the existing
+`sv_noteDraft_<pid>`) and restored when the modal reopens, instead of being wiped
+wholesale by `openCalComments`. The refusal path already kept the draft IN
+MEMORY — `_calSubmitComposer` returns early and never reaches the delete — so the
+gap was never the refusal itself. It was that the draft died when the person
+closed the modal, **which is exactly what someone does when a save fails and they
+go looking for why.** The client's words were then the only unrecoverable thing
+in this entry, and nothing anywhere held them.
+
+Capped at 20 threads per card, evicting the least recently written. The TEXT is
+never truncated: a silently shortened draft is a worse outcome than a dropped
+one, because the person cannot see that it happened. An EDIT draft is
+deliberately not persisted — it is a change to text the server already holds, so
+losing it costs a retype and never costs the only copy of anything.
+
+**Point 2, the browser half.** Every identifier the row needed was already on the
+`item` the caller handed `_writeUiQueueDiagnostic`, which recorded `kind` and
+discarded the rest. A refusal row now also carries `id`, `client_slug`,
+`transport`, `card`, `component`, `comment`, `parent`, `action` and the work item
+— through an **allowlist**, not a copy. A queue item carries `payload.body` and
+`source_gate.comment_author`, and a ring accumulating client prose and people's
+names in localStorage would be a worse artefact than the one it replaces; an
+allowlist also stays correct when a new field appears, where a denylist would
+silently start recording it. `_writeUiReportFailure` takes an optional `context`
+that goes through the same allowlist, and the canonical comment gateway refusal
+— the lane items 99, 100 and 104 all live on — now supplies card, component,
+comment and action. **The other 16 report sites still have no identifiers**, and
+are worth threading one at a time rather than in one unattended sweep.
+
+`test/write-failure-receipt.js` runs the real helpers. Six mutations checked.
+
+**A CORRECTION WORTH RECORDING, because the suite earned it the hard way.** The
+first version of that test passed with the feature DEAD. Deleting the persist
+call from the composer handler, and deleting the restore from
+`openCalComments`, both left every assertion green — because the suite drove the
+two helpers directly and never asked whether anything called them. That is item
+114's lesson one level up: **a guard is only as reachable as the path that feeds
+it, and a test that exercises the guard alone cannot see the path.** The wiring
+is now asserted inside each caller's brace-matched body, and both mutations fail.
+
 ---
 
 ## 102. [2026-09-02] THE ROOT: the card↔deliverable binding has essentially never been written — 5,150 of 6,241 deliverables have `card_id` NULL

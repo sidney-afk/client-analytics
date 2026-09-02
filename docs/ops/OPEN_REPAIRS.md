@@ -6984,3 +6984,61 @@ of 1 is read as an empty result rather than a broken check.
 
 Registered in `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT section, the same place and
 the same way as its three siblings.
+
+### Amended before merge (#1224): four findings, and the sharpest was the tool leaking
+
+All four are correct, and one of them is the tool breaking its own single
+guarantee.
+
+**1. [P1] The gate never ran before a change was public.** `npm test` runs only
+the offline source-inspection suite; the executable was referenced nowhere but
+the scheduled watch. So a pull request adding a client identifier passed CI and
+merged, at which point removal already needs the history rewrite the gate exists
+to avoid. **Now a CI job runs it on every pull request.** It is a SEPARATE job:
+the `unit` job is documented as reaching no live backend, and this needs the
+roster to know what an identity *is* — folding it in would have quietly
+falsified that job's own contract. It reads two columns with the publishable key
+that already ships in `index.html`, so it exposes nothing a page load does not.
+
+**2. [P2] A baseline of totals cannot see a swap.** Replace one already-counted
+name with a *new* person's, in a file already on the list, and both numbers stay
+exactly where they were. So CI does not run the tree scan at all — it runs
+`--diff=<base>`, which scans only what the change **adds** against **no baseline
+at all**. No committed identity list, nothing to keep in step, and a swap is
+caught exactly.
+
+Demonstrated rather than argued, with a real roster slug appended to an
+already-counted file:
+
+| mode | verdict |
+|---|---|
+| tree | *"At or under the baseline ✅ — the exposure is not growing"* |
+| diff | *"FAIL: this change names a client or a colleague in 1 file(s)"* |
+
+**3. [P2] Contents are not the only place a name lives.** A file called
+`docs/audits/2026-09-02-<client>-audit.md` with a generically worded body is
+exactly as public as one that says the name in a sentence, and `git grep` does
+not look at path text. Both modes now scan paths as well — added paths in diff
+mode, `git ls-files` in tree mode. Verified with a probe file whose name carried
+a slug and whose body carried nothing: caught.
+
+**4. [P2] THE TOOL LEAKED ON ITS OWN ERROR PATH.** `execFileSync` puts the whole
+argv in its error message, and the argv holds the roster term — so any git
+failure other than the no-match status would have printed a client's slug into
+a CI log. The tool's one guarantee, broken on exactly the path most likely to be
+pasted somewhere. Every git call now goes through one wrapper that **throws a
+replacement**, never re-throws, and says why it is terse so nobody improves it
+back.
+
+**A roster read that fails is not a red build.** Exit 1 is a finding and blocks;
+anything else warns and passes. An outage must not look like a leak, and a
+forked pull request with no network must not look clean either — the tree
+baseline in `PRE_FLIP_HEALTH_CHECK.md` is the backstop for a skipped run.
+
+**And the suite's own enumeration had to get stricter to stay honest.** Stripping
+comments was not enough: the redaction message itself contains the word *term*,
+inside a string. Whitelisting that LINE would have set the precedent that a line
+mentioning the variable can be excused, which is how a real leak gets waved
+through — so string BODIES are stripped too, leaving only the places the
+variable is actually used. Mutation-tested: `console.log('leak', term)` and a
+bare `throw err` each fail by name.

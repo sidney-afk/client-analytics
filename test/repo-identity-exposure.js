@@ -27,6 +27,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = fs.readFileSync(path.join(ROOT, 'scripts', 'repo-identity-exposure-check.js'), 'utf8');
+const WORKFLOW = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'calendar-unit-tests.yml'), 'utf8');
 /* Comments carry the reasoning and would otherwise satisfy or trip every
    regex below. Rules are asserted against CODE. */
 const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ')
@@ -44,18 +45,33 @@ function ok(condition, message) {
    here; anything else is a leak. Asserted by enumeration rather than by
    searching the output sites, because a leak can be introduced by a template
    literal, a JSON field, or a thrown error message equally well. */
-const termUses = CODE.split('\n')
+/* STRING CONTENTS ARE STRIPPED for this enumeration, and only for it. The
+   redaction message itself contains the word "term" — and whitelisting that
+   LINE would set the precedent that a line mentioning the variable can be
+   excused, which is how a real leak gets waved through. Removing string
+   bodies leaves only the places the VARIABLE is used. */
+const CODE_NO_STRINGS = CODE
+  .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+  .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+  .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+const termUses = CODE_NO_STRINGS.split('\n')
   .map((line, i) => ({ line: line.trim(), n: i + 1 }))
   .filter(x => /\bterm\b/.test(x.line));
-ok(termUses.length > 0 && termUses.length <= 6,
+ok(termUses.length > 0 && termUses.length <= 14,
   `the matched string is used in exactly ${termUses.length} places, few enough to enumerate`);
 const allowed = [
-  /terms\.push\(\{ kind: 'client_slug', term: slug \}\);/,
-  /terms\.push\(\{ kind: 'staff_name', term: name \}\);/,
+  /terms\.push\(\{ kind: '', term: slug \}\);/,
+  /terms\.push\(\{ kind: '', term: name \}\);/,
   /function filesContaining\(term\) \{/,
-  /execFileSync\('git', \[.*'--', term\]/,
+  /function pathsContaining\(term\) \{/,
+  /function addedLinesContaining\(term, base\) \{/,
+  /function addedPathsContaining\(term, base\) \{/,
+  /const out = git\(\[.*term\], \{ termInArgs: true \}\);/,
+  /const needle = term\.toLowerCase\(\);/,
+  /line\.includes\(term\)\) count\+\+;/,
   /for \(const \{ kind, term \} of terms\)/,
-  /const files = filesContaining\(term\);/,
+  /\? addedLinesContaining\(term, DIFF_BASE\)\.map\(h => h\.file\)\.concat\(addedPathsContaining\(term, DIFF_BASE\)\)/,
+  /: filesContaining\(term\)\.concat\(pathsContaining\(term\)\);/,
 ];
 const unexpected = termUses.filter(u => !allowed.some(re => re.test(u.line)));
 ok(unexpected.length === 0,
@@ -77,6 +93,53 @@ ok(/'grep', '-lI', '-F', '--'/.test(CODE),
   'the grep is `-l` — it answers with FILE NAMES and never a matching line, which is the property this needs rather than a convenience');
 ok(!/'-n'/.test(CODE) && !/--line-number/.test(CODE),
   'and never asks for line numbers or content');
+
+/* ---- 1b. The error path, which is where it nearly leaked ---------------- */
+
+/* `execFileSync` puts the WHOLE ARGV in its error message, and the argv holds
+   the roster term. So a git failure that is not the no-match status would have
+   printed a client's slug into a CI log — the tool's one guarantee, broken on
+   exactly the path most likely to be pasted somewhere. Raised by review on
+   #1224 and the sharpest of the four. */
+ok(/function git\(args, \{ termInArgs = false \} = \{\}\)/.test(CODE),
+  'every git call goes through one wrapper, so there is one error path to get right rather than three');
+ok(/throw new Error\(`git \$\{args\[0\]\} failed \(status \$\{code\}\)`/.test(CODE),
+  'and it THROWS A REPLACEMENT — the original message, which carries the argv, never escapes');
+ok(!/throw err;/.test(CODE),
+  'the original error is never re-thrown, so nothing downstream can print it');
+ok(/message withheld because the argument list carries a roster term/.test(CODE),
+  'and the replacement says WHY it is terse, so the next reader does not "improve" it back');
+
+/* ---- 1c. Contents are not the only place a name lives ------------------ */
+
+ok(/function pathsContaining\(term\)/.test(CODE) && /git\(\['ls-files'\]\)/.test(CODE),
+  'FILE PATHS ARE SCANNED TOO — a file called `2026-09-02-<client>-audit.md` with a generically worded body is exactly as public as one that says the name in a sentence, and git grep does not look at path text');
+ok(/filesContaining\(term\)\.concat\(pathsContaining\(term\)\)/.test(CODE),
+  'and both are counted in tree mode');
+
+/* ---- 1d. Diff mode: the gate that runs before the change is public ----- */
+
+/* Review on #1224 was right twice over. `npm test` never invokes this script,
+   so a change adding a client identifier passed CI and became public before the
+   exit status was ever observed. And a baseline of TOTALS cannot see a SWAP:
+   replacing one already-counted name with a new person's leaves every number
+   exactly where it was. Scanning what a change ADDS needs no committed
+   baseline, catches the swap exactly, and stays privacy-preserving. */
+ok(/const DIFF_BASE = diffArg \? diffArg\.split\('='\)\[1\] : null;/.test(CODE),
+  '`--diff=<ref>` selects the mode that scans only what a change ADDS');
+ok(/function addedLinesContaining\(term, base\)/.test(CODE)
+  && /function addedPathsContaining\(term, base\)/.test(CODE),
+  'and it scans added LINES and added PATHS, because either one publishes a name');
+ok(/const failed = DIFF_BASE\s*\n\s*\? files\.length > 0/.test(CODE),
+  'IN DIFF MODE THE BASELINE IS ZERO — anything a change adds is new exposure by definition, so there is nothing to tolerate and no number to keep in step');
+ok(/--diff="origin\/\$\{\{ github\.base_ref \}\}"/.test(WORKFLOW),
+  'and CI runs it on every pull request, which is the only place it can stop a name BEFORE it is public');
+ok(/if: github\.event_name == 'pull_request'/.test(WORKFLOW),
+  'as its own job — the unit job is documented as reaching no live backend, and this needs the roster to know what an identity is');
+ok(/code -eq 1/.test(WORKFLOW) && /code -ne 0/.test(WORKFLOW) && /::warning::/.test(WORKFLOW),
+  'A ROSTER READ THAT FAILS IS NOT A RED BUILD: exit 1 is a finding and blocks, anything else warns and passes — an outage must not look like a leak, and a fork with no network must not look clean either');
+ok(/deliberately does not print what it matched/.test(WORKFLOW),
+  'and the CI error tells the reader to run it locally rather than asking the log to name the client');
 
 /* ---- 2. What it counts, and why there are two baselines ---------------- */
 

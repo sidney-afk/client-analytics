@@ -439,6 +439,12 @@ trains everyone to skim the report, which is the exact failure mode the
     lets one file name the whole roster.
   - Short slugs and single given names are excluded — they match ordinary
     English — and so is the TEST client, which is named in the code by design.
+  - **CI runs the other mode.** `--diff=<base>` scans only what a pull request
+    ADDS — added lines and added file paths — against no baseline at all, in its
+    own job in `calendar-unit-tests.yml`. That is the half that can stop a name
+    BEFORE it is public; this tree scan is the standing measurement. A failed
+    roster read there warns and passes rather than blocking, so an outage never
+    looks like a leak — which is why this entry stays the backstop.
 
 - **Cards born without their work** — `node scripts/card-linkage-leak-check.js`
   (read-only, public key, safe anywhere). **Report "unlinked AND live", never

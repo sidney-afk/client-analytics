@@ -118,7 +118,12 @@ for (const name of [
   const body = extract(name);
   assert(body.indexOf('const clientSlug = _writeUiSourceClientSlug') < body.indexOf('fetch('), name + ' must capture its client before async I/O');
   assert(body.includes("Enqueue('status', payload") || body.includes("Enqueue('comment', payload"));
-  assert(body.includes(', clientSlug)'), name + ' must persist the captured client with retry debt');
+  // The captured slug must be the argument the enqueue persists. Matched as
+  // `, clientSlug` followed by a close-paren OR a comma, because the two
+  // comment enqueues now also pass a fifth argument (the add lane's
+  // deliberately-legacy stamp, OPEN_REPAIRS item 99). What is being pinned
+  // is that the FROZEN local is what travels, not the arity.
+  assert(/, clientSlug[,)]/.test(body), name + ' must persist the captured client with retry debt');
 }
 
 // Execute the restored Calendar/SXR writers and prove the legacy n8n request

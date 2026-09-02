@@ -6912,3 +6912,101 @@ make unattended. This entry adds the measurement and the gate, so the class
 cannot grow silently while the repair waits, and so the repair can be verified
 when it happens. The never-imported class additionally needs a root cause: why
 B1 skipped seven live graphics issues for six days is not answered here.
+
+---
+
+## 102. [2026-09-02, STEP 1 BUILT — **PENDING OWNER APPLY** (SQL only, changes nothing visible)] Workload's native source exists; the Linear exit is now four steps rather than five
+
+Numbered 102 because 99–101 were taken by branches open at the same time.
+
+**The blocker this is against.** Item 95 measured what the Linear-derived
+Workload board already costs — 40 live deliverables across 10 active clients
+that the board cannot see — and ended by saying the real fix is the Linear-exit
+blocker, scoped in `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. Owner intent recorded
+2026-09-01: remove everything Linear within the week. That is not reachable
+while Workload is a **mandatory relay**: turn Linear off and the board is empty,
+because nothing else populates `workload_issues`.
+
+**Step 1 of five is built:**
+`migrations/2026-09-02-workload-native-view.sql` creates
+`public.workload_issues_native_v1` from `deliverables` + `batches` +
+`team_members` + `clients` — two `union all` arms, one row per deliverable and
+one per batch that carries at least one, answering all twenty fields
+`_wlV2MapRow` consumes.
+
+**Applying it changes nothing anyone sees.** No browser code reads it (the
+suite asserts that as a load-bearing negative), no table is touched, no row is
+written, and re-running it is a no-op. That is the whole design of step 1: the
+two sources become readable side by side so the diff is measured on real data
+instead of argued about.
+
+### It takes none of the four decisions that are not mine to take
+
+- **Row identity** (scope §6.1) — it answers **both** `id` (native) and
+  `linear_id`. Not fence-sitting: `public.workload_plan` is
+  `issue_id text primary key` holding the LINEAR uuid, and every manual plan day
+  already saved joins on it. A view that had chosen native would have silently
+  orphaned them — the days would not error, they would stop appearing.
+- **What `url` points at** after Linear (§6.2) — still Linear, because that is
+  still where the issue is.
+- **Whether the board's manual ordering comes back** — `deliverables.sort_key`
+  exists and `workload_issues` has no sort column at all, so this view *could*
+  supply it. It publishes `native_sort_key`, deliberately **not**
+  `sort_order`: `_wlV2MapRow` reads `r.sort_order` and `wlSortSubIssues` uses
+  manual order as soon as every row has a finite value, so naming it that would
+  have re-sorted the entire board the first time anything read the view. Scope
+  §4 asked for exactly this restraint.
+- **Anything about n8n.** No workflow touched, referenced or disabled. The
+  reconcile and the Linear webhook keep running, which is required until step 5.
+
+### The one policy choice it does make
+
+`active`. On the Linear side it mirrors Linear's archived flag — the mechanism
+item 95 is about. Natively there is **no per-deliverable archive column at
+all**, so the closest honest analogue is the batch: false only when the batch is
+`archived`. The consequence is the point, not a side effect — **item 95's rows
+appear on the native side and not the Linear side, which is the step 3
+acceptance test.**
+
+### Two things measurement found that reading would not have
+
+1. **`Approved`, `Scheduled` and `Posted` are workflow type `completed`.** The
+   parked-status NAME list in `index.html` includes `approved` and `posted`,
+   which reads as though their type must be non-terminal — otherwise the type
+   test would already have caught them. It does not: the name list is
+   belt-and-braces. Census of the live table, 2026-09-02, 3,437 rows, every
+   distinct `(status, status_type)` pair. Guessing here hides or shows real work.
+2. **The vocabulary problem is bigger than §3a recorded.** That section cited
+   `For Client approval` (31) vs `For Client Approval` (20). The full census
+   finds **391 and 366** — plus `Tweak Needed ` with a **trailing space** (13
+   rows), and 19 rows carrying no status at all. Three spellings of two states
+   and a null, because the vocabulary is a human-editable display string in
+   somebody else's product. `wlNormStatus` trims and lower-cases, so the board
+   survives it; the point is that it has to.
+
+### Verified against a real database, not only by pattern
+
+Applied to a disposable PostgreSQL 16 cluster built from the b0/b1 schema
+migrations, with fixtures for a null-team batch, a batch worked by both teams,
+an archived batch holding live work, and a batch with no deliverables. That run
+is what caught the first draft deriving a mixed batch's team with `min(team)` —
+which silently means "graphics" for every batch worked by both. It answers NULL
+now, because the batch genuinely has no single team.
+
+`test/workload-native-view-contract.js` pins the status map against
+`mapping.mjs` and against the column's own CHECK constraint (in both
+directions, so neither can grow a value the other lacks), pins each measured
+type individually, pins the `sort_order` restraint as a negative, and asserts
+**both union arms publish the same columns in the same order** — a UNION pairs
+columns positionally and names them from the first arm, so a reordered second
+arm files one column under another's name and still compiles. Mutation-tested:
+a wrong type, a renamed column in one arm, a swapped pair in the other, and the
+`sort_order` trap each fail it by name.
+
+### What is left
+
+Steps 2–5 of the scope doc, unchanged. Step 2 (read it behind `?wlnative=1`)
+needs this applied first, or the flag reads a view that is not there. Steps 4
+and 5 still carry the contradiction the scope doc names: `?wlnative=0` is only a
+rollback while `workload_issues` is still being populated, so the flag has to be
+retired before step 5 or the mirroring kept for the whole window.

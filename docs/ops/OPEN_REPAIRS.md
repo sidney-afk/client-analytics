@@ -4699,7 +4699,7 @@ the telemetry instead of accepting it. The briefing was wrong; the check
 survived it only because the verifiers were instructed to refute rather than
 confirm. A verification pass that trusts its own framing would have missed this.
 
-## 59. [found 2026-08-29 02:00 UTC, live] The calendar keeps offering Linear link controls the flip already sealed — the seal is right, the re-render never happens
+## 59. [found 2026-08-29 02:00 UTC; **FIXED 2026-08-31 in `1ce02ff6`, verified 2026-09-02**] The calendar kept offering Linear link controls the flip had already sealed — the seal was right, the re-render never happened
 
 After F1(video), calendar cards still render the PRE-flip Linear link affordances
 — the orange "needs a Linear link" warning and the pencil edit button — on a
@@ -4740,7 +4740,21 @@ then refuse — precisely what the 2026-08-25 seal shipped to prevent. And it is
 not new tonight: graphics has shown the same stale affordances since its own flip
 on 2026-08-16; the video flip merely doubled it onto every card's video slot.
 
-**THE REPAIR (not done):** in the post-authority hydrate path
+**THE REPAIR — DONE, and this line said otherwise for two days.** Shipped in
+commit `1ce02ff6` ("Fix item 59: re-render the calendar/samples grids when
+authority resolves"). Verified in `index.html` 2026-09-02: the post-authority
+hydrate path now compares a `JSON.stringify(authority)` signature against
+`_writeUiLastRenderedAuthoritySig` and re-renders only when the value is NEW
+information, gated on `currentNav` so only the visible surface repaints, and
+deferred to the pending-render lane when `_calIsCalBusy()` / `_sxrIsBusy()` — so
+a background repaint cannot drop a focused input or an open menu. Both the
+calendar and Samples grids are covered. Pinned by
+`test/write-ui-writer-durability.js`. The fail-open first paint is intact: the
+seal never became a blocking dependency of the first render, which is what the
+original text asked for. **The description below is kept as the diagnosis, not
+as outstanding work.**
+
+The original repair note read: in the post-authority hydrate path
 (index.html:31790-31822) call the calendar re-render once the authority read
 resolves, or move the authority read ahead of the calendar data load so the first
 paint is already sealed. Prefer whichever keeps the fail-open first paint intact
@@ -5489,6 +5503,29 @@ without attributing, and nothing downstream re-derives it. Worth deciding
 whether the stray catcher should attribute on import, refuse to import what it
 cannot attribute, or keep importing and hand the backlog to a repair lane.
 
+**RE-MEASURED 2026-09-02, as this entry asks.** Every number is unchanged:
+637 unattributed, **63 unattributed and live**, exactly **1** carrying a due
+date — still `VID-164`, still `todo`, still due **2023-02-03**, still not
+archived, still therefore at the top of Active. Total production rows moved
+6,152 → 6,239 over the same period, so the estate grew while this population did
+not.
+
+**BUT THE FEEDER IS STILL RUNNING, and an earlier draft of this paragraph said
+it was not.** `.github/workflows/b1-linear-incremental-refresh.yml` is on
+`cron: '*/30 * * * *'` and sets `B1_STRAY_CATCHER: '1'` at the step level, which
+since F1(video) is the STANDING mode for every run — the dispatch checkbox is
+ignored. The importer inserts every newly encountered active Linear issue, and
+item 74 directly below records that post-flip paths can still manufacture
+unattributed rows. So the honest reading of a flat 637/63/1 is **no qualifying
+issue arrived during this window**, which is a fact about the window and not
+about the mechanism.
+
+What that changes: the population is not decaying while the decision waits, but
+it is not sealed either — a single new Linear issue lands another ownerless live
+row within thirty minutes. Cheaper than it looked, not free. Raised by review on
+#1221, correctly: calling the feeder absent understates the repair and invites
+deferring it on a premise that is not true.
+
 Note the reconciler's own `repair_required` counter has been **flat at 779
 across 30 consecutive runs** with `entities_checked` flat at 7,498, so this is
 not currently growing on that measure — the import was a step, not a trend.
@@ -6003,7 +6040,7 @@ clients (the second owner call below) or giving the fallback a freshness test.
   return a wrong answer — but it silently changes meaning the moment a client is
   taken *off* the allowlist. Wants the flag coupling made explicit first.
 
-## 87. [found 2026-08-31, unknowable-assertion sweep — 12 agents, adversarially verified] Eighteen more places the interface states something it cannot know
+## 87. [found 2026-08-31, unknowable-assertion sweep — 12 agents, adversarially verified; **ALL EIGHTEEN FIXED — verified 2026-09-02**] Eighteen more places the interface states something it cannot know
 
 The method that produced five of the seven flip-day bugs, run deliberately and
 at width: six falsehood classes swept across every SyncView surface, each
@@ -6023,6 +6060,13 @@ the same words AFTER hydration, next to a chip that says Native writes.
 
 Nothing below is fixed unless it says so. Recorded here so none of it is lost,
 ordered roughly by who hits it and how soon.
+
+**STATUS 2026-09-02: every one of the eighteen now says so.** Swept the
+sub-headings mechanically — all 18 carry a FIXED marker, so this item is closed
+as a whole. It was still listed as open work because the parent heading was
+never updated when the last child landed, which is worth noting as its own small
+lesson: an item with children needs its own closing act, or it goes on
+advertising work that no longer exists.
 
 ### 87.1 Production Assets panel prints "Not provided / Missing" for all four slots whenever the authenticated asset read has not answered or was refused — **FIXED 2026-08-31** (PR #1183, deployed): PROD_ASSET_UNREAD_GUIDANCE now covers every deliverable, not only synthetic parents.
 
@@ -7661,6 +7705,123 @@ though the forced `view = 'list'` transition may well have been producing some
 of it.
 
 ---
+
+## 105. [2026-09-02, SCOPED — one owner decision, then it is a day's work] Pasting an image into a description: the render half shipped, the upload half needs a storage answer
+
+Owner, 2026-08-31: *"could you look into pasting images in the description? …
+same way it does in linear. So just a simple pasting of a screenshot."*
+
+**The render half is live.** PR #1204, merged 2026-09-01. Before it, markdown
+image syntax was not image syntax to this app at all — the inner `[alt](url)`
+matched the *link* rule, so a description carrying a screenshot drew a stray `!`
+in front of a blue link to a PNG. Any image already reachable by URL now renders
+inline, https-only, descriptions-only, `referrerpolicy="no-referrer"`, lazy.
+
+**The upload half was deliberately not bundled**, and #1204 said why: a paste
+handler needs somewhere to put the bytes, which is a storage decision plus a
+deploy. Scoped now in **`docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`**.
+
+### The fact that decides most of it
+
+**There is no browser→storage path anywhere in this estate.** The one bucket,
+`syncview-thumbnail-revisions`, is private; a service-role edge function writes
+it and a protected reader hands out 5-minute signed URLs. The browser has never
+held a key that can write, and an upload path is the worst place to start.
+
+So both options need the same write edge function, the same MIME allowlist, the
+same byte and dimension ceilings, and the same paste handler. They differ in one
+thing: **what the description stores**, and therefore what has to happen at
+render time.
+
+| | private bucket + signed URL | public bucket + unguessable path |
+|---|---|---|
+| privacy | object never publicly reachable | anyone holding the URL can fetch |
+| render path | **`_prodDescriptionHTML` must become async** | **no change at all** |
+| shared renderer | `_prodLinkify` also draws comments — the async contract must not leak there | untouched |
+| copy/paste the URL out | dies in five minutes, reads as broken | works |
+| new failure modes | expiry mid-read, a resolve call per description | none beyond the upload |
+
+### The question that decides it was traced, not left open
+
+*Does any surface a **client** can reach render a deliverable or batch
+description?* Writing one is admin/SMM only, but that is a write rule, not a
+read rule. Following the read paths:
+
+- `_prodDescriptionHTML(..., rich = true)` — the only image-enabled call — has
+  two call sites, both inside `_prodDescriptionPanelHTML`;
+- that, `_prodProjectDetail` and `_prodBatchDetail` are reached only from the
+  `_prodState.view` dispatch and the issue-detail panel — the Production
+  surface;
+- a client share link is confined to `['analytics','brief']`, asserted in two
+  places; `production` is a staff header route and is not among them;
+- the review surface a client *can* reach renders comments, which are already
+  image-disabled by construction.
+
+**No client-facing surface renders these descriptions.** That is what makes the
+public-bucket option defensible rather than merely convenient — and it is
+exactly what has to be re-checked if a client-visible batch panel is ever added,
+because that option's protection is the unguessability of the URL and nothing
+else.
+
+### Recommendation
+
+**Public bucket.** A pasted screenshot then has the same property the estate
+already accepts for every Drive and Frame.io link in the same field, and the
+render path does not change — so the work is a write edge function plus a
+clipboard listener, not a rewrite of a renderer that also draws comments.
+
+The private-bucket option is the stronger answer to a threat this surface does
+not currently have, and it charges an async contract on a shared renderer to get
+it. A legitimate call if the owner wants it; the cost is real and bounded.
+
+### What is needed
+
+1. **Which option.** One word.
+2. **Retention** — forever, or cleaned up when the referencing description
+   changes? *Forever* is fine and is what the public-bucket option implies.
+
+Nothing else is blocked; everything shared between the two can be written the
+moment the first answer lands.
+
+### Amended before merge (#1225): three findings, and one of them narrows the choice
+
+**1. [P1] The private-bucket option breaks the Linear mirror.** Verified:
+`description` is an OUTBOUND OPERATION and `linear-outbound` sends the
+description string to Linear **verbatim**, with outbound live for both teams. So
+a description carrying `syncview-image:<id>` puts that token into Linear as
+**literal text** — the picture renders in SyncView and a stray string appears in
+Linear, which is the opposite of *"same way it does in linear."* That option now
+also owes a durable Linear-compatible URL transformation, which is the public
+option wearing a costume. It does not merely cost more; it fails the sentence
+the request was made in.
+
+The public option is fine there for a reason worth writing down:
+`![alt](https://…)` is ordinary markdown Linear renders itself, and it survives
+post-create verification because `collapseLinearAutolinks` only collapses a link
+whose label equals its target — Linear's bare-URL auto-link signature. An image
+link is a real markdown construct with a different label, so nothing collapses
+and nothing false-mismatches. That is the 2026-08-07 orphan defect's exact
+shape, avoided by construction.
+
+**2. [P1] The upload must bind to a verified actor, not just the shared key.**
+`x-syncview-key` plus a caller-supplied role header authenticates *someone on
+staff* and nobody in particular — so it can neither enforce a per-actor rate
+limit nor stop an offboarded person who kept the key. `production-write` already
+does this properly, requiring `x-syncview-actor` and resolving it to exactly one
+active, role-compatible `team_members` row. The spec now requires the same, and
+the reason is sharper here: the object created is durable and, under the public
+option, publicly readable.
+
+**3. [P2] The spec's own MIME rule was wrong.** It said *"reject anything not on
+the list rather than sniffing"* — which validates a CLAIM. SVG bytes labelled
+`image/png` satisfy an allowlist applied to the browser-supplied value. Three
+conditions now, all required: the declared type is on the allowlist, the magic
+bytes identify a type on the allowlist, and the two agree and decode with that
+codec. The instinct behind the original line survives — do not let a sniffer
+WIDEN the set — but sniffing must narrow it, never replace the allowlist.
+
+**All three were spec defects caught before anything was built**, which is the
+argument for scoping in a reviewable file rather than in a plan nobody reads.
 
 ## 103. [2026-09-02, ANSWERED — no repair here; the repair is items 95/102] Item 98's open question: B1 skipped nothing. The issues were deleted in Linear seconds after SyncView created them
 

@@ -57844,24 +57844,62 @@
                 _prodDeltaRefresh({});
             }, 5000);
         }
+        /* WHICH ITEM IS ACTUALLY ON SCREEN, asked of the DOM rather than of state.
+           `_prodState.openId` answers where the reader is GOING; the pane still
+           standing in the document is where they have BEEN, and between those
+           two the capture below has to mean the second one. Every detail
+           container stamps its own id, so the painted pane can say who it is. */
+        function _prodPaintedDetailKey(root) {
+            const detail = root && root.querySelector ? root.querySelector('.prod-detail-main') : null;
+            const owner = detail && detail.closest ? detail.closest('[data-prod-detail],[data-prod-batch-detail],[data-prod-project-detail]') : null;
+            if (!owner || !owner.getAttribute) return '';
+            return String(owner.getAttribute('data-prod-detail')
+                || owner.getAttribute('data-prod-batch-detail')
+                || owner.getAttribute('data-prod-project-detail') || '');
+        }
         function _prodCaptureListScroll(root) {
             root = root || document.getElementById('prodRoot');
             const list = root && root.querySelector ? root.querySelector('.prod-listwrap') : null;
             if (list) _prodState.listScrollTop = list.scrollTop || 0;
-            // The detail pane is rebuilt by every render (description/comments/
-            // assets arriving, the 30s delta tick, authority changes), and an
-            // innerHTML swap resets its scroll to 0 — so a reader partway down a
-            // long issue was yanked back to the top. Capture per open id so the
-            // restore never applies a stale offset to a different issue.
+            /* The detail pane is rebuilt by every render (description/comments/
+               assets arriving, the 30s delta tick, authority changes), and an
+               innerHTML swap resets its scroll to 0 — so a reader partway down a
+               long issue was yanked back to the top. Capture per open id so the
+               restore never applies a stale offset to a different issue.
+
+               THE KEY COMES FROM THE PAINTED PANE, and reading it from state
+               instead is owner report 2026-09-02: opening a sub-issue and going
+               back to its parent painted the parent SCROLLED DOWN and then
+               snapped it to the top.
+
+               `_prodRender` calls this AFTER the navigation has already written
+               the new id into `_prodState.openId`, and one line before the
+               innerHTML swap. So the offset read here belongs to the OUTGOING
+               item while the key stamped beside it named the INCOMING one. The
+               restore below then matched — it compares the same state to itself
+               — and pasted the sub-issue's offset onto the parent's fresh pane.
+               `_prodScrollDetailToTop`'s deferred reset undid it a tick later,
+               which is the snap: two correct-looking mechanisms, one mismatched
+               label, and a visible flash where there should have been nothing.
+
+               Asking the DOM cannot drift, because the thing being measured and
+               the thing being named are then the same element. */
             const detail = root && root.querySelector ? root.querySelector('.prod-detail-main') : null;
             if (detail) {
                 _prodState.detailScrollTop = detail.scrollTop || 0;
-                _prodState.detailScrollKey = String(_prodState.openId || _prodState.openBatchId || '');
+                _prodState.detailScrollKey = _prodPaintedDetailKey(root);
             }
         }
         function _prodScrollDetailToTop() {
+            /* No key is stamped here on purpose. A zero offset is never
+               restored — the restore is guarded on a truthy `detailScrollTop`
+               — so a key beside it would name nothing, and the one it used to
+               copy (`openId`) is the string the URL asked for, which for a deep
+               link is the Linear identifier and not the canonical row id the
+               pane stamps. Keeping it would have reintroduced exactly the
+               mislabelling above, one indirection further away. */
             _prodState.detailScrollTop = 0;
-            _prodState.detailScrollKey = String(_prodState.openId || _prodState.openBatchId || '');
+            _prodState.detailScrollKey = '';
             setTimeout(() => {
                 const detailMain = document.querySelector('#prodRoot .prod-detail-main');
                 if (detailMain) detailMain.scrollTop = 0;
@@ -57884,8 +57922,17 @@
             root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
             const list = root.querySelector('.prod-listwrap');
             if (list && _prodState.listScrollTop) list.scrollTop = _prodState.listScrollTop;
+            /* Symmetric with the capture: the pane that just painted is asked
+               who it is, and the offset is only put back on the same item it
+               was taken from. An empty key restores nothing, which also closes
+               a quieter version of the same defect — a project view stamped
+               `''` (its slug lives in neither openId nor openBatchId), so every
+               project matched every other project's saved offset. */
             const detailPane = root.querySelector('.prod-detail-main');
-            if (detailPane && _prodState.detailScrollTop && _prodState.detailScrollKey === String(_prodState.openId || _prodState.openBatchId || '')) detailPane.scrollTop = _prodState.detailScrollTop;
+            if (detailPane && _prodState.detailScrollTop && _prodState.detailScrollKey) {
+                const painted = _prodPaintedDetailKey(root);
+                if (painted && painted === _prodState.detailScrollKey) detailPane.scrollTop = _prodState.detailScrollTop;
+            }
             if (_prodState.view === 'detail' && _prodState.openId) {
                 const openRowId = _prodOpenRowId();
                 _prodComments.ensure(openRowId);

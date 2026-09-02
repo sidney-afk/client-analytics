@@ -7773,11 +7773,44 @@ consult `terminalTailPending` and both distinguish NOT YET from GONE. Worth
 asking, on the next guard of this shape, what OTHER code path observes the same
 unresolved id -- the answer here was one function away and was not looked for.
 
-**Still open from this report:** scroll position is not restored when returning
-from a sub-issue to its parent -- the owner reports it paints scrolled-down and
-then jumps back to the top. Not diagnosed; separate from the eviction above,
-though the forced `view = 'list'` transition may well have been producing some
-of it.
+**The scroll half, diagnosed and fixed 2026-09-02 (was: "still open").** The
+owner reported that returning from a sub-issue to its parent paints the parent
+scrolled-down and then jumps back to the top. It is NOT a missing restore, and
+it is not the forced `view = 'list'` transition guessed at here originally. It
+is a restore that fires when it should not, followed by the reset that undoes
+it -- so the reader sees both.
+
+`_prodRender` captures the detail scroll one line before the innerHTML swap. By
+then `_prodOpenDeliverable` has ALREADY written the destination into
+`_prodState.openId`. The capture read the outgoing pane's offset -- correctly --
+and then labelled it `String(_prodState.openId || _prodState.openBatchId || '')`,
+which names the item being navigated TO. The restore compared that same state to
+itself, so it always matched, and pasted the sub-issue's offset onto the parent's
+fresh pane. `_prodScrollDetailToTop`'s deferred reset zeroed it a tick later.
+Two mechanisms each correct in isolation, one mismatched label between them, and
+a visible flash where nothing should have moved at all.
+
+The key now comes from the DOM: every detail container already stamps its own id
+(`data-prod-detail`, `data-prod-batch-detail`, `data-prod-project-detail`), so
+`_prodPaintedDetailKey` asks the painted pane who it is and the thing measured
+and the thing named are the same element. The restore asks the same question of
+the pane that just painted, and refuses an empty key -- which closes a quieter
+version of the same defect: a project view stamped `''`, because its slug lives
+in neither `openId` nor `openBatchId`, so every project matched every other
+project's saved offset. `_prodScrollDetailToTop` stops stamping a key at all; a
+zero offset is never restored, and the key it used to copy was the URL's Linear
+identifier rather than the canonical row id the pane carries.
+
+`test/prod-detail-scroll-key.js` extracts the real helpers and RUNS them. Four
+mutations checked -- keying the capture by `openId`, comparing state to itself in
+the restore, dropping the empty-key guard, and re-stamping the identifier in the
+top-scroll -- each fails exactly the assertions naming it.
+
+**Not changed, and it is an owner call:** returning to a parent still starts at
+the top rather than where the reader left it. Restoring the parent's own place
+would need a small per-id map instead of the single slot, and "opening an item
+starts at the top" is the current deliberate design -- `_prodScrollDetailToTop`
+is called on every open. Worth doing if the owner wants it; not assumed here.
 
 
 **THIRD FIX, and this one is the actual cause (2026-09-02, later the same day).**

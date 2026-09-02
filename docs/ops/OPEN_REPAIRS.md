@@ -7459,6 +7459,62 @@ ever reach one.
 
 ---
 
+
+### 104.1 — MEASURED 2026-09-02: 25% overall, and it is TWO causes, not one
+
+The earlier entry rested on two hand-checked cards. It is now measured, and the
+confound that made a first attempt unusable is removed: `deliverable_events`
+records no client `status_change` before **2026-08-11T22:45:25Z**, so any change
+request older than that has no event for reasons that say nothing about this
+defect. Restricting to requests made SINCE that moment:
+
+| | count |
+|---|---|
+| client change-requests on a deliverable-linked slot | **51** |
+| a client `tweak` status event landed within 10 min | **38** |
+| no status event at all | **13** |
+| **failure rate** | **25%** |
+
+**The split is the finding, and it is clean:**
+
+| crosswalk | landed | missed | failure |
+|---|---|---|---|
+| valid | 38 | 8 | 17% |
+| BROKEN | **0** | **5** | **100%** |
+
+**Not one defect. Two.**
+
+1. **A broken crosswalk fails DETERMINISTICALLY.** Five for five, and nothing has
+   ever landed on one. That is item 102's root reaching the status lane, and it
+   is the population this client sat in on 2026-09-02.
+2. **A valid crosswalk still fails ~17% of the time** (8 of 46), spread across
+   `alaynabellquist`, `lilybaker` (4), `lisakleyn` (2) and others, over three
+   weeks. Intermittent, so a DIFFERENT cause, and one the crosswalk repair will
+   not touch.
+
+Estate-wide the shape corroborates it: 192 client status events are **144
+`approved` against 48 `tweak`**. Clients do not approve three times more often
+than they ask for changes.
+
+**Where the deterministic half is narrowed to.** `_calFlushCardSave` pushes a
+sub-status only `if ('graphic_status' in edits && !suppressGraphic)`, and
+`suppressGraphic` reads `_calNoLinearPush`. Six sites add to that set: three are
+the Linear-inbound status adoption (correct — they exist to stop an echo loop),
+and one is `index.html:43346`, `if (deferredLegacyOutboxIds.length)
+_calNoLinearPush.add(pid + '|' + comp)` — the review panel suppressing the push
+because the legacy outbox is expected to carry it. A client on a broken-crosswalk
+card takes the legacy lane by construction, so **if that outbox carries the
+comment but not the status, the status is suppressed and never sent by anyone.**
+That is the hypothesis to test first; it is consistent with 5/5 and it is one
+instrumented write away from proof or elimination. NOT yet proven — recorded as
+the next step, not as the answer.
+
+**Why this could not be closed by reading.** Both halves refuse where the only
+witness is the browser's own 50-row `localStorage` ring (item 101). The
+deterministic half is now inferable from the crosswalk correlation; the
+intermittent 17% is not, and will not be until a refused write leaves a durable
+receipt.
+
 ## 105. [2026-09-02] Five things this sweep turned up in passing
 
 Recorded here rather than in a session log, per this file's rule that an item

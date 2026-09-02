@@ -7026,3 +7026,32 @@ for a human, never a reason to pass or fail.
 
 A count without a cause gets read once and filed. That is what happened to this
 one for six days.
+
+### Amended before merge (#1223): a cause has to match the state it explains
+
+Review's P2, and it is right: the first version folded events ascending and kept
+the FIRST deletion, so a row deleted in Linear, **restored**, and hidden today
+for some other reason would have been labelled with its oldest deletion — and
+sent the reader at the wrong repair. `mirror_in_restore` exists in this estate,
+so that sequence is real rather than hypothetical.
+
+Two rules now, and they are different rules:
+
+1. **Restores are read, and the last event wins.** A deletion followed by a
+   restore leaves no cause; a deletion *after* a restore is the cause again,
+   because the current state is what a reader is about to act on.
+2. **A deletion only explains the states a deletion produces.** It removes the
+   row from the Linear query the mirror is rebuilt from, so it produces exactly
+   *"no workload row at all"* or `active = false`. It cannot make the mirror
+   park a live row by NAME in an approval queue — that is somebody moving the
+   status. Where the recorded deletion does not match the current state it is
+   printed as **history**, not as the cause, and not dropped: **a confident
+   wrong answer is worse than no answer, and a silent one is worse than both.**
+
+Both halves are now pure functions (`foldDeletionEvents`, `attachCauses`) so the
+suite **runs** them over fixtures instead of pattern-matching the source: the
+restore sequence, the re-deletion after it, a foreign write that is not a
+deletion at all, and the parked-by-name row that must get a note and no cause.
+
+Live result is unchanged — 12 of 13 still carry a cause — so this is a guard
+against a case that has not happened yet, bought for nothing.

@@ -55,6 +55,17 @@
  *     `detect_only: true`, and SyncView correctly refused to apply the
  *     deletion -- so the native row stayed live and its owner cannot see it.
  *
+ *     A DELETION ONLY EXPLAINS THE STATES A DELETION PRODUCES. It removes the
+ *     row from the Linear query the mirror is rebuilt from, so it produces
+ *     "no workload row at all" or `active = false` and nothing else -- it
+ *     cannot make the mirror park a live row by NAME in an approval queue.
+ *     Where the recorded deletion does not match the row's current state it is
+ *     printed as HISTORY rather than as the cause, and restores are read too
+ *     (`mirror_in_restore` exists here), last event winning. Raised by review
+ *     on #1223: labelling a restored row with its oldest deletion would send
+ *     the reader at the wrong repair with a confident wrong answer, which is
+ *     worse than no answer.
+ *
  *     THE TWO CLASSES ARE ONE DEFECT. Running the cause lookup over both,
  *     12 of the 13 gated rows carry a recorded deletion: 7 trashed, 5 with an
  *     explicit `mirror_in_delete`. The difference between "mirror says
@@ -151,6 +162,59 @@ function workloadHides(row) {
   return why.length ? why.join(' + ') : '';
 }
 
+/* The two halves of the cause column that can be reasoned about without a
+   network, lifted out so test/workload-native-visibility.js can RUN them over
+   fixtures rather than pattern-match the source. */
+
+/* Fold an ascending event stream into at most one deletion per deliverable.
+   LAST EVENT WINS, and a restore clears it: a row deleted in Linear, restored,
+   and hidden today for some other reason must not be labelled with its oldest
+   deletion. `mirror_in_restore` exists in this estate, so that sequence is real
+   rather than hypothetical. Raised by review on #1223. */
+function foldDeletionEvents(events) {
+  const out = new Map();
+  for (const ev of Array.isArray(events) ? events : []) {
+    if (!ev || !ev.deliverable_id) continue;
+    if (ev.action === 'mirror_in_restore') { out.delete(ev.deliverable_id); continue; }
+    const issue = (ev.payload && ev.payload.issue) || {};
+    const trashed = issue.trashed === true;
+    if (!trashed && ev.action !== 'mirror_in_delete') continue;
+    const seconds = issue.createdAt
+      ? Math.round((Date.parse(ev.ts) - Date.parse(issue.createdAt)) / 1000)
+      : null;
+    out.set(ev.deliverable_id, {
+      label: ev.action === 'mirror_in_delete'
+        ? 'deleted in Linear'
+        : 'trashed in Linear' + (Number.isFinite(seconds) ? ` ${seconds}s after the mirror created it` : ''),
+      ts: ev.ts,
+    });
+  }
+  return out;
+}
+
+/* A DELETION ONLY EXPLAINS THE STATES A DELETION PRODUCES. It removes the row
+   from the Linear query the mirror is rebuilt from, so it produces exactly "no
+   workload row at all" or `active = false`. It cannot make the mirror park a
+   live row by NAME in an approval queue -- that is somebody moving the status.
+   Attaching it there would be a confident wrong answer, which is worse than no
+   answer. A deletion that does not match the current state is kept as HISTORY
+   rather than dropped, so nothing goes quiet. */
+function attachCauses(hidden, deletions) {
+  for (const h of Array.isArray(hidden) ? hidden : []) {
+    const found = h && h.id ? deletions.get(h.id) : null;
+    if (!found) continue;
+    const why = String(h.why || '');
+    if (why === 'no workload row at all' || why.includes('active=false')) h.cause = found.label;
+    else h.note = `${found.label} — but the row is hidden for another reason now, so this is history rather than the cause`;
+  }
+  return hidden;
+}
+
+/* NOT exported. This file ends in a top-level async IIFE that reads the estate
+   and calls process.exit, so a `require()` would run it -- which is why the
+   suite lifts these functions out of the SOURCE instead, exactly as it already
+   does for workloadHides. */
+
 (async () => {
   const [mirror, native] = await Promise.all([
     pageAll('workload_issues?select=identifier,is_sub_issue,status,status_type,active&order=identifier'),
@@ -191,33 +255,25 @@ function workloadHides(row) {
      and FAILS SOFT: a diagnosis is worth having and never worth turning a
      working gate red over. */
   const diagnosis = new Map();
+  let diagnosisError = null;
   const hiddenIds = hidden.map(h => h.id).filter(Boolean);
   if (hiddenIds.length) {
     try {
+      /* Ascending, and RESTORES are read too. Raised by review on #1223: a row
+         deleted in Linear, restored, and now hidden for some other reason would
+         otherwise be labelled with its oldest deletion and send the reader at
+         the wrong repair. `mirror_in_restore` exists in this estate, so that is
+         a real sequence rather than a hypothetical one. The last event wins. */
       const events = await pageAll('deliverable_events?select=deliverable_id,ts,action,payload'
         + `&deliverable_id=in.(${hiddenIds.join(',')})`
-        + '&action=in.(foreign_write_detected,mirror_in_delete)&order=ts');
-      for (const ev of events) {
-        const issue = (ev && ev.payload && ev.payload.issue) || {};
-        const trashed = issue.trashed === true;
-        if (!trashed && ev.action !== 'mirror_in_delete') continue;
-        const seconds = issue.createdAt
-          ? Math.round((Date.parse(ev.ts) - Date.parse(issue.createdAt)) / 1000)
-          : null;
-        const label = ev.action === 'mirror_in_delete'
-          ? 'deleted in Linear'
-          : 'trashed in Linear' + (Number.isFinite(seconds) ? ` ${seconds}s after the mirror created it` : '');
-        if (!diagnosis.has(ev.deliverable_id)) diagnosis.set(ev.deliverable_id, label);
-      }
+        + '&action=in.(foreign_write_detected,mirror_in_delete,mirror_in_restore)&order=ts');
+      for (const [id, found] of foldDeletionEvents(events)) diagnosis.set(id, found);
     } catch (err) {
-      diagnosis.set('__error__', String(err && err.message || err));
+      diagnosisError = String(err && err.message || err);
     }
   }
-  const diagnosisError = diagnosis.get('__error__') || null;
-  for (const h of hidden) {
-    const found = h.id ? diagnosis.get(h.id) : null;
-    if (found) h.cause = found;
-  }
+
+  attachCauses(hidden, diagnosis);
 
   hidden.sort((a, b) => a.identifier.localeCompare(b.identifier));
   const real = hidden.filter(h => h.client !== TEST_CLIENT);
@@ -247,7 +303,7 @@ function workloadHides(row) {
       console.log(`  ${title} — ${list.length}`);
       for (const h of list) {
         console.log(`    ${h.identifier.padEnd(11)} ${String(h.team).padEnd(9)} ${String(h.status).padEnd(12)} `
-          + `${String(h.client).padEnd(24)}${h.cause ? '  <- ' + h.cause : ''}`);
+          + `${String(h.client).padEnd(24)}${h.cause ? '  <- ' + h.cause : ''}${h.note ? '  (' + h.note + ')' : ''}`);
       }
       console.log('');
     };
@@ -262,6 +318,10 @@ function workloadHides(row) {
     if (real.length) {
       console.log('Membership can move without the count moving — compare the identifiers, not just the number.');
       const diagnosed = real.filter(h => h.cause).length;
+      const historical = real.filter(h => h.note).length;
+      if (historical) {
+        console.log(`${historical} row(s) carry a recorded deletion that does NOT explain their current state — printed as history, not as the cause.`);
+      }
       if (diagnosed) {
         console.log(`${diagnosed} of ${real.length} carry a recorded cause above. "trashed in Linear" means the issue was`);
         console.log('deleted there after SyncView created it: the work is live natively, the mirror never saw it,');

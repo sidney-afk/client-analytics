@@ -65,6 +65,13 @@ const hides = new Function(
   + (parkedStatusesSrc ? parkedStatusesSrc[0] : '') + '\n'
   + grabFunc(SRC, 'workloadHides') + '\nreturn workloadHides;')();
 
+/* The two halves of the cause column, also lifted and RUN rather than
+   pattern-matched. Both are pure by design so that this is possible. */
+const { foldDeletionEvents, attachCauses } = new Function(
+  grabFunc(SRC, 'foldDeletionEvents') + '\n'
+  + grabFunc(SRC, 'attachCauses') + '\n'
+  + 'return { foldDeletionEvents, attachCauses };')();
+
 /* ---- 1. BOTH parked sets match the page, term for term ------------------ */
 
 /* Workload parks a row for two independent reasons and the first version of
@@ -150,16 +157,68 @@ ok(/--json/.test(SRC) && /no writes/i.test(SRC),
    "mirror says inactive" and "never imported" are ONE defect, separated only by
    whether a sync happened to run in between. The check now says so per row. */
 
-ok(/action=in\.\(foreign_write_detected,mirror_in_delete\)/.test(SRC),
-  'the check looks for BOTH deletion signatures — a `trashed: true` webhook snapshot and an explicit mirror_in_delete — because the two classes turned out to be one mechanism');
+ok(/action=in\.\(foreign_write_detected,mirror_in_delete,mirror_in_restore\)/.test(SRC),
+  'the check reads BOTH deletion signatures — a `trashed: true` webhook snapshot and an explicit mirror_in_delete — and RESTORES alongside them');
+
+/* Executed, not read. */
+const trashEvent = (id, ts, createdAt) => ({ deliverable_id: id, ts, action: 'foreign_write_detected',
+  payload: { issue: { trashed: true, createdAt } } });
+const deleteEvent = (id, ts) => ({ deliverable_id: id, ts, action: 'mirror_in_delete', payload: {} });
+const restoreEvent = (id, ts) => ({ deliverable_id: id, ts, action: 'mirror_in_restore', payload: {} });
+
+{
+  const folded = foldDeletionEvents([
+    trashEvent('d1', '2026-08-28T13:20:06Z', '2026-08-28T13:19:47Z'),
+    deleteEvent('d2', '2026-08-28T14:00:00Z'),
+    { deliverable_id: 'd3', ts: '2026-08-28T14:00:00Z', action: 'foreign_write_detected', payload: { issue: { trashed: false } } },
+  ]);
+  ok(folded.get('d1') && /trashed in Linear 19s after the mirror created it/.test(folded.get('d1').label),
+    'a trashed snapshot carries the gap between the mirror creating the issue and it disappearing — 19 seconds is the evidence that this is not somebody tidying up days later');
+  ok(folded.get('d2') && folded.get('d2').label === 'deleted in Linear',
+    'an explicit mirror_in_delete is recorded as its own label');
+  ok(!folded.has('d3'),
+    'and a foreign write that is NOT a deletion is not one — the whole point is to name a cause, not to label every foreign write');
+}
+{
+  /* THE CASE REVIEW ON #1223 RAISED, and it is real rather than hypothetical:
+     `mirror_in_restore` exists in this estate. */
+  const folded = foldDeletionEvents([
+    trashEvent('d1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z'),
+    restoreEvent('d1', '2026-08-02T00:00:00Z'),
+  ]);
+  ok(!folded.has('d1'),
+    'A DELETION FOLLOWED BY A RESTORE LEAVES NO CAUSE — labelling a restored row with its oldest deletion sends the reader at the wrong repair');
+  const again = foldDeletionEvents([
+    trashEvent('d1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z'),
+    restoreEvent('d1', '2026-08-02T00:00:00Z'),
+    deleteEvent('d1', '2026-08-03T00:00:00Z'),
+  ]);
+  ok(again.get('d1') && again.get('d1').label === 'deleted in Linear',
+    'and a deletion AFTER the restore is the cause again — last event wins, because the current state is what a reader is about to act on');
+}
+{
+  const deletions = new Map([['x', { label: 'deleted in Linear', ts: '2026-08-01T00:00:00Z' }]]);
+  const absent = { id: 'x', why: 'no workload row at all' };
+  const inactive = { id: 'x', why: 'active=false' };
+  const parked = { id: 'x', why: 'parked status (For Kasper approval)' };
+  attachCauses([absent, inactive, parked], deletions);
+  ok(absent.cause === 'deleted in Linear' && inactive.cause === 'deleted in Linear',
+    'a deletion explains the two states a deletion actually produces: no mirror row at all, and active=false');
+  ok(!parked.cause && /history rather than the cause/.test(parked.note || ''),
+    'A DELETION DOES NOT EXPLAIN A ROW PARKED BY NAME — a deletion cannot move a status into an approval queue, and a confident wrong cause is worse than none');
+  ok(/deleted in Linear/.test(parked.note || ''),
+    'but it is kept as HISTORY rather than dropped, so nothing goes quiet');
+}
 ok(/issue\.trashed === true/.test(SRC),
   'trashed is read from the webhook snapshot the event already stored, so no Linear call is added to a check whose whole safety property is that it makes none');
 ok(/deliverable_id=in\.\(\$\{hiddenIds\.join\(','\)\}\)/.test(SRC),
   'BOUNDED TO THE ROWS ALREADY FOUND HIDDEN — a dozen or so in one request, not a sweep of every event in the estate');
-ok(/catch \(err\)[\s\S]{0,200}__error__/.test(SRC) && /cause_lookup_error/.test(SRC),
-  'and it FAILS SOFT: a diagnosis is worth having and never worth turning a working gate red over, so a lookup failure is reported and the counts stand');
-ok(/const diagnosisError = diagnosis\.get\('__error__'\) \|\| null;/.test(SRC)
-  && /cause lookup unavailable this run/.test(SRC),
+ok(/NOT exported/.test(SRC) && !/module\.exports/.test(SRC),
+  'and the script exports nothing — it ends in a top-level async IIFE that reads the estate and calls process.exit, so a require() would RUN it; this suite lifts the functions from the source instead');
+ok(/catch \(err\) \{\s*\n\s*diagnosisError = String\(err && err\.message \|\| err\);/.test(SRC)
+  && /cause_lookup_error: diagnosisError/.test(SRC),
+  'and it FAILS SOFT: a diagnosis is worth having and never worth turning a working gate red over, so a lookup failure is caught, reported, and the counts stand');
+ok(/let diagnosisError = null;/.test(SRC) && /cause lookup unavailable this run/.test(SRC),
   'a failed lookup SAYS SO in the human output too — a silently missing cause column reads as "no cause found"');
 ok(/s after the mirror created it/.test(SRC),
   'the label carries the gap between the issue being created and being deleted, which is the whole evidence that this is not a person tidying up days later');

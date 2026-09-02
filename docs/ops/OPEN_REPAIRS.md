@@ -7522,3 +7522,60 @@ than match — and where a value is derivable, matching its text is the weaker
 test every time. Worth a sweep for the same shape elsewhere: item 100's
 `test/f27-section4-deploy-lane.js` pins `production-write` the same way, and it
 is only correct today because this session re-derived it by hand.
+
+## 107. [2026-09-02, FIXED — browser-only, live] A client had no composer at all on every CORRECTLY-crosswalked card — 212 slots, and the better-configured card was the unusable one
+
+Found from a screenshot of the client's own view, not from the data. The Notes
+modal rendered her comment, then **"Notes could not load"** with a Retry, and no
+text box. Her own words were "the sheet view does not open anything for me to
+edit", which was exact rather than vague: `_calComposerHtml` (~index.html:44304)
+replaces the ENTIRE composer with that message whenever the gate answers
+`linked && !ready`, so there was nothing to type into.
+
+**Mechanism.** `_prodCanonicalCommentGate` resolved the client's expected surface
+with `_prodVerifiedClientCommentSurfaceContext('sxr', …)` — surface hardcoded —
+and that function requires `surface === 'sxr'` plus a client capability whose
+view is `sample-reviews`. A calendar client satisfies neither, so the context was
+null, `exactClientBinding` false, and `ready` could never become true while a
+valid crosswalk held `linked` true. Permanent, for every client, on every
+correctly-linked calendar card.
+
+**Why the hardcoded `'sxr'` was NOT the thing to widen.** The protected reader
+agrees with it and is the authority: `clientSurfaceTargetAllowed`
+(`supabase/functions/production-comments/policy.mjs:55`) admits a client read only
+when `source_surface === 'sxr'` AND the deliverable's own `origin === 'samples'`.
+A calendar card's deliverable is `origin === 'calendar'` by construction, so a
+calendar client can never be authorized for a canonical read. Threading the real
+surface through would have converted a permanent "Notes could not load" into a
+permanent 403, and needed an edge-function deploy. The browser was promising a
+link the server was always going to refuse; the fix is to stop promising it. An
+unverifiable client surface now reports NOT linked — the same answer this
+function already gives for an unresolved crosswalk and for `legacy_retained`,
+for the same reason.
+
+**THE INVERSION, which is the part worth remembering.** On a card whose crosswalk
+was BROKEN the gate answered `linked:false` and the client could comment fine —
+which is why this client's three comments on 2026-09-02 landed and looked normal.
+On a card whose crosswalk was CORRECT she was locked out completely. **The
+better-configured card was the unusable one**, which is exactly why this looked
+random to the client, why it survived a full day of investigation into the wrong
+thing, and why no amount of reading the write path would have found it. Item 99
+was chased all morning on the broken-crosswalk population; this defect lived in
+the complement of that set and was invisible from it.
+
+**Scale, measured 2026-09-02 after the fix shipped:** 212 valid-crosswalk card
+slots carry at least one client-authored root comment. Every one of them was a
+slot where the client had no composer. That is ten times the 20 one-way threads
+of item 99, and it was never reported by anyone except the one client who
+escalated hard enough.
+
+**What this does not fix.** The client's change request still reaches the CARD
+and not the DELIVERABLE (item 104, cause still not established). And the root
+remains item 102.
+
+**The lesson for the next one.** Two defects, opposite populations, same feature,
+same day. A check written against the broken population would have passed
+cleanly while 212 slots were unusable. Any standing check for a
+client-visible surface should assert the HEALTHY population behaves too, not
+only that the known-broken one is bounded — a gate that fails closed on
+well-formed data fails silently, because nobody thinks to look there.

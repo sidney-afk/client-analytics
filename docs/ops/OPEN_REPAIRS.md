@@ -7669,6 +7669,38 @@ test every time. Worth a sweep for the same shape elsewhere: item 100's
 `test/f27-section4-deploy-lane.js` pins `production-write` the same way, and it
 is only correct today because this session re-derived it by hand.
 
+### The reporting check SHIPPED 2026-09-02, exactly in the shape prescribed above
+
+`test/ef-pin-drift-report.js` computes every deploy lane's real closure with
+`ef-fingerprint.js` at HEAD and compares it against the pin, printing any
+disagreement and **exiting 0**. Measured on merge: **five pins across two lanes,
+one of them stale** — `linear-inbound`, pinned `3d91b2a2…` against a real
+`019a463d…`, exactly as this entry recorded it. The four Section 4 pins
+(`batch-write`, `deliverable-write`, `linear-outbound`, `production-write`) all
+match, which is worth stating because nothing had ever checked them either.
+
+Three properties beyond the comparison itself, each of which is a way this check
+could have been useless:
+
+- **A coverage assertion.** Every `*_SOURCE_SHA256` in every `deploy-*.yml` must
+  be either in the comparison table or named as a rollback pin. A new lane
+  cannot be added and quietly go unchecked.
+- **Rollback pins are excluded BY NAME, not by pattern.**
+  `CAPTURED_V39_SOURCE_SHA256` seals what was live before a release, so it is
+  correct precisely because it disagrees with HEAD. A pattern would sweep the
+  next one in silently; a name forces it to be considered.
+- **A tree it cannot measure is not a tree with no drift.** If `ef-fingerprint`
+  cannot run, it says so rather than reporting clean — and under the hard gate
+  that is a failure, because a gate that cannot compute must not pass.
+
+`HARD_GATE` is one constant. Flipping it today **fails**, which is the ordering
+hazard in this entry demonstrated rather than argued: the flip belongs in the
+same change that re-pins `linear-inbound`, and that change moves
+`REVIEWED_RELEASE_SHA`, which is the owner's to approve. Four mutations checked:
+drifting a Section 4 pin by one digit reports it, dropping a lane from the table
+fails coverage, removing the rollback exclusion fails loudly, and flipping the
+gate early fails.
+
 ## 107. [2026-09-02, FIXED — browser-only, live] A client had no composer at all on every CORRECTLY-crosswalked card — 212 slots, and the better-configured card was the unusable one
 
 Found from a screenshot of the client's own view, not from the data. The Notes

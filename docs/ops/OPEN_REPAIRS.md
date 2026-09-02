@@ -6990,3 +6990,45 @@ retries and the permanent false alarm; the link itself stays item 95's.
 
 Worth noting for whoever picks up item 95: `VID-13649` is **not** in the 40 rows
 it currently records, so that population is a floor, not a census.
+
+### Amended before merge (#1219): the fix did not reach the rows that caused it
+
+Both of Codex's P1 findings on the PR, and both the same shape — **a guard that
+reads correctly and never runs.**
+
+**1. Unreachable.** `readRows` drops every row at `MAX_ATTEMPTS` *before* the
+loop the two guards live in. All three rows above were already at `8`. So the
+change as first written applied only to writes made from that point on, while
+the three rows that raised the gating alarm went on ageing into the pager
+exactly as before — the alarm it was written to clear. A fix whose test passes
+and whose alarm stays red.
+
+The repair is a single shared predicate, `isUnsendableRow`, admitting past the
+ceiling exactly the two shapes measured here — a `status` write to `duplicate`,
+and a row whose last answer was `Entity not found: Issue` — so they reach the
+guards that terminalize them. **One path, not a second cleanup lane** that would
+drift from these guards the first time either changed.
+
+Its narrowness is the safety property, and is what the test spends most of its
+assertions on: an ordinary exhausted failure (a `500` the ceiling stopped) stays
+stopped, a different missing entity is not the deleted-issue case, `duplicate`
+on a comment is not special, and a row with no error at all is never admitted.
+**Nothing is admitted merely for being old.**
+
+**2. An asymmetry.** The deleted-issue branch already carried `&& !f27Replay`;
+the duplicate guard did not. F27 is the owner-scoped emergency rollback lane, and
+an owner-classified intent must reach its own correlated terminal receipt through
+that lane's handling — terminalizing it here with an unbound `linear_result`
+would leave the rollback unable to finalize. Both branches now agree and spell
+the check identically, so grepping `!f27Replay` finds every place a row can be
+terminalized outside the replay lane.
+
+**Generalisable, and worth stating plainly:** a guard placed inside a loop is
+only as reachable as the filter that feeds the loop. Two of the three rows this
+entry exists for could never have reached either guard, and nothing in the
+original test would have said so, because the test read the guard and not the
+path to it. `test/outbound-unsendable-writes.js` now lifts the predicate out and
+**runs** it rather than pattern-matching the source.
+
+The F27 §4 closure pin moved with this change, in the same commit — the rule the
+tenth release wrote and the eleventh immediately broke.

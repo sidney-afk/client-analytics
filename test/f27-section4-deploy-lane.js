@@ -58,8 +58,19 @@ const CANDIDATES = new Map([
   // index.ts moved, so the file count is unchanged and the entrypoint hash --
   // sha256 of the PATH, not the content -- is unchanged too. The other three
   // functions are untouched and deploy byte-identical.
+  // Amended before merge for the two Codex P1s on #1219, both the same shape --
+  // a guard that reads correctly and never runs. readRows drops every row at
+  // MAX_ATTEMPTS before the loop, and all three live rows were already at 8, so
+  // the two skips above applied only to FUTURE writes while the rows that
+  // raised the alarm went on ageing. isUnsendableRow now admits exactly those
+  // two measured shapes past the ceiling so they reach the guards that
+  // terminalize them, and nothing is admitted merely for being old. The second:
+  // the duplicate guard lacked the `!f27Replay` check the deleted-issue branch
+  // already had, so an owner-classified rollback could be terminalized here with
+  // an unbound linear_result. Still index.ts only -- file count 5, entrypoint
+  // hash unchanged.
   ['linear-outbound', {
-    source: 'b11686431d3ad3f7bfcf0b2238be169b6f4fc15c578fbe75d2504dbd8a727e83',
+    source: '1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

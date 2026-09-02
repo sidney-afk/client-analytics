@@ -621,6 +621,27 @@ async function resolveContext(
   return context;
 }
 
+/* IS THIS ROW ONE LINEAR CAN NEVER ACCEPT, whatever the attempt count says?
+   Two shapes, both structural rather than transient:
+     - a `status` write to `duplicate`, which Linear refuses without the
+       relation naming the duplicated issue, a relation SyncView does not hold;
+     - anything whose last answer was `Entity not found: Issue`, meaning the
+       target was DELETED in Linear.
+   THIS EXISTS BECAUSE THE GUARDS ALONE DID NOT REACH THE ROWS THAT MOTIVATED
+   THEM. Raised by review on #1219, correctly: readRows drops everything at
+   MAX_ATTEMPTS, and all three live rows were already at 8, so the new handling
+   applied only to future writes while the existing permanent alarm went on
+   ageing. Admitting exactly these rows past the attempt ceiling lets them reach
+   the guards that terminalize them -- reusing that logic rather than growing a
+   second, divergent cleanup path.
+   Deliberately NARROW: it recognises only what has been measured as
+   unsendable, never a generic "old and failed", so an ordinary failure the
+   ceiling stopped is not quietly resurrected and retried. */
+function isUnsendableRow(row: OutboxRow): boolean {
+  if (row.operation === "status" && clean(parseJson(row.payload).status) === "duplicate") return true;
+  return /entity not found:\s*issue/i.test(clean(row.last_error));
+}
+
 async function claimRow(supabase: SupabaseClient, row: OutboxRow): Promise<OutboxRow | null> {
   const token = crypto.randomUUID();
   const cutoff = new Date(Date.now() - LOCK_TIMEOUT_MS).toISOString();
@@ -1075,7 +1096,9 @@ async function readRows(
     // F27 is an owner-scoped emergency recovery lane. Its exact classified
     // intent must remain selectable until it receives a correlated terminal
     // result; the normal backlog attempt ceiling must not strand a rollback.
-    .filter(row => f27Replay || Number(row.attempts || 0) < MAX_ATTEMPTS)
+    /* The attempt ceiling, plus the one exception that makes the unsendable
+       guards reachable for rows that already hit it. See isUnsendableRow. */
+    .filter(row => f27Replay || Number(row.attempts || 0) < MAX_ATTEMPTS || isUnsendableRow(row))
     /*
      * A targeted drain may ignore a backoff that no attempt earned.
      *
@@ -1410,7 +1433,14 @@ Deno.serve(async (req: Request) => {
          NOT mapped to `Canceled` as a substitute: that would write a state the
          person did not choose into the system of record's mirror, and a wrong
          state is worse than a stale one. */
-      if (row.operation === "status"
+      /* NOT during an F27 replay. An owner-classified rollback intent must reach
+         its correlated terminal receipt through the replay lane's own handling;
+         terminalizing it here with an unbound linear_result would leave the
+         rollback unable to finalize. Raised by review on #1219 -- the
+         deleted-issue branch below already carried this check and this one did
+         not, which is exactly the kind of asymmetry that survives a reading. */
+      if (!f27Replay
+          && row.operation === "status"
           && clean(parseJson(row.payload).status) === "duplicate") {
         counts.skipped++;
         await releaseRow(supabase, row, {

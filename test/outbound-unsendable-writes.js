@@ -57,8 +57,8 @@ ok(/duplicate:\s*"Duplicate"/.test(MAPPING),
 
 /* ---- 2. The guard exists, is scoped, and SKIPS ------------------------- */
 
-const guard = /if \(row\.operation === "status"\s*\n?\s*&& clean\(parseJson\(row\.payload\)\.status\) === "duplicate"\) \{([\s\S]*?)\n      \}/.exec(stripped);
-ok(!!guard, 'a guard matches exactly a STATUS write whose payload status is `duplicate`');
+const guard = /if \(!f27Replay\s*\n?\s*&& row\.operation === "status"\s*\n?\s*&& clean\(parseJson\(row\.payload\)\.status\) === "duplicate"\) \{([\s\S]*?)\n      \}/.exec(stripped);
+ok(!!guard, 'a guard matches exactly a STATUS write whose payload status is `duplicate` (and only outside the F27 replay lane — see section 6)');
 const body = guard ? guard[1] : '';
 ok(/status: "skipped"/.test(body),
   'and it SKIPS — recording that the write has no Linear counterpart it may make');
@@ -113,6 +113,74 @@ ok(!/linear_issue_uuid.*null/.test(cb) && !/update\(/.test(cb),
   'IT DOES NOT CLEAR THE DANGLING UUID: quietly repairing the link from inside the drainer would destroy the evidence item 95 needs while looking like a fix');
 ok(/&& !f27Replay/.test(cb),
   'and the F27 replay lane keeps its own terminal handling, which must stay correlated');
+
+/* ---- 6. The duplicate guard is exempt during an F27 replay ------------- */
+
+/* Raised by review on #1219. The deleted-issue branch already carried
+   `&& !f27Replay` and this one did not. F27 is the owner-scoped emergency
+   rollback lane: an owner-classified intent must reach its own correlated
+   terminal receipt through that lane's handling, so terminalizing it here with
+   an unbound linear_result would leave the rollback unable to finalize. The
+   asymmetry is the bug — two branches doing the same kind of work must agree
+   about the lane they are running in. */
+
+ok(/&& !f27Replay/.test(cb) && /!f27Replay\s*\n?\s*&& row\.operation === "status"/.test(stripped),
+  'BOTH terminal branches now agree: neither the duplicate guard nor the deleted-issue catch terminalizes an F27 replay row');
+ok(/if \(!f27Replay/.test(stripped) && /if \(notFound && !f27Replay\)/.test(stripped),
+  'and both spell the lane check the same way, so grepping `!f27Replay` finds every place a row is terminalized outside the replay lane');
+
+/* ---- 7. And the guards are actually REACHABLE by the rows they are for -- */
+
+/* THE FIX THAT DID NOT FIX ANYTHING. Also raised by review on #1219: readRows
+   drops every row at MAX_ATTEMPTS before the loop, and all three live rows were
+   already at 8. So the guards above applied only to writes made from now on,
+   while the three that raised the alarm went on ageing into the pager forever.
+   isUnsendableRow admits exactly those two measured shapes past the ceiling so
+   they reach the guards that terminalize them -- one path, not a second
+   divergent cleanup. */
+
+ok(/function isUnsendableRow\(/.test(SRC),
+  'a single shared predicate names what "Linear can never accept this" means');
+ok(/\.filter\(row => f27Replay \|\| Number\(row\.attempts \|\| 0\) < MAX_ATTEMPTS \|\| isUnsendableRow\(row\)\)/.test(stripped),
+  'THE ADMISSION FILTER USES IT — without this the guards are unreachable for the very rows that motivated them');
+
+/* Behavioural, not textual: extract the predicate and run it. */
+const fnSrc = (() => {
+  const start = SRC.indexOf('function isUnsendableRow(');
+  if (start < 0) return null;
+  const end = SRC.indexOf('\n}', start);
+  return end < 0 ? null : SRC.slice(start, end + 2).replace(/: OutboxRow/g, '').replace(/: boolean/g, '');
+})();
+ok(!!fnSrc, 'the predicate can be lifted out and executed rather than only pattern-matched');
+
+if (fnSrc) {
+  const clean = v => String(v == null ? '' : v).trim();
+  const parseJson = v => { if (!v) return {}; if (typeof v === 'object' && !Array.isArray(v)) return v;
+    try { const p = JSON.parse(String(v)); return p && typeof p === 'object' && !Array.isArray(p) ? p : {}; } catch (_e) { return {}; } };
+  // eslint-disable-next-line no-new-func
+  const isUnsendableRow = new Function('clean', 'parseJson', fnSrc + '; return isUnsendableRow;')(clean, parseJson);
+
+  ok(isUnsendableRow({ operation: 'status', payload: { status: 'duplicate' }, last_error: null }) === true,
+    'the measured graphics row (status -> duplicate, 8 attempts) is admitted past the ceiling');
+  ok(isUnsendableRow({ operation: 'status', payload: '{"status":"duplicate"}', last_error: null }) === true,
+    'and so is the same row when the payload arrives as a JSON string, which is how PostgREST returns jsonb');
+  ok(isUnsendableRow({ operation: 'status', payload: {}, last_error: 'Linear GraphQL HTTP 200 Entity not found: Issue' }) === true,
+    'the two VID-13649 rows are admitted on Linear\'s own deleted-issue message');
+  ok(isUnsendableRow({ operation: 'comment', payload: {}, last_error: 'entity not found: issue - argh' }) === true,
+    'the deleted-issue shape is matched case-insensitively and on any operation, because a deleted issue takes every write with it');
+
+  /* The narrowness is the safety property. */
+  ok(isUnsendableRow({ operation: 'status', payload: { status: 'posted' }, last_error: 'Linear GraphQL HTTP 500' }) === false,
+    'AN ORDINARY EXHAUSTED FAILURE IS NOT RESURRECTED — a 500 stopped by the ceiling stays stopped, which is what the ceiling is for');
+  ok(isUnsendableRow({ operation: 'status', payload: { status: 'canceled' }, last_error: null }) === false,
+    'no other status is admitted');
+  ok(isUnsendableRow({ operation: 'comment', payload: { status: 'duplicate' }, last_error: null }) === false,
+    'and the duplicate shape stays scoped to the status operation — a comment carrying that word is not special');
+  ok(isUnsendableRow({ operation: 'status', payload: {}, last_error: 'Entity not found: Project' }) === false,
+    'a different missing entity is not the deleted-issue case and is left to the ordinary ceiling');
+  ok(isUnsendableRow({ operation: 'status', payload: {}, last_error: null }) === false,
+    'and a row with no error at all is not unsendable, so nothing is admitted merely for being old');
+}
 
 console.log(failures === 0
   ? '\noutbound unsendable-write checks passed'

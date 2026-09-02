@@ -21,23 +21,42 @@
  * of 6,241 deliverables carry no card_id at all.
  *
  * WHAT IS PINNED HERE, all against the real extracted functions:
- *   1. staff + unlinked  -> LEGACY, and succeeds. This is the repair.
- *   2. staff + linked    -> gateway, byte for byte as before.
- *   3. client + a verified front-door context -> gateway, even though the gate
- *      says unlinked. The front door owns its own crosswalk decision and was
- *      deliberately built for the card_id-null population; the repair must not
- *      quietly close it.
+ *   1. staff + a broken crosswalk -> LEGACY, and succeeds. This is the repair.
+ *   2. staff + a slot that is not proven broken -> gateway, byte for byte as
+ *      before.
+ *   3. client + a verified front-door context -> gateway. The front door owns
+ *      its own crosswalk decision and was deliberately built for the
+ *      card_id-null population; the repair must not quietly close it.
  *   4. the LINKED client thread still fails closed on Samples.
  *   5. a caller that sends no verdict at all (the review-tweak lane, the
  *      repair drain, Kasper) is untouched.
  * Case 1 is also run against a variant with the new disjunct textually
  * removed, which must FAIL it — otherwise the assertion has no teeth.
  *
- * Plus the source contract: both append functions resolve the crosswalk for
- * the component the write will actually use — a REPLY inherits its component
- * from the parent thread, which may be one the modal-open projection never
- * resolved — and hand the verdict down rather than letting the transport
- * re-derive it from a `component` that collapses caption/title onto video.
+ * AND THE PREDICATE ITSELF, which is the part that decides how much of the
+ * estate this touches. `_prodCommentAddRoutesLegacy` asks the CROSSWALK, not
+ * `_prodCanonicalCommentGate`. The gate answers `linked:false` for three more
+ * states, and rerouting any of them would be a regression rather than a
+ * repair:
+ *   - `unlinked` — no deliverable id at all, 18,180 of 19,362 slots on
+ *     2026-09-02. Post-flip that write is refused on purpose
+ *     (`native_link_required`), and a legacy fallback would report success on a
+ *     card whose note reaches nothing at all.
+ *   - `legacy_retained` — a crosswalk-VALID link the coverage invariant is
+ *     holding. The canonical thread is real; only the projection is held.
+ *   - `crosswalk_error` — a lookup that failed. Unknown is not broken.
+ * It also mirrors the ONE mismatch shape the gateway client front door admits
+ * (`card_id` alone with the deliverable side unbound), because a client root
+ * there went canonical and its reply must follow it.
+ *
+ * Plus the source contract: both append functions decide with the component
+ * the write will actually use — a REPLY inherits its component from the parent
+ * thread — and hand the answer down rather than letting the transport
+ * re-derive it from a `component` that collapses caption/title onto video. And
+ * the decision is made AFTER the gate is read, never before: an add lane that
+ * stamped a fresh crosswalk verdict ahead of the gate would flip a card whose
+ * canonical read nobody has performed from `linked:false` to
+ * `{linked:true, ready:false}` and hard-refuse a send that succeeds today.
  */
 const assert = require('assert');
 const fs = require('fs');
@@ -148,14 +167,14 @@ const LANES = [
 (async () => {
   for (const [fn, surface, meta, cardId] of LANES) {
     {
-      // 1. THE REPAIR. Staff, enrolled (the allowlist says gateway), on a card
+      // 1. THE REPAIR. Staff, enrolled (the allowlist says gateway), on a slot
       // whose crosswalk does not validate: the add lane takes the legacy card
       // store — the store this card is already read from — and succeeds.
       const { context, host } = harness(SHIPPED);
       await context[fn]('https://linear.app/x/issue/T-1', 'Staff reply', 'SMM',
         Object.assign(meta(), { canonicalUnlinked: true }));
       ok(host.legacy.length === 1 && host.legacy[0][0] === surface && host.gateway.length === 0,
-        `${surface}: an enrolled STAFF add on an UNLINKED card routes legacy instead of 409ing`);
+        `${surface}: an enrolled STAFF add on a CROSSWALK-BROKEN card routes legacy instead of 409ing`);
       ok(host.legacy[0][1][1] === 'Staff reply',
         `${surface}: and it carries the typed text, which is the whole point`);
     }
@@ -169,15 +188,17 @@ const LANES = [
         `${surface}: with the disjunct removed the same add goes to the gateway — the assertion has teeth`);
     }
     {
-      // 2. A VALIDLY LINKED card is untouched: gateway, staff repair journal
-      // intact, no card binding invented.
+      // 2. ANY slot the crosswalk does not prove broken is untouched: gateway,
+      // staff repair journal intact, no card binding invented. This is the case
+      // that covers `unlinked`, `legacy_retained` and a failed lookup, all of
+      // which `_prodCommentAddRoutesLegacy` answers false for.
       const { context, host } = harness(SHIPPED);
       await context[fn]('https://linear.app/x/issue/T-1', 'Staff reply', 'SMM',
         Object.assign(meta(), { canonicalUnlinked: false }));
       ok(host.gateway.length === 1 && host.legacy.length === 0
         && host.gateway[0].intent.comment.card_id === undefined
         && host.gateway[0].repair !== null,
-        `${surface}: a staff add on a crosswalk-VALID card routes the gateway exactly as before`);
+        `${surface}: a staff add on a slot NOT proven broken routes the gateway exactly as before`);
     }
     {
       // 5. A caller that sends no verdict (review-tweak, repair drain, Kasper)
@@ -188,9 +209,9 @@ const LANES = [
         `${surface}: a caller that sends no gate verdict at all is routed exactly as before`);
     }
     {
-      // 3. THE CLIENT FRONT DOOR SURVIVES. card_id-null deliverables are the
-      // normal case estate-wide, the gate calls them unlinked, and the front
-      // door was built for precisely them. A verified context still wins.
+      // 3. THE CLIENT FRONT DOOR SURVIVES, and outranks the handed-down answer
+      // if the two ever disagree. card_id-null deliverables are the normal case
+      // estate-wide and the front door was built for precisely them.
       const { context, host } = harness(SHIPPED);
       context._isClientLink = true;
       host.frontDoor = Object.freeze({ source_surface: surface, card_id: cardId, component: meta().component });
@@ -228,67 +249,122 @@ const LANES = [
       'sxr: a LINKED but unready client thread still fails closed and never falls back to legacy');
   }
 
-  // --- The component the gate is asked about is the component the write uses -
-  /* A REPLY inherits its component from the parent thread, so it can name a
-     component that is not in the card's active review set — the only set the
-     modal-open projection ever resolves. The verdict is therefore computed in
-     the append function, where `comp` is the real one, and handed down; the
-     transport must not re-derive it, because its own `component` collapses
-     caption and title onto video. */
+  // --- The component decided on is the component the write uses -----------
+  /* A REPLY inherits its component from the parent thread, so the decision has
+     to be made where the real `comp` is known and handed down; the transport
+     must not re-derive it, because its own `component` collapses caption and
+     title onto video. And it must be made AFTER the gate is read: an add lane
+     that resolved-and-stamped a crosswalk verdict first would turn a card
+     nobody has read canonically from `linked:false` into
+     `{linked:true, ready:false}`, and the guard immediately below the gate
+     would then refuse a send that succeeds today, with no control to clear it
+     until the modal is reopened. */
   const calAppend = extract('_calAppendComment');
   const sxrAppend = extract('_sxrAppendComment');
   for (const [label, body, surfaceArg, gateCall] of [
     ['_calAppendComment', calAppend, "'calendar'", '_calPostLinearComment'],
     ['_sxrAppendComment', sxrAppend, "'sxr'", '_sxrPostLinearComment'],
   ]) {
-    ok(new RegExp('await _prodEnsureCardCrosswalk\\(' + surfaceArg + ', post, comp\\)').test(body),
-      `${label}: resolves the crosswalk for the component this write will use, on demand`);
-    ok(body.indexOf('_prodEnsureCardCrosswalk') < body.indexOf('_prodCanonicalCommentGate(post, comp)'),
-      `${label}: and it does so BEFORE the gate that decides the transport is read`);
+    ok(new RegExp('await _prodCommentAddRoutesLegacy\\(' + surfaceArg + ', post, comp\\)').test(body),
+      `${label}: decides the transport from the crosswalk, for the component this write uses`);
+    ok(!/_prodEnsureCardCrosswalk/.test(body),
+      `${label}: and stamps no crosswalk verdict of its own before the gate is read`);
+    ok(body.indexOf('_prodCanonicalCommentGate(post, comp)') < body.indexOf('_prodCommentAddRoutesLegacy'),
+      `${label}: the gate is read BEFORE the routing lookup, so the lookup cannot change its answer`);
     ok(body.indexOf('_prodCanonicalCommentGate(post, comp)') < body.indexOf(gateCall + '('),
       `${label}: the gate verdict is computed before the transport is chosen`);
-    ok(/canonicalUnlinked: !canonicalGate\.linked/.test(body),
-      `${label}: and travels with the write rather than being re-derived downstream`);
+    ok(/canonicalUnlinked\b/.test(body) && !/canonicalUnlinked: !canonicalGate\.linked/.test(body),
+      `${label}: the answer travels with the write and is NOT the gate's own linked flag`);
   }
   ok(!/_prodCanonicalCommentGate\(meta && meta\.post/.test(CAL_SRC),
     'the calendar transport never re-derives the gate from its own collapsed component');
 
-  /* The resolve is one-shot and idempotent: a slot that already carries a
-     verdict costs nothing, and a failed lookup stamps `error`, which the gate
-     reads as not linked — so refusing still fails toward legacy, never toward
-     the gateway. */
+  /* ---- THE PREDICATE, against the page's own crosswalk ------------------
+     Everything above takes `canonicalUnlinked` as given. This is where the
+     value comes from, and the narrowing is the whole safety argument: three
+     states the GATE calls unlinked must keep the transport they have today,
+     and the one mismatch shape the client front door admits must too. */
   {
-    const calls = [];
-    const ensureCtx = vm.createContext({
+    const lookups = [];
+    const CARD = 'p_fixture_card_1';
+    let FIXTURE_OK = true;
+    let FIXTURE_ROWS = {};
+    const predicateCtx = vm.createContext({
       _writeUiNativeId: (post, component) => String((component === 'graphic'
         ? post && post.graphic_deliverable_id
         : post && post.video_deliverable_id) || '').trim(),
-      _prodCrosswalkVerdict: (post, id, component) => (post._verdicts || {})[component + '|' + id] || null,
-      _prodResolveCardCrosswalk: async (surface, post, components) => {
-        calls.push([surface, post.id, components.join(',')]);
+      _prodCrosswalkVerdict: (post, id, component) =>
+        (post && post._verdicts || {})[component + '|' + id] || null,
+      _prodFetchCrosswalkRows: async ids => {
+        lookups.push(ids.slice());
+        const rows = new Map();
+        for (const id of ids) if (FIXTURE_ROWS[id]) rows.set(id, FIXTURE_ROWS[id]);
+        return { ok: FIXTURE_OK, rows };
       },
-      String, Promise, Object,
+      Array, String, Object, Promise, JSON,
     });
-    vm.runInContext(extract('_prodEnsureCardCrosswalk'), ensureCtx);
+    /* The page's own crosswalk, lifted rather than re-implemented: a predicate
+       with a private idea of "mismatch" would route on a rule the gate and the
+       standing check do not share. */
+    vm.runInContext(/const PROD_CROSSWALK_SURFACE_ORIGIN = \{[^}]*\};/.exec(source)[0], predicateCtx);
+    vm.runInContext(extract('_prodCrosswalkTeamForComponent'), predicateCtx);
+    vm.runInContext(extract('_prodCrosswalkCardSlug'), predicateCtx);
+    vm.runInContext(extract('_prodCrosswalkMismatchFields'), predicateCtx);
+    vm.runInContext(extract('_prodCommentAddRoutesLegacy'), predicateCtx);
 
-    await ensureCtx._prodEnsureCardCrosswalk('calendar', { id: 'c1' }, 'video');
-    ok(calls.length === 0, 'a slot with no deliverable id never triggers a lookup');
+    const routes = (post, component) => predicateCtx._prodCommentAddRoutesLegacy('calendar', post, component);
+    const card = extra => Object.assign({ id: CARD, client: 'aclient' }, extra || {});
+    const good = { id: 'b1_d_x', origin: 'calendar', team: 'graphics', client_slug: 'aclient', card_id: CARD };
 
-    await ensureCtx._prodEnsureCardCrosswalk('calendar', { id: 'c1', graphic_deliverable_id: 'd1' }, 'graphic');
-    ok(calls.length === 1 && calls[0][2] === 'graphic',
-      'an unresolved slot resolves exactly its own component, not the whole card');
+    ok(await routes(card({ graphic_deliverable_id: '' }), 'graphic') === false
+      && lookups.length === 0,
+      'UNLINKED (no deliverable id) keeps the gateway and its deliberate native_link_required refusal — '
+      + '18,180 of 19,362 slots, and not one of them is looked up');
+    ok(await routes(card({ caption_deliverable_id: 'b1_d_x' }), 'caption') === false,
+      'a component that carries no deliverable at all is never routed by this rule');
 
-    await ensureCtx._prodEnsureCardCrosswalk('sxr', {
-      id: 'c1', video_deliverable_id: 'd2', _verdicts: { 'video|d2': { state: 'valid' } },
-    }, 'video');
-    ok(calls.length === 1, 'a slot that already carries a verdict costs no second lookup');
+    FIXTURE_ROWS = { b1_d_x: good };
+    ok(await routes(card({ graphic_deliverable_id: 'b1_d_x' }), 'graphic') === false,
+      'a crosswalk-VALID slot keeps the gateway — which is also the `legacy_retained` case, because the '
+      + 'coverage hold lives on the READ and never on the crosswalk');
 
-    ensureCtx._prodResolveCardCrosswalk = async () => { throw new Error('network down'); };
-    let threw = false;
-    try {
-      await ensureCtx._prodEnsureCardCrosswalk('calendar', { id: 'c1', video_deliverable_id: 'd3' }, 'video');
-    } catch (error) { threw = true; }
-    ok(!threw, 'a failed lookup never propagates: the unstamped verdict reads as not linked, which is legacy');
+    FIXTURE_ROWS = { b1_d_x: { ...good, origin: 'manual', card_id: null } };
+    ok(await routes(card({ graphic_deliverable_id: 'b1_d_x' }), 'graphic') === true,
+      'THE REPAIR: origin+card_id is the live 2026-09-02 incident shape, and 16 of the 20 at-risk slots');
+
+    FIXTURE_ROWS = { b1_d_x: { ...good, team: 'video' } };
+    ok(await routes(card({ graphic_deliverable_id: 'b1_d_x' }), 'graphic') === true,
+      'a team mismatch routes legacy too — 2 of the 20');
+
+    FIXTURE_ROWS = { b1_d_x: { ...good, card_id: null } };
+    ok(await routes(card({ graphic_deliverable_id: 'b1_d_x' }), 'graphic') === false,
+      'THE FRONT-DOOR CARVE-OUT: card_id alone with the deliverable side UNBOUND is the one mismatch the '
+      + 'gateway client door admits, so the client root there IS canonical and the reply must follow it');
+
+    FIXTURE_ROWS = { b1_d_x: { ...good, card_id: 'p_fixture_card_2' } };
+    ok(await routes(card({ graphic_deliverable_id: 'b1_d_x' }), 'graphic') === true,
+      'but card_id naming a DIFFERENT card is not that carve-out — the gateway denies it, so it goes legacy. '
+      + 'All 8 card_id-only mismatches in the estate on 2026-09-02 are this shape');
+
+    FIXTURE_ROWS = {};
+    ok(await routes(card({ graphic_deliverable_id: 'b1_d_x' }), 'graphic') === false,
+      'a deliverable row we cannot see is UNKNOWN, not broken: no reroute');
+    FIXTURE_OK = false;
+    FIXTURE_ROWS = { b1_d_x: { ...good, origin: 'manual', card_id: null } };
+    ok(await routes(card({ graphic_deliverable_id: 'b1_d_x' }), 'graphic') === false,
+      'and a failed lookup keeps the transport it has rather than inventing a verdict');
+    FIXTURE_OK = true;
+
+    const before = lookups.length;
+    const stamped = card({
+      graphic_deliverable_id: 'b1_d_x',
+      _verdicts: { 'graphic|b1_d_x': { state: 'mismatch', fields: ['card_id', 'origin'] } },
+    });
+    ok(await routes(stamped, 'graphic') === true && lookups.length === before,
+      'a slot the projection already stamped costs no second lookup and gives the same answer');
+    ok(!stamped._canonicalCrosswalk,
+      'AND NOTHING IS STAMPED BY THIS PATH: the routing lookup never writes a verdict, so it can never '
+      + 'flip the gate to {linked:true, ready:false} and refuse a send that works today');
   }
 
   if (failures) {

@@ -416,6 +416,30 @@ trains everyone to skim the report, which is the exact failure mode the
     and are excluded on purpose. Counting them would report a defect eighty-one
     times larger than the real one — which is this section's whole thesis.
 
+- **The roster in a public repository** — `node scripts/repo-identity-exposure-check.js`
+  (read-only both ways, public key, one roster read, ~1.5s; `--json` for the
+  file list). **Report the counts and the FILE PATHS. This tool never prints
+  what it matched, and neither should the person running it** — a leak
+  detector whose output names the clients, in a CI log or pasted into an issue,
+  has made one more public copy of the thing it exists to bound. To see an
+  actual match, run the grep locally.
+  **Baseline 108 files / 45 terms, measured 2026-09-02:** 45 of the 50
+  identifying terms on the live roster — 39 of 47 client slugs and 6 staff full
+  names — appear somewhere in the tree. Nobody decided that; it accumulated one
+  audit, one migration and one ledger entry at a time, each with a good local
+  reason to name the client it was about. The heaviest files are two July audits
+  and two migrations.
+  - **This is CONTEXT WITH A GROWTH GATE and nothing more.** It removes nothing
+    and it cannot: the same strings are in git history, so a repair is a history
+    rewrite (`docs/ops/GIT_HISTORY_PII_PURGE_2026-07-14.md` is the precedent)
+    plus a judgement call about which audits are worth keeping at all. Both are
+    the owner's, and neither is a change to make unattended.
+  - **Two baselines on purpose.** Counting only terms lets a new file name six
+    clients as long as six others stopped being mentioned; counting only files
+    lets one file name the whole roster.
+  - Short slugs and single given names are excluded — they match ordinary
+    English — and so is the TEST client, which is named in the code by design.
+
 - **Cards born without their work** — `node scripts/card-linkage-leak-check.js`
   (read-only, public key, safe anywhere). **Report "unlinked AND live", never
   the percentage.** Measured 2026-08-22 over eight weeks: 6.0% unlinked, which

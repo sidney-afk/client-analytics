@@ -6912,3 +6912,75 @@ make unattended. This entry adds the measurement and the gate, so the class
 cannot grow silently while the repair waits, and so the repair can be verified
 when it happens. The never-imported class additionally needs a root cause: why
 B1 skipped seven live graphics issues for six days is not answered here.
+
+---
+
+## 104. [2026-09-02, MEASURED AND GATED — the repair itself is an owner decision] This repository is public and the roster is in it: 45 of 50 identifying terms, 108 files
+
+**Measured against the live roster, 2026-09-02.** Of the 50 identifying terms
+on it, **45 appear somewhere in the tree**: 39 of the 47 client slugs and 6
+team-member full names, across **108 files**.
+
+| where | terms |
+|---|---|
+| two July audit documents | 37 and 29 |
+| two migrations (`filming-plans-source`, `legacy-onboarding-migration`) | 30 and 20 |
+| `docs/ops/OPEN_REPAIRS.md` | 14 |
+| `EXECUTION_LOG.md` | 12 |
+| `index.html` | 6 |
+| 102 further files | 1–5 each |
+
+**Nobody decided this.** It accumulated one audit, one migration and one ledger
+entry at a time, each of which had a good local reason to name the client it was
+about — and each of which was, individually, the clearest way to write that
+sentence. The aggregate is a different thing from any of its parts.
+
+### What is gated, and what is not
+
+`scripts/repo-identity-exposure-check.js` baselines today's number and **fails
+above it**. That is the whole of what can be done without an owner decision.
+
+**It removes nothing, and it cannot.** The same strings are in git history, so a
+repair is a history rewrite — the estate has done one before,
+`docs/ops/GIT_HISTORY_PII_PURGE_2026-07-14.md` — plus a judgement call about
+which of those audit documents are worth keeping at all now that their
+conclusions live in `docs/truth/`. Both are the owner's, and neither is a change
+to make unattended at four in the morning.
+
+**Two baselines, deliberately: 108 files AND 45 terms.** Counting only terms
+lets a new file name six clients as long as six others stopped being mentioned;
+counting only files lets a single file name the whole roster.
+
+### The property the check itself has to hold
+
+**It reports counts and FILE PATHS and never prints what it matched** — not in
+the text output, not in `--json`. A leak detector whose own output names the
+clients, in a CI log or pasted into an issue or on a shared screen, has made one
+more public copy of exactly the thing it exists to bound.
+
+`test/repo-identity-exposure.js` pins that by ENUMERATION rather than by
+searching the output sites: the matched string lives in one variable, every use
+of it is listed, and an unaccounted-for use fails the suite naming the line.
+Mutation-tested — adding the terms to the JSON payload, or a single
+`console.log('found', term)`, each fail by name. It also pins `git grep -l`
+(file names, never a matching line), the argument-array `execFileSync` (a roster
+value must never become part of a command line), and that a no-match exit status
+of 1 is read as an empty result rather than a broken check.
+
+### Exclusions, each a false positive it would otherwise report
+
+- slugs shorter than five characters — they match ordinary English and are not
+  identifying alone;
+- single given names, for the same reason;
+- the TEST client, which is named in the code by design and would ring forever.
+
+### What the owner has to decide
+
+1. Whether the two July audits and the two migrations are worth keeping in a
+   public repository at all, given their conclusions are in `docs/truth/`.
+2. Whether a history rewrite is wanted, and if so on what scope.
+3. Whether this repository should be public. That is the one-move answer and it
+   is not mine to make; every other option is a partial mitigation of it.
+
+Registered in `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT section, the same place and
+the same way as its three siblings.

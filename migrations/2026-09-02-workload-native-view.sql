@@ -117,6 +117,10 @@
 --   * A PARENT'S TEAM IS NULL WHEN THE BATCH IS WORKED BY BOTH TEAMS. See the
 --     note at that column: the batch has no single team, and the obvious
 --     tie-break silently means "graphics".
+--   * IMPORTED CONTAINER ROWS ARE EXCLUDED. See the `where not (...)` on the
+--     first arm: `deliverables` also holds batch-PARENT issues the B1 importer
+--     wrote into their own batches, and they are posts rather than assignable
+--     work.
 --   * ONE PARENT ROW PER BATCH, not one per team. Linear carries a separate
 --     parent ISSUE per team, so a batch worked by both teams has two parent
 --     rows there and one here. Every deliverable in the batch points at the
@@ -125,10 +129,16 @@
 --     -- `wlRenderableIssueProjection` takes parents by id, and every
 --     status test upstream is guarded by `isSubIssue`. Minting a
 --     Linear-shaped status for them would be a claim nothing checks.
---   * `assignee_id` IS A DIFFERENT NAMESPACE. Linear's is a Linear user id;
---     this is `team_members.id`. The board filters editors by NAME
---     (`wlIsAllowedEditor`), so this does not change what renders, but an
---     id-to-id diff in step 3 will never match and should not be read as drift.
+--   * `assignee_id` IS THE LINEAR USER ID, not the native uuid, wherever one is
+--     recorded. An earlier draft answered `team_members.id` and called the
+--     namespace difference harmless because "the board filters editors by
+--     NAME". That was wrong and review on #1222 caught it: filtering is by
+--     name, but GROUPING, capacity keys, the rollup map and the seeded
+--     freest-first roster all key on the assignee ID. All three
+--     WL_VIDEO_EDITORS ids are `linear_user_id` values and none is a
+--     `team_members.id`, so the native uuid would have split every editor into
+--     a busy chip and a free chip. `native_assignee_id` carries the other one
+--     for whoever migrates the roster.
 --   * TEAMS `CON` AND `STR` DO NOT EXIST HERE. The live table holds 8 parent
 --     rows on Linear teams (Content Research, Strategy and Filming Plans)
 --     that have no native equivalent -- `deliverables.team` is video or
@@ -137,6 +147,14 @@
 --   * `synced_at` IS NULL. Native IS the source; there is no sync to stamp.
 --     `_wlV2MapRow` passes it straight through and the board's own comment
 --     says reconcile timestamps are excluded from renderable comparisons.
+
+-- IF AN EARLIER REVISION OF THIS FILE WAS ALREADY APPLIED (it was never applied
+-- to production, but a branch build may have been), run
+--     drop view if exists public.workload_issues_native_v1;
+-- first. `create or replace view` cannot change a column's name or position,
+-- and review on #1222 added two columns to both arms. Postgres refuses with
+-- `cannot change name of view column` rather than doing something surprising,
+-- so nothing silently half-applies.
 
 begin;
 
@@ -189,7 +207,22 @@ select
     end                                             as status_type,
     case d.team when 'video' then 'VID' when 'graphics' then 'GRA' end as team_key,
     case d.team when 'video' then 'Video' when 'graphics' then 'Graphics' end as team_name,
-    d.assignee_id::text                             as assignee_id,
+    -- THE LINEAR USER ID WHERE ONE EXISTS, not the native uuid. Raised by
+    -- review on #1222 and verified: WL_VIDEO_EDITORS seeds the "freest first"
+    -- panel with three ids, and all three are `team_members.linear_user_id`
+    -- values -- NONE of them is a `team_members.id`. `renderEditorWorkload`
+    -- merges live work onto those seeded rows by assignee id, and every
+    -- rollup, capacity key and group drag keys on it too. Answering the native
+    -- uuid would give each editor a populated chip under one id and a
+    -- zero-work chip under the other: the same person shown busy and free at
+    -- once, and the freest-editor ranking reading off the wrong one.
+    --
+    -- Falls back to the native uuid for the 7 of 13 active members with no
+    -- Linear id recorded. They have no seeded roster row to collide with, so
+    -- the fallback groups their work correctly rather than dropping it into
+    -- "Needs assignment" -- which is what a bare `tm.linear_user_id` would do.
+    coalesce(tm.linear_user_id, d.assignee_id::text) as assignee_id,
+    d.assignee_id::text                             as native_assignee_id,
     tm.name                                         as assignee_name,
     tm.email                                        as assignee_email,
     c.display_name                                  as client_name,
@@ -202,6 +235,43 @@ select
   join public.batches b on b.id = d.batch_id
   left join public.team_members tm on tm.id = d.assignee_id
   left join public.clients c on c.slug = d.client_slug
+ -- CONTAINERS ARE NOT WORK. `deliverables` also holds imported batch-PARENT
+ -- issues: the B1 importer's `batchGroupKey` read `issue.parent || issue`, so a
+ -- parent issue was grouped with its own children and written as a row inside
+ -- its own batch (OPEN_REPAIRS item 98; `containerIssueIds` in
+ -- scripts/b1-linear-backfill.js stops new ones). `workload_issues` excludes
+ -- them correctly because Linear knows they have no parent. Emitting them here
+ -- would put a post on an editor's board as assignable work and count it
+ -- against their capacity. Raised by review on #1222.
+ --
+ -- MEASURED 2026-09-02 over the 607 live-work rows, and the obvious predicate
+ -- is the wrong one. "No Linear parent" catches 150 rows -- but 57 of those are
+ -- `del_` rows born NATIVELY in batches that were never mirrored, so they have
+ -- no Linear parent for the same reason they have no Linear anything. Hiding
+ -- them is hiding exactly the work this view exists to surface.
+ --
+ -- So the test is STRUCTURAL, in two parts, and catches 93 rows and no native
+ -- one:
+ --   (1) the row is named as its own batch's Linear parent -- 77 rows;
+ --   (2) it was IMPORTED (a `b1_` id) and carries no Linear parent -- 16 more,
+ --       in batches whose parent map was never recorded (item 1).
+ -- Scoped to imported ids on purpose: a natively created deliverable can never
+ -- be one of these, because only the importer ever made them.
+ --
+ -- Confirmed independently: all 93 have a title byte-identical to their batch's
+ -- name, and 0 of the 57 native rows the naive predicate would have taken do.
+ where not (
+        exists (
+          select 1
+            from jsonb_each(case when jsonb_typeof(b.linear_parent_ids) = 'object'
+                                 then b.linear_parent_ids else '{}'::jsonb end) as lp(team_key, entry)
+           where d.linear_issue_uuid is not null
+             and coalesce(entry ->> 'uuid',
+                          case when jsonb_typeof(entry) = 'string' then entry #>> '{}' end)
+                 = d.linear_issue_uuid)
+     or (d.id like 'b1\_%'
+         and nullif(btrim(coalesce(case when jsonb_typeof(d.linear_raw) = 'object'
+                                        then d.linear_raw #>> '{issue,parent,id}' end, '')), '') is null))
 
 union all
 
@@ -243,6 +313,7 @@ select
             from public.deliverables d2 where d2.batch_id = b.id)
         when 'video' then 'Video' when 'graphics' then 'Graphics' end as team_name,
     null::text                                      as assignee_id,
+    null::text                                      as native_assignee_id,
     null::text                                      as assignee_name,
     null::text                                      as assignee_email,
     c.display_name                                  as client_name,

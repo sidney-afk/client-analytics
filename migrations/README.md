@@ -669,3 +669,20 @@ executes these files (see `README.md` › Repository layout).
   disposable PostgreSQL 16 cluster with fixtures for a null-team batch, a
   both-teams batch, an archived batch holding live work, and a batch with no
   deliverables.
+
+  **Amended before merge for two review P1s, both about a future cutover
+  rather than about applying the file.** Imported batch-PARENT rows are now
+  excluded from the sub-issue arm — but by a STRUCTURAL two-part test (named in
+  its own batch's `linear_parent_ids`, or a `b1_` importer id with no Linear
+  parent), not by the obvious `raw_issue_parent_id is null`, which catches 150
+  of the 607 live rows and **57 of those are natively created work in batches
+  that were never mirrored.** The structural test catches 93 and no native row;
+  all 93 carry a title byte-identical to their batch's name and none of the 57
+  does. And `assignee_id` now answers `coalesce(tm.linear_user_id,
+  d.assignee_id::text)` rather than the native uuid: all three ids
+  `WL_VIDEO_EDITORS` seeds the freest-first panel with are
+  `team_members.linear_user_id` values and none is a `team_members.id`, so the
+  native uuid would have shown every editor as a busy chip and a free chip at
+  once. `native_assignee_id` carries the other one. Because two columns moved,
+  `create or replace view` cannot re-apply over an earlier branch build — the
+  file's header says to drop it first.

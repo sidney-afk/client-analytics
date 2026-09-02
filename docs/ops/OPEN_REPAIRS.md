@@ -7036,6 +7036,62 @@ so the bare reference threw and **the board never painted** — a diagnostic
 breaking the thing it was watching, caught within the hour by a test written for
 something else. Both are inside the try now.
 
+### Amended before merge (#1222): two P1s, both about what a future cutover would do
+
+Neither is about what this PR does — the view is read by nothing but a
+diagnostic — and both would have been live defects at step 4. Both were checked
+against the database rather than reasoned about, and one of the two suggested
+remedies turned out to be worse than the bug.
+
+**1. Container rows would have become assignable work.** `deliverables` also
+holds imported batch-PARENT issues: the B1 importer's `batchGroupKey` read
+`issue.parent || issue`, so a parent was grouped with its own children and
+written as a row inside its own batch (item 98). `workload_issues` excludes them
+because Linear knows they have no parent. The first draft's unconditional
+`true as is_sub_issue` would have put a POST on an editor's board and charged it
+against their capacity.
+
+**The suggested fix — "apply the existing container/parent predicate" — would
+have been worse than the bug.** That predicate is `raw_issue_parent_id is null`.
+Measured over the 607 live-work rows it catches **150**, and **57 of those are
+`del_` rows born natively in batches that were never mirrored** — they have no
+Linear parent for the same reason they have no Linear anything. Hiding them
+hides exactly the work this view exists to surface.
+
+The structural test used instead is two-part and catches **93 rows and no
+native one**: the row is named as its own batch's `linear_parent_ids` (77), or
+it carries a `b1_` importer id and no Linear parent (16 more, in batches whose
+parent map was never recorded — item 1). Scoped to imported ids on purpose:
+only the importer ever made a container.
+
+Confirmed independently, and this is what makes it a measurement rather than an
+argument: **all 93 have a title byte-identical to their batch's name, and none
+of the 57 the naive predicate would have taken does.**
+
+**2. `assignee_id` was the wrong namespace, and the first draft said so and
+called it harmless.** It shipped `team_members.id` with a note that this
+"does not change what renders" because the board filters editors by NAME.
+Filtering is by name. **Grouping is not.** `renderEditorWorkload` seeds the
+freest-first panel from `WL_VIDEO_EDITORS` and merges live work onto those rows
+by assignee id; the capacity bucket key, the rollup map and the group drag all
+key on it too.
+
+Checked against the live roster: **all three seeded ids are
+`team_members.linear_user_id` values, and none is a `team_members.id`.** So
+every editor would have appeared twice — a populated chip under the native uuid
+and a zero-work chip under the seeded Linear one, the same person shown busy
+and free at once, with the freest-editor ranking reading off the wrong one.
+
+Now `coalesce(tm.linear_user_id, d.assignee_id::text)`, with the native uuid
+published as `native_assignee_id` for whoever migrates the roster. The coalesce
+matters: only **6 of 13** active members have a Linear id recorded, and a bare
+`tm.linear_user_id` would drop the other seven's work into "Needs assignment".
+
+**Worth keeping as a lesson.** Both defects were in the parts of the file that
+carried a confident note explaining why they were fine. The container arm said
+`true as is_sub_issue` with no note at all, and the assignee column had a note
+that was precisely wrong. A stated reason is not a checked one.
+
 ### What is left
 
 Steps 3–5 of the scope doc. Step 3 is measurement rather than construction: run

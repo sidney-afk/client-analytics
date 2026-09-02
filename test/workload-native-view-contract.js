@@ -231,6 +231,60 @@ ok(/\bas id\b/.test(SQL) && /\bas linear_id\b/.test(SQL),
 ok(/workload_plan/.test(SQL),
   'and it says why in the file: workload_plan is keyed on the Linear uuid today, so choosing native here would orphan every saved plan day');
 
+/* ---- 6b. Containers are excluded, and by the RIGHT predicate ----------- */
+
+/* `deliverables` also holds imported batch-PARENT issues: the B1 importer's
+   `batchGroupKey` read `issue.parent || issue`, so a parent was grouped with
+   its own children and written as a row inside its own batch (item 98).
+   `workload_issues` excludes them because Linear knows they have no parent.
+   Emitting them would put a POST on an editor's board as assignable work and
+   charge it against their capacity. Raised by review on #1222.
+
+   THE OBVIOUS PREDICATE IS THE WRONG ONE, and that is what this section pins.
+   "No Linear parent" catches 150 of the 607 live rows -- but 57 are `del_`
+   rows born natively in batches that were never mirrored, so they have no
+   Linear parent for the same reason they have no Linear anything. Hiding them
+   hides exactly the work this view exists to surface. The structural test
+   catches 93 and no native row; all 93 have a title byte-identical to their
+   batch name, and none of the 57 does. */
+
+const containerClause = /where not \(([\s\S]*?)\n\nunion all/.exec(SQL);
+ok(!!containerClause, 'the sub-issue arm carries a `where not (...)` that excludes container rows');
+const clause = containerClause ? containerClause[1] : '';
+ok(/jsonb_each/.test(clause) && /linear_parent_ids/.test(clause) && /d\.linear_issue_uuid/.test(clause),
+  'signal 1 — the row is named as its OWN batch\'s Linear parent (77 of the 93)');
+ok(/entry ->> 'uuid'/.test(clause) && /jsonb_typeof\(entry\) = 'string'/.test(clause),
+  'and it reads both shapes the map is stored in: {"video": {"uuid": ...}} and the older {"video": "<uuid>"}');
+ok(/d\.id like 'b1\\_%'/.test(clause),
+  'signal 2 is SCOPED TO IMPORTED IDS — only the importer ever made a container, so a natively created deliverable can never be caught by it');
+ok(/issue,parent,id/.test(clause) && /jsonb_typeof\(d\.linear_raw\) = 'object'/.test(clause),
+  'signal 2 requires no Linear parent, read defensively in case linear_raw is not an object');
+ok(!new RegExp("where not \\(\\s*nullif").test(SQL)
+  && /b1\\_%[\s\S]{0,400}issue,parent,id/.test(clause),
+  'THE BARE "no Linear parent" TEST IS NOT USED ON ITS OWN — it is conjoined with the imported-id scope, because alone it would hide 57 natively created live rows');
+ok(/57 of those are/.test(SQL) && /born NATIVELY/.test(SQL),
+  'and the file records that measurement, so the next reader does not re-derive the naive predicate and think it is fine');
+
+/* ---- 6c. The assignee id namespace the board actually groups by -------- */
+
+/* An earlier draft answered `team_members.id` and called the difference
+   harmless because the board "filters editors by NAME". Filtering is by name;
+   GROUPING is not. `renderEditorWorkload` seeds the freest-first panel from
+   WL_VIDEO_EDITORS and merges live work onto those rows by assignee ID, and
+   the capacity keys, the rollup map and the group drag all key on it too.
+   Verified against the live roster: all three seeded ids are
+   `team_members.linear_user_id` values and NONE is a `team_members.id`, so the
+   native uuid would have split every editor into a busy chip and a free one. */
+ok(/coalesce\(tm\.linear_user_id, d\.assignee_id::text\)\s+as assignee_id/.test(SQL),
+  'assignee_id answers the LINEAR user id where one is recorded — the id the seeded roster and every capacity key are written in');
+ok(/d\.assignee_id::text\s+as native_assignee_id/.test(SQL),
+  'and the native uuid is still published, under its own name, for whoever migrates the roster');
+ok(/WL_VIDEO_EDITORS/.test(SQL) && /NONE of them is a `team_members\.id`/.test(SQL),
+  'the file records why, naming the roster constant — a coalesce with no reason beside it invites being "simplified" back');
+ok(/_wlV2MapRow[\s\S]{0,900}assigneeId:\s*r\.assignee_id/.test(INDEX)
+  && /const key = \(sub\.assigneeId \|\| '\?'\)/.test(INDEX),
+  'and the premise still holds in index.html: the mapper reads r.assignee_id and the capacity bucket keys on it');
+
 /* ---- 7. Step 1 changes nothing anyone can see -------------------------- */
 
 /* The invariant is not "index.html never names the view" -- step 2 names it, to
@@ -244,8 +298,17 @@ ok(/_wlV2FetchIssues\(\)[\s\S]{0,400}\/rest\/v1\/workload_issues\?select/.test(I
 ok(/grant select on public\.workload_issues_native_v1 to anon;/.test(SQL)
   && /grant select on public\.workload_issues_native_v1 to authenticated;/.test(SQL),
   'it is granted to exactly the two browser roles workload_issues already serves');
-ok(!/\binsert\s+into\b|\bupdate\s+public\.|\bdelete\s+from\b|\bdrop\s+/i.test(SQL),
+/* Comments stripped first. The file's header TELLS an operator to run
+   `drop view if exists ...` by hand if a branch build applied an earlier
+   revision -- `create or replace view` cannot change a column's name or
+   position, and review on #1222 added two columns. Reading that sentence as a
+   statement is how a guard starts failing for being well documented. */
+const SQL_STATEMENTS = SQL.split('\n').map(l => l.replace(/--.*$/, '')).join('\n');
+ok(!/\binsert\s+into\b|\bupdate\s+public\.|\bdelete\s+from\b|\bdrop\s+/i.test(SQL_STATEMENTS),
   'and the migration writes nothing, drops nothing, and is re-runnable — the only statements are create-or-replace, grant, and a guard');
+ok(/drop view if exists public\.workload_issues_native_v1/.test(SQL)
+  && /cannot change a column's name or position/.test(SQL),
+  'while the header tells an operator how to re-apply over an earlier revision, because Postgres refuses that rather than half-applying it');
 ok(/security_barrier = true/.test(SQL),
   'the view is a security barrier, matching every other browser-facing view in this estate');
 

@@ -4699,7 +4699,7 @@ the telemetry instead of accepting it. The briefing was wrong; the check
 survived it only because the verifiers were instructed to refute rather than
 confirm. A verification pass that trusts its own framing would have missed this.
 
-## 59. [found 2026-08-29 02:00 UTC, live] The calendar keeps offering Linear link controls the flip already sealed — the seal is right, the re-render never happens
+## 59. [found 2026-08-29 02:00 UTC; **FIXED 2026-08-31 in `1ce02ff6`, verified 2026-09-02**] The calendar kept offering Linear link controls the flip had already sealed — the seal was right, the re-render never happened
 
 After F1(video), calendar cards still render the PRE-flip Linear link affordances
 — the orange "needs a Linear link" warning and the pencil edit button — on a
@@ -5508,9 +5508,23 @@ cannot attribute, or keep importing and hand the backlog to a repair lane.
 date — still `VID-164`, still `todo`, still due **2023-02-03**, still not
 archived, still therefore at the top of Active. Total production rows moved
 6,152 → 6,239 over the same period, so the estate grew while this population did
-not. **It is a step, not a trend** — the import was a one-off event and nothing
-is feeding it. That makes both branches of the decision below cheaper than they
-looked: nothing is getting worse while it waits.
+not.
+
+**BUT THE FEEDER IS STILL RUNNING, and an earlier draft of this paragraph said
+it was not.** `.github/workflows/b1-linear-incremental-refresh.yml` is on
+`cron: '*/30 * * * *'` and sets `B1_STRAY_CATCHER: '1'` at the step level, which
+since F1(video) is the STANDING mode for every run — the dispatch checkbox is
+ignored. The importer inserts every newly encountered active Linear issue, and
+item 74 directly below records that post-flip paths can still manufacture
+unattributed rows. So the honest reading of a flat 637/63/1 is **no qualifying
+issue arrived during this window**, which is a fact about the window and not
+about the mechanism.
+
+What that changes: the population is not decaying while the decision waits, but
+it is not sealed either — a single new Linear issue lands another ownerless live
+row within thirty minutes. Cheaper than it looked, not free. Raised by review on
+#1221, correctly: calling the feeder absent understates the repair and invites
+deferring it on a premise that is not true.
 
 Note the reconciler's own `repair_required` counter has been **flat at 779
 across 30 consecutive runs** with `entities_checked` flat at 7,498, so this is

@@ -8294,9 +8294,37 @@ bare `throw err` each fail by name.
 
 ---
 
-## 102. [2026-09-02, STEP 1 BUILT — **PENDING OWNER APPLY** (SQL only, changes nothing visible)] Workload's native source exists; the Linear exit is now four steps rather than five
+
+> **NUMBERING NOTE.** Renumbered 102 -> 113 on merge: this branch was authored
+> while the ledger ended at 101, so it claimed 102, which by then belonged to the
+> card/deliverable binding root. Header only; the entry text is untouched.
+
+## 113. [2026-09-02, STEP 1 **APPLIED BY THE OWNER, 2026-09-02** — the view exists and was measured; the browser still reads Linear] Workload's native source exists; the Linear exit is now four steps rather than five
 
 Numbered 102 because 99–101 were taken by branches open at the same time.
+
+**APPLIED AND MEASURED, 2026-09-02.** The owner ran the migration. The view
+answers **6,676 rows — 5,117 sub-issues, 1,559 parents, 984 unfinished**, and
+its status-mapping guard did not fire, so every live `deliverables.status`
+value is mapped.
+
+Diffed against `workload_issues`, which is what the board reads today:
+
+| | native view | board today |
+|---|---|---|
+| rows | 6,676 | 3,455 |
+| unfinished sub-issues | **984** | **947** |
+
+**38 unfinished sub-issues exist natively and cannot be shown by the board at
+all**; exactly 1 goes the other way. That is not a rounding difference, it is
+live assigned work invisible to the person who owns it — the same class item 95
+measures and the same thing that produced the two "why is this not in my
+workload" reports on 2026-09-02. Among the invisible: `GRA-7237` (already named
+in item 98), `GRA-7243` through `GRA-7247`, `VID-12609` through `VID-12611`.
+
+So the native source is not merely an equivalent replacement — it is strictly
+more complete than what the board reads now, and the 38 quantify the cost of
+every day the switch waits.
 
 **The blocker this is against.** Item 95 measured what the Linear-derived
 Workload board already costs — 40 live deliverables across 10 active clients

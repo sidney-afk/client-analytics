@@ -131,8 +131,19 @@ const lockAt = sql.indexOf('for update;');
 const casAt = sql.indexOf('p_expected_updated_at is not null');
 ok(lockAt > -1 && casAt > lockAt,
   'the CAS is serialised against a concurrent writer by the lock it sits under — the only place the comparison is safe');
-ok(/raise exception 'production batch description write conflict'/.test(sql),
-  'and a loser is refused rather than silently overwriting the winner');
+/* AMENDED 2026-09-01, second SMM report. This assertion used to read the
+   spaced English message out of THIS file, and both halves of that were wrong:
+   the message matched none of the gateway's underscore guards, so it arrived as
+   500 native_write_failed; and the comparison beneath it was `updated_at::text`
+   against the browser's ISO string, which is never equal, so the "loser" was
+   every save anyone ever made. The body that is actually installed now lives in
+   2026-09-01-batch-description-cas-timestamptz.sql. The intent is unchanged and
+   is asserted there, against the live definition, plus the mapping and the
+   instant comparison — test/batch-description-cas-timestamptz.js. */
+const LIVE_SQL = stripSql(fs.readFileSync(
+  path.join(ROOT, 'migrations', '2026-09-01-batch-description-cas-timestamptz.sql'), 'utf8'));
+ok(/raise exception 'production_batch_description_write_conflict'/.test(LIVE_SQL),
+  'and a loser is refused rather than silently overwriting the winner — under a token the gateway maps to 409, from the migration that supersedes this one');
 
 ok(/v_description text := nullif\(p_description, ''\);/.test(sql),
   'ONLY the exact empty string becomes NULL — btrim would rewrite validated Markdown after the fact, destroying a fenced code block\'s indentation and the trailing spaces that are a hard line break');

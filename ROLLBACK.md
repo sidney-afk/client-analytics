@@ -452,7 +452,12 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   it. Revert the browser half first (Edit leaves the batch parent's description), then redeploy the
   prior `production-write` closure through `.github/workflows/deploy-f27-section4-closures.yml`,
   and only then, if the function should be gone at all, `drop function if exists
-  public.production_batch_description_write(text, text, text, jsonb);`. Leaving it installed under
+  public.production_batch_description_write(text, text, text, text, jsonb);`. **All five argument
+  types, and the count is load-bearing:** the function takes
+  `(text, text, text, text, jsonb)`, and `drop function if exists` with the wrong signature matches
+  nothing and exits 0 — so a four-type drop reports success while leaving the real writer
+  installed. `test/batch-description-cas-timestamptz.js` fails if this line and the migrations stop
+  agreeing. Leaving it installed under
   a reverted gateway costs nothing — nothing else calls it.
   **One-step containment** is the same lever: set the batch team's `prod_authority` back to
   `linear`, which the function asserts before it writes.
@@ -476,3 +481,19 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   except its description.
   This does NOT touch a sub-issue's own description, which is a different column
   (`deliverables.brief`), a different operation (`description`), and keeps its Linear mirror leg.
+  **Superseded 2026-09-01 by `migrations/2026-09-01-batch-description-cas-timestamptz.sql`, and
+  that file must not be rolled back to the one above.** The shipped body could not commit a single
+  save. Its compare-and-swap compared `updated_at::text` (`2026-08-31 20:18:54.574498+00`) against
+  the ISO string PostgREST hands the browser and the browser hands back
+  (`2026-08-31T20:18:54.574498+00:00`) — the same instant, different text — so `is distinct from`
+  was true on an untouched row and refused every attempt. Its three `raise exception` messages were
+  spaced English, which matches none of the gateway's underscore guards, so even a correct refusal
+  fell through to 500 `native_write_failed`: a `wait`-class code that told the SMM to retry
+  something that could never succeed. The replacement casts inside the body (the parameter stays
+  `text` on purpose — a `timestamptz` parameter would install a second overload and PostgREST would
+  answer PGRST203 ambiguous) and renames the raises to tokens the ALREADY-DEPLOYED gateway maps, so
+  **this repair is SQL-only: paste it in the Supabase SQL editor, no function deploy.** Re-applying
+  `2026-09-01-batch-description-write.sql` does not "return to the previous behaviour" — it returns
+  to the total outage. If the function must go back, drop it as step 3 above.
+  `test/batch-description-cas-timestamptz.js` executes the deployed mapper's own regexes against
+  the migration's own raise strings, so the pairing cannot rot silently.

@@ -46,6 +46,22 @@
  *     GRA-7286, GRA-7287 (a second client, 2026-08-28). Item 72 does not
  *     record this class; it is larger than the one it does.
  *
+ *     AND THE CAUSE IS NOW KNOWN. Item 98 left it open -- "why B1 skipped seven
+ *     live graphics issues for six days is not answered here". B1 skipped
+ *     nothing. All seven were TRASHED IN LINEAR 15-47 seconds after the mirror
+ *     created the issue there. `workload_issues` is rebuilt from a Linear query
+ *     and a trashed issue is not in the result, so the row never entered the
+ *     cache at all. `foreign_write_detected` recorded each webhook with
+ *     `detect_only: true`, and SyncView correctly refused to apply the
+ *     deletion -- so the native row stayed live and its owner cannot see it.
+ *
+ *     THE TWO CLASSES ARE ONE DEFECT. Running the cause lookup over both,
+ *     12 of the 13 gated rows carry a recorded deletion: 7 trashed, 5 with an
+ *     explicit `mirror_in_delete`. The difference between "mirror says
+ *     inactive" and "never imported" is only WHETHER A SYNC RAN between the
+ *     issue being created and being deleted. Same mechanism, same repair,
+ *     which is item 95 and the Workload native source.
+ *
  *   MIRROR PARKS IT BY NAME (1) -- the mirror row is active, a sub-issue, and
  *     its TYPE is live, but its named status is an approval queue or a finished
  *     state. This is item 72's own headline shape (VID-13491, "For Kasper
@@ -57,6 +73,13 @@
  * gate ring for work nobody is owed. They are printed so a reader can see them.
  *
  * BASELINE 13 = 5 inactive + 7 never-imported + 1 parked-by-name, real clients only.
+ *
+ * THE CAUSE COLUMN. For each hidden row the check reads its own
+ * `deliverable_events` for a `trashed: true` webhook snapshot or a
+ * `mirror_in_delete`, and prints what it finds beside the row. Bounded to the
+ * rows already found hidden (a dozen or so, one request) and FAILS SOFT: a
+ * diagnosis is worth having and never worth turning a working gate red over.
+ * A count without a cause gets read once and filed.
  *
  * READ-ONLY. Public key, no writes, no Linear calls, safe to run anywhere.
  *
@@ -131,7 +154,7 @@ function workloadHides(row) {
 (async () => {
   const [mirror, native] = await Promise.all([
     pageAll('workload_issues?select=identifier,is_sub_issue,status,status_type,active&order=identifier'),
-    pageAll('production_deliverables_browser_v1?select=identifier,linear_identifier,team,status,client_slug,'
+    pageAll('production_deliverables_browser_v1?select=id,identifier,linear_identifier,team,status,client_slug,'
       + 'raw_issue_archived_at,raw_issue_canceled_at,raw_issue_parent_id'
       + `&status=in.(${[...LIVE_NATIVE].join(',')})&order=id`),
   ]);
@@ -148,7 +171,52 @@ function workloadHides(row) {
     if (!String(row.raw_issue_parent_id || '').trim()) { batchParents++; continue; }
     const why = workloadHides(byIdentifier.get(ident));
     if (!why) { visible++; continue; }
-    hidden.push({ identifier: ident, team: row.team, status: row.status, client: row.client_slug, why });
+    hidden.push({ id: row.id, identifier: ident, team: row.team, status: row.status, client: row.client_slug, why });
+  }
+
+  /* WHY IS IT HIDDEN? A count without a cause gets read once and filed.
+     Measured 2026-09-02, answering the question item 98 left open ("why B1
+     skipped seven live graphics issues for six days is not answered here"):
+     B1 skipped nothing. Every one of those seven was TRASHED IN LINEAR
+     15-55 seconds after the mirror created the issue there. `workload_issues`
+     is rebuilt from a Linear query, and a trashed issue is not in the result,
+     so the row never entered the cache at all -- while `foreign_write_detected`
+     recorded the webhook with `detect_only: true` and SyncView correctly
+     refused to apply the deletion, leaving the work live natively and
+     invisible to the person who owes it.
+     That is item 95's mechanism seen from the other side, so this looks for
+     both of its signatures: a `trashed: true` webhook snapshot and an explicit
+     `mirror_in_delete`.
+     Bounded to the rows already found hidden -- a dozen or so, one request --
+     and FAILS SOFT: a diagnosis is worth having and never worth turning a
+     working gate red over. */
+  const diagnosis = new Map();
+  const hiddenIds = hidden.map(h => h.id).filter(Boolean);
+  if (hiddenIds.length) {
+    try {
+      const events = await pageAll('deliverable_events?select=deliverable_id,ts,action,payload'
+        + `&deliverable_id=in.(${hiddenIds.join(',')})`
+        + '&action=in.(foreign_write_detected,mirror_in_delete)&order=ts');
+      for (const ev of events) {
+        const issue = (ev && ev.payload && ev.payload.issue) || {};
+        const trashed = issue.trashed === true;
+        if (!trashed && ev.action !== 'mirror_in_delete') continue;
+        const seconds = issue.createdAt
+          ? Math.round((Date.parse(ev.ts) - Date.parse(issue.createdAt)) / 1000)
+          : null;
+        const label = ev.action === 'mirror_in_delete'
+          ? 'deleted in Linear'
+          : 'trashed in Linear' + (Number.isFinite(seconds) ? ` ${seconds}s after the mirror created it` : '');
+        if (!diagnosis.has(ev.deliverable_id)) diagnosis.set(ev.deliverable_id, label);
+      }
+    } catch (err) {
+      diagnosis.set('__error__', String(err && err.message || err));
+    }
+  }
+  const diagnosisError = diagnosis.get('__error__') || null;
+  for (const h of hidden) {
+    const found = h.id ? diagnosis.get(h.id) : null;
+    if (found) h.cause = found;
   }
 
   hidden.sort((a, b) => a.identifier.localeCompare(b.identifier));
@@ -165,7 +233,7 @@ function workloadHides(row) {
   if (asJson) {
     console.log(JSON.stringify({ baseline: BASELINE, gated_count: real.length,
       mirror_says_inactive: inactive, never_imported: absent, parked_by_name: namedPark,
-      other: other, test_client: test,
+      other: other, test_client: test, cause_lookup_error: diagnosisError,
       visible, batch_parents_excluded: batchParents, stale_natively_excluded: staleNatively }, null, 2));
   } else {
     console.log('Workload native visibility — is live native work reaching the editor who owes it?\n');
@@ -178,7 +246,8 @@ function workloadHides(row) {
       if (!list.length) return;
       console.log(`  ${title} — ${list.length}`);
       for (const h of list) {
-        console.log(`    ${h.identifier.padEnd(11)} ${String(h.team).padEnd(9)} ${String(h.status).padEnd(12)} ${h.client}`);
+        console.log(`    ${h.identifier.padEnd(11)} ${String(h.team).padEnd(9)} ${String(h.status).padEnd(12)} `
+          + `${String(h.client).padEnd(24)}${h.cause ? '  <- ' + h.cause : ''}`);
       }
       console.log('');
     };
@@ -192,6 +261,15 @@ function workloadHides(row) {
       : `At or under the baseline of ${BASELINE} ✅`);
     if (real.length) {
       console.log('Membership can move without the count moving — compare the identifiers, not just the number.');
+      const diagnosed = real.filter(h => h.cause).length;
+      if (diagnosed) {
+        console.log(`${diagnosed} of ${real.length} carry a recorded cause above. "trashed in Linear" means the issue was`);
+        console.log('deleted there after SyncView created it: the work is live natively, the mirror never saw it,');
+        console.log('and nothing is wrong with the native row — see OPEN_REPAIRS items 95 and 98.');
+      }
+      if (diagnosisError) {
+        console.log(`(cause lookup unavailable this run: ${diagnosisError} — the counts above are unaffected)`);
+      }
     }
   }
   process.exit(failed ? 1 : 0);

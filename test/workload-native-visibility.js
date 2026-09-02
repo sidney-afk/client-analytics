@@ -137,6 +137,37 @@ ok(/process\.exit\(failed \? 1 : 0\)/.test(SRC),
 ok(/--json/.test(SRC) && /no writes/i.test(SRC),
   'read-only, with a --json mode for a caller that wants the rows');
 
+/* ---- 4. The cause column ---------------------------------------------- */
+
+/* A count without a cause gets read once and filed. Item 98 ended with the
+   question open -- "why B1 skipped seven live graphics issues for six days is
+   not answered here" -- and the answer was three queries away: B1 skipped
+   nothing. All seven were TRASHED IN LINEAR 15-47 seconds after the mirror
+   created the issue there, and `workload_issues` is rebuilt from a Linear query
+   that does not return a trashed issue, so the row never entered the cache.
+   Running the same lookup over BOTH classes, 12 of the 13 gated rows carry a
+   recorded deletion -- 7 trashed, 5 with an explicit `mirror_in_delete` -- so
+   "mirror says inactive" and "never imported" are ONE defect, separated only by
+   whether a sync happened to run in between. The check now says so per row. */
+
+ok(/action=in\.\(foreign_write_detected,mirror_in_delete\)/.test(SRC),
+  'the check looks for BOTH deletion signatures — a `trashed: true` webhook snapshot and an explicit mirror_in_delete — because the two classes turned out to be one mechanism');
+ok(/issue\.trashed === true/.test(SRC),
+  'trashed is read from the webhook snapshot the event already stored, so no Linear call is added to a check whose whole safety property is that it makes none');
+ok(/deliverable_id=in\.\(\$\{hiddenIds\.join\(','\)\}\)/.test(SRC),
+  'BOUNDED TO THE ROWS ALREADY FOUND HIDDEN — a dozen or so in one request, not a sweep of every event in the estate');
+ok(/catch \(err\)[\s\S]{0,200}__error__/.test(SRC) && /cause_lookup_error/.test(SRC),
+  'and it FAILS SOFT: a diagnosis is worth having and never worth turning a working gate red over, so a lookup failure is reported and the counts stand');
+ok(/const diagnosisError = diagnosis\.get\('__error__'\) \|\| null;/.test(SRC)
+  && /cause lookup unavailable this run/.test(SRC),
+  'a failed lookup SAYS SO in the human output too — a silently missing cause column reads as "no cause found"');
+ok(/s after the mirror created it/.test(SRC),
+  'the label carries the gap between the issue being created and being deleted, which is the whole evidence that this is not a person tidying up days later');
+ok(/OPEN_REPAIRS items 95 and 98/.test(SRC),
+  'and it points at the two entries that own the mechanism, so the reader does not have to rediscover them');
+ok(!/process\.exit\(2\)[\s\S]{0,80}diagnosis/.test(SRC) && /gated_count/.test(SRC),
+  'the gate still turns on the count alone — a cause is context for a human, never a reason to pass or fail');
+
 console.log(failures === 0
   ? '\nworkload native visibility checks passed'
   : '\n' + failures + ' workload native visibility check(s) failed');

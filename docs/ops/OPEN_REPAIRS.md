@@ -6793,16 +6793,125 @@ mode it guards against is precisely a test that looks like it passes.
 
 ---
 
-> **COMMITTER: merge `origin/main` into this branch before committing this
-> file.** The branch is 8 commits behind it and items **97** and **98** live
-> only on `main`, which is why the numbering below starts at 99 — the numbers
-> are already correct for the merged file, and this note is what goes away
-> when the merge lands. Earlier in this session both this file and
-> `PRE_FLIP_HEALTH_CHECK.md` had been rebuilt wholesale from `origin/main`
-> instead, which made the diff re-add main's items 97 and 98 and registered a
-> runbook check (`scripts/workload-native-visibility-check.js`) that does not
-> exist on this branch. That was reverted; both files now carry only this
-> session's own additions.
+## 97. [2026-09-02, FIXED — browser-only, live on merge] Ten posts still delete themselves, and the rule that was protecting them was protecting nothing
+
+The 2026-09-01 work taught `_prodResolveBatchParentNodes` two tie-breaks for a
+Linear parent claimed by more than one batch row: an archived claimant loses to
+a live one, then a native `bat_` row beats a `b1_b_` mirror. Measured across all
+1,660 live batches, those settle **13 of the 23** collisions. The other **10 are
+two mirrors, or two natives** — invisible to both rules — and were marked
+ambiguous and dropped, which removes the post from Scene View entirely. That is
+the same failure a video editor reported on 2026-09-01, still live for ten more
+posts across seven clients.
+
+**The reasoning that was overturned.** Both the code comment and
+`test/duplicate-batch-parent.js` stated that inventing a winner "would show one
+batch's description under another's parent", so dropping both was the safe
+choice. That is a real risk in the abstract and it is not the case being run.
+Of the 10, **8 carry a BYTE-IDENTICAL name** across their claimants; the other 2
+differ only by a typo of one post (`Hook Videos` / `Hooks videos`,
+`12 Thumbnails` / `Thumbnails`). Every one is a single post imported twice. So
+the choice is not between two posts — it is between showing the post and
+deleting it.
+
+**Owner, 2026-09-02, asked what should separate them:** *"shouldn't you just
+look at them and see what's the difference, like in the description, for example
+... whichever has the most description or most text wins? I mean, I don't know.
+I'm just freeballing here."* Measured, his instinct is the stronger single
+signal on the full set — across all 23 collisions description length picks a
+unique winner **19** times against **9** for sub-issue count. On the 10 that
+actually reach this branch it inverts (count 8, description 6, disagreeing
+once), so the rule uses both, count first. Neither alone is enough, and the
+earlier recommendation of sub-issue count alone was the weaker half.
+
+**The cascade, each rung reached only when the one above ties:** liveness →
+provenance → sub-issue count → description length → lower id. The last is
+arbitrary on purpose and must stay deterministic: the projection reruns on every
+render, so a coin-flip would move a post's title between reloads.
+
+**Cost of being wrong is now bounded and small.** The worst case is a post
+showing the duplicate's title — and in 8 of 10 the titles are identical, so
+there is no observable difference at all. Against that, every one of the 10 is
+currently invisible.
+
+Sub-issue counts come from the deliverable rows already in scope; no extra read.
+`test/batch-parent-same-kind-tiebreak.js` replays all 10 real collisions as
+fixtures (titles omitted — public repo) and proves each rung in isolation, that
+provenance and liveness still outrank the new rungs, and that all six arrival
+orders of a three-way tie give one answer. Three older assertions across two
+suites asserted the drop and are amended in place with the measurement that
+overturned them, rather than deleted.
+
+**The `ambiguous` mechanism is deliberately left in place** even though nothing
+reaches it today. Removing it would mean a future genuinely-unresolvable shape
+mints a wrong row silently instead of none.
+
+## 98. [2026-09-02] Item 72's standing check now exists — and it found a second, larger class item 72 does not record
+
+Item 72 ended by naming the check that should become standing: *"every
+non-archived native row in `todo`/`in_progress`/`tweak` that is not a batch
+parent must have a `workload_issues` row that is active, a sub-issue, and
+non-parked. Baseline at today's five and gate on growth."*
+`scripts/workload-native-visibility-check.js` is that check — read-only, public
+key, safe anywhere — and `test/workload-native-visibility.js` pins its rules
+offline so the suite never depends on a service being up.
+
+**The narrowing is most of the value.** 607 native live-work rows; 179 archived
+or canceled; **81 have no native parent, which makes them batch parents — posts,
+not assignable work — and Workload is right to exclude them.** Zero of the 81
+carry a parent, so this is a clean split rather than a judgement call. A check
+that counted them would report a defect eighty-one times larger than the real
+one, and the real one would be skimmed past. That is the alarm-fatigue failure
+`PRE_FLIP_HEALTH_CHECK.md` was written to prevent, and it is easy to rebuild
+inside a new tool.
+
+**Class 1 — mirror says inactive (5).** Item 72's class: the `workload_issues`
+row exists and says `active = false` while the native store says the work is
+live. `VID-13580`, `VID-13581`, `VID-13582`, `VID-13109`, `GRA-7237`. The **count** matches item 72's baseline of
+five; the **membership does not**. `VID-13491` — the case item 72 leads with —
+has resolved, and `GRA-7237` is new. It is also GRAPHICS, while item 72 records
+this as a video-only class. A stable count concealing a moving membership is
+exactly why this had to become a script.
+
+**Class 3 — the mirror parks it by NAME (1), and this class was invisible to the
+first version of the check.** The mirror row is active, a sub-issue, and its
+TYPE reads live — but its named status is an approval queue, which
+`WL_PARKED_STATUSES` hides. `VID-12983`, natively in `tweak`. **This is item
+72's own headline shape**: the case it leads with, `VID-13491`, sits in "For
+Kasper approval" for exactly this reason. A type-only classifier calls such a
+row visible, so the check would have missed the very row that motivated it.
+Caught by review on #1218. Both parked sets are now extracted from `index.html`
+by the test and compared term for term, so they cannot drift apart in silence.
+
+**Class 2 — never imported (7 real clients), and item 72 does not record it.**
+No `workload_issues` row exists at all: `GRA-7243`–`GRA-7247` (one client, created
+2026-08-26), `GRA-7286`, `GRA-7287` (a second client, 2026-08-28). **Not
+sync lag, and that was checked rather than assumed** — the mirror's newest
+`synced_at` was 20 minutes old while these rows were 17 to 150 HOURS old. Seven
+real deliverables have been invisible to whoever owes them for up to six days.
+This class is larger than the one item 72 names.
+
+Four more rows belong to the test client and are reported but never gated — it
+is mutated by drills on purpose, and gating on it would ring for work nobody is
+owed.
+
+**Baseline 13** (5 + 7 + 1, real clients only); the check exits non-zero above it.
+
+**Where it runs.** Registered in `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT section,
+which the 2x-daily scheduled watch reads as its canonical spec — the same place
+and the same way its two siblings (`attribution-stuck-check.js`,
+`card-linkage-leak-check.js`) are wired. Neither of those is bound to a GitHub
+workflow either; that is the house pattern for a live read-only check, and a new
+scheduled workflow would have diverged from it. Raised by review on #1218, which
+was right that nothing was running it.
+
+**What is NOT done here, deliberately.** The underlying repair — repointing
+Workload's population, status and assignee reads at the native store — is item
+72 and remains open. That is architecturally significant and is not a change to
+make unattended. This entry adds the measurement and the gate, so the class
+cannot grow silently while the repair waits, and so the repair can be verified
+when it happens. The never-imported class additionally needs a root cause: why
+B1 skipped seven live graphics issues for six days is not answered here.
 
 ## 99. [2026-09-02, BROWSER HALF FIXED the same session — the DATA is not] A client's note and the staff reply to it were routed by two different rules, and 20 threads across 6 clients are still one-way
 

@@ -6912,3 +6912,613 @@ make unattended. This entry adds the measurement and the gate, so the class
 cannot grow silently while the repair waits, and so the repair can be verified
 when it happens. The never-imported class additionally needs a root cause: why
 B1 skipped seven live graphics issues for six days is not answered here.
+
+## 99. [2026-09-02, BROWSER HALF FIXED the same session — the DATA is not] A client's note and the staff reply to it were routed by two different rules, and 20 threads across 6 clients are still one-way
+
+**The two predicates, and nothing reconciled them.** A card comment can travel
+by the gateway or by the legacy card column, and each side of a thread chose
+independently:
+
+| who | routed by | consults the crosswalk? |
+|---|---|---|
+| CLIENT add | `_prodClientCommentGatewayContext` (`index.html:53477`) | **yes** — fails-legacy unless the deliverable's `origin`/`team`/`client_slug`/`card_id` describe this exact card |
+| STAFF add | `_writeUiUseGatewayWhenReady` → `_writeUiRerouteUseGateway` (`index.html:25270`, `:25022`) | **no** — only the `write_ui_reroute_clients` allowlist, 42 slugs on 2026-09-02 |
+
+So on a slot whose crosswalk fails, the client's root is written to the card
+column with **no `production_comments` row**, and the staff reply to it is sent
+to the gateway, which looks the parent up in `production_comments`, finds zero
+rows, and refuses.
+
+**The live incident, read out of the tables rather than reconstructed.** Card
+`p_mqpc5aje_l9u52`, `graphic` slot, deliverable `b1_d_3466b7d9bb24429cad3cc31a0fd3d279`
+(`GRA-6422`), client `soniachopra`. Client root `c_mtk33nwj_2i8ex` at
+`2026-09-02T12:40:31Z`, `is_tweak = true`, round 5, `audience = client`. The
+deliverable's live crosswalk that day: `client_slug` and `team` correct,
+`origin = "manual"` where the calendar surface expects `calendar`, and
+`card_id = NULL` where the card's own id was expected — mismatch on **origin and
+card_id**, so `_prodClientCommentGatewayContext` returned `null` and the root
+took the legacy lane. `soniachopra` is on the reroute allowlist, so the staff
+reply went to the gateway, its parent lookup returned ZERO rows, and it came
+back **409 `comment_parent_ambiguous`** — a code `index.html` filed under the
+`reload` class, whose text told the person to reload a page whose stale copy was
+never the problem. That is **item 13** of this file in a different costume (and
+item 14 beside it): a deterministic refusal wearing the message that belongs to
+a stale tab. The in-code note at the reload class already cites item 13 — it did
+not stop the next code from being filed there. `calendar_post_events` for that card shows the client's
+`comment_add` and both `status_change` rows landing at `12:40:32Z`, and the
+card's sibling `video` slot (`b1_d_1add82d4…`, `origin = calendar`,
+`card_id = p_mqpc5aje_l9u52`) is **valid** — only the graphic slot is broken.
+
+**And the reply text was thrown away.** In `_calAppendComment` the catch does
+`_writeUiReportFailure(...)` then `return false` **before** `arr.push(msg)`.
+Nothing is queued, cached or retained. `_calSubmitComposer` does not clear the
+draft, so the text survives in the live textarea — and a REPLY draft is the one
+thing not mirrored to `sessionStorage` (only a new root is), so the reload the
+message prescribed was the single action that could destroy it.
+
+### Measured, not inferred — the whole estate, 2026-09-02
+
+All 9,681 `calendar_posts` (19,362 video+graphic slots) against all 6,241
+`deliverables`, both paged; the REST default of 1,000 would have truncated both.
+
+| population | count | why it is or is not counted |
+|---|---|---|
+| slots with no deliverable id | 18,180 | gate says `unlinked`; BOTH sides go legacy. Consistent. Excluded. |
+| deliverable-linked slots | 1,182 | |
+| … crosswalk VALID | 1,010 | both sides go canonical. Consistent. Excluded. |
+| … mismatch, no client root | 152 | a STAFF root on a mismatching slot still went to the gateway and HAS a canonical row, so a reply to it resolves. Excluded **on purpose**. |
+| **… mismatch WITH a client root** | **20** | one-way threads, holding **32** client roots |
+
+Per client: `jesseisrael` 7, `bayavoce` 5, `soniachopra` 3,
+`jessicawinterstern` 3, `eben&annie` 1, `jennaphillipsballard` 1.
+`crosswalk_fields` histogram: `card_id+origin` 16, `team` 2,
+`card_id+origin+team` 1, `origin` 1.
+Nine of the twenty sit on a card that is neither Archived nor Posted.
+All six slugs are on the reroute allowlist, so the LATENT class (broken
+crosswalk, slug off the allowlist, staff therefore also legacy) is **0** today —
+it is still reported, because adding a slug to that flag would turn latent rows
+live and it would read as new breakage.
+
+**The narrowing is most of the value.** Counting every unlinked slot reports
+18,180; counting every mismatch reports 172. The real number is 20. Both wrong
+numbers are the alarm-fatigue failure `PRE_FLIP_HEALTH_CHECK.md` exists to
+prevent.
+
+### What is fixed, and what is not
+
+**Fixed the same session, browser-only:** `_calPostLinearComment` and
+`_sxrPostLinearComment` now accept `meta.canonicalUnlinked` and route a staff
+add on a crosswalk-broken slot to the legacy store — the fallback its three
+sibling operations (`_calToggleCommentDone`, the delete confirm, and both
+Samples twins) have always had and which ADD alone was missing.
+`comment_parent_ambiguous` was moved out of the `reload` class and both
+parent-lookup refusals got bespoke text that says "copy your text out first" and
+never says reload. On branch `claude/reduce-n8n-linear-deps-vmphp6`; **not on
+`main` as of this entry**.
+
+**The predicate is deliberately narrower than "the gate says unlinked", and the
+narrowing is the safety argument.** `_prodCommentAddRoutesLegacy`
+(`index.html:25779`) answers from the **crosswalk**, not from
+`_prodCanonicalCommentGate`, because the gate also answers `linked: false` for
+three states that do NOT mean this card can never hold a canonical thread, and
+rerouting any of them would be a regression rather than a repair:
+
+| gate status | what it means | why it must keep the gateway |
+|---|---|---|
+| `unlinked` | no deliverable id at all — **18,180 of 19,362 slots** | the write is refused on purpose post-flip (`native_link_required`, and `WRITE_UI_NO_WORK_ITEM_TEXT` beside it). A legacy fallback would report success on a card whose note reaches nothing: `_calLegacyPostLinearComment` returns immediately on an empty url. |
+| `legacy_retained` | a crosswalk-VALID link the coverage invariant is holding | the canonical thread is real and the gateway accepts writes to it; only the PROJECTION is held, and that hold applies to staff too (`const writesLegacy = calendar \|\| !_isClientLink`). |
+| `crosswalk_error` | the lookup failed | unknown is not broken. |
+
+It also mirrors the ONE mismatch shape the gateway client front door **admits** —
+`card_id` alone with the deliverable side unbound — because a client root there
+went CANONICAL and its reply has to follow it. Measured 2026-09-02: 8 slots
+mismatch on `card_id` alone and all 8 name a DIFFERENT card, so `card_unbound` is
+false for every one, the carve-out moves no row today, and the baseline of 20 is
+unchanged — it exists so the first `card_id`-NULL slot to take a client comment
+does not trip a gate set to the exact current count.
+
+**Nothing is stamped by the add lane.** The routing lookup deliberately does not
+write into `post._canonicalCrosswalk`. Stamping `valid` there would flip the gate
+from `linked:false` to `{linked:true, ready:false}` on a card whose canonical
+read nobody has performed, and `_calAppendComment`'s own *"Notes are still
+loading"* guard would then refuse a send that succeeds today — with no control to
+clear it short of closing and reopening the modal (the composer only renders a
+Retry button on `status === 'error'`).
+
+**And the retry lane was told.** A staff add routed legacy on an ENROLLED slug is
+new traffic for `_linearOutboxEnqueue`, and the drain re-derives the lane from
+enrollment: without a stamp it files the item under `legacy_actor_unverifiable`
+("the principal cannot be verified"), which is not what happened. These carry
+`canonical_unlinked: true`, the exact precedent `client_link` set, and both
+drains admit it. Post-flip the admitted item still meets the flipped-team
+quarantine a line later, so what changes is the REASON recorded, not a delivery.
+
+**NOT fixed:** the 20 threads. Their roots are still legacy-only with no
+canonical row, which means (a) they stay unrepairable until the F42 comment
+import runs, (b) any tab loaded before the browser fix still routes the old way,
+and (c) **the crosswalk backfill must not land first** — see item 103.
+
+**The standing check.** `node scripts/card-comment-transport-split-check.js`
+(read-only, public key, `--json` for the rows, `--baseline=` to move the gate;
+exit 1 above baseline, 2 on error). `test/card-comment-transport-split.js` pins
+its rules offline and lifts `_prodCrosswalkMismatchFields` out of `index.html`
+to prove the check and the page answer identically, so a check with its own idea
+of "linked" cannot drift into measuring nothing — including the front-door
+carve-out above, which is pinned there rather than measured, because it moves no
+row today and a check that only pins what it currently counts would not have it.
+Registered in `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT section, the same place and
+the same way as its siblings. **Baseline 20.**
+
+**The root is item 102**, and every number above is a symptom of it.
+
+---
+
+## 100. [2026-09-02, ALL FOUR SITES FIXED IN REPO — **DEPLOY PENDING**: both files are edge functions and do not ship with the GitHub Pages deploy that carries `index.html`; until the reviewed F27 §4 lane runs, production still runs the old gate] A parent lookup that cannot tell "no such row" from "two rows" — and one of the four reported it as a permissions problem while another corrupted data in silence
+
+**One shape, four copies.** Every one of them was:
+
+```ts
+.or(`id.eq.${X},native_comment_id.eq.${X}`).limit(2)
+// then
+if (!Array.isArray(rows) || rows.length !== 1) { /* one answer for 0 and for 2 */ }
+```
+
+`0` means *that comment does not exist here*. `2` means *the identifier is
+one row's primary key and a different row's `native_comment_id`*. They are
+different facts with different repairs, and all four sites collapsed them.
+
+| # | file / lane | what it answered | what that told the person |
+|---|---|---|---|
+| 1 | `production-write/index.ts:2015` `reconcileEntityOperation` (replay lane, `body.reconcile_only === true`) | 409 `comment_parent_ambiguous` | reload — class `reload` |
+| 2 | `production-write/index.ts:4995` `handleEntityOperation` `action === "add"` — **THE LIVE PATH**, staff and client alike | 409 `comment_parent_ambiguous` | reload |
+| 3 | `production-write/index.ts:4915` comment LIFECYCLE lane (edit/delete/resolve/unresolve) | **403 `comment_forbidden`** | class `access`: *"ask an SMM or the owner"* — an escalation for a row that does not exist, to people who cannot fix it |
+| 4 | `linear-inbound/index.ts:541` `readStoredComment()` | **`null`, no error, no log** | nothing at all |
+
+**Site 4 was the dangerous one.** `persistProductionComment` reads a `null` as
+*first seen*, which SKIPS echo suppression, SKIPS tombstone protection and
+re-derives the target from the issue. So a two-row case could overwrite a
+client-visible thread's author, body or audience, or erase a tombstone —
+data-destructive, not merely a refusal. The same file already had the correct
+precedent one function down: `readBatchForIssue` raises
+*"production comment batch target is ambiguous"* rather than returning null.
+
+**The storage layer had the answer the whole time.** `production_comment_upsert`
+(`migrations/2026-07-12-production-comments.sql:272-300`) resolves the identical
+question as an ORDERED fallback — `id` → `linear_comment_id` →
+`native_comment_id` → `idempotency_key`, each `for update`, first hit wins — so
+it can never be ambiguous, and it raises a DISTINCT
+`'production comment parent not found'` (`:403`). The gateway was discarding a
+taxonomy its own RPC maintains. `native_comment_id` carries a partial UNIQUE
+index (`:115-117`) and `id` is the PK, so a genuine two-row result requires one
+row's `native_comment_id` to equal a DIFFERENT row's `id` — reachable only
+because the gateway shape-checks the supplied identifier and nothing more.
+**The exact primary-key hit is the correct tie-break**, matching the RPC.
+
+**Why any of it happened is item 102** — the parent lookup finds zero rows
+because the crosswalk sends the client's root down the legacy lane, and the
+crosswalk fails because the card↔deliverable binding was never written.
+
+**What shipped — all four sites, in
+`supabase/functions/production-write/index.ts` and
+`supabase/functions/linear-inbound/index.ts`.** A shared
+`resolveCommentByRef()` (`production-write/index.ts:1878`) returning
+`found | missing | ambiguous | unavailable`, with the primary-key tie-break;
+sites 1 and 2 now raise a new 409 `comment_parent_not_found` distinct from
+`comment_parent_ambiguous`; site 3 keeps its 403 and its non-enumerating
+property **deliberately** (the in-code note says so, and splitting the status
+there would disclose whether a row exists) but is now reached only after the
+tie-break, so it stops being a fake permissions failure — it is the one site
+deliberately NOT split, so "all four fixed" means all four changed, not all four
+given new codes; site 4 (`linear-inbound/index.ts:574-585`) raises loudly and
+logs `alert: "ambiguous_native_comment"` instead of returning `null`.
+
+**The F27 re-pin is DONE, not owed.**
+`supabase/functions/production-write` is an F27 §4 CLOSURE function, pinned by
+SHA-256 in **both** `test/f27-section4-deploy-lane.js` and the workflow's
+`PRODUCTION_WRITE_SOURCE_SHA256`. The digest is computed from GIT, not the
+working tree — `node scripts/ef-fingerprint.js <commit-sha>
+--slugs=linear-outbound,production-write,deliverable-write,batch-write
+--expected-only --format=json`. Both places now read
+`cc44bf938fd666595061972c27721fbf10d17cb11b184e417f59478b0add5370` and
+`node test/f27-section4-deploy-lane.js` passes at `a27bcec6`; expected file
+count is unchanged at 5 and the other three slugs are untouched. **Anything that
+edits any file in that closure again — a comment-only edit included —
+invalidates both pins and needs the command re-run.**
+
+**What a reviewer must still confirm.** `test/write-ui-failure-messages.js` §3
+requires every `new GatewayError(NNN, "code")` string to carry guidance in
+`index.html`, so `comment_parent_not_found` fails `npm test` unless `index.html`
+ships in the same commit, and §4 forbids a deterministic refusal advising a
+retry — which is why it must not be filed under `reload`. **The two halves must
+not be split by a rebase or a cherry-pick**, and they deploy by different routes:
+`index.html` rides the ordinary GitHub Pages deploy, the gateway does not. Until
+the reviewed §4 lane runs, browsers carry guidance for a code the deployed
+gateway cannot emit — harmless (the moved `comment_parent_ambiguous` text is
+already correct for what it does emit) but it is the reason this entry is marked
+DEPLOY PENDING rather than fixed.
+
+---
+
+## 101. [2026-09-02] A refused write exists only inside one browser: fifty rows of `localStorage` that do not name the card, and nothing on any server
+
+**This is the finding the owner considers the real one**, and items 99, 100 and
+104 are all downstream of it: every one of them was discovered because a client
+said something, not because anything reported it. (Their shared DATA cause is
+**item 102**; this item is why nobody found out.)
+
+**What is recorded when a write is refused.** `_writeUiReportFailure`
+(declared at `index.html:26363`) shows the person a notification and calls
+`_writeUiQueueDiagnostic` (`:25911`), which appends one row to
+`localStorage[WRITE_UI_QUEUE_DIAG_KEY]` and immediately truncates with
+`list.slice(-50)`. The row is:
+
+```js
+{ at, surface, kind, outcome, code }   // code truncated to 80 chars
+```
+
+**No card id. No client. No component. No comment id. No body.** So even the
+person holding the ring cannot say WHICH note was lost — only that a `comment`
+write on `calendar` failed at a timestamp. It is readable solely through
+`window.peekWriteUiQueueDiagnostics()` in that one browser profile, it is capped
+at 50 entries estate-wide-per-tab, and a cleared cache or a different device
+erases it.
+
+**And nothing else caught it either.** `deliverable_events` holds exactly **6**
+`comment_change` rows in its entire history, all on `2026-07-12`, the migration
+day; the newest event of any kind in the table is minutes old. So comment writes
+— accepted or refused — leave **no server-side trace at all**. Compare
+`GRA-6493`'s approve, which produced a `status_change` and a
+`mirror_out_echo_dropped` one second apart: the status lane is observable, the
+comment lane is not.
+
+**What a durable write-failure receipt would need to be.** Concretely, so this
+is a task and not a wish:
+
+1. **A row, server-side, written by the refusing side.** The gateway already
+   knows everything: `request_id`, `surface`, `operation`, `entity`, `id`,
+   `client_slug`, `team`, the refusal `code` and status, the principal kind. A
+   `production_write_refusals` table (or a `deliverable_events` action, which
+   needs no new grant) written in the `GatewayError` path costs one insert on a
+   path that is already failing.
+2. **The identifiers a human needs to find the thread**: card id, component,
+   parent comment id. The browser has these; the gateway receives most of them
+   already.
+3. **A leg for the refusals the server never sees.** A browser-side refusal (a
+   CAS guard, `canonical_comment_read_required`, a `legacy_parity_not_allowed`
+   local refusal) never reaches the gateway at all, so the receipt needs a
+   best-effort beacon on that path too — fire-and-forget, no retry, never
+   blocking the UI.
+4. **The text.** A refused comment is the only thing here that cannot be
+   reconstructed. Retaining the draft locally against its card id — a
+   `_calReplyDrafts` entry mirrored to `sessionStorage`, which today happens for
+   a new root and NOT for a reply — is a smaller change than any of the above and
+   removes the worst outcome on its own.
+5. **Something that reads it.** A receipt nobody queries is the ring with extra
+   steps. It belongs in `PRE_FLIP_HEALTH_CHECK.md` beside the other CONTEXT
+   counters, reported as "refusals in the last 24h, by code".
+
+**The cheap interim substitute is the precondition sweep**, and that is why item
+99 ships a script rather than only a fix:
+`scripts/card-comment-transport-split-check.js` finds the breakage from data we
+can already read, BEFORE anyone hits it, without any new instrumentation. It
+cannot see a refusal that has already happened — nothing can — but it can name
+every thread where one is waiting to.
+
+---
+
+## 102. [2026-09-02] THE ROOT: the card↔deliverable binding has essentially never been written — 5,150 of 6,241 deliverables have `card_id` NULL
+
+**Measured over the whole table, 2026-09-02, paged.** 6,241 `deliverables`:
+
+- `card_id IS NULL` — **5,150** (82.5%)
+- `origin` histogram — `manual` **5,046**, `calendar` **1,157**, `samples` **38**
+
+Meanwhile 1,182 calendar card slots DO carry a `*_deliverable_id`. So the link
+exists in one direction and almost never in the other: the card knows its
+deliverable, the deliverable does not know its card. `_prodCrosswalkMismatchFields`
+requires **both** directions plus `origin` and `team`, which is why the mismatch
+population is what it is and why `origin+card_id` is 16 of the 20 reasons in
+item 99.
+
+**Every symptom on this page is downstream of this one fact.**
+
+- **Item 99** — the client comment gateway front door refuses a card whose
+  deliverable does not name it, so the client goes legacy while staff go
+  canonical. The crosswalk is the ONLY thing the client side consults.
+- **Item 100** — the gateway's parent lookup finds zero rows because of item 99,
+  and then could not say so honestly.
+- **Item 101** — nothing reported any of it.
+- **Item 103** — the repair for this entry has an ordering hazard that can make
+  things worse before better.
+- **Item 104** — the client change-request status bridge depends on the comment
+  reaching the gateway, which depends on the crosswalk.
+- Item 98's Workload classes and item 72 sit on the same seam from the other
+  side: a native store that the rest of the estate has not finished being
+  repointed at.
+
+**This is the entry a long-term solution has to answer.** Not "backfill the 20",
+not "fix the four lookups" — those are already done or scoped. The question is
+why 5,046 deliverables carry `origin = 'manual'` and no card binding at all, what
+writes that binding today (`origin = 'calendar'` on 1,157 rows says something
+does, sometimes), and whether the crosswalk should be a stored column pair at all
+rather than derived from the card side, which is the side that is actually
+populated. **Not attempted here**: this is an architecture decision with a data
+migration behind it, and it is not a change to make unattended.
+
+---
+
+## 103. [2026-09-02] The crosswalk data repair has an ORDERING HAZARD, and getting it backwards inverts the bug instead of fixing it
+
+This is the repair for **item 102**, and the order it is done in decides
+whether it helps.
+
+**The temptation is to backfill `origin` and `card_id` first.** It is the
+smallest change, it makes `_prodCrosswalkMismatchFields` return empty, and the
+20 rows in item 99 disappear from the sweep. **It also makes things worse — one
+way as shipped, and a second way that the item-99 fix was narrowed specifically
+to close. Neither was hypothetical: both follow from code paths read at HEAD.**
+
+**1. Every add on the card is refused while the canonical read is outstanding.**
+With the crosswalk valid, `_prodCanonicalCommentGate` returns
+`{linked: true, ready: false, status: 'loading'}` until the canonical thread has
+been read. `_calAppendComment` opens with:
+
+```js
+if (canonicalGate.linked && !canonicalGate.ready) {
+    showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
+    return false;
+}
+```
+
+That refuses **the client too**, not only staff — a strictly larger blast radius
+than the bug it replaces, and it is a browser-side refusal, so item 101 applies:
+nothing anywhere records it.
+
+**2. The split would have INVERTED once the read completed — and this is why
+the item-99 predicate reads the crosswalk instead of the gate.** The projection
+compares the canonical rows against the legacy rows with
+`_prodCanonicalCoversLegacy`; with canonical empty and legacy non-empty it
+returns `false`, the read is stamped `legacy_retained`, and
+`_prodCanonicalCommentGate` answers `linked: false` even though the crosswalk is
+now clean. Had the add lane routed on `!gate.linked` — which is what the first
+draft of the item-99 fix did — then:
+
+- the STAFF add would have seen `linked: false` and gone **legacy**;
+- the CLIENT add never consults the gate at all —
+  `_prodClientCommentGatewayContext` consults only the crosswalk, which now
+  passes — so it would have gone to the **gateway**.
+
+Client canonical, staff legacy: the same two-transport split as item 99, running
+the other way, on a population `legacy_retained` makes large (445 non-archived
+calendar slots are crosswalk-VALID and carry legacy comments, so every one is a
+candidate for the hold). **`_prodCommentAddRoutesLegacy` reroutes only on a
+proven crosswalk MISMATCH**, so after a backfill both sides go canonical
+together and this hazard is closed. It is recorded because the reasoning is the
+reason the predicate is shaped that way, and a future edit that "simplifies" it
+back to `!gate.linked` re-opens it.
+
+**So the comment import comes first, or both land atomically.** The F42 lane
+already exists and already validates exactly these five columns:
+`scripts/f42-card-comment-import.js` carries `DELIVERABLE_FIELDS =
+['id','client_slug','team','origin','card_id']` and feeds
+`production_comment_card_import`, whose crosswalk guard is the same one
+`_prodCrosswalkMismatchFields` mirrors. Its planner sorts a card with a binding
+that does not describe it into the non-blocking **DEFECTS** bucket, which is
+precisely the 20 rows of item 99 — so the plan can see them today and refuses to
+import them until the crosswalk is repaired. **That is a genuine circular
+dependency and it is the crux of this item**: the import needs the crosswalk to
+be right, and repairing the crosswalk without the import inverts the bug. The
+resolution has to be one transaction that writes the deliverable's
+`origin`/`card_id` and imports the card's comments together, or an import lane
+that accepts a repair manifest naming the intended binding.
+
+**Do not do either half unattended.** State what you verified, per card, before
+touching a row.
+
+---
+
+## 104. [2026-09-02] A client's change request reaches the CARD and never the DELIVERABLE, while the same client's approval reaches both — root cause NOT established
+
+This is a **separate defect** from items 99-100. It is not explained by the
+comment-transport split, and its own mechanism is mapped but unproven. It is
+recorded here so that whoever picks it up starts from evidence rather than from
+the beginning.
+
+**What the client did, and what the board the designers work from was told.**
+
+| | client APPROVE | client CHANGE REQUEST |
+|---|---|---|
+| example | `GRA-6493` (`b1_d_9dba79a6…`) | `GRA-6422` (`b1_d_3466b7d9…`), `GRA-6424` (`b1_d_80abe5ea…`) |
+| card sub-status | flipped | flipped — both cards read `Tweaks Needed` |
+| DELIVERABLE status | `approved`, `updated_at 2026-09-02T12:44:18Z` — **one second** after the client's `12:44:17` action | still `client_approval`, `updated_at 2026-09-01T00:14:19Z` and `2026-08-21T13:33:35Z` — **stale, and both BEFORE the request** |
+| `deliverable_events` | `status_change role=client source=ui client_approval → approved`, then `mirror_out_echo_dropped` 3s later | **nothing on 2026-09-02 at all** |
+
+**The absence is decisive, not merely suggestive.** The same deliverable has a
+`2026-09-01T00:13:25Z status_change smm ui client_approval → client_approval`
+row — a NO-OP status write produces an event here. So a missing row is a write
+that never happened, not a write that changed nothing.
+
+**A human had to do it by hand, and that is in the table too.** `GRA-6422` and
+`GRA-6424` were both moved `client_approval → tweak` at `2026-09-02T14:56:05Z`
+and `14:56:08Z` by `role = admin, source = ui` — the owner, two hours after the
+client asked, with no intervening automated event. That is the cost of this
+defect stated in the data: without it the deliverables would still be sitting in
+`client_approval`.
+
+**Estate-wide the bridge DOES work when the comment reaches the gateway.**
+`deliverable_events` with `action = status_change, role = client` over the last
+three weeks: **143 `approved`, 46 `tweak`** — including this same client's own
+change requests on 2026-08-23, 08-26 and 08-30. The failure is conditioned on
+the comment falling back to legacy, i.e. on the crosswalk, i.e. on item 102 —
+and that is measurable rather than merely inferred: **every one of the 46
+`status_change role=client to_status=tweak` events in the table belongs to one
+of 35 distinct deliverables, and all 35 carry `origin = calendar` and a non-null
+`card_id`. Zero exceptions.** A client change request has never once reached a
+deliverable whose crosswalk was broken. Re-run that pair of queries to falsify
+this.
+
+### The divergence points, as the starting point for whoever picks this up
+
+Approve (`_calReviewApplyApprove` / `_calClientApprove`) writes
+`_calPendingEdits[pid][comp + '_status']` and calls `_calFlushCardSave(pid)`.
+Nothing else. Change-request (`_calReviewRequestTweak`) does four more things,
+any of which could be the cause:
+
+1. **It posts the comment FIRST, with `deferLegacyUntilSourceSave: true`.** When
+   the crosswalk fails, `_calPostLinearComment` returns
+   `{skipped, legacy_transport, deferred_until_source_save}` **without calling the
+   gateway at all**, so `_writeUiBindRepairAck` binds nothing and no companion
+   status repair is created.
+2. **It stages a deferred legacy tweak**, whose two records are a `comment` leg
+   and a `status` leg — and the status leg targets the **Linear issue over n8n**,
+   not the native deliverable. There is no native leg.
+3. **It then suppresses the native status push outright**:
+   `_calNoLinearPush.add(pid + '|' + comp)` whenever a deferred item was staged,
+   which makes `suppressGraphic` true in `_calFlushCardSave` and skips the
+   `'graphic_status' in edits` branch entirely. The card row still saves — which
+   is why the `calendar_post_events` rows exist — and the deliverable is never
+   written.
+4. **The deferred status leg then dies anyway**: post-flip the drain either
+   409s at the n8n gate or is refused as `legacy_parity_not_allowed` and
+   discarded as `discarded_authority_flip`.
+
+Separately, on the `_calAppendComment` route, `_calApplyAutoStatus` is a **no-op
+when the sub-status already reads `Tweaks Needed`**, so a round-2+ request queues
+no status edit at all.
+
+**The server is not refusing this.** `clientOperationAllowed` in
+`production-write/policy.mjs` permits `client_approval → tweak` for a client
+principal explicitly. The write is never attempted.
+
+**Why this is a hypothesis and not a diagnosis.** The confirming artefact — the
+staged `deferred_calendar_<id>_status` item and its `_calNoLinearPush` entry —
+lives in the client's browser `localStorage` and cannot be read from here. That
+is item 101 again. **Do not close this as diagnosed.** Reproduce it on the drill
+client with the crosswalk broken on purpose, and read
+`window.peekWriteUiQueueDiagnostics()` and the outbox before and after.
+
+**A third card, recorded because it looked like the same thing and is not.**
+`p_mqpcwkq9_ne523` took a caption change request at `12:45:08` and its
+`caption_status` reads `Client Approval` now. The events say the client's flip
+DID stick at `12:45:10.245Z` — three rows share that `created_at`, and they are
+**two `status_change` rows** (the card overall `For SMM Approval → Tweaks
+Needed`, and `caption` `Client Approval → Tweaks Needed`) **plus one
+`comment_add` on `caption`**, not three status changes. A staff member then
+moved the caption back at `13:04:56.6` (`role = smm`, `Tweaks Needed → Client
+Approval`, with the card overall in the same write) and the graphic sub-status at
+`13:04:41` — nineteen minutes later.
+A staff overwrite, not a lost write. Its own graphic deliverable shows a matching
+`13:03:43Z smm_approval → client_approval`. But the same gap applies to that card
+too: its client change request produced no deliverable event either, and the
+caption component has no deliverable at all, so nothing on the caption lane could
+ever reach one.
+
+---
+
+## 105. [2026-09-02] Five things this sweep turned up in passing
+
+Recorded here rather than in a session log, per this file's rule that an item
+leaves by being done or by an owner decision, never by silence.
+
+### 105.1 — Replies essentially never happen on this estate, and that is a symptom
+
+Across `soniachopra`'s entire account: 91 cards, **126** card comments in the
+five comment columns (98 excluding the legacy `tweaks` mirror; 82 across
+`video_tweaks` + `graphic_tweaks` alone) and **2 replies, ever** — both on
+components other than video or graphic, which have **zero**. A conversation
+feature with a 1.6% reply rate is either unused or broken, and items 99-100 give
+a mechanism for the second. Worth measuring across other clients before assuming
+it is a habit rather than a defect.
+
+### 105.2 — 152 slots are the reservoir, not the leak
+
+The 152 deliverable-linked, crosswalk-mismatching slots that carry no client root
+are excluded from item 99's gate for a good reason (a staff root there IS
+canonical). But each of them becomes an item-99 row **the first time a client
+comments on it**. The sweep reports the number so the growth is visible; the
+repair is item 102's, not a per-slot one.
+
+### 105.3 — ADD was the only comment operation without the fallback its siblings had
+
+`_calToggleCommentDone` and the delete confirm both branch on
+`_prodCanonicalCommentGate(post, comp).linked` and fall back to the legacy card
+store; the Samples twins do the same. The in-code rationale is explicit —
+*"Holding sends the card back to the legacy resolve path, which is the one that
+still works on an uncovered card."* ADD did not, on either surface, and on
+Samples the staff add specifically: `_sxrPostLinearComment` computed the gate
+only `_isClientLink ? … : null`. Closed by the item 99 fix on both surfaces —
+though NOT by copying the siblings' predicate: `.linked` is the right answer for
+a READ (it decides what is on screen) and too wide for a WRITE, so ADD asks the
+crosswalk directly. See item 99's table of the three states that differ. It is
+recorded because the SHAPE recurs: when one operation in a family routes
+differently from its siblings, that difference is the bug, and this is the second
+time this family has produced one.
+
+### 105.4 — `deliverable_events` records nothing about comments
+
+Six `comment_change` rows exist in the entire table, all on `2026-07-12`. Status,
+due, assignee, archive, batch-asset and description changes all emit events;
+comments emit none. That is why item 101 has no fallback data source, and it is a
+one-line-per-write fix on a path that already writes events.
+
+### 105.5 — item 96's extractor hazard, applied
+
+`test/card-comment-transport-split.js` lifts five functions out of `index.html`
+and six out of the check with the same hand-rolled `grabFunc` item 96 documents
+as unsafe. It carries item 96's two required properties rather than waiting for
+the shared extractor that item asks for: every slice is **parsed standalone**
+(`new vm.Script`) and **bounded** by an explicit character limit, so an
+over-extraction that would otherwise pass silently throws instead. Offered as the
+pattern for the next test that has to do this, and as a partial answer to item
+96 that costs nothing.
+
+## 106. [2026-09-02] The deploy-provenance test pins a workflow's SHA literals as TEXT, so a pin can go stale against its own source and every test stays green
+
+Found by the Codex review on PR #1226, which flagged the stale `linear-inbound`
+pin and then asserted the staleness "makes `node test/ef-deploy-provenance.js`
+fail at this commit". It does not. Verified at `f144c389`: the test exits 0 and
+prints `Edge Function deploy provenance checks passed`, including its own
+assertion `linear-inbound has one dispatch-only pinned-SHA owner and no push
+deploy path`. It is in `npm test` — `test/run-all.js:15` globs the directory
+with `readdirSync` — so the all-green result was accurate.
+
+**The interesting part is WHY it passed.** `test/ef-deploy-provenance.js` asserts
+that a deploy workflow CONTAINS the expected literal strings and that ownership
+of a slug is exclusive. It never compares a pin against the tree it is supposed
+to describe. So the two properties it checks are both structural, and the one
+property that matters operationally — *does this pin still name this source?* —
+is unchecked. A pin can drift arbitrarily far from its function's real closure
+and the suite stays green for as long as the literal is still spelled the same
+way somewhere in the YAML.
+
+Measured today, `deploy-f27-linear-inbound.yml` pins
+`CANDIDATE_SOURCE_SHA256: 3d91b2a2dfb9b8b1dc563cd8425378f7067d9e2fdf16278f45a4546823f09574`
+while `node scripts/ef-fingerprint.js $(git rev-parse HEAD)
+--slugs=linear-inbound --expected-only` computes
+`019a463dee2b4b91ff0b19a0220479e7602e9a5880da6d19519f9113716bf0fc` over 5 files.
+Stale since `d9fbc2e7` (2026-08-30) per item 77, and item 100 added a second
+reason. Nothing in CI has ever said so.
+
+**Why the guard was NOT added in the PR that found this.** A check comparing
+every lane's `CANDIDATE_SOURCE_SHA256` against `ef-fingerprint.js` fails the
+moment it is written, because the pin it would first examine is already stale.
+Shipping it inside #1226 would have turned that PR red on breakage it did not
+cause, and the only ways to get green would be to weaken the new guard or to
+move `REVIEWED_RELEASE_SHA` — a human-review gate no agent may self-certify.
+That is the same ordering hazard item 103 describes, in a different costume: the
+detector has to land with, or after, the repair it detects.
+
+**The shape that works.** Land the re-pin PR item 77 asks for, then add the
+comparison as a hard gate in the same change or immediately behind it. If the
+re-pin is going to sit, land the comparison first as a REPORTING check — print
+every lane whose pin disagrees with its computed closure, exit 0 — so the drift
+is at least visible in CI, then flip it to a failure once the backlog is clear.
+A reporting check that names four stale lanes beats a hard gate nobody can merge.
+
+**The generalization worth taking.** Any test that pins a value by asserting a
+file contains a literal is testing spelling, not truth. The digest is derivable
+(`ef-fingerprint.js` already derives it), so the assertion can compare rather
+than match — and where a value is derivable, matching its text is the weaker
+test every time. Worth a sweep for the same shape elsewhere: item 100's
+`test/f27-section4-deploy-lane.js` pins `production-write` the same way, and it
+is only correct today because this session re-derived it by hand.

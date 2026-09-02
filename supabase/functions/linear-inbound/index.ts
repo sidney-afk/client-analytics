@@ -558,8 +558,31 @@ async function readStoredComment(
     .or(`id.eq.${nativeCommentId},native_comment_id.eq.${nativeCommentId}`)
     .limit(2);
   if (error) throw new Error("production native comment lookup failed");
-  if (!Array.isArray(data) || data.length !== 1) return null;
-  return data[0] as ExistingRow;
+  const rows = (Array.isArray(data) ? data : []) as ExistingRow[];
+  // A null here means "first seen" to persistProductionComment, which then
+  // skips echo suppression AND tombstone protection and re-derives the target
+  // from the issue -- so answering null for a row that DOES exist can overwrite
+  // a client-visible thread's author/body/audience or erase a tombstone. Zero
+  // rows is the only honest null. `id` is the primary key and
+  // `native_comment_id` carries a partial UNIQUE index
+  // (migrations/2026-07-12-production-comments.sql:115-117), so a two-row
+  // result means the identifier is one row's primary key and a different row's
+  // native_comment_id; rank the exact primary key first, the same ordered
+  // fallback production_comment_upsert already uses (same migration, :272-300).
+  if (rows.length === 1) return rows[0];
+  if (rows.length === 0) return null;
+  const primaryKeyHits = rows.filter(row => clean(row.id) === nativeCommentId);
+  if (primaryKeyHits.length === 1) return primaryKeyHits[0];
+  // Still not one row after the tie-break. Refuse loudly instead of silently
+  // handing back null, matching readBatchForIssue below -- a 500 is retried by
+  // Linear, an unnoticed overwrite is not recoverable.
+  console.warn(JSON.stringify({
+    fn: "linear-inbound",
+    alert: "ambiguous_native_comment",
+    native_comment_id: nativeCommentId,
+    matches: rows.length,
+  }));
+  throw new Error("production native comment target is ambiguous");
 }
 
 async function readBatchForIssue(supabase: SupabaseClient, issue: JsonMap): Promise<ExistingRow | null> {

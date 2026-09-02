@@ -29,7 +29,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const HARD_GATE = false;
+const HARD_GATE = true;
 
 const ROOT = path.resolve(__dirname, '..');
 const WORKFLOWS = path.join(ROOT, '.github', 'workflows');

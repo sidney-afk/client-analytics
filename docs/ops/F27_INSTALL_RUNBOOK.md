@@ -204,7 +204,7 @@ lane PR is under review.
 P.3 deploys through the dispatch-only
 `.github/workflows/deploy-f27-linear-inbound.yml` lane. It has no push or pull
 request trigger. Its `commit_sha` input is hard-bound to the reviewed release
-`661e5b1bf9dc0643c89d09d47b93a1362c5af275`; the workflow checks out and
+`72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c`; the workflow checks out and
 deploys exactly that commit after proving it is on current main.
 
 Before dispatch, confirm the protected `production` Environment permits only
@@ -223,11 +223,24 @@ fallback to `TRACK_B_BACKUP_DRIVE_FOLDER_ID`. Before deployment, the lane
 rejects a fetch receipt whose root ID SHA-256 is not
 `9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042`.
 
-Dispatch the forward operation only after the owner go:
+Dispatch the forward operation only after the owner go.
+
+**The owner runs this from the Actions "Run workflow" UI, not `gh`** (AGENTS.md,
+owner directive 2026-09-01). Give him the link, never just the workflow name:
+
+<https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-linear-inbound.yml>
+
+| field | value |
+|---|---|
+| `commit_sha` | `72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c` |
+| `operation` | `deploy-reviewed-release` |
+| `confirm` | `DEPLOY_REVIEWED_LINEAR_INBOUND` |
+
+The equivalent CLI form, for reference only:
 
 ```text
 gh workflow run deploy-f27-linear-inbound.yml --ref main \
-  -f commit_sha=661e5b1bf9dc0643c89d09d47b93a1362c5af275 \
+  -f commit_sha=72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c \
   -f operation=deploy-reviewed-release \
   -f confirm=DEPLOY_REVIEWED_LINEAR_INBOUND
 ```
@@ -316,9 +329,23 @@ source-exact rollback and stops. Never retry the forward operation. The retry
 path is the `restore-captured-v39` operation of the **same workflow**, with the
 same pinned release SHA:
 
+Same UI, same link, three different values — and this is the one that gets run
+under pressure, so it does not get to be the block where he has to go find the
+workflow himself:
+
+<https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-linear-inbound.yml>
+
+| field | value |
+|---|---|
+| `commit_sha` | `72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c` |
+| `operation` | `restore-captured-v39` |
+| `confirm` | `RESTORE_CAPTURED_V39_LINEAR_INBOUND` |
+
+The equivalent CLI form, for reference only:
+
 ```text
 gh workflow run deploy-f27-linear-inbound.yml --ref main \
-  -f commit_sha=661e5b1bf9dc0643c89d09d47b93a1362c5af275 \
+  -f commit_sha=72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c \
   -f operation=restore-captured-v39 \
   -f confirm=RESTORE_CAPTURED_V39_LINEAR_INBOUND
 ```

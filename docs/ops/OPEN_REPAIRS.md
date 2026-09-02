@@ -7781,7 +7781,20 @@ of it.
 
 ---
 
-## 105. [2026-09-02, SCOPED — one owner decision, then it is a day's work] Pasting an image into a description: the render half shipped, the upload half needs a storage answer
+
+> **NUMBERING NOTE (2026-09-02).** The entries below were renumbered on merge: 105 to 109, 103 to 110, 101 to 111, 104 to 112.
+> Five branches authored overnight each numbered their own entry while the ledger
+> still ended at 100, so several PRs all claimed 101-105. Merging them in sequence
+> produced duplicates, and an ambiguous "see item 104" defeats the one thing this
+> file exists to do. HEADERS ONLY were changed; no entry text was touched and every
+> cross-reference inside them points at items 72-102, none of which moved.
+>
+> Separately: items 13, 14, 22, 23 each appear twice from
+> BEFORE this session. Left alone deliberately -- they are old closed entries and
+> renumbering them could break references this session cannot see. Flagged here so
+> the next reader knows it is known, not missed.
+
+## 109. [2026-09-02, SCOPED — one owner decision, then it is a day's work] Pasting an image into a description: the render half shipped, the upload half needs a storage answer
 
 Owner, 2026-08-31: *"could you look into pasting images in the description? …
 same way it does in linear. So just a simple pasting of a screenshot."*
@@ -7898,7 +7911,7 @@ WIDEN the set — but sniffing must narrow it, never replace the allowlist.
 **All three were spec defects caught before anything was built**, which is the
 argument for scoping in a reviewable file rather than in a plan nobody reads.
 
-## 103. [2026-09-02, ANSWERED — no repair here; the repair is items 95/102] Item 98's open question: B1 skipped nothing. The issues were deleted in Linear seconds after SyncView created them
+## 110. [2026-09-02, ANSWERED — no repair here; the repair is items 95/102] Item 98's open question: B1 skipped nothing. The issues were deleted in Linear seconds after SyncView created them
 
 Item 98 ended with: *"The never-imported class additionally needs a root cause:
 why B1 skipped seven live graphics issues for six days is not answered here."*
@@ -8041,7 +8054,7 @@ against a case that has not happened yet, bought for nothing.
 
 ---
 
-## 101. [2026-09-02, FIXED] Item 96's extractor hazard, closed by a guard rather than by rewriting 122 files — and the first fix for it was wrong in the same shape as the bug
+## 111. [2026-09-02, FIXED] Item 96's extractor hazard, closed by a guard rather than by rewriting 122 files — and the first fix for it was wrong in the same shape as the bug
 
 `test/helpers/extract-function.js` is now the one correct extractor: it tracks
 regex literals (including character classes, so `[\"]` and `[/]` are inert) and
@@ -8151,7 +8164,7 @@ it cannot drive reads exactly like a guard that found nothing wrong.
 
 ---
 
-## 104. [2026-09-02, MEASURED AND GATED — the repair itself is an owner decision] This repository is public and the roster is in it: 45 of 50 identifying terms, 108 files
+## 112. [2026-09-02, MEASURED AND GATED — the repair itself is an owner decision] This repository is public and the roster is in it: 45 of 50 identifying terms, 108 files
 
 **Measured against the live roster, 2026-09-02.** Of the 50 identifying terms
 on it, **45 appear somewhere in the tree**: 39 of the 47 client slugs and 6

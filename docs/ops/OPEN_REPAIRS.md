@@ -7779,6 +7779,42 @@ then jumps back to the top. Not diagnosed; separate from the eviction above,
 though the forced `view = 'list'` transition may well have been producing some
 of it.
 
+
+**THIRD FIX, and this one is the actual cause (2026-09-02, later the same day).**
+The owner reported the redirect again AFTER both fixes above shipped, which
+means neither of them ever ran. They did not, and the reason is ordering rather
+than logic.
+
+In `_prodLoadData`'s success path the calls stand in this order:
+
+```
+_prodApplyDeepLinkFallback(true);   // the eviction
+_prodRender();
+_prodLoadTerminalTail();            // where terminalTailPending was set
+```
+
+The flag both guards consult was set INSIDE `_prodLoadTerminalTail`. So at the
+one moment the eviction fires, phase one has finished, every
+`PROD_CACHE_TERMINAL` row is still absent, and the flag that means "absent only
+means not yet" is still `false`. The guard added for exactly this condition
+could never engage on the path that produces it. It would have engaged only on a
+SECOND load arriving while a first tail was still in flight -- which is a real
+case, and is why the fix looked like it worked when it was tested.
+
+`_prodState.terminalTailPending = true` now stands immediately BEFORE the
+fallback call, so the window is closed rather than narrowed. It cannot latch on:
+a tail that runs clears it in its `finally`, a tail that early-returns because
+one is already running is covered by that run's `finally`, and the load's own
+`catch` now clears it too, so a throw between the flag and the tail call cannot
+leave the missing-target notice suppressed for the rest of the session.
+
+**The lesson, and it is a different one from the paragraph above.** Both earlier
+fixes were correct in isolation and were verified against the state they
+described -- a settling load. Neither was verified against the ORDER in which
+that state is actually produced. A guard on a flag is only as good as the moment
+the flag is set, and nothing in either review asked where that was. Reading the
+guard proves the guard; only reading the caller proves the guard runs.
+
 ---
 
 

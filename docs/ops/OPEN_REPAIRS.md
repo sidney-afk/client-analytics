@@ -6959,3 +6959,66 @@ scanner got right.
 
 The guard is mutation-tested: reverting a migrated file to a hand-rolled scanner
 fails it, naming both functions and the file.
+
+### Amended before merge (#1220): the guard described the suite instead of reading it
+
+Both of Codex's findings, and both about this guard rather than the extractor.
+
+**1. It only saw direct calls.** The call-site regex matched four hardcoded
+helper names taking a literal. `calendar-linear-link-move.js` reaches its
+extractor through a wrapper — `def('_calEsc')` calls `grabFunc` — and
+`onboarding-viewer-style-preview.js` names its extractor `grabFunction`, which
+was not in the list at all. **Neither file was covered.** Discovery is now taken
+from each file's own call graph: seed on the extractor idiom
+(`X.indexOf('function ' + name)`), then take the fixpoint over local functions
+that *forward one of their own parameters* to a seed. A wrapper, a rename, or a
+new file now costs nobody a memory. Merely *calling* the extractor does not make
+a function a wrapper — half the ordinary test-case functions do that with a
+literal, and sweeping them in buried the real shapes in noise.
+
+**2. It compared against a model, not against the suite.** This is the bigger
+one, and it was not in the finding — it is what the finding uncovered.
+
+The guard re-derived each name with `extractFunctionNaive`: **one**
+reconstruction of "the" hand-rolled scanner. The suite does not have one.
+Measured: **88 local extractors, roughly half tracking quotes and half counting
+braces and nothing else.** So the model was wrong in both directions — it would
+miss a real divergence in a file whose scanner differs, and invent one in a file
+that never opens a string at all.
+
+Codex's own example is exactly the invented kind. It reported
+`calendar-linear-link-move.js` extracting `_calEsc` at **49,193 characters
+against a true 145**. That is what the *model* does with the quote inside
+`/[\"]/`. That file counts braces only, never opens the string, and gets **145 —
+the right answer.** The coverage gap was real; the consequence named was not.
+
+So the guard no longer models. **It compiles each file's own scanner and runs
+it**, binding the file's index.html constant (through one level of
+`const SRC = process.env.X || path.join(ROOT, 'index.html')` indirection) and
+resolving wrappers transitively. The comparison is now between what that suite
+actually extracts and what the function actually is — which is the claim the
+guard was already making.
+
+**Measured after both corrections: 423 (file, function) call sites naming 321
+distinct index.html functions, executed through their own suite's scanner, ZERO
+divergent.** Mutation-tested: reverting a migrated file to a hand-rolled scanner
+fails the guard and names three real over-extractions, the worst being
+`_syncviewStaffPurgeSensitiveState` at **214,564 characters against a true
+4,162**.
+
+**And the helper's own header was carrying retracted numbers.** It still listed
+`_calRenderShell`, `renderWeekDeadlineTimeline` and `_calComposerHtml` as
+"silently over-extract" with measurements taken by the *first, buggy* version of
+the new extractor — the one that truncated `renderWeekDeadlineTimeline` to 945
+characters. Re-measured, all three agree exactly under both scanners
+(12,901 / 4,456 / 7,103). The PR description retracted this in prose while the
+file went on stating it as fact; the file now carries the true table, and the
+two genuine model-visible divergences (`renderCardView`, `renderOverview`, both
+in `analytics-receipt-ui.js`, which really did track quotes and really was
+migrated).
+
+**What the guard does not cover is now printed every run**, not omitted: call
+sites whose target is not a string literal (11), scanners reading a source other
+than index.html (6, named), and scanner shapes it cannot drive (1 — the
+two-name slicer in `write-ui-repair-races.js`). A guard that quietly skips what
+it cannot drive reads exactly like a guard that found nothing wrong.

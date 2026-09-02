@@ -8667,3 +8667,60 @@ path to it. `test/outbound-unsendable-writes.js` now lifts the predicate out and
 
 The F27 §4 closure pin moved with this change, in the same commit — the rule the
 tenth release wrote and the eleventh immediately broke.
+
+---
+
+## 115. [2026-09-02] The PTO calendar's focus flake has now defeated two remedies, and both were derived from an unverified mechanism
+
+`docs/syncview-design/tests/pto-ui-polish.js` fails on roughly one CI run in
+seven, at `focus lands on the day the walk starts from`. It failed again on PR
+#1236 (run 598) — a commit that touched only the Production tab's deep-link
+ordering and this ledger, and whose suite passed twice locally on the same tree.
+
+**What makes this entry worth writing is not the flake. It is the pattern of
+the fixes.** The file already documents two attempts:
+
+1. *2026-08-22* — assumed the read raced the handler, added a wait for the move.
+   The wait timed out at the full 30s, which disproved the theory.
+2. *2026-08-25* — a red run dumped DOM state, and the dump was read as "focus
+   never left the Next month button; a late re-render stole it back". The remedy
+   was to take focus and confirm it stuck, re-taking it up to ten times.
+
+Run 598's dump is **byte-identical** to the 2026-08-25 one. So ten confirmed
+re-takes across five seconds all failed, and remedy 2 is disproven as
+sufficient. More importantly, the *reading* behind it is now in doubt: `active:
+"button"` was the only identifying field the dump carried, and "it must be the
+nav button, because that is what was clicked last" is an inference, not an
+observation.
+
+**No third remedy is shipped here, deliberately.** Two guesses at a mechanism
+have each produced a fix that recurred; a third would be the same move. What
+ships instead is the evidence needed to end it in one occurrence:
+
+- the dump now names the focused node — `aria-label`, class, text, and whether
+  it sits in the nav, the detail panel, or a request card — so the inference
+  becomes an observation;
+- it reports `tabStopDay`, so "which day holds the roving tab stop" is answered
+  rather than just how many do;
+- a per-attempt trace records all ten misses. Ten "never moved" rows and ten
+  "landed then lost" rows are different bugs with different repairs, and the old
+  dump could not tell them apart because it only sampled the end state;
+- the focus call's own error is kept rather than swallowed by `.catch(() => {})`.
+  This one was **proven necessary**: pointing the loop at a day that does not
+  exist produces a trace identical in shape to the real red run, so the trace
+  alone cannot separate "Playwright could not act on the node" from "it acted
+  and the page took focus back". The error text can.
+
+Verified by forcing the failure path locally: the dump renders and reads
+`activeLabel: "Next month"`, `activeInNav: true`, `tabStopDay: "2030-05-01"`,
+with all ten trace rows populated. The suite passes green four times over on the
+instrumented file.
+
+**The generalisation.** This is the same shape as item 108's third fix, one
+level up: a remedy verified against the state it describes, never against the
+mechanism that produces it. When a fix for an intermittent failure is derived
+from a single observation, the next occurrence is the only thing that can
+confirm it — and a dump that records one field cannot confirm anything. Spend
+the red run on evidence before spending it on a remedy.
+
+**Open:** the mechanism itself. The next red CI run should settle it.

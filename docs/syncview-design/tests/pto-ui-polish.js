@@ -918,15 +918,34 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
         startAttached: !!start && start.isConnected,
         startTabIndex: start ? start.tabIndex : null,
         tabStops: document.querySelectorAll('[data-pto-cal-day][tabindex="0"]').length,
+        tabStopDay: document.querySelector('[data-pto-cal-day][tabindex="0"]')?.getAttribute('data-pto-cal-day') || null,
         monthTitle: document.querySelector('.pto-calendar-title')?.textContent || null,
-        dayCells: document.querySelectorAll('[data-pto-cal-day]').length
+        dayCells: document.querySelectorAll('[data-pto-cal-day]').length,
+        /* WHICH node holds focus, not just its tag. The 2026-08-25 dump said
+           `active: "button"` and the read of it -- that this must be the
+           "Next month" nav button, focus never having left it -- was an
+           INFERENCE from what had been clicked last, not an observation. The
+           mitigation written on that inference shipped and the same failure
+           recurred on 2026-09-02 with a byte-identical dump, so the inference
+           is now the thing in doubt. These four fields settle it without
+           another guess: a nav button, a request-card control and a day cell
+           are three different answers with three different repairs. */
+        activeLabel: active && active.getAttribute ? active.getAttribute('aria-label') : null,
+        activeClass: active && active.className && active.className.baseVal === undefined
+          ? String(active.className).slice(0, 120) : null,
+        activeText: active && active.textContent ? active.textContent.trim().slice(0, 60) : null,
+        activeInDetail: !!(active && active.closest && active.closest('.pto-cal-detail')),
+        activeInNav: !!(active && active.closest && active.closest('.pto-calendar-nav')),
+        activeInRequestCard: !!(active && active.closest && active.closest('[data-pto-request-id]'))
       });
     });
     // The state dump is appended only when the check is about to fail, so a
     // green log stays readable and a red one carries everything.
     const assertFocusedDay = async (expected, message) => {
       const actual = await page.evaluate(() => document.activeElement?.getAttribute('data-pto-cal-day'));
-      assert(actual === expected, actual === expected ? message : message + ' ' + (await calFocusState()));
+      assert(actual === expected, actual === expected ? message
+        : message + ' ' + (await calFocusState())
+          + (focusAttempts.length ? ' focusAttempts=' + JSON.stringify(focusAttempts) : ''));
     };
     /* 2026-08-25 — THE RED RUN ARRIVED, AND THE DUMP ANSWERED IT.
      *
@@ -958,13 +977,52 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
      * steals it. The bound matters: this must not become a loop that hides a
      * product that genuinely cannot hold a tab stop, so after the last attempt
      * the assertion below still fires with its full dump. */
+    /* 2026-09-02 -- THE MITIGATION ABOVE SHIPPED AND THE FAILURE RECURRED.
+     *
+     * PR run 598 produced a dump byte-identical to the 2026-08-25 one quoted
+     * above, on a commit touching only the Production tab's deep-link ordering
+     * and this ledger. The suite passed twice locally on that same commit, so
+     * it remains environmental to CI -- but "take the focus and confirm it
+     * stuck, re-taking it if a late re-render steals it" is now DISPROVEN as a
+     * sufficient fix: ten confirmed re-takes over five seconds all failed.
+     *
+     * That rules out a single late steal and leaves two live possibilities,
+     * which the previous dump could not tell apart because it recorded only the
+     * tag name:
+     *   (a) something holds focus CONTINUOUSLY -- a focus trap or a restore
+     *       that re-fires -- so no attempt can ever win; or
+     *   (b) `.focus()` is not landing at all, and activeElement never moves.
+     *
+     * Deliberately NOT fixed by guessing again. The two previous attempts each
+     * shipped a remedy derived from an unverified mechanism and each recurred;
+     * a third would be the same move. What is added instead is the evidence the
+     * next red run needs to separate (a) from (b) in one occurrence: the
+     * per-attempt trace below records, for every attempt, whether activeElement
+     * changed at all and what held it afterwards. A trace of ten identical
+     * "never moved" rows says (b); ten "landed then lost" rows says (a). */
+    const focusAttempts = [];
     const focusStartDay = async () => {
       for (let attempt = 0; attempt < 10; attempt++) {
-        await calendarCard.locator('[data-pto-cal-day="2030-05-20"]').focus().catch(() => {});
+        /* The reason a focus call failed is kept, not swallowed. `.catch(() => {})`
+           discards the one message that separates "Playwright could not act on
+           this node" from "it acted and the page took focus back", and those are
+           different bugs. Proven necessary: pointing this loop at a day that does
+           not exist produces a trace identical in shape to the real red run, so
+           the trace alone cannot tell them apart -- the error text can. */
+        const focusError = await calendarCard.locator('[data-pto-cal-day="2030-05-20"]').focus()
+          .then(() => '').catch(e => String(e && e.message || e).split('\n')[0].slice(0, 120));
         const landed = await page.waitForFunction(
           () => document.activeElement?.getAttribute('data-pto-cal-day') === '2030-05-20',
           null, { timeout: 500 }).then(() => true).catch(() => false);
         if (landed) return;
+        // Only on a miss, and only ~10 of them, so a green run stays silent.
+        const held = await page.evaluate(() => {
+          const a = document.activeElement;
+          return (a ? a.tagName.toLowerCase() : 'null')
+            + (a && a.getAttribute && a.getAttribute('aria-label') ? '[' + a.getAttribute('aria-label') + ']' : '')
+            + (a && a.getAttribute && a.getAttribute('data-pto-cal-day') ? '@' + a.getAttribute('data-pto-cal-day') : '');
+        });
+        focusAttempts.push(focusError ? held + ' !' + focusError : held);
       }
     };
     await focusStartDay();

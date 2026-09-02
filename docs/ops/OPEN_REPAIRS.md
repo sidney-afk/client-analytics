@@ -7003,10 +7003,43 @@ arm files one column under another's name and still compiles. Mutation-tested:
 a wrong type, a renamed column in one arm, a swapped pair in the other, and the
 `sort_order` trap each fail it by name.
 
+## Step 2 is built too — as a DIFF, not a swap
+
+`?wlnative=1` reads the native view alongside `workload_issues` and prints what
+differs; `window.wlNativeDiff()` runs the same thing by hand. It changes nothing
+the board renders: no `wlState` write, no render call, no sticky flag, every
+failure caught, and a missing view answers *"apply the migration first"* instead
+of looking like a broken board. The suite pins each of those as a negative.
+
+**It is not a source swap, and that restraint is load-bearing rather than
+cautious.** `public.workload_plan` is keyed on the LINEAR uuid and
+`workload-plan`'s `requireWritableIssue()` validates every write against
+`workload_issues`. A deliverable that has never been mirrored has no Linear uuid
+at all — so switching the read source would put rows on the board whose plan day
+**silently fails to save.** A drag that looks like it worked is strictly worse
+than a row that is not there yet. That repair is scope §6.1's decision plus a
+key migration, not a flag.
+
+The report excludes the fields the two sources are supposed to disagree about
+(`id`/`parent_id` while §6.1 is open, `url`, `assignee_id`'s different
+namespace, `parent_identifier`) and **prints that exclusion list**, so a zero
+diff reads as "these agree about what was checked" rather than "these are
+identical". Spelling-only status differences are counted separately from drift.
+Rows with no Linear uuid are reported as **never mirrored**, because there is
+nothing to compare them to and calling that drift would be a lie. Every capped
+list carries its full count and how many it did not print.
+
+**One thing the harness taught on the way in**, worth keeping: the first wiring
+guarded only the CALL, not the flag check. `test/workload-linear-browser.js`
+runs `initWorkloadView` inside a `vm` sandbox holding only what the mount needs,
+so the bare reference threw and **the board never painted** — a diagnostic
+breaking the thing it was watching, caught within the hour by a test written for
+something else. Both are inside the try now.
+
 ### What is left
 
-Steps 2–5 of the scope doc, unchanged. Step 2 (read it behind `?wlnative=1`)
-needs this applied first, or the flag reads a view that is not there. Steps 4
-and 5 still carry the contradiction the scope doc names: `?wlnative=0` is only a
+Steps 3–5 of the scope doc. Step 3 is measurement rather than construction: run
+`?wlnative=1` once the migration is applied and reconcile the diff. Steps 4 and
+5 still carry the contradiction the scope doc names — `?wlnative=0` is only a
 rollback while `workload_issues` is still being populated, so the flag has to be
 retired before step 5 or the mirroring kept for the whole window.

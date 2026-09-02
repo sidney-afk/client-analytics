@@ -14110,6 +14110,196 @@
         return all.map(_wlV2MapRow);
     }
 
+    /* ===================================================================
+     * WORKLOAD NATIVE SOURCE — step 2 of docs/ops/WORKLOAD_NATIVE_SOURCE.md.
+     *
+     * `?wlnative=1` reads `workload_issues_native_v1` ALONGSIDE the Linear-derived
+     * table and reports the difference. It does NOT change what the board renders,
+     * and that restraint is the design rather than caution:
+     *
+     *   - The scope doc asks step 2 for "both sources readable side by side, so
+     *     the diff is measured on real data instead of argued about", and step 3
+     *     is reconciling that diff to zero. Measurement is the deliverable here.
+     *   - A source SWAP cannot be done safely yet. `public.workload_plan` is
+     *     keyed on the LINEAR issue uuid and `workload-plan`'s
+     *     `requireWritableIssue()` validates every write against
+     *     `workload_issues`. A deliverable that has never been mirrored has no
+     *     Linear uuid at all, so swapping the read would put rows on the board
+     *     whose plan day silently fails to save -- a drag that looks like it
+     *     worked. That is scope §6.1's owner decision plus a key migration, not
+     *     a flag.
+     *
+     * So this reads, compares, and prints. It never touches `wlState`, never
+     * renders, and any failure is logged and dropped.
+     * =================================================================== */
+    const WL_NATIVE_VIEW = 'workload_issues_native_v1';
+    // Deliberately NOT sticky, unlike ?wl2. A kill switch has to survive a
+    // reload; a diagnostic that silently stayed on would keep spending two
+    // reads per board load long after whoever typed it had forgotten.
+    function _wlNativeDiffEnabled() {
+        try {
+            const q = new URLSearchParams(location.search).get('wlnative');
+            return q === '1' || q === 'true';
+        } catch { return false; }
+    }
+
+    async function _wlNativeFetchRows() {
+        const base = CAL_SUPABASE_URL + '/rest/v1/' + WL_NATIVE_VIEW
+            + '?select=*&active=eq.true&order=id.asc&limit=1000&offset=';
+        const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
+        let from = 0, all = [];
+        for (let guard = 0; guard < 50; guard++) {        // same hard cap as the v2 read
+            const resp = await fetch(base + from, { cache: 'no-store', headers });
+            if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
+            all = all.concat(rows);
+            if (rows.length < 1000) break;
+            from += 1000;
+        }
+        return all;
+    }
+
+    /* Fields NOT compared, each because the two sources are supposed to differ
+       there. Listed in the report itself so a zero diff is never read as "these
+       are identical" when it means "these agree about what we checked".
+         id / parent_id  -- the identity decision (scope §6.1) is still open, so
+                            the native side answers both and neither is wrong.
+         url             -- points at Linear on both sides today; scope §6.2.
+         assignee_id     -- different namespaces: a Linear user id against a
+                            team_members uuid. The board filters editors by NAME,
+                            so this changes nothing that renders.
+         parent_identifier -- a batch NAME natively, a Linear issue identifier
+                            there. Search text, by design.
+         linear_created_at / linear_updated_at / synced_at -- not displayed, and
+                            the board's own comment excludes them from
+                            renderable comparisons. */
+    const WL_NATIVE_DIFF_EXCLUDED = Object.freeze([
+        'id', 'parent_id', 'url', 'assignee_id', 'parent_identifier',
+        'linear_created_at', 'linear_updated_at', 'synced_at', 'sort_order',
+    ]);
+    const WL_NATIVE_DIFF_FIELDS = Object.freeze([
+        'title', 'status', 'status_type', 'team_key', 'team_name',
+        'assignee_name', 'assignee_email', 'client_name', 'due_date',
+    ]);
+    const WL_NATIVE_DIFF_SAMPLE = 25;
+
+    function _wlNativeCell(row, field) {
+        const raw = row && row[field] != null ? String(row[field]) : '';
+        // `status` is compared case- and space-insensitively on purpose: the
+        // live Linear table holds 'For Client approval' AND 'For Client Approval'
+        // AND 'Tweak Needed ' with a trailing space, and the board itself reads
+        // it through wlNormStatus. A spelling difference is counted separately
+        // rather than reported as drift, because it is the thing the native
+        // source exists to end.
+        if (field === 'status') return raw.trim().toLowerCase();
+        if (field === 'due_date') return raw.slice(0, 10);
+        return raw.trim();
+    }
+
+    /* Pure, so it can be executed by a test over fixtures rather than only read.
+       Takes the two raw row sets and answers what differs. */
+    function _wlNativeDiffReport(linearRows, nativeRows) {
+        const linear = Array.isArray(linearRows) ? linearRows : [];
+        const native = Array.isArray(nativeRows) ? nativeRows : [];
+        const isSub = r => !!(r && (r.is_sub_issue === true || r.is_sub_issue === 'true'));
+
+        const linearSubs = linear.filter(isSub);
+        const nativeSubs = native.filter(isSub);
+
+        /* Keyed on the LINEAR uuid, which is the only identifier both sides
+           share today. A native row without one has never been mirrored and
+           cannot be matched -- that is a finding, not a failure to compare. */
+        const linearById = new Map();
+        for (const row of linearSubs) {
+            const key = row && row.id != null ? String(row.id) : '';
+            if (key) linearById.set(key, row);
+        }
+        const neverMirrored = [];
+        const nativeById = new Map();
+        for (const row of nativeSubs) {
+            const key = row && row.linear_id != null ? String(row.linear_id) : '';
+            if (!key) { neverMirrored.push(String(row && row.identifier || row && row.id || '')); continue; }
+            nativeById.set(key, row);
+        }
+
+        const nativeOnly = [], linearOnly = [], differing = [];
+        let spellingOnly = 0;
+        for (const [key, row] of nativeById) {
+            if (!linearById.has(key)) nativeOnly.push(String(row.identifier || key));
+        }
+        for (const [key, row] of linearById) {
+            if (!nativeById.has(key)) linearOnly.push(String(row.identifier || key));
+        }
+        for (const [key, nativeRow] of nativeById) {
+            const linearRow = linearById.get(key);
+            if (!linearRow) continue;
+            if (String(linearRow.status || '') !== String(nativeRow.status || '')
+                && _wlNativeCell(linearRow, 'status') === _wlNativeCell(nativeRow, 'status')) spellingOnly++;
+            for (const field of WL_NATIVE_DIFF_FIELDS) {
+                const a = _wlNativeCell(linearRow, field);
+                const b = _wlNativeCell(nativeRow, field);
+                if (a !== b) differing.push({ identifier: String(linearRow.identifier || key), field, linear: a, native: b });
+            }
+        }
+
+        // Truncation is REPORTED, never silent: a capped list that looks
+        // complete is how a diff gets called clean.
+        const cap = (list) => ({ count: list.length, sample: list.slice(0, WL_NATIVE_DIFF_SAMPLE), truncated: Math.max(0, list.length - WL_NATIVE_DIFF_SAMPLE) });
+
+        return {
+            linear: { rows: linear.length, subIssues: linearSubs.length, parents: linear.length - linearSubs.length },
+            native: { rows: native.length, subIssues: nativeSubs.length, parents: native.length - nativeSubs.length },
+            // Expected to be non-empty: OPEN_REPAIRS item 95 measured 40 live
+            // deliverables on active-roster clients whose Linear issues were
+            // archived, so the board cannot see them. They are the acceptance
+            // test for step 3, not an incident.
+            nativeOnly: cap(nativeOnly),
+            linearOnly: cap(linearOnly),
+            neverMirrored: cap(neverMirrored),
+            differing: cap(differing),
+            statusSpellingOnly: spellingOnly,
+            comparedFields: WL_NATIVE_DIFF_FIELDS.slice(),
+            excludedFields: WL_NATIVE_DIFF_EXCLUDED.slice(),
+        };
+    }
+
+    /* Reads both sources and prints the report. Exposed on `window` so it can
+       be run by hand without the query flag. Never throws into a caller. */
+    window.wlNativeDiff = async function wlNativeDiff() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) {
+            console.warn('[workload native] no Supabase credentials in this browser');
+            return null;
+        }
+        try {
+            const base = CAL_SUPABASE_URL + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=1000&offset=';
+            const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
+            let from = 0, linearRows = [];
+            for (let guard = 0; guard < 50; guard++) {
+                const resp = await fetch(base + from, { cache: 'no-store', headers });
+                if (!resp.ok) throw new Error('workload_issues HTTP ' + resp.status);
+                const rows = await resp.json();
+                if (!Array.isArray(rows)) throw new Error('workload_issues: unexpected payload');
+                linearRows = linearRows.concat(rows);
+                if (rows.length < 1000) break;
+                from += 1000;
+            }
+            const nativeRows = await _wlNativeFetchRows();
+            const report = _wlNativeDiffReport(linearRows, nativeRows);
+            console.log('[workload native] source diff', report);
+            return report;
+        } catch (e) {
+            // A missing view is the expected answer until the migration is
+            // applied, and it must read as that rather than as a broken board.
+            const msg = String((e && e.message) || e);
+            console.warn('[workload native] diff unavailable: ' + msg
+                + (/404|PGRST205|Not Found/i.test(msg)
+                    ? ' — apply migrations/2026-09-02-workload-native-view.sql first; the board is unaffected either way.'
+                    : ''));
+            return null;
+        }
+    };
+
     // Realtime: one global channel on workload_issues. A change coalesces into a
     // cheap watermark check; only an advanced cursor enters the Supabase-only
     // background comparison lane. Background work never blanks the calendar.
@@ -15971,6 +16161,21 @@
         // A route switch remounts the Workload shell, but the calendar state is
         // already warm. Paint that in-memory snapshot synchronously and limit
         // automatic network work to the cheap Supabase watermark check.
+        // `?wlnative=1` (step 2 of docs/ops/WORKLOAD_NATIVE_SOURCE.md): read the
+        // native view alongside the Linear-derived table and print the
+        // difference. Deliberately fire-and-forget and deliberately BEFORE the
+        // warm-snapshot early return, so it runs on a route switch too. It
+        // renders nothing and touches no state; if the view is not applied yet
+        // it says so and the board is unaffected.
+        // The GUARD is inside the try as well as the call. A diagnostic must not
+        // be able to break the mount, and "the flag check itself cannot throw"
+        // is an assumption about scope that a test harness disproved within the
+        // hour: workload-linear-browser.js runs initWorkloadView in a vm sandbox
+        // that defines only what the mount needs, so an unguarded reference
+        // threw before the board painted at all.
+        try { if (_wlNativeDiffEnabled()) window.wlNativeDiff(); }
+        catch (e) { console.warn('[workload native] diff failed to start', e); }
+
         const hasWarmSnapshot = wlState.fetchedAt != null && Array.isArray(wlState.issueSnapshot);
         if (hasWarmSnapshot) {
             wlState.loading = false;

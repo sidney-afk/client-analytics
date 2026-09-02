@@ -233,8 +233,14 @@ ok(/workload_plan/.test(SQL),
 
 /* ---- 7. Step 1 changes nothing anyone can see -------------------------- */
 
-ok(!/workload_issues_native_v1/.test(INDEX),
-  'NO BROWSER CODE READS IT YET — step 1 is "build the view", and a step that also switched the source could not be diffed against the old one');
+/* The invariant is not "index.html never names the view" -- step 2 names it, to
+   read the two sources side by side and print the difference. The invariant is
+   that THE BOARD'S OWN READ IS UNCHANGED: `_wlV2FetchIssues` still goes to
+   `workload_issues`. A step that also switched the source could not be diffed
+   against the old one, and it could not be done safely anyway while
+   `workload_plan` is keyed on the Linear uuid. */
+ok(/_wlV2FetchIssues\(\)[\s\S]{0,400}\/rest\/v1\/workload_issues\?select/.test(INDEX),
+  'THE BOARD\'S OWN FETCH STILL READS workload_issues — building the view does not switch anything, and cannot until scope §6.1 is decided and workload_plan is re-keyed');
 ok(/grant select on public\.workload_issues_native_v1 to anon;/.test(SQL)
   && /grant select on public\.workload_issues_native_v1 to authenticated;/.test(SQL),
   'it is granted to exactly the two browser roles workload_issues already serves');

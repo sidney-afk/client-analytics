@@ -7773,11 +7773,80 @@ consult `terminalTailPending` and both distinguish NOT YET from GONE. Worth
 asking, on the next guard of this shape, what OTHER code path observes the same
 unresolved id -- the answer here was one function away and was not looked for.
 
-**Still open from this report:** scroll position is not restored when returning
-from a sub-issue to its parent -- the owner reports it paints scrolled-down and
-then jumps back to the top. Not diagnosed; separate from the eviction above,
-though the forced `view = 'list'` transition may well have been producing some
-of it.
+**The scroll half, diagnosed and fixed 2026-09-02 (was: "still open").** The
+owner reported that returning from a sub-issue to its parent paints the parent
+scrolled-down and then jumps back to the top. It is NOT a missing restore, and
+it is not the forced `view = 'list'` transition guessed at here originally. It
+is a restore that fires when it should not, followed by the reset that undoes
+it -- so the reader sees both.
+
+`_prodRender` captures the detail scroll one line before the innerHTML swap. By
+then `_prodOpenDeliverable` has ALREADY written the destination into
+`_prodState.openId`. The capture read the outgoing pane's offset -- correctly --
+and then labelled it `String(_prodState.openId || _prodState.openBatchId || '')`,
+which names the item being navigated TO. The restore compared that same state to
+itself, so it always matched, and pasted the sub-issue's offset onto the parent's
+fresh pane. `_prodScrollDetailToTop`'s deferred reset zeroed it a tick later.
+Two mechanisms each correct in isolation, one mismatched label between them, and
+a visible flash where nothing should have moved at all.
+
+The key now comes from the DOM: every detail container already stamps its own id
+(`data-prod-detail`, `data-prod-batch-detail`, `data-prod-project-detail`), so
+`_prodPaintedDetailKey` asks the painted pane who it is and the thing measured
+and the thing named are the same element. The restore asks the same question of
+the pane that just painted, and refuses an empty key -- which closes a quieter
+version of the same defect: a project view stamped `''`, because its slug lives
+in neither `openId` nor `openBatchId`, so every project matched every other
+project's saved offset. `_prodScrollDetailToTop` stops stamping a key at all; a
+zero offset is never restored, and the key it used to copy was the URL's Linear
+identifier rather than the canonical row id the pane carries.
+
+`test/prod-detail-scroll-key.js` extracts the real helpers and RUNS them. Four
+mutations checked -- keying the capture by `openId`, comparing state to itself in
+the restore, dropping the empty-key guard, and re-stamping the identifier in the
+top-scroll -- each fails exactly the assertions naming it.
+
+**Not changed, and it is an owner call:** returning to a parent still starts at
+the top rather than where the reader left it. Restoring the parent's own place
+would need a small per-id map instead of the single slot, and "opening an item
+starts at the top" is the current deliberate design -- `_prodScrollDetailToTop`
+is called on every open. Worth doing if the owner wants it; not assumed here.
+
+
+**THIRD FIX, and this one is the actual cause (2026-09-02, later the same day).**
+The owner reported the redirect again AFTER both fixes above shipped, which
+means neither of them ever ran. They did not, and the reason is ordering rather
+than logic.
+
+In `_prodLoadData`'s success path the calls stand in this order:
+
+```
+_prodApplyDeepLinkFallback(true);   // the eviction
+_prodRender();
+_prodLoadTerminalTail();            // where terminalTailPending was set
+```
+
+The flag both guards consult was set INSIDE `_prodLoadTerminalTail`. So at the
+one moment the eviction fires, phase one has finished, every
+`PROD_CACHE_TERMINAL` row is still absent, and the flag that means "absent only
+means not yet" is still `false`. The guard added for exactly this condition
+could never engage on the path that produces it. It would have engaged only on a
+SECOND load arriving while a first tail was still in flight -- which is a real
+case, and is why the fix looked like it worked when it was tested.
+
+`_prodState.terminalTailPending = true` now stands immediately BEFORE the
+fallback call, so the window is closed rather than narrowed. It cannot latch on:
+a tail that runs clears it in its `finally`, a tail that early-returns because
+one is already running is covered by that run's `finally`, and the load's own
+`catch` now clears it too, so a throw between the flag and the tail call cannot
+leave the missing-target notice suppressed for the rest of the session.
+
+**The lesson, and it is a different one from the paragraph above.** Both earlier
+fixes were correct in isolation and were verified against the state they
+described -- a settling load. Neither was verified against the ORDER in which
+that state is actually produced. A guard on a flag is only as good as the moment
+the flag is set, and nothing in either review asked where that was. Reading the
+guard proves the guard; only reading the caller proves the guard runs.
 
 ---
 
@@ -8631,3 +8700,60 @@ path to it. `test/outbound-unsendable-writes.js` now lifts the predicate out and
 
 The F27 §4 closure pin moved with this change, in the same commit — the rule the
 tenth release wrote and the eleventh immediately broke.
+
+---
+
+## 115. [2026-09-02] The PTO calendar's focus flake has now defeated two remedies, and both were derived from an unverified mechanism
+
+`docs/syncview-design/tests/pto-ui-polish.js` fails on roughly one CI run in
+seven, at `focus lands on the day the walk starts from`. It failed again on PR
+#1236 (run 598) — a commit that touched only the Production tab's deep-link
+ordering and this ledger, and whose suite passed twice locally on the same tree.
+
+**What makes this entry worth writing is not the flake. It is the pattern of
+the fixes.** The file already documents two attempts:
+
+1. *2026-08-22* — assumed the read raced the handler, added a wait for the move.
+   The wait timed out at the full 30s, which disproved the theory.
+2. *2026-08-25* — a red run dumped DOM state, and the dump was read as "focus
+   never left the Next month button; a late re-render stole it back". The remedy
+   was to take focus and confirm it stuck, re-taking it up to ten times.
+
+Run 598's dump is **byte-identical** to the 2026-08-25 one. So ten confirmed
+re-takes across five seconds all failed, and remedy 2 is disproven as
+sufficient. More importantly, the *reading* behind it is now in doubt: `active:
+"button"` was the only identifying field the dump carried, and "it must be the
+nav button, because that is what was clicked last" is an inference, not an
+observation.
+
+**No third remedy is shipped here, deliberately.** Two guesses at a mechanism
+have each produced a fix that recurred; a third would be the same move. What
+ships instead is the evidence needed to end it in one occurrence:
+
+- the dump now names the focused node — `aria-label`, class, text, and whether
+  it sits in the nav, the detail panel, or a request card — so the inference
+  becomes an observation;
+- it reports `tabStopDay`, so "which day holds the roving tab stop" is answered
+  rather than just how many do;
+- a per-attempt trace records all ten misses. Ten "never moved" rows and ten
+  "landed then lost" rows are different bugs with different repairs, and the old
+  dump could not tell them apart because it only sampled the end state;
+- the focus call's own error is kept rather than swallowed by `.catch(() => {})`.
+  This one was **proven necessary**: pointing the loop at a day that does not
+  exist produces a trace identical in shape to the real red run, so the trace
+  alone cannot separate "Playwright could not act on the node" from "it acted
+  and the page took focus back". The error text can.
+
+Verified by forcing the failure path locally: the dump renders and reads
+`activeLabel: "Next month"`, `activeInNav: true`, `tabStopDay: "2030-05-01"`,
+with all ten trace rows populated. The suite passes green four times over on the
+instrumented file.
+
+**The generalisation.** This is the same shape as item 108's third fix, one
+level up: a remedy verified against the state it describes, never against the
+mechanism that produces it. When a fix for an intermittent failure is derived
+from a single observation, the next occurrence is the only thing that can
+confirm it — and a dump that records one field cannot confirm anything. Spend
+the red run on evidence before spending it on a remedy.
+
+**Open:** the mechanism itself. The next red CI run should settle it.

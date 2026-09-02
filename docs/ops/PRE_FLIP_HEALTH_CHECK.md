@@ -390,6 +390,32 @@ trains everyone to skim the report, which is the exact failure mode the
     audit residue (item 18), so the two numbers should move together. If they
     stop moving together, one of them is lying.
 
+- **Work its owner cannot see** — `node scripts/workload-native-visibility-check.js`
+  (read-only, public key, safe anywhere; `--json` for the rows). **Report the
+  count AND the identifiers, never the count alone.** The flip moved only the
+  due date and the workload weight to the native store, so Workload still reads
+  the population, `status`, `active` and `is_sub_issue` from the Linear mirror:
+  a retired system still decides what appears on the page an editor opens to
+  see what they owe. `OPEN_REPAIRS.md` item 72 is the repair; this is the
+  measurement, and it is CONTEXT with a growth gate, exactly like the two
+  entries above — the population is known and non-zero for diagnosed reasons,
+  so an absolute gate would ring every run and be skimmed past.
+  **Baseline 13, measured 2026-09-02** (real clients; the test client is
+  printed and never gated), in three classes with different mechanisms: 5 whose
+  mirror row says `active = false`; 7 with no mirror row at all — **not sync
+  lag**, the mirror had synced 20 minutes earlier while those rows were 17 to
+  150 hours old; and 1 whose mirror parks it by NAME in an approval queue while
+  its type still reads live. That last class is item 72's own headline shape and
+  the first version of this check could not see it.
+  - **Flag GROWTH, and compare the IDENTIFIERS, not just the number.** Item 72's
+    count has been stable at five while its membership moved underneath —
+    `VID-13491` resolved and `GRA-7237` appeared, and `GRA-7237` is graphics
+    where item 72 records the class as video-only. A stable count is not a
+    stable population.
+  - The 81 rows with no native parent are batch parents, not assignable work,
+    and are excluded on purpose. Counting them would report a defect eighty-one
+    times larger than the real one — which is this section's whole thesis.
+
 - **Cards born without their work** — `node scripts/card-linkage-leak-check.js`
   (read-only, public key, safe anywhere). **Report "unlinked AND live", never
   the percentage.** Measured 2026-08-22 over eight weeks: 6.0% unlinked, which

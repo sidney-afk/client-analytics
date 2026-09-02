@@ -6845,3 +6845,70 @@ overturned them, rather than deleted.
 **The `ambiguous` mechanism is deliberately left in place** even though nothing
 reaches it today. Removing it would mean a future genuinely-unresolvable shape
 mints a wrong row silently instead of none.
+
+## 98. [2026-09-02] Item 72's standing check now exists — and it found a second, larger class item 72 does not record
+
+Item 72 ended by naming the check that should become standing: *"every
+non-archived native row in `todo`/`in_progress`/`tweak` that is not a batch
+parent must have a `workload_issues` row that is active, a sub-issue, and
+non-parked. Baseline at today's five and gate on growth."*
+`scripts/workload-native-visibility-check.js` is that check — read-only, public
+key, safe anywhere — and `test/workload-native-visibility.js` pins its rules
+offline so the suite never depends on a service being up.
+
+**The narrowing is most of the value.** 607 native live-work rows; 179 archived
+or canceled; **81 have no native parent, which makes them batch parents — posts,
+not assignable work — and Workload is right to exclude them.** Zero of the 81
+carry a parent, so this is a clean split rather than a judgement call. A check
+that counted them would report a defect eighty-one times larger than the real
+one, and the real one would be skimmed past. That is the alarm-fatigue failure
+`PRE_FLIP_HEALTH_CHECK.md` was written to prevent, and it is easy to rebuild
+inside a new tool.
+
+**Class 1 — mirror says inactive (5).** Item 72's class: the `workload_issues`
+row exists and says `active = false` while the native store says the work is
+live. `VID-13580`, `VID-13581`, `VID-13582`, `VID-13109`, `GRA-7237`. The **count** matches item 72's baseline of
+five; the **membership does not**. `VID-13491` — the case item 72 leads with —
+has resolved, and `GRA-7237` is new. It is also GRAPHICS, while item 72 records
+this as a video-only class. A stable count concealing a moving membership is
+exactly why this had to become a script.
+
+**Class 3 — the mirror parks it by NAME (1), and this class was invisible to the
+first version of the check.** The mirror row is active, a sub-issue, and its
+TYPE reads live — but its named status is an approval queue, which
+`WL_PARKED_STATUSES` hides. `VID-12983`, natively in `tweak`. **This is item
+72's own headline shape**: the case it leads with, `VID-13491`, sits in "For
+Kasper approval" for exactly this reason. A type-only classifier calls such a
+row visible, so the check would have missed the very row that motivated it.
+Caught by review on #1218. Both parked sets are now extracted from `index.html`
+by the test and compared term for term, so they cannot drift apart in silence.
+
+**Class 2 — never imported (7 real clients), and item 72 does not record it.**
+No `workload_issues` row exists at all: `GRA-7243`–`GRA-7247` (one client, created
+2026-08-26), `GRA-7286`, `GRA-7287` (a second client, 2026-08-28). **Not
+sync lag, and that was checked rather than assumed** — the mirror's newest
+`synced_at` was 20 minutes old while these rows were 17 to 150 HOURS old. Seven
+real deliverables have been invisible to whoever owes them for up to six days.
+This class is larger than the one item 72 names.
+
+Four more rows belong to the test client and are reported but never gated — it
+is mutated by drills on purpose, and gating on it would ring for work nobody is
+owed.
+
+**Baseline 13** (5 + 7 + 1, real clients only); the check exits non-zero above it.
+
+**Where it runs.** Registered in `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT section,
+which the 2x-daily scheduled watch reads as its canonical spec — the same place
+and the same way its two siblings (`attribution-stuck-check.js`,
+`card-linkage-leak-check.js`) are wired. Neither of those is bound to a GitHub
+workflow either; that is the house pattern for a live read-only check, and a new
+scheduled workflow would have diverged from it. Raised by review on #1218, which
+was right that nothing was running it.
+
+**What is NOT done here, deliberately.** The underlying repair — repointing
+Workload's population, status and assignee reads at the native store — is item
+72 and remains open. That is architecturally significant and is not a change to
+make unattended. This entry adds the measurement and the gate, so the class
+cannot grow silently while the repair waits, and so the repair can be verified
+when it happens. The never-imported class additionally needs a root cause: why
+B1 skipped seven live graphics issues for six days is not answered here.

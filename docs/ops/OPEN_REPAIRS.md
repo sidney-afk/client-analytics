@@ -7671,13 +7671,18 @@ is only correct today because this session re-derived it by hand.
 
 ### The reporting check SHIPPED 2026-09-02, exactly in the shape prescribed above
 
+> **Superseded the same day by the section below, which re-pinned the lane and
+> flipped this check to a hard gate.** What follows describes the check as it
+> landed; read it as the first of two steps, not as current state.
+
 `test/ef-pin-drift-report.js` computes every deploy lane's real closure with
 `ef-fingerprint.js` at HEAD and compares it against the pin, printing any
-disagreement and **exiting 0**. Measured on merge: **five pins across two lanes,
-one of them stale** — `linear-inbound`, pinned `3d91b2a2…` against a real
-`019a463d…`, exactly as this entry recorded it. The four Section 4 pins
-(`batch-write`, `deliverable-write`, `linear-outbound`, `production-write`) all
-match, which is worth stating because nothing had ever checked them either.
+disagreement. **As it landed it exited 0** — it is a hard gate now. Measured at
+that moment: **five pins across two lanes, one of them stale** — `linear-inbound`,
+pinned `3d91b2a2…` against a real `019a463d…`, exactly as this entry recorded it.
+The four Section 4 pins (`batch-write`, `deliverable-write`, `linear-outbound`,
+`production-write`) all matched, which is worth stating because nothing had ever
+checked them either.
 
 Three properties beyond the comparison itself, each of which is a way this check
 could have been useless:
@@ -7693,48 +7698,88 @@ could have been useless:
   cannot run, it says so rather than reporting clean — and under the hard gate
   that is a failure, because a gate that cannot compute must not pass.
 
-`HARD_GATE` is one constant. Flipping it today **fails**, which is the ordering
-hazard in this entry demonstrated rather than argued: the flip belongs in the
-same change that re-pins `linear-inbound`, and that change moves
-`REVIEWED_RELEASE_SHA`, which is the owner's to approve. Four mutations checked:
+`HARD_GATE` is one constant, and **at the moment this check landed, flipping it
+failed** — the ordering hazard in this entry demonstrated rather than argued. The
+flip therefore belonged in the same change that re-pins `linear-inbound`, and
+that is where it went. Four mutations checked:
 drifting a Section 4 pin by one digit reports it, dropping a lane from the table
 fails coverage, removing the rollback exclusion fails loudly, and flipping the
 gate early fails.
 
-### The re-pin itself is PREPARED AND NOT MERGED — it needs the owner, 2026-09-02
+### The lane is RE-PINNED and the gate is HARD — the DEPLOY is what still needs the owner, 2026-09-02
 
-PR: re-pins `CANDIDATE_SOURCE_SHA256` to `019a463d…`, moves
-`REVIEWED_RELEASE_SHA` to `72fbc4a5…`, and flips `HARD_GATE` to true in the same
-change, which is the ordering this entry prescribes.
+`CANDIDATE_SOURCE_SHA256` is `019a463d…`, `REVIEWED_RELEASE_SHA` is `72fbc4a5…`,
+and `HARD_GATE` is true, all in one commit — the ordering this entry prescribes.
+**The stale pin this entry was opened for is closed**, and the drift check now
+fails rather than reports.
 
-**It is deliberately left unmerged.** Moving `REVIEWED_RELEASE_SHA` names the
-commit that will be deployed to production, and this entry already records why
-that is not an agent's to certify. Everything mechanical is done and verified;
-the judgement is the owner's.
+**What has NOT happened is the deploy.** The lane is dispatchable and nothing has
+been dispatched, so `linear-inbound` in production still runs the pre-`d9fbc2e7`
+code and items 77 and 100 remain live until the owner runs it. Dispatch is
+owner-only by design, and moving `REVIEWED_RELEASE_SHA` — which names the commit
+that goes to production — is a human-review gate this entry already records as
+not an agent's to certify. The mechanical work was done unattended; the approval
+and the dispatch were not.
+
+Dispatch from the Actions "Run workflow" UI, never `gh` (AGENTS.md, owner
+directive 2026-09-01):
+<https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-linear-inbound.yml>
+with `commit_sha=72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c`,
+`operation=deploy-reviewed-release`,
+`confirm=DEPLOY_REVIEWED_LINEAR_INBOUND`. No capture is needed for this lane —
+its bundle is pinned as `V39_BUNDLE_SHA256`. Unlike the Section 4 lane, this one
+requires `commit_sha` only to be an ANCESTOR of main, not its tip, so merging
+other PRs in the meantime does not invalidate it.
 
 Every value was re-derived with `scripts/ef-fingerprint.js`, never typed:
 `019a463d…` over 5 files, computed three times across the evening at three
 different main tips and identical each time, because the closure has not changed
 since `763e50d3`.
 
-**Two things this nearly got wrong, both worth recording.**
+**Three things this nearly got wrong, all worth recording.**
 
 1. **The runbook carries the dispatch command.** `docs/ops/F27_INSTALL_RUNBOOK.md`
    names the reviewed release three times — once in prose and twice inside the
-   `gh workflow run` block the owner pastes. A re-pin that updated only the
+   dispatch block the owner works from. A re-pin that updated only the
    workflow and the test would have been *correct* and still cost a rejected
-   dispatch, because the owner would have pasted the old SHA. The test's
+   dispatch, because the owner would have used the old SHA. The test's
    `reviewedReleaseSha` const is a fourth site: the deno.json/deno.lock digests
    are DERIVED at that commit, so it had to move too (the derived values are
    unchanged, the files being identical at both commits).
 
-2. **The hard gate was not actually hard when it was first declared green.** The
+   Review then found a second problem in the same two blocks: they gave a
+   `gh workflow run` invocation and **no Actions URL**, against an explicit owner
+   directive recorded in AGENTS.md on 2026-09-01 — *"He runs these by hand from
+   the Actions 'Run workflow' UI, not `gh`; naming a workflow without the link
+   means he has to go find it himself every time"*, written after being asked
+   twice in one session. Both inbound blocks now lead with the direct link and a
+   table of the UI fields, and keep the CLI form as a reference. **The two
+   Section 4 blocks in the same file still have this defect** (lines with
+   `gh workflow run deploy-f27-section4-closures.yml`) and were left alone to
+   keep this change scoped — worth a one-line follow-up.
+
+3. **The hard gate was not actually hard when it was first declared green.** The
    apply script asserted its way out before reaching the `HARD_GATE` line, so the
    run that "passed as a hard gate" was still reporting-only. Only the mutation
    check found it — reverting the pin produced exit 0 where it had to produce 1.
    A gate is not proven by a green run; it is proven by a red one. With it
    genuinely flipped, reverting the inbound pin fails, and drifting a Section 4
    pin by one digit fails.
+
+**A CORRECTION ABOUT THIS ENTRY'S OWN TENSE, and it generalises.** The first
+version of the two sections above was written from where the session stood:
+"exits 0", "one of them stale", "PREPARED AND NOT MERGED", "deliberately left
+unmerged". Every one of those becomes FALSE the instant the commit carrying them
+lands, and the reader they would have misled is the next operator — who would
+have concluded from the ledger that this lane was still blocked by a stale pin
+that the same commit had just fixed. Caught by review, not by me.
+
+**A ledger entry is only ever read from `main`, so it must be true on `main`.**
+Writing one in the tense of the branch it was authored on is a category error,
+and an append-only file makes it a durable one. Where a status genuinely changes
+across the commit, say what the commit does and what remains — here, the pin is
+closed and the DEPLOY is what is still outstanding — rather than describing the
+moment before.
 
 ## 107. [2026-09-02, FIXED — browser-only, live] A client had no composer at all on every CORRECTLY-crosswalked card — 212 slots, and the better-configured card was the unusable one
 

@@ -1847,6 +1847,52 @@ async function findReceiptComment(
   return null;
 }
 
+/* One honest answer to "which production_comments row does this identifier
+   name?", shared by the three lookup sites below (the reconcile parent, the
+   live add parent, and the comment lifecycle lane). Each of them used to run
+   `.or(id.eq.X,native_comment_id.eq.X).limit(2)` and then test `length !== 1`,
+   which cannot tell "no such row" from "two rows" -- so a missing parent was
+   reported as an ambiguity the caller could never resolve.
+
+   `id` is the primary key and `native_comment_id` carries a partial UNIQUE
+   index (migrations/2026-07-12-production-comments.sql:115-117), so at most one
+   row can match on each side and a two-row result requires one row's
+   native_comment_id to equal a DIFFERENT row's id. That is reachable because
+   the gateway only shape-checks the identifier a caller supplies. Resolve it
+   the way production_comment_upsert already resolves the same question in the
+   same migration (:272-300): an ORDERED fallback, first hit wins, with the
+   exact primary key ranked first -- a native_comment_id hit never outranks an
+   id hit. Only a result that is still not one row after that tie-break is
+   genuinely ambiguous.
+
+   The states are returned rather than thrown because the three callers answer
+   them differently: the parent lookups distinguish 404-shaped from ambiguous,
+   and the lifecycle lane deliberately collapses every non-match into one
+   non-enumerating 403. */
+type CommentRefResolution =
+  | { state: "found"; row: JsonMap }
+  | { state: "missing" }
+  | { state: "ambiguous" }
+  | { state: "unavailable" };
+
+async function resolveCommentByRef(
+  supabase: SupabaseClient,
+  ref: string,
+  select: string,
+): Promise<CommentRefResolution> {
+  const { data, error } = await supabase.from("production_comments")
+    .select(select)
+    .or(`id.eq.${ref},native_comment_id.eq.${ref}`)
+    .limit(2);
+  if (error) return { state: "unavailable" };
+  const rows = (Array.isArray(data) ? data : []) as JsonMap[];
+  if (rows.length === 1) return { state: "found", row: rows[0] };
+  if (rows.length === 0) return { state: "missing" };
+  const primaryKeyHits = rows.filter(row => clean(row.id) === ref);
+  if (primaryKeyHits.length === 1) return { state: "found", row: primaryKeyHits[0] };
+  return { state: "ambiguous" };
+}
+
 function canonicalCommentMatchesReceipt(
   value: unknown,
   expected: JsonMap,
@@ -1964,15 +2010,24 @@ async function reconcileEntityOperation(
       if (!/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(rawParentId)) {
         throw new GatewayError(400, "invalid_comment_parent");
       }
-      const { data: parents, error: parentError } = await supabase.from("production_comments")
-        .select("id,native_comment_id,deliverable_id,batch_id,client_slug,audience")
-        .or(`id.eq.${rawParentId},native_comment_id.eq.${rawParentId}`)
-        .limit(2);
-      if (parentError) throw new GatewayError(503, "comment_parent_lookup_unavailable");
-      if (!Array.isArray(parents) || parents.length !== 1) {
+      // Resolve the parent honestly: "no such row" and "two rows" are not the
+      // same answer and must not share a code. See resolveCommentByRef.
+      const parentMatch = await resolveCommentByRef(
+        supabase, rawParentId, "id,native_comment_id,deliverable_id,batch_id,client_slug,audience",
+      );
+      if (parentMatch.state === "unavailable") {
+        throw new GatewayError(503, "comment_parent_lookup_unavailable");
+      }
+      if (parentMatch.state === "missing") {
+        // The thread this reply names does not exist here. Deterministic: no
+        // reload and no retry can conjure it, so it gets its own code rather
+        // than borrowing the ambiguity one.
+        throw new GatewayError(409, "comment_parent_not_found");
+      }
+      if (parentMatch.state === "ambiguous") {
         throw new GatewayError(409, "comment_parent_ambiguous");
       }
-      const parent = parents[0] as JsonMap;
+      const parent = parentMatch.row;
       if (clean(parent.client_slug) !== targetClientSlug
           || clean(parent.deliverable_id) !== (entity === "deliverable" ? id : "")
           || clean(parent.batch_id) !== (entity === "batch" ? id : "")
@@ -4857,17 +4912,22 @@ async function handleEntityOperation(
       if (!/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(commentRef)) {
         throw new GatewayError(400, "valid_comment_id_required");
       }
-      const { data: matches, error: commentError } = await supabase.from("production_comments")
-        .select("*")
-        .or(`id.eq.${commentRef},native_comment_id.eq.${commentRef}`)
-        .limit(2);
-      if (commentError) throw new GatewayError(503, "comment_lookup_unavailable");
-      if (!Array.isArray(matches) || matches.length !== 1) {
+      const lifecycleMatch = await resolveCommentByRef(supabase, commentRef, "*");
+      if (lifecycleMatch.state === "unavailable") {
+        throw new GatewayError(503, "comment_lookup_unavailable");
+      }
+      if (lifecycleMatch.state !== "found") {
         // Missing and out-of-thread identifiers share the same non-enumerating
-        // response once the target thread itself has been authorized.
+        // response once the target thread itself has been authorized. That is
+        // DELIBERATE and stays: the status must not disclose whether a row
+        // exists, so a residual ambiguity is answered here too rather than
+        // split off into its own code. The repair is upstream in
+        // resolveCommentByRef -- an identifier that matches one row by primary
+        // key and another by native_comment_id now resolves to the primary-key
+        // row instead of arriving here as a fake permissions failure.
         throw new GatewayError(403, "comment_forbidden");
       }
-      lifecycleRow = matches[0] as JsonMap;
+      lifecycleRow = lifecycleMatch.row;
       if (clean(lifecycleRow.client_slug) !== targetClientSlug
           || clean(lifecycleRow.deliverable_id) !== (entity === "deliverable" ? id : "")
           || clean(lifecycleRow.batch_id) !== (entity === "batch" ? id : "")
@@ -4930,15 +4990,24 @@ async function handleEntityOperation(
       if (!/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(rawParentId)) {
         throw new GatewayError(400, "invalid_comment_parent");
       }
-      const { data: parents, error: parentError } = await supabase.from("production_comments")
-        .select("id,native_comment_id,deliverable_id,batch_id,client_slug,audience")
-        .or(`id.eq.${rawParentId},native_comment_id.eq.${rawParentId}`)
-        .limit(2);
-      if (parentError) throw new GatewayError(503, "comment_parent_lookup_unavailable");
-      if (!Array.isArray(parents) || parents.length !== 1) {
+      // Resolve the parent honestly: "no such row" and "two rows" are not the
+      // same answer and must not share a code. See resolveCommentByRef.
+      const parentMatch = await resolveCommentByRef(
+        supabase, rawParentId, "id,native_comment_id,deliverable_id,batch_id,client_slug,audience",
+      );
+      if (parentMatch.state === "unavailable") {
+        throw new GatewayError(503, "comment_parent_lookup_unavailable");
+      }
+      if (parentMatch.state === "missing") {
+        // The thread this reply names does not exist here. Deterministic: no
+        // reload and no retry can conjure it, so it gets its own code rather
+        // than borrowing the ambiguity one.
+        throw new GatewayError(409, "comment_parent_not_found");
+      }
+      if (parentMatch.state === "ambiguous") {
         throw new GatewayError(409, "comment_parent_ambiguous");
       }
-      const parent = parents[0] as JsonMap;
+      const parent = parentMatch.row;
       if (clean(parent.client_slug) !== targetClientSlug
           || clean(parent.deliverable_id) !== (entity === "deliverable" ? id : "")
           || clean(parent.batch_id) !== (entity === "batch" ? id : "")

@@ -49274,13 +49274,62 @@
          * row stays unresolved rather than guessed (same ambiguity rule as the
          * deliverable map).
          */
+        /* WHICH OF TWO SAME-KIND CLAIMANTS OWNS THE PARENT.
+           Reached only when liveness and provenance have both tied: two mirrors,
+           or two natives, claiming one Linear parent. That case used to be
+           marked ambiguous and DROPPED, on the reasoning that inventing a
+           winner could show one batch's description under another's parent.
+           Measured 2026-09-02 across all 1,660 batches, that reasoning does not
+           survive contact with the data: 10 collisions reach here, and in 8 the
+           two rows carry a BYTE-IDENTICAL name. The other 2 differ only by a
+           typo of the same post ("Hook Videos" / "Hooks videos", "12 Thumbnails"
+           / "Thumbnails"). They are not two different posts competing for one
+           parent; they are one post imported twice. Dropping both is what makes
+           the post vanish from Scene View entirely -- the failure a video editor
+           reported on 2026-09-01 -- so the cost of choosing is a slightly wrong
+           title at worst, and the cost of not choosing is the whole post.
+           Owner, 2026-09-02, on what should separate them: "shouldn't you just
+           look at them and see what's the difference, like in the description
+           ... whichever has the most description or most text wins?" Measured,
+           his instinct is the better half of the answer but not the whole of it:
+           over the 10, sub-issue count decides 8 and description length decides
+           6, so both are used, count first.
+           Returns true when `candidate` should displace `held`. */
+        function _prodBatchClaimWins(candidate, held, childCounts) {
+            const count = b => {
+                const id = String(b && b.id || '');
+                const n = childCounts && typeof childCounts.get === 'function' ? childCounts.get(id) : 0;
+                return Number(n) || 0;
+            };
+            const descLen = b => String(b && b.description || '').length;
+            const candCount = count(candidate), heldCount = count(held);
+            // 1. The row the work actually hangs off. A duplicate with no
+            //    sub-issues is the import that lost; the one carrying twenty is
+            //    the post people are working in.
+            if (candCount !== heldCount) return candCount > heldCount;
+            // 2. Then the row somebody actually wrote in.
+            const candDesc = descLen(candidate), heldDesc = descLen(held);
+            if (candDesc !== heldDesc) return candDesc > heldDesc;
+            /* 3. Then the lower id, which is arbitrary ON PURPOSE and must stay
+               deterministic: the projection runs on every render, and a
+               coin-flip here would move the post's title and description
+               between reloads. Two rows that tie on both real signals are
+               indistinguishable to a reader anyway. */
+            return String(candidate && candidate.id || '') < String(held && held.id || '');
+        }
+
         function _prodResolveBatchParentNodes(rows, batches, parentLinks) {
             rows = Array.isArray(rows) ? rows : [];
             batches = Array.isArray(batches) ? batches : [];
             const deliverableUuids = new Set();
+            /* How much work hangs off each batch, from the rows already loaded --
+               no extra read. Feeds the same-kind tie-break below. */
+            const childCounts = new Map();
             rows.forEach(row => {
                 const uuid = String(row && row.linear_issue_uuid || '').trim();
                 if (uuid) deliverableUuids.add(uuid);
+                const bid = String(row && row.batch_id || '').trim();
+                if (bid) childCounts.set(bid, (childCounts.get(bid) || 0) + 1);
             });
             const parseEntries = raw => {
                 let parsed = raw;
@@ -49363,9 +49412,15 @@
                         } else {
                             const heldIsNative = /^bat_/.test(held.batchId);
                             const thisIsNative = /^bat_/.test(batchId);
-                            if (heldIsNative === thisIsNative) { ambiguous.add(uuid); return; }
-                            if (heldIsNative) return;
-                            ambiguous.delete(uuid);
+                            if (heldIsNative !== thisIsNative) {
+                                if (heldIsNative) return;
+                                ambiguous.delete(uuid);
+                            } else if (!_prodBatchClaimWins(batch, held.batch, childCounts)) {
+                                // The row already holding the parent keeps it.
+                                return;
+                            } else {
+                                ambiguous.delete(uuid);
+                            }
                         }
                     }
                     const ownerTeam = String(entry.owner_team || '').toLowerCase() || team;

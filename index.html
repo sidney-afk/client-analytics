@@ -54174,6 +54174,44 @@
             const expectedClientSurface = _isClientLink
                 ? _prodVerifiedClientCommentSurfaceContext('sxr', post, component, deliverableId)
                 : null;
+            /* A CLIENT whose exact surface binding cannot be verified is sent
+               to the legacy card store, not held.
+
+               `_prodVerifiedClientCommentSurfaceContext` answers null for every
+               client on the CALENDAR: it requires `surface === 'sxr'` and a
+               capability whose view is `sample-reviews`. That is not an
+               oversight to widen here -- the protected reader agrees, and it is
+               the authority. `clientSurfaceTargetAllowed`
+               (production-comments/policy.mjs) admits a client read only when
+               `source_surface === 'sxr'` AND the deliverable's own
+               `origin === 'samples'`. A calendar card's deliverable is
+               `origin === 'calendar'` by construction, so a calendar client can
+               never be authorized for a canonical read. Claiming `linked` for
+               them promised a thread the server will always refuse.
+
+               Held, that promise cost the client their composer outright:
+               `_calComposerHtml` replaces the entire text box with "Notes could
+               not load" whenever `linked && !ready`, so on a card whose
+               crosswalk is CORRECT the client had nothing to type into, while
+               the same client could still comment on a card whose crosswalk was
+               BROKEN (that answers `linked:false` earlier and falls to legacy).
+               The better-configured card was the unusable one.
+
+               So an unverifiable client surface reports NOT linked, which is
+               the same answer this function already gives for an unresolved
+               crosswalk and for `legacy_retained`, and for the same reason:
+               where canonical cannot be served, the legacy store is the one
+               that still works. Staff are untouched (`_isClientLink` guards
+               it), the SXR client is untouched (their context resolves), and
+               nothing here widens what the server will authorize. */
+            if (_isClientLink && !expectedClientSurface) {
+                return {
+                    linked: false,
+                    ready: false,
+                    client: false,
+                    status: 'client_surface_unverifiable'
+                };
+            }
             const exactClientBinding = !_isClientLink || !!(
                 expectedClientSurface
                 && state

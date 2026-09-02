@@ -6912,3 +6912,81 @@ make unattended. This entry adds the measurement and the gate, so the class
 cannot grow silently while the repair waits, and so the repair can be verified
 when it happens. The never-imported class additionally needs a root cause: why
 B1 skipped seven live graphics issues for six days is not answered here.
+
+---
+
+## 99. [2026-09-02, FIXED IN REPO — **DEPLOY PENDING** (F27 §4)] A deliverable marked `duplicate` can never reach Linear, and the failure ages into the pager forever
+
+Found from the live `mirror_outbox` the owner read out, chasing the two red
+`SyncView Linear outbound drain` runs that failed item 9a of
+`PRE_FLIP_HEALTH_CHECK.md`. The whole real backlog was **three rows**, not the
+seventeen the summary counts — the rest are test-client and legacy-parity — and
+all three sat at exactly `attempts: 8`, which is `MAX_ATTEMPTS`.
+
+| team | op | attempts | error |
+|---|---|---|---|
+| graphics | status | 8 | `invalid input: missing duplicate relation` |
+| video | comment | 8 | `Entity not found: Issue` |
+| video | comment | 8 | `Entity not found: Issue` |
+
+**This entry covers all three.** The graphics row is below; the two comment
+rows are a different cause with the same shape, at the end of this entry.
+
+**MECHANISM.** Native `duplicate` maps to Linear's "Duplicate" workflow state
+(`linear-outbound/mapping.mjs`). Linear's API refuses a move into a
+duplicate-type state unless the same mutation carries the RELATION naming the
+issue being duplicated. SyncView has no such column and no UI that asks for one,
+so the mutation is **structurally unsendable, not transiently failing** — and
+eight retries cannot discover that.
+
+**WHY IT COSTS MORE THAN ONE ROW.** The drainer skips anything at
+`MAX_ATTEMPTS`, while `oldestPendingMinutesByTeam` deliberately does not filter
+on attempts — *"retry-exhausted failed rows must age into the pager instead of
+disappearing from monitoring."* So the row parks forever **and keeps ageing**.
+It read 28 hours old and climbing, and was the entirety of a two-consecutive-red
+drain failure, which is a GATING item. Status writes to `duplicate` run about
+**twelve a month** (52 since late July), so each one arms another permanent
+alarm.
+
+**THE FIX: skip, do not fail.** Skipping records what is true — this write has
+no Linear counterpart it is permitted to make — and costs nothing real, because
+SyncView has been authoritative for both teams since 2026-08-28, so Linear is a
+mirror and simply keeps its previous state. Failing buys the identical outcome
+plus eight pointless API calls and an unclearable alarm. The guard sits BEFORE
+the entity read, so an unsendable row costs no lookup and no Linear call.
+
+**NOT remapped to `Canceled`,** which was the obvious alternative: that writes a
+state the person did not choose into the mirror, and a wrong state is worse than
+a stale one.
+
+**DEPLOY PENDING.** `linear-outbound` is one of the four F27 Section 4 closure
+functions, so this is inert until the owner runs that lane. Until then `main`
+diverges from the live function — the obligation `item 94` warns about, incurred
+deliberately here because the alarm is gating and recurring.
+
+**Typecheck, measured on the way through.** `deno check` on
+`linear-outbound/index.ts` reports **12 pre-existing errors on `main`**, and 12
+with this change — none inside the added block. So the gap item 94 records for
+`production-write` (14 errors, no CI lane) applies to this function too, and the
+count is now known for both.
+
+### The other two rows: an issue Linear no longer has
+
+Both comment rows named **`VID-13649`**. SyncView holds its `linear_issue_uuid`
+and reports `sync_state = clean`; the Linear-derived mirror has **no row for it
+at all**. The issue was DELETED in Linear — not archived — so every write
+SyncView owes it answers `Entity not found: Issue`, burns eight attempts, and
+parks into the same ageing pager.
+
+That is the **same shape as the duplicate case and a different cause**, so it is
+handled the same way in the terminal catch: recognise the message, skip
+immediately, record `linear_entity_deleted` in `linear_result`, stop retrying.
+
+**It deliberately does NOT clear the dangling uuid.** That link is the subject of
+**item 95** (*Linear can still delete live work; 40 rows across 10 active
+clients*), and quietly repairing it from inside the drainer would destroy the
+evidence item 95 needs while looking like a fix. This change stops the pointless
+retries and the permanent false alarm; the link itself stays item 95's.
+
+Worth noting for whoever picks up item 95: `VID-13649` is **not** in the 40 rows
+it currently records, so that population is a floor, not a census.

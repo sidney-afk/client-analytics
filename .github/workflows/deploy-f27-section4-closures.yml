@@ -68,7 +68,7 @@ jobs:
       # Supersedes eff38b69 (eighth release, ONE PARENT PER CARD), which
       # superseded ff0fc693, 5d8bf7dc (targeted-drain reclaim) and ef89adbf.
       # File count is unchanged, so the closure membership did not move.
-      LINEAR_OUTBOUND_SOURCE_SHA256: d83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b
+      LINEAR_OUTBOUND_SOURCE_SHA256: b11686431d3ad3f7bfcf0b2238be169b6f4fc15c578fbe75d2504dbd8a727e83
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5

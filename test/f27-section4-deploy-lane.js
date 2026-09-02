@@ -47,8 +47,19 @@ const CANDIDATES = new Map([
   // receipt). Entrypoint hash is unchanged because it hashes the PATH, not
   // the file, and the file count is unchanged because no file entered or left
   // the closure. The other three are untouched and deploy byte-identical.
+  // Re-pinned 2026-09-02 (this release): TWO WRITES LINEAR CAN NEVER ACCEPT stop
+  // being retried. A native `duplicate` status maps to Linear's Duplicate state,
+  // which Linear refuses without the relation naming the duplicated issue -- a
+  // relation SyncView does not record. And `Entity not found: Issue` means the
+  // target was DELETED in Linear while the native row still holds its uuid.
+  // Both burned all eight attempts and then parked where the drainer will not
+  // touch them but oldest-pending keeps ageing them, which is how three rows
+  // became a permanent GATING alarm on the drain lane. Both now skip. Only
+  // index.ts moved, so the file count is unchanged and the entrypoint hash --
+  // sha256 of the PATH, not the content -- is unchanged too. The other three
+  // functions are untouched and deploy byte-identical.
   ['linear-outbound', {
-    source: 'd83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b',
+    source: 'b11686431d3ad3f7bfcf0b2238be169b6f4fc15c578fbe75d2504dbd8a727e83',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

@@ -6912,3 +6912,82 @@ make unattended. This entry adds the measurement and the gate, so the class
 cannot grow silently while the repair waits, and so the repair can be verified
 when it happens. The never-imported class additionally needs a root cause: why
 B1 skipped seven live graphics issues for six days is not answered here.
+
+---
+
+## 105. [2026-09-02, SCOPED — one owner decision, then it is a day's work] Pasting an image into a description: the render half shipped, the upload half needs a storage answer
+
+Owner, 2026-08-31: *"could you look into pasting images in the description? …
+same way it does in linear. So just a simple pasting of a screenshot."*
+
+**The render half is live.** PR #1204, merged 2026-09-01. Before it, markdown
+image syntax was not image syntax to this app at all — the inner `[alt](url)`
+matched the *link* rule, so a description carrying a screenshot drew a stray `!`
+in front of a blue link to a PNG. Any image already reachable by URL now renders
+inline, https-only, descriptions-only, `referrerpolicy="no-referrer"`, lazy.
+
+**The upload half was deliberately not bundled**, and #1204 said why: a paste
+handler needs somewhere to put the bytes, which is a storage decision plus a
+deploy. Scoped now in **`docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`**.
+
+### The fact that decides most of it
+
+**There is no browser→storage path anywhere in this estate.** The one bucket,
+`syncview-thumbnail-revisions`, is private; a service-role edge function writes
+it and a protected reader hands out 5-minute signed URLs. The browser has never
+held a key that can write, and an upload path is the worst place to start.
+
+So both options need the same write edge function, the same MIME allowlist, the
+same byte and dimension ceilings, and the same paste handler. They differ in one
+thing: **what the description stores**, and therefore what has to happen at
+render time.
+
+| | private bucket + signed URL | public bucket + unguessable path |
+|---|---|---|
+| privacy | object never publicly reachable | anyone holding the URL can fetch |
+| render path | **`_prodDescriptionHTML` must become async** | **no change at all** |
+| shared renderer | `_prodLinkify` also draws comments — the async contract must not leak there | untouched |
+| copy/paste the URL out | dies in five minutes, reads as broken | works |
+| new failure modes | expiry mid-read, a resolve call per description | none beyond the upload |
+
+### The question that decides it was traced, not left open
+
+*Does any surface a **client** can reach render a deliverable or batch
+description?* Writing one is admin/SMM only, but that is a write rule, not a
+read rule. Following the read paths:
+
+- `_prodDescriptionHTML(..., rich = true)` — the only image-enabled call — has
+  two call sites, both inside `_prodDescriptionPanelHTML`;
+- that, `_prodProjectDetail` and `_prodBatchDetail` are reached only from the
+  `_prodState.view` dispatch and the issue-detail panel — the Production
+  surface;
+- a client share link is confined to `['analytics','brief']`, asserted in two
+  places; `production` is a staff header route and is not among them;
+- the review surface a client *can* reach renders comments, which are already
+  image-disabled by construction.
+
+**No client-facing surface renders these descriptions.** That is what makes the
+public-bucket option defensible rather than merely convenient — and it is
+exactly what has to be re-checked if a client-visible batch panel is ever added,
+because that option's protection is the unguessability of the URL and nothing
+else.
+
+### Recommendation
+
+**Public bucket.** A pasted screenshot then has the same property the estate
+already accepts for every Drive and Frame.io link in the same field, and the
+render path does not change — so the work is a write edge function plus a
+clipboard listener, not a rewrite of a renderer that also draws comments.
+
+The private-bucket option is the stronger answer to a threat this surface does
+not currently have, and it charges an async contract on a shared renderer to get
+it. A legitimate call if the owner wants it; the cost is real and bounded.
+
+### What is needed
+
+1. **Which option.** One word.
+2. **Retention** — forever, or cleaned up when the referencing description
+   changes? *Forever* is fine and is what the public-bucket option implies.
+
+Nothing else is blocked; everything shared between the two can be written the
+moment the first answer lands.

@@ -7698,6 +7698,25 @@ applying on completion would have left a link at finished work deferred
 FOREVER. It now clears the flag and calls `_prodApplyDeepLinkFallback(true)`
 before rendering.
 
+**SECOND EXIT, found by the owner minutes after the first fix shipped, and
+caused by it.** `_prodDetail` opens with
+
+    const d = _prodIssue(_prodState.openId);
+    if (!d) return '<div class="prod-empty">Deliverable not found.</div>';
+
+Before the eviction was gated, this state was UNREACHABLE during settling --
+the eviction had already changed the view away from `detail`. Gating it did
+exactly what it was asked to do and left the reader here instead: a blank pane
+reading "Deliverable not found" about a row that arrives a moment later. The
+symptom moved from "thrown back to the list" to "told the item does not exist",
+which reads worse.
+
+Fixed the same way, and the lesson is the entry: **fixing one exit from a room
+with two is how a bug appears to move rather than close.** Both exits now
+consult `terminalTailPending` and both distinguish NOT YET from GONE. Worth
+asking, on the next guard of this shape, what OTHER code path observes the same
+unresolved id -- the answer here was one function away and was not looked for.
+
 **Still open from this report:** scroll position is not restored when returning
 from a sub-issue to its parent -- the owner reports it paints scrolled-down and
 then jumps back to the top. Not diagnosed; separate from the eviction above,

@@ -7703,3 +7703,122 @@ from a sub-issue to its parent -- the owner reports it paints scrolled-down and
 then jumps back to the top. Not diagnosed; separate from the eviction above,
 though the forced `view = 'list'` transition may well have been producing some
 of it.
+
+---
+
+## 105. [2026-09-02, SCOPED — one owner decision, then it is a day's work] Pasting an image into a description: the render half shipped, the upload half needs a storage answer
+
+Owner, 2026-08-31: *"could you look into pasting images in the description? …
+same way it does in linear. So just a simple pasting of a screenshot."*
+
+**The render half is live.** PR #1204, merged 2026-09-01. Before it, markdown
+image syntax was not image syntax to this app at all — the inner `[alt](url)`
+matched the *link* rule, so a description carrying a screenshot drew a stray `!`
+in front of a blue link to a PNG. Any image already reachable by URL now renders
+inline, https-only, descriptions-only, `referrerpolicy="no-referrer"`, lazy.
+
+**The upload half was deliberately not bundled**, and #1204 said why: a paste
+handler needs somewhere to put the bytes, which is a storage decision plus a
+deploy. Scoped now in **`docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`**.
+
+### The fact that decides most of it
+
+**There is no browser→storage path anywhere in this estate.** The one bucket,
+`syncview-thumbnail-revisions`, is private; a service-role edge function writes
+it and a protected reader hands out 5-minute signed URLs. The browser has never
+held a key that can write, and an upload path is the worst place to start.
+
+So both options need the same write edge function, the same MIME allowlist, the
+same byte and dimension ceilings, and the same paste handler. They differ in one
+thing: **what the description stores**, and therefore what has to happen at
+render time.
+
+| | private bucket + signed URL | public bucket + unguessable path |
+|---|---|---|
+| privacy | object never publicly reachable | anyone holding the URL can fetch |
+| render path | **`_prodDescriptionHTML` must become async** | **no change at all** |
+| shared renderer | `_prodLinkify` also draws comments — the async contract must not leak there | untouched |
+| copy/paste the URL out | dies in five minutes, reads as broken | works |
+| new failure modes | expiry mid-read, a resolve call per description | none beyond the upload |
+
+### The question that decides it was traced, not left open
+
+*Does any surface a **client** can reach render a deliverable or batch
+description?* Writing one is admin/SMM only, but that is a write rule, not a
+read rule. Following the read paths:
+
+- `_prodDescriptionHTML(..., rich = true)` — the only image-enabled call — has
+  two call sites, both inside `_prodDescriptionPanelHTML`;
+- that, `_prodProjectDetail` and `_prodBatchDetail` are reached only from the
+  `_prodState.view` dispatch and the issue-detail panel — the Production
+  surface;
+- a client share link is confined to `['analytics','brief']`, asserted in two
+  places; `production` is a staff header route and is not among them;
+- the review surface a client *can* reach renders comments, which are already
+  image-disabled by construction.
+
+**No client-facing surface renders these descriptions.** That is what makes the
+public-bucket option defensible rather than merely convenient — and it is
+exactly what has to be re-checked if a client-visible batch panel is ever added,
+because that option's protection is the unguessability of the URL and nothing
+else.
+
+### Recommendation
+
+**Public bucket.** A pasted screenshot then has the same property the estate
+already accepts for every Drive and Frame.io link in the same field, and the
+render path does not change — so the work is a write edge function plus a
+clipboard listener, not a rewrite of a renderer that also draws comments.
+
+The private-bucket option is the stronger answer to a threat this surface does
+not currently have, and it charges an async contract on a shared renderer to get
+it. A legitimate call if the owner wants it; the cost is real and bounded.
+
+### What is needed
+
+1. **Which option.** One word.
+2. **Retention** — forever, or cleaned up when the referencing description
+   changes? *Forever* is fine and is what the public-bucket option implies.
+
+Nothing else is blocked; everything shared between the two can be written the
+moment the first answer lands.
+
+### Amended before merge (#1225): three findings, and one of them narrows the choice
+
+**1. [P1] The private-bucket option breaks the Linear mirror.** Verified:
+`description` is an OUTBOUND OPERATION and `linear-outbound` sends the
+description string to Linear **verbatim**, with outbound live for both teams. So
+a description carrying `syncview-image:<id>` puts that token into Linear as
+**literal text** — the picture renders in SyncView and a stray string appears in
+Linear, which is the opposite of *"same way it does in linear."* That option now
+also owes a durable Linear-compatible URL transformation, which is the public
+option wearing a costume. It does not merely cost more; it fails the sentence
+the request was made in.
+
+The public option is fine there for a reason worth writing down:
+`![alt](https://…)` is ordinary markdown Linear renders itself, and it survives
+post-create verification because `collapseLinearAutolinks` only collapses a link
+whose label equals its target — Linear's bare-URL auto-link signature. An image
+link is a real markdown construct with a different label, so nothing collapses
+and nothing false-mismatches. That is the 2026-08-07 orphan defect's exact
+shape, avoided by construction.
+
+**2. [P1] The upload must bind to a verified actor, not just the shared key.**
+`x-syncview-key` plus a caller-supplied role header authenticates *someone on
+staff* and nobody in particular — so it can neither enforce a per-actor rate
+limit nor stop an offboarded person who kept the key. `production-write` already
+does this properly, requiring `x-syncview-actor` and resolving it to exactly one
+active, role-compatible `team_members` row. The spec now requires the same, and
+the reason is sharper here: the object created is durable and, under the public
+option, publicly readable.
+
+**3. [P2] The spec's own MIME rule was wrong.** It said *"reject anything not on
+the list rather than sniffing"* — which validates a CLAIM. SVG bytes labelled
+`image/png` satisfy an allowlist applied to the browser-supplied value. Three
+conditions now, all required: the declared type is on the allowlist, the magic
+bytes identify a type on the allowlist, and the two agree and decode with that
+codec. The instinct behind the original line survives — do not let a sniffer
+WIDEN the set — but sniffing must narrow it, never replace the allowlist.
+
+**All three were spec defects caught before anything was built**, which is the
+argument for scoping in a reviewable file rather than in a plan nobody reads.

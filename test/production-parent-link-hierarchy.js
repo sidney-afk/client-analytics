@@ -221,7 +221,10 @@ ok(/const attributions = _prodResolveAttributions\(deliverables, activeClients, 
 
 // Behavioral: the batch-parent resolver in a VM, same style as above.
 vm.runInContext(
-  extractFunction('_prodResolveBatchParentNodes')
+  // The resolver calls _prodBatchClaimWins for a same-kind collision, so the
+  // helper has to come across with it or the sandbox throws on the real path.
+  extractFunction('_prodBatchClaimWins') + '\n'
+    + extractFunction('_prodResolveBatchParentNodes')
     + '\nthis.resolveBatchParents = _prodResolveBatchParentNodes;',
   sandbox,
 );
@@ -253,12 +256,22 @@ vm.runInContext(
     'the synthesized node carries the owner team and identifier, deduped across per-team entries');
   ok(!result.links.has('deliv-claimed-child'),
     'a UUID claimed by a deliverable row is never claimed by a batch (imported cards untouched)');
-  ok(!result.links.has('twin-child'),
-    'a UUID recorded by two batches with no deliverable row fails closed as ambiguous');
+  /* AMENDED 2026-09-02. This asserted the twin pair "fails closed as
+     ambiguous". Failing closed here does not protect anyone: it deletes the
+     post from Scene View. Measured across all 1,660 live batches, all 10 real
+     same-kind collisions are ONE post imported twice (8 byte-identical names),
+     so there is no second post to mislabel. The pair now resolves through the
+     measured cascade -- sub-issue count, description length, lower id -- and
+     with both twins empty and equal it lands on the lower id, deterministically.
+     See test/batch-parent-same-kind-tiebreak.js. */
+  ok(result.links.get('twin-child') === 'twin-batch-a',
+    'two batches recording one UUID now resolve to a single deterministic winner instead of deleting the post');
   ok(!result.links.has('already-linked'),
     'a child the deliverable map already resolved keeps that parent');
-  ok(!result.nodes.has('imported-batch') && !result.nodes.has('twin-batch-a'),
-    'only batches an actual child references produce a synthesized node');
+  ok(!result.nodes.has('imported-batch'),
+    'a batch whose UUID a deliverable row already claims still produces no synthesized node — imported cards stay untouched');
+  ok(result.nodes.has('twin-batch-a') && !result.nodes.has('twin-batch-b'),
+    'and exactly ONE of the twins synthesizes a node — the winner, never both, which would put the same children under two parents');
 }
 
 /*

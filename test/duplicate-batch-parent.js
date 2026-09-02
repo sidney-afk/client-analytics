@@ -26,9 +26,14 @@
  * THE TIE-BREAK IS NOT ARBITRARY. `bat_` is the row SyncView writes to --
  * batch_description targets it, intake populates its asset columns, and
  * WIRED-PARITY item 36 measured that the mirror's asset columns are empty while
- * the native ones carry the links. A pair with no native side stays ambiguous
- * and is still dropped: that is a real conflict with no principled winner, and
- * inventing one would show a different batch's description under this parent.
+ * the native ones carry the links.
+ *
+ * AMENDED 2026-09-02: this header used to end "a pair with no native side stays
+ * ambiguous and is still dropped ... inventing one would show a different
+ * batch's description under this parent". Measured, those pairs are not
+ * different batches -- they are one post imported twice, byte-identical in name
+ * in 8 of the 10 real cases. Same-kind pairs now resolve on sub-issue count,
+ * then description length, then the lower id. See section 2 below.
  */
 const fs = require('fs');
 const path = require('path');
@@ -68,9 +73,12 @@ function grabFunc(source, name) {
   throw new Error('unclosed ' + name);
 }
 
-/* The REAL resolver, lifted from the page. */
+/* The REAL resolver, lifted from the page, with the same-kind tie-break helper
+   it now calls. Both come from index.html; nothing here is re-typed. */
 const resolve = new Function(
-  grabFunc(INDEX, '_prodResolveBatchParentNodes') + '\nreturn _prodResolveBatchParentNodes;')();
+  grabFunc(INDEX, '_prodBatchClaimWins') + '\n'
+  + grabFunc(INDEX, '_prodResolveBatchParentNodes')
+  + '\nreturn _prodResolveBatchParentNodes;')();
 
 const UUID = '2a39c264-uuid';
 const parentEntry = (owner) => ({
@@ -111,19 +119,40 @@ function run(batches, rows) {
     'the same answer whichever row the projection happens to deliver first — a tie-break that depends on ordering is not one');
 }
 
-/* ---- 2. What the guard was written for is unchanged -------------------- */
+/* ---- 2. SAME-KIND PAIRS NOW RESOLVE, and this section is amended -------- */
+
+/* AMENDED 2026-09-02. This section asserted that two natives, or two mirrors,
+   "stay ambiguous and are still dropped", on the reasoning that there was no
+   principled winner and that inventing one would show one batch's description
+   under another's parent. The assertions were faithful to the code; the
+   REASONING did not survive being measured.
+   Across all 1,660 live batches, 10 collisions reach this branch, and in 8 of
+   them the two rows carry a BYTE-IDENTICAL name. The remaining 2 differ only by
+   a typo of one post ("Hook Videos" / "Hooks videos", "12 Thumbnails" /
+   "Thumbnails"). None of the 10 is two different posts competing for a parent;
+   every one is a single post imported twice. So "a different batch's
+   description" was never the risk being run -- while dropping both makes the
+   whole post vanish from Scene View, which is the failure a video editor
+   reported on 2026-09-01 and the reason any of this was looked at.
+   The cascade is now: liveness, provenance, sub-issue count, description
+   length, then the lower id. `test/batch-parent-same-kind-tiebreak.js` proves
+   each rung against the real production shapes. */
 
 {
-  const second = { ...NATIVE, id: 'bat_other' };
-  const r = run([NATIVE, second], children('bat_native'));
-  ok(!r.byIdentifier.has('VID-13555'),
-    'TWO NATIVE batches claiming one parent stay ambiguous and are still dropped — that is a real conflict with no principled winner');
+  const heavy = { ...NATIVE, id: 'bat_other' };
+  const r = run([NATIVE, heavy], children('bat_native'));
+  ok(r.byIdentifier.has('VID-13555'),
+    'TWO NATIVE batches claiming one parent now mint a row instead of deleting the post');
+  ok(r.byIdentifier.get('VID-13555').batchId === 'bat_native',
+    'and the one the sub-issues actually hang off wins');
 }
 {
   const second = { ...MIRROR, id: 'b1_b_other' };
   const r = run([MIRROR, second], children('b1_b_mirror'));
-  ok(!r.byIdentifier.has('VID-13555'),
-    'and so do two mirrors — inventing a winner would show one batch description under another batch parent');
+  ok(r.byIdentifier.has('VID-13555'),
+    'and so do two mirrors — 8 of the 10 real cases are the same post under a byte-identical name, so dropping both cost the post and saved nothing');
+  ok(r.byIdentifier.get('VID-13555').batchId === 'b1_b_mirror',
+    'resolving to the row carrying the work');
 }
 {
   const r = run([NATIVE], children('bat_native'));
@@ -185,9 +214,16 @@ function run(batches, rows) {
     "a `done` batch is not archived and still competes — a finished post is a real post");
 }
 {
+  /* AMENDED 2026-09-02: this asserted that two ARCHIVED mirrors stay dropped,
+     because neither liveness nor provenance could separate them. They are now
+     separated by what is actually on the rows. Both being archived is not a
+     reason to delete the post -- an archived post still has to render when
+     someone opens its link. */
   const r = run([archivedOf(MIRROR, 'b1_b_a'), archivedOf(MIRROR, 'b1_b_b')], children('b1_b_a'));
-  ok(!r.byIdentifier.has('VID-13555'),
-    'two archived mirrors are still ambiguous and still dropped — the widening reaches only pairs where one side is distinguishable');
+  ok(r.byIdentifier.has('VID-13555'),
+    'two archived mirrors now resolve too — being retired is a reason to lose to a live row, never a reason for the post to disappear');
+  ok(r.byIdentifier.get('VID-13555').batchId === 'b1_b_a',
+    'to the one carrying the sub-issues');
 }
 
 /* ---- 4. The tie-break is stated in code, not inferred ------------------ */
@@ -196,14 +232,16 @@ const resolver = grabFunc(INDEX, '_prodResolveBatchParentNodes');
 ok(/\/\^bat_\/\.test\(held\.batchId\)/.test(resolver)
   && /\/\^bat_\/\.test\(batchId\)/.test(resolver),
   'provenance is read from the id prefix on BOTH sides rather than assumed from arrival order');
-ok(/if \(heldIsNative === thisIsNative\) \{ ambiguous\.add\(uuid\); return; \}/.test(resolver),
-  'a same-provenance pair takes the ambiguous path, so the widening cannot leak past the case it was measured for');
+ok(/_prodBatchClaimWins\(batch, held\.batch, childCounts\)/.test(resolver),
+  'a same-provenance pair is settled by the measured cascade rather than dropped — count, then description, then the lower id');
 ok(/const batchArchived = String\(batch && batch\.status \|\| ''\)\.trim\(\)\.toLowerCase\(\) === 'archived';/.test(resolver),
   'archived-ness is read off the row and normalised, not inferred from the id or assumed absent');
-ok(resolver.indexOf('heldArchived !== thisArchived') < resolver.indexOf('heldIsNative === thisIsNative'),
+ok(resolver.indexOf('heldArchived !== thisArchived') < resolver.indexOf('heldIsNative !== thisIsNative'),
   'and it is checked BEFORE provenance — the ordering IS the fix, since a prefix-first rule hands live children to a retired post');
+ok(resolver.indexOf('heldIsNative !== thisIsNative') < resolver.indexOf('_prodBatchClaimWins'),
+  'and provenance is still checked before the new cascade, so a native never loses to a mirror on sub-issue count');
 ok(/ambiguous\.forEach\(uuid => byUuid\.delete\(uuid\)\)/.test(resolver),
-  'and the ambiguous drop itself is still there — this change chooses a winner where one exists, it does not remove the guard');
+  'and the ambiguous drop mechanism is still present — nothing reaches it today, but removing it would make a future unresolvable case mint a wrong row silently instead of none');
 
 console.log(failures === 0
   ? '\nduplicate batch parent checks passed'

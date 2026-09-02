@@ -6790,3 +6790,58 @@ must have, both learned here:
 
 Not attempted unattended: it touches every suite in the repo, and the failure
 mode it guards against is precisely a test that looks like it passes.
+
+---
+
+## 97. [2026-09-02, FIXED — browser-only, live on merge] Ten posts still delete themselves, and the rule that was protecting them was protecting nothing
+
+The 2026-09-01 work taught `_prodResolveBatchParentNodes` two tie-breaks for a
+Linear parent claimed by more than one batch row: an archived claimant loses to
+a live one, then a native `bat_` row beats a `b1_b_` mirror. Measured across all
+1,660 live batches, those settle **13 of the 23** collisions. The other **10 are
+two mirrors, or two natives** — invisible to both rules — and were marked
+ambiguous and dropped, which removes the post from Scene View entirely. That is
+the same failure a video editor reported on 2026-09-01, still live for ten more
+posts across seven clients.
+
+**The reasoning that was overturned.** Both the code comment and
+`test/duplicate-batch-parent.js` stated that inventing a winner "would show one
+batch's description under another's parent", so dropping both was the safe
+choice. That is a real risk in the abstract and it is not the case being run.
+Of the 10, **8 carry a BYTE-IDENTICAL name** across their claimants; the other 2
+differ only by a typo of one post (`Hook Videos` / `Hooks videos`,
+`12 Thumbnails` / `Thumbnails`). Every one is a single post imported twice. So
+the choice is not between two posts — it is between showing the post and
+deleting it.
+
+**Owner, 2026-09-02, asked what should separate them:** *"shouldn't you just
+look at them and see what's the difference, like in the description, for example
+... whichever has the most description or most text wins? I mean, I don't know.
+I'm just freeballing here."* Measured, his instinct is the stronger single
+signal on the full set — across all 23 collisions description length picks a
+unique winner **19** times against **9** for sub-issue count. On the 10 that
+actually reach this branch it inverts (count 8, description 6, disagreeing
+once), so the rule uses both, count first. Neither alone is enough, and the
+earlier recommendation of sub-issue count alone was the weaker half.
+
+**The cascade, each rung reached only when the one above ties:** liveness →
+provenance → sub-issue count → description length → lower id. The last is
+arbitrary on purpose and must stay deterministic: the projection reruns on every
+render, so a coin-flip would move a post's title between reloads.
+
+**Cost of being wrong is now bounded and small.** The worst case is a post
+showing the duplicate's title — and in 8 of 10 the titles are identical, so
+there is no observable difference at all. Against that, every one of the 10 is
+currently invisible.
+
+Sub-issue counts come from the deliverable rows already in scope; no extra read.
+`test/batch-parent-same-kind-tiebreak.js` replays all 10 real collisions as
+fixtures (titles omitted — public repo) and proves each rung in isolation, that
+provenance and liveness still outrank the new rungs, and that all six arrival
+orders of a three-way tie give one answer. Three older assertions across two
+suites asserted the drop and are amended in place with the measurement that
+overturned them, rather than deleted.
+
+**The `ambiguous` mechanism is deliberately left in place** even though nothing
+reaches it today. Removing it would mean a future genuinely-unresolvable shape
+mints a wrong row silently instead of none.

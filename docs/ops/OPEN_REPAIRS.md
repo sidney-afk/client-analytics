@@ -8073,3 +8073,133 @@ sites whose target is not a string literal (11), scanners reading a source other
 than index.html (6, named), and scanner shapes it cannot drive (1 — the
 two-name slicer in `write-ui-repair-races.js`). A guard that quietly skips what
 it cannot drive reads exactly like a guard that found nothing wrong.
+
+---
+
+## 104. [2026-09-02, MEASURED AND GATED — the repair itself is an owner decision] This repository is public and the roster is in it: 45 of 50 identifying terms, 108 files
+
+**Measured against the live roster, 2026-09-02.** Of the 50 identifying terms
+on it, **45 appear somewhere in the tree**: 39 of the 47 client slugs and 6
+team-member full names, across **108 files**.
+
+| where | terms |
+|---|---|
+| two July audit documents | 37 and 29 |
+| two migrations (`filming-plans-source`, `legacy-onboarding-migration`) | 30 and 20 |
+| `docs/ops/OPEN_REPAIRS.md` | 14 |
+| `EXECUTION_LOG.md` | 12 |
+| `index.html` | 6 |
+| 102 further files | 1–5 each |
+
+**Nobody decided this.** It accumulated one audit, one migration and one ledger
+entry at a time, each of which had a good local reason to name the client it was
+about — and each of which was, individually, the clearest way to write that
+sentence. The aggregate is a different thing from any of its parts.
+
+### What is gated, and what is not
+
+`scripts/repo-identity-exposure-check.js` baselines today's number and **fails
+above it**. That is the whole of what can be done without an owner decision.
+
+**It removes nothing, and it cannot.** The same strings are in git history, so a
+repair is a history rewrite — the estate has done one before,
+`docs/ops/GIT_HISTORY_PII_PURGE_2026-07-14.md` — plus a judgement call about
+which of those audit documents are worth keeping at all now that their
+conclusions live in `docs/truth/`. Both are the owner's, and neither is a change
+to make unattended at four in the morning.
+
+**Two baselines, deliberately: 108 files AND 45 terms.** Counting only terms
+lets a new file name six clients as long as six others stopped being mentioned;
+counting only files lets a single file name the whole roster.
+
+### The property the check itself has to hold
+
+**It reports counts and FILE PATHS and never prints what it matched** — not in
+the text output, not in `--json`. A leak detector whose own output names the
+clients, in a CI log or pasted into an issue or on a shared screen, has made one
+more public copy of exactly the thing it exists to bound.
+
+`test/repo-identity-exposure.js` pins that by ENUMERATION rather than by
+searching the output sites: the matched string lives in one variable, every use
+of it is listed, and an unaccounted-for use fails the suite naming the line.
+Mutation-tested — adding the terms to the JSON payload, or a single
+`console.log('found', term)`, each fail by name. It also pins `git grep -l`
+(file names, never a matching line), the argument-array `execFileSync` (a roster
+value must never become part of a command line), and that a no-match exit status
+of 1 is read as an empty result rather than a broken check.
+
+### Exclusions, each a false positive it would otherwise report
+
+- slugs shorter than five characters — they match ordinary English and are not
+  identifying alone;
+- single given names, for the same reason;
+- the TEST client, which is named in the code by design and would ring forever.
+
+### What the owner has to decide
+
+1. Whether the two July audits and the two migrations are worth keeping in a
+   public repository at all, given their conclusions are in `docs/truth/`.
+2. Whether a history rewrite is wanted, and if so on what scope.
+3. Whether this repository should be public. That is the one-move answer and it
+   is not mine to make; every other option is a partial mitigation of it.
+
+Registered in `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT section, the same place and
+the same way as its three siblings.
+
+### Amended before merge (#1224): four findings, and the sharpest was the tool leaking
+
+All four are correct, and one of them is the tool breaking its own single
+guarantee.
+
+**1. [P1] The gate never ran before a change was public.** `npm test` runs only
+the offline source-inspection suite; the executable was referenced nowhere but
+the scheduled watch. So a pull request adding a client identifier passed CI and
+merged, at which point removal already needs the history rewrite the gate exists
+to avoid. **Now a CI job runs it on every pull request.** It is a SEPARATE job:
+the `unit` job is documented as reaching no live backend, and this needs the
+roster to know what an identity *is* — folding it in would have quietly
+falsified that job's own contract. It reads two columns with the publishable key
+that already ships in `index.html`, so it exposes nothing a page load does not.
+
+**2. [P2] A baseline of totals cannot see a swap.** Replace one already-counted
+name with a *new* person's, in a file already on the list, and both numbers stay
+exactly where they were. So CI does not run the tree scan at all — it runs
+`--diff=<base>`, which scans only what the change **adds** against **no baseline
+at all**. No committed identity list, nothing to keep in step, and a swap is
+caught exactly.
+
+Demonstrated rather than argued, with a real roster slug appended to an
+already-counted file:
+
+| mode | verdict |
+|---|---|
+| tree | *"At or under the baseline ✅ — the exposure is not growing"* |
+| diff | *"FAIL: this change names a client or a colleague in 1 file(s)"* |
+
+**3. [P2] Contents are not the only place a name lives.** A file called
+`docs/audits/2026-09-02-<client>-audit.md` with a generically worded body is
+exactly as public as one that says the name in a sentence, and `git grep` does
+not look at path text. Both modes now scan paths as well — added paths in diff
+mode, `git ls-files` in tree mode. Verified with a probe file whose name carried
+a slug and whose body carried nothing: caught.
+
+**4. [P2] THE TOOL LEAKED ON ITS OWN ERROR PATH.** `execFileSync` puts the whole
+argv in its error message, and the argv holds the roster term — so any git
+failure other than the no-match status would have printed a client's slug into
+a CI log. The tool's one guarantee, broken on exactly the path most likely to be
+pasted somewhere. Every git call now goes through one wrapper that **throws a
+replacement**, never re-throws, and says why it is terse so nobody improves it
+back.
+
+**A roster read that fails is not a red build.** Exit 1 is a finding and blocks;
+anything else warns and passes. An outage must not look like a leak, and a
+forked pull request with no network must not look clean either — the tree
+baseline in `PRE_FLIP_HEALTH_CHECK.md` is the backstop for a skipped run.
+
+**And the suite's own enumeration had to get stricter to stay honest.** Stripping
+comments was not enough: the redaction message itself contains the word *term*,
+inside a string. Whitelisting that LINE would have set the precedent that a line
+mentioning the variable can be excused, which is how a real leak gets waved
+through — so string BODIES are stripped too, leaving only the places the
+variable is actually used. Mutation-tested: `console.log('leak', term)` and a
+bare `throw err` each fail by name.

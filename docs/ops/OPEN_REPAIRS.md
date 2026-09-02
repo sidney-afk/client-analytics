@@ -6790,3 +6790,54 @@ must have, both learned here:
 
 Not attempted unattended: it touches every suite in the repo, and the failure
 mode it guards against is precisely a test that looks like it passes.
+
+---
+
+## 98. [2026-09-02] Item 72's standing check now exists — and it found a second, larger class item 72 does not record
+
+Item 72 ended by naming the check that should become standing: *"every
+non-archived native row in `todo`/`in_progress`/`tweak` that is not a batch
+parent must have a `workload_issues` row that is active, a sub-issue, and
+non-parked. Baseline at today's five and gate on growth."*
+`scripts/workload-native-visibility-check.js` is that check — read-only, public
+key, safe anywhere — and `test/workload-native-visibility.js` pins its rules
+offline so the suite never depends on a service being up.
+
+**The narrowing is most of the value.** 607 native live-work rows; 179 archived
+or canceled; **81 have no native parent, which makes them batch parents — posts,
+not assignable work — and Workload is right to exclude them.** Zero of the 81
+carry a parent, so this is a clean split rather than a judgement call. A check
+that counted them would report a defect eighty-one times larger than the real
+one, and the real one would be skimmed past. That is the alarm-fatigue failure
+`PRE_FLIP_HEALTH_CHECK.md` was written to prevent, and it is easy to rebuild
+inside a new tool.
+
+**Class 1 — mirror says inactive (5).** Item 72's class: the `workload_issues`
+row exists and says `active = false` while the native store says the work is
+live. `VID-13580`, `VID-13581`, `VID-13582`, `VID-13109`, `GRA-7237`. The **count** matches item 72's baseline of
+five; the **membership does not**. `VID-13491` — the case item 72 leads with —
+has resolved, and `GRA-7237` is new. It is also GRAPHICS, while item 72 records
+this as a video-only class. A stable count concealing a moving membership is
+exactly why this had to become a script.
+
+**Class 2 — never imported (7 real clients), and item 72 does not record it.**
+No `workload_issues` row exists at all: `GRA-7243`–`GRA-7247` (one client, created
+2026-08-26), `GRA-7286`, `GRA-7287` (a second client, 2026-08-28). **Not
+sync lag, and that was checked rather than assumed** — the mirror's newest
+`synced_at` was 20 minutes old while these rows were 17 to 150 HOURS old. Seven
+real deliverables have been invisible to whoever owes them for up to six days.
+This class is larger than the one item 72 names.
+
+Four more rows belong to the test client and are reported but never gated — it
+is mutated by drills on purpose, and gating on it would ring for work nobody is
+owed.
+
+**Baseline 12** (5 + 7, real clients only); the check exits non-zero above it.
+
+**What is NOT done here, deliberately.** The underlying repair — repointing
+Workload's population, status and assignee reads at the native store — is item
+72 and remains open. That is architecturally significant and is not a change to
+make unattended. This entry adds the measurement and the gate, so the class
+cannot grow silently while the repair waits, and so the repair can be verified
+when it happens. The never-imported class additionally needs a root cause: why
+B1 skipped seven live graphics issues for six days is not answered here.

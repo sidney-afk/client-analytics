@@ -64,7 +64,19 @@ resolves it to a short-lived signed URL when it draws.
 | shared renderer | `_prodLinkify` also draws comments; an async contract has to not leak into that path |
 | link rot | none — a reference outlives any URL |
 | copy/paste out | a pasted signed URL dies in five minutes, which will read as broken |
+| **the Linear mirror** | **BREAKS — see below** |
 | new failure modes | expiry mid-read, a resolve call per description, an offline/cached render with no valid URL |
+
+**And it breaks the Linear mirror, which is the finding that changes the
+weighting.** Raised by review on #1225 and verified: `description` is an
+OUTBOUND OPERATION (`OUTBOUND_OPERATIONS` in `linear-outbound/mapping.mjs`),
+and `linear-outbound` sends the description string to Linear **verbatim**.
+Outbound is live for both SyncView-authoritative teams. So a description
+carrying `syncview-image:<id>` puts that token into Linear as **literal text** —
+the image renders in SyncView after the resolve pass and appears as a stray
+string in Linear, which is the opposite of *"same way it does in linear."*
+Option A therefore needs a durable Linear-compatible URL transformation of its
+own — which is Option B wearing a costume — or it has to be ruled out.
 
 ### Option B — public bucket, unguessable path
 
@@ -77,7 +89,18 @@ The description stores a plain `https://…/storage/v1/object/public/<bucket>/<u
 | shared renderer | untouched |
 | link rot | none |
 | copy/paste out | works |
+| **the Linear mirror** | **works** — see below |
 | new failure modes | none beyond the upload itself |
+
+**And the mirror keeps working, for a reason worth stating.** `![alt](https://…)`
+is ordinary markdown that Linear renders as an image itself, so the same
+description draws a picture on both surfaces — literally what was asked for.
+It also survives the post-create verification: `collapseLinearAutolinks` exists
+because Linear rewrites a BARE url into `[url](<url>)`, and it is deliberately
+narrow enough to leave a real markdown link alone. An image link is a real
+markdown construct with a label that is not its target, so nothing collapses and
+nothing false-mismatches — the 2026-08-07 orphan defect's exact shape, avoided
+by construction rather than by luck.
 
 **The honest comparison is not "secure vs insecure".** It is: *does a
 description image deserve stronger protection than everything already in these
@@ -112,15 +135,32 @@ Option B's protection is the unguessability of the URL and nothing else.
 
 ## 3. The same either way
 
-- **A write edge function.** `description-image-upload`, service-role, staff
-  auth on the existing `x-syncview-key` / role headers, one image per call.
-- **Bounds, all fail-closed:** an explicit MIME allowlist (`image/png`,
-  `image/jpeg`, `image/webp`, `image/gif`), a byte ceiling (2 MB is roomy for a
-  screenshot), a decoded-dimension ceiling, and a per-actor rate limit. Reject
-  anything not on the list rather than sniffing — a permissive sniffer is how
-  an SVG (which can carry script) gets in.
-- **Never trust the client's filename or MIME.** Derive the extension from the
-  allowlisted type and name the object with a fresh UUID.
+- **A write edge function.** `description-image-upload`, service-role, one image
+  per call — and **bound to a verified actor, not just to the shared key.**
+  Raised by review on #1225, correctly: `x-syncview-key` plus a caller-supplied
+  role header authenticates *someone on staff* and nobody in particular, so it
+  can neither enforce a per-actor rate limit nor stop an offboarded person who
+  kept the key. `production-write` already does this properly — it requires
+  `x-syncview-actor` and resolves it to exactly ONE active, role-compatible
+  `team_members` row before it will write. This must do the same, and the
+  reason is sharper here than there: the object it creates is durable and, under
+  the public-bucket option, publicly readable.
+- **Bounds, all fail-closed:** an allowlist of exactly `image/png`,
+  `image/jpeg`, `image/webp`, `image/gif`; a byte ceiling (2 MB is roomy for a
+  screenshot); a decoded-dimension ceiling; and a per-actor rate limit.
+- **VALIDATE THE BYTES, not the label — three conditions, all required.** An
+  earlier draft of this file said "reject anything not on the list rather than
+  sniffing", and review on #1225 was right that this directs an implementer away
+  from the check that makes the allowlist mean anything: an allowlist applied to
+  a browser-supplied MIME value validates a *claim*, and SVG bytes labelled
+  `image/png` satisfy it. So: (1) the DECLARED type is on the allowlist;
+  (2) the file's magic bytes identify a type on the allowlist; (3) the two
+  AGREE, and the bytes decode with the codec for that type. Any disagreement is
+  a rejection. The point the original line was reaching for still stands — do
+  not let a permissive sniffer *widen* the set, which is how an SVG gets in —
+  but sniffing must NARROW it, never replace the allowlist.
+- **Never trust the client's filename or MIME for naming either.** Derive the
+  extension from the VERIFIED type and name the object with a fresh UUID.
 - **A paste handler** on the description editor: `paste` → find image items on
   the clipboard → upload → insert `![name](url)` at the caret → on failure,
   leave the editor untouched and say so. A paste that half-works is worse than
@@ -147,16 +187,20 @@ Option B's protection is the unguessability of the URL and nothing else.
 
 ## 5. Recommendation, and the one thing I need
 
-**Recommendation: Option B.** A pasted screenshot then has exactly the property
-the estate already accepts for every Drive and Frame.io link in the same field,
-no client-facing surface renders these descriptions, and the render path does
-not change at all — which means the paste handler is a write edge function and
-a clipboard listener, not a rewrite of a renderer that also draws comments.
+**Recommendation: Option B**, and review on #1225 made this less close than it
+looked. A pasted screenshot then has exactly the property the estate already
+accepts for every Drive and Frame.io link in the same field, no client-facing
+surface renders these descriptions, the render path does not change at all — and
+**the image appears in Linear too**, because `![alt](https://…)` is markdown
+Linear renders itself. Option A's `syncview-image:<id>` token would reach Linear
+as literal text, since `description` is mirrored verbatim. So Option A does not
+merely cost more; it fails the sentence the request was made in.
 
 Option A is the stronger answer to a threat this surface does not currently
-have, and it charges an async contract on a shared renderer to get it. If you
-want the stronger property anyway, that is a legitimate call and the cost is
-real but bounded; say so and it gets built that way.
+have. It charges an async contract on a shared renderer, and it now also owes a
+durable Linear-compatible URL transformation — which is Option B wearing a
+costume. If you want the stronger property anyway, that is a legitimate call and
+the cost is real, but it is a bigger number than this file first said.
 
 **What I need from you:**
 

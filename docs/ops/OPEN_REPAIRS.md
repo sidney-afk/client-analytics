@@ -6991,3 +6991,43 @@ it. A legitimate call if the owner wants it; the cost is real and bounded.
 
 Nothing else is blocked; everything shared between the two can be written the
 moment the first answer lands.
+
+### Amended before merge (#1225): three findings, and one of them narrows the choice
+
+**1. [P1] The private-bucket option breaks the Linear mirror.** Verified:
+`description` is an OUTBOUND OPERATION and `linear-outbound` sends the
+description string to Linear **verbatim**, with outbound live for both teams. So
+a description carrying `syncview-image:<id>` puts that token into Linear as
+**literal text** — the picture renders in SyncView and a stray string appears in
+Linear, which is the opposite of *"same way it does in linear."* That option now
+also owes a durable Linear-compatible URL transformation, which is the public
+option wearing a costume. It does not merely cost more; it fails the sentence
+the request was made in.
+
+The public option is fine there for a reason worth writing down:
+`![alt](https://…)` is ordinary markdown Linear renders itself, and it survives
+post-create verification because `collapseLinearAutolinks` only collapses a link
+whose label equals its target — Linear's bare-URL auto-link signature. An image
+link is a real markdown construct with a different label, so nothing collapses
+and nothing false-mismatches. That is the 2026-08-07 orphan defect's exact
+shape, avoided by construction.
+
+**2. [P1] The upload must bind to a verified actor, not just the shared key.**
+`x-syncview-key` plus a caller-supplied role header authenticates *someone on
+staff* and nobody in particular — so it can neither enforce a per-actor rate
+limit nor stop an offboarded person who kept the key. `production-write` already
+does this properly, requiring `x-syncview-actor` and resolving it to exactly one
+active, role-compatible `team_members` row. The spec now requires the same, and
+the reason is sharper here: the object created is durable and, under the public
+option, publicly readable.
+
+**3. [P2] The spec's own MIME rule was wrong.** It said *"reject anything not on
+the list rather than sniffing"* — which validates a CLAIM. SVG bytes labelled
+`image/png` satisfy an allowlist applied to the browser-supplied value. Three
+conditions now, all required: the declared type is on the allowlist, the magic
+bytes identify a type on the allowlist, and the two agree and decode with that
+codec. The instinct behind the original line survives — do not let a sniffer
+WIDEN the set — but sniffing must narrow it, never replace the allowlist.
+
+**All three were spec defects caught before anything was built**, which is the
+argument for scoping in a reviewable file rather than in a plan nobody reads.

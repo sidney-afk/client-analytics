@@ -12,18 +12,14 @@ const vm = require('vm');
 
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
+/* OPEN_REPAIRS item 96: shared regex- and template-aware extractor. The
+   hand-rolled scanner under-extracted this file's two subjects --
+   renderCardView and renderOverview -- by a few dozen characters each,
+   which is enough to drop the tail of a function an assertion then claims
+   something about. */
+const { extractFunction } = require('./helpers/extract-function.js');
 function grabFunc(name) {
-  const at = INDEX.indexOf('function ' + name + '(');
-  if (at < 0) throw new Error('function not found: ' + name);
-  let depth = 0;
-  for (let j = INDEX.indexOf('{', at); j < INDEX.length; j++) {
-    if (INDEX[j] === '{') depth++;
-    else if (INDEX[j] === '}') {
-      depth--;
-      if (depth === 0) return INDEX.slice(at, j + 1);
-    }
-  }
-  throw new Error('unbalanced braces: ' + name);
+  return extractFunction(INDEX, name);
 }
 
 const receiptStart = INDEX.indexOf("const ANALYTICS_RECEIPT_SCHEMA='syncview.analytics.receipt.v1';");

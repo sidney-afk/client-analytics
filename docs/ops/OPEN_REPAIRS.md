@@ -4699,7 +4699,7 @@ the telemetry instead of accepting it. The briefing was wrong; the check
 survived it only because the verifiers were instructed to refute rather than
 confirm. A verification pass that trusts its own framing would have missed this.
 
-## 59. [found 2026-08-29 02:00 UTC, live] The calendar keeps offering Linear link controls the flip already sealed — the seal is right, the re-render never happens
+## 59. [found 2026-08-29 02:00 UTC; **FIXED 2026-08-31 in `1ce02ff6`, verified 2026-09-02**] The calendar kept offering Linear link controls the flip had already sealed — the seal was right, the re-render never happened
 
 After F1(video), calendar cards still render the PRE-flip Linear link affordances
 — the orange "needs a Linear link" warning and the pencil edit button — on a
@@ -4740,7 +4740,21 @@ then refuse — precisely what the 2026-08-25 seal shipped to prevent. And it is
 not new tonight: graphics has shown the same stale affordances since its own flip
 on 2026-08-16; the video flip merely doubled it onto every card's video slot.
 
-**THE REPAIR (not done):** in the post-authority hydrate path
+**THE REPAIR — DONE, and this line said otherwise for two days.** Shipped in
+commit `1ce02ff6` ("Fix item 59: re-render the calendar/samples grids when
+authority resolves"). Verified in `index.html` 2026-09-02: the post-authority
+hydrate path now compares a `JSON.stringify(authority)` signature against
+`_writeUiLastRenderedAuthoritySig` and re-renders only when the value is NEW
+information, gated on `currentNav` so only the visible surface repaints, and
+deferred to the pending-render lane when `_calIsCalBusy()` / `_sxrIsBusy()` — so
+a background repaint cannot drop a focused input or an open menu. Both the
+calendar and Samples grids are covered. Pinned by
+`test/write-ui-writer-durability.js`. The fail-open first paint is intact: the
+seal never became a blocking dependency of the first render, which is what the
+original text asked for. **The description below is kept as the diagnosis, not
+as outstanding work.**
+
+The original repair note read: in the post-authority hydrate path
 (index.html:31790-31822) call the calendar re-render once the authority read
 resolves, or move the authority read ahead of the calendar data load so the first
 paint is already sealed. Prefer whichever keeps the fail-open first paint intact
@@ -5489,6 +5503,29 @@ without attributing, and nothing downstream re-derives it. Worth deciding
 whether the stray catcher should attribute on import, refuse to import what it
 cannot attribute, or keep importing and hand the backlog to a repair lane.
 
+**RE-MEASURED 2026-09-02, as this entry asks.** Every number is unchanged:
+637 unattributed, **63 unattributed and live**, exactly **1** carrying a due
+date — still `VID-164`, still `todo`, still due **2023-02-03**, still not
+archived, still therefore at the top of Active. Total production rows moved
+6,152 → 6,239 over the same period, so the estate grew while this population did
+not.
+
+**BUT THE FEEDER IS STILL RUNNING, and an earlier draft of this paragraph said
+it was not.** `.github/workflows/b1-linear-incremental-refresh.yml` is on
+`cron: '*/30 * * * *'` and sets `B1_STRAY_CATCHER: '1'` at the step level, which
+since F1(video) is the STANDING mode for every run — the dispatch checkbox is
+ignored. The importer inserts every newly encountered active Linear issue, and
+item 74 directly below records that post-flip paths can still manufacture
+unattributed rows. So the honest reading of a flat 637/63/1 is **no qualifying
+issue arrived during this window**, which is a fact about the window and not
+about the mechanism.
+
+What that changes: the population is not decaying while the decision waits, but
+it is not sealed either — a single new Linear issue lands another ownerless live
+row within thirty minutes. Cheaper than it looked, not free. Raised by review on
+#1221, correctly: calling the feeder absent understates the repair and invites
+deferring it on a premise that is not true.
+
 Note the reconciler's own `repair_required` counter has been **flat at 779
 across 30 consecutive runs** with `entities_checked` flat at 7,498, so this is
 not currently growing on that measure — the import was a step, not a trend.
@@ -6003,7 +6040,7 @@ clients (the second owner call below) or giving the fallback a freshness test.
   return a wrong answer — but it silently changes meaning the moment a client is
   taken *off* the allowlist. Wants the flag coupling made explicit first.
 
-## 87. [found 2026-08-31, unknowable-assertion sweep — 12 agents, adversarially verified] Eighteen more places the interface states something it cannot know
+## 87. [found 2026-08-31, unknowable-assertion sweep — 12 agents, adversarially verified; **ALL EIGHTEEN FIXED — verified 2026-09-02**] Eighteen more places the interface states something it cannot know
 
 The method that produced five of the seven flip-day bugs, run deliberately and
 at width: six falsehood classes swept across every SyncView surface, each
@@ -6023,6 +6060,13 @@ the same words AFTER hydration, next to a chip that says Native writes.
 
 Nothing below is fixed unless it says so. Recorded here so none of it is lost,
 ordered roughly by who hits it and how soon.
+
+**STATUS 2026-09-02: every one of the eighteen now says so.** Swept the
+sub-headings mechanically — all 18 carry a FIXED marker, so this item is closed
+as a whole. It was still listed as open work because the parent heading was
+never updated when the last child landed, which is worth noting as its own small
+lesson: an item with children needs its own closing act, or it goes on
+advertising work that no longer exists.
 
 ### 87.1 Production Assets panel prints "Not provided / Missing" for all four slots whenever the authenticated asset read has not answered or was refused — **FIXED 2026-08-31** (PR #1183, deployed): PROD_ASSET_UNREAD_GUIDANCE now covers every deliverable, not only synthetic parents.
 
@@ -6912,6 +6956,1123 @@ make unattended. This entry adds the measurement and the gate, so the class
 cannot grow silently while the repair waits, and so the repair can be verified
 when it happens. The never-imported class additionally needs a root cause: why
 B1 skipped seven live graphics issues for six days is not answered here.
+
+## 99. [2026-09-02, BROWSER HALF FIXED the same session — the DATA is not] A client's note and the staff reply to it were routed by two different rules, and 20 threads across 6 clients are still one-way
+
+**The two predicates, and nothing reconciled them.** A card comment can travel
+by the gateway or by the legacy card column, and each side of a thread chose
+independently:
+
+| who | routed by | consults the crosswalk? |
+|---|---|---|
+| CLIENT add | `_prodClientCommentGatewayContext` (`index.html:53477`) | **yes** — fails-legacy unless the deliverable's `origin`/`team`/`client_slug`/`card_id` describe this exact card |
+| STAFF add | `_writeUiUseGatewayWhenReady` → `_writeUiRerouteUseGateway` (`index.html:25270`, `:25022`) | **no** — only the `write_ui_reroute_clients` allowlist, 42 slugs on 2026-09-02 |
+
+So on a slot whose crosswalk fails, the client's root is written to the card
+column with **no `production_comments` row**, and the staff reply to it is sent
+to the gateway, which looks the parent up in `production_comments`, finds zero
+rows, and refuses.
+
+**The live incident, read out of the tables rather than reconstructed.** Card
+`p_mqpc5aje_l9u52`, `graphic` slot, deliverable `b1_d_3466b7d9bb24429cad3cc31a0fd3d279`
+(`GRA-6422`), client `soniachopra`. Client root `c_mtk33nwj_2i8ex` at
+`2026-09-02T12:40:31Z`, `is_tweak = true`, round 5, `audience = client`. The
+deliverable's live crosswalk that day: `client_slug` and `team` correct,
+`origin = "manual"` where the calendar surface expects `calendar`, and
+`card_id = NULL` where the card's own id was expected — mismatch on **origin and
+card_id**, so `_prodClientCommentGatewayContext` returned `null` and the root
+took the legacy lane. `soniachopra` is on the reroute allowlist, so the staff
+reply went to the gateway, its parent lookup returned ZERO rows, and it came
+back **409 `comment_parent_ambiguous`** — a code `index.html` filed under the
+`reload` class, whose text told the person to reload a page whose stale copy was
+never the problem. That is **item 13** of this file in a different costume (and
+item 14 beside it): a deterministic refusal wearing the message that belongs to
+a stale tab. The in-code note at the reload class already cites item 13 — it did
+not stop the next code from being filed there. `calendar_post_events` for that card shows the client's
+`comment_add` and both `status_change` rows landing at `12:40:32Z`, and the
+card's sibling `video` slot (`b1_d_1add82d4…`, `origin = calendar`,
+`card_id = p_mqpc5aje_l9u52`) is **valid** — only the graphic slot is broken.
+
+**And the reply text was thrown away.** In `_calAppendComment` the catch does
+`_writeUiReportFailure(...)` then `return false` **before** `arr.push(msg)`.
+Nothing is queued, cached or retained. `_calSubmitComposer` does not clear the
+draft, so the text survives in the live textarea — and a REPLY draft is the one
+thing not mirrored to `sessionStorage` (only a new root is), so the reload the
+message prescribed was the single action that could destroy it.
+
+### Measured, not inferred — the whole estate, 2026-09-02
+
+All 9,681 `calendar_posts` (19,362 video+graphic slots) against all 6,241
+`deliverables`, both paged; the REST default of 1,000 would have truncated both.
+
+| population | count | why it is or is not counted |
+|---|---|---|
+| slots with no deliverable id | 18,180 | gate says `unlinked`; BOTH sides go legacy. Consistent. Excluded. |
+| deliverable-linked slots | 1,182 | |
+| … crosswalk VALID | 1,010 | both sides go canonical. Consistent. Excluded. |
+| … mismatch, no client root | 152 | a STAFF root on a mismatching slot still went to the gateway and HAS a canonical row, so a reply to it resolves. Excluded **on purpose**. |
+| **… mismatch WITH a client root** | **20** | one-way threads, holding **32** client roots |
+
+Per client: `jesseisrael` 7, `bayavoce` 5, `soniachopra` 3,
+`jessicawinterstern` 3, `eben&annie` 1, `jennaphillipsballard` 1.
+`crosswalk_fields` histogram: `card_id+origin` 16, `team` 2,
+`card_id+origin+team` 1, `origin` 1.
+Nine of the twenty sit on a card that is neither Archived nor Posted.
+All six slugs are on the reroute allowlist, so the LATENT class (broken
+crosswalk, slug off the allowlist, staff therefore also legacy) is **0** today —
+it is still reported, because adding a slug to that flag would turn latent rows
+live and it would read as new breakage.
+
+**The narrowing is most of the value.** Counting every unlinked slot reports
+18,180; counting every mismatch reports 172. The real number is 20. Both wrong
+numbers are the alarm-fatigue failure `PRE_FLIP_HEALTH_CHECK.md` exists to
+prevent.
+
+### What is fixed, and what is not
+
+**Fixed the same session, browser-only:** `_calPostLinearComment` and
+`_sxrPostLinearComment` now accept `meta.canonicalUnlinked` and route a staff
+add on a crosswalk-broken slot to the legacy store — the fallback its three
+sibling operations (`_calToggleCommentDone`, the delete confirm, and both
+Samples twins) have always had and which ADD alone was missing.
+`comment_parent_ambiguous` was moved out of the `reload` class and both
+parent-lookup refusals got bespoke text that says "copy your text out first" and
+never says reload. On branch `claude/reduce-n8n-linear-deps-vmphp6`; **not on
+`main` as of this entry**.
+
+**The predicate is deliberately narrower than "the gate says unlinked", and the
+narrowing is the safety argument.** `_prodCommentAddRoutesLegacy`
+(`index.html:25779`) answers from the **crosswalk**, not from
+`_prodCanonicalCommentGate`, because the gate also answers `linked: false` for
+three states that do NOT mean this card can never hold a canonical thread, and
+rerouting any of them would be a regression rather than a repair:
+
+| gate status | what it means | why it must keep the gateway |
+|---|---|---|
+| `unlinked` | no deliverable id at all — **18,180 of 19,362 slots** | the write is refused on purpose post-flip (`native_link_required`, and `WRITE_UI_NO_WORK_ITEM_TEXT` beside it). A legacy fallback would report success on a card whose note reaches nothing: `_calLegacyPostLinearComment` returns immediately on an empty url. |
+| `legacy_retained` | a crosswalk-VALID link the coverage invariant is holding | the canonical thread is real and the gateway accepts writes to it; only the PROJECTION is held, and that hold applies to staff too (`const writesLegacy = calendar \|\| !_isClientLink`). |
+| `crosswalk_error` | the lookup failed | unknown is not broken. |
+
+It also mirrors the ONE mismatch shape the gateway client front door **admits** —
+`card_id` alone with the deliverable side unbound — because a client root there
+went CANONICAL and its reply has to follow it. Measured 2026-09-02: 8 slots
+mismatch on `card_id` alone and all 8 name a DIFFERENT card, so `card_unbound` is
+false for every one, the carve-out moves no row today, and the baseline of 20 is
+unchanged — it exists so the first `card_id`-NULL slot to take a client comment
+does not trip a gate set to the exact current count.
+
+**Nothing is stamped by the add lane.** The routing lookup deliberately does not
+write into `post._canonicalCrosswalk`. Stamping `valid` there would flip the gate
+from `linked:false` to `{linked:true, ready:false}` on a card whose canonical
+read nobody has performed, and `_calAppendComment`'s own *"Notes are still
+loading"* guard would then refuse a send that succeeds today — with no control to
+clear it short of closing and reopening the modal (the composer only renders a
+Retry button on `status === 'error'`).
+
+**And the retry lane was told.** A staff add routed legacy on an ENROLLED slug is
+new traffic for `_linearOutboxEnqueue`, and the drain re-derives the lane from
+enrollment: without a stamp it files the item under `legacy_actor_unverifiable`
+("the principal cannot be verified"), which is not what happened. These carry
+`canonical_unlinked: true`, the exact precedent `client_link` set, and both
+drains admit it. Post-flip the admitted item still meets the flipped-team
+quarantine a line later, so what changes is the REASON recorded, not a delivery.
+
+**NOT fixed:** the 20 threads. Their roots are still legacy-only with no
+canonical row, which means (a) they stay unrepairable until the F42 comment
+import runs, (b) any tab loaded before the browser fix still routes the old way,
+and (c) **the crosswalk backfill must not land first** — see item 103.
+
+**The standing check.** `node scripts/card-comment-transport-split-check.js`
+(read-only, public key, `--json` for the rows, `--baseline=` to move the gate;
+exit 1 above baseline, 2 on error). `test/card-comment-transport-split.js` pins
+its rules offline and lifts `_prodCrosswalkMismatchFields` out of `index.html`
+to prove the check and the page answer identically, so a check with its own idea
+of "linked" cannot drift into measuring nothing — including the front-door
+carve-out above, which is pinned there rather than measured, because it moves no
+row today and a check that only pins what it currently counts would not have it.
+Registered in `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT section, the same place and
+the same way as its siblings. **Baseline 20.**
+
+**The root is item 102**, and every number above is a symptom of it.
+
+---
+
+## 100. [2026-09-02, ALL FOUR SITES FIXED IN REPO — **DEPLOY PENDING**: both files are edge functions and do not ship with the GitHub Pages deploy that carries `index.html`; until the reviewed F27 §4 lane runs, production still runs the old gate] A parent lookup that cannot tell "no such row" from "two rows" — and one of the four reported it as a permissions problem while another corrupted data in silence
+
+**One shape, four copies.** Every one of them was:
+
+```ts
+.or(`id.eq.${X},native_comment_id.eq.${X}`).limit(2)
+// then
+if (!Array.isArray(rows) || rows.length !== 1) { /* one answer for 0 and for 2 */ }
+```
+
+`0` means *that comment does not exist here*. `2` means *the identifier is
+one row's primary key and a different row's `native_comment_id`*. They are
+different facts with different repairs, and all four sites collapsed them.
+
+| # | file / lane | what it answered | what that told the person |
+|---|---|---|---|
+| 1 | `production-write/index.ts:2015` `reconcileEntityOperation` (replay lane, `body.reconcile_only === true`) | 409 `comment_parent_ambiguous` | reload — class `reload` |
+| 2 | `production-write/index.ts:4995` `handleEntityOperation` `action === "add"` — **THE LIVE PATH**, staff and client alike | 409 `comment_parent_ambiguous` | reload |
+| 3 | `production-write/index.ts:4915` comment LIFECYCLE lane (edit/delete/resolve/unresolve) | **403 `comment_forbidden`** | class `access`: *"ask an SMM or the owner"* — an escalation for a row that does not exist, to people who cannot fix it |
+| 4 | `linear-inbound/index.ts:541` `readStoredComment()` | **`null`, no error, no log** | nothing at all |
+
+**Site 4 was the dangerous one.** `persistProductionComment` reads a `null` as
+*first seen*, which SKIPS echo suppression, SKIPS tombstone protection and
+re-derives the target from the issue. So a two-row case could overwrite a
+client-visible thread's author, body or audience, or erase a tombstone —
+data-destructive, not merely a refusal. The same file already had the correct
+precedent one function down: `readBatchForIssue` raises
+*"production comment batch target is ambiguous"* rather than returning null.
+
+**The storage layer had the answer the whole time.** `production_comment_upsert`
+(`migrations/2026-07-12-production-comments.sql:272-300`) resolves the identical
+question as an ORDERED fallback — `id` → `linear_comment_id` →
+`native_comment_id` → `idempotency_key`, each `for update`, first hit wins — so
+it can never be ambiguous, and it raises a DISTINCT
+`'production comment parent not found'` (`:403`). The gateway was discarding a
+taxonomy its own RPC maintains. `native_comment_id` carries a partial UNIQUE
+index (`:115-117`) and `id` is the PK, so a genuine two-row result requires one
+row's `native_comment_id` to equal a DIFFERENT row's `id` — reachable only
+because the gateway shape-checks the supplied identifier and nothing more.
+**The exact primary-key hit is the correct tie-break**, matching the RPC.
+
+**Why any of it happened is item 102** — the parent lookup finds zero rows
+because the crosswalk sends the client's root down the legacy lane, and the
+crosswalk fails because the card↔deliverable binding was never written.
+
+**What shipped — all four sites, in
+`supabase/functions/production-write/index.ts` and
+`supabase/functions/linear-inbound/index.ts`.** A shared
+`resolveCommentByRef()` (`production-write/index.ts:1878`) returning
+`found | missing | ambiguous | unavailable`, with the primary-key tie-break;
+sites 1 and 2 now raise a new 409 `comment_parent_not_found` distinct from
+`comment_parent_ambiguous`; site 3 keeps its 403 and its non-enumerating
+property **deliberately** (the in-code note says so, and splitting the status
+there would disclose whether a row exists) but is now reached only after the
+tie-break, so it stops being a fake permissions failure — it is the one site
+deliberately NOT split, so "all four fixed" means all four changed, not all four
+given new codes; site 4 (`linear-inbound/index.ts:574-585`) raises loudly and
+logs `alert: "ambiguous_native_comment"` instead of returning `null`.
+
+**The F27 re-pin is DONE, not owed.**
+`supabase/functions/production-write` is an F27 §4 CLOSURE function, pinned by
+SHA-256 in **both** `test/f27-section4-deploy-lane.js` and the workflow's
+`PRODUCTION_WRITE_SOURCE_SHA256`. The digest is computed from GIT, not the
+working tree — `node scripts/ef-fingerprint.js <commit-sha>
+--slugs=linear-outbound,production-write,deliverable-write,batch-write
+--expected-only --format=json`. Both places now read
+`cc44bf938fd666595061972c27721fbf10d17cb11b184e417f59478b0add5370` and
+`node test/f27-section4-deploy-lane.js` passes at `a27bcec6`; expected file
+count is unchanged at 5 and the other three slugs are untouched. **Anything that
+edits any file in that closure again — a comment-only edit included —
+invalidates both pins and needs the command re-run.**
+
+**What a reviewer must still confirm.** `test/write-ui-failure-messages.js` §3
+requires every `new GatewayError(NNN, "code")` string to carry guidance in
+`index.html`, so `comment_parent_not_found` fails `npm test` unless `index.html`
+ships in the same commit, and §4 forbids a deterministic refusal advising a
+retry — which is why it must not be filed under `reload`. **The two halves must
+not be split by a rebase or a cherry-pick**, and they deploy by different routes:
+`index.html` rides the ordinary GitHub Pages deploy, the gateway does not. Until
+the reviewed §4 lane runs, browsers carry guidance for a code the deployed
+gateway cannot emit — harmless (the moved `comment_parent_ambiguous` text is
+already correct for what it does emit) but it is the reason this entry is marked
+DEPLOY PENDING rather than fixed.
+
+---
+
+## 101. [2026-09-02] A refused write exists only inside one browser: fifty rows of `localStorage` that do not name the card, and nothing on any server
+
+**This is the finding the owner considers the real one**, and items 99, 100 and
+104 are all downstream of it: every one of them was discovered because a client
+said something, not because anything reported it. (Their shared DATA cause is
+**item 102**; this item is why nobody found out.)
+
+**What is recorded when a write is refused.** `_writeUiReportFailure`
+(declared at `index.html:26363`) shows the person a notification and calls
+`_writeUiQueueDiagnostic` (`:25911`), which appends one row to
+`localStorage[WRITE_UI_QUEUE_DIAG_KEY]` and immediately truncates with
+`list.slice(-50)`. The row is:
+
+```js
+{ at, surface, kind, outcome, code }   // code truncated to 80 chars
+```
+
+**No card id. No client. No component. No comment id. No body.** So even the
+person holding the ring cannot say WHICH note was lost — only that a `comment`
+write on `calendar` failed at a timestamp. It is readable solely through
+`window.peekWriteUiQueueDiagnostics()` in that one browser profile, it is capped
+at 50 entries estate-wide-per-tab, and a cleared cache or a different device
+erases it.
+
+**And nothing else caught it either.** `deliverable_events` holds exactly **6**
+`comment_change` rows in its entire history, all on `2026-07-12`, the migration
+day; the newest event of any kind in the table is minutes old. So comment writes
+— accepted or refused — leave **no server-side trace at all**. Compare
+`GRA-6493`'s approve, which produced a `status_change` and a
+`mirror_out_echo_dropped` one second apart: the status lane is observable, the
+comment lane is not.
+
+**What a durable write-failure receipt would need to be.** Concretely, so this
+is a task and not a wish:
+
+1. **A row, server-side, written by the refusing side.** The gateway already
+   knows everything: `request_id`, `surface`, `operation`, `entity`, `id`,
+   `client_slug`, `team`, the refusal `code` and status, the principal kind. A
+   `production_write_refusals` table (or a `deliverable_events` action, which
+   needs no new grant) written in the `GatewayError` path costs one insert on a
+   path that is already failing.
+2. **The identifiers a human needs to find the thread**: card id, component,
+   parent comment id. The browser has these; the gateway receives most of them
+   already.
+3. **A leg for the refusals the server never sees.** A browser-side refusal (a
+   CAS guard, `canonical_comment_read_required`, a `legacy_parity_not_allowed`
+   local refusal) never reaches the gateway at all, so the receipt needs a
+   best-effort beacon on that path too — fire-and-forget, no retry, never
+   blocking the UI.
+4. **The text.** A refused comment is the only thing here that cannot be
+   reconstructed. Retaining the draft locally against its card id — a
+   `_calReplyDrafts` entry mirrored to `sessionStorage`, which today happens for
+   a new root and NOT for a reply — is a smaller change than any of the above and
+   removes the worst outcome on its own.
+5. **Something that reads it.** A receipt nobody queries is the ring with extra
+   steps. It belongs in `PRE_FLIP_HEALTH_CHECK.md` beside the other CONTEXT
+   counters, reported as "refusals in the last 24h, by code".
+
+**The cheap interim substitute is the precondition sweep**, and that is why item
+99 ships a script rather than only a fix:
+`scripts/card-comment-transport-split-check.js` finds the breakage from data we
+can already read, BEFORE anyone hits it, without any new instrumentation. It
+cannot see a refusal that has already happened — nothing can — but it can name
+every thread where one is waiting to.
+
+---
+
+## 102. [2026-09-02] THE ROOT: the card↔deliverable binding has essentially never been written — 5,150 of 6,241 deliverables have `card_id` NULL
+
+**Measured over the whole table, 2026-09-02, paged.** 6,241 `deliverables`:
+
+- `card_id IS NULL` — **5,150** (82.5%)
+- `origin` histogram — `manual` **5,046**, `calendar` **1,157**, `samples` **38**
+
+Meanwhile 1,182 calendar card slots DO carry a `*_deliverable_id`. So the link
+exists in one direction and almost never in the other: the card knows its
+deliverable, the deliverable does not know its card. `_prodCrosswalkMismatchFields`
+requires **both** directions plus `origin` and `team`, which is why the mismatch
+population is what it is and why `origin+card_id` is 16 of the 20 reasons in
+item 99.
+
+**Every symptom on this page is downstream of this one fact.**
+
+- **Item 99** — the client comment gateway front door refuses a card whose
+  deliverable does not name it, so the client goes legacy while staff go
+  canonical. The crosswalk is the ONLY thing the client side consults.
+- **Item 100** — the gateway's parent lookup finds zero rows because of item 99,
+  and then could not say so honestly.
+- **Item 101** — nothing reported any of it.
+- **Item 103** — the repair for this entry has an ordering hazard that can make
+  things worse before better.
+- **Item 104** — the client change-request status bridge depends on the comment
+  reaching the gateway, which depends on the crosswalk.
+- Item 98's Workload classes and item 72 sit on the same seam from the other
+  side: a native store that the rest of the estate has not finished being
+  repointed at.
+
+**This is the entry a long-term solution has to answer.** Not "backfill the 20",
+not "fix the four lookups" — those are already done or scoped. The question is
+why 5,046 deliverables carry `origin = 'manual'` and no card binding at all, what
+writes that binding today (`origin = 'calendar'` on 1,157 rows says something
+does, sometimes), and whether the crosswalk should be a stored column pair at all
+rather than derived from the card side, which is the side that is actually
+populated. **Not attempted here**: this is an architecture decision with a data
+migration behind it, and it is not a change to make unattended.
+
+---
+
+## 103. [2026-09-02] The crosswalk data repair has an ORDERING HAZARD, and getting it backwards inverts the bug instead of fixing it
+
+This is the repair for **item 102**, and the order it is done in decides
+whether it helps.
+
+**The temptation is to backfill `origin` and `card_id` first.** It is the
+smallest change, it makes `_prodCrosswalkMismatchFields` return empty, and the
+20 rows in item 99 disappear from the sweep. **It also makes things worse — one
+way as shipped, and a second way that the item-99 fix was narrowed specifically
+to close. Neither was hypothetical: both follow from code paths read at HEAD.**
+
+**1. Every add on the card is refused while the canonical read is outstanding.**
+With the crosswalk valid, `_prodCanonicalCommentGate` returns
+`{linked: true, ready: false, status: 'loading'}` until the canonical thread has
+been read. `_calAppendComment` opens with:
+
+```js
+if (canonicalGate.linked && !canonicalGate.ready) {
+    showNotify('Notes are still loading', 'Retry the canonical thread before sending.');
+    return false;
+}
+```
+
+That refuses **the client too**, not only staff — a strictly larger blast radius
+than the bug it replaces, and it is a browser-side refusal, so item 101 applies:
+nothing anywhere records it.
+
+**2. The split would have INVERTED once the read completed — and this is why
+the item-99 predicate reads the crosswalk instead of the gate.** The projection
+compares the canonical rows against the legacy rows with
+`_prodCanonicalCoversLegacy`; with canonical empty and legacy non-empty it
+returns `false`, the read is stamped `legacy_retained`, and
+`_prodCanonicalCommentGate` answers `linked: false` even though the crosswalk is
+now clean. Had the add lane routed on `!gate.linked` — which is what the first
+draft of the item-99 fix did — then:
+
+- the STAFF add would have seen `linked: false` and gone **legacy**;
+- the CLIENT add never consults the gate at all —
+  `_prodClientCommentGatewayContext` consults only the crosswalk, which now
+  passes — so it would have gone to the **gateway**.
+
+Client canonical, staff legacy: the same two-transport split as item 99, running
+the other way, on a population `legacy_retained` makes large (445 non-archived
+calendar slots are crosswalk-VALID and carry legacy comments, so every one is a
+candidate for the hold). **`_prodCommentAddRoutesLegacy` reroutes only on a
+proven crosswalk MISMATCH**, so after a backfill both sides go canonical
+together and this hazard is closed. It is recorded because the reasoning is the
+reason the predicate is shaped that way, and a future edit that "simplifies" it
+back to `!gate.linked` re-opens it.
+
+**So the comment import comes first, or both land atomically.** The F42 lane
+already exists and already validates exactly these five columns:
+`scripts/f42-card-comment-import.js` carries `DELIVERABLE_FIELDS =
+['id','client_slug','team','origin','card_id']` and feeds
+`production_comment_card_import`, whose crosswalk guard is the same one
+`_prodCrosswalkMismatchFields` mirrors. Its planner sorts a card with a binding
+that does not describe it into the non-blocking **DEFECTS** bucket, which is
+precisely the 20 rows of item 99 — so the plan can see them today and refuses to
+import them until the crosswalk is repaired. **That is a genuine circular
+dependency and it is the crux of this item**: the import needs the crosswalk to
+be right, and repairing the crosswalk without the import inverts the bug. The
+resolution has to be one transaction that writes the deliverable's
+`origin`/`card_id` and imports the card's comments together, or an import lane
+that accepts a repair manifest naming the intended binding.
+
+**Do not do either half unattended.** State what you verified, per card, before
+touching a row.
+
+---
+
+## 104. [2026-09-02] A client's change request reaches the CARD and never the DELIVERABLE, while the same client's approval reaches both — root cause NOT established
+
+This is a **separate defect** from items 99-100. It is not explained by the
+comment-transport split, and its own mechanism is mapped but unproven. It is
+recorded here so that whoever picks it up starts from evidence rather than from
+the beginning.
+
+**What the client did, and what the board the designers work from was told.**
+
+| | client APPROVE | client CHANGE REQUEST |
+|---|---|---|
+| example | `GRA-6493` (`b1_d_9dba79a6…`) | `GRA-6422` (`b1_d_3466b7d9…`), `GRA-6424` (`b1_d_80abe5ea…`) |
+| card sub-status | flipped | flipped — both cards read `Tweaks Needed` |
+| DELIVERABLE status | `approved`, `updated_at 2026-09-02T12:44:18Z` — **one second** after the client's `12:44:17` action | still `client_approval`, `updated_at 2026-09-01T00:14:19Z` and `2026-08-21T13:33:35Z` — **stale, and both BEFORE the request** |
+| `deliverable_events` | `status_change role=client source=ui client_approval → approved`, then `mirror_out_echo_dropped` 3s later | **nothing on 2026-09-02 at all** |
+
+**The absence is decisive, not merely suggestive.** The same deliverable has a
+`2026-09-01T00:13:25Z status_change smm ui client_approval → client_approval`
+row — a NO-OP status write produces an event here. So a missing row is a write
+that never happened, not a write that changed nothing.
+
+**A human had to do it by hand, and that is in the table too.** `GRA-6422` and
+`GRA-6424` were both moved `client_approval → tweak` at `2026-09-02T14:56:05Z`
+and `14:56:08Z` by `role = admin, source = ui` — the owner, two hours after the
+client asked, with no intervening automated event. That is the cost of this
+defect stated in the data: without it the deliverables would still be sitting in
+`client_approval`.
+
+**Estate-wide the bridge DOES work when the comment reaches the gateway.**
+`deliverable_events` with `action = status_change, role = client` over the last
+three weeks: **143 `approved`, 46 `tweak`** — including this same client's own
+change requests on 2026-08-23, 08-26 and 08-30. The failure is conditioned on
+the comment falling back to legacy, i.e. on the crosswalk, i.e. on item 102 —
+and that is measurable rather than merely inferred: **every one of the 46
+`status_change role=client to_status=tweak` events in the table belongs to one
+of 35 distinct deliverables, and all 35 carry `origin = calendar` and a non-null
+`card_id`. Zero exceptions.** A client change request has never once reached a
+deliverable whose crosswalk was broken. Re-run that pair of queries to falsify
+this.
+
+### The divergence points, as the starting point for whoever picks this up
+
+Approve (`_calReviewApplyApprove` / `_calClientApprove`) writes
+`_calPendingEdits[pid][comp + '_status']` and calls `_calFlushCardSave(pid)`.
+Nothing else. Change-request (`_calReviewRequestTweak`) does four more things,
+any of which could be the cause:
+
+1. **It posts the comment FIRST, with `deferLegacyUntilSourceSave: true`.** When
+   the crosswalk fails, `_calPostLinearComment` returns
+   `{skipped, legacy_transport, deferred_until_source_save}` **without calling the
+   gateway at all**, so `_writeUiBindRepairAck` binds nothing and no companion
+   status repair is created.
+2. **It stages a deferred legacy tweak**, whose two records are a `comment` leg
+   and a `status` leg — and the status leg targets the **Linear issue over n8n**,
+   not the native deliverable. There is no native leg.
+3. **It then suppresses the native status push outright**:
+   `_calNoLinearPush.add(pid + '|' + comp)` whenever a deferred item was staged,
+   which makes `suppressGraphic` true in `_calFlushCardSave` and skips the
+   `'graphic_status' in edits` branch entirely. The card row still saves — which
+   is why the `calendar_post_events` rows exist — and the deliverable is never
+   written.
+4. **The deferred status leg then dies anyway**: post-flip the drain either
+   409s at the n8n gate or is refused as `legacy_parity_not_allowed` and
+   discarded as `discarded_authority_flip`.
+
+Separately, on the `_calAppendComment` route, `_calApplyAutoStatus` is a **no-op
+when the sub-status already reads `Tweaks Needed`**, so a round-2+ request queues
+no status edit at all.
+
+**The server is not refusing this.** `clientOperationAllowed` in
+`production-write/policy.mjs` permits `client_approval → tweak` for a client
+principal explicitly. The write is never attempted.
+
+**Why this is a hypothesis and not a diagnosis.** The confirming artefact — the
+staged `deferred_calendar_<id>_status` item and its `_calNoLinearPush` entry —
+lives in the client's browser `localStorage` and cannot be read from here. That
+is item 101 again. **Do not close this as diagnosed.** Reproduce it on the drill
+client with the crosswalk broken on purpose, and read
+`window.peekWriteUiQueueDiagnostics()` and the outbox before and after.
+
+**A third card, recorded because it looked like the same thing and is not.**
+`p_mqpcwkq9_ne523` took a caption change request at `12:45:08` and its
+`caption_status` reads `Client Approval` now. The events say the client's flip
+DID stick at `12:45:10.245Z` — three rows share that `created_at`, and they are
+**two `status_change` rows** (the card overall `For SMM Approval → Tweaks
+Needed`, and `caption` `Client Approval → Tweaks Needed`) **plus one
+`comment_add` on `caption`**, not three status changes. A staff member then
+moved the caption back at `13:04:56.6` (`role = smm`, `Tweaks Needed → Client
+Approval`, with the card overall in the same write) and the graphic sub-status at
+`13:04:41` — nineteen minutes later.
+A staff overwrite, not a lost write. Its own graphic deliverable shows a matching
+`13:03:43Z smm_approval → client_approval`. But the same gap applies to that card
+too: its client change request produced no deliverable event either, and the
+caption component has no deliverable at all, so nothing on the caption lane could
+ever reach one.
+
+---
+
+## 105. [2026-09-02] Five things this sweep turned up in passing
+
+Recorded here rather than in a session log, per this file's rule that an item
+leaves by being done or by an owner decision, never by silence.
+
+### 105.1 — Replies essentially never happen on this estate, and that is a symptom
+
+Across `soniachopra`'s entire account: 91 cards, **126** card comments in the
+five comment columns (98 excluding the legacy `tweaks` mirror; 82 across
+`video_tweaks` + `graphic_tweaks` alone) and **2 replies, ever** — both on
+components other than video or graphic, which have **zero**. A conversation
+feature with a 1.6% reply rate is either unused or broken, and items 99-100 give
+a mechanism for the second. Worth measuring across other clients before assuming
+it is a habit rather than a defect.
+
+### 105.2 — 152 slots are the reservoir, not the leak
+
+The 152 deliverable-linked, crosswalk-mismatching slots that carry no client root
+are excluded from item 99's gate for a good reason (a staff root there IS
+canonical). But each of them becomes an item-99 row **the first time a client
+comments on it**. The sweep reports the number so the growth is visible; the
+repair is item 102's, not a per-slot one.
+
+### 105.3 — ADD was the only comment operation without the fallback its siblings had
+
+`_calToggleCommentDone` and the delete confirm both branch on
+`_prodCanonicalCommentGate(post, comp).linked` and fall back to the legacy card
+store; the Samples twins do the same. The in-code rationale is explicit —
+*"Holding sends the card back to the legacy resolve path, which is the one that
+still works on an uncovered card."* ADD did not, on either surface, and on
+Samples the staff add specifically: `_sxrPostLinearComment` computed the gate
+only `_isClientLink ? … : null`. Closed by the item 99 fix on both surfaces —
+though NOT by copying the siblings' predicate: `.linked` is the right answer for
+a READ (it decides what is on screen) and too wide for a WRITE, so ADD asks the
+crosswalk directly. See item 99's table of the three states that differ. It is
+recorded because the SHAPE recurs: when one operation in a family routes
+differently from its siblings, that difference is the bug, and this is the second
+time this family has produced one.
+
+### 105.4 — `deliverable_events` records nothing about comments
+
+Six `comment_change` rows exist in the entire table, all on `2026-07-12`. Status,
+due, assignee, archive, batch-asset and description changes all emit events;
+comments emit none. That is why item 101 has no fallback data source, and it is a
+one-line-per-write fix on a path that already writes events.
+
+### 105.5 — item 96's extractor hazard, applied
+
+`test/card-comment-transport-split.js` lifts five functions out of `index.html`
+and six out of the check with the same hand-rolled `grabFunc` item 96 documents
+as unsafe. It carries item 96's two required properties rather than waiting for
+the shared extractor that item asks for: every slice is **parsed standalone**
+(`new vm.Script`) and **bounded** by an explicit character limit, so an
+over-extraction that would otherwise pass silently throws instead. Offered as the
+pattern for the next test that has to do this, and as a partial answer to item
+96 that costs nothing.
+
+## 106. [2026-09-02] The deploy-provenance test pins a workflow's SHA literals as TEXT, so a pin can go stale against its own source and every test stays green
+
+Found by the Codex review on PR #1226, which flagged the stale `linear-inbound`
+pin and then asserted the staleness "makes `node test/ef-deploy-provenance.js`
+fail at this commit". It does not. Verified at `f144c389`: the test exits 0 and
+prints `Edge Function deploy provenance checks passed`, including its own
+assertion `linear-inbound has one dispatch-only pinned-SHA owner and no push
+deploy path`. It is in `npm test` — `test/run-all.js:15` globs the directory
+with `readdirSync` — so the all-green result was accurate.
+
+**The interesting part is WHY it passed.** `test/ef-deploy-provenance.js` asserts
+that a deploy workflow CONTAINS the expected literal strings and that ownership
+of a slug is exclusive. It never compares a pin against the tree it is supposed
+to describe. So the two properties it checks are both structural, and the one
+property that matters operationally — *does this pin still name this source?* —
+is unchecked. A pin can drift arbitrarily far from its function's real closure
+and the suite stays green for as long as the literal is still spelled the same
+way somewhere in the YAML.
+
+Measured today, `deploy-f27-linear-inbound.yml` pins
+`CANDIDATE_SOURCE_SHA256: 3d91b2a2dfb9b8b1dc563cd8425378f7067d9e2fdf16278f45a4546823f09574`
+while `node scripts/ef-fingerprint.js $(git rev-parse HEAD)
+--slugs=linear-inbound --expected-only` computes
+`019a463dee2b4b91ff0b19a0220479e7602e9a5880da6d19519f9113716bf0fc` over 5 files.
+Stale since `d9fbc2e7` (2026-08-30) per item 77, and item 100 added a second
+reason. Nothing in CI has ever said so.
+
+**Why the guard was NOT added in the PR that found this.** A check comparing
+every lane's `CANDIDATE_SOURCE_SHA256` against `ef-fingerprint.js` fails the
+moment it is written, because the pin it would first examine is already stale.
+Shipping it inside #1226 would have turned that PR red on breakage it did not
+cause, and the only ways to get green would be to weaken the new guard or to
+move `REVIEWED_RELEASE_SHA` — a human-review gate no agent may self-certify.
+That is the same ordering hazard item 103 describes, in a different costume: the
+detector has to land with, or after, the repair it detects.
+
+**The shape that works.** Land the re-pin PR item 77 asks for, then add the
+comparison as a hard gate in the same change or immediately behind it. If the
+re-pin is going to sit, land the comparison first as a REPORTING check — print
+every lane whose pin disagrees with its computed closure, exit 0 — so the drift
+is at least visible in CI, then flip it to a failure once the backlog is clear.
+A reporting check that names four stale lanes beats a hard gate nobody can merge.
+
+**The generalization worth taking.** Any test that pins a value by asserting a
+file contains a literal is testing spelling, not truth. The digest is derivable
+(`ef-fingerprint.js` already derives it), so the assertion can compare rather
+than match — and where a value is derivable, matching its text is the weaker
+test every time. Worth a sweep for the same shape elsewhere: item 100's
+`test/f27-section4-deploy-lane.js` pins `production-write` the same way, and it
+is only correct today because this session re-derived it by hand.
+
+## 107. [2026-09-02, FIXED — browser-only, live] A client had no composer at all on every CORRECTLY-crosswalked card — 212 slots, and the better-configured card was the unusable one
+
+Found from a screenshot of the client's own view, not from the data. The Notes
+modal rendered her comment, then **"Notes could not load"** with a Retry, and no
+text box. Her own words were "the sheet view does not open anything for me to
+edit", which was exact rather than vague: `_calComposerHtml` (~index.html:44304)
+replaces the ENTIRE composer with that message whenever the gate answers
+`linked && !ready`, so there was nothing to type into.
+
+**Mechanism.** `_prodCanonicalCommentGate` resolved the client's expected surface
+with `_prodVerifiedClientCommentSurfaceContext('sxr', …)` — surface hardcoded —
+and that function requires `surface === 'sxr'` plus a client capability whose
+view is `sample-reviews`. A calendar client satisfies neither, so the context was
+null, `exactClientBinding` false, and `ready` could never become true while a
+valid crosswalk held `linked` true. Permanent, for every client, on every
+correctly-linked calendar card.
+
+**Why the hardcoded `'sxr'` was NOT the thing to widen.** The protected reader
+agrees with it and is the authority: `clientSurfaceTargetAllowed`
+(`supabase/functions/production-comments/policy.mjs:55`) admits a client read only
+when `source_surface === 'sxr'` AND the deliverable's own `origin === 'samples'`.
+A calendar card's deliverable is `origin === 'calendar'` by construction, so a
+calendar client can never be authorized for a canonical read. Threading the real
+surface through would have converted a permanent "Notes could not load" into a
+permanent 403, and needed an edge-function deploy. The browser was promising a
+link the server was always going to refuse; the fix is to stop promising it. An
+unverifiable client surface now reports NOT linked — the same answer this
+function already gives for an unresolved crosswalk and for `legacy_retained`,
+for the same reason.
+
+**THE INVERSION, which is the part worth remembering.** On a card whose crosswalk
+was BROKEN the gate answered `linked:false` and the client could comment fine —
+which is why this client's three comments on 2026-09-02 landed and looked normal.
+On a card whose crosswalk was CORRECT she was locked out completely. **The
+better-configured card was the unusable one**, which is exactly why this looked
+random to the client, why it survived a full day of investigation into the wrong
+thing, and why no amount of reading the write path would have found it. Item 99
+was chased all morning on the broken-crosswalk population; this defect lived in
+the complement of that set and was invisible from it.
+
+**Scale, measured 2026-09-02 after the fix shipped:** 212 valid-crosswalk card
+slots carry at least one client-authored root comment. Every one of them was a
+slot where the client had no composer. That is ten times the 20 one-way threads
+of item 99, and it was never reported by anyone except the one client who
+escalated hard enough.
+
+**What this does not fix.** The client's change request still reaches the CARD
+and not the DELIVERABLE (item 104, cause still not established). And the root
+remains item 102.
+
+**The lesson for the next one.** Two defects, opposite populations, same feature,
+same day. A check written against the broken population would have passed
+cleanly while 212 slots were unusable. Any standing check for a
+client-visible surface should assert the HEALTHY population behaves too, not
+only that the known-broken one is bounded — a gate that fails closed on
+well-formed data fails silently, because nobody thinks to look there.
+
+## 108. [2026-09-02] A deep link to a POSTED parent reports "has no row in Production" and dumps the reader into the unfiltered list — the target exists
+
+Owner report 2026-09-02, with a screenshot: switching back to the Production
+tab produced
+
+  `b1_d_59a480584fa747abb27b0621c373c5ae has no row in Production. Most often
+   its post could not be resolved here; it may also never have been imported.
+   Ask an Admin to look it up. Showing the full list instead.`
+
+**The target exists.** That id is `VID-13330`, "Doug Cartwright | Aug. 17 - Aug.
+23 | Reels", `client_slug=dougcartwright`, `team=video`, `status=posted`, and it
+is the parent of the eight Reel sub-issues. So the notice states something
+false, which is the class this tab has already spent a week removing (items 81
+through 86, and the 2026-09-01 amendment to this very notice's copy).
+
+**Two things established, so the next session does not re-derive them:**
+
+1. It is NOT a load race. `_prodApplyDeepLinkFallback(authoritative)` sets
+   `deepLinkMissing` only under `if (!authoritative || !wanted) return;`, so the
+   notice fires against an authoritative read. The lookup genuinely missed.
+2. The KIND was wrong, and that is visible in the copy. The message rendered was
+   the DEFAULT branch (`' has no row in Production.'`). Had `wanted.kind` been
+   `'batch'`, it would have read "is not a post in Production" with the
+   batch-specific guidance. So a `?d=` pointing at a PARENT was resolved only
+   through `_prodIssue()`, never `_prodBatch()`.
+
+**Where to look first.** `_prodIssue(id)` matches `id` OR `displayId` against
+`_prodIssues()`, which is `_prodData().ISSUES` — whatever the adapter loaded.
+The open question this entry does NOT answer: whether that collection excludes
+`posted` rows, in which case every deep link to a finished item reports itself
+missing, or whether parents are simply held in a different collection than the
+one the deep-link resolver consults. Both are cheap to settle with one read of
+the adapter, and they imply different fixes: a resolver that falls back across
+collections, versus a collection that should not have been status-filtered.
+
+**Why it matters more than it looks.** The reader is not just shown a wrong
+sentence — they are dropped into the unfiltered list, which for this owner meant
+63 Editing Team rows every one of which is badged "Needs attribution" (ancient
+issues with no client mapping, correctly badged, but alarming in bulk). The
+recovery is a refresh, which the owner found by accident. A notice that names a
+row the system can see, and then hides that row behind a wall of unrelated
+warnings, teaches people to distrust the tab.
+
+**ROOT CAUSE FOUND AND FIXED, 2026-09-02, same day.** It IS a load race, and
+this entry's own elimination #1 was wrong in effect: the phase-one read is
+authoritative, but it is not COMPLETE, and the guard could not tell those apart.
+
+`PROD_CACHE_TERMINAL = ['approved','posted','archived','canceled','cancelled',
+'duplicate']` splits the boot in two. Phase one fetches `PROD_LIVE_FILTER`
+(everything NOT terminal) so the board is interactive fast; `_prodLoadTerminalTail`
+fetches the ~3,975 terminal rows behind it. Phase one COMPLETES while holding
+none of them. `VID-13330` is `posted`, so between the phases every lookup for it
+answers null -- and `_prodApplyDeepLinkFallback` then ran three evictions
+(`openId`, `openBatchId`, `openProjectId`) that clear what the reader opened and
+force `view = 'list'`, plus published the missing-notice.
+
+"At random times" was whether the tail had landed; the refresh that fixed it was
+the next boot winning the race. The blast radius is every finished item in the
+estate, not one parent: any deep link or open row at an approved, posted,
+archived, canceled or duplicate deliverable could bounce the reader to the
+unfiltered list.
+
+`terminalTailPending` was already tracked at `_prodState` and simply never
+consulted here. While it is set, an unresolved id now means NOT YET rather than
+GONE: nothing is cleared and no notice is published. The eviction still runs one
+tail later for a target that is genuinely absent, so a real missing row is still
+reported -- just not a loading one.
+
+The second half of the fix is easy to miss and was: `_prodLoadTerminalTail`
+re-rendered but never re-applied the deep link, so deferring without also
+applying on completion would have left a link at finished work deferred
+FOREVER. It now clears the flag and calls `_prodApplyDeepLinkFallback(true)`
+before rendering.
+
+**Still open from this report:** scroll position is not restored when returning
+from a sub-issue to its parent -- the owner reports it paints scrolled-down and
+then jumps back to the top. Not diagnosed; separate from the eviction above,
+though the forced `view = 'list'` transition may well have been producing some
+of it.
+
+---
+
+## 105. [2026-09-02, SCOPED — one owner decision, then it is a day's work] Pasting an image into a description: the render half shipped, the upload half needs a storage answer
+
+Owner, 2026-08-31: *"could you look into pasting images in the description? …
+same way it does in linear. So just a simple pasting of a screenshot."*
+
+**The render half is live.** PR #1204, merged 2026-09-01. Before it, markdown
+image syntax was not image syntax to this app at all — the inner `[alt](url)`
+matched the *link* rule, so a description carrying a screenshot drew a stray `!`
+in front of a blue link to a PNG. Any image already reachable by URL now renders
+inline, https-only, descriptions-only, `referrerpolicy="no-referrer"`, lazy.
+
+**The upload half was deliberately not bundled**, and #1204 said why: a paste
+handler needs somewhere to put the bytes, which is a storage decision plus a
+deploy. Scoped now in **`docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`**.
+
+### The fact that decides most of it
+
+**There is no browser→storage path anywhere in this estate.** The one bucket,
+`syncview-thumbnail-revisions`, is private; a service-role edge function writes
+it and a protected reader hands out 5-minute signed URLs. The browser has never
+held a key that can write, and an upload path is the worst place to start.
+
+So both options need the same write edge function, the same MIME allowlist, the
+same byte and dimension ceilings, and the same paste handler. They differ in one
+thing: **what the description stores**, and therefore what has to happen at
+render time.
+
+| | private bucket + signed URL | public bucket + unguessable path |
+|---|---|---|
+| privacy | object never publicly reachable | anyone holding the URL can fetch |
+| render path | **`_prodDescriptionHTML` must become async** | **no change at all** |
+| shared renderer | `_prodLinkify` also draws comments — the async contract must not leak there | untouched |
+| copy/paste the URL out | dies in five minutes, reads as broken | works |
+| new failure modes | expiry mid-read, a resolve call per description | none beyond the upload |
+
+### The question that decides it was traced, not left open
+
+*Does any surface a **client** can reach render a deliverable or batch
+description?* Writing one is admin/SMM only, but that is a write rule, not a
+read rule. Following the read paths:
+
+- `_prodDescriptionHTML(..., rich = true)` — the only image-enabled call — has
+  two call sites, both inside `_prodDescriptionPanelHTML`;
+- that, `_prodProjectDetail` and `_prodBatchDetail` are reached only from the
+  `_prodState.view` dispatch and the issue-detail panel — the Production
+  surface;
+- a client share link is confined to `['analytics','brief']`, asserted in two
+  places; `production` is a staff header route and is not among them;
+- the review surface a client *can* reach renders comments, which are already
+  image-disabled by construction.
+
+**No client-facing surface renders these descriptions.** That is what makes the
+public-bucket option defensible rather than merely convenient — and it is
+exactly what has to be re-checked if a client-visible batch panel is ever added,
+because that option's protection is the unguessability of the URL and nothing
+else.
+
+### Recommendation
+
+**Public bucket.** A pasted screenshot then has the same property the estate
+already accepts for every Drive and Frame.io link in the same field, and the
+render path does not change — so the work is a write edge function plus a
+clipboard listener, not a rewrite of a renderer that also draws comments.
+
+The private-bucket option is the stronger answer to a threat this surface does
+not currently have, and it charges an async contract on a shared renderer to get
+it. A legitimate call if the owner wants it; the cost is real and bounded.
+
+### What is needed
+
+1. **Which option.** One word.
+2. **Retention** — forever, or cleaned up when the referencing description
+   changes? *Forever* is fine and is what the public-bucket option implies.
+
+Nothing else is blocked; everything shared between the two can be written the
+moment the first answer lands.
+
+### Amended before merge (#1225): three findings, and one of them narrows the choice
+
+**1. [P1] The private-bucket option breaks the Linear mirror.** Verified:
+`description` is an OUTBOUND OPERATION and `linear-outbound` sends the
+description string to Linear **verbatim**, with outbound live for both teams. So
+a description carrying `syncview-image:<id>` puts that token into Linear as
+**literal text** — the picture renders in SyncView and a stray string appears in
+Linear, which is the opposite of *"same way it does in linear."* That option now
+also owes a durable Linear-compatible URL transformation, which is the public
+option wearing a costume. It does not merely cost more; it fails the sentence
+the request was made in.
+
+The public option is fine there for a reason worth writing down:
+`![alt](https://…)` is ordinary markdown Linear renders itself, and it survives
+post-create verification because `collapseLinearAutolinks` only collapses a link
+whose label equals its target — Linear's bare-URL auto-link signature. An image
+link is a real markdown construct with a different label, so nothing collapses
+and nothing false-mismatches. That is the 2026-08-07 orphan defect's exact
+shape, avoided by construction.
+
+**2. [P1] The upload must bind to a verified actor, not just the shared key.**
+`x-syncview-key` plus a caller-supplied role header authenticates *someone on
+staff* and nobody in particular — so it can neither enforce a per-actor rate
+limit nor stop an offboarded person who kept the key. `production-write` already
+does this properly, requiring `x-syncview-actor` and resolving it to exactly one
+active, role-compatible `team_members` row. The spec now requires the same, and
+the reason is sharper here: the object created is durable and, under the public
+option, publicly readable.
+
+**3. [P2] The spec's own MIME rule was wrong.** It said *"reject anything not on
+the list rather than sniffing"* — which validates a CLAIM. SVG bytes labelled
+`image/png` satisfy an allowlist applied to the browser-supplied value. Three
+conditions now, all required: the declared type is on the allowlist, the magic
+bytes identify a type on the allowlist, and the two agree and decode with that
+codec. The instinct behind the original line survives — do not let a sniffer
+WIDEN the set — but sniffing must narrow it, never replace the allowlist.
+
+**All three were spec defects caught before anything was built**, which is the
+argument for scoping in a reviewable file rather than in a plan nobody reads.
+
+## 103. [2026-09-02, ANSWERED — no repair here; the repair is items 95/102] Item 98's open question: B1 skipped nothing. The issues were deleted in Linear seconds after SyncView created them
+
+Item 98 ended with: *"The never-imported class additionally needs a root cause:
+why B1 skipped seven live graphics issues for six days is not answered here."*
+
+**B1 skipped nothing.** All seven were **deleted in Linear 15–47 seconds after
+the mirror created the issue there.** `workload_issues` is rebuilt from a Linear
+query, and a trashed issue is not in the result — so the row never entered the
+cache at all, which is exactly what "never imported" looks like from the
+outside.
+
+### The evidence, read out of `deliverable_events`
+
+Every one of the seven carries the identical four-event signature. Taking one:
+
+```
+13:17:32  create                    ui        (SMM, calendar surface)
+13:19:48  mirror_out_create_link    outbound  SyncView Mirror
+13:19:48  mirror_out_echo_dropped   outbound  SyncView Mirror
+13:20:06  foreign_write_detected    mirror    Linear webhook
+```
+
+The webhook payload on that last event carries the issue snapshot, and in it:
+
+```json
+{ "detect_only": true,
+  "issue": { "trashed": true, "botActor": null,
+             "createdAt": "2026-08-28T13:19:47.929Z",
+             "state": { "name": "Todo", "type": "unstarted" } } }
+```
+
+`createdAt` is the moment the **mirror** created the issue. The webhook says it
+was trashed **18 seconds later**. `detect_only: true` means SyncView recorded
+the write and refused to apply it — correctly, both teams have been
+SyncView-authoritative since 2026-08-28 — so the native row stayed live.
+
+**`botActor: null` means a person in Linear, not an integration.** And it was not
+SyncView: `OUTBOUND_OPERATIONS` in `linear-outbound/mapping.mjs` has `archive`
+and `restore` and **no trash or delete operation at all**. The mirror cannot
+produce this event.
+
+### The two classes item 98 reports are ONE defect
+
+Running the same lookup across both, **12 of the 13 gated rows carry a recorded
+deletion**: 7 `trashed: true`, 5 with an explicit `mirror_in_delete`.
+
+| item 98 class | rows | cause found |
+|---|---|---|
+| mirror says inactive (item 72's class) | 5 | 5 — 1 trashed, 4 `mirror_in_delete` |
+| never imported (item 98's new class) | 7 | 7 — all trashed, 15–47s after creation |
+| parked by name | 1 | — (a genuinely different mechanism, correctly so) |
+
+The difference between "the mirror says inactive" and "the mirror never had it"
+is **only whether a sync happened to run between the issue being created and
+being deleted.** Same mechanism, same repair. Item 72's class and item 98's
+class are not two problems.
+
+### Scale, and it is bounded
+
+Every `foreign_write_detected` event on record (3,146, from 2026-08-16 to
+2026-09-01) carrying `trashed: true`:
+
+| | |
+|---|---|
+| distinct deliverables | **14** |
+| team | **graphics, all 14** |
+| title | `Thumbnail 1`–`Thumbnail 6` |
+| assignee | **one person, all 14** |
+| client projects | 5 |
+| dates | 2026-08-18, 08-20, 08-26 (×6), 08-27 (×4), 08-28 (×2) |
+| since 2026-08-28 | **none** |
+| still live natively | **8 of 14** (`todo`) |
+
+Eleven of the fourteen were trashed within a minute of the issue appearing; the
+other three about three days later.
+
+### What this is, and what it is not
+
+**It is not someone doing something wrong.** A designer deleting what look like
+stray duplicate issues in the tool they were given is reasonable behaviour. The
+defect is that **since the flip, deleting an issue in Linear no longer deletes
+anything — it only hides live work from the one board that still reads Linear**,
+and nothing tells anybody that. The affordance survived the change of meaning.
+
+It is also **not a repair to make in the native store.** Those eight rows are
+correct: live, assigned, with a real deadline. Nothing about them needs fixing.
+
+### What actually closes it
+
+1. **Item 102 / PR #1222** — Workload reading the native source removes the
+   consequence entirely. A Linear deletion then hides nothing, because Workload
+   stops asking Linear. This is the fix.
+2. **One conversation with the graphics team**, which is the owner's to have:
+   deleting a thumbnail issue in Linear does not remove the work, and the person
+   doing it cannot see that it has any effect at all.
+3. **Nothing else.** Do not un-archive them in Linear (item 95 already rules
+   that out — it treats Linear as the fix for a problem caused by Linear being
+   load-bearing, and has to be repeated forever).
+
+### The check now says all this per row
+
+`scripts/workload-native-visibility-check.js` reads each hidden row's own
+`deliverable_events` for a `trashed: true` snapshot or a `mirror_in_delete` and
+prints the cause beside the identifier, with the gap between creation and
+deletion. Bounded to the rows already found hidden — one request — and it
+**fails soft**: a diagnosis is worth having and never worth turning a working
+gate red over. The baseline and the exit code are unchanged; a cause is context
+for a human, never a reason to pass or fail.
+
+A count without a cause gets read once and filed. That is what happened to this
+one for six days.
+
+### Amended before merge (#1223): a cause has to match the state it explains
+
+Review's P2, and it is right: the first version folded events ascending and kept
+the FIRST deletion, so a row deleted in Linear, **restored**, and hidden today
+for some other reason would have been labelled with its oldest deletion — and
+sent the reader at the wrong repair. `mirror_in_restore` exists in this estate,
+so that sequence is real rather than hypothetical.
+
+Two rules now, and they are different rules:
+
+1. **Restores are read, and the last event wins.** A deletion followed by a
+   restore leaves no cause; a deletion *after* a restore is the cause again,
+   because the current state is what a reader is about to act on.
+2. **A deletion only explains the states a deletion produces.** It removes the
+   row from the Linear query the mirror is rebuilt from, so it produces exactly
+   *"no workload row at all"* or `active = false`. It cannot make the mirror
+   park a live row by NAME in an approval queue — that is somebody moving the
+   status. Where the recorded deletion does not match the current state it is
+   printed as **history**, not as the cause, and not dropped: **a confident
+   wrong answer is worse than no answer, and a silent one is worse than both.**
+
+Both halves are now pure functions (`foldDeletionEvents`, `attachCauses`) so the
+suite **runs** them over fixtures instead of pattern-matching the source: the
+restore sequence, the re-deletion after it, a foreign write that is not a
+deletion at all, and the parked-by-name row that must get a note and no cause.
+
+Live result is unchanged — 12 of 13 still carry a cause — so this is a guard
+against a case that has not happened yet, bought for nothing.
+
+---
+
+## 101. [2026-09-02, FIXED] Item 96's extractor hazard, closed by a guard rather than by rewriting 122 files — and the first fix for it was wrong in the same shape as the bug
+
+`test/helpers/extract-function.js` is now the one correct extractor: it tracks
+regex literals (including character classes, so `[\"]` and `[/]` are inert) and
+template literals as a FRAME STACK, so a `${...}` is ordinary code again and a
+nested backtick does not close the outer template.
+
+**The 122 files were NOT rewritten, deliberately.** Only a handful are actually
+wrong; rewriting the rest would be a very large diff whose own failure mode is a
+test that looks like it passes — precisely the hazard being closed.
+`test/extract-function-integrity.js` converts the silent hazard into a loud one
+instead: it reads every extraction call site across the suite, re-derives each
+function with both scanners, and fails naming the function and the file if they
+disagree. A file keeps its local copy for as long as that copy is right; a file
+that delegates to the helper is exempt because it is correct by construction.
+
+**Measured 2026-09-02**, 477 distinct names across 107 files that extract source:
+
+| | |
+|---|---|
+| identical under both scanners | 433 |
+| from sources other than `index.html` | 42 |
+| naive scanner cannot close at all | 2 |
+| genuinely divergent | 2 |
+
+The four were migrated (`filming-plans-source`, `workload-tweak-exclusive-bucket`,
+`analytics-receipt-ui`, plus `calendar-toolbar-boot-recovery` and
+`notes-linear-routing` swept in on the first, wrong measurement). The guard keeps
+the remaining 433 honest.
+
+**A CORRECTION THIS ENTRY EXISTS TO RECORD.** The first version of the helper
+reported three MORE divergences — `_calRenderShell`, `renderWeekDeadlineTimeline`,
+`_calComposerHtml` — and those were **the new extractor being wrong, not the old
+one**. It modelled template literals with a boolean, so a nested backtick inside
+a `${...}` closed the outer template early and the function ended mid-string;
+`renderWeekDeadlineTimeline` came out at 945 characters against a true 4,456. The
+mistake had **the same shape as the bug it was written to fix** — a lexical
+context the scanner did not model — and it was caught only because the migrated
+suite failed to parse. Item 96's own headline figure ("79 extract differently")
+should be read with the same caution: it depends entirely on what the comparison
+scanner got right.
+
+The guard is mutation-tested: reverting a migrated file to a hand-rolled scanner
+fails it, naming both functions and the file.
+
+### Amended before merge (#1220): the guard described the suite instead of reading it
+
+Both of Codex's findings, and both about this guard rather than the extractor.
+
+**1. It only saw direct calls.** The call-site regex matched four hardcoded
+helper names taking a literal. `calendar-linear-link-move.js` reaches its
+extractor through a wrapper — `def('_calEsc')` calls `grabFunc` — and
+`onboarding-viewer-style-preview.js` names its extractor `grabFunction`, which
+was not in the list at all. **Neither file was covered.** Discovery is now taken
+from each file's own call graph: seed on the extractor idiom
+(`X.indexOf('function ' + name)`), then take the fixpoint over local functions
+that *forward one of their own parameters* to a seed. A wrapper, a rename, or a
+new file now costs nobody a memory. Merely *calling* the extractor does not make
+a function a wrapper — half the ordinary test-case functions do that with a
+literal, and sweeping them in buried the real shapes in noise.
+
+**2. It compared against a model, not against the suite.** This is the bigger
+one, and it was not in the finding — it is what the finding uncovered.
+
+The guard re-derived each name with `extractFunctionNaive`: **one**
+reconstruction of "the" hand-rolled scanner. The suite does not have one.
+Measured: **88 local extractors, roughly half tracking quotes and half counting
+braces and nothing else.** So the model was wrong in both directions — it would
+miss a real divergence in a file whose scanner differs, and invent one in a file
+that never opens a string at all.
+
+Codex's own example is exactly the invented kind. It reported
+`calendar-linear-link-move.js` extracting `_calEsc` at **49,193 characters
+against a true 145**. That is what the *model* does with the quote inside
+`/[\"]/`. That file counts braces only, never opens the string, and gets **145 —
+the right answer.** The coverage gap was real; the consequence named was not.
+
+So the guard no longer models. **It compiles each file's own scanner and runs
+it**, binding the file's index.html constant (through one level of
+`const SRC = process.env.X || path.join(ROOT, 'index.html')` indirection) and
+resolving wrappers transitively. The comparison is now between what that suite
+actually extracts and what the function actually is — which is the claim the
+guard was already making.
+
+**Measured after both corrections: 423 (file, function) call sites naming 321
+distinct index.html functions, executed through their own suite's scanner, ZERO
+divergent.** Mutation-tested: reverting a migrated file to a hand-rolled scanner
+fails the guard and names three real over-extractions, the worst being
+`_syncviewStaffPurgeSensitiveState` at **214,564 characters against a true
+4,162**.
+
+**And the helper's own header was carrying retracted numbers.** It still listed
+`_calRenderShell`, `renderWeekDeadlineTimeline` and `_calComposerHtml` as
+"silently over-extract" with measurements taken by the *first, buggy* version of
+the new extractor — the one that truncated `renderWeekDeadlineTimeline` to 945
+characters. Re-measured, all three agree exactly under both scanners
+(12,901 / 4,456 / 7,103). The PR description retracted this in prose while the
+file went on stating it as fact; the file now carries the true table, and the
+two genuine model-visible divergences (`renderCardView`, `renderOverview`, both
+in `analytics-receipt-ui.js`, which really did track quotes and really was
+migrated).
+
+**What the guard does not cover is now printed every run**, not omitted: call
+sites whose target is not a string literal (11), scanners reading a source other
+than index.html (6, named), and scanner shapes it cannot drive (1 — the
+two-name slicer in `write-ui-repair-races.js`). A guard that quietly skips what
+it cannot drive reads exactly like a guard that found nothing wrong.
 
 ---
 

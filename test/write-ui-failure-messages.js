@@ -143,7 +143,10 @@ console.log('  ok  all ' + browserCodes.size + ' browser and ' + serverCodes.siz
 // comment lifecycle write is refused identically on every attempt.
 for (const code of ['legacy_parity_disabled', 'legacy_parity_not_allowed',
   'team_is_linear_authoritative', 'operation_forbidden', 'comment_forbidden',
-  'invalid_comment_action', 'invalid_surface_operation']) {
+  'invalid_comment_action', 'invalid_surface_operation',
+  // Both parent-lookup refusals are resolved from stored rows, so the second
+  // attempt reads the same rows and answers the same way. See section 10.
+  'comment_parent_not_found', 'comment_parent_ambiguous']) {
   const text = resolve('comment', code, 409).text;
   assert(!/try (the action )?again/i.test(text),
     code + ' still tells the user to retry a refusal that cannot succeed');
@@ -394,5 +397,46 @@ assert(store.has('syncview_sxr_cache_v2_clientd'),
   'a cache holding a Kasper repair must survive too');
 assert(store.has('syncview_staff_identity'), 'unrelated keys are never touched');
 console.log('  ok  eviction spares the caches holding work that cannot be re-fetched');
+
+// -- 10. A reply whose parent cannot be resolved never costs the reply -------
+/*
+ * OPEN_REPAIRS 13 again, on the comment lane. `comment_parent_ambiguous` sat
+ * in the `reload` bucket from the day it was written, so the one person who
+ * can ever meet it -- someone mid-REPLY -- was told "Copy anything still in
+ * the note box, reload the page, then repeat the action". Two things were
+ * wrong with that. The parent is resolved from stored rows on the server, so a
+ * reload re-reads the same rows and refuses identically; and a REPLY draft is
+ * the one thing this app does not mirror to sessionStorage (only a new root
+ * is, see the note above the reload class), so the reload it prescribed was
+ * the single action that could destroy the text the failed write was carrying.
+ *
+ * `comment_parent_not_found` is its 0-row twin, split out of the same
+ * ambiguity code by the gateway. It is the two-transport split made visible: a
+ * root written to the legacy card store has no canonical row for a gateway
+ * reply to answer to. Section 4 already pins that neither advises a retry;
+ * this pins the rest of the contract, against the real resolver.
+ */
+for (const code of ['comment_parent_not_found', 'comment_parent_ambiguous']) {
+  assert.notStrictEqual(CODE_CLASS[code], 'reload',
+    code + ' must not drift back into the bucket that prescribes a reload');
+  const entry = resolve('comment', code, 409);
+  assert(!/reload/i.test(entry.title + ' ' + entry.text),
+    code + ' must never tell anyone to reload: ' + entry.text);
+  assert(/copy your text/i.test(entry.text),
+    code + ' must tell the reader to copy the draft first, because a reply draft'
+      + ' lives only in this tab: ' + entry.text);
+  assert(/note box/i.test(entry.text),
+    code + ' must name where that text is: ' + entry.text);
+  assert(/post it as a new note/i.test(entry.text),
+    code + ' must name something that actually gets the message onto the card: ' + entry.text);
+  assert(/owner/i.test(entry.text),
+    code + ' must route the underlying split thread to someone who can fix it: ' + entry.text);
+}
+/* Not vacuous: the class this pair was moved OUT of really does say reload,
+   and really is still the answer for a genuinely stale tab. */
+assert(/reload/i.test(CLASS.reload.text), 'the reload class is the one that DOES advise a reload');
+assert.strictEqual(CODE_CLASS.entity_not_found, 'reload',
+  'a card the server does not have is still the stale-tab case');
+console.log('  ok  an unresolvable reply parent never asks for the reload that would eat the draft');
 
 console.log('\nwrite UI failure message checks passed');

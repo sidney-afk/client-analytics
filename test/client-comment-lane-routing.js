@@ -494,6 +494,57 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
   const stamps = app.match(/client_link: _isClientLink === true/g) || [];
   ok(stamps.length === 2, `both enqueue functions carry the literal stamp; found ${stamps.length}`);
 
+  /* --- 7b. THE SECOND deliberately-legacy population (2026-09-02) ----------
+   * The comment ADD lane now routes a STAFF comment legacy when the slot's
+   * crosswalk is broken (OPEN_REPAIRS item 99), which is traffic the drain has
+   * never seen: an enrolled slug, no gate receipt, no client link. Without a
+   * stamp it is filed as `legacy_actor_unverifiable` — "the principal cannot be
+   * verified" — which is false: it was routed legacy on purpose, one action
+   * ago, by the person still sitting there. Same shape as client_link, same
+   * security property: the quarantine exists to stop enrolled writes SNEAKING
+   * down the legacy lane, and this one was sent down it by rule. */
+  async function runStampedEnqueue(fnName, scheduleName, options) {
+    const captured = [];
+    const context = vm.createContext({
+      _isClientLink: false,
+      _writeUiLegacyAppendOutboxItem: async (surface, record) => { captured.push({ surface, record }); },
+      [scheduleName]: () => {},
+    });
+    vm.runInContext(extract(fnName), context);
+    await context[fnName]('comment', { issue: 'https://example.invalid/i/1', body: 'x' },
+      'http 502', 'enrolledclient', options);
+    if (captured.length !== 1) throw new Error(fnName + ' did not append exactly one item');
+    return captured[0].record;
+  }
+  for (const [fnName, scheduleName] of [
+    ['_linearOutboxEnqueue', '_linearOutboxScheduleRetry'],
+    ['_sxrLinearOutboxEnqueue', '_sxrLinearOutboxScheduleRetry'],
+  ]) {
+    const stamped = await runStampedEnqueue(fnName, scheduleName, { canonicalUnlinked: true });
+    ok(stamped.canonical_unlinked === true && stamped.client_link === false,
+      `${fnName}: a STAFF add the crosswalk sent legacy is stamped canonical_unlinked, not client_link`);
+    const plain = await runStampedEnqueue(fnName, scheduleName, undefined);
+    ok(!('canonical_unlinked' in plain),
+      `${fnName}: and every other enqueue keeps the exact record shape it had — the key is absent, not false`);
+  }
+  for (const [label, fnName] of [
+    ['calendar', '_calLegacyPostLinearComment'],
+    ['sxr', '_sxrLegacyPostLinearComment'],
+  ]) {
+    ok(/canonicalUnlinked: !!\(meta && meta\.canonicalUnlinked\)/.test(extract(fnName)),
+      `${label}: the legacy transport passes the add lane's verdict on to the retry queue`);
+  }
+  conditions.forEach((cond, index) => {
+    const label = index === 0 ? 'calendar drain' : 'sxr drain';
+    const admits = new Function('it', '_writeUiRerouteUseGateway',
+      `return !!(it && it.transport === 'legacy_n8n' && (${cond}));`);
+    const staffItem = { transport: 'legacy_n8n', kind: 'comment', client_slug: 'enrolledclient', attempts: 0 };
+    ok(admits({ ...staffItem, canonical_unlinked: true }, () => true) === true,
+      `${label}: admits the stamped enrolled STAFF item instead of quarantining it as unverifiable`);
+    ok(admits(staffItem, () => true) === false,
+      `${label}: and an UNSTAMPED enrolled staff item is still refused — the stamp is the whole permission`);
+  });
+
   if (failures) {
     console.error(`\n${failures} client-comment lane-routing check(s) failed`);
     process.exit(1);

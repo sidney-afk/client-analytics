@@ -204,7 +204,7 @@ lane PR is under review.
 P.3 deploys through the dispatch-only
 `.github/workflows/deploy-f27-linear-inbound.yml` lane. It has no push or pull
 request trigger. Its `commit_sha` input is hard-bound to the reviewed release
-`661e5b1bf9dc0643c89d09d47b93a1362c5af275`; the workflow checks out and
+`72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c`; the workflow checks out and
 deploys exactly that commit after proving it is on current main.
 
 Before dispatch, confirm the protected `production` Environment permits only
@@ -227,7 +227,7 @@ Dispatch the forward operation only after the owner go:
 
 ```text
 gh workflow run deploy-f27-linear-inbound.yml --ref main \
-  -f commit_sha=661e5b1bf9dc0643c89d09d47b93a1362c5af275 \
+  -f commit_sha=72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c \
   -f operation=deploy-reviewed-release \
   -f confirm=DEPLOY_REVIEWED_LINEAR_INBOUND
 ```
@@ -318,7 +318,7 @@ same pinned release SHA:
 
 ```text
 gh workflow run deploy-f27-linear-inbound.yml --ref main \
-  -f commit_sha=661e5b1bf9dc0643c89d09d47b93a1362c5af275 \
+  -f commit_sha=72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c \
   -f operation=restore-captured-v39 \
   -f confirm=RESTORE_CAPTURED_V39_LINEAR_INBOUND
 ```

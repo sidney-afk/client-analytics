@@ -141,7 +141,7 @@ const f27ReleaseCheckoutAt = f27Workflow.indexOf('- name: Check out exactly the 
 const f27DeployAt = f27Workflow.indexOf('supabase functions deploy linear-inbound');
 const f27RestoreAt = f27Workflow.indexOf('node scripts/f27-edge-source-rollback.js restore');
 const f27CleanupAt = f27Workflow.indexOf('- name: Delete private source and raw receipts');
-const reviewedReleaseSha = '661e5b1bf9dc0643c89d09d47b93a1362c5af275';
+const reviewedReleaseSha = '72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c';
 const denoConfigBlob = spawnSync(
   'git',
   ['show', `${reviewedReleaseSha}:supabase/functions/linear-inbound/deno.json`],
@@ -164,7 +164,7 @@ ok(/^on:\n  workflow_dispatch:\n/m.test(f27Trigger)
   && /operation:\n[\s\S]*?type: choice\n[\s\S]*?- deploy-reviewed-release\n\s*- restore-captured-v39/.test(f27Trigger)
   && /confirm:\n\s*description:[^\n]+\n\s*required: true\n\s*type: string/.test(f27Trigger),
 'the F27 inbound lane is dispatch-only and requires the pinned SHA, bounded operation, and explicit confirmation');
-ok(f27Workflow.includes('REVIEWED_RELEASE_SHA: 661e5b1bf9dc0643c89d09d47b93a1362c5af275')
+ok(f27Workflow.includes('REVIEWED_RELEASE_SHA: 72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c')
   && f27Workflow.includes('if [ "$DEPLOY_COMMIT" != "$REVIEWED_RELEASE_SHA" ]')
   && f27Workflow.includes('git -C operator merge-base --is-ancestor')
   && f27Workflow.includes('git -C operator cat-file -e "$DEPLOY_COMMIT:$required"')
@@ -202,7 +202,7 @@ ok(f27Workflow.includes("imports[0] !== 'npm:@supabase/supabase-js@2.49.8'")
   && denoLockBlobSha256 === 'a42630fbcde6d3f93da9ca2f5a9a39fd92ad23614853338443a56e7d4ab525ed'
   && f27Workflow.includes(`EXPECTED_DENO_CONFIG_SHA256: ${denoConfigBlobSha256}`)
   && f27Workflow.includes(`EXPECTED_DENO_LOCK_SHA256: ${denoLockBlobSha256}`)
-  && f27Workflow.includes('CANDIDATE_SOURCE_SHA256: 3d91b2a2dfb9b8b1dc563cd8425378f7067d9e2fdf16278f45a4546823f09574')
+  && f27Workflow.includes('CANDIDATE_SOURCE_SHA256: 019a463dee2b4b91ff0b19a0220479e7602e9a5880da6d19519f9113716bf0fc')
   && f27Workflow.includes('CANDIDATE_FILE_COUNT: \'5\'')
   && /- name: Prove the exact pinned import, frozen lock, and candidate closure\n\s*if: inputs\.operation == 'deploy-reviewed-release'/.test(f27Workflow),
 'the sole 2.49.8 import, exact release-blob config/lock bytes, no-diff frozen cache, and five-file candidate closure are pre-deploy gates');

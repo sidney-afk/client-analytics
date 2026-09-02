@@ -7701,6 +7701,41 @@ drifting a Section 4 pin by one digit reports it, dropping a lane from the table
 fails coverage, removing the rollback exclusion fails loudly, and flipping the
 gate early fails.
 
+### The re-pin itself is PREPARED AND NOT MERGED — it needs the owner, 2026-09-02
+
+PR: re-pins `CANDIDATE_SOURCE_SHA256` to `019a463d…`, moves
+`REVIEWED_RELEASE_SHA` to `72fbc4a5…`, and flips `HARD_GATE` to true in the same
+change, which is the ordering this entry prescribes.
+
+**It is deliberately left unmerged.** Moving `REVIEWED_RELEASE_SHA` names the
+commit that will be deployed to production, and this entry already records why
+that is not an agent's to certify. Everything mechanical is done and verified;
+the judgement is the owner's.
+
+Every value was re-derived with `scripts/ef-fingerprint.js`, never typed:
+`019a463d…` over 5 files, computed three times across the evening at three
+different main tips and identical each time, because the closure has not changed
+since `763e50d3`.
+
+**Two things this nearly got wrong, both worth recording.**
+
+1. **The runbook carries the dispatch command.** `docs/ops/F27_INSTALL_RUNBOOK.md`
+   names the reviewed release three times — once in prose and twice inside the
+   `gh workflow run` block the owner pastes. A re-pin that updated only the
+   workflow and the test would have been *correct* and still cost a rejected
+   dispatch, because the owner would have pasted the old SHA. The test's
+   `reviewedReleaseSha` const is a fourth site: the deno.json/deno.lock digests
+   are DERIVED at that commit, so it had to move too (the derived values are
+   unchanged, the files being identical at both commits).
+
+2. **The hard gate was not actually hard when it was first declared green.** The
+   apply script asserted its way out before reaching the `HARD_GATE` line, so the
+   run that "passed as a hard gate" was still reporting-only. Only the mutation
+   check found it — reverting the pin produced exit 0 where it had to produce 1.
+   A gate is not proven by a green run; it is proven by a red one. With it
+   genuinely flipped, reverting the inbound pin fails, and drifting a Section 4
+   pin by one digit fails.
+
 ## 107. [2026-09-02, FIXED — browser-only, live] A client had no composer at all on every CORRECTLY-crosswalked card — 212 slots, and the better-configured card was the unusable one
 
 Found from a screenshot of the client's own view, not from the data. The Notes

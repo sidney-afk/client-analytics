@@ -25728,6 +25728,87 @@
         });
         return valid;
     }
+    /* WHICH STORE DOES A NEW COMMENT ON THIS SLOT BELONG IN?
+
+       A card slot has two comment stores, and every operation that READS one
+       — plus _calToggleCommentDone, the delete confirm and both Samples twins
+       — picks with _prodCanonicalCommentGate(post, comp).linked, holding a
+       card whose crosswalk does not validate on the legacy card store. ADD
+       alone picked with _writeUiUseGatewayWhenReady, i.e. the
+       write_ui_reroute_clients allowlist, which knows a client slug and
+       nothing about this card. That is how one thread came to be written
+       through two transports: a client root fails the crosswalk and lands in
+       the card column with no canonical row, and the staff reply to it is sent
+       to a gateway that was never given the parent.
+
+       This answers the ADD lane half of the same question, and it is
+       deliberately NARROWER than !gate.linked, because that is also false for
+       three states which do NOT mean this card can never hold a canonical
+       thread:
+
+         unlinked          no deliverable id at all. Post-flip that is a
+                           documented fail-closed refusal (native_link_required,
+                           and WRITE_UI_NO_WORK_ITEM_TEXT beside it). Routing it
+                           legacy would report success on a card whose note
+                           reaches nothing. 18,180 of 19,362 slots, 2026-09-02.
+         legacy_retained   a crosswalk-VALID link the coverage invariant is
+                           holding back. The canonical thread is real and the
+                           gateway accepts writes to it; only the PROJECTION is
+                           held, and the hold applies to staff too.
+         crosswalk_error   a lookup that failed. Unknown is not broken.
+
+       So the verdict is read straight off the crosswalk, and only a proven
+       MISMATCH goes legacy — minus the single mismatch shape the gateway
+       client front door admits (card_id alone, deliverable side unbound),
+       because a client root on one of those DID go canonical and its reply has
+       to follow it. That carve-out is _prodClientCommentGatewayContext, copied
+       here so the two sides of a thread cannot disagree. Measured 2026-09-02:
+       8 slots mismatch on card_id alone and all 8 name a DIFFERENT card, so
+       card_unbound is false for every one of them and the carve-out changes no
+       row today — it is here because the first card_id-null one to acquire a
+       client root would otherwise be split the other way.
+
+       NOTHING IS STAMPED. An unresolved slot is looked up for this decision
+       only and the answer is deliberately not written into
+       post._canonicalCrosswalk. Stamping valid here would flip
+       _prodCanonicalCommentGate from linked:false to {linked:true,
+       ready:false} on a card whose canonical read nobody has performed, and
+       the Notes-are-still-loading guard that sits directly below the gate in
+       both append functions would then refuse a send that succeeds today, with
+       no control to clear it short of reopening the modal (the composer renders
+       a Retry button only on status error, and this state reads as loading). A
+       routing question answers itself and leaves render state alone. */
+    async function _prodCommentAddRoutesLegacy(surface, post, component) {
+        if (component !== 'video' && component !== 'graphic') return false;
+        const deliverableId = _writeUiNativeId(post, component);
+        if (!deliverableId) return false;
+        let verdict = _prodCrosswalkVerdict(post, deliverableId, component);
+        if (!verdict) {
+            let deliverable = null;
+            try {
+                const lookup = await _prodFetchCrosswalkRows([deliverableId]);
+                if (!lookup || !lookup.ok) return false;
+                deliverable = lookup.rows.get(deliverableId) || null;
+            } catch (e) { return false; }
+            // The lookup awaited the network. A card re-pointed meanwhile is a
+            // different question from the one just answered.
+            if (deliverableId !== _writeUiNativeId(post, component)) return false;
+            if (!deliverable) return false;
+            const fields = _prodCrosswalkMismatchFields(deliverable, surface, post, component);
+            if (!fields.length) return false;
+            verdict = {
+                state: 'mismatch',
+                fields,
+                card_unbound: String(deliverable.card_id == null ? '' : deliverable.card_id).trim() === ''
+            };
+        }
+        if (verdict.state !== 'mismatch') return false;
+        const fields = Array.isArray(verdict.fields) ? verdict.fields : [];
+        const frontDoorAdmits = fields.length === 1
+            && fields[0] === 'card_id'
+            && verdict.card_unbound === true;
+        return !frontDoorAdmits;
+    }
     function _writeUiNativeStatus(value) {
         const s = String(value || '').trim().toLowerCase();
         if (!s) return '';
@@ -26012,7 +26093,7 @@
         add('reload', [
             'native_link_required', 'canonical_comment_read_required', 'comment_cas_required',
             'cas_required', 'entity_not_found', 'entity_scope_unavailable',
-            'legacy_link_ambiguous', 'comment_parent_ambiguous', 'identity_repair_required',
+            'legacy_link_ambiguous', 'identity_repair_required',
             'batch_not_found', 'batch_not_active', 'batch_team_mismatch',
             'batch_client_mismatch',
             /* A fill names a card and the sibling it is completing. All three
@@ -26098,7 +26179,17 @@
             'invalid_component_fill_payload', 'invalid_component_fill_route',
             'invalid_intake_video_number', 'invalid_production_create_payload',
             'invalid_production_create_scope', 'unsupported_create_field',
-            'label_selection_invalid'
+            'label_selection_invalid',
+            /* The two parent-lookup refusals. `comment_parent_ambiguous` sat in
+               `reload` until 2026-09-02, which is OPEN_REPAIRS 13 all over
+               again: a reply whose parent cannot be resolved is refused from
+               stored rows, so the reload the message asked for re-reads the
+               same rows and refuses identically -- and a REPLY draft is not
+               mirrored to sessionStorage, so the reload it prescribed was the
+               one action that could destroy the text. Both now carry their own
+               sentence below; the class is here so a deleted sentence falls
+               back to "retrying will not help" rather than to "reload". */
+            'comment_parent_ambiguous', 'comment_parent_not_found'
         ]);
         return map;
     })();
@@ -26177,6 +26268,36 @@
         invalid_comment_body: {
             title: 'Note not saved',
             text: 'The note is empty or longer than 20,000 characters. Shorten it and send again — your text is still in the box.'
+        },
+        /* THE TWO PARENT-LOOKUP REFUSALS. Both reach a person mid-REPLY, and a
+           reply draft is the one thing this app does not mirror to
+           sessionStorage (only a new root is), so every word below is ordered
+           around that: copy first, because the refusal itself is deterministic
+           and nothing is lost by taking a moment.
+
+           Neither says "reload". `comment_parent_ambiguous` sat in the reload
+           class from the day it was written, so the person hitting it was told
+           to reload a page whose stale copy was never the problem -- the parent
+           row is resolved from stored rows on the server, identically on every
+           attempt -- and the reload it asked for is what would have thrown the
+           text away. That is OPEN_REPAIRS 13 in a different costume, and the
+           `reload` class text is the one that DOES belong to a stale tab.
+
+           NOT-FOUND is the one an SMM will actually meet, because it is the
+           two-transport split made visible: a root whose card fails the F42
+           crosswalk was written to the legacy card store with no canonical row
+           behind it, and a reply routed to the gateway asks for a parent that
+           was never sent there. The add lane now routes an unlinked card
+           legacy, which is what stops it happening (see _calAppendComment), so
+           this should be a stale tab loaded before that shipped -- but the
+           remedy named here works either way, and needs no explaining. */
+        comment_parent_not_found: {
+            title: 'Reply not saved',
+            text: 'The note you replied to is not in the production thread this reply was sent to, so nothing was saved. Copy your text out of the note box first — a reply draft lives only in this tab. Sending it again will be refused the same way; post it as a new note on the card instead, and send this code to the owner so the thread can be joined back up.'
+        },
+        comment_parent_ambiguous: {
+            title: 'Reply not saved',
+            text: 'Two production notes answer to the identifier this reply names, so the thread it belongs to cannot be told apart and nothing was saved. Copy your text out of the note box first — a reply draft lives only in this tab. Sending it again will not change the answer; post it as a new note on the card instead, and send this code and the card to the owner, who has to separate the two notes.'
         },
         legacy_parity_disabled: {
             title: 'Write refused',
@@ -29528,7 +29649,7 @@
             return true;
         } catch { return false; }
     }
-    async function _linearOutboxEnqueue(kind, payload, errMsg, clientSlug) {
+    async function _linearOutboxEnqueue(kind, payload, errMsg, clientSlug, options) {
         const record = {
             id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
             kind: kind,
@@ -29547,6 +29668,19 @@
             // able to recognize it. Stamped here, once, so every enqueue
             // site a client can reach is covered.
             client_link: _isClientLink === true,
+            // The same argument as client_link, for the other traffic the add
+            // lane deliberately routes legacy on an ENROLLED slug: a comment on
+            // a slot whose crosswalk is broken. Without the stamp the drain
+            // re-derives the lane from enrollment, sees an enrolled staff item
+            // with no gate, and files it under `legacy_actor_unverifiable` --
+            // "the principal cannot be verified", which is not what happened:
+            // this item was routed legacy on purpose, one action ago, by the
+            // person still sitting there. The quarantine's security property is
+            // untouched (it exists to stop enrolled writes SNEAKING down the
+            // legacy lane, and this one was sent down it by rule), and post-flip
+            // the admitted item still meets the flipped-team quarantine a line
+            // later, so this changes the REASON recorded and no delivery.
+            ...(options && options.canonicalUnlinked ? { canonical_unlinked: true } : {}),
             client_slug: String(clientSlug || '')
         };
         await _writeUiLegacyAppendOutboxItem('calendar', record);
@@ -31433,7 +31567,8 @@
                the routing fix sends legacy on the first attempt — retrying it
                here changes the lane of nothing. */
             if (it && it.transport === 'legacy_n8n'
-                && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
+                && (it.source_gate || it.client_link || it.canonical_unlinked
+                    || !_writeUiRerouteUseGateway(it.client_slug))) {
                 // item 63: prove the team, then require it to still be on
                 // Linear before touching the webhook.
                 //
@@ -31676,7 +31811,8 @@
             } catch (e) {
                 console.warn('[Calendar] Linear comment post failed - queued for retry', e);
                 try {
-                    await _linearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e), clientSlug);
+                    await _linearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e), clientSlug,
+                        { canonicalUnlinked: !!(meta && meta.canonicalUnlinked) });
                 } catch (queueError) {
                     console.warn('[Calendar] Linear comment retry could not be preserved', queueError);
                 }
@@ -31783,7 +31919,26 @@
         const clientGatewaySurface = _isClientLink
             ? await _prodClientCommentGatewayContext('calendar', meta && meta.post, component)
             : null;
-        if (!(await _writeUiUseGatewayWhenReady('calendar', meta)) || (_isClientLink && !clientGatewaySurface)) {
+        /* The ADD lane hands down one answer, for the component the write
+           actually uses: does this slot's crosswalk prove the canonical thread
+           is not the one this card reads from? It is decided in
+           `_calAppendComment` (via `_prodCommentAddRoutesLegacy`) rather than
+           re-derived here, because `component` above collapses caption and
+           title onto 'video' — today the add lane only ever calls with video or
+           graphic, so that collapse is not reachable from it, but a rule that
+           depends on the caller never exercising a documented behaviour of its
+           own argument is not a rule. A slot the crosswalk breaks takes the
+           legacy card store, which is the store it is already read from.
+
+           `!clientGatewaySurface` keeps this off the client front door: a
+           client whose tab CAN build a verified context has already had the
+           crosswalk read for it, and that decision is the one that lane is
+           authorized by. So on a client link this disjunct only ever agrees
+           with the one beside it — the conjunct is literally the same term —
+           and on staff it is the whole repair. It sits last so the
+           reroute-flag priming above still runs. */
+        const canonicalUnlinkedAdd = !!(meta && meta.canonicalUnlinked) && !clientGatewaySurface;
+        if (!(await _writeUiUseGatewayWhenReady('calendar', meta)) || (_isClientLink && !clientGatewaySurface) || canonicalUnlinkedAdd) {
             if (meta && meta.deferLegacyUntilSourceSave) {
                 return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
             }
@@ -44356,10 +44511,50 @@
         if (comp === 'video' || comp === 'graphic') {
             const rootMsg = isRoot ? msg : arr.find(c => c && c.id === parentId);
             try {
+                /* CANONICAL-WHERE-LINKED, LEGACY-WHERE-NOT — the add lane's
+                   half of a rule its siblings already keep.
+
+                   A card whose crosswalk does not validate has two comment
+                   stores, and which one a message lands in was decided by two
+                   different rules. The READ side, `_calToggleCommentDone` and
+                   the delete confirm all branch on
+                   `_prodCanonicalCommentGate(post, comp).linked` and hold an
+                   unlinked card on the legacy card store — the rationale beside
+                   the coverage hold says it outright: the legacy path "is the
+                   one that still works on an uncovered card". ADD did not: it
+                   routed on `_writeUiUseGatewayWhenReady` alone, i.e. on the
+                   reroute allowlist, which knows a client slug and nothing
+                   about this card.
+
+                   That split is what breaks a thread in half. A client's root
+                   on such a card fails `_prodClientCommentGatewayContext` and
+                   is written to the card store, with no canonical row behind
+                   it. A staff REPLY to that root is then routed to the gateway
+                   by slug alone, the gateway looks for the parent it was never
+                   given, and the reply is refused — while the catch below
+                   discards the typed text before the local append can keep it.
+                   Same card, same thread, two transports, and only the second
+                   one fails.
+
+                   So the answer travels with the write, computed HERE because
+                   this is where the component the write actually uses is known
+                   — a reply inherits `comp` from its parent thread, while the
+                   transport collapses caption and title onto video — and
+                   answered by `_prodCommentAddRoutesLegacy`, which asks the
+                   CROSSWALK rather than the gate. The distinction is the whole
+                   of the safety argument: the gate also says "not linked" for a
+                   card with no deliverable id (whose refusal is deliberate) and
+                   for a valid link the coverage invariant is holding, and
+                   neither may be rerouted. Read the helper for the three states
+                   it excludes and why. A callsite that passes no answer at all
+                   — the review-tweak lane, the repair drain, Kasper — is
+                   untouched. */
+                const canonicalUnlinked = await _prodCommentAddRoutesLegacy('calendar', post, comp);
                 const acknowledgement = await _calPostLinearComment(_calLinearUrlFor(post, comp), body, msg.author, {
                     post, component: comp, comment: msg, parentId: msg.parent_id,
                     audience: _calMsgAudience(rootMsg), isTweak: isRoot && _calMsgIsTweak(msg),
-                    round: rootMsg && Number.isInteger(rootMsg.round) ? rootMsg.round : null
+                    round: rootMsg && Number.isInteger(rootMsg.round) ? rootMsg.round : null,
+                    canonicalUnlinked
                 });
                 committedBatch = {};
                 _writeUiBindRepairAck(post, committedBatch, acknowledgement);
@@ -53979,6 +54174,44 @@
             const expectedClientSurface = _isClientLink
                 ? _prodVerifiedClientCommentSurfaceContext('sxr', post, component, deliverableId)
                 : null;
+            /* A CLIENT whose exact surface binding cannot be verified is sent
+               to the legacy card store, not held.
+
+               `_prodVerifiedClientCommentSurfaceContext` answers null for every
+               client on the CALENDAR: it requires `surface === 'sxr'` and a
+               capability whose view is `sample-reviews`. That is not an
+               oversight to widen here -- the protected reader agrees, and it is
+               the authority. `clientSurfaceTargetAllowed`
+               (production-comments/policy.mjs) admits a client read only when
+               `source_surface === 'sxr'` AND the deliverable's own
+               `origin === 'samples'`. A calendar card's deliverable is
+               `origin === 'calendar'` by construction, so a calendar client can
+               never be authorized for a canonical read. Claiming `linked` for
+               them promised a thread the server will always refuse.
+
+               Held, that promise cost the client their composer outright:
+               `_calComposerHtml` replaces the entire text box with "Notes could
+               not load" whenever `linked && !ready`, so on a card whose
+               crosswalk is CORRECT the client had nothing to type into, while
+               the same client could still comment on a card whose crosswalk was
+               BROKEN (that answers `linked:false` earlier and falls to legacy).
+               The better-configured card was the unusable one.
+
+               So an unverifiable client surface reports NOT linked, which is
+               the same answer this function already gives for an unresolved
+               crosswalk and for `legacy_retained`, and for the same reason:
+               where canonical cannot be served, the legacy store is the one
+               that still works. Staff are untouched (`_isClientLink` guards
+               it), the SXR client is untouched (their context resolves), and
+               nothing here widens what the server will authorize. */
+            if (_isClientLink && !expectedClientSurface) {
+                return {
+                    linked: false,
+                    ready: false,
+                    client: false,
+                    status: 'client_surface_unverifiable'
+                };
+            }
             const exactClientBinding = !_isClientLink || !!(
                 expectedClientSurface
                 && state
@@ -56106,9 +56339,25 @@
         function _prodCardFocusValid() {
             return !!(_prodState.focusCard && _prodBoardLoc(_prodBoardCols(), _prodState.focusCard));
         }
+        /* The hover title is ALWAYS emitted, and the 120-character threshold it
+           used to carry is gone.
+
+           That threshold measured the wrong thing. Whether a title is readable
+           depends on the width of the column it renders in, not on how many
+           characters it has -- and the sub-issue rows are the narrowest column
+           in the tab. Owner report 2026-09-02, on a parent whose eight children
+           are named "<client> | <date range> | Reel N": every one is ~44
+           characters, so not one of them qualified for a tooltip, and all eight
+           truncated to an identical prefix. The list was unreadable precisely
+           because the titles were SHORT enough to be judged fine.
+
+           `data-fulltitle` stays because it is already emitted here and at the
+           row renderer, but note it has no reader anywhere -- no CSS rule and
+           no script consumes it. The working tooltip is, and always was, the
+           native `title`. */
         function _prodTitleAttrs(text) {
             const s = String(text || '');
-            return ' data-fulltitle="' + _calEscAttr(s) + '"' + (s.length > 120 ? ' title="' + _calEscAttr(s) + '"' : '');
+            return ' data-fulltitle="' + _calEscAttr(s) + '" title="' + _calEscAttr(s) + '"';
         }
         function _prodReconcileSelection() {
             // Selection now also lives on project-view rows and the parent
@@ -56237,10 +56486,39 @@
                     _prodState.openProjectId = wanted.id; _prodState.clientSlug = ''; _prodState.view = 'project';
                 }
             }
-            if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
-            if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
-            if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
-            if (!authoritative || !wanted) return;
+            /* AUTHORITATIVE IS NOT THE SAME AS COMPLETE, and treating it as
+               complete is what evicted readers from finished work.
+
+               The boot read is deliberately two-phase: phase one fetches
+               PROD_LIVE_FILTER (everything NOT in PROD_CACHE_TERMINAL) so the
+               board is interactive fast, and `_prodLoadTerminalTail` fetches
+               the approved / posted / archived / canceled / duplicate rows
+               behind it. Phase one COMPLETES -- it is a real, finished,
+               authoritative read -- while deliberately holding none of the
+               ~3,975 terminal rows.
+
+               So between the two phases every lookup below answers null for any
+               finished item, and these three lines then clear what the reader
+               opened and force them to the list. Owner report 2026-09-02:
+               opening a POSTED parent bounced to the unfiltered issue list "at
+               random times", and a refresh fixed it -- random being whether the
+               tail had landed yet, and the refresh being the next boot winning
+               the race. `_prodApplyDeepLinkFallback` then also published the
+               "has no row in Production" notice for a row the tab could see
+               perfectly well one second later (OPEN_REPAIRS 108).
+
+               `terminalTailPending` is exactly the missing distinction and was
+               already tracked; it simply was not consulted here. While it is
+               set, an unresolved id means NOT YET, not GONE, so nothing is
+               cleared and no notice is published. The eviction still runs, one
+               tail later, for a target that is genuinely absent. */
+            const settling = !!_prodState.terminalTailPending;
+            if (!settling) {
+                if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
+                if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
+                if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
+            }
+            if (!authoritative || !wanted || settling) return;
             const opened = sameAsWanted(_prodState.openId)
                 || sameAsWanted(_prodState.openBatchId)
                 || sameAsWanted(_prodState.openProjectId);
@@ -56459,6 +56737,16 @@
                 _prodState.batchFiles.clear();
                 _prodState.batchFilesStatus.clear();
                 _prodState.terminalTailLoadedAt = Date.now();
+                /* The row set is only now COMPLETE, so this is the first moment
+                   a deep link at finished work can be honoured -- and the first
+                   moment an unresolved one is genuinely missing rather than not
+                   yet loaded. `_prodApplyDeepLinkFallback` defers both the open
+                   and the missing-notice while `terminalTailPending` is set, so
+                   without this call a link to an approved or posted row would
+                   be deferred and then never applied. Cleared BEFORE the call,
+                   because the flag is what tells it to defer. */
+                _prodState.terminalTailPending = false;
+                _prodApplyDeepLinkFallback(true);
                 if (document.getElementById('prodRoot')) _prodRender();
                 return true;
             } catch (e) {
@@ -57792,7 +58080,9 @@
             const title = c.name || c.id;
             const filtered = !!((_prodState.filters || []).length);
             const countLabel = count + (filtered ? ' matching issue' : ' issue') + (count === 1 ? '' : 's');
-            const titleAttrs = ' data-fulltitle="' + _calEscAttr(title) + '"' + (String(title || '').length > 120 ? ' title="' + _calEscAttr(title) + '"' : '');
+            // Was a hand-rolled copy of _prodTitleAttrs, threshold and all, so
+            // the two drifted as one place changed. Use the helper.
+            const titleAttrs = _prodTitleAttrs(title);
             const targetHtml = c.target
                 ? '<span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Target: ' + _calEscAttr(_prodFmtDateFull(c.targetRaw) || c.target) + '">' + _prodIcon('cal') + '<span>' + _calEsc(c.target) + '</span></span>'
                 : '<span class="prod-card-target is-empty" data-prod-ptarget="' + _calEscAttr(id) + '" data-prod-target-empty="true" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target" aria-label="Set target">' + _prodIcon('cal') + '</span>';
@@ -62827,7 +63117,23 @@
         if (comp === 'video' || comp === 'graphic') {
             const rootMsg = isRoot ? msg : arr.find(c => c && c.id === parentId);
             try {
-                const acknowledgement = await _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, msg.author, { post, component: comp, comment: msg, parentId: msg.parent_id, audience: _sxrMsgAudience(rootMsg), isTweak: isRoot && _sxrMsgIsTweak(msg), round: rootMsg && Number.isInteger(rootMsg.round) ? rootMsg.round : null });
+                /* Canonical-where-linked, legacy-where-not, for ADD too. The
+                   full account is on the calendar twin in _calAppendComment and
+                   on `_prodCommentAddRoutesLegacy`, which is what decides this
+                   — the CROSSWALK, not the gate, so a slot with no deliverable
+                   id and a valid link held by the coverage invariant both keep
+                   the transport they have today. The Samples-specific half is
+                   that `_sxrPostLinearComment` already consults the gate for a
+                   CLIENT link and routes a STAFF add on
+                   `_writeUiUseGatewayWhenReady` — the reroute allowlist —
+                   alone. So a staff reply to a root that fell back to the
+                   legacy card store went to the gateway, which has no parent to
+                   answer to, and the typed text died in the catch below.
+                   `canonicalUnlinked` closes exactly that half: the linked
+                   client contract above and the front door inside the transport
+                   both keep their current decisions. */
+                const canonicalUnlinked = await _prodCommentAddRoutesLegacy('sxr', post, comp);
+                const acknowledgement = await _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, msg.author, { post, component: comp, comment: msg, parentId: msg.parent_id, audience: _sxrMsgAudience(rootMsg), isTweak: isRoot && _sxrMsgIsTweak(msg), round: rootMsg && Number.isInteger(rootMsg.round) ? rootMsg.round : null, canonicalUnlinked });
                 committedBatch = {};
                 _writeUiBindRepairAck(post, committedBatch, acknowledgement);
                 nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
@@ -63273,7 +63579,7 @@
     let _sxrLinearOutboxTimer = null, _sxrLinearOutboxPromise = null, _sxrLinearOutboxOwnerKey = '';
     function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
     function _sxrLinearOutboxWrite(a) { try { const items = Array.isArray(a) ? a : []; if (items.length) localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(items)); else localStorage.removeItem(SXR_LINEAR_OUTBOX_KEY); return true; } catch (e) { return false; } }
-    async function _sxrLinearOutboxEnqueue(kind, payload, err, clientSlug) {
+    async function _sxrLinearOutboxEnqueue(kind, payload, err, clientSlug, options) {
         const record = {
             id: 'slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             kind, payload, attempts: 0, lastError: err || '', queuedAt: Date.now(),
@@ -63282,6 +63588,10 @@
             // client's deliberately-legacy comment must survive the drain's
             // enrollment re-derivation instead of being quarantined.
             client_link: _isClientLink === true,
+            // Twin of the calendar stamp: a comment the add lane routed legacy
+            // because the slot crosswalk is broken, on an enrolled slug. See
+            // _linearOutboxEnqueue for why the drain has to be told.
+            ...(options && options.canonicalUnlinked ? { canonical_unlinked: true } : {}),
             client_slug: String(clientSlug || '')
         };
         await _writeUiLegacyAppendOutboxItem('sxr', record);
@@ -63491,7 +63801,8 @@
                STAFF writes from the legacy lane — because a client_link item
                was never gateway traffic to begin with. */
             if (it && it.transport === 'legacy_n8n'
-                && (it.source_gate || it.client_link || !_writeUiRerouteUseGateway(it.client_slug))) {
+                && (it.source_gate || it.client_link || it.canonical_unlinked
+                    || !_writeUiRerouteUseGateway(it.client_slug))) {
                 // item 63: same authority test as the calendar drain, with the
                 // same deliberate source_gate exemption -- see the calendar
                 // drain comment for why quarantining a committed source
@@ -63666,7 +63977,8 @@
             } catch (e) {
                 console.warn('[Samples] Linear comment failed - queued', e);
                 try {
-                    await _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e), clientSlug);
+                    await _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e), clientSlug,
+                        { canonicalUnlinked: !!(meta && meta.canonicalUnlinked) });
                 } catch (queueError) {
                     console.warn('[Samples] Linear comment retry could not be preserved', queueError);
                 }
@@ -63733,12 +64045,19 @@
         const clientFrontDoorSurface = !clientCanonicalWrite && _isClientLink
             ? await _prodClientCommentGatewayContext('sxr', meta && meta.post, component)
             : null;
+        /* Same disjunct as the calendar twin, same reasons: the ADD lane's
+           crosswalk answer for the exact component of the write, kept off the
+           client front door (which owns its own crosswalk decision) and placed
+           last so the reroute-flag priming still runs. Unreachable from the
+           `clientCanonicalWrite` branch below, which is a LINKED card by
+           definition and stays fail-closed. */
+        const canonicalUnlinkedAdd = !!(meta && meta.canonicalUnlinked) && !clientFrontDoorSurface;
         if (clientCanonicalWrite) {
             // A LINKED client thread stays fail-closed and never falls back.
             if (!clientGate.ready || !clientGate.client || !nativeId || !clientSurface) {
                 throw _writeUiGatewayError(409, 'canonical_comment_read_required');
             }
-        } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta)) || (_isClientLink && !clientFrontDoorSurface)) {
+        } else if (!(await _writeUiUseGatewayWhenReady('sxr', meta)) || (_isClientLink && !clientFrontDoorSurface) || canonicalUnlinkedAdd) {
             if (meta && meta.deferLegacyUntilSourceSave) {
                 return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
             }

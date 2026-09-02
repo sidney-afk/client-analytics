@@ -56486,10 +56486,39 @@
                     _prodState.openProjectId = wanted.id; _prodState.clientSlug = ''; _prodState.view = 'project';
                 }
             }
-            if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
-            if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
-            if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
-            if (!authoritative || !wanted) return;
+            /* AUTHORITATIVE IS NOT THE SAME AS COMPLETE, and treating it as
+               complete is what evicted readers from finished work.
+
+               The boot read is deliberately two-phase: phase one fetches
+               PROD_LIVE_FILTER (everything NOT in PROD_CACHE_TERMINAL) so the
+               board is interactive fast, and `_prodLoadTerminalTail` fetches
+               the approved / posted / archived / canceled / duplicate rows
+               behind it. Phase one COMPLETES -- it is a real, finished,
+               authoritative read -- while deliberately holding none of the
+               ~3,975 terminal rows.
+
+               So between the two phases every lookup below answers null for any
+               finished item, and these three lines then clear what the reader
+               opened and force them to the list. Owner report 2026-09-02:
+               opening a POSTED parent bounced to the unfiltered issue list "at
+               random times", and a refresh fixed it -- random being whether the
+               tail had landed yet, and the refresh being the next boot winning
+               the race. `_prodApplyDeepLinkFallback` then also published the
+               "has no row in Production" notice for a row the tab could see
+               perfectly well one second later (OPEN_REPAIRS 108).
+
+               `terminalTailPending` is exactly the missing distinction and was
+               already tracked; it simply was not consulted here. While it is
+               set, an unresolved id means NOT YET, not GONE, so nothing is
+               cleared and no notice is published. The eviction still runs, one
+               tail later, for a target that is genuinely absent. */
+            const settling = !!_prodState.terminalTailPending;
+            if (!settling) {
+                if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
+                if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
+                if (_prodState.openProjectId && !_prodClient(_prodState.openProjectId)) { _prodState.openProjectId = ''; _prodState.view = 'list'; }
+            }
+            if (!authoritative || !wanted || settling) return;
             const opened = sameAsWanted(_prodState.openId)
                 || sameAsWanted(_prodState.openBatchId)
                 || sameAsWanted(_prodState.openProjectId);
@@ -56708,6 +56737,16 @@
                 _prodState.batchFiles.clear();
                 _prodState.batchFilesStatus.clear();
                 _prodState.terminalTailLoadedAt = Date.now();
+                /* The row set is only now COMPLETE, so this is the first moment
+                   a deep link at finished work can be honoured -- and the first
+                   moment an unresolved one is genuinely missing rather than not
+                   yet loaded. `_prodApplyDeepLinkFallback` defers both the open
+                   and the missing-notice while `terminalTailPending` is set, so
+                   without this call a link to an approved or posted row would
+                   be deferred and then never applied. Cleared BEFORE the call,
+                   because the flag is what tells it to defer. */
+                _prodState.terminalTailPending = false;
+                _prodApplyDeepLinkFallback(true);
                 if (document.getElementById('prodRoot')) _prodRender();
                 return true;
             } catch (e) {

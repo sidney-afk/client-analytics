@@ -7623,5 +7623,39 @@ recovery is a refresh, which the owner found by accident. A notice that names a
 row the system can see, and then hides that row behind a wall of unrelated
 warnings, teaches people to distrust the tab.
 
-Not fixed here. Recorded with the two eliminations above so the fix starts from
-the third hypothesis rather than the first.
+**ROOT CAUSE FOUND AND FIXED, 2026-09-02, same day.** It IS a load race, and
+this entry's own elimination #1 was wrong in effect: the phase-one read is
+authoritative, but it is not COMPLETE, and the guard could not tell those apart.
+
+`PROD_CACHE_TERMINAL = ['approved','posted','archived','canceled','cancelled',
+'duplicate']` splits the boot in two. Phase one fetches `PROD_LIVE_FILTER`
+(everything NOT terminal) so the board is interactive fast; `_prodLoadTerminalTail`
+fetches the ~3,975 terminal rows behind it. Phase one COMPLETES while holding
+none of them. `VID-13330` is `posted`, so between the phases every lookup for it
+answers null -- and `_prodApplyDeepLinkFallback` then ran three evictions
+(`openId`, `openBatchId`, `openProjectId`) that clear what the reader opened and
+force `view = 'list'`, plus published the missing-notice.
+
+"At random times" was whether the tail had landed; the refresh that fixed it was
+the next boot winning the race. The blast radius is every finished item in the
+estate, not one parent: any deep link or open row at an approved, posted,
+archived, canceled or duplicate deliverable could bounce the reader to the
+unfiltered list.
+
+`terminalTailPending` was already tracked at `_prodState` and simply never
+consulted here. While it is set, an unresolved id now means NOT YET rather than
+GONE: nothing is cleared and no notice is published. The eviction still runs one
+tail later for a target that is genuinely absent, so a real missing row is still
+reported -- just not a loading one.
+
+The second half of the fix is easy to miss and was: `_prodLoadTerminalTail`
+re-rendered but never re-applied the deep link, so deferring without also
+applying on completion would have left a link at finished work deferred
+FOREVER. It now clears the flag and calls `_prodApplyDeepLinkFallback(true)`
+before rendering.
+
+**Still open from this report:** scroll position is not restored when returning
+from a sub-issue to its parent -- the owner reports it paints scrolled-down and
+then jumps back to the top. Not diagnosed; separate from the eviction above,
+though the forced `view = 'list'` transition may well have been producing some
+of it.

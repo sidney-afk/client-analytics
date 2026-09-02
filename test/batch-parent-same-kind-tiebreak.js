@@ -118,12 +118,19 @@ function winner(claimants, order) {
 
 ok(winner([{ id: 'b1_b_a', subs: 1 }, { id: 'b1_b_b', subs: 9 }]) === 'b1_b_b',
   'SUB-ISSUES: the row the work hangs off wins, 9 over 1');
-ok(winner([{ id: 'b1_b_a', subs: 4, descLen: 10 }, { id: 'b1_b_b', subs: 4, descLen: 900 }]) === 'b1_b_b',
-  'DESCRIPTION: with the counts tied, the row somebody actually wrote in wins — the owner\'s rule');
 ok(winner([{ id: 'b1_b_a', subs: 2, descLen: 50 }, { id: 'b1_b_b', subs: 2, descLen: 50 }]) === 'b1_b_a',
-  'LOWER ID: with both real signals tied, the lower id decides');
-ok(winner([{ id: 'b1_b_a', subs: 1, descLen: 900 }, { id: 'b1_b_b', subs: 9, descLen: 10 }]) === 'b1_b_b',
-  'and COUNT OUTRANKS DESCRIPTION — a long note on an empty duplicate does not outweigh nine real sub-issues');
+  'LOWER ID: with the counts tied, the lower id decides');
+/* DESCRIPTION LENGTH IS DELIBERATELY NOT A RUNG, and this asserts its absence
+   rather than trusting the comment. `_prodCacheBatchColumns` drops `description`
+   from the first-paint snapshot, so a rule that read it would pick one winner on
+   the cached render and another after hydration — and the winner IS the
+   synthetic node's id, so a live `?d=` deep link would resolve to nothing.
+   Raised by review on #1217. */
+ok(winner([{ id: 'b1_b_a', subs: 4, descLen: 900 }, { id: 'b1_b_b', subs: 4, descLen: 10 }]) === 'b1_b_a',
+  'DESCRIPTION IS IGNORED: the longer description does NOT win — it is absent from the cached projection, so using it would move the node id between the cached and the live render');
+ok(winner([{ id: 'b1_b_a', subs: 4 }, { id: 'b1_b_b', subs: 4 }]) === 'b1_b_a'
+  && winner([{ id: 'b1_b_a', subs: 4, descLen: 900 }, { id: 'b1_b_b', subs: 4, descLen: 10 }]) === 'b1_b_a',
+  'and the answer is IDENTICAL with descriptions absent and present — which is exactly the cached-vs-live equivalence the rung was removed to guarantee');
 
 /* ---- 2. It cannot leak past the rungs above it -------------------------- */
 
@@ -145,219 +152,206 @@ ok(winner([{ id: 'b1_b_a', subs: 99, descLen: 9999, status: 'archived' }, { id: 
 
 /* ---- 4. The ten real collisions, replayed ------------------------------- */
 
-/* Measured from live data 2026-09-02. Titles omitted (public repo); `sameName`
-   is the measurement that justifies choosing a winner at all. */
+/* The SHAPES of the ten real collisions, measured from live data 2026-09-02.
+   ANONYMISED: this repository is public, so client slugs and production batch
+   primary keys are replaced with synthetic labels — raised by review on #1217,
+   and right. What is preserved is everything the rule reads: the number of
+   claimants, each one's kind prefix (`bat_` vs `b1_b_`, which provenance
+   reads), their WITHIN-GROUP ID ORDER (which the lower-id rung reads), their
+   sub-issue counts and description lengths. `sameName` records the measurement
+   that justifies choosing a winner at all: 8 of the 10 carry a byte-identical
+   name across their claimants. `descLen` is retained as a fixture field even
+   though the rule no longer reads it — it is what makes the two cache-unstable
+   groups visible, and those are the reason the rung came out. */
 const REAL = [
   {
-    "client": "artoflove",
+    "client": "client-A",
     "claimants": [
       {
-        "id": "b1_b_2f611d66726801df41fe0e54fa0e",
+        "id": "b1_b_a0",
         "status": "active",
         "subs": 0,
-        "descLen": 482,
-        "nameIdentical": true
+        "descLen": 482
       },
       {
-        "id": "b1_b_59c9b32d005dfecccb8898f3ac73",
+        "id": "b1_b_a1",
         "status": "active",
         "subs": 1,
-        "descLen": 482,
-        "nameIdentical": true
+        "descLen": 482
       }
     ],
     "sameName": true
   },
   {
-    "client": "bayavoce",
+    "client": "client-B",
     "claimants": [
       {
-        "id": "b1_b_e171d93fcfa0953800f6b5908f46",
+        "id": "b1_b_b0",
         "status": "active",
         "subs": 4,
-        "descLen": 942,
-        "nameIdentical": true
+        "descLen": 942
       },
       {
-        "id": "b1_b_f4dbc161f8cef2c4279ae20a7df3",
+        "id": "b1_b_b1",
         "status": "active",
         "subs": 1,
-        "descLen": 942,
-        "nameIdentical": true
+        "descLen": 942
       }
     ],
     "sameName": false
   },
   {
-    "client": "dougcartwright",
+    "client": "client-C",
     "claimants": [
       {
-        "id": "b1_b_35d9297d760269256b66ce0fa375",
+        "id": "b1_b_c0",
         "status": "active",
         "subs": 8,
-        "descLen": 2532,
-        "nameIdentical": true
+        "descLen": 2532
       },
       {
-        "id": "b1_b_e9507c778c7b04a2d0cfbda4d602",
+        "id": "b1_b_c1",
         "status": "active",
         "subs": 2,
-        "descLen": 2002,
-        "nameIdentical": true
+        "descLen": 2002
       }
     ],
     "sameName": true
   },
   {
-    "client": "dougcartwright",
+    "client": "client-D",
     "claimants": [
       {
-        "id": "b1_b_814fee58a32acda864c1ad63aff6",
+        "id": "b1_b_d0",
         "status": "active",
         "subs": 2,
-        "descLen": 1070,
-        "nameIdentical": true
+        "descLen": 1070
       },
       {
-        "id": "b1_b_9ae8220f87fa84708d554f67fc6c",
+        "id": "b1_b_d1",
         "status": "active",
         "subs": 2,
-        "descLen": 1266,
-        "nameIdentical": true
+        "descLen": 1266
       }
     ],
     "sameName": true
   },
   {
-    "client": "dougcartwright",
+    "client": "client-E",
     "claimants": [
       {
-        "id": "bat_83a9deb4-b1c7-4740-878b-1c85563aa339",
+        "id": "bat_e0",
         "status": "active",
         "subs": 1,
-        "descLen": 98,
-        "nameIdentical": true
+        "descLen": 98
       },
       {
-        "id": "bat_b899303c-48de-4535-8b27-2d6dea01032f",
+        "id": "bat_e1",
         "status": "active",
         "subs": 8,
-        "descLen": 98,
-        "nameIdentical": true
+        "descLen": 98
       }
     ],
     "sameName": true
   },
   {
-    "client": "jennaphillipsballard",
+    "client": "client-F",
     "claimants": [
       {
-        "id": "b1_b_25681d5693e37037040a0f488ad2",
+        "id": "b1_b_f0",
         "status": "active",
         "subs": 2,
-        "descLen": 480,
-        "nameIdentical": true
+        "descLen": 480
       },
       {
-        "id": "b1_b_3cb27cacc4e510ddef6c512288a8",
+        "id": "b1_b_f1",
         "status": "active",
         "subs": 2,
-        "descLen": 972,
-        "nameIdentical": true
+        "descLen": 972
       },
       {
-        "id": "b1_b_c3491fcbadbb2a08a6550e1745d0",
+        "id": "b1_b_f2",
         "status": "active",
         "subs": 5,
-        "descLen": 719,
-        "nameIdentical": true
+        "descLen": 719
       }
     ],
     "sameName": true
   },
   {
-    "client": "jennaphillipsballard",
+    "client": "client-G",
     "claimants": [
       {
-        "id": "b1_b_547a0e8523fc8a9dd7400c1ee9d5",
+        "id": "b1_b_g0",
         "status": "active",
         "subs": 19,
-        "descLen": 3967,
-        "nameIdentical": true
+        "descLen": 3967
       },
       {
-        "id": "b1_b_7a3b20c5c573c4a7940ae7163cfb",
+        "id": "b1_b_g1",
         "status": "active",
         "subs": 2,
-        "descLen": 2983,
-        "nameIdentical": true
+        "descLen": 2983
       }
     ],
     "sameName": true
   },
   {
-    "client": "jennaphillipsballard",
+    "client": "client-H",
     "claimants": [
       {
-        "id": "b1_b_8e671ea41667daed2f958d24f185",
+        "id": "b1_b_h0",
         "status": "active",
         "subs": 4,
-        "descLen": 828,
-        "nameIdentical": true
+        "descLen": 828
       },
       {
-        "id": "b1_b_d064ecbe2dd1d80b16b35edb7011",
+        "id": "b1_b_h1",
         "status": "active",
         "subs": 1,
-        "descLen": 458,
-        "nameIdentical": true
+        "descLen": 458
       },
       {
-        "id": "b1_b_d8a1d414e893f2ff5e83a5eadb00",
+        "id": "b1_b_h2",
         "status": "active",
         "subs": 4,
-        "descLen": 644,
-        "nameIdentical": true
+        "descLen": 644
       }
     ],
     "sameName": true
   },
   {
-    "client": "lilybaker",
+    "client": "client-I",
     "claimants": [
       {
-        "id": "b1_b_88024d6dca25995790d33ccc2fe8",
+        "id": "b1_b_i0",
         "status": "active",
         "subs": 1,
-        "descLen": 610,
-        "nameIdentical": true
+        "descLen": 610
       },
       {
-        "id": "b1_b_9837af64b456777977ee7f9a2411",
+        "id": "b1_b_i1",
         "status": "active",
         "subs": 20,
-        "descLen": 1228,
-        "nameIdentical": true
+        "descLen": 1228
       }
     ],
     "sameName": true
   },
   {
-    "client": "terrinammar",
+    "client": "client-J",
     "claimants": [
       {
-        "id": "b1_b_55985c652f05266bb98d00ec6bcf",
+        "id": "b1_b_j0",
         "status": "active",
         "subs": 4,
-        "descLen": 1762,
-        "nameIdentical": true
+        "descLen": 1762
       },
       {
-        "id": "b1_b_d2146c7c9b4cccbfc69e84bd025a",
+        "id": "b1_b_j1",
         "status": "active",
         "subs": 7,
-        "descLen": 1762,
-        "nameIdentical": true
+        "descLen": 1762
       }
     ],
     "sameName": false
@@ -369,10 +363,10 @@ REAL.forEach(group => {
   const w = winner(group.claimants);
   if (w) resolved++;
   if (group.sameName) identical++;
+  // Mirrors the shipped rule exactly: count, then the lower id. Description is
+  // deliberately NOT consulted — see the cache-stability note in index.html.
   const best = group.claimants.reduce((a, b) =>
-    (b.subs !== a.subs ? (b.subs > a.subs ? b : a)
-      : b.descLen !== a.descLen ? (b.descLen > a.descLen ? b : a)
-      : (b.id < a.id ? b : a)));
+    (b.subs !== a.subs ? (b.subs > a.subs ? b : a) : (b.id < a.id ? b : a)));
   ok(w === best.id,
     group.client + ': resolves to ' + (w || 'NOTHING')
       + ' [' + group.claimants.map(c => c.subs + 'subs/' + c.descLen + 'ch').join(' vs ') + ']');

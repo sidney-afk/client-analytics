@@ -8291,3 +8291,218 @@ mentioning the variable can be excused, which is how a real leak gets waved
 through — so string BODIES are stripped too, leaving only the places the
 variable is actually used. Mutation-tested: `console.log('leak', term)` and a
 bare `throw err` each fail by name.
+
+---
+
+
+> **NUMBERING NOTE.** Renumbered 102 -> 113 on merge: this branch was authored
+> while the ledger ended at 101, so it claimed 102, which by then belonged to the
+> card/deliverable binding root. Header only; the entry text is untouched.
+
+## 113. [2026-09-02, STEP 1 **APPLIED BY THE OWNER, 2026-09-02** — the view exists and was measured; the browser still reads Linear] Workload's native source exists; the Linear exit is now four steps rather than five
+
+Numbered 102 because 99–101 were taken by branches open at the same time.
+
+**APPLIED AND MEASURED, 2026-09-02.** The owner ran the migration. The view
+answers **6,676 rows — 5,117 sub-issues, 1,559 parents, 984 unfinished**, and
+its status-mapping guard did not fire, so every live `deliverables.status`
+value is mapped.
+
+Diffed against `workload_issues`, which is what the board reads today:
+
+| | native view | board today |
+|---|---|---|
+| rows | 6,676 | 3,455 |
+| unfinished sub-issues | **984** | **947** |
+
+**38 unfinished sub-issues exist natively and cannot be shown by the board at
+all**; exactly 1 goes the other way. That is not a rounding difference, it is
+live assigned work invisible to the person who owns it — the same class item 95
+measures and the same thing that produced the two "why is this not in my
+workload" reports on 2026-09-02. Among the invisible: `GRA-7237` (already named
+in item 98), `GRA-7243` through `GRA-7247`, `VID-12609` through `VID-12611`.
+
+So the native source is not merely an equivalent replacement — it is strictly
+more complete than what the board reads now, and the 38 quantify the cost of
+every day the switch waits.
+
+**The blocker this is against.** Item 95 measured what the Linear-derived
+Workload board already costs — 40 live deliverables across 10 active clients
+that the board cannot see — and ended by saying the real fix is the Linear-exit
+blocker, scoped in `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. Owner intent recorded
+2026-09-01: remove everything Linear within the week. That is not reachable
+while Workload is a **mandatory relay**: turn Linear off and the board is empty,
+because nothing else populates `workload_issues`.
+
+**Step 1 of five is built:**
+`migrations/2026-09-02-workload-native-view.sql` creates
+`public.workload_issues_native_v1` from `deliverables` + `batches` +
+`team_members` + `clients` — two `union all` arms, one row per deliverable and
+one per batch that carries at least one, answering all twenty fields
+`_wlV2MapRow` consumes.
+
+**Applying it changes nothing anyone sees.** No browser code reads it (the
+suite asserts that as a load-bearing negative), no table is touched, no row is
+written, and re-running it is a no-op. That is the whole design of step 1: the
+two sources become readable side by side so the diff is measured on real data
+instead of argued about.
+
+### It takes none of the four decisions that are not mine to take
+
+- **Row identity** (scope §6.1) — it answers **both** `id` (native) and
+  `linear_id`. Not fence-sitting: `public.workload_plan` is
+  `issue_id text primary key` holding the LINEAR uuid, and every manual plan day
+  already saved joins on it. A view that had chosen native would have silently
+  orphaned them — the days would not error, they would stop appearing.
+- **What `url` points at** after Linear (§6.2) — still Linear, because that is
+  still where the issue is.
+- **Whether the board's manual ordering comes back** — `deliverables.sort_key`
+  exists and `workload_issues` has no sort column at all, so this view *could*
+  supply it. It publishes `native_sort_key`, deliberately **not**
+  `sort_order`: `_wlV2MapRow` reads `r.sort_order` and `wlSortSubIssues` uses
+  manual order as soon as every row has a finite value, so naming it that would
+  have re-sorted the entire board the first time anything read the view. Scope
+  §4 asked for exactly this restraint.
+- **Anything about n8n.** No workflow touched, referenced or disabled. The
+  reconcile and the Linear webhook keep running, which is required until step 5.
+
+### The one policy choice it does make
+
+`active`. On the Linear side it mirrors Linear's archived flag — the mechanism
+item 95 is about. Natively there is **no per-deliverable archive column at
+all**, so the closest honest analogue is the batch: false only when the batch is
+`archived`. The consequence is the point, not a side effect — **item 95's rows
+appear on the native side and not the Linear side, which is the step 3
+acceptance test.**
+
+### Two things measurement found that reading would not have
+
+1. **`Approved`, `Scheduled` and `Posted` are workflow type `completed`.** The
+   parked-status NAME list in `index.html` includes `approved` and `posted`,
+   which reads as though their type must be non-terminal — otherwise the type
+   test would already have caught them. It does not: the name list is
+   belt-and-braces. Census of the live table, 2026-09-02, 3,437 rows, every
+   distinct `(status, status_type)` pair. Guessing here hides or shows real work.
+2. **The vocabulary problem is bigger than §3a recorded.** That section cited
+   `For Client approval` (31) vs `For Client Approval` (20). The full census
+   finds **391 and 366** — plus `Tweak Needed ` with a **trailing space** (13
+   rows), and 19 rows carrying no status at all. Three spellings of two states
+   and a null, because the vocabulary is a human-editable display string in
+   somebody else's product. `wlNormStatus` trims and lower-cases, so the board
+   survives it; the point is that it has to.
+
+### Verified against a real database, not only by pattern
+
+Applied to a disposable PostgreSQL 16 cluster built from the b0/b1 schema
+migrations, with fixtures for a null-team batch, a batch worked by both teams,
+an archived batch holding live work, and a batch with no deliverables. That run
+is what caught the first draft deriving a mixed batch's team with `min(team)` —
+which silently means "graphics" for every batch worked by both. It answers NULL
+now, because the batch genuinely has no single team.
+
+`test/workload-native-view-contract.js` pins the status map against
+`mapping.mjs` and against the column's own CHECK constraint (in both
+directions, so neither can grow a value the other lacks), pins each measured
+type individually, pins the `sort_order` restraint as a negative, and asserts
+**both union arms publish the same columns in the same order** — a UNION pairs
+columns positionally and names them from the first arm, so a reordered second
+arm files one column under another's name and still compiles. Mutation-tested:
+a wrong type, a renamed column in one arm, a swapped pair in the other, and the
+`sort_order` trap each fail it by name.
+
+## Step 2 is built too — as a DIFF, not a swap
+
+`?wlnative=1` reads the native view alongside `workload_issues` and prints what
+differs; `window.wlNativeDiff()` runs the same thing by hand. It changes nothing
+the board renders: no `wlState` write, no render call, no sticky flag, every
+failure caught, and a missing view answers *"apply the migration first"* instead
+of looking like a broken board. The suite pins each of those as a negative.
+
+**It is not a source swap, and that restraint is load-bearing rather than
+cautious.** `public.workload_plan` is keyed on the LINEAR uuid and
+`workload-plan`'s `requireWritableIssue()` validates every write against
+`workload_issues`. A deliverable that has never been mirrored has no Linear uuid
+at all — so switching the read source would put rows on the board whose plan day
+**silently fails to save.** A drag that looks like it worked is strictly worse
+than a row that is not there yet. That repair is scope §6.1's decision plus a
+key migration, not a flag.
+
+The report excludes the fields the two sources are supposed to disagree about
+(`id`/`parent_id` while §6.1 is open, `url`, `assignee_id`'s different
+namespace, `parent_identifier`) and **prints that exclusion list**, so a zero
+diff reads as "these agree about what was checked" rather than "these are
+identical". Spelling-only status differences are counted separately from drift.
+Rows with no Linear uuid are reported as **never mirrored**, because there is
+nothing to compare them to and calling that drift would be a lie. Every capped
+list carries its full count and how many it did not print.
+
+**One thing the harness taught on the way in**, worth keeping: the first wiring
+guarded only the CALL, not the flag check. `test/workload-linear-browser.js`
+runs `initWorkloadView` inside a `vm` sandbox holding only what the mount needs,
+so the bare reference threw and **the board never painted** — a diagnostic
+breaking the thing it was watching, caught within the hour by a test written for
+something else. Both are inside the try now.
+
+### Amended before merge (#1222): two P1s, both about what a future cutover would do
+
+Neither is about what this PR does — the view is read by nothing but a
+diagnostic — and both would have been live defects at step 4. Both were checked
+against the database rather than reasoned about, and one of the two suggested
+remedies turned out to be worse than the bug.
+
+**1. Container rows would have become assignable work.** `deliverables` also
+holds imported batch-PARENT issues: the B1 importer's `batchGroupKey` read
+`issue.parent || issue`, so a parent was grouped with its own children and
+written as a row inside its own batch (item 98). `workload_issues` excludes them
+because Linear knows they have no parent. The first draft's unconditional
+`true as is_sub_issue` would have put a POST on an editor's board and charged it
+against their capacity.
+
+**The suggested fix — "apply the existing container/parent predicate" — would
+have been worse than the bug.** That predicate is `raw_issue_parent_id is null`.
+Measured over the 607 live-work rows it catches **150**, and **57 of those are
+`del_` rows born natively in batches that were never mirrored** — they have no
+Linear parent for the same reason they have no Linear anything. Hiding them
+hides exactly the work this view exists to surface.
+
+The structural test used instead is two-part and catches **93 rows and no
+native one**: the row is named as its own batch's `linear_parent_ids` (77), or
+it carries a `b1_` importer id and no Linear parent (16 more, in batches whose
+parent map was never recorded — item 1). Scoped to imported ids on purpose:
+only the importer ever made a container.
+
+Confirmed independently, and this is what makes it a measurement rather than an
+argument: **all 93 have a title byte-identical to their batch's name, and none
+of the 57 the naive predicate would have taken does.**
+
+**2. `assignee_id` was the wrong namespace, and the first draft said so and
+called it harmless.** It shipped `team_members.id` with a note that this
+"does not change what renders" because the board filters editors by NAME.
+Filtering is by name. **Grouping is not.** `renderEditorWorkload` seeds the
+freest-first panel from `WL_VIDEO_EDITORS` and merges live work onto those rows
+by assignee id; the capacity bucket key, the rollup map and the group drag all
+key on it too.
+
+Checked against the live roster: **all three seeded ids are
+`team_members.linear_user_id` values, and none is a `team_members.id`.** So
+every editor would have appeared twice — a populated chip under the native uuid
+and a zero-work chip under the seeded Linear one, the same person shown busy
+and free at once, with the freest-editor ranking reading off the wrong one.
+
+Now `coalesce(tm.linear_user_id, d.assignee_id::text)`, with the native uuid
+published as `native_assignee_id` for whoever migrates the roster. The coalesce
+matters: only **6 of 13** active members have a Linear id recorded, and a bare
+`tm.linear_user_id` would drop the other seven's work into "Needs assignment".
+
+**Worth keeping as a lesson.** Both defects were in the parts of the file that
+carried a confident note explaining why they were fine. The container arm said
+`true as is_sub_issue` with no note at all, and the assignee column had a note
+that was precisely wrong. A stated reason is not a checked one.
+
+### What is left
+
+Steps 3–5 of the scope doc. Step 3 is measurement rather than construction: run
+`?wlnative=1` once the migration is applied and reconcile the diff. Steps 4 and
+5 still carry the contradiction the scope doc names — `?wlnative=0` is only a
+rollback while `workload_issues` is still being populated, so the flag has to be
+retired before step 5 or the mirroring kept for the whole window.

@@ -610,3 +610,79 @@ executes these files (see `README.md` › Repository layout).
   gateway's own mapper regexes against the migration's own raise strings, and
   its opt-in `BATCH_DESCRIPTION_CAS_PROBE=1` leg runs both bodies against a
   disposable PostgreSQL 16 database created from `template0`.
+
+- **`2026-09-02-workload-native-view.sql`** creates
+  `public.workload_issues_native_v1`, a **read-only view** and the first of the
+  five steps in `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. **Applying it changes
+  nothing anyone sees**: no browser code reads it, no table is touched, no row
+  is written, and re-running it is a no-op.
+
+  It exists because the Workload board is the only major surface still reading
+  a Linear-derived table (`workload_issues`, rebuilt from a Linear query), which
+  is what makes Linear a **mandatory relay** rather than a legacy mirror — turn
+  Linear off and the board is empty. `OPEN_REPAIRS` item 95 measures the
+  standing cost: 40 live deliverables across 10 active clients that the board
+  cannot see, because something archived their issues in Linear and the flip's
+  refusal of that foreign write only guards native WRITES, while Workload is a
+  READ pointed somewhere else entirely.
+
+  The view answers the twenty fields `_wlV2MapRow` consumes, from
+  `deliverables` + `batches` + `team_members` + `clients`, as two `union all`
+  arms — one row per deliverable (sub-issue) and one per batch that carries at
+  least one (parent).
+
+  Four things it deliberately does NOT decide, each an owner call in scope §6:
+  row identity (it answers **both** `id` and `linear_id`, because
+  `public.workload_plan` is keyed on the LINEAR uuid and every manual plan day
+  already saved joins on it), what `url` points at after Linear, whether the
+  board's manual ordering comes back (`deliverables.sort_key` ships as
+  `native_sort_key`, NOT `sort_order`, because `_wlV2MapRow` reads
+  `r.sort_order` and naming it that would silently re-sort the board on first
+  read), and anything at all about n8n.
+
+  The one policy choice it does make is `active`, which natively can only mean
+  "its batch is not archived" — there is no per-deliverable archive column in
+  SyncView. That is the point rather than a side effect: item 95's rows appear
+  on the native side and not the Linear side, which is the acceptance test for
+  step 3.
+
+  Status vocabulary is reproduced from two pieces of evidence rather than
+  invented: display names from `STATUS_NAMES` in
+  `supabase/functions/linear-outbound/mapping.mjs` (the map SyncView already
+  uses to write a status INTO Linear, so there is no third vocabulary), and
+  workflow-state TYPES from a census of the live table on 2026-09-02 — 3,437
+  rows, every distinct pair. `Approved`, `Scheduled` and `Posted` are all
+  `completed`, which the parked-name list would not lead you to assume. The
+  same census found `For Client approval` (391) and `For Client Approval` (366)
+  and `Tweak Needed ` with a trailing space (13) coexisting, which is the
+  argument for a closed native set in one line.
+
+  **The migration refuses to commit** if any `deliverables.status` value falls
+  outside the map, because an unmapped status answers NULL and a NULL
+  `status_type` passes `wlIsActiveStatus` — the row would render as live work
+  with no status at all. `test/workload-native-view-contract.js` pins the map
+  against `mapping.mjs` and against the column's own CHECK constraint, pins the
+  measured types one by one, and asserts both `union` arms publish the same
+  columns in the same order — a UNION pairs columns positionally and names them
+  from the first arm, so a reordered second arm files one column under
+  another's name and still compiles. Verified by applying the file to a
+  disposable PostgreSQL 16 cluster with fixtures for a null-team batch, a
+  both-teams batch, an archived batch holding live work, and a batch with no
+  deliverables.
+
+  **Amended before merge for two review P1s, both about a future cutover
+  rather than about applying the file.** Imported batch-PARENT rows are now
+  excluded from the sub-issue arm — but by a STRUCTURAL two-part test (named in
+  its own batch's `linear_parent_ids`, or a `b1_` importer id with no Linear
+  parent), not by the obvious `raw_issue_parent_id is null`, which catches 150
+  of the 607 live rows and **57 of those are natively created work in batches
+  that were never mirrored.** The structural test catches 93 and no native row;
+  all 93 carry a title byte-identical to their batch's name and none of the 57
+  does. And `assignee_id` now answers `coalesce(tm.linear_user_id,
+  d.assignee_id::text)` rather than the native uuid: all three ids
+  `WL_VIDEO_EDITORS` seeds the freest-first panel with are
+  `team_members.linear_user_id` values and none is a `team_members.id`, so the
+  native uuid would have shown every editor as a busy chip and a free chip at
+  once. `native_assignee_id` carries the other one. Because two columns moved,
+  `create or replace view` cannot re-apply over an earlier branch build — the
+  file's header says to drop it first.

@@ -416,6 +416,78 @@ trains everyone to skim the report, which is the exact failure mode the
     and are excluded on purpose. Counting them would report a defect eighty-one
     times larger than the real one — which is this section's whole thesis.
 
+- **Client notes the production thread never received** — `node
+  scripts/card-comment-transport-split-check.js` (read-only, public key, safe
+  anywhere; `--json` for the rows). **Report the count AND the card ids, never
+  the count alone.** A client's comment goes to the gateway only when the
+  deliverable crosswalk describes its exact card; a staff comment goes there on
+  the `write_ui_reroute_clients` allowlist alone. So on a card whose crosswalk
+  fails, the client's root is written to the legacy card column with no
+  `production_comments` row behind it, and until the 2026-09-02 add-lane repair
+  the staff reply to it was sent to the gateway, refused as a missing parent,
+  and its text discarded. `OPEN_REPAIRS.md` item 99 is that incident, item 102 is
+  the root, and this is the measurement.
+  **Baseline 20, measured 2026-09-02** (real clients; the drill client is
+  printed and never gated): 20 one-way threads across 6 slugs holding 32 client
+  roots, `crosswalk_fields` `card_id+origin` 16, `team` 2, `card_id+origin+team`
+  1, `origin` 1. Nine sit on a card that is neither Archived nor Posted.
+  - **Flag GROWTH, and compare the CARD IDS, not just the number.** A row leaves
+    this list by being repaired OR by its card being archived, and those are not
+    the same event.
+  - The narrowing is most of the value: 18,180 of the 19,362 card/component
+    slots carry no deliverable id at all (both sides go legacy — consistent),
+    1,010 crosswalk cleanly (both sides go canonical — consistent), and 152 of
+    the 172 mismatches carry no client root, which is FINE because a staff root
+    there is canonical and a reply to it resolves. Reporting 172, or 18,180,
+    would bury the 20.
+  - **One exclusion is not a narrowing but a correctness rule.** A mismatch on
+    `card_id` ALONE with the deliverable side UNBOUND is the one shape the
+    gateway client front door ADMITS, so the client root there is canonical and
+    the thread was never one-way. It is excluded whenever
+    `client_comment_gateway_enabled` is on — the check reads that flag live, and
+    prints the count it excluded. It is 0 today (all 8 card_id-only mismatches
+    name a different card), so it moves nothing; it is there because the first
+    `card_id`-NULL slot to take a client comment would otherwise trip a gate set
+    to the exact current count.
+  - **The 208-slot INVERSE line is exposure, not a defect.** Those are
+    crosswalk-VALID slots carrying client roots, where the gate says `linked` so
+    `Mark done` and `Delete` take the canonical lane and answer 403
+    `comment_forbidden` if no canonical row was ever written. Proving coverage
+    needs `production_comments`, which the publishable key cannot read. Do not
+    quote it as a count of anything broken.
+  - Cross-check: a jump here after a crosswalk backfill is item 103's ordering
+    hazard, not a new leak — read that item before repairing anything.
+
+- **The roster in a public repository** — `node scripts/repo-identity-exposure-check.js`
+  (read-only both ways, public key, one roster read, ~1.5s; `--json` for the
+  file list). **Report the counts and the FILE PATHS. This tool never prints
+  what it matched, and neither should the person running it** — a leak
+  detector whose output names the clients, in a CI log or pasted into an issue,
+  has made one more public copy of the thing it exists to bound. To see an
+  actual match, run the grep locally.
+  **Baseline 108 files / 45 terms, measured 2026-09-02:** 45 of the 50
+  identifying terms on the live roster — 39 of 47 client slugs and 6 staff full
+  names — appear somewhere in the tree. Nobody decided that; it accumulated one
+  audit, one migration and one ledger entry at a time, each with a good local
+  reason to name the client it was about. The heaviest files are two July audits
+  and two migrations.
+  - **This is CONTEXT WITH A GROWTH GATE and nothing more.** It removes nothing
+    and it cannot: the same strings are in git history, so a repair is a history
+    rewrite (`docs/ops/GIT_HISTORY_PII_PURGE_2026-07-14.md` is the precedent)
+    plus a judgement call about which audits are worth keeping at all. Both are
+    the owner's, and neither is a change to make unattended.
+  - **Two baselines on purpose.** Counting only terms lets a new file name six
+    clients as long as six others stopped being mentioned; counting only files
+    lets one file name the whole roster.
+  - Short slugs and single given names are excluded — they match ordinary
+    English — and so is the TEST client, which is named in the code by design.
+  - **CI runs the other mode.** `--diff=<base>` scans only what a pull request
+    ADDS — added lines and added file paths — against no baseline at all, in its
+    own job in `calendar-unit-tests.yml`. That is the half that can stop a name
+    BEFORE it is public; this tree scan is the standing measurement. A failed
+    roster read there warns and passes rather than blocking, so an outage never
+    looks like a leak — which is why this entry stays the backstop.
+
 - **Cards born without their work** — `node scripts/card-linkage-leak-check.js`
   (read-only, public key, safe anywhere). **Report "unlinked AND live", never
   the percentage.** Measured 2026-08-22 over eight weeks: 6.0% unlinked, which

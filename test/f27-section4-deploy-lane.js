@@ -342,7 +342,20 @@ const CANDIDATES = new Map([
     // Amended before merge for a review P1: the child lookup read the
     // deliverables TABLE for a column only the browser view derives, so it
     // would have deployed silently doing nothing. Repointed at the view.
-    source: '2af7fe6d2590dc092fd0e011e57a2634fe88d25deae1858a7e3befb6da84e8c4',
+    // Re-pinned 2026-09-02 (twenty-eighth release): the three
+    // production_comments identifier lookups stop conflating "no such row"
+    // with "two rows". `.or(id.eq.X,native_comment_id.eq.X).limit(2)` followed
+    // by `length !== 1` reported a MISSING parent as 409
+    // comment_parent_ambiguous, which index.html classes `reload` -- so the
+    // live 2026-09-02 incident told a staff member to reload the page and
+    // dropped the reply. Zero rows now answers 409 comment_parent_not_found;
+    // two rows are resolved exact-primary-key-first, the same ordered fallback
+    // production_comment_upsert already uses, and only a result still not one
+    // row after that tie-break is ambiguous. The lifecycle lane keeps its
+    // deliberately non-enumerating 403 comment_forbidden and gains only the
+    // tie-break. One shared resolveCommentByRef replaces three copies. No
+    // migration, no new import: file count unchanged at 5.
+    source: 'cc44bf938fd666595061972c27721fbf10d17cb11b184e417f59478b0add5370',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

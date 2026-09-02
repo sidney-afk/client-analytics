@@ -192,9 +192,58 @@ requires the next to have happened.
 1. **Build the view** — `workload_issues_native_v1`, shaped to §2 so
    `_wlV2MapRow` needs one small change rather than a rewrite. No browser change.
    Diffable against `workload_issues` in isolation.
+
+   **BUILT 2026-09-02 — `migrations/2026-09-02-workload-native-view.sql`,
+   pending owner apply.** Read-only, additive, re-runnable; applying it changes
+   nothing anyone sees. It answers all twenty `_wlV2MapRow` fields as two
+   `union all` arms (one row per deliverable, one per batch that carries at
+   least one), refuses to commit if any `deliverables.status` escapes its map,
+   and is pinned by `test/workload-native-view-contract.js`.
+
+   It takes **none** of the §6 decisions: it answers both `id` and `linear_id`,
+   still points `url` at Linear, and publishes `sort_key` as `native_sort_key`
+   rather than `sort_order` so the board's ordering cannot switch on by
+   accident. The one policy choice it does make is `active` — natively that can
+   only mean "its batch is not archived", which is exactly why item 95's rows
+   appear on the native side.
+
+   Two facts fell out of building it, both from measuring rather than reading:
+   `Approved`, `Scheduled` and `Posted` are all workflow type `completed` (the
+   parked-NAME list in `index.html` suggests otherwise, and a wrong guess here
+   hides or shows real work), and the live table currently holds
+   `For Client approval` (391 rows), `For Client Approval` (366) and
+   `Tweak Needed ` with a trailing space (13) — three spellings of two states,
+   plus 19 rows with no status at all. §3a said the vocabulary problem was
+   real; it is bigger than the 31/20 it cited.
 2. **Read it behind a flag** (`?wlnative=1`), same pattern the Workload v2
    rollout itself used. Both sources readable side by side, so the diff is
    measured on real data instead of argued about.
+
+   **BUILT 2026-09-02, as a DIFF and not a swap.** `?wlnative=1` reads the
+   native view alongside `workload_issues` and prints what differs;
+   `window.wlNativeDiff()` runs the same thing by hand. It changes nothing the
+   board renders — no `wlState` write, no render call, no sticky flag — and a
+   missing view answers "apply the migration first" rather than looking like a
+   broken board.
+
+   **It is not a swap because a swap is not yet safe, and that is worth stating
+   plainly rather than filing as caution.** `public.workload_plan` is keyed on
+   the Linear uuid and `requireWritableIssue()` validates every write against
+   `workload_issues`; a deliverable that has never been mirrored has no Linear
+   uuid at all. Switching the read source would therefore put rows on the board
+   whose plan day **silently fails to save** — a drag that looks like it
+   worked, which is strictly worse than a row that is not there yet. That
+   repair is §6.1's decision plus a key migration, not a flag.
+
+   The report deliberately excludes the fields the two sources are SUPPOSED to
+   disagree about (`id`/`parent_id` while §6.1 is open, `url`, `assignee_id`'s
+   different namespace, `parent_identifier`) and says so in its own output, so
+   a zero diff reads as *"these agree about what was checked"* rather than
+   *"these are identical"*. Status is compared trimmed and lower-cased, with
+   spelling-only differences counted separately — they are the thing the native
+   source exists to end, not evidence against it. Rows with no Linear uuid are
+   reported as **never mirrored** rather than as drift; there is nothing to
+   compare them to.
 3. **Reconcile the diff to zero** for active-roster clients. Item 95's 40 rows
    should appear on the native side and not the Linear side — that is the
    acceptance test, not an incident.

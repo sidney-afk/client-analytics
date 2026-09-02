@@ -53,6 +53,54 @@ jobs:
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
 
+  identity-exposure:
+    # THIS REPOSITORY IS PUBLIC AND THE ROSTER IS IN IT. Measured 2026-09-02:
+    # 45 of the 50 identifying terms on the live roster already appear in the
+    # tree. This job is the only thing standing between that number and the
+    # next one -- it scans what a pull request ADDS (added lines and added file
+    # paths) for a client slug or a colleague's full name, and fails on any.
+    #
+    # WHY IT IS A SEPARATE JOB. The `unit` job above is documented as reaching
+    # no live backend, and this needs the roster to know what an identity IS.
+    # It reads exactly two columns (clients.slug, team_members.name) with the
+    # browser publishable key that already ships in index.html, so it exposes
+    # nothing a page load does not. Folding it into `unit` would have quietly
+    # falsified that job's own contract.
+    #
+    # THE JOB NEVER PRINTS WHAT IT MATCHED, in either output mode -- a leak
+    # detector whose CI log names the clients has made one more public copy of
+    # exactly the thing it exists to bound. It reports counts and file paths.
+    #
+    # A ROSTER READ THAT FAILS IS NOT A RED BUILD. Exit 2 means the check could
+    # not run (network, an outage); only exit 1 means a real finding, and a
+    # forked pull request with no network gets exit 2 rather than a false green
+    # or a false red. The tree-mode baseline in PRE_FLIP_HEALTH_CHECK.md is the
+    # backstop for anything a skipped run would have missed.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the diff scan needs the merge base
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Does this change name a client or a colleague?
+        run: |
+          set +e
+          node scripts/repo-identity-exposure-check.js --diff="origin/${{ github.base_ref }}"
+          code=$?
+          set -e
+          if [[ $code -eq 1 ]]; then
+            echo "::error::This change names a client or a colleague. See the file list above — the tool deliberately does not print what it matched; run the same command locally to see it."
+            exit 1
+          fi
+          if [[ $code -ne 0 ]]; then
+            echo "::warning::identity exposure check could not run (exit $code) — not a finding, and not a reason to block. The tree-mode baseline in PRE_FLIP_HEALTH_CHECK.md still covers this."
+          fi
+          exit 0
+
   f27-team-rollback-proof:
     if: contains(github.event.head_commit.message || '', 'F27') || github.event_name == 'pull_request'
     runs-on: ubuntu-latest

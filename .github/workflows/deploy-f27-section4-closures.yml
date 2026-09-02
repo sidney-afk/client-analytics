@@ -257,7 +257,31 @@ jobs:
       # which is also the projection the sub-issues themselves are drawn from --
       # and test/deliverables-view-only-columns.js fails any base-table query
       # naming one of the six view-derived columns.
-      PRODUCTION_WRITE_SOURCE_SHA256: 2af7fe6d2590dc092fd0e011e57a2634fe88d25deae1858a7e3befb6da84e8c4
+      # Re-pinned 2026-09-02 (twenty-eighth release): THE COMMENT LOOKUPS STOP
+      # CONFLATING "no such row" WITH "two rows". All three production_comments
+      # identifier lookups in this function ran
+      # `.or(id.eq.X,native_comment_id.eq.X).limit(2)` and then tested
+      # `length !== 1`, a test that cannot tell a missing parent from an
+      # ambiguous one. Live on 2026-09-02: a staff reply to a client root that
+      # had taken the legacy transport (broken card/deliverable crosswalk, so
+      # the root has no production_comments row at all) found ZERO rows and was
+      # answered 409 comment_parent_ambiguous -- a code index.html classes in
+      # the `reload` bucket, so the operator was told to reload a page that can
+      # never produce the row, and the reply text was discarded. Zero rows now
+      # answers a distinct 409 comment_parent_not_found; a genuine two-row
+      # result is resolved by the exact primary key first -- the same ordered
+      # fallback production_comment_upsert has always used (id ->
+      # linear_comment_id -> native_comment_id -> idempotency_key, first hit
+      # wins, migrations/2026-07-12-production-comments.sql) -- and only a
+      # result still not one row after that tie-break is called ambiguous. The
+      # comment LIFECYCLE lane gets the same tie-break and NOTHING else: its
+      # 403 comment_forbidden stays, and stays non-enumerating, because the
+      # status there must not disclose whether a row exists. One shared
+      # resolveCommentByRef replaces the three copies. Refusal-taxonomy change
+      # only: no migration, no schema, no new import -- file count unchanged
+      # at 5. Ships with index.html's guidance for the new code in the same
+      # commit, which test/write-ui-failure-messages.js requires.
+      PRODUCTION_WRITE_SOURCE_SHA256: cc44bf938fd666595061972c27721fbf10d17cb11b184e417f59478b0add5370
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

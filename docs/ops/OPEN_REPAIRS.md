@@ -4699,7 +4699,7 @@ the telemetry instead of accepting it. The briefing was wrong; the check
 survived it only because the verifiers were instructed to refute rather than
 confirm. A verification pass that trusts its own framing would have missed this.
 
-## 59. [found 2026-08-29 02:00 UTC, live] The calendar keeps offering Linear link controls the flip already sealed — the seal is right, the re-render never happens
+## 59. [found 2026-08-29 02:00 UTC; **FIXED 2026-08-31 in `1ce02ff6`, verified 2026-09-02**] The calendar kept offering Linear link controls the flip had already sealed — the seal was right, the re-render never happened
 
 After F1(video), calendar cards still render the PRE-flip Linear link affordances
 — the orange "needs a Linear link" warning and the pencil edit button — on a
@@ -4740,7 +4740,21 @@ then refuse — precisely what the 2026-08-25 seal shipped to prevent. And it is
 not new tonight: graphics has shown the same stale affordances since its own flip
 on 2026-08-16; the video flip merely doubled it onto every card's video slot.
 
-**THE REPAIR (not done):** in the post-authority hydrate path
+**THE REPAIR — DONE, and this line said otherwise for two days.** Shipped in
+commit `1ce02ff6` ("Fix item 59: re-render the calendar/samples grids when
+authority resolves"). Verified in `index.html` 2026-09-02: the post-authority
+hydrate path now compares a `JSON.stringify(authority)` signature against
+`_writeUiLastRenderedAuthoritySig` and re-renders only when the value is NEW
+information, gated on `currentNav` so only the visible surface repaints, and
+deferred to the pending-render lane when `_calIsCalBusy()` / `_sxrIsBusy()` — so
+a background repaint cannot drop a focused input or an open menu. Both the
+calendar and Samples grids are covered. Pinned by
+`test/write-ui-writer-durability.js`. The fail-open first paint is intact: the
+seal never became a blocking dependency of the first render, which is what the
+original text asked for. **The description below is kept as the diagnosis, not
+as outstanding work.**
+
+The original repair note read: in the post-authority hydrate path
 (index.html:31790-31822) call the calendar re-render once the authority read
 resolves, or move the authority read ahead of the calendar data load so the first
 paint is already sealed. Prefer whichever keeps the fail-open first paint intact
@@ -5489,6 +5503,29 @@ without attributing, and nothing downstream re-derives it. Worth deciding
 whether the stray catcher should attribute on import, refuse to import what it
 cannot attribute, or keep importing and hand the backlog to a repair lane.
 
+**RE-MEASURED 2026-09-02, as this entry asks.** Every number is unchanged:
+637 unattributed, **63 unattributed and live**, exactly **1** carrying a due
+date — still `VID-164`, still `todo`, still due **2023-02-03**, still not
+archived, still therefore at the top of Active. Total production rows moved
+6,152 → 6,239 over the same period, so the estate grew while this population did
+not.
+
+**BUT THE FEEDER IS STILL RUNNING, and an earlier draft of this paragraph said
+it was not.** `.github/workflows/b1-linear-incremental-refresh.yml` is on
+`cron: '*/30 * * * *'` and sets `B1_STRAY_CATCHER: '1'` at the step level, which
+since F1(video) is the STANDING mode for every run — the dispatch checkbox is
+ignored. The importer inserts every newly encountered active Linear issue, and
+item 74 directly below records that post-flip paths can still manufacture
+unattributed rows. So the honest reading of a flat 637/63/1 is **no qualifying
+issue arrived during this window**, which is a fact about the window and not
+about the mechanism.
+
+What that changes: the population is not decaying while the decision waits, but
+it is not sealed either — a single new Linear issue lands another ownerless live
+row within thirty minutes. Cheaper than it looked, not free. Raised by review on
+#1221, correctly: calling the feeder absent understates the repair and invites
+deferring it on a premise that is not true.
+
 Note the reconciler's own `repair_required` counter has been **flat at 779
 across 30 consecutive runs** with `entities_checked` flat at 7,498, so this is
 not currently growing on that measure — the import was a step, not a trend.
@@ -6003,7 +6040,7 @@ clients (the second owner call below) or giving the fallback a freshness test.
   return a wrong answer — but it silently changes meaning the moment a client is
   taken *off* the allowlist. Wants the flag coupling made explicit first.
 
-## 87. [found 2026-08-31, unknowable-assertion sweep — 12 agents, adversarially verified] Eighteen more places the interface states something it cannot know
+## 87. [found 2026-08-31, unknowable-assertion sweep — 12 agents, adversarially verified; **ALL EIGHTEEN FIXED — verified 2026-09-02**] Eighteen more places the interface states something it cannot know
 
 The method that produced five of the seven flip-day bugs, run deliberately and
 at width: six falsehood classes swept across every SyncView surface, each
@@ -6023,6 +6060,13 @@ the same words AFTER hydration, next to a chip that says Native writes.
 
 Nothing below is fixed unless it says so. Recorded here so none of it is lost,
 ordered roughly by who hits it and how soon.
+
+**STATUS 2026-09-02: every one of the eighteen now says so.** Swept the
+sub-headings mechanically — all 18 carry a FIXED marker, so this item is closed
+as a whole. It was still listed as open work because the parent heading was
+never updated when the last child landed, which is worth noting as its own small
+lesson: an item with children needs its own closing act, or it goes on
+advertising work that no longer exists.
 
 ### 87.1 Production Assets panel prints "Not provided / Missing" for all four slots whenever the authenticated asset read has not answered or was refused — **FIXED 2026-08-31** (PR #1183, deployed): PROD_ASSET_UNREAD_GUIDANCE now covers every deliverable, not only synthetic parents.
 

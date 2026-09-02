@@ -7822,3 +7822,144 @@ WIDEN the set — but sniffing must narrow it, never replace the allowlist.
 
 **All three were spec defects caught before anything was built**, which is the
 argument for scoping in a reviewable file rather than in a plan nobody reads.
+
+## 103. [2026-09-02, ANSWERED — no repair here; the repair is items 95/102] Item 98's open question: B1 skipped nothing. The issues were deleted in Linear seconds after SyncView created them
+
+Item 98 ended with: *"The never-imported class additionally needs a root cause:
+why B1 skipped seven live graphics issues for six days is not answered here."*
+
+**B1 skipped nothing.** All seven were **deleted in Linear 15–47 seconds after
+the mirror created the issue there.** `workload_issues` is rebuilt from a Linear
+query, and a trashed issue is not in the result — so the row never entered the
+cache at all, which is exactly what "never imported" looks like from the
+outside.
+
+### The evidence, read out of `deliverable_events`
+
+Every one of the seven carries the identical four-event signature. Taking one:
+
+```
+13:17:32  create                    ui        (SMM, calendar surface)
+13:19:48  mirror_out_create_link    outbound  SyncView Mirror
+13:19:48  mirror_out_echo_dropped   outbound  SyncView Mirror
+13:20:06  foreign_write_detected    mirror    Linear webhook
+```
+
+The webhook payload on that last event carries the issue snapshot, and in it:
+
+```json
+{ "detect_only": true,
+  "issue": { "trashed": true, "botActor": null,
+             "createdAt": "2026-08-28T13:19:47.929Z",
+             "state": { "name": "Todo", "type": "unstarted" } } }
+```
+
+`createdAt` is the moment the **mirror** created the issue. The webhook says it
+was trashed **18 seconds later**. `detect_only: true` means SyncView recorded
+the write and refused to apply it — correctly, both teams have been
+SyncView-authoritative since 2026-08-28 — so the native row stayed live.
+
+**`botActor: null` means a person in Linear, not an integration.** And it was not
+SyncView: `OUTBOUND_OPERATIONS` in `linear-outbound/mapping.mjs` has `archive`
+and `restore` and **no trash or delete operation at all**. The mirror cannot
+produce this event.
+
+### The two classes item 98 reports are ONE defect
+
+Running the same lookup across both, **12 of the 13 gated rows carry a recorded
+deletion**: 7 `trashed: true`, 5 with an explicit `mirror_in_delete`.
+
+| item 98 class | rows | cause found |
+|---|---|---|
+| mirror says inactive (item 72's class) | 5 | 5 — 1 trashed, 4 `mirror_in_delete` |
+| never imported (item 98's new class) | 7 | 7 — all trashed, 15–47s after creation |
+| parked by name | 1 | — (a genuinely different mechanism, correctly so) |
+
+The difference between "the mirror says inactive" and "the mirror never had it"
+is **only whether a sync happened to run between the issue being created and
+being deleted.** Same mechanism, same repair. Item 72's class and item 98's
+class are not two problems.
+
+### Scale, and it is bounded
+
+Every `foreign_write_detected` event on record (3,146, from 2026-08-16 to
+2026-09-01) carrying `trashed: true`:
+
+| | |
+|---|---|
+| distinct deliverables | **14** |
+| team | **graphics, all 14** |
+| title | `Thumbnail 1`–`Thumbnail 6` |
+| assignee | **one person, all 14** |
+| client projects | 5 |
+| dates | 2026-08-18, 08-20, 08-26 (×6), 08-27 (×4), 08-28 (×2) |
+| since 2026-08-28 | **none** |
+| still live natively | **8 of 14** (`todo`) |
+
+Eleven of the fourteen were trashed within a minute of the issue appearing; the
+other three about three days later.
+
+### What this is, and what it is not
+
+**It is not someone doing something wrong.** A designer deleting what look like
+stray duplicate issues in the tool they were given is reasonable behaviour. The
+defect is that **since the flip, deleting an issue in Linear no longer deletes
+anything — it only hides live work from the one board that still reads Linear**,
+and nothing tells anybody that. The affordance survived the change of meaning.
+
+It is also **not a repair to make in the native store.** Those eight rows are
+correct: live, assigned, with a real deadline. Nothing about them needs fixing.
+
+### What actually closes it
+
+1. **Item 102 / PR #1222** — Workload reading the native source removes the
+   consequence entirely. A Linear deletion then hides nothing, because Workload
+   stops asking Linear. This is the fix.
+2. **One conversation with the graphics team**, which is the owner's to have:
+   deleting a thumbnail issue in Linear does not remove the work, and the person
+   doing it cannot see that it has any effect at all.
+3. **Nothing else.** Do not un-archive them in Linear (item 95 already rules
+   that out — it treats Linear as the fix for a problem caused by Linear being
+   load-bearing, and has to be repeated forever).
+
+### The check now says all this per row
+
+`scripts/workload-native-visibility-check.js` reads each hidden row's own
+`deliverable_events` for a `trashed: true` snapshot or a `mirror_in_delete` and
+prints the cause beside the identifier, with the gap between creation and
+deletion. Bounded to the rows already found hidden — one request — and it
+**fails soft**: a diagnosis is worth having and never worth turning a working
+gate red over. The baseline and the exit code are unchanged; a cause is context
+for a human, never a reason to pass or fail.
+
+A count without a cause gets read once and filed. That is what happened to this
+one for six days.
+
+### Amended before merge (#1223): a cause has to match the state it explains
+
+Review's P2, and it is right: the first version folded events ascending and kept
+the FIRST deletion, so a row deleted in Linear, **restored**, and hidden today
+for some other reason would have been labelled with its oldest deletion — and
+sent the reader at the wrong repair. `mirror_in_restore` exists in this estate,
+so that sequence is real rather than hypothetical.
+
+Two rules now, and they are different rules:
+
+1. **Restores are read, and the last event wins.** A deletion followed by a
+   restore leaves no cause; a deletion *after* a restore is the cause again,
+   because the current state is what a reader is about to act on.
+2. **A deletion only explains the states a deletion produces.** It removes the
+   row from the Linear query the mirror is rebuilt from, so it produces exactly
+   *"no workload row at all"* or `active = false`. It cannot make the mirror
+   park a live row by NAME in an approval queue — that is somebody moving the
+   status. Where the recorded deletion does not match the current state it is
+   printed as **history**, not as the cause, and not dropped: **a confident
+   wrong answer is worse than no answer, and a silent one is worse than both.**
+
+Both halves are now pure functions (`foldDeletionEvents`, `attachCauses`) so the
+suite **runs** them over fixtures instead of pattern-matching the source: the
+restore sequence, the re-deletion after it, a foreign write that is not a
+deletion at all, and the parked-by-name row that must get a note and no cause.
+
+Live result is unchanged — 12 of 13 still carry a cause — so this is a guard
+against a case that has not happened yet, bought for nothing.

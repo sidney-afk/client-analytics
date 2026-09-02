@@ -7961,6 +7961,50 @@ that state is actually produced. A guard on a flag is only as good as the moment
 the flag is set, and nothing in either review asked where that was. Reading the
 guard proves the guard; only reading the caller proves the guard runs.
 
+**FOURTH FIX, from two review findings that landed AFTER the merge — and one of
+them disproves a sentence in the third fix.** The Codex review on PR #1236
+arrived while the PR was already green and merged. Both findings are real,
+verified by reverting the repair and watching the assertions that name them
+fail, and both are the same missing step seen from two different exits of
+`_prodLoadTerminalTail`:
+
+- **A tail read that REJECTS** clears `terminalTailPending` in its `finally` and
+  stops. Nothing re-renders, so `_prodDetail`'s "Loading this item…" paint stays
+  on screen for a read that is no longer running — the tab claiming to be doing
+  something it has given up on, which is item 87's class exactly. The same holds
+  for an answer that is not an array.
+- **A second phase-one load landing mid-tail** bumps `projectionGeneration`; its
+  own `_prodLoadTerminalTail()` call returns early because one is running, and
+  the in-flight run then discards itself at the generation check. The new
+  generation ends up holding **no terminal rows at all**, nothing re-renders,
+  and a deep link to an approved or posted row is stranded until some later full
+  refresh happens to fix it.
+
+**The third fix's own comment claimed this second case was covered:** *"If a tail
+is already running, `_prodLoadTerminalTail` returns early and that run's own
+`finally` clears the flag, so it can never latch on."* The flag does not latch —
+that much is true — but **clearing the flag is not the same as covering the
+case**, because the problem is not a stuck flag, it is a generation with no tail.
+The review was right and the comment has been corrected in place rather than
+quietly deleted.
+
+`_prodLoadTerminalTail` now records an overlapping request and re-runs itself for
+the current generation, and every exit that did not settle the deep link
+re-applies the fallback and renders. A FAILED read is deliberately not retried
+there — the 30s operational refresh is the retry, and a tail that retried itself
+on failure would spin against a backend that is down.
+`test/prod-terminal-tail-settles.js` drives the real function through every exit;
+four mutations checked, and reverting to the merged code fails precisely the
+assertions matching the two findings.
+
+**The generalisation, and it is the third distinct one this entry has produced.**
+Every one of these four fixes was reviewed and believed correct before it
+shipped. What caught this one was a reviewer asking what the function does on the
+paths where it does NOT succeed — and the honest reading is that three rounds of
+this bug were all spent on the success path. A `finally` that tidies state is not
+the same as a function that leaves the interface honest, and the difference only
+shows on the exits nobody writes a test for.
+
 ---
 
 

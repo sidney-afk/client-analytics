@@ -56982,11 +56982,25 @@
            not paste a stale archive over newer state. It is dropped instead --
            the next full read will fetch it again. */
         let _prodTerminalTailRunning = false;
+        /* A tail asked for while one is already running. Set rather than
+           dropped, because the running tail belongs to the PREVIOUS generation
+           and is about to discard itself for exactly that reason -- so without
+           this, the generation that asked never gets a tail at all. */
+        let _prodTerminalTailRerun = false;
         async function _prodLoadTerminalTail() {
-            if (_prodTerminalTailRunning) return false;
+            if (_prodTerminalTailRunning) { _prodTerminalTailRerun = true; return false; }
             _prodTerminalTailRunning = true;
+            _prodTerminalTailRerun = false;
             const generation = _prodState.projectionGeneration;
             _prodState.terminalTailPending = true;
+            /* Did this run actually resolve the deferred deep link? Only the
+               success path below does. Every other exit -- a failed read, a
+               generation that moved, an answer that is not an array -- clears
+               the pending flag in `finally` and used to stop there, leaving the
+               pane painted with "Loading this item..." for a read that is no
+               longer running. Raised on PR 1236 as two findings; both are the
+               same missing step seen from two exits. */
+            let settled = false;
             try {
                 const tail = await _prodLoadDeliverableProjection(PROD_TERMINAL_FILTER);
                 if (generation !== _prodState.projectionGeneration) return false;
@@ -57060,6 +57074,7 @@
                 _prodState.terminalTailPending = false;
                 _prodApplyDeepLinkFallback(true);
                 if (document.getElementById('prodRoot')) _prodRender();
+                settled = true;
                 return true;
             } catch (e) {
                 // The board is already usable without it; a failed tail is not a
@@ -57070,6 +57085,38 @@
             } finally {
                 _prodTerminalTailRunning = false;
                 _prodState.terminalTailPending = false;
+                /* NEITHER LEAVE THE READER ON A SPINNER, NOR STRAND A GENERATION
+                   WITH NO TAIL.
+
+                   The comment on the caller used to argue that an overlapping
+                   load was covered because "that run's own finally clears the
+                   flag". Clearing the flag is not the same as covering the
+                   case, and the review that said so was right. When a second
+                   phase-one read lands while this tail is in flight, it bumps
+                   `projectionGeneration`, its own `_prodLoadTerminalTail()` call
+                   returns early, and then THIS run discards itself at the
+                   generation check -- so the new generation holds no terminal
+                   rows, nothing re-renders, and a deep link to an approved or
+                   posted row sits on "Loading this item..." until a later full
+                   refresh happens to fix it.
+
+                   So: if someone asked while we were busy AND the generation
+                   really did move, hand the current generation its own tail. The
+                   flag is re-set synchronously by that call before any paint, so
+                   there is no frame in between. Otherwise, if this run did not
+                   settle the deep link -- a failed read, a non-array answer --
+                   stop claiming to load and let the fallback publish an honest
+                   result. A failed read is deliberately NOT retried here: the
+                   30s operational refresh is the retry, and a tail that retried
+                   itself on failure would spin against a backend that is down. */
+                if (_prodTerminalTailRerun && generation !== _prodState.projectionGeneration) {
+                    _prodTerminalTailRerun = false;
+                    _prodLoadTerminalTail();
+                } else if (!settled) {
+                    _prodTerminalTailRerun = false;
+                    _prodApplyDeepLinkFallback(true);
+                    if (document.getElementById('prodRoot')) _prodRender();
+                }
             }
         }
         async function _prodLoadData(opts) {
@@ -57150,9 +57197,18 @@
                    being thrown out of a posted parent after both fixes shipped.
 
                    Setting it here closes the window rather than narrowing it.
-                   If a tail is already running, `_prodLoadTerminalTail` returns
-                   early and that run's own `finally` clears the flag, so it can
-                   never latch on. */
+                   It cannot latch on: every exit from `_prodLoadTerminalTail`
+                   clears it in a `finally`, and the load's own `catch` clears it
+                   too, so a throw between this line and the tail call cannot
+                   suppress the missing-target notice for the rest of the session.
+
+                   An earlier version of this comment went further and claimed
+                   the early return for an already-running tail was COVERED by
+                   that run's `finally`. It is not, and PR 1236's review was
+                   right to say so: clearing the flag is not the same as giving
+                   the new generation a tail. `_prodLoadTerminalTail` now records
+                   the overlapping request and re-runs itself for the current
+                   generation. */
                 _prodState.terminalTailPending = true;
                 // Authoritative: re-apply a deep link the cached paint could not
                 // resolve, and only now conclude that a target does not exist.

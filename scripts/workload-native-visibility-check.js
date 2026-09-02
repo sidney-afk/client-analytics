@@ -46,11 +46,17 @@
  *     GRA-7286, GRA-7287 (a second client, 2026-08-28). Item 72 does not
  *     record this class; it is larger than the one it does.
  *
+ *   MIRROR PARKS IT BY NAME (1) -- the mirror row is active, a sub-issue, and
+ *     its TYPE is live, but its named status is an approval queue or a finished
+ *     state. This is item 72's own headline shape (VID-13491, "For Kasper
+ *     approval") and it was invisible to the first version of this check.
+ *     Measured 2026-09-02: VID-12983, natively in `tweak`.
+ *
  * THE TEST CLIENT IS REPORTED BUT NOT GATED. `sidneylaruel` is the disposable
  * drill client and is mutated constantly on purpose, so its rows would make the
  * gate ring for work nobody is owed. They are printed so a reader can see them.
  *
- * BASELINE 12 = 5 inactive + 7 never-imported, real clients only.
+ * BASELINE 13 = 5 inactive + 7 never-imported + 1 parked-by-name, real clients only.
  *
  * READ-ONLY. Public key, no writes, no Linear calls, safe to run anywhere.
  *
@@ -65,14 +71,35 @@ const SUPA_KEY = String(process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PU
 const args = process.argv.slice(2);
 const asJson = args.includes('--json');
 const baselineArg = args.find(a => a.startsWith('--baseline='));
-const BASELINE = baselineArg ? Number(baselineArg.split('=')[1]) : 12;
+const BASELINE = baselineArg ? Number(baselineArg.split('=')[1]) : 13;
 /* Mutated constantly by drills; reported, never gated. */
 const TEST_CLIENT = String(process.env.SYNCVIEW_TEST_CLIENT || 'sidneylaruel');
 
-/* Keyed on the Linear workflow-state TYPE, never the column name -- the same
-   rule wlIsActiveStatus uses in index.html, including the 2026-08-23 owner
-   ruling that Backlog is not work anyone is holding. */
+/* Workload parks a row for TWO independent reasons, and a classifier that knows
+   only one of them measures the wrong thing.
+
+   1. The Linear workflow-state TYPE (never the column's name), plus the
+      2026-08-23 owner ruling that Backlog is not work anyone is holding.
+   2. A NAMED status in WL_PARKED_STATUSES -- an approval queue or a finished
+      state, whose type is often still `started`/`unstarted`.
+
+   Reason 2 was missing here and review on #1218 caught it, correctly and
+   damningly: `VID-13491` -- the case item 72 LEADS WITH, whose mirror reads
+   "For Kasper approval" -- has an active, sub-issue mirror row with a live
+   type, so a type-only classifier calls it visible. The check would have missed
+   the exact row that motivated it. Both sets are mirrored from index.html
+   verbatim, and test/workload-native-visibility.js extracts BOTH from the page
+   and asserts they match term for term, so they cannot drift apart in silence. */
 const PARKED_TYPES = new Set(['completed', 'canceled', 'duplicate', 'triage', 'backlog']);
+const PARKED_STATUSES = new Set([
+  'tweak applied', 'tweaks applied',
+  'for smm approval', 'waiting for smm approval', 'smm approval',
+  'for casper approval', 'waiting for casper approval', 'casper approval',
+  'for kasper approval', 'waiting for kasper approval', 'kasper approval',
+  'for client approval', 'waiting for client approval', 'client approval',
+  'approved',
+  'posted',
+]);
 const LIVE_NATIVE = new Set(['todo', 'in_progress', 'tweak']);
 
 async function pageAll(path) {
@@ -96,7 +123,8 @@ function workloadHides(row) {
   const why = [];
   if (!row.active) why.push('active=false');
   if (!row.is_sub_issue) why.push('is_sub_issue=false');
-  if (PARKED_TYPES.has(type) || name === 'backlog') why.push(`parked (${type || name})`);
+  if (PARKED_TYPES.has(type) || name === 'backlog') why.push(`parked type (${type || name})`);
+  else if (PARKED_STATUSES.has(name)) why.push(`parked status (${row.status})`);
   return why.length ? why.join(' + ') : '';
 }
 
@@ -128,12 +156,16 @@ function workloadHides(row) {
   const test = hidden.filter(h => h.client === TEST_CLIENT);
   const inactive = real.filter(h => h.why.includes('active=false'));
   const absent = real.filter(h => h.why === 'no workload row at all');
-  const other = real.filter(h => !inactive.includes(h) && !absent.includes(h));
+  const namedPark = real.filter(h => !inactive.includes(h) && !absent.includes(h)
+    && h.why.startsWith('parked status'));
+  const other = real.filter(h => !inactive.includes(h) && !absent.includes(h)
+    && !namedPark.includes(h));
   const failed = real.length > BASELINE;
 
   if (asJson) {
     console.log(JSON.stringify({ baseline: BASELINE, gated_count: real.length,
-      mirror_says_inactive: inactive, never_imported: absent, other: other, test_client: test,
+      mirror_says_inactive: inactive, never_imported: absent, parked_by_name: namedPark,
+      other: other, test_client: test,
       visible, batch_parents_excluded: batchParents, stale_natively_excluded: staleNatively }, null, 2));
   } else {
     console.log('Workload native visibility — is live native work reaching the editor who owes it?\n');
@@ -152,6 +184,7 @@ function workloadHides(row) {
     };
     show('MIRROR SAYS INACTIVE (item 72 class)', inactive);
     show('NEVER IMPORTED — no workload row at all', absent);
+    show('MIRROR PARKS IT BY NAME (an approval queue or a finished state)', namedPark);
     show('OTHER', other);
     show(`TEST CLIENT (${TEST_CLIENT}) — reported, not gated`, test);
     console.log(failed

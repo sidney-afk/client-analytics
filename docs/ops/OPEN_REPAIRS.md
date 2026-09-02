@@ -6820,6 +6820,16 @@ has resolved, and `GRA-7237` is new. It is also GRAPHICS, while item 72 records
 this as a video-only class. A stable count concealing a moving membership is
 exactly why this had to become a script.
 
+**Class 3 — the mirror parks it by NAME (1), and this class was invisible to the
+first version of the check.** The mirror row is active, a sub-issue, and its
+TYPE reads live — but its named status is an approval queue, which
+`WL_PARKED_STATUSES` hides. `VID-12983`, natively in `tweak`. **This is item
+72's own headline shape**: the case it leads with, `VID-13491`, sits in "For
+Kasper approval" for exactly this reason. A type-only classifier calls such a
+row visible, so the check would have missed the very row that motivated it.
+Caught by review on #1218. Both parked sets are now extracted from `index.html`
+by the test and compared term for term, so they cannot drift apart in silence.
+
 **Class 2 — never imported (7 real clients), and item 72 does not record it.**
 No `workload_issues` row exists at all: `GRA-7243`–`GRA-7247` (one client, created
 2026-08-26), `GRA-7286`, `GRA-7287` (a second client, 2026-08-28). **Not
@@ -6832,7 +6842,15 @@ Four more rows belong to the test client and are reported but never gated — it
 is mutated by drills on purpose, and gating on it would ring for work nobody is
 owed.
 
-**Baseline 12** (5 + 7, real clients only); the check exits non-zero above it.
+**Baseline 13** (5 + 7 + 1, real clients only); the check exits non-zero above it.
+
+**Where it runs.** Registered in `PRE_FLIP_HEALTH_CHECK.md`'s CONTEXT section,
+which the 2x-daily scheduled watch reads as its canonical spec — the same place
+and the same way its two siblings (`attribution-stuck-check.js`,
+`card-linkage-leak-check.js`) are wired. Neither of those is bound to a GitHub
+workflow either; that is the house pattern for a live read-only check, and a new
+scheduled workflow would have diverged from it. Raised by review on #1218, which
+was right that nothing was running it.
 
 **What is NOT done here, deliberately.** The underlying repair — repointing
 Workload's population, status and assignee reads at the native store — is item

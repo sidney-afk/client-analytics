@@ -58,19 +58,47 @@ function grabFunc(source, name) {
 }
 
 /* The real classifier, lifted from the script. */
-const parked = /const PARKED_TYPES = new Set\(\[([^\]]*)\]\);/.exec(SRC);
+const parkedTypesSrc = /const PARKED_TYPES = new Set\(\[[\s\S]*?\]\);/.exec(SRC);
+const parkedStatusesSrc = /const PARKED_STATUSES = new Set\(\[[\s\S]*?\]\);/.exec(SRC);
 const hides = new Function(
-  'const PARKED_TYPES = new Set([' + (parked ? parked[1] : '') + ']);\n'
+  (parkedTypesSrc ? parkedTypesSrc[0] : '') + '\n'
+  + (parkedStatusesSrc ? parkedStatusesSrc[0] : '') + '\n'
   + grabFunc(SRC, 'workloadHides') + '\nreturn workloadHides;')();
 
-/* ---- 1. The parked set matches the page's own rule ---------------------- */
+/* ---- 1. BOTH parked sets match the page, term for term ------------------ */
+
+/* Workload parks a row for two independent reasons and the first version of
+   this check knew only one. Review on #1218 caught it: a mirror row whose TYPE
+   is live but whose NAMED status is an approval queue is hidden by
+   WL_PARKED_STATUSES, so a type-only classifier calls it visible. That is
+   item 72's own headline shape -- VID-13491, "For Kasper approval" -- meaning
+   the check would have missed the exact row that motivated it. Adding the named
+   set immediately surfaced one more live row (VID-12983, natively `tweak`).
+   Both sets are EXTRACTED from index.html here and compared as sets, rather
+   than a handful of spot-checks, so neither can drift. */
 
 const wlActive = grabFunc(INDEX, 'wlIsActiveStatus');
+const setFrom = (src, re) => {
+  const m = re.exec(src);
+  if (!m) return null;
+  return new Set((m[1].match(/'([^']*)'/g) || []).map(v => v.slice(1, -1)));
+};
+const pageNamed = setFrom(INDEX, /const WL_PARKED_STATUSES = new Set\(\[([\s\S]*?)\]\);/);
+const checkNamed = setFrom(SRC, /const PARKED_STATUSES = new Set\(\[([\s\S]*?)\]\);/);
+ok(!!pageNamed && !!checkNamed, 'both named parked-status sets were located');
+const sameSet = (a, b) => a && b && a.size === b.size && [...a].every(v => b.has(v));
+ok(sameSet(pageNamed, checkNamed),
+  `the check's named parked statuses match the page's WL_PARKED_STATUSES exactly (${pageNamed ? pageNamed.size : '?'} terms) — a check with its own idea of "live" measures nothing`);
+ok(pageNamed && pageNamed.has('for kasper approval'),
+  "including 'for kasper approval', which is the status item 72's headline row sits in");
+
+/* The TYPE set is asserted the same way. */
+const checkTypes = setFrom(SRC, /const PARKED_TYPES = new Set\(\[([\s\S]*?)\]\);/);
 ['completed', 'canceled', 'duplicate', 'triage'].forEach(t => {
-  ok(new RegExp("'" + t + "'").test(wlActive) && new RegExp("'" + t + "'").test(SRC),
-    `\`${t}\` is parked in BOTH the page and the check — a check with its own idea of "live" measures nothing`);
+  ok(new RegExp("'" + t + "'").test(wlActive) && checkTypes && checkTypes.has(t),
+    `type \`${t}\` is parked in BOTH the page and the check`);
 });
-ok(/backlog/i.test(wlActive) && /'backlog'/.test(SRC),
+ok(/backlog/i.test(wlActive) && checkTypes && checkTypes.has('backlog'),
   'and Backlog too, per the 2026-08-23 owner ruling that it is not work anyone is holding');
 
 /* ---- 2. Every way the mirror hides a live row -------------------------- */
@@ -88,6 +116,11 @@ ok(/parked/.test(hides({ ...live, status_type: 'backlog' })),
   'a Backlog-TYPE row is parked whatever its column is called');
 ok(/parked/.test(hides({ ...live, status: 'Backlog', status_type: 'unstarted' })),
   'and a column literally named Backlog is caught even when its type is not');
+ok(/parked status/.test(hides({ ...live, status: 'For Kasper approval', status_type: 'started' })),
+  'PARKED BY NAME: an approval queue whose TYPE is still live is hidden — the shape item 72 leads with, and the one the first version of this check missed entirely');
+ok(/parked status/.test(hides({ ...live, status: 'Posted', status_type: 'started' }))
+  && /parked status/.test(hides({ ...live, status: 'Approved', status_type: 'unstarted' })),
+  'and so are the finished states, whose type is often not terminal either');
 ok(hides({ ...live, active: false, is_sub_issue: false }) === 'active=false + is_sub_issue=false',
   'two reasons are reported together rather than the first one found — the cause matters for the repair');
 

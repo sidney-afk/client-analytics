@@ -56339,9 +56339,25 @@
         function _prodCardFocusValid() {
             return !!(_prodState.focusCard && _prodBoardLoc(_prodBoardCols(), _prodState.focusCard));
         }
+        /* The hover title is ALWAYS emitted, and the 120-character threshold it
+           used to carry is gone.
+
+           That threshold measured the wrong thing. Whether a title is readable
+           depends on the width of the column it renders in, not on how many
+           characters it has -- and the sub-issue rows are the narrowest column
+           in the tab. Owner report 2026-09-02, on a parent whose eight children
+           are named "<client> | <date range> | Reel N": every one is ~44
+           characters, so not one of them qualified for a tooltip, and all eight
+           truncated to an identical prefix. The list was unreadable precisely
+           because the titles were SHORT enough to be judged fine.
+
+           `data-fulltitle` stays because it is already emitted here and at the
+           row renderer, but note it has no reader anywhere -- no CSS rule and
+           no script consumes it. The working tooltip is, and always was, the
+           native `title`. */
         function _prodTitleAttrs(text) {
             const s = String(text || '');
-            return ' data-fulltitle="' + _calEscAttr(s) + '"' + (s.length > 120 ? ' title="' + _calEscAttr(s) + '"' : '');
+            return ' data-fulltitle="' + _calEscAttr(s) + '" title="' + _calEscAttr(s) + '"';
         }
         function _prodReconcileSelection() {
             // Selection now also lives on project-view rows and the parent
@@ -58025,7 +58041,9 @@
             const title = c.name || c.id;
             const filtered = !!((_prodState.filters || []).length);
             const countLabel = count + (filtered ? ' matching issue' : ' issue') + (count === 1 ? '' : 's');
-            const titleAttrs = ' data-fulltitle="' + _calEscAttr(title) + '"' + (String(title || '').length > 120 ? ' title="' + _calEscAttr(title) + '"' : '');
+            // Was a hand-rolled copy of _prodTitleAttrs, threshold and all, so
+            // the two drifted as one place changed. Use the helper.
+            const titleAttrs = _prodTitleAttrs(title);
             const targetHtml = c.target
                 ? '<span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Target: ' + _calEscAttr(_prodFmtDateFull(c.targetRaw) || c.target) + '">' + _prodIcon('cal') + '<span>' + _calEsc(c.target) + '</span></span>'
                 : '<span class="prod-card-target is-empty" data-prod-ptarget="' + _calEscAttr(id) + '" data-prod-target-empty="true" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target" aria-label="Set target">' + _prodIcon('cal') + '</span>';

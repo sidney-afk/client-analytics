@@ -7362,3 +7362,54 @@ the shared extractor that item asks for: every slice is **parsed standalone**
 over-extraction that would otherwise pass silently throws instead. Offered as the
 pattern for the next test that has to do this, and as a partial answer to item
 96 that costs nothing.
+
+## 106. [2026-09-02] The deploy-provenance test pins a workflow's SHA literals as TEXT, so a pin can go stale against its own source and every test stays green
+
+Found by the Codex review on PR #1226, which flagged the stale `linear-inbound`
+pin and then asserted the staleness "makes `node test/ef-deploy-provenance.js`
+fail at this commit". It does not. Verified at `f144c389`: the test exits 0 and
+prints `Edge Function deploy provenance checks passed`, including its own
+assertion `linear-inbound has one dispatch-only pinned-SHA owner and no push
+deploy path`. It is in `npm test` — `test/run-all.js:15` globs the directory
+with `readdirSync` — so the all-green result was accurate.
+
+**The interesting part is WHY it passed.** `test/ef-deploy-provenance.js` asserts
+that a deploy workflow CONTAINS the expected literal strings and that ownership
+of a slug is exclusive. It never compares a pin against the tree it is supposed
+to describe. So the two properties it checks are both structural, and the one
+property that matters operationally — *does this pin still name this source?* —
+is unchecked. A pin can drift arbitrarily far from its function's real closure
+and the suite stays green for as long as the literal is still spelled the same
+way somewhere in the YAML.
+
+Measured today, `deploy-f27-linear-inbound.yml` pins
+`CANDIDATE_SOURCE_SHA256: 3d91b2a2dfb9b8b1dc563cd8425378f7067d9e2fdf16278f45a4546823f09574`
+while `node scripts/ef-fingerprint.js $(git rev-parse HEAD)
+--slugs=linear-inbound --expected-only` computes
+`019a463dee2b4b91ff0b19a0220479e7602e9a5880da6d19519f9113716bf0fc` over 5 files.
+Stale since `d9fbc2e7` (2026-08-30) per item 77, and item 100 added a second
+reason. Nothing in CI has ever said so.
+
+**Why the guard was NOT added in the PR that found this.** A check comparing
+every lane's `CANDIDATE_SOURCE_SHA256` against `ef-fingerprint.js` fails the
+moment it is written, because the pin it would first examine is already stale.
+Shipping it inside #1226 would have turned that PR red on breakage it did not
+cause, and the only ways to get green would be to weaken the new guard or to
+move `REVIEWED_RELEASE_SHA` — a human-review gate no agent may self-certify.
+That is the same ordering hazard item 103 describes, in a different costume: the
+detector has to land with, or after, the repair it detects.
+
+**The shape that works.** Land the re-pin PR item 77 asks for, then add the
+comparison as a hard gate in the same change or immediately behind it. If the
+re-pin is going to sit, land the comparison first as a REPORTING check — print
+every lane whose pin disagrees with its computed closure, exit 0 — so the drift
+is at least visible in CI, then flip it to a failure once the backlog is clear.
+A reporting check that names four stale lanes beats a hard gate nobody can merge.
+
+**The generalization worth taking.** Any test that pins a value by asserting a
+file contains a literal is testing spelling, not truth. The digest is derivable
+(`ef-fingerprint.js` already derives it), so the assertion can compare rather
+than match — and where a value is derivable, matching its text is the weaker
+test every time. Worth a sweep for the same shape elsewhere: item 100's
+`test/f27-section4-deploy-lane.js` pins `production-write` the same way, and it
+is only correct today because this session re-derived it by hand.

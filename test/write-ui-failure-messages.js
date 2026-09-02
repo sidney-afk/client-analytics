@@ -143,7 +143,10 @@ console.log('  ok  all ' + browserCodes.size + ' browser and ' + serverCodes.siz
 // comment lifecycle write is refused identically on every attempt.
 for (const code of ['legacy_parity_disabled', 'legacy_parity_not_allowed',
   'team_is_linear_authoritative', 'operation_forbidden', 'comment_forbidden',
-  'invalid_comment_action', 'invalid_surface_operation']) {
+  'invalid_comment_action', 'invalid_surface_operation',
+  // Both parent-lookup refusals are resolved from stored rows, so the second
+  // attempt reads the same rows and answers the same way. See section 10.
+  'comment_parent_not_found', 'comment_parent_ambiguous']) {
   const text = resolve('comment', code, 409).text;
   assert(!/try (the action )?again/i.test(text),
     code + ' still tells the user to retry a refusal that cannot succeed');

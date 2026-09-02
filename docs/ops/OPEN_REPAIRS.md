@@ -7579,3 +7579,49 @@ cleanly while 212 slots were unusable. Any standing check for a
 client-visible surface should assert the HEALTHY population behaves too, not
 only that the known-broken one is bounded — a gate that fails closed on
 well-formed data fails silently, because nobody thinks to look there.
+
+## 108. [2026-09-02] A deep link to a POSTED parent reports "has no row in Production" and dumps the reader into the unfiltered list — the target exists
+
+Owner report 2026-09-02, with a screenshot: switching back to the Production
+tab produced
+
+  `b1_d_59a480584fa747abb27b0621c373c5ae has no row in Production. Most often
+   its post could not be resolved here; it may also never have been imported.
+   Ask an Admin to look it up. Showing the full list instead.`
+
+**The target exists.** That id is `VID-13330`, "Doug Cartwright | Aug. 17 - Aug.
+23 | Reels", `client_slug=dougcartwright`, `team=video`, `status=posted`, and it
+is the parent of the eight Reel sub-issues. So the notice states something
+false, which is the class this tab has already spent a week removing (items 81
+through 86, and the 2026-09-01 amendment to this very notice's copy).
+
+**Two things established, so the next session does not re-derive them:**
+
+1. It is NOT a load race. `_prodApplyDeepLinkFallback(authoritative)` sets
+   `deepLinkMissing` only under `if (!authoritative || !wanted) return;`, so the
+   notice fires against an authoritative read. The lookup genuinely missed.
+2. The KIND was wrong, and that is visible in the copy. The message rendered was
+   the DEFAULT branch (`' has no row in Production.'`). Had `wanted.kind` been
+   `'batch'`, it would have read "is not a post in Production" with the
+   batch-specific guidance. So a `?d=` pointing at a PARENT was resolved only
+   through `_prodIssue()`, never `_prodBatch()`.
+
+**Where to look first.** `_prodIssue(id)` matches `id` OR `displayId` against
+`_prodIssues()`, which is `_prodData().ISSUES` — whatever the adapter loaded.
+The open question this entry does NOT answer: whether that collection excludes
+`posted` rows, in which case every deep link to a finished item reports itself
+missing, or whether parents are simply held in a different collection than the
+one the deep-link resolver consults. Both are cheap to settle with one read of
+the adapter, and they imply different fixes: a resolver that falls back across
+collections, versus a collection that should not have been status-filtered.
+
+**Why it matters more than it looks.** The reader is not just shown a wrong
+sentence — they are dropped into the unfiltered list, which for this owner meant
+63 Editing Team rows every one of which is badged "Needs attribution" (ancient
+issues with no client mapping, correctly badged, but alarming in bulk). The
+recovery is a refresh, which the owner found by accident. A notice that names a
+row the system can see, and then hides that row behind a wall of unrelated
+warnings, teaches people to distrust the tab.
+
+Not fixed here. Recorded with the two eliminations above so the fix starts from
+the third hypothesis rather than the first.

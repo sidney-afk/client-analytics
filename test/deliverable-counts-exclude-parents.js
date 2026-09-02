@@ -145,6 +145,7 @@ const rows = [
   const EXEMPT = {
     _prodLoadDeliverableProjection: [1, 'loads the Production TREE, where parent rows ARE the parent nodes — removing them orphans every imported child. Their overdue treatment is withheld by the display gate (_prodRowOverdue) instead'],
     _prodDeltaRefresh: [1, 'the incremental half of that same tree projection'],
+    _prodDeltaBoot: [1, 'the boot-time incremental half of that same tree projection -- reached from a warm IndexedDB-cached boot instead of the periodic timer, but the identical delta shape as _prodDeltaRefresh'],
     _prodBrowserProjectionMissing: [1, 'an error classifier — matches the view name inside a failure detail, reads nothing'],
     wlFetchNativeMetadata: [1, 'Workload metadata keyed by issue id; the board filters is_sub_issue upstream, so a batch parent never reaches this call'],
     reclaimMirrorBatches: [1, 'counts a displaced batch to decide whether it is EMPTY enough to archive — there the parent row is precisely what must be counted'],

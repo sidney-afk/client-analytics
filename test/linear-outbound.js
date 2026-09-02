@@ -941,9 +941,19 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
   ok(rowSelection
     && /!!targetDedupKey && Number\(row\.attempts \|\| 0\) === 0/.test(rowSelection[0]),
   'a targeted drain reclaims a row that was parked for a dependency without being attempted');
+  /* The ceiling holds, with ONE named exception. isUnsendableRow (2026-09-02)
+     admits past it exactly the two shapes measured as structurally unsendable
+     -- a status write to `duplicate`, and a row whose last answer was
+     `Entity not found: Issue` -- because otherwise the guards that terminalize
+     them are unreachable for the very rows that motivated them, and those rows
+     age into the pager forever. The exception is asserted by NAME here: a
+     broader clause (an attempts range, a time window, a bare status test) would
+     resurrect ordinary exhausted failures and must fail this. What the
+     predicate itself will and will not admit is proven behaviourally in
+     test/outbound-unsendable-writes.js. */
   ok(rowSelection
-    && /\.filter\(row => f27Replay \|\| Number\(row\.attempts \|\| 0\) < MAX_ATTEMPTS\)/.test(rowSelection[0]),
-  'the targeted reclaim never bypasses an earned backoff or the attempt ceiling');
+    && /\.filter\(row => f27Replay \|\| Number\(row\.attempts \|\| 0\) < MAX_ATTEMPTS \|\| isUnsendableRow\(row\)\)/.test(rowSelection[0]),
+  'the targeted reclaim never bypasses an earned backoff or the attempt ceiling, except for rows isUnsendableRow names');
 
   const inbound = read('supabase/functions/linear-inbound/index.ts');
   const inboundEchoProof = read('supabase/functions/linear-inbound/f27-echo.mjs');

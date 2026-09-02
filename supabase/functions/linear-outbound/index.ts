@@ -621,6 +621,27 @@ async function resolveContext(
   return context;
 }
 
+/* IS THIS ROW ONE LINEAR CAN NEVER ACCEPT, whatever the attempt count says?
+   Two shapes, both structural rather than transient:
+     - a `status` write to `duplicate`, which Linear refuses without the
+       relation naming the duplicated issue, a relation SyncView does not hold;
+     - anything whose last answer was `Entity not found: Issue`, meaning the
+       target was DELETED in Linear.
+   THIS EXISTS BECAUSE THE GUARDS ALONE DID NOT REACH THE ROWS THAT MOTIVATED
+   THEM. Raised by review on #1219, correctly: readRows drops everything at
+   MAX_ATTEMPTS, and all three live rows were already at 8, so the new handling
+   applied only to future writes while the existing permanent alarm went on
+   ageing. Admitting exactly these rows past the attempt ceiling lets them reach
+   the guards that terminalize them -- reusing that logic rather than growing a
+   second, divergent cleanup path.
+   Deliberately NARROW: it recognises only what has been measured as
+   unsendable, never a generic "old and failed", so an ordinary failure the
+   ceiling stopped is not quietly resurrected and retried. */
+function isUnsendableRow(row: OutboxRow): boolean {
+  if (row.operation === "status" && clean(parseJson(row.payload).status) === "duplicate") return true;
+  return /entity not found:\s*issue/i.test(clean(row.last_error));
+}
+
 async function claimRow(supabase: SupabaseClient, row: OutboxRow): Promise<OutboxRow | null> {
   const token = crypto.randomUUID();
   const cutoff = new Date(Date.now() - LOCK_TIMEOUT_MS).toISOString();
@@ -1075,7 +1096,9 @@ async function readRows(
     // F27 is an owner-scoped emergency recovery lane. Its exact classified
     // intent must remain selectable until it receives a correlated terminal
     // result; the normal backlog attempt ceiling must not strand a rollback.
-    .filter(row => f27Replay || Number(row.attempts || 0) < MAX_ATTEMPTS)
+    /* The attempt ceiling, plus the one exception that makes the unsendable
+       guards reachable for rows that already hit it. See isUnsendableRow. */
+    .filter(row => f27Replay || Number(row.attempts || 0) < MAX_ATTEMPTS || isUnsendableRow(row))
     /*
      * A targeted drain may ignore a backoff that no attempt earned.
      *
@@ -1381,6 +1404,57 @@ Deno.serve(async (req: Request) => {
         counts.paused++;
         if (control.legacyParity) counts.legacy_parity_paused++;
         await unlockPending(supabase, row, testClient ? 0 : 30);
+        continue;
+      }
+
+      /* LINEAR CANNOT ACCEPT `Duplicate` FROM US, AND RETRYING NEVER LEARNS THAT.
+         Native `duplicate` maps to Linear's "Duplicate" workflow state
+         (mapping.mjs), but Linear's API refuses a move into a duplicate-type
+         state unless the mutation also carries the RELATION naming the issue
+         being duplicated. SyncView does not record which issue a deliverable
+         duplicates -- there is no such column and no UI that asks -- so the
+         mutation is structurally unsendable, not transiently failing.
+         What that cost, measured 2026-09-02: `issueUpdate` answers HTTP 200
+         with `invalid input: missing duplicate relation`, the row burns all
+         eight attempts over roughly a day, and then parks forever -- the
+         drainer skips anything at MAX_ATTEMPTS, while oldest-pending
+         deliberately keeps counting it, so it ages into the pager as a
+         permanent alarm nothing can clear. One such row was live for 28 hours
+         and was the whole of a two-red-run drain failure. Status writes TO
+         `duplicate` run about twelve a month (52 since late July), so this
+         recurs rather than being a one-off.
+         SKIPPED, not failed, and deliberately so. Skipping records the truth --
+         this write has no Linear counterpart it is allowed to make -- and costs
+         nothing real: SyncView has been authoritative for both teams since
+         2026-08-28, so Linear is a mirror, and the mirror simply keeps its
+         previous state for a deliverable somebody marked duplicate. Failing
+         instead buys an identical outcome plus eight pointless API calls and a
+         permanent false alarm.
+         NOT mapped to `Canceled` as a substitute: that would write a state the
+         person did not choose into the system of record's mirror, and a wrong
+         state is worse than a stale one. */
+      /* NOT during an F27 replay. An owner-classified rollback intent must reach
+         its correlated terminal receipt through the replay lane's own handling;
+         terminalizing it here with an unbound linear_result would leave the
+         rollback unable to finalize. Raised by review on #1219 -- the
+         deleted-issue branch below already carried this check and this one did
+         not, which is exactly the kind of asymmetry that survives a reading. */
+      if (!f27Replay
+          && row.operation === "status"
+          && clean(parseJson(row.payload).status) === "duplicate") {
+        counts.skipped++;
+        await releaseRow(supabase, row, {
+          status: "skipped",
+          processed_at: new Date().toISOString(),
+          linear_result: {
+            skipped: {
+              decision: "linear_state_unsendable",
+              reason: "duplicate_requires_relation",
+              detail: "Linear refuses a duplicate-type state without the relation naming the duplicated issue; SyncView does not record one.",
+            },
+          },
+          last_error: null,
+        });
         continue;
       }
 
@@ -1826,6 +1900,45 @@ Deno.serve(async (req: Request) => {
       });
       await sleep(RATE_DELAY_MS);
     } catch (error) {
+      /* A LINEAR ISSUE THAT NO LONGER EXISTS IS NOT A TRANSIENT FAILURE.
+         Linear answers `Entity not found: Issue` when the target issue has been
+         DELETED there -- not archived, deleted -- and no number of retries
+         brings it back. SyncView keeps the row's `linear_issue_uuid` and still
+         calls its sync_state `clean`, so every write it owes that issue fails
+         identically, burns all eight attempts, and then parks where the drainer
+         will not touch it but oldest-pending keeps ageing it, exactly as the
+         duplicate-state case above did.
+         Measured 2026-09-02 from the live outbox: two comment rows at
+         attempts 8, both for one client, both naming VID-13649 -- which
+         SyncView holds a uuid for and reports clean, while the Linear-derived
+         mirror has no row for it at all. That is deletion.
+         Skipping here does NOT repair the dangling link, and deliberately: the
+         link is the subject of OPEN_REPAIRS item 95 (Linear can still delete
+         live work; 40 rows across 10 active clients), and quietly clearing a
+         uuid from inside the drainer would destroy the evidence that item needs
+         while looking like a fix. This only stops the pointless retries and the
+         permanent false alarm, and records WHY in linear_result so the repair
+         has something to find. */
+      const notFound = /entity not found:\s*issue/i.test(safeError(error));
+      if (notFound && !f27Replay) {
+        counts.failed++;
+        counts.skipped++;
+        await releaseRow(supabase, row, {
+          status: "skipped",
+          processed_at: new Date().toISOString(),
+          linear_result: {
+            ...parseJson(row.linear_result),
+            skipped: {
+              decision: "linear_entity_deleted",
+              reason: "issue_not_found",
+              detail: "Linear reports the target issue does not exist; the native row still holds its uuid. See OPEN_REPAIRS item 95.",
+            },
+          },
+          last_error: safeError(error),
+          next_retry_at: null,
+        }).catch(() => null);
+        continue;
+      }
       counts.failed++;
       const attempts = Number(row.attempts || 0) + 1;
       const delay = Math.min(60 * 60, Math.pow(2, Math.min(attempts, 8)) * 15);

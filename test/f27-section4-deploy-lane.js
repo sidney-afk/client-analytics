@@ -47,8 +47,30 @@ const CANDIDATES = new Map([
   // receipt). Entrypoint hash is unchanged because it hashes the PATH, not
   // the file, and the file count is unchanged because no file entered or left
   // the closure. The other three are untouched and deploy byte-identical.
+  // Re-pinned 2026-09-02 (this release): TWO WRITES LINEAR CAN NEVER ACCEPT stop
+  // being retried. A native `duplicate` status maps to Linear's Duplicate state,
+  // which Linear refuses without the relation naming the duplicated issue -- a
+  // relation SyncView does not record. And `Entity not found: Issue` means the
+  // target was DELETED in Linear while the native row still holds its uuid.
+  // Both burned all eight attempts and then parked where the drainer will not
+  // touch them but oldest-pending keeps ageing them, which is how three rows
+  // became a permanent GATING alarm on the drain lane. Both now skip. Only
+  // index.ts moved, so the file count is unchanged and the entrypoint hash --
+  // sha256 of the PATH, not the content -- is unchanged too. The other three
+  // functions are untouched and deploy byte-identical.
+  // Amended before merge for the two Codex P1s on #1219, both the same shape --
+  // a guard that reads correctly and never runs. readRows drops every row at
+  // MAX_ATTEMPTS before the loop, and all three live rows were already at 8, so
+  // the two skips above applied only to FUTURE writes while the rows that
+  // raised the alarm went on ageing. isUnsendableRow now admits exactly those
+  // two measured shapes past the ceiling so they reach the guards that
+  // terminalize them, and nothing is admitted merely for being old. The second:
+  // the duplicate guard lacked the `!f27Replay` check the deleted-issue branch
+  // already had, so an owner-classified rollback could be terminalized here with
+  // an unbound linear_result. Still index.ts only -- file count 5, entrypoint
+  // hash unchanged.
   ['linear-outbound', {
-    source: 'd83f0d7c08ec39ad8897ab8323b3896235e8a39c6ea7c6cdde96f6b25ed4480b',
+    source: '1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

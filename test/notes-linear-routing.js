@@ -17,16 +17,16 @@ const fs = require('fs');
 const path = require('path');
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
+/* OPEN_REPAIRS item 96: the hand-rolled scanner this replaced could not
+   read a regex literal, so it mis-extracted this file's own subjects --
+   silently, while still passing, because an assertion made with
+   `/pattern/.test(source)` can be satisfied by a NEIGHBOURING function in
+   the over-extracted text. Measured before the swap, in this file's
+   targets alone: see test/extract-function-integrity.js, which now fails
+   if any suite's extraction diverges again. */
+const { extractFunction } = require('./helpers/extract-function.js');
 function grabFunc(name) {
-  const at = INDEX.indexOf('function ' + name + '(');
-  if (at < 0) throw new Error('function not found: ' + name);
-  let i = INDEX.indexOf('{', at), depth = 0;
-  for (let j = i; j < INDEX.length; j++) {
-    const c = INDEX[j];
-    if (c === '{') depth++;
-    else if (c === '}') { depth--; if (depth === 0) return INDEX.slice(at, j + 1); }
-  }
-  throw new Error('unbalanced braces: ' + name);
+  return extractFunction(INDEX, name);
 }
 
 const mod = new Function(grabFunc('_calLinearUrlFor') + '\n;return { _calLinearUrlFor };')();

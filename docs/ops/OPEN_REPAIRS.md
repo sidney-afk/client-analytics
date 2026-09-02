@@ -6912,3 +6912,50 @@ make unattended. This entry adds the measurement and the gate, so the class
 cannot grow silently while the repair waits, and so the repair can be verified
 when it happens. The never-imported class additionally needs a root cause: why
 B1 skipped seven live graphics issues for six days is not answered here.
+
+---
+
+## 101. [2026-09-02, FIXED] Item 96's extractor hazard, closed by a guard rather than by rewriting 122 files — and the first fix for it was wrong in the same shape as the bug
+
+`test/helpers/extract-function.js` is now the one correct extractor: it tracks
+regex literals (including character classes, so `[\"]` and `[/]` are inert) and
+template literals as a FRAME STACK, so a `${...}` is ordinary code again and a
+nested backtick does not close the outer template.
+
+**The 122 files were NOT rewritten, deliberately.** Only a handful are actually
+wrong; rewriting the rest would be a very large diff whose own failure mode is a
+test that looks like it passes — precisely the hazard being closed.
+`test/extract-function-integrity.js` converts the silent hazard into a loud one
+instead: it reads every extraction call site across the suite, re-derives each
+function with both scanners, and fails naming the function and the file if they
+disagree. A file keeps its local copy for as long as that copy is right; a file
+that delegates to the helper is exempt because it is correct by construction.
+
+**Measured 2026-09-02**, 477 distinct names across 107 files that extract source:
+
+| | |
+|---|---|
+| identical under both scanners | 433 |
+| from sources other than `index.html` | 42 |
+| naive scanner cannot close at all | 2 |
+| genuinely divergent | 2 |
+
+The four were migrated (`filming-plans-source`, `workload-tweak-exclusive-bucket`,
+`analytics-receipt-ui`, plus `calendar-toolbar-boot-recovery` and
+`notes-linear-routing` swept in on the first, wrong measurement). The guard keeps
+the remaining 433 honest.
+
+**A CORRECTION THIS ENTRY EXISTS TO RECORD.** The first version of the helper
+reported three MORE divergences — `_calRenderShell`, `renderWeekDeadlineTimeline`,
+`_calComposerHtml` — and those were **the new extractor being wrong, not the old
+one**. It modelled template literals with a boolean, so a nested backtick inside
+a `${...}` closed the outer template early and the function ended mid-string;
+`renderWeekDeadlineTimeline` came out at 945 characters against a true 4,456. The
+mistake had **the same shape as the bug it was written to fix** — a lexical
+context the scanner did not model — and it was caught only because the migrated
+suite failed to parse. Item 96's own headline figure ("79 extract differently")
+should be read with the same caution: it depends entirely on what the comparison
+scanner got right.
+
+The guard is mutation-tested: reverting a migrated file to a hand-rolled scanner
+fails it, naming both functions and the file.

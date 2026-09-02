@@ -19,18 +19,16 @@ const fs = require('fs');
 const path = require('path');
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
+/* OPEN_REPAIRS item 96: the hand-rolled scanner this replaced could not
+   read a regex literal, so it mis-extracted this file's own subjects --
+   silently, while still passing, because an assertion made with
+   `/pattern/.test(source)` can be satisfied by a NEIGHBOURING function in
+   the over-extracted text. Measured before the swap, in this file's
+   targets alone: see test/extract-function-integrity.js, which now fails
+   if any suite's extraction diverges again. */
+const { extractFunction } = require('./helpers/extract-function.js');
 function grabFunc(name) {
-  const at = INDEX.indexOf('function ' + name + '(');
-  if (at < 0) throw new Error('function not found: ' + name);
-  let depth = 0;
-  for (let i = INDEX.indexOf('{', at); i < INDEX.length; i++) {
-    if (INDEX[i] === '{') depth++;
-    else if (INDEX[i] === '}') {
-      depth--;
-      if (depth === 0) return INDEX.slice(at, i + 1);
-    }
-  }
-  throw new Error('unbalanced function: ' + name);
+  return extractFunction(INDEX, name);
 }
 
 function compile(name, deps = {}) {

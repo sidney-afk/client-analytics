@@ -5813,3 +5813,62 @@ behind it, and the bug behind this one was total. When a fix removes a gate, the
 path it opens has never run — treat the first report after that deploy as the
 first real test of everything downstream, not as a regression in what was just
 shipped.
+
+## 2026-09-02 — F27 Section 4 forward deploy executed (comment parent resolution, unsendable outbound writes)
+
+**EXECUTED. Green.** Run `33684111985`, dispatched by the owner from
+`152c050e0179ee127e02d0ea50853960d9019eab`. All four closures deployed, strict
+serial provider readbacks PASS, final four-function source/entrypoint/JWT/
+version comparison PASS.
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 34 → **35** | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | `verify_jwt=false` |
+| `deliverable-write` | 34 → **35** | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | `verify_jwt=false` |
+| `linear-outbound` | 46 → **47** | `1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39` | `verify_jwt=false` |
+| `production-write` | 65 → **66** | `cc44bf938fd666595061972c27721fbf10d17cb11b184e417f59478b0add5370` | `verify_jwt=false` |
+
+`batch-write` and `deliverable-write` are unchanged source, redeployed because
+the lane deploys the four as one serial set; their closures are byte-identical
+to the prior capture.
+
+**What is now live that was not.**
+
+`production-write` — the comment parent lookup no longer conflates "no such
+row" with "two rows". All three sites in that file resolved a parent with an
+unordered `.or(id.eq.X,native_comment_id.eq.X).limit(2)` and then tested
+`length !== 1`, which is true for 0 as well as 2. Zero rows now answers a
+distinct `409 comment_parent_not_found`; two rows prefer the exact primary-key
+hit before anything is called ambiguous. The lifecycle site keeps its `403` and
+its deliberate non-enumerating response — it was reporting a missing row as a
+PERMISSIONS failure, which sent operators to escalate to someone holding the
+same unresolvable id (OPEN_REPAIRS 100).
+
+`linear-outbound` — two writes Linear can never accept stop being retried
+forever (OPEN_REPAIRS 114, formerly numbered 99 on its branch).
+
+**Prior bundle sealed before dispatch**, per
+`docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md`:
+`sealed_bundle_sha256 = 3010578bb45a80a5eba29b3c499274f27708da62171c3dc2925bbaf3bb919652`,
+`byte_length = 524885`. Its `production-write` closure read `2af7fe6d…`, i.e.
+the code that was live — the sanity check the playbook asks for, and the one
+that proves the bundle would actually roll back rather than restore the release
+being deployed.
+
+**One dispatch was rejected first, and the cause is worth recording because it
+is procedural, not technical.** Run #35 failed in 19 seconds on `Forward
+commit_sha must equal the reviewed current-main workflow SHA`. The SHA handed to
+the owner was `784eb380`, correct when it was read — and then a docs PR was
+merged, moving main to `152c050e`, before the owner could paste it. Nothing
+deployed, no partial state; the gate did exactly its job. The same trap is
+already recorded for 2026-08-08, when four PRs merged inside the same window.
+**Do not merge anything between giving the owner a deploy SHA and their
+dispatch.**
+
+**Still NOT deployed after this run.** `linear-inbound` has its own lane
+(`deploy-f27-linear-inbound.yml`) and was untouched — this lane cannot deploy
+it by design. Its `readStoredComment` still returns `null` for both 0 and 2
+rows silently, which skips echo suppression and tombstone protection and can
+overwrite a client-visible thread's author, body and audience. That lane is
+additionally blocked on two stale pins (OPEN_REPAIRS 77 and 106); re-pinning is
+a PR, not an operator step.

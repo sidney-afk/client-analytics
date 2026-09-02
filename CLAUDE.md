@@ -48,6 +48,14 @@ succeeds.
 Always give the owner the **direct Actions URL**, never just the workflow name,
 and state which commit SHA to paste.
 
+**DO NOT MERGE ANYTHING between handing over a deploy SHA and the owner's
+dispatch.** The Section 4 lane requires `commit_sha` to equal main's tip *at
+dispatch time*. A dispatch was rejected on 2026-09-02 because a docs PR was
+merged in that window, and on 2026-08-08 because four PRs were. It fails in
+about 19 seconds and deploys nothing, so the cost is only a wasted cycle and the
+owner's patience — but it is entirely avoidable by simply not merging until they
+say it is green.
+
 Both lanes refuse on a fingerprint mismatch, which means they **fail closed**: a
 wrong digest cannot deploy the wrong code, it can only decline to deploy. Digests
 are **per function**, so two PRs re-pinning different functions do not conflict.

@@ -26170,15 +26170,52 @@
         error.code = String(code || 'write_failed');
         return error;
     }
+    /* WHICH identifiers a diagnostic row may carry, and deliberately not the
+       body or the author.
+
+       OPEN_REPAIRS 101: the row used to be `{ at, surface, kind, outcome, code }`
+       and nothing else, so the person holding the ring could see that a
+       `comment` write on `calendar` failed at a timestamp and could not say
+       WHICH note was lost. Every one of these fields was already sitting on the
+       `item` the caller handed in -- the writer simply threw them away.
+
+       An allowlist rather than a copy of `item`, for two reasons. A queue item
+       carries `payload.body` and `source_gate.comment_author`, and a ring that
+       accumulated client prose and people's names in localStorage would be a
+       worse artefact than the one it replaces. And an allowlist stays correct
+       when a new field appears on a queue item, where a denylist would silently
+       start recording it. */
+    const WRITE_UI_DIAG_IDS = ['id', 'client_slug', 'transport', 'card', 'component', 'comment', 'parent', 'action'];
+    const WRITE_UI_DIAG_PAYLOAD_IDS = ['issue', 'status'];
+    function _writeUiDiagnosticIds(item) {
+        const out = {};
+        if (!item || typeof item !== 'object') return out;
+        for (const k of WRITE_UI_DIAG_IDS) {
+            const v = item[k];
+            if (v == null || v === '') continue;
+            if (typeof v !== 'string' && typeof v !== 'number') continue;
+            out[k] = String(v).slice(0, 120);
+        }
+        const payload = item.payload;
+        if (payload && typeof payload === 'object') {
+            for (const k of WRITE_UI_DIAG_PAYLOAD_IDS) {
+                const v = payload[k];
+                if (v == null || v === '') continue;
+                if (typeof v !== 'string' && typeof v !== 'number') continue;
+                out[k] = String(v).slice(0, 120);
+            }
+        }
+        return out;
+    }
     function _writeUiQueueDiagnostic(surface, outcome, item, error) {
         try {
             const rows = JSON.parse(localStorage.getItem(WRITE_UI_QUEUE_DIAG_KEY) || '[]');
             const list = Array.isArray(rows) ? rows : [];
-            list.push({
+            list.push(Object.assign({
                 at: new Date().toISOString(), surface: String(surface || ''),
                 kind: String(item && item.kind || ''), outcome: String(outcome || ''),
                 code: String(error && error.code || error && error.message || '').slice(0, 80)
-            });
+            }, _writeUiDiagnosticIds(item)));
             localStorage.setItem(WRITE_UI_QUEUE_DIAG_KEY, JSON.stringify(list.slice(-50)));
         } catch (e) {}
     }
@@ -26567,7 +26604,14 @@
                     : '. Retrying is unlikely to help — send this code to the owner.')
         };
     }
-    function _writeUiReportFailure(surface, operation, error) {
+    /* `context` is optional and carries the identifiers the QUEUE items already
+       supply and a direct gateway refusal does not -- card, component, comment,
+       parent. It is merged into the diagnostic item, so it goes through the same
+       allowlist and cannot smuggle a body through. Passed at the canonical
+       comment site below, which is the lane items 99, 100 and 104 all live on;
+       the other sites still report without identifiers and are worth threading
+       one at a time rather than in one unattended sweep. */
+    function _writeUiReportFailure(surface, operation, error, context) {
         try { console.warn('[' + surface + '] native ' + operation + ' gateway failed', error); } catch (e) {}
         // A thrown transport/runtime error carries no `code`, only a message.
         // Naming it beats naming nothing, so it is used as the code — capped,
@@ -26577,7 +26621,7 @@
         // still leaves one row per attempt for peekWriteUiQueueDiagnostics().
         // Without this the only place the code survived was a console line the
         // user had already closed by the time anyone asked.
-        _writeUiQueueDiagnostic(surface, 'ui_write_failure', { kind: operation }, error);
+        _writeUiQueueDiagnostic(surface, 'ui_write_failure', Object.assign({ kind: operation }, context || {}), error);
         /* MAKE THE RELOAD ADVICE TRUE (OPEN_REPAIRS 13, 2026-08-22).
            These two refusals mean the browser named a row the server does not
            have -- the card is being rendered from a display cache whose backing
@@ -32317,7 +32361,12 @@
                 message: String(error && (error.code || error.message) || 'write_failed')
             };
             post._canonicalCommentActionError = failure;
-            _writeUiReportFailure(surface, 'comment', error);
+            _writeUiReportFailure(surface, 'comment', error, {
+                card: post && post.id,
+                component: component,
+                comment: comment && comment.id,
+                action: action
+            });
             // A CAS conflict keeps the local edit draft intact, then refreshes
             // the exact canonical thread so Retry uses the new server cursor.
             try {
@@ -43878,6 +43927,52 @@
        reply box isn't wiped by a save round-trip. */
     let _calReplyTarget = null;
     const _calReplyDrafts = Object.create(null);
+    /* AND THEY SURVIVE THE TAB, because a refused reply is the one thing in
+       OPEN_REPAIRS 101 that cannot be reconstructed from anywhere else.
+
+       A new ROOT note has been mirrored to sessionStorage per card since the
+       modal gained drafts; a REPLY never was, and `openCalComments` wipes
+       `_calReplyDrafts` wholesale on every open. So a reply whose write was
+       refused survived only until the person closed the modal -- and closing
+       the modal is exactly what someone does when a save fails and they go
+       looking for why. The client's words were then gone, and the 50-row
+       diagnostic ring does not carry the body, so nothing anywhere held them.
+
+       One key per card holding a parentId -> text map, mirroring the
+       `sv_noteDraft_<pid>` convention next to it rather than inventing a second
+       one. Capped at REPLY_DRAFT_MAX parents, evicting the least recently
+       written, because a card with a long thread could otherwise accumulate a
+       draft per parent for the life of the tab. The TEXT is never truncated:
+       a silently shortened draft is a worse outcome than a dropped one, since
+       the person cannot see that it happened. */
+    const CAL_REPLY_DRAFTS_PREFIX = 'sv_replyDrafts_';
+    const CAL_REPLY_DRAFT_MAX = 20;
+    function _calReplyDraftsLoad(pid) {
+        if (!pid) return {};
+        try {
+            const raw = JSON.parse(sessionStorage.getItem(CAL_REPLY_DRAFTS_PREFIX + pid) || '{}');
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+            const out = Object.create(null);
+            for (const k of Object.keys(raw)) if (typeof raw[k] === 'string' && raw[k]) out[k] = raw[k];
+            return out;
+        } catch (e) { return {}; }
+    }
+    function _calReplyDraftsPersist(pid) {
+        if (!pid) return;
+        try {
+            /* Object key order is insertion order for string keys, so trimming
+               from the FRONT drops the least recently written -- a re-write of
+               an existing parent does not move it, which is the behaviour we
+               want: the cap is about how many threads are held, not about
+               punishing someone for editing one of them. */
+            const keys = Object.keys(_calReplyDrafts).filter(k => _calReplyDrafts[k]);
+            const kept = keys.slice(-CAL_REPLY_DRAFT_MAX);
+            if (!kept.length) { sessionStorage.removeItem(CAL_REPLY_DRAFTS_PREFIX + pid); return; }
+            const map = {};
+            for (const k of kept) map[k] = _calReplyDrafts[k];
+            sessionStorage.setItem(CAL_REPLY_DRAFTS_PREFIX + pid, JSON.stringify(map));
+        } catch (e) {}
+    }
     let _calEditTarget = null;
     const _calEditDrafts = Object.create(null);
     let _calRootDraft = '';
@@ -44275,6 +44370,12 @@
         _calEditTarget = null;
         for (const k of Object.keys(_calReplyDrafts)) delete _calReplyDrafts[k];
         for (const k of Object.keys(_calEditDrafts)) delete _calEditDrafts[k];
+        /* Wiped first because the map is shared across cards and its keys are
+           comment ids from whichever card was open last, then refilled from
+           THIS card's own store. An edit draft is deliberately not restored:
+           it is a change to text the server already holds, so losing it costs a
+           retype and never costs the only copy of anything. */
+        Object.assign(_calReplyDrafts, _calReplyDraftsLoad(pid));
         // A half-written note survives an accidental close (Esc, mis-click on
         // the backdrop): the draft is kept per card for the tab's lifetime
         // and cleared on send.
@@ -44318,7 +44419,10 @@
         const composer = root.querySelector('#calCommentComposer');
         if (composer) {
             if (_calEditTarget) _calEditDrafts[_calEditTarget] = composer.value;
-            else if (_calReplyTarget) _calReplyDrafts[_calReplyTarget] = composer.value;
+            else if (_calReplyTarget) {
+                _calReplyDrafts[_calReplyTarget] = composer.value;
+                _calReplyDraftsPersist(_calOpenCommentsPid);
+            }
             else _calRootDraft = composer.value;
         }
     }
@@ -44573,7 +44677,10 @@
     function _calOnComposerInput(ta) {
         _calAutosizeComposer(ta);
         if (_calEditTarget) _calEditDrafts[_calEditTarget] = ta.value;
-        else if (_calReplyTarget) _calReplyDrafts[_calReplyTarget] = ta.value;
+        else if (_calReplyTarget) {
+            _calReplyDrafts[_calReplyTarget] = ta.value;
+            _calReplyDraftsPersist(_calOpenCommentsPid);
+        }
         else {
             _calRootDraft = ta.value;
             try {
@@ -44641,7 +44748,7 @@
         const parentId = _calReplyTarget;
         const saved = await _calAppendComment(pid, parentId, body);
         if (!saved) return;
-        if (parentId) delete _calReplyDrafts[parentId];
+        if (parentId) { delete _calReplyDrafts[parentId]; _calReplyDraftsPersist(pid); }
         else {
             _calRootDraft = '';
             try { sessionStorage.removeItem('sv_noteDraft_' + pid); } catch (e) {}

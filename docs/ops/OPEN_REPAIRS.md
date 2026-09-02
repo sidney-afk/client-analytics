@@ -7097,7 +7097,7 @@ the same way as its siblings. **Baseline 20.**
 
 ---
 
-## 100. [2026-09-02, ALL FOUR SITES FIXED IN REPO — **DEPLOY PENDING**: both files are edge functions and do not ship with the GitHub Pages deploy that carries `index.html`; until the reviewed F27 §4 lane runs, production still runs the old gate] A parent lookup that cannot tell "no such row" from "two rows" — and one of the four reported it as a permissions problem while another corrupted data in silence
+## 100. [2026-09-02, **production-write DEPLOYED AND LIVE 2026-09-02** (run `33684111985`, v65 → v66, closure `cc44bf93…`); the `linear-inbound` site remains UNDEPLOYED and undeployable — see items 77 and 106] A parent lookup that cannot tell "no such row" from "two rows" — and one of the four reported it as a permissions problem while another corrupted data in silence
 
 **One shape, four copies.** Every one of them was:
 

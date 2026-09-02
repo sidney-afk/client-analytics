@@ -14,6 +14,7 @@ commit as any structural change.
 | `404.html`, `CNAME` | GitHub Pages plumbing (SPA fallback redirect; the `syncview.synchrosocial.com` domain). Must stay at root. |
 | `README.md` | Project overview: what SyncView does, architecture, development, deployment. |
 | `REPO_MAP.md` | This file. |
+| `CLAUDE.md` | **The file a Claude Code session actually loads on turn one.** Carries only what a session needs in its first minute and would otherwise ask the owner for again: that the F27 capture is already automated on his machine (`f27capture` / `$env:USERPROFILE\.syncview\f27-capture.ps1`) and must not be re-derived by hand, which deploy lane needs a capture and which does not, that the lanes fail CLOSED on a digest mismatch and digests are per-function, and not to merge anything between handing over a deploy SHA and the dispatch. `AGENTS.md` outranks it and holds the standing rules; this file exists because `AGENTS.md` is NOT auto-loaded, so operator facts recorded only there were repeatedly not read. |
 | `AGENTS.md` | Instructions for coding agents (Production-tab rules, gates, doc upkeep). |
 | `ROLLBACK.md` | **The one-step-rollback runbook ("law")** + the Live State table. Stays at root so it is findable in an emergency. |
 | `EXECUTION_LOG.md` | Running dated log of every deploy, flag flip, migration, backup, and incident (rollback rule 5). |

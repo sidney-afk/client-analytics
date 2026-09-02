@@ -58257,6 +58257,29 @@
         // PORT-DELTA: renderDetail uses native comments and team-authority-gated writes.
         function _prodDetail() {
             const d = _prodIssue(_prodState.openId);
+            /* NOT FOUND vs NOT LOADED YET -- the same distinction the deep-link
+               fallback learned, at the second exit from the same room.
+
+               The boot read is two-phase: phase one holds nothing in
+               PROD_CACHE_TERMINAL, and _prodLoadTerminalTail fetches the
+               approved / posted / archived / canceled / duplicate rows behind
+               it. Gating the eviction on `terminalTailPending` stopped the
+               reader being thrown back to the list mid-load, which is what it
+               was asked to do -- and left them here instead, on a blank pane
+               reading "Deliverable not found" about a row that arrives a moment
+               later. Owner report, minutes after that fix shipped, and it is
+               the fix's own doing: before it, this state was unreachable
+               because the eviction had already changed the view.
+
+               Fixing one exit from a room with two is how a bug appears to move
+               rather than close. While the tail is pending an unresolved id
+               means NOT YET here too, and says so; once it lands, a genuinely
+               absent row still reports absent. */
+            if (!d && _prodState.terminalTailPending) {
+                return '<div class="prod-empty" data-prod-detail-settling="1" role="status">'
+                    + '<span class="prod-skeleton" style="height:12px;width:180px;display:inline-block;"></span>'
+                    + '<div>Loading this item…</div></div>';
+            }
             if (!d) return '<div class="prod-empty">Deliverable not found.</div>';
             _prodLoadEventsFor(d.id);
             const assignee = _prodMember(d.assignee);

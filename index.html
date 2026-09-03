@@ -44566,41 +44566,44 @@
      * components block "Finish reviewing". Admitting a card on its caption and
      * then rendering an enabled Approve over a video that does not exist would
      * trap Kasper on a card he cannot finish — caught in review. The
-     * unlinked-graphic clause below is the same shape and the precedent for it.
-     * The third of those three goes through _kasperBlockingComps, which is
-     * where the reasoning for keeping the Finish gate and the fresh-ask test
-     * apart is written down. */
+     * unlinked-graphic clause in _kasperUndecidedComps is the same shape and
+     * the precedent for it, and that function's comment records why the finish
+     * gate and the fresh-ask test must read one set and not two. */
     function _kasperCompReviewable(post, comp) {
         if (comp === 'video') return String((post && post.asset_url) || '').trim() !== '';
         if (comp === 'graphic') return String((post && post.thumbnail_url) || '').trim() !== '';
         return true;
     }
+    /* THE COMPONENTS KASPER STILL HAS TO DECIDE — one question, not two.
+     *
+     * Two gates, same rule: a component he cannot act on is not undecided, it
+     * is out of scope. A graphic slot with no GRA sub-issue is out of scope
+     * (the SMM cannot even re-route it — the pill is locked without a link),
+     * and a video or thumbnail whose file never arrived is out of scope for the
+     * same reason: there is nothing to watch or look at.
+     *
+     * THIS WAS BRIEFLY SPLIT IN TWO AND THAT WAS WRONG. The idea was that "has
+     * something been re-sent to me?" and "what stops me finishing?" were
+     * different questions, the first media-blind. They are not, and the split
+     * created a limbo Codex caught on #1252: on a card with a written caption
+     * and a fileless video both at Kasper Approval, deciding the caption
+     * emptied the (media-aware) finish gate, so Finish was allowed — while the
+     * (media-blind) finished test still saw the video as a fresh re-route and
+     * returned false forever. The card could never leave Waiting, and clicking
+     * Finish again could not help. The no-tweak branch was worse: it removed
+     * the card and logged it Approved with a component still undecided.
+     *
+     * The suite already stated the rule the split ignored: its G3 case is "an
+     * ACTIONABLE component is back at Kasper Approval → fresh ask", and G4 is
+     * the unlinked graphic that is NOT actionable and must not un-finish the
+     * card. A fileless video is G4, not G3. Nothing is lost by scoping it out:
+     * _kasperRenderStrandedNotice reports it to the SMM by name, which is the
+     * person who can fix it. See OPEN_REPAIRS 135. */
     function _kasperUndecidedComps(post) {
-        // Same unlinked-thumbnail gate as _calCompKasperVisible: a graphic
-        // slot with no GRA sub-issue must not block "Finish reviewing" —
-        // Kasper would be forced to decide on a thumbnail that isn't part of
-        // the card's scope (and that the SMM can't even re-route, since the
-        // pill is locked without a link).
         return _calComponentsFor(post).filter(c =>
             !(c === 'graphic' && !_calCompLinked(post, c))
+            && _kasperCompReviewable(post, c)
             && _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
-    }
-    /* The subset of the above that Kasper can actually act on right now — the
-     * media-present test on top of the undecided test. The two are deliberately
-     * NOT the same question:
-     *   • _kasperUndecidedComps answers "has something been re-sent to Kasper
-     *     Approval?" That is a routing fact and stays media-blind: a component
-     *     put back in his lane re-opens the card even if its file has not landed
-     *     yet, which is the honest state and the one that recovers on its own
-     *     the moment the file appears.
-     *   • _kasperBlockingComps answers "what still stops him finishing?" A panel
-     *     that cannot render cannot be decided on, so counting it would strand
-     *     him on a card with a disabled Finish and nothing to click — the exact
-     *     trap the unlinked-graphic clause above already avoids for thumbnails.
-     * Use this one for the Finish gate and its tooltip; use the media-blind one
-     * for the finished/fresh-ask question. See OPEN_REPAIRS 135. */
-    function _kasperBlockingComps(post) {
-        return _kasperUndecidedComps(post).filter(c => _kasperCompReviewable(post, c));
     }
     function _calCommentTotal(post) {
         let n = 0;
@@ -73209,10 +73212,11 @@
     /* "Finish reviewing" hand-off. A finished card sits in "Tweaks pending"
        until a genuine fresh ask supersedes it:
          • an ACTIONABLE component is back at Kasper Approval — gated by
-           _kasperUndecidedComps, so an unlinked-thumbnail graphic stuck at KA
-           (which can't be acted on and never blocked Finish) does NOT count.
-           This test stays media-blind on purpose: a re-route is a re-route even
-           if the file has not landed yet (see _kasperBlockingComps); or
+           _kasperUndecidedComps, so a component he cannot act on does NOT
+           count: an unlinked-thumbnail graphic, or a video or thumbnail whose
+           file never arrived. This is the SAME set the Finish gate reads, and
+           it has to be: any daylight between them is a card that can be
+           finished and never reads as finished; or
          • a message landed after he finished (the SMM replied / client commented).
        `kasper_finished_at` doubles as his "seen up to here" stamp, so the second
        test is just latestMsg > kasper_finished_at. */
@@ -73504,7 +73508,7 @@
         // Clicking it changes no status (each component already carries its
         // decision): all-approved → logged Approved; any change request →
         // handed to the SMM; any open comment → waiting on the SMM's reply.
-        const undecidedComps = _kasperBlockingComps(p);
+        const undecidedComps = _kasperUndecidedComps(p);
         const canFinish = undecidedComps.length === 0;
         const isFinished = _kasperIsFinished(p);
         const finishTitle = canFinish
@@ -74439,7 +74443,7 @@
         // Guard: every component must carry an explicit decision first. No
         // implicit approval — a component still at Kasper Approval with no
         // message from him is undecided and blocks finishing.
-        if (_kasperBlockingComps(post).length) return;
+        if (_kasperUndecidedComps(post).length) return;
         _kasperInvalidateInFlightLoad();
         // Finish writes NO sub-status (each component already holds its explicit
         // decision: approved → Client Approval, or change requested → Tweaks

@@ -84,8 +84,8 @@ const REAL = [
 ].join('\n\n');
 
 const mod = new Function(HARNESS + '\n' + REAL +
-  ';return { _kasperIsFinished, _kasperIsClosed, _kasperState, _seenMap };')();
-const { _kasperIsFinished, _kasperIsClosed } = mod;
+  ';return { _kasperIsFinished, _kasperIsClosed, _kasperUndecidedComps, _kasperState, _seenMap };')();
+const { _kasperIsFinished, _kasperIsClosed, _kasperUndecidedComps } = mod;
 
 let failures = 0;
 function check(label, got, want) {
@@ -154,12 +154,27 @@ check('stamp + reply after finish → STILL finished (a message does not re-surf
   })), true);
 
 // G3 — an ACTIONABLE component is back at Kasper Approval → fresh ask.
+// The video carries a FILE, which is what makes it actionable: a video with no
+// asset_url is G4's case, not this one — Kasper cannot watch what is not there.
+// (The fixture used to omit it, which only passed because nothing looked; the
+// omission is what made a media-blind reading of this case look reasonable.)
 resetState();
 check('stamp + linked video back at KA → not finished (fresh ask)',
   _kasperIsFinished(buildPost({
     id: 'g3', video_status: 'Kasper Approval', caption_status: 'Client Approval',
+    asset_url: 'https://frame.io/g3.mp4',
     kasper_finished_at: T.tweak, video_comments: [tweak('g3-v', T.tweak)],
   })), false);
+
+// G3b — the same re-route with NO file is NOT a fresh ask, for exactly G4's
+// reason. Kasper cannot act on it, so it must not un-finish the card; the
+// stranded notice reports it to the SMM, who is the person who can fix it.
+resetState();
+check('stamp + FILELESS video back at KA → still finished (nothing to act on)',
+  _kasperIsFinished(buildPost({
+    id: 'g3b', video_status: 'Kasper Approval', caption_status: 'Client Approval',
+    kasper_finished_at: T.tweak, video_comments: [tweak('g3b-v', T.tweak)],
+  })), true);
 
 // G4 — the unlinked-thumbnail gate: a graphic at KA with no GRA issue is NOT
 // actionable, so it must not un-finish the card (the original bug).
@@ -257,6 +272,37 @@ check('_kasperClose persists the post',
 const partSrc = grabFunc('_kasperPartitionItems');
 check('_kasperPartitionItems buckets via _kasperIsFinished',
   /_kasperIsFinished\s*\(/.test(partSrc), true);
+
+/* ---- THE INVARIANT THE SPLIT BROKE ------------------------------------- */
+
+/* If the finish guard lets Kasper click Finish, the stamp it writes must make
+   the card READ as finished. Codex P1 on #1252: while the guard was media-aware
+   and this test was media-blind, a card with a written caption and a fileless
+   video let him finish and then stayed in Waiting forever, because the video
+   still counted as a fresh re-route. Asserted as a property over the shapes
+   that seam lived in, not as one example. */
+const SHAPES = [
+  { id: 'inv1', video_status: 'Kasper Approval', caption_status: 'Kasper Approval' },
+  { id: 'inv2', video_status: 'Kasper Approval', caption_status: 'Tweaks Needed' },
+  { id: 'inv3', video_status: 'Kasper Approval', caption_status: 'Tweaks Needed',
+    asset_url: 'https://frame.io/i.mp4' },
+  { id: 'inv4', graphic_status: 'Kasper Approval', graphic_linear_issue_id: '',
+    caption_status: 'Client Approval' },
+  { id: 'inv5', graphic_status: 'Kasper Approval', graphic_linear_issue_id: 'GRA-1',
+    thumbnail_url: 'https://d/i.png', caption_status: 'Client Approval' },
+  { id: 'inv6', video_status: 'Client Approval', caption_status: 'Client Approval' },
+];
+for (const shape of SHAPES) {
+  resetState();
+  const pending = buildPost(shape);
+  const canFinish = _kasperUndecidedComps(pending).length === 0;
+  const stamped = buildPost(Object.assign({}, shape, { kasper_finished_at: T.tweak }));
+  const readsFinished = _kasperIsFinished(stamped);
+  check(shape.id + ': if Finish is allowed, the stamp it writes actually finishes the card',
+    !canFinish || readsFinished, true);
+  check(shape.id + ': and if Finish is blocked, the card is not already reading as finished',
+    canFinish || !readsFinished, true);
+}
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll kasper-review-state-global checks passed.');

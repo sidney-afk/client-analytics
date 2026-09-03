@@ -292,32 +292,67 @@ ok(reviewable(MIXED, 'title') === true, 'a title needs no file either');
 /* ---- 3. Wiring --------------------------------------------------------- */
 ok(/_calCompKasperVisible\(p, c\) && _kasperCompReviewable\(p, c\)/.test(INDEX),
   'the rendered panels exclude components that are not reviewable');
-/* The Finish gate. Two questions that look alike and are not:
-   _kasperUndecidedComps stays media-blind (a re-route into Kasper's lane is a
-   re-route whether or not the file has landed, and that is what re-opens a
-   finished card), while _kasperBlockingComps is the subset he can actually act
-   on and is what the Finish button and its tooltip read. Run both for real
-   against the mixed card; _calComponentsFor and _calNormStatus are stubbed
-   because the component roster and the status vocabulary are not what is under
-   test here — both have their own suites. */
+/* The Finish gate, and the one thing that must be true of it: the set that
+   decides whether Finish is ALLOWED and the set that decides whether the card
+   READS as finished have to be the same set.
+
+   They were briefly split -- the finish gate media-aware, the fresh-ask test
+   media-blind -- and Codex caught the limbo that created on #1252: deciding the
+   caption on this very card emptied the finish gate, so Finish was allowed,
+   while the fresh-ask test still saw the fileless video and returned false
+   forever. The card could never leave Waiting. So this asserts the collapse,
+   not a distinction. _calComponentsFor and _calNormStatus are stubbed because
+   the component roster and the status vocabulary are not what is under test
+   here -- both have their own suites. */
 const gate = new Function(`
   const _calComponentsFor = () => ['video', 'graphic', 'caption'];
   const _calNormStatus = s => String(s || '').trim();
   ${grabFunc('_calCompLinked')}
   ${realReviewable}
   ${grabFunc('_kasperUndecidedComps')}
-  ${grabFunc('_kasperBlockingComps')}
-  return { undecided: _kasperUndecidedComps, blocking: _kasperBlockingComps };
+  return _kasperUndecidedComps;
 `)();
 const MIXED_LINKED = Object.assign({}, MIXED, { linear_issue_id: 'VID-1' });
-ok(gate.undecided(MIXED_LINKED).join() === 'video,caption',
-  'the undecided set stays media-blind -- the video was re-routed to him, file or no file');
-ok(gate.blocking(MIXED_LINKED).join() === 'caption',
-  'but the fileless video does not block Finish reviewing, so he is never stranded on it');
-ok(/const undecidedComps = _kasperBlockingComps\(p\);/.test(INDEX),
-  'the Finish button reads the blocking set');
-ok(/if \(_kasperBlockingComps\(post\)\.length\) return;/.test(INDEX),
-  'and so does the guard inside the finish handler');
+ok(gate(MIXED_LINKED).join() === 'caption',
+  'the fileless video is out of scope: he cannot watch what is not there, so it is not undecided');
+const MIXED_WITH_FILE = Object.assign({}, MIXED_LINKED, { asset_url: 'https://frame.io/x.mp4' });
+ok(gate(MIXED_WITH_FILE).join() === 'video,caption',
+  'and the moment the file lands the video IS undecided again, with no other change');
+ok(gate(Object.assign({}, MIXED_LINKED, { caption_status: 'Tweaks Needed' })).length === 0,
+  'so deciding the caption empties the set entirely -- which is what lets Finish both run AND stick');
+ok(!/_kasperBlockingComps/.test(INDEX),
+  'there is no second set left to drift from this one');
+ok(/const undecidedComps = _kasperUndecidedComps\(p\);/.test(INDEX),
+  'the Finish button reads it');
+ok(/if \(_kasperUndecidedComps\(post\)\.length\) return;/.test(INDEX),
+  'the guard inside the finish handler reads it');
+ok(/if \(stampedAt && _kasperUndecidedComps\(post\)\.length > 0\) return false;/.test(INDEX),
+  'and so does the finished-state test -- the three cannot disagree because there is one set');
+
+/* THE SAMPLES TWIN IS DELIBERATELY DIFFERENT, and this records why so the next
+   reader does not "fix" it or re-derive the argument.
+
+   Samples has no caption and no title -- SXR_REVIEW_COMPONENTS is ['video',
+   'graphic'] -- so item 135's actual defect, a written caption hidden behind a
+   media test, cannot happen there. And the samples surface is SELF-CONSISTENT
+   today: one set, _sxrKasperUndecidedComps, read by its finish gate, its
+   finished-state test and its finish handler alike, and it both counts a
+   component and renders its panel.
+
+   Adding the media filter to that set ALONE would break exactly that
+   consistency -- a fileless component would stop counting while its panel still
+   rendered an enabled Approve, which is the mirror image of the trap just
+   removed from the calendar. Doing it properly means filtering the samples
+   panel render too, which is a larger change than the one this suite covers. */
+ok(/const SXR_REVIEW_COMPONENTS = \['video','graphic'\];/.test(INDEX),
+  'samples has no caption or title component, so item 135 cannot occur there');
+const sxrUndecided = grabFunc('_sxrKasperUndecidedComps');
+ok(!/_kasperCompReviewable/.test(sxrUndecided),
+  'and its undecided set is deliberately media-BLIND -- see the note above, this is not drift');
+ok(/if \(stampedAt && _sxrKasperUndecidedComps\(post\)\.length\) return false;/.test(INDEX)
+  && /const undecided = _sxrKasperUndecidedComps\(p\);/.test(INDEX)
+  && /if \(_sxrKasperUndecidedComps\(p\)\.length\) return;/.test(INDEX),
+  'because what matters is that samples reads ONE set in all three places too, which it does');
 
 
 ok(/body\.innerHTML = _kasperRenderUnloadedNotice\(\) \+ _kasperRenderStrandedNotice\(\)/.test(INDEX),

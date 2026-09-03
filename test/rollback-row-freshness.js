@@ -447,8 +447,78 @@ ok(holed.code === 1
 const undated = run(fixture('undated',
     LOG.replace('## 2026-09-02 — F27 Section 4 forward deploy executed',
         '## F27 Section 4 forward deploy executed'), rollback()));
-ok(undated.code === 1 && /no\s+YYYY-MM-DD date/.test(undated.json.failures.join(' ')),
+ok(undated.code === 1 && /usable YYYY-MM-DD date/.test(undated.json.failures.join(' ')),
     'and a newest receipt under an undated heading fails, rather than quietly dropping to one chronology signal');
+
+const impossible = run(fixture('impossible',
+    LOG.replace('## 2026-09-02 — F27', '## 2026-99-99 — F27'), rollback()));
+ok(impossible.code === 1 && /usable YYYY-MM-DD date/.test(impossible.json.failures.join(' ')),
+    'a heading date shaped right but impossible (2026-99-99) fails — it would sort after every real date');
+
+/* ---- 5f. the concise prose shape, which produced no receipt at all ------ */
+
+/* EXECUTION_LOG.md opens with one of these and run 33434655418 was simply
+   absent from this guard's history. If the next dispatch is logged that way,
+   the deploy before it stays live and its stale row exits 0. */
+const CONCISE = [
+    '# Execution log',
+    '',
+    '## 2026-09-01 — Deploy: something',
+    '',
+    '**Section 4 forward from `da2195f0`, run `33555586230`, PASS.** `production-write`',
+    '64 → **65**, closure',
+    '`' + H.pw65 + '`. The other three were byte-identical redeploys.',
+    '',
+    '## 2026-09-02 — F27 Section 4 forward deploy executed',
+    '',
+    'Run `33684111985`, dispatched by the owner from',
+    '`152c050e0179ee127e02d0ea50853960d9019eab`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 34 → **35** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 34 → **35** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 65 → **66** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+    '`sealed_bundle_sha256 = 3010578bb45a80a5eba29b3c499274f27708da62171c3dc2925bbaf3bb919652`,',
+    '`byte_length = 524885`.',
+    '',
+].join('\n');
+const concise = run(fixture('concise', CONCISE, rollback()));
+ok(concise.json && concise.json.receipts === 2,
+    'a concise-prose dispatch IS a receipt — it used to produce none at all');
+ok(concise.code === 0 && concise.json.live.run === '33684111985',
+    'and the table-backed newest deploy is still the live one');
+
+/* When the concise shape IS the newest, it fails as incomplete rather than
+   being ignored — it names one function and cannot be reconstructed. */
+const CONCISE_NEWEST = [
+    '# Execution log',
+    '',
+    '## 2026-09-02 — F27 Section 4 forward deploy executed',
+    '',
+    'Run `33555586230`, dispatched from `da2195f0b9bb8febd5c8e3d01bc80a91fb3b71b9`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 34 | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 34 | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 46 | `' + H.lo46 + '` | `verify_jwt=false` |',
+    '| `production-write` | **65** | `' + H.pw65 + '` | `verify_jwt=false` |',
+    '',
+    '## 2026-09-03 — Deploy: logged the short way',
+    '',
+    '**Section 4 forward from `152c050e`, run `33684111985`, PASS.** `production-write`',
+    '65 → **66**, closure',
+    '`' + H.pw66 + '`. The other three were byte-identical redeploys.',
+    '',
+].join('\n');
+const conciseNewest = run(fixture('concisenewest', CONCISE_NEWEST, rollback()));
+ok(conciseNewest.code === 1 && conciseNewest.json.live.run === '33684111985',
+    'a concise entry that IS the newest is read as the newest, not skipped over');
+ok(conciseNewest.json.failures.filter(f => /is missing from the newest receipt/.test(f)).length === 3,
+    'and fails by name for the three functions it does not record');
 
 /* ---- 6. nothing to compare is a failure, not a pass -------------------- */
 

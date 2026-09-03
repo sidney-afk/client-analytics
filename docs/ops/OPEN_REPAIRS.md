@@ -10380,6 +10380,29 @@ comparison and not the other.
   entirely, quietly reducing the guard to a single chronology signal — the exact
   thing the second signal exists to prevent. Now a failure.
 
+### Round five: a whole deploy shape this guard could not see
+
+- **The concise prose entry produced no receipt at all.** `EXECUTION_LOG.md`
+  OPENS with one — *"**Section 4 forward from `5a3365f2`, run `33434655418`,
+  PASS.** `production-write` 62 → **63**, closure `a54b6bad…`. The other three
+  were byte-identical redeploys."* No table, no attestation block, so **run
+  `33434655418` was simply absent from this guard's picture of history**. If the
+  next dispatch were logged that way, the deploy before it would stay `live` and
+  its stale row would exit 0. These cannot be reconstructed — *"the other three
+  were byte-identical"* names no versions — so they are detected and left
+  incomplete deliberately: when one is the newest, the per-function checks fail
+  it by name and tell the writer what the entry is missing. Receipts went from
+  16 to 17.
+- **Each sealed bundle is now bound to its own dispatch**, not to its entry.
+  Same multi-deploy-per-entry problem as the run id, on the half I had not
+  applied it to: every receipt in the 2026-08-05 entry was handed that entry's
+  FIRST bundle, so a later row could name an older digest and pass — and the
+  captured-version check does not catch that when the intervening deploy moved a
+  different function.
+- **A date has to be a date.** `2026-99-99` matched the shape, sorts after every
+  real date, and would have made the second chronology signal meaningless while
+  looking present. Round-tripped through `Date` now.
+
 **A second one came the same way.** Table rows were grouped by byte distance,
 which merged rows from two different entries whenever the first table was
 short — so a truncated newest receipt's lone surviving row joined the next

@@ -133,6 +133,16 @@ function lastMatch(text, re) {
     return last;
 }
 
+/* A DATE HAS TO BE A DATE. `2026-99-99` matches the shape, sorts after every
+   real date, and would have made the second chronology signal meaningless while
+   looking present. Round-tripped through Date so only a real calendar day
+   counts. Codex P2 on #1253. */
+function validDate(text) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(text || ''))) return '';
+    const d = new Date(text + 'T00:00:00Z');
+    return isFinite(d.getTime()) && d.toISOString().slice(0, 10) === text ? text : '';
+}
+
 function proseContext(log, at) {
     const start = log.lastIndexOf('\n## ', at);
     const chunk = log.slice(start < 0 ? 0 : start, at);
@@ -142,7 +152,7 @@ function proseContext(log, at) {
     return {
         run: run ? run[1] : '',
         commit: commit ? commit[1].toLowerCase() : '',
-        date: date ? date[1] : '',
+        date: date ? validDate(date[1]) : '',
     };
 }
 
@@ -169,22 +179,80 @@ function entryText(log, at) {
     return log.slice(from, next < 0 ? log.length : next);
 }
 
+/* THE DISPATCH SECTION a receipt belongs to, not its whole entry. One `##` can
+   hold several dispatches, so the entry's FIRST sealed bundle was being handed
+   to every receipt in it — a later row could then name that older digest and
+   pass, and the captured-version check does not catch it when the intervening
+   deploy moved a different function. Codex P1 on #1253, the same multi-deploy
+   problem as the run id, on the half I had not applied it to. Bounded by the
+   nearest preceding run mention and the next one after it. */
+function dispatchSection(log, at) {
+    const entryStart = log.lastIndexOf('\n## ', at);
+    const entryEnd = log.indexOf('\n## ', at);
+    const from = entryStart < 0 ? 0 : entryStart;
+    const to = entryEnd < 0 ? log.length : entryEnd;
+    const runRe = /[Rr]un\s+`(\d{6,})`/g;
+    let start = from, end = to, m;
+    runRe.lastIndex = from;
+    const marks = [];
+    while ((m = runRe.exec(log)) && m.index < to) marks.push(m.index);
+    for (let i = 0; i < marks.length; i++) {
+        if (marks[i] <= at) start = marks[i];
+        else { end = marks[i]; break; }
+    }
+    return log.slice(start, Math.max(start, end));
+}
+
 function sealedBundleIn(text) {
     const sha = String(text || '').match(/sealed_bundle_sha256\s*=\s*([0-9a-f]{64})/);
     const bytes = String(text || '').match(/byte_length\s*=\s*(\d+)/);
     return sha ? { sha: sha[1], bytes: bytes ? bytes[1] : '' } : null;
 }
 
+/* THE CONCISE PROSE SHAPE, which produced no receipt at all. EXECUTION_LOG.md
+   opens with one: "**Section 4 forward from `5a3365f2`, run `33434655418`,
+   PASS.** `production-write` 62 → **63**, closure `a54b6bad…`. The other three
+   were byte-identical redeploys." No table, no attestation block — so run
+   33434655418 was simply ABSENT from this guard's picture of history. If the
+   next dispatch is logged that way, the deploy before it stays `live` and its
+   stale row exits 0. Codex P1 on #1253.
+
+   These cannot be RECONSTRUCTED — "the other three were byte-identical" names
+   no versions — so they are detected and left incomplete on purpose: the
+   newest-receipt checks then fail them by name, which is the honest outcome and
+   tells the writer what the entry is missing. */
+function receiptsFromProse(log) {
+    const out = [];
+    const re = /\*\*Section 4 forward from `([0-9a-f]{7,40})`, run `(\d{6,})`[^*]*\*\*([\s\S]{0,600})/g;
+    let m;
+    while ((m = re.exec(log))) {
+        const fns = {};
+        const fre = /`([a-z-]+)`\s*(\d+)\s*(?:→|->)\s*\*\*(\d+)\*\*[\s\S]{0,40}?closure\s*`([0-9a-f]{64})`/g;
+        let f;
+        while ((f = fre.exec(m[3]))) {
+            if (SLUGS.indexOf(f[1]) < 0) continue;
+            fns[f[1]] = { version: f[3], closure: f[4].toLowerCase() };
+        }
+        out.push({
+            at: m.index, source: 'concise prose', run: m[2], commit: m[1].toLowerCase(), fns,
+        });
+    }
+    return out;
+}
+
 function executionLogReceipts() {
     const log = read('EXECUTION_LOG.md');
-    const all = receiptsFromJson(log).concat(receiptsFromTables(log));
+    const all = receiptsFromJson(log).concat(receiptsFromTables(log)).concat(receiptsFromProse(log));
     all.sort((a, b) => a.at - b.at);
     for (const r of all) {
         const p = proseContext(log, r.at);
         r.run = r.run || p.run;
         r.commit = r.commit || p.commit;
         r.date = p.date || '';
-        r.sealed = sealedBundleIn(entryText(log, r.at));
+        /* Look in this receipt's own dispatch section first; fall back to the
+           entry only when the section carries no bundle line, which is the
+           single-dispatch shape where the two are the same text anyway. */
+        r.sealed = sealedBundleIn(dispatchSection(log, r.at)) || sealedBundleIn(entryText(log, r.at));
     }
 
     // Group by deployment identity, preferring the richer shape within a group.
@@ -194,7 +262,8 @@ function executionLogReceipts() {
         if (!r.run) { unidentified.push(r); continue; }
         const prev = byRun.get(r.run);
         if (!prev) { byRun.set(r.run, r); continue; }
-        if (prev.source !== 'attestation block' && r.source === 'attestation block') byRun.set(r.run, r);
+        const rank = x => x.source === 'attestation block' ? 3 : x.source === 'summary table' ? 2 : 1;
+        if (rank(r) > rank(prev)) byRun.set(r.run, r);
         else if (prev.source === r.source) prev.siblings = (prev.siblings || []).concat([r]);
     }
     const receipts = Array.from(byRun.values()).sort((a, b) => {
@@ -266,8 +335,8 @@ function main() {
            drops to one signal when the first is missing is a single point of
            failure wearing a belt. Codex P2 on #1253. */
         failures.push('the newest receipt (run ' + (live.run || '?') + ') sits under a heading with no'
-            + ' YYYY-MM-DD date, so run-id order has nothing to be cross-checked against.'
-            + ' Date that EXECUTION_LOG heading.');
+            + ' usable YYYY-MM-DD date — absent, or shaped like one without being a real calendar day —'
+            + ' so run-id order has nothing to be cross-checked against. Date that EXECUTION_LOG heading.');
     }
     if (live && live.date) {
         const laterByDate = receipts.filter(r => r.date && r.date > live.date);

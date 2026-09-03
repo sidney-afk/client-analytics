@@ -9586,3 +9586,78 @@ The generalisable lesson is the one that keeps recurring in this file, arriving
 this time in the analysis rather than the code: a count computed from the wrong
 table is not evidence. Both wrong answers came from reasoning about `deliverables`
 without booting the app; both were killed in minutes by opening a browser.
+
+---
+
+## 124. [2026-09-03, SWEPT — nothing live found, and that is the finding] "Paginating a non-unique order" hunted through the backend, where losing a row would matter most
+
+Item 121 fixed this class in the browser boot (`batches`, paged with OFFSET over
+a non-unique `created_at`). The obvious next question, and the owner's own:
+**does the same mistake exist somewhere it matters more?** The backend scripts
+page far larger sets, and the reconciler decides divergence and pages the
+monitor — a row lost there is a real drift nobody is told about.
+
+Swept every ordered read in `scripts/` and `supabase/`. Four candidates, all
+measured against live data rather than reasoned about:
+
+| reader | order | pages? | verdict |
+|---|---|---|---|
+| `linear-deliverables-reconcile` main path | keyset by `id`, then sorted in JS | yes | **already safe** — `loadReconcileDeliverableRows` pages by primary key and applies `canonicalDeliverableOrder`, whose final tiebreak is `id` |
+| `linear-deliverables-reconcile` legacy PROOF path | `team.asc,identifier.asc` + OFFSET | 7 pages | **latent** — see below |
+| `attribution-stuck-check` | `updated_at.desc` + OFFSET | **no** — 721 rows, under one page | inert until that set passes 1,000 |
+| `linear-sync-reconcile` (`calendar_posts`) | `client.asc` + OFFSET | 10 pages | **latent, and empirically clean** — see below |
+
+### The legacy proof path
+
+`loadLegacyLiveDataForProof()` pages `deliverables` with OFFSET over
+`team.asc,identifier.asc`. **260 rows carry a NULL identifier** (201 graphics,
+59 video), and within a team those form one enormous ORDER BY tie — Postgres
+promises no order inside it.
+
+Measured: four consecutive full pages returned all 6,252 rows, no duplicates,
+none missing. The reason is visible and is pure luck: the graphics NULL tie
+occupies positions 2264–2464 and the video tie 6193–6251, and **no page boundary
+(1000, 2000, …) falls inside either**. Roughly 264 more graphics deliverables
+moves the 2000 boundary into a 201-row tie.
+
+NOT repaired, deliberately. It feeds a migration read-proof gate that fails
+closed, the main reconcile path is already safe, and the file's sha256 is pinned
+in the F27 closure — so changing it unattended costs a re-pin for a hazard that
+currently degrades into a wasted cycle. The one-line cure when someone next
+touches that path: route it through the `supabaseRowsByPrimaryKey` +
+`canonicalDeliverableOrder` pair that already exists twelve lines above it.
+
+### `linear-sync-reconcile`, and three wrong answers I published on the way
+
+This one looked alarming and was not. Recording the whole chain, because the
+retractions are the useful part:
+
+1. *"It pages `calendar_posts` with OFFSET over `client.asc` — a slug shared by
+   hundreds of rows — across 10 pages."* **True.**
+2. *"It loses 27 rows every run: 9,694 fetched, 9,667 unique."* **Wrong.** A
+   keyset walk over the same table returns 9,694 fetched and 9,667 unique too —
+   and the two return the **identical id set**, zero missed either way. The
+   duplication is in the data, not the pager.
+3. *"Then `calendar_posts` has duplicate primary keys."* **Also wrong.** The
+   largest group is `p_cal_settings` × 16 — one per client, `order_index = -1`,
+   no status. The table is keyed by **(client, id)**; `id` alone was never meant
+   to be unique. No defect.
+
+So `linear-sync-reconcile` is fine. Its OFFSET pager over a heavily-tied column
+is theoretically fragile and empirically returns exactly what a keyset walk
+returns, repeatedly. Left alone: it is the convergence backbone, it runs every
+~15 minutes with writes, and changing its read on a hazard that four runs could
+not provoke is the wrong trade.
+
+### What this sweep is worth
+
+The answer to "is it somewhere else" is **the browser boot was the only place
+this class was actually live.** Everything in the backend is either already
+paged by primary key, too small to page at all, or latent behind a boundary that
+happens not to land in a tie.
+
+That is worth writing down precisely because it is a negative result: the next
+session that notices `order=client.asc&offset=` should read this row rather than
+spend a night re-measuring it. And the recurring lesson from three wrong answers
+in one investigation is the same one item 123 records — a count is not evidence
+until you have checked what it is counting.

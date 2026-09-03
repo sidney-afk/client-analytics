@@ -99,6 +99,30 @@ function ctxFor(state) {
     'COMPLETE: and the notice still names it');
 }
 
+/* ---- A CACHED PAINT MAY NEVER EVICT ---------------------------------------
+ *
+ * Owner report with a screenshot: opening a deep link showed the unfiltered
+ * "All teams" list FIRST, then the item. `mountProductionView` paints from the
+ * localStorage snapshot before any network read exists, so the tail is neither
+ * pending nor failed — and the eviction, gated only on the tail, fired on a row
+ * that was simply not in a stale snapshot. Same NOT-YET vs GONE mistake, at a
+ * third moment. */
+{
+  const h = ctxFor({ openId: 'posted-1', view: 'detail' });
+  h.run(`_prodState.deepLink = { id: 'posted-1', kind: 'issue' }; _prodApplyDeepLinkFallback(false)`);
+  ok(h.run(`_prodState.view`) === 'detail' && h.run(`_prodState.openId`) === 'posted-1',
+    'CACHED: a non-authoritative paint never moves the reader to the list');
+  ok(h.run(`_prodState.deepLinkMissing`) === '',
+    'CACHED: and never publishes a missing-row notice off a snapshot');
+}
+{
+  // The authoritative pass must still do its job, or the guard is a mute button.
+  const h = ctxFor({ openId: 'ghost-1', view: 'detail' });
+  h.run(`_prodState.deepLink = { id: 'ghost-1', kind: 'issue' }; _prodApplyDeepLinkFallback(true)`);
+  ok(h.run(`_prodState.view`) === 'list',
+    'AUTHORITATIVE: the same absent row still evicts once the server has answered');
+}
+
 /* ---- the pane says three different things, and never the wrong one -------- */
 
 {

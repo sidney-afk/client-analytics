@@ -56850,7 +56850,26 @@
                the identical shape: a state the code could not represent, so two
                different situations shared one answer. NOT YET and GONE was the
                first four. This one is I DO NOT KNOW. */
-            const settling = !!_prodState.terminalTailPending || !!_prodState.terminalTailFailed;
+            /* A CACHED PAINT KNOWS NOTHING, and that is the third situation this
+               guard had to learn.
+
+               Owner report, with a screenshot: opening a deep link shows the
+               unfiltered "All teams" issue list FIRST, before the item. The
+               comment above already promised the opposite -- "on the cached
+               paint it only picks a view to show and keeps the request pending"
+               -- but the eviction below ran anyway, because it was gated only on
+               the tail. `mountProductionView` paints from the localStorage
+               snapshot before any network read exists, so at that moment the
+               tail is neither pending nor failed and `settling` was false. A row
+               merely absent from a stale snapshot was therefore treated as GONE,
+               the view was forced to 'list', and the reader watched the whole
+               board flash past on the way to the thing they clicked.
+
+               `authoritative` is the missing term. Absence is only evidence when
+               the answer came from the server. */
+            const settling = !authoritative
+                || !!_prodState.terminalTailPending
+                || !!_prodState.terminalTailFailed;
             if (!settling) {
                 if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
                 if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }

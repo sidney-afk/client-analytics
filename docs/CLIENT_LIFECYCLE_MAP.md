@@ -535,7 +535,7 @@ completeness receipt.
 | --- | --- | --- |
 | CLIENTS METRICS | daily | IG (Apify) + TikTok (Apify) + YouTube stats per `Clients Info` row → appends `Metrics` / updates `PostTracking`. **F124:** source/prior-state failures can become ordinary zero/reset rows or stop later roster clients. One retained run failed on its first Metrics append after PostTracking work and skipped the other 25 clients; require per-client/platform coverage, roster isolation and last-good/degraded semantics. |
 | TOP VIDEOS / COMPETITOR RESEARCH / MARKET RESEARCH | scheduled | research briefs per client → sheets → SyncView Analytics tab. **F124:** Top Videos can treat provider errors as empty/old complete truth; in each of four green runs, 4–7 of 15 configured YouTube lanes used the same no-source branch as missing/empty input while all 29 client results were written. |
-| Weekly Slack – Top Reel | Mondays | posts each client's top reel into their client Slack channel |
+| Weekly Slack – Top Reel | Mondays | **disabled 2026-09-03** (owner request) — was posting each client's top reel into their client Slack channel; workflow `BTxic5NSaCMtZMh6` unpublished in n8n, definition intact for re-enabling |
 | Clients — Monthly Check-in | 1st of month, 08:00 | emails every `Monthly Checkup` row a check-in with the iClosed **`check-in`** calendar link |
 | SMM Reports — Weekly Reminder | Mondays 09:00 | emails Kasper the SMM weekly-reports viewer link |
 | SMM Reports — Manager Sync | daily 06:00 | syncs `Social Media Managers` sheet → Supabase `social_media_managers` |

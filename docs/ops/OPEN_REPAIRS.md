@@ -9741,3 +9741,45 @@ expectations, they should be re-based deliberately and said so in writing — no
 left red. A mandatory gate that nobody can satisfy is worse than no gate, because
 it silently converts every merge into an unverified one, which is precisely what
 the last five days were.
+
+### TWO of the six, reproduced offline — both look STALE rather than broken
+
+The heavy lane needs the live backend, but `behav-wired.js`'s checks are DOM
+assertions, so the two that failed FIRST (2026-08-30) were run verbatim against
+the real app booted over the real 6,252-row set through a replay backend. **Both
+reproduce, and both appear to encode behaviour that was deliberately changed.**
+
+**`titleTooltip` — stale, high confidence.** It requires a SHORT row title to
+carry `data-fulltitle` but **no `title` attribute**:
+
+    shortOk = shortEl.getAttribute('data-fulltitle') === 'Hi' && !shortEl.hasAttribute('title')
+
+Measured now: the element HAS a `title` attribute, and `data-fulltitle` reads
+`"Hi › <parent>"` rather than `"Hi"`. Both halves are deliberate product
+changes — PR #1229 removed the 120-character threshold precisely so short
+sub-issue titles always get a hover title ("Always emit it"), and the fulltitle
+gained the parent breadcrumb. The check's OTHER half, the long-title assertion,
+still passes. So this is the gate describing the app as it was, not the app
+misbehaving.
+
+**`chip` — changed assumption, lower confidence.** It reads the first row's
+`data-prod-client`, clicks that row's client chip, and requires
+`openProjectId === thatSlug`. Measured now: the first row's `data-prod-client` is
+the synthetic `__needs_attribution__` group, while its chip correctly opens the
+RESOLVED client's project — so the two legitimately differ for attribution-repair
+rows, which did not exist in this shape when the check was written. Plausibly
+stale, but it also depends on which row sorts first, so it is data-dependent in a
+way `titleTooltip` is not. Not called stale without someone looking at it.
+
+**SCOPE, stated plainly so this is not over-read:** two of six named behaviour
+checks, run OFFLINE against a replay of the row set, not the live backend, and
+the pixel lane was not exercised at all. `kbProj`, `ringClearOnNav`,
+`pcardNameTooltip`, the sixth unnamed check and `pixel parity [error_generic]`
+remain **unmeasured**. Two stale checks do not license assuming the other four
+are.
+
+**Still not repaired here, and now for a second reason.** Re-basing a quality
+gate's expectations is exactly the kind of change that must be deliberate and
+signed off: the whole failure recorded above is what happens when a gate stops
+carrying signal, and quietly rewriting its assertions to match today's app is a
+faster way to reach the same place.

@@ -191,7 +191,31 @@ ok(/Require non-n8n inbound pager secret/.test(workflow) && /linear-reconcile-in
 ok(/github\.event_name == 'schedule'[\s\S]{0,100}'scheduled-monitor'/.test(workflow)
   && (workflow.match(/if: github\.event_name == 'schedule'/g) || []).length === 2,
   'only GitHub schedule events classify and invoke the scheduled pager');
-ok(/run_class:[\s\S]{0,200}github_event_name:[\s\S]{0,200}github_run_id:[\s\S]{0,100}github_run_attempt:[\s\S]{0,300}inbound_identifier_sample/.test(reconciler),
+/* STRUCTURAL, NOT POSITIONAL — rewritten 2026-09-03.
+   This was a character-distance window
+   (`run_class:[\s\S]{0,200}github_event_name:` … `{0,300}inbound_identifier_sample`),
+   which is a proxy for "these fields are in the summary payload" and a poor one:
+   it broke the moment the payload gained two fields and a comment, on a change
+   that did not touch a single thing it was pinning. The repo has been here
+   before — PR #1202 replaced exactly this shape in test/production-preview-source.js
+   after it was widened 900 → 1200 and broke again anyway. Widening it a third
+   time would just buy another few months.
+   Now: brace-match the real function body and assert the keys are present, and
+   in order, within it. Prose is free; only a real removal or reorder fails. */
+const summaryBody = (() => {
+  const at = reconciler.indexOf('function buildSummaryEventPayload(');
+  if (at < 0) throw new Error('buildSummaryEventPayload not found');
+  let depth = 0;
+  for (let j = reconciler.indexOf('{', at); j < reconciler.length; j++) {
+    const c = reconciler[j];
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) return reconciler.slice(at, j + 1); }
+  }
+  throw new Error('unbalanced braces in buildSummaryEventPayload');
+})();
+const summaryKeyOrder = ['run_class:', 'github_event_name:', 'github_run_id:', 'github_run_attempt:', 'inbound_identifier_sample'];
+ok(summaryKeyOrder.every(k => summaryBody.includes(k))
+  && summaryKeyOrder.every((k, i) => i === 0 || summaryBody.indexOf(k) > summaryBody.indexOf(summaryKeyOrder[i - 1])),
   'reconcile summary records event, run, attempt, and safe identifier evidence');
 ok(/repair_list_size[\s\S]{0,200}linkage_actionable[\s\S]{0,200}outbound_diff_count/.test(script),
   'the watched classes are the actionable counters');

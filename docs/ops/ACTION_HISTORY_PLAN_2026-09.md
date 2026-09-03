@@ -32,7 +32,7 @@ nothing can bypass it.
 
 | Surface | Ledger | Rows | Written by | Actor quality |
 |---|---|---|---|---|
-| Content Calendar (staff, Kasper's board, client review page) | `calendar_post_events` | 35,020 since 2026-07-04 | `calendar-upsert` + `calendar-reorder`, best-effort | 1,739 rows (5.0%) have no actor |
+| Content Calendar (staff, Kasper's board, client review page) | `calendar_post_events` | 35,020 since 2026-07-04 | `calendar-upsert` + `calendar-reorder`, best-effort | 1,739 rows (5.0%) have no actor; the rest carry an **unauthenticated** name (G3) |
 | Samples calendar | `sample_review_events` | 57,919 since 2026-06-25 | `sample-review-upsert` + `sample-review-reorder`, best-effort | **40,421 rows (69.8%) have no actor** |
 | SyncLinear (Production tab) | `deliverable_events` | 91,103 | `production-write` / `production-comments` + a database trigger backstop | 6,884 rows (7.6%) have no actor |
 
@@ -80,15 +80,24 @@ Three different attribution models are live at once:
   resolves to **exactly one** active `team_members` row compatible with the presented
   role key, and persists both the person's name and `actor_key = member:<id>`. It
   refuses with `roster_actor_required` / `roster_actor_not_unique` rather than guessing.
-- **The Calendar** persists whatever name the browser asserted. Live sample of the most
-  recent 300 rows: 297 carry a person name, 3 carry none. No `actor_key`, no roster
-  check — the name is a string the client chose.
+- **The Calendar** persists whatever name the browser asserted, and **nothing
+  authenticates it.** `AGENTS.md`'s frozen block records that `calendar-upsert` and
+  `sample-review-upsert` are deliberately un-gated (open / tokenless) by owner decision
+  from 2026-07-15, so clients' existing review links keep saving. The
+  `authorizeBrowserWrite` call at `supabase/functions/calendar-upsert/index.ts:501` is
+  therefore **repo source that is not what runs**: `docs/ops/EF_DEPLOY_MANIFEST.md` lists
+  `calendar-upsert` as **NO CI DEPLOY PATH**, and the live rows carry the tokenless
+  shape (`actor: "<person name>"`, `source: "ui"`) rather than the shape that code would
+  mint (`staff:<role>`, `source: "calendar-upsert"`). Live sample of the most recent 300
+  rows: 297 carry a person name, 3 carry none. No `actor_key`, no roster check, and no
+  credential behind the name — **it is an unauthenticated claim.**
 - **Samples** loses it outright on whole classes of action. In the most recent 300 rows,
   145 have no actor; the actions that lose it are `create`, `link_set`, `archive` and a
   large share of `status_change`. Lifetime that is 40,421 of 57,919 rows.
 
 So on Samples the honest answer to "who archived this?" is, for most rows, *nobody
-knows*.
+knows*; and on the Calendar the honest answer is "whoever the browser said", which is not
+the same as knowing. Only the SyncLinear lane can answer it with evidence.
 
 ### G4 — The ledger is best-effort, and several live writers bypass it
 
@@ -194,9 +203,18 @@ actually changes, writes one event row carrying:
 
 - the **previous value** of any `*_tweaks` cell that changed (this closes G1 completely,
   including edits, without needing a `comment_edit` action to be invented in app code);
-- a **column allowlist** diff of business fields — `caption`, `caption_alt`, `name`,
-  `scheduled_date`, `asset_url`, `thumbnail_url`, `post_url`, `cta`, `platform`,
-  `platforms`, `order_index` — recorded as `{col: {from, to}}` (this closes G2);
+- a **column allowlist** diff of business fields, recorded as `{col: {from, to}}` (this
+  closes G2). The allowlist must be **derived from each writer's own writable-column
+  constant**, not hand-written: a first hand-written draft of this plan listed `caption`,
+  `caption_alt`, `name`, `scheduled_date`, `asset_url`, `thumbnail_url`, `post_url`,
+  `cta`, `platform`, `platforms`, `order_index` and silently missed `color` and
+  `caption_alt_platform` on the Calendar and `creative_direction` and
+  `hide_creative_direction` on Samples — all four writable today, none captured by the
+  existing `buildEvents`. A list a human maintains is a list that drifts the next time a
+  column is added, and a field missing from it fails silently and invisibly, which is the
+  exact failure mode this plan exists to end. Generate it from
+  `supabase/functions/calendar-upsert/index.ts` and `sample-review-upsert/index.ts`, and
+  make a test fail when a writable column has no entry;
 - `tg_op`, and a `reason` tag distinguishing an app write from a bypass.
 
 Two design points that are load-bearing:
@@ -210,6 +228,19 @@ Two design points that are load-bearing:
   `migrations/2026-07-12-production-comments.sql:158-171` — anon can read status
   activity, not bodies. Adding this without the policy would publish every comment on a
   public page.
+- **The `app.event_written` guard does NOT port as-is, and assuming it does would
+  double-record every ordinary action.** That flag is a transaction-local GUC set inside
+  the RPCs that write `deliverables` (`perform set_config('app.event_written','1',true)`),
+  so the guard and the app's own event insert share one transaction and the guard can tell
+  they are the same write. `calendar-upsert` has no such RPC: it writes the row with
+  `supabase.from("calendar_posts").update(...)` and then inserts its events in a
+  **separate** PostgREST request, so nothing links the two and the trigger would fire
+  unaware that an application event is coming. Resolve this **before** step 2, one of
+  three ways: retire the application emitters and let the trigger be the sole writer
+  (simplest, and the direction this plan already favours); fold the row write and its
+  events into one `security definer` RPC that sets the GUC, the way `deliverables` does;
+  or give every event a deterministic idempotency key and make the ledger unique on it.
+  Choosing none of these is choosing to double-count.
 
 Cost: comment-bearing events run 691/week across both surfaces, and the whole set of
 `*_tweaks` cells averages 383 bytes per card (870 on cards that have any). Snapshotting
@@ -218,10 +249,14 @@ Field diffs are smaller. This is not a storage decision.
 
 ### Step 2 — Close the bypasses
 
-- Port `track_b_deliverable_ledger_guard` to both card tables as an `AFTER` trigger
-  keyed on the same `app.event_written` convention, so an app-written event stays the
-  detailed one and anything else still lands a row tagged `rpc_bypass_guard`. This makes
-  the ledger **complete by construction** rather than by everyone remembering.
+- Port `track_b_deliverable_ledger_guard` to both card tables as an `AFTER` trigger, so
+  an app-written event stays the detailed one and anything else still lands a row tagged
+  `rpc_bypass_guard`. This makes the ledger **complete by construction** rather than by
+  everyone remembering. **Gate: step 1's de-duplication question must be answered first.**
+  The guard recognises an app write only through the transaction-local `app.event_written`
+  GUC, which the card writers cannot currently set (see step 1); porting it before that is
+  settled turns one action into two or three ledger rows and makes the record less
+  trustworthy, not more.
 - Make the reconciler's flag-read failure **fail closed**: today the `catch` sends every
   client to the unrecorded n8n lane. It should skip the run and alert instead.
 - Once step 1 is live, `waitUntil` on the Edge Function insert is no longer the only
@@ -229,19 +264,39 @@ Field diffs are smaller. This is not a storage decision.
 
 ### Step 3 — Fix attribution
 
-- Have `calendar-upsert` and `sample-review-upsert` resolve `x-syncview-actor` against
-  `team_members` the way `production-write` already does, and persist `actor_key =
-  member:<id>` alongside the name. Add the `actor_key` column to both event tables. The
-  browser **already sends the header** (`index.html:25327`), it is simply discarded.
-- Find the samples write paths that send no identity at all — `create`, `link_set`,
-  `archive`, and the bulk status paths — and give them the same headers the single-card
-  path uses. That is where the 70% goes.
-- Keep the existing `staff:<role>` / `client:<slug>` minting as the **fallback**, never
-  as the primary. It is honest about what it knows; it just should not be all we know.
+**⛔ Read `AGENTS.md`'s frozen block before touching either function.** `calendar-upsert`
+and `sample-review-upsert` are deliberately un-gated by owner decision; re-gating them
+`401`s every client's approvals and comments, which broke clients twice on 2026-07-15.
+Re-locking is permitted only after the owner says so affirmatively **and** every active
+client has been re-issued and confirmed on a fresh link. Nothing in this step may re-gate
+them as a side effect.
 
-Note the deliberate non-goal: this does not add per-person login. Role keys stay shared.
-It resolves an asserted name against the live roster, which is what SyncLinear does and
-is a large improvement over a free-text string.
+That constraint decides the shape of the whole step:
+
+- **Do not resolve the asserted name against `team_members` while the writer is
+  tokenless.** `production-write` can store `actor_key = member:<id>` because the name is
+  checked against a presented credential and refused when it does not match. On an open
+  endpoint the same lookup would take a string anyone can send, find a real roster row,
+  and stamp it as verified — manufacturing false confidence in exactly the record this
+  plan is trying to make trustworthy. A wrong answer that looks authoritative is worse
+  than the blank we have now.
+- **Record it honestly instead.** Persist the browser's string as `actor_claimed` and add
+  an `actor_verified boolean` (or an `actor_key` that is only ever populated on a lane
+  that authenticated the write). Then a history view can say *claimed: X* on the Calendar
+  and *verified: X* in SyncLinear, and the difference is visible to the reader rather than
+  hidden from them.
+- **Find the samples write paths that send no identity at all** — `create`, `link_set`,
+  `archive`, and the bulk status paths — and give them the same headers the single-card
+  path uses. That is where the 70% goes, and it is safe: it adds a claim where there is
+  currently nothing, and changes no gate.
+- **Real verification is a separate, owner-gated project.** It needs the fresh-link
+  reissue `AGENTS.md` requires, and it is the only thing that would let the Calendar and
+  Samples answer "who" with evidence. Worth doing; not doable as a side effect of an
+  audit-trail change.
+
+Note the deliberate non-goal: this does not add per-person login, and after this step the
+Calendar and Samples still cannot *prove* who acted. What changes is that the record stops
+implying they can.
 
 ### Step 4 — Make it retrievable
 

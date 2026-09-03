@@ -21,8 +21,9 @@ number could not be verified through the browser publishable key it is marked
 
 Both teams are already SyncView-authoritative, all 43 active clients are enrolled, and
 staff write paths on the Content Calendar, Samples, Kasper's board, the client review
-page and the submit tab already go native — the legacy n8n write lanes are unreachable
-for every live client. What is left is **not a migration of people**. It is three
+page and the submit tab already go native — the legacy n8n write lanes carry no live
+traffic while the routing flags read cleanly, though they are still the fallback when one
+does not (§2). What is left is **not a migration of people**. It is three
 mechanical facts: the Content Calendar has no native way to learn a deliverable's
 status and borrows Linear as a relay; Workload's board is rebuilt from Linear every ten
 minutes and has no reader for its native replacement; and native Create Post cannot
@@ -37,7 +38,7 @@ not an operational one.
 |---|---|
 | Both teams SyncView-authoritative | `prod_authority = {"video":"syncview","graphics":"syncview"}` since 2026-08-28T23:54Z |
 | Every active client enrolled | `write_ui_reroute_clients` = 43 slugs against 43 active clients, re-read 16:55Z (an earlier pass this session recorded 42/42; the flag and the roster agree either way); **0 of 780 live calendar cards and 0 of 19 live sample rows sit on a non-enrolled slug** |
-| Legacy n8n write lanes unreachable | `_writeUiRerouteUseGateway` true for every live client, so `legacyParity` is false on every team; the legacy pushers, both outbox drains and both re-assert helpers are dead code for live traffic |
+| Legacy n8n write lanes unreachable **on the success path only** | `_writeUiRerouteUseGateway` is true for every live client, so `legacyParity` is false on every team. **They are not dead code.** `_writeUiRerouteUseGatewayWhenReady` primes the flag first, and `_writeUiSetRerouteFlagValue({clients: []})` on an unreadable read makes the predicate false for everyone — the browser then takes the legacy lane. The calendar and Samples upsert allowlists fall back the same way (`_calFetchUpsertFlagOnce`), as does `scripts/linear-sync-reconcile.js`. So teardown needs the **failure path** replaced and a zero-caller proof, not just an enrolled roster; retiring the endpoints while that fallback exists routes a save into a removed URL during any transient flag-read failure |
 | Submit tab creates natively and authoritatively | `production-write` `intake_create` builds the native row; the Linear issue is a downstream artifact of `linear-outbound`. `deliverables` by origin: calendar 1,220 · samples 38 · manual 5,042 · submission 0 |
 | Client-visible data is already native | Nothing a client sees on either surface is read from Linear |
 | `workload-linear` Edge Function | Dead on both ends by its own header; permanently 409s. Free to delete |
@@ -185,6 +186,11 @@ Drive, reconciled counts.*
 **Step 7 — Then the teardown**, in this order: samples reconcile → calendar reconcile →
 5g webhooks (noting two are server-consumed) → 5f → 5h → F4 parity false → drain to zero
 → F2 off → 5b inbound → secrets → workspace.
+*Gate for the 5h webhook retirement specifically:* the browser, both upsert allowlists and
+the reconciler all fall back to the legacy n8n URLs when a routing flag cannot be read
+(§2), so those fallbacks must first be made to fail closed — refuse and report rather than
+route — and proven to have zero callers. Enrollment alone does not make the endpoints
+retirable; it only makes them quiet.
 
 ---
 

@@ -10165,7 +10165,7 @@ Current rate ~20k events/week. Seven gaps, each measured:
 |---|---|---|
 | G1 | comment **bodies** are never recorded on Calendar or Samples | `calendar-upsert` diffs ids out of the `*_tweaks` cell and writes `{added:[id]}`; the cell is a whole-cell overwrite, so the previous text is destroyed. No `comment_edit` action exists at all. 3,657 + 173 + 3,309 lifetime comment events, every body unrecoverable |
 | G2 | **field edits are not recorded at all** | `buildEvents` emits create / status / approval / kasper / urgent-ping / link / comment-id only. Caption text, date, name, asset url, thumbnail, CTA, platform, order — all silent |
-| G3 | attribution differs per surface and fails on Samples | SyncLinear resolves the actor against `team_members` and stores `actor_key`; the Calendar stores whatever name the browser asserted (297/300 recent rows carry one); Samples has **no actor on 40,421 of 57,919 rows (69.8%)** — `create`, `link_set`, `archive` and much of `status_change` send no identity |
+| G3 | attribution differs per surface, is unauthenticated on two of three, and fails outright on Samples | SyncLinear resolves the actor against `team_members` behind a credential and stores `actor_key`. The Calendar stores whatever name the browser asserted (297/300 recent rows carry one) and **nothing authenticates it**: `AGENTS.md`'s frozen block keeps `calendar-upsert`/`sample-review-upsert` deliberately tokenless, `EF_DEPLOY_MANIFEST.md` shows `calendar-upsert` has NO CI DEPLOY PATH so the repo's `authorizeBrowserWrite` is not what runs, and the live rows carry the tokenless shape (`actor: <person name>`, `source: ui`) rather than the `staff:<role>`/`calendar-upsert` that code would mint. Samples has **no actor on 40,421 of 57,919 rows (69.8%)** — `create`, `link_set`, `archive` and much of `status_change` send no identity |
 | G4 | the ledger is best-effort and bypassable | `waitUntil(insertEvents(...))` with the rejection swallowed; `linear-inbound` writes both card tables directly with **zero** event emissions; the reconciler's flag read `catch` empties the enrolled set and sends every client down the unrecorded n8n lane |
 | G5 | the one complete record is invisible | the restrictive policy at `migrations/2026-07-12-production-comments.sql:158-171` hides body-bearing rows from anon (correctly), and `_prodActivity` — a finished renderer at `index.html:59255` whose data is already loaded — has **zero call sites** |
 | G6 | neither calendar surface is in a verified backup | `scripts/track-b-backup.js:42` is a fixed 14-table allowlist; `calendar_posts` (9,819 rows), `sample_reviews` (6,594), and both card event tables are absent. The weekly n8n graph is already ruled non-evidence (F13). PITR is owner-declined |
@@ -10189,6 +10189,37 @@ adding the two card tables touches a manifest-checked lane and needs a re-run of
 the restore rehearsal; a retention rule for body snapshots; the step order; and
 whether the reconciler should fail closed on a flag-read failure instead of
 writing unrecorded.
+
+**Four review findings, all verified against source and all real.** They are
+recorded because each was a defect in the PLAN, and a plan nobody has executed
+yet is the cheapest possible place to find one:
+
+1. **The `app.event_written` guard does not port** (P1). It is a
+   transaction-local GUC set inside the RPCs that write `deliverables`, so the
+   guard and the app's event insert share a transaction. `calendar-upsert` has
+   no such RPC — it updates the row and inserts events in two separate PostgREST
+   requests — so a ported trigger would double-record every ordinary action and
+   the step-2 backstop would compound it. The plan now resolves this before
+   step 2, three ways offered.
+2. **The actor lookup would certify a spoofable string** (P1, and worse than
+   reported). The plan proposed resolving `x-syncview-actor` against
+   `team_members` and storing `member:<id>`. On an endpoint `AGENTS.md`
+   deliberately keeps open, that stamps an unauthenticated claim as verified.
+   Step 3 now records `actor_claimed` plus an explicit verified flag, and states
+   the frozen directive up front: re-gating these two functions `401`s every
+   client link and needs the owner plus a confirmed fresh-link reissue.
+3. **The field allowlist was hand-written and already wrong** (P2). It missed
+   `color` and `caption_alt_platform` on the Calendar and `creative_direction`
+   and `hide_creative_direction` on Samples — all writable today. It is now
+   derived from each writer's own writable-column constant, with a test that
+   fails when a column has no entry, because a hand-maintained list drifts and
+   fails silently.
+4. **"Legacy lanes unreachable" was true only on the success path** (P2).
+   `_writeUiRerouteUseGatewayWhenReady` primes the flag first and an unreadable
+   read empties the enrolled set, so the browser, both upsert allowlists and the
+   reconciler all fall back to the n8n URLs. The exit plan now gates the 5h
+   webhook retirement on making those fallbacks fail closed with a zero-caller
+   proof; enrollment makes the endpoints quiet, not retirable.
 
 **Housekeeping noted, not touched.** Items 13, 14, 22 and 23 each appear twice
 in this file, from concurrent branches in August. Renumbering now would break

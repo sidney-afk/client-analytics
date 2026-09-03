@@ -8094,9 +8094,23 @@ shows on the exits nobody writes a test for.
 > cross-reference inside them points at items 72-102, none of which moved.
 >
 > Separately: items 13, 14, 22, 23 each appear twice from
-> BEFORE this session. Left alone deliberately -- they are old closed entries and
-> renumbering them could break references this session cannot see. Flagged here so
-> the next reader knows it is known, not missed.
+> BEFORE this session. Left alone deliberately -- renumbering them could break
+> references this session cannot see. Flagged here so the next reader knows it is
+> known, not missed.
+>
+> **Correction, 2026-09-03: "they are old closed entries" was wrong, and it is the
+> half of this note that would stop someone acting on it.** Only the second 13 and
+> the second 14 are closed. The first 14 is `[repair]`, BOTH 22s are `[repair]`,
+> and the 23s are `[repair]` and `[owner]` -- so four OPEN entries currently share
+> two numbers, and "see item 22" today points at two different live repairs. The
+> decision to leave them alone still stands (the references are real and this is
+> not a 2 a.m. change), but it should be made against what they actually are. What
+> a renumber would cost, measured: OPEN_REPAIRS' 22s have **no** cross-reference
+> anywhere -- the two "Item 22" hits in `WIRED-PARITY.md` are that file's own
+> numbering -- and the 23s have exactly two, one to each, both resolvable from
+> their surrounding sentence (`EXECUTION_LOG.md` names the archiving/sub-issue
+> regression, `PRE_FLIP_HEALTH_CHECK.md` names `GRA-7112`). The 13/14 pairs carry
+> more, and are the ones a renumber should approach carefully.
 
 ## 109. [2026-09-02, SCOPED — one owner decision, then it is a day's work] Pasting an image into a description: the render half shipped, the upload half needs a storage answer
 

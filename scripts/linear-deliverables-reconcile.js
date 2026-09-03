@@ -89,7 +89,20 @@ function fail(msg) {
   process.exit(1);
 }
 
-async function linear(query) {
+/* An entity-not-found error and nothing else. Matched on Linear's machine
+   fields first (`type`, `extensions.type`) and only then on the message text,
+   because message wording is not a contract. Anything unrecognised returns
+   false, so an unfamiliar error shape keeps failing the run rather than being
+   waved through. */
+function isEntityNotFoundError(err) {
+  if (!err || typeof err !== 'object') return false;
+  const type = String(err.type || (err.extensions && err.extensions.type) || '').toLowerCase();
+  if (type) return type === 'entitynotfound' || type === 'entity_not_found';
+  const message = String(err.message || '');
+  return /^entity not found\b/i.test(message);
+}
+
+async function linear(query, opts) {
   if (!LINEAR_API_KEY) fail('LINEAR_API_KEY is required unless --fixtures is supplied');
   for (let attempt = 1; attempt <= 3; attempt++) {
     const resp = await fetch('https://api.linear.app/graphql', {
@@ -99,6 +112,32 @@ async function linear(query) {
     });
     const json = await resp.json().catch(() => null);
     if (resp.ok && json && !json.errors) return json.data;
+    /* PARTIAL SUCCESS IS NOT FAILURE, but only for the one caller that can
+       prove it is reading a set where a member may legitimately be gone.
+
+       A batched by-id issue read asks Linear for 35 aliases at once. When one
+       of those issues has been DELETED in Linear, the API answers HTTP 200
+       with `data` fully populated for the other 34 and an `errors` array
+       carrying "Entity not found: Issue" for the one. This function treated
+       any non-empty `errors` as fatal, so a single deleted issue took down the
+       whole run -- and it did: the deliverables reconciler was red for 16
+       consecutive runs over 11 hours on 2026-09-02/03, which meant outbound
+       divergence went UNMONITORED on both teams while the counter that would
+       have reported it simply stopped being written.
+
+       Deliberately NOT a blanket relaxation. `opts.tolerateNotFound` is opt-in
+       and it still throws unless EVERY error is an entity-not-found: a rate
+       limit, an auth failure, a malformed query or a partially-applied
+       mutation must all keep failing loudly, because a lane that silently
+       accepted a partial answer would report success over work it never did. */
+    const errors = (json && json.errors) || [];
+    if (resp.ok && json && json.data && opts && opts.tolerateNotFound
+      && errors.length && errors.every(isEntityNotFoundError)) {
+      if (Array.isArray(opts.collectNotFound)) {
+        for (const err of errors) opts.collectNotFound.push(err);
+      }
+      return json.data;
+    }
     if (attempt < 3 && (resp.status === 429 || resp.status >= 500)) {
       await sleep(500 * (2 ** (attempt - 1)));
       continue;
@@ -422,6 +461,12 @@ function issueFields() {
     comments(first: 50) { nodes { id body createdAt user { id name email } } pageInfo { hasNextPage } }`;
 }
 
+/* Ids whose issue Linear no longer has. Surfaced rather than swallowed: a row
+   pointing at a deleted issue is exactly the signal the 2026-09-02 audit found
+   driving three separate counters at once, and a loader that quietly skipped it
+   would trade a loud outage for a silent blind spot. */
+const LINEAR_ISSUES_NOT_FOUND = new Set();
+
 async function loadLinearIssuesById(ids) {
   const out = new Map();
   const unique = [...new Set(ids.map(clean).filter(Boolean))];
@@ -429,11 +474,22 @@ async function loadLinearIssuesById(ids) {
   for (let i = 0; i < unique.length; i += chunkSize) {
     const chunk = unique.slice(i, i + chunkSize);
     const aliases = chunk.map((id, idx) => `i${idx}: issue(id: ${safeGraphqlString(id)}) { ${issueFields()} }`).join('\n');
-    const data = await linear(`query ReconcileDeliverableIssues { ${aliases} }`);
+    const notFound = [];
+    const data = await linear(`query ReconcileDeliverableIssues { ${aliases} }`,
+      { tolerateNotFound: true, collectNotFound: notFound });
     chunk.forEach((id, idx) => {
       const issue = data[`i${idx}`] || null;
       if (issue) out.set(id, issue);
     });
+    /* Resolved from the alias in each error's `path`, not from a diff of the
+       returned map. The two differ: an id absent from `data` because its alias
+       errored is a DELETED issue, while one absent for any other reason is not,
+       and only the path says which. */
+    for (const err of notFound) {
+      const alias = Array.isArray(err && err.path) ? String(err.path[0] || '') : '';
+      const m = /^i(\d+)$/.exec(alias);
+      if (m && chunk[Number(m[1])]) LINEAR_ISSUES_NOT_FOUND.add(chunk[Number(m[1])]);
+    }
     if (PAGE_DELAY_MS) await sleep(PAGE_DELAY_MS);
   }
   return out;
@@ -1558,6 +1614,12 @@ function buildSummaryEventPayload(plan, startedAt, finishedAt) {
     started_at: startedAt,
     finished_at: finishedAt,
     summary: plan.summary,
+    /* Deliverables pointing at an issue Linear no longer has. Before this
+       existed, one such row failed the entire run and the number nobody could
+       read was "how many". Aggregate count always; the ids only on a non-private
+       run, and capped, under the same rule as every other sample here. */
+    linear_issue_not_found_count: LINEAR_ISSUES_NOT_FOUND.size,
+    linear_issue_not_found_sample: privateRepair ? [] : [...LINEAR_ISSUES_NOT_FOUND].slice(0, 20),
     // The F200 repair plan is a private artifact. Its generic system event is
     // aggregate-only and never persists identifiers or row-level samples.
     inbound_identifier_sample: privateRepair

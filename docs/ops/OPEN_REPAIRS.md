@@ -9105,3 +9105,101 @@ Corrected in place, with the superseded text retained rather than erased.
 `REPO_MAP.md` separately described `CLAUDE.md` as carrying the `f27capture`
 alias, which it did not; rather than weaken the map, the alias was added — it is
 the shorter thing to hand the owner anyway.
+
+
+---
+
+## 119. [2026-09-03, FIXED — script-only, live on merge] One issue deleted in Linear took the deliverables reconciler down for eleven hours, and the thing it takes down is the monitor
+
+Found by the 02:00Z scheduled health check, not by anyone noticing.
+
+`Linear ⇄ deliverables reconcile v2` failed on **16 consecutive runs** from
+2026-09-02T15:00Z to 2026-09-03T02:04Z, schedule and dispatch alike, every one
+with the same error:
+
+```
+Linear GraphQL failed: HTTP 200 [{"message":"Entity not found: Issue","path":["i1"]}]
+```
+
+**What makes this worth an entry is not the outage, it is what was out.** The
+reconciler is the thing that measures `outbound_diff_count` — the counter the
+health check's gating item 1 reads to decide whether real client work is
+diverging. For eleven hours that divergence was not merely undetected: **the
+counter stopped being written at all**, so gating items 1 and 2 were reporting a
+number from 14:44Z and calling it current. A monitor that fails loudly in its own
+logs and silently in its output is worse than one that fails visibly, because the
+health check kept returning numbers.
+
+**Mechanism.** A batched by-id read asks Linear for 35 issues at once. When one
+of them has been DELETED, Linear answers **HTTP 200** with `data` fully populated
+for the other 34 plus an `errors` entry for the one. `linear()` treated any
+non-empty `errors` as fatal — and `loadLinearIssuesById` was **already written to
+skip a null alias** (`if (issue) out.set(id, issue)`). The tolerance the loader
+needed sat one layer below it, in a function that could not tell a partial answer
+from a failed one. The run before the first failure passed on the SAME commit, so
+this was data, not a regression.
+
+**Strongly indicated source**, from the same health check's context section:
+`GRA-7237` and `GRA-7243`–`7247` all carry native `updated_at` 13:40:34–13:40:44Z,
+minutes before the failures began, and all are recorded as *trashed in Linear*.
+The same deletions drive two other counters — "work its owner cannot see" grew
++9, stranded foreign writes grew +15, and **10 of those 17 are the same rows**.
+One person emptying a Linear trash can moved three independent numbers and
+stopped a monitor.
+
+**The relaxation is deliberately narrow, and the test keeps it narrow.**
+`opts.tolerateNotFound` is opt-in, taken by exactly ONE call site, and it still
+throws unless EVERY error is an entity-not-found: a rate limit, an auth failure,
+a malformed query or a partially-applied mutation all keep failing loudly. A lane
+that silently accepted a partial answer to a MUTATION would report success over
+work it never did. The F200 apply preflight's cohort guard is untouched and still
+refuses to proceed on an incomplete read — tolerance in the READ must not become
+tolerance in the WRITE.
+
+**And the deletion is now REPORTED rather than swallowed.**
+`linear_issue_not_found_count` and a capped id sample go into every summary
+event. Skipping the row quietly would have traded a loud outage for a silent
+blind spot — and a blind spot in exactly the signal that turned out to be
+driving three counters at once.
+
+`test/reconcile-tolerates-deleted-issue.js` runs the real `linear()` over a
+stubbed response shaped exactly as Linear's was during the incident. Three
+mutations checked: making the tolerance unconditional, letting the message win
+over the machine type, and dropping the recorded ids each fail the assertions
+naming them.
+
+**Open, and not fixed here:** nothing alerts on a reconciler that has been red
+for eleven hours. The health check found it because a human-scheduled watch ran,
+which is the definition of luck rather than coverage. `monitoring-deadman.yml`
+watches a heartbeat; this lane's failure did not touch it.
+
+### The repair's own CI failure, and a green local run that could not have been green
+
+The reconciler is a member of the F27 reconciler closure, so changing it moved
+`REVIEWED_BLOB_SHA256['scripts/linear-deliverables-reconcile.js']` from
+`d5abd3de…` to `a318cfc9…`. Re-pinned, membership unchanged, with the three
+additions named in the pin comment.
+
+**What is worth recording is why `npm test` said 383 passed first.**
+`test/f27-reconciler-closure.js` builds its fixture with
+`git show HEAD:<path>` — it reads each closure file from the repo's **committed**
+content, not the working tree. That is CORRECT, because the capture it exercises
+is defined over a release SHA. The consequence is not obvious: **an uncommitted
+change to a closure member is invisible to this suite.** The pre-commit run read
+the OLD blob, matched the pin, and passed; the drift appeared only once the
+change was committed, which is to say in CI, on the push, after the local signal
+had already said go.
+
+So the local suite was not lying and CI was not flaky — they were reading two
+different trees, and only one of them contained the change. The suite now prints
+one line to stderr when a closure member differs between HEAD and the worktree,
+naming the files, saying that this run did not cover them. It does not fail: a
+dirty worktree is a normal state to run tests in. The point is to stop a green
+run being read as *"my change is fine"* when the change was never looked at.
+
+**The generalisation.** Any test that reads its subject from somewhere other
+than where you are editing it can only ever report on the version it read. That
+is fine, and it is the reason the F27 suites read from git at all — but a suite
+in that shape owes the reader a sentence about which tree it read, because
+"passed" and "passed against your change" are different claims and nothing in the
+output distinguished them.

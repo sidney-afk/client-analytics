@@ -64,6 +64,7 @@ function ctxFor(state) {
     function _prodBatch() { return null; }
     function _prodClient() { return null; }
     function _calEsc(s) { return String(s == null ? '' : s); }
+    function _calEscAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
     function _prodRefresh() {}
   `, ctx);
   vm.runInContext(grabFunc('_prodApplyDeepLinkFallback'), ctx);
@@ -103,9 +104,15 @@ function ctxFor(state) {
 {
   const h = ctxFor({ terminalTailPending: true });
   const html = h.run(`_prodIncompletePaneHTML('item')`);
-  ok(/data-prod-detail-settling/.test(html) && /Loading this item/.test(html),
-    'PENDING: the pane shows a skeleton, because the row may be one moment away');
+  ok(/data-prod-detail-settling/.test(html) && (html.match(/prod-skeleton/g) || []).length >= 5,
+    'PENDING: the pane shows a real skeleton — several shimmer bars shaped like the detail');
   ok(!/not found/i.test(html), 'PENDING: and never says not found');
+  /* The owner saw the first version on a live card and disliked it: a line of
+     prose in an empty pane reads as an error. The words live in aria-label now,
+     where a screen reader still gets them and a sighted reader gets a shimmer. */
+  ok(!/>Loading this item/.test(html) && /aria-busy="true"/.test(html)
+    && /aria-label="Loading this item"/.test(html),
+    'PENDING: the wording is announced, not printed as body text');
 }
 {
   const h = ctxFor({ terminalTailFailed: true });

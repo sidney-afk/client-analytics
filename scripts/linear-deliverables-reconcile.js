@@ -109,7 +109,21 @@ function isEntityNotFoundError(err) {
      shape keeps failing the run. */
   const type = String(err.type || (err.extensions && err.extensions.type) || '').toLowerCase();
   const message = String(err.message || '');
-  if (type && type !== 'entitynotfound' && type !== 'entity_not_found') return false;
+  /* THE TYPE LINEAR ACTUALLY SENDS. The first version of this gate accepted
+     only `entitynotfound`, which is the name of the condition, not the name
+     Linear puts on the wire. A deleted issue comes back as
+       extensions: { type: "invalid input", code: "INPUT_ERROR", userError: true }
+     with the message "Entity not found: Issue" -- and the gate refused it, so
+     the tolerance shipped for item 119 tolerated nothing. The reconciler was
+     red for another 21 hours on the exact error it had just been taught to
+     accept, and the fix was measured against a guessed shape rather than a
+     captured one. The gate stays -- an AuthenticationError wearing this
+     message must still fail the run -- it just now admits the real shape. */
+  // `invalid input` is the label Linear's GraphQL layer puts on an
+  // unresolvable id. Inline rather than a module constant: the suite
+  // extracts this function on its own into a VM, as every suite here does.
+  const notFoundTypes = ['entitynotfound', 'entity_not_found', 'invalid input'];
+  if (type && !notFoundTypes.includes(type)) return false;
   return /^entity not found:\s*issue\b/i.test(message);
 }
 

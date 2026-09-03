@@ -125,6 +125,15 @@ const NOT_FOUND = {
   vm.runInContext(grabFunc('isEntityNotFoundError'), ctx);
   const isNF = e => vm.runInContext(`isEntityNotFoundError(${JSON.stringify(e)})`, ctx);
   ok(isNF({ message: 'Entity not found: Issue', path: ['i0'] }), 'matches the message Linear actually sent');
+  /* THE SHAPE LINEAR ACTUALLY RETURNS, captured verbatim from the failed run of
+     2026-09-03 11:00Z (run 33747354167). The first version of this suite only
+     ever tested the shape the guard was written FOR, so the guard passed its
+     tests and refused every real deletion for 21 hours. This fixture is the
+     one that matters; the ones below it are the edges. */
+  ok(isNF({ message: 'Entity not found: Issue', path: ['i1'], locations: [{ line: 12, column: 1 }],
+    extensions: { type: 'invalid input', code: 'INPUT_ERROR', statusCode: 400, userError: true,
+      userPresentableMessage: 'Could not find referenced Issue.' } }),
+    'matches the error Linear ACTUALLY sends for a deleted issue -- type "invalid input", captured from a real run');
   ok(isNF({ type: 'EntityNotFound', message: 'Entity not found: Issue', path: ['i7'] }),
     'accepts the machine field alongside the message');
   ok(!isNF({ type: 'AuthenticationError', message: 'Entity not found: Issue', path: ['i0'] }),

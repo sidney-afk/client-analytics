@@ -10353,5 +10353,14 @@ would read a stale copy of a thread that had moved on canonically, with nothing
 anywhere to report it: item 101's shape exactly, which is why it is asserted and
 not trusted.
 
+**Round two found two more, one of them in the stripper itself.** A `${ … }`
+frame was popped by the FIRST `}` inside it, so `${foo({x: 1}) + keep}` ended at
+the object's brace and `+ keep` — executable code — was blanked. A gate call
+sitting after a nested object or a nested template would have been invisible to
+this suite, which is the same defect it was written to fix, one level down.
+`extractFunction` has always counted braces for exactly this reason; `stripNonCode`
+does now, with the nested-object and nested-template cases asserted. The other
+was the suite not being registered in `REPO_MAP.md`, which is now done.
+
 - Done when: it catches a fourth. Until then, it costs nothing and holds the
   prediction that three prose warnings could not.

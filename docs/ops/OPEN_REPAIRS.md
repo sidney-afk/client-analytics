@@ -10276,6 +10276,47 @@ item 118. The comparison still holds from the table, so this is a NOTE rather
 than a failure — turning it red would block PRs on an entry already written.
 Every field the block would have carried is checked from the table today.
 
+### Codex found four P1s in the first version, and the first one is the entry's own lesson
+
+**FILE POSITION IS NOT CHRONOLOGY.** The check took the LAST receipt in
+`EXECUTION_LOG.md` as the newest. That file is **reverse**-chronological at the
+top (2026-08-31 at line 5, descending to 2026-08-18) and **forward**-
+chronological further down (2026-08-25 → 2026-09-01 → 2026-09-02). Measured
+across all fourteen receipts, file order and deploy order disagree completely:
+the receipt at character 4,791 is run `33423121197` while the one at 477,401 is
+run `31023890487`. It is right today by luck, and the next entry written at the
+top the way the top section is written would have made a guard against silent
+staleness silently stale. **A check that passes by accident is the thing this
+file has the most entries about.**
+
+Fixed by ordering on the GitHub run id, which increases with time and which
+every receipt carries. A receipt with no run id cannot be placed in time, so it
+cannot be ruled out as the newest — that now FAILS, naming the character offset
+to fix. And because one signal is a single point of failure, the entry dates
+are a second: run-id order disagreeing with date order fails too.
+
+The same key fixed the second finding. Folding a JSON block together with its
+own summary table was done by proximity (within 6,000 characters, different
+shapes), which discards a newer table-only deploy written close after a
+JSON-backed one. Receipts are now grouped by **deployment identity** — same run
+id, same deploy — so adjacency means nothing.
+
+**The other two were both "could not check" printing as "fine":**
+
+- A row naming no readable bundle recorded a NOTE and exited 0, so a PR could
+  update the live versions while leaving no verified one-step restore — the
+  exact incident-time hazard. Now a failure, and so are the two other ways the
+  one-step property can be unverifiable (no older receipt at all; the older
+  receipt not naming `production-write`).
+- A receipt naming only three of the four functions left the fourth as a note
+  and exited 0, so `production-write` could go entirely unchecked while
+  `ROLLBACK.md` named an obsolete version. The §4 lane deploys the four as one
+  serial set, so a three-function receipt is incomplete, not a receipt about
+  three functions. Now fails closed.
+
+All four have their own fixtures, including a reverse-ordered log whose stale
+row passed before and fails now.
+
 - Done when: it has caught one. Until a deploy runs, the evidence that it works
   is the suite's stale-row fixture, which reproduces the 2026-09-03 finding
   exactly and fails.

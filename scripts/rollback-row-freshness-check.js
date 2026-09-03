@@ -114,35 +114,54 @@ function proseContext(log, at) {
     const chunk = log.slice(start < 0 ? 0 : start, at);
     const run = chunk.match(/[Rr]un\s+`(\d{6,})`/);
     const commit = chunk.match(/from\s+`([0-9a-f]{7,40})`/);
-    return { run: run ? run[1] : '', commit: commit ? commit[1].toLowerCase() : '' };
+    const date = chunk.match(/^\n?## (\d{4}-\d{2}-\d{2})/);
+    return {
+        run: run ? run[1] : '',
+        commit: commit ? commit[1].toLowerCase() : '',
+        date: date ? date[1] : '',
+    };
 }
 
+/* FILE POSITION IS NOT CHRONOLOGY, and this is the finding that made the first
+   version of this check pass by luck. EXECUTION_LOG.md is REVERSE-chronological
+   at the top (2026-08-31 at line 5, descending) and forward-chronological
+   further down (2026-08-25 → 2026-09-01 → 2026-09-02). Taking the last receipt
+   in the file happens to be right today; the next entry written at the top the
+   way the top section is written would silently make it compare against an
+   older deploy, and a stale ROLLBACK row would pass. Codex P1 on #1253.
+
+   The run id is the unambiguous signal: GitHub run ids increase with time, and
+   every receipt carries one in its block or in its entry's prose. It also
+   solves the folding question — a JSON block and its own summary table are the
+   SAME deploy because they carry the same run id, not because they sit near
+   each other in the file. */
 function executionLogReceipts() {
     const log = read('EXECUTION_LOG.md');
     const all = receiptsFromJson(log).concat(receiptsFromTables(log));
     all.sort((a, b) => a.at - b.at);
-    /* A JSON block sits inside the same entry as its own summary table. Fold
-       those two into one receipt, keeping the block — but ONLY across the two
-       different shapes. Folding table into table would erase a deploy whenever
-       two entries sat close together, which is the newest deploy exactly when
-       the log is busy. */
-    const merged = [];
     for (const r of all) {
-        const prev = merged[merged.length - 1];
-        if (prev && prev.source !== r.source && Math.abs(r.at - prev.at) < 6000) {
-            if (r.source === 'attestation block') merged[merged.length - 1] = r;
-            continue;
-        }
-        merged.push(r);
+        const p = proseContext(log, r.at);
+        r.run = r.run || p.run;
+        r.commit = r.commit || p.commit;
+        r.date = p.date || '';
     }
-    for (const r of merged) {
-        if (!r.run || !r.commit) {
-            const p = proseContext(log, r.at);
-            r.run = r.run || p.run;
-            r.commit = r.commit || p.commit;
-        }
+
+    // Group by deployment identity, preferring the richer shape within a group.
+    const byRun = new Map();
+    const unidentified = [];
+    for (const r of all) {
+        if (!r.run) { unidentified.push(r); continue; }
+        const prev = byRun.get(r.run);
+        if (!prev) { byRun.set(r.run, r); continue; }
+        if (prev.source !== 'attestation block' && r.source === 'attestation block') byRun.set(r.run, r);
+        else if (prev.source === r.source) prev.siblings = (prev.siblings || []).concat([r]);
     }
-    return merged;
+    const receipts = Array.from(byRun.values()).sort((a, b) => {
+        const d = BigInt(a.run) - BigInt(b.run);
+        return d < 0n ? -1 : d > 0n ? 1 : 0;
+    });
+    receipts.unidentified = unidentified;
+    return receipts;
 }
 
 /* ---- ROLLBACK.md: the current live claim -------------------------------- */
@@ -184,6 +203,25 @@ function main() {
     if (!live) failures.push('EXECUTION_LOG.md carries no deploy receipt this check can read.');
     if (!claim) failures.push('ROLLBACK.md carries no "**Live as of" claim this check can read.');
 
+    /* Chronology has to be ESTABLISHED, not assumed. A receipt with no run id
+       cannot be placed in time, so it cannot be ruled out as the newest — and
+       "probably not the newest" is not a property a rollback guard may rest on. */
+    for (const r of (receipts.unidentified || [])) {
+        failures.push('a deploy receipt at character ' + r.at + ' of EXECUTION_LOG.md carries no run id,'
+            + ' so it cannot be placed in time and the newest deploy cannot be established.'
+            + ' Add the run id to that entry (the attestation block carries it as github_run_id).');
+    }
+    /* Second signal, because one is a single point of failure: the entry dates
+       must agree with the run-id order about which deploy is newest. */
+    if (live && live.date) {
+        const laterByDate = receipts.filter(r => r.date && r.date > live.date);
+        if (laterByDate.length) {
+            failures.push('the newest receipt by run id (' + live.run + ', ' + live.date + ') is not the newest by'
+                + ' date — ' + laterByDate.map(r => r.run + ' @ ' + r.date).join(', ')
+                + '. The two chronology signals disagree, so which deploy is live cannot be established.');
+        }
+    }
+
     if (live && claim) {
         if (live.source !== 'attestation block') {
             notes.push('the newest receipt is a ' + live.source + ', not the ' + SCHEMA
@@ -201,7 +239,14 @@ function main() {
         }
         for (const slug of SLUGS) {
             const a = live.fns[slug], b = claim.fns[slug];
-            if (!a) { notes.push(slug + ' is absent from the newest receipt'); continue; }
+            /* A truncated receipt must not leave a function silently unchecked:
+               the §4 lane deploys the four as one serial set, so a receipt naming
+               three of them is incomplete, not a receipt about three functions. */
+            if (!a) {
+                failures.push(slug + ' is missing from the newest receipt (run ' + (live.run || '?')
+                    + '), so ROLLBACK.md\'s claim about it was not verified against anything');
+                continue;
+            }
             if (!b) { failures.push(slug + ' is absent from ROLLBACK.md\'s live row'); continue; }
             if (a.version !== b.version) {
                 failures.push(slug + ': ROLLBACK says v' + b.version + ', live is v' + a.version);
@@ -211,18 +256,32 @@ function main() {
                 failures.push(slug + ': ROLLBACK closure ' + b.closure + ' does not prefix-match live ' + a.closure);
             }
         }
-        // One step back, not two. The named bundle must capture what was live
-        // BEFORE this deploy — which is exactly the previous receipt.
-        if (claim.bundle && prior && prior.fns['production-write']) {
-            const want = prior.fns['production-write'].version;
-            if (claim.bundle.captured !== want) {
-                failures.push('rollback bundle ' + claim.bundle.sha + ' claims it captures production-write v'
-                    + claim.bundle.captured + ', but the release before the newest one was v' + want
-                    + ' — restoring it would step back more than once');
-            }
-        } else if (!claim.bundle) {
-            notes.push('ROLLBACK.md names no "newest sealed" bundle in a shape this check can read,'
-                + ' so the one-step property was not verified');
+        /* One step back, not two. The named bundle must capture what was live
+           BEFORE this deploy — which is exactly the previous receipt.
+
+           EVERY branch of this is a FAILURE, never a note. Codex P1 on #1253:
+           a row that updates the live versions while naming no readable bundle
+           passes nothing on to the person mid-incident, which is the exact
+           hazard this guard exists for. "We could not check" and "it is fine"
+           must not print the same verdict. */
+        if (!claim.bundle) {
+            failures.push('ROLLBACK.md names no "newest sealed" bundle this check can read, so the row'
+                + ' updates what is live while leaving the one-step restore unverified — the state this'
+                + ' guard exists to prevent. Keep the sentence in the form: the newest sealed §4 rollback'
+                + ' bundle is `<sha8>…` / <N> bytes and it captures `production-write` at v<NN>.');
+        } else if (!prior) {
+            failures.push('bundle ' + claim.bundle.sha + ' claims production-write v' + claim.bundle.captured
+                + ', but EXECUTION_LOG.md holds no receipt older than the newest one, so "one release back"'
+                + ' cannot be checked against anything.');
+        } else if (!prior.fns['production-write']) {
+            failures.push('bundle ' + claim.bundle.sha + ' claims production-write v' + claim.bundle.captured
+                + ', but the previous receipt (run ' + (prior.run || '?') + ') does not name production-write,'
+                + ' so "one release back" cannot be established.');
+        } else if (claim.bundle.captured !== prior.fns['production-write'].version) {
+            failures.push('rollback bundle ' + claim.bundle.sha + ' claims it captures production-write v'
+                + claim.bundle.captured + ', but the release before the newest one was v'
+                + prior.fns['production-write'].version
+                + ' — restoring it would step back more than once');
         }
     }
 

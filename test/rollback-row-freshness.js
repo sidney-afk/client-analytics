@@ -186,6 +186,126 @@ ok(jsonRun.json && !jsonRun.json.notes.some(n => /thinner than the record/.test(
 ok(agree.json && agree.json.notes.some(n => /thinner than the record/.test(n)),
     'while a table-only entry still says so, because the lane asks for the block');
 
+/* ---- 5b. FILE POSITION IS NOT CHRONOLOGY (Codex P1) -------------------- */
+
+/* EXECUTION_LOG.md is reverse-chronological at the top and forward-
+   chronological further down. The newest deploy written at the top the way the
+   top section is written must still be the one compared against — taking the
+   last receipt in the file is right today only by luck. */
+const NEWEST_FIRST = [
+    '# Execution log',
+    '',
+    '## 2026-09-02 — F27 Section 4 forward deploy executed',
+    '',
+    'Run `33684111985`, dispatched by the owner from',
+    '`152c050e0179ee127e02d0ea50853960d9019eab`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 34 → **35** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 34 → **35** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 65 → **66** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+    '## 2026-09-01 — F27 Section 4 forward deploy executed',
+    '',
+    'Run `33555586230`, dispatched from `da2195f0b9bb8febd5c8e3d01bc80a91fb3b71b9`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 34 | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 34 | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 46 | `' + H.lo46 + '` | `verify_jwt=false` |',
+    '| `production-write` | **65** | `' + H.pw65 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+
+const reversed = run(fixture('reversed', NEWEST_FIRST, rollback()));
+ok(reversed.code === 0 && reversed.json && reversed.json.live.run === '33684111985',
+    'the NEWEST deploy is selected by run id even when it is written FIRST in the file');
+const reversedStale = run(fixture('reversedstale', NEWEST_FIRST, rollback({
+    date: '2026-09-01', deploy: '#24', run: '33555586230', commit: 'da2195f0',
+    pw: '65', pwh: '2af7fe6d', lo: '46', loh: 'd83f0d7c', dw: '34', bw: '34', captures: '64',
+})));
+ok(reversedStale.code === 1,
+    'and a stale row against a reverse-ordered log still fails — the case that passed by luck before');
+
+/* Chronology must be ESTABLISHED. A receipt with no run id cannot be placed in
+   time, so it cannot be ruled out as the newest. */
+const noRun = LOG.replace('Run `33684111985`, dispatched by the owner from', 'Dispatched by the owner from');
+const unplaceable = run(fixture('norun', noRun, rollback()));
+ok(unplaceable.code === 1
+    && unplaceable.json.failures.some(f => /cannot be placed in time/.test(f)),
+    'a receipt carrying no run id fails the check rather than being silently ordered by position');
+
+/* Two signals, because one is a single point of failure. */
+const skewed = NEWEST_FIRST.replace('## 2026-09-02 — F27', '## 2026-08-02 — F27');
+const disagree = run(fixture('skew', skewed, rollback()));
+ok(disagree.code === 1 && disagree.json.failures.some(f => /chronology signals disagree/.test(f)),
+    'and run-id order disagreeing with the entry dates fails, rather than one signal quietly winning');
+
+/* Folding must be by deployment IDENTITY, not by proximity. A JSON-backed
+   deploy followed closely by a table-only deploy is two deploys; the first
+   version of this check discarded the newer one as the older one's duplicate
+   because their shapes differed and they sat near each other. */
+const ADJACENT = [
+    '# Execution log',
+    '',
+    '## 2026-09-01 — F27 Section 4 forward deploy executed',
+    '',
+    'Run `33555586230`, dispatched from `da2195f0b9bb8febd5c8e3d01bc80a91fb3b71b9`.',
+    '',
+    '```json',
+    JSON.stringify({
+        schema: 'syncview_f27_section4_deployed_versions_v1',
+        deploy_commit: 'da2195f0b9bb8febd5c8e3d01bc80a91fb3b71b9',
+        github_run_id: '33555586230',
+        functions: [
+            { slug: 'batch-write', active_version: '34', source_closure_sha256: H.bw },
+            { slug: 'deliverable-write', active_version: '34', source_closure_sha256: H.dw },
+            { slug: 'linear-outbound', active_version: '46', source_closure_sha256: H.lo46 },
+            { slug: 'production-write', active_version: '65', source_closure_sha256: H.pw65 },
+        ],
+    }),
+    '```',
+    '',
+    '## 2026-09-02 — F27 Section 4 forward deploy executed',
+    '',
+    'Run `33684111985`, dispatched by the owner from',
+    '`152c050e0179ee127e02d0ea50853960d9019eab`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 34 → **35** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 34 → **35** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 65 → **66** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const adjacent = run(fixture('adjacent', ADJACENT, rollback()));
+ok(adjacent.code === 0 && adjacent.json.receipts === 2,
+    'a JSON deploy and a table-only deploy sitting close together are TWO receipts, not one folded pair');
+ok(adjacent.json && adjacent.json.live.run === '33684111985' && adjacent.json.live.source === 'summary table',
+    'and the newer table-only one is the live receipt, not discarded as the older block\'s duplicate');
+
+/* ---- 5c. incomplete receipts and unverifiable bundles fail (Codex P1) --- */
+
+const truncated = NEWEST_FIRST.replace(
+    '| `production-write` | 65 → **66** | `' + H.pw66 + '` | `verify_jwt=false` |\n', '');
+const short = run(fixture('truncated', truncated, rollback()));
+ok(short.code === 1 && short.json.failures.some(f => /production-write is missing from the newest receipt/.test(f)),
+    'a receipt naming only three of the four functions fails closed — the lane deploys them as one set');
+
+const noBundle = rollback().replace(/\*\*The newest sealed[^*]*\*\* /, '');
+const unverifiable = run(fixture('nobundle', LOG, noBundle));
+ok(unverifiable.code === 1 && unverifiable.json.failures.some(f => /one-step restore unverified/.test(f)),
+    'a row that updates the live versions while naming no readable bundle FAILS — "could not check" must not print as "fine"');
+
+const soloLog = LOG.slice(LOG.indexOf('## 2026-09-02'));
+const noPrior = run(fixture('noprior', '# Execution log\n\n' + soloLog, rollback()));
+ok(noPrior.code === 1 && noPrior.json.failures.some(f => /no receipt older than the newest one/.test(f)),
+    'and so does a log with nothing older to measure "one release back" against');
+
 /* ---- 6. nothing to compare is a failure, not a pass -------------------- */
 
 const empty = run(fixture('empty', '# Execution log\n\nNo deploys yet.\n', rollback()));

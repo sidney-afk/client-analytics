@@ -10362,6 +10362,24 @@ every finding has been *"a branch that could not check something exited 0
 anyway."* The rule is the same each time and I kept applying it to one side of a
 comparison and not the other.
 
+### Round four: one heading can hold many deploys
+
+- **The prose fallback read the FIRST run id in the entry, not the nearest one.**
+  A single `##` entry can hold several dispatches — the real 2026-08-05 one names
+  **twelve** run ids and carries six receipts. So a later table-only receipt took
+  the identity of the OLDEST deploy in its entry, and grouping by run then folded
+  it away as a duplicate: the newest deploy could disappear entirely and a stale
+  row pass. Reading the nearest preceding mention instead raised the receipts
+  this file yields from 12 to **16** — four deploys that were being silently
+  merged into their neighbours.
+- **A closure had to actually be a closure.** An attestation block naming all
+  four functions but omitting one `source_closure_sha256` stored `''`; the shared
+  prefix length came out zero and two empty slices compared equal, so that
+  function's closure was never checked and the guard exited 0.
+- **A newest receipt under an undated heading** skipped the date cross-check
+  entirely, quietly reducing the guard to a single chronology signal — the exact
+  thing the second signal exists to prevent. Now a failure.
+
 **A second one came the same way.** Table rows were grouped by byte distance,
 which merged rows from two different entries whenever the first table was
 short — so a truncated newest receipt's lone surviving row joined the next

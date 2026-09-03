@@ -118,11 +118,26 @@ function receiptsFromTables(log) {
 
 /* Run id and dispatched commit live in the entry's prose when the JSON block is
    absent. Look backwards from the table to the entry heading above it. */
+/* THE NEAREST PRECEDING MENTION, not the first in the entry. One `##` entry can
+   hold many deploys — the 2026-08-05 one names TWELVE run ids and carries six
+   receipts — so taking the first match assigns a later table-only receipt the
+   identity of the oldest deploy in its entry, after which `byRun` folds it away
+   as a duplicate and the newest deploy can disappear entirely. Codex P1 on
+   #1253. A receipt whose own attestation block carries the run id never reaches
+   here; this is the fallback for the table-only shape, which is exactly the
+   shape that would vanish. */
+function lastMatch(text, re) {
+    const g = new RegExp(re.source, re.flags.replace('g', '') + 'g');
+    let m, last = null;
+    while ((m = g.exec(text))) last = m;
+    return last;
+}
+
 function proseContext(log, at) {
     const start = log.lastIndexOf('\n## ', at);
     const chunk = log.slice(start < 0 ? 0 : start, at);
-    const run = chunk.match(/[Rr]un\s+`(\d{6,})`/);
-    const commit = chunk.match(/from\s+`([0-9a-f]{7,40})`/);
+    const run = lastMatch(chunk, /[Rr]un\s+`(\d{6,})`/);
+    const commit = lastMatch(chunk, /from\s+`([0-9a-f]{7,40})`/);
     const date = chunk.match(/^\n?## (\d{4}-\d{2}-\d{2})/);
     return {
         run: run ? run[1] : '',
@@ -246,6 +261,14 @@ function main() {
     }
     /* Second signal, because one is a single point of failure: the entry dates
        must agree with the run-id order about which deploy is newest. */
+    if (live && !live.date) {
+        /* The date is the SECOND chronology signal, and a check that quietly
+           drops to one signal when the first is missing is a single point of
+           failure wearing a belt. Codex P2 on #1253. */
+        failures.push('the newest receipt (run ' + (live.run || '?') + ') sits under a heading with no'
+            + ' YYYY-MM-DD date, so run-id order has nothing to be cross-checked against.'
+            + ' Date that EXECUTION_LOG heading.');
+    }
     if (live && live.date) {
         const laterByDate = receipts.filter(r => r.date && r.date > live.date);
         if (laterByDate.length) {
@@ -302,9 +325,22 @@ function main() {
             if (a.version !== b.version) {
                 failures.push(slug + ': ROLLBACK says v' + b.version + ', live is v' + a.version);
             }
-            const n = Math.min(a.closure.length, b.closure.length);
-            if (a.closure.slice(0, n) !== b.closure.slice(0, n)) {
-                failures.push(slug + ': ROLLBACK closure ' + b.closure + ' does not prefix-match live ' + a.closure);
+            /* A receipt closure must actually BE a closure. Codex P1 on #1253:
+               an attestation block naming all four functions but omitting one
+               `source_closure_sha256` stored '', the shared prefix length came
+               out zero, and two empty slices compared equal — so that
+               function's closure was never checked and the guard exited 0. */
+            if (!/^[0-9a-f]{64}$/.test(a.closure)) {
+                failures.push(slug + ': the newest receipt records no usable source closure ('
+                    + (a.closure ? a.closure : 'empty') + '), so ROLLBACK.md\'s ' + b.closure
+                    + ' was not checked against anything');
+            } else if (!/^[0-9a-f]{6,64}$/.test(b.closure)) {
+                failures.push(slug + ': ROLLBACK.md records no usable closure for it');
+            } else {
+                const n = Math.min(a.closure.length, b.closure.length);
+                if (a.closure.slice(0, n) !== b.closure.slice(0, n)) {
+                    failures.push(slug + ': ROLLBACK closure ' + b.closure + ' does not prefix-match live ' + a.closure);
+                }
             }
         }
         /* One step back, not two. The named bundle must capture what was live

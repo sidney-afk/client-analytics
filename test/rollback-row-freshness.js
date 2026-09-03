@@ -374,6 +374,82 @@ const noPrior = run(fixture('noprior', '# Execution log\n\n' + soloLog, rollback
 ok(noPrior.code === 1 && noPrior.json.failures.some(f => /no receipt older than the newest one/.test(f)),
     'and so does a log with nothing older to measure "one release back" against');
 
+/* ---- 5d. one heading, two deploys (Codex P1) --------------------------- */
+
+/* A single `##` entry can hold many deploys — the real 2026-08-05 one names
+   TWELVE run ids. Reading the FIRST run/dispatch mention in the entry gives a
+   later table-only receipt the identity of the oldest deploy in it, after which
+   grouping by run folds it away as a duplicate and the newest deploy can
+   disappear entirely, letting a stale row pass. */
+const TWO_IN_ONE = [
+    '# Execution log',
+    '',
+    '## 2026-09-02 — F27 Section 4: two dispatches, one entry',
+    '',
+    'First, run `33555586230`, dispatched from `da2195f0b9bb8febd5c8e3d01bc80a91fb3b71b9`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 34 | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 34 | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 46 | `' + H.lo46 + '` | `verify_jwt=false` |',
+    '| `production-write` | **65** | `' + H.pw65 + '` | `verify_jwt=false` |',
+    '',
+    'Then, run `33684111985`, dispatched by the owner from',
+    '`152c050e0179ee127e02d0ea50853960d9019eab`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 34 → **35** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 34 → **35** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 65 → **66** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+    '`sealed_bundle_sha256 = 3010578bb45a80a5eba29b3c499274f27708da62171c3dc2925bbaf3bb919652`,',
+    '`byte_length = 524885`.',
+    '',
+].join('\n');
+const twoInOne = run(fixture('twoinone', TWO_IN_ONE, rollback()));
+ok(twoInOne.json && twoInOne.json.receipts === 2,
+    'two deploys under one heading are two receipts, not one');
+ok(twoInOne.code === 0 && twoInOne.json.live.run === '33684111985',
+    'and the SECOND one is live — its identity comes from the nearest preceding dispatch, not the entry\'s first');
+const twoInOneStale = run(fixture('twoinonestale', TWO_IN_ONE, rollback({
+    date: '2026-09-01', deploy: '#24', run: '33555586230', commit: 'da2195f0',
+    pw: '65', pwh: '2af7fe6d', lo: '46', loh: 'd83f0d7c', dw: '34', bw: '34', captures: '64',
+})));
+ok(twoInOneStale.code === 1,
+    'so a row stuck on the FIRST of the two still fails, which is the case that passed before');
+
+/* ---- 5e. a receipt must actually record what it claims ----------------- */
+
+const holedJson = LOG + [
+    '```json',
+    JSON.stringify({
+        schema: 'syncview_f27_section4_deployed_versions_v1',
+        deploy_commit: '152c050e0179ee127e02d0ea50853960d9019eab',
+        github_run_id: '33684111985',
+        functions: [
+            { slug: 'batch-write', active_version: '35', source_closure_sha256: H.bw },
+            { slug: 'deliverable-write', active_version: '35', source_closure_sha256: H.dw },
+            { slug: 'linear-outbound', active_version: '47', source_closure_sha256: H.lo47 },
+            { slug: 'production-write', active_version: '66' },   // closure omitted
+        ],
+    }, null, 2),
+    '```',
+    '',
+].join('\n');
+const holed = run(fixture('holedjson', holedJson, rollback()));
+ok(holed.code === 1
+    && /production-write: the newest receipt records no usable source closure/.test(holed.json.failures.join(' ')),
+    'an attestation block missing ONE closure fails for that function — two empty strings must not compare equal');
+
+const undated = run(fixture('undated',
+    LOG.replace('## 2026-09-02 — F27 Section 4 forward deploy executed',
+        '## F27 Section 4 forward deploy executed'), rollback()));
+ok(undated.code === 1 && /no\s+YYYY-MM-DD date/.test(undated.json.failures.join(' ')),
+    'and a newest receipt under an undated heading fails, rather than quietly dropping to one chronology signal');
+
 /* ---- 6. nothing to compare is a failure, not a pass -------------------- */
 
 const empty = run(fixture('empty', '# Execution log\n\nNo deploys yet.\n', rollback()));

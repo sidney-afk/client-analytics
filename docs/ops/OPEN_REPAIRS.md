@@ -9560,14 +9560,13 @@ scored the deep-link bug green earlier the same day.
 
 ### The client-reported missing issue: not reproducible, and my own analysis of it was wrong twice
 
-A staff member reported on 2026-09-03 that an issue for client slug `roccopiazza`
-"didn't appear". Three
+A staff member reported on 2026-09-03 that one client's issue "didn't appear". Three
 explanations were produced during the day and **the first two were wrong**:
 
 1. *"VID-13555 is genuinely absent from `deliverables` — this is exactly the
    bug."* Wrong. It is absent from `deliverables` because it is not a
    deliverable: SyncView holds it as a **batch**, `b1_b_881891e2…`, a
-   filming-day container for `roccopiazza`, created by `linear-backfill` eight
+   filming-day container for that client, created by `linear-backfill` eight
    seconds after Linear created the issue. Absent from that table is the
    correct state.
 2. *"A quarter of batch-parent deep links are dead — 496 of 1,947 identifiers,

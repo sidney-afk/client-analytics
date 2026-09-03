@@ -172,7 +172,8 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // and the gate accepted only `entitynotfound`. Membership unchanged, one
   // blob moved, and the closure is re-derived from `git show HEAD:<path>`.
   'scripts/linear-deliverables-reconcile.js':
-    '2e17d758a0e5f4ccd134a53df78d7162af1439145f4087760f63774887433b2f',
+    // Re-pinned again the same day: the tolerance is capped (PR #1244 review).
+    'a4664cc90a9b530fdadfd75f6e1021af3fb42fe5faf6238bbb67220a3c675a7c',
   'scripts/linear-reconcile-inbound-pager.js':
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':

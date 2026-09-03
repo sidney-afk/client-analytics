@@ -110,9 +110,20 @@ async function kasperCardState(page, cid) {
     // own named check — a timeout here means the read said nothing about the
     // route refusal, which is a different fact from the route refusal failing,
     // and the old single assertion could not tell them apart.
+    //
+    // The BOUND has to cover the boot it is waiting for, or it just moves the
+    // race later. Codex P2 on this change: with `?sxr=0` the Samples branch
+    // falls through, `sample-reviews` is not a fast tab, and `init()` awaits
+    // the whole analytics fetch before it calls `navTo` — and the courier
+    // permits a request to take up to 60 s (`_CURL_OPTIONS.timeout`). A 20 s
+    // cap would have reported a false failure on any slow CSV. 75 s covers
+    // that window with margin and costs nothing on a healthy run, because
+    // `waitForFunction` returns the moment the condition holds; it also stays
+    // inside the runner's 240 s per-probe budget alongside this probe's other
+    // work (~70 s in the 2026-09-03 nightly).
     let offRouted = true;
     try {
-      await offPage.waitForFunction(() => !!(history.state && history.state.nav), { timeout: 20000 });
+      await offPage.waitForFunction(() => !!(history.state && history.state.nav), { timeout: 75000 });
     } catch (e) { offRouted = false; }
     const off = await offPage.evaluate(() => {
       const nav = document.querySelector('#navSxr');
@@ -129,7 +140,7 @@ async function kasperCardState(page, cid) {
     t(off.enabled === false, 'opt-out: _sxrEnabled() is false with ?sxr=0', String(off.enabled));
     t(!off.navVisible, 'opt-out: samples nav is hidden (display:none)');
     t(off.cards === 0, 'opt-out: zero sample cards rendered', String(off.cards));
-    t(offRouted, 'opt-out: boot finished routing within 20s (the precondition the next check needs)',
+    t(offRouted, 'opt-out: boot finished routing within 75s (the precondition the next check needs)',
       `routedTo="${off.routedTo}" bootVisible=${off.bootVisible}`);
     t(off.hash === '' && !off.sxrViewMounted, 'opt-out: #sample-reviews route refused (hash cleared, no sxr view mounted)',
       `hash="${off.hash}" mounted=${off.sxrViewMounted} routed=${offRouted} routedTo="${off.routedTo}"`);

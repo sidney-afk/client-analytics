@@ -47,8 +47,19 @@ const block = PROBE.slice(start, end);
 
 ok(/waitForFunction\(\(\) => !!\(history\.state && history\.state\.nav\)/.test(block),
     'it waits for history.state.nav — the thing navTo writes when the route actually resolves');
-ok(/timeout:\s*\d+/.test(block),
-    'and the wait is bounded, so a page that never routes fails fast instead of hanging the lane');
+const capMatch = block.match(/timeout:\s*(\d+)/);
+ok(!!capMatch, 'and the wait is bounded, so a page that never routes cannot hang the lane');
+/* The bound must cover the boot it waits for or the race just moves later:
+   with ?sxr=0 the route falls through to a normal boot, which awaits the
+   analytics fetch before navTo, and the courier permits a request to take up
+   to 60s. It must also stay inside the runner's 240s per-probe budget. */
+const cap = capMatch ? Number(capMatch[1]) : 0;
+ok(cap >= 60000, 'and the bound covers the 60s the courier permits a request to take (got ' + cap + 'ms)');
+ok(cap < 240000, 'while staying inside the runner\'s per-probe budget');
+const courier = fs.readFileSync(path.join(ROOT, 'qa', 'sxr_courier_lib.js'), 'utf8');
+const courierCap = (courier.match(/timeout:\s*(\d+),/) || [])[1];
+ok(Number(courierCap) === 60000,
+    'and 60s is still what the courier permits — if that moves, this bound has to move with it');
 ok(!/await sleep\(\d+\);[\s\S]*?location\.hash/.test(block),
     'the hash is no longer read behind a bare fixed sleep');
 ok(/t\(offRouted, 'opt-out: boot finished routing/.test(PROBE),

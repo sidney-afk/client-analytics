@@ -10303,11 +10303,23 @@ single assertion could not distinguish "boot never finished" from "boot
 finished and left the hash", which are different facts with different owners;
 its failure line now carries `routed=` and `routedTo=` so a red run says which.
 
+**The BOUND had to cover the boot, or the race just moves later** — Codex P2 on
+the fix. With `?sxr=0` the Samples branch falls through, `sample-reviews` is not
+a fast tab, and `init()` awaits the whole analytics fetch before calling
+`navTo`; the courier permits a request to take up to 60 s
+(`_CURL_OPTIONS.timeout`). A 20 s cap would have reported the same false
+failure on any slow CSV, at 20 seconds instead of 2.5. The cap is 75 s: it
+covers that window with margin, costs nothing on a healthy run because
+`waitForFunction` returns the moment the condition holds, and stays inside the
+runner's 240 s per-probe budget alongside this probe's other work (~70 s in the
+2026-09-03 nightly). The suite asserts all three of those bounds, and asserts
+the courier's own 60 s is still 60 s — if that moves, this has to move with it.
+
 `test/sxr-optout-probe-waits-for-route.js` pins both ends — the probe waits for
 the signal, and `navTo` still emits it — because the probe now depends on a
-product detail, and if that detail moved the nightly would start timing out for
-twenty seconds every night with no explanation. 3 mutations, all killed. **It is
-not proof the race is gone; the next nightly is.**
+product detail, and if that detail moved the nightly would start timing out
+every night with no explanation. 3 mutations, all killed. **It is not proof the
+race is gone; the next nightly is.**
 
 ### Calendar — item 25's p92 fix ALSO worked, and three different probes are red
 

@@ -16,10 +16,16 @@ machine, carries the credentials it needs, writes to `C:\F27-Bundles\` and names
 the file itself:
 
 ```powershell
-& "$env:USERPROFILE\.syncview\f27-capture.ps1"
+f27capture
 ```
 
-That is the whole instruction. Give them that line.
+That is the whole instruction. Give them that word. It is aliased in the owner's
+`$PROFILE` (recorded in `AGENTS.md`); if the alias ever misses, the same script
+is:
+
+```powershell
+& "$env:USERPROFILE\.syncview\f27-capture.ps1"
+```
 
 **Do NOT** hand them the raw PowerShell from
 `docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md` step by step, do NOT ask for or

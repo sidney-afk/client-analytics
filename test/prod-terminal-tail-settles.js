@@ -70,6 +70,7 @@ function harness(opts) {
     const _prodState = {
       projectionGeneration: 1,
       terminalTailPending: false,
+      terminalTailFailed: false,
       deliverables: [],
       clients: [], members: [], batches: [],
       adapter: null, batchFiles: new Map(), batchFilesStatus: new Map(),
@@ -118,16 +119,27 @@ function harness(opts) {
     await h.run('_prodLoadTerminalTail()');
     ok(h.run('_prodState.terminalTailPending') === false,
       'a REJECTED tail read clears the pending flag');
-    ok(h.calls.render === 1 && h.calls.fallback === 1,
-      'and re-renders, so the pane stops claiming to load a read that is not running');
+    /* CHANGED 2026-09-03, and the change is the point.
+       These two assertions used to require `calls.fallback === 1` here, against
+       a stubbed fallback that only increments a counter. That is the call which
+       evicts the reader and publishes "has no row in Production" — so the suite
+       was requiring, and scoring green, the exact behaviour that made a failed
+       read look like proof a row does not exist (OPEN_REPAIRS 116). A test that
+       asserts a function was CALLED cannot tell a fix from its opposite.
+       The correct property is that the pane stops claiming to load WITHOUT
+       anyone concluding anything: render, yes; authoritative fallback, no. */
+    ok(h.calls.render === 1 && h.calls.fallback === 0,
+      'and re-renders WITHOUT an authoritative fallback — the read established nothing');
+    ok(h.run('_prodState.terminalTailFailed') === true,
+      'and records that it failed, which is what makes the pane say so');
   }
 
   /* ---- and an answer that is not an array -------------------------------- */
   {
     const h = harness({ notAnArray: true });
     await h.run('_prodLoadTerminalTail()');
-    ok(h.calls.render === 1 && h.calls.fallback === 1,
-      'a non-array answer settles the pane too, rather than exiting quietly');
+    ok(h.calls.render === 1 && h.calls.fallback === 0 && h.run('_prodState.terminalTailFailed') === true,
+      'a non-array answer settles the pane the same way — it is no more informative than a throw');
   }
 
   /* ---- P1: an overlapping load moves the generation mid-read ------------- */

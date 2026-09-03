@@ -47682,6 +47682,13 @@
             // the approved/posted/archived tail is still arriving behind the
             // live board.
             terminalTailPending: false,
+            /* The tail RAN and did not deliver. Distinct from pending, and the
+               distinction is the whole of OPEN_REPAIRS 108's fifth round: a tail
+               that FAILED establishes nothing, so an id it could not resolve is
+               UNKNOWN, not GONE. Treating those the same is what turned a stuck
+               spinner into a false eviction on 2026-09-02. Cleared by the next
+               tail that actually lands. */
+            terminalTailFailed: false,
             terminalTailLoadedAt: 0,
             writes: new Map(),
             commentDrafts: new Map(),
@@ -56824,7 +56831,25 @@
                set, an unresolved id means NOT YET, not GONE, so nothing is
                cleared and no notice is published. The eviction still runs, one
                tail later, for a target that is genuinely absent. */
-            const settling = !!_prodState.terminalTailPending;
+            /* SETTLING covers two different reasons the row set is incomplete,
+               and only one of them was modelled.
+
+               `terminalTailPending` means the tail has not finished. But a tail
+               that finished by THROWING leaves the row set just as incomplete,
+               and the repair shipped on 2026-09-02 called the fallback on that
+               exit anyway -- "let the fallback publish an honest result". It is
+               not honest: the read established nothing, so the three evictions
+               below fire on a row that very likely exists, and the notice
+               accuses it of having no row in Production off the back of a
+               request that failed. Reproduced by execution: a reader sitting on
+               a posted deliverable was moved to the list, and a deep link at it
+               was told it did not exist.
+
+               That is the FIFTH round of this same bug, and every round has had
+               the identical shape: a state the code could not represent, so two
+               different situations shared one answer. NOT YET and GONE was the
+               first four. This one is I DO NOT KNOW. */
+            const settling = !!_prodState.terminalTailPending || !!_prodState.terminalTailFailed;
             if (!settling) {
                 if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
                 if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
@@ -57072,6 +57097,9 @@
                    be deferred and then never applied. Cleared BEFORE the call,
                    because the flag is what tells it to defer. */
                 _prodState.terminalTailPending = false;
+                // A landed tail re-establishes the row set, so an earlier
+                // failure no longer describes what this tab knows.
+                _prodState.terminalTailFailed = false;
                 _prodApplyDeepLinkFallback(true);
                 if (document.getElementById('prodRoot')) _prodRender();
                 settled = true;
@@ -57113,8 +57141,20 @@
                     _prodTerminalTailRerun = false;
                     _prodLoadTerminalTail();
                 } else if (!settled) {
+                    /* STOP CLAIMING TO LOAD, WITHOUT STARTING TO ACCUSE.
+                       The previous version called `_prodApplyDeepLinkFallback(true)`
+                       here and described it as publishing an honest result. It is
+                       the opposite: this exit is reached when the read FAILED or
+                       came back unusable, so nothing about which rows exist was
+                       established, and an authoritative fallback then evicts the
+                       reader from a row that is probably fine and tells a deep
+                       link that the row has no place in Production.
+                       The flag replaces the call. The pane stops spinning because
+                       `terminalTailFailed` renders its own state, and the
+                       evictions stay deferred because absence still means
+                       nothing. The next tail that lands clears it. */
                     _prodTerminalTailRerun = false;
-                    _prodApplyDeepLinkFallback(true);
+                    _prodState.terminalTailFailed = true;
                     if (document.getElementById('prodRoot')) _prodRender();
                 }
             }
@@ -57210,6 +57250,7 @@
                    the overlapping request and re-runs itself for the current
                    generation. */
                 _prodState.terminalTailPending = true;
+                _prodState.terminalTailFailed = false;
                 // Authoritative: re-apply a deep link the cached paint could not
                 // resolve, and only now conclude that a target does not exist.
                 _prodApplyDeepLinkFallback(true);
@@ -58693,6 +58734,33 @@
             }
             return '<div class="prod-project-groups" data-prod-project-groups="' + _calEscAttr(_prodState.groupBy || 'status') + '">' + _prodGroupsFor(rows).map(_prodProjectGroupHTML).join('') + '</div>';
         }
+        /* THE PANE'S ANSWER WHEN THE ROW SET IS INCOMPLETE, shared by all three
+           detail panes so they cannot drift apart the way they already did.
+
+           Two incomplete states, two different sentences, and the difference is
+           the whole of OPEN_REPAIRS 108. PENDING means the tail is still coming
+           and the row may be one moment away, so a skeleton is the truth. FAILED
+           means the tail ran and threw: this tab does not know whether the row
+           exists, and saying "not found" would state something it cannot know --
+           the class item 87 spent a week removing. It offers a retry instead,
+           because a retry is the only thing that changes the answer.
+
+           Returns '' when the row set is complete, so the caller falls through
+           to its own genuine not-found copy. */
+        function _prodIncompletePaneHTML(noun) {
+            if (_prodState.terminalTailPending) {
+                return '<div class="prod-empty" data-prod-detail-settling="1" role="status">'
+                    + '<span class="prod-skeleton" style="height:12px;width:180px;display:inline-block;"></span>'
+                    + '<div>Loading this ' + _calEsc(noun) + '\u2026</div></div>';
+            }
+            if (_prodState.terminalTailFailed) {
+                return '<div class="prod-empty" data-prod-detail-unavailable="1" role="status">'
+                    + '<div>This ' + _calEsc(noun) + ' could not be loaded \u2014 the read that finishes the list failed.</div>'
+                    + '<div class="prod-empty-sub">It has not been checked for, so it may well be here. Refresh to try again.</div>'
+                    + '<button type="button" class="prod-btn" onclick="return _prodRefresh({})">Refresh</button></div>';
+            }
+            return '';
+        }
         // PORT-DELTA: renderDetail uses native comments and team-authority-gated writes.
         function _prodDetail() {
             const d = _prodIssue(_prodState.openId);
@@ -58714,10 +58782,9 @@
                rather than close. While the tail is pending an unresolved id
                means NOT YET here too, and says so; once it lands, a genuinely
                absent row still reports absent. */
-            if (!d && _prodState.terminalTailPending) {
-                return '<div class="prod-empty" data-prod-detail-settling="1" role="status">'
-                    + '<span class="prod-skeleton" style="height:12px;width:180px;display:inline-block;"></span>'
-                    + '<div>Loading this item…</div></div>';
+            if (!d) {
+                const incomplete = _prodIncompletePaneHTML('item');
+                if (incomplete) return incomplete;
             }
             if (!d) return '<div class="prod-empty">Deliverable not found.</div>';
             _prodLoadEventsFor(d.id);
@@ -58760,7 +58827,12 @@
         }
         function _prodProjectDetail() {
             const c = _prodClient(_prodState.openProjectId);
-            if (!c) return '<div class="prod-empty">Project not found.</div>';
+            /* The sibling panes were never given this guard, and the fallback
+               defers openProjectId and openBatchId exactly as it defers openId
+               -- so a deep link at either one spent the whole tail window being
+               told it did not exist. Found by audit, not by a reader, which is
+               the only reason it is cheap. */
+            if (!c) return _prodIncompletePaneHTML('project') || '<div class="prod-empty">Project not found.</div>';
             const lead = _prodMember(c.lead);
             const projectTeam = _prodProjectScopeTeam(c);
             const allRows = _prodProjectAllRows(c);
@@ -58784,14 +58856,14 @@
         }
         function _prodBatchDetail() {
             const batch = _prodBatch(_prodState.openBatchId);
-            if (!batch) return '<div class="prod-empty">Batch not found.</div>';
+            if (!batch) return _prodIncompletePaneHTML('batch') || '<div class="prod-empty">Batch not found.</div>';
             const rows = _prodBatchRows(batch.id);
             const descField = _prodHasOwn(batch, 'description') ? 'description' : _prodHasOwn(batch, 'desc') ? 'desc' : '';
             const desc = descField ? (batch[descField] == null ? '' : batch[descField]) : '';
             return '<div class="prod-detail" data-prod-batch-detail="' + _calEscAttr(batch.id) + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('batch') + ',' + _jsAttrArg(batch.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
                 + '<div class="prod-desc">' + _prodDescriptionHTML(desc, !!descField, 'No batch description.', false) + '</div>'
                 + (rows[0] ? _prodAssetsPanelHTML(rows[0], { slots: ['filming_plan','raw_footage','delivery_folder'], readOnly: true }) : '')
-                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
+                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"' + _prodTitleAttrs(d.title || '') + '><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Team</span><span>' + _calEsc(_prodTeamLabel(batch.team)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Status</span><span>' + _calEsc(batch.status || 'active') + '</span></div>'
@@ -63287,6 +63359,40 @@
     let _sxrOpenCommentsPid = null;
     let _sxrReplyTarget = null;
     let _sxrReplyDrafts = Object.create(null);
+    /* THE SAMPLES TWIN of the calendar's reply-draft store (OPEN_REPAIRS 101,
+       point 4). It was left out when that shipped, and the omission is the
+       repeat of a pattern this ledger has already recorded twice: item 87.3
+       ended "whatever is done here must also be checked against the Samples
+       twin", and the SMM queue gate was then missed on samples a second time
+       anyway. `_sxrCommentRole()` returns 'client' on a share link and the
+       comments button carries no client gate, so this surface loses a client's
+       words in exactly the way the calendar did.
+
+       Same shape deliberately -- one key per card holding a parentId -> text
+       map, the same cap, the text never truncated -- so the two surfaces cannot
+       drift into different behaviour. */
+    const SXR_REPLY_DRAFTS_PREFIX = 'sv_sxrReplyDrafts_';
+    function _sxrReplyDraftsLoad(pid) {
+        if (!pid) return {};
+        try {
+            const raw = JSON.parse(sessionStorage.getItem(SXR_REPLY_DRAFTS_PREFIX + pid) || '{}');
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+            const out = Object.create(null);
+            for (const k of Object.keys(raw)) if (typeof raw[k] === 'string' && raw[k]) out[k] = raw[k];
+            return out;
+        } catch (e) { return {}; }
+    }
+    function _sxrReplyDraftsPersist(pid) {
+        if (!pid) return;
+        try {
+            const keys = Object.keys(_sxrReplyDrafts).filter(k => _sxrReplyDrafts[k]);
+            const kept = keys.slice(-CAL_REPLY_DRAFT_MAX);
+            if (!kept.length) { sessionStorage.removeItem(SXR_REPLY_DRAFTS_PREFIX + pid); return; }
+            const map = {};
+            for (const k of kept) map[k] = _sxrReplyDrafts[k];
+            sessionStorage.setItem(SXR_REPLY_DRAFTS_PREFIX + pid, JSON.stringify(map));
+        } catch (e) {}
+    }
     let _sxrEditTarget = null;
     let _sxrEditDrafts = Object.create(null);
     let _sxrRootDraft = '';
@@ -63303,6 +63409,9 @@
         _sxrReplyTarget = null;
         _sxrEditTarget = null;
         for (const k of Object.keys(_sxrReplyDrafts)) delete _sxrReplyDrafts[k];
+        // Wiped first because the map is shared across cards, then refilled from
+        // this card's own store -- the calendar ordering, for the same reason.
+        Object.assign(_sxrReplyDrafts, _sxrReplyDraftsLoad(pid));
         for (const k of Object.keys(_sxrEditDrafts)) delete _sxrEditDrafts[k];
         _sxrRootDraft = '';
         try { _sxrRootDraft = sessionStorage.getItem('sv_sxrNoteDraft_' + pid) || ''; } catch (e) {}
@@ -63334,7 +63443,7 @@
         const composer = root.querySelector('#sxrCommentComposer');
         if (composer) {
             if (_sxrEditTarget) _sxrEditDrafts[_sxrEditTarget] = composer.value;
-            else if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = composer.value;
+            else if (_sxrReplyTarget) { _sxrReplyDrafts[_sxrReplyTarget] = composer.value; _sxrReplyDraftsPersist(_sxrOpenCommentsPid); }
             else _sxrRootDraft = composer.value;
         }
     }
@@ -63453,7 +63562,7 @@
     function _sxrOnComposerInput(ta) {
         _sxrAutosizeComposer(ta);
         if (_sxrEditTarget) _sxrEditDrafts[_sxrEditTarget] = ta.value;
-        else if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = ta.value;
+        else if (_sxrReplyTarget) { _sxrReplyDrafts[_sxrReplyTarget] = ta.value; _sxrReplyDraftsPersist(_sxrOpenCommentsPid); }
         else { _sxrRootDraft = ta.value; try { if (ta.value) sessionStorage.setItem('sv_sxrNoteDraft_' + _sxrOpenCommentsPid, ta.value); else sessionStorage.removeItem('sv_sxrNoteDraft_' + _sxrOpenCommentsPid); } catch (e) {} }
         const wrap = ta.closest('.cal-cm-composer'); if (!wrap) return;
         const sendBtn = wrap.querySelector('.cal-cm-send'); if (sendBtn) sendBtn.disabled = !ta.value.trim();
@@ -63501,7 +63610,7 @@
         const parentId = _sxrReplyTarget;
         const saved = await _sxrAppendComment(pid, parentId, body);
         if (!saved) return;
-        if (parentId) delete _sxrReplyDrafts[parentId];
+        if (parentId) { delete _sxrReplyDrafts[parentId]; _sxrReplyDraftsPersist(pid); }
         else { _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
         _sxrReplyTarget = null;
         _sxrRenderCommentsModal();

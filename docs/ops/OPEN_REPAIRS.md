@@ -9172,3 +9172,34 @@ naming them.
 for eleven hours. The health check found it because a human-scheduled watch ran,
 which is the definition of luck rather than coverage. `monitoring-deadman.yml`
 watches a heartbeat; this lane's failure did not touch it.
+
+### The repair's own CI failure, and a green local run that could not have been green
+
+The reconciler is a member of the F27 reconciler closure, so changing it moved
+`REVIEWED_BLOB_SHA256['scripts/linear-deliverables-reconcile.js']` from
+`d5abd3de…` to `a318cfc9…`. Re-pinned, membership unchanged, with the three
+additions named in the pin comment.
+
+**What is worth recording is why `npm test` said 383 passed first.**
+`test/f27-reconciler-closure.js` builds its fixture with
+`git show HEAD:<path>` — it reads each closure file from the repo's **committed**
+content, not the working tree. That is CORRECT, because the capture it exercises
+is defined over a release SHA. The consequence is not obvious: **an uncommitted
+change to a closure member is invisible to this suite.** The pre-commit run read
+the OLD blob, matched the pin, and passed; the drift appeared only once the
+change was committed, which is to say in CI, on the push, after the local signal
+had already said go.
+
+So the local suite was not lying and CI was not flaky — they were reading two
+different trees, and only one of them contained the change. The suite now prints
+one line to stderr when a closure member differs between HEAD and the worktree,
+naming the files, saying that this run did not cover them. It does not fail: a
+dirty worktree is a normal state to run tests in. The point is to stop a green
+run being read as *"my change is fine"* when the change was never looked at.
+
+**The generalisation.** Any test that reads its subject from somewhere other
+than where you are editing it can only ever report on the version it read. That
+is fine, and it is the reason the F27 suites read from git at all — but a suite
+in that shape owes the reader a sentence about which tree it read, because
+"passed" and "passed against your change" are different claims and nothing in the
+output distinguished them.

@@ -24,6 +24,7 @@ const {
 
 const temporaryRoots = [];
 let passed = 0;
+let warnedUncommitted = false;
 
 function ok(condition, label) {
   assert.ok(condition, label);
@@ -73,6 +74,34 @@ function syntheticRepo() {
   const privateDir = path.join(tempRoot, 'private');
   fs.mkdirSync(repo, { recursive: true });
   fs.mkdirSync(privateDir, { recursive: true });
+  /* THIS FIXTURE READS COMMITTED CONTENT, AND THAT SURPRISED SOMEBODY.
+
+     Each closure file is taken from the real repo's git HEAD, not the working
+     tree — correct, because the capture the CLI performs is defined over a
+     release SHA. The consequence is not obvious and cost a red CI run on
+     2026-09-03: an UNCOMMITTED change to a closure member is invisible here, so
+     a pre-commit `npm test` reports green and the blob-drift failure appears
+     only after `git commit`, on the push, in CI.
+
+     The warning below does not change what is tested. It just refuses to let a
+     green run be read as "my change is fine" when the change was never looked
+     at. Written to stderr rather than failing, because a dirty worktree is a
+     normal state to run tests in — the point is to say which reading of the
+     result is available. */
+  const uncommitted = EXPECTED_CLOSURE_PATHS.filter(relative => {
+    const head = git(ROOT, ['show', `HEAD:${relative}`], { encoding: null }).stdout;
+    let worktree = null;
+    try { worktree = fs.readFileSync(path.join(ROOT, relative)); } catch (_) { return false; }
+    return !head || !worktree || !head.equals(worktree);
+  });
+  // Once per run, not once per fixture: syntheticRepo() is called for every
+  // scenario, and sixteen copies of the same warning is how a warning gets
+  // scrolled past.
+  if (uncommitted.length && !warnedUncommitted) {
+    warnedUncommitted = true;
+    console.error('NOTE  this suite reads closure files from git HEAD, so your uncommitted edits to '
+      + uncommitted.join(', ') + ' are NOT covered by this run. Commit them and re-run before trusting a pass.');
+  }
   for (const relative of EXPECTED_CLOSURE_PATHS) {
     writeFile(
       path.join(repo, ...relative.split('/')),

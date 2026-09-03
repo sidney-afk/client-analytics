@@ -140,8 +140,17 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
     '6b1b65d394a0276387740c462074c7900956c39c374f9efa1d8c0930dbee2035',
   'scripts/linear-deliverables-reconcile-lib.js':
     '82217dc7ff03775493e7ac1a187c58a19a6c81ebc63e402272ffac9404359cb6',
+  // Re-pinned 2026-09-03 for the deleted-issue tolerance (OPEN_REPAIRS 119).
+  // Membership UNCHANGED -- no file entered or left the closure. The blob moved
+  // for three additions, all reviewed as part of that change: an
+  // `isEntityNotFoundError` predicate, an opt-in `tolerateNotFound` branch in
+  // `linear()` that returns partial data ONLY when every GraphQL error is an
+  // entity-not-found, and a `LINEAR_ISSUES_NOT_FOUND` set surfaced in the
+  // summary payload. No reconcile, apply, flag or authority path changed, and
+  // the F200 apply preflight's cohort guard is untouched -- the relaxation is
+  // in the READ and is taken by exactly one call site.
   'scripts/linear-deliverables-reconcile.js':
-    'd5abd3de02177ccc6e27e0470252c452b03ccb8ac008763c322188e27862ad94',
+    'a318cfc97e1d882ed38fd67daebd858c174e1d247985de33bb021f046368d525',
   'scripts/linear-reconcile-inbound-pager.js':
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':

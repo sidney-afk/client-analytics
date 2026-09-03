@@ -56867,9 +56867,13 @@
 
                `authoritative` is the missing term. Absence is only evidence when
                the answer came from the server. */
-            const settling = !authoritative
-                || !!_prodState.terminalTailPending
-                || !!_prodState.terminalTailFailed;
+            /* Same predicate as the pane, deliberately: an eviction and a
+               "not found" are the same claim made in two places, and they drifted
+               apart once already (item 108, five rounds). `_prodRowSetComplete`
+               is strictly the more cautious of the two old terms -- it also
+               refuses while no tail has landed at all -- which is the direction
+               AGENTS.md asks a guard to fall when it could go either way. */
+            const settling = !authoritative || !_prodRowSetComplete();
             if (!settling) {
                 if (_prodState.openId && !_prodIssue(_prodState.openId)) { _prodState.openId = ''; _prodState.view = 'list'; }
                 if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) { _prodState.openBatchId = ''; _prodState.view = 'list'; }
@@ -57045,7 +57049,15 @@
                    a shared link hung the comment thread. */
                 const safe = wanted.replace(/[(),"']/g, '');
                 if (!safe || safe !== wanted) return false;
-                const rows = await _prodLoadDeliverableProjection('or=(id.eq.' + encodeURIComponent(safe) + ',identifier.eq.' + encodeURIComponent(safe) + ')');
+                /* THREE columns, not two. Review on PR 1242 caught the third:
+                   the adapter reads `displayId: d.identifier || d.linear_identifier
+                   || d.id`, so a link copied off a row whose `identifier` is null
+                   carries the LINEAR identifier and matched nothing here -- the
+                   one case this shortcut exists for, silently falling back to the
+                   four-thousand-row wait it was written to skip. */
+                const cols = ['id', 'identifier', 'linear_identifier'];
+                const rows = await _prodLoadDeliverableProjection(
+                    'or=(' + cols.map(c => c + '.eq.' + encodeURIComponent(safe)).join(',') + ')');
                 if (generation !== _prodState.projectionGeneration) return false;
                 if (!Array.isArray(rows) || !rows.length) return false;
                 const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
@@ -58820,8 +58832,63 @@
 
            Returns '' when the row set is complete, so the caller falls through
            to its own genuine not-found copy. */
+        /* IS THE ROW SET ACTUALLY COMPLETE?
+
+           `terminalTailPending` answers "is a tail running", which is NOT the
+           same question and was the whole of the 2026-09-03 report: refresh a
+           link to a posted row and you got skeleton, then "Deliverable not
+           found", then skeleton again, then the row. Four states for one wait.
+
+           The middle one is this predicate's absence. The pending flag is
+           raised by the phase-one SUCCESS path, so for the entire live read
+           before it -- and for the cached first paint before that, which never
+           holds a terminal row because `_prodCacheWrite` runs on the phase-one
+           set -- pending was false, failed was false, and a row that had simply
+           not been fetched yet was reported missing. Then phase one landed, the
+           flag went up, and the pane went back to a skeleton it should never
+           have left.
+
+           A tail that has LANDED is the only thing that makes absence mean
+           anything, so that is what gets asked. Before the first one lands the
+           answer is "not yet" from the first frame onward, which is one
+           continuous wait instead of four. */
+        function _prodRowSetComplete() {
+            return !!_prodState.terminalTailLoadedAt
+                && !_prodState.terminalTailPending
+                && !_prodState.terminalTailFailed;
+        }
+        /* SHIMMER THAT DOES NOT RESTART. `_prodRender` replaces the whole of
+           prodRoot, so every repaint during the wait builds a brand-new
+           skeleton node and CSS starts its animation over -- the owner's
+           "sometimes I have a double animation", which is really the same
+           animation seen twice from the top.
+
+           A negative delay taken from the document clock puts each new node in
+           at the phase the old one was leaving at, so a replaced skeleton
+           continues rather than jumps. `performance.now()` is zero at
+           navigation start, which is also when the static boot skeleton in the
+           markup starts its own cycle, so the two agree without being told
+           about each other. */
+        const PROD_SKELETON_PERIOD_MS = 1350;   // keep in sync with .prod-skeleton
+        function _prodSkeletonPhaseStyle() {
+            let t = 0;
+            try { t = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0; } catch (e) { t = 0; }
+            const phase = ((t % PROD_SKELETON_PERIOD_MS) + PROD_SKELETON_PERIOD_MS) % PROD_SKELETON_PERIOD_MS;
+            return 'animation-delay:-' + phase.toFixed(0) + 'ms;';
+        }
         function _prodIncompletePaneHTML(noun) {
-            if (_prodState.terminalTailPending) {
+            /* FAILED IS ASKED FIRST, because a tail that ran and threw is a
+               state this tab knows something about, and the incomplete branch
+               below would otherwise swallow it -- nothing ever stamped
+               `terminalTailLoadedAt`, so it reads as incomplete forever and the
+               reader waits on a skeleton for a read that is not running. */
+            if (_prodState.terminalTailFailed) {
+                return '<div class="prod-empty" data-prod-detail-unavailable="1" role="status">'
+                    + '<div>This ' + _calEsc(noun) + ' could not be loaded \u2014 the read that finishes the list failed.</div>'
+                    + '<div class="prod-empty-sub">It has not been checked for, so it may well be here. Refresh to try again.</div>'
+                    + '<button type="button" class="prod-btn" onclick="return _prodRefresh({})">Refresh</button></div>';
+            }
+            if (!_prodRowSetComplete()) {
                 /* A SKELETON, NOT A SENTENCE. The first version of this put one
                    thin bar above the words "Loading this item…", which the owner
                    saw on a real card and disliked on sight: a line of prose in
@@ -58834,20 +58901,15 @@
                    row, body lines -- so the pane does not visibly change layout
                    when the real thing lands. `aria-busy` carries the meaning
                    for a screen reader, which is where the sentence belonged. */
+                const phase = _prodSkeletonPhaseStyle();
                 const bar = (w, h, mt) => '<span class="prod-skeleton" style="display:block;height:' + h
-                    + 'px;width:' + w + ';margin-top:' + mt + 'px;"></span>';
+                    + 'px;width:' + w + ';margin-top:' + mt + 'px;' + phase + '"></span>';
                 return '<div class="prod-detail-skeleton" data-prod-detail-settling="1" role="status" aria-busy="true"'
                     + ' aria-label="Loading this ' + _calEscAttr(noun) + '">'
                     + bar('42%', 13, 0) + bar('68%', 24, 14)
                     + bar('30%', 12, 18) + bar('96%', 11, 22) + bar('88%', 11, 10)
                     + bar('93%', 11, 10) + bar('61%', 11, 10)
                     + '</div>';
-            }
-            if (_prodState.terminalTailFailed) {
-                return '<div class="prod-empty" data-prod-detail-unavailable="1" role="status">'
-                    + '<div>This ' + _calEsc(noun) + ' could not be loaded \u2014 the read that finishes the list failed.</div>'
-                    + '<div class="prod-empty-sub">It has not been checked for, so it may well be here. Refresh to try again.</div>'
-                    + '<button type="button" class="prod-btn" onclick="return _prodRefresh({})">Refresh</button></div>';
             }
             return '';
         }

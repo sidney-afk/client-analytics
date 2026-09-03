@@ -183,19 +183,39 @@ const NOT_FOUND = {
    * gates and pages on. The first fix traded a LOUD outage for a silently
    * inflated divergence number, which is the worse of the two.
    *
+   * And the OVER-correction, caught by review on PR #1242: the first fix
+   * removed the ROWS, not just their ids, so they never reached
+   * `classifyOutboundDeliverable` — whose `!issue` branch is the only place
+   * that raises `outbound_issue_missing` and files a
+   * `native_create_context_missing` repair. A deleted issue then produced no
+   * plan entry at all, and the sole surviving trace was
+   * `linear_issue_not_found_count`, a receipt field nothing gates on. Both
+   * halves are asserted here because the correct answer is neither of the two
+   * fixes on its own: the ID leaves completeness, the ROW stays in the plan.
+   *
    * Asserted on the real source rather than the shape of a stub, because the
    * property is about which rows reach the plan at all. */
   const loadBodies = ['loadLiveData'].map(n => { try { return grabFunc(n); } catch (_) { return ''; } });
   const completenessSites = (SRC.match(/attributionIssueIds\.every\(id => linearIssues\.has\(id\)\)/g) || []).length;
-  const dropSites = (SRC.match(/active = active\.filter\(row => !LINEAR_ISSUES_NOT_FOUND\.has\(clean\(row\.linear_issue_uuid\)\)\)/g) || []).length;
-  ok(dropSites === completenessSites && dropSites >= 1,
-    'every completeness computation is preceded by dropping the orphaned rows (' + dropSites + ' of ' + completenessSites + ')');
+  const excludeSites = (SRC.match(/\.filter\(id => id && !LINEAR_ISSUES_NOT_FOUND\.has\(id\)\)/g) || []).length;
+  ok(excludeSites === completenessSites && excludeSites >= 1,
+    'every completeness computation excludes the orphaned ids (' + excludeSites + ' of ' + completenessSites + ')');
+  ok(!/active = active\.filter\(row => !LINEAR_ISSUES_NOT_FOUND\.has/.test(SRC),
+    'and does it WITHOUT dropping the rows — an orphan still reaches the plan as outbound_issue_missing');
   ok(/const orphanedByDeletedIssue = active\.filter\(row => LINEAR_ISSUES_NOT_FOUND\.has/.test(SRC),
-    'and the dropped rows are captured rather than discarded');
+    'the orphaned rows are still identified, so the count stays reportable');
   ok(/orphaned_by_deleted_issue_count: Number\(plan\.orphanedByDeletedIssueCount/.test(SRC),
-    'the summary reports how many rows the deletions removed from the comparison');
+    'the summary reports how many of the plan\u2019s entries are orphans');
   ok(loadBodies.some(b => b && b.includes('LINEAR_ISSUES_NOT_FOUND')),
-    'the drop happens inside the live load, before any plan is built');
+    'the exclusion happens inside the live load, before any plan is built');
+  /* The far end of the same guarantee: the branch those retained rows land in
+   * must still exist and still be loud. If `outbound_issue_missing` is ever
+   * removed, retaining the rows buys nothing. */
+  const LIB = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'linear-deliverables-reconcile-lib.js'), 'utf8');
+  ok(/if \(!issue\) \{[\s\S]{0,200}?outbound_issue_missing/.test(LIB),
+    'and the branch they land in still raises outbound_issue_missing');
+  ok(/native_create_context_missing/.test(LIB),
+    'with the repair entry that says what to do about it');
 
   /* ---- no other caller was loosened --------------------------------------- */
   const optIn = (SRC.match(/tolerateNotFound: true/g) || []).length;

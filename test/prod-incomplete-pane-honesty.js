@@ -58,8 +58,9 @@ function ctxFor(state) {
     const _prodState = Object.assign({
       openId: '', openBatchId: '', openProjectId: '', clientSlug: '',
       view: 'detail', deepLink: null, deepLinkMissing: '', deepLinkMissingKind: '',
-      terminalTailPending: false, terminalTailFailed: false
+      terminalTailPending: false, terminalTailFailed: false, terminalTailLoadedAt: 0
     }, ${JSON.stringify(state)});
+    const PROD_SKELETON_PERIOD_MS = 1350;
     function _prodIssue(id) { return LIVE.find(r => r.id === id) || null; }
     function _prodBatch() { return null; }
     function _prodClient() { return null; }
@@ -67,6 +68,8 @@ function ctxFor(state) {
     function _calEscAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
     function _prodRefresh() {}
   `, ctx);
+  vm.runInContext(grabFunc('_prodRowSetComplete'), ctx);
+  vm.runInContext(grabFunc('_prodSkeletonPhaseStyle'), ctx);
   vm.runInContext(grabFunc('_prodApplyDeepLinkFallback'), ctx);
   vm.runInContext(grabFunc('_prodIncompletePaneHTML'), ctx);
   return { ctx, run: e => vm.runInContext(e, ctx) };
@@ -91,7 +94,7 @@ function ctxFor(state) {
     'FAILED: and no missing-row notice is published off a request that failed');
 }
 {
-  const h = ctxFor({ openId: 'ghost-1', view: 'detail' });
+  const h = ctxFor({ openId: 'ghost-1', view: 'detail', terminalTailLoadedAt: 1 });
   h.run(`_prodState.deepLink = { id: 'ghost-1', kind: 'issue' }; _prodApplyDeepLinkFallback(true)`);
   ok(h.run(`_prodState.view`) === 'list' && h.run(`_prodState.openId`) === '',
     'COMPLETE: a genuinely absent row still evicts — the guard did not disable the feature');
@@ -117,10 +120,41 @@ function ctxFor(state) {
 }
 {
   // The authoritative pass must still do its job, or the guard is a mute button.
-  const h = ctxFor({ openId: 'ghost-1', view: 'detail' });
+  const h = ctxFor({ openId: 'ghost-1', view: 'detail', terminalTailLoadedAt: 1 });
   h.run(`_prodState.deepLink = { id: 'ghost-1', kind: 'issue' }; _prodApplyDeepLinkFallback(true)`);
   ok(h.run(`_prodState.view`) === 'list',
     'AUTHORITATIVE: the same absent row still evicts once the server has answered');
+}
+
+/* ---- NO TAIL HAS LANDED YET IS ITS OWN STATE ------------------------------
+ *
+ * Owner report, 2026-09-03, and the fourth moment of the same mistake: refresh
+ * a link to a posted row and the sequence was skeleton, then "Deliverable not
+ * found", then skeleton again, then the row. The middle two states are this
+ * one. `terminalTailPending` is raised by the phase-one SUCCESS path, so across
+ * the whole live read before it — and across the cached first paint before
+ * that, which never holds a terminal row because the cache is written from the
+ * phase-one set — pending was false, failed was false, and the pane read that
+ * as COMPLETE.
+ *
+ * Neither flag can express "no tail has run yet", which is why a third term had
+ * to exist rather than a fourth flag being added: the question is whether a
+ * tail has LANDED, and `terminalTailLoadedAt` already answered it. */
+{
+  const h = ctxFor({ openId: 'posted-1', view: 'detail' });   // no flags, no landed tail
+  h.run(`_prodState.deepLink = { id: 'posted-1', kind: 'issue' }; _prodApplyDeepLinkFallback(true)`);
+  ok(h.run(`_prodState.view`) === 'detail' && h.run(`_prodState.openId`) === 'posted-1',
+    'PRE-TAIL: an authoritative pass before the first tail lands still holds the reader on the row');
+  ok(h.run(`_prodState.deepLinkMissing`) === '',
+    'PRE-TAIL: and declares nothing missing — no read has established which rows exist');
+  ok(/data-prod-detail-settling/.test(h.run(`_prodIncompletePaneHTML('item')`)),
+    'PRE-TAIL: the pane shows the skeleton, not the words the owner watched flash past');
+}
+{
+  // And the shimmer does not restart when the pane is rebuilt around it.
+  const h = ctxFor({ terminalTailPending: true });
+  ok(/animation-delay:-\d+ms/.test(h.run(`_prodIncompletePaneHTML('item')`)),
+    'the skeleton carries a phase offset, so a repaint continues the shimmer instead of restarting it');
 }
 
 /* ---- the pane says three different things, and never the wrong one -------- */
@@ -147,7 +181,7 @@ function ctxFor(state) {
     'FAILED: it does not claim absence, and offers the one action that changes the answer');
 }
 {
-  const h = ctxFor({});
+  const h = ctxFor({ terminalTailLoadedAt: 1 });
   ok(h.run(`_prodIncompletePaneHTML('item')`) === '',
     'COMPLETE: the helper stands aside so the caller reports a real not-found');
 }

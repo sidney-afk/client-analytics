@@ -10317,6 +10317,39 @@ id, same deploy — so adjacency means nothing.
 All four have their own fixtures, including a reverse-ordered log whose stale
 row passed before and fails now.
 
+### Round two: three more, and testing one of them found a fourth
+
+- **A `>= 3` cutoff DROPPED short tables.** A newest receipt truncated to one or
+  two rows vanished entirely, and the deploy before it silently became "live" —
+  a stale row passing, by the very mechanism this entry is about. Every detected
+  table is retained now and fails on the functions it does not name.
+- **The captured VERSION matching is not the BUNDLE matching.** With the right
+  version the row could name any digest at all — `deadbeef… / 1 bytes` exited 0
+  — and an older bundle is exactly the one that is indistinguishable by version
+  when an intervening deploy moved a different function. The receipt records the
+  bundle its dispatch sealed (`sealed_bundle_sha256`, `byte_length`); the row's
+  digest and length must match it, and a receipt recording no sealed bundle
+  fails rather than skipping the comparison.
+- **Absence is not agreement.** A live claim missing its run id or its
+  dispatched commit skipped those comparisons and exited 0, losing exactly the
+  provenance this guard says it verifies. Both are now required.
+
+**And writing the test for that last one exposed something worse than the
+finding.** The claim was read as a fixed 900-character window from `**Live as
+of`, which runs past the end of the claim into the deliberately-retained
+*"Superseded history"* prose **in the same table cell** — carrying an older run
+id, commit and version set in the identical format. So a claim that omitted its
+run id did not fail: it silently borrowed the superseded one and compared
+against that. The claim is now bounded by its own bold span, and the fixture
+asserts the superseded id is not picked up.
+
+**A second one came the same way.** Table rows were grouped by byte distance,
+which merged rows from two different entries whenever the first table was
+short — so a truncated newest receipt's lone surviving row joined the next
+deploy's table and the truncation disappeared. Tables are grouped by the entry
+they are written in now, which is the real boundary and is knowable, so the
+heuristic is gone.
+
 - Done when: it has caught one. Until a deploy runs, the evidence that it works
   is the suite's stale-row fixture, which reproduces the 2026-09-03 finding
   exactly and fails.

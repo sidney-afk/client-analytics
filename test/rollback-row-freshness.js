@@ -79,6 +79,10 @@ const LOG = [
     '| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |',
     '| `production-write` | 65 → **66** | `' + H.pw66 + '` | `verify_jwt=false` |',
     '',
+    '**Prior bundle sealed before dispatch**:',
+    '`sealed_bundle_sha256 = 3010578bb45a80a5eba29b3c499274f27708da62171c3dc2925bbaf3bb919652`,',
+    '`byte_length = 524885`.',
+    '',
 ].join('\n');
 
 function rollback(o) {
@@ -144,10 +148,38 @@ ok(/deploy commit/.test(staleText), 'and that the dispatched commit disagrees to
 
 /* ---- 3. one step back, not two ----------------------------------------- */
 
-const twoBack = run(fixture('twoback', LOG, rollback({ captures: '64', bundleSha: '08e9f50c' })));
+/* The bundle the receipt sealed, named correctly, but claiming the WRONG
+   captured version — the one-step property alone. */
+const twoBack = run(fixture('twoback', LOG, rollback({ captures: '64' })));
 ok(twoBack.code === 1, 'a bundle that captures TWO releases back fails even when every version matches');
 ok(twoBack.json && /step back more than once/.test(twoBack.json.failures.join(' ')),
     'and says plainly that restoring it would step back more than once');
+
+/* Codex P1: the captured VERSION matching is not the BUNDLE matching. With the
+   right version the row could name any digest at all. */
+const wrongBundle = run(fixture('wrongbundle', LOG, rollback({ bundleSha: 'deadbeef', bundleBytes: '1' })));
+ok(wrongBundle.code === 1
+    && /names a different bundle from the one that deploy captured/.test(wrongBundle.json.failures.join(' ')),
+    'a row naming a digest the deploy never sealed fails, even with the captured version right');
+const wrongBytes = run(fixture('wrongbytes', LOG, rollback({ bundleBytes: '999999' })));
+ok(wrongBytes.code === 1 && /bytes, the receipt records/.test(wrongBytes.json.failures.join(' ')),
+    'and so does the right digest with the wrong byte length');
+const noSealed = run(fixture('nosealed',
+    LOG.replace(/`sealed_bundle_sha256[^`]*`,\n/, ''), rollback()));
+ok(noSealed.code === 1 && /records no sealed_bundle_sha256/.test(noSealed.json.failures.join(' ')),
+    'and a receipt that records no sealed bundle fails, because then there is nothing to match against');
+
+/* Provenance must be present, not merely consistent when it happens to be there. */
+const noRunClaim = run(fixture('norunclaim', LOG,
+    rollback().replace(/run `\d+` /, '')));
+ok(noRunClaim.code === 1 && /names no run id/.test(noRunClaim.json.failures.join(' ')),
+    'a live claim with no run id fails — absence is not agreement');
+ok(noRunClaim.json && !/33111111111/.test(JSON.stringify(noRunClaim.json.rollback)),
+    'and it does NOT borrow the run id from the superseded history in the same cell');
+const noCommitClaim = run(fixture('nocommitclaim', LOG,
+    rollback().replace(/from `[0-9a-f]+`/, '')));
+ok(noCommitClaim.code === 1 && /names no dispatched commit/.test(noCommitClaim.json.failures.join(' ')),
+    'and so does one with no dispatched commit');
 
 const oneBack = run(fixture('oneback', LOG, rollback({ captures: '65' })));
 ok(oneBack.code === 0, 'a bundle capturing the release immediately before live is accepted');
@@ -218,7 +250,10 @@ const NEWEST_FIRST = [
     '| `linear-outbound` | 46 | `' + H.lo46 + '` | `verify_jwt=false` |',
     '| `production-write` | **65** | `' + H.pw65 + '` | `verify_jwt=false` |',
     '',
-].join('\n');
+].join('\n')
+    .replace('Run `33684111985`, dispatched by the owner from',
+        '`sealed_bundle_sha256 = 3010578bb45a80a5eba29b3c499274f27708da62171c3dc2925bbaf3bb919652`,\n'
+        + '`byte_length = 524885`.\nRun `33684111985`, dispatched by the owner from');
 
 const reversed = run(fixture('reversed', NEWEST_FIRST, rollback()));
 ok(reversed.code === 0 && reversed.json && reversed.json.live.run === '33684111985',
@@ -281,6 +316,10 @@ const ADJACENT = [
     '| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |',
     '| `production-write` | 65 → **66** | `' + H.pw66 + '` | `verify_jwt=false` |',
     '',
+    '**Prior bundle sealed before dispatch**:',
+    '`sealed_bundle_sha256 = 3010578bb45a80a5eba29b3c499274f27708da62171c3dc2925bbaf3bb919652`,',
+    '`byte_length = 524885`.',
+    '',
 ].join('\n');
 const adjacent = run(fixture('adjacent', ADJACENT, rollback()));
 ok(adjacent.code === 0 && adjacent.json.receipts === 2,
@@ -295,6 +334,21 @@ const truncated = NEWEST_FIRST.replace(
 const short = run(fixture('truncated', truncated, rollback()));
 ok(short.code === 1 && short.json.failures.some(f => /production-write is missing from the newest receipt/.test(f)),
     'a receipt naming only three of the four functions fails closed — the lane deploys them as one set');
+
+/* Codex P1: a >= 3 cutoff DROPPED shorter tables, so a badly truncated newest
+   receipt disappeared and the deploy before it silently became "live" — which
+   is a stale ROLLBACK row passing. Every detected table is retained now, and
+   fails on its missing functions instead of vanishing. */
+const veryShort = NEWEST_FIRST
+    .replace('| `batch-write` | 34 → **35** | `' + H.bw + '` | `verify_jwt=false` |\n', '')
+    .replace('| `deliverable-write` | 34 → **35** | `' + H.dw + '` | `verify_jwt=false` |\n', '')
+    .replace('| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |\n', '');
+const oneRow = run(fixture('onerow', veryShort, rollback()));
+ok(oneRow.code === 1, 'a newest receipt truncated to ONE function fails');
+ok(oneRow.json && oneRow.json.live.run === '33684111985',
+    'and it is still read as the newest receipt — it does not vanish and hand the title to the deploy before it');
+ok(oneRow.json && oneRow.json.failures.filter(f => /is missing from the newest receipt/.test(f)).length === 3,
+    'failing for the three functions it does not name');
 
 const noBundle = rollback().replace(/\*\*The newest sealed[^*]*\*\* /, '');
 const unverifiable = run(fixture('nobundle', LOG, noBundle));

@@ -87,24 +87,33 @@ function receiptsFromTables(log) {
         if (SLUGS.indexOf(m[1]) < 0) continue;
         const nums = String(m[2]).match(/\d+/g);
         if (!nums || !nums.length) continue;
-        rows.push({ at: m.index, slug: m[1], version: nums[nums.length - 1], closure: m[3].toLowerCase() });
+        rows.push({
+            at: m.index, slug: m[1], version: nums[nums.length - 1], closure: m[3].toLowerCase(),
+            entry: log.lastIndexOf('\n## ', m.index),
+        });
     }
-    /* Contiguous rows are one table. A REPEATED slug starts a new one — that is
-       what separates two deploys logged close together, and a byte-distance
-       heuristic alone silently swallowed the newer table when it did. */
+    /* A table belongs to the ENTRY it is written in — that is the real boundary,
+       and it is knowable, so the byte-distance heuristic is gone. It merged rows
+       from two entries whenever the first table was SHORT, which is exactly the
+       truncated-receipt case: the lone surviving row joined the next deploy's
+       table and the truncation disappeared. A repeated slug still starts a new
+       table, for the before/after pair some entries carry. */
     const out = [];
     let cur = null;
     for (const r of rows) {
-        if (cur && !cur.fns[r.slug] && r.at - cur.end < 2000) {
+        if (cur && cur.entry === r.entry && !cur.fns[r.slug]) {
             cur.fns[r.slug] = { version: r.version, closure: r.closure };
             cur.end = r.at;
             continue;
         }
         if (cur) out.push(cur);
-        cur = { at: r.at, end: r.at, source: 'summary table', fns: { [r.slug]: { version: r.version, closure: r.closure } } };
+        cur = {
+            at: r.at, end: r.at, entry: r.entry, source: 'summary table',
+            fns: { [r.slug]: { version: r.version, closure: r.closure } },
+        };
     }
     if (cur) out.push(cur);
-    return out.filter(t => Object.keys(t.fns).length >= 3);
+    return out;
 }
 
 /* Run id and dispatched commit live in the entry's prose when the JSON block is
@@ -135,6 +144,22 @@ function proseContext(log, at) {
    solves the folding question — a JSON block and its own summary table are the
    SAME deploy because they carry the same run id, not because they sit near
    each other in the file. */
+/* The whole entry a receipt sits in, heading to next heading. The sealed-bundle
+   line comes AFTER the versions table in a forward-deploy entry, so the
+   backwards-only prose slice above cannot see it. */
+function entryText(log, at) {
+    const start = log.lastIndexOf('\n## ', at);
+    const from = start < 0 ? 0 : start;
+    const next = log.indexOf('\n## ', at);
+    return log.slice(from, next < 0 ? log.length : next);
+}
+
+function sealedBundleIn(text) {
+    const sha = String(text || '').match(/sealed_bundle_sha256\s*=\s*([0-9a-f]{64})/);
+    const bytes = String(text || '').match(/byte_length\s*=\s*(\d+)/);
+    return sha ? { sha: sha[1], bytes: bytes ? bytes[1] : '' } : null;
+}
+
 function executionLogReceipts() {
     const log = read('EXECUTION_LOG.md');
     const all = receiptsFromJson(log).concat(receiptsFromTables(log));
@@ -144,6 +169,7 @@ function executionLogReceipts() {
         r.run = r.run || p.run;
         r.commit = r.commit || p.commit;
         r.date = p.date || '';
+        r.sealed = sealedBundleIn(entryText(log, r.at));
     }
 
     // Group by deployment identity, preferring the richer shape within a group.
@@ -172,7 +198,14 @@ function rollbackClaim() {
     // below it in the same cell is prose and must never be parsed as live.
     const i = md.indexOf('**Live as of');
     if (i < 0) return null;
-    const cell = md.slice(i, i + 900);
+    /* BOUND THE CLAIM TO ITS OWN BOLD SPAN. A fixed window ran past the end of
+       the claim into the deliberately-retained "Superseded history" prose in the
+       same table cell, which carries an older run id, commit and version set in
+       the identical format. So a claim that OMITTED its run id silently borrowed
+       the superseded one and compared against that — found while testing Codex's
+       "absence is not agreement" P2, and worse than the finding itself. */
+    const closing = md.indexOf('.**', i);
+    const cell = md.slice(i, closing < 0 ? i + 900 : closing + 3);
     const run = cell.match(/run\s+`(\d{6,})`/);
     const commit = cell.match(/from\s+`([0-9a-f]{7,40})`/);
     const fns = {};
@@ -228,10 +261,19 @@ function main() {
                 + ' block the lane instructs you to copy — the comparison below still holds,'
                 + ' but the entry is thinner than the record it is supposed to be');
         }
-        if (live.run && claim.run && live.run !== claim.run) {
+        /* ABSENCE IS NOT AGREEMENT. Codex P2 on #1253: a claim missing its run id
+           or its dispatched commit skipped these comparisons and exited 0, so the
+           row lost exactly the provenance this guard says it verifies. */
+        if (!claim.run) {
+            failures.push('ROLLBACK.md\'s live claim names no run id, so the deploy it describes cannot be'
+                + ' identified — the provenance this guard verifies is simply absent');
+        } else if (live.run && live.run !== claim.run) {
             failures.push('run id: ROLLBACK says ' + claim.run + ', newest receipt says ' + live.run);
         }
-        if (live.commit && claim.commit) {
+        if (!claim.commit) {
+            failures.push('ROLLBACK.md\'s live claim names no dispatched commit, so what was deployed'
+                + ' cannot be checked against what the receipt records');
+        } else if (live.commit) {
             const n = Math.min(live.commit.length, claim.commit.length);
             if (live.commit.slice(0, n) !== claim.commit.slice(0, n)) {
                 failures.push('deploy commit: ROLLBACK says ' + claim.commit + ', newest receipt says ' + live.commit);
@@ -277,6 +319,25 @@ function main() {
             failures.push('bundle ' + claim.bundle.sha + ' claims production-write v' + claim.bundle.captured
                 + ', but the previous receipt (run ' + (prior.run || '?') + ') does not name production-write,'
                 + ' so "one release back" cannot be established.');
+        } else if (live.sealed && (
+            claim.bundle.sha.length === 0
+            || live.sealed.sha.slice(0, claim.bundle.sha.length) !== claim.bundle.sha)) {
+            /* The captured VERSION matching is not the bundle matching. Codex P1
+               on #1253: with the right version the row could name any digest —
+               `deadbeef… / 1 bytes` passed — and an older bundle is exactly the
+               one that is indistinguishable by version when an intervening
+               deploy moved a different function. The receipt records the sealed
+               bundle it was dispatched against; that is the identity to match. */
+            failures.push('rollback bundle: ROLLBACK names ' + claim.bundle.sha
+                + '…, but the newest deploy receipt sealed ' + live.sealed.sha.slice(0, 16)
+                + '… — the row names a different bundle from the one that deploy captured');
+        } else if (live.sealed && live.sealed.bytes && claim.bundle.bytes !== live.sealed.bytes) {
+            failures.push('rollback bundle ' + claim.bundle.sha + '…: ROLLBACK says '
+                + claim.bundle.bytes + ' bytes, the receipt records ' + live.sealed.bytes);
+        } else if (!live.sealed) {
+            failures.push('the newest deploy receipt records no sealed_bundle_sha256, so the bundle'
+                + ' ROLLBACK.md names cannot be checked against the one that deploy actually captured.'
+                + ' Copy the capture receipt into the EXECUTION_LOG entry.');
         } else if (claim.bundle.captured !== prior.fns['production-write'].version) {
             failures.push('rollback bundle ' + claim.bundle.sha + ' claims it captures production-write v'
                 + claim.bundle.captured + ', but the release before the newest one was v'

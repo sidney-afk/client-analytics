@@ -5625,7 +5625,24 @@ pull-only classification should go detect-only for flipped teams.
 
 ---
 
-## 77. [FIXED IN REPO 2026-08-30 — **DEPLOY PENDING**: the edge function must be redeployed (owner dispatches the linear-inbound deploy workflow) before this is live; until then production still runs the old gate] linear-inbound cannot see a CLEARED assignee — mechanism corrected, fix shipped with an executing test
+## 77. [FIXED IN REPO 2026-08-30 — **DEPLOY PENDING, AND NOW DISPATCHABLE**: the lane was re-pinned on 2026-09-02 by #1239, so the deploy can be run; until the owner runs it production still runs the old gate] linear-inbound cannot see a CLEARED assignee — mechanism corrected, fix shipped with an executing test
+
+> **STATUS, 2026-09-03.** The blocker the 2026-09-01 correction below describes
+> is CLOSED. `deploy-f27-linear-inbound.yml` now pins
+> `CANDIDATE_SOURCE_SHA256: 019a463d…` and `REVIEWED_RELEASE_SHA: 72fbc4a5…`,
+> `72fbc4a5` is an ancestor of `main`, and `test/ef-pin-drift-report.js` passes
+> as a hard gate — so a dispatch today would be ACCEPTED, not rejected. What
+> remains is the dispatch itself:
+> <https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-linear-inbound.yml>
+> with `commit_sha=72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c`,
+> `operation=deploy-reviewed-release`,
+> `confirm=DEPLOY_REVIEWED_LINEAR_INBOUND`. No capture is needed for this lane.
+>
+> Everything below is retained as written and is now HISTORY. It was found
+> uncorrected on 2026-09-03 by an audit, still naming the superseded pins and
+> still telling a reader that a dispatch would be rejected — which is the exact
+> failure item 106's closing paragraph warns about, committed by the session
+> that wrote that paragraph.
 
 **CORRECTION 2026-09-01 — "owner dispatches the linear-inbound deploy workflow"
 is not yet an instruction anyone can follow, and finding that out at dispatch
@@ -8785,7 +8802,7 @@ retired before step 5 or the mirroring kept for the whole window.
 > ended at 98, so it claimed 99, which by then belonged to the two-transport
 > comment split. Header only; entry text untouched.
 
-## 114. [2026-09-02, FIXED IN REPO — **DEPLOY PENDING** (F27 §4)] A deliverable marked `duplicate` can never reach Linear, and the failure ages into the pager forever
+## 114. [2026-09-02, FIXED — **DEPLOYED AND LIVE 2026-09-02**, deploy #25 run `33684111985`, `linear-outbound` v46 → v47, closure `1489a4c2…`. The DEPLOY PENDING note in the body predates that dispatch.] A deliverable marked `duplicate` can never reach Linear, and the failure ages into the pager forever
 
 Found from the live `mirror_outbox` the owner read out, chasing the two red
 `SyncView Linear outbound drain` runs that failed item 9a of
@@ -8829,10 +8846,17 @@ the entity read, so an unsendable row costs no lookup and no Linear call.
 state the person did not choose into the mirror, and a wrong state is worse than
 a stale one.
 
-**DEPLOY PENDING.** `linear-outbound` is one of the four F27 Section 4 closure
-functions, so this is inert until the owner runs that lane. Until then `main`
-diverges from the live function — the obligation `item 94` warns about, incurred
-deliberately here because the alarm is gating and recurring.
+**~~DEPLOY PENDING.~~ DEPLOYED the same day, deploy #25.** `linear-outbound` is
+one of the four F27 Section 4 closure functions, and the owner ran that lane on
+2026-09-02: both commits are ancestors of `152c050e`, the tree that run shipped,
+and the deployed closure equals `LINEAR_OUTBOUND_SOURCE_SHA256`. The divergence
+`item 94` warns about was incurred deliberately and is now closed.
+
+*Found still reading DEPLOY PENDING on 2026-09-03, by an audit.* A header is the
+only part of an entry most readers see, and this one said the repair was inert
+for a day after it went live. Nothing checks a ledger status against the deploy
+log, and the comparison is derivable from `EXECUTION_LOG.md`'s
+`syncview_f27_section4_deployed_versions_v1` block.
 
 **Typecheck, measured on the way through.** `deno check` on
 `linear-outbound/index.ts` reports **12 pre-existing errors on `main`**, and 12
@@ -8959,3 +8983,125 @@ confirm it — and a dump that records one field cannot confirm anything. Spend
 the red run on evidence before spending it on a remedy.
 
 **Open:** the mechanism itself. The next red CI run should settle it.
+
+
+---
+
+## 116. [2026-09-03, FIXED — browser-only, live on merge] The fifth round of the deep-link bug, found by audit rather than by the owner: a FAILED tail read was treated as proof a row does not exist
+
+**The repair shipped on 2026-09-02 moved the bug rather than closing it, and it
+was live for about eleven hours.** Item 108's fourth fix gave
+`_prodLoadTerminalTail` a failure exit that called
+`_prodApplyDeepLinkFallback(true)`, with a comment describing that as letting
+"the fallback publish an honest result". It is the opposite of honest. That exit
+is reached when the read FAILED or came back unusable, so nothing whatever about
+which rows exist was established — and an authoritative fallback then evicts the
+reader from a row that is probably fine, and tells a deep link the row "has no
+row in Production", off the back of a request that errored.
+
+Reproduced by execution, not by reading: a probe driving the real
+`_prodLoadTerminalTail` and the real `_prodApplyDeepLinkFallback` over a
+live-half-only row set showed (a) a reader sitting on a posted deliverable moved
+to the list with no explanation at all, and (b) a deep link at that same posted
+id evicted AND accused. A control where the tail succeeds over a genuinely
+absent id still evicts correctly, so the failure/success distinction is the whole
+defect.
+
+**Every round of this bug has had one shape**, and naming it is the only thing
+here likely to prevent a sixth: *a state the code could not represent, so two
+different situations shared one answer.*
+
+| round | the two situations that shared an answer |
+|---|---|
+| 1–2 (#1230, #1231) | NOT YET vs GONE, at two different exits from the same room |
+| 3 (#1236) | the guard existed but the flag was set after the code that read it |
+| 4 (#1236) | a tail that never ran for its generation vs one that did |
+| 5 (this) | **I DO NOT KNOW** vs GONE |
+
+`terminalTailFailed` is the missing third state. `terminalTailPending` means the
+tail has not finished; `terminalTailFailed` means it ran and threw; neither is
+proof of absence, and only the complete case may evict or accuse.
+
+**The previous suite scored this exit a PASS.** `test/prod-terminal-tail-settles.js`
+asserts `calls.fallback === 1` on the reject exit — against a STUBBED fallback
+that only increments a counter. It counted the very call that caused the bug and
+called it correct. `test/prod-incomplete-pane-honesty.js` therefore runs the REAL
+`_prodApplyDeepLinkFallback` over a real row set and asserts on **the state it
+leaves behind**: whether the reader moved, whether a notice was published. A test
+that asserts a function was CALLED cannot tell a fix from its opposite.
+
+**Two sibling panes never had the guard at all.** `_prodProjectDetail` and
+`_prodBatchDetail` answered "Project not found." / "Batch not found." throughout
+the tail window, though the fallback defers `openProjectId` and `openBatchId`
+exactly as it defers `openId`. All three panes now share
+`_prodIncompletePaneHTML`, so they cannot drift again: a skeleton while pending,
+an honest "could not be loaded — refresh to try again" when the read failed, and
+the caller's own genuine not-found once the set is complete.
+
+## 117. [2026-09-03] Three things today's fixes shipped WITHOUT a guard, and one of them was the 212-slot lockout
+
+An audit re-ran, against a scratch copy, every suite that could plausibly have
+covered each of 2026-09-02's repairs, with the repair deleted.
+
+**The client composer lockout (item 107) had no guard whatsoever.** All TEN
+suites mentioning `_prodCanonicalCommentGate`, `_calComposerHtml` or
+`_prodVerifiedClientCommentSurfaceContext` still exited 0 with the eight-line fix
+removed. The closest, `test/production-canonical-gate-crosswalk.js`, hardcodes
+`_isClientLink: false` in its stub — it exercises the staff path only and could
+never have seen a client-facing bug. `test/prod-client-composer-present.js` now
+EXECUTES the real gate as a client on a valid, ready, correctly-crosswalked
+calendar card and asserts the composer-removing combination `linked && !ready` is
+unreachable; deleting the fix fails it.
+
+**The reply-draft retention (item 101 point 4) shipped on the calendar only.**
+`_sxrReplyDrafts` was wiped on every open of the samples review thread with no
+load beside it and never persisted, so a client's refused reply died there in
+exactly the way the calendar's used to — and `_sxrCommentRole()` returns
+`client` on a share link, so it is a client-facing path. **This is the third time
+this repo has repaired one of these two surfaces and not its twin.** Item 87.3
+wrote the prediction down — *"whatever is done here must also be checked against
+the Samples twin"* — and the SMM queue gate was missed on samples anyway. The
+twin is now asserted in the same suite as the calendar, and both surfaces share
+one cap constant so they cannot drift.
+
+**The hover title (owner request, 2026-09-02) missed one surface.** The
+`_prodBatchDetail` deliverables list renders `.prod-subrow` + `.prod-title` with
+the same ellipsis truncation as the two fixed renderers and carried no
+`_prodTitleAttrs`. Fixed; there are now zero title sites without it.
+
+**The generalisation.** A fix shipped without a guard is not a fix that is
+merely untested — it is a fix with a half-life. Three of 2026-09-02's repairs
+had none, and the one that mattered most protected a client's ability to type at
+all. The cheap discipline is the one this entry used to find them: delete the
+repair and re-run the suites that name its functions. If nothing goes red, the
+repair is not held down by anything.
+
+## 118. [2026-09-03] Four ledger and rollback statuses that were false on `main`, one of them dangerous
+
+Found by audit. Item 106 closes with the rule these break — *a ledger entry is
+only ever read from `main`, so it must be true on `main`* — and three of the four
+were written by the session that wrote that rule.
+
+- **`ROLLBACK.md` still described deploy #24 as live**, a day after #25 shipped.
+  Its named "true one-step restore" (`08e9f50c…`, capturing `production-write`
+  v64) is now TWO releases behind live v66, so restoring it would silently undo
+  deploy #25 as well. **This is the dangerous one**: a stale row here does not
+  fail loudly, it hands whoever is mid-incident a bundle that reverts one more
+  release than they intended. Second recorded time this row has gone stale; it
+  was once eleven deploys behind, and both the row itself and
+  `F27_INSTALL_RUNBOOK.md` already carry a written rule that a deploy is not
+  finished until it is updated. A written rule has now failed twice, which is
+  the argument for a derivable check — `EXECUTION_LOG.md` emits
+  `syncview_f27_section4_deployed_versions_v1` on every run, and nothing compares
+  the two.
+- **Item 77** still named the superseded pins and told a reader a dispatch would
+  be rejected. The lane has been dispatchable since #1239.
+- **Item 100's header** called `linear-inbound` "undeployable". Undeployed is
+  still true; undeployable is not.
+- **Item 114** read DEPLOY PENDING for a repair that went out in deploy #25 the
+  same day. A header is the only part of an entry most readers see.
+
+Corrected in place, with the superseded text retained rather than erased.
+`REPO_MAP.md` separately described `CLAUDE.md` as carrying the `f27capture`
+alias, which it did not; rather than weaken the map, the alias was added — it is
+the shorter thing to hand the owner anyway.

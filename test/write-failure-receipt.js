@@ -177,6 +177,32 @@ ok(bodyOf('openCalComments').indexOf('delete _calReplyDrafts[k]')
 ok(/if \(parentId\) \{ delete _calReplyDrafts\[parentId\]; _calReplyDraftsPersist\(pid\); \}/.test(bodyOf('_calSubmitComposer')),
 'a sent reply clears the stored draft; the early return above it is what keeps a refused one');
 
+/* ---- THE SAMPLES TWIN, which the first version of this shipped without ----
+ *
+ * A 2026-09-03 audit found point 4 landed on the calendar only. `_sxrReplyDrafts`
+ * was wiped on every open with no load beside it and never persisted, so a
+ * client's refused reply on the samples review surface died exactly the way the
+ * calendar's used to. `_sxrCommentRole()` returns 'client' on a share link and
+ * the comments button carries no client gate, so this is a client-facing path.
+ *
+ * That is the third time this repo has fixed one of these two surfaces and not
+ * its twin (item 87.3 predicted it in writing; the SMM queue gate was missed on
+ * samples anyway). So the twin is asserted here, structurally, in the same file
+ * as the calendar one — a prediction is not a check. */
+ok(/const SXR_REPLY_DRAFTS_PREFIX = 'sv_sxrReplyDrafts_';/.test(INDEX),
+'samples review has its own reply-draft store');
+ok(/else if \(_sxrReplyTarget\) \{ _sxrReplyDrafts\[_sxrReplyTarget\] = ta\.value; _sxrReplyDraftsPersist\(_sxrOpenCommentsPid\); \}/.test(INDEX),
+'typing a samples reply writes it through to sessionStorage');
+ok(/_sxrReplyDraftsLoad\(pid\)/.test(bodyOf('openSxrComments')),
+'opening the samples thread restores that card\'s reply drafts instead of only wiping them');
+ok(bodyOf('openSxrComments').indexOf('delete _sxrReplyDrafts[k]')
+  < bodyOf('openSxrComments').indexOf('_sxrReplyDraftsLoad(pid)'),
+'and restores AFTER the wipe on samples too');
+ok(/if \(parentId\) \{ delete _sxrReplyDrafts\[parentId\]; _sxrReplyDraftsPersist\(pid\); \}/.test(INDEX),
+'a sent samples reply clears its stored draft');
+ok(/const kept = keys\.slice\(-CAL_REPLY_DRAFT_MAX\);/.test(bodyOf('_sxrReplyDraftsPersist')),
+'both surfaces share one cap constant, so they cannot drift apart');
+
 /* ---- source form: the lane that matters actually passes the identifiers ---- */
 
 ok(/_writeUiReportFailure\(surface, 'comment', error, \{[\s\S]{0,200}?card: post && post\.id/.test(INDEX),

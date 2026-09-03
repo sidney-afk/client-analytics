@@ -63,4 +63,7 @@ jobs:
         with:
           deno-version: 'v2.5.2'
       - name: Compare against the recorded baseline
-        run: node scripts/deno-typecheck-ratchet.js
+        # --require-deno: without it a runner that failed to install deno
+        # would check nothing and report a green, which is worse than having
+        # no lane because it looks like one.
+        run: node scripts/deno-typecheck-ratchet.js --require-deno

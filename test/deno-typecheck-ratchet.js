@@ -11,6 +11,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { parseReport, compare, completeness } = require('../scripts/deno-typecheck-ratchet.js');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -167,6 +168,29 @@ const dirtied = compare(someClean,
     raw.targets[someClean]);
 ok(dirtied.failures.some(f => /TS2345 went 0 → 1/.test(f) && /KIND of type error this file did not have/.test(f)),
     'and the FIRST error to land in it fails — which is the whole point of covering the clean ones');
+
+/* ---- 3b. the lane must not be able to pass having checked nothing ------- */
+
+/* Same class of defect as the ones review found in the comparison logic: the
+   script skips (exit 0) when deno is absent, which is right for a contributor
+   and catastrophic for CI — a runner that failed to install deno would check
+   nothing and report a green, which is worse than having no lane because it
+   looks like one. The workflow passes --require-deno; if that ever comes off,
+   the hole reopens silently, so it is asserted here. */
+const wf = fs.readFileSync(
+    path.join(ROOT, '.github', 'workflows', 'edge-function-type-ratchet.yml'), 'utf8');
+ok(/node scripts\/deno-typecheck-ratchet\.js --require-deno/.test(wf),
+    'the CI lane runs the ratchet with --require-deno, so a missing deno fails instead of skipping');
+const { status: reqStatus, stdout: reqOut } = spawnSync(process.execPath,
+    [path.join(ROOT, 'scripts', 'deno-typecheck-ratchet.js'), '--require-deno', '--deno=/nonexistent/deno'],
+    { encoding: 'utf8' });
+ok(reqStatus === 1 && /must not report a pass/.test(reqOut),
+    'and with it, an absent deno exits non-zero and says why');
+const { status: skipStatus } = spawnSync(process.execPath,
+    [path.join(ROOT, 'scripts', 'deno-typecheck-ratchet.js'), '--deno=/nonexistent/deno'],
+    { encoding: 'utf8' });
+ok(skipStatus === 0,
+    'while without it a contributor who has no deno still gets a skip rather than a wall');
 
 /* ---- 4. no npm alias, for the reason item 94 gives ---------------------- */
 

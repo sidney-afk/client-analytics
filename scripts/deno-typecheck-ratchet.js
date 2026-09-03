@@ -42,6 +42,7 @@
  *   node scripts/deno-typecheck-ratchet.js --update --stamp=YYYY-MM-DD   rewrite it
  *   node scripts/deno-typecheck-ratchet.js --report=<file> parse a saved log
  *   node scripts/deno-typecheck-ratchet.js --deno=<path>   non-PATH deno binary
+ *   node scripts/deno-typecheck-ratchet.js --require-deno  absent deno FAILS (CI)
  *
  * Deliberately NO `npm run` alias: the leave-evidence packet fingerprints
  * `package.json` in its entirety, so adding any script marks a 101-screenshot
@@ -209,6 +210,7 @@ function compare(target, observed, baselineEntry) {
 
 function main() {
     const denoBin = argOf('--deno') || 'deno';
+    const requireDeno = process.argv.indexOf('--require-deno') >= 0;
     const reportFile = argOf('--report');
     const update = process.argv.indexOf('--update') >= 0;
 
@@ -226,6 +228,18 @@ function main() {
                 status: statusArg === null ? null : Number(statusArg) }
             : runDeno(target, denoBin);
         if (run.missing) {
+            /* A contributor without deno gets a skip; CI must not. Found by
+               re-reading this file for the class of defect the review kept
+               finding elsewhere in it: exit 0 here means the lane can install
+               nothing, check nothing, and report a green — which is worse than
+               having no lane, because it looks like one. The workflow passes
+               --require-deno, and the suite asserts that it still does. */
+            if (requireDeno) {
+                console.log('deno is not on PATH and --require-deno was given, so nothing was checked.');
+                console.log('A lane that checks nothing must not report a pass. Install deno (v2.5.2,');
+                console.log('the version pto-ui-tests.yml pins) or pass --deno=<path>.');
+                process.exit(1);
+            }
             console.log('deno is not installed — nothing was checked, and that is a SKIP, not a pass.');
             console.log('Install it (the lane pins v2.5.2) or pass --deno=<path>.');
             process.exit(0);

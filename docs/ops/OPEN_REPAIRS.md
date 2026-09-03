@@ -10416,5 +10416,14 @@ file untracked and a `.gitignore` backstop that deliberately does NOT cover
 repository (F27's per-function frozen lock under `linear-inbound`), verified
 with `git check-ignore`.
 
+**And one more of the same class, found by re-reading my own file for it rather
+than by review.** The script exits 0 when deno is absent — right for a
+contributor who does not have it, catastrophic for CI: a runner that failed to
+install deno would check nothing and report a green, **which is worse than
+having no lane, because it looks like one.** The workflow now passes
+`--require-deno`, under which an absent binary fails and says why; without it
+the local skip is unchanged. The suite asserts the workflow still passes the
+flag, and drives both paths, because a flag silently removed reopens the hole.
+
 - Done when: it catches one. The typing repair item 94 describes is still owed
   and still belongs alongside a deploy that was happening anyway.

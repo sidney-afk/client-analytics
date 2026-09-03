@@ -45,10 +45,19 @@ const end = PROBE.indexOf('route refused', start);
 ok(start > 0 && end > start, 'the opt-out block is where this suite expects it');
 const block = PROBE.slice(start, end);
 
-ok(/waitForFunction\(\(\) => !!\(history\.state && history\.state\.nav\)/.test(block),
+ok(/waitForFunction\(\s*\(\) => !!\(history\.state && history\.state\.nav\)/.test(block),
     'it waits for history.state.nav — the thing navTo writes when the route actually resolves');
-const capMatch = block.match(/timeout:\s*(\d+)/);
-ok(!!capMatch, 'and the wait is bounded, so a page that never routes cannot hang the lane');
+/* The CALL SHAPE, not just "a timeout literal appears somewhere". Playwright's
+   signature is waitForFunction(pageFunction, arg, options): an options object
+   passed second becomes the predicate's argument and the library's 30 s
+   default silently applies — a bound that reads 75 s and behaves as 30 s.
+   Codex P2. Matched as one expression so the three positions are pinned
+   together. */
+const callMatch = block.match(
+    /waitForFunction\(\s*\(\) => !!\(history\.state && history\.state\.nav\),\s*undefined,\s*\{\s*timeout:\s*(\d+)\s*\}\s*\)/);
+ok(!!callMatch,
+    'the timeout is passed as the THIRD argument, with undefined for the predicate arg — second-position options are silently ignored');
+const capMatch = callMatch;
 /* The bound must cover the boot it waits for or the race just moves later:
    with ?sxr=0 the route falls through to a normal boot, which awaits the
    analytics fetch before navTo, and the courier permits a request to take up
@@ -56,6 +65,18 @@ ok(!!capMatch, 'and the wait is bounded, so a page that never routes cannot hang
 const cap = capMatch ? Number(capMatch[1]) : 0;
 ok(cap >= 60000, 'and the bound covers the 60s the courier permits a request to take (got ' + cap + 'ms)');
 ok(cap < 240000, 'while staying inside the runner\'s per-probe budget');
+/* And the signature this depends on, read from the installed library rather
+   than remembered. Skipped when node_modules is absent, because the unit lane
+   is dependency-free by design and a missing file is not evidence of anything. */
+const pwTypes = path.join(ROOT, 'node_modules', 'playwright-core', 'types', 'types.d.ts');
+if (fs.existsSync(pwTypes)) {
+    const types = fs.readFileSync(pwTypes, 'utf8');
+    ok(/waitForFunction<R>\(pageFunction: PageFunction<void, R>, arg\?: any, options\?: PageWaitForFunctionOptions\)/.test(types),
+        "and Playwright's own signature still puts options third — if that changes, this call has to change with it");
+} else {
+    console.log('  --  playwright-core types not installed; signature check skipped (not a pass)');
+}
+
 const courier = fs.readFileSync(path.join(ROOT, 'qa', 'sxr_courier_lib.js'), 'utf8');
 const courierCap = (courier.match(/timeout:\s*(\d+),/) || [])[1];
 ok(Number(courierCap) === 60000,

@@ -123,7 +123,15 @@ async function kasperCardState(page, cid) {
     // work (~70 s in the 2026-09-03 nightly).
     let offRouted = true;
     try {
-      await offPage.waitForFunction(() => !!(history.state && history.state.nav), { timeout: 75000 });
+      // THE OPTIONS GO THIRD. Playwright's signature is
+      // waitForFunction(pageFunction, arg, options), so passing the object
+      // second makes it the predicate's unused ARGUMENT and leaves the
+      // library's 30 s default in force — the bound would have read 75 s here
+      // and behaved as 30 s, which is under the 60 s the courier permits and
+      // so still a false failure. Codex P2 on this change; `undefined` is the
+      // explicit "no argument".
+      await offPage.waitForFunction(
+        () => !!(history.state && history.state.nav), undefined, { timeout: 75000 });
     } catch (e) { offRouted = false; }
     const off = await offPage.evaluate(() => {
       const nav = document.querySelector('#navSxr');

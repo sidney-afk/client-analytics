@@ -10315,6 +10315,24 @@ runner's 240 s per-probe budget alongside this probe's other work (~70 s in the
 2026-09-03 nightly). The suite asserts all three of those bounds, and asserts
 the courier's own 60 s is still 60 s — if that moves, this has to move with it.
 
+**And the bound was not the bound.** Codex, round two: Playwright's signature is
+`waitForFunction(pageFunction, arg, options)`. Passing `{ timeout: 75000 }` in
+the SECOND position makes it the predicate's unused **argument**, leaving the
+library's 30 s default in force — so the fix would have read 75 s in the source
+and behaved as 30 s, still under the 60 s the courier permits, still a false
+failure. It is now `waitForFunction(fn, undefined, { timeout: 75000 })`, and the
+suite matches the whole call shape rather than the first `timeout:` literal it
+can find, plus reads Playwright's own `.d.ts` to confirm options are still third.
+
+**The same footgun is estate-wide in the QA harness, and is NOT fixed here.**
+Measured: **46 `waitForFunction` calls across 25 files** pass their options in
+the second position, and **zero** currently pass them third. Most are wrapped in
+`.catch(() => {})`, so the effect is a 30 s default in place of an intended 15 s
+or 20 s — longer, not shorter, which is the harmless direction and is why nobody
+noticed. It is recorded rather than swept because a 46-call edit across 25 probe
+files is exactly the kind of unattended sweep that turns a green lane red for
+reasons unrelated to the change that carried it.
+
 `test/sxr-optout-probe-waits-for-route.js` pins both ends — the probe waits for
 the signal, and `navTo` still emits it — because the probe now depends on a
 product detail, and if that detail moved the nightly would start timing out

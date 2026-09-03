@@ -10225,3 +10225,92 @@ yet is the cheapest possible place to find one:
 in this file, from concurrent branches in August. Renumbering now would break
 every cross-reference and this ledger is append-only, so they are left as-is and
 recorded here.
+
+---
+
+## 131. [2026-09-03, SHIPPED — script-only, live on merge; measured as a no-op on today's data] The Content Calendar stops borrowing Linear to learn a status it already holds
+
+**Why this is first.** The owner asked to remove Linear, starting with Create
+Post. It cannot start there. Switching the outbound mirror off is what stops
+Linear sub-issues being created, and `pullOnly` in the reconciler requires
+`outboundMode === 'live'` — so flipping F2 today silently freezes the calendar's
+only status projection (exit-plan fault 6). The calendar has to be able to learn
+a status without Linear BEFORE anything can be switched off. This is that.
+
+**The change.** For any SyncView-authoritative component with a readable
+`deliverables` row, the reconciler now writes the canonical value directly
+instead of waiting for it to travel out to Linear and be read back.
+
+**Why that is the same authority, not a new one.** The provenance test added
+after the 2026-08-30 foreign-write incident already refuses any Linear value the
+canonical row does not hold (`foreign`) and applies only the ones it does
+(`echo`). So the only Linear value this job has ever been permitted to write is
+canonical's own, arriving a median 543 s late. Writing canonical directly
+removes the detour, not a safeguard.
+
+**Three things it fixes that the relay could not:**
+
+| | before | after |
+|---|---|---|
+| lag | one to two runs behind, gated on Linear catching up | lands on the current run |
+| `foreign` divergence | refused every run, card left stale forever | heals, because canonical can be trusted |
+| card == Linear, canonical differs | counted IN SYNC, nothing done | corrected — two mirrors agreeing with each other is not agreement with the source |
+
+**What it unlocks, which is the point.** A native correction re-proves SyncView
+authority and nothing else. It deliberately does **not** require the outbound
+mirror to be live, because needing the mirror alive to copy a value read straight
+out of `deliverables` is exactly the coupling that makes turning Linear off
+freeze the calendar.
+
+**Most-recent-action-wins is preserved, not abandoned.** A card whose own
+`*_status_at` is newer than the deliverable's `status_at` is a card edit the
+gateway leg has not carried yet: it is HELD and logged (`card-ahead`), never
+overwritten. Without that hold the charter's forbidden failure returns with a
+different table in the winner's seat — "deliverables always wins, delayed"
+instead of "Linear always wins, delayed". A missing stamp on either side cannot
+prove the card is ahead, so it projects; failing the other way would freeze every
+card whose `*_status_at` is null, which is most of the older ones.
+
+**Measured before shipping, and this is why it was safe to land:**
+
+```
+  in-sync         1126      project            0
+  na-parked         22      card-ahead         0
+  no-canonical     409      unmappable         9
+  WOULD WRITE 0 card statuses   (safety cap is 15)
+```
+
+**Zero cards move.** The change is a no-op against today's data and only starts
+mattering when Linear stops delivering — the safest possible way to alter a job
+that writes client-facing cards. `scripts/calendar-native-projection-dry-run.js`
+is read-only, public-safe, runs the REAL extracted decision and mappers, and
+re-answers this at any time without credentials beyond the publishable key.
+
+The 409 `no-canonical` components are what remains: they have no native
+deliverable row, still use the Linear path, and are the backlog to close before
+Linear can go dark.
+
+**Kill switch:** `NATIVE_PROJECTION=0` restores the pure relay with no deploy.
+
+**The existing suites caught something real, and it is the best part of this
+entry.** `test/f50-reconcile-pull-only.js` world H asserts that a foreign Linear
+edit "keeps announcing itself, every run". The old code discovered foreign writes
+as a side effect of REFUSING to pull them and reported it from the refusal. The
+native path has nothing to refuse — it heals the card from canonical either way —
+so that report would have vanished **silently**, taking with it the only standing
+signal that Linear is still being hand-edited (1,735 such writes in 7 days). The
+divergence is now detected on its own terms and logged every run, and the card
+heals instead of being left stale. `test/prod-authority-guard.js` caught a second
+thing: the `!c.native` clause added to the `actionable` filter was redundant (a
+native correction's winner is `'native'`, never `'card'`), so the guard's literal
+pin was restored rather than widened. Two log assertions in the F50 suite were
+re-expressed per-count instead of as one punctuation-exact line, because a pin
+that breaks on formatting trains people to edit pins.
+
+**Testing.** The decision is a pure function (`nativeProjectionDecision`), so
+every branch runs for real, each with a MUTANT run that deletes a safety rule and
+asserts the harm returns — dropping the card-ahead hold overwrites a fresh card
+edit with a stale deliverable; dropping N/A parking drags a deliberately parked
+component back. The wiring is held by source assertions, which are weaker and say
+so, pinning the three couplings whose silent loss would make the change wrong
+rather than merely broken.

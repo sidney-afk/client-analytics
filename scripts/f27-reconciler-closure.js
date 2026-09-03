@@ -166,8 +166,13 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // `native_create_context_missing` repair stopped being raised for exactly the
   // rows that need re-creating. Membership of the closure is UNCHANGED and one
   // blob moved.
+  //
+  // Re-pinned 2026-09-03 (later) because the item-119 tolerance never matched
+  // the wire: Linear labels a deleted issue `extensions.type: "invalid input"`,
+  // and the gate accepted only `entitynotfound`. Membership unchanged, one
+  // blob moved, and the closure is re-derived from `git show HEAD:<path>`.
   'scripts/linear-deliverables-reconcile.js':
-    'efc1235649766bcd9d9b927ef427ab78882a78de4a2afc8d3d335de7218466a5',
+    '2e17d758a0e5f4ccd134a53df78d7162af1439145f4087760f63774887433b2f',
   'scripts/linear-reconcile-inbound-pager.js':
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':

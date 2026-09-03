@@ -10271,10 +10271,33 @@ ask whether or not its file has landed. So the set is now split —
 `_kasperBlockingComps` is the reviewable subset and answers the Finish question.
 `test/kasper-stranded-handoff.js` runs both against the mixed card.
 
-**Still open, and deliberately not guessed at:** why a caption reached Kasper
-Approval on a card with no media at all. That is a workflow question — someone
-moved it, or something set it — and item 134's fix is what finally lets anyone
-open those cards to find out.
+**ANSWERED 2026-09-03, from the code rather than by guessing: nothing anomalous
+happened.** The question was why a caption reached Kasper Approval on a card
+with no media at all. Review approval is **per component**, and the SMM lane's
+destination is Kasper:
+
+```js
+const _CAL_REVIEW_CFG = {
+    client: { reviewStatus: 'Client Approval', approveTo: 'Approved' },
+    smm:    { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' },
+};
+…
+post[subKey] = approveTo;          // subKey is comp + '_status'
+```
+
+So an SMM approving the CAPTION in SMM Review writes
+`caption_status = 'Kasper Approval'` and touches nothing else. A caption is
+text; it needs no file; the card's video and thumbnail being `N/A` is
+irrelevant to that write. The state was produced by the ordinary route working
+exactly as designed, and the only defect was the admission gate refusing to
+show it.
+
+Stated honestly: this identifies the mechanism that produces the state, not a
+record of those four specific cards being moved that way — the per-card history
+would need the data, and item 101 is the entry about there not being any. But
+the alternative reading ("someone or something set it wrongly") has no mechanism
+anywhere in the code, and this one is the normal path. **This entry needed a
+fix, not an investigation, and the fix is above.**
 
 ---
 

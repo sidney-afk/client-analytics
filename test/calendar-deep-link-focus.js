@@ -120,7 +120,13 @@ function harness(options) {
   ok(h.notified.length === 1, 'a card that never renders is announced exactly once, not retried forever and not dropped in silence');
   ok(/Card not shown/.test(h.notified[0]), 'and the notice says the card was not SHOWN, which is the true fault — it is on the calendar');
   ok(/April 8th - Reel 14/.test(h.notified[0]), 'it names the card, so the reader knows the link resolved to the right thing');
-  ok(/Organize/.test(h.notified[0]), 'and points at the filters, which is the one thing the reader can act on');
+  /* Was: "points at the filters, which is the one thing the reader can act on".
+     The code now CLEARS those filters itself before giving up (item 134), so
+     telling the reader to go check them would be stale advice about work
+     already done. What must survive is that the notice names the card and does
+     not pretend the card is missing. */
+  ok(!/Organize/.test(h.notified[0]),
+    'and no longer sends the reader to filters the code has already cleared itself');
   ok(h.pendingFrames() === 0, 'and the frame loop stops rather than spinning for the life of the tab');
 }
 

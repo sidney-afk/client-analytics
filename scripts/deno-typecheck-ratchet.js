@@ -121,6 +121,17 @@ function completeness(observed) {
     const o = observed || {};
     const known = typeof o.status === 'number';
 
+    /* A FRESH run always has an exit status unless it was killed by a signal,
+       and `spawnSync` reports that as status null. Codex P2 on #1256: passing
+       that through to the status-less branch let a signal-killed check of a
+       clean-baseline target print its opening "Check file:" line and then be
+       accepted as a complete zero-error report. The status-less branch exists
+       for REPLAYED reports only. */
+    if (o.fresh && !known) {
+        return 'deno exited without a status — it was terminated by a signal, so whatever it had'
+            + ' printed by then is a fragment, not a result';
+    }
+
     /* MEASURED 2026-09-03: a clean `deno check` on a warm cache prints NOTHING
        AT ALL and exits 0 — no "Check file:" line, no tally, no output. So the
        text cannot distinguish a clean run from a run that died before it wrote
@@ -296,6 +307,7 @@ function main() {
         }
         const observed = parseReport(run.text);
         observed.status = run.status;
+        observed.fresh = !reportFile;
         measured[target] = { counts: observed.counts, total: observed.total };
         measured[target].incomplete = completeness(observed);
         const cmp = compare(target, observed, baseline.targets && baseline.targets[target]);
@@ -337,9 +349,18 @@ function main() {
                 process.exit(1);
             }
         }
+        /* THE DATE BELONGS TO THE MEASUREMENT, NOT TO THE FILE. Codex P2 on
+           #1256: a single global `measured_on` meant a `--target=<slug> --update`
+           restamped all six, so five targets whose counts were merely copied
+           forward looked freshly measured. That is the same defect as a stale
+           ledger row: a date asserting something nobody checked. */
         baseline.targets = Object.assign({}, baseline.targets);
-        for (const target of targets) baseline.targets[target] = measured[target];
-        baseline.measured_on = argOf('--stamp');
+        for (const target of targets) {
+            baseline.targets[target] = Object.assign({}, measured[target], { measured_on: argOf('--stamp') });
+            delete baseline.targets[target].incomplete;
+            delete baseline.targets[target].increases;
+        }
+        delete baseline.measured_on;
         fs.writeFileSync(BASELINE, JSON.stringify(baseline, null, 2) + '\n');
         console.log('Baseline rewritten: ' + path.relative(ROOT, BASELINE));
         for (const target of targets) console.log('  ' + target + ': ' + JSON.stringify(measured[target].counts));

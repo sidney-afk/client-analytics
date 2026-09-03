@@ -10574,5 +10574,21 @@ than silently added, and `--target` alone also works for checking one function.
   number — which is the point, since the number agreeing today is exactly what
   would have hidden the drift tomorrow.
 
+**Round four, two more, both "unknown" reading as "fine":**
+
+- **A signal-killed check reported green.** `spawnSync` reports a
+  terminated-by-signal process as `status: null`, which fell through to the
+  branch written for REPLAYED reports — where the opening `Check file:` line
+  alone reads as a complete clean run. So a clean-baseline target whose check
+  was killed after one line passed. A fresh run without a numeric exit status
+  now fails; the status-less branch is for saved reports only, which is what it
+  was for.
+- **The measurement date belonged to the file, not to the measurement.** One
+  global `measured_on` meant a `--target=<slug> --update` restamped all six, so
+  five targets whose counts were merely copied forward looked freshly measured —
+  the same defect as a stale ledger row, a date asserting something nobody
+  checked. Each target carries its own date now. Verified by running a
+  single-target update: only that target's counts and date moved.
+
 - Done when: it catches one. The typing repair item 94 describes is still owed
   and still belongs alongside a deploy that was happening anyway.

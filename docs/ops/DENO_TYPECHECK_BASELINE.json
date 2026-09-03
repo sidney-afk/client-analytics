@@ -6,14 +6,16 @@
         "TS2352": 1,
         "TS18047": 14
       },
-      "total": 15
+      "total": 15,
+      "measured_on": "2026-09-03"
     },
     "linear-outbound": {
       "counts": {
         "TS2345": 10,
         "TS2339": 2
       },
-      "total": 12
+      "total": 12,
+      "measured_on": "2026-09-03"
     },
     "linear-inbound": {
       "counts": {
@@ -21,20 +23,23 @@
         "TS7053": 2,
         "TS2551": 1
       },
-      "total": 12
+      "total": 12,
+      "measured_on": "2026-09-03"
     },
     "deliverable-write": {
       "counts": {},
-      "total": 0
+      "total": 0,
+      "measured_on": "2026-09-03"
     },
     "batch-write": {
       "counts": {},
-      "total": 0
+      "total": 0,
+      "measured_on": "2026-09-03"
     },
     "workload-plan": {
       "counts": {},
-      "total": 0
+      "total": 0,
+      "measured_on": "2026-09-03"
     }
-  },
-  "measured_on": "2026-09-03"
+  }
 }

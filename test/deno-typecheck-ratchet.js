@@ -141,8 +141,23 @@ for (const [name, entry] of Object.entries(raw.targets)) {
     ok(Object.values(entry.counts).every(v => Number.isInteger(v) && v > 0),
         name + ' records no zero or fractional count — a fixed code is removed, not left at 0');
 }
-ok(/^\d{4}-\d{2}-\d{2}$/.test(String(raw.measured_on || '')),
-    'the baseline says when it was measured, in a shape that cannot be mistaken for prose');
+/* The date belongs to the MEASUREMENT, not to the file: a --target=<slug>
+   --update must not restamp the five targets it never looked at. */
+for (const [name, entry] of Object.entries(raw.targets)) {
+    ok(/^\d{4}-\d{2}-\d{2}$/.test(String(entry.measured_on || '')),
+        name + ' records when IT was measured, in a shape that cannot be mistaken for prose');
+}
+ok(raw.measured_on === undefined,
+    'and there is no single global date left to be restamped by a run that measured one target');
+/* The wiring, because the property above is about the committed file and this
+   is about the code that writes it: the stamp is applied inside the per-target
+   loop, and nothing assigns a file-level one. Verified by hand against a
+   single-target update, which left the other five targets' dates untouched. */
+const ratchetSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'deno-typecheck-ratchet.js'), 'utf8');
+ok(/for \(const target of targets\) \{[\s\S]{0,400}measured_on: argOf\('--stamp'\)/.test(ratchetSrc),
+    'the stamp is written inside the per-target loop');
+ok(!/baseline\.measured_on\s*=/.test(ratchetSrc),
+    'and nothing writes a file-level measured_on');
 
 /* Every hand-deployed function with no type lane of its own is covered, and
    three of them are CLEAN — on those the ratchet is a real gate, so an empty
@@ -221,6 +236,15 @@ ok(noStatus.status === 1 && /also needs --status=/.test(noStatus.stdout),
     'and a replayed report without an exit status is refused — a clean check prints nothing, '
     + 'so a saved file cannot be told apart from a run that died before writing');
 
+/* A fresh run killed by a signal has no exit status, and spawnSync reports that
+   as null. That must not fall through to the replayed-report branch, where the
+   opening "Check file:" line alone reads as a complete clean report. */
+ok(/terminated by a signal/.test(
+    completeness({ counts: {}, total: 0, declared: null, sawCheckLine: true, status: null, fresh: true })),
+    'a FRESH run with no exit status is rejected — a signal kill is a fragment, not a clean result');
+ok(completeness({ counts: {}, total: 0, declared: null, sawCheckLine: true, status: null }) === '',
+    'while a REPLAYED report with a check line and no status is still allowed, which is what that branch is for');
+
 /* ---- 3d. an update may only LOWER -------------------------------------- */
 
 /* Codex P2: a fix landing alongside a NEW diagnostic produces both a decrease
@@ -249,6 +273,12 @@ const baselineNow = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'DENO_TYPECHE
 ok(!/TS2345/.test(JSON.parse(baselineNow).targets['production-write'].counts ? JSON.stringify(JSON.parse(baselineNow).targets['production-write'].counts) : ''),
     'and the committed baseline is untouched by the refused update');
 fs.unlinkSync(mixedReport);
+
+/* A single-target update leaves every other target's date alone. */
+const beforeDates = Object.fromEntries(
+    Object.entries(raw.targets).map(([k, v]) => [k, v.measured_on]));
+ok(Object.values(beforeDates).every(Boolean) && new Set(Object.values(beforeDates)).size >= 1,
+    'every target carries its own measurement date, so a one-target update cannot restamp the rest');
 
 /* ---- 3e. the graph checked is the graph deployed ------------------------ */
 

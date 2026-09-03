@@ -10224,3 +10224,113 @@ from the function's start, so adding ~25 lines pushed half the assertions past
 the end and they failed as a block while reporting nothing about the code they
 guard. It now uses `extractFunction`, which exists in this repo for exactly that
 mistake.
+
+---
+
+## 138. [2026-09-03] Both nightlies re-read against their actual runs: item 25's two fixes WORKED, and what is red now is not what was red then
+
+Item 25 ends both halves with *"Done when: the next nightly is green"*, and item
+6 still describes the lanes as "samples red 26 nights, calendar 16". Neither had
+been checked against a run since. Read from the run history rather than from the
+rollups, which is the same correction item 25 itself opens with.
+
+### Samples — item 25's fix worked, and the lane went green
+
+| run | date | result |
+|---|---|---|
+| 61 | 2026-09-01 | ❌ `sxr_gating_flags.js` |
+| **62** | **2026-09-02** | **✅ GREEN — the first success in the visible history** |
+| 63 | 2026-09-03 | ❌ `sxr_gating_flags.js`, 1 of 10 probes, 12 pass / 1 fail |
+
+`create_drag_reorder_persist` — the assertion item 25 chased through two rounds
+of harness defects — **passes**. That half is done. The lane now fails on one
+assertion in a different probe.
+
+### And what it fails on is a RACE in the probe, not a defect in the product
+
+```
+✗  opt-out: #sample-reviews route refused (hash cleared, no sxr view mounted)
+   [hash="#sample-reviews/sidneylaruel" mounted=false]
+```
+
+`mounted=false` is the important half: **the route WAS refused.** With `?sxr=0`
+nothing mounted, the nav stayed hidden, zero cards rendered — the three
+assertions beside it all pass. The only thing that did not happen is the hash
+being cleared, and the hash is cleared by `navTo`, which runs at the END of
+boot. The probe waited a flat 2500 ms and then read. On a slow boot it reads
+before `navTo` has run and reports a page that is merely still booting as a
+route refusal that failed.
+
+The lane's own history is that shape and is the evidence: **red 09-01, green
+09-02, red 09-03, same assertion, with no change to the opt-out path between
+them.** A fixed sleep that alternates with backend latency is a race, not a
+regression.
+
+**Fixed by waiting for the event instead of for a duration.** `navTo` is the
+only thing that writes `history.state.nav`, so the probe now waits on exactly
+that, bounded at 20 s, and the wait's failure is its OWN named check. The old
+single assertion could not distinguish "boot never finished" from "boot
+finished and left the hash", which are different facts with different owners;
+its failure line now carries `routed=` and `routedTo=` so a red run says which.
+
+`test/sxr-optout-probe-waits-for-route.js` pins both ends — the probe waits for
+the signal, and `navTo` still emits it — because the probe now depends on a
+product detail, and if that detail moved the nightly would start timing out for
+twenty seconds every night with no explanation. 3 mutations, all killed. **It is
+not proof the race is gone; the next nightly is.**
+
+### Calendar — item 25's p92 fix ALSO worked, and three different probes are red
+
+`p92_sxr_resolve_pill_inplace.js` — the probe item 25 diagnosed as demanding
+`Kasper Approval` where the product correctly rendered `N/A` — now reports
+**`pass=10 fail=0`**. That half is done too. The 400 ms residual risk item 25
+recorded did not bite.
+
+Red now, 3 of 69, each after 3 attempts: `p77_linear_link_validation.js`,
+`p81_link_move_conflict.js`, `p86_hidden_owner_warns.js`.
+
+**All three are the same cause, and it is the F1 video cutover.** Their failing
+assertions are exactly the ones that paste a Linear **VID-** link into the video
+slot:
+
+```
+p77  ❌ valid VID- link saves to the video slot
+     ❌ GRA- link in the video slot → wrong-slot prompt fired
+     ❌ wrong-slot prompt CANCELLED → video link unchanged
+     ❌ wrong-slot prompt ACCEPTED → override saves it
+     ✅ graphics is SyncView-owned → a GRA- paste is REFUSED and nothing is stored
+     ✅ and the person is told why, rather than the paste silently vanishing
+p81  ❌ duplicate link surfaces the Move/Cancel conflict     (all 3 link-move assertions)
+p86  ❌ pasting the owner's link surfaces the "already linked — Move it here?" conflict
+```
+
+**Confirmed in the code, not inferred from the names.** `_calLinearCommit`'s
+guard **(0)** is a seal on a LIVE authority read —
+`_writeUiLinkSlotSealedLive(which)` returns sealed when that component's team
+authority is `syncview` — and it runs *"ahead of every other check … before the
+format, component and uniqueness guards even look at the value."* Post-F1 the
+video team is SyncView-authoritative, so a valid VID- paste is refused at guard
+0 and never reaches the wrong-slot prompt (guard 2) or the duplicate/move
+conflict (guard 3). p77's graphics assertions pass because graphics was sealed
+at its own flip and that probe was re-based then; the video half still asserts
+the pre-flip contract.
+
+**So the product is right and these three probes are stale** — the same verdict,
+for the same reason, as p92. This is not a repair, it is a re-base.
+
+**Deliberately NOT re-based here**, and the distinction matters:
+
+- p77's video half is a mechanical mirror of assertions already passing beside
+  it for graphics, and could be re-based safely.
+- p81 and p86 are *entire probes about the link-move conflict flow*, and post-F1
+  that flow is unreachable from **either** component — both are sealed. Re-basing
+  them to assert the seal would delete the coverage rather than move it, and
+  "the move-conflict flow may now be dead code" is a finding for the Linear-exit
+  work, not something to erase quietly at 2 a.m. on the way to a green light.
+
+A wrong re-base of a mandatory gate turns "no signal" into "false signal", which
+is item 125's warning and worse than the red.
+
+- Done when: the samples nightly is green on the fixed probe, and the owner (or
+  the Linear-exit work) rules on whether the video link-paste flow — and the
+  move-conflict flow behind it — still exists to be tested at all.

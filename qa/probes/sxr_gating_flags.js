@@ -97,7 +97,23 @@ async function kasperCardState(page, cid) {
 
     // ---------- 3b. opt-out isolation: ?sxr=0 → dormant, nav hidden, route refused ----------
     const offPage = await open(browser, '/index.html?sxr=0#sample-reviews/sidneylaruel');
-    await sleep(2500);
+    // The hash is cleared by navTo, which runs at the END of boot — so reading
+    // it behind a fixed sleep asks a question the page has not reached yet
+    // whenever boot is slow, and reports "hash not cleared" for a page that is
+    // merely still booting. That is a race, and it is the shape of this lane's
+    // history: red 2026-09-01, GREEN 2026-09-02, red 2026-09-03, on the same
+    // assertion, with no change to the opt-out path between them.
+    //
+    // navTo's replaceState is the only thing that writes `history.state.nav`,
+    // so waiting on it waits for the exact event this assertion depends on
+    // rather than for a duration. Bounded, and its failure is reported as its
+    // own named check — a timeout here means the read said nothing about the
+    // route refusal, which is a different fact from the route refusal failing,
+    // and the old single assertion could not tell them apart.
+    let offRouted = true;
+    try {
+      await offPage.waitForFunction(() => !!(history.state && history.state.nav), { timeout: 20000 });
+    } catch (e) { offRouted = false; }
     const off = await offPage.evaluate(() => {
       const nav = document.querySelector('#navSxr');
       return {
@@ -106,12 +122,17 @@ async function kasperCardState(page, cid) {
         sxrViewMounted: !!document.getElementById('sxrView'),
         cards: document.querySelectorAll('#sxrStrip .cal-card').length,
         enabled: (typeof _sxrEnabled === 'function') ? _sxrEnabled() : 'no-fn',
+        routedTo: (history.state && history.state.nav) || '',
+        bootVisible: !!document.querySelector('#content .boot-skeleton-variant'),
       };
     });
     t(off.enabled === false, 'opt-out: _sxrEnabled() is false with ?sxr=0', String(off.enabled));
     t(!off.navVisible, 'opt-out: samples nav is hidden (display:none)');
     t(off.cards === 0, 'opt-out: zero sample cards rendered', String(off.cards));
-    t(off.hash === '' && !off.sxrViewMounted, 'opt-out: #sample-reviews route refused (hash cleared, no sxr view mounted)', `hash="${off.hash}" mounted=${off.sxrViewMounted}`);
+    t(offRouted, 'opt-out: boot finished routing within 20s (the precondition the next check needs)',
+      `routedTo="${off.routedTo}" bootVisible=${off.bootVisible}`);
+    t(off.hash === '' && !off.sxrViewMounted, 'opt-out: #sample-reviews route refused (hash cleared, no sxr view mounted)',
+      `hash="${off.hash}" mounted=${off.sxrViewMounted} routed=${offRouted} routedTo="${off.routedTo}"`);
 
     for (const p of [kp, sp]) { const errs = appErrs(p) || []; if (errs.length) t(false, 'appErrs', errs[0]); }
   } catch (e) {

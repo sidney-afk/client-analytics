@@ -10451,25 +10451,52 @@ assignee/parent-route region item 94 describes, plus one `TS2352` cast at line
 to the most safety-critical write path in the estate in three days, and nothing
 noticed.** That is the case for the ratchet, made by the file itself.
 
-**It covers all six hand-deployed functions, not just the one item 94 names.**
-The argument — safety-critical, hand-deployed, nothing in CI looks — is the same
-for each, and measuring them cost one command apiece:
+**It covers EVERY Edge Function, and the roster is DERIVED rather than listed.**
+I first hand-listed six and called that complete coverage. Codex found two more
+on #1256 — `calendar-upsert` and `sample-review-upsert`, both live, both
+hand-deployed, both **client-facing writers**, and both marked NO CI DEPLOY PATH
+in the manifest. Counting properly, this repository has **thirty-five**
+functions with an `index.ts` and I had covered six. A hand-kept list was the
+wrong shape for the answer: it is precisely the artefact that goes stale, and
+the next function added would have been missed the same way. The roster is now
+read off the filesystem, so a new function is covered the day it appears.
+
+**Thirty-four targets. Twenty-six are CLEAN** — on those it is not a ratchet at
+all but a real GATE: an empty baseline means the FIRST type error to appear
+fails. `calendar-upsert` and `sample-review-upsert` are both among them, so the
+two functions the hand-list missed are now gated rather than merely ratcheted.
+The eight carrying debt:
 
 | function | errors | codes |
 |---|---|---|
 | `production-write` | 15 | `TS18047` ×14, `TS2352` ×1 |
-| `linear-outbound` | 12 | `TS2345` ×10, `TS2339` ×2 |
+| `smm-weekly-reports` | 14 | `TS2339` ×13, `TS7006` ×1 |
 | `linear-inbound` | 12 | `TS2339` ×9, `TS7053` ×2, `TS2551` ×1 |
-| `deliverable-write` | **0** | — |
-| `batch-write` | **0** | — |
-| `workload-plan` | **0** | — |
+| `linear-outbound` | 12 | `TS2345` ×10, `TS2339` ×2 |
+| `production-archive` | 4 | `TS2352` ×4 |
+| `workload-linear` | 4 | `TS7006` ×4 |
+| `client-credentials` | 1 | `TS2339` ×1 |
+| `production-comments` | 1 | `TS2352` ×1 |
 
-**Three of them are clean**, which is the part worth reading twice: on those the
-ratchet is not a ratchet at all, it is a real GATE — an empty baseline means the
-FIRST type error to appear fails. That is coverage this repository did not have
-five minutes ago and could have had at any point. `pto` is deliberately absent:
-it has a real gate in `pto-ui-tests.yml` and passes, so a ratchet there would
-replace a stronger check with a weaker one.
+`pto` is the one exclusion and it is a real gate, not an omission:
+`pto-ui-tests.yml` runs `deno check` on it and it passes, so a ratchet there
+would replace a stronger check with a weaker one.
+
+**Two things the wider sweep taught the checker about itself**, both found by
+its own guards rather than by review:
+
+- **deno prints `Found N errors.` only when N > 1.** A single-error check goes
+  straight from its diagnostic to `error: Type checking failed.` with no tally —
+  so demanding the tally on every non-zero exit called a perfectly complete
+  one-error report a fragment and refused to record `client-credentials`. Both
+  terminal shapes are recognised now, and the two-diagnostics-without-a-tally
+  case is still a fragment.
+- **Seeding is not blessing.** A target with no baseline entry has an implicit
+  `{}`, so its first measurement reads as an increase for every code it has —
+  and the may-only-LOWER rule refused to record a function for the first time.
+  That rule protects an EXISTING baseline from being raised; it has nothing to
+  say about one that does not exist yet. First-time entries are marked `+` in
+  the update output so a seed is never mistaken for a rise.
 
 **Keyed by error code, not by line number.** Line numbers move whenever anything
 above them is edited, and a check that goes red on an unrelated edit is one

@@ -9,11 +9,12 @@
 # a clean tree: 14 TS18047 on 2026-08-31, and a 15th of a different code that
 # arrived within three days with nothing to catch it.
 #
-# It covers all six hand-deployed functions that have no type lane, not only
-# the one item 94 names, because the argument is the same for each and
-# measuring them cost one command apiece. THREE ARE CLEAN — deliverable-write,
-# batch-write and workload-plan — so on those the ratchet is a real gate and
-# the first type error to appear fails.
+# It covers EVERY Edge Function, derived from the filesystem rather than a
+# hand-kept list — a list is the artefact that goes stale, and mine did: I
+# named six and review found two more (calendar-upsert, sample-review-upsert,
+# both live client-facing writers). Thirty-four functions, of which TWENTY-SIX
+# are CLEAN, so on those the ratchet is a real gate and the first type error to
+# appear fails. `pto` is the one exclusion and it has a passing gate already.
 #
 # It runs only when something it could possibly affect changed, so a docs PR
 # does not pay for a multi-minute type check.
@@ -22,12 +23,7 @@ name: Edge Function type ratchet
 on:
   pull_request:
     paths:
-      - 'supabase/functions/production-write/**'
-      - 'supabase/functions/linear-outbound/**'
-      - 'supabase/functions/linear-inbound/**'
-      - 'supabase/functions/deliverable-write/**'
-      - 'supabase/functions/batch-write/**'
-      - 'supabase/functions/workload-plan/**'
+      - 'supabase/functions/**'
       - 'supabase/functions/_shared/**'
       - 'scripts/deno-typecheck-ratchet.js'
       - 'docs/ops/DENO_TYPECHECK_BASELINE.json'
@@ -36,12 +32,7 @@ on:
     branches:
       - main
     paths:
-      - 'supabase/functions/production-write/**'
-      - 'supabase/functions/linear-outbound/**'
-      - 'supabase/functions/linear-inbound/**'
-      - 'supabase/functions/deliverable-write/**'
-      - 'supabase/functions/batch-write/**'
-      - 'supabase/functions/workload-plan/**'
+      - 'supabase/functions/**'
       - 'supabase/functions/_shared/**'
       - 'scripts/deno-typecheck-ratchet.js'
       - 'docs/ops/DENO_TYPECHECK_BASELINE.json'

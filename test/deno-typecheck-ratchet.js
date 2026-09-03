@@ -90,9 +90,22 @@ ok(/text and exit status disagree/.test(
 ok(/text and exit status disagree/.test(
     completeness(Object.assign(parseReport('Check file:///x\nFound 0 errors.'), { status: 1 }))),
     'and so is a non-zero exit that reports no errors');
-ok(/printed no "Found N errors\." tally/.test(
+ok(/printed neither a "Found N errors\." tally/.test(
     completeness(Object.assign(parseReport('Check file:///x\nTS18047 [ERROR]: x\n'), { status: 1 }))),
-    'a non-zero exit with diagnostics but no tally is a fragment, not a count');
+    'a non-zero exit with diagnostics and NO terminal marker at all is a fragment, not a count');
+/* MEASURED on `client-credentials`, and it is why the rule above says "neither":
+   deno prints "Found N errors." only when N > 1. A single-error check goes
+   straight from its diagnostic to "error: Type checking failed." — so demanding
+   the tally on every non-zero exit called a perfectly complete report a
+   fragment, and refused to record a real function. */
+ok(completeness(Object.assign(
+    parseReport('Check file:///x\nTS2339 [ERROR]: x\n\nerror: Type checking failed.\n'),
+    { status: 1, fresh: true })) === '',
+    'a ONE-error check, which prints the failure line and no tally, is a complete report');
+ok(/that shape only exists for exactly one error/.test(completeness(Object.assign(
+    parseReport('Check file:///x\nTS2339 [ERROR]: x\nTS2339 [ERROR]: y\n\nerror: Type checking failed.\n'),
+    { status: 1, fresh: true }))),
+    'while that same shape with TWO diagnostics is a fragment — the tally should have been there');
 
 /* ---- 2. the comparator -------------------------------------------------- */
 
@@ -159,22 +172,37 @@ ok(/for \(const target of targets\) \{[\s\S]{0,400}measured_on: argOf\('--stamp'
 ok(!/baseline\.measured_on\s*=/.test(ratchetSrc),
     'and nothing writes a file-level measured_on');
 
-/* Every hand-deployed function with no type lane of its own is covered, and
-   three of them are CLEAN — on those the ratchet is a real gate, so an empty
-   baseline is load-bearing rather than a placeholder. Asserted by name because
-   quietly dropping a function from the list is how a lane stops covering the
-   thing it was built for, and nothing else would notice. */
-const COVERED = ['production-write', 'linear-outbound', 'linear-inbound',
-    'deliverable-write', 'batch-write', 'workload-plan'];
+/* THE ROSTER IS DERIVED, and that is the assertion. I hand-listed six and
+   called it complete coverage; review found two more (calendar-upsert and
+   sample-review-upsert, both live client-facing writers) and counting properly
+   showed thirty-five functions. A hand-kept list is exactly the artefact that
+   goes stale, so the roster is read off the filesystem and this checks that
+   every function directory is either covered or excluded with a reason. */
+const { discoverTargets, EXCLUDED_TARGETS } = require('../scripts/deno-typecheck-ratchet.js');
+const COVERED = discoverTargets();
+const fnDir = path.join(ROOT, 'supabase', 'functions');
+const onDisk = fs.readdirSync(fnDir)
+    .filter(n => !n.startsWith('_'))
+    .filter(n => fs.existsSync(path.join(fnDir, n, 'index.ts')));
+ok(COVERED.length > 30, 'the derived roster is the whole estate, not a handful (' + COVERED.length + ')');
+for (const n of onDisk) {
+    ok(COVERED.indexOf(n) >= 0 || Object.prototype.hasOwnProperty.call(EXCLUDED_TARGETS, n),
+        n + ' is either covered by the ratchet or excluded with a stated reason');
+}
 for (const t of COVERED) ok(!!(raw.targets && raw.targets[t]), 'the baseline covers ' + t);
-ok(!raw.targets.pto,
+ok(!raw.targets.pto && !!EXCLUDED_TARGETS.pto,
     'and NOT pto — it has a real gate in pto-ui-tests.yml, and a ratchet there would replace a stronger check with a weaker one');
+for (const t of ['calendar-upsert', 'sample-review-upsert']) {
+    ok(COVERED.indexOf(t) >= 0,
+        t + ' is covered — a live, hand-deployed, client-facing writer the first hand-kept list missed');
+}
 /* At least one target is expected to be clean — that is what makes this a gate
    rather than only a ratchet — but WHICH ones is a measurement that may change,
    so the count is asserted, not the names. */
 const cleanTargets = COVERED.filter(t => raw.targets[t] && raw.targets[t].total === 0);
-ok(cleanTargets.length >= 1,
-    'at least one covered function is recorded CLEAN, so for it the first type error to appear fails');
+ok(cleanTargets.length >= 20,
+    'most of the estate is recorded CLEAN (' + cleanTargets.length + ' of ' + COVERED.length
+    + '), so for those the ratchet is a real gate — the first type error to appear fails');
 const someClean = cleanTargets[0];
 const cleanHold = compare(someClean,
     { counts: {}, total: 0, declared: null, sawCheckLine: true, status: 0 }, raw.targets[someClean]);

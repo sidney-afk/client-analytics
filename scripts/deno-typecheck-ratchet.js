@@ -57,27 +57,36 @@ const { spawnSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const BASELINE = path.join(ROOT, 'docs', 'ops', 'DENO_TYPECHECK_BASELINE.json');
 
-/* Every hand-deployed Edge Function with no type lane of its own. Item 94
-   names only `production-write`; the argument it makes — safety-critical,
-   hand-deployed, nothing in CI looks — is true of all of these, and measuring
-   them cost one command each.
+/* EVERY Edge Function, DERIVED — not a hand-kept list.
+ *
+ * Item 94 names only `production-write`. I then listed six by hand and called
+ * that complete coverage, and Codex found two more on #1256 — `calendar-upsert`
+ * and `sample-review-upsert`, both live, both hand-deployed, both client-facing
+ * writers. Counting properly, this repository has THIRTY-FIVE functions with an
+ * `index.ts` and I had covered six. A hand-kept list was the wrong shape for
+ * the answer: it is exactly the artefact that goes stale, and the next function
+ * added would have been missed the same way.
+ *
+ * So the roster is read off the filesystem. A new Edge Function is covered the
+ * day it appears, with no list to remember. `pto` is the one exclusion and it
+ * is a real gate, not an omission: `pto-ui-tests.yml` runs `deno check` on it
+ * and it PASSES, so a ratchet there would replace a stronger check with a
+ * weaker one. */
+const EXCLUDED_TARGETS = {
+    pto: 'has a passing `deno check` gate of its own in pto-ui-tests.yml',
+};
 
-   THREE OF THEM ARE CLEAN, which is why the list is not just the one function.
-   `deliverable-write`, `batch-write` and `workload-plan` have zero errors, so
-   their baseline is empty and the ratchet is a real GATE on them: the first
-   type error to appear fails. Only `production-write` (15), `linear-outbound`
-   (12) and `linear-inbound` (12) carry recorded debt.
+function discoverTargets() {
+    const dir = path.join(ROOT, 'supabase', 'functions');
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir)
+        .filter(name => !name.startsWith('_'))
+        .filter(name => fs.existsSync(path.join(dir, name, 'index.ts')))
+        .filter(name => !Object.prototype.hasOwnProperty.call(EXCLUDED_TARGETS, name))
+        .sort();
+}
 
-   `pto` is deliberately absent: it has a real gate in `pto-ui-tests.yml` and
-   passes, so a ratchet there would be a weaker check replacing a stronger one. */
-const TARGETS = [
-    'production-write',
-    'linear-outbound',
-    'linear-inbound',
-    'deliverable-write',
-    'batch-write',
-    'workload-plan',
-];
+const TARGETS = discoverTargets();
 
 function argOf(flag) {
     const hit = process.argv.find(a => a.indexOf(flag + '=') === 0);
@@ -104,6 +113,13 @@ function parseReport(text) {
         declared: found ? Number(found[1]) : null,
         sawCheckLine: /Check file:/.test(plain),
         sawErrorLine: /\[ERROR\]/.test(plain),
+        /* MEASURED 2026-09-04, on `client-credentials`: deno prints
+           "Found N errors." only when N > 1. A single-error check goes straight
+           from the diagnostic to "error: Type checking failed." with no tally
+           at all — so requiring the tally on every non-zero exit called a
+           perfectly complete one-error report a fragment. This line is the
+           terminal marker for that shape. */
+        sawFailedLine: /^error: Type checking failed\.$/m.test(plain),
     };
 }
 
@@ -158,10 +174,18 @@ function completeness(observed) {
         }
         return '';
     }
-    // Non-zero exit: an erroring check must have printed a complete diagnosis.
+    // Non-zero exit: an erroring check must have printed a complete diagnosis,
+    // which is EITHER the tally (2+ errors) or the failure line (exactly 1).
     if (o.declared === null) {
-        return 'deno exited ' + o.status + ' but printed no "Found N errors." tally —'
-            + ' the run was cut short or the output format moved, so the counts below are a fragment';
+        if (o.sawFailedLine && o.total === 1) return '';
+        if (o.sawFailedLine && o.total !== 1) {
+            return 'deno exited ' + o.status + ' reporting "Type checking failed" with ' + o.total
+                + ' diagnostics and no tally — that shape only exists for exactly one error,'
+                + ' so this report is a fragment';
+        }
+        return 'deno exited ' + o.status + ' but printed neither a "Found N errors." tally nor'
+            + ' "error: Type checking failed." — the run was cut short or the output format moved,'
+            + ' so the counts below are a fragment';
     }
     if (o.declared !== o.total) {
         return 'deno reported ' + o.declared + ' errors but this parser matched ' + o.total
@@ -340,6 +364,15 @@ function main() {
            which would then bless the new error and hand the next CI run a green.
            The instruction must not be a way round the gate. */
         for (const target of targets) {
+            /* SEEDING IS NOT BLESSING. A target with no baseline entry has an
+               implicit {}, so its first measurement reads as an increase for
+               every code it has — and the rule below would refuse to record a
+               function for the first time. The rule protects an EXISTING
+               baseline from being raised; it has nothing to say about one that
+               does not exist yet. (Deleting an entry to get round it is a
+               visible deletion in the diff of a committed file.) */
+            const seeding = !(baseline.targets && baseline.targets[target]);
+            if (seeding) continue;
             const up = measured[target].increases || [];
             if (up.length) {
                 console.log('refusing to update ' + target + ': ' + up.join(', '));
@@ -354,6 +387,7 @@ function main() {
            restamped all six, so five targets whose counts were merely copied
            forward looked freshly measured. That is the same defect as a stale
            ledger row: a date asserting something nobody checked. */
+        const seeded = new Set(targets.filter(t => !(baseline.targets && baseline.targets[t])));
         baseline.targets = Object.assign({}, baseline.targets);
         for (const target of targets) {
             baseline.targets[target] = Object.assign({}, measured[target], { measured_on: argOf('--stamp') });
@@ -363,7 +397,11 @@ function main() {
         delete baseline.measured_on;
         fs.writeFileSync(BASELINE, JSON.stringify(baseline, null, 2) + '\n');
         console.log('Baseline rewritten: ' + path.relative(ROOT, BASELINE));
-        for (const target of targets) console.log('  ' + target + ': ' + JSON.stringify(measured[target].counts));
+        for (const target of targets) {
+            console.log('  ' + (seeded.has(target) ? '+ ' : '  ') + target + ': '
+                + JSON.stringify(measured[target].counts));
+        }
+        if (seeded.size) console.log('  (+ = recorded for the first time)');
         process.exit(0);
     }
 
@@ -384,4 +422,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { parseReport, compare, completeness, denoArgsFor };
+module.exports = { parseReport, compare, completeness, denoArgsFor, discoverTargets, EXCLUDED_TARGETS };

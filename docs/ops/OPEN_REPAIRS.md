@@ -10347,7 +10347,9 @@ default `In Progress` status behind a pill the app already locks — the same
 family as item 127's caption defect, not a linkage failure. The remaining 39 are
 legacy cards.
 
-**Samples are UNPROVEN.** This pass measured the Content Calendar only.
+**Samples, measured the same way and also clear:** 19 live rows · 23 components
+with a native record · 13 with no record and no Linear link · 2 not in use ·
+**0 Linear-only**. Both surfaces are therefore free of Linear-only work.
 
 **Found in passing, filed separately, not blocking the exit.** The same
 bidirectional pass checked whether each link points back: 1,055 of 1,155 are

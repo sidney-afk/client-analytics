@@ -268,7 +268,11 @@ So the calendar has **no Linear-only work left**. The 94 native-created componen
 reverse, never both) carrying a default `In Progress` status behind a pill the app already
 locks — the same family as the caption defect in OPEN_REPAIRS 127, not a linkage leak.
 
-*Gate: already met for the Content Calendar.* Samples are **unproven** — not measured here.
+**Samples, measured the same way:** 19 live rows · 23 components with a native record ·
+13 with no record and no Linear link · 2 not in use · **0 Linear-only**.
+
+*Gate: met on both surfaces.* Nothing on a live Content Calendar card or a live sample row
+holds work that exists only in Linear.
 
 **What the same pass did find**, separately from the exit and not blocking it: 1,055 of
 1,155 card→deliverable links are correct in both directions; **2 cards point at a

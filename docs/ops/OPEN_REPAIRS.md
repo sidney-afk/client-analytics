@@ -10224,3 +10224,58 @@ from the function's start, so adding ~25 lines pushed half the assertions past
 the end and they failed as a block while reporting nothing about the code they
 guard. It now uses `extractFunction`, which exists in this repo for exactly that
 mistake.
+
+---
+
+## 137. [2026-09-03, GUARD SHIPPED — script-only, live on merge] The "what is live" row now has a check instead of a third written reminder
+
+Item 118 called the stale `ROLLBACK.md` row **the dangerous one**, and said why
+a fourth correction-in-place would not hold it:
+
+> A written rule has now failed to hold this row twice, which is the argument
+> for a check rather than a third reminder: nothing in CI compares this row
+> against `EXECUTION_LOG.md`'s newest `syncview_f27_section4_deployed_versions_v1`
+> block, and that comparison is derivable.
+
+It is now compared. `scripts/rollback-row-freshness-check.js` reads both files
+and nothing else, and `test/rollback-row-freshness.js` runs it in the suite, so
+a row left describing the previous deploy turns a PR red.
+
+**Why a check and not a reminder.** The lane WRITES the receipt into
+`EXECUTION_LOG.md` automatically; the row is typed by hand. That asymmetry is
+the whole decay: every dispatch updates one and not the other, and the gap is
+invisible until someone mid-incident reaches for a bundle. The row has been
+found stale twice on record — once **eleven deploys** behind — and its own
+middle column states the exact law it keeps breaking, which is the argument
+against writing the law a fourth time.
+
+**What it compares**, all derived, none of it hand-maintained on this side:
+
+- the GitHub run id and the dispatched commit;
+- every function's active version and source-closure hash;
+- **the one-step property.** The row names a sealed bundle and claims it
+  captures the release immediately before live. That claim is checkable: the
+  version it captures must equal `production-write`'s version in the PREVIOUS
+  receipt. A bundle two releases back passes every existing integrity check —
+  they verify the bundle, not its distance from live — and restoring it undoes
+  a deploy nobody meant to undo. This is the specific harm item 118 named, and
+  it is now the one thing here that no other gate anywhere covers.
+
+**Two parser traps, both real shapes from these files, both pinned by a test
+that fails without the handling.** A forward-deploy row writes the version as
+`65 → **66**`; reading the first number reports the release that was REPLACED
+as the one that is live, which is the very error being hunted. And the live
+claim shares a table cell with a deliberately-retained *"Superseded history
+below"* paragraph carrying an older set in the identical format — a parser that
+takes the last match reads history as the present.
+
+**One thing the check reports without failing on it.** The newest receipt
+(2026-09-02, deploy #25) is a summary table, not the attestation block the lane
+instructs you to copy; the same gap was raised as a P2 on #1215 and again in
+item 118. The comparison still holds from the table, so this is a NOTE rather
+than a failure — turning it red would block PRs on an entry already written.
+Every field the block would have carried is checked from the table today.
+
+- Done when: it has caught one. Until a deploy runs, the evidence that it works
+  is the suite's stale-row fixture, which reproduces the 2026-09-03 finding
+  exactly and fails.

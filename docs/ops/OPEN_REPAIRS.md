@@ -10374,6 +10374,39 @@ this suite, which is the same defect it was written to fix, one level down.
 does now, with the nested-object and nested-template cases asserted. The other
 was the suite not being registered in `REPO_MAP.md`, which is now done.
 
+### Round three found three more, and two of them were this suite's own blind spots
+
+- **The roster only saw `function` declarations.** A seventh operation written
+  as `const _calFoo = () => _prodCanonicalCommentGate(…)` would have been
+  attributed to whatever named function preceded it — and if that one was
+  already rostered or excluded, the promised unclassified-caller failure would
+  never have fired. Assigned function expressions are now enumerated too, but
+  only at the module's TOP-LEVEL indent: widening them everywhere let an inner
+  `const chosen = …` inside a function body steal the attribution from the
+  function it lives in, which is not hypothetical — it moved
+  `_calResolveLastTweak`'s gate call onto a local variable the first time.
+  `function` declarations stay matched at any indent, because
+  `_prodCanonicalCommentGate` itself is declared eight spaces in.
+- **The role-guard detector only knew two shapes.** It matched `?:` and `&&`
+  immediately before the call, so the equivalent statement form —
+  `let gate = null; if (_isClientLink) gate = _prodCanonicalCommentGate(…);` —
+  walked past it while the other checks still saw a gate call and a later
+  `.linked` and stayed green: staff with no gate, the exact regression this
+  suite claims to prevent. It now works out the SPAN each `if (_isClientLink…)`
+  guards — its braced block, or the single statement after it — and flags a
+  gate call inside one, with the correct-code case (a role-guarded block doing
+  something else, gate outside) asserted so it cannot just fire on everything.
+- **`stripNonCode` mistook division for a regex after a literal.** `prev` still
+  held the token BEFORE a completed string, template or regex, so
+  `const n = "8" / 2; keep()` read the slash as the start of a regex and
+  swallowed everything after it — a gate call there would have vanished from
+  the derived roster. A completed literal now ends an expression, in
+  `extractFunction` as well: one lexer, one fix, and
+  `test/extract-function-integrity.js` still passes.
+
+Each has its mutation: a new arrow-function gate caller, the statement-form role
+guard, and the six slash cases.
+
 - Done when: it catches a fourth. Until then, it costs nothing and holds the
   prediction that three prose warnings could not.
 

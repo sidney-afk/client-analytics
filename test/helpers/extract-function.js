@@ -54,6 +54,15 @@
  * reopens, `test/extract-function-integrity.js` fails and names the function.
  */
 
+/* A COMPLETED LITERAL ENDS AN EXPRESSION, so the next `/` is division. Without
+   this, `prev` still holds the token BEFORE the literal (`=` in
+   `const n = "8" / 2`), the slash reads as the start of a regex, and everything
+   after it is swallowed to end of input. Codex on #1255, found in stripNonCode
+   and true of extractFunction for the same reason -- one lexer, one fix. '0'
+   is simply a character REGEX_ALLOWED_AFTER does not contain: it stands for
+   "an operand just ended", exactly like an identifier or a number would. */
+const LITERAL_ENDED = '0';
+
 const REGEX_ALLOWED_AFTER = new Set(
   ['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '~', '^', '<', '>'],
 );
@@ -101,7 +110,7 @@ function extractFunction(source, name) {
     if (quote) {
       if (escaped) escaped = false;
       else if (c === '\\') escaped = true;
-      else if (c === quote) quote = '';
+      else if (c === quote) { quote = ''; prev = LITERAL_ENDED; }
       continue;
     }
     if (regex) {
@@ -109,15 +118,15 @@ function extractFunction(source, name) {
       else if (c === '\\') escaped = true;
       else if (charClass) { if (c === ']') charClass = false; }
       else if (c === '[') charClass = true;
-      else if (c === '/') regex = false;
-      else if (c === '\n') regex = false; // unterminated: do not run away
+      else if (c === '/') { regex = false; prev = LITERAL_ENDED; }
+      else if (c === '\n') { regex = false; prev = LITERAL_ENDED; } // unterminated: do not run away
       continue;
     }
 
     if (top.kind === 'template') {
       if (escaped) { escaped = false; continue; }
       if (c === '\\') { escaped = true; continue; }
-      if (c === '`') { stack.pop(); continue; }
+      if (c === '`') { stack.pop(); prev = LITERAL_ENDED; continue; }
       if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); i++; continue; }
       continue;
     }
@@ -225,7 +234,7 @@ function stripNonCode(source) {
       blank(i);
       if (escaped) escaped = false;
       else if (c === '\\') escaped = true;
-      else if (c === quote) quote = '';
+      else if (c === quote) { quote = ''; prev = LITERAL_ENDED; }
       continue;
     }
     if (regex) {
@@ -234,14 +243,14 @@ function stripNonCode(source) {
       else if (c === '\\') escaped = true;
       else if (charClass) { if (c === ']') charClass = false; }
       else if (c === '[') charClass = true;
-      else if (c === '/') regex = false;
-      else if (c === '\n') regex = false;
+      else if (c === '/') { regex = false; prev = LITERAL_ENDED; }
+      else if (c === '\n') { regex = false; prev = LITERAL_ENDED; }
       continue;
     }
     if (top.kind === 'template') {
       if (escaped) { escaped = false; blank(i); continue; }
       if (c === '\\') { escaped = true; blank(i); continue; }
-      if (c === '`') { stack.pop(); blank(i); continue; }
+      if (c === '`') { stack.pop(); blank(i); prev = LITERAL_ENDED; continue; }
       if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); blank(i); blank(i + 1); i++; continue; }
       blank(i);
       continue;

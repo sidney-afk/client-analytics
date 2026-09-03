@@ -9524,3 +9524,65 @@ today's bug a green earlier in the day. 16 further windows are anchored on a
 region rather than a function; those are counted and reported, not failed,
 because this check cannot know where a region ends and a rule built on a guess
 is the thing it exists to prevent.
+
+---
+
+## 123. [2026-09-03, GUARD SHIPPED + one report CLOSED as not-reproducible] The deep-link exits are now enumerable, and the reported issue resolves fine — including a wrong number this session produced on the way there
+
+### The guard: counting the exits, since not counting them is what cost five rounds
+
+Items 108 → 116 → 120 are one defect fixed three times, plus two more attempts
+in between. Every post-mortem says the same thing: the fix repaired the exit
+where it was reported, and **nobody counted the exits**. Gate the eviction and it
+surfaces in the detail pane; gate the pane and it surfaces on a failed tail; gate
+that and it surfaces before any tail has run.
+
+`test/prod-not-found-exits-enumerated.js` makes the set enumerable. The rule: a
+Production pane may print "… not found." only from a function that has consulted
+`_prodIncompletePaneHTML()`. It finds all three live exits today —
+`_prodDetail`, `_prodProjectDetail`, `_prodBatchDetail` — and fails if a fourth
+appears ungated. It also pins the chain underneath: the helper must still answer
+from `_prodRowSetComplete()`, and that must still be all three terms (a landed
+tail, none pending, none failed), so gating on it cannot decay into ceremony.
+
+Like the other guard shipped today it **proves its own detection on a fixture**
+before it is allowed to report on the app — a gated pane passes, a bare one is
+caught. A guard whose only subjects are already-fixed code would pass just as
+happily with its detection broken, which is how `prod-terminal-tail-settles.js`
+scored the deep-link bug green earlier the same day.
+
+### The client-reported missing issue: not reproducible, and my own analysis of it was wrong twice
+
+A staff member reported on 2026-09-03 that an issue for client slug `roccopiazza`
+"didn't appear". Three
+explanations were produced during the day and **the first two were wrong**:
+
+1. *"VID-13555 is genuinely absent from `deliverables` — this is exactly the
+   bug."* Wrong. It is absent from `deliverables` because it is not a
+   deliverable: SyncView holds it as a **batch**, `b1_b_881891e2…`, a
+   filming-day container for `roccopiazza`, created by `linear-backfill` eight
+   seconds after Linear created the issue. Absent from that table is the
+   correct state.
+2. *"A quarter of batch-parent deep links are dead — 496 of 1,947 identifiers,
+   373 on active batches."* **Also wrong, and worth recording because the
+   number was stated before it was checked.** That count compared batch parent
+   identifiers against `deliverables` only. The adapter **synthesises batch
+   parents as pseudo-issues** — 223 of them — so `_prodIssue('VID-13555')`
+   resolves through one. There are no dead links; there was a wrong model of how
+   resolution works.
+3. What is actually true, tested in a real browser against the real row set:
+   `?prod=1&d=VID-13555` opens correctly (view `detail`, no missing-target
+   notice, pane showing the filming plan), **and** the row appears in the
+   default list among all 223 synthetic parents. The owner's own theory — that a
+   status change to `posted` hid it — does not hold either: the issue is still
+   `Todo` in Linear with one state-history entry.
+
+So the report is **closed as not reproducible against current code**. Either one
+of today's deep-link repairs fixed it, or it was about a different surface or
+filter. That is an honest "cannot reproduce", not a diagnosis, and it should not
+be written up as one.
+
+The generalisable lesson is the one that keeps recurring in this file, arriving
+this time in the analysis rather than the code: a count computed from the wrong
+table is not evidence. Both wrong answers came from reasoning about `deliverables`
+without booting the app; both were killed in minutes by opening a browser.

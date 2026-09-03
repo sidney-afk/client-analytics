@@ -9847,3 +9847,111 @@ the opt-in, refused when mixed with any other error) and the bounded loader
 confirmation is the next hourly `linear-deliverables-reconcile` run after
 merge; until it is green this item is FIXED on paper only, which is the exact
 claim 119 made.
+
+---
+
+## 127. [2026-09-03, FIXED — browser-only, live on merge] A caption has no work item, but every writer aimed it at the video deliverable: six days of refused change-requests on cards with no video, and mis-filed notes on the ones that have it
+
+**What was reported.** Kasper, reviewing a carousel card, typed a note in the
+Caption pane and pressed one of its buttons. A red banner appeared under it
+reading, in full, `native_link_required`. The Thumbnail pane on the same card
+had accepted his change-request seconds earlier.
+
+**The card.** A carousel: a thumbnail, and no video at all. Both
+`video_deliverable_id` and `linear_issue_id` are empty; the graphic pair is
+populated. His two plain **Comment** notes on the caption saved (12:25 and
+12:26); `caption_status` never moved off its old value. That split is the whole
+diagnosis in one row: `_kasperAddCommentComp` deliberately calls no transport
+("plain notes don't ping the editor"), while `_kasperRequestTweakComp` — the
+Comment button's neighbours, **Request change** and **Approve after tweaks** —
+does.
+
+**Root cause.** `caption` and `title` have no work item. There is no
+`caption_deliverable_id`; their notes live in `caption_tweaks` / `title_tweaks`
+on the card row and `_calLinearUrlFor` has returned `''` for both on purpose
+since they were introduced. But every writer collapses its component with
+
+```js
+const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
+```
+
+and `_writeUiNativeId` used the same ternary, so a caption note was aimed at the
+**video** deliverable — `_writeUiTeam` calling it team `video`, the payload
+carrying `component: 'video'`.
+
+While video was Linear-authoritative none of that showed:
+`_writeUiClassifyTargetless` answered `{skipped:true}` and the note simply
+saved. **The video flip on 2026-08-28 turned the identical call into a 409.**
+From that day the same line produced two different failures depending on the
+card:
+
+| card shape | count, not archived | what happened |
+|---|---|---|
+| no video deliverable | **188** | `native_link_required`. The throw lands before the row save, so the status flip, the note and the whole write are abandoned |
+| has a video deliverable | **566** | accepted — into the VIDEO deliverable's canonical thread, tagged as a video comment |
+
+31 of the 188 are scheduled since 2026-08-01 and 14 since the flip itself; 24
+already carry caption notes. On the other side, **195** caption/title
+change-request notes sit on video-linked cards (15 of them since the flip) —
+that is the upper bound on mis-filed rows, not a count of them, because a card
+whose client was not yet on the reroute allowlist took the legacy lane, and the
+legacy lane is an unconditional no-op here (`_calLegacyPostLinearComment`
+returns early on the empty url). **Clients were never affected**: a client
+comment routes legacy on this surface, and the one post-flip caption
+change-request on an unlinked card is a client's, saved normally.
+
+Six days, reported by the person it blocked. Nothing alerted.
+
+**The repair, at all four collapse sites.** `_writeUiComponentHasWorkItem`
+answers whether a component owns a deliverable of its own. `_writeUiNativeId`
+returns `''` rather than the neighbour's id for one that does not, and all four
+writers — `_calPostLinearComment`, `_sxrPostLinearComment`,
+`_calPushStatusToLinear`, `_sxrPushStatusToLinear` — answer
+`{skipped:true, source_only:true}` before any authority read. The note is
+durable exactly where it already lived: the card row, which the upsert carries.
+Only the comment writers are reachable with a caption today; the status pair is
+guarded because this file's own rule, written 40 lines above the defect, is
+that *"a rule that depends on the caller never exercising a documented behaviour
+of its own argument is not a rule"*.
+
+An **unknown** component keeps the historic default of `video`. This predicate
+can only ever make caption and title source-only — silently making a real work
+item stop writing would be the worse failure, and it is the one this shape could
+otherwise introduce.
+
+**The banner, which is why a code reached a person.** `_writeUiGatewayError`
+builds its Error with the code as the message, and Kasper's three catches wrote
+`e.message` straight into the pane. Every other surface routes the same refusal
+through `_writeUiFailureText` / `WRITE_UI_FAILURE_CODE_TEXT` — the table
+`test/write-ui-failure-messages.js` pins. The panel now reads that same table,
+so the two cannot drift, and a transport error, which carries a real sentence
+and no code, still passes through unchanged.
+
+**One sibling, found on the way and fixed with it.** Both Kasper rollbacks
+restored `*_comments` but not the `*_tweaks` wire strings, and never
+`title_comments` at all — while `_calSetCommentsFor` writes both and
+`_calMigratePostShape` re-parses the array back OUT of the string on every load.
+So a refused note vanished from the pane and stayed in the string, and the next
+hydrate parsed it back onto a card whose write had been refused.
+`client_title_approved_at` had the same gap, cleared by
+`_calClearStaleApprovals` and restored by neither. One snapshot helper now
+covers both forms of all four components plus that stamp.
+
+**Not repaired here, and deliberately.** The mis-filed rows already in the
+canonical store are not migrated — they carry `component: 'video'` and are
+indistinguishable there from real video comments, so a cleanup would be guessing.
+The card row holds every one of those notes in `caption_tweaks` regardless, which
+is the copy the caption pane reads, so nothing is lost; what is wrong is that a
+video thread also has them. Sizing and clearing that is its own change.
+
+**Verification.** `test/caption-has-no-work-item.js` runs the real extracted
+writers in a vm on both card shapes and asserts: caption and title are accepted
+as source-only with zero gateway calls; graphic on the same card still commits
+through the gateway on its own team and deliverable; a VIDEO note with no video
+work item is **still** refused `native_link_required`, so the documented
+fail-closed refusal of 87.14 is untouched. It then re-runs the same two cases
+with the predicate replaced by one that always says "has a work item" — the
+**mutant** — and asserts the refusal and the mis-filing both come back, so the
+assertions are measuring the repair. 387 unit suites pass; nine writer harnesses
+that lift these functions into a vm now load the predicate beside them rather
+than stubbing it, so the rule under test is always the shipped one.

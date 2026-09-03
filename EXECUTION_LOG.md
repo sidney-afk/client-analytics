@@ -5918,3 +5918,15 @@ tolerance never matched the wire (`extensions.type: 'invalid input'`, not
 captured shape, capped at `RECONCILE_NOT_FOUND_CAP` (10) so an access loss
 cannot reconcile as a bulk deletion, closure re-pinned to `a4664cc9…`.
 OPEN_REPAIRS 126.
+
+**Caption change-requests, refused since the video flip.** A caption and a title
+own no deliverable, but all four writers collapsed their component onto `video`
+and aimed the note at `video_deliverable_id`. Invisible while video was
+Linear-authoritative; from the 2026-08-28 flip it was a 409
+`native_link_required` on the 188 non-archived cards with no video component,
+and a note filed into the video deliverable's canonical thread on the 566 that
+have one. Reported by Kasper six days later, as the raw code in a red banner.
+Fixed at all four sites plus `_writeUiNativeId`; the panel banner now reads the
+shipped failure-message table instead of printing the code; the two Kasper
+rollbacks now restore the `*_tweaks` strings they were leaving behind.
+OPEN_REPAIRS 127.

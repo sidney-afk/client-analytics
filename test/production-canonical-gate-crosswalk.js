@@ -102,6 +102,10 @@ const browser = {
 };
 vm.createContext(browser);
 vm.runInContext([
+  // _writeUiNativeId now asks _writeUiComponentHasWorkItem whether the
+  // component owns a deliverable at all (caption/title do not), so the real
+  // predicate has to be in the sandbox with it. OPEN_REPAIRS 127.
+  extractFunction('_writeUiComponentHasWorkItem'),
   extractFunction('_writeUiNativeId'),
   extractFunction('_prodCrosswalkTeamForComponent'),
   extractFunction('_prodCrosswalkCardSlug'),

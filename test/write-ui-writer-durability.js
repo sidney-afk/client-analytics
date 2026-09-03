@@ -67,7 +67,10 @@ const context = {
   Date,
 };
 vm.createContext(context);
-for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPushStatusToLinear', '_sxrPostLinearComment']) {
+// Both comment writers answer source-only for a component with no work item
+// of its own (caption/title), so the real predicate belongs in the sandbox --
+// stubbing it here would let the two drift. OPEN_REPAIRS 127.
+for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_calPostLinearComment', '_sxrPushStatusToLinear', '_sxrPostLinearComment']) {
   try { vm.runInContext(extract(name), context); }
   catch (error) { console.error('failed to evaluate ' + name); throw error; }
 }

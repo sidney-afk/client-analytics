@@ -181,6 +181,9 @@ function contextHarness(overrides) {
     flagDecl,
     extract('_clientCommentGatewaySetFlagValue'),
     extract('_clientCommentGatewayOn'),
+    // _writeUiNativeId asks this whether the component owns a deliverable at
+    // all (caption/title do not). OPEN_REPAIRS 127.
+    extract('_writeUiComponentHasWorkItem'),
     extract('_writeUiNativeId'),
     extract('_prodCrosswalkKey'),
     extract('_prodCrosswalkVerdict'),
@@ -346,6 +349,9 @@ const UNBOUND = { state: 'mismatch', fields: ['card_id'], card_unbound: true };
       _prodVerifiedClientCommentMutationContext: () => null,
       Date, Promise, Object, String, Number, JSON,
     });
+    // Both writers answer source-only for a component with no work item of
+    // its own (caption/title). Real predicate, not a stub. OPEN_REPAIRS 127.
+    vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
     vm.runInContext(extract('_calPostLinearComment') + '\n' + extract('_sxrPostLinearComment'), context);
     return { context, host };
   }

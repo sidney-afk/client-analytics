@@ -25377,6 +25377,46 @@
     function _writeUiAuthoritySnapshot() { return _writeUiAuthorityLive; }
     function _writeUiTeam(component) { return String(component || '').toLowerCase() === 'graphic' ? 'graphics' : 'video'; }
 
+    /* WHICH COMPONENTS HAVE A WORK ITEM OF THEIR OWN.
+
+       `video` and `graphic` each own a row in `deliverables`. `caption` and
+       `title` never have: their notes and statuses live only in the card row
+       (`caption_tweaks` / `title_tweaks`, `caption_status` / `title_status`),
+       which the calendar upsert already persists, and `_calLinearUrlFor` has
+       always returned '' for both on purpose.
+
+       But every comment path collapses its component argument with
+       `comp === 'graphic' ? 'graphic' : 'video'`, and `_writeUiNativeId` used
+       the same ternary -- so a caption note was aimed at the VIDEO deliverable.
+       While video was Linear-authoritative that was invisible:
+       `_writeUiClassifyTargetless` answered `{skipped:true}` and the note
+       simply saved to the card. The video flip on 2026-08-28 turned the very
+       same call into a 409 `native_link_required`, and from that day:
+
+         - on a card with NO video deliverable (a carousel, a graphic-only
+           post), "Request change" and "Approve after tweaks" on the caption
+           threw, the whole row save was abandoned, and the reviewer got the
+           raw code as an error banner;
+         - on a card that HAS one, the caption note was accepted -- into the
+           VIDEO deliverable's canonical thread, filed as a video comment.
+
+       Reported by Kasper 2026-09-03, six days after the flip. OPEN_REPAIRS 127.
+
+       An UNKNOWN component keeps the historic default of `video`, so this
+       predicate can only ever make caption and title source-only. A new
+       component that really does own a deliverable must keep refusing out
+       loud; silently making a real work item source-only would be the worse
+       failure, and it is the one this rule could otherwise introduce. */
+    function _writeUiComponentHasWorkItem(component) {
+        // The list is inlined rather than read from a module constant so this
+        // function is SELF-CONTAINED. Every suite here lifts writers into a vm
+        // one function at a time; a rule that needs a companion constant loaded
+        // beside it is one more thing for the next harness to forget, and it
+        // fails as a ReferenceError inside the code under test rather than as a
+        // missing assertion.
+        return !['caption', 'title'].includes(String(component || '').trim().toLowerCase());
+    }
+
     /* Can this component's Linear link still be SET by hand?
      *
      * Owner ruling 2026-08-25: "can we make it so people cannot paste a link
@@ -25511,6 +25551,10 @@
     }
     function _writeUiNativeId(post, component) {
         if (!post) return '';
+        // A component with no work item has no deliverable id -- least of all
+        // the neighbouring component's. Answering `video_deliverable_id` here
+        // is what let a caption be treated as linked to the video row.
+        if (!_writeUiComponentHasWorkItem(component)) return '';
         return String((component === 'graphic' ? post.graphic_deliverable_id : post.video_deliverable_id) || '').trim();
     }
     /* F42 crosswalk parity for the canonical comment gate.
@@ -32070,6 +32114,17 @@
         })();
     }
     async function _calPushStatusToLinear(issueUrl, status, meta) {
+        /* Same rule as the comment writer beside this one. No caller reaches
+           here with a caption or title today -- `_kasperPersistPost` loops
+           video and graphic, `_calReassertLinearStatus` refuses anything else,
+           and every other caller names its component -- but the collapse on
+           the next line would send one to the VIDEO deliverable if one ever
+           did, and this file already says why that is not good enough: "a rule
+           that depends on the caller never exercising a documented behaviour
+           of its own argument is not a rule". OPEN_REPAIRS 127. */
+        if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
+            return { skipped: true, source_only: true };
+        }
         if (!(await _writeUiUseGatewayWhenReady('calendar', meta))) {
             if (meta && meta.deferLegacyUntilSourceSave) {
                 return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
@@ -32145,6 +32200,16 @@
     }
     /* Commit a client/Kasper comment through the authenticated gateway. */
     async function _calPostLinearComment(issueUrl, body, author, meta) {
+        /* A caption or title note has no work item to deliver to, on any card.
+           It is durable the moment the card row saves (`caption_tweaks` /
+           `title_tweaks`, both carried by the upsert), and the legacy lane was
+           already a silent no-op for it because `_calLinearUrlFor` returns ''.
+           So there is nothing to transport, and the transport is what was
+           refusing. Answer source-only BEFORE any authority read, so no caption
+           note touches the network at all. */
+        if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
+            return { skipped: true, source_only: true };
+        }
         // 2026-08-13 incident: a CLIENT comment could NEVER be accepted by the
         // gateway from this surface — the old clientCommentTargetAllowed
         // (production-write/policy.mjs) required surface === 'sxr' AND a card_id
@@ -64741,6 +64806,17 @@
         })();
     }
     async function _sxrPushStatusToLinear(issueUrl, status, meta) {
+        /* Same rule as the comment writer beside this one. No caller reaches
+           here with a caption or title today -- `_kasperPersistPost` loops
+           video and graphic, `_calReassertLinearStatus` refuses anything else,
+           and every other caller names its component -- but the collapse on
+           the next line would send one to the VIDEO deliverable if one ever
+           did, and this file already says why that is not good enough: "a rule
+           that depends on the caller never exercising a documented behaviour
+           of its own argument is not a rule". OPEN_REPAIRS 127. */
+        if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
+            return { skipped: true, source_only: true };
+        }
         if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
             if (meta && meta.deferLegacyUntilSourceSave) {
                 return { skipped: true, legacy_transport: true, deferred_until_source_save: true };
@@ -64772,6 +64848,13 @@
         return chain;
     }
     async function _sxrPostLinearComment(issueUrl, body, author, meta) {
+        // Same rule as the calendar twin. SXR_COMPONENTS is video+graphic only,
+        // so nothing reaches this today -- it is here because the collapse
+        // below is identical, and a rule that lives on one of two identical
+        // surfaces is how the 87.8 / 87.16 pair happened.
+        if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
+            return { skipped: true, source_only: true };
+        }
         const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
         const nativeId = _writeUiNativeId(meta && meta.post, component);
         // Canonical-where-linked, legacy-where-not. A client write is canonical
@@ -73519,6 +73602,52 @@
        caption) that Kasper's row still carries a stale value for is NOT
        clobbered. (`status` is derived and handled separately from
        computeOverallStatus; comment cells are always sent and server-merged.) */
+    /* ROLLING BACK A REFUSED WRITE HAS TO UNDO BOTH FORMS OF A COMMENT LIST.
+
+       `_calSetCommentsFor` deliberately writes the parsed array AND the
+       `*_tweaks` wire string, because `_calMigratePostShape` re-parses the
+       array back OUT of the string on every load (cache hydrate, poll, tab
+       return). The two rollbacks below restored only the arrays -- and never
+       `title_comments` at all -- so a refused note disappeared from the pane
+       and stayed in the string, and the next hydrate parsed it straight back
+       onto a card whose write had been refused.
+
+       `client_title_approved_at` is here for the same reason: the optimistic
+       path clears it through `_calClearStaleApprovals`, which handles title
+       separately from CAL_COMPONENTS, and neither rollback put it back.
+
+       Found while repairing the caption refusal it sits next to, not by it:
+       the refusal is what made these paths run at all. OPEN_REPAIRS 127. */
+    function _kasperCommentSnapshot(post) {
+        const snap = { comments: post && post.comments, tweaks: post && post.tweaks,
+            client_title_approved_at: post && post.client_title_approved_at };
+        for (const comp of ['video', 'graphic', 'caption', 'title']) {
+            snap[comp + '_comments'] = post && post[comp + '_comments'];
+            snap[comp + '_tweaks'] = post && post[comp + '_tweaks'];
+        }
+        return snap;
+    }
+    /* THE BANNER UNDER A COMPONENT'S BUTTONS MUST BE A SENTENCE.
+
+       These three catches wrote `e.message`, and for a gateway refusal that IS
+       the raw code -- `_writeUiGatewayError` constructs the Error with the code
+       as its message. So on 2026-09-03 a reviewer was shown the literal string
+       `native_link_required` under the caption buttons, with no indication of
+       what it meant or whether his note had been kept.
+
+       Every other surface already routes the same refusal through
+       `_writeUiFailureText`, which reads WRITE_UI_FAILURE_CODE_TEXT -- the
+       table test/write-ui-failure-messages.js pins, and the one place the
+       wording of a refusal is allowed to live. This reads that same table for
+       an inline banner instead of a dialog, so the two can never drift.
+
+       A thrown transport/runtime error carries no `code`, only a real sentence
+       of its own; that is kept as-is. OPEN_REPAIRS 127. */
+    function _kasperFailureText(error) {
+        const code = String(error && error.code || '').trim();
+        if (code) return _writeUiFailureText('write', code, error && error.status).text;
+        return (error && error.message) ? String(error.message) : 'Save failed';
+    }
     const KASPER_PATCH_SCALARS = ['order_index','scheduled_date','name','asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','post_url','cta','linear_issue_id','video_deliverable_id','kasper_approved_at','posted_at','platform','platforms','color','video_status','graphic_status','caption_status','graphic_linear_issue_id','graphic_deliverable_id','client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','title_status','client_title_approved_at','kasper_seen','kasper_approved_after_tweaks','thumb_rev','kasper_finished_at','kasper_closed_at','kasper_finish_log'];
     function _kasperPatchSnapshot(post) {
         const s = {};
@@ -73758,7 +73887,7 @@
             if (!item.post._writeUiRetrySourceAt) Object.assign(item.post, prev);
             else _kasperPersistCache();
             item._saving[comp] = false;
-            item._errors[comp] = e && e.message ? e.message : 'Save failed';
+            item._errors[comp] = _kasperFailureText(e);
             _kasperRepaintCard(pid);
         }
     }
@@ -73823,12 +73952,8 @@
         const body = String(item._drafts[comp] || '').trim();
         if (!body || item._saving[comp]) return;
         _kasperInvalidateInFlightLoad();
-        const prev = {
-            updated_at: item.post.updated_at,
-            video_comments:   item.post.video_comments,
-            graphic_comments: item.post.graphic_comments,
-            caption_comments: item.post.caption_comments,
-        };
+        const prev = Object.assign({ updated_at: item.post.updated_at },
+            _kasperCommentSnapshot(item.post));
         const list = _calCommentsFor(item.post, comp).slice();
         const _now = new Date().toISOString();
         list.push({
@@ -73862,7 +73987,7 @@
         } catch (e) {
             Object.assign(item.post, prev);
             item._saving[comp] = false;
-            item._errors[comp] = e && e.message ? e.message : 'Save failed';
+            item._errors[comp] = _kasperFailureText(e);
             _kasperRepaintCard(pid);
         }
     }
@@ -73883,19 +74008,16 @@
         // comments. Removal happens explicitly via "Mark reviewed" or via
         // Approve on a still-KA component.
         const subKey = comp + '_status';
-        const prev = {
+        const prev = Object.assign({
             [subKey]: item.post[subKey],
             status: item.post.status,
             updated_at: item.post.updated_at,
-            video_comments:   item.post.video_comments,
-            graphic_comments: item.post.graphic_comments,
-            caption_comments: item.post.caption_comments,
             client_video_approved_at:   item.post.client_video_approved_at,
             client_graphic_approved_at: item.post.client_graphic_approved_at,
             client_caption_approved_at: item.post.client_caption_approved_at,
             kasper_approved_at:         item.post.kasper_approved_at,
             kasper_approved_after_tweaks: item.post.kasper_approved_after_tweaks,
-        };
+        }, _kasperCommentSnapshot(item.post));
         const list = _calCommentsFor(item.post, comp).slice();
         const _now = new Date().toISOString();
         const newComment = {
@@ -73972,7 +74094,7 @@
                 showNotify('Card sync incomplete', 'The native comment is safe; Calendar source sync will retry automatically.');
             }
             item._saving[comp] = false;
-            item._errors[comp] = e && e.message ? e.message : 'Save failed';
+            item._errors[comp] = _kasperFailureText(e);
             _kasperRepaintCard(pid);
         }
     }

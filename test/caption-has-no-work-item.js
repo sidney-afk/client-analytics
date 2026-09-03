@@ -146,6 +146,30 @@ const WITH_VIDEO = Object.assign({ video_deliverable_id: 'del-video', linear_iss
             + 'like success and put caption feedback in the video thread');
     }
 
+    /* ---- the deferred source-save checkpoint survives ---------------------- */
+    {
+        /* `_calReviewRequestTweak` sets deferLegacyUntilSourceSave and reads
+           `deferred_until_source_save` back to run the durable ledger write.
+           The targetless exit has always carried that flag; the source-only
+           exit must too, or a committed-but-unacknowledged upsert is retried
+           into a SECOND comment id. Codex, PR #1245. */
+        const ctx = context(FLIPPED);
+        const post = Object.assign({ id: 'card-1' }, CAROUSEL);
+        const ack = await vm.runInContext('_calPostLinearComment', ctx)('', 'a note', 'Kasper', {
+            post, component: 'caption', comment: { id: 'c1' }, isTweak: true, round: 1,
+            deferLegacyUntilSourceSave: true
+        });
+        ok(ack && ack.source_only === true && ack.deferred_until_source_save === true,
+            'a caption note whose caller asked to defer still reports the checkpoint, so the durable '
+            + 'source-only ledger row is still written and a lost upsert response cannot duplicate the note');
+        const plain = await vm.runInContext('_calPostLinearComment', ctx)('', 'a note', 'Kasper', {
+            post, component: 'caption', comment: { id: 'c2' }, isTweak: true, round: 1
+        });
+        ok(plain && plain.source_only === true && plain.deferred_until_source_save === undefined,
+            'and a caller that did NOT ask to defer is not given a checkpoint it never requested');
+        ok(ctx.calls.gateway.length === 0, 'neither one reaches the gateway');
+    }
+
     /* ---- what must NOT change ---------------------------------------------- */
     {
         const ctx = context(FLIPPED);
@@ -200,10 +224,17 @@ const WITH_VIDEO = Object.assign({ video_deliverable_id: 'del-video', linear_iss
     /* ---- and the banner is a sentence, not a code -------------------------- */
     {
         const ctx = vm.createContext({ console });
-        for (const name of ['WRITE_UI_FAILURE_CODE_TEXT', 'WRITE_UI_FAILURE_CLASS_TEXT', 'WRITE_UI_FAILURE_CODE_CLASS']) {
+        /* Two shapes: the two message tables are object literals, the
+           code->class map builds itself in an IIFE. Both loaded verbatim,
+           because the class text is what an unmapped code falls through to. */
+        for (const name of ['WRITE_UI_FAILURE_CODE_TEXT', 'WRITE_UI_FAILURE_CLASS_TEXT']) {
             const decl = new RegExp('const ' + name + ' = \\{[\\s\\S]*?\\n    \\};').exec(INDEX);
-            if (decl) vm.runInContext(decl[0], ctx);
+            ok(!!decl, 'the ' + name + ' table is loadable');
+            vm.runInContext(decl[0], ctx);
         }
+        const codeClass = /const WRITE_UI_FAILURE_CODE_CLASS = \(\(\) => \{[\s\S]*?\n    \}\)\(\);/.exec(INDEX);
+        ok(!!codeClass, 'and so is the code-to-class map');
+        vm.runInContext(codeClass[0], ctx);
         loadFn(ctx, '_writeUiFailureText');
         loadFn(ctx, '_writeUiFailureSentence');
         const text = vm.runInContext('_writeUiFailureSentence', ctx);
@@ -211,6 +242,17 @@ const WITH_VIDEO = Object.assign({ video_deliverable_id: 'del-video', linear_iss
         ok(text(refusal) !== 'native_link_required' && /work item/.test(text(refusal)),
             'a gateway refusal reaches the reviewer as the sentence from WRITE_UI_FAILURE_CODE_TEXT, not as '
             + 'its own code — which is what the caption banner showed on 2026-09-03');
+        /* And it still CARRIES the code: several of these sentences instruct the
+           reader to quote it ("ask an SMM or the owner ... quoting this code"),
+           so a sentence without it would name an identifier nothing had shown.
+           Same format the notification path uses. Codex, PR #1245. */
+        ok(/\(code: native_link_required\)$/.test(text(refusal)),
+            'and it ends with the code in the notification path\'s own format, because the sentences tell '
+            + 'the reader to quote it');
+        const blocked = Object.assign(new Error('write_blocked_by_setting'),
+            { code: 'write_blocked_by_setting', status: 409 });
+        ok(/\(code: write_blocked_by_setting\)$/.test(text(blocked)),
+            'including for a code with no entry of its own, which falls through to its class text');
         ok(text(new Error('Save failed: the network went away')) === 'Save failed: the network went away',
             'while a transport error, which carries a real sentence and no code, is passed through');
         /* And a gateway error whose message was DELIBERATELY overwritten with a

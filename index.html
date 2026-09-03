@@ -26693,7 +26693,14 @@
            set this helper exists for, because `_writeUiGatewayError` leaves the
            message equal to the code and nothing else does. */
         if (message && message !== code) return message;
-        if (code) return _writeUiFailureText('write', code, error && error.status).text;
+        /* WITH the code, in the notification path's own format. Several of these
+           sentences instruct the reader to act ON the code -- the `access` one
+           says to ask an SMM "quoting this code", the `blocked` one to "send
+           this code to the owner" -- so a banner printing the sentence alone
+           would tell a person to quote an identifier nothing had shown them.
+           Codex caught this on PR 1245; the dialog path has always appended
+           it, and this is the same format. */
+        if (code) return _writeUiFailureText('write', code, error && error.status).text + ' (code: ' + code + ')';
         return fallback || 'Save failed';
     }
     function _writeUiReportFailure(surface, operation, error, context) {
@@ -32163,7 +32170,11 @@
            that depends on the caller never exercising a documented behaviour
            of its own argument is not a rule". OPEN_REPAIRS 127. */
         if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
-            return { skipped: true, source_only: true };
+            // Same source-only shape as the comment writers, deferred flag included.
+            const sourceOnly = { skipped: true, source_only: true };
+            return meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, sourceOnly, { deferred_until_source_save: true })
+                : sourceOnly;
         }
         if (!(await _writeUiUseGatewayWhenReady('calendar', meta))) {
             if (meta && meta.deferLegacyUntilSourceSave) {
@@ -32247,8 +32258,22 @@
            So there is nothing to transport, and the transport is what was
            refusing. Answer source-only BEFORE any authority read, so no caption
            note touches the network at all. */
+        /* Carrying `deferred_until_source_save` when the caller asked for it,
+           because the targetless exit below has always carried it and the
+           review lane depends on it: `_calReviewRequestTweak` reads that flag
+           to run `_writeUiQueueDeferredLegacyTweak`, which writes the durable
+           source-only ledger row. Without it a calendar-upsert that COMMITS but
+           loses its response rolls the UI back, and the retry mints a second
+           comment id while the first is already committed -- a duplicated note
+           in the thread and in the history. Codex caught this on PR 1245.
+           Pre-flip a caption took the targetless exit and got the checkpoint,
+           so dropping it here would regress the very behaviour this repair
+           restores. Every source-only exit in this file returns the same shape. */
         if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
-            return { skipped: true, source_only: true };
+            const sourceOnly = { skipped: true, source_only: true };
+            return meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, sourceOnly, { deferred_until_source_save: true })
+                : sourceOnly;
         }
         // 2026-08-13 incident: a CLIENT comment could NEVER be accepted by the
         // gateway from this surface — the old clientCommentTargetAllowed
@@ -64855,7 +64880,11 @@
            that depends on the caller never exercising a documented behaviour
            of its own argument is not a rule". OPEN_REPAIRS 127. */
         if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
-            return { skipped: true, source_only: true };
+            // Same source-only shape as the comment writers, deferred flag included.
+            const sourceOnly = { skipped: true, source_only: true };
+            return meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, sourceOnly, { deferred_until_source_save: true })
+                : sourceOnly;
         }
         if (!(await _writeUiUseGatewayWhenReady('sxr', meta))) {
             if (meta && meta.deferLegacyUntilSourceSave) {
@@ -64893,7 +64922,11 @@
         // below is identical, and a rule that lives on one of two identical
         // surfaces is how the 87.8 / 87.16 pair happened.
         if (!_writeUiComponentHasWorkItem(meta && meta.component)) {
-            return { skipped: true, source_only: true };
+            // Same source-only shape as the comment writers, deferred flag included.
+            const sourceOnly = { skipped: true, source_only: true };
+            return meta && meta.deferLegacyUntilSourceSave
+                ? Object.assign({}, sourceOnly, { deferred_until_source_save: true })
+                : sourceOnly;
         }
         const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
         const nativeId = _writeUiNativeId(meta && meta.post, component);

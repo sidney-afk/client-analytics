@@ -40,6 +40,34 @@ function extract(name) {
   throw new Error('unclosed ' + name);
 }
 
+/* The inline failure banners now read the shipped message table
+   (WRITE_UI_FAILURE_CODE_TEXT via _writeUiFailureText), so any harness that
+   drives a save to its CATCH needs that table in the sandbox. Loading the real
+   one rather than stubbing it is the point: it is what keeps a banner's wording
+   and a dialog's wording the same sentence. OPEN_REPAIRS 127. */
+function loadFailureSentence(context) {
+  /* Idempotent, and the flag is a plain property rather than a lookup of the
+     table itself: `const` inside runInContext creates a LEXICAL binding in the
+     context's script scope, which never appears on the contextified object, so
+     testing for the table always reads undefined and the second load
+     re-declares the const as a SyntaxError. */
+  if (context.__failureTableLoaded) return;
+  context.__failureTableLoaded = true;
+  // Two shapes: the two tables are object literals, the code->class map is an
+  // IIFE that builds itself. Both are loaded verbatim.
+  for (const name of ['WRITE_UI_FAILURE_CODE_TEXT', 'WRITE_UI_FAILURE_CLASS_TEXT']) {
+    const decl = new RegExp('const ' + name + ' = \\{[\\s\\S]*?\\n    \\};').exec(source);
+    assert(decl, 'missing ' + name);
+    vm.runInContext(decl[0], context);
+  }
+  const codeClass = /const WRITE_UI_FAILURE_CODE_CLASS = \(\(\) => \{[\s\S]*?\n    \}\)\(\);/.exec(source);
+  assert(codeClass, 'missing WRITE_UI_FAILURE_CODE_CLASS');
+  vm.runInContext(codeClass[0], context);
+  vm.runInContext(extract('_writeUiFailureText'), context);
+  vm.runInContext(extract('_writeUiFailureSentence'), context);
+}
+
+
 async function runCase({ gateway, saveOk }) {
   const events = [];
   const legacyCalls = [];
@@ -131,8 +159,13 @@ async function runCase({ gateway, saveOk }) {
   };
 
   vm.createContext(context);
+  vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
   vm.runInContext(extract('_sxrPushStatusToLinear'), context);
   vm.runInContext(extract('_writeUiApplyOverallStatus'), context);
+  // The save chip's error text now reads the shipped failure-message table
+  // instead of the raw code, so the helper that reads it loads with the flush.
+  // OPEN_REPAIRS 127.
+  loadFailureSentence(context);
   vm.runInContext(extract('_sxrFlushCardSave'), context);
   await context._sxrFlushCardSave(pid);
   return { events, legacyCalls, gatewayCalls };
@@ -301,6 +334,11 @@ async function runReviewTweakCase({
   };
 
   vm.createContext(context);
+  // The writer answers source-only for a component with no work item of its
+  // own (caption/title). Real predicate, not a stub. OPEN_REPAIRS 127.
+  vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
+  // The review pane's error text reads the shipped failure-message table now.
+  loadFailureSentence(context);
   vm.runInContext(extract('_sxrPostLinearComment'), context);
   vm.runInContext(extract('_sxrReviewRequestTweak'), context);
   context._sxrReviewRequestTweak(pid, 'video');
@@ -394,7 +432,12 @@ async function runKasperTweakCase({ gateway, saveOk }) {
   };
 
   vm.createContext(context);
+  vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
   vm.runInContext(extract('_sxrPushStatusToLinear'), context);
+  // The writer answers source-only for a component with no work item of its
+  // own (caption/title). Real predicate, not a stub. OPEN_REPAIRS 127.
+  vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
+  loadFailureSentence(context);
   vm.runInContext(extract('_sxrPostLinearComment'), context);
   vm.runInContext(extract('_sxrKasperApplyAndPersist'), context);
   await context._sxrKasperApplyAndPersist(pid, 'video', row => {

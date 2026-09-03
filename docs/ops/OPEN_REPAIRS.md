@@ -9847,3 +9847,200 @@ the opt-in, refused when mixed with any other error) and the bounded loader
 confirmation is the next hourly `linear-deliverables-reconcile` run after
 merge; until it is green this item is FIXED on paper only, which is the exact
 claim 119 made.
+
+---
+
+## 127. [2026-09-03, FIXED — browser-only, live on merge] A caption has no work item, but every writer aimed it at the video deliverable: six days of refused change-requests on cards with no video, and mis-filed notes on the ones that have it
+
+**What was reported.** Kasper, reviewing a carousel card, typed a note in the
+Caption pane and pressed one of its buttons. A red banner appeared under it
+reading, in full, `native_link_required`. The Thumbnail pane on the same card
+had accepted his change-request seconds earlier.
+
+**The card.** A carousel: a thumbnail, and no video at all. Both
+`video_deliverable_id` and `linear_issue_id` are empty; the graphic pair is
+populated. His two plain **Comment** notes on the caption saved (12:25 and
+12:26); `caption_status` never moved off its old value. That split is the whole
+diagnosis in one row: `_kasperAddCommentComp` deliberately calls no transport
+("plain notes don't ping the editor"), while `_kasperRequestTweakComp` — the
+Comment button's neighbours, **Request change** and **Approve after tweaks** —
+does.
+
+**Root cause.** `caption` and `title` have no work item. There is no
+`caption_deliverable_id`; their notes live in `caption_tweaks` / `title_tweaks`
+on the card row and `_calLinearUrlFor` has returned `''` for both on purpose
+since they were introduced. But every writer collapses its component with
+
+```js
+const component = meta && meta.component === 'graphic' ? 'graphic' : 'video';
+```
+
+and `_writeUiNativeId` used the same ternary, so a caption note was aimed at the
+**video** deliverable — `_writeUiTeam` calling it team `video`, the payload
+carrying `component: 'video'`.
+
+While video was Linear-authoritative none of that showed:
+`_writeUiClassifyTargetless` answered `{skipped:true}` and the note simply
+saved. **The video flip on 2026-08-28 turned the identical call into a 409.**
+From that day the same line produced two different failures depending on the
+card:
+
+| card shape | count, not archived | what happened |
+|---|---|---|
+| no video deliverable | **188** | `native_link_required`. The throw lands before the row save, so the status flip, the note and the whole write are abandoned |
+| has a video deliverable | **566** | accepted — into the VIDEO deliverable's canonical thread, tagged as a video comment |
+
+31 of the 188 are scheduled since 2026-08-01 and 14 since the flip itself; 24
+already carry caption notes. On the other side, **195** caption/title
+change-request notes sit on video-linked cards (15 of them since the flip) —
+that is the upper bound on mis-filed rows, not a count of them, because a card
+whose client was not yet on the reroute allowlist took the legacy lane, and the
+legacy lane is an unconditional no-op here (`_calLegacyPostLinearComment`
+returns early on the empty url). **Clients were never affected**: a client
+comment routes legacy on this surface, and the one post-flip caption
+change-request on an unlinked card is a client's, saved normally.
+
+Six days, reported by the person it blocked. Nothing alerted.
+
+**The repair, at all four collapse sites.** `_writeUiComponentHasWorkItem`
+answers whether a component owns a deliverable of its own. `_writeUiNativeId`
+returns `''` rather than the neighbour's id for one that does not, and all four
+writers — `_calPostLinearComment`, `_sxrPostLinearComment`,
+`_calPushStatusToLinear`, `_sxrPushStatusToLinear` — answer
+`{skipped:true, source_only:true}` before any authority read. The note is
+durable exactly where it already lived: the card row, which the upsert carries.
+Only the comment writers are reachable with a caption today; the status pair is
+guarded because this file's own rule, written 40 lines above the defect, is
+that *"a rule that depends on the caller never exercising a documented behaviour
+of its own argument is not a rule"*.
+
+An **unknown** component keeps the historic default of `video`. This predicate
+can only ever make caption and title source-only — silently making a real work
+item stop writing would be the worse failure, and it is the one this shape could
+otherwise introduce.
+
+**The banner, which is why a code reached a person — and it was nine places,
+not one.** `_writeUiGatewayError` builds its Error with the code as the message,
+so any inline `catch (e) { ...e.message... }` that paints a banner paints the
+code. Kasper's three panel catches did. So did both review panes (four catches)
+and both card save chips. The DIALOG path never did — it has always gone through
+`_writeUiFailureText` / `WRITE_UI_FAILURE_CODE_TEXT`, the table
+`test/write-ui-failure-messages.js` pins — so the wording of a refusal had one
+home and nine callers were not using it. All nine now read
+`_writeUiFailureSentence`, which reads that table.
+
+Two things it deliberately does NOT do. A transport error carries a real
+sentence and no code, and passes through untouched. And a gateway error whose
+message was **overwritten on purpose** keeps its own sentence:
+`_writeUiLegacyDeliveryUnconfirmedError` sets one, because "Team delivery could
+not be confirmed. Your draft is preserved; retry." says more than its code's
+table entry ever could. The first version of the helper read the table first and
+destroyed that; `test/samples-legacy-save-order.js` failed on the exact
+sentence, which is the second time in this repair that an existing suite caught
+a fix rather than a defect. So the rule is narrow: only a message that IS the
+code gets replaced, and that is precisely the set `_writeUiGatewayError`
+produces.
+
+Two of the nine name the caught error `error` rather than `e`, and one of those
+survived the first sweep — found by the shape-based guard added to
+`test/caption-has-no-work-item.js`, not by reading.
+
+**One sibling, found on the way and fixed with it.** Both Kasper rollbacks
+restored `*_comments` but not the `*_tweaks` wire strings, and never
+`title_comments` at all — while `_calSetCommentsFor` writes both and
+`_calMigratePostShape` re-parses the array back OUT of the string on every load.
+So a refused note vanished from the pane and stayed in the string, and the next
+hydrate parsed it back onto a card whose write had been refused.
+`client_title_approved_at` had the same gap, cleared by
+`_calClearStaleApprovals` and restored by neither. One snapshot helper now
+covers both forms of all four components plus that stamp.
+
+**Not repaired here, and deliberately.** The mis-filed rows already in the
+canonical store are not migrated — they carry `component: 'video'` and are
+indistinguishable there from real video comments, so a cleanup would be guessing.
+The card row holds every one of those notes in `caption_tweaks` regardless, which
+is the copy the caption pane reads, so nothing is lost; what is wrong is that a
+video thread also has them. Sizing and clearing that is its own change.
+
+**Verification.** `test/caption-has-no-work-item.js` runs the real extracted
+writers in a vm on both card shapes and asserts: caption and title are accepted
+as source-only with zero gateway calls; graphic on the same card still commits
+through the gateway on its own team and deliverable; a VIDEO note with no video
+work item is **still** refused `native_link_required`, so the documented
+fail-closed refusal of 87.14 is untouched. It then re-runs the same two cases
+with the predicate replaced by one that always says "has a work item" — the
+**mutant** — and asserts the refusal and the mis-filing both come back, so the
+assertions are measuring the repair. 387 unit suites pass; nine writer harnesses
+that lift these functions into a vm now load the predicate beside them rather
+than stubbing it, so the rule under test is always the shipped one.
+
+---
+
+## 128. [2026-09-03, FIXED — script-only, live on merge; corrects 119 and 126] Third round on the deleted-issue tolerance, and this time the suite was asserting the wrong belief: `issue(id:)` is non-nullable, so one dead id nulls the WHOLE query root
+
+**The run that ended the guessing.** Run 33758558634 at 13:00Z, on the merged
+main that carried item 126's fix, threw at the same line as before:
+
+```
+Error: Linear GraphQL failed: HTTP 200 [{"message":"Entity not found: Issue","path":["i1"],
+  "extensions":{"type":"invalid input","code":"INPUT_ERROR","statusCode":400,"userError":true,...}}]
+    at linear (scripts/linear-deliverables-reconcile.js:170:11)
+    at async loadLinearIssuesById (scripts/linear-deliverables-reconcile.js:503:18)
+```
+
+The tolerance gate is a conjunction, so the cause is available by elimination
+without guessing: `resp.ok` (HTTP 200, in the message), `json` truthy (its
+errors were printed), `opts.tolerateNotFound` (the only call site passes it),
+`errors.length === 1`, and `errors.every(isEntityNotFoundError)` — which I ran
+against that exact captured object and which answers **true**. One conjunct is
+left. `json.data` was falsy.
+
+**Why.** `issue(id:)` is **non-nullable**. Per the GraphQL spec an error on a
+non-null field propagates its null to the nearest *nullable* parent, and for a
+top-level alias that parent is the query root. So a chunk of 35 with one
+unresolvable id does not come back as 34 issues and a null — it comes back as
+
+```
+{ "data": null, "errors": [ one entity-not-found ] }
+```
+
+Item 119 keyed on a `type` Linear never sends. Item 126 fixed the type and still
+required `json.data`. **Both were measured against a shape the wire does not
+produce**, which is the same mistake twice with a different field each time.
+
+**And the suite was holding the wrong belief in place.** One assertion read *"a
+response with no data at all throws — there is nothing partial to salvage"*. A
+response with no data is not a broken response, it is THE response for every
+chunk containing a deleted issue. That line passed through both earlier fixes
+and is what let each of them look verified. It is inverted here with this
+history written beside it, because the next session will otherwise read it and
+believe it.
+
+**Tolerating would not have been enough, and would have been worse.** With the
+root nulled, the 34 live issues in the chunk are absent too. A transport that
+merely stopped throwing would have handed the reconciler **1 of 35** issues and
+let it report the missing 34 as divergence — a silent wrong answer in place of a
+loud outage, on the lane whose entire job is to report divergence. So the loader
+now drops the aliases Linear named in an error `path` and **re-asks for the
+rest**. `pending` strictly shrinks each round (a round either answers cleanly or
+names at least one dead id), so it terminates; the round guard is a backstop.
+The common case — no deletions anywhere — is one request per chunk, exactly as
+before. The `RECONCILE_NOT_FOUND_CAP` bound from item 126 is unchanged in
+meaning but is now checked **per round**, because past the cap this is an access
+loss and re-asking a shrinking chunk 35 times over is just a slower way to
+reach the same refusal.
+
+**Verification.** `test/reconcile-tolerates-deleted-issue.js` drives the real
+extracted loader against a stub that nulls the root exactly as the API does —
+any query naming the dead id returns `{}` plus that one error, any query without
+it returns the issues. It asserts **34** issues returned, **2** requests (re-ask
+once, not id-by-id), and the dead id recorded from its error path. A loader that
+merely tolerated returns 1, so the assertion separates the two behaviours that
+the last two fixes could not.
+
+**Closure re-pinned** to `7619b30d…` from `git show HEAD:<path> | sha256sum`;
+`f27-reconciler-closure` green, 37 assertions.
+
+**Still unproven until it runs.** This is FIXED on paper exactly as 119 and 126
+were. The claim becomes true at the next scheduled run after merge and not
+before — and it is the third time, so it should be read that way.

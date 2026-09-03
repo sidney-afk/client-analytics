@@ -135,6 +135,10 @@ function extractBlock(text, start) {
     extractFunction('_prodCrosswalkKey'),
     extractFunction('_prodCrosswalkVerdict'),
     extractFunction('_prodCanonicalCommentGate'),
+    // The comment writer answers source-only for a component with no work
+    // item of its own (caption/title); the real predicate, not a stub, so the
+    // two cannot drift. OPEN_REPAIRS 127.
+    extractFunction('_writeUiComponentHasWorkItem'),
     extractFunction('_sxrPostLinearComment'),
     extractFunction('_writeUiCardCommentLifecycle'),
     extractFunction('_sxrCommentsFor'),

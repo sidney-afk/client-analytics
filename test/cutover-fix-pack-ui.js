@@ -363,6 +363,9 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
   };
   vm.createContext(switchRouteContext);
   vm.runInContext([
+    // The writers answer source-only for a component with no work item of its
+    // own (caption/title). Real predicate, not a stub. OPEN_REPAIRS 127.
+    extract('_writeUiComponentHasWorkItem'),
     extract('_writeUiSourceClientSlug'),
     extract('_writeUiUseGatewayWhenReady'),
     extract('_calLegacyPushStatusToLinear'),
@@ -448,6 +451,7 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     _calLegacyPushStatusToLinear: () => pendingCalls.push('legacy'),
   };
   vm.createContext(pendingRouteContext);
+  vm.runInContext(extract('_writeUiComponentHasWorkItem'), pendingRouteContext);
   vm.runInContext(extract('_calPushStatusToLinear'), pendingRouteContext);
   const pendingWrite = pendingRouteContext._calPushStatusToLinear('VID-1', 'Approved', {});
   await Promise.resolve();

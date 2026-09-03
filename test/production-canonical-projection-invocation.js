@@ -131,6 +131,9 @@ function makeApp(options) {
 
   vm.createContext(env);
   vm.runInContext([
+    // _writeUiNativeId asks _writeUiComponentHasWorkItem whether the component
+    // owns a deliverable at all (caption/title do not). OPEN_REPAIRS 127.
+    extractFunction('_writeUiComponentHasWorkItem'),
     extractFunction('_writeUiNativeId'),
     extractFunction('_prodCrosswalkTeamForComponent'),
     extractFunction('_prodCrosswalkCardSlug'),

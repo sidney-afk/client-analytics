@@ -10224,3 +10224,63 @@ from the function's start, so adding ~25 lines pushed half the assertions past
 the end and they failed as a block while reporting nothing about the code they
 guard. It now uses `extractFunction`, which exists in this repo for exactly that
 mistake.
+
+---
+
+## 139. [2026-09-03, WATCHER SHIPPED — test-only, no product change] The comment family's twin drift is now a check, after a written prediction failed three times
+
+Two entries describe the same defect from two angles, and both end in prose:
+
+- **105.3** — *"when one operation in a family routes differently from its
+  siblings, that difference is the bug, and this is the second time this family
+  has produced one."* ADD was the only comment operation without the fallback
+  its siblings had, on both surfaces; on Samples the staff add computed the gate
+  only `_isClientLink ? … : null`, so staff had none at all.
+- **117** — *"This is the third time this repo has repaired one of these two
+  surfaces and not its twin."* Item 87.3 had written the prediction down a month
+  earlier — *"whatever is done here must also be checked against the Samples
+  twin"* — and the very next repair missed the twin anyway.
+
+A prediction in prose has now failed three times on this exact family. This is
+the same prediction as a check: `test/comment-family-twin-parity.js`.
+
+**Why an asymmetry check and not a rule.** The calendar and Samples comment
+surfaces are twins by construction — the same six operations, the same
+canonical-vs-legacy decision, the same `_prodCanonicalCommentGate`:
+
+| operation | calendar | Samples |
+|---|---|---|
+| render the composer | `_calComposerHtml` | `_sxrComposerHtml` |
+| add a comment | `_calAppendComment` | `_sxrAppendComment` |
+| edit a comment | `_calSaveCommentEdit` | `_sxrSaveCommentEdit` |
+| resolve / unresolve | `_calToggleCommentDone` | `_sxrToggleCommentDone` |
+| delete a comment | `_calDeleteComment` | `_sxrDeleteComment` |
+| resolve the last tweak | `_calResolveLastTweak` | `_sxrResolveLastTweak` |
+
+Both failure modes are **asymmetries**, and asymmetry is checkable without
+deciding which predicate is right — which matters, because 105.3 also records
+that the right predicate DIFFERS by operation (`.linked` is correct for a READ
+and too wide for a WRITE, so ADD asks the crosswalk directly). A suite that
+asserted "use `.linked`" would have been wrong the day it shipped. This one
+asserts that the twins answer the same questions the same way, that no member
+routes blind, and that no member computes its gate behind the reader's role.
+
+**Three mutations, all killed, each naming what broke:** removing the gate from
+the Samples add (2 checks red — the symmetry and the floor), rewriting it to
+105.3's `_isClientLink ? … : null` shape (the role check), and renaming a twin
+so it no longer exists (the twin-exists check). The third one is why `survey()`
+catches `extractFunction`'s throw: a missing twin IS the drift, so it has to
+arrive as a named failing check and not as a stack trace that says nothing
+about which twin went.
+
+The detector for the role-guard shape is itself tested against the literal
+Samples defect and against correct code that reads a shared gate per role, so
+the six clean answers above are not six accidents.
+
+**Why this family and not another.** This is the client's path. A member that
+loses its fallback is a client who cannot leave a note, and each of the last
+three times that happened, nobody found out until the client said so — which is
+item 101's whole point.
+
+- Done when: it catches a fourth. Until then, it costs nothing and holds the
+  prediction that three prose warnings could not.

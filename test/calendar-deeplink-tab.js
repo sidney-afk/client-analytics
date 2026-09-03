@@ -71,12 +71,6 @@ function _calLoadClientFilters(){}
 function _calSavePrefs(){}
 function _calSyncUrlClient(){}
 function _calRefreshOrganize(){}
-/* _calResolvePendingDeepLink tells the reader when a link's client cannot be
-   resolved (owner report 2026-09-03: a silent fallback read as a broken link).
-   Stubbed here rather than guarded in the app: a missing dependency SHOULD
-   throw in this sandbox -- that is what this harness is for. */
-const notices = [];
-function showNotify(title, body){ notices.push(String(title) + ': ' + String(body)); }
 function _calRenderBody(){ calls.renderBody++; }
 function loadCalendarPosts(){ calls.loadCalendarPosts++; }
 ${grabConst('CAL_PINS_KEY')}
@@ -86,7 +80,7 @@ ${grabFunc('_calSavePins')}
 ${grabFunc('_calOpenClientTab')}
 ${grabFunc('_calResolvePendingDeepLink')}
 return {
-  _store, CAL_PINS_KEY, calls, notices,
+  _store, CAL_PINS_KEY, calls,
   _calGetPins, _calSavePins, _calOpenClientTab, _calResolvePendingDeepLink,
   get calState(){ return calState; },
   get pending(){ return _calPendingDeepLink; }, set pending(v){ _calPendingDeepLink = v; },

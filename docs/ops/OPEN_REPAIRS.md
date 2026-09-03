@@ -377,9 +377,15 @@ identically is the house convention, so this recurs.
 
 ## 6. [watch] Nightly E2E lanes: samples red 26 nights, calendar 16
 
-> **SUPERSEDED 2026-08-22 by item 25.** Read that first: neither lane is red in
-> the way this entry implies. Each fails on exactly ONE assertion inside an
-> otherwise green run, both causes are now diagnosed, and both are fixed.
+> **SUPERSEDED 2026-08-22 by item 25, and again 2026-09-03 by item 138.** Read
+> those first — this header's counts have been wrong since 2026-08-22 and the
+> lanes have moved twice more since. Item 25 diagnosed one assertion per lane
+> and fixed both; **item 138 read the actual runs and confirms both fixes
+> worked** — samples went GREEN on 2026-09-02 (run 62, its first success in the
+> visible history) and the calendar's p92 now passes. What is red today is not
+> what was red when this entry was written: samples on a fixed-sleep race in the
+> opt-out probe, the calendar on three probes that assert the pre-F1 video
+> link-paste contract.
 
 
 **2026-08-11 — TRIAGED. The nightly could not report its own failure.** Run
@@ -1888,6 +1894,11 @@ different ways in two different consumers, and the durable event ledger
 
 - Done when: the next samples nightly is green. The fix cannot be run locally —
   the lane needs the staff key and a live backend — so the nightly is the proof.
+- **ANSWERED 2026-09-03 by item 138: it went green.** Run 62, 2026-09-02 — the
+  lane's first success in its visible history, and `create_drag_reorder_persist`
+  passes. This half is DONE. Run 63 is red again on a different probe entirely
+  (`sxr_gating_flags`), diagnosed in item 138 as a fixed-sleep race and fixed
+  there; do not read that red as this entry re-opening.
 
 **Calendar E2E — fixed here too.** `1 of 68 probes FAILED after 3 attempts:
 p92_sxr_resolve_pill_inplace.js`, and the run printed exactly which assertions:
@@ -1926,6 +1937,11 @@ rather than of two changes at once. If it still fails on the same two
 assertions, the 400 ms is the next thing to replace with a bounded wait.
 
 - Done when: the next calendar nightly is green.
+- **ANSWERED 2026-09-03 by item 138 for THIS probe:** `p92_sxr_resolve_pill_inplace.js`
+  reports `pass=10 fail=0`. The linkage diagnosis was right and the 400 ms
+  residual risk recorded just above did not bite. The lane is still red, but on
+  three OTHER probes (`p77`, `p81`, `p86`), all failing on the pre-F1 video
+  link-paste contract — see item 138.
 
 ---
 

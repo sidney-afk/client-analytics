@@ -10189,6 +10189,38 @@ sandbox rather than guarded in the app, because a missing dependency SHOULD thro
 there. And `calendar-deep-link-focus.js` pinned the old copy sending the reader
 to the Organize filters, which the fix makes stale.
 
-**Testing.** Source assertions, and the file says plainly that they are the
-weaker kind: the focus path needs a painted DOM, a live client load and rAF
-timing. They pin the properties whose loss reproduces the report.
+**Two review findings, and the second was the more important fix in this entry.**
+
+1. *The clear ran against the wrong client.* The entry guard checks the client
+   ONCE, then the loop spans 40 frames, and `onCalClearFilters` writes and
+   PERSISTS against whatever client is current at that moment. Switching client
+   during that ~0.6 s would erase a bystander client's saved filters. The
+   request's client is now captured and re-checked at the only point that
+   mutates state.
+2. *A deep link could never paint on the deferred path, and the new fallback
+   made that worse.* `.cal-card` is emitted only by `renderCalOrganizer` — the
+   review, smmreview, month and week views emit none. Mount knows this
+   (`calState.view = _calFocusRequest ? 'organizer' : ...`) but that runs at
+   MOUNT, and the deferred path creates the focus request afterwards, via
+   `_calResolvePendingDeepLink`; `_calOpenClientTab` does not change the view.
+   So for an unseeded client — **two of the four cards in the owner's report** —
+   no card could paint, and the new fallback would clear that client's filters
+   for nothing, announce that filters had hidden the card, and still end on
+   "Card not shown". The link now switches to the Sheet before the frame budget
+   starts.
+
+**Testing.** Both findings are driven for REAL through the existing focus
+harness rather than pinned in source: arriving on `smmreview` switches the view
+and arriving on the Sheet does not churn it; a mid-wait client switch clears
+nobody's filters and says nothing; and the ordinary case still clears once and
+says so. The harness gained `calState.view`, `onCalViewChange`,
+`onCalClearFilters` and `_calOrganizeIsActive` — stubbed in the sandbox rather
+than guarded in the app, because a missing dependency should throw there.
+
+The remaining assertions are source-level and the file says plainly that they are
+the weaker kind: the rest of the focus path needs a painted DOM and a live client
+load. One of them was itself a defect — it sliced a fixed 6,000-character window
+from the function's start, so adding ~25 lines pushed half the assertions past
+the end and they failed as a block while reporting nothing about the code they
+guard. It now uses `extractFunction`, which exists in this repo for exactly that
+mistake.

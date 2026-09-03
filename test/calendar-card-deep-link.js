@@ -22,19 +22,30 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { extractFunction } = require('./helpers/extract-function.js');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let pass = 0, fail = 0;
 const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail++; console.log('  FAIL ' + m); } };
 
 // --- the focus path -------------------------------------------------------
-const focus = SRC.slice(SRC.indexOf('function _calApplyFocusRequest'),
-  SRC.indexOf('function _calApplyFocusRequest') + 6000);
+/* Extracted by brace matching, NOT a fixed character window. The first draft
+   sliced 6,000 characters from the function's start; adding ~25 lines to the
+   function pushed half the assertions past the end of the window and they all
+   failed at once, reporting nothing about the code they were meant to guard.
+   `extractFunction` is in this repo for exactly that reason. */
+const focus = extractFunction(SRC, '_calApplyFocusRequest');
 
 ok(/let clearedFilters = false;/.test(focus),
   'the focus path can clear the filters that hid the card');
-ok(/if \(!clearedFilters && typeof _calOrganizeIsActive === 'function' && _calOrganizeIsActive\(\)\)/.test(focus),
-  'it only clears when filters are actually active — a default view is never disturbed');
+{
+  /* Asserted as a property over the guard, not as one exact line: the guard
+     grew a client re-check (below) and a punctuation-exact pin would have
+     failed for that alone, which teaches people to edit pins. */
+  const guard = focus.slice(focus.indexOf('if (!clearedFilters'), focus.indexOf('onCalClearFilters()'));
+  ok(/_calOrganizeIsActive\(\)/.test(guard) && /typeof _calOrganizeIsActive === 'function'/.test(guard),
+    'it only clears when filters are actually active — a default view is never disturbed');
+}
 ok(/clearedFilters = true;[\s\S]{0,80}framesWaited = 0;/.test(focus),
   'and it restarts the frame budget, so the card gets a fresh chance to paint');
 ok(/onCalClearFilters\(\)/.test(focus),
@@ -57,6 +68,32 @@ ok(/showNotify\('Card not shown'/.test(focus),
   const notShown = focus.slice(focus.indexOf("showNotify('Card not shown'"), focus.indexOf("showNotify('Card not shown'") + 300);
   ok(!/Organize filters/.test(notShown),
     'and it no longer tells the reader to check filters the code just cleared');
+}
+
+// --- two review findings, both real, both verified against source ---------
+/* Codex on PR #1251. Neither was cosmetic: the second would have made the fix
+   WORSE than the bug on exactly the links that prompted the report. */
+ok(/if \(calState\.view !== 'organizer'\) onCalViewChange\('organizer'\);/.test(focus),
+  'a deep link switches to the Sheet, the only view that renders .cal-card');
+{
+  // Mount forces the Sheet only when the focus request already exists. The
+  // deferred path (an unseeded client) creates it AFTER mount, so without this
+  // the card could never paint and the filter fallback would fire for nothing.
+  const view = focus.indexOf("onCalViewChange('organizer')");
+  const loop = focus.indexOf('const focusWhenPainted');
+  ok(view > 0 && view < loop,
+    'and it does so BEFORE the frame budget starts, not after it has been spent');
+}
+ok(/const focusClient = req\.client;/.test(focus),
+  'the request\'s client is captured, not re-read from global state 40 frames later');
+ok(/if \(!focusClientStillActive\(\)\) return;/.test(focus),
+  'a client switch mid-wait abandons the focus instead of acting on the new client');
+{
+  // onCalClearFilters writes AND PERSISTS against whatever client is current.
+  // Clearing without re-checking would erase a bystander client's saved filters.
+  const clearGuard = focus.slice(focus.indexOf('if (!clearedFilters'), focus.indexOf('if (!clearedFilters') + 200);
+  ok(/focusClientStillActive\(\)/.test(clearGuard),
+    'and the clear itself re-checks the client, because it persists to that client\'s prefs');
 }
 
 // --- the unresolved-slug path --------------------------------------------

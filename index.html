@@ -35383,12 +35383,40 @@
          * Organize menu's own Clear uses, so ordering mode survives untouched
          * and the change persists exactly as a manual clear would. */
         let clearedFilters = false;
+        /* A card only paints in the Sheet. `renderCalOrganizer` is the one branch
+         * that emits `.cal-card`; review, smmreview, month and week emit none.
+         *
+         * Mount already knows this — `calState.view = _calFocusRequest ?
+         * 'organizer' : _calResolveInitialView(prefs.view)` — but that runs at
+         * mount, and the DEFERRED path (a client not in the 30-name seed, whose
+         * slug only resolves once `fetchAll` folds in the roster) creates the
+         * focus request AFTER mount, via `_calResolvePendingDeepLink`. By then
+         * the saved view has been restored and `_calOpenClientTab` does not
+         * change it. So on exactly the links that take the slow path, no card
+         * could ever paint, and the filter fallback below would clear a saved
+         * view's filters for nothing, announce that filters had hidden the card,
+         * and still end on "Card not shown" — worse than before the fix.
+         *
+         * Caught by review; the two cards in the owner's report that belong to
+         * unseeded clients are precisely this case. */
+        if (calState.view !== 'organizer') onCalViewChange('organizer');
+        /* The entry guard above ran ONCE. This loop then spans up to 40 frames,
+         * and `onCalClearFilters` writes and PERSISTS whatever client is current
+         * at that moment, not the one this request was for. Switching client
+         * mid-wait would therefore erase a bystander client's saved filters. So
+         * the client is captured here and re-checked at the only point that
+         * mutates state. */
+        const focusClient = req.client;
+        const focusClientStillActive = () =>
+            wlNormalizeClient(calState.client) === wlNormalizeClient(focusClient);
         const focusWhenPainted = () => {
+            if (!focusClientStillActive()) return;   // the reader moved on; leave their calendar alone
             const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
             const card = document.querySelector('.cal-card[data-pid="' + safe + '"]');
             if (!card) {
                 if (++framesWaited < CAL_FOCUS_MAX_FRAMES) { requestAnimationFrame(focusWhenPainted); return; }
-                if (!clearedFilters && typeof _calOrganizeIsActive === 'function' && _calOrganizeIsActive()) {
+                if (!clearedFilters && focusClientStillActive()
+                    && typeof _calOrganizeIsActive === 'function' && _calOrganizeIsActive()) {
                     clearedFilters = true;
                     framesWaited = 0;
                     onCalClearFilters();

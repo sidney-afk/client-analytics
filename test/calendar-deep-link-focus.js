@@ -61,14 +61,26 @@ function harness(options) {
     addEventListener: () => log.push('outside-listener'),
   };
   const notified = [];
+  const viewChanges = [];
+  const cleared = [];
+  /* calState carries a view now, because a card only paints in the Sheet and
+     the deferred deep-link path arrives with whatever view the client saved. */
+  const calState = {
+    client: 'Client',
+    view: opts.view === undefined ? 'organizer' : opts.view,
+    monthFilter: opts.monthFilter === undefined ? 'all' : opts.monthFilter,
+    statusFilter: 'all',
+    posts: [{ id: 'p_other', name: 'Other' }, { id: 'p_target', name: 'April 8th - Reel 14' }],
+  };
   const fn = new Function(
     '_calFocusRequest', 'calState', 'wlNormalizeClient', 'showNotify',
     'requestAnimationFrame', 'document', 'window', 'setTimeout',
     '_calClearFocusHighlight', '_calFocusOutsideHandler',
+    'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive',
     src + '\nreturn _calApplyFocusRequest;',
   )(
     { client: 'Client', cardId: 'p_target' },
-    { client: 'Client', posts: [{ id: 'p_other', name: 'Other' }, { id: 'p_target', name: 'April 8th - Reel 14' }] },
+    calState,
     v => String(v || '').toLowerCase(),
     (title, body) => notified.push(title + '|' + body),
     cb => frames.push(cb),
@@ -77,10 +89,13 @@ function harness(options) {
     (cb, ms) => timers.push({ cb, ms }),
     () => log.push('clear-highlight'),
     () => {},
+    v => { viewChanges.push(v); calState.view = v; },
+    () => { cleared.push(calState.client); calState.monthFilter = 'all'; },
+    () => calState.monthFilter !== 'all' || calState.statusFilter !== 'all',
   );
   fn();
   return {
-    log, notified, card, timers,
+    log, notified, card, timers, viewChanges, cleared, calState,
     runFrames(n) { for (let i = 0; i < n; i++) { frameNo++; const queued = frames.splice(0); queued.forEach(cb => cb()); } },
     runTimers() { timers.splice(0).forEach(t => t.cb()); },
     pendingFrames: () => frames.length,
@@ -157,8 +172,50 @@ function harness(options) {
     'a repaint that replaced the card cannot make the correction scroll to a detached node');
 }
 
+/* ── Two review findings from PR #1251, driven for real ─────────────────
+   Both were verified against source before being fixed, and the second would
+   have made the fix WORSE than the bug on exactly the links that prompted the
+   owner's report — an unseeded client's card link, where the focus request is
+   created after mount and the saved view is therefore still in place. */
+{
+  // A card only paints in the Sheet. Arriving on any other view must switch.
+  const h = harness({ view: 'smmreview', appearsAtFrame: 1 });
+  h.runFrames(5);
+  ok(h.viewChanges[0] === 'organizer',
+    'arriving on a non-Sheet view switches to the Sheet, where cards render');
+  ok(h.calState.view === 'organizer', 'and the view actually ends up there');
+}
+{
+  // Already on the Sheet: nothing to switch, and switching would re-render for free.
+  const h = harness({ view: 'organizer', appearsAtFrame: 0 });
+  h.runFrames(3);
+  ok(h.viewChanges.length === 0,
+    'a link that already lands on the Sheet does not churn the view');
+}
+{
+  // The clear persists to whatever client is current, so a mid-wait client
+  // switch must abandon rather than erase a bystander's saved filters.
+  const h = harness({ appearsAtFrame: null, monthFilter: '2026-04' });
+  h.runFrames(10);
+  h.calState.client = 'Someone Else';
+  h.runFrames(60);
+  ok(h.cleared.length === 0,
+    'a client switch mid-wait abandons the focus and clears NOBODY\'s filters');
+  ok(h.notified.length === 0,
+    'and it says nothing, because the reader has already moved on');
+}
+{
+  // The ordinary case still works: filters hid the card, so clear them once.
+  const h = harness({ appearsAtFrame: 45, monthFilter: '2026-04' });
+  h.runFrames(60);
+  ok(h.cleared.length === 1, 'filters that hid the card are cleared exactly once');
+  ok(h.notified.some(n => /Filters cleared/.test(n)), 'and the reader is told');
+}
+
+
 if (failures) {
   console.error(`\n${failures} calendar deep-link focus check(s) failed`);
+
   process.exit(1);
 }
 console.log('\ncalendar deep-link focus checks passed');

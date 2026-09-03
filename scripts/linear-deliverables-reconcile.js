@@ -109,7 +109,21 @@ function isEntityNotFoundError(err) {
      shape keeps failing the run. */
   const type = String(err.type || (err.extensions && err.extensions.type) || '').toLowerCase();
   const message = String(err.message || '');
-  if (type && type !== 'entitynotfound' && type !== 'entity_not_found') return false;
+  /* THE TYPE LINEAR ACTUALLY SENDS. The first version of this gate accepted
+     only `entitynotfound`, which is the name of the condition, not the name
+     Linear puts on the wire. A deleted issue comes back as
+       extensions: { type: "invalid input", code: "INPUT_ERROR", userError: true }
+     with the message "Entity not found: Issue" -- and the gate refused it, so
+     the tolerance shipped for item 119 tolerated nothing. The reconciler was
+     red for another 21 hours on the exact error it had just been taught to
+     accept, and the fix was measured against a guessed shape rather than a
+     captured one. The gate stays -- an AuthenticationError wearing this
+     message must still fail the run -- it just now admits the real shape. */
+  // `invalid input` is the label Linear's GraphQL layer puts on an
+  // unresolvable id. Inline rather than a module constant: the suite
+  // extracts this function on its own into a VM, as every suite here does.
+  const notFoundTypes = ['entitynotfound', 'entity_not_found', 'invalid input'];
+  if (type && !notFoundTypes.includes(type)) return false;
   return /^entity not found:\s*issue\b/i.test(message);
 }
 
@@ -502,6 +516,22 @@ async function loadLinearIssuesById(ids) {
       if (m && chunk[Number(m[1])]) LINEAR_ISSUES_NOT_FOUND.add(chunk[Number(m[1])]);
     }
     if (PAGE_DELAY_MS) await sleep(PAGE_DELAY_MS);
+  }
+  /* A FEW MISSING IS DELETION. MOST MISSING IS AN ACCESS LOSS, AND LOOKS
+     IDENTICAL ON THE WIRE. Linear answers `Entity not found: Issue` for an id
+     that was deleted and for an id this key simply cannot see -- a team made
+     private, a workspace the key does not cover, a wrong uuid. Review on PR
+     #1244 caught that the per-error tolerance cannot tell those apart, so a
+     key removed from the Video team would make every alias "not found", the
+     run would go GREEN, and the health gate would page "hundreds of issues
+     deleted" instead of "reconciler cannot read Linear". The tolerance exists
+     for item 119, which was ONE issue. So it is bounded: past the cap the run
+     fails loudly again, which is what it did before the tolerance existed. */
+  const notFoundCap = Math.max(1, Number(process.env.RECONCILE_NOT_FOUND_CAP || 10) || 10);
+  if (LINEAR_ISSUES_NOT_FOUND.size > notFoundCap) {
+    throw new Error(`Linear answered "Entity not found" for ${LINEAR_ISSUES_NOT_FOUND.size} of ${unique.length} issue ids `
+      + `(cap ${notFoundCap}). That is an access loss or a key on the wrong workspace, not a deletion -- `
+      + 'refusing to reconcile against a Linear this key cannot read. Set RECONCILE_NOT_FOUND_CAP to raise the cap for a known bulk deletion.');
   }
   return out;
 }

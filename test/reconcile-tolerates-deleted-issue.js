@@ -29,6 +29,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { extractFunction } = require('./helpers/extract-function.js');
 
 const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'linear-deliverables-reconcile.js'), 'utf8');
 let failures = 0;
@@ -70,11 +71,22 @@ function callLinear(response, opts) {
   return vm.runInContext(`linear('query {}', ${JSON.stringify(opts || null)})`, ctx);
 }
 
+/* THE SHAPE LINEAR ACTUALLY SENDS for a deleted issue, captured verbatim from run
+   33747354167 (2026-09-03 11:00Z). Every fixture that drives the real linear()
+   below carries it: the review pass on PR #1244 showed that with bare
+   { message, path } fixtures, a transport that refused every INPUT_ERROR would
+   still have passed this suite — the same guessed-vs-captured gap that kept
+   the reconciler red for 21 hours after item 119. */
+const wireNotFound = alias => ({
+  message: 'Entity not found: Issue', path: [alias], locations: [{ line: 12, column: 1 }],
+  extensions: { type: 'invalid input', code: 'INPUT_ERROR', statusCode: 400, userError: true,
+    userPresentableMessage: 'Could not find referenced Issue.' },
+});
 const NOT_FOUND = {
   ok: true, status: 200,
   body: {
     data: { i0: { id: 'kept' }, i1: null },
-    errors: [{ message: 'Entity not found: Issue', path: ['i1'] }],
+    errors: [wireNotFound('i1')],
   },
 };
 
@@ -105,7 +117,8 @@ const NOT_FOUND = {
     ok: true, status: 200,
     body: {
       data: { i0: { id: 'kept' } },
-      errors: [{ message: 'Entity not found: Issue', path: ['i1'] }, { message: 'Something else', path: ['i2'] }],
+      errors: [wireNotFound('i1'), { message: 'Something else', path: ['i2'],
+        extensions: { type: 'ratelimited', code: 'RATELIMITED', statusCode: 429 } }],
     },
   };
   {
@@ -114,7 +127,7 @@ const NOT_FOUND = {
     ok(threw, 'a MIXED error set throws — tolerance requires EVERY error to be a not-found');
   }
   {
-    const noData = { ok: true, status: 200, body: { errors: [{ message: 'Entity not found: Issue', path: ['i0'] }] } };
+    const noData = { ok: true, status: 200, body: { errors: [wireNotFound('i0')] } };
     let threw = false;
     try { await callLinear(noData, { tolerateNotFound: true }); } catch (e) { threw = true; }
     ok(threw, 'a response with no data at all throws — there is nothing partial to salvage');
@@ -125,6 +138,15 @@ const NOT_FOUND = {
   vm.runInContext(grabFunc('isEntityNotFoundError'), ctx);
   const isNF = e => vm.runInContext(`isEntityNotFoundError(${JSON.stringify(e)})`, ctx);
   ok(isNF({ message: 'Entity not found: Issue', path: ['i0'] }), 'matches the message Linear actually sent');
+  /* THE SHAPE LINEAR ACTUALLY RETURNS, captured verbatim from the failed run of
+     2026-09-03 11:00Z (run 33747354167). The first version of this suite only
+     ever tested the shape the guard was written FOR, so the guard passed its
+     tests and refused every real deletion for 21 hours. This fixture is the
+     one that matters; the ones below it are the edges. */
+  ok(isNF({ message: 'Entity not found: Issue', path: ['i1'], locations: [{ line: 12, column: 1 }],
+    extensions: { type: 'invalid input', code: 'INPUT_ERROR', statusCode: 400, userError: true,
+      userPresentableMessage: 'Could not find referenced Issue.' } }),
+    'matches the error Linear ACTUALLY sends for a deleted issue -- type "invalid input", captured from a real run');
   ok(isNF({ type: 'EntityNotFound', message: 'Entity not found: Issue', path: ['i7'] }),
     'accepts the machine field alongside the message');
   ok(!isNF({ type: 'AuthenticationError', message: 'Entity not found: Issue', path: ['i0'] }),
@@ -216,6 +238,52 @@ const NOT_FOUND = {
     'and the branch they land in still raises outbound_issue_missing');
   ok(/native_create_context_missing/.test(LIB),
     'with the repair entry that says what to do about it');
+
+  /* ---- BOUNDED: a few not-found is deletion, most not-found is access loss --
+   *
+   * Review on PR #1244: Linear's wire shape for a deleted issue is byte-identical
+   * to its shape for an issue this key cannot see. Unbounded, the tolerance would
+   * turn a key removed from a team into a green run reporting mass deletion. So
+   * the loader runs for real here, against a stubbed `linear`, and the cap is
+   * asserted from the outside: one miss passes, a whole chunk of misses throws. */
+  {
+    // The shared extractor anchors on `function name(` and so drops the
+    // `async` that precedes it; without it the body's awaits are a SyntaxError.
+    const loaderSrc = 'async ' + extractFunction(SRC, 'loadLinearIssuesById');
+    const mk = missing => {
+      const ctx = vm.createContext({ console, Promise, Map, Set, Array, Number, String, Math, Error, process: { env: {} } });
+      vm.runInContext(`
+        const LINEAR_ISSUES_NOT_FOUND = new Set();
+        const PAGE_DELAY_MS = 0;
+        const clean = v => String(v == null ? '' : v).trim();
+        const safeGraphqlString = v => JSON.stringify(String(v));
+        const issueFields = () => 'id';
+        const sleep = () => Promise.resolve();
+        // Every alias resolves except the first MISSING of each chunk, which come
+        // back exactly as Linear sends them.
+        async function linear(query, opts) {
+          const n = (query.match(/i\\d+: issue/g) || []).length;
+          const data = {};
+          for (let i = 0; i < n; i++) {
+            if (i < ${missing}) opts.collectNotFound.push({ message: 'Entity not found: Issue', path: ['i' + i], extensions: { type: 'invalid input', code: 'INPUT_ERROR' } });
+            else data['i' + i] = { id: 'x' + i };
+          }
+          return data;
+        }
+      `, ctx);
+      vm.runInContext(loaderSrc, ctx);
+      return ctx;
+    };
+    const ids = Array.from({ length: 35 }, (_, i) => 'id-' + i);
+    let one; try { one = await vm.runInContext('loadLinearIssuesById', mk(1))(ids); } catch (e) { one = e; }
+    ok(one instanceof Map && one.size === 34,
+      'ONE missing issue in a chunk of 35 is tolerated -- the run proceeds with the other 34 (item 119)');
+    let all; try { all = await vm.runInContext('loadLinearIssuesById', mk(35))(ids); } catch (e) { all = e; }
+    ok(all instanceof Error && /access loss|cannot read/.test(all.message),
+      'EVERY issue missing throws, and the message says access loss rather than deletion: ' + String(all && all.message).slice(0, 80));
+    ok(all instanceof Error && /RECONCILE_NOT_FOUND_CAP/.test(all.message),
+      'and names the env override, so a known bulk deletion can be reconciled without a code change');
+  }
 
   /* ---- no other caller was loosened --------------------------------------- */
   const optIn = (SRC.match(/tolerateNotFound: true/g) || []).length;

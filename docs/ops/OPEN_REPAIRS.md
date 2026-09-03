@@ -9204,6 +9204,10 @@ in that shape owes the reader a sentence about which tree it read, because
 "passed" and "passed against your change" are different claims and nothing in the
 output distinguished them.
 
+**Addendum, later the same day:** the tolerance described above never matched
+what Linear actually sends, so this item's FIXED did not hold — see item 126
+for the second fix, the cap on it and the closure re-pin.
+
 ---
 
 ## 120. [2026-09-03, FIXED — browser-only, live on merge] The sixth round of the deep-link bug, and the first one caught by an actual browser: on refresh the pane said "Deliverable not found" for a second and a half about a row that was fine
@@ -9287,3 +9291,559 @@ reappeared at the next exit from the same room. The count of exits was never
 established. This round finally replaced the flags with the *question* — which
 is why the eviction gate and the pane now share one predicate instead of two
 copies of an approximation.
+
+---
+
+## 121. [2026-09-03, MEASURED — one fix shipped, one change built and REJECTED] The SyncLinear boot, audited end to end: what it actually costs, the one silent-loss bug in it, and the optimisation that turns out to hurt the person it was meant to help
+
+Owner asked for a boot audit — "faster, more efficient, smarter". This is the
+measurement, the one repair it turned up, and, at more length than usual, the
+change that looked like the obvious win and is not. **Read the REJECTED section
+before optimising this boot again**; it cost a night to find and would be
+re-derived by anyone who measures only from a fast connection.
+
+### What the boot actually costs (measured 2026-09-03, live)
+
+| | |
+|---|---|
+| deliverable rows | 6,252 — 2,225 live, 4,027 terminal |
+| terminal half | approved 3,174 · posted 781 · canceled 69 · duplicate 3 · **archived 0** |
+| one 1,000-row page | 1.65 MB JSON, **242 KB on the wire** (gzip is on) |
+| deliverable page reads | 8, strictly sequential (3 live + 5 terminal) |
+| server page cap | **1,000 rows, and `limit` cannot raise it** — 2000/5000/10000 all return 1,000 |
+| backend requests per boot | 21 (now 18) |
+
+Bandwidth is NOT the problem — the whole projection is ~1.5 MB gzipped. **Serial
+round trips are.** With a 300 ms backend the tail did not even ISSUE until
+3,217 ms into the boot, and the boot completed at 6,770 ms.
+
+Three ideas died on measurement, recorded so nobody re-derives them:
+
+- **Raise the page size** — impossible, the server caps at 1,000 regardless of `limit`.
+- **Skip archived rows at boot** — there are none; `archived` in the filter is free.
+- **Cache both halves so a warm boot is instant** — both halves pack to 4.78 M chars against a 2.4 M budget (`PROD_CACHE_MAX_CHARS`), i.e. **199% of it**, and localStorage is shared with the calendar and samples snapshots. Dead.
+
+### FIXED: the boot paged `batches` on a non-unique key, which can silently lose one
+
+`_prodRestRows('batches', …, 'order=created_at.desc')` paged with OFFSET.
+`created_at` **is not unique here**: 85 of 1,665 batches share a timestamp with
+another batch, in 39 groups of up to 5.
+
+PostgreSQL guarantees no order within a tie, and no two executions need resolve
+one the same way. OFFSET paging asks twice — `offset=0`, then `offset=1000` — so
+a tie group lying across the boundary can return a row in both pages or **in
+neither**. Nothing raises. "In neither" is a filming day missing from
+SyncLinear, which is the one failure a user cannot report accurately: it arrives
+as "it's not in the list".
+
+It has not bitten yet only because today's boundary falls between two distinct
+timestamps. That is luck, and it moves every time a batch is created.
+
+Fixed by paging that read by primary key — the same keyset walk, for the same
+reason, already used by the deliverable projection. `id` is unique, so the bug
+cannot be expressed. Safe because batch arrival order is not load-bearing:
+`_prodAdapter` keys them into a map by id and `_prodPreserveProjectedFields`
+merges by id. **Proven rather than assumed** — the real app booted over the same
+rows in server order and in a shuffled order produced an identical batch set,
+issue set and rendered list.
+
+It also removes real waste. The offset pager fires page 0 then bursts four more,
+so 1,665 rows cost **five requests to read two pages**: `offset=2000/3000/4000`
+each returned two bytes after a full ORDER BY / OFFSET scan (~0.8 s of database
+time per boot, measured). Now 2 requests.
+
+EQUIVALENCE PROVEN ON THE LIVE TABLE, not only on captured rows: the old pager
+(OFFSET + `created_at.desc` + the four-wide burst) and the new one (keyset by
+`id`) were run against `batches` side by side, three times. Both return the same
+1,665 rows, all unique, **zero only-in-old and zero only-in-new**. So the change
+is a no-op on data and a reduction in requests — which is what makes it safe to
+land without a probe run this sandbox cannot perform. Guarded by
+`test/prod-batches-keyset-paging.js`, which pins the class as well as the
+instance: every `created_at` ordering in the file must carry a unique tiebreak.
+
+Checked and CLEAR, so it is not repaired: `deliverable_events` pages `ts.desc`
+30-at-a-time and would have the same shape, but a 1,000-event sample contains
+**zero** `(deliverable_id, ts)` ties.
+
+### REJECTED: starting the terminal read beside phase one — 31% faster here, 21% slower for the editor it was built for
+
+The obvious win. The two halves are independent filters over one view and share
+no input, yet the tail is only *called* after phase one resolves, so it idles
+for seconds. Built, measured on a replay of the real 6,252 rows:
+
+```
+                 board usable      complete
+before              2,505 ms       5,975 ms
+after               2,332 ms       4,118 ms      -31%
+```
+
+Both metrics better, identical eight reads, identical 6,252 rows. Six rounds
+against the live endpoint: zero non-200s, no short reads. It looked finished.
+
+**`test/prod-two-phase-boot-read.js` failed, and it was right.** The two-phase
+split exists because of a live report on 2026-08-31 — an editor on a slow
+connection, SyncLinear "super lento". The guard's own words: *starting it first
+would put the archive back in front of the reader.*
+
+A datacenter cannot see that, because bandwidth there is effectively infinite
+and two overlapping reads cost nothing. Re-measured with bandwidth modelled as a
+fair-share bucket — every in-flight response draining one budget, which is the
+entire mechanism by which a second read can hurt:
+
+```
+1 Mbps           board usable      complete
+before             15,823 ms      32,290 ms
+after              19,091 ms      19,091 ms
+```
+
+**The board becomes usable 3.3 s LATER.** Time-to-complete halves and
+time-to-interact regresses 21% — the archive taking half the pipe from the work
+somebody is waiting on. That is the exact trade the split was created to
+prevent, for the exact user it was created for.
+
+Reverted. Not gated on `navigator.connection` either: a fetch schedule that
+varies by measured link speed is a behaviour that differs per person and
+reproduces for nobody, which is a worse bug than the one it buys.
+
+**The lesson worth keeping:** the boot's serialisation is not an oversight, it
+is the design. Optimising it means finding work to REMOVE, not work to overlap —
+and any future attempt must be measured under constrained bandwidth before it is
+believed.
+
+---
+
+## 122. [2026-09-03] The absence-is-not-evidence sweep: every lazy read on the Production surface, checked against the shape that produced items 107, 108, 116, 119 and 120
+
+Owner's second goal for the night: *"make sure you found the root problem, make
+sure it wouldn't happen in another instance or somewhere else."*
+
+### The root, stated once
+
+Five of today's repairs are one defect wearing different clothes: **a
+three-valued question stored in a two-valued variable.** "Is X here?" has three
+honest answers — YES, NO, and I-HAVE-NOT-LOOKED-YET (or I-LOOKED-AND-THE-READ-
+FAILED) — and every one of these bugs collapsed the third into the second.
+Absence was read as evidence when the collection was merely incomplete.
+
+That is why the deep-link bug took five rounds (108 → 116 → 120): each fix
+repaired the exit where it was reported, and the number of exits was never
+enumerated. The cure is not a better fix at each exit; it is one shared
+completeness predicate that every exit consults.
+
+### The sweep, and what it found
+
+Every lazy per-row read on the Production surface, checked for whether it can
+tell NOT-YET and FAILED apart from GENUINELY-NONE:
+
+| read | third state? | verdict |
+|---|---|---|
+| assets | yes — `status`/`complete`/`error`, per-asset `checking`/`available`/`missing`/`unavailable` | **clear**, and already carries the exact reasoning ("Saying Missing asserts a fact about the world that is false; Unavailable asserts a fact about the reader, which is true") |
+| labels | yes — settles explicitly, own error text, Retry | **clear** |
+| comments | yes — repaired 2026-08-31 after a thread sat on a skeleton with no error and no Retry | **clear** |
+| descriptions | yes — `idle`/`stale`/`ready` plus `refreshError` | **clear** |
+| batch files | yes — `batchFilesStatus` companion map | **clear** |
+| deep link / detail pane | yes — `_prodRowSetComplete()` as of item 120 | **clear** |
+| **deliverable events** | **no** | see below |
+
+So the surface is in far better shape than today's run of bugs suggests. Six of
+seven lazy reads already carry the third state, several with comments showing
+the lesson was learned there first. The pattern is not endemic; it is one
+straggler.
+
+### The straggler, measured honestly
+
+`_prodLoadEventsFor` writes `[]` at three different moments: before the read
+starts, on success-with-no-rows, and in its `catch`. All three are then
+indistinguishable, and `_prodState.events.has(id)` blocks any retry, so a
+transient failure is sticky for the whole session.
+
+**But the user-visible damage is smaller than that sounds, and the first version
+of this entry overstated it.** `_prodActivity()` — which renders the definite
+sentence "No activity yet." — is **dead code**: one definition, zero call sites.
+The only live consumer is `_prodStatusBreakdown`, which returns `''` when it has
+no status changes. So a failed events read does not state a falsehood; it makes
+the status-history strip **silently disappear** and not come back. That is the
+milder half of the family, though still the half AGENTS.md warns about: an
+absence is the failure a user cannot report accurately.
+
+**Deliberately NOT repaired tonight**, and the reason matters more than the
+repair would: `_prodLoadEventsFor` is called from `_prodRender`. Any fix that
+lets a failed read be retried without a cooldown turns one failing backend into
+a render loop hammering it — strictly worse than a missing strip. The correct
+repair is a status companion plus retry-on-explicit-open (the shape labels and
+comments already use), which is a considered change, not an unattended one.
+
+Note for whoever wires up `_prodActivity`: it inherits the conflation the moment
+it is called. Give it the third state in the same change.
+
+### The same question asked of the WHOLE app, not just Production
+
+The table above covers one surface. The owner asked whether this happens
+"somewhere else", so the mechanism itself was swept across all 74k lines: a
+`catch` body that writes an EMPTY collection into shared UI state, which a
+render then reads as fact. Brace-matched catch bodies, not a line window.
+
+**Result: two sites in the entire app.** `calState.posts = []` (which records a
+failure alongside it — clear) and `_prodState.events.set(id, [])` (which does
+not — the straggler above). That is the whole population.
+
+So the honest answer to "could this be somewhere else" is **no** — the five
+bugs today came from one surface's boot sequencing, not from a habit spread
+through the codebase.
+
+Two false starts are worth recording, because both are the same mistake this
+entry is about:
+
+- A first pass matched 139 sites by grepping for `catch` near `return []`.
+  Almost all were pure parse helpers where a failed `JSON.parse` genuinely means
+  "no value" and the caller handles it. A grep is not a finding.
+- A second pass narrowed to shared state and reported 8, including
+  `_prodState.createCatalog = []` — which turned out to be a **teardown**
+  routine, with the assignment in the `try` and an empty `catch`. The detector
+  had scanned a ten-line window forward from the `catch` keyword and run past
+  the end of the block: the exact fixed-window error the guard shipped in this
+  same entry exists to prevent, made while writing it. Brace-matching the catch
+  body took 8 down to 2.
+
+### Guard shipped instead: the class the TESTS keep failing at
+
+While sweeping, the same root turned up one level up — in the assertions.
+`test/test-window-integrity.js` now pins it.
+
+A suite that writes `source.slice(at, at + 1800)` claims the code it cares about
+is inside that window AND that nothing else is. The second claim was never
+checked, and the number is not a property of anything. Both directions were live
+today:
+
+- **OVERRUN** — `write-ui-writer-durability.js` scoped 1,800 characters onto
+  `_sxrReviewOnDraftInput`, which is 1,021 long: 779 characters of the NEXT
+  function sat inside the assertion's reach. Both matches happen to be inside
+  their own function today, so nothing was actually wrong — but the assertion
+  could not tell, and moving that line one function down would have kept it
+  green. OPEN_REPAIRS 111's shape, through a different door.
+- **UNDERSHOOT** — `production-deep-link-survives-cache.js` scoped 9,000
+  characters onto `_prodLoadData`. Adding a comment to that function pushed the
+  asserted call past the boundary and turned a true statement red. Behaviour
+  never changed.
+
+Both now scope by `test/helpers/extract-function.js`, which reads the real
+extent. The guard measures every function-anchored window in the suite against
+its function's true length, and **proves itself on a fixture first** — a guard
+whose only subjects have already been fixed would pass just as happily with its
+detection broken, which is exactly how `prod-terminal-tail-settles.js` scored
+today's bug a green earlier in the day. 16 further windows are anchored on a
+region rather than a function; those are counted and reported, not failed,
+because this check cannot know where a region ends and a rule built on a guess
+is the thing it exists to prevent.
+
+---
+
+## 123. [2026-09-03, GUARD SHIPPED + one report CLOSED as not-reproducible] The deep-link exits are now enumerable, and the reported issue resolves fine — including a wrong number this session produced on the way there
+
+### The guard: counting the exits, since not counting them is what cost five rounds
+
+Items 108 → 116 → 120 are one defect fixed three times, plus two more attempts
+in between. Every post-mortem says the same thing: the fix repaired the exit
+where it was reported, and **nobody counted the exits**. Gate the eviction and it
+surfaces in the detail pane; gate the pane and it surfaces on a failed tail; gate
+that and it surfaces before any tail has run.
+
+`test/prod-not-found-exits-enumerated.js` makes the set enumerable. The rule: a
+Production pane may print "… not found." only from a function that has consulted
+`_prodIncompletePaneHTML()`. It finds all three live exits today —
+`_prodDetail`, `_prodProjectDetail`, `_prodBatchDetail` — and fails if a fourth
+appears ungated. It also pins the chain underneath: the helper must still answer
+from `_prodRowSetComplete()`, and that must still be all three terms (a landed
+tail, none pending, none failed), so gating on it cannot decay into ceremony.
+
+Like the other guard shipped today it **proves its own detection on a fixture**
+before it is allowed to report on the app — a gated pane passes, a bare one is
+caught. A guard whose only subjects are already-fixed code would pass just as
+happily with its detection broken, which is how `prod-terminal-tail-settles.js`
+scored the deep-link bug green earlier the same day.
+
+### The client-reported missing issue: not reproducible, and my own analysis of it was wrong twice
+
+A staff member reported on 2026-09-03 that one client's issue "didn't appear". Three
+explanations were produced during the day and **the first two were wrong**:
+
+1. *"VID-13555 is genuinely absent from `deliverables` — this is exactly the
+   bug."* Wrong. It is absent from `deliverables` because it is not a
+   deliverable: SyncView holds it as a **batch**, `b1_b_881891e2…`, a
+   filming-day container for that client, created by `linear-backfill` eight
+   seconds after Linear created the issue. Absent from that table is the
+   correct state.
+2. *"A quarter of batch-parent deep links are dead — 496 of 1,947 identifiers,
+   373 on active batches."* **Also wrong, and worth recording because the
+   number was stated before it was checked.** That count compared batch parent
+   identifiers against `deliverables` only. The adapter **synthesises batch
+   parents as pseudo-issues** — 223 of them — so `_prodIssue('VID-13555')`
+   resolves through one. There are no dead links; there was a wrong model of how
+   resolution works.
+3. What is actually true, tested in a real browser against the real row set:
+   `?prod=1&d=VID-13555` opens correctly (view `detail`, no missing-target
+   notice, pane showing the filming plan), **and** the row appears in the
+   default list among all 223 synthetic parents. The owner's own theory — that a
+   status change to `posted` hid it — does not hold either: the issue is still
+   `Todo` in Linear with one state-history entry.
+
+So the report is **closed as not reproducible against current code**. Either one
+of today's deep-link repairs fixed it, or it was about a different surface or
+filter. That is an honest "cannot reproduce", not a diagnosis, and it should not
+be written up as one.
+
+The generalisable lesson is the one that keeps recurring in this file, arriving
+this time in the analysis rather than the code: a count computed from the wrong
+table is not evidence. Both wrong answers came from reasoning about `deliverables`
+without booting the app; both were killed in minutes by opening a browser.
+
+---
+
+## 124. [2026-09-03, SWEPT — nothing live found, and that is the finding] "Paginating a non-unique order" hunted through the backend, where losing a row would matter most
+
+Item 121 fixed this class in the browser boot (`batches`, paged with OFFSET over
+a non-unique `created_at`). The obvious next question, and the owner's own:
+**does the same mistake exist somewhere it matters more?** The backend scripts
+page far larger sets, and the reconciler decides divergence and pages the
+monitor — a row lost there is a real drift nobody is told about.
+
+Swept every ordered read in `scripts/` and `supabase/`. Four candidates, all
+measured against live data rather than reasoned about:
+
+| reader | order | pages? | verdict |
+|---|---|---|---|
+| `linear-deliverables-reconcile` main path | keyset by `id`, then sorted in JS | yes | **already safe** — `loadReconcileDeliverableRows` pages by primary key and applies `canonicalDeliverableOrder`, whose final tiebreak is `id` |
+| `linear-deliverables-reconcile` legacy PROOF path | `team.asc,identifier.asc` + OFFSET | 7 pages | **latent** — see below |
+| `attribution-stuck-check` | `updated_at.desc` + OFFSET | **no** — 721 rows, under one page | inert until that set passes 1,000 |
+| `linear-sync-reconcile` (`calendar_posts`) | `client.asc` + OFFSET | 10 pages | **latent, and empirically clean** — see below |
+
+### The legacy proof path
+
+`loadLegacyLiveDataForProof()` pages `deliverables` with OFFSET over
+`team.asc,identifier.asc`. **260 rows carry a NULL identifier** (201 graphics,
+59 video), and within a team those form one enormous ORDER BY tie — Postgres
+promises no order inside it.
+
+Measured: four consecutive full pages returned all 6,252 rows, no duplicates,
+none missing. The reason is visible and is pure luck: the graphics NULL tie
+occupies positions 2264–2464 and the video tie 6193–6251, and **no page boundary
+(1000, 2000, …) falls inside either**. Roughly 264 more graphics deliverables
+moves the 2000 boundary into a 201-row tie.
+
+NOT repaired, deliberately. It feeds a migration read-proof gate that fails
+closed, the main reconcile path is already safe, and the file's sha256 is pinned
+in the F27 closure — so changing it unattended costs a re-pin for a hazard that
+currently degrades into a wasted cycle. The one-line cure when someone next
+touches that path: route it through the `supabaseRowsByPrimaryKey` +
+`canonicalDeliverableOrder` pair that already exists twelve lines above it.
+
+### `linear-sync-reconcile`, and three wrong answers I published on the way
+
+This one looked alarming and was not. Recording the whole chain, because the
+retractions are the useful part:
+
+1. *"It pages `calendar_posts` with OFFSET over `client.asc` — a slug shared by
+   hundreds of rows — across 10 pages."* **True.**
+2. *"It loses 27 rows every run: 9,694 fetched, 9,667 unique."* **Wrong.** A
+   keyset walk over the same table returns 9,694 fetched and 9,667 unique too —
+   and the two return the **identical id set**, zero missed either way. The
+   duplication is in the data, not the pager.
+3. *"Then `calendar_posts` has duplicate primary keys."* **Also wrong.** The
+   largest group is `p_cal_settings` × 16 — one per client, `order_index = -1`,
+   no status. The table is keyed by **(client, id)**; `id` alone was never meant
+   to be unique. No defect.
+
+So `linear-sync-reconcile` is fine. Its OFFSET pager over a heavily-tied column
+is theoretically fragile and empirically returns exactly what a keyset walk
+returns, repeatedly. Left alone: it is the convergence backbone, it runs every
+~15 minutes with writes, and changing its read on a hazard that four runs could
+not provoke is the wrong trade.
+
+### What this sweep is worth
+
+The answer to "is it somewhere else" is **the browser boot was the only place
+this class was actually live.** Everything in the backend is either already
+paged by primary key, too small to page at all, or latent behind a boundary that
+happens not to land in a tie.
+
+That is worth writing down precisely because it is a negative result: the next
+session that notices `order=client.asc&offset=` should read this row rather than
+spend a night re-measuring it. And the recurring lesson from three wrong answers
+in one investigation is the same one item 123 records — a count is not evidence
+until you have checked what it is counting.
+
+---
+
+## 125. [2026-09-03, MEASURED — not repaired, and it is the largest open risk to trusting this app] The mandatory Production polish gate has been red for five days, and four more failures accumulated behind the first two
+
+Found by following up a Codex P1 on #1243 ("run the Production polish gate
+before shipping"). The finding is not about #1243.
+
+### The timeline, from the run history
+
+| | |
+|---|---|
+| last GREEN | run 653, **2026-08-28 20:49Z**, `4f650840` |
+| first RED | run 667, **2026-08-30 18:01Z**, `66c1291f` (PR #1177) |
+| since | **red on every run** — 27 consecutive |
+
+`AGENTS.md:95` makes this gate mandatory for Production UI changes: *"The
+aggregate `npm run test:prod-polish` passed on the exact candidate … the fast PR
+job alone is insufficient."* For five days no Production change has been able to
+satisfy it, because it does not pass at all.
+
+### It is NOT one stable failure. It is growing.
+
+This is the part that matters, and it is why this entry exists rather than a
+shrug about a flaky lane:
+
+```
+2026-08-30  first red   behav_wired:chip+titleTooltip                        2 checks
+2026-09-03  today       behav_wired:chip+kbProj+titleTooltip+
+                        ringClearOnNav+pcardNameTooltip+1more               6 checks
+                        + Production pixel parity [error_generic]           + pixel lane
+```
+
+The gate went red with **two** failing behaviour checks. Four more, plus the
+entire pixel-parity lane, have broken since — each one landing while the gate
+was already red and therefore invisible. Nobody shipped past a green light;
+everybody shipped past a light that had been red so long it stopped being
+information. That is the broken-window failure mode, and the accumulation is
+evidence it is still happening.
+
+### What this is NOT
+
+- **Not caused by the recent deep-link work.** Verified directly: the heavy lane
+  failed identically on `4931e1b1` (before PR #1243) and `a3231156` (after) —
+  byte-identical signature. #1243 in fact flipped `production-polish-interaction`
+  from failure back to **success**.
+- **Not the sandbox limitation** `CLAUDE.md` describes. That note says the lanes
+  cannot pass *here*, with no route to the live backend. This is CI, on GitHub's
+  runners, where the same gate was green through 2026-08-28.
+
+### What is NOT yet established
+
+Whether these six checks describe **real UI regressions** or **stale
+expectations**. The bisect window `4f650840..66c1291f` sits immediately after the
+F1 video cutover, so a live-derived gate encoding pre-flip expectations is a
+plausible cause — but plausible is not measured, and this file has three entries
+from today alone about counts asserted before they were checked. The names are
+specific enough to start from: `chip`, `kbProj`, `titleTooltip`,
+`ringClearOnNav`, `pcardNameTooltip`, one unnamed, and whatever
+`error_generic` covers on the pixel lane.
+
+**Deliberately not repaired unattended.** Reproducing needs the live backend this
+sandbox cannot reach; it is five days of accumulated breakage rather than one
+fault; and a wrong fix to a quality gate is worse than a red one, because it
+turns "no signal" into "false signal". The right next step is a session that can
+run `node docs/syncview-design/tests/prod-polish-gate.js --lane=heavy` against
+the live backend and take the six named checks one at a time.
+
+**Owner decision this needs:** if some of these are stale post-flip
+expectations, they should be re-based deliberately and said so in writing — not
+left red. A mandatory gate that nobody can satisfy is worse than no gate, because
+it silently converts every merge into an unverified one, which is precisely what
+the last five days were.
+
+### TWO of the six, reproduced offline — both look STALE rather than broken
+
+The heavy lane needs the live backend, but `behav-wired.js`'s checks are DOM
+assertions, so the two that failed FIRST (2026-08-30) were run verbatim against
+the real app booted over the real 6,252-row set through a replay backend. **Both
+reproduce, and both appear to encode behaviour that was deliberately changed.**
+
+**`titleTooltip` — stale, high confidence.** It requires a SHORT row title to
+carry `data-fulltitle` but **no `title` attribute**:
+
+    shortOk = shortEl.getAttribute('data-fulltitle') === 'Hi' && !shortEl.hasAttribute('title')
+
+Measured now: the element HAS a `title` attribute, and `data-fulltitle` reads
+`"Hi › <parent>"` rather than `"Hi"`. Both halves are deliberate product
+changes — PR #1229 removed the 120-character threshold precisely so short
+sub-issue titles always get a hover title ("Always emit it"), and the fulltitle
+gained the parent breadcrumb. The check's OTHER half, the long-title assertion,
+still passes. So this is the gate describing the app as it was, not the app
+misbehaving.
+
+**`chip` — changed assumption, lower confidence.** It reads the first row's
+`data-prod-client`, clicks that row's client chip, and requires
+`openProjectId === thatSlug`. Measured now: the first row's `data-prod-client` is
+the synthetic `__needs_attribution__` group, while its chip correctly opens the
+RESOLVED client's project — so the two legitimately differ for attribution-repair
+rows, which did not exist in this shape when the check was written. Plausibly
+stale, but it also depends on which row sorts first, so it is data-dependent in a
+way `titleTooltip` is not. Not called stale without someone looking at it.
+
+**SCOPE, stated plainly so this is not over-read:** two of six named behaviour
+checks, run OFFLINE against a replay of the row set, not the live backend, and
+the pixel lane was not exercised at all. `kbProj`, `ringClearOnNav`,
+`pcardNameTooltip`, the sixth unnamed check and `pixel parity [error_generic]`
+remain **unmeasured**. Two stale checks do not license assuming the other four
+are.
+
+**Still not repaired here, and now for a second reason.** Re-basing a quality
+gate's expectations is exactly the kind of change that must be deliberate and
+signed off: the whole failure recorded above is what happens when a gate stops
+carrying signal, and quietly rewriting its assertions to match today's app is a
+faster way to reach the same place.
+
+---
+
+## 126. [2026-09-03, FIXED — script-only, live on merge; corrects item 119] Item 119's tolerance matched a shape Linear never sends, so the reconciler stayed red for 21 more hours after "FIXED" — and the second fix is capped, because "not found" is also what a key that cannot see an issue is told
+
+**What 119 shipped.** `isEntityNotFoundError` accepted `type: 'EntityNotFound'`,
+or the bare message with no type at all. What Linear sends for a deleted issue —
+captured verbatim from run 33747354167 at 11:00Z — is
+
+```
+{ message: 'Entity not found: Issue', path: ['i1'],
+  extensions: { type: 'invalid input', code: 'INPUT_ERROR', statusCode: 400, userError: true } }
+```
+
+The predicate saw a type it did not recognise, returned false, and every real
+deletion kept throwing exactly as before. The hourly monitor was red from 119's
+merge until this fix; the ten `Linear ⇄ deliverables` failures in the morning
+inbox are that window, not a new incident.
+
+**Why 119's tests passed.** They tested the shape the guard was written FOR.
+Nothing in the suite had ever seen a real error, so the guard passed its own
+exam and failed the only one that counted. This is item 118's shape (a FIXED
+header on main that was not) reached through item 111's mechanism (an assertion
+satisfied by something other than the behaviour). It is recorded here because
+119's header still says FIXED and the ledger is append-only; read 119 as "fixed
+in intent, re-fixed in 126".
+
+**The second fix.** The predicate now keys on the message —
+`^Entity not found: Issue` — and accepts `extensions.type` (or `type`) of
+`EntityNotFound`, `entity_not_found`, `invalid input`, or none. An
+`AuthenticationError` carrying the same message still refuses, and any
+error whose path is not a single top-level `iN` alias still refuses. The
+test's primary fixture is the captured error, and — after the review pass on
+PR #1244 found that the first version only fed the captured shape to the
+predicate — the same shape now drives the real `linear()` end to end, so a
+transport that fails fast on `INPUT_ERROR` cannot pass the suite.
+
+**The cap, and why there has to be one.** `Entity not found: Issue` with
+`INPUT_ERROR` is also Linear's answer for an issue this key simply cannot see:
+a private team the key's user was removed from, an issue moved to another
+workspace, a wrong uuid in our row. Unbounded tolerance would let an access
+loss reconcile as a mass deletion and quietly orphan every row. So the loader
+tolerates at most `RECONCILE_NOT_FOUND_CAP` missing ids (default 10) per run;
+above that it throws, naming the count and the cap, and the message says to
+raise the cap deliberately for a known bulk deletion. Rows whose issue was not
+found stay in the plan as orphans and are excluded from attribution — an
+absent Linear row is a fact about Linear, not licence to drop ours.
+
+**Closure.** `scripts/f27-reconciler-closure.js` re-pinned
+`scripts/linear-deliverables-reconcile.js` twice on this branch
+(`efc12356…` → `2e17d758…` → `a4664cc9…`), each from
+`git show HEAD:<path> | sha256sum`; the `f27-proof` lane is green on the PR
+head. No Edge Function changed, so no bundle capture is involved.
+
+**Verification.** `test/reconcile-tolerates-deleted-issue.js` covers the
+predicate, the transport with the captured shape (tolerated, refused without
+the opt-in, refused when mixed with any other error) and the bounded loader
+(1 of 35 missing → 34 returned; 35 of 35 → throws naming the cap). Live
+confirmation is the next hourly `linear-deliverables-reconcile` run after
+merge; until it is green this item is FIXED on paper only, which is the exact
+claim 119 made.

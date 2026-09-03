@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const { extractFunction } = require('./helpers/extract-function.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -1290,12 +1291,17 @@ for (const name of ['_calPushStatusToLinear', '_calPostLinearComment', '_sxrPush
     assert(draftBindings === 3 && errorBindings === 3,
     `${surface} binds every rollback path's restored draft and error to the exact attempted comment`);
   }
-  const calDraftInputAt = source.indexOf('function _calReviewOnDraftInput(');
-  const sxrDraftInputAt = source.indexOf('function _sxrReviewOnDraftInput(');
-  assert(source.slice(calDraftInputAt, calDraftInputAt + 1800)
-      .includes('delete _calReviewState.draftActionIds[key]')
-    && source.slice(sxrDraftInputAt, sxrDraftInputAt + 1800)
-      .includes('delete _sxrReviewState.draftActionIds[key]'),
+  /* SCOPED TO THE FUNCTIONS, NOT TO 1800 CHARACTERS.
+     `_sxrReviewOnDraftInput` is 1,021 characters long, so a 1,800-character
+     window reached 779 characters past its closing brace and into whatever
+     followed. Both matches happen to be inside their own function today, so
+     nothing was wrong — but the assertion could not tell, and moving that line
+     into the NEXT function would have kept it green. Same shape as
+     OPEN_REPAIRS 111: an assertion satisfied by a neighbour. */
+  const calDraftInput = extractFunction(source, '_calReviewOnDraftInput');
+  const sxrDraftInput = extractFunction(source, '_sxrReviewOnDraftInput');
+  assert(calDraftInput.includes('delete _calReviewState.draftActionIds[key]')
+    && sxrDraftInput.includes('delete _sxrReviewState.draftActionIds[key]'),
   'typing after rollback invalidates the saved action identity on both client review surfaces');
 
   function createWebLockHarness(holdFirst) {

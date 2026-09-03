@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { extractFunction } = require('./helpers/extract-function.js');
 const { pathToFileURL } = require('url');
 const { spawnSync } = require('child_process');
 
@@ -581,9 +582,11 @@ ok(!/planByIssueId\.(set|delete)/.test(capacityPlacement)
     && !/fetch\(/.test(capacityPlacement),
 'a capacity move is derived only: the pass never writes a plan_date, calls the sidecar, or issues a request');
 ok(/wlState\.autoPlacementByIssueId = wlState\.planHasSnapshot\s*\?\s*wlComputeAutoPlacements\(planned, todayISO\)\s*:\s*new Map\(\)/.test(INDEX)
-    && /wlState\.autoPlacementByIssueId = new Map\(\)/.test(INDEX.slice(
-      INDEX.indexOf('function wlPurgePlanSensitiveState('),
-      INDEX.indexOf('function wlPurgePlanSensitiveState(') + 2500)),
+    /* Scoped to the function, not to 2,500 characters: wlPurgePlanSensitiveState()
+       is 1,958 long, so the window ran 542 characters into whatever followed it
+       and this assertion could have matched a neighbour. Found by the widened
+       window-integrity guard on PR #1244. */
+    && /wlState\.autoPlacementByIssueId = new Map\(\)/.test(extractFunction(INDEX, 'wlPurgePlanSensitiveState')),
 'placement runs on the unfiltered planned set only behind an authoritative plan snapshot, and is purged with the pins it derives from');
 // Regression guard for the review finding: the map is built once per
 // wlApplyData but read on every render, so a read that outlives midnight must

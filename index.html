@@ -57267,7 +57267,39 @@
                 const [clients, members, batches, deliverables, authority] = await Promise.all([
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
-                    _prodRestRows('batches', PROD_BATCH_SELECT, 'order=created_at.desc', 1000, 25),
+                    /* PAGED BY PRIMARY KEY, like the deliverable projection beside
+                       it, and for the same two reasons in the same order.
+
+                       CORRECTNESS FIRST. This read paged with OFFSET over
+                       `order=created_at.desc`, and `created_at` is not unique
+                       here: 85 of the 1,665 batches share their timestamp with
+                       another batch, in 39 groups of up to 5. Postgres gives no
+                       order within a tie and no promise that two executions
+                       resolve one the same way, so a tie group lying across the
+                       1,000-row page boundary can hand back a row twice or not
+                       at all -- and "not at all" is a filming day that is simply
+                       missing from SyncLinear, with no error anywhere. It has
+                       not bitten yet because today's boundary happens to fall
+                       between two distinct timestamps; that is luck, and it
+                       moves every time a batch is created. `id` is unique, so a
+                       keyset walk cannot express the bug.
+
+                       WASTE SECOND. The offset pager fires page 0, then bursts
+                       four more. 1,665 rows need two pages, so every boot also
+                       issued offset=2000, 3000 and 4000 -- three requests
+                       returning two bytes each, and three full ORDER BY /
+                       OFFSET scans of the relation (~0.8s of database time per
+                       boot, measured). The keyset walk asks for exactly the two
+                       pages that exist.
+
+                       Arrival order is not load-bearing: `_prodAdapter` keys
+                       batches into a map by id and `_prodPreserveProjectedFields`
+                       merges by id. Proven rather than assumed -- booting the
+                       real app over these rows in server order and in a shuffled
+                       order produces the identical batch set, issue set and
+                       rendered list. `order=` is dropped by the keyset branch,
+                       so it is not passed here rather than passed and ignored. */
+                    _prodRestRows('batches', PROD_BATCH_SELECT, '', 1000, 25, { keysetColumn: 'id' }),
                     _prodLoadDeliverableProjection(PROD_LIVE_FILTER),
                     authorityPromise
                 ]);

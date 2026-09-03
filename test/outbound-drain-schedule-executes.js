@@ -30,6 +30,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const { extractFunction } = require('./helpers/extract-function.js');
 
 let failures = 0;
 function ok(condition, message) {
@@ -85,8 +86,11 @@ ok(/f2_owner_attestation:/.test(source),
 ok(/GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION: \$\{\{ secrets\.GRAPHICS_F2_OWNER_DISPATCH_ATTESTATION \}\}/.test(source),
   'the attestation secret is still supplied to the evidence step');
 
-const eligibility = evidence.slice(evidence.indexOf('function dispatchEligibility'),
-  evidence.indexOf('function dispatchEligibility') + 1400);
+/* Scoped to the function, not to 1,400 characters: dispatchEligibility() is
+   1,370 long, so the window reached 30 characters into dispatchRouteFromJobPages
+   and any assertion below could have been satisfied by its neighbour. Caught by
+   review on PR #1244; the same repair as write-ui-writer-durability.js. */
+const eligibility = extractFunction(evidence, 'dispatchEligibility');
 ok(/if \(event === 'schedule'\)/.test(eligibility) && /SCHEDULE_ROUTE/.test(eligibility),
   'a scheduled run is a first-class eligibility route needing no attestation (this predates the change)');
 ok(/if \(event !== 'workflow_dispatch'\) throw new GateError\('drainer_dispatch_ineligible'\)/.test(eligibility),

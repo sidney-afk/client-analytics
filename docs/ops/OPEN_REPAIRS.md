@@ -9203,3 +9203,87 @@ is fine, and it is the reason the F27 suites read from git at all — but a suit
 in that shape owes the reader a sentence about which tree it read, because
 "passed" and "passed against your change" are different claims and nothing in the
 output distinguished them.
+
+---
+
+## 120. [2026-09-03, FIXED — browser-only, live on merge] The sixth round of the deep-link bug, and the first one caught by an actual browser: on refresh the pane said "Deliverable not found" for a second and a half about a row that was fine
+
+**Reported by the owner, in the shape of a sequence rather than a symptom:**
+"I refresh, I get the skeleton animation, then Deliverable Not Found, then
+another skeleton animation, then it loads, and sometimes I have a double
+animation."
+
+Four states for one wait. Three of them were wrong.
+
+### What produced each one
+
+`terminalTailPending` answers *is a tail running*. The pane was asking *is the
+row set complete*. Those are not the same question, and the gap between them is
+the entire defect — the fifth appearance of item 108's shape: **a state the code
+could not represent, so two situations shared one answer.**
+
+The flag is raised by the phase-one SUCCESS path. So:
+
+| moment | pending | failed | what the pane concluded | what was true |
+|---|---|---|---|---|
+| cached first paint | false | false | **not found** | the snapshot is written from the phase-one set, so it can never hold a posted row |
+| live read in flight | false | false | **not found** | nothing had been read yet |
+| tail in flight | true | false | skeleton | correct |
+| tail landed | false | false | the row | correct |
+
+The cache is the part that makes this a *refresh* bug specifically, and the
+reason five earlier rounds missed it: a cold browser does not reproduce it. The
+snapshot exists only after one successful visit, and `_prodCacheWrite` runs on
+the phase-one merge — so the second load paints a cache that is missing exactly
+the row the link names.
+
+### The fix
+
+`_prodRowSetComplete()` asks whether a tail has **landed**, which
+`terminalTailLoadedAt` already recorded and nothing consulted. Before the first
+one lands the answer is "not yet" from the first frame onward, so the wait is
+one continuous skeleton. `_prodApplyDeepLinkFallback`'s eviction gate now asks
+the same predicate rather than its own pair of flags: a "not found" and an
+eviction are one claim made in two places, and they have drifted apart before
+(items 107, 108).
+
+The fourth state, the "double animation", is separate and simpler.
+`_prodRender()` assigns `root.innerHTML` wholesale, so every repaint during the
+wait builds a **new** skeleton node and CSS starts the shimmer from the top —
+the boot placeholder, the cached paint and the phase-one paint each restarting
+it. Each generated bar now carries `animation-delay: -<phase>ms` taken from
+`performance.now()`, which is zero at navigation start and therefore the same
+clock the static boot skeleton in the markup animates against. A replaced node
+resumes where the one it replaced left off.
+
+### Proof, in a real browser, before and after
+
+The owner has asked twice for fixes to be checked by actually loading the page.
+This one was, on the real `index.html` bytes with the backend stubbed only to
+make the two-phase timing deterministic (phase one without the row, tail with
+it 1.6s later), driving one visit and then a **refresh**:
+
+```
+BEFORE (origin/main)     328ms  NOT-FOUND          1984ms  the row
+AFTER  (this branch)     333ms  skeleton, delay -295ms   1990ms  the row
+```
+
+1.65 seconds of "Deliverable not found", on every refresh of a link to finished
+work. The `-295ms` is the phase anchor doing its job.
+
+### Guards
+
+- `test/prod-incomplete-pane-honesty.js` — a new PRE-TAIL block: an
+  authoritative pass **before any tail has landed** holds the reader, declares
+  nothing missing, and paints the skeleton. Plus an assertion that the bars
+  carry a phase offset at all.
+- Both existing harnesses had to be told that "settled" now means a landed
+  tail. That is the honest cost of the change and is recorded in each file.
+
+### The thing to remember
+
+Every round of this bug has been fixed at the exit where it was reported, and
+reappeared at the next exit from the same room. The count of exits was never
+established. This round finally replaced the flags with the *question* — which
+is why the eviction gate and the pane now share one predicate instead of two
+copies of an approximation.

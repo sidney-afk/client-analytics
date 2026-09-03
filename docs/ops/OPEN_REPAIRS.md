@@ -10294,6 +10294,77 @@ loses its fallback is a client who cannot leave a note, and each of the last
 three times that happened, nobody found out until the client said so — which is
 item 101's whole point.
 
+**The first version of this suite had the hole it was built to close, and
+Codex found it.** The three regexes ran over the RAW extracted body, and
+`_calAppendComment` carries a block comment that quotes
+`_prodCanonicalCommentGate(post, comp).linked` verbatim while explaining the
+routing rule. So deleting the calendar side's real gate left `gate: true` and
+`linked: true` and every assertion green — a suite asserting that somebody
+wrote a sentence. My own mutation run missed it because I mutated the SAMPLES
+add, which has no such comment; the twin that carried the trap was the one I
+did not try.
+
+Fixed by matching over code only. `stripNonCode` joins `extractFunction` in
+`test/helpers/extract-function.js` — same lexer, same reason for living there
+(item 96: so there is one of it): comments, string bodies, template bodies and
+regex bodies become spaces at their original offsets, while `${ … }` inside a
+template survives because it is code. The stripper is now load-bearing, so it
+is asserted against the real body that produced the hole, not a synthetic one,
+and the mutation Codex named — delete the calendar gate, leave the comment —
+now fails six checks.
+
+### The roster is checked against the code, and doing that surfaced a real question
+
+A hand-written list of six pairs rots the moment somebody adds a seventh
+operation to one surface — the drift this suite is for, arriving through the
+suite's own blind spot. So the roster is now derived-and-compared: every
+function in `index.html` that consults `_prodCanonicalCommentGate` must be
+either a family member or on an explicit, reasoned exclusion list. Adding an
+unclassified seventh caller fails until someone classifies it. **18 callers
+today**, and the mutation is killed.
+
+Building that enumeration turned up an asymmetry I did **not** assert, because I
+could not justify asserting it. Three `_sxr` functions consult the gate with no
+calendar counterpart that does:
+
+| Samples | calendar |
+|---|---|
+| `_sxrCommentsForView` — consults the gate | `_calCommentsForView` exists and does **not** |
+| `_sxrCommentsForAction` | `_calCommentsForAction` **does not exist at all** |
+| `_sxrPostLinearComment` — the transport 105.3 repaired | `_calPostLinearComment` exists and does not gate |
+
+The read paths genuinely differ on a client link. Samples asks the gate and
+**fails closed** — unlinked falls back to `_sxrClientVisibleLegacyRows`, and
+linked-but-unready-or-unauthorised returns `[]`. The calendar filters an
+already-loaded list by audience and role, and never asks. `_sxrPostLinearComment`
+is plausibly benign: the calendar gates one level up, in `_calAppendComment`.
+
+**And then I went and answered it, because "open question" was the lazy version
+of the same mistake this file keeps recording.** The read difference is correct,
+and the reason is structural: **the calendar has no canonical comment store at
+all.** There is no `_calCanonicalCommentsFor` to match `_sxrCanonicalCommentsFor`
+— so on the calendar the card column IS the projection of canonical state, and
+reading it is reading canonical, one step removed.
+
+What keeps it one step removed rather than stale is a specific invariant. Four
+of the five calendar write operations call
+`_writeUiPersistCanonicalCommentProjection('calendar', …)` after a canonical
+write, which writes `_calCommentsFor(post, component)` back into the card
+column. The fifth, ADD, needs no such call because it writes that column itself,
+through `_calPendingEdits` + `_calStringifyComments` + `_calWatchNoteSave` — the
+same mechanism the projection uses. The transport asymmetry
+(`_sxrPostLinearComment` gating where `_calPostLinearComment` does not) is
+likewise benign: the calendar gates one level up, in `_calAppendComment`.
+
+**So the suite pins the invariant instead of the symmetry.** All four
+projectors are asserted, ADD's own card-column write is asserted, and so is the
+ABSENCE of `_calCanonicalCommentsFor` — because if a canonical store ever
+appears on the calendar, this entire line of reasoning has to be redone rather
+than quietly inherited. If a projection call were dropped, the calendar's client
+would read a stale copy of a thread that had moved on canonically, with nothing
+anywhere to report it: item 101's shape exactly, which is why it is asserted and
+not trusted.
+
 - Done when: it catches a fourth. Until then, it costs nothing and holds the
   prediction that three prose warnings could not.
 

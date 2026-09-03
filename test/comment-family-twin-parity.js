@@ -32,7 +32,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { extractFunction } = require('./helpers/extract-function.js');
+const { extractFunction, stripNonCode } = require('./helpers/extract-function.js');
 
 const INDEX = fs.readFileSync(path.join(path.resolve(__dirname, '..'), 'index.html'), 'utf8');
 
@@ -74,10 +74,18 @@ function survey(name) {
     // extractFunction THROWS on a name it cannot find. A missing twin is the
     // exact drift this suite is for, so it has to arrive as a named failing
     // check, not as a stack trace that says nothing about which twin went.
-    let body;
-    try { body = extractFunction(INDEX, name); } catch (e) { return null; }
-    if (typeof body !== 'string' || !body.length) return null;
+    let raw;
+    try { raw = extractFunction(INDEX, name); } catch (e) { return null; }
+    if (typeof raw !== 'string' || !raw.length) return null;
+    /* Match over CODE, never over comments. Caught by Codex on this PR:
+       `_calAppendComment` carries a block comment that quotes
+       `_prodCanonicalCommentGate(post, comp).linked` verbatim while explaining
+       the routing rule, so deleting the real call left every assertion here
+       green. A suite that reads a comment as behaviour is asserting that
+       somebody wrote a sentence. */
+    const body = stripNonCode(raw);
     return {
+        raw,
         body,
         gate: GATE.test(body),
         linked: BRANCHES_ON_LINKED.test(body),
@@ -110,6 +118,109 @@ for (const row of FAMILY) {
     ok(!a.roleHidden, `${row.op}: the calendar gate is not computed only for one role`);
     ok(!b.roleHidden, `${row.op}: the Samples gate is not computed only for one role`);
 }
+
+/* ---- THE ROSTER ITSELF ------------------------------------------------- */
+
+/* A hand-written list of six pairs rots the moment someone adds a seventh
+   operation to one surface — which is the drift this suite exists for, arriving
+   through the suite's own blind spot. So the roster is checked against the
+   code: every function that consults the gate must be either a FAMILY member or
+   on an explicit, reasoned exclusion list. A new caller fails until somebody
+   classifies it, which is the point. */
+const EXCLUDED = {
+    _prodCanonicalCommentGate: 'the gate itself',
+    _writeUiCardCommentLifecycle: 'shared write-UI plumbing, not a per-surface operation',
+    _writeUiCurrentCardCommentForResolve: 'the same, on the resolve path',
+    /* Samples-only, and deliberately NOT asserted as missing twins: the two
+       surfaces read differently on a client link. `_sxrCommentsForView`
+       consults the gate and fails closed on an unready or unauthorised thread,
+       while `_calCommentsForView` filters an already-loaded list by audience.
+       Whether that difference is correct is a real question and it is recorded
+       in OPEN_REPAIRS 139 rather than answered by an assertion here — this
+       suite checks symmetry it can justify, not symmetry it assumes. */
+    _sxrCommentsForView: 'Samples client read consults the gate; the calendar twin filters instead — open question, OPEN_REPAIRS 139',
+    _sxrCommentsForAction: 'Samples-only; the calendar has no _calCommentsForAction at all — same open question',
+    _sxrPostLinearComment: 'the Samples transport 105.3 repaired; the calendar gates one level up, in _calAppendComment',
+};
+
+function gateCallers() {
+    const code = stripNonCode(INDEX);
+    const decls = [];
+    const dre = /\n[ \t]*(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
+    let m;
+    while ((m = dre.exec(code))) decls.push({ at: m.index, name: m[1] });
+    const names = new Set();
+    const gre = /_prodCanonicalCommentGate\s*\(/g;
+    while ((m = gre.exec(code))) {
+        const at = m.index;
+        let lo = 0, hi = decls.length - 1, best = null;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (decls[mid].at < at) { best = decls[mid]; lo = mid + 1; } else hi = mid - 1;
+        }
+        if (best) names.add(best.name);
+    }
+    return names;
+}
+
+const callers = gateCallers();
+ok(callers.size >= 12, 'the gate has callers to enumerate at all (found ' + callers.size + ')');
+const rostered = new Set(FAMILY.flatMap(r => [r.cal, r.sxr]));
+for (const name of Array.from(callers).sort()) {
+    ok(rostered.has(name) || Object.prototype.hasOwnProperty.call(EXCLUDED, name),
+        name + ' consults the gate and is either in the family roster or explicitly excluded');
+}
+for (const row of FAMILY) {
+    ok(callers.has(row.cal) && callers.has(row.sxr),
+        row.op + ': both roster entries really are gate callers, so the roster has not rotted');
+}
+
+/* ---- WHY THE CALENDAR MAY READ WITHOUT ASKING THE GATE ------------------ */
+
+/* The exclusion list above says the calendar client read does not consult the
+   gate while the Samples one does. That is not a hole, and the reason is an
+   invariant worth pinning: the calendar has no canonical comment store at all
+   (there is no `_calCanonicalCommentsFor`), so the card column IS its
+   projection of canonical state. Four of the five write operations keep it in
+   step by calling `_writeUiPersistCanonicalCommentProjection` after a canonical
+   write; ADD keeps it in step itself, writing the card column through
+   `_calPendingEdits` + `_calStringifyComments` + `_calWatchNoteSave` — the same
+   mechanism the projection uses.
+
+   If one of those stopped, the calendar's client would silently read a stale
+   copy of a thread that had moved on canonically, with nothing anywhere to
+   report it. That is the same shape as OPEN_REPAIRS 101 and it is why this is
+   asserted rather than trusted. */
+const PROJECTORS = ['_calSaveCommentEdit', '_calToggleCommentDone',
+    '_calDeleteComment', '_calResolveLastTweak'];
+for (const name of PROJECTORS) {
+    const f = survey(name);
+    ok(f && /_writeUiPersistCanonicalCommentProjection/.test(f.body),
+        name + ' projects canonical state back onto the card column the client reads');
+}
+const addF = survey('_calAppendComment');
+ok(addF && /_calPendingEdits/.test(addF.body) && /_calStringifyComments/.test(addF.body)
+    && /_calWatchNoteSave/.test(addF.body),
+    '_calAppendComment writes that column itself, which is why it needs no projection call');
+ok(!/function _calCanonicalCommentsFor\s*\(/.test(INDEX),
+    'and the calendar still has no canonical comment store — if one appears, this reasoning has to be redone');
+
+/* The stripper is now load-bearing: if it stopped removing comments, every
+   answer above could be satisfied by prose. Asserted against the real body
+   that produced the hole rather than a synthetic one. */
+const appendRaw = extractFunction(INDEX, '_calAppendComment');
+ok((appendRaw.match(/_prodCanonicalCommentGate/g) || []).length === 2,
+    '_calAppendComment mentions the gate twice in its raw text — once in code, once in a comment');
+ok((stripNonCode(appendRaw).match(/_prodCanonicalCommentGate/g) || []).length === 1,
+    'and exactly one of those survives the strip, which is the call');
+ok(stripNonCode(appendRaw).length === appendRaw.length,
+    'the strip preserves length, so offsets still line up with the source');
+ok(/const g = a \+ b;/.test(stripNonCode('const g = a + b; // _prodCanonicalCommentGate(x)')),
+    'a line comment is removed and the code before it kept');
+ok(!/gate/.test(stripNonCode('const s = "_prodCanonicalCommentGate";')),
+    'a string body is removed too — a token in a string is not a call either');
+ok(/keep/.test(stripNonCode('const t = `a ${keep} b`;')),
+    'but code inside a template placeholder survives, because it IS code');
 
 /* The detector has to be able to see the defect it is named for, or the six
    clean answers above mean nothing. This is the exact shape 105.3 records

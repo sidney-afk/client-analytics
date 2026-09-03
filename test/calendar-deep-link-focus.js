@@ -25,6 +25,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const { extractFunction } = require('./helpers/extract-function.js');
 
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -218,6 +219,43 @@ function harness(options) {
     'the card is pinned through the month, status and ready filters via focusPid');
   ok(!h.notified.some(n => /Filters cleared/.test(n)),
     'and the reader is told nothing, because nothing of theirs was changed');
+}
+
+/* ---- the pin cannot outlive the client it belongs to -------------------- */
+
+/* `calState.focusPid` is GLOBAL, so a client switch is the other way it goes
+   stale (the first is leaving the Sheet, which onCalViewChange handles). The
+   first fix cleared it inside `_calOpenClientTab` alone; Codex caught on #1252
+   that an ordinary tab click goes through onCalTabClick -> onCalClientChange,
+   and that the search picker, active-tab removal, boot mount and client-entry
+   purge assign the client too. Seven assignments, one of them remembering is
+   not a rule. So the rule lives in the assignment: there is exactly ONE place
+   the active client changes, and it carries the clear. */
+{
+  const INDEX = html;
+  const setter = extractFunction(INDEX, '_calSetClient');
+  ok(/calState\.client !== name.*calState\.focusPid = null/s.test(setter),
+    '_calSetClient drops the focus pin whenever the client actually changes');
+
+  const assignments = (INDEX.match(/calState\.client = /g) || []).length;
+  ok(assignments === 1,
+    'and it is the ONLY place calState.client is assigned, so a new switch path '
+    + 'gets the rule by construction (found ' + assignments + ')');
+  ok(/function _calSetClient\(name\) \{[^}]*calState\.client = name;/s.test(INDEX),
+    'that one assignment being the setter\'s own');
+
+  // Run it, rather than only reading it.
+  const run = new Function('calState', `${setter}; return _calSetClient;`);
+  let st = { client: 'a', focusPid: 'p1' };
+  run(st)('b');
+  ok(st.client === 'b' && st.focusPid === null, 'switching client drops the pin');
+  st = { client: 'a', focusPid: 'p1' };
+  run(st)('a');
+  ok(st.client === 'a' && st.focusPid === 'p1',
+    'while re-setting the SAME client keeps it — a no-op switch must not cancel a deep link mid-flight');
+  st = { client: 'a', focusPid: 'p1' };
+  run(st)(null);
+  ok(st.client === null && st.focusPid === null, 'and clearing the client drops it too');
 }
 
 if (failures) {

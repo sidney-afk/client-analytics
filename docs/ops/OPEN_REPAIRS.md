@@ -10331,3 +10331,26 @@ which is why the card stays visible even after the strip re-renders.
 The client re-check survives the rewrite because the hazard did: `focusPid` is
 global, so a client switch mid-wait would otherwise pin one client's focus onto
 another client's board.
+
+### Follow-up, and the first fix was one site short (Codex on #1252)
+
+`calState.focusPid` is the bypass, and it is GLOBAL. `onCalViewChange` drops it
+when you leave the Sheet; a CLIENT switch is the other way it goes stale, and
+nothing dropped it there — so returning to a client later still forced its card
+past the month, status and ready-only filters, long after the highlight was
+dismissed.
+
+The first fix cleared it inside `_calOpenClientTab`. That is the deep-link path
+and **not** the ordinary one: a tab click goes `onCalTabClick` →
+`onCalClientChange`, and the search picker, the active-tab removal, the boot
+mount, the embedded mount, the after-data-ready resolve and the client-entry
+purge all assign the client too. **Seven assignments, one of them remembering,
+is not a rule.**
+
+So the rule lives in the assignment. `_calSetClient(name)` is now the only place
+`calState.client` is written — asserted, as a count of one — and it drops the
+pin whenever the client actually changes while leaving it alone on a no-op
+re-set, because a deep link mid-flight must not cancel itself. A new switch path
+gets the behaviour by construction rather than by somebody remembering a comment
+exists. `test/calendar-deep-link-focus.js` runs the setter for real over all
+three cases and pins the count.

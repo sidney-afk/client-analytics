@@ -29425,24 +29425,38 @@
        should land on that client AND pin it as a tab — not just set it as the
        active body with no matching pill in the strip. No-op outside the
        standalone calendar, or when it's already the active client. */
+    /* THE ONE PLACE THE ACTIVE CLIENT CHANGES.
+     *
+     * `calState.focusPid` is the transient per-card filter bypass: while it is
+     * set, that one card is forced past the month, status and client-ready
+     * filters so a deep link or a review-queue jump can actually show it.
+     * `onCalViewChange` drops it when you leave the Sheet — but a client switch
+     * is the other way it goes stale, and it is GLOBAL state, so the pin
+     * outlived the client it belonged to. Returning to that client later then
+     * still forced its card past filters the person had since set, long after
+     * the highlight was dismissed.
+     *
+     * The first fix cleared it inside `_calOpenClientTab` alone, which Codex
+     * caught on #1252: an ordinary tab click goes through `onCalTabClick` →
+     * `onCalClientChange`, and the search picker, the active-tab removal, the
+     * boot mount and the client-entry purge all assign the client too. Seven
+     * assignments, one of them remembering. So the assignment itself carries
+     * the rule now — a new switch path gets it by construction rather than by
+     * somebody remembering this comment exists. */
+    function _calSetClient(name) {
+        if (calState.client !== name) calState.focusPid = null;
+        calState.client = name;
+    }
     function _calOpenClientTab(name) {
         if (!name || calState.embedded || currentNav !== 'calendar') return;
         const pins = _calGetPins();
         if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
         if (calState.client === name) { _calRenderTabs(); return; }
         const shellNeedsClientChrome = !calState.client;
-        /* The focus pin is TRANSIENT and belongs to the client it was set for.
-         * `onCalViewChange` drops it when you leave the Sheet, but switching
-         * client while staying on the Sheet left it set — so returning to the
-         * original client later still forced that one card through its saved
-         * month, status and ready-only filters, long after the highlight was
-         * dismissed. Caught in review on the deep-link change that made this
-         * reachable from a link rather than only from the review queue. */
-        calState.focusPid = null;
         // Persist debounced saves for the outgoing client before switching.
         _calFlushAllPending();
         _calV2Teardown();
-        calState.client = name;
+        _calSetClient(name);
         _calResetSelection();
         calState.posts = [];
         _calLoadClientFilters();
@@ -29510,7 +29524,7 @@
         if (!next) return;
         const savedPins = _calGetPins();
         if (!savedPins.includes(next)) { savedPins.unshift(next); _calSavePins(savedPins); }
-        calState.client = next;
+        _calSetClient(next);
         _calLoadClientFilters(next);
         _calSavePrefs();
         _calRenderShell();
@@ -29548,7 +29562,7 @@
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
         if (focusClient && !pins.includes(focusClient)) { pins.unshift(focusClient); _calSavePins(pins); }
-        calState.client = initial;
+        _calSetClient(initial);
         calState.embedded = false;
         calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
@@ -29745,7 +29759,7 @@
     function mountCalendarEmbedded(name) {
         _calV2Teardown();
         const prefs = _calLoadPrefs();
-        calState.client = name;
+        _calSetClient(name);
         calState.embedded = true;
         calState.view = _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
@@ -36118,7 +36132,7 @@
             _calFlushAllPending();
             _calV2Teardown();
             const next = pins[0] || null;
-            calState.client = next;
+            _calSetClient(next);
             _calResetSelection();
             calState.posts = [];
             _calLoadClientFilters();
@@ -36170,7 +36184,7 @@
             // Persist debounced saves for the outgoing client before switching.
             _calFlushAllPending();
             _calV2Teardown();
-            calState.client = name;
+            _calSetClient(name);
             _calResetSelection();
             calState.posts = [];
             _calLoadClientFilters();
@@ -36711,7 +36725,7 @@
         // either leak into the new client's tab or be silently dropped.
         _calFlushAllPending();
         _calV2Teardown();
-        calState.client = name;
+        _calSetClient(name);
         _calResetSelection();
         _calLoadClientFilters();
         _calSavePrefs();
@@ -59917,7 +59931,7 @@
         } catch (e) {}
         try {
             _calLoadSeq++;
-            calState.client = null; calState.posts = []; calState.loading = false; calState.error = null;
+            _calSetClient(null); calState.posts = []; calState.loading = false; calState.error = null;
             _calFocusRequest = null; _calPendingDeepLink = null;
         } catch (e) {}
         try {

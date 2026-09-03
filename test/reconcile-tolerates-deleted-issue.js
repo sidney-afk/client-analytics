@@ -124,13 +124,28 @@ const NOT_FOUND = {
   const ctx = vm.createContext({ console });
   vm.runInContext(grabFunc('isEntityNotFoundError'), ctx);
   const isNF = e => vm.runInContext(`isEntityNotFoundError(${JSON.stringify(e)})`, ctx);
-  ok(isNF({ message: 'Entity not found: Issue' }), 'matches the message Linear actually sent');
-  ok(isNF({ type: 'EntityNotFound', message: 'anything' }),
-    'prefers the machine field over the wording, because wording is not a contract');
-  ok(!isNF({ type: 'AuthenticationError', message: 'Entity not found: Issue' }),
+  ok(isNF({ message: 'Entity not found: Issue', path: ['i0'] }), 'matches the message Linear actually sent');
+  ok(isNF({ type: 'EntityNotFound', message: 'Entity not found: Issue', path: ['i7'] }),
+    'accepts the machine field alongside the message');
+  ok(!isNF({ type: 'AuthenticationError', message: 'Entity not found: Issue', path: ['i0'] }),
     'a machine type that is NOT not-found wins over a matching message');
-  ok(!isNF({ message: 'Could not find referenced Issue' }) && !isNF(null) && !isNF({}),
+  ok(!isNF({ message: 'Could not find referenced Issue', path: ['i0'] }) && !isNF(null) && !isNF({}),
     'an unfamiliar shape is not tolerated — unrecognised keeps failing the run');
+
+  /* THE PATH IS PART OF THE PREDICATE — review finding on PR #1241.
+     GraphQL nulls the whole alias when a non-nullable CHILD errors, so a nested
+     miss would have made the loader record a LIVE issue as deleted and
+     reconcile the row against an incomplete object. */
+  ok(!isNF({ message: 'Entity not found: Project', path: ['i1', 'project'] }),
+    'a NESTED entity miss is NOT tolerated — it would mark a live issue deleted');
+  ok(!isNF({ message: 'Entity not found: Issue', path: ['i1', 'parent'] }),
+    'not even a nested ISSUE miss — only a top-level alias may be tolerated');
+  ok(!isNF({ message: 'Entity not found: Issue' }),
+    'and an error with no path at all is not tolerated');
+  ok(!isNF({ message: 'Entity not found: Project', path: ['i1'] }),
+    'a top-level miss of some OTHER entity is not tolerated either');
+  ok(!isNF({ message: 'Entity not found: Issue', path: ['webhooks'] }),
+    'and a path that is not one of this loader’s aliases is refused');
 
   /* ---- the deletion is REPORTED, not silently skipped --------------------- */
   const loader = grabFunc('loadLinearIssuesById');
@@ -157,6 +172,30 @@ const NOT_FOUND = {
     'the F200 apply preflight still throws on an incomplete Linear cohort');
   ok(/attributionIssueIds\.every\(id => linearIssues\.has\(id\)\)/.test(SRC),
     'and attribution completeness is still computed from whether every id resolved');
+
+  /* ---- LOAD-TO-PLAN: a deleted issue must not inflate the divergence counter
+   *
+   * The second review finding on PR #1241, and the serious one. Letting an
+   * orphaned row through made `attributionFamilyComplete` false, which disables
+   * unanimous child-family inference GLOBALLY — so valid `provisional_child_family`
+   * rows were recomputed as `needs_attribution` and `compareAttribution` injected
+   * unrelated entries into `outbound_diff_count`, the counter the health check
+   * gates and pages on. The first fix traded a LOUD outage for a silently
+   * inflated divergence number, which is the worse of the two.
+   *
+   * Asserted on the real source rather than the shape of a stub, because the
+   * property is about which rows reach the plan at all. */
+  const loadBodies = ['loadLiveData'].map(n => { try { return grabFunc(n); } catch (_) { return ''; } });
+  const completenessSites = (SRC.match(/attributionIssueIds\.every\(id => linearIssues\.has\(id\)\)/g) || []).length;
+  const dropSites = (SRC.match(/active = active\.filter\(row => !LINEAR_ISSUES_NOT_FOUND\.has\(clean\(row\.linear_issue_uuid\)\)\)/g) || []).length;
+  ok(dropSites === completenessSites && dropSites >= 1,
+    'every completeness computation is preceded by dropping the orphaned rows (' + dropSites + ' of ' + completenessSites + ')');
+  ok(/const orphanedByDeletedIssue = active\.filter\(row => LINEAR_ISSUES_NOT_FOUND\.has/.test(SRC),
+    'and the dropped rows are captured rather than discarded');
+  ok(/orphaned_by_deleted_issue_count: Number\(plan\.orphanedByDeletedIssueCount/.test(SRC),
+    'the summary reports how many rows the deletions removed from the comparison');
+  ok(loadBodies.some(b => b && b.includes('LINEAR_ISSUES_NOT_FOUND')),
+    'the drop happens inside the live load, before any plan is built');
 
   /* ---- no other caller was loosened --------------------------------------- */
   const optIn = (SRC.match(/tolerateNotFound: true/g) || []).length;

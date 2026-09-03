@@ -29466,6 +29466,15 @@
         if (!match) {
             // Slug never resolved to a known client. Don't leave the strip stuck
             // on its loader — fall back to the normal first-pinned client.
+            //
+            // But SAY SO. Silently opening somebody else's calendar is the exact
+            // shape of the 2026-09-03 owner report ("it just goes to the first
+            // thing"): the reader followed a link to one card and landed on a
+            // different client's board with no indication anything had failed,
+            // which reads as the link being broken rather than the client being
+            // unknown to this tab.
+            showNotify('Calendar link not opened',
+                'That link points at a client this tab does not know yet. Reload and try the link again.');
             if (!calState.client) {
                 const pins = _calGetPins();
                 if (pins.length) _calOpenClientTab(pins[0]);
@@ -35351,16 +35360,47 @@
         const CAL_FOCUS_MAX_FRAMES = 40; // ~0.6s at 60fps; a render that has not
                                          // landed by then is not going to.
         let framesWaited = 0;
+        /* OWNER REPORT 2026-09-03: "I click on the link and it just goes to the
+         * first thing. It doesn't show the card I'm opening."
+         *
+         * The card was in `calState.posts` and the client was right; it simply
+         * never rendered, because `calState.monthFilter` / `statusFilter` are
+         * saved PER CLIENT (see _calHydrateClientFilters) and re-applied when
+         * that calendar opens. Follow a link to a card scheduled outside the
+         * saved month — three of the four cards in that report were unscheduled
+         * or months old — and the card is filtered out before it can be found.
+         * What the reader then sees is the calendar's ordinary first card.
+         *
+         * Telling them to "check the Organize filters" was the previous
+         * behaviour and it is the wrong answer: a link to a card should SHOW
+         * the card. So the filters are cleared and the search restarts, once,
+         * and the reader is told their view changed rather than left to notice.
+         *
+         * Deliberately AFTER the frame budget, not before: clearing up front
+         * would throw away a saved view on every deep link, including the many
+         * where the card was about to paint anyway. Only a card that genuinely
+         * did not render pays for it. `onCalClearFilters` is the same helper the
+         * Organize menu's own Clear uses, so ordering mode survives untouched
+         * and the change persists exactly as a manual clear would. */
+        let clearedFilters = false;
         const focusWhenPainted = () => {
             const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
             const card = document.querySelector('.cal-card[data-pid="' + safe + '"]');
             if (!card) {
                 if (++framesWaited < CAL_FOCUS_MAX_FRAMES) { requestAnimationFrame(focusWhenPainted); return; }
+                if (!clearedFilters && typeof _calOrganizeIsActive === 'function' && _calOrganizeIsActive()) {
+                    clearedFilters = true;
+                    framesWaited = 0;
+                    onCalClearFilters();
+                    showNotify('Filters cleared',
+                        '"' + String(post.name || 'That card') + '" was hidden by your Organize filters, so they were cleared to show it.');
+                    requestAnimationFrame(focusWhenPainted);
+                    return;
+                }
                 // Never give up in silence: a link that visibly does nothing is
                 // indistinguishable from a link that opened the wrong thing.
                 showNotify('Card not shown', '"' + String(post.name || 'That card')
-                    + '" is on this calendar but did not render in the current view.'
-                    + ' Check the Organize filters, then open the link again.');
+                    + '" is on this calendar but did not render in the current view.');
                 return;
             }
             // Outline first. If anything below goes wrong the reader can still

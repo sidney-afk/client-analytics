@@ -169,6 +169,20 @@ const noSealed = run(fixture('nosealed',
 ok(noSealed.code === 1 && /records no sealed_bundle_sha256/.test(noSealed.json.failures.join(' ')),
     'and a receipt that records no sealed bundle fails, because then there is nothing to match against');
 
+/* Both SIDES of the provenance rule, not just the row's. */
+const receiptNoCommit = run(fixture('receiptnocommit',
+    LOG.replace('dispatched by the owner from\n`152c050e0179ee127e02d0ea50853960d9019eab`.',
+        'dispatched by the owner.'),
+    rollback()));
+ok(receiptNoCommit.code === 1
+    && /newest receipt.*records no dispatched commit/.test(receiptNoCommit.json.failures.join(' ')),
+    'a RECEIPT with no dispatched commit fails too — otherwise the row could name an arbitrary one and pass');
+
+const noBytes = run(fixture('nobytes',
+    LOG.replace(/`byte_length = \d+`\.?/, ''), rollback()));
+ok(noBytes.code === 1 && /no byte_length/.test(noBytes.json.failures.join(' ')),
+    'and a sealed digest with no byte length fails — half an identity is not an identity');
+
 /* Provenance must be present, not merely consistent when it happens to be there. */
 const noRunClaim = run(fixture('norunclaim', LOG,
     rollback().replace(/run `\d+` /, '')));

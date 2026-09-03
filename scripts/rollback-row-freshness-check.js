@@ -273,7 +273,16 @@ function main() {
         if (!claim.commit) {
             failures.push('ROLLBACK.md\'s live claim names no dispatched commit, so what was deployed'
                 + ' cannot be checked against what the receipt records');
-        } else if (live.commit) {
+        } else if (!live.commit) {
+            /* The receipt's side of the same rule. Codex P2 on #1253: a
+               table-only receipt whose prose omits "from <sha>" left
+               live.commit empty and the comparison was skipped, so the row
+               could name an ARBITRARY commit and still pass — on a guard whose
+               whole claim is that it verifies deployment provenance. */
+            failures.push('the newest receipt (run ' + (live.run || '?') + ') records no dispatched commit,'
+                + ' so ROLLBACK.md\'s ' + claim.commit + ' cannot be checked against anything.'
+                + ' Add "dispatched from `<sha>`" to that EXECUTION_LOG entry.');
+        } else {
             const n = Math.min(live.commit.length, claim.commit.length);
             if (live.commit.slice(0, n) !== claim.commit.slice(0, n)) {
                 failures.push('deploy commit: ROLLBACK says ' + claim.commit + ', newest receipt says ' + live.commit);
@@ -331,7 +340,16 @@ function main() {
             failures.push('rollback bundle: ROLLBACK names ' + claim.bundle.sha
                 + '…, but the newest deploy receipt sealed ' + live.sealed.sha.slice(0, 16)
                 + '… — the row names a different bundle from the one that deploy captured');
-        } else if (live.sealed && live.sealed.bytes && claim.bundle.bytes !== live.sealed.bytes) {
+        } else if (live.sealed && !live.sealed.bytes) {
+            /* Codex P2 on #1253: a receipt with a sealed digest but no
+               byte_length made this comparison truthiness-skip, so the bundle
+               was accepted without its length ever being proved. A missing
+               length fails exactly like a missing digest — half an identity is
+               not an identity. */
+            failures.push('the newest receipt records sealed_bundle_sha256 but no byte_length, so the'
+                + ' bundle ROLLBACK.md names is only half checked. Copy both fields from the capture'
+                + ' receipt into that EXECUTION_LOG entry.');
+        } else if (live.sealed && claim.bundle.bytes !== live.sealed.bytes) {
             failures.push('rollback bundle ' + claim.bundle.sha + '…: ROLLBACK says '
                 + claim.bundle.bytes + ' bytes, the receipt records ' + live.sealed.bytes);
         } else if (!live.sealed) {

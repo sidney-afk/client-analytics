@@ -10343,6 +10343,25 @@ run id did not fail: it silently borrowed the superseded one and compared
 against that. The claim is now bounded by its own bold span, and the fixture
 asserts the superseded id is not picked up.
 
+### Round three: the same rule, on the receipt's side of the comparison
+
+Two more, both the shape of round two's third finding and both on the half I
+had not applied it to:
+
+- A **receipt** whose prose omits `dispatched from <sha>` left `live.commit`
+  empty, and the comparison was skipped — so the row could name an arbitrary
+  commit and still pass, on a guard whose whole claim is that it verifies
+  deployment provenance. Now a failure naming the run, with the fix (add the
+  line to that entry).
+- A receipt recording `sealed_bundle_sha256` but no `byte_length` made the
+  length comparison truthiness-skip, so the bundle was accepted with **half an
+  identity proved**. A missing length now fails exactly like a missing digest.
+
+Worth stating because it is the pattern across all three rounds on this file:
+every finding has been *"a branch that could not check something exited 0
+anyway."* The rule is the same each time and I kept applying it to one side of a
+comparison and not the other.
+
 **A second one came the same way.** Table rows were grouped by byte distance,
 which merged rows from two different entries whenever the first table was
 short — so a truncated newest receipt's lone surviving row joined the next

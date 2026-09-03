@@ -46,10 +46,6 @@ const LEDGER_PATH = process.env.LEDGER_PATH || path.join(__dirname, '..', '.sync
 const AUTHORITY_CACHE_PATH = process.env.PROD_AUTHORITY_CACHE_PATH
   || path.join(path.dirname(LEDGER_PATH), 'linear-reconcile-authority.json');
 const SAFETY_CAP = Number(process.env.CAP || 15);
-/* Native status projection. ON by default; NATIVE_PROJECTION=0 falls the job
- * back to the pure Linear relay, which is the kill switch if this ever
- * misbehaves in production. See the block at the top of the component loop. */
-const NATIVE_PROJECTION = !/^(0|false|no|off)$/i.test(process.env.NATIVE_PROJECTION || '');
 const TIE_MS = 120 * 1000;
 const SYNCVIEW_STAFF_KEY = String(process.env.SYNCVIEW_STAFF_KEY || '').trim();
 
@@ -132,7 +128,7 @@ async function fetchCanonicalDeliverables(cards) {
   const CHUNK = 100;
   for (let i = 0; i < all.length; i += CHUNK) {
     const slice = all.slice(i, i + CHUNK);
-    const url = `${DELIVERABLES_URL}?select=id,status,status_at,origin,team&id=in.(${slice.map(encodeURIComponent).join(',')})`;
+    const url = `${DELIVERABLES_URL}?select=id,status,origin,team&id=in.(${slice.map(encodeURIComponent).join(',')})`;
     let rows;
     try {
       rows = await fetch(url, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } }).then(r => r.json());
@@ -341,11 +337,15 @@ const log = (s) => { console.log(s); lines.push(s); };
   // the Linear resolve, so the comparison is against the same moment.
   const canonicalRows = await fetchCanonicalDeliverables(canonical);
   log(`${cards.length} cards · ${live.length} live · ${new Set(urls).size} live linked issues · ${Object.keys(statuses).length} Linear states · ${canonicalRows.size} canonical rows · ledger ${fresh ? 'FRESH' : Object.keys(ledger).length + ' keys'}`);
-  const corrections = []; const naParked = []; const cardAhead = []; const foreignSeen = []; let inSync = 0, unmapped = 0, missing = 0; const t = NOW();
+  const corrections = []; const naParked = []; let inSync = 0, unmapped = 0, missing = 0; const t = NOW();
   for (const card of canonical) {
     for (const comp of ['video', 'graphic']) {
       const url = comp === 'video' ? card.linear_issue_id : card.graphic_linear_issue_id;
-      const ident = _calIdentFromUrl(url);
+      const ident = _calIdentFromUrl(url); if (!ident) continue;
+      const linRaw = statuses[ident];
+      if (linRaw === undefined) { missing++; continue; }
+      const linCal = _calMapLinearStatusStrict(linRaw);
+      if (!linCal) { unmapped++; continue; }
       const cardCal = _calNormStatus(card[comp + '_status'] || '');
       // EXACT card change-time from the DB trigger (migrations/calendar-status-at-migration.sql)
       // when present, else fall back to poll-time `t`. This is what stops a stale card
@@ -355,104 +355,6 @@ const log = (s) => { console.log(s); lines.push(s); };
       const cardAtExact = (stampRaw && isFinite(Date.parse(stampRaw))) ? new Date(stampRaw).toISOString() : null;
       const key = `${card.client}|${card.id}|${comp}`;
       const authority = authorityForTeam(prodAuthority, comp);
-      const delivId = String(card[comp === 'video' ? 'video_deliverable_id' : 'graphic_deliverable_id'] || '').trim();
-      const canonicalRow = delivId ? canonicalRows.get(delivId) : null;
-      const canonicalCal = canonicalRow ? _calMapNativeStatusStrict(canonicalRow.status, canonicalRow.origin) : null;
-      const canonicalAtRaw = canonicalRow ? canonicalRow.status_at : null;
-      const canonicalAt = (canonicalAtRaw && isFinite(Date.parse(canonicalAtRaw)))
-        ? new Date(canonicalAtRaw).toISOString()
-        : null;
-
-      /* ================= NATIVE STATUS PROJECTION =================
-       * The Content Calendar stops borrowing Linear as a relay.
-       *
-       * Under SyncView authority the truth for a component IS its `deliverables`
-       * row. Everything below this block was written when that truth could only
-       * reach a card by going out to Linear through the mirror and being read
-       * back here — a median 543 s round trip whose only cargo was a value we
-       * already hold, right here, in `canonicalCal`.
-       *
-       * The provenance test further down already proves that: a Linear pull is
-       * APPLIED only when canonical AGREES with it (`echo`) and REFUSED when it
-       * does not (`foreign`). So the only Linear value this job has ever been
-       * permitted to write is canonical's own value, arriving late. Writing
-       * canonical directly is not a new authority — it is the same authority,
-       * minus the detour.
-       *
-       * Three things this fixes that the relay could not:
-       *   - the lag: the card moves on THIS run, not one or two runs later.
-       *   - `foreign` divergence: previously the card was left stale forever
-       *     (refused every run, correctly, because Linear could not be trusted).
-       *     Canonical can be, so the card finally heals.
-       *   - card == Linear but canonical differs: the old code counted that as
-       *     IN SYNC and did nothing. It is not in sync. It is two mirrors
-       *     agreeing with each other and disagreeing with the source.
-       *
-       * And the one it UNLOCKS, which is the point: this path does not require
-       * the outbound mirror to be live. `pullOnly` below does — it demands
-       * `outboundMode === 'live'` — which is why switching F2 off today silently
-       * freezes the calendar's status projection (LINEAR_EXIT_PLAN_2026-09.md
-       * fault 6). A native projection has no such coupling, so Linear can go
-       * dark without freezing the calendar.
-       *
-       * SAFETY — most-recent-action-wins is preserved, not abandoned. A card
-       * whose own status stamp is NEWER than the deliverable's `status_at` is a
-       * card edit the gateway leg has not carried yet; it is HELD and logged,
-       * never overwritten. Writes still pass the safety cap, the live authority
-       * re-proof, and N/A parking. NATIVE_PROJECTION=0 restores the old relay.
-       * ============================================================ */
-      const nativeOwns = NATIVE_PROJECTION
-        && authorityState.write_safe === true
-        && authority === 'syncview'
-        && !!canonicalCal;
-      if (nativeOwns) {
-        const nIdent = ident || `${card.id}:${comp}`;
-        /* FOREIGN-WRITE DETECTION SURVIVES THE CHANGE, and it nearly did not.
-         * The old code discovered "somebody edited this issue directly in
-         * Linear" as a side effect of REFUSING to pull it, and reported it from
-         * the refusal. The native path has nothing to refuse -- it heals the
-         * card from canonical either way -- so that report would have vanished
-         * silently, taking with it the only standing signal that Linear is
-         * still being edited by hand (1,735 such writes in the last 7 days).
-         * A test written for the old behaviour caught this. So the divergence is
-         * now detected on its own terms rather than as a by-product: Linear
-         * disagreeing with canonical is REPORTED, every run, and the card is
-         * healed to canonical rather than left stale as it was before. */
-        const linNow = ident && statuses[ident] !== undefined
-          ? (_calMapLinearStatusStrict(statuses[ident]) || null)
-          : null;
-        if (linNow && linNow !== canonicalCal) {
-          foreignSeen.push({ card, comp, ident: nIdent, linCal: linNow, canonicalCal });
-        }
-        const decision = nativeProjectionDecision(cardCal, canonicalCal, cardAtExact, canonicalAt);
-        if (decision.kind === 'na-parked') {
-          naParked.push({ card, comp, ident: nIdent, cardCal, linCal: canonicalCal });
-          continue;
-        }
-        if (decision.kind === 'in-sync') { inSync++; continue; }
-        if (decision.kind === 'card-ahead') {
-          cardAhead.push({ card, comp, ident: nIdent, cardCal, canonicalCal, cardAtExact, canonicalAt });
-          continue;
-        }
-        corrections.push({
-          card, comp, ident: nIdent, url, cardCal,
-          linCal: linNow,
-          winner: 'native', target: decision.target, led: null, authority,
-          gated: false, pullOnly: true, native: true,
-          provenance: 'canonical', canonicalCal, canonicalAt, delivId,
-        });
-        continue;
-      }
-
-      /* ---- Linear-mediated path. Reached only when the component has NO
-       * readable canonical row (a legacy card never natively created), or the
-       * team is not SyncView-authoritative, or the kill switch is set.
-       * Unchanged from here down. ---- */
-      if (!ident) continue;
-      const linRaw = statuses[ident];
-      if (linRaw === undefined) { missing++; continue; }
-      const linCal = _calMapLinearStatusStrict(linRaw);
-      if (!linCal) { unmapped++; continue; }
       /* F50 authority modes, per component:
        *   linear                       -> bidirectional, exactly as always.
        *   syncview + outbound "live"   -> PULL-ONLY. Linear→card repairs run
@@ -566,11 +468,14 @@ const log = (s) => { console.log(s); lines.push(s); };
        * treated as DISAGREEING: unverifiable-and-native fails closed, because
        * writing an unchecked Linear value onto an authoritative card is the
        * exact harm. */
+      const delivId = String(card[comp === 'video' ? 'video_deliverable_id' : 'graphic_deliverable_id'] || '').trim();
+      const canonicalRow = delivId ? canonicalRows.get(delivId) : null;
+      const canonicalCal = canonicalRow ? _calMapNativeStatusStrict(canonicalRow.status, canonicalRow.origin) : null;
       const provenance = !pullOnly || winner !== 'linear'
         ? 'n/a'
         : (!delivId ? 'unlinked' : (canonicalCal && canonicalCal === linCal ? 'echo' : 'foreign'));
-      corrections.push({ card, comp, ident, url, cardCal, linCal, winner, target: linCal, led, authority,
-        gated, pullOnly, native: false, provenance, canonicalCal, delivId });
+      corrections.push({ card, comp, ident, url, cardCal, linCal, winner, led, authority, gated, pullOnly,
+        provenance, canonicalCal, delivId });
     }
   }
 
@@ -590,16 +495,12 @@ const log = (s) => { console.log(s); lines.push(s); };
   // being quietly written onto the client's card.
   const foreignPull = corrections.filter(c => !c.gated && c.provenance === 'foreign');
   const unlinkedPull = corrections.filter(c => !c.gated && c.provenance === 'unlinked');
-  const nativePush = corrections.filter(c => c.native);
   const actionable = corrections.filter(c => !c.gated
     && !(c.pullOnly && c.winner === 'card')
     && c.provenance !== 'foreign');
-  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} (native ${nativePush.length}) · authority-gated ${gated.length} · mirror-owned ${mirrorOwned.length} · card-ahead ${cardAhead.length} · foreign-seen ${foreignSeen.length} · n/a-parked ${naParked.length}`);
+  log(`IN SYNC ${inSync} · archived ${archived} · unmapped ${unmapped} · missing ${missing} · corrections ${corrections.length} · authority-gated ${gated.length} · mirror-owned ${mirrorOwned.length} · n/a-parked ${naParked.length}`);
   toLinear.forEach(c => log(`  → Linear ${c.ident} := "${c.cardCal}"  (was "${c.linCal}")  ${c.card.client}/${c.card.id}`));
   toCard.forEach(c => log(`  ← card ${c.card.id} ${c.comp} := "${c.linCal}"  (was "${c.cardCal}")  ${c.card.client}`));
-  nativePush.forEach(c => log(`  ⟵ native ${c.ident} ${c.comp} := "${c.target}"  (was "${c.cardCal}"; linear says "${c.linCal || 'n/a'}")  ${c.card.client}/${c.card.id}`));
-  foreignSeen.forEach(c => log(`  ⛔ foreign-linear ${c.ident} ${c.comp}: linear="${c.linCal}" canonical="${c.canonicalCal}" — Linear was edited directly; the card follows canonical, not Linear ${c.card.client}/${c.card.id}`));
-  cardAhead.forEach(c => log(`  ⏸ card-ahead ${c.ident} ${c.comp}: card "${c.cardCal}" @${c.cardAtExact} is NEWER than deliverable "${c.canonicalCal}" @${c.canonicalAt} — held, the gateway leg has not carried it yet`));
   gated.forEach(c => log(`  ⛔ detect-only ${c.ident} ${c.comp}: prod_authority=${c.authority} source=${authorityState.source}`));
   mirrorOwned.forEach(c => log(`  ⏭ mirror-owned ${c.ident} ${c.comp}: card→Linear suppressed (syncview authority; outbound mirror carries it)`));
   foreignPull.forEach(c => log(`  ⛔ foreign-linear ${c.ident} ${c.comp}: linear="${c.linCal}" canonical="${c.canonicalCal || '(unreadable)'}" — card left at "${c.cardCal}" ${c.card.client}/${c.card.id}`));
@@ -612,7 +513,7 @@ const log = (s) => { console.log(s); lines.push(s); };
     process.exit(2);
   }
 
-  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→card, ${nativePush.length} native→card), ${gated.length} authority-gated, ${mirrorOwned.length} mirror-owned, ${foreignPull.length} foreign-linear held, ${cardAhead.length} card-ahead held, ${naParked.length} N/A-parked. In sync: ${inSync}.`); return; }
+  if (!APPLY) { log('\n(dry-run — no writes)'); writeSummary(`Dry-run: ${corrections.length} corrections (${toLinear.length}→Linear, ${toCard.length}→card), ${gated.length} authority-gated, ${mirrorOwned.length} mirror-owned, ${foreignPull.length} foreign-linear held, ${naParked.length} N/A-parked. In sync: ${inSync}.`); return; }
 
   let ok = 0, fail = 0, authorityFrozen = false;
   for (const c of actionable) {
@@ -632,16 +533,9 @@ const log = (s) => { console.log(s); lines.push(s); };
      * (a flip, a rollback, an emergency F2 kill) — freeze everything rather
      * than apply corrections classified under a world that no longer exists. */
     const liveTeamAuthority = authorityForTeam(freshAuthority.authority, c.comp);
-    /* A NATIVE projection re-proves SyncView authority and nothing else. It
-     * deliberately does NOT require `outboundMode === 'live'`: needing the
-     * mirror alive to copy a value we read straight out of `deliverables` is
-     * precisely the coupling that makes switching Linear off freeze the
-     * calendar, and removing it is the point of the change. */
-    const stillValid = freshAuthority.write_safe === true && (c.native
-      ? liveTeamAuthority === 'syncview'
-      : c.pullOnly
-        ? (liveTeamAuthority === 'syncview' && (await loadOutboundMode()) === 'live')
-        : liveTeamAuthority === 'linear');
+    const stillValid = freshAuthority.write_safe === true && (c.pullOnly
+      ? (liveTeamAuthority === 'syncview' && (await loadOutboundMode()) === 'live')
+      : liveTeamAuthority === 'linear');
     if (!stillValid) {
       authorityFrozen = true;
       fail++;
@@ -655,17 +549,9 @@ const log = (s) => { console.log(s); lines.push(s); };
         else if (r && r.skipped) log(`  ⏭ ${c.ident} skip (${r.reason || 'state not on team'})`);
         else { fail++; log(`  ❌ ${c.ident} ${JSON.stringify(r).slice(0, 120)}`); }
       } else {
-        /* `pullLinearToCard` writes a status onto a card; despite the name it
-         * does not care where the value came from. A native projection passes
-         * canonical's value through the identical path, so the card write, the
-         * stale-approval clearing and the overall-status recompute are the same
-         * code the Linear pull has always used. */
-        const target = c.target != null ? c.target : c.linCal;
-        const { res } = await pullLinearToCard(c.card, c.comp, target);
-        if (res && (res.ok === true || res.post)) {
-          if (c.led) { c.led.cardCal = target; c.led.cardAt = NOW(); }
-          ok++;
-        } else { fail++; log(`  ❌ ${c.card.id} ${JSON.stringify(res).slice(0, 120)}`); }
+        const { res } = await pullLinearToCard(c.card, c.comp, c.linCal);
+        if (res && (res.ok === true || res.post)) { c.led.cardCal = c.linCal; c.led.cardAt = NOW(); ok++; }
+        else { fail++; log(`  ❌ ${c.card.id} ${JSON.stringify(res).slice(0, 120)}`); }
       }
     } catch (e) { fail++; log(`  ❌ ${c.ident} ${e.message}`); }
     if (fail) break;
@@ -681,26 +567,6 @@ const log = (s) => { console.log(s); lines.push(s); };
   writeSummary(`Applied **${ok}** corrections, ${fail} failed, kept **${gated.length}** authority-gated differences detect-only, held **${foreignPull.length}** foreign-Linear pulls off client-facing cards, and left **${mirrorOwned.length}** card-side changes to the outbound mirror; **${naParked.length}** N/A-parked pairs untouched. In sync: ${inSync}.`);
   if (fail) process.exit(1);
 })().catch(e => { console.error('FATAL', e); writeSummary('FATAL: ' + e.message); process.exit(1); });
-
-/* The native projection's whole decision, as a pure function so it can be
- * tested without a network, a clock, or the 200-line loop around it.
- *
- * Order is the argument. N/A parks first because it is a deliberate SMM choice
- * that neither side may overrule (owner ruling 2026-08-19). Equality second, so
- * the common case costs nothing. THEN the card-ahead hold: a card whose own
- * status stamp is newer than the deliverable's is an edit the gateway leg has
- * not carried yet, and overwriting it would turn "most recent action wins" into
- * "deliverables always wins, delayed" -- the same forbidden failure the Linear
- * relay was careful to avoid, just with a different table in the winner's seat.
- * A missing stamp on either side cannot prove the card is ahead, so it projects;
- * that is the pre-existing behaviour for the many cards whose *_status_at is
- * null, and failing the other way would freeze them forever. */
-function nativeProjectionDecision(cardCal, canonicalCal, cardAtExact, canonicalAt) {
-  if (String(cardCal).trim().toUpperCase() === 'N/A') return { kind: 'na-parked' };
-  if (cardCal === canonicalCal) return { kind: 'in-sync' };
-  if (cardAtExact && canonicalAt && cardAtExact > canonicalAt) return { kind: 'card-ahead' };
-  return { kind: 'project', target: canonicalCal };
-}
 
 function writeSummary(md) {
   if (process.env.GITHUB_STEP_SUMMARY) { try { fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Linear ⇄ SyncView reconcile\n${md}\n\n<details><summary>log</summary>\n\n\`\`\`\n${lines.join('\n')}\n\`\`\`\n</details>\n`); } catch {} }

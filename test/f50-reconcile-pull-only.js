@@ -130,12 +130,7 @@ const STATUSES = { 'GRA-11': 'For Kasper approval', 'GRA-12': 'Approved', 'VID-2
   const w = runWorld('a', 'linear-sync-reconcile.js',
     { authority: { video: 'linear', graphics: 'linear' }, outbound: 'off', cards: [gPull], statuses: STATUSES }, false);
   ok(w.status === 0, 'A: pre-flip dry-run exits 0 (the script executes end to end)');
-  /* Asserted per-count rather than as one literal run of the summary line.
-   * The line grew new counters when the native projection shipped (item 131)
-   * and these two assertions failed for no reason but their own punctuation --
-   * a pin that breaks on formatting trains people to edit pins. The PROPERTIES
-   * are what matter: one correction, nothing gated, nothing mirror-owned. */
-  ok(/corrections 1\b/.test(w.out) && /authority-gated 0\b/.test(w.out) && /mirror-owned 0\b/.test(w.out),
+  ok(/corrections 1 · authority-gated 0 · mirror-owned 0/.test(w.out),
     'A: a linear-team difference is a plain bidirectional correction, exactly as before');
   ok(/← card c1/.test(w.out), 'A: the pull is planned toward the card');
   ok(w.calls.length === 0, 'A: dry-run performs zero writes');
@@ -174,7 +169,7 @@ const STATUSES = { 'GRA-11': 'For Kasper approval', 'GRA-12': 'Approved', 'VID-2
   ok(w.status === 0, 'C: exits 0');
   ok(/⛔ detect-only GRA-11 graphic/.test(w.out),
     'C: with the mirror stopped, a syncview team goes back to detect-only — stale Linear is never pulled onto a card');
-  ok(/corrections 1\b/.test(w.out) && /authority-gated 1\b/.test(w.out) && /mirror-owned 0\b/.test(w.out),
+  ok(/corrections 1 · authority-gated 1 · mirror-owned 0/.test(w.out),
     'C: the difference is gated, not actionable');
 }
 

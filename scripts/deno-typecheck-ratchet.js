@@ -40,7 +40,8 @@
  * Usage:
  *   node scripts/deno-typecheck-ratchet.js                 run deno, compare
  *   node scripts/deno-typecheck-ratchet.js --update --stamp=YYYY-MM-DD   rewrite it
- *   node scripts/deno-typecheck-ratchet.js --report=<file> parse a saved log
+ *   node scripts/deno-typecheck-ratchet.js --report=<file> --target=<slug>  saved log
+ *   node scripts/deno-typecheck-ratchet.js --target=<slug>  just one function
  *   node scripts/deno-typecheck-ratchet.js --deno=<path>   non-PATH deno binary
  *   node scripts/deno-typecheck-ratchet.js --require-deno  absent deno FAILS (CI)
  *
@@ -213,6 +214,26 @@ function main() {
     const requireDeno = process.argv.indexOf('--require-deno') >= 0;
     const reportFile = argOf('--report');
     const update = process.argv.indexOf('--update') >= 0;
+    const targetArg = argOf('--target');
+
+    /* A REPLAYED REPORT BELONGS TO ONE FUNCTION. Codex P2 on #1256: without
+       this, --report=<file> was re-read once per target, so a report captured
+       from `production-write` was compared against all six baselines — and
+       `--report … --update` would have rewritten every target with that one
+       function's counts, destroying the per-function measurements it exists to
+       hold. There is no shape of output that carries six functions, so the
+       honest fix is to require the caller to say which one. */
+    if (reportFile && !targetArg) {
+        console.log('--report=<file> also needs --target=<slug>: a saved report is the output of ONE');
+        console.log('deno check, and replaying it against every baseline would compare a function');
+        console.log('against measurements that are not its own.');
+        process.exit(1);
+    }
+    if (targetArg && TARGETS.indexOf(targetArg) < 0) {
+        console.log('--target=' + targetArg + ' is not covered by this ratchet. Covered: ' + TARGETS.join(', '));
+        process.exit(1);
+    }
+    const targets = targetArg ? [targetArg] : TARGETS;
 
     let baseline = { schema: 'syncview_deno_typecheck_baseline_v1', targets: {} };
     if (fs.existsSync(BASELINE)) baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
@@ -221,7 +242,7 @@ function main() {
     const notes = [];
     const measured = {};
 
-    for (const target of TARGETS) {
+    for (const target of targets) {
         const statusArg = argOf('--status');
         const run = reportFile
             ? { missing: false, text: fs.readFileSync(reportFile, 'utf8'),
@@ -264,7 +285,7 @@ function main() {
             process.exit(1);
         }
         /* Refuse to write a baseline read off an unusable report. */
-        for (const target of TARGETS) {
+        for (const target of targets) {
             const why = measured[target].incomplete;
             if (why) {
                 console.log('refusing to update ' + target + ': ' + why);
@@ -272,16 +293,16 @@ function main() {
             }
         }
         baseline.targets = Object.assign({}, baseline.targets);
-        for (const target of TARGETS) baseline.targets[target] = measured[target];
+        for (const target of targets) baseline.targets[target] = measured[target];
         baseline.measured_on = argOf('--stamp');
         fs.writeFileSync(BASELINE, JSON.stringify(baseline, null, 2) + '\n');
         console.log('Baseline rewritten: ' + path.relative(ROOT, BASELINE));
-        for (const target of TARGETS) console.log('  ' + target + ': ' + JSON.stringify(measured[target].counts));
+        for (const target of targets) console.log('  ' + target + ': ' + JSON.stringify(measured[target].counts));
         process.exit(0);
     }
 
     console.log('deno check ratchet — new type errors fail, existing ones do not\n');
-    for (const target of TARGETS) {
+    for (const target of targets) {
         console.log('  ' + target + ': ' + measured[target].total + ' error(s) '
             + JSON.stringify(measured[target].counts));
     }

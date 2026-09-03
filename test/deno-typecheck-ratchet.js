@@ -11,6 +11,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawnSync } = require('child_process');
 const { parseReport, compare, completeness } = require('../scripts/deno-typecheck-ratchet.js');
 
@@ -191,6 +192,28 @@ const { status: skipStatus } = spawnSync(process.execPath,
     { encoding: 'utf8' });
 ok(skipStatus === 0,
     'while without it a contributor who has no deno still gets a skip rather than a wall');
+
+/* ---- 3c. a replayed report belongs to ONE function ---------------------- */
+
+/* Codex P2: --report=<file> was re-read once per target, so a report captured
+   from one function was compared against all six baselines, and combining it
+   with --update would have rewritten every target with that one function's
+   counts — destroying the per-function measurements the file exists to hold. */
+const tmpReport = path.join(os.tmpdir(), 'ratchet-report-' + process.pid + '.log');
+fs.writeFileSync(tmpReport, 'Check file:///x\nTS18047 [ERROR]: x\nFound 1 errors.\n');
+const RATCHET = path.join(ROOT, 'scripts', 'deno-typecheck-ratchet.js');
+const bare = spawnSync(process.execPath, [RATCHET, '--report=' + tmpReport], { encoding: 'utf8' });
+ok(bare.status === 1 && /also needs --target=/.test(bare.stdout),
+    '--report without --target is refused, instead of being replayed against every baseline');
+const wrongTarget = spawnSync(process.execPath,
+    [RATCHET, '--report=' + tmpReport, '--target=not-a-function'], { encoding: 'utf8' });
+ok(wrongTarget.status === 1 && /not covered by this ratchet/.test(wrongTarget.stdout),
+    'and a --target this ratchet does not cover is refused rather than silently added');
+const oneTarget = spawnSync(process.execPath,
+    [RATCHET, '--report=' + tmpReport, '--target=production-write', '--status=1'], { encoding: 'utf8' });
+ok(/production-write/.test(oneTarget.stdout) && !/linear-outbound/.test(oneTarget.stdout),
+    'and with a target it reports that function ALONE, not all six');
+fs.unlinkSync(tmpReport);
 
 /* ---- 4. no npm alias, for the reason item 94 gives ---------------------- */
 

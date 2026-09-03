@@ -10496,5 +10496,13 @@ having no lane, because it looks like one.** The workflow now passes
 the local skip is unchanged. The suite asserts the workflow still passes the
 flag, and drives both paths, because a flag silently removed reopens the hole.
 
+**Round two: a replayed report belonged to nobody.** `--report=<file>` was
+re-read once per target, so a report captured from one function was compared
+against all six baselines — and `--report … --update` would have rewritten every
+target with that one function's counts, destroying the per-function measurements
+the file exists to hold. There is no output shape that carries six functions, so
+`--report` now requires `--target=<slug>`, an unknown target is refused rather
+than silently added, and `--target` alone also works for checking one function.
+
 - Done when: it catches one. The typing repair item 94 describes is still owed
   and still belongs alongside a deploy that was happening anyway.

@@ -114,8 +114,18 @@ function newHarness(live) {
   // Cached paint: the snapshot does not have it yet.
   h._prodIssue = id => null;
   h.apply(false);
-  ok(h._prodState.view === 'list' && h._prodState.openId === '',
-    'a cached paint that cannot satisfy the link shows the list for that paint');
+  /* CHANGED 2026-09-03 BY OWNER REPORT, and the old assertion is the bug.
+     It required the cached paint to fall back to the LIST, which is what the
+     reader then sees: opening a deep link flashes the entire unfiltered "All
+     teams" board before the item they clicked. The owner sent a screenshot of
+     exactly that and asked for it to stop.
+     A cached snapshot is not evidence of absence, so the paint now KEEPS the
+     requested item and shows its skeleton until the authoritative read answers.
+     Everything else about the contract is unchanged and still asserted below:
+     the request stays pending, nothing is declared missing, and the
+     authoritative pass still evicts a genuinely absent row. */
+  ok(h._prodState.view === 'detail' && h._prodState.openId === 'VID-13555',
+    'a cached paint that cannot satisfy the link HOLDS the item and shows its skeleton, never the whole board');
   ok(h._prodState.deepLink && h._prodState.deepLink.id === 'VID-13555',
     'but the request is still pending — this is the line that was missing');
   ok(h._prodState.deepLinkMissing === '',

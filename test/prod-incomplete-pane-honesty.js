@@ -64,6 +64,7 @@ function ctxFor(state) {
     function _prodBatch() { return null; }
     function _prodClient() { return null; }
     function _calEsc(s) { return String(s == null ? '' : s); }
+    function _calEscAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
     function _prodRefresh() {}
   `, ctx);
   vm.runInContext(grabFunc('_prodApplyDeepLinkFallback'), ctx);
@@ -98,14 +99,44 @@ function ctxFor(state) {
     'COMPLETE: and the notice still names it');
 }
 
+/* ---- A CACHED PAINT MAY NEVER EVICT ---------------------------------------
+ *
+ * Owner report with a screenshot: opening a deep link showed the unfiltered
+ * "All teams" list FIRST, then the item. `mountProductionView` paints from the
+ * localStorage snapshot before any network read exists, so the tail is neither
+ * pending nor failed — and the eviction, gated only on the tail, fired on a row
+ * that was simply not in a stale snapshot. Same NOT-YET vs GONE mistake, at a
+ * third moment. */
+{
+  const h = ctxFor({ openId: 'posted-1', view: 'detail' });
+  h.run(`_prodState.deepLink = { id: 'posted-1', kind: 'issue' }; _prodApplyDeepLinkFallback(false)`);
+  ok(h.run(`_prodState.view`) === 'detail' && h.run(`_prodState.openId`) === 'posted-1',
+    'CACHED: a non-authoritative paint never moves the reader to the list');
+  ok(h.run(`_prodState.deepLinkMissing`) === '',
+    'CACHED: and never publishes a missing-row notice off a snapshot');
+}
+{
+  // The authoritative pass must still do its job, or the guard is a mute button.
+  const h = ctxFor({ openId: 'ghost-1', view: 'detail' });
+  h.run(`_prodState.deepLink = { id: 'ghost-1', kind: 'issue' }; _prodApplyDeepLinkFallback(true)`);
+  ok(h.run(`_prodState.view`) === 'list',
+    'AUTHORITATIVE: the same absent row still evicts once the server has answered');
+}
+
 /* ---- the pane says three different things, and never the wrong one -------- */
 
 {
   const h = ctxFor({ terminalTailPending: true });
   const html = h.run(`_prodIncompletePaneHTML('item')`);
-  ok(/data-prod-detail-settling/.test(html) && /Loading this item/.test(html),
-    'PENDING: the pane shows a skeleton, because the row may be one moment away');
+  ok(/data-prod-detail-settling/.test(html) && (html.match(/prod-skeleton/g) || []).length >= 5,
+    'PENDING: the pane shows a real skeleton — several shimmer bars shaped like the detail');
   ok(!/not found/i.test(html), 'PENDING: and never says not found');
+  /* The owner saw the first version on a live card and disliked it: a line of
+     prose in an empty pane reads as an error. The words live in aria-label now,
+     where a screen reader still gets them and a sighted reader gets a shimmer. */
+  ok(!/>Loading this item/.test(html) && /aria-busy="true"/.test(html)
+    && /aria-label="Loading this item"/.test(html),
+    'PENDING: the wording is announced, not printed as body text');
 }
 {
   const h = ctxFor({ terminalTailFailed: true });

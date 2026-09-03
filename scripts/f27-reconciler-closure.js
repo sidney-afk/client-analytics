@@ -140,17 +140,25 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
     '6b1b65d394a0276387740c462074c7900956c39c374f9efa1d8c0930dbee2035',
   'scripts/linear-deliverables-reconcile-lib.js':
     '82217dc7ff03775493e7ac1a187c58a19a6c81ebc63e402272ffac9404359cb6',
-  // Re-pinned 2026-09-03 for the deleted-issue tolerance (OPEN_REPAIRS 119).
-  // Membership UNCHANGED -- no file entered or left the closure. The blob moved
-  // for three additions, all reviewed as part of that change: an
-  // `isEntityNotFoundError` predicate, an opt-in `tolerateNotFound` branch in
-  // `linear()` that returns partial data ONLY when every GraphQL error is an
-  // entity-not-found, and a `LINEAR_ISSUES_NOT_FOUND` set surfaced in the
-  // summary payload. No reconcile, apply, flag or authority path changed, and
-  // the F200 apply preflight's cohort guard is untouched -- the relaxation is
-  // in the READ and is taken by exactly one call site.
+  // Re-pinned 2026-09-03 for the deleted-issue tolerance (OPEN_REPAIRS 119), and
+  // AGAIN the same day for the two review findings on it. Membership UNCHANGED
+  // throughout -- no file entered or left the closure.
+  //
+  // What is in this blob and was reviewed: an `isEntityNotFoundError` predicate
+  // that requires a TOP-LEVEL alias path and a missing ISSUE specifically (a
+  // nested miss nulls the whole alias, and tolerating it would mark a LIVE issue
+  // deleted); an opt-in `tolerateNotFound` branch in `linear()` taken by exactly
+  // one call site, which still throws unless every error passes that predicate;
+  // and the orphan handling -- rows naming a deleted issue leave the plan before
+  // `attributionFamilyComplete` is computed, so a deletion can no longer disable
+  // child-family inference globally and inflate `outbound_diff_count`, the
+  // counter the health check pages on.
+  //
+  // Still untouched, and deliberately: every reconcile, apply, flag and
+  // authority path, and the F200 apply preflight's cohort guard. The relaxation
+  // is in the READ only.
   'scripts/linear-deliverables-reconcile.js':
-    'a318cfc97e1d882ed38fd67daebd858c174e1d247985de33bb021f046368d525',
+    'a49b6cd60c841692bf3d24e471ce58179ce6833f24b9f1bdb189bcdd41b8fa8b',
   'scripts/linear-reconcile-inbound-pager.js':
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':

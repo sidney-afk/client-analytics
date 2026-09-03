@@ -96,10 +96,21 @@ function fail(msg) {
    waved through. */
 function isEntityNotFoundError(err) {
   if (!err || typeof err !== 'object') return false;
+  /* THE PATH IS PART OF THE PREDICATE, and leaving it out was a real hole.
+     Review on PR #1241: without it, a NESTED miss -- `Entity not found: Project`
+     at path ['i1','project'] -- also matched. GraphQL nulls the whole `i1` alias
+     when a non-nullable child errors, so the loader would have recorded a LIVE
+     issue as deleted and reconciled the row against an incomplete object. Only a
+     top-level alias of the shape this loader requests may be tolerated. */
+  const path = Array.isArray(err.path) ? err.path : null;
+  if (!path || path.length !== 1 || !/^i\d+$/.test(String(path[0]))) return false;
+  /* And only a missing ISSUE. The aliases are `issue(id:)`, so anything else
+     named here is a shape this loader does not understand, and an unrecognised
+     shape keeps failing the run. */
   const type = String(err.type || (err.extensions && err.extensions.type) || '').toLowerCase();
-  if (type) return type === 'entitynotfound' || type === 'entity_not_found';
   const message = String(err.message || '');
-  return /^entity not found\b/i.test(message);
+  if (type && type !== 'entitynotfound' && type !== 'entity_not_found') return false;
+  return /^entity not found:\s*issue\b/i.test(message);
 }
 
 async function linear(query, opts) {
@@ -642,7 +653,7 @@ async function loadLiveData() {
   requireReadyProjection(projectionStatus);
   requireCompactDeliverables(deliverables);
   const commentEvents = syntheticCommentEvents(events);
-  const active = deliverables
+  let active = deliverables
     .filter(d => !deliverableArchivedOrDeleted(d))
     .filter(d => !TEAM_FILTER || clean(d.team).toLowerCase() === TEAM_FILTER)
     .filter(d => !CLIENT_FILTER || clean(d.client_slug).toLowerCase() === CLIENT_FILTER)
@@ -658,6 +669,25 @@ async function loadLiveData() {
     loadLinearIssuesById(issueIds),
     loadLinearWebhooks(),
   ]);
+  /* ROWS POINTING AT A DELETED ISSUE LEAVE THE PLAN, and this is the half the
+     first version of the tolerance got wrong.
+
+     Review on PR #1241, reproduced: letting those rows through made
+     `attributionFamilyComplete` false, which disables unanimous child-family
+     inference GLOBALLY -- so every valid `provisional_child_family` row was
+     recomputed as `needs_attribution` and `compareAttribution` injected
+     unrelated entries into `outbound_diff_count`. That counter is what the
+     health check gates and pages on. The first fix therefore traded a LOUD
+     outage for a silently inflated divergence number, which is the worse of the
+     two: the outage announced itself.
+
+     A row whose issue Linear no longer has is not diverging from anything --
+     there is nothing on the other side to compare it to. It is ORPHANED, which
+     is a different fact, already reported by `linear_issue_not_found_count`.
+     Dropping these rows keeps completeness honest for every family that really
+     is complete, rather than papering the flag over. */
+  const orphanedByDeletedIssue = active.filter(row => LINEAR_ISSUES_NOT_FOUND.has(clean(row.linear_issue_uuid)));
+  active = active.filter(row => !LINEAR_ISSUES_NOT_FOUND.has(clean(row.linear_issue_uuid)));
   const attributionIssueIds = [...new Set(active.map(row => clean(row.linear_issue_uuid)).filter(Boolean))];
   const attributionFamilyComplete = !TEAM_FILTER && !CLIENT_FILTER && !IDENTIFIER_FILTER
     && attributionIssueIds.every(id => linearIssues.has(id));
@@ -676,6 +706,9 @@ async function loadLiveData() {
     attributionFamilyComplete,
     attributionExpectedIssueCount: attributionIssueIds.length,
     attributionLoadedIssueCount: attributionIssueIds.filter(id => linearIssues.has(id)).length,
+    // Reported, never silently dropped: these rows left the plan because the
+    // issue they name is gone, and that is a fact somebody should see.
+    orphanedByDeletedIssueCount: orphanedByDeletedIssue.length,
     prodAuthority,
     linearIssues,
     webhooks,
@@ -712,7 +745,7 @@ async function loadLegacyLiveDataForProof() {
     supabaseRows('clients', 'slug,kind,active,linear_project_ids'),
     loadRuntimeFlag('prod_authority'),
   ]);
-  const active = deliverables
+  let active = deliverables
     .filter(d => !deliverableArchivedOrDeleted(d))
     .filter(d => !TEAM_FILTER || clean(d.team).toLowerCase() === TEAM_FILTER)
     .filter(d => !CLIENT_FILTER || clean(d.client_slug).toLowerCase() === CLIENT_FILTER)
@@ -728,6 +761,25 @@ async function loadLegacyLiveDataForProof() {
     loadLinearIssuesById(issueIds),
     loadLinearWebhooks(),
   ]);
+  /* ROWS POINTING AT A DELETED ISSUE LEAVE THE PLAN, and this is the half the
+     first version of the tolerance got wrong.
+
+     Review on PR #1241, reproduced: letting those rows through made
+     `attributionFamilyComplete` false, which disables unanimous child-family
+     inference GLOBALLY -- so every valid `provisional_child_family` row was
+     recomputed as `needs_attribution` and `compareAttribution` injected
+     unrelated entries into `outbound_diff_count`. That counter is what the
+     health check gates and pages on. The first fix therefore traded a LOUD
+     outage for a silently inflated divergence number, which is the worse of the
+     two: the outage announced itself.
+
+     A row whose issue Linear no longer has is not diverging from anything --
+     there is nothing on the other side to compare it to. It is ORPHANED, which
+     is a different fact, already reported by `linear_issue_not_found_count`.
+     Dropping these rows keeps completeness honest for every family that really
+     is complete, rather than papering the flag over. */
+  const orphanedByDeletedIssue = active.filter(row => LINEAR_ISSUES_NOT_FOUND.has(clean(row.linear_issue_uuid)));
+  active = active.filter(row => !LINEAR_ISSUES_NOT_FOUND.has(clean(row.linear_issue_uuid)));
   const attributionIssueIds = [...new Set(active.map(row => clean(row.linear_issue_uuid)).filter(Boolean))];
   const attributionFamilyComplete = !TEAM_FILTER && !CLIENT_FILTER && !IDENTIFIER_FILTER
     && attributionIssueIds.every(id => linearIssues.has(id));
@@ -746,6 +798,9 @@ async function loadLegacyLiveDataForProof() {
     attributionFamilyComplete,
     attributionExpectedIssueCount: attributionIssueIds.length,
     attributionLoadedIssueCount: attributionIssueIds.filter(id => linearIssues.has(id)).length,
+    // Reported, never silently dropped: these rows left the plan because the
+    // issue they name is gone, and that is a fact somebody should see.
+    orphanedByDeletedIssueCount: orphanedByDeletedIssue.length,
     prodAuthority,
     linearIssues,
     webhooks,
@@ -1184,7 +1239,9 @@ function buildPlan(data) {
     summary.attribution.loaded_issue_count = Number(data.attributionLoadedIssueCount || 0);
   }
   summary.attribution_storage_sentinel_present = !!unresolvedClientSlug;
-  return { results, linkageRows, summary };
+  // Carried onto the plan so the summary event can report it without reaching
+  // back into the loaded data, which buildSummaryEventPayload does not receive.
+  return { results, linkageRows, summary, orphanedByDeletedIssueCount: Number(data.orphanedByDeletedIssueCount || 0) };
 }
 
 function deliverableDiffIds(plan) {
@@ -1526,7 +1583,7 @@ function buildF200RepairExecutionPlan(data, privatePlan, options = {}) {
   summary.linkage_residue = summarizeLinkageBackfillPlan({ planned: [], skipped: [] });
   summary.linkage_actionable = 0;
   summary.webhooks = summarizeWebhooks(data.webhooks || []);
-  return { results, linkageRows: [], summary, f200Repair: true };
+  return { results, linkageRows: [], summary, f200Repair: true, orphanedByDeletedIssueCount: 0 };
 }
 
 // Non-gating, but loud. `attribution_revision_stale` means the row names the
@@ -1619,6 +1676,10 @@ function buildSummaryEventPayload(plan, startedAt, finishedAt) {
        read was "how many". Aggregate count always; the ids only on a non-private
        run, and capped, under the same rule as every other sample here. */
     linear_issue_not_found_count: LINEAR_ISSUES_NOT_FOUND.size,
+    // How many deliverable rows those deletions took OUT of the comparison.
+    // Distinct from the count above: one deleted issue can orphan more than one
+    // row, and a deleted issue no row points at orphans none.
+    orphaned_by_deleted_issue_count: Number(plan.orphanedByDeletedIssueCount || 0),
     linear_issue_not_found_sample: privateRepair ? [] : [...LINEAR_ISSUES_NOT_FOUND].slice(0, 20),
     // The F200 repair plan is a private artifact. Its generic system event is
     // aggregate-only and never persists identifiers or row-level samples.

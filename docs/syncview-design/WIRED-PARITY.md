@@ -807,3 +807,31 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     very report that produced it was ours. Twice now that sentence has named a
     cause the page cannot establish, so it stops diagnosing: it states there is
     no row, ranks the likelier cause honestly, and routes to an Admin.
+
+38. **Item 35's notice is now GATED on the row set being complete, not merely on
+    the row being absent (2026-09-03).** Item 35 describes what the
+    missing-target notice SAYS. It did not describe when the page is entitled to
+    say it, and for two days that was the actual defect — five rounds of it
+    (OPEN_REPAIRS 108, 116, 120). `_prodApplyDeepLinkFallback` and the three
+    detail panes treated "not in `_prodState.deliverables`" as absence, when the
+    boot read is two-phase and the terminal half arrives seconds later. The
+    reader was evicted from a posted row, or told "Deliverable not found" about
+    a row that landed a moment afterwards.
+    Absence is now only evidence once `_prodRowSetComplete()` is true — a tail
+    that has LANDED, none pending, none failed. Until then the pane shows a
+    skeleton (`_prodIncompletePaneHTML`), and a tail that ran and threw says so
+    and offers Refresh rather than claiming the row is gone. Measured in a real
+    browser on a warm cache: before, 1.65 s of "Deliverable not found" on every
+    refresh of a link to finished work; after, one continuous skeleton.
+    Two consequences worth recording because they change how this row must be
+    read: the notice item 35 documents is **deferred, never suppressed** — a
+    genuinely absent row still gets it, with the same copy and the same kind
+    distinction; and the number of exits that can make this claim is now
+    enumerated and enforced by `test/prod-not-found-exits-enumerated.js`, so a
+    fourth pane cannot say "not found" without consulting the same helper. The
+    skeleton also carries a phase-anchored `animation-delay`, because
+    `_prodRender` rebuilds the pane and CSS restarted the shimmer on every
+    repaint.
+    **Rollback boundary unchanged.** Browser-only, ships via Pages on merge; no
+    Edge Function, no migration, no F27 Section 4 dispatch, so `ROLLBACK.md`
+    needs no new row.

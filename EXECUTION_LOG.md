@@ -5872,3 +5872,42 @@ rows silently, which skips echo suppression and tombstone protection and can
 overwrite a client-visible thread's author, body and audience. That lane is
 additionally blocked on two stale pins (OPEN_REPAIRS 77 and 106); re-pinning is
 a PR, not an operator step.
+
+## 2026-09-03 — Browser-only: the deep link stopped calling a not-yet-loaded row missing
+
+**No deploy.** Browser-only, live via Pages on merge to `main` (`a3231156`,
+PR #1243). No Edge Function version moved, no migration, no F27 Section 4
+dispatch, no capture. **`ROLLBACK.md` is unchanged and correct** — the rollback
+boundary for this change is the Pages deploy itself.
+
+**What it carried.** The sixth round of OPEN_REPAIRS 108. Refreshing a link to a
+posted row showed four states: skeleton, "Deliverable not found", skeleton, then
+the row. `terminalTailPending` answers *is a tail running*, which the phase-one
+success path raises — so across the cached first paint and the whole live read
+before it, a row that had simply not been fetched yet was reported absent.
+`_prodRowSetComplete()` asks whether a tail has LANDED instead, which
+`terminalTailLoadedAt` already recorded and nothing consulted.
+
+**Measured in a real browser, warm cache** (the ingredient five earlier rounds
+missed — the snapshot is written from the phase-one set, so it can never hold a
+terminal row, and a cold browser does not reproduce it):
+
+```
+before   328ms  NOT-FOUND ..................... 1984ms  the row
+after    333ms  skeleton, delay -295ms         1990ms  the row
+```
+
+Also in the same merge: the targeted deep-link read now matches
+`linear_identifier` (rows do carry a different value there — VID-13553 carries
+GRA-7197), and the reconciler keeps deleted-issue orphans in the plan while
+excluding their ids from `attributionFamilyComplete`, so
+`outbound_issue_missing` is raised for rows that need re-creating.
+
+**Gate status, recorded honestly.** `production-polish-heavy` failed on `main`
+after this merge — and failed identically before it, on `4931e1b1`, with the
+byte-identical signature `behav_wired:chip+kbProj+titleTooltip+ringClearOnNav+pcardNameTooltip+1more`
+plus `Production pixel parity [error_generic]`. It has been red on every merge
+for weeks. This change did not cause it and did not clear it; it did flip
+`production-polish-interaction` from failure to success. The standing red is a
+real problem and is nobody's single PR to fix — it is recorded here so the next
+session does not mistake it for its own regression.

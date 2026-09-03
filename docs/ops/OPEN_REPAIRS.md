@@ -10282,5 +10282,24 @@ loses its fallback is a client who cannot leave a note, and each of the last
 three times that happened, nobody found out until the client said so — which is
 item 101's whole point.
 
+**The first version of this suite had the hole it was built to close, and
+Codex found it.** The three regexes ran over the RAW extracted body, and
+`_calAppendComment` carries a block comment that quotes
+`_prodCanonicalCommentGate(post, comp).linked` verbatim while explaining the
+routing rule. So deleting the calendar side's real gate left `gate: true` and
+`linked: true` and every assertion green — a suite asserting that somebody
+wrote a sentence. My own mutation run missed it because I mutated the SAMPLES
+add, which has no such comment; the twin that carried the trap was the one I
+did not try.
+
+Fixed by matching over code only. `stripNonCode` joins `extractFunction` in
+`test/helpers/extract-function.js` — same lexer, same reason for living there
+(item 96: so there is one of it): comments, string bodies, template bodies and
+regex bodies become spaces at their original offsets, while `${ … }` inside a
+template survives because it is code. The stripper is now load-bearing, so it
+is asserted against the real body that produced the hole, not a synthetic one,
+and the mutation Codex named — delete the calendar gate, leave the comment —
+now fails six checks.
+
 - Done when: it catches a fourth. Until then, it costs nothing and holds the
   prediction that three prose warnings could not.

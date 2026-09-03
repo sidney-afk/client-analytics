@@ -180,4 +180,91 @@ function extractFunctionNaive(source, name) {
   throw new Error('unclosed function: ' + name);
 }
 
-module.exports = { extractFunction, extractFunctionNaive };
+/*
+ * CODE ONLY, for suites that assert "this function CALLS x" over a slice.
+ *
+ * Codex, on PR #1255: `test/comment-family-twin-parity.js` matched
+ * `_prodCanonicalCommentGate(` against the raw body, and `_calAppendComment`
+ * carries a block comment that quotes the call verbatim while explaining the
+ * routing rule -- so deleting the REAL call left every assertion green. A
+ * comment is documentation; a suite that reads it as behaviour is asserting
+ * that somebody wrote a sentence.
+ *
+ * Comments, string bodies, template bodies and regex bodies become spaces;
+ * everything else is kept at its original offset, so lengths and indices still
+ * line up with the input. `${ ... }` inside a template is CODE and survives,
+ * which is the case a naive strip gets wrong in the other direction.
+ *
+ * Same lexer as extractFunction above, and here for the same reason that one
+ * is: so there is one of it.
+ */
+function stripNonCode(source) {
+  const src = String(source || '');
+  const out = new Array(src.length);
+  const stack = [{ kind: 'code' }];
+  let escaped = false;
+  let quote = '';
+  let comment = '';
+  let regex = false;
+  let charClass = false;
+  let prev = '';
+  const blank = i => { out[i] = src[i] === '\n' ? '\n' : ' '; };
+
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    const n = src[i + 1];
+    const top = stack[stack.length - 1];
+
+    if (comment) {
+      blank(i);
+      if (comment === 'line' && c === '\n') comment = '';
+      else if (comment === 'block' && c === '*' && n === '/') { comment = ''; blank(i + 1); i++; }
+      continue;
+    }
+    if (quote) {
+      blank(i);
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === quote) quote = '';
+      continue;
+    }
+    if (regex) {
+      blank(i);
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (charClass) { if (c === ']') charClass = false; }
+      else if (c === '[') charClass = true;
+      else if (c === '/') regex = false;
+      else if (c === '\n') regex = false;
+      continue;
+    }
+    if (top.kind === 'template') {
+      if (escaped) { escaped = false; blank(i); continue; }
+      if (c === '\\') { escaped = true; blank(i); continue; }
+      if (c === '`') { stack.pop(); blank(i); continue; }
+      if (c === '$' && n === '{') { stack.push({ kind: 'code' }); blank(i); blank(i + 1); i++; continue; }
+      blank(i);
+      continue;
+    }
+
+    if (c === '/' && n === '/') { comment = 'line'; blank(i); blank(i + 1); i++; continue; }
+    if (c === '/' && n === '*') { comment = 'block'; blank(i); blank(i + 1); i++; continue; }
+    if (c === '/') {
+      const back = src.slice(Math.max(0, i - 16), i);
+      if (!prev || REGEX_ALLOWED_AFTER.has(prev) || REGEX_ALLOWED_KEYWORD.test(back)) {
+        regex = true; charClass = false; blank(i); continue;
+      }
+    }
+    if (c === '`') { stack.push({ kind: 'template' }); blank(i); continue; }
+    if (c === '"' || c === "'") { quote = c; blank(i); continue; }
+    if (c === '}' && stack.length > 1 && top.kind === 'code') {
+      // closes a ${ ... } back into its template
+      stack.pop(); blank(i); continue;
+    }
+    out[i] = c;
+    if (!/\s/.test(c)) prev = c;
+  }
+  return out.join('');
+}
+
+module.exports = { extractFunction, extractFunctionNaive, stripNonCode };

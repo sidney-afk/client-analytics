@@ -32,7 +32,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { extractFunction } = require('./helpers/extract-function.js');
+const { extractFunction, stripNonCode } = require('./helpers/extract-function.js');
 
 const INDEX = fs.readFileSync(path.join(path.resolve(__dirname, '..'), 'index.html'), 'utf8');
 
@@ -74,10 +74,18 @@ function survey(name) {
     // extractFunction THROWS on a name it cannot find. A missing twin is the
     // exact drift this suite is for, so it has to arrive as a named failing
     // check, not as a stack trace that says nothing about which twin went.
-    let body;
-    try { body = extractFunction(INDEX, name); } catch (e) { return null; }
-    if (typeof body !== 'string' || !body.length) return null;
+    let raw;
+    try { raw = extractFunction(INDEX, name); } catch (e) { return null; }
+    if (typeof raw !== 'string' || !raw.length) return null;
+    /* Match over CODE, never over comments. Caught by Codex on this PR:
+       `_calAppendComment` carries a block comment that quotes
+       `_prodCanonicalCommentGate(post, comp).linked` verbatim while explaining
+       the routing rule, so deleting the real call left every assertion here
+       green. A suite that reads a comment as behaviour is asserting that
+       somebody wrote a sentence. */
+    const body = stripNonCode(raw);
     return {
+        raw,
         body,
         gate: GATE.test(body),
         linked: BRANCHES_ON_LINKED.test(body),
@@ -110,6 +118,23 @@ for (const row of FAMILY) {
     ok(!a.roleHidden, `${row.op}: the calendar gate is not computed only for one role`);
     ok(!b.roleHidden, `${row.op}: the Samples gate is not computed only for one role`);
 }
+
+/* The stripper is now load-bearing: if it stopped removing comments, every
+   answer above could be satisfied by prose. Asserted against the real body
+   that produced the hole rather than a synthetic one. */
+const appendRaw = extractFunction(INDEX, '_calAppendComment');
+ok((appendRaw.match(/_prodCanonicalCommentGate/g) || []).length === 2,
+    '_calAppendComment mentions the gate twice in its raw text — once in code, once in a comment');
+ok((stripNonCode(appendRaw).match(/_prodCanonicalCommentGate/g) || []).length === 1,
+    'and exactly one of those survives the strip, which is the call');
+ok(stripNonCode(appendRaw).length === appendRaw.length,
+    'the strip preserves length, so offsets still line up with the source');
+ok(/const g = a \+ b;/.test(stripNonCode('const g = a + b; // _prodCanonicalCommentGate(x)')),
+    'a line comment is removed and the code before it kept');
+ok(!/gate/.test(stripNonCode('const s = "_prodCanonicalCommentGate";')),
+    'a string body is removed too — a token in a string is not a call either');
+ok(/keep/.test(stripNonCode('const t = `a ${keep} b`;')),
+    'but code inside a template placeholder survives, because it IS code');
 
 /* The detector has to be able to see the defect it is named for, or the six
    clean answers above mean nothing. This is the exact shape 105.3 records

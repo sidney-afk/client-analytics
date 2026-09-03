@@ -92,6 +92,16 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   //   linear-deliverables-reconcile-lib.js  the comparison itself
   //   linear-deliverables-reconcile.js      the staleness banner + counters
   //   linear-reconcile-inbound-pager.js     the counter as context, not a class
+  //
+  // Re-pinned 2026-09-03, THIRD round on the same defect. The deleted-issue
+  // tolerance had been measured against a shape the wire does not produce:
+  // `issue(id:)` is non-nullable, so one unresolvable id nulls the whole query
+  // root and the chunk arrives as `{data: null, errors: [...]}`. The transport
+  // no longer requires `data`, and the loader re-asks for the surviving ids
+  // without the dead alias -- tolerating alone would have read 1 of 35 and
+  // called the gap divergence. One blob moved:
+  //   linear-deliverables-reconcile.js
+  // OPEN_REPAIRS 128.
   // Verify with, for each path:
   //   git show HEAD:<path> | sha256sum
   '.github/workflows/linear-deliverables-reconcile.yml':
@@ -173,7 +183,7 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // blob moved, and the closure is re-derived from `git show HEAD:<path>`.
   'scripts/linear-deliverables-reconcile.js':
     // Re-pinned again the same day: the tolerance is capped (PR #1244 review).
-    'a4664cc90a9b530fdadfd75f6e1021af3fb42fe5faf6238bbb67220a3c675a7c',
+    '7619b30d29522e1766f753b1b674c8ed68688980970077ff1aa39353d3af3c98',
   'scripts/linear-reconcile-inbound-pager.js':
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':

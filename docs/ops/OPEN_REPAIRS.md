@@ -9955,3 +9955,74 @@ with the predicate replaced by one that always says "has a work item" — the
 assertions are measuring the repair. 387 unit suites pass; nine writer harnesses
 that lift these functions into a vm now load the predicate beside them rather
 than stubbing it, so the rule under test is always the shipped one.
+
+---
+
+## 128. [2026-09-03, FIXED — script-only, live on merge; corrects 119 and 126] Third round on the deleted-issue tolerance, and this time the suite was asserting the wrong belief: `issue(id:)` is non-nullable, so one dead id nulls the WHOLE query root
+
+**The run that ended the guessing.** Run 33758558634 at 13:00Z, on the merged
+main that carried item 126's fix, threw at the same line as before:
+
+```
+Error: Linear GraphQL failed: HTTP 200 [{"message":"Entity not found: Issue","path":["i1"],
+  "extensions":{"type":"invalid input","code":"INPUT_ERROR","statusCode":400,"userError":true,...}}]
+    at linear (scripts/linear-deliverables-reconcile.js:170:11)
+    at async loadLinearIssuesById (scripts/linear-deliverables-reconcile.js:503:18)
+```
+
+The tolerance gate is a conjunction, so the cause is available by elimination
+without guessing: `resp.ok` (HTTP 200, in the message), `json` truthy (its
+errors were printed), `opts.tolerateNotFound` (the only call site passes it),
+`errors.length === 1`, and `errors.every(isEntityNotFoundError)` — which I ran
+against that exact captured object and which answers **true**. One conjunct is
+left. `json.data` was falsy.
+
+**Why.** `issue(id:)` is **non-nullable**. Per the GraphQL spec an error on a
+non-null field propagates its null to the nearest *nullable* parent, and for a
+top-level alias that parent is the query root. So a chunk of 35 with one
+unresolvable id does not come back as 34 issues and a null — it comes back as
+
+```
+{ "data": null, "errors": [ one entity-not-found ] }
+```
+
+Item 119 keyed on a `type` Linear never sends. Item 126 fixed the type and still
+required `json.data`. **Both were measured against a shape the wire does not
+produce**, which is the same mistake twice with a different field each time.
+
+**And the suite was holding the wrong belief in place.** One assertion read *"a
+response with no data at all throws — there is nothing partial to salvage"*. A
+response with no data is not a broken response, it is THE response for every
+chunk containing a deleted issue. That line passed through both earlier fixes
+and is what let each of them look verified. It is inverted here with this
+history written beside it, because the next session will otherwise read it and
+believe it.
+
+**Tolerating would not have been enough, and would have been worse.** With the
+root nulled, the 34 live issues in the chunk are absent too. A transport that
+merely stopped throwing would have handed the reconciler **1 of 35** issues and
+let it report the missing 34 as divergence — a silent wrong answer in place of a
+loud outage, on the lane whose entire job is to report divergence. So the loader
+now drops the aliases Linear named in an error `path` and **re-asks for the
+rest**. `pending` strictly shrinks each round (a round either answers cleanly or
+names at least one dead id), so it terminates; the round guard is a backstop.
+The common case — no deletions anywhere — is one request per chunk, exactly as
+before. The `RECONCILE_NOT_FOUND_CAP` bound from item 126 is unchanged in
+meaning but is now checked **per round**, because past the cap this is an access
+loss and re-asking a shrinking chunk 35 times over is just a slower way to
+reach the same refusal.
+
+**Verification.** `test/reconcile-tolerates-deleted-issue.js` drives the real
+extracted loader against a stub that nulls the root exactly as the API does —
+any query naming the dead id returns `{}` plus that one error, any query without
+it returns the issues. It asserts **34** issues returned, **2** requests (re-ask
+once, not id-by-id), and the dead id recorded from its error path. A loader that
+merely tolerated returns 1, so the assertion separates the two behaviours that
+the last two fixes could not.
+
+**Closure re-pinned** to `7619b30d…` from `git show HEAD:<path> | sha256sum`;
+`f27-reconciler-closure` green, 37 assertions.
+
+**Still unproven until it runs.** This is FIXED on paper exactly as 119 and 126
+were. The claim becomes true at the next scheduled run after merge and not
+before — and it is the third time, so it should be read that way.

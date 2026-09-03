@@ -5930,3 +5930,14 @@ Fixed at all four sites plus `_writeUiNativeId`; the panel banner now reads the
 shipped failure-message table instead of printing the code; the two Kasper
 rollbacks now restore the `*_tweaks` strings they were leaving behind.
 OPEN_REPAIRS 127.
+
+**Reconciler, third fix.** The 13:00Z run on the merged main still threw. By
+elimination on its log the unmet conjunct was `json.data`: `issue(id:)` is
+non-nullable, so one dead id nulls the entire query root and the chunk arrives
+as `{data:null, errors:[...]}` rather than 34 issues and a null. Items 119 and
+126 were both measured against a shape the wire does not produce, and one suite
+assertion ("a response with no data at all throws") was pinning that belief in
+place through both. The transport no longer requires `data`; the loader re-asks
+for the surviving ids without the dead alias, because tolerating alone would
+have read 1 of 35 and reported the gap as divergence. Closure re-pinned to
+`7619b30d…`. OPEN_REPAIRS 128.

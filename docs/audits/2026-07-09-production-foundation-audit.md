@@ -401,3 +401,11 @@ Because the code change is frontend-only and touches no data path, rollback does
 
 F145 is independently reversible by reverting its review/merge commit, which restores only the
 prior browser hierarchy projection. It has no data migration or live-state cleanup step.
+
+## 2026-09-03 batch-paging follow-up (boot read path)
+
+**Behavior.** The boot's `batches` read is paged by primary key (`_prodRestRows(..., { keysetColumn: 'id' })`) instead of OFFSET over `order=created_at.desc`. `created_at` is not unique in that table — measured 2026-09-03, 85 of 1,665 batches share a timestamp with another batch, in 39 groups of up to 5 — and OFFSET paging across a tie that straddles the 1,000-row boundary can return a row twice or not at all, with nothing raised. `id` is unique, so the keyset walk cannot express that. Nothing the reader sees changes: `_prodAdapter` keys batches into a map by id and `_prodPreserveProjectedFields` merges by id, so arrival order was never load-bearing.
+
+**Validation.** Proven on the live table, not only on captured rows: the old pager (OFFSET + `created_at.desc` + the four-wide burst) and the new one, run side by side three times, return the same 1,665 rows with zero only-in-old and zero only-in-new. The real app booted over the same rows in server order and in a shuffled order produces an identical batch set, issue set and rendered list. Boot backend requests fall from 21 to 18 — the burst had been issuing `offset=2000/3000/4000` for two bytes each. Guarded by `test/prod-batches-keyset-paging.js`, which also pins the class: every `created_at` ordering in the file must carry a unique tiebreak. Ledger: `docs/ops/OPEN_REPAIRS.md` 121.
+
+**Rollback.** Frontend-only; revert the commit that changes the `batches` line in `_prodLoadData`. No schema, writer, runtime flag, authority, n8n workflow, Edge Function, migration, or live row changes, so rollback is the Pages deploy itself. `ROLLBACK.md` is unchanged and correct.

@@ -10131,3 +10131,96 @@ Linear → card for video every ten to fifteen minutes. That is production
 automation and the owner's call, and until it is made this floor is what stands
 between a reconciler pass and a calendar that repaints fifteen times while
 someone is reading it.
+
+---
+
+## 134. [2026-09-03, FIXED — browser-only, live on merge] A card deep link opened the calendar's first card, twice over, and never said why
+
+**Reported.** *"I click on the link and it just goes to the first thing. Like,
+it doesn't show the card that I'm opening."*
+
+**Two independent silent failures produce that one sentence** — which is exactly
+why the report could not distinguish them. Both were verified before either was
+touched; the client slugs in the links were checked first and all four resolve
+correctly, ruling out the obvious suspect.
+
+**1. The card is filtered out.** `calState.monthFilter` and `statusFilter` are
+saved PER CLIENT (`_calHydrateClientFilters`) and re-applied when that calendar
+opens. Three of the four cards in the report were unscheduled or months old, so a
+saved month filter hides them; the card is in `calState.posts`, the client is
+right, and the element simply never paints. What the reader sees is the ordinary
+first card. The previous behaviour told them to *"check the Organize filters"* —
+the wrong answer, because a link to a card should show the card. It now clears
+the filters and restarts the search once, then still speaks up if the card is
+genuinely unrenderable.
+
+**Deliberately after the frame budget, not before.** Clearing up front would
+discard a saved view on every deep link, including the many where the card was
+about to paint anyway. Only a card that really did not render pays the ~0.6 s.
+`onCalClearFilters` is the Organize menu's own helper, so ordering mode survives
+and the change persists exactly as a manual clear would.
+
+**2. An unresolved slug opened somebody else's calendar, silently.** The
+fallback existed for a good reason — don't strand the strip on its loader — but
+it said nothing, so following a link to one card and landing on a different
+client's board read as a broken link. It now says so before falling back.
+
+**Note on the seed list, which is why the two paths differ:** `WL_CLIENT_NAMES`
+seeds 30 names against 43 active clients. A seeded client resolves immediately;
+an unseeded one goes through `_calPendingDeepLink` and only resolves once
+`fetchAll` folds in the roster. Two of the four reported cards belong to unseeded
+clients. Widening the seed is NOT the fix — the pending path is correct — but the
+silent fallback at the end of it was.
+
+**A test-integrity bug fell out of this and is worth more than the fix.**
+`test/prod-description-images.js`'s extractor is comment-aware but NOT
+regex-aware. `_calEsc` is a one-liner ending `.replace(/"/g,'&quot;')` — the `"`
+inside that **regex literal** reads as an opening string quote, so the scanner
+went "into a string" and stayed there, swallowing everything after it until the
+braces happened to balance. It was extracting **49,193 characters for a
+150-character function** and parsing purely by luck; an edit hundreds of lines
+away moved where the accident landed and the suite failed with `Unexpected end of
+input`. `_calEsc` is now grabbed as a single line. Any suite using that extractor
+on a function containing a regex literal has the same latent fault.
+
+Two other suites failed honestly and were corrected rather than accommodated:
+`calendar-deeplink-tab.js` threw `showNotify is not defined` — stubbed in the
+sandbox rather than guarded in the app, because a missing dependency SHOULD throw
+there. And `calendar-deep-link-focus.js` pinned the old copy sending the reader
+to the Organize filters, which the fix makes stale.
+
+**Two review findings, and the second was the more important fix in this entry.**
+
+1. *The clear ran against the wrong client.* The entry guard checks the client
+   ONCE, then the loop spans 40 frames, and `onCalClearFilters` writes and
+   PERSISTS against whatever client is current at that moment. Switching client
+   during that ~0.6 s would erase a bystander client's saved filters. The
+   request's client is now captured and re-checked at the only point that
+   mutates state.
+2. *A deep link could never paint on the deferred path, and the new fallback
+   made that worse.* `.cal-card` is emitted only by `renderCalOrganizer` — the
+   review, smmreview, month and week views emit none. Mount knows this
+   (`calState.view = _calFocusRequest ? 'organizer' : ...`) but that runs at
+   MOUNT, and the deferred path creates the focus request afterwards, via
+   `_calResolvePendingDeepLink`; `_calOpenClientTab` does not change the view.
+   So for an unseeded client — **two of the four cards in the owner's report** —
+   no card could paint, and the new fallback would clear that client's filters
+   for nothing, announce that filters had hidden the card, and still end on
+   "Card not shown". The link now switches to the Sheet before the frame budget
+   starts.
+
+**Testing.** Both findings are driven for REAL through the existing focus
+harness rather than pinned in source: arriving on `smmreview` switches the view
+and arriving on the Sheet does not churn it; a mid-wait client switch clears
+nobody's filters and says nothing; and the ordinary case still clears once and
+says so. The harness gained `calState.view`, `onCalViewChange`,
+`onCalClearFilters` and `_calOrganizeIsActive` — stubbed in the sandbox rather
+than guarded in the app, because a missing dependency should throw there.
+
+The remaining assertions are source-level and the file says plainly that they are
+the weaker kind: the rest of the focus path needs a painted DOM and a live client
+load. One of them was itself a defect — it sliced a fixed 6,000-character window
+from the function's start, so adding ~25 lines pushed half the assertions past
+the end and they failed as a block while reporting nothing about the code they
+guard. It now uses `extractFunction`, which exists in this repo for exactly that
+mistake.

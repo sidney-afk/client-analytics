@@ -39,7 +39,32 @@ function ok(condition, message) {
 
 /* Comment-aware: index.html comments are prose full of apostrophes and braces,
    which a quote-only matcher reads as code and then reports "unclosed" for a
-   function that balances perfectly. */
+   function that balances perfectly.
+
+   NOT regex-aware, and that gap bit on 2026-09-03. `_calEsc` is a one-liner
+   whose body is `.replace(/&/g,'&amp;')…replace(/"/g,'&quot;')` — the `"` inside
+   that last REGEX LITERAL looks exactly like an opening string quote to the
+   scanner below, so it went "into a string" and stayed there, swallowing
+   whatever followed until the braces happened to balance again. It was
+   extracting **49,193 characters for a 150-character function** and parsing
+   only by luck; an unrelated edit hundreds of lines away changed where the
+   accident landed and the suite failed with `Unexpected end of input`.
+
+   Making the scanner understand regex literals means distinguishing division
+   from a regex, which needs real lexing and is not worth it here. `_calEsc`
+   fits on one line, so it is grabbed as one line — obviously correct, and it
+   cannot silently swallow the rest of the file again. */
+function grabLineFunc(signature) {
+  const start = INDEX.indexOf(signature);
+  if (start < 0) throw new Error('not found: ' + signature);
+  const end = INDEX.indexOf('\n', start);
+  const line = INDEX.slice(start, end < 0 ? INDEX.length : end).trim();
+  if (!/^function [\w$]+\s*\([^)]*\)\s*\{.*\}$/.test(line)) {
+    throw new Error('not a single-line function: ' + signature);
+  }
+  return line;
+}
+
 function grabFunc(signature) {
   const start = INDEX.indexOf(signature);
   if (start < 0) throw new Error('not found: ' + signature);
@@ -67,7 +92,7 @@ function grabFunc(signature) {
 const ctx = {};
 vm.createContext(ctx);
 vm.runInContext([
-  grabFunc('function _calEsc('),
+  grabLineFunc('function _calEsc('),
   grabFunc('function _prodNormalizeMarkdownLine('),
   grabFunc('function _prodMarkdownBlockish('),
   grabFunc('function _prodLinkifyInline('),

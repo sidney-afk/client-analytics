@@ -10513,5 +10513,33 @@ the file exists to hold. There is no output shape that carries six functions, so
 `--report` now requires `--target=<slug>`, an unknown target is refused rather
 than silently added, and `--target` alone also works for checking one function.
 
+### Round three: three more, and one of them was the instruction defeating the gate
+
+- **`--update` would have blessed a new error.** When a real fix lands beside a
+  NEW diagnostic, the run produces both a decrease and an increase — and the
+  decrease's own failure message says *"re-run with `--update`"*. Following that
+  instruction would have written the increase in as the new baseline and handed
+  the next CI run a green. **The instruction must not be a way round the gate**,
+  so an update may only LOWER: any per-code increase in the same run refuses the
+  write and says to fix the increase first.
+- **A replayed report could be a truncated one.** With `--report` and no
+  `--status`, a file holding only deno's opening `Check file:` line reached the
+  clean verdict — even though the process may have been killed a moment later,
+  before printing anything. A clean check has no terminal marker (it prints
+  NOTHING), so replaying one now requires the exit status; otherwise a
+  clean-baseline target reports green off a fragment and `--update` could zero a
+  dirty target's baseline.
+- **The graph checked was not the graph deployed.** `linear-inbound` carries a
+  frozen per-function `deno.json`/`deno.lock`, and its deploy lane proves the
+  source with `deno cache --frozen --config supabase/functions/linear-inbound/deno.json`.
+  The unconditional `--no-lock` resolved that target's transitive dependencies
+  from the repository ROOT instead, so drift there could introduce or hide a
+  diagnostic relative to the graph actually approved for deployment. A target
+  with its own config is now checked under it; every other target keeps
+  `--no-lock` so the checker still leaves no root lock behind. Measured either
+  way: the same 12 errors, so the fix changes the guarantee rather than the
+  number — which is the point, since the number agreeing today is exactly what
+  would have hidden the drift tomorrow.
+
 - Done when: it catches one. The typing repair item 94 describes is still owed
   and still belongs alongside a deploy that was happening anyway.

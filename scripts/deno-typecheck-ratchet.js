@@ -40,7 +40,7 @@
  * Usage:
  *   node scripts/deno-typecheck-ratchet.js                 run deno, compare
  *   node scripts/deno-typecheck-ratchet.js --update --stamp=YYYY-MM-DD   rewrite it
- *   node scripts/deno-typecheck-ratchet.js --report=<file> --target=<slug>  saved log
+ *   node scripts/deno-typecheck-ratchet.js --report=<file> --target=<slug> --status=<n>
  *   node scripts/deno-typecheck-ratchet.js --target=<slug>  just one function
  *   node scripts/deno-typecheck-ratchet.js --deno=<path>   non-PATH deno binary
  *   node scripts/deno-typecheck-ratchet.js --require-deno  absent deno FAILS (CI)
@@ -162,23 +162,39 @@ function completeness(observed) {
     return '';
 }
 
-function runDeno(target, denoBin) {
+/* The dependency graph a function is CHECKED against must be the one it is
+   DEPLOYED against. `linear-inbound` carries a frozen per-function
+   `deno.json`/`deno.lock`, and its deploy lane proves the source with
+   `deno cache --frozen --config supabase/functions/linear-inbound/deno.json`
+   (deploy-f27-linear-inbound.yml). Checking it with `--no-lock` instead
+   resolves transitive dependencies from the repository root, so drift there
+   could introduce or hide a diagnostic relative to the graph that is actually
+   approved for deployment — Codex P2 on #1256. So: a target with its own
+   config is checked under it; every other target keeps `--no-lock`, because a
+   bare `deno check` writes a root `deno.lock` as a side effect and a checker
+   must not leave anything behind. */
+function denoArgsFor(target) {
     const rel = path.join('supabase', 'functions', target, 'index.ts');
-    /* --no-lock: a bare `deno check` writes a `deno.lock` at the repository
-       root as a side effect, which is not this repository's artifact (the one
-       intentional Deno lock is per-function, under linear-inbound) and which
-       turned repo-map-sync red the first time this ran locally. A checker
-       must not leave anything behind. */
-    const r = spawnSync(denoBin, ['check', '--no-lock', '--node-modules-dir=auto', rel], {
+    const cfg = path.join('supabase', 'functions', target, 'deno.json');
+    if (fs.existsSync(path.join(ROOT, cfg))) {
+        return { args: ['check', '--config', cfg, '--node-modules-dir=auto', rel], config: cfg };
+    }
+    return { args: ['check', '--no-lock', '--node-modules-dir=auto', rel], config: null };
+}
+
+function runDeno(target, denoBin) {
+    const plan = denoArgsFor(target);
+    const r = spawnSync(denoBin, plan.args, {
         cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
     });
     if (r.error && r.error.code === 'ENOENT') {
-        return { missing: true, text: '', status: null };
+        return { missing: true, text: '', status: null, config: plan.config };
     }
     return {
         missing: false,
         text: String(r.stdout || '') + String(r.stderr || ''),
         status: typeof r.status === 'number' ? r.status : null,
+        config: plan.config,
     };
 }
 
@@ -190,12 +206,14 @@ function compare(target, observed, baselineEntry) {
        fragment" and "TS18047 is holding at 14" would be reporting a number read
        off a page that was torn. */
     const incomplete = completeness(observed);
-    if (incomplete) return { failures: [target + ': ' + incomplete], notes: [] };
+    if (incomplete) return { failures: [target + ': ' + incomplete], notes: [], increases: [] };
+    const increases = [];
     const codes = new Set(Object.keys(base).concat(Object.keys(observed.counts)));
     for (const code of Array.from(codes).sort()) {
         const was = base[code] || 0;
         const now = observed.counts[code] || 0;
         if (now > was) {
+            increases.push(code + ' ' + was + ' → ' + now);
             failures.push(target + ': ' + code + ' went ' + was + ' → ' + now
                 + (was === 0 ? ' — a KIND of type error this file did not have before' : ''));
         } else if (now < was) {
@@ -206,7 +224,7 @@ function compare(target, observed, baselineEntry) {
             notes.push(target + ': ' + code + ' holding at ' + now);
         }
     }
-    return { failures, notes };
+    return { failures, notes, increases };
 }
 
 function main() {
@@ -223,6 +241,17 @@ function main() {
        function's counts, destroying the per-function measurements it exists to
        hold. There is no shape of output that carries six functions, so the
        honest fix is to require the caller to say which one. */
+    /* A CLEAN report has no terminal marker — a clean `deno check` on a warm
+       cache prints nothing at all — so a saved file holding only the initial
+       `Check file:` line is indistinguishable from a run killed a moment later.
+       Replaying one therefore needs the exit status supplied; without it, a
+       clean-baseline target would report green off a truncated file and
+       `--update` could zero a dirty target's baseline. Codex P2 on #1256. */
+    if (reportFile && argOf('--status') === null) {
+        console.log('--report=<file> also needs --status=<exit code>: a clean deno check prints nothing,');
+        console.log('so a saved report cannot be told apart from a run that died before writing.');
+        process.exit(1);
+    }
     if (reportFile && !targetArg) {
         console.log('--report=<file> also needs --target=<slug>: a saved report is the output of ONE');
         console.log('deno check, and replaying it against every baseline would compare a function');
@@ -270,6 +299,7 @@ function main() {
         measured[target] = { counts: observed.counts, total: observed.total };
         measured[target].incomplete = completeness(observed);
         const cmp = compare(target, observed, baseline.targets && baseline.targets[target]);
+        measured[target].increases = cmp.increases || [];
         failures.push(...cmp.failures);
         notes.push(...cmp.notes);
     }
@@ -289,6 +319,21 @@ function main() {
             const why = measured[target].incomplete;
             if (why) {
                 console.log('refusing to update ' + target + ': ' + why);
+                process.exit(1);
+            }
+        }
+        /* AN UPDATE MAY ONLY LOWER. Codex P2 on #1256: a fix landing alongside a
+           NEW diagnostic produces both a decrease and an increase, and the
+           decrease's own message tells the contributor to rerun with --update —
+           which would then bless the new error and hand the next CI run a green.
+           The instruction must not be a way round the gate. */
+        for (const target of targets) {
+            const up = measured[target].increases || [];
+            if (up.length) {
+                console.log('refusing to update ' + target + ': ' + up.join(', '));
+                console.log('An update may only LOWER a baseline. Something went UP in the same run, and');
+                console.log('writing it in would bless a new type error. Fix the increase first; the');
+                console.log('decrease will still be there to record afterwards.');
                 process.exit(1);
             }
         }
@@ -318,4 +363,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { parseReport, compare, completeness };
+module.exports = { parseReport, compare, completeness, denoArgsFor };

@@ -202,11 +202,11 @@ ok(skipStatus === 0,
 const tmpReport = path.join(os.tmpdir(), 'ratchet-report-' + process.pid + '.log');
 fs.writeFileSync(tmpReport, 'Check file:///x\nTS18047 [ERROR]: x\nFound 1 errors.\n');
 const RATCHET = path.join(ROOT, 'scripts', 'deno-typecheck-ratchet.js');
-const bare = spawnSync(process.execPath, [RATCHET, '--report=' + tmpReport], { encoding: 'utf8' });
+const bare = spawnSync(process.execPath, [RATCHET, '--report=' + tmpReport, '--status=1'], { encoding: 'utf8' });
 ok(bare.status === 1 && /also needs --target=/.test(bare.stdout),
     '--report without --target is refused, instead of being replayed against every baseline');
 const wrongTarget = spawnSync(process.execPath,
-    [RATCHET, '--report=' + tmpReport, '--target=not-a-function'], { encoding: 'utf8' });
+    [RATCHET, '--report=' + tmpReport, '--target=not-a-function', '--status=1'], { encoding: 'utf8' });
 ok(wrongTarget.status === 1 && /not covered by this ratchet/.test(wrongTarget.stdout),
     'and a --target this ratchet does not cover is refused rather than silently added');
 const oneTarget = spawnSync(process.execPath,
@@ -214,6 +214,63 @@ const oneTarget = spawnSync(process.execPath,
 ok(/production-write/.test(oneTarget.stdout) && !/linear-outbound/.test(oneTarget.stdout),
     'and with a target it reports that function ALONE, not all six');
 fs.unlinkSync(tmpReport);
+
+const noStatus = spawnSync(process.execPath,
+    [RATCHET, '--report=' + tmpReport, '--target=production-write'], { encoding: 'utf8' });
+ok(noStatus.status === 1 && /also needs --status=/.test(noStatus.stdout),
+    'and a replayed report without an exit status is refused — a clean check prints nothing, '
+    + 'so a saved file cannot be told apart from a run that died before writing');
+
+/* ---- 3d. an update may only LOWER -------------------------------------- */
+
+/* Codex P2: a fix landing alongside a NEW diagnostic produces both a decrease
+   and an increase, and the decrease's own message says to rerun with --update.
+   Following that instruction would bless the new error and hand the next run a
+   green. The instruction must not be a way round the gate. */
+const mixed = compare('production-write',
+    { counts: { TS18047: 13, TS2352: 1, TS2345: 1 }, total: 15, declared: 15,
+      sawCheckLine: true, sawErrorLine: true, status: 1 },
+    { counts: { TS18047: 14, TS2352: 1 } });
+ok(mixed.increases.length === 1 && /TS2345 0 → 1/.test(mixed.increases[0]),
+    'compare reports the increase separately from the decrease, so the update path can see it');
+ok(mixed.failures.some(f => /good news/.test(f)) && mixed.failures.some(f => /TS2345 went 0 → 1/.test(f)),
+    'and both still fail the check itself');
+
+const mixedReport = path.join(os.tmpdir(), 'ratchet-mixed-' + process.pid + '.log');
+fs.writeFileSync(mixedReport,
+    'Check file:///x\n' + 'TS18047 [ERROR]: x\n'.repeat(13) + 'TS2352 [ERROR]: y\n'
+    + 'TS2345 [ERROR]: z\n' + 'Found 15 errors.\n');
+const blessed = spawnSync(process.execPath,
+    [RATCHET, '--report=' + mixedReport, '--target=production-write', '--status=1',
+        '--update', '--stamp=2026-09-03'], { encoding: 'utf8' });
+ok(blessed.status === 1 && /refusing to update/.test(blessed.stdout) && /may only LOWER/.test(blessed.stdout),
+    'and --update REFUSES a run that contains an increase, instead of writing it in');
+const baselineNow = fs.readFileSync(path.join(ROOT, 'docs', 'ops', 'DENO_TYPECHECK_BASELINE.json'), 'utf8');
+ok(!/TS2345/.test(JSON.parse(baselineNow).targets['production-write'].counts ? JSON.stringify(JSON.parse(baselineNow).targets['production-write'].counts) : ''),
+    'and the committed baseline is untouched by the refused update');
+fs.unlinkSync(mixedReport);
+
+/* ---- 3e. the graph checked is the graph deployed ------------------------ */
+
+/* linear-inbound carries a frozen per-function deno.json/deno.lock, and its
+   deploy lane proves the source with `deno cache --frozen --config` that file.
+   Checking it with --no-lock would resolve dependencies from the repository
+   root instead, so drift there could introduce or hide a diagnostic relative to
+   the graph actually approved for deployment. */
+const { denoArgsFor } = require('../scripts/deno-typecheck-ratchet.js');
+const inbound = denoArgsFor('linear-inbound');
+ok(inbound.config === path.join('supabase', 'functions', 'linear-inbound', 'deno.json'),
+    'linear-inbound is checked under its own frozen config, not from the repository root');
+ok(inbound.args.indexOf('--no-lock') < 0,
+    'and NOT with --no-lock, which would bypass the frozen lock its deploy proof enforces');
+ok(fs.existsSync(path.join(ROOT, inbound.config)),
+    'and that config really exists — if it is ever removed this has to be revisited');
+const pwArgs = denoArgsFor('production-write');
+ok(pwArgs.config === null && pwArgs.args.indexOf('--no-lock') >= 0,
+    'a target with no per-function config keeps --no-lock, so the checker leaves no root lock behind');
+ok(/--frozen[\s\S]{0,120}supabase\/functions\/linear-inbound\/deno\.json/.test(
+    fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'deploy-f27-linear-inbound.yml'), 'utf8')),
+    'and the deploy lane still proves that same config frozen — the reason this target is special');
 
 /* ---- 4. no npm alias, for the reason item 94 gives ---------------------- */
 

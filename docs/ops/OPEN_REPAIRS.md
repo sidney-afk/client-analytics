@@ -10314,3 +10314,50 @@ edit with a stale deliverable; dropping N/A parking drags a deliberately parked
 component back. The wiring is held by source assertions, which are weaker and say
 so, pinning the three couplings whose silent loss would make the change wrong
 rather than merely broken.
+
+---
+
+## 132. [2026-09-03, MEASURED — corrects the exit plan's step 1; no repair needed for the exit] The Content Calendar has no Linear-only work left, and the "420 slots to backfill" was counting the wrong thing
+
+**What was claimed.** Exit-plan step 1 called for backfilling "420 calendar
+component slots (299 with no deliverable id, 121 crosswalk-mismatched) … 193 are
+in-flight work" before Linear could be switched off.
+
+**Why that was the wrong question.** It counted every component with no
+deliverable id. But a *migration* is only needed where **Linear holds a work item
+that SyncView does not**. A component with no work item on either side has
+nothing to migrate, and a Posted component is finished.
+
+**Classified over all 783 live cards × 2 components:**
+
+| | |
+|---|---|
+| 1,126 | already agree with their native deliverable |
+| 169 | no native record, status **Posted** — finished, nothing to migrate |
+| 133 | no native record **and no Linear link** — no work item exists at all |
+| 107 | component not in use (blank or N/A) |
+| **0** | **a Linear issue with no native record** |
+
+**Zero.** Nothing on a live calendar card exists only in Linear.
+
+**The 133 are not a leak either.** 94 of them sit on natively-created cards, and
+the shape is decisive: **63 are video-linked with a graphic gap, 31 are the
+reverse, and never both**. That is the uncommissioned half of a card carrying a
+default `In Progress` status behind a pill the app already locks — the same
+family as item 127's caption defect, not a linkage failure. The remaining 39 are
+legacy cards.
+
+**Samples are UNPROVEN.** This pass measured the Content Calendar only.
+
+**Found in passing, filed separately, not blocking the exit.** The same
+bidirectional pass checked whether each link points back: 1,055 of 1,155 are
+correct both ways; **2 cards point at a deliverable belonging to a different
+card**; ~98 are one-way (the deliverable's `card_id` is empty); and ~48 carry a
+`kind` that disagrees with the slot holding them — video slots holding
+`kind=thumbnail`, graphic slots holding `kind=other` — concentrated on three
+clients. `kind` is **not** cosmetic: `linear-inbound:704` picks which card column
+to backfill from it, so a mismatch is inconsistent with what the inbound backfill
+would do. Whether any of it misroutes a live write is **not established**, and
+saying so is the point: that is its own investigation with its own blast radius,
+and this session has already been burned twice by answering a reachability
+question from inspection instead of proof.

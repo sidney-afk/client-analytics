@@ -249,12 +249,35 @@ First because creating a post is the one thing that fails **today** if Linear is
 Note this is an Edge Function change, so it does not take effect until the owner runs the
 F27 Section 4 deploy lane; the code landing on `main` changes nothing by itself.
 
-**Step 1 — Backfill the unbound card↔deliverable slots.**
-420 calendar component slots (299 with no deliverable id, 121 crosswalk-mismatched) and
-13 sample slots cannot be served natively. 193 are in-flight work. Run
-`scripts/b3-linkage-backfill.js` / the F42 import to completion, and close the leak that
-still manufactures them — the gap check finds **31 actionable slots today, 4 created
-after the flip**. *Gate: unbound in-flight slots = 0 and the post-flip creation rate = 0.*
+**Step 1 — Nothing to backfill on the calendar. Measured 2026-09-03, and this is a
+correction: an earlier draft called for backfilling "420 calendar component slots … 193
+in-flight".** That number counted every component with no deliverable id, which is not the
+same question. A migration is only needed where **Linear holds a work item that SyncView
+does not**. Classified over all 783 live cards × 2 components:
+
+| | |
+|---|---|
+| 1,126 | already agree with their native deliverable |
+| 169 | no native record, status **Posted** — finished work, nothing to migrate |
+| 133 | no native record **and no Linear link** — no work item exists on either side |
+| 107 | component not in use (blank or N/A) |
+| **0** | **a Linear issue with no native record — the only shape that needs migrating** |
+
+So the calendar has **no Linear-only work left**. The 94 native-created components in that
+133 are the uncommissioned half of a card (63 video-linked with a graphic gap, 31 the
+reverse, never both) carrying a default `In Progress` status behind a pill the app already
+locks — the same family as the caption defect in OPEN_REPAIRS 127, not a linkage leak.
+
+*Gate: already met for the Content Calendar.* Samples are **unproven** — not measured here.
+
+**What the same pass did find**, separately from the exit and not blocking it: 1,055 of
+1,155 card→deliverable links are correct in both directions; **2 cards point at a
+deliverable belonging to a different card**; ~98 links are one-way (the deliverable does
+not name the card back); and a cluster of `kind` mismatches sits mostly on three clients —
+video slots holding `kind=thumbnail` rows and graphic slots holding `kind=other`. `kind`
+is not cosmetic: `linear-inbound:704` picks the slot to backfill from it. Filed as its own
+investigation rather than folded in here, because it is a pre-existing data-integrity
+question with its own blast radius and it does not gate the Linear exit.
 
 **Step 2 — Make the calendar read deliverable status natively.**
 Smallest first move: in `linear-sync-reconcile.js` (and the samples twin) write the

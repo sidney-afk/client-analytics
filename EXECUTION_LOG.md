@@ -5941,3 +5941,14 @@ place through both. The transport no longer requires `data`; the loader re-asks
 for the surviving ids without the dead alias, because tolerating alone would
 have read 1 of 35 and reported the gap as divergence. Closure re-pinned to
 `7619b30d…`. OPEN_REPAIRS 128.
+
+**The calendar refresh storm.** Reported as "it refreshes 10 to 15 times in a
+row". Not the calendar re-entering its own load -- four candidates eliminated by
+measurement. `calendar_posts` takes ~200 backend row writes an hour (the
+reconcilers that still apply Linear -> card, item 76); the tab reloads the whole
+client on every realtime event behind a 350 ms debounce, and the 4-second
+coalescing window beside it keys off `_calLastLocalWriteAt`, so it only ever
+applied to this tab's own writes. One refresh per row. `CAL_V2_RT_MIN_RELOAD_MS`
+(8 s) now re-arms foreign bursts the same way: 15 reloads become 2, measured on
+the real handler against a mutant. Browser half only; the cure is item 76.
+OPEN_REPAIRS 129.

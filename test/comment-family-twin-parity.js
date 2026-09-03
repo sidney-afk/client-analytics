@@ -221,6 +221,16 @@ ok(!/gate/.test(stripNonCode('const s = "_prodCanonicalCommentGate";')),
     'a string body is removed too — a token in a string is not a call either');
 ok(/keep/.test(stripNonCode('const t = `a ${keep} b`;')),
     'but code inside a template placeholder survives, because it IS code');
+/* Codex on this PR: the frame was popped by the FIRST `}` inside a `${ … }`,
+   so a nested object closed the interpolation early and the executable code
+   after it was blanked — a gate call sitting there would have been invisible.
+   Braces are counted now, as extractFunction has always done. */
+ok(/\+ keep/.test(stripNonCode('`${foo({x: 1}) + keep}`')),
+    'a nested object inside an interpolation does not end it early');
+ok(/: z/.test(stripNonCode('`${x ? `${y}` : z} tail`')),
+    'and neither does a nested template inside one');
+ok(!/tail/.test(stripNonCode('`${x} tail`')),
+    'while the template text around the placeholder is still removed');
 
 /* The detector has to be able to see the defect it is named for, or the six
    clean answers above mean nothing. This is the exact shape 105.3 records

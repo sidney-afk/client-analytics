@@ -201,7 +201,7 @@ function extractFunctionNaive(source, name) {
 function stripNonCode(source) {
   const src = String(source || '');
   const out = new Array(src.length);
-  const stack = [{ kind: 'code' }];
+  const stack = [{ kind: 'code', depth: 0 }];
   let escaped = false;
   let quote = '';
   let comment = '';
@@ -242,7 +242,7 @@ function stripNonCode(source) {
       if (escaped) { escaped = false; blank(i); continue; }
       if (c === '\\') { escaped = true; blank(i); continue; }
       if (c === '`') { stack.pop(); blank(i); continue; }
-      if (c === '$' && n === '{') { stack.push({ kind: 'code' }); blank(i); blank(i + 1); i++; continue; }
+      if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); blank(i); blank(i + 1); i++; continue; }
       blank(i);
       continue;
     }
@@ -257,9 +257,17 @@ function stripNonCode(source) {
     }
     if (c === '`') { stack.push({ kind: 'template' }); blank(i); continue; }
     if (c === '"' || c === "'") { quote = c; blank(i); continue; }
-    if (c === '}' && stack.length > 1 && top.kind === 'code') {
-      // closes a ${ ... } back into its template
-      stack.pop(); blank(i); continue;
+    /* A `${ ... }` frame must COUNT braces, not pop on the first one it sees.
+       Codex on #1255: `${foo({x: 1}) + keep}` was closed by the object's brace,
+       so `+ keep` -- executable code -- was blanked, and a gate call sitting
+       there would be invisible to a suite reading this output. extractFunction
+       above tracks depth for exactly this reason; so does this now. */
+    if (c === '{') { top.depth = (top.depth || 0) + 1; }
+    else if (c === '}') {
+      top.depth = (top.depth || 0) - 1;
+      if (top.depth === 0 && stack.length > 1) {
+        stack.pop(); blank(i); continue;   // closes a ${ ... } back into its template
+      }
     }
     out[i] = c;
     if (!/\s/.test(c)) prev = c;

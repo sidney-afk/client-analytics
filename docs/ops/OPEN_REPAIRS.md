@@ -9668,3 +9668,76 @@ session that notices `order=client.asc&offset=` should read this row rather than
 spend a night re-measuring it. And the recurring lesson from three wrong answers
 in one investigation is the same one item 123 records — a count is not evidence
 until you have checked what it is counting.
+
+---
+
+## 125. [2026-09-03, MEASURED — not repaired, and it is the largest open risk to trusting this app] The mandatory Production polish gate has been red for five days, and four more failures accumulated behind the first two
+
+Found by following up a Codex P1 on #1243 ("run the Production polish gate
+before shipping"). The finding is not about #1243.
+
+### The timeline, from the run history
+
+| | |
+|---|---|
+| last GREEN | run 653, **2026-08-28 20:49Z**, `4f650840` |
+| first RED | run 667, **2026-08-30 18:01Z**, `66c1291f` (PR #1177) |
+| since | **red on every run** — 27 consecutive |
+
+`AGENTS.md:95` makes this gate mandatory for Production UI changes: *"The
+aggregate `npm run test:prod-polish` passed on the exact candidate … the fast PR
+job alone is insufficient."* For five days no Production change has been able to
+satisfy it, because it does not pass at all.
+
+### It is NOT one stable failure. It is growing.
+
+This is the part that matters, and it is why this entry exists rather than a
+shrug about a flaky lane:
+
+```
+2026-08-30  first red   behav_wired:chip+titleTooltip                        2 checks
+2026-09-03  today       behav_wired:chip+kbProj+titleTooltip+
+                        ringClearOnNav+pcardNameTooltip+1more               6 checks
+                        + Production pixel parity [error_generic]           + pixel lane
+```
+
+The gate went red with **two** failing behaviour checks. Four more, plus the
+entire pixel-parity lane, have broken since — each one landing while the gate
+was already red and therefore invisible. Nobody shipped past a green light;
+everybody shipped past a light that had been red so long it stopped being
+information. That is the broken-window failure mode, and the accumulation is
+evidence it is still happening.
+
+### What this is NOT
+
+- **Not caused by the recent deep-link work.** Verified directly: the heavy lane
+  failed identically on `4931e1b1` (before PR #1243) and `a3231156` (after) —
+  byte-identical signature. #1243 in fact flipped `production-polish-interaction`
+  from failure back to **success**.
+- **Not the sandbox limitation** `CLAUDE.md` describes. That note says the lanes
+  cannot pass *here*, with no route to the live backend. This is CI, on GitHub's
+  runners, where the same gate was green through 2026-08-28.
+
+### What is NOT yet established
+
+Whether these six checks describe **real UI regressions** or **stale
+expectations**. The bisect window `4f650840..66c1291f` sits immediately after the
+F1 video cutover, so a live-derived gate encoding pre-flip expectations is a
+plausible cause — but plausible is not measured, and this file has three entries
+from today alone about counts asserted before they were checked. The names are
+specific enough to start from: `chip`, `kbProj`, `titleTooltip`,
+`ringClearOnNav`, `pcardNameTooltip`, one unnamed, and whatever
+`error_generic` covers on the pixel lane.
+
+**Deliberately not repaired unattended.** Reproducing needs the live backend this
+sandbox cannot reach; it is five days of accumulated breakage rather than one
+fault; and a wrong fix to a quality gate is worse than a red one, because it
+turns "no signal" into "false signal". The right next step is a session that can
+run `node docs/syncview-design/tests/prod-polish-gate.js --lane=heavy` against
+the live backend and take the six named checks one at a time.
+
+**Owner decision this needs:** if some of these are stale post-flip
+expectations, they should be re-based deliberately and said so in writing — not
+left red. A mandatory gate that nobody can satisfy is worse than no gate, because
+it silently converts every merge into an unverified one, which is precisely what
+the last five days were.

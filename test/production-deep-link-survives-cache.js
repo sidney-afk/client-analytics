@@ -237,8 +237,14 @@ ok(/_prodApplyDeepLinkFallback\(false\)/.test(hydrate),
 ok(!/_prodState\.openId = ''/.test(hydrate),
   'and no longer clears the deep link inline — that inline guard was the defect');
 
-const loadStart = source.indexOf('async function _prodLoadData(');
-const loadSlice = source.slice(loadStart, loadStart + 9000);
+/* THE WHOLE FUNCTION, NOT A CHARACTER WINDOW.
+   This read `source.slice(loadStart, loadStart + 9000)`, and 9000 is not a
+   property of anything — it is a guess about how long `_prodLoadData` happens
+   to be. Adding a comment to that function on 2026-09-03 pushed the call this
+   asserts on past the boundary and turned a true statement into a red suite.
+   A window that moves with the formatting cannot pin behaviour; the extractor
+   reads the actual function, which is what the assertion always meant. */
+const loadSlice = extractFunction('_prodLoadData');
 ok(/_prodApplyDeepLinkFallback\(true\)/.test(loadSlice),
   'the live read calls it authoritatively, which is the only place a target is declared missing');
 

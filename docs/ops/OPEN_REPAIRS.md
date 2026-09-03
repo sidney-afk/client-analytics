@@ -9287,3 +9287,240 @@ reappeared at the next exit from the same room. The count of exits was never
 established. This round finally replaced the flags with the *question* — which
 is why the eviction gate and the pane now share one predicate instead of two
 copies of an approximation.
+
+---
+
+## 121. [2026-09-03, MEASURED — one fix shipped, one change built and REJECTED] The SyncLinear boot, audited end to end: what it actually costs, the one silent-loss bug in it, and the optimisation that turns out to hurt the person it was meant to help
+
+Owner asked for a boot audit — "faster, more efficient, smarter". This is the
+measurement, the one repair it turned up, and, at more length than usual, the
+change that looked like the obvious win and is not. **Read the REJECTED section
+before optimising this boot again**; it cost a night to find and would be
+re-derived by anyone who measures only from a fast connection.
+
+### What the boot actually costs (measured 2026-09-03, live)
+
+| | |
+|---|---|
+| deliverable rows | 6,252 — 2,225 live, 4,027 terminal |
+| terminal half | approved 3,174 · posted 781 · canceled 69 · duplicate 3 · **archived 0** |
+| one 1,000-row page | 1.65 MB JSON, **242 KB on the wire** (gzip is on) |
+| deliverable page reads | 8, strictly sequential (3 live + 5 terminal) |
+| server page cap | **1,000 rows, and `limit` cannot raise it** — 2000/5000/10000 all return 1,000 |
+| backend requests per boot | 21 (now 18) |
+
+Bandwidth is NOT the problem — the whole projection is ~1.5 MB gzipped. **Serial
+round trips are.** With a 300 ms backend the tail did not even ISSUE until
+3,217 ms into the boot, and the boot completed at 6,770 ms.
+
+Three ideas died on measurement, recorded so nobody re-derives them:
+
+- **Raise the page size** — impossible, the server caps at 1,000 regardless of `limit`.
+- **Skip archived rows at boot** — there are none; `archived` in the filter is free.
+- **Cache both halves so a warm boot is instant** — both halves pack to 4.78 M chars against a 2.4 M budget (`PROD_CACHE_MAX_CHARS`), i.e. **199% of it**, and localStorage is shared with the calendar and samples snapshots. Dead.
+
+### FIXED: the boot paged `batches` on a non-unique key, which can silently lose one
+
+`_prodRestRows('batches', …, 'order=created_at.desc')` paged with OFFSET.
+`created_at` **is not unique here**: 85 of 1,665 batches share a timestamp with
+another batch, in 39 groups of up to 5.
+
+PostgreSQL guarantees no order within a tie, and no two executions need resolve
+one the same way. OFFSET paging asks twice — `offset=0`, then `offset=1000` — so
+a tie group lying across the boundary can return a row in both pages or **in
+neither**. Nothing raises. "In neither" is a filming day missing from
+SyncLinear, which is the one failure a user cannot report accurately: it arrives
+as "it's not in the list".
+
+It has not bitten yet only because today's boundary falls between two distinct
+timestamps. That is luck, and it moves every time a batch is created.
+
+Fixed by paging that read by primary key — the same keyset walk, for the same
+reason, already used by the deliverable projection. `id` is unique, so the bug
+cannot be expressed. Safe because batch arrival order is not load-bearing:
+`_prodAdapter` keys them into a map by id and `_prodPreserveProjectedFields`
+merges by id. **Proven rather than assumed** — the real app booted over the same
+rows in server order and in a shuffled order produced an identical batch set,
+issue set and rendered list.
+
+It also removes real waste. The offset pager fires page 0 then bursts four more,
+so 1,665 rows cost **five requests to read two pages**: `offset=2000/3000/4000`
+each returned two bytes after a full ORDER BY / OFFSET scan (~0.8 s of database
+time per boot, measured). Now 2 requests. Guarded by
+`test/prod-batches-keyset-paging.js`, which pins the class as well as the
+instance: every `created_at` ordering in the file must carry a unique tiebreak.
+
+Checked and CLEAR, so it is not repaired: `deliverable_events` pages `ts.desc`
+30-at-a-time and would have the same shape, but a 1,000-event sample contains
+**zero** `(deliverable_id, ts)` ties.
+
+### REJECTED: starting the terminal read beside phase one — 31% faster here, 21% slower for the editor it was built for
+
+The obvious win. The two halves are independent filters over one view and share
+no input, yet the tail is only *called* after phase one resolves, so it idles
+for seconds. Built, measured on a replay of the real 6,252 rows:
+
+```
+                 board usable      complete
+before              2,505 ms       5,975 ms
+after               2,332 ms       4,118 ms      -31%
+```
+
+Both metrics better, identical eight reads, identical 6,252 rows. Six rounds
+against the live endpoint: zero non-200s, no short reads. It looked finished.
+
+**`test/prod-two-phase-boot-read.js` failed, and it was right.** The two-phase
+split exists because of a live report on 2026-08-31 — an editor on a slow
+connection, SyncLinear "super lento". The guard's own words: *starting it first
+would put the archive back in front of the reader.*
+
+A datacenter cannot see that, because bandwidth there is effectively infinite
+and two overlapping reads cost nothing. Re-measured with bandwidth modelled as a
+fair-share bucket — every in-flight response draining one budget, which is the
+entire mechanism by which a second read can hurt:
+
+```
+1 Mbps           board usable      complete
+before             15,823 ms      32,290 ms
+after              19,091 ms      19,091 ms
+```
+
+**The board becomes usable 3.3 s LATER.** Time-to-complete halves and
+time-to-interact regresses 21% — the archive taking half the pipe from the work
+somebody is waiting on. That is the exact trade the split was created to
+prevent, for the exact user it was created for.
+
+Reverted. Not gated on `navigator.connection` either: a fetch schedule that
+varies by measured link speed is a behaviour that differs per person and
+reproduces for nobody, which is a worse bug than the one it buys.
+
+**The lesson worth keeping:** the boot's serialisation is not an oversight, it
+is the design. Optimising it means finding work to REMOVE, not work to overlap —
+and any future attempt must be measured under constrained bandwidth before it is
+believed.
+
+---
+
+## 122. [2026-09-03] The absence-is-not-evidence sweep: every lazy read on the Production surface, checked against the shape that produced items 107, 108, 116, 119 and 120
+
+Owner's second goal for the night: *"make sure you found the root problem, make
+sure it wouldn't happen in another instance or somewhere else."*
+
+### The root, stated once
+
+Five of today's repairs are one defect wearing different clothes: **a
+three-valued question stored in a two-valued variable.** "Is X here?" has three
+honest answers — YES, NO, and I-HAVE-NOT-LOOKED-YET (or I-LOOKED-AND-THE-READ-
+FAILED) — and every one of these bugs collapsed the third into the second.
+Absence was read as evidence when the collection was merely incomplete.
+
+That is why the deep-link bug took five rounds (108 → 116 → 120): each fix
+repaired the exit where it was reported, and the number of exits was never
+enumerated. The cure is not a better fix at each exit; it is one shared
+completeness predicate that every exit consults.
+
+### The sweep, and what it found
+
+Every lazy per-row read on the Production surface, checked for whether it can
+tell NOT-YET and FAILED apart from GENUINELY-NONE:
+
+| read | third state? | verdict |
+|---|---|---|
+| assets | yes — `status`/`complete`/`error`, per-asset `checking`/`available`/`missing`/`unavailable` | **clear**, and already carries the exact reasoning ("Saying Missing asserts a fact about the world that is false; Unavailable asserts a fact about the reader, which is true") |
+| labels | yes — settles explicitly, own error text, Retry | **clear** |
+| comments | yes — repaired 2026-08-31 after a thread sat on a skeleton with no error and no Retry | **clear** |
+| descriptions | yes — `idle`/`stale`/`ready` plus `refreshError` | **clear** |
+| batch files | yes — `batchFilesStatus` companion map | **clear** |
+| deep link / detail pane | yes — `_prodRowSetComplete()` as of item 120 | **clear** |
+| **deliverable events** | **no** | see below |
+
+So the surface is in far better shape than today's run of bugs suggests. Six of
+seven lazy reads already carry the third state, several with comments showing
+the lesson was learned there first. The pattern is not endemic; it is one
+straggler.
+
+### The straggler, measured honestly
+
+`_prodLoadEventsFor` writes `[]` at three different moments: before the read
+starts, on success-with-no-rows, and in its `catch`. All three are then
+indistinguishable, and `_prodState.events.has(id)` blocks any retry, so a
+transient failure is sticky for the whole session.
+
+**But the user-visible damage is smaller than that sounds, and the first version
+of this entry overstated it.** `_prodActivity()` — which renders the definite
+sentence "No activity yet." — is **dead code**: one definition, zero call sites.
+The only live consumer is `_prodStatusBreakdown`, which returns `''` when it has
+no status changes. So a failed events read does not state a falsehood; it makes
+the status-history strip **silently disappear** and not come back. That is the
+milder half of the family, though still the half AGENTS.md warns about: an
+absence is the failure a user cannot report accurately.
+
+**Deliberately NOT repaired tonight**, and the reason matters more than the
+repair would: `_prodLoadEventsFor` is called from `_prodRender`. Any fix that
+lets a failed read be retried without a cooldown turns one failing backend into
+a render loop hammering it — strictly worse than a missing strip. The correct
+repair is a status companion plus retry-on-explicit-open (the shape labels and
+comments already use), which is a considered change, not an unattended one.
+
+Note for whoever wires up `_prodActivity`: it inherits the conflation the moment
+it is called. Give it the third state in the same change.
+
+### The same question asked of the WHOLE app, not just Production
+
+The table above covers one surface. The owner asked whether this happens
+"somewhere else", so the mechanism itself was swept across all 74k lines: a
+`catch` body that writes an EMPTY collection into shared UI state, which a
+render then reads as fact. Brace-matched catch bodies, not a line window.
+
+**Result: two sites in the entire app.** `calState.posts = []` (which records a
+failure alongside it — clear) and `_prodState.events.set(id, [])` (which does
+not — the straggler above). That is the whole population.
+
+So the honest answer to "could this be somewhere else" is **no** — the five
+bugs today came from one surface's boot sequencing, not from a habit spread
+through the codebase.
+
+Two false starts are worth recording, because both are the same mistake this
+entry is about:
+
+- A first pass matched 139 sites by grepping for `catch` near `return []`.
+  Almost all were pure parse helpers where a failed `JSON.parse` genuinely means
+  "no value" and the caller handles it. A grep is not a finding.
+- A second pass narrowed to shared state and reported 8, including
+  `_prodState.createCatalog = []` — which turned out to be a **teardown**
+  routine, with the assignment in the `try` and an empty `catch`. The detector
+  had scanned a ten-line window forward from the `catch` keyword and run past
+  the end of the block: the exact fixed-window error the guard shipped in this
+  same entry exists to prevent, made while writing it. Brace-matching the catch
+  body took 8 down to 2.
+
+### Guard shipped instead: the class the TESTS keep failing at
+
+While sweeping, the same root turned up one level up — in the assertions.
+`test/test-window-integrity.js` now pins it.
+
+A suite that writes `source.slice(at, at + 1800)` claims the code it cares about
+is inside that window AND that nothing else is. The second claim was never
+checked, and the number is not a property of anything. Both directions were live
+today:
+
+- **OVERRUN** — `write-ui-writer-durability.js` scoped 1,800 characters onto
+  `_sxrReviewOnDraftInput`, which is 1,021 long: 779 characters of the NEXT
+  function sat inside the assertion's reach. Both matches happen to be inside
+  their own function today, so nothing was actually wrong — but the assertion
+  could not tell, and moving that line one function down would have kept it
+  green. OPEN_REPAIRS 111's shape, through a different door.
+- **UNDERSHOOT** — `production-deep-link-survives-cache.js` scoped 9,000
+  characters onto `_prodLoadData`. Adding a comment to that function pushed the
+  asserted call past the boundary and turned a true statement red. Behaviour
+  never changed.
+
+Both now scope by `test/helpers/extract-function.js`, which reads the real
+extent. The guard measures every function-anchored window in the suite against
+its function's true length, and **proves itself on a fixture first** — a guard
+whose only subjects have already been fixed would pass just as happily with its
+detection broken, which is exactly how `prod-terminal-tail-settles.js` scored
+today's bug a green earlier in the day. 16 further windows are anchored on a
+region rather than a function; those are counted and reported, not failed,
+because this check cannot know where a region ends and a rule built on a guess
+is the thing it exists to prevent.

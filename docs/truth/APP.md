@@ -249,6 +249,23 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   persisted `thumb_rev` in the actual browser cache key. Calendar adopts a newer server revision
   across cache/LWW guards and advances existing image nodes on realtime without waiting for a hard
   refresh or a focused-field repaint.
+- **Realtime freshness contract (2026-09-03).** A staff tab subscribes to
+  `calendar_posts` filtered to the client on screen and reloads the WHOLE client on
+  each event. Three windows govern how often that happens:
+  `CAL_V2_RT_DEBOUNCE_MS` **350 ms** trailing debounce; `CAL_RT_SELF_ECHO_MS`
+  **4 s**, which defers the echo of a write THIS TAB made; and
+  `CAL_V2_RT_MIN_RELOAD_MS` **8 s**, a floor between realtime-triggered reloads
+  that a FOREIGN burst re-arms against. So the **maximum delay before another
+  writer's change appears is 8 s**, and the first event after a quiet period
+  still lands on the 350 ms debounce. The floor exists because backend writers
+  (the reconcilers that still apply Linear → card, OPEN_REPAIRS 76) update rows
+  one at a time over seconds: measured 2026-09-03, 200 row writes in an hour
+  across 9 clients, 56 on the busiest. Before the floor the self-echo window was
+  the only coalescing and it keyed off `_calLastLocalWriteAt`, so foreign writes
+  got none and every 350 ms window containing one row write became its own full
+  reload — the owner saw ten to fifteen refreshes in a row. Pinned by
+  `test/calendar-realtime-burst-coalesces.js` (real handler, virtual clock, with
+  a mutant run); OPEN_REPAIRS 129.
 - F170/F171: the current Calendar primary read, post-load Linear/meta continuations, realtime
   channel/timers, loader state and deferred render do not share one document/surface generation.
   Controlled synthetic-browser evidence held client A's v1 reconcile, switched visibly to B, and

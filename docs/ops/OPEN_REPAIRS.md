@@ -10098,6 +10098,20 @@ returns, so the assertions measure the repair. A single change after a quiet
 period still reloads once on the debounce, and the self-echo window is
 unchanged.
 
+**Confirmed in a real browser, not only under a virtual clock.** Review on PR
+1246 asked for the affected browser probe, which is right: a virtual clock
+proves the arithmetic, not that the re-arm still converges under the shipped
+page's own timers. `qa/probes/p70_rapid_realtime_converge.js` itself needs
+`SYNCVIEW_STAFF_KEY` to mint the TEST-client token and cannot run in an agent
+sandbox, so the exact changed path was measured instead: real Chromium, the
+shipped `index.html` from a local server, real timers, `loadCalendarPosts`
+spied rather than executed so nothing was fetched or written. **15 realtime
+events 700 ms apart produced 3 full reloads, a single event after a quiet
+period produced 1, and the page raised no errors.** The vm test says 2 for the
+same burst; the difference is real-timer jitter moving the burst across the
+floor boundary, and both say the same thing about the defect, which was 15.
+The credentialed p70 run still belongs to the nightly lane.
+
 **This is the browser half only.** The cure is that nothing should be writing
 those rows from Linear at all — item 76, the reconcilers that still apply
 Linear → card for video every ten to fifteen minutes. That is production

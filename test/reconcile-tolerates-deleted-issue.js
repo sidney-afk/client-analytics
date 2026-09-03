@@ -235,7 +235,9 @@ const NOT_FOUND = {
    * the loader runs for real here, against a stubbed `linear`, and the cap is
    * asserted from the outside: one miss passes, a whole chunk of misses throws. */
   {
-    const loaderSrc = extractFunction(SRC, 'loadLinearIssuesById');
+    // The shared extractor anchors on `function name(` and so drops the
+    // `async` that precedes it; without it the body's awaits are a SyntaxError.
+    const loaderSrc = 'async ' + extractFunction(SRC, 'loadLinearIssuesById');
     const mk = missing => {
       const ctx = vm.createContext({ console, Promise, Map, Set, Array, Number, String, Math, Error, process: { env: {} } });
       vm.runInContext(`

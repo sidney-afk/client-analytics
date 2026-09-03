@@ -92,7 +92,7 @@ function harness(opts) {
         }
         state.t = target;
     };
-    return { state, fire, advance };
+    return { state, ctx, fire, advance };
 }
 
 /* A reconciler burst: rows land one at a time, further apart than the trailing
@@ -146,6 +146,43 @@ ok(FLOOR > DEBOUNCE,
     h.advance(SELF_ECHO + FLOOR + DEBOUNCE + 10);
     ok(h.state.reloads.length === 1,
         '...and lands exactly once when the window closes, which is the pre-existing behaviour');
+}
+
+{
+    /* THE FLOOR MEASURES WHEN THE CLIENT WAS LAST RE-READ, NOT WHEN REALTIME
+       LAST FIRED. Stamping only in the realtime path left the clock stale after
+       any other kind of load, so the first backend write arriving just after a
+       tab switch was not throttled and cost a second complete reload half a
+       second later — the double-refresh the floor was supposed to remove.
+       Found by review on PR 1246 after the floor shipped. */
+    const load = extractFunction(INDEX, 'loadCalendarPosts');
+    ok(/_calV2RtLastReloadAt = Date\.now\(\)/.test(load),
+        'every full read of a client stamps the floor, so a load started by a tab switch or a focus '
+        + 'return throttles the next realtime event just as a realtime reload would');
+    const teardown = extractFunction(INDEX, '_calV2Teardown');
+    ok(/_calV2RtLastReloadAt = 0/.test(teardown),
+        'and client teardown clears it, so a new client never inherits the outgoing one\'s throttle');
+
+    /* Both halves, executed: a clock someone ELSE stamped is respected, and a
+       cleared clock lets the next event through at once. */
+    const justLoaded = harness();
+    justLoaded.state.t = 100000;
+    vm.runInContext('_calV2RtLastReloadAt = 100000;', justLoaded.ctx);
+    justLoaded.fire();
+    justLoaded.advance(600);
+    ok(justLoaded.state.reloads.length === 0,
+        'a foreign write 600ms after a load does NOT reload — the load already re-read the client');
+    justLoaded.advance(FLOOR);
+    ok(justLoaded.state.reloads.length === 1,
+        '...it lands once the floor is up, so the change is never dropped, only deferred');
+
+    const afterSwitch = harness();
+    afterSwitch.state.t = 100000;
+    vm.runInContext('_calV2RtLastReloadAt = 0;', afterSwitch.ctx);
+    afterSwitch.fire();
+    afterSwitch.advance(DEBOUNCE + 1);
+    ok(afterSwitch.state.reloads.length === 1,
+        'and after a teardown cleared the clock, the new client\'s first live update is immediate');
 }
 
 if (failures) {

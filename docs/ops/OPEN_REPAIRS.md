@@ -10112,6 +10112,19 @@ same burst; the difference is real-timer jitter moving the burst across the
 floor boundary, and both say the same thing about the defect, which was 15.
 The credentialed p70 run still belongs to the nightly lane.
 
+**Two residuals in the floor itself, found by review after it shipped.** The
+clock was stamped only where realtime issued a reload, so it measured "when did
+realtime last fire" rather than "when was this client last re-read". A load
+started by any OTHER route left it stale: measured on the real handler, a tab
+switch cost a SECOND complete reload 550 ms later whenever the backend wrote in
+that window — pill and full repaint — which is precisely the double refresh the
+floor exists to remove. Every full read now stamps it. The second residual is
+the mirror of the first: one global clock meant a newly opened client inherited
+the outgoing client's throttle and could have its first live update suppressed
+for up to 8 s through no fault of its own, so `_calV2Teardown` now clears it.
+Both are pinned in the suite by source AND by execution — a clock stamped by
+someone else is respected, a cleared one lets the next event straight through.
+
 **This is the browser half only.** The cure is that nothing should be writing
 those rows from Linear at all — item 76, the reconcilers that still apply
 Linear → card for video every ten to fifteen minutes. That is production

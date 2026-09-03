@@ -34752,6 +34752,12 @@
         ++_calV2Epoch;
         _calInvalidateActiveLoad();
         _calV2RtPending = false;
+        /* The floor is a per-client freshness budget, and the clock is global,
+           so a new client would otherwise inherit the outgoing one's throttle
+           and have its first live update suppressed for up to 8 s through no
+           fault of its own. Teardown is exactly the boundary where that budget
+           should reset. */
+        _calV2RtLastReloadAt = 0;
         _calV2DropChannel();
     }
     /* Console helper for the Phase 2 test week: window.calV2Status(). */
@@ -34913,6 +34919,16 @@
         // manual refresh, or return-refresh). _calRefreshOnReturn reads this
         // to throttle redundant refetches on rapid tab switches.
         _calLastNetworkLoadAt = Date.now();
+        /* The realtime floor measures "when did we last re-read this whole
+           client", so EVERY full read stamps it -- not only the ones realtime
+           started. Stamping in the realtime path alone left the clock stale
+           after a tab switch or a focus return, so the first backend write
+           arriving in the next moment was not throttled at all: measured, a
+           tab switch cost a second complete reload 550 ms later, pill and
+           repaint, which is the double-refresh texture the owner would still
+           have seen. Found by review on PR 1246 after the floor shipped.
+           OPEN_REPAIRS 129. */
+        _calV2RtLastReloadAt = Date.now();
         try {
             const fetchPromise = (async () => {
                 // Phase 2: when v2 is fully configured (flag + Supabase key),

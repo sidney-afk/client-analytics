@@ -9346,7 +9346,14 @@ issue set and rendered list.
 It also removes real waste. The offset pager fires page 0 then bursts four more,
 so 1,665 rows cost **five requests to read two pages**: `offset=2000/3000/4000`
 each returned two bytes after a full ORDER BY / OFFSET scan (~0.8 s of database
-time per boot, measured). Now 2 requests. Guarded by
+time per boot, measured). Now 2 requests.
+
+EQUIVALENCE PROVEN ON THE LIVE TABLE, not only on captured rows: the old pager
+(OFFSET + `created_at.desc` + the four-wide burst) and the new one (keyset by
+`id`) were run against `batches` side by side, three times. Both return the same
+1,665 rows, all unique, **zero only-in-old and zero only-in-new**. So the change
+is a no-op on data and a reduction in requests — which is what makes it safe to
+land without a probe run this sandbox cannot perform. Guarded by
 `test/prod-batches-keyset-paging.js`, which pins the class as well as the
 instance: every `created_at` ordering in the file must carry a unique tiebreak.
 

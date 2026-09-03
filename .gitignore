@@ -46,3 +46,9 @@ qa/reports/
 qa/shots/
 .codex-tmp/
 /artifacts/
+
+# `deno check` writes a root lock as a side effect; the one intentional Deno
+# lock in this repository is per-function (supabase/functions/linear-inbound).
+# scripts/deno-typecheck-ratchet.js passes --no-lock, and this is the backstop.
+deno.lock
+!supabase/functions/*/deno.lock

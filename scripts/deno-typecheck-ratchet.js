@@ -39,7 +39,7 @@
  *
  * Usage:
  *   node scripts/deno-typecheck-ratchet.js                 run deno, compare
- *   node scripts/deno-typecheck-ratchet.js --update        rewrite the baseline
+ *   node scripts/deno-typecheck-ratchet.js --update --stamp=YYYY-MM-DD   rewrite it
  *   node scripts/deno-typecheck-ratchet.js --report=<file> parse a saved log
  *   node scripts/deno-typecheck-ratchet.js --deno=<path>   non-PATH deno binary
  *
@@ -100,29 +100,95 @@ function parseReport(text) {
         // we matched, the parser has drifted from the format and every verdict
         // below it is worthless — so that is reported, never smoothed over.
         declared: found ? Number(found[1]) : null,
-        clean: /Check file:/.test(plain) && !found && !/\[ERROR\]/.test(plain),
+        sawCheckLine: /Check file:/.test(plain),
+        sawErrorLine: /\[ERROR\]/.test(plain),
     };
+}
+
+/* A report is only usable if it is a COMPLETE one. Codex P2 on #1256: a check
+   killed after printing its diagnostics but before `Found N errors.` leaves
+   `declared` null, and per-code counts that happen to match the baseline then
+   printed a confident green over a truncated run. "We could not read the
+   report" and "nothing got worse" are different facts and must not share a
+   verdict.
+   `status` is deno's exit code where it is known (null when a saved report is
+   being replayed): a clean check exits 0, an erroring one does not, and the two
+   disagreeing with the text is itself evidence the report is not what it looks
+   like. */
+function completeness(observed) {
+    const o = observed || {};
+    const known = typeof o.status === 'number';
+
+    /* MEASURED 2026-09-03: a clean `deno check` on a warm cache prints NOTHING
+       AT ALL and exits 0 — no "Check file:" line, no tally, no output. So the
+       text cannot distinguish a clean run from a run that died before it wrote
+       anything. The EXIT STATUS can, and it is the signal this leans on. */
+    if (!known) {
+        if (o.total > 0 && o.declared !== o.total) {
+            return 'diagnostics were printed but the terminal "Found N errors." tally is absent or disagrees'
+                + ' — the run was cut short or the output format moved, so the counts below are a fragment';
+        }
+        if (o.total === 0 && !o.sawCheckLine) {
+            return 'the report shows no errors and no "Check file:" line, and no exit status was supplied,'
+                + ' so a clean run cannot be told apart from an empty one';
+        }
+        if (o.total === 0 && o.sawErrorLine) {
+            return 'the output contains an error line the parser did not classify,'
+                + ' so a clean verdict cannot be trusted';
+        }
+        return '';
+    }
+
+    if (o.status === 0) {
+        if (o.total > 0 || o.sawErrorLine) {
+            return 'deno exited 0 while its output reports errors — text and exit status disagree';
+        }
+        return '';
+    }
+    // Non-zero exit: an erroring check must have printed a complete diagnosis.
+    if (o.declared === null) {
+        return 'deno exited ' + o.status + ' but printed no "Found N errors." tally —'
+            + ' the run was cut short or the output format moved, so the counts below are a fragment';
+    }
+    if (o.declared !== o.total) {
+        return 'deno reported ' + o.declared + ' errors but this parser matched ' + o.total
+            + ' — the output format moved and every comparison below is unreliable';
+    }
+    if (o.total === 0) {
+        return 'deno exited ' + o.status + ' while reporting no errors — text and exit status disagree';
+    }
+    return '';
 }
 
 function runDeno(target, denoBin) {
     const rel = path.join('supabase', 'functions', target, 'index.ts');
-    const r = spawnSync(denoBin, ['check', '--node-modules-dir=auto', rel], {
+    /* --no-lock: a bare `deno check` writes a `deno.lock` at the repository
+       root as a side effect, which is not this repository's artifact (the one
+       intentional Deno lock is per-function, under linear-inbound) and which
+       turned repo-map-sync red the first time this ran locally. A checker
+       must not leave anything behind. */
+    const r = spawnSync(denoBin, ['check', '--no-lock', '--node-modules-dir=auto', rel], {
         cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
     });
     if (r.error && r.error.code === 'ENOENT') {
-        return { missing: true, text: '' };
+        return { missing: true, text: '', status: null };
     }
-    return { missing: false, text: String(r.stdout || '') + String(r.stderr || '') };
+    return {
+        missing: false,
+        text: String(r.stdout || '') + String(r.stderr || ''),
+        status: typeof r.status === 'number' ? r.status : null,
+    };
 }
 
 function compare(target, observed, baselineEntry) {
     const failures = [];
     const notes = [];
     const base = (baselineEntry && baselineEntry.counts) || {};
-    if (observed.declared !== null && observed.declared !== observed.total) {
-        failures.push(target + ': deno reported ' + observed.declared + ' errors but this parser matched '
-            + observed.total + ' — the output format moved and every comparison below is unreliable');
-    }
+    /* An unusable report ends the comparison. Reporting BOTH "the report is a
+       fragment" and "TS18047 is holding at 14" would be reporting a number read
+       off a page that was torn. */
+    const incomplete = completeness(observed);
+    if (incomplete) return { failures: [target + ': ' + incomplete], notes: [] };
     const codes = new Set(Object.keys(base).concat(Object.keys(observed.counts)));
     for (const code of Array.from(codes).sort()) {
         const was = base[code] || 0;
@@ -133,7 +199,7 @@ function compare(target, observed, baselineEntry) {
         } else if (now < was) {
             failures.push(target + ': ' + code + ' went ' + was + ' → ' + now
                 + ' — that is good news, and the baseline has to come down with it.'
-                + ' Re-run with --update and commit docs/ops/DENO_TYPECHECK_BASELINE.json.');
+                + ' Re-run with --update --stamp=YYYY-MM-DD and commit docs/ops/DENO_TYPECHECK_BASELINE.json.');
         } else if (now > 0) {
             notes.push(target + ': ' + code + ' holding at ' + now);
         }
@@ -154,8 +220,10 @@ function main() {
     const measured = {};
 
     for (const target of TARGETS) {
+        const statusArg = argOf('--status');
         const run = reportFile
-            ? { missing: false, text: fs.readFileSync(reportFile, 'utf8') }
+            ? { missing: false, text: fs.readFileSync(reportFile, 'utf8'),
+                status: statusArg === null ? null : Number(statusArg) }
             : runDeno(target, denoBin);
         if (run.missing) {
             console.log('deno is not installed — nothing was checked, and that is a SKIP, not a pass.');
@@ -163,16 +231,35 @@ function main() {
             process.exit(0);
         }
         const observed = parseReport(run.text);
+        observed.status = run.status;
         measured[target] = { counts: observed.counts, total: observed.total };
+        measured[target].incomplete = completeness(observed);
         const cmp = compare(target, observed, baseline.targets && baseline.targets[target]);
         failures.push(...cmp.failures);
         notes.push(...cmp.notes);
     }
 
     if (update) {
+        /* A baseline that records WHEN it was measured and then quietly keeps an
+           old date is the failure this repository has an entry about (item 118),
+           so an update has to restamp. Passed in rather than read from the clock
+           so the value in the file is the one the author meant. */
+        if (!argOf('--stamp')) {
+            console.log('--update also needs --stamp=YYYY-MM-DD: the baseline records when it was');
+            console.log('measured, and an update that keeps the old date makes the file lie about itself.');
+            process.exit(1);
+        }
+        /* Refuse to write a baseline read off an unusable report. */
+        for (const target of TARGETS) {
+            const why = measured[target].incomplete;
+            if (why) {
+                console.log('refusing to update ' + target + ': ' + why);
+                process.exit(1);
+            }
+        }
         baseline.targets = Object.assign({}, baseline.targets);
         for (const target of TARGETS) baseline.targets[target] = measured[target];
-        baseline.measured_on = argOf('--stamp') || (baseline.measured_on || '');
+        baseline.measured_on = argOf('--stamp');
         fs.writeFileSync(BASELINE, JSON.stringify(baseline, null, 2) + '\n');
         console.log('Baseline rewritten: ' + path.relative(ROOT, BASELINE));
         for (const target of TARGETS) console.log('  ' + target + ': ' + JSON.stringify(measured[target].counts));
@@ -196,4 +283,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { parseReport, compare };
+module.exports = { parseReport, compare, completeness };

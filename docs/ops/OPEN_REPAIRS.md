@@ -10375,5 +10375,46 @@ new-code, the decrease and the swap. It also asserts that deno's own
 reports a disagreement as *unreliable* rather than smoothing it over: a parser
 that drifts from the output format would otherwise report a confident green.
 
+### Codex found two P2s, and one of them was the test fighting the feature
+
+**The suite froze the numbers the ratchet exists to lower.** It asserted
+`TS18047: 14` and `TS2352: 1` against the committed baseline, so the moment a
+real fix landed and `--update` brought the baseline down as designed, `npm test`
+would fail on a second hard-coded copy of it — the advertised one-line update
+could not succeed. Replaced with INVARIANTS that hold at every value the
+baseline will ever take: total equals the sum of its per-code counts, every key
+is a TypeScript error code, every count is a positive integer (a fixed code is
+removed, not left at `0`), the six targets are covered by name and `pto` is not,
+and at least one target is clean. The measured numbers live here, in the entry,
+which is where a record belongs.
+
+**An unusable report could still print a green verdict.** A check killed after
+its diagnostics but before `Found N errors.` left the tally `null`, which
+skipped the drift comparison entirely — so per-code counts that happened to
+match the baseline reported "no new type errors" over a torn page. The
+comparison now stops at an incomplete report and says which way it was
+incomplete; "we could not read this" and "nothing got worse" no longer share a
+verdict.
+
+**And building that turned up a measurement worth writing down:** a clean
+`deno check` on a warm cache prints **nothing at all** and exits 0 — no
+`Check file:` line, no tally, no output. The text alone therefore cannot tell a
+clean run from a run that died before writing anything, which is exactly the
+case being guarded. The **exit status** is what distinguishes them, so that is
+what the completeness rules lean on, and the first version of those rules was
+wrong because it did not know this. `--update` now also refuses without
+`--stamp=YYYY-MM-DD`, so a re-measured baseline cannot keep an old date and
+become another document that was true when it was written (item 118).
+
+**A third thing, found by the repository's own guard rather than by review:**
+`deno check` writes a `deno.lock` at the repository root as a side effect, and
+the first local run of the widened ratchet committed it — turning
+`test/repo-map-sync.js` red on an untracked top-level file. **A checker must not
+leave anything behind.** Fixed at the source with `--no-lock`, with the stray
+file untracked and a `.gitignore` backstop that deliberately does NOT cover
+`supabase/functions/*/deno.lock`, the one intentional Deno lock in this
+repository (F27's per-function frozen lock under `linear-inbound`), verified
+with `git check-ignore`.
+
 - Done when: it catches one. The typing repair item 94 describes is still owed
   and still belongs alongside a deploy that was happening anyway.

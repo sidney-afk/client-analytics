@@ -169,6 +169,7 @@ vm.createContext(linkageContext);
 vm.runInContext([
   extract('_calCompLinked'),
   extract('_calCompKasperVisible'),
+  extract('_kasperCompReviewable'),
   extract('_kasperUndecidedComps'),
   extract('_sxrCompKasperVisible'),
   extract('_sxrKasperUndecidedComps'),

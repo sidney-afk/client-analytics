@@ -10259,6 +10259,18 @@ and no thumbnail attached, so there is nothing to review yet", which is false fo
 a caption. It now says a video or thumbnail is missing and states plainly that a
 caption or title never lands there.
 
+**Follow-up from review, same fix.** The per-component test has to be applied in
+all three places or it makes things worse: admission, the rendered panels, and
+the "Finish reviewing" gate. Admitting a card on its caption and then leaving the
+fileless video in the gate's set would strand Kasper on a card whose Finish
+button is disabled with nothing left to click. But the gate's set is also what
+`_kasperIsFinished` reads to decide whether a finished card returns to Waiting,
+and those are different questions: a component re-routed into his lane IS a fresh
+ask whether or not its file has landed. So the set is now split —
+`_kasperUndecidedComps` stays media-blind and answers the fresh-ask question,
+`_kasperBlockingComps` is the reviewable subset and answers the Finish question.
+`test/kasper-stranded-handoff.js` runs both against the mixed card.
+
 **Still open, and deliberately not guessed at:** why a caption reached Kasper
 Approval on a card with no media at all. That is a workflow question — someone
 moved it, or something set it — and item 134's fix is what finally lets anyone

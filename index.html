@@ -29431,6 +29431,14 @@
         if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
         if (calState.client === name) { _calRenderTabs(); return; }
         const shellNeedsClientChrome = !calState.client;
+        /* The focus pin is TRANSIENT and belongs to the client it was set for.
+         * `onCalViewChange` drops it when you leave the Sheet, but switching
+         * client while staying on the Sheet left it set — so returning to the
+         * original client later still forced that one card through its saved
+         * month, status and ready-only filters, long after the highlight was
+         * dismissed. Caught in review on the deep-link change that made this
+         * reachable from a link rather than only from the review queue. */
+        calState.focusPid = null;
         // Persist debounced saves for the outgoing client before switching.
         _calFlushAllPending();
         _calV2Teardown();
@@ -44530,6 +44538,29 @@
        genuinely pending his call, so the card stays in his queue (never
        finished into limbo) until he actually decides — typically after the SMM
        answers. This is what keeps "Finish reviewing" honest and order-proof. */
+    /* Is this component reviewable RIGHT NOW — as distinct from
+     * `_calCompKasperVisible`, which asks whether it is Kasper's WORK.
+     *
+     * A video is reviewed by watching it and a thumbnail by looking at it, so
+     * each needs its file. A caption and a title are text that lives on the
+     * card itself and need nothing. Before this existed the question was asked
+     * once about the whole card ("does it carry any media"), which a caption
+     * cannot answer — see OPEN_REPAIRS 135.
+     *
+     * It has to be applied in all THREE places or it makes things worse rather
+     * than better: admission to the queue, which panels render, and which
+     * components block "Finish reviewing". Admitting a card on its caption and
+     * then rendering an enabled Approve over a video that does not exist would
+     * trap Kasper on a card he cannot finish — caught in review. The
+     * unlinked-graphic clause below is the same shape and the precedent for it.
+     * The third of those three goes through _kasperBlockingComps, which is
+     * where the reasoning for keeping the Finish gate and the fresh-ask test
+     * apart is written down. */
+    function _kasperCompReviewable(post, comp) {
+        if (comp === 'video') return String((post && post.asset_url) || '').trim() !== '';
+        if (comp === 'graphic') return String((post && post.thumbnail_url) || '').trim() !== '';
+        return true;
+    }
     function _kasperUndecidedComps(post) {
         // Same unlinked-thumbnail gate as _calCompKasperVisible: a graphic
         // slot with no GRA sub-issue must not block "Finish reviewing" —
@@ -44539,6 +44570,23 @@
         return _calComponentsFor(post).filter(c =>
             !(c === 'graphic' && !_calCompLinked(post, c))
             && _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+    }
+    /* The subset of the above that Kasper can actually act on right now — the
+     * media-present test on top of the undecided test. The two are deliberately
+     * NOT the same question:
+     *   • _kasperUndecidedComps answers "has something been re-sent to Kasper
+     *     Approval?" That is a routing fact and stays media-blind: a component
+     *     put back in his lane re-opens the card even if its file has not landed
+     *     yet, which is the honest state and the one that recovers on its own
+     *     the moment the file appears.
+     *   • _kasperBlockingComps answers "what still stops him finishing?" A panel
+     *     that cannot render cannot be decided on, so counting it would strand
+     *     him on a card with a disabled Finish and nothing to click — the exact
+     *     trap the unlinked-graphic clause above already avoids for thumbnails.
+     * Use this one for the Finish gate and its tooltip; use the media-blind one
+     * for the finished/fresh-ask question. See OPEN_REPAIRS 135. */
+    function _kasperBlockingComps(post) {
+        return _kasperUndecidedComps(post).filter(c => _kasperCompReviewable(post, c));
     }
     function _calCommentTotal(post) {
         let n = 0;
@@ -72871,10 +72919,7 @@
                  * the single-panel hero layout "applies to video, thumbnail, and
                  * caption alike". Only this gate upstream was hiding the card. */
                 const kasperComps = _calComponentsFor(raw).filter(c => _calCompKasperVisible(raw, c));
-                const compReviewable = comp => comp === 'video' ? hasAsset
-                    : comp === 'graphic' ? hasThumb
-                    : true;                                  // caption, title: text, no file needed
-                const anyReviewable = kasperComps.some(compReviewable);
+                const anyReviewable = kasperComps.some(c => _kasperCompReviewable(raw, c));
                 if (hasKasperWork && !anyReviewable) {
                     // Flip-day tester finding E, corrected. The card the tester
                     // drove to Kasper Approval never appeared, and the queue was
@@ -73149,9 +73194,11 @@
     function _kasperFinishedAt(post) { return String((post && post.kasper_finished_at) || ''); }
     /* "Finish reviewing" hand-off. A finished card sits in "Tweaks pending"
        until a genuine fresh ask supersedes it:
-         • an ACTIONABLE component is back at Kasper Approval — gated exactly like
+         • an ACTIONABLE component is back at Kasper Approval — gated by
            _kasperUndecidedComps, so an unlinked-thumbnail graphic stuck at KA
-           (which can't be acted on and never blocked Finish) does NOT count; or
+           (which can't be acted on and never blocked Finish) does NOT count.
+           This test stays media-blind on purpose: a re-route is a re-route even
+           if the file has not landed yet (see _kasperBlockingComps); or
          • a message landed after he finished (the SMM replied / client commented).
        `kasper_finished_at` doubles as his "seen up to here" stamp, so the second
        test is just latestMsg > kasper_finished_at. */
@@ -73443,7 +73490,7 @@
         // Clicking it changes no status (each component already carries its
         // decision): all-approved → logged Approved; any change request →
         // handed to the SMM; any open comment → waiting on the SMM's reply.
-        const undecidedComps = _kasperUndecidedComps(p);
+        const undecidedComps = _kasperBlockingComps(p);
         const canFinish = undecidedComps.length === 0;
         const isFinished = _kasperIsFinished(p);
         const finishTitle = canFinish
@@ -73545,7 +73592,7 @@
         // pin a panel open — the sub-status must still be Kasper Approval
         // OR Tweaks Needed-with-unresolved-tweak. Anything past that and
         // the panel drops out (handled by _calCompKasperVisible).
-        const activeComps = _calComponentsFor(p).filter(c => _calCompKasperVisible(p, c));
+        const activeComps = _calComponentsFor(p).filter(c => _calCompKasperVisible(p, c) && _kasperCompReviewable(p, c));
         if (!activeComps.length) {
             return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
         }
@@ -74378,7 +74425,7 @@
         // Guard: every component must carry an explicit decision first. No
         // implicit approval — a component still at Kasper Approval with no
         // message from him is undecided and blocks finishing.
-        if (_kasperUndecidedComps(post).length) return;
+        if (_kasperBlockingComps(post).length) return;
         _kasperInvalidateInFlightLoad();
         // Finish writes NO sub-status (each component already holds its explicit
         // decision: approved → Client Approval, or change requested → Tweaks

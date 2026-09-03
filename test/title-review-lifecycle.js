@@ -63,7 +63,7 @@ const REAL = [
   grabFunc('_calMsgIsTweak'), grabFunc('_calNextTweakRound'), grabFunc('_calLinearUrlFor'),
   grabFunc('_calReviewComponentActive'),
   grabFunc('_calCompHasUnresolvedKasperTweak'), grabFunc('_calCompLinked'), grabFunc('_calCompKasperVisible'),
-  grabFunc('_calPostKasperVisible'), grabFunc('_kasperUndecidedComps'),
+  grabFunc('_calPostKasperVisible'), grabFunc('_kasperCompReviewable'), grabFunc('_kasperUndecidedComps'),
 ].join('\n\n');
 
 const mod = new Function(STUBS + '\n' + REAL + `

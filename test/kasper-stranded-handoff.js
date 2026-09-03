@@ -72,6 +72,9 @@ function grabFunc(name) {
  * `const extract =` arrow through its closing `};`. Executing the real body is
  * the point -- a paraphrase of a filter is not a test of the filter. */
 const fetchAll = grabFunc('_kasperFetchAllRelevantPosts');
+/* The REAL media rule, not a stub: it is the thing this suite is about, and a
+   stub would let the gate and the rule drift apart silently. */
+const realReviewable = grabFunc('_kasperCompReviewable');
 const extractAt = fetchAll.indexOf('const extract = (client, json) => {');
 ok(extractAt >= 0, 'the shipped extract() closure is present in the loader');
 let depth = 0, extractEnd = -1;
@@ -88,6 +91,7 @@ const sandbox = new Function('deps', `
           _calCoerceDate, _calLoadComments, _calIsArchivedRef, _calMigratePostShape,
           _kasperPatchSnapshot, _calPostKasperVisible, _kasperHistoryEntryFromPost,
           _kasperHasUnreadReply, _calComponentsFor, _calCompKasperVisible } = deps;
+  ${realReviewable}
   ${extractSrc}
   return extract;
 `)({
@@ -251,7 +255,70 @@ ok(captionOut.queue.some(item => item.post.id === CAPTION_ONLY.id),
 ok(!captionOut.stranded.some(st => st.id === CAPTION_ONLY.id),
   'and it is never reported as waiting on a file, because no file was ever owed');
 
+/* MIXED: a written caption waiting on Kasper, alongside a video also waiting on
+ * him whose file never arrived. Caught in review: admitting the card on the
+ * strength of the caption, then rendering an enabled Approve over a video that
+ * does not exist, would trap Kasper on a card he cannot finish — "Finish
+ * reviewing" stays disabled until every undecided component has an action, and
+ * there is nothing to act on. The card is admitted for the caption; the video
+ * must be excluded from the panels and from the undecided set, exactly as an
+ * unlinked graphic already is. */
+const MIXED = {
+  id: 'p_mixed',
+  name: 'Caption ready, video never arrived',
+  status: 'In Progress',
+  video_status: 'Kasper Approval',
+  graphic_status: 'N/A',
+  caption_status: 'Kasper Approval',
+  asset_url: '',
+  thumbnail_url: '',
+};
+const mixedOut = sandbox('Neutral Test Client', { ok: true, posts: [MIXED] });
+ok(mixedOut.queue.some(item => item.post.id === MIXED.id),
+  'a mixed card is admitted on the strength of the component that IS reviewable');
+ok(!mixedOut.stranded.some(st => st.id === MIXED.id),
+  'and is not also reported as stranded');
+
+/* The rule itself, run directly: it is what keeps the unreviewable component
+   out of the rendered panels and out of the Finish-reviewing gate. */
+const reviewable = new Function(`${realReviewable}; return _kasperCompReviewable;`)();
+ok(reviewable(MIXED, 'caption') === true, 'a caption needs no file');
+ok(reviewable(MIXED, 'video') === false, 'a video with no asset_url is not reviewable');
+ok(reviewable({ asset_url: 'https://f.io/x' }, 'video') === true, 'a video with a file is');
+ok(reviewable(MIXED, 'graphic') === false, 'a thumbnail with no thumbnail_url is not reviewable');
+ok(reviewable({ thumbnail_url: 'https://d/x.png' }, 'graphic') === true, 'a thumbnail with an image is');
+ok(reviewable(MIXED, 'title') === true, 'a title needs no file either');
+
 /* ---- 3. Wiring --------------------------------------------------------- */
+ok(/_calCompKasperVisible\(p, c\) && _kasperCompReviewable\(p, c\)/.test(INDEX),
+  'the rendered panels exclude components that are not reviewable');
+/* The Finish gate. Two questions that look alike and are not:
+   _kasperUndecidedComps stays media-blind (a re-route into Kasper's lane is a
+   re-route whether or not the file has landed, and that is what re-opens a
+   finished card), while _kasperBlockingComps is the subset he can actually act
+   on and is what the Finish button and its tooltip read. Run both for real
+   against the mixed card; _calComponentsFor and _calNormStatus are stubbed
+   because the component roster and the status vocabulary are not what is under
+   test here — both have their own suites. */
+const gate = new Function(`
+  const _calComponentsFor = () => ['video', 'graphic', 'caption'];
+  const _calNormStatus = s => String(s || '').trim();
+  ${grabFunc('_calCompLinked')}
+  ${realReviewable}
+  ${grabFunc('_kasperUndecidedComps')}
+  ${grabFunc('_kasperBlockingComps')}
+  return { undecided: _kasperUndecidedComps, blocking: _kasperBlockingComps };
+`)();
+const MIXED_LINKED = Object.assign({}, MIXED, { linear_issue_id: 'VID-1' });
+ok(gate.undecided(MIXED_LINKED).join() === 'video,caption',
+  'the undecided set stays media-blind -- the video was re-routed to him, file or no file');
+ok(gate.blocking(MIXED_LINKED).join() === 'caption',
+  'but the fileless video does not block Finish reviewing, so he is never stranded on it');
+ok(/const undecidedComps = _kasperBlockingComps\(p\);/.test(INDEX),
+  'the Finish button reads the blocking set');
+ok(/if \(_kasperBlockingComps\(post\)\.length\) return;/.test(INDEX),
+  'and so does the guard inside the finish handler');
+
 
 ok(/body\.innerHTML = _kasperRenderUnloadedNotice\(\) \+ _kasperRenderStrandedNotice\(\)/.test(INDEX),
   'the paint renders the notice above the queue, after the unloaded-clients notice (item 86)');

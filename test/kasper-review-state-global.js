@@ -76,6 +76,7 @@ const REAL = [
   grabFunc('_calLatestMsgAt'),
   grabFunc('_calLatestMsgCreatedAt'),
   grabFunc('_calCompLinked'),
+  grabFunc('_kasperCompReviewable'),
   grabFunc('_kasperUndecidedComps'),
   grabFunc('_kasperFinishedAt'),
   grabFunc('_kasperIsFinished'),

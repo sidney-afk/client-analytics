@@ -93,6 +93,26 @@ ok(pw.total === Object.values(pw.counts).reduce((a, b) => a + b, 0),
 ok(pw.counts.TS18047 === 14 && pw.counts.TS2352 === 1,
     'and matches what was measured on 2026-09-03: the 14 OPEN_REPAIRS 94 describes, plus one that arrived after it');
 
+/* Every hand-deployed function with no type lane of its own is covered, and
+   three of them are CLEAN — on those the ratchet is a real gate, so an empty
+   baseline is load-bearing rather than a placeholder. Asserted by name because
+   quietly dropping a function from the list is how a lane stops covering the
+   thing it was built for, and nothing else would notice. */
+const COVERED = ['production-write', 'linear-outbound', 'linear-inbound',
+    'deliverable-write', 'batch-write', 'workload-plan'];
+for (const t of COVERED) ok(!!(raw.targets && raw.targets[t]), 'the baseline covers ' + t);
+ok(!raw.targets.pto,
+    'and NOT pto — it has a real gate in pto-ui-tests.yml, and a ratchet there would replace a stronger check with a weaker one');
+for (const t of ['deliverable-write', 'batch-write', 'workload-plan']) {
+    ok(raw.targets[t].total === 0 && Object.keys(raw.targets[t].counts).length === 0,
+        t + ' is recorded CLEAN, so the first type error to appear in it fails');
+}
+const cleanHold = compare('batch-write', { counts: {}, total: 0, declared: null }, raw.targets['batch-write']);
+ok(cleanHold.failures.length === 0, 'a clean function holding at zero passes');
+const dirtied = compare('batch-write', { counts: { TS2345: 1 }, total: 1, declared: 1 }, raw.targets['batch-write']);
+ok(dirtied.failures.some(f => /TS2345 went 0 → 1/.test(f) && /KIND of type error this file did not have/.test(f)),
+    'and the FIRST error to land in it fails — which is the whole point of listing the clean ones');
+
 /* ---- 4. no npm alias, for the reason item 94 gives ---------------------- */
 
 const pkg = fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8');

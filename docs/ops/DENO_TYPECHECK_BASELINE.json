@@ -7,6 +7,33 @@
         "TS18047": 14
       },
       "total": 15
+    },
+    "linear-outbound": {
+      "counts": {
+        "TS2345": 10,
+        "TS2339": 2
+      },
+      "total": 12
+    },
+    "linear-inbound": {
+      "counts": {
+        "TS2339": 9,
+        "TS7053": 2,
+        "TS2551": 1
+      },
+      "total": 12
+    },
+    "deliverable-write": {
+      "counts": {},
+      "total": 0
+    },
+    "batch-write": {
+      "counts": {},
+      "total": 0
+    },
+    "workload-plan": {
+      "counts": {},
+      "total": 0
     }
   },
   "measured_on": "2026-09-03"

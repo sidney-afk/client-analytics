@@ -55,10 +55,27 @@ const { spawnSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const BASELINE = path.join(ROOT, 'docs', 'ops', 'DENO_TYPECHECK_BASELINE.json');
 
-/* The functions this ratchet covers. `pto` is deliberately absent: it has a
-   real gate in pto-ui-tests.yml and passes, so a ratchet there would be a
-   weaker check replacing a stronger one. */
-const TARGETS = ['production-write'];
+/* Every hand-deployed Edge Function with no type lane of its own. Item 94
+   names only `production-write`; the argument it makes — safety-critical,
+   hand-deployed, nothing in CI looks — is true of all of these, and measuring
+   them cost one command each.
+
+   THREE OF THEM ARE CLEAN, which is why the list is not just the one function.
+   `deliverable-write`, `batch-write` and `workload-plan` have zero errors, so
+   their baseline is empty and the ratchet is a real GATE on them: the first
+   type error to appear fails. Only `production-write` (15), `linear-outbound`
+   (12) and `linear-inbound` (12) carry recorded debt.
+
+   `pto` is deliberately absent: it has a real gate in `pto-ui-tests.yml` and
+   passes, so a ratchet there would be a weaker check replacing a stronger one. */
+const TARGETS = [
+    'production-write',
+    'linear-outbound',
+    'linear-inbound',
+    'deliverable-write',
+    'batch-write',
+    'workload-plan',
+];
 
 function argOf(flag) {
     const hit = process.argv.find(a => a.indexOf(flag + '=') === 0);

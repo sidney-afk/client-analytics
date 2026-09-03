@@ -6684,8 +6684,10 @@ zero:*
 
 **PARTLY ANSWERED 2026-09-03 — the lane exists, as a RATCHET (item 140).**
 `.github/workflows/edge-function-type-ratchet.yml` runs `deno check` on
-`production-write` and compares it to a recorded per-error-code baseline: new
-type errors fail, the existing ones do not. The typing repair this entry
+`production-write` — and on the five other hand-deployed functions that had no
+lane either — comparing each to a recorded per-error-code baseline: new type
+errors fail, the existing ones do not. Three of the six turned out to be CLEAN,
+so on those it is a gate rather than a ratchet. The typing repair this entry
 describes is still owed and still should not be done unattended, for exactly
 the reason below — but it is no longer the only thing standing between a NEW
 type error and production. Re-measured while building it: **15, not 14** — a
@@ -10322,6 +10324,26 @@ assignee/parent-route region item 94 describes, plus one `TS2352` cast at line
 1888, a different code in a different part of the file. **A type error was added
 to the most safety-critical write path in the estate in three days, and nothing
 noticed.** That is the case for the ratchet, made by the file itself.
+
+**It covers all six hand-deployed functions, not just the one item 94 names.**
+The argument — safety-critical, hand-deployed, nothing in CI looks — is the same
+for each, and measuring them cost one command apiece:
+
+| function | errors | codes |
+|---|---|---|
+| `production-write` | 15 | `TS18047` ×14, `TS2352` ×1 |
+| `linear-outbound` | 12 | `TS2345` ×10, `TS2339` ×2 |
+| `linear-inbound` | 12 | `TS2339` ×9, `TS7053` ×2, `TS2551` ×1 |
+| `deliverable-write` | **0** | — |
+| `batch-write` | **0** | — |
+| `workload-plan` | **0** | — |
+
+**Three of them are clean**, which is the part worth reading twice: on those the
+ratchet is not a ratchet at all, it is a real GATE — an empty baseline means the
+FIRST type error to appear fails. That is coverage this repository did not have
+five minutes ago and could have had at any point. `pto` is deliberately absent:
+it has a real gate in `pto-ui-tests.yml` and passes, so a ratchet there would
+replace a stronger check with a weaker one.
 
 **Keyed by error code, not by line number.** Line numbers move whenever anything
 above them is edited, and a check that goes red on an unrelated edit is one

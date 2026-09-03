@@ -5911,3 +5911,10 @@ for weeks. This change did not cause it and did not clear it; it did flip
 `production-polish-interaction` from failure to success. The standing red is a
 real problem and is nobody's single PR to fix — it is recorded here so the next
 session does not mistake it for its own regression.
+
+**Reconciler, second fix (later the same day).** Item 119's deleted-issue
+tolerance never matched the wire (`extensions.type: 'invalid input'`, not
+`EntityNotFound`); the monitor stayed red 21 more hours. Re-fixed on the
+captured shape, capped at `RECONCILE_NOT_FOUND_CAP` (10) so an access loss
+cannot reconcile as a bulk deletion, closure re-pinned to `a4664cc9…`.
+OPEN_REPAIRS 126.

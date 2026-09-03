@@ -71,11 +71,22 @@ function callLinear(response, opts) {
   return vm.runInContext(`linear('query {}', ${JSON.stringify(opts || null)})`, ctx);
 }
 
+/* THE SHAPE LINEAR ACTUALLY SENDS for a deleted issue, captured verbatim from run
+   33747354167 (2026-09-03 11:00Z). Every fixture that drives the real linear()
+   below carries it: the review pass on PR #1244 showed that with bare
+   { message, path } fixtures, a transport that refused every INPUT_ERROR would
+   still have passed this suite — the same guessed-vs-captured gap that kept
+   the reconciler red for 21 hours after item 119. */
+const wireNotFound = alias => ({
+  message: 'Entity not found: Issue', path: [alias], locations: [{ line: 12, column: 1 }],
+  extensions: { type: 'invalid input', code: 'INPUT_ERROR', statusCode: 400, userError: true,
+    userPresentableMessage: 'Could not find referenced Issue.' },
+});
 const NOT_FOUND = {
   ok: true, status: 200,
   body: {
     data: { i0: { id: 'kept' }, i1: null },
-    errors: [{ message: 'Entity not found: Issue', path: ['i1'] }],
+    errors: [wireNotFound('i1')],
   },
 };
 
@@ -106,7 +117,8 @@ const NOT_FOUND = {
     ok: true, status: 200,
     body: {
       data: { i0: { id: 'kept' } },
-      errors: [{ message: 'Entity not found: Issue', path: ['i1'] }, { message: 'Something else', path: ['i2'] }],
+      errors: [wireNotFound('i1'), { message: 'Something else', path: ['i2'],
+        extensions: { type: 'ratelimited', code: 'RATELIMITED', statusCode: 429 } }],
     },
   };
   {
@@ -115,7 +127,7 @@ const NOT_FOUND = {
     ok(threw, 'a MIXED error set throws — tolerance requires EVERY error to be a not-found');
   }
   {
-    const noData = { ok: true, status: 200, body: { errors: [{ message: 'Entity not found: Issue', path: ['i0'] }] } };
+    const noData = { ok: true, status: 200, body: { errors: [wireNotFound('i0')] } };
     let threw = false;
     try { await callLinear(noData, { tolerateNotFound: true }); } catch (e) { threw = true; }
     ok(threw, 'a response with no data at all throws — there is nothing partial to salvage');

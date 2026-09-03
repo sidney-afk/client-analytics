@@ -9204,6 +9204,10 @@ in that shape owes the reader a sentence about which tree it read, because
 "passed" and "passed against your change" are different claims and nothing in the
 output distinguished them.
 
+**Addendum, later the same day:** the tolerance described above never matched
+what Linear actually sends, so this item's FIXED did not hold — see item 126
+for the second fix, the cap on it and the closure re-pin.
+
 ---
 
 ## 120. [2026-09-03, FIXED — browser-only, live on merge] The sixth round of the deep-link bug, and the first one caught by an actual browser: on refresh the pane said "Deliverable not found" for a second and a half about a row that was fine
@@ -9782,3 +9786,64 @@ gate's expectations is exactly the kind of change that must be deliberate and
 signed off: the whole failure recorded above is what happens when a gate stops
 carrying signal, and quietly rewriting its assertions to match today's app is a
 faster way to reach the same place.
+
+---
+
+## 126. [2026-09-03, FIXED — script-only, live on merge; corrects item 119] Item 119's tolerance matched a shape Linear never sends, so the reconciler stayed red for 21 more hours after "FIXED" — and the second fix is capped, because "not found" is also what a key that cannot see an issue is told
+
+**What 119 shipped.** `isEntityNotFoundError` accepted `type: 'EntityNotFound'`,
+or the bare message with no type at all. What Linear sends for a deleted issue —
+captured verbatim from run 33747354167 at 11:00Z — is
+
+```
+{ message: 'Entity not found: Issue', path: ['i1'],
+  extensions: { type: 'invalid input', code: 'INPUT_ERROR', statusCode: 400, userError: true } }
+```
+
+The predicate saw a type it did not recognise, returned false, and every real
+deletion kept throwing exactly as before. The hourly monitor was red from 119's
+merge until this fix; the ten `Linear ⇄ deliverables` failures in the morning
+inbox are that window, not a new incident.
+
+**Why 119's tests passed.** They tested the shape the guard was written FOR.
+Nothing in the suite had ever seen a real error, so the guard passed its own
+exam and failed the only one that counted. This is item 118's shape (a FIXED
+header on main that was not) reached through item 111's mechanism (an assertion
+satisfied by something other than the behaviour). It is recorded here because
+119's header still says FIXED and the ledger is append-only; read 119 as "fixed
+in intent, re-fixed in 126".
+
+**The second fix.** The predicate now keys on the message —
+`^Entity not found: Issue` — and accepts `extensions.type` (or `type`) of
+`EntityNotFound`, `entity_not_found`, `invalid input`, or none. An
+`AuthenticationError` carrying the same message still refuses, and any
+error whose path is not a single top-level `iN` alias still refuses. The
+test's primary fixture is the captured error, and — after the review pass on
+PR #1244 found that the first version only fed the captured shape to the
+predicate — the same shape now drives the real `linear()` end to end, so a
+transport that fails fast on `INPUT_ERROR` cannot pass the suite.
+
+**The cap, and why there has to be one.** `Entity not found: Issue` with
+`INPUT_ERROR` is also Linear's answer for an issue this key simply cannot see:
+a private team the key's user was removed from, an issue moved to another
+workspace, a wrong uuid in our row. Unbounded tolerance would let an access
+loss reconcile as a mass deletion and quietly orphan every row. So the loader
+tolerates at most `RECONCILE_NOT_FOUND_CAP` missing ids (default 10) per run;
+above that it throws, naming the count and the cap, and the message says to
+raise the cap deliberately for a known bulk deletion. Rows whose issue was not
+found stay in the plan as orphans and are excluded from attribution — an
+absent Linear row is a fact about Linear, not licence to drop ours.
+
+**Closure.** `scripts/f27-reconciler-closure.js` re-pinned
+`scripts/linear-deliverables-reconcile.js` twice on this branch
+(`efc12356…` → `2e17d758…` → `a4664cc9…`), each from
+`git show HEAD:<path> | sha256sum`; the `f27-proof` lane is green on the PR
+head. No Edge Function changed, so no bundle capture is involved.
+
+**Verification.** `test/reconcile-tolerates-deleted-issue.js` covers the
+predicate, the transport with the captured shape (tolerated, refused without
+the opt-in, refused when mixed with any other error) and the bounded loader
+(1 of 35 missing → 34 returned; 35 of 35 → throws naming the cap). Live
+confirmation is the next hourly `linear-deliverables-reconcile` run after
+merge; until it is green this item is FIXED on paper only, which is the exact
+claim 119 made.

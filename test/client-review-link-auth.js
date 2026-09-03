@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { extractFunction } = require('./helpers/extract-function.js');
 const root = path.resolve(__dirname, '..');
 const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const issuer = fs.readFileSync(path.join(root, 'supabase/functions/client-review-link/index.ts'), 'utf8');
@@ -14,14 +15,14 @@ ok(/if \(token\) out\['X-Syncview-Client-Token'\] = token/.test(index),
   'a valid ?t= value is attached to protected client writes');
 ok(/CLIENT_REVIEW_LINK_URL[\s\S]{0,2600}json\.token/.test(index),
   'share links obtain the current token from the private issuer');
-const shareSource = ['copyShareLink', 'smCopyShareLink', 'calCopyShareLink', '_sxrCopyShareLink']
-  .map(fn => { const start = index.indexOf('function ' + fn + '('); return index.slice(start, start + 900); })
-  .join('\n');
-ok(!shareSource.includes('client_review_token'),
+// Scoped by the extractor, not a 900-character window: _sxrCopyShareLink is 478
+// characters long, so the old window read 422 characters of the next function.
+const SHARE_FNS = ['copyShareLink', 'smCopyShareLink', 'calCopyShareLink', '_sxrCopyShareLink'];
+const shareBody = fn => { try { return extractFunction(index, fn); } catch (e) { return ''; } };
+ok(!SHARE_FNS.map(shareBody).join('\n').includes('client_review_token'),
   'share-link generation no longer depends on the removed Clients Info token column');
-for (const fn of ['copyShareLink', 'smCopyShareLink', 'calCopyShareLink', '_sxrCopyShareLink']) {
-  const start = index.indexOf('function ' + fn + '(');
-  ok(start >= 0 && index.slice(start, start + 900).includes('_syncviewIssueClientShareUrl'),
+for (const fn of SHARE_FNS) {
+  ok(shareBody(fn).includes('_syncviewIssueClientShareUrl'),
     fn + ' uses the secure review-link issuer');
 }
 ok(/authorizeBrowserWrite\(supabase, req, slug, "client-review-link"\)/.test(issuer)

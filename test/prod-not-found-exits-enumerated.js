@@ -33,8 +33,14 @@ function ok(cond, msg) {
   if (!cond) failures++;
 }
 
-const NOT_FOUND = /prod-empty"?>[^<]*not found\./i;
+const NOT_FOUND = /prod-empty[^>]*>[^<]*not found\./i;   // any attributes after the class still count
 const CONSULTS = '_prodIncompletePaneHTML(';
+/* The consultation must be code. A comment that names the helper is not a
+   call; strings are kept because the live call sites sit inside template
+   literals (`${_prodIncompletePaneHTML(...)}`). */
+function withoutComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+}
 
 /* The scan is a pure function of the source so it can be run against a fixture
    as well as the app — a guard whose only subjects already pass proves nothing
@@ -51,7 +57,7 @@ function ungatedExits(source) {
     try { body = extractFunction(source, name); } catch (e) { continue; }
     if (!NOT_FOUND.test(body)) continue;
     checked.push(name);
-    if (!body.includes(CONSULTS)) offenders.push(name);
+    if (!withoutComments(body).includes(CONSULTS)) offenders.push(name);
   }
   return { checked, offenders };
 }
@@ -67,6 +73,15 @@ function ungatedExits(source) {
     'a pane that consults the completeness helper before saying "not found" passes');
   ok(b.checked.length === 1 && b.offenders.length === 1,
     'a pane that says "not found" without asking is CAUGHT — proven on a fixture, not assumed');
+  const attr = 'function _prodFixtureC(){ return \'<div class="prod-empty" role="status">Widget not found.</div>\'; }';
+  const c = ungatedExits(attr);
+  ok(c.checked.length === 1 && c.offenders.length === 1,
+    'an exit whose markup carries attributes after the class is still an exit — the pattern is not defeated by role="status"');
+  const commentOnly = 'function _prodFixtureD(){ // _prodIncompletePaneHTML( was here\n'
+    + ' /* _prodIncompletePaneHTML(x) */ return \'<div class="prod-empty">Widget not found.</div>\'; }';
+  const d = ungatedExits(commentOnly);
+  ok(d.checked.length === 1 && d.offenders.length === 1,
+    'naming the helper in a comment does not count as consulting it');
 }
 
 /* ---- and now the app ----------------------------------------------------- */

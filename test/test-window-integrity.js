@@ -68,40 +68,65 @@ function haystackFile(varName, src) {
   if (!segs.length) return null;
   return segs.join('/').replace(/^\.\.\//, '').replace(/\/+/g, '/');
 }
+/* What an `indexOf(...)` argument anchors on. A quoted literal naming a function
+   opening is measurable. `'function ' + fn + '('` is ALSO a function anchor —
+   but the name is a runtime value, so the window cannot be measured here and is
+   reported as such rather than filed as a region and forgotten. The adversarial
+   pass on PR #1244 found three of those live (client-review-link-auth.js), one
+   of them 422 characters past the end of its function. */
+function classifyAnchor(arg) {
+  const s = String(arg || '').trim();
+  const lit = /^(['"`])([^'"`]*)\1$/.exec(s);
+  if (lit) {
+    const named = /function\s+([A-Za-z_$][\w$]*)\s*\(/.exec(lit[2]);
+    return { text: lit[2], fn: named ? named[1] : null, unresolved: false };
+  }
+  if (/^(['"`])(?:async\s+)?function\s+\1\s*\+/.test(s)) return { text: s, fn: null, unresolved: true };
+  return { text: s, fn: null, unresolved: false };
+}
+function fileWindow(list, file, anchor, win, target) {
+  if (anchor.unresolved) list.functionAnchored.push({ file, fn: anchor.text, win, target, unresolved: true });
+  else if (anchor.fn && target) list.functionAnchored.push({ file, fn: anchor.fn, win, target });
+  else list.regionAnchored.push({ file, win, anchor: anchor.text });
+}
 function scan(entries) {
-  const functionAnchored = [];
-  const regionAnchored = [];
+  const list = { functionAnchored: [], regionAnchored: [] };
   for (const [file, src] of entries) {
     // Inline form: X.slice(X.indexOf('t'), X.indexOf('t') + N) — the anchor is
     // spelled twice and never named. This is the shape the first version missed.
-    const inline = /([A-Za-z_$][\w$.]*)\.slice\(\s*[A-Za-z_$][\w$.]*\.indexOf\(\s*['"`]([^'"`]+)['"`]\s*\)\s*,\s*[A-Za-z_$][\w$.]*\.indexOf\(\s*['"`][^'"`]+['"`]\s*\)\s*\+\s*(\d{3,})\s*\)/g;
+    const inline = /([A-Za-z_$][\w$.]*)\.slice\(\s*[A-Za-z_$][\w$.]*\.indexOf\(([^)]*)\)\s*,\s*[A-Za-z_$][\w$.]*\.indexOf\(([^)]*)\)\s*\+\s*(\d{3,})\s*\)/g;
     let im;
     while ((im = inline.exec(src))) {
-      const [, haystack, anchorText, win] = im;
-      const named = /function\s+([A-Za-z_$][\w$]*)\s*\(/.exec(anchorText);
-      const target = haystackFile(haystack, src);
-      if (named && target) functionAnchored.push({ file, fn: named[1], win: Number(win), target });
-      else regionAnchored.push({ file, win: Number(win), anchor: anchorText });
+      const [, haystack, anchorArg, , win] = im;
+      fileWindow(list, file, classifyAnchor(anchorArg), Number(win), haystackFile(haystack, src));
     }
-  // `X.slice(anchor, anchor + N)` where a nearby declaration resolves the anchor
+    // `X.slice(anchor, anchor + N)` where a declaration resolves the anchor. The
+    // NEAREST PRECEDING declaration, not the first in the file: a test that
+    // re-declares `const at` per block would otherwise have every window
+    // measured against the first block's function (also found on PR #1244).
     const re = /([A-Za-z_$][\w$.]*)\.slice\(\s*([A-Za-z_$][\w$]*)\s*,\s*[^,)]*?\+\s*(\d{3,})\s*\)/g;
     let m;
     while ((m = re.exec(src))) {
       const [, haystack, anchorVar, win] = m;
-      const decl = new RegExp('(?:const|let|var)\\s+' + anchorVar
-        + "\\s*=\\s*[A-Za-z_$][\\w$.]*\\.indexOf\\(\\s*['\"`]([^'\"`]+)").exec(src);
-      const anchorText = decl ? decl[1] : '';
-      const named = /function\s+([A-Za-z_$][\w$]*)\s*\(/.exec(anchorText);
-      const target = haystackFile(haystack, src);
-      if (named && target) functionAnchored.push({ file, fn: named[1], win: Number(win), target });
-      else regionAnchored.push({ file, win: Number(win), anchor: anchorText || anchorVar });
+      const declRe = new RegExp('(?:const|let|var)\\s+' + anchorVar
+        + '\\s*=\\s*[A-Za-z_$][\\w$.]*\\.indexOf\\(([^)]*)\\)', 'g');
+      const before = src.slice(0, m.index);
+      let decl = null;
+      let d;
+      while ((d = declRe.exec(before))) decl = d;
+      const anchor = decl ? classifyAnchor(decl[1]) : { text: anchorVar, fn: null, unresolved: false };
+      fileWindow(list, file, anchor, Number(win), haystackFile(haystack, src));
     }
   }
-  return { functionAnchored, regionAnchored };
+  return list;
 }
 function offendersIn(functionAnchored, lengthOf) {
   const out = [];
   for (const w of functionAnchored) {
+    if (w.unresolved) {
+      out.push(`${w.file}: ${w.win} chars onto a function named at runtime (${w.fn}) — not measurable; scope it with extractFunction`);
+      continue;
+    }
     const len = lengthOf(w.fn, w.target);
     if (len == null) continue;            // not a function of index.html; nothing to measure
     if (w.win > len) out.push(`${w.file}: ${w.win} chars onto ${w.fn}() which is ${len} — ${w.win - len} past its end`);
@@ -127,6 +152,18 @@ function offendersIn(functionAnchored, lengthOf) {
     'the INLINE form (indexOf spelled twice, haystack not index.html) is scanned, resolved to its file, and caught');
   ok(notCaught.length === 0,
     'and does NOT flag a window that fits inside its function, so it is a measurement and not a ban');
+  const twoBlocks = [['fixture3.js',
+    "{ const at = INDEX.indexOf('function _hugeFn('); INDEX.slice(at, at + 500); }\n"
+    + "{ const at = INDEX.indexOf('function _tinyFn('); INDEX.slice(at, at + 2000); }\n"]];
+  const tb = scan(twoBlocks).functionAnchored.map(w => w.fn + ':' + w.win).join(' ');
+  ok(tb === '_hugeFn:500 _tinyFn:2000',
+    'each window resolves to the NEAREST preceding declaration of its anchor, not the first one in the file (' + tb + ')');
+  const concat = [['fixture4.js',
+    "for (const fn of ['a', 'b']) { const start = index.indexOf('function ' + fn + '('); index.slice(start, start + 900); }\n"]];
+  const cc = scan(concat);
+  const ccOff = offendersIn(cc.functionAnchored, () => 5000);
+  ok(cc.functionAnchored.length === 1 && cc.regionAnchored.length === 0 && ccOff.length === 1,
+    'a function anchor built by concatenation is reported as unmeasurable, not silently filed as a region');
 }
 
 const files = fs.readdirSync(__dirname).filter(f => f.endsWith('.js') && f !== path.basename(__filename));

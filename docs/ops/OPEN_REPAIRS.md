@@ -10363,3 +10363,47 @@ would do. Whether any of it misroutes a live write is **not established**, and
 saying so is the point: that is its own investigation with its own blast radius,
 and this session has already been burned twice by answering a reachability
 question from inspection instead of proof.
+
+---
+
+## 133. [2026-09-03, MEASURED — revision 2 of the exit audit, after the owner rejected revision 1] Five live Linear dependencies, not three, and the one that was missed is on the calendar itself
+
+**Why this entry exists.** The owner stopped the work: *"how could you possibly
+have done a strategy without first trying to understand how things work."* Fair.
+Revision 1 found three blockers by reading code. It never enumerated the
+surfaces, so it never asked whether the **browser** reads Linear — and it does.
+
+**Method, so the next revision can be checked rather than trusted.** Every remote
+endpoint `index.html` calls was enumerated (57 n8n webhooks, 24 Edge Functions);
+the eight Linear-named webhooks traced to their call sites; each call site to its
+enclosing function; each function to its callers and guards. Edge Functions from
+`scripts/linear-dependency-map.js`.
+
+**What revision 1 missed.** `_calRefreshParentLinkFlags` runs from
+`loadCalendarPosts`' tail on **every foreground calendar load** and posts every
+linked issue id to the `linear-issue-statuses` webhook, sourcing project, due
+date, editor and sub-vs-parent for the card banner (`_calLinearMetaById`, read in
+~8 render sites). The SMM calendar therefore reads Linear every time it opens.
+Revision 1 asserted the calendar's only Linear coupling was the status relay.
+
+**The corrected list — five, not three:**
+
+| | surface | what |
+|---|---|---|
+| 1 | Content Calendar banner | live Linear read on every load (missed in rev 1) |
+| 2 | Create Post | `projectForIntake → readLinearProject` on every create |
+| 3 | Submit tab | `fetchLinearProjects` populates the client picker |
+| 4 | Workload board | rebuilt from Linear; tweak comments read from Linear |
+| 5 | Import from Linear / bulk link | deliberate, disappears with Linear |
+
+**Already clean, verified:** Kasper's review board, client review (calendar),
+client view (samples), and samples status — `_sxrSyncStatusFromLinear` fires only
+on a pasted URL, not on load.
+
+**Two of the five are display-only** — the calendar banner and the Submit tab
+picker read Linear for a project name, a due date, an editor and a client list,
+all of which exist natively. Neither gates a write, and both are cheap.
+
+**Also confirmed dead, so nobody spends time on them:**
+`_calReconcileLinearStatuses` returns at `if (_calV2Ready()) return;` and v2 is
+every staff tab.

@@ -97,6 +97,45 @@ problem, not an operational one.
 
 ---
 
+## 2b. Every surface, audited — revision 2, 2026-09-03
+
+The owner's challenge was fair: a strategy that had not established whether each
+surface reads Linear was not a strategy. Revision 1 covered three blockers found by
+reading. This is the surface-by-surface sweep, browser included, which revision 1 did
+not do — and it found a live dependency on the Content Calendar that revision 1 missed
+entirely.
+
+Method: every remote endpoint the browser calls was enumerated, the eight Linear-named
+n8n webhooks were traced to their call sites, each call site to its enclosing function,
+and each function to its callers and guards. Edge Functions come from
+`scripts/linear-dependency-map.js`.
+
+| Surface | Depends on Linear today? | Exactly what, and where |
+|---|---|---|
+| **SMM Content Calendar — status** | **No** (as of item 131) | It reads `deliverables` directly. `_calReconcileLinearStatuses` is dead under v2 — its second statement is `if (_calV2Ready()) return;`, and v2 is every staff tab |
+| **SMM Content Calendar — card banner** | **YES, on every load** ⚠️ | `_calRefreshParentLinkFlags` fires from `loadCalendarPosts`' tail on every foreground load and posts every linked issue id to the `linear-issue-statuses` webhook, to source project / due date / editor / sub-vs-parent for the card banner. Feeds `_calLinearMetaById`, read in ~8 render sites. **Revision 1 missed this.** Display metadata, but a live per-load Linear read |
+| **Create Post (calendar + samples)** | **YES** | `handleIntakeCreate → projectForIntake → readLinearProject`. Validates the client's per-team Linear project on every create |
+| **Submit tab** | **YES** | `_submitLinearFormOnce` needs `fetchLinearProjects` (`linear-projects` webhook) to populate its client picker; `_linearIntakeSendTelemetry` also posts to `log-linear-submission`. The work itself is created natively via `intake_create` |
+| **Workload board** | **YES** | Renders from `workload_issues`, rebuilt from Linear every 10 min. `wlFetchTweakComments` reads the `linear-tweak-comments` webhook. An "Open in Linear" link sits in the popover |
+| **Kasper's review board** | **No** | Reads `calendar_posts` only |
+| **Client review — calendar** | **No** | Reads `calendar_posts` only |
+| **Samples calendar (SXR)** | **No** for status | `_sxrSyncStatusFromLinear` fires only when someone pastes/edits a Linear URL on a card, not on load |
+| **Client view — samples** | **No** | Reads `sample_reviews` only |
+| **Import from Linear / bulk link** | **YES, by definition** | `_calLinearImportFetch`, `_calBulkLinkFetch`, `_sxrLinearImportFetch` — deliberate Linear-reading features that disappear with Linear |
+| **Legacy write lanes** | Dormant, not dead | `_calLegacyPushStatusToLinear`, `_calLegacyPostLinearComment`, `_linearOutboxFlushRun` and the SXR twins are unreachable while the routing flags read cleanly, and are the fallback when one does not (§2) |
+
+**So the honest count is five live dependencies, not three:** the calendar banner read,
+Create Post, the Submit tab's client picker, the Workload board, and the deliberate
+import features. Kasper's board, both client views and the samples calendar are already
+clean.
+
+**Two are cosmetic-ish and cheap.** The calendar banner and the Submit tab picker both
+read Linear for *display* — a project name, a due date, an editor, a client list — all of
+which exist natively in `deliverables`, `clients` and `team_members`. Neither blocks a
+write. They are listed first because they are the least work and the most visible.
+
+---
+
 ## 3. The three things that actually block switch-off
 
 ### B1 — The Content Calendar has no native status path (the relay)

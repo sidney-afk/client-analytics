@@ -83,16 +83,25 @@ function extractFunction(name) {
 // ---- Run the real function against a fake projection -----------------------
 function newHarness(live) {
   const sandbox = { String, Boolean };
+  /* `terminalTailLoadedAt` is stamped because every `apply(true)` in this suite
+     means "the server has answered and the row set is settled" — which, since
+     2026-09-03, requires a tail to have LANDED and not merely no flag to be
+     raised. The un-stamped pre-tail state is a real state with its own
+     contract; it is asserted in test/prod-incomplete-pane-honesty.js, where the
+     pane's copy is also checked. */
   sandbox._prodState = {
     view: 'list', openId: '', openBatchId: '', openProjectId: '',
     clientSlug: '', deepLink: null, deepLinkMissing: '',
+    terminalTailPending: false, terminalTailFailed: false, terminalTailLoadedAt: 1,
   };
   sandbox._prodIssue = id => (live.issues || []).includes(String(id)) ? { id: String(id) } : null;
   sandbox._prodBatch = id => (live.batches || []).includes(String(id)) ? { id: String(id) } : null;
   sandbox._prodClient = id => (live.clients || []).includes(String(id)) ? { id: String(id) } : null;
   vm.createContext(sandbox);
   vm.runInContext(
-    extractFunction('_prodApplyDeepLinkFallback')
+    extractFunction('_prodRowSetComplete')
+      + '\n'
+      + extractFunction('_prodApplyDeepLinkFallback')
       + '\nthis.apply = _prodApplyDeepLinkFallback;',
     sandbox,
   );

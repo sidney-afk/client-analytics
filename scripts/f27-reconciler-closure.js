@@ -157,8 +157,17 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // Still untouched, and deliberately: every reconcile, apply, flag and
   // authority path, and the F200 apply preflight's cohort guard. The relaxation
   // is in the READ only.
+  //
+  // Re-pinned 2026-09-03 for the second half of that same relaxation, which
+  // review on PR #1242 was right to challenge. The rows whose Linear issue was
+  // deleted now STAY in the plan and only their ids leave the completeness
+  // computation; dropping the rows themselves bypassed the `!issue` branch of
+  // classifyOutboundDeliverable, so `outbound_issue_missing` and its
+  // `native_create_context_missing` repair stopped being raised for exactly the
+  // rows that need re-creating. Membership of the closure is UNCHANGED and one
+  // blob moved.
   'scripts/linear-deliverables-reconcile.js':
-    'a49b6cd60c841692bf3d24e471ce58179ce6833f24b9f1bdb189bcdd41b8fa8b',
+    'efc1235649766bcd9d9b927ef427ab78882a78de4a2afc8d3d335de7218466a5',
   'scripts/linear-reconcile-inbound-pager.js':
     '3113e68ab9aa63f150818bd86e1c20c3d53b061989c1efa438f146755b121e81',
   'scripts/monitoring-alert-relay.js':

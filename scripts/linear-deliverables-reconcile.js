@@ -669,10 +669,11 @@ async function loadLiveData() {
     loadLinearIssuesById(issueIds),
     loadLinearWebhooks(),
   ]);
-  /* ROWS POINTING AT A DELETED ISSUE LEAVE THE PLAN, and this is the half the
-     first version of the tolerance got wrong.
+  /* ROWS POINTING AT A DELETED ISSUE STAY IN THE PLAN. Only their ids leave
+     the COMPLETENESS question, and the difference between those two is the
+     whole of this block's history.
 
-     Review on PR #1241, reproduced: letting those rows through made
+     Review on PR #1241, reproduced: letting those ids into completeness made
      `attributionFamilyComplete` false, which disables unanimous child-family
      inference GLOBALLY -- so every valid `provisional_child_family` row was
      recomputed as `needs_attribution` and `compareAttribution` injected
@@ -681,14 +682,25 @@ async function loadLiveData() {
      outage for a silently inflated divergence number, which is the worse of the
      two: the outage announced itself.
 
-     A row whose issue Linear no longer has is not diverging from anything --
-     there is nothing on the other side to compare it to. It is ORPHANED, which
-     is a different fact, already reported by `linear_issue_not_found_count`.
-     Dropping these rows keeps completeness honest for every family that really
-     is complete, rather than papering the flag over. */
+     Review on PR #1242 then caught the OVER-correction, and was right. That fix
+     dropped the rows themselves, not just their ids -- so they never reached
+     `classifyOutboundDeliverable`, whose `!issue` branch is the one place that
+     raises `outbound_issue_missing` and files a `native_create_context_missing`
+     repair. A deliverable whose Linear issue was deleted is not a non-event: it
+     is a row that needs re-creating, and the plan stopped saying so. Worse,
+     `linear_issue_not_found_count` is reported by the receipt and read by
+     nothing, so the only surviving trace of these rows was a number nobody
+     gates on.
+
+     So the id is excluded from `attributionIssueIds` -- an issue Linear no
+     longer has can never be "loaded", and demanding it would keep completeness
+     false forever -- while the row itself goes on to classify and be counted.
+     Completeness stays honest for every family that really is complete, and the
+     orphans arrive where somebody looks: `outbound_diff_count`. */
   const orphanedByDeletedIssue = active.filter(row => LINEAR_ISSUES_NOT_FOUND.has(clean(row.linear_issue_uuid)));
-  active = active.filter(row => !LINEAR_ISSUES_NOT_FOUND.has(clean(row.linear_issue_uuid)));
-  const attributionIssueIds = [...new Set(active.map(row => clean(row.linear_issue_uuid)).filter(Boolean))];
+  const attributionIssueIds = [...new Set(active
+    .map(row => clean(row.linear_issue_uuid))
+    .filter(id => id && !LINEAR_ISSUES_NOT_FOUND.has(id)))];
   const attributionFamilyComplete = !TEAM_FILTER && !CLIENT_FILTER && !IDENTIFIER_FILTER
     && attributionIssueIds.every(id => linearIssues.has(id));
   return {
@@ -706,8 +718,9 @@ async function loadLiveData() {
     attributionFamilyComplete,
     attributionExpectedIssueCount: attributionIssueIds.length,
     attributionLoadedIssueCount: attributionIssueIds.filter(id => linearIssues.has(id)).length,
-    // Reported, never silently dropped: these rows left the plan because the
-    // issue they name is gone, and that is a fact somebody should see.
+    // Reported alongside the diffs they now raise: these rows stayed in the
+    // plan, and this says how many of its entries are orphans rather than
+    // ordinary divergence.
     orphanedByDeletedIssueCount: orphanedByDeletedIssue.length,
     prodAuthority,
     linearIssues,
@@ -761,10 +774,11 @@ async function loadLegacyLiveDataForProof() {
     loadLinearIssuesById(issueIds),
     loadLinearWebhooks(),
   ]);
-  /* ROWS POINTING AT A DELETED ISSUE LEAVE THE PLAN, and this is the half the
-     first version of the tolerance got wrong.
+  /* ROWS POINTING AT A DELETED ISSUE STAY IN THE PLAN. Only their ids leave
+     the COMPLETENESS question, and the difference between those two is the
+     whole of this block's history.
 
-     Review on PR #1241, reproduced: letting those rows through made
+     Review on PR #1241, reproduced: letting those ids into completeness made
      `attributionFamilyComplete` false, which disables unanimous child-family
      inference GLOBALLY -- so every valid `provisional_child_family` row was
      recomputed as `needs_attribution` and `compareAttribution` injected
@@ -773,14 +787,25 @@ async function loadLegacyLiveDataForProof() {
      outage for a silently inflated divergence number, which is the worse of the
      two: the outage announced itself.
 
-     A row whose issue Linear no longer has is not diverging from anything --
-     there is nothing on the other side to compare it to. It is ORPHANED, which
-     is a different fact, already reported by `linear_issue_not_found_count`.
-     Dropping these rows keeps completeness honest for every family that really
-     is complete, rather than papering the flag over. */
+     Review on PR #1242 then caught the OVER-correction, and was right. That fix
+     dropped the rows themselves, not just their ids -- so they never reached
+     `classifyOutboundDeliverable`, whose `!issue` branch is the one place that
+     raises `outbound_issue_missing` and files a `native_create_context_missing`
+     repair. A deliverable whose Linear issue was deleted is not a non-event: it
+     is a row that needs re-creating, and the plan stopped saying so. Worse,
+     `linear_issue_not_found_count` is reported by the receipt and read by
+     nothing, so the only surviving trace of these rows was a number nobody
+     gates on.
+
+     So the id is excluded from `attributionIssueIds` -- an issue Linear no
+     longer has can never be "loaded", and demanding it would keep completeness
+     false forever -- while the row itself goes on to classify and be counted.
+     Completeness stays honest for every family that really is complete, and the
+     orphans arrive where somebody looks: `outbound_diff_count`. */
   const orphanedByDeletedIssue = active.filter(row => LINEAR_ISSUES_NOT_FOUND.has(clean(row.linear_issue_uuid)));
-  active = active.filter(row => !LINEAR_ISSUES_NOT_FOUND.has(clean(row.linear_issue_uuid)));
-  const attributionIssueIds = [...new Set(active.map(row => clean(row.linear_issue_uuid)).filter(Boolean))];
+  const attributionIssueIds = [...new Set(active
+    .map(row => clean(row.linear_issue_uuid))
+    .filter(id => id && !LINEAR_ISSUES_NOT_FOUND.has(id)))];
   const attributionFamilyComplete = !TEAM_FILTER && !CLIENT_FILTER && !IDENTIFIER_FILTER
     && attributionIssueIds.every(id => linearIssues.has(id));
   return {
@@ -798,8 +823,9 @@ async function loadLegacyLiveDataForProof() {
     attributionFamilyComplete,
     attributionExpectedIssueCount: attributionIssueIds.length,
     attributionLoadedIssueCount: attributionIssueIds.filter(id => linearIssues.has(id)).length,
-    // Reported, never silently dropped: these rows left the plan because the
-    // issue they name is gone, and that is a fact somebody should see.
+    // Reported alongside the diffs they now raise: these rows stayed in the
+    // plan, and this says how many of its entries are orphans rather than
+    // ordinary divergence.
     orphanedByDeletedIssueCount: orphanedByDeletedIssue.length,
     prodAuthority,
     linearIssues,

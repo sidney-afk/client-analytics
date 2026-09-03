@@ -57,15 +57,57 @@ const FAMILY = [
 const GATE = /_prodCanonicalCommentGate\s*\(/;
 const BRANCHES_ON_LINKED = /\.linked\b/;
 
-/* The 105.3 defect verbatim: the gate computed only for one role, so the other
-   role silently has none. Look at the text immediately BEFORE each gate call in
-   the function, which is where such a guard would sit. */
+/* The 105.3 defect: the gate computed only for one role, so the other role
+   silently has none. The first version of this detector matched only `?:` and
+   `&&` immediately before the call — Codex pointed out on #1255 that the
+   statement form
+       let gate = null; if (_isClientLink) gate = _prodCanonicalCommentGate(…);
+   is the same defect and walked straight past it, while the other checks still
+   saw a gate call and a later `.linked` and stayed green.
+   So this works out the SPAN each `if (_isClientLink…)` guards — its braced
+   block, or the single statement that follows — and flags a gate call inside
+   one, as well as the two expression forms. */
+function roleGuardedSpans(code) {
+    const spans = [];
+    const re = /if\s*\(\s*_isClientLink\b/g;
+    let m;
+    while ((m = re.exec(code))) {
+        // Walk to the end of the if's condition.
+        let i = code.indexOf('(', m.index);
+        let depth = 0;
+        for (; i < code.length; i++) {
+            if (code[i] === '(') depth++;
+            else if (code[i] === ')') { depth--; if (depth === 0) { i++; break; } }
+        }
+        while (i < code.length && /\s/.test(code[i])) i++;
+        if (code[i] === '{') {
+            let d = 0;
+            for (let j = i; j < code.length; j++) {
+                if (code[j] === '{') d++;
+                else if (code[j] === '}') { d--; if (d === 0) { spans.push([i, j]); break; } }
+            }
+        } else {
+            const end = code.indexOf(';', i);
+            spans.push([i, end < 0 ? code.length : end]);
+        }
+    }
+    return spans;
+}
+
 function gateHiddenBehindRole(body) {
-    const parts = String(body || '').split('_prodCanonicalCommentGate');
+    const code = String(body || '');
+    const parts = code.split('_prodCanonicalCommentGate');
     for (let i = 1; i < parts.length; i++) {
         const before = parts[i - 1].slice(-140);
         if (/_isClientLink\s*(\?|&&)\s*$/.test(before)) return true;
         if (/_isClientLink\s*\?[^:]*$/.test(before)) return true;
+    }
+    const spans = roleGuardedSpans(code);
+    if (!spans.length) return false;
+    const gre = /_prodCanonicalCommentGate\s*\(/g;
+    let g;
+    while ((g = gre.exec(code))) {
+        if (spans.some(([a, b]) => g.index > a && g.index < b)) return true;
     }
     return false;
 }
@@ -146,9 +188,35 @@ const EXCLUDED = {
 function gateCallers() {
     const code = stripNonCode(INDEX);
     const decls = [];
-    const dre = /\n[ \t]*(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
+    /* Named declarations AND assigned function expressions. Codex on #1255:
+       index.html already defines `_cal*` / `_sxr*` operations as arrow
+       functions, and a seventh written as
+           const _calFoo = () => _prodCanonicalCommentGate(…)
+       would have been attributed by the binary search to whatever named
+       function happened to precede it — and if that one was already rostered
+       or excluded, the promised unclassified-caller failure would never fire. */
+    /* Anchored at the module's TOP-LEVEL indent (four spaces), which is where
+       every one of these operations is declared. Without that anchor an inner
+       `const chosen = …` inside a function body counts as a declaration and
+       steals the attribution from the function it lives in — measured, not
+       hypothetical: it moved `_calResolveLastTweak`'s gate call onto a local
+       variable the first time this regex was widened. */
+    const dre = new RegExp(
+        // `function` declarations at ANY indent: some live inside a block —
+        // `_prodCanonicalCommentGate` itself is declared at eight spaces, and
+        // anchoring this half to the top level attributed its own definition to
+        // whatever preceded it.
+        '\\n[ \\t]*(?:async\\s+)?function\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\s*\\('
+        // Assigned function expressions only at the module's TOP-LEVEL indent,
+        // which is where an operation would be written. Allowing them at any
+        // indent lets an inner `const chosen = …` inside a function body steal
+        // the attribution from the function it lives in — measured, not
+        // hypothetical: it moved `_calResolveLastTweak`'s gate call onto a
+        // local variable the first time this was widened.
+        + '|\\n {4}(?:const|let|var) ([A-Za-z_$][A-Za-z0-9_$]*)\\s*=\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>|[A-Za-z_$][A-Za-z0-9_$]*\\s*=>)',
+        'g');
     let m;
-    while ((m = dre.exec(code))) decls.push({ at: m.index, name: m[1] });
+    while ((m = dre.exec(code))) decls.push({ at: m.index, name: m[1] || m[2] });
     const names = new Set();
     const gre = /_prodCanonicalCommentGate\s*\(/g;
     while ((m = gre.exec(code))) {
@@ -241,6 +309,12 @@ ok(gateHiddenBehindRole('const g = _isClientLink && _prodCanonicalCommentGate(po
     'and the && form');
 ok(!gateHiddenBehindRole('const g = _prodCanonicalCommentGate(post, comp);\nif (_isClientLink && g.linked) {}'),
     'and does NOT fire on a gate computed for everyone and then read per role, which is correct code');
+ok(gateHiddenBehindRole('let g = null; if (_isClientLink) g = _prodCanonicalCommentGate(post, comp);'),
+    'the STATEMENT form is caught too — same defect, and it walked past the first detector');
+ok(gateHiddenBehindRole('let g = null;\nif (_isClientLink) {\n  g = _prodCanonicalCommentGate(post, comp);\n}'),
+    'and the braced statement form');
+ok(!gateHiddenBehindRole('if (_isClientLink) { render(); }\nconst g = _prodCanonicalCommentGate(post, comp);'),
+    'while a role-guarded block that does something ELSE, with the gate outside it, is correct code');
 
 if (failures) {
     console.log('\n' + failures + ' check(s) failed.');

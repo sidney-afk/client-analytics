@@ -10393,3 +10393,13 @@ re-set, because a deep link mid-flight must not cancel itself. A new switch path
 gets the behaviour by construction rather than by somebody remembering a comment
 exists. `test/calendar-deep-link-focus.js` runs the setter for real over all
 three cases and pins the count.
+
+**And there was a THIRD way it went stale, which the setter does not cover.**
+`onCalViewChange` drops the pin when you leave the Sheet and `_calSetClient`
+drops it when the client changes — but neither fires when you navigate to Home
+or another top-level route, and coming back to the SAME pinned client is a
+no-op switch, so the pin survived the whole round trip and kept forcing one card
+past the saved month, status and ready-only filters long after the reader had
+moved on. `navTo` now drops it whenever it routes away from the calendar, beside
+the calendar teardown that already lives there. All three exits are asserted
+together, so it is visible that there are three.

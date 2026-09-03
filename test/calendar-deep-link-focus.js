@@ -256,6 +256,21 @@ function harness(options) {
   st = { client: 'a', focusPid: 'p1' };
   run(st)(null);
   ok(st.client === null && st.focusPid === null, 'and clearing the client drops it too');
+
+  /* THE THIRD WAY IT GOES STALE. onCalViewChange covers leaving the Sheet and
+     _calSetClient covers changing client; neither fires when you navigate to
+     Home and back, and returning to the SAME pinned client is a no-op switch,
+     so the pin survived the round trip. navTo drops it on the way out. */
+  const navToSrc = extractFunction(INDEX, 'navTo');
+  ok(/if \(page !== 'calendar'\) calState\.focusPid = null;/.test(navToSrc),
+    'navTo drops the focus pin whenever it routes away from the calendar');
+  ok(navToSrc.indexOf("if (page !== 'calendar') calState.focusPid = null;")
+       > navToSrc.indexOf('_calV2Teardown'),
+    'beside the calendar teardown, which is where leaving-the-calendar cleanup lives');
+  ok(/if \(v !== 'organizer'\) calState\.focusPid = null;/.test(INDEX),
+    'and the two older exits are still there: leaving the Sheet…');
+  ok(/calState\.client !== name\) calState\.focusPid = null;/.test(INDEX),
+    '…and changing client');
 }
 
 if (failures) {

@@ -20814,6 +20814,17 @@
         // Phase 2: drop the calendar's Supabase realtime subscription when
         // leaving the calendar so it isn't held open in the background.
         if (page !== 'calendar' && typeof _calV2Teardown === 'function') _calV2Teardown();
+        /* LEAVING THE CALENDAR ENDS THE FOCUS PIN. onCalViewChange drops it when
+           you leave the Sheet and _calSetClient drops it when the client
+           changes, but neither fires when you navigate to Home or another
+           top-level route — and coming back to the SAME pinned client is a
+           no-op switch, so the pin survived the round trip and kept forcing one
+           card past the saved month, status and ready-only filters long after
+           the reader had moved on. Codex P2 on PR 1252; the third and last way
+           it can go stale. (Written "PR 1252", not with a hash: the hardcoded-
+           colour guard reads a four-hex-digit token after a # as a colour
+           literal, which is a fair reading and cost one CI cycle to learn.) */
+        if (page !== 'calendar') calState.focusPid = null;
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); // SXR_LINE
         // Leaving Samples while its Notes modal is open would otherwise leave
         // the body scroll-locked; clear the lock on every navigation away.

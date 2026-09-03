@@ -24979,6 +24979,32 @@
     const CAL_V2_LS_KEY         = 'syncview_calendar_v2';
     const CAL_V2_KILL_KEY       = 'syncview_calendar_v2_off'; // Phase 3: ?v2=0 sets this (sticky opt-out); v2 is now the default
     const CAL_V2_RT_DEBOUNCE_MS = 350;
+    /* A FLOOR BETWEEN REALTIME-TRIGGERED RELOADS, because 350 ms of trailing
+       debounce only coalesces writes that arrive faster than 350 ms apart.
+
+       Owner report, 2026-09-03: "when I go to the calendar it refreshes like 10
+       times in a row, like 15 times -- I see the refresh pill and every card
+       refreshing a ton of times". Measured the same day: `calendar_posts` took
+       200 row writes in an hour, 171 of them in the last 15 minutes, across 9
+       clients, 56 on the busiest one. Those are backend jobs -- the reconcilers
+       that still apply Linear -> card every ten minutes (OPEN_REPAIRS 76) --
+       and they land as a burst of individual row updates spread over seconds.
+
+       This tab subscribes filtered to the client on screen and reloads the
+       WHOLE client on every event. The existing 4-second coalescing window
+       (CAL_RT_SELF_ECHO_MS) keys off `_calLastLocalWriteAt`, so it only ever
+       applied to writes THIS TAB made; a reconciler's writes are foreign and
+       nothing coalesced them. Every 350 ms window containing one row write
+       became its own full reload, pill and all -- one refresh per row.
+
+       So foreign bursts now get what our own writes always had: while a reload
+       is inside the floor the handler RE-ARMS instead of reloading, exactly as
+       the self-echo branch does, and the burst collapses to one reload when it
+       settles. The cost is that a teammate's edit can take up to this long to
+       appear when it lands right behind another change; the first event after
+       a quiet period still reloads on the 350 ms debounce, which is the case
+       that actually reads as "live". */
+    const CAL_V2_RT_MIN_RELOAD_MS = 8000;
     const CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients';
     const WRITE_UI_REROUTE_FLAG_KEY = 'write_ui_reroute_clients';
     const WRITE_UI_REROUTE_FLAG_TIMEOUT_MS = 2000;
@@ -34597,6 +34623,7 @@
     let _calV2Epoch = 0;
     let _calV2Lease = null;
     let _calLastLocalWriteAt = 0;      // when we last saved locally — used to ignore the realtime ECHO of our own write
+    let _calV2RtLastReloadAt = 0;      // when realtime last triggered a reload — the floor a foreign burst re-arms against
     const CAL_RT_SELF_ECHO_MS = 4000;  // a realtime event within this window of a local save is treated as our own echo and deferred
     function _calV2LeaseCurrent(lease) {
         if (!lease
@@ -34688,11 +34715,21 @@
             // suppressed (we didn't just write).
             const sinceLocal = Date.now() - _calLastLocalWriteAt;
             if (sinceLocal < CAL_RT_SELF_ECHO_MS) { _calV2Log('realtime: suppressed as self-echo (', sinceLocal, 'ms since local write); re-arming'); _calV2RtTimer = setTimeout(tick, CAL_RT_SELF_ECHO_MS - sinceLocal); return; }
+            // Same treatment for a FOREIGN burst: re-arm rather than reload
+            // while we are inside the floor, so a reconciler writing a dozen
+            // rows over a few seconds costs one reload, not a dozen.
+            const sinceReload = Date.now() - _calV2RtLastReloadAt;
+            if (sinceReload < CAL_V2_RT_MIN_RELOAD_MS) {
+                _calV2Log('realtime: inside the reload floor (', sinceReload, 'ms since last); re-arming');
+                _calV2RtTimer = setTimeout(tick, CAL_V2_RT_MIN_RELOAD_MS - sinceReload);
+                return;
+            }
             // A load is already running — don't DROP this change (that left the
             // observer tab stale until the next event/focus); defer it. The
             // load's tail re-services the pending flag once it's free.
             if (_calBgLoadInFlight || calState.loading) { _calV2Log('realtime: deferred (load already in flight)'); _calV2RtPending = true; return; }
             _calV2Log('realtime: triggering background reload from Supabase');
+            _calV2RtLastReloadAt = Date.now();
             loadCalendarPosts({ background: true });
         }, CAL_V2_RT_DEBOUNCE_MS);
     }

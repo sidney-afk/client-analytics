@@ -10044,3 +10044,77 @@ the last two fixes could not.
 **Still unproven until it runs.** This is FIXED on paper exactly as 119 and 126
 were. The claim becomes true at the next scheduled run after merge and not
 before — and it is the third time, so it should be read that way.
+
+---
+
+## 129. [2026-09-03, FIXED — browser-only, live on merge; the browser half of a two-part cause] The calendar refreshed ten to fifteen times in a row because it reloaded the whole client once per ROW a backend job wrote, and the coalescing window beside it only ever applied to this tab's own writes
+
+**What was reported.** "When I go to the calendar it refreshes like 10 times in
+a row, like 15 times. I see the refresh pill and every card refreshing a ton of
+times in a row. Every time I switch tabs on the content calendar, it does that."
+
+**What it is not.** Four candidates were eliminated by measurement rather than
+by reading, and they are recorded because each looked right:
+
+| candidate | why not |
+|---|---|
+| `_calAdoptDeliverableLinks` writing rows in the load tail, echoing back as realtime | measured live: **0** non-archived cards have a deliverable id with an empty Linear url on either component, so it returns before writing |
+| a realtime channel leaked per tab switch | `onCalClientChange` calls `_calV2Teardown()`, which bumps the epoch, invalidates the active load and drops the channel |
+| `_calRefreshOnReturn` firing on both visibilitychange and focus | guarded by a min-interval, an in-flight check and a 500 ms debounce |
+| the browser-side Linear pull, `_calReconcileLinearStatuses`, writing a card per divergence | its first statement is `if (_calV2Ready()) return;` — dead under v2, which is every staff tab |
+
+**The engine, measured.** `calendar_posts` is under continuous write pressure
+from the backend: **200 row writes in the last hour, 171 of them in the last 15
+minutes, across 9 clients, 56 on the busiest single client.** Those are the
+reconcilers that still apply Linear → card every ten minutes (item 76) plus the
+B1 stray-catcher. They land as individual row updates spread over seconds, not
+as one transaction.
+
+**The amplifier, and the actual defect.** A staff tab subscribes to
+`calendar_posts` filtered to the client on screen, and `_calV2OnRealtimeChange`
+reloads **the whole client** on every event behind a `CAL_V2_RT_DEBOUNCE_MS`
+trailing debounce of **350 ms**. There is a 4-second coalescing window beside
+it — but it keys off `_calLastLocalWriteAt`, so it only ever applied to writes
+**this tab** made. A reconciler's writes are foreign; nothing coalesced them.
+Every 350 ms window containing one row write became its own full reload, pill
+and repaint: **one refresh per row**. Switching tabs makes it obvious because
+you land on a fresh subscription and a foreground load and then watch the next
+burst from its start.
+
+**The repair.** `CAL_V2_RT_MIN_RELOAD_MS` (8 s) is a floor between
+realtime-triggered reloads. Inside it the handler **re-arms** instead of
+reloading — the identical move the self-echo branch has always made — so a
+burst collapses to one reload when it settles, and a continuous trickle is
+bounded by elapsed time rather than by row count. The first event after a quiet
+period still reloads on the 350 ms debounce, which is the case that reads as
+"live". The cost, stated plainly: a teammate's edit landing right behind
+another change can take up to 8 seconds to appear.
+
+**Measured on the real handler**, driven with a virtual clock in
+`test/calendar-realtime-burst-coalesces.js`: 15 row writes 700 ms apart go from
+**15 reloads to 2**; a 20-row trickle over a minute from **20 to 8**. Both
+numbers come with a MUTANT run that removes the floor and asserts the storm
+returns, so the assertions measure the repair. A single change after a quiet
+period still reloads once on the debounce, and the self-echo window is
+unchanged.
+
+**Confirmed in a real browser, not only under a virtual clock.** Review on PR
+1246 asked for the affected browser probe, which is right: a virtual clock
+proves the arithmetic, not that the re-arm still converges under the shipped
+page's own timers. `qa/probes/p70_rapid_realtime_converge.js` itself needs
+`SYNCVIEW_STAFF_KEY` to mint the TEST-client token and cannot run in an agent
+sandbox, so the exact changed path was measured instead: real Chromium, the
+shipped `index.html` from a local server, real timers, `loadCalendarPosts`
+spied rather than executed so nothing was fetched or written. **15 realtime
+events 700 ms apart produced 3 full reloads, a single event after a quiet
+period produced 1, and the page raised no errors.** The vm test says 2 for the
+same burst; the difference is real-timer jitter moving the burst across the
+floor boundary, and both say the same thing about the defect, which was 15.
+The credentialed p70 run still belongs to the nightly lane.
+
+**This is the browser half only.** The cure is that nothing should be writing
+those rows from Linear at all — item 76, the reconcilers that still apply
+Linear → card for video every ten to fifteen minutes. That is production
+automation and the owner's call, and until it is made this floor is what stands
+between a reconciler pass and a calendar that repaints fifteen times while
+someone is reading it.

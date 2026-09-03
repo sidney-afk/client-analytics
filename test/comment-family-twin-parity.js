@@ -175,6 +175,36 @@ for (const row of FAMILY) {
         row.op + ': both roster entries really are gate callers, so the roster has not rotted');
 }
 
+/* ---- WHY THE CALENDAR MAY READ WITHOUT ASKING THE GATE ------------------ */
+
+/* The exclusion list above says the calendar client read does not consult the
+   gate while the Samples one does. That is not a hole, and the reason is an
+   invariant worth pinning: the calendar has no canonical comment store at all
+   (there is no `_calCanonicalCommentsFor`), so the card column IS its
+   projection of canonical state. Four of the five write operations keep it in
+   step by calling `_writeUiPersistCanonicalCommentProjection` after a canonical
+   write; ADD keeps it in step itself, writing the card column through
+   `_calPendingEdits` + `_calStringifyComments` + `_calWatchNoteSave` — the same
+   mechanism the projection uses.
+
+   If one of those stopped, the calendar's client would silently read a stale
+   copy of a thread that had moved on canonically, with nothing anywhere to
+   report it. That is the same shape as OPEN_REPAIRS 101 and it is why this is
+   asserted rather than trusted. */
+const PROJECTORS = ['_calSaveCommentEdit', '_calToggleCommentDone',
+    '_calDeleteComment', '_calResolveLastTweak'];
+for (const name of PROJECTORS) {
+    const f = survey(name);
+    ok(f && /_writeUiPersistCanonicalCommentProjection/.test(f.body),
+        name + ' projects canonical state back onto the card column the client reads');
+}
+const addF = survey('_calAppendComment');
+ok(addF && /_calPendingEdits/.test(addF.body) && /_calStringifyComments/.test(addF.body)
+    && /_calWatchNoteSave/.test(addF.body),
+    '_calAppendComment writes that column itself, which is why it needs no projection call');
+ok(!/function _calCanonicalCommentsFor\s*\(/.test(INDEX),
+    'and the calendar still has no canonical comment store — if one appears, this reasoning has to be redone');
+
 /* The stripper is now load-bearing: if it stopped removing comments, every
    answer above could be satisfied by prose. Asserted against the real body
    that produced the hole rather than a synthetic one. */

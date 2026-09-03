@@ -10327,14 +10327,31 @@ linked-but-unready-or-unauthorised returns `[]`. The calendar filters an
 already-loaded list by audience and role, and never asks. `_sxrPostLinearComment`
 is plausibly benign: the calendar gates one level up, in `_calAppendComment`.
 
-**Whether the READ difference is correct is an open question, and it is on the
-client's path** — the surface item 99, 100, 104 and 107 all live on. It is
-recorded here rather than answered by an assertion, because a suite that
-asserts a symmetry nobody has justified is how a wrong rule gets frozen into
-the tests. It needs someone to establish what the calendar loads into
-`post.comments` upstream on a client link, and whether that upstream load
-applies the same fail-closed contract.
+**And then I went and answered it, because "open question" was the lazy version
+of the same mistake this file keeps recording.** The read difference is correct,
+and the reason is structural: **the calendar has no canonical comment store at
+all.** There is no `_calCanonicalCommentsFor` to match `_sxrCanonicalCommentsFor`
+— so on the calendar the card column IS the projection of canonical state, and
+reading it is reading canonical, one step removed.
+
+What keeps it one step removed rather than stale is a specific invariant. Four
+of the five calendar write operations call
+`_writeUiPersistCanonicalCommentProjection('calendar', …)` after a canonical
+write, which writes `_calCommentsFor(post, component)` back into the card
+column. The fifth, ADD, needs no such call because it writes that column itself,
+through `_calPendingEdits` + `_calStringifyComments` + `_calWatchNoteSave` — the
+same mechanism the projection uses. The transport asymmetry
+(`_sxrPostLinearComment` gating where `_calPostLinearComment` does not) is
+likewise benign: the calendar gates one level up, in `_calAppendComment`.
+
+**So the suite pins the invariant instead of the symmetry.** All four
+projectors are asserted, ADD's own card-column write is asserted, and so is the
+ABSENCE of `_calCanonicalCommentsFor` — because if a canonical store ever
+appears on the calendar, this entire line of reasoning has to be redone rather
+than quietly inherited. If a projection call were dropped, the calendar's client
+would read a stale copy of a thread that had moved on canonically, with nothing
+anywhere to report it: item 101's shape exactly, which is why it is asserted and
+not trusted.
 
 - Done when: it catches a fourth. Until then, it costs nothing and holds the
-  prediction that three prose warnings could not. The read-path question above
-  is its own piece of work.
+  prediction that three prose warnings could not.

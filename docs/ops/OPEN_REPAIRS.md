@@ -10395,5 +10395,18 @@ was the suite not being registered in `REPO_MAP.md`, which is now done.
 Each has its mutation: a new arrow-function gate caller, the statement-form role
 guard, and the six slash cases.
 
+**Round four, two more, both narrower versions of the same two bugs:**
+
+- The role-guard detector required `_isClientLink` to be the FIRST token of the
+  condition, so `if (ready && _isClientLink) gate = …` walked past it. It now
+  reads every `if`'s balanced condition and asks whether that condition mentions
+  the role at all — same for the ternary and `&&` forms. Four cases assert the
+  boundary in both directions, including a role check AFTER the gate, which is
+  correct code and must not fire.
+- `stripNonCode` carried the slash context across into a `${ … }`, so a later
+  interpolation beginning with a regex — `${x}${/re/.test(y)}` — was read with
+  the token from before the template. A fresh interpolation is a fresh
+  expression, so the context resets on entering one, in `extractFunction` too.
+
 - Done when: it catches a fourth. Until then, it costs nothing and holds the
   prediction that three prose warnings could not.

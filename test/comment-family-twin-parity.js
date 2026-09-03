@@ -67,18 +67,25 @@ const BRANCHES_ON_LINKED = /\.linked\b/;
    So this works out the SPAN each `if (_isClientLink…)` guards — its braced
    block, or the single statement that follows — and flags a gate call inside
    one, as well as the two expression forms. */
+/* EVERY `if`, and then ask whether ITS CONDITION mentions the role — not only
+   the ifs that happen to start with it. Codex on #1255: the first version
+   required `_isClientLink` to be the opening token, so
+   `if (ready && _isClientLink) canonicalGate = _prodCanonicalCommentGate(…)`
+   walked straight past while every other check stayed green. */
 function roleGuardedSpans(code) {
     const spans = [];
-    const re = /if\s*\(\s*_isClientLink\b/g;
+    const re = /\bif\s*\(/g;
     let m;
     while ((m = re.exec(code))) {
-        // Walk to the end of the if's condition.
+        // Walk the balanced condition, then decide whether it depends on the role.
         let i = code.indexOf('(', m.index);
+        const condStart = i;
         let depth = 0;
         for (; i < code.length; i++) {
             if (code[i] === '(') depth++;
             else if (code[i] === ')') { depth--; if (depth === 0) { i++; break; } }
         }
+        if (!/_isClientLink\b/.test(code.slice(condStart, i))) continue;
         while (i < code.length && /\s/.test(code[i])) i++;
         if (code[i] === '{') {
             let d = 0;
@@ -96,11 +103,15 @@ function roleGuardedSpans(code) {
 
 function gateHiddenBehindRole(body) {
     const code = String(body || '');
+    /* The expression forms. The role does not have to be the token immediately
+       before the `?` or `&&` — `ready && _isClientLink ? gate : null` is the
+       same defect — so this asks whether the condition ENDING at the call
+       mentions the role at all, not whether it starts with it. */
     const parts = code.split('_prodCanonicalCommentGate');
     for (let i = 1; i < parts.length; i++) {
-        const before = parts[i - 1].slice(-140);
-        if (/_isClientLink\s*(\?|&&)\s*$/.test(before)) return true;
-        if (/_isClientLink\s*\?[^:]*$/.test(before)) return true;
+        const before = parts[i - 1].slice(-200);
+        if (/(\?|&&)\s*$/.test(before) && /_isClientLink\b[^;{}]*(\?|&&)\s*$/.test(before)) return true;
+        if (/_isClientLink\b[^:;{}]*\?[^:;{}]*$/.test(before)) return true;
     }
     const spans = roleGuardedSpans(code);
     if (!spans.length) return false;
@@ -299,6 +310,8 @@ ok(/: z/.test(stripNonCode('`${x ? `${y}` : z} tail`')),
     'and neither does a nested template inside one');
 ok(!/tail/.test(stripNonCode('`${x} tail`')),
     'while the template text around the placeholder is still removed');
+ok(/\.test\(y\)/.test(stripNonCode('`${x}${/re/.test(y)}`')),
+    'a later interpolation starting with a regex does not swallow the code after it');
 
 /* The detector has to be able to see the defect it is named for, or the six
    clean answers above mean nothing. This is the exact shape 105.3 records
@@ -315,6 +328,14 @@ ok(gateHiddenBehindRole('let g = null;\nif (_isClientLink) {\n  g = _prodCanonic
     'and the braced statement form');
 ok(!gateHiddenBehindRole('if (_isClientLink) { render(); }\nconst g = _prodCanonicalCommentGate(post, comp);'),
     'while a role-guarded block that does something ELSE, with the gate outside it, is correct code');
+ok(gateHiddenBehindRole('let g = null; if (ready && _isClientLink) g = _prodCanonicalCommentGate(post, comp);'),
+    'a COMPOUND condition is caught — the role does not have to be the first token');
+ok(gateHiddenBehindRole('const g = ready && _isClientLink ? _prodCanonicalCommentGate(post, comp) : null;'),
+    'and so is the compound ternary');
+ok(!gateHiddenBehindRole('if (ready && post) { const g = _prodCanonicalCommentGate(post, comp); }'),
+    'while a guard that does not mention the role at all is left alone');
+ok(!gateHiddenBehindRole('if (!post) return;\nconst g = _prodCanonicalCommentGate(post, comp);\nif (_isClientLink) x();'),
+    'and a role check AFTER the gate is correct code, not a hidden gate');
 
 if (failures) {
     console.log('\n' + failures + ' check(s) failed.');

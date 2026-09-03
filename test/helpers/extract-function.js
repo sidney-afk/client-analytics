@@ -127,7 +127,10 @@ function extractFunction(source, name) {
       if (escaped) { escaped = false; continue; }
       if (c === '\\') { escaped = true; continue; }
       if (c === '`') { stack.pop(); prev = LITERAL_ENDED; continue; }
-      if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); i++; continue; }
+      // A fresh `${ … }` is a fresh expression: a `/` at its start is a regex,
+      // so the token from BEFORE the template must not decide that. Codex on
+      // #1255, for the second interpolation in `${x}${/re/.test(y)}`.
+      if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); prev = ''; i++; continue; }
       continue;
     }
 
@@ -251,7 +254,7 @@ function stripNonCode(source) {
       if (escaped) { escaped = false; blank(i); continue; }
       if (c === '\\') { escaped = true; blank(i); continue; }
       if (c === '`') { stack.pop(); blank(i); prev = LITERAL_ENDED; continue; }
-      if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); blank(i); blank(i + 1); i++; continue; }
+      if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); prev = ''; blank(i); blank(i + 1); i++; continue; }
       blank(i);
       continue;
     }

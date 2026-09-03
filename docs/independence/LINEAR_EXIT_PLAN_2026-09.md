@@ -17,6 +17,54 @@ number could not be verified through the browser publishable key it is marked
 
 ---
 
+## 0. Why this plan was redone, and how its claims are checked now
+
+The owner stopped the first implementation attempt with a fair question: if the strategy
+was any good, how did it not know that the create path already behaved differently than
+described? The answer is that the first draft of this file was written by reading code and
+grepping for Linear calls, and that method produced two confident wrong answers about the
+same question, in opposite directions:
+
+1. It said native Create Post cannot commit without a live Linear read, citing
+   `linearStateIdForCreate` and `linearLabelCatalog` inside `handleProductionCreate`. That
+   function opens with an unconditional `throw new GatewayError(403,
+   "production_create_closed")` — the owner's own 2026-08-23 ruling that nothing is created
+   from the Production tab. Every Linear call it makes is **unreachable**. The claim was
+   true of dead code.
+2. Correcting that mid-implementation, it then said the calendar's real create path
+   touches Linear nowhere — because grepping *inside* `handleIntakeCreate`'s line range
+   finds no Linear call. It reaches one **two hops away**, through
+   `projectForIntake → readLinearProject`.
+
+Both mistakes have one root: reading for the **presence** of a Linear call near a name,
+instead of computing **reachability** from a live entry point. Nobody can hold a
+7,000-line call graph in their head, and the failure mode is not "I don't know" — it is a
+fluent, specific, wrong answer.
+
+**So the question is no longer answered by a person.** `scripts/linear-dependency-map.js`
+builds the call graph, discards code below a top-level `throw`, resolves the endpoint
+through constant aliases, and reports the shortest path from each entry point to the
+Linear API. `test/linear-dependency-map.js` proves each rule on a fixture whose answer is
+obvious, asserts the facts that were hand-verified against the real file, and runs a
+**mutant** for each rule that removes it and requires the old wrong answer to come back —
+because all three rules were added only after they produced a visibly absurd result. The
+alias rule, for instance, was added when the analyzer reported that `linear-outbound`
+depends on Linear nowhere.
+
+Four questions now stand behind every claim in this file, and where one is unanswered the
+claim says **unproven** rather than guessing:
+
+1. **Is the code reachable?** — the analyzer, above.
+2. **Is it deployed?** — `docs/ops/EF_DEPLOY_MANIFEST.md`. Fourteen functions carry **NO CI
+   DEPLOY PATH**, including `calendar-upsert` and `sample-review-upsert`, so for those the
+   repository is not evidence about production.
+3. **Is it flag-gated, and what is the flag set to right now?** — read live.
+4. **Does live data agree?** — the strongest check, and the one that caught the
+   deployment gap: live `calendar_post_events` rows carry a shape the repository's
+   `calendar-upsert` could not have written.
+
+---
+
 ## 1. The one-paragraph version
 
 Both teams are already SyncView-authoritative, all 43 active clients are enrolled, and
@@ -26,9 +74,12 @@ traffic while the routing flags read cleanly, though they are still the fallback
 does not (§2). What is left is **not a migration of people**. It is three
 mechanical facts: the Content Calendar has no native way to learn a deliverable's
 status and borrows Linear as a relay; Workload's board is rebuilt from Linear every ten
-minutes and has no reader for its native replacement; and native Create Post cannot
-commit without a live Linear read. Remove those three and Linear is an export problem,
-not an operational one.
+minutes and its native replacement cannot be swapped in without a key migration, because
+saved plan days are keyed on the Linear issue uuid; and six live `production-write` entry
+points still read the Linear API, the costly one being **creating a post**, which
+validates the client's per-team Linear project on every create. Moving a status, by
+contrast, already touches Linear nowhere. Remove those three and Linear is an export
+problem, not an operational one.
 
 ---
 
@@ -75,35 +126,78 @@ agree, the Linear leg is redundant for the linked majority — the same value is
 in hand. The unbound population is simultaneously the only thing the Linear read is
 still needed for and the only thing that breaks when it goes.
 
-### B2 — Workload's board is a Linear read relay with no reader for its replacement
+### B2 — Workload's board is rebuilt from Linear, and the swap is a key migration
 
-`_wlV2FetchIssues` reads **only** `workload_issues`, which n8n `lGwC9WWPVJtxphtf`
+`_wlV2FetchIssues` renders from `workload_issues`, which n8n `lGwC9WWPVJtxphtf`
 rebuilds every 10 minutes from `/webhook/linear-issues`, hosted by the active
 `BrJSe8zCKUccfmIq`. Turn Linear off and the board silently shrinks.
 
 `public.workload_issues_native_v1` exists (owner applied it 2026-09-02) and is **more
 complete than the Linear-fed table**: renderable rows **1,022 native vs 985**, the +37
-being live sub-issues the board cannot display at all today (OPEN_REPAIRS 113/95). It
-has **zero readers** — that negative is load-bearing and should be asserted by a test.
+being live sub-issues the board cannot display at all today (OPEN_REPAIRS 113/95).
 
-Three blockers `WORKLOAD_NATIVE_SOURCE.md` lists are now empty by measurement:
-renderable native rows with `linear_id IS NULL` = **0**; `native_sync_state` across
-5,165 rows = clean 5,165, drift 0, missing 0, orphan 0, stale 0; the duplicated
-`For Client approval` casing exists only on the Linear side. §5.1 says step 1 is
-"pending owner apply" — **it is applied**; the scope doc is stale.
+**Correction to an earlier draft of this file, which said the native view has "zero
+readers" and that someone "just has to point the board at it".** Both were wrong, and the
+second was the more misleading. `?wlnative=1` already reads the native view *alongside*
+the Linear-fed one and prints the difference (`_wlNativeDiffEnabled`, `WL_NATIVE_VIEW`).
+It deliberately "never touches `wlState`, never renders" — it is a measuring instrument,
+which is what `WORKLOAD_NATIVE_SOURCE.md` step 2 asks for. So the view has a reader; it
+has no *rendering* reader, on purpose.
 
-### B3 — Native Create Post cannot commit without a live Linear read (F32)
+And the swap is not a flag. The code says why, and it is right: `public.workload_plan` is
+keyed on the **Linear issue uuid**, and `workload-plan`'s `requireWritableIssue()`
+validates every write against `workload_issues`. A deliverable that was never mirrored has
+no Linear uuid at all, so swapping the read alone would put rows on the board whose plan
+day **silently fails to save** — a drag that looks like it worked. That is a key migration
+plus scope §6.1's owner decision, not a switch.
 
-`handleProductionCreate` awaits **both** `linearStateIdForCreate` and
-`linearLabelCatalog` on every native create; `handleCreateOptions`, `handleLabelsRead`
-and the `labels` entity op await the label snapshot. There is **no native label
-vocabulary and no native state-id source**.
+Three blockers `WORKLOAD_NATIVE_SOURCE.md` lists are, separately, now empty by
+measurement: renderable native rows with `linear_id IS NULL` = **0**; `native_sync_state`
+across 5,165 rows = clean 5,165, drift 0, missing 0, orphan 0, stale 0; the duplicated
+`For Client approval` casing exists only on the Linear side. §5.1 says step 1 is "pending
+owner apply" — **it is applied**; the scope doc is stale there.
 
-This is not a teardown item. It is a live fragility: **a Linear outage stops Create Post
-today, under SyncView authority.** §13 treats the retired epoch as a step-3
-precondition; it belongs at the front of the queue.
+### B3 — Six live entry points still need a Linear read, and creating a post is one
 
----
+**This section replaces a claim that was wrong twice.** See §0 for how, and for the
+machine check that now answers the question instead of a person reading greps.
+
+`node scripts/linear-dependency-map.js` computes reachability over the call graph,
+discounting code that cannot execute. Against `production-write`:
+
+| entry point | needs a live Linear read? | path |
+|---|---|---|
+| `handleIntakeCreate` — **the calendar's Create Post** | **yes** | `→ projectForIntake → readLinearProject → linearRead` |
+| `handleComponentFill` | **yes** | `→ projectForIntake → readLinearProject → linearRead` |
+| `handleCreateOptions` | **yes** | `→ linearLabelCatalog → linearLabelsRequest` |
+| `handleLabelsRead` | **yes** | `→ linearLabelSnapshot → linearLabelsRequest` |
+| `handleAssigneeOptions` | **yes** | `→ mappedCreateAssignees → assigneeEligibilityContext → assigneeProviderPool → linearRead` |
+| `handleEntityOperation` | **on two branches only** | `labels` → `linearLabelSnapshot`; `assignee` → `validateAssignee`. **`status`, `due` and `description` are Linear-free** |
+| `handleProductionCreate` — the SyncLinear-tab create | **no — it is closed** | 247 lines unreachable behind `throw … "production_create_closed"` (owner ruling 2026-08-23) |
+| `handleAssetAccessRead`, `handleBatchAssetWrite`, `handleBatchDescriptionWrite`, `handleBatchFilesRead`, `handleDescriptionRead` | no | — |
+
+`deliverable-write`, `batch-write` and `production-comments` reach Linear **nowhere**.
+`linear-outbound` (9 functions) and `workload-linear` (3) do, which is their job.
+
+**What this means in practice.** Creating a post is a live outage risk *today*: it
+validates the client's per-team Linear project through `readLinearProject` on every
+create, so a Linear outage refuses the create. Moving a status is not — that path never
+touches Linear. The work is therefore narrower than "make Create Post native": it is to
+give `projectForIntake` a native source of truth for the client→project mapping, and to
+give labels and assignee native vocabularies.
+
+**A caveat this table cannot express.** Reachability is not frequency: "needs Linear"
+means *some* path reaches the API, which for `handleEntityOperation` is two branches out
+of five. Read the named path before concluding an entry point is blocked.
+
+**And a second caveat that outranks the whole table.** This is repository source.
+`docs/ops/EF_DEPLOY_MANIFEST.md` marks `calendar-upsert`, `sample-review-upsert`,
+`calendar-reorder` and eleven others **NO CI DEPLOY PATH** — for those, what is in the
+repo is not what is running, as the `authorizeBrowserWrite`/tokenless split in
+`ACTION_HISTORY_PLAN_2026-09.md` §3 G3 demonstrated. `production-write` *does* have a
+deploy lane and was last deployed at version 66, so the table above describes live
+behaviour; a claim about the un-deployed functions does not.
+
 
 ## 4. Where §13's ordering is now wrong
 
@@ -138,10 +232,22 @@ precondition; it belongs at the front of the queue.
 
 Each step states its gate. Do not start a step whose gate is unmet.
 
-**Step 0 — Make native Create Post Linear-free (F32).**
-Native label vocabulary + state-id source in Supabase; `production-write` stops awaiting
-Linear on create/label paths. *Gate: a create succeeds with the Linear API unreachable.*
-This is first because it is the only item that is a live outage risk today.
+**Step 0 — Make creating a post Linear-free.**
+Narrower than the earlier draft claimed, and aimed at the paths the analyzer actually
+names (§B3), not at the closed Production-tab create:
+  a. **The client→project mapping.** `projectForIntake` calls `readLinearProject` purely to
+     confirm the tagged project belongs to the expected team. Persist that team
+     association natively (it is already stored per client in `linear_project_ids`) and the
+     read disappears from `handleIntakeCreate` and `handleComponentFill` together.
+  b. **The label vocabulary**, for `handleCreateOptions`, `handleLabelsRead` and the
+     `labels` branch of `handleEntityOperation`.
+  c. **The assignee eligibility pool**, for `handleAssigneeOptions` and the `assignee`
+     branch — the roster already lives in `team_members`.
+*Gate: `node scripts/linear-dependency-map.js` reports every `production-write` entry
+point linear-free, AND a create succeeds with the Linear API unreachable.*
+First because creating a post is the one thing that fails **today** if Linear is down.
+Note this is an Edge Function change, so it does not take effect until the owner runs the
+F27 Section 4 deploy lane; the code landing on `main` changes nothing by itself.
 
 **Step 1 — Backfill the unbound card↔deliverable slots.**
 420 calendar component slots (299 with no deliverable id, 121 crosswalk-mismatched) and
@@ -249,6 +355,19 @@ every n8n workflow; `MJbMZ789B5ExZz9x` is still unexplained (F46) and must be pr
 ---
 
 ## 8. What this plan deliberately does not claim
+
+- **That its first two answers about Create Post were right.** They were not, in opposite
+  directions, and §0 records both. The corrected answer — creating a post DOES need a live
+  Linear read, through `projectForIntake`, while moving a status does not — is machine-
+  computed and pinned by `test/linear-dependency-map.js`, not asserted from reading.
+- **That the analyzer is a proof.** It resolves calls by name, so a function invoked only
+  through a variable or a property would be missed; it treats a top-level `throw` as
+  terminal, which is the shape the closures in this estate take but not a language rule;
+  and it says nothing about deployment. It exists to stop a confident wrong answer, not to
+  replace reading the code.
+- **Anything about the functions marked NO CI DEPLOY PATH.** For `calendar-upsert`,
+  `sample-review-upsert` and twelve others, repository source is not evidence about
+  production, and this file makes no claim that rests on it.
 
 - That editors work in Linear. **They do not** — they work in SyncLinear. An earlier read
   of this session's data said otherwise; it was a join across two different status

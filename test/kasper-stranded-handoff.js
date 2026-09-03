@@ -87,7 +87,7 @@ const sandbox = new Function('deps', `
   const { wlNormalizeClient, _calArchivedRefs, _calDedupeByLinearIssue, _calNormStatus,
           _calCoerceDate, _calLoadComments, _calIsArchivedRef, _calMigratePostShape,
           _kasperPatchSnapshot, _calPostKasperVisible, _kasperHistoryEntryFromPost,
-          _kasperHasUnreadReply } = deps;
+          _kasperHasUnreadReply, _calComponentsFor, _calCompKasperVisible } = deps;
   ${extractSrc}
   return extract;
 `)({
@@ -104,8 +104,15 @@ const sandbox = new Function('deps', `
   // or graphic sitting at Kasper Approval is Kasper's work.
   _calPostKasperVisible: post => {
     calls.kasperVisible++;
-    return post.video_status === 'Kasper Approval' || post.graphic_status === 'Kasper Approval';
+    return ['video', 'graphic', 'caption'].some(c => post[c + '_status'] === 'Kasper Approval');
   },
+  /* The media gate is now asked PER COMPONENT (owner report 2026-09-03: three
+     cards sat in the stranded notice waiting on a CAPTION that was already
+     written, one of them a caption-only card whose video and thumbnail are both
+     N/A). These two are the reduced real rules: which components a card has,
+     and which of them are waiting on Kasper. */
+  _calComponentsFor: () => ['video', 'graphic', 'caption'],
+  _calCompKasperVisible: (post, comp) => post[comp + '_status'] === 'Kasper Approval',
   _kasperHistoryEntryFromPost: (post, client, slug, approvedAt) => ({ id: post.id, approvedAt }),
   _kasperHasUnreadReply: () => false,
 });
@@ -157,10 +164,34 @@ const LEGACY_STUB = {
   thumbnail_url: '',
 };
 
-const out = sandbox('Sidney Laruel', { ok: true, posts: [STRANDED, REVIEWABLE, ELSEWHERE, LEGACY_STUB] });
+/* CAPTION-ONLY, and the reason this gate was rewritten. Owner report
+ * 2026-09-03: three of the four cards in the stranded notice were waiting on a
+ * CAPTION that was already written, one of them with video and thumbnail both
+ * N/A. A caption is text; it needs no file. The old gate asked one question
+ * about the whole card -- does it carry ANY media -- which a caption cannot
+ * answer, so finished work sat in a notice telling the SMM to attach a file
+ * that was never going to exist, and Kasper could not approve it. */
+const CAPTION_ONLY = {
+  id: 'p_caption_only',
+  name: 'Bank of music',
+  status: 'In Progress',
+  video_status: 'N/A',
+  graphic_status: 'N/A',
+  caption_status: 'Kasper Approval',
+  asset_url: '',
+  thumbnail_url: '',
+};
 
-ok(out.queue.length === 1 && out.queue[0].post.id === REVIEWABLE.id,
-  'the reviewable native card is the only thing in the actionable queue');
+const out = sandbox('Sidney Laruel', { ok: true, posts: [STRANDED, REVIEWABLE, ELSEWHERE, LEGACY_STUB, CAPTION_ONLY] });
+
+ok(out.queue.some(item => item.post.id === CAPTION_ONLY.id),
+  'a caption awaiting Kasper reaches the QUEUE even with no video and no thumbnail');
+ok(!out.stranded.some(st => st.id === CAPTION_ONLY.id),
+  'and it is not reported as waiting on a file, because no file was ever owed');
+
+
+ok(out.queue.some(item => item.post.id === REVIEWABLE.id),
+  'the reviewable native card is still in the actionable queue');
 ok(Array.isArray(out.stranded) && out.stranded.length === 2,
   'both media-less Kasper-Approval cards are reported instead of discarded');
 const strandedIds = out.stranded.map(s => s.id);

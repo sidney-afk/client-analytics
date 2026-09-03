@@ -35361,51 +35361,44 @@
                                          // landed by then is not going to.
         let framesWaited = 0;
         /* OWNER REPORT 2026-09-03: "I click on the link and it just goes to the
-         * first thing. It doesn't show the card I'm opening."
+         * first thing. It doesn't show the card I'm opening." Then, after a
+         * first fix: "nothing happens... it should be at the center, and it
+         * should be highlighted or something, we had that before."
          *
-         * The card was in `calState.posts` and the client was right; it simply
-         * never rendered, because `calState.monthFilter` / `statusFilter` are
-         * saved PER CLIENT (see _calHydrateClientFilters) and re-applied when
-         * that calendar opens. Follow a link to a card scheduled outside the
-         * saved month — three of the four cards in that report were unscheduled
-         * or months old — and the card is filtered out before it can be found.
-         * What the reader then sees is the calendar's ordinary first card.
+         * They had it before, and the mechanism is still here. A card link has
+         * to do the same three things the review queue's own jump does in
+         * `_calReviewOpenInSheet`:
          *
-         * Telling them to "check the Organize filters" was the previous
-         * behaviour and it is the wrong answer: a link to a card should SHOW
-         * the card. So the filters are cleared and the search restarts, once,
-         * and the reader is told their view changed rather than left to notice.
+         *   1. BYPASS THE FILTERS rather than clear them. `calState.focusPid`
+         *      already forces one card through the month filter, the status
+         *      filter and the client "ready only" filter -- see the three
+         *      `p.id === calState.focusPid ||` clauses in the organizer's post
+         *      list. The first version of this fix CLEARED the filters instead,
+         *      which worked but threw away a saved per-client view to show one
+         *      card, and persisted that loss. A surgical bypass already existed;
+         *      using it is both gentler and correct.
+         *   2. BE ON THE SHEET. `.cal-card` is emitted only by
+         *      `renderCalOrganizer`; review, smmreview, month and week emit
+         *      none. Mount forces the Sheet when a focus request already exists
+         *      (`calState.view = _calFocusRequest ? 'organizer' : ...`), but the
+         *      DEFERRED path -- a client outside the 30-name seed, resolved only
+         *      once `fetchAll` folds in the roster -- creates the request AFTER
+         *      mount, and `_calOpenClientTab` does not change the view. Two of
+         *      the four cards in the owner's report take exactly that path.
+         *   3. RE-RENDER, so both of the above take effect before we go looking
+         *      for the element.
          *
-         * Deliberately AFTER the frame budget, not before: clearing up front
-         * would throw away a saved view on every deep link, including the many
-         * where the card was about to paint anyway. Only a card that genuinely
-         * did not render pays for it. `onCalClearFilters` is the same helper the
-         * Organize menu's own Clear uses, so ordering mode survives untouched
-         * and the change persists exactly as a manual clear would. */
-        let clearedFilters = false;
-        /* A card only paints in the Sheet. `renderCalOrganizer` is the one branch
-         * that emits `.cal-card`; review, smmreview, month and week emit none.
-         *
-         * Mount already knows this — `calState.view = _calFocusRequest ?
-         * 'organizer' : _calResolveInitialView(prefs.view)` — but that runs at
-         * mount, and the DEFERRED path (a client not in the 30-name seed, whose
-         * slug only resolves once `fetchAll` folds in the roster) creates the
-         * focus request AFTER mount, via `_calResolvePendingDeepLink`. By then
-         * the saved view has been restored and `_calOpenClientTab` does not
-         * change it. So on exactly the links that take the slow path, no card
-         * could ever paint, and the filter fallback below would clear a saved
-         * view's filters for nothing, announce that filters had hidden the card,
-         * and still end on "Card not shown" — worse than before the fix.
-         *
-         * Caught by review; the two cards in the owner's report that belong to
-         * unseeded clients are precisely this case. */
+         * The highlight itself is a class on a DOM node, so any later re-render
+         * drops it. `focusPid` is state and survives, which is why the card also
+         * stays visible after the strip repaints.
+         */
+        if (req.cardId) calState.focusPid = post.id;
         if (calState.view !== 'organizer') onCalViewChange('organizer');
-        /* The entry guard above ran ONCE. This loop then spans up to 40 frames,
-         * and `onCalClearFilters` writes and PERSISTS whatever client is current
-         * at that moment, not the one this request was for. Switching client
-         * mid-wait would therefore erase a bystander client's saved filters. So
-         * the client is captured here and re-checked at the only point that
-         * mutates state. */
+        else if (req.cardId) _calRenderBody({ preserveScroll: true });
+        /* The entry guard above ran ONCE, and this loop spans up to 40 frames.
+         * `calState.focusPid` is global, so a client switch mid-wait would leave
+         * one client's focus pinned on another client's board. Capture the
+         * request's client and re-check before touching anything. */
         const focusClient = req.client;
         const focusClientStillActive = () =>
             wlNormalizeClient(calState.client) === wlNormalizeClient(focusClient);
@@ -35415,16 +35408,6 @@
             const card = document.querySelector('.cal-card[data-pid="' + safe + '"]');
             if (!card) {
                 if (++framesWaited < CAL_FOCUS_MAX_FRAMES) { requestAnimationFrame(focusWhenPainted); return; }
-                if (!clearedFilters && focusClientStillActive()
-                    && typeof _calOrganizeIsActive === 'function' && _calOrganizeIsActive()) {
-                    clearedFilters = true;
-                    framesWaited = 0;
-                    onCalClearFilters();
-                    showNotify('Filters cleared',
-                        '"' + String(post.name || 'That card') + '" was hidden by your Organize filters, so they were cleared to show it.');
-                    requestAnimationFrame(focusWhenPainted);
-                    return;
-                }
                 // Never give up in silence: a link that visibly does nothing is
                 // indistinguishable from a link that opened the wrong thing.
                 showNotify('Card not shown', '"' + String(post.name || 'That card')
@@ -72865,7 +72848,34 @@
                 // calendar yet — Kasper has nothing to actually review.
                 const hasAsset = String(raw.asset_url || '').trim() !== '';
                 const hasThumb = String(raw.thumbnail_url || '').trim() !== '';
-                if (hasKasperWork && !hasAsset && !hasThumb) {
+                /* WHICH waiting component needs a file, and does it have one?
+                 *
+                 * Owner report 2026-09-03: four cards sat in the "waiting on a
+                 * file, not on you" notice, and three of them were waiting on
+                 * the CAPTION with the caption already written -- one of them a
+                 * caption-only card whose video and thumbnail are both N/A.
+                 * Nothing was missing; there was nothing to add. The notice told
+                 * the SMM to attach a file for work that needs no file, and
+                 * Kasper could not approve a caption that was sitting there
+                 * finished.
+                 *
+                 * The old gate asked one question about the whole card -- does
+                 * it carry ANY media -- and a caption cannot answer it. So ask
+                 * it per component instead: a video needs `asset_url`, a
+                 * thumbnail needs `thumbnail_url`, and caption and title are
+                 * text that needs neither.
+                 *
+                 * `_kasperRenderCard` was already built for this. It falls back
+                 * to a placeholder when there is no thumbnail, disables the
+                 * watch button when there is no video, and its own comment says
+                 * the single-panel hero layout "applies to video, thumbnail, and
+                 * caption alike". Only this gate upstream was hiding the card. */
+                const kasperComps = _calComponentsFor(raw).filter(c => _calCompKasperVisible(raw, c));
+                const compReviewable = comp => comp === 'video' ? hasAsset
+                    : comp === 'graphic' ? hasThumb
+                    : true;                                  // caption, title: text, no file needed
+                const anyReviewable = kasperComps.some(compReviewable);
+                if (hasKasperWork && !anyReviewable) {
                     // Flip-day tester finding E, corrected. The card the tester
                     // drove to Kasper Approval never appeared, and the queue was
                     // read as blind to natively-created cards. It is not: the
@@ -72891,7 +72901,7 @@
                         native: !!(raw.video_deliverable_id || raw.graphic_deliverable_id),
                     });
                 }
-                if (hasKasperWork && (hasAsset || hasThumb)) {
+                if (hasKasperWork && anyReviewable) {
                     queue.push({
                         post: raw, client, slug, smm: null,
                         _expanded: false,
@@ -73276,7 +73286,7 @@
         const noun = list.length === 1 ? 'card is' : 'cards are';
         return `<div class="kasper-stranded" data-kasper-stranded="${list.length}">
             <div class="kasper-stranded-title">${list.length} ${noun} waiting on a file, not on you</div>
-            <div class="kasper-stranded-sub">Moved to Kasper Approval with no video and no thumbnail attached, so there is nothing to review yet. The SMM needs to add the file.</div>
+            <div class="kasper-stranded-sub">Waiting on a video or thumbnail that has not been attached yet, so there is nothing to look at. A caption or title never lands here — text needs no file, and those cards are in the queue above.</div>
             <ul class="kasper-stranded-list">${rows}${more}</ul>
         </div>`;
     }

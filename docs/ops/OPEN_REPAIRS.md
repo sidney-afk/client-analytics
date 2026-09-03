@@ -10224,3 +10224,75 @@ from the function's start, so adding ~25 lines pushed half the assertions past
 the end and they failed as a block while reporting nothing about the code they
 guard. It now uses `extractFunction`, which exists in this repo for exactly that
 mistake.
+
+---
+
+## 135. [2026-09-03, FIXED — browser-only, live on merge] Kasper could not approve a caption that was already written, and the notice blamed the SMM for a file nobody owed
+
+**Reported.** The owner opened the four cards from item 134's notice and said:
+*"you can see that the cards are fine… they have captions, so can you find out
+what's happening?"* They were right. Three of the four were waiting on the
+CAPTION, with the caption written and sitting there — one of them a
+caption-only card whose video and thumbnail are both **N/A**.
+
+**The gate asked a question a caption cannot answer.** Admission to Kasper's
+queue was `hasKasperWork && (hasAsset || hasThumb)` — one question about the
+WHOLE card: does it carry any media? A caption is text. It needs no file, so a
+caption-only card always answered no, fell into the stranded notice, and told
+the SMM to *"add the file"* for work that was finished and needed none. Kasper
+had no way to approve it.
+
+**Now asked per component:** a `video` needs `asset_url`, a `graphic` needs
+`thumbnail_url`, and `caption` and `title` need neither. A card is admitted when
+**any** component waiting on Kasper is reviewable, and reported as stranded only
+when none is.
+
+**`_kasperRenderCard` was already built for this**, which is what makes the fix
+small and the old gate clearly the anomaly: it falls back to a placeholder when
+there is no thumbnail, disables the watch button when there is no video, and its
+own comment says the single-panel hero layout *"applies to video, thumbnail, and
+caption alike so the visual weight stays consistent regardless of which single
+component Kasper is looking at."* Only the upstream gate was hiding these cards.
+
+**The banner copy was also wrong, not just incomplete.** It asserted "no video
+and no thumbnail attached, so there is nothing to review yet", which is false for
+a caption. It now says a video or thumbnail is missing and states plainly that a
+caption or title never lands there.
+
+**Still open, and deliberately not guessed at:** why a caption reached Kasper
+Approval on a card with no media at all. That is a workflow question — someone
+moved it, or something set it — and item 134's fix is what finally lets anyone
+open those cards to find out.
+
+---
+
+## 136. [2026-09-03, FIXED — browser-only, live on merge; replaces item 134's mechanism] A card deep link should bypass the filters, not clear them
+
+**Reported, after 134 shipped.** *"Nothing happens when I open a card link… it
+should be at the center, and it should be highlighted or something, we had that
+before."*
+
+**They had it before, and the mechanism was still there.** `calState.focusPid`
+forces one card through the month filter, the status filter and the client
+"ready only" filter — three `p.id === calState.focusPid ||` clauses in the
+organizer's post list. `_calReviewOpenInSheet` has always used it for the
+review→Sheet jump, with the comment *"sets a transient focus pid so the Sheet
+shows the card even if the client's ready-only filter (or an active month
+filter) would otherwise hide an in-review post."* That is exactly what a card
+link needs, and the deep-link path simply never used it.
+
+**Item 134 cleared the filters instead.** That worked, and it was the wrong
+tool: it threw away a saved per-client view to show one card, and PERSISTED the
+loss. It also carried a hazard review had to catch — the clear writes against
+whatever client is current, so a client switch mid-wait could erase a
+bystander's filters. A surgical bypass existed the whole time.
+
+The deep link now does the three things the review jump does: pin `focusPid`,
+ensure the Sheet (the only view that emits `.cal-card`), re-render so both take
+effect — then find, outline and centre the card. `focusPid` is state, so it
+survives a later repaint; the highlight class is on a DOM node and does not,
+which is why the card stays visible even after the strip re-renders.
+
+The client re-check survives the rewrite because the hazard did: `focusPid` is
+global, so a client switch mid-wait would otherwise pin one client's focus onto
+another client's board.

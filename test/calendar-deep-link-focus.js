@@ -63,6 +63,7 @@ function harness(options) {
   const notified = [];
   const viewChanges = [];
   const cleared = [];
+  const renders = [];
   /* calState carries a view now, because a card only paints in the Sheet and
      the deferred deep-link path arrives with whatever view the client saved. */
   const calState = {
@@ -76,7 +77,7 @@ function harness(options) {
     '_calFocusRequest', 'calState', 'wlNormalizeClient', 'showNotify',
     'requestAnimationFrame', 'document', 'window', 'setTimeout',
     '_calClearFocusHighlight', '_calFocusOutsideHandler',
-    'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive',
+    'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive', '_calRenderBody',
     src + '\nreturn _calApplyFocusRequest;',
   )(
     { client: 'Client', cardId: 'p_target' },
@@ -92,10 +93,11 @@ function harness(options) {
     v => { viewChanges.push(v); calState.view = v; },
     () => { cleared.push(calState.client); calState.monthFilter = 'all'; },
     () => calState.monthFilter !== 'all' || calState.statusFilter !== 'all',
+    () => { renders.push(calState.focusPid); },
   );
   fn();
   return {
-    log, notified, card, timers, viewChanges, cleared, calState,
+    log, notified, card, timers, viewChanges, cleared, calState, renders,
     runFrames(n) { for (let i = 0; i < n; i++) { frameNo++; const queued = frames.splice(0); queued.forEach(cb => cb()); } },
     runTimers() { timers.splice(0).forEach(t => t.cb()); },
     pendingFrames: () => frames.length,
@@ -205,13 +207,18 @@ function harness(options) {
     'and it says nothing, because the reader has already moved on');
 }
 {
-  // The ordinary case still works: filters hid the card, so clear them once.
-  const h = harness({ appearsAtFrame: 45, monthFilter: '2026-04' });
-  h.runFrames(60);
-  ok(h.cleared.length === 1, 'filters that hid the card are cleared exactly once');
-  ok(h.notified.some(n => /Filters cleared/.test(n)), 'and the reader is told');
+  /* The filter-CLEARING version was replaced by a focusPid bypass, which is
+     what _calReviewOpenInSheet has always used. Nothing is cleared and nothing
+     is persisted; the card is forced through the filters instead. */
+  const h = harness({ appearsAtFrame: 2, monthFilter: '2026-04' });
+  h.runFrames(10);
+  ok(h.cleared.length === 0,
+    'a filtered-out card is shown by bypassing the filters, never by clearing them');
+  ok(h.calState.focusPid === 'p_target',
+    'the card is pinned through the month, status and ready filters via focusPid');
+  ok(!h.notified.some(n => /Filters cleared/.test(n)),
+    'and the reader is told nothing, because nothing of theirs was changed');
 }
-
 
 if (failures) {
   console.error(`\n${failures} calendar deep-link focus check(s) failed`);

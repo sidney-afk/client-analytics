@@ -156,9 +156,18 @@ ok(FLOOR > DEBOUNCE,
        second later — the double-refresh the floor was supposed to remove.
        Found by review on PR 1246 after the floor shipped. */
     const load = extractFunction(INDEX, 'loadCalendarPosts');
-    ok(/_calV2RtLastReloadAt = Date\.now\(\)/.test(load),
-        'every full read of a client stamps the floor, so a load started by a tab switch or a focus '
-        + 'return throttles the next realtime event just as a realtime reload would');
+    /* Not just "the line exists" — a stamp inside a branch would satisfy that and
+       still leave the tab-switch path unstamped. It has to sit on the
+       unconditional path, so pin it ADJACENT to `_calLastNetworkLoadAt`, the
+       function's own already-unconditional "a network read is starting" marker.
+       The two move together or this assertion fails. */
+    ok(/_calLastNetworkLoadAt = Date\.now\(\);[\s\S]{0,900}?_calV2RtLastReloadAt = Date\.now\(\);/.test(load),
+        'every full read of a client stamps the floor, on the same unconditional path as '
+        + '_calLastNetworkLoadAt — so a load started by a tab switch or a focus return throttles the '
+        + 'next realtime event just as a realtime reload would');
+    const stampCount = (load.match(/_calV2RtLastReloadAt = /g) || []).length;
+    ok(stampCount === 1,
+        'and it is stamped exactly once in the load, not scattered through its branches (' + stampCount + ')');
     const teardown = extractFunction(INDEX, '_calV2Teardown');
     ok(/_calV2RtLastReloadAt = 0/.test(teardown),
         'and client teardown clears it, so a new client never inherits the outgoing one\'s throttle');

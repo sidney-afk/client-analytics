@@ -127,10 +127,21 @@ const NOT_FOUND = {
     ok(threw, 'a MIXED error set throws — tolerance requires EVERY error to be a not-found');
   }
   {
+    /* THIS ASSERTION USED TO SAY THE OPPOSITE, AND THAT BELIEF WAS THE BUG.
+       It read: "a response with no data at all throws -- there is nothing
+       partial to salvage". But a response with no data is not a broken
+       response, it is THE response: `issue(id:)` is non-nullable, so one
+       unresolvable id nulls the query root and every chunk with a deleted
+       issue in it arrives exactly like this. Asserting that it throws pinned
+       the defect in place, and the run at 13:00Z on 2026-09-03 threw for that
+       reason with the suite green. There is nothing to salvage from the
+       payload, true -- what there is to salvage is the other 34 ids, by asking
+       again without the dead alias, which is the loader's job and is asserted
+       below. */
     const noData = { ok: true, status: 200, body: { errors: [wireNotFound('i0')] } };
-    let threw = false;
-    try { await callLinear(noData, { tolerateNotFound: true }); } catch (e) { threw = true; }
-    ok(threw, 'a response with no data at all throws — there is nothing partial to salvage');
+    const data = await callLinear(noData, { tolerateNotFound: true });
+    ok(data && typeof data === 'object' && !Object.keys(data).length,
+      'a response with no data is the REAL shape of a deleted issue, so it is tolerated and answers {}');
   }
 
   /* ---- the predicate itself ----------------------------------------------- */
@@ -249,9 +260,14 @@ const NOT_FOUND = {
   {
     // The shared extractor anchors on `function name(` and so drops the
     // `async` that precedes it; without it the body's awaits are a SyntaxError.
-    const loaderSrc = 'async ' + extractFunction(SRC, 'loadLinearIssuesById');
+    // The loader now shares its cap with the per-round check, so the two
+    // helpers that hold it load beside it. RegExp is in the sandbox because a
+    // nulled root makes the loader re-ask, and it parses the query to do it.
+    const loaderSrc = [extractFunction(SRC, 'reconcileNotFoundCap'),
+                       extractFunction(SRC, 'reconcileAccessLossError'),
+                       'async ' + extractFunction(SRC, 'loadLinearIssuesById')].join('\n');
     const mk = missing => {
-      const ctx = vm.createContext({ console, Promise, Map, Set, Array, Number, String, Math, Error, process: { env: {} } });
+      const ctx = vm.createContext({ console, Promise, Map, Set, Array, Number, String, Math, Error, RegExp, JSON, Object, process: { env: {} } });
       vm.runInContext(`
         const LINEAR_ISSUES_NOT_FOUND = new Set();
         const PAGE_DELAY_MS = 0;
@@ -288,6 +304,72 @@ const NOT_FOUND = {
   /* ---- no other caller was loosened --------------------------------------- */
   const optIn = (SRC.match(/tolerateNotFound: true/g) || []).length;
   ok(optIn === 1, 'exactly ONE call site opts in (found ' + optIn + ') — mutations and the webhook probe still fail loudly');
+
+  /* ---- THE SHAPE THE WIRE ACTUALLY RETURNS: data IS NULL --------------------
+     `issue(id:)` is non-nullable, so an unresolvable id propagates its null to
+     the query ROOT. One dead id in a chunk of 35 therefore returns
+     `{ data: null, errors: [one entity-not-found] }` -- NOT 34 issues and a
+     null. Both earlier fixes assumed the partial shape, and the run at 13:00Z
+     on 2026-09-03 threw on the `json.data` conjunct with a single error this
+     suite's own predicate accepts.
+
+     Two things are asserted, because tolerating alone would have turned the
+     outage into a silent one: the call must not throw, AND the loader must come
+     back with the survivors. */
+  {
+    const nulledRoot = { ok: true, status: 200, body: { data: null, errors: [wireNotFound('i1')] } };
+    const data = await callLinear(nulledRoot, { tolerateNotFound: true });
+    ok(data && typeof data === 'object' && Object.keys(data).length === 0,
+      'a nulled root is tolerated and answers an empty object, not a throw and not undefined');
+    let threw = false;
+    try { await callLinear(nulledRoot); } catch (e) { threw = true; }
+    ok(threw, 'and without the opt-in a nulled root still fails the call');
+  }
+  {
+    /* The loader, driven end to end against a Linear that nulls the root. The
+       stub answers exactly as the real API does: any query containing the dead
+       id returns data:null plus that one error; a query without it returns the
+       issues. A loader that merely tolerated would return ONE issue here. */
+    const DEAD = 'dead-issue-id';
+    const live = Array.from({ length: 34 }, (_, n) => 'live-' + n);
+    let requests = 0;
+    const ctx = vm.createContext({
+      console, process: { env: {} }, JSON, String, Array, Set, Map, Number, RegExp, Object, Promise,
+      PAGE_DELAY_MS: 0,
+      sleep: async () => {},
+      clean: v => String(v == null ? '' : v).trim(),
+      safeGraphqlString: v => JSON.stringify(String(v)),
+      issueFields: () => 'id',
+      LINEAR_ISSUES_NOT_FOUND: new Set(),
+      async linear(query, opts) {
+        requests++;
+        const ids = [...query.matchAll(/issue\(id: "([^"]+)"\)/g)].map(m => m[1]);
+        const deadIdx = ids.indexOf(DEAD);
+        if (deadIdx >= 0) {
+          if (Array.isArray(opts && opts.collectNotFound)) {
+            opts.collectNotFound.push({ message: 'Entity not found: Issue', path: ['i' + deadIdx],
+              extensions: { type: 'invalid input', code: 'INPUT_ERROR', statusCode: 400, userError: true } });
+          }
+          return {};                                    // the nulled root
+        }
+        const out = {};
+        ids.forEach((id, idx) => { out['i' + idx] = { id }; });
+        return out;
+      },
+    });
+    for (const name of ['reconcileNotFoundCap', 'reconcileAccessLossError', 'loadLinearIssuesById']) {
+      const src = new RegExp('async\\s+function\\s+' + name + '\\s*\\(').test(SRC)
+        ? 'async ' + extractFunction(SRC, name) : extractFunction(SRC, name);
+      vm.runInContext(src, ctx);
+    }
+    const got = await vm.runInContext('loadLinearIssuesById', ctx)([DEAD, ...live]);
+    ok(got.size === 34,
+      'one deleted id nulls the whole root, and the loader still returns the 34 issues beside it (got '
+        + got.size + ') -- tolerating without re-asking would have silently read 0');
+    ok(requests === 2, 'by re-asking once without the dead alias, not id by id (' + requests + ' requests)');
+    ok(vm.runInContext('LINEAR_ISSUES_NOT_FOUND', ctx).has(DEAD),
+      'and the deleted id is recorded as not-found, from its error path');
+  }
 
   if (failures) {
     console.error('\nReconciler deleted-issue tolerance checks FAILED');

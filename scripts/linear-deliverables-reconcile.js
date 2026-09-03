@@ -156,12 +156,34 @@ async function linear(query, opts) {
        mutation must all keep failing loudly, because a lane that silently
        accepted a partial answer would report success over work it never did. */
     const errors = (json && json.errors) || [];
-    if (resp.ok && json && json.data && opts && opts.tolerateNotFound
+    /* `json.data` IS NOT REQUIRED HERE, and requiring it is what kept this
+       broken for a THIRD round.
+
+       Linear's `issue(id:)` is non-nullable. Per the GraphQL spec an error on a
+       non-null field propagates the null to the nearest NULLABLE parent, and
+       for a top-level alias that parent is the query root -- so ONE
+       unresolvable id in a chunk of 35 comes back as
+       `{ data: null, errors: [ ...one entity-not-found... ] }`, not as a
+       partial object with 34 issues and one null.
+
+       Both earlier fixes assumed the partial shape. Item 119 keyed on a `type`
+       Linear never sends; item 126 fixed the type and still gated on
+       `json.data`, so the run at 13:00Z on 2026-09-03 threw at this exact line
+       with a single error the predicate above accepts. Established by
+       elimination from that run's log: HTTP 200, one error, the predicate true
+       and the opt-in passed, which leaves `json.data` as the only unmet
+       conjunct.
+
+       So tolerate the response and hand back whatever data there is -- `{}`
+       when the root was nulled. Recovering the 34 SURVIVORS is the caller's
+       job, because only it knows which aliases to re-ask for; see
+       `loadLinearIssuesById`. */
+    if (resp.ok && json && opts && opts.tolerateNotFound
       && errors.length && errors.every(isEntityNotFoundError)) {
       if (Array.isArray(opts.collectNotFound)) {
         for (const err of errors) opts.collectNotFound.push(err);
       }
-      return json.data;
+      return json.data || {};
     }
     if (attempt < 3 && (resp.status === 429 || resp.status >= 500)) {
       await sleep(500 * (2 ** (attempt - 1)));
@@ -492,28 +514,68 @@ function issueFields() {
    would trade a loud outage for a silent blind spot. */
 const LINEAR_ISSUES_NOT_FOUND = new Set();
 
+function reconcileNotFoundCap() {
+  return Math.max(1, Number(process.env.RECONCILE_NOT_FOUND_CAP || 10) || 10);
+}
+function reconcileAccessLossError(missing, total) {
+  return new Error(`Linear answered "Entity not found" for ${missing} of ${total} issue ids `
+    + `(cap ${reconcileNotFoundCap()}). That is an access loss or a key on the wrong workspace, not a deletion -- `
+    + 'refusing to reconcile against a Linear this key cannot read. Set RECONCILE_NOT_FOUND_CAP to raise the cap for a known bulk deletion.');
+}
+
 async function loadLinearIssuesById(ids) {
   const out = new Map();
   const unique = [...new Set(ids.map(clean).filter(Boolean))];
   const chunkSize = 35;
   for (let i = 0; i < unique.length; i += chunkSize) {
-    const chunk = unique.slice(i, i + chunkSize);
-    const aliases = chunk.map((id, idx) => `i${idx}: issue(id: ${safeGraphqlString(id)}) { ${issueFields()} }`).join('\n');
-    const notFound = [];
-    const data = await linear(`query ReconcileDeliverableIssues { ${aliases} }`,
-      { tolerateNotFound: true, collectNotFound: notFound });
-    chunk.forEach((id, idx) => {
-      const issue = data[`i${idx}`] || null;
-      if (issue) out.set(id, issue);
-    });
-    /* Resolved from the alias in each error's `path`, not from a diff of the
-       returned map. The two differ: an id absent from `data` because its alias
-       errored is a DELETED issue, while one absent for any other reason is not,
-       and only the path says which. */
-    for (const err of notFound) {
-      const alias = Array.isArray(err && err.path) ? String(err.path[0] || '') : '';
-      const m = /^i(\d+)$/.exec(alias);
-      if (m && chunk[Number(m[1])]) LINEAR_ISSUES_NOT_FOUND.add(chunk[Number(m[1])]);
+    /* ONE DEAD ID TAKES THE WHOLE CHUNK DOWN WITH IT, so the survivors have to
+       be re-asked for.
+
+       `issue(id:)` is non-nullable, so an unresolvable id nulls the entire
+       query root (see the note in `linear`): the 34 live issues beside it come
+       back as nothing at all, not as 34 issues and one null. Tolerating the
+       error therefore only stops the throw -- on its own it would turn the
+       outage into a SILENT one, reading 1 issue where 35 were asked for and
+       reporting divergence against the gap.
+
+       So each round drops the aliases Linear named as not-found and re-asks
+       for the rest. `pending` strictly shrinks every round (a round either
+       resolves everything or names at least one dead id), so this terminates;
+       the round guard is a backstop, not the mechanism. The common case -- no
+       deleted issues -- is one request per chunk exactly as before. */
+    let pending = unique.slice(i, i + chunkSize);
+    for (let round = 0; pending.length && round <= chunkSize; round++) {
+      const chunk = pending;
+      const aliases = chunk.map((id, idx) => `i${idx}: issue(id: ${safeGraphqlString(id)}) { ${issueFields()} }`).join('\n');
+      const notFound = [];
+      const data = await linear(`query ReconcileDeliverableIssues { ${aliases} }`,
+        { tolerateNotFound: true, collectNotFound: notFound }) || {};
+      chunk.forEach((id, idx) => {
+        const issue = data[`i${idx}`] || null;
+        if (issue) out.set(id, issue);
+      });
+      /* Resolved from the alias in each error's `path`, not from a diff of the
+         returned map. The two differ, and never more than here: with the root
+         nulled, EVERY id in the chunk is absent from `data` while only the
+         ones named in a path are actually gone. */
+      const dead = new Set();
+      for (const err of notFound) {
+        const alias = Array.isArray(err && err.path) ? String(err.path[0] || '') : '';
+        const m = /^i(\d+)$/.exec(alias);
+        if (m && chunk[Number(m[1])]) {
+          dead.add(chunk[Number(m[1])]);
+          LINEAR_ISSUES_NOT_FOUND.add(chunk[Number(m[1])]);
+        }
+      }
+      // Checked per round, not only at the end: past the cap this is an access
+      // loss, and re-asking a shrinking chunk 35 times over would just be a
+      // slower way to reach the same refusal.
+      if (LINEAR_ISSUES_NOT_FOUND.size > reconcileNotFoundCap()) {
+        throw reconcileAccessLossError(LINEAR_ISSUES_NOT_FOUND.size, unique.length);
+      }
+      if (!dead.size) break;                       // a clean answer: chunk done
+      pending = chunk.filter(id => !dead.has(id) && !out.has(id));
+      if (pending.length && PAGE_DELAY_MS) await sleep(PAGE_DELAY_MS);
     }
     if (PAGE_DELAY_MS) await sleep(PAGE_DELAY_MS);
   }
@@ -527,11 +589,8 @@ async function loadLinearIssuesById(ids) {
      deleted" instead of "reconciler cannot read Linear". The tolerance exists
      for item 119, which was ONE issue. So it is bounded: past the cap the run
      fails loudly again, which is what it did before the tolerance existed. */
-  const notFoundCap = Math.max(1, Number(process.env.RECONCILE_NOT_FOUND_CAP || 10) || 10);
-  if (LINEAR_ISSUES_NOT_FOUND.size > notFoundCap) {
-    throw new Error(`Linear answered "Entity not found" for ${LINEAR_ISSUES_NOT_FOUND.size} of ${unique.length} issue ids `
-      + `(cap ${notFoundCap}). That is an access loss or a key on the wrong workspace, not a deletion -- `
-      + 'refusing to reconcile against a Linear this key cannot read. Set RECONCILE_NOT_FOUND_CAP to raise the cap for a known bulk deletion.');
+  if (LINEAR_ISSUES_NOT_FOUND.size > reconcileNotFoundCap()) {
+    throw reconcileAccessLossError(LINEAR_ISSUES_NOT_FOUND.size, unique.length);
   }
   return out;
 }

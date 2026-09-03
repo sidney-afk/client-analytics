@@ -20,9 +20,9 @@ they lose the actor on 70% of rows, they are written best-effort by application 
 that several live writers bypass entirely, and **nothing in the app ever displays them**.
 The one place a body is genuinely kept — Production comments — is deliberately hidden
 from the browser by an RLS policy, and the function that would render its history has
-been written and never called. On top of that, the two surfaces the owner asked about
-(Content Calendar, Samples) are **in no verified backup**, and PITR is off by an earlier
-owner decision. So today, "someone wrecked a card, get it back" has no answer. The fix
+been written and never called. On top of that, the two card tables behind four of the five
+surfaces named — `calendar_posts` and `sample_reviews` — are **in no verified backup**,
+and PITR is off by an earlier owner decision. So today, "someone wrecked a card, get it back" has no answer. The fix
 is mostly one migration: move recording from the application into the database, where
 nothing can bypass it.
 
@@ -103,8 +103,8 @@ leaves no trace:
   `video_deliverable_id` / `graphic_deliverable_id` — **zero** `calendar_post_events`
   emissions in that whole function.
 - `scripts/linear-sync-reconcile.js` routes through the Edge Function only for clients
-  on the `calendar_upsert_ef_clients` flag (44 slugs today, against 43 active clients —
-  effectively everyone). But its flag read is `try/catch`, and **on any read failure it
+  on the `calendar_upsert_ef_clients` flag (43 slugs against 43 active clients — i.e.
+  everyone). But its flag read is `try/catch`, and **on any read failure it
   sets the enrolled set to empty and sends every client down the n8n webhook instead**,
   which writes the row and no event. One flaky read = one unrecorded reconciler run.
 - Any future migration, admin script, or SQL console fix writes silently.
@@ -157,8 +157,11 @@ and is the single most expensive item in this document.
 ### G7 — Nothing renders any of it
 
 There is no history panel, timeline, or "what changed" view on any of the five surfaces
-the owner named. Retrieving anything today means someone with service-role access
-writing a query. The ledgers are, functionally, write-only.
+the owner named. The single exception is `_prodStatusBreakdown`, which turns
+`deliverable_events` into a "In progress 2d, For SMM 4h" string inside the SyncLinear
+status tooltip — four segments, durations only, no actor, no date, no other action
+type. Everything else is retrievable only by someone with service-role access writing a
+query. The ledgers are, functionally, write-only.
 
 ---
 

@@ -1,8 +1,12 @@
 # Linear exit — the plan as the system actually stands, 2026-09-03
 
 **Status:** strategy, owner-gated. Nothing here has been executed.
+**Companion:** `docs/ops/ACTION_HISTORY_PLAN_2026-09.md` (the action-record plan). The
+two are independent; the one place they touch is that this plan's B1 removes the
+reconciler's calendar writes, which is where much of that surface's automation record
+comes from today.
 **Supersedes the ORDERING of `TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §13** (5a–5i). That
-section's steps are still the right *inventory*; six of its orderings are now wrong,
+section's steps are still the right *inventory*; seven of its orderings are now wrong,
 because §13 was written before both team flips and does not contemplate the state the
 system is in today. Where the two disagree, this file wins and says why.
 `docs/ops/PHASE4_CLEANUP_CHECKLIST.md` is quarantined (F104) and is not cited here.
@@ -15,7 +19,7 @@ number could not be verified through the browser publishable key it is marked
 
 ## 1. The one-paragraph version
 
-Both teams are already SyncView-authoritative, all 42 active clients are enrolled, and
+Both teams are already SyncView-authoritative, all 43 active clients are enrolled, and
 staff write paths on the Content Calendar, Samples, Kasper's board, the client review
 page and the submit tab already go native — the legacy n8n write lanes are unreachable
 for every live client. What is left is **not a migration of people**. It is three
@@ -32,7 +36,7 @@ not an operational one.
 | | Evidence |
 |---|---|
 | Both teams SyncView-authoritative | `prod_authority = {"video":"syncview","graphics":"syncview"}` since 2026-08-28T23:54Z |
-| Every active client enrolled | `write_ui_reroute_clients` = 42 slugs against 42 active clients; **0 of 780 live calendar cards and 0 of 19 live sample rows sit on a non-enrolled slug** |
+| Every active client enrolled | `write_ui_reroute_clients` = 43 slugs against 43 active clients, re-read 16:55Z (an earlier pass this session recorded 42/42; the flag and the roster agree either way); **0 of 780 live calendar cards and 0 of 19 live sample rows sit on a non-enrolled slug** |
 | Legacy n8n write lanes unreachable | `_writeUiRerouteUseGateway` true for every live client, so `legacyParity` is false on every team; the legacy pushers, both outbox drains and both re-assert helpers are dead code for live traffic |
 | Submit tab creates natively and authoritatively | `production-write` `intake_create` builds the native row; the Linear issue is a downstream artifact of `linear-outbound`. `deliverables` by origin: calendar 1,220 · samples 38 · manual 5,042 · submission 0 |
 | Client-visible data is already native | Nothing a client sees on either surface is read from Linear |
@@ -125,7 +129,7 @@ precondition; it belongs at the front of the queue.
    projection must land *before* F2 goes off.
 7. **5h mis-scopes the legacy card-write webhooks.** `calendar-upsert-post` and
    `sample-review-upsert` are the reconcilers' own fallback for any client outside the
-   42-slug flag. Retiring them while the reconcilers run breaks the relay.
+   enrolled-slug flag. Retiring them while the reconcilers run breaks the relay.
 
 ---
 

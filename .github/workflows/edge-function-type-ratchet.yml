@@ -1,0 +1,50 @@
+# A RATCHET, not a gate: new type errors in the hand-deployed Edge Functions
+# fail; the ones already there do not.
+#
+# OPEN_REPAIRS 94 — `production-write` does not typecheck and nothing in CI
+# looks, on "the estate's most safety-critical write path". The same entry says
+# the existing errors must NOT be repaired unattended, because any edit to that
+# file changes the deployed bundle and creates a capture-and-hand-deploy
+# obligation. So this holds the line at what was measured instead of demanding
+# a clean tree: 14 TS18047 on 2026-08-31, and a 15th of a different code that
+# arrived within three days with nothing to catch it.
+#
+# It runs only when something it could possibly affect changed, so a docs PR
+# does not pay for a multi-minute type check.
+name: Edge Function type ratchet
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/functions/production-write/**'
+      - 'supabase/functions/_shared/**'
+      - 'scripts/deno-typecheck-ratchet.js'
+      - 'docs/ops/DENO_TYPECHECK_BASELINE.json'
+      - '.github/workflows/edge-function-type-ratchet.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/functions/production-write/**'
+      - 'supabase/functions/_shared/**'
+      - 'scripts/deno-typecheck-ratchet.js'
+      - 'docs/ops/DENO_TYPECHECK_BASELINE.json'
+      - '.github/workflows/edge-function-type-ratchet.yml'
+
+jobs:
+  ratchet:
+    name: production-write type ratchet
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Pinned to the same version pto-ui-tests.yml uses, so the two lanes
+      # cannot disagree about what "typechecks" means.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 'v2.5.2'
+      - name: Compare against the recorded baseline
+        run: node scripts/deno-typecheck-ratchet.js

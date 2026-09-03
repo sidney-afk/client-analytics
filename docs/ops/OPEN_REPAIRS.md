@@ -6682,6 +6682,16 @@ zero:*
   defect, is the wrong trade. Do it alongside a deploy that was happening
   anyway.
 
+**PARTLY ANSWERED 2026-09-03 — the lane exists, as a RATCHET (item 140).**
+`.github/workflows/edge-function-type-ratchet.yml` runs `deno check` on
+`production-write` and compares it to a recorded per-error-code baseline: new
+type errors fail, the existing ones do not. The typing repair this entry
+describes is still owed and still should not be done unattended, for exactly
+the reason below — but it is no longer the only thing standing between a NEW
+type error and production. Re-measured while building it: **15, not 14** — a
+`TS2352` cast at line 1888, outside the assignee/parent-route region and of a
+code this entry never saw. One arrived in three days, which is the argument.
+
 **The leave-evidence packet fingerprints `package.json` in its entirety.** Adding
 ANY npm script — to any part of the repo, for any reason — changes the hash and
 marks a 101-screenshot leave-lifecycle audit "stale for the current source
@@ -10284,3 +10294,64 @@ item 101's whole point.
 
 - Done when: it catches a fourth. Until then, it costs nothing and holds the
   prediction that three prose warnings could not.
+
+---
+
+## 140. [2026-09-03, LANE SHIPPED — CI-only, no function change] `production-write` now has a type lane, and it is a ratchet because item 94 says the repair must wait
+
+Item 94 states the gap plainly: `production-write` does not typecheck, nothing
+in CI looks, and it is *"the estate's most safety-critical write path, it is
+hand-deployed, and the only thing standing between a type error and production
+is review."* `pto-ui-tests.yml` already runs `deno check` on
+`supabase/functions/pto/index.ts`, so the pattern existed and this function
+simply was not in it.
+
+**It is a ratchet, not a gate, and that is item 94's own instruction.** The
+existing errors are inference limits rather than missing guards — a `const` a
+long disjunction cannot narrow, a five-way `Promise.all` destructure that loses
+its tuple shape — and item 94 says explicitly not to repair them unattended,
+because **any** edit to that file changes the deployed bundle and creates a
+capture-and-hand-deploy obligation for a change with no behavioural effect. A
+red gate would have forced exactly that. So the lane holds the line at what was
+measured: new errors fail, existing ones do not.
+
+**It already has its evidence, from before it shipped.** Item 94 measured **14**
+on 2026-08-31. Re-measured on 2026-09-03 with the same pinned deno (v2.5.2, the
+version `pto-ui-tests.yml` uses): **15** — fourteen `TS18047` in the
+assignee/parent-route region item 94 describes, plus one `TS2352` cast at line
+1888, a different code in a different part of the file. **A type error was added
+to the most safety-critical write path in the estate in three days, and nothing
+noticed.** That is the case for the ratchet, made by the file itself.
+
+**Keyed by error code, not by line number.** Line numbers move whenever anything
+above them is edited, and a check that goes red on an unrelated edit is one
+people learn to ignore — this repository has an entry about a mandatory gate
+that went exactly that way (item 125). Counting per code also catches the swap a
+bare total misses: one error fixed and a different KIND introduced nets to zero.
+A swap *within* one code still slips, and that is the stated limit.
+
+**A decrease fails too, on purpose.** This repository keeps finding documents
+that were true when they were written (item 118), and a baseline nobody has to
+update is one of those. Fixing an error costs one line in
+`docs/ops/DENO_TYPECHECK_BASELINE.json`, and the failure that asks for it says
+so in those words.
+
+**No `npm run` alias, and that is deliberate**, not an oversight: item 94's
+second half records that the leave-evidence packet fingerprints `package.json`
+in its entirety, so adding any script marks a 101-screenshot leave-lifecycle
+audit stale — whose only sanctioned repair is a human re-reviewing all 101
+shots. Invoked by path, exactly as `scripts/component-fill-rehearsal.js` is, and
+`test/deno-typecheck-ratchet.js` asserts the alias stays absent so nobody adds
+one helpfully later.
+
+**The suite tests the half CI cannot.** The lane needs deno; the parser does
+not, and the parser is what can be silently wrong. `test/deno-typecheck-ratchet.js`
+drives `parseReport` and `compare` over recorded output — colour escapes and
+all, because stripping them is the thing being tested — for the increase, the
+new-code, the decrease and the swap. It also asserts that deno's own
+`Found N errors.` tally agrees with the number of lines the parser matched, and
+reports a disagreement as *unreliable* rather than smoothing it over: a parser
+that drifts from the output format would otherwise report a confident green.
+
+- Done when: it catches one. The typing repair item 94 describes is still owed
+  and still belongs alongside a deploy that was happening anyway.

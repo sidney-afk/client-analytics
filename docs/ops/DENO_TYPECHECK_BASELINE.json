@@ -1,0 +1,13 @@
+{
+  "schema": "syncview_deno_typecheck_baseline_v1",
+  "targets": {
+    "production-write": {
+      "counts": {
+        "TS2352": 1,
+        "TS18047": 14
+      },
+      "total": 15
+    }
+  },
+  "measured_on": "2026-09-03"
+}

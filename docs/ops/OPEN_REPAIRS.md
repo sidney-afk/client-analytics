@@ -10131,3 +10131,66 @@ Linear → card for video every ten to fifteen minutes. That is production
 automation and the owner's call, and until it is made this floor is what stands
 between a reconciler pass and a calendar that repaints fifteen times while
 someone is reading it.
+
+---
+
+## 130. [2026-09-03, MEASURED — two strategies written, nothing executed] The action record the owner believes exists is status-only, application-level, bypassable, invisible, and — for both calendar surfaces — unbacked
+
+**What was asked.** Two things, in one request: a long-term strategy for a
+trace of every action taken in SyncLinear, the samples calendar, the content
+calendar, Kasper's review board and the client review page, "so that if there is
+a bug, I can retrieve that"; and a strategy for removing Linear from the
+pipeline entirely, with a deep audit of what would be affected.
+
+**Where they are.** `docs/ops/ACTION_HISTORY_PLAN_2026-09.md` and
+`docs/independence/LINEAR_EXIT_PLAN_2026-09.md`. Both are strategy documents and
+owner-gated; neither changes any behaviour.
+
+**The correction that reset the second one.** An earlier draft asserted that the
+editors still work in Linear. They do not — they work in SyncLinear, and the
+owner said so. The error was a join: `calendar_post_events.to_status` carries
+display strings (`"For SMM Approval"`) and `deliverable_events.to_status`
+carries slugs (`smm_approval`), so nothing matched, and "no precursor found" was
+read as "originated in Linear". Redone through the app's own mapping, 46 of 58
+sampled Calendar status changes are echoes of native SyncLinear work. The same
+join mistake is easy to repeat against these tables, so it is recorded in both
+documents.
+
+**What the audit actually found.** Three append-only ledgers exist and hold
+184,042 rows together — `calendar_post_events` 35,020 (since 2026-07-04),
+`sample_review_events` 57,919 (since 2026-06-25), `deliverable_events` 91,103.
+Current rate ~20k events/week. Seven gaps, each measured:
+
+| | gap | evidence |
+|---|---|---|
+| G1 | comment **bodies** are never recorded on Calendar or Samples | `calendar-upsert` diffs ids out of the `*_tweaks` cell and writes `{added:[id]}`; the cell is a whole-cell overwrite, so the previous text is destroyed. No `comment_edit` action exists at all. 3,657 + 173 + 3,309 lifetime comment events, every body unrecoverable |
+| G2 | **field edits are not recorded at all** | `buildEvents` emits create / status / approval / kasper / urgent-ping / link / comment-id only. Caption text, date, name, asset url, thumbnail, CTA, platform, order — all silent |
+| G3 | attribution differs per surface and fails on Samples | SyncLinear resolves the actor against `team_members` and stores `actor_key`; the Calendar stores whatever name the browser asserted (297/300 recent rows carry one); Samples has **no actor on 40,421 of 57,919 rows (69.8%)** — `create`, `link_set`, `archive` and much of `status_change` send no identity |
+| G4 | the ledger is best-effort and bypassable | `waitUntil(insertEvents(...))` with the rejection swallowed; `linear-inbound` writes both card tables directly with **zero** event emissions; the reconciler's flag read `catch` empties the enrolled set and sends every client down the unrecorded n8n lane |
+| G5 | the one complete record is invisible | the restrictive policy at `migrations/2026-07-12-production-comments.sql:158-171` hides body-bearing rows from anon (correctly), and `_prodActivity` — a finished renderer at `index.html:59255` whose data is already loaded — has **zero call sites** |
+| G6 | neither calendar surface is in a verified backup | `scripts/track-b-backup.js:42` is a fixed 14-table allowlist; `calendar_posts` (9,819 rows), `sample_reviews` (6,594), and both card event tables are absent. The weekly n8n graph is already ruled non-evidence (F13). PITR is owner-declined |
+| G7 | nothing renders any of it | no history panel on any of the five surfaces; retrieval today means service-role SQL |
+
+**The load-bearing conclusion.** G6 is the expensive one: **a wrecked Content
+Calendar or Samples card has no snapshot to restore from today**, independent of
+every ledger gap. And the fix for G1/G2/G4 is a database trigger, not
+application code — the pattern already exists in this repo as
+`track_b_deliverable_ledger_guard` (`migrations/2026-07-06-b1-linear-data-model.sql:239`),
+which is exactly why `deliverables` does not have G4. Anything done at the Edge
+Function layer re-creates the bypass the first time a new writer appears.
+
+**Cost, so it is not guessed at later.** Comment-bearing events run 691/week
+across both surfaces; all four `*_tweaks` cells average 383 bytes per card (870
+on cards that carry any). Snapshotting the previous cell on every comment change
+is ~600 KB/week, ~30 MB/year. Storage is not the constraint on any step.
+
+**Open for the owner** (both documents carry the same list): backup scope, since
+adding the two card tables touches a manifest-checked lane and needs a re-run of
+the restore rehearsal; a retention rule for body snapshots; the step order; and
+whether the reconciler should fail closed on a flag-read failure instead of
+writing unrecorded.
+
+**Housekeeping noted, not touched.** Items 13, 14, 22 and 23 each appear twice
+in this file, from concurrent branches in August. Renumbering now would break
+every cross-reference and this ledger is append-only, so they are left as-is and
+recorded here.

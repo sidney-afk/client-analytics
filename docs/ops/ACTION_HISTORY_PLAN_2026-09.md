@@ -337,23 +337,39 @@ implying they can.
 
 ---
 
-## 7. Owner decisions needed
+## 7. Owner decisions — ANSWERED 2026-09-03
 
-1. **Backup scope (G6).** Adding the two card tables to the Track-B corpus is the single
-   highest-value item here and the only one that answers "restore it". It touches a
-   proven, manifest-checked lane, so it needs a deliberate go-ahead and a re-run of the
-   restore rehearsal.
-2. **Retention.** How long do we keep comment-body snapshots? Suggest 24 months and
-   revisit; "forever" is fine if chosen on purpose.
-3. **Order.** Step 1 alone closes G1 and G2 and is roughly one migration plus its test
-   suite. Step 4's `_prodActivity` wiring is an afternoon. Suggest 1 → 4(partial) → 5 →
-   2 → 3, so something visible lands early and the backup gap closes before the
-   attribution polish.
-4. **The reconciler fail-closed change (step 2)** changes behaviour on a flaky read from
-   "write it anyway, unrecorded" to "skip and alert". That is the right trade but it is a
-   behaviour change on a healing path, so it should be said out loud.
+The owner ruled on all four. Recorded here so no later session re-asks.
 
----
+1. **Build it.** "We need to have a record of everything, always" — who did what, when,
+   extensively. This plan is approved in principle; the steps stand.
+2. **Backup: yes.** "There's no backup of it, so we need to fix that." `calendar_posts`,
+   `sample_reviews` and both card event tables go into the Track-B corpus. The
+   count/manifest assertions and the restore rehearsal move with them.
+3. **Retention: 30 days.** "30 days is a good history for everything, for the comments and
+   statuses and whatever." So body snapshots and field-diff rows age out at 30 days. Note
+   the consequence honestly: this is a *recovery* window, not a permanent archive — past
+   30 days the record is gone, which is a deliberate trade the owner made. The six-hourly
+   backup is what carries anything older, and it only holds what a snapshot caught.
+4. **No restrictive read policy.** Standing owner preference, stated broadly: *"I hate when
+   things are strict… everyone should be able to see it, there should not be restriction."*
+   So **do not** add the `production-comments`-style restrictive SELECT policy to the new
+   snapshot rows, and do not build a protected-reader gate in step 4. Everyone in the app
+   sees every comment and its full history.
+
+   **What this does NOT mean, and the distinction matters.** Nobody is blocked today: the
+   app already shows comments to staff and clients through a service-role reader. The
+   existing restriction only stops the *raw table* being read with the browser publishable
+   key — and that key ships inside `index.html` in a **public** repository, so removing the
+   restriction does not make comments visible to the team (they already are), it makes
+   every client's private feedback readable by anyone on the internet who opens the repo.
+   Those are different things, and the owner's ruling is about the first.
+
+   **Therefore:** build every surface with no restriction — full history, visible to
+   everyone, no gate, no "protected reader" — and keep the raw-table grant closed. That is
+   the owner's intent satisfied in full. If the owner does want the raw table world-
+   readable as well, that is a separate explicit call and should be asked as its own
+   question, because it is not reversible once the data is out.
 
 ## 8. Ordering against the Linear exit
 

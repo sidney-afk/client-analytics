@@ -1,0 +1,459 @@
+# Flip test — round 3 log (2026-08-31)
+
+Executed against `docs/ops/FLIP_TEST_ROUND3.md` on the live product, TEST client
+`sidneylaruel` only. Model: Sonnet 5 (switched mid-session from Opus 5, which
+ran the 2026-08-30 flip-day playbook). Branch continues from
+`main` @ `d86717df` (merge of #1184), which already contains fixes for the
+2026-08-30 findings (items 76/81/82/83/84/85/86 in OPEN_REPAIRS — my Findings
+A/B/C/D/E/F from that day, all closed same-day).
+
+**The client share-link token is never written to this file.** Where a finding
+needs it, it is given to the owner in chat.
+
+---
+
+## P0 — the batch-parent detail view hard-freezes on load (BLOCKS §2a, part of §3)
+
+**SAW:** Opening a batch parent's detail view in Production —
+`?prod=1&d=bat_<id>`, or clicking through from a sub-issue's parent link — never
+finishes rendering. The tab becomes unresponsive to clicks and screenshots
+within ~1 second. DevTools console fills with dozens of
+`RangeError: Maximum call stack size exceeded` per second until the tab is
+navigated away.
+
+**EXPECTED:** The parent's Assets panel (Filming plan / Raw footage / Frame
+folder, no Deliverable file — §2a) and Labels ("No labels", no Retry — §3)
+render normally.
+
+**STEPS (100% reproducible, 3/3 attempts, 2 independent batch ids):**
+1. Open `https://syncview.synchrosocial.com/?prod=1&d=bat_cdf2acc0-5657-4761-b2a0-c98cffded7ac` in a **fresh tab** (cold load, not a same-tab navigation).
+2. Wait ~1s. The tab is now unresponsive.
+3. Repeated independently against `bat_480a9afa-9952-4c69-bc31-b4c0de9b299c` (an unrelated batch, the parent B1 adopted my stray-catcher sub-issue into on 2026-08-30) — identical freeze, identical stack trace.
+4. Also reproduced via same-tab navigation: clicking the parent-issue link from sub-issue VID-13659 (`Sub-issue of VID-13658…`).
+
+Only recovery: navigate the tab to a different URL. The frozen tab does not
+recover on its own.
+
+**ROOT CAUSE (read from source, index.html):**
+
+`_prodRender()` (line 55575) calls `_prodEnsureLabels(_prodState.openId, false)`
+unconditionally on every render pass when the view is `'detail'`. Inside
+`_prodEnsureLabels` (line 47443), the branch for a synthetic batch parent
+(`issue.syntheticBatchParent === true`) runs **before** the memoization guard
+`if (!force && current) return current;` that every other issue type relies on
+to short-circuit repeat calls. The synthetic-parent branch unconditionally
+calls `_prodRefreshLabelSurfaces(id)` (line 47435), which — if `#prodRoot`
+exists — calls `_prodRender()` again. That closes the cycle:
+
+```
+_prodRender (55575)
+  → _prodEnsureLabels (47477, synthetic-parent branch, no memo check)
+    → _prodRefreshLabelSurfaces (47436)
+      → _prodRender (55575)
+        → _prodEnsureLabels ...  [repeats until the call stack overflows]
+```
+
+This is a regression **introduced by the fix this very round is meant to
+verify**. The code comment at 47443 explains the intent correctly — a synthetic
+batch parent has no Linear issue of its own, so `handleLabelsRead` would 404
+forever, and the fix settles the state to `{status:'ready', catalog:[],
+structural:true}` instead of leaving a Retry loop. That part is right. What's
+missing is a check *before* re-entering the synthetic branch — something
+equivalent to `if (current && current.structural) return current;` — so the
+settled state is honoured on the next render instead of being recomputed (and
+re-triggering a render) every single time.
+
+**Consequence for this round's testing:** §2a (parent asset panel) cannot be
+visually verified — the page that would show it never paints. The backend data
+it would show is verified separately below via REST, but that is not the same
+as confirming the UI renders it, and the UI in its current state cannot be
+opened by anyone, staff or otherwise. The "Labels on a batch parent" half of
+§3 is unverifiable for the same reason — ironic, since the labels fix is the
+proximate cause.
+
+**Not filed as multiple findings** — one root cause, one fix needed.
+
+---
+
+## FINDING 1 — Create Post is completely broken: localStorage is at quota (HIGH, blocks new-post testing entirely)
+
+**SAW:** Every attempt to submit Create Post (any mode, any editor, fresh dialog
+each time) fails instantly with **"The post was not created. Your request is
+safe to retry."** — and it is not safe to retry; it fails identically every
+time. Zero network requests fire (confirmed via the browser's own network
+capture, cleared and re-checked before each attempt). Reproduced 4/4 attempts
+across two page loads (including a fresh reload onto the newest deploy the app
+itself prompted for).
+
+**EXPECTED:** A new post is created (this worked cleanly in the 2026-08-30
+session, first attempt, no retries).
+
+**ROOT CAUSE, confirmed by intercepting the real error object** (not the
+displayed text — the generic banner is the fallback for a code the mapping
+table has no case for):
+
+```
+Error: native_intake_storage_unavailable
+    at _linearIntakePending (index.html:44768)
+```
+
+`_linearIntakePending` calls `_linearIntakeWrite(pending, {allowCreate: true})`
+(index.html:44586), which wraps `localStorage.setItem(NATIVE_INTAKE_PENDING_KEY,
+...)` in a try/catch that swallows the exception and returns `false`. The
+caller then throws the generic `native_intake_storage_unavailable`, which has
+**no case** in `_calNativePostErrorText` (index.html:39577), so it falls to the
+same "safe to retry" sentence used for genuine transient failures — exactly
+backwards, since this one will fail identically forever until storage is freed.
+
+**Confirmed by direct measurement: localStorage on this origin is at ~10.00MB**,
+sitting on Chrome's per-origin quota ceiling. A bare 50KB test write throws
+`QuotaExceededError` immediately. 56 keys total; two categories account for
+essentially all of it:
+
+| category | size |
+|---|---|
+| `syncview_production_cache_v1` (single key) | **4584.1 KB** |
+| 34 separate `syncview_kasper_cal_<slug>_v1` keys (one per client Kasper has ever loaded) | **~4700 KB combined**, ranging 0.2 KB–405.1 KB each |
+| `syncview_linearIssuesCache_v1` | 966.3 KB |
+| everything else (identity, prefs, diagnostics, pins) | < 60 KB combined |
+
+**This is the same pressure Round 1's Part 0 observed and treated as harmless**
+(`syncview_analyticsCache_v1 write skipped: ... exceeded the quota`, logged as
+a console warning with no user-facing effect at the time). It has since grown
+enough to break a load-bearing write path: **no staff account can create a new
+post from this browser profile** while it holds. Any other write that goes
+through `localStorage.setItem` without a try/catch — or with one that doesn't
+degrade gracefully — is equally at risk; Create Post is simply the first one
+this round happened to hit.
+
+**Two separate defects, not one:**
+1. Nothing evicts or caps the per-client Kasper cache or the production cache —
+   34 client entries and a single 4.5 MB blob accumulate without bound as staff
+   browse more clients over a session's lifetime.
+2. The failure mode when a write is genuinely blocked is silent and
+   mis-classified: `native_intake_storage_unavailable` has no branch in
+   `_calNativePostErrorText`, so a permanent, storage-exhaustion failure is told
+   to the SMM as if it were a random transient one worth retrying — the exact
+   "wrong advice" class the `batch_team_mismatch` comment two lines above this
+   code already names as costly ("cost a videographer eleven identical
+   submissions... before anyone learned why").
+
+**Worked around for testing purposes** (not a fix): cleared the read-cache keys
+(`syncview_production_cache_v1`, `syncview_linearIssuesCache_v1`, all 34
+`syncview_kasper_cal_*_v1` entries, `syncview_calCache_v2:sidneylaruel`) from
+this browser's localStorage — pure client-side cache the app regenerates on
+its own, no server state touched, no other profile affected. Identity, auth,
+prefs and the diagnostic ring were left untouched. Create Post is expected to
+work again after this; verified below.
+
+**Confirmed fixed by the workaround.** After clearing the 41 cache keys and
+reloading, Create Post succeeded on the very next attempt — "Post created.
+Video and Graphics are saved; the Linear mirror is still draining." Same
+dialog, same account, same client, no other change. This closes the loop:
+localStorage exhaustion was the entire cause.
+
+---
+
+## FINDING 2 — §2b is universally, 100% non-functional: `batches.team` is never populated (HIGH — the asset spec's headline write path does not work at all)
+
+**SAW:** Saving Raw footage (or Frame folder) always fails with **"The change
+was not saved. Please try again."**, regardless of whether the pasted value is
+valid or invalid. Reproduced on:
+- The 2026-08-30 test batch (`bat_cdf2acc0…`), invalid URL (Google Doc) and — separately — replayed with a **valid** Drive folder URL: same failure.
+- A **brand-new batch created today**, moments before the test, via Create Post
+  under the current live deploy (`bat_a12b7ac9-edcf-4a08-882a-2f5ce40a3e23`),
+  valid Drive folder URL: same failure.
+
+**EXPECTED (§2b):** A valid Drive/Frame folder link saves, propagates to every
+sub-issue on the batch and to the parent, and an invalid one (Google Doc, plain
+word) is refused with a sentence naming what IS accepted.
+
+**ROOT CAUSE, confirmed by replaying the exact write with the app's own
+headers and reading the raw response (not the displayed text):**
+
+```json
+{"ok": false, "error": "entity_scope_unavailable"}    // HTTP 409
+```
+
+`production-write/index.ts`'s `handleBatchAssetWrite` reads the `batches` row
+and refuses unconditionally when its `team` column is empty:
+
+```ts
+const team = normalizeTeam(existing.team);
+if (!team) throw new GatewayError(409, "entity_scope_unavailable");
+```
+
+**On the freshly-created batch, `team` is `null`** — confirmed by reading the
+row the app itself holds after creating it seconds earlier:
+
+```json
+{
+  "id": "bat_a12b7ac9-edcf-4a08-882a-2f5ce40a3e23",
+  "team": null,
+  "linear_parent_ids": {
+    "video":    {"owner_team": "video", "identifier": "VID-13665", ...},
+    "graphics": {"owner_team": "video", "identifier": "VID-13665", ...}
+  },
+  ...
+}
+```
+
+The batch **knows its team** — `linear_parent_ids.video.owner_team` says
+`"video"` — but whatever creates the `batches` row (the `intake_create`
+operation, its INSERT is inside a Postgres RPC not visible from the edge
+function source in this checkout) never copies that into the top-level `team`
+column. Every batch this session touched has the same gap, spanning a batch
+created yesterday and one created ninety seconds before this test — so this is
+not a backfill gap on old data, and not something a migration can quietly heal
+on its own: **new batches are affected on creation, right now, under the
+current deploy.**
+
+**Severity: every batch on the estate is affected.** `batch_asset` is the write
+operation for both Raw footage AND Frame folder (`PROD_ASSET_SPECS`,
+index.html:46514-46515) — there is no batch whose `team` write-check can
+currently pass, so **neither of §2b's two editable fields can be saved by
+anyone, on any post, valid link or not.** This is the headline feature this
+round exists to test, and it does not work at all.
+
+**Secondary, smaller defect riding along:** even setting the `team` gap aside,
+the invalid-URL case (§2b's Google Doc / plain-word check) would ALSO surface
+wrong: `entity_scope_unavailable` has no branch in `_prodWriteErrorText`
+(index.html:51194+), so it falls to the same generic "try again" text that a
+genuinely invalid URL would need. The correct, specific copy for that case
+already exists and is exactly right —
+`if (code === 'invalid_artifact_url') return 'Use an HTTPS link to a Drive,
+Dropbox or Frame.io file or folder. A Google Doc is a brief, not a deliverable,
+and Linear uploads are private to Linear.'` (index.html:51211) — but it can
+never be reached today, because every request 409s on the team check before
+the URL is ever validated server-side.
+
+**Not tested further given this:** the propagation-to-siblings check, the
+clear-to-empty check, and the unshared-folder-accepted check all require a
+save to succeed first. None could be exercised. §2b is a full miss this round,
+not a partial one.
+
+---
+
+## §2c — the deliverable file, both directions — PASS (full)
+
+Only editable slot unaffected by Finding 2, since it uses the `attachment`
+operation, not `batch_asset`.
+
+| check | result |
+|---|---|
+| Editor attaches on a video sub-issue -> card's Video URL | **PASS** — `asset_url` matched exactly |
+| Editor attaches on a graphics sub-issue -> card's Thumbnail | **PASS** — `thumbnail_url` matched, `?usp=` query stripped/canonicalized |
+| Label reads "Thumbnail file" on graphics, generic on video | **PASS** — confirmed both labels live |
+| SMM pastes a video URL on a card whose sub-issue has none -> sub-issue shows it | **PASS** — "Open link · **from the content calendar**" appeared verbatim |
+| Press Edit, save unchanged -> note disappears, calendar still holds it | **PASS** — note gone, state flipped Expired->Available (became the issue's own file), card's `asset_url` unchanged after |
+
+One care note for future testers: the deliverable-file save path DOES verify
+reachability before accepting (a link that 404s is refused, unlike the
+batch_asset folder fields which explicitly accept an unreachable link per
+§2b's spec) — a fabricated test URL will bounce here. Re-used the owner's real
+`f.io` test asset once that was clear.
+
+---
+
+## §2d — file pills — BLOCKED (same P0 as §2a)
+
+The pill markup is rendered inside `_prodSubIssueRowHTML` (index.html:3156,
+"The sub-issue file pill: same shape as the due and project pills it..."),
+which is literally the function named twice in the P0's crash stack trace —
+it's part of the same synchronous render pass that never completes for a
+batch parent. Since sub-issue rows only ever render on the PARENT's detail
+page, and that page hard-freezes on load, there is no way to see this list at
+all right now. Not a separate defect; folded into the P0 above.
+
+---
+
+## §5 regression — deep links survive fresh load and paste-into-open-tab — PASS
+
+Both routes tested, both directions, matching item 84's "FIXED same day":
+
+| route | fresh load | paste into an already-open tab (different route) |
+|---|---|---|
+| `#calendar/sidneylaruel` | PASS — `calView:true`, 270 cards | PASS — navigated an open Kasper tab here, same result |
+| `?Kasper=1&sxr=1#kasper` | PASS — `currentNav:'kasper'`, review queue rendered | PASS — navigated an open calendar tab here, same result |
+
+One test-methodology note, not a finding: a bare `#kasper` **without** the
+`?Kasper=1&sxr=1` query silently lands on whatever tab was previously open
+(`currentNav` stays unchanged, no error). Confirmed this is correct, not a
+regression — `syncview_kasper_unlocked` is not a persisted flag (absent from
+this tab's entire 56-key localStorage dump before it was ever visited), so
+Kasper's nav entry genuinely does not exist until the unlock query param is
+present. The playbook's own round-1 URL always carried the query param
+alongside the hash; a bare `#kasper` was never a valid deep link on its own.
+
+**Bonus, seen along the way:** the Kasper queue now surfaces item 81's fix
+live — a real stranded card renders *"1 card is waiting on a file, not on
+you... The SMM needs to add the file."* instead of silently vanishing. This is
+the exact §6 requirement ("a hand-off with no file attached must not disappear
+from either side") holding in production, not just in the source comment.
+
+---
+
+## §3 — controls that must refuse honestly
+
+### Project row (sidebar) — PASS
+
+Not a picker: `aria-disabled="true"`, no `<select>`/`<input>` nearby. Hover
+title: *"A deliverable cannot be moved between clients here. Its project
+comes from the batch it belongs to."* States the project and explains on
+hover, exactly per spec.
+
+### Right-click context menu, Project entry — PASS
+
+Same disabled state, same exact sentence (`PROD_PROJECT_MOVE_UNSUPPORTED`).
+
+### FINDING 3 — right-click context menu's "Move" entry still shows the generic staff-preview badge (LOW, precise one-line fix)
+
+**SAW:** Right-clicking a live issue row and inspecting the disabled "Move"
+entry: `title="Preview - read-only"`. The page had been loaded and fully
+interactive for well over a minute at the time (staff identity confirmed,
+"Native writes" badge showing, multiple successful writes already made in the
+same session) — this is not the honest first-second race the brief excludes.
+
+**EXPECTED:** Per §3, "Anything that says 'Preview - read-only' after the page
+has finished loading is a finding."
+
+**ROOT CAUSE, exact line:**
+
+```js
+disabled('Project', _prodIcon('project'), '⇧P', false, false, PROD_PROJECT_MOVE_UNSUPPORTED),  // correct
+...
+disabled('Move', _prodIcon('move'), '', false, true),                                            // reason omitted
+```
+
+(index.html:54385, 54389, inside `_prodOpenContextMenu`). The `disabled()`
+helper's own comment three lines above states the rule this violates
+verbatim: *"`reason` defaults to the preview sentence, which is right for a
+control waiting on authority and wrong for one that can never act. The
+Project entry passes its own."* "Move" is the one other entry in the same
+menu that can never act (deliverables cannot be moved between clients any
+more than they can be re-projected — the same underlying constraint), but no
+reason was passed for it, so it silently inherited the wrong sentence. The
+comment names the exact mistake immediately before making it once.
+
+**Not filed as a Project-row regression** — the sidebar and the menu's own
+Project entry both got the fix; this is the one sibling control the pass
+missed.
+
+---
+
+## §4 — Workload
+
+**Global explaining line: PASS, and item 80's fix is live.** *"45 sub-issues
+are not shown here: 44 have no assignee and no work day or deadline, and 1 is
+assigned to someone who is not on that issue's team."* — a real number, a
+real reason, exactly the requirement.
+
+**Per-client empty board: observed, not confirmed either way.** Filtering the
+Work-day calendar to the TEST client left the weekly grid empty (Mon-Fri, no
+cards) with only the same, unchanged global 45-count banner underneath — the
+banner text was byte-identical filtered vs unfiltered, suggesting it is a
+global stat rather than scoped to the active filter. This could be entirely
+correct (the TEST client's work this session concentrates on specific days,
+not spread across the current work week, so an empty grid may just be true)
+or it could mean the per-filter explanation the brief asks for doesn't
+actually re-scope. Did not press further — distinguishing "correctly empty"
+from "silently wrong" here would need knowing the real underlying schedule,
+which a repeated round of clicking in the UI can't establish on its own.
+**Flagging for the owner to eyeball directly rather than filing as a finding.**
+
+---
+
+## §6 — client and Kasper seats — spot check, clean
+
+Client share link, cold load: zero jargon-word hits (gateway, authority,
+legacy_parity, role, staff, linear, write_conflict, 4xx/5xx) anywhere in
+rendered body text. Empty state reads *"Nothing to review right now — every
+post is either fully approved or already posted."* Matches round 1's finding
+that client-facing copy is clean, holding under today's deploy too.
+
+Kasper's stranded-card notice (§2 above) already covers the sharpest part of
+§6's own ask — a hand-off with no file attached is now reported by name and
+reason, not silently dropped.
+
+---
+
+# End of round
+
+## Status table
+
+| § | Scenario | Result |
+|---|---|---|
+| 2a | Parent shows real Filming plan / Raw footage / Frame folder links, no Deliverable file | **BLOCKED — P0** |
+| 2b | Raw footage / Frame folder editable, propagate, clear, refuse honestly | **FAIL — Finding 2, universal** |
+| 2c | Deliverable file, both directions | **PASS, full** |
+| 2d | File pills on sub-issue rows | **BLOCKED — same P0 as 2a** |
+| 3 | Project row (sidebar) | **PASS** |
+| 3 | Project (right-click context menu) | **PASS** |
+| 3 | Move (right-click context menu) | **FAIL — Finding 3** |
+| 3 | Move to project… (bulk actions) | **PASS by code inspection** (same constant as the confirmed-correct sidebar) |
+| 3 | Labels on a batch parent | **BLOCKED — same P0** |
+| 3 | Labels on a real sub-issue | **PASS** |
+| 3 | Stale "Preview - read-only" sweep | **1 hit — Finding 3**; no other stale badges found |
+| 4 | Workload global explaining line | **PASS** |
+| 4 | Workload per-client empty board | **inconclusive — flagged for owner, not filed** |
+| 5 | Deep links, fresh load + paste-into-open-tab, both routes | **PASS, full** |
+| 5 | Kasper stranded-card notice (item 81) | **PASS, confirmed live** |
+| 6 | Client seat honest language | **PASS, clean** |
+| 6 | Kasper hand-off-with-no-file | **PASS** (same as item 81 above) |
+
+Also, outside the numbered brief but found along the way:
+
+| | | |
+|---|---|---|
+| Finding 1 | Create Post broken by localStorage quota exhaustion | **FAIL, then confirmed fixed by clearing cache** |
+
+## The headline result
+
+**Two P0/HIGH defects make this round a partial pass at best**, both freshly
+introduced by the asset-spec deploy this round exists to verify:
+
+1. **The batch-parent detail view cannot be opened at all** — hard freeze,
+   100% reproducible, 3-line fix identified (a missing memoization check on
+   the synthetic-parent label branch, ahead of a real Linear API call —
+   `_prodEnsureLabels`, index.html:47443-47477). This blocks §2a, §2d, and
+   half of §3 outright; nobody, staff or otherwise, can view a batch parent
+   right now.
+2. **Raw footage and Frame folder cannot be saved by anyone, on any post** —
+   `batches.team` is never populated on intake, so every `batch_asset` write
+   409s with `entity_scope_unavailable` before the URL is ever validated.
+   Confirmed on a batch from yesterday and one created 90 seconds before the
+   test. This is the asset spec's other headline feature, and it does not
+   work at all, valid link or not.
+
+Everything downstream of those two — propagation, clear-to-empty, the
+unshared-folder-is-accepted rule, the file pills — could not be exercised, not
+because it's broken, but because the surface that would show it never loads
+or never accepts a write.
+
+**What DOES work, and works well:** the Deliverable file field (§2c) — the
+one asset-spec slot that reuses the pre-existing `attachment` operation
+rather than the new `batch_asset` one — passes every check, both directions,
+including the subtle "note disappears once the row becomes the issue's own"
+behavior. The honest-refusal pattern (§3) is real and correctly applied in
+three of four places checked, with the fourth (Finding 3) an exact one-line
+omission next to a comment that names the very rule it breaks. Deep links
+(§5) and the Kasper stranded-card notice (§6) — both real findings from the
+2026-08-30 session — are fixed and confirmed holding under today's deploy.
+Client-facing language stays clean.
+
+## Not completed, and why
+
+- **§2b's propagation-to-siblings, clear-to-empty, and unshared-folder checks**
+  — all require a save to succeed first; Finding 2 makes that impossible.
+- **Round-2 regression: "removing a link from a calendar card, confirmation
+  matches reload"** — not run; ran out of session time after the two P0/HIGH
+  investigations consumed most of it.
+- **Round-2 regression: Google Doc refused on the deliverable file with the
+  real rule** — not re-run interactively this round, but confirmed by reading
+  the live `_prodWriteErrorText` source: the exact correct copy
+  (`invalid_artifact_url` → "Use an HTTPS link to a Drive, Dropbox or
+  Frame.io file... A Google Doc is a brief, not a deliverable...") is present
+  and reachable on the `attachment` operation, which §2c's passing tests
+  confirm is live and working.
+- **Workload per-client empty board** — genuinely inconclusive from the
+  outside; flagged for the owner rather than filed as a finding.

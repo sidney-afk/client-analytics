@@ -205,15 +205,49 @@ const WITH_VIDEO = Object.assign({ video_deliverable_id: 'del-video', linear_iss
             if (decl) vm.runInContext(decl[0], ctx);
         }
         loadFn(ctx, '_writeUiFailureText');
-        loadFn(ctx, '_kasperFailureText');
-        const text = vm.runInContext('_kasperFailureText', ctx);
+        loadFn(ctx, '_writeUiFailureSentence');
+        const text = vm.runInContext('_writeUiFailureSentence', ctx);
         const refusal = Object.assign(new Error('native_link_required'), { code: 'native_link_required', status: 409 });
         ok(text(refusal) !== 'native_link_required' && /work item/.test(text(refusal)),
             'a gateway refusal reaches the reviewer as the sentence from WRITE_UI_FAILURE_CODE_TEXT, not as '
             + 'its own code — which is what the caption banner showed on 2026-09-03');
         ok(text(new Error('Save failed: the network went away')) === 'Save failed: the network went away',
             'while a transport error, which carries a real sentence and no code, is passed through');
+        /* And a gateway error whose message was DELIBERATELY overwritten with a
+           sentence keeps that sentence: _writeUiLegacyDeliveryUnconfirmedError
+           does exactly this, because its sentence says more than the table
+           entry for its code. Only a message that IS the code gets replaced. */
+        const authored = Object.assign(new Error('Team delivery could not be confirmed. Your draft is preserved; retry.'),
+            { code: 'legacy_tweak_delivery_unconfirmed', status: 409 });
+        ok(text(authored) === 'Team delivery could not be confirmed. Your draft is preserved; retry.',
+            'and a code-carrying error whose message was authored on purpose keeps its own sentence');
         ok(text(null) === 'Save failed', 'and nothing at all still says something');
+        ok(text(null, 'save failed') === 'save failed', 'with the caller\'s own fallback when it has one');
+    }
+
+    /* ---- and no inline banner is left painting a raw code ------------------ */
+    {
+        /* The reported symptom was a code in a red box, and Kasper's panel was
+           only one of the places that did it. Every INLINE catch that paints a
+           failure must read the message table; the ones that did not were both
+           review panes and both card save chips. Pinned by shape rather than by
+           count, so a NEW catch of the same shape fails this too. */
+        const RAW = [
+            /_saveError\s*=\s*(?:e|error)\s*(?:&&\s*(?:e|error)\.message\s*)?(?:\?\s*)?(?:\|\|\s*)?(?:e|error)?\.?message/,
+            /errors\[[^\]]+\]\s*=\s*\((?:e|error)\s*&&\s*(?:e|error)\.message\)/,
+            /_errors\[[^\]]+\]\s*=\s*(?:e|error)\s*&&\s*(?:e|error)\.message/,
+        ];
+        const offenders = RAW.map(re => (INDEX.match(re) || [])[0]).filter(Boolean);
+        ok(offenders.length === 0,
+            'no inline failure banner assigns a raw error message any more'
+                + (offenders.length ? ' — found: ' + offenders.join(' | ') : ''));
+        // And prove the pattern can still catch one, on a fixture.
+        ok(RAW.some(re => re.test("item._errors[comp] = e && e.message ? e.message : 'Save failed';")),
+            'and the pattern still catches the shape it was written for — proven on a fixture, not assumed');
+        const sentence = /_writeUiFailureSentence\(/g;
+        const uses = (INDEX.match(sentence) || []).length;
+        ok(uses >= 10,
+            'the shared sentence helper is read by its definition plus all nine inline sites (' + uses + ' references)');
     }
 
     if (failures) {

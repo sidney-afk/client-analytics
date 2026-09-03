@@ -9919,13 +9919,31 @@ can only ever make caption and title source-only — silently making a real work
 item stop writing would be the worse failure, and it is the one this shape could
 otherwise introduce.
 
-**The banner, which is why a code reached a person.** `_writeUiGatewayError`
-builds its Error with the code as the message, and Kasper's three catches wrote
-`e.message` straight into the pane. Every other surface routes the same refusal
-through `_writeUiFailureText` / `WRITE_UI_FAILURE_CODE_TEXT` — the table
-`test/write-ui-failure-messages.js` pins. The panel now reads that same table,
-so the two cannot drift, and a transport error, which carries a real sentence
-and no code, still passes through unchanged.
+**The banner, which is why a code reached a person — and it was nine places,
+not one.** `_writeUiGatewayError` builds its Error with the code as the message,
+so any inline `catch (e) { ...e.message... }` that paints a banner paints the
+code. Kasper's three panel catches did. So did both review panes (four catches)
+and both card save chips. The DIALOG path never did — it has always gone through
+`_writeUiFailureText` / `WRITE_UI_FAILURE_CODE_TEXT`, the table
+`test/write-ui-failure-messages.js` pins — so the wording of a refusal had one
+home and nine callers were not using it. All nine now read
+`_writeUiFailureSentence`, which reads that table.
+
+Two things it deliberately does NOT do. A transport error carries a real
+sentence and no code, and passes through untouched. And a gateway error whose
+message was **overwritten on purpose** keeps its own sentence:
+`_writeUiLegacyDeliveryUnconfirmedError` sets one, because "Team delivery could
+not be confirmed. Your draft is preserved; retry." says more than its code's
+table entry ever could. The first version of the helper read the table first and
+destroyed that; `test/samples-legacy-save-order.js` failed on the exact
+sentence, which is the second time in this repair that an existing suite caught
+a fix rather than a defect. So the rule is narrow: only a message that IS the
+code gets replaced, and that is precisely the set `_writeUiGatewayError`
+produces.
+
+Two of the nine name the caught error `error` rather than `e`, and one of those
+survived the first sweep — found by the shape-based guard added to
+`test/caption-has-no-work-item.js`, not by reading.
 
 **One sibling, found on the way and fixed with it.** Both Kasper rollbacks
 restored `*_comments` but not the `*_tweaks` wire strings, and never

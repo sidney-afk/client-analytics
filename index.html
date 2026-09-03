@@ -26656,6 +26656,46 @@
        comment site below, which is the lane items 99, 100 and 104 all live on;
        the other sites still report without identifiers and are worth threading
        one at a time rather than in one unattended sweep. */
+    /* A REFUSAL REACHES A PERSON AS A SENTENCE, NEVER AS ITS OWN CODE.
+
+       `_writeUiGatewayError` constructs its Error with the code as the message,
+       so any `catch (e) { ... e.message ... }` that paints a banner paints the
+       raw code. On 2026-09-03 a reviewer was shown the literal string
+       `native_link_required` under the caption buttons, with nothing to say
+       what it meant or whether his note had been kept.
+
+       The wording of a refusal already has exactly one home --
+       WRITE_UI_FAILURE_CODE_TEXT, read by `_writeUiFailureText` and pinned by
+       test/write-ui-failure-messages.js -- and the dialog path has always used
+       it. It was the INLINE paths that did not: Kasper's three panel catches,
+       both review panes (four catches, two of which name the error `error`
+       rather than `e` -- which is how one of them survived the first sweep and
+       was caught by the guard in test/caption-has-no-work-item.js), and both
+       card save chips. Nine sites, one table, so the wording cannot drift
+       between a dialog and a banner about the same refusal.
+
+       A thrown transport/runtime error carries no `code` and a real sentence of
+       its own; that is passed through untouched, which is why the fallback is a
+       parameter -- the chips said "save failed" and the panes "Save failed",
+       and neither is worth changing here. OPEN_REPAIRS 127. */
+    function _writeUiFailureSentence(error, fallback) {
+        const code = String(error && error.code || '').trim();
+        const message = String(error && error.message || '').trim();
+        /* A MESSAGE THAT IS NOT SIMPLY THE CODE WAS WRITTEN ON PURPOSE, and it
+           wins. `_writeUiLegacyDeliveryUnconfirmedError` builds a gateway error
+           and then overwrites its message with "Team delivery could not be
+           confirmed. Your draft is preserved; retry." precisely because that
+           sentence says more than the table's entry for its code would. Reading
+           the table first would have thrown that away -- the Samples save-order
+           suite caught it, which is what it is for.
+
+           So only a message that IS the code gets replaced. That is exactly the
+           set this helper exists for, because `_writeUiGatewayError` leaves the
+           message equal to the code and nothing else does. */
+        if (message && message !== code) return message;
+        if (code) return _writeUiFailureText('write', code, error && error.status).text;
+        return fallback || 'Save failed';
+    }
     function _writeUiReportFailure(surface, operation, error, context) {
         try { console.warn('[' + surface + '] native ' + operation + ' gateway failed', error); } catch (e) {}
         // A thrown transport/runtime error carries no `code`, only a message.
@@ -39412,7 +39452,7 @@
             const iErr = calState.posts.findIndex(p => p.id === realId);
             if (wasNewRow) {
                 _calFailedNewCards.add(realId);
-                if (iErr >= 0) calState.posts[iErr]._saveError = e.message || 'save failed';
+                if (iErr >= 0) calState.posts[iErr]._saveError = _writeUiFailureSentence(e, 'save failed');
             } else if (prevSnapshot && iErr >= 0) {
                 const cur = calState.posts[iErr];
                 if (!gatewayCommitted) {
@@ -39423,7 +39463,7 @@
                 // updated_at must also revert so the next background
                 // merge doesn't see a phantom "we wrote newer" stamp.
                 cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
-                cur._saveError = e.message || 'save failed';
+                cur._saveError = _writeUiFailureSentence(e, 'save failed');
                 if (gatewayCommitted) {
                     cur._writeUiRetryEdits = Object.assign({}, edits);
                     cur._writeUiRetrySourceAt = writeUiSourceAt;
@@ -43444,7 +43484,7 @@
             _calReviewState.saving[key] = false;
         }).catch(e => {
             _calReviewState.saving[key] = false;
-            _calReviewState.errors[key] = (e && e.message) || 'Save failed';
+            _calReviewState.errors[key] = _writeUiFailureSentence(e);
             _calReviewRepaintCard(pid);
         });
     }
@@ -43867,7 +43907,7 @@
             }
             _calReviewState.drafts[key] = rawDraft;
             _writeUiReportFailure('calendar', 'comment', error);
-            _calReviewState.errors[key] = (error && error.message) || 'Save failed';
+            _calReviewState.errors[key] = _writeUiFailureSentence(error);
             _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
             _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
             _calRenderBody({ preserveScroll: true });
@@ -62439,12 +62479,12 @@
                 const iErr = sxrState.posts.findIndex(p => p.id === realId);
                 if (wasNewRow) {
                     _sxrFailedNewCards.add(realId);
-                    if (iErr >= 0) sxrState.posts[iErr]._saveError = e.message || 'save failed';
+                    if (iErr >= 0) sxrState.posts[iErr]._saveError = _writeUiFailureSentence(e, 'save failed');
                 } else if (prevSnapshot && iErr >= 0) {
                     const cur = sxrState.posts[iErr];
                     if (!gatewayCommitted) _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
                     cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
-                    cur._saveError = e.message || 'save failed';
+                    cur._saveError = _writeUiFailureSentence(e, 'save failed');
                     if (gatewayCommitted) {
                         cur._writeUiRetryEdits = Object.assign({}, edits);
                         cur._writeUiRetrySourceAt = writeUiSourceAt;
@@ -63129,7 +63169,7 @@
         delete _sxrReviewState.errorActionIds[key];
         _sxrReviewRepaintCard(pid);
         _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
-        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = (e && e.message) || 'Save failed'; _sxrReviewRepaintCard(pid); });
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
     }
     function _sxrReviewRequestTweak(pid, comp) {
         const initialPost = sxrState.posts.find(p => p.id === pid);
@@ -63543,7 +63583,7 @@
             }
             _sxrReviewState.drafts[key] = rawDraft;
             _writeUiReportFailure('sxr', 'comment', e);
-            _sxrReviewState.errors[key] = (e && e.message) || 'Save failed';
+            _sxrReviewState.errors[key] = _writeUiFailureSentence(e);
             _sxrReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
             _sxrReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
             _sxrRenderBody({ preserveScroll: true });
@@ -73627,27 +73667,6 @@
         }
         return snap;
     }
-    /* THE BANNER UNDER A COMPONENT'S BUTTONS MUST BE A SENTENCE.
-
-       These three catches wrote `e.message`, and for a gateway refusal that IS
-       the raw code -- `_writeUiGatewayError` constructs the Error with the code
-       as its message. So on 2026-09-03 a reviewer was shown the literal string
-       `native_link_required` under the caption buttons, with no indication of
-       what it meant or whether his note had been kept.
-
-       Every other surface already routes the same refusal through
-       `_writeUiFailureText`, which reads WRITE_UI_FAILURE_CODE_TEXT -- the
-       table test/write-ui-failure-messages.js pins, and the one place the
-       wording of a refusal is allowed to live. This reads that same table for
-       an inline banner instead of a dialog, so the two can never drift.
-
-       A thrown transport/runtime error carries no `code`, only a real sentence
-       of its own; that is kept as-is. OPEN_REPAIRS 127. */
-    function _kasperFailureText(error) {
-        const code = String(error && error.code || '').trim();
-        if (code) return _writeUiFailureText('write', code, error && error.status).text;
-        return (error && error.message) ? String(error.message) : 'Save failed';
-    }
     const KASPER_PATCH_SCALARS = ['order_index','scheduled_date','name','asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','post_url','cta','linear_issue_id','video_deliverable_id','kasper_approved_at','posted_at','platform','platforms','color','video_status','graphic_status','caption_status','graphic_linear_issue_id','graphic_deliverable_id','client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','title_status','client_title_approved_at','kasper_seen','kasper_approved_after_tweaks','thumb_rev','kasper_finished_at','kasper_closed_at','kasper_finish_log'];
     function _kasperPatchSnapshot(post) {
         const s = {};
@@ -73887,7 +73906,7 @@
             if (!item.post._writeUiRetrySourceAt) Object.assign(item.post, prev);
             else _kasperPersistCache();
             item._saving[comp] = false;
-            item._errors[comp] = _kasperFailureText(e);
+            item._errors[comp] = _writeUiFailureSentence(e);
             _kasperRepaintCard(pid);
         }
     }
@@ -73987,7 +74006,7 @@
         } catch (e) {
             Object.assign(item.post, prev);
             item._saving[comp] = false;
-            item._errors[comp] = _kasperFailureText(e);
+            item._errors[comp] = _writeUiFailureSentence(e);
             _kasperRepaintCard(pid);
         }
     }
@@ -74094,7 +74113,7 @@
                 showNotify('Card sync incomplete', 'The native comment is safe; Calendar source sync will retry automatically.');
             }
             item._saving[comp] = false;
-            item._errors[comp] = _kasperFailureText(e);
+            item._errors[comp] = _writeUiFailureSentence(e);
             _kasperRepaintCard(pid);
         }
     }

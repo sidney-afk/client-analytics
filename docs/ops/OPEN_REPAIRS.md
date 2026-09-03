@@ -10301,5 +10301,40 @@ is asserted against the real body that produced the hole, not a synthetic one,
 and the mutation Codex named — delete the calendar gate, leave the comment —
 now fails six checks.
 
+### The roster is checked against the code, and doing that surfaced a real question
+
+A hand-written list of six pairs rots the moment somebody adds a seventh
+operation to one surface — the drift this suite is for, arriving through the
+suite's own blind spot. So the roster is now derived-and-compared: every
+function in `index.html` that consults `_prodCanonicalCommentGate` must be
+either a family member or on an explicit, reasoned exclusion list. Adding an
+unclassified seventh caller fails until someone classifies it. **18 callers
+today**, and the mutation is killed.
+
+Building that enumeration turned up an asymmetry I did **not** assert, because I
+could not justify asserting it. Three `_sxr` functions consult the gate with no
+calendar counterpart that does:
+
+| Samples | calendar |
+|---|---|
+| `_sxrCommentsForView` — consults the gate | `_calCommentsForView` exists and does **not** |
+| `_sxrCommentsForAction` | `_calCommentsForAction` **does not exist at all** |
+| `_sxrPostLinearComment` — the transport 105.3 repaired | `_calPostLinearComment` exists and does not gate |
+
+The read paths genuinely differ on a client link. Samples asks the gate and
+**fails closed** — unlinked falls back to `_sxrClientVisibleLegacyRows`, and
+linked-but-unready-or-unauthorised returns `[]`. The calendar filters an
+already-loaded list by audience and role, and never asks. `_sxrPostLinearComment`
+is plausibly benign: the calendar gates one level up, in `_calAppendComment`.
+
+**Whether the READ difference is correct is an open question, and it is on the
+client's path** — the surface item 99, 100, 104 and 107 all live on. It is
+recorded here rather than answered by an assertion, because a suite that
+asserts a symmetry nobody has justified is how a wrong rule gets frozen into
+the tests. It needs someone to establish what the calendar loads into
+`post.comments` upstream on a client link, and whether that upstream load
+applies the same fail-closed contract.
+
 - Done when: it catches a fourth. Until then, it costs nothing and holds the
-  prediction that three prose warnings could not.
+  prediction that three prose warnings could not. The read-path question above
+  is its own piece of work.

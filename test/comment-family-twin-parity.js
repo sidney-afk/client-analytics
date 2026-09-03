@@ -119,6 +119,62 @@ for (const row of FAMILY) {
     ok(!b.roleHidden, `${row.op}: the Samples gate is not computed only for one role`);
 }
 
+/* ---- THE ROSTER ITSELF ------------------------------------------------- */
+
+/* A hand-written list of six pairs rots the moment someone adds a seventh
+   operation to one surface — which is the drift this suite exists for, arriving
+   through the suite's own blind spot. So the roster is checked against the
+   code: every function that consults the gate must be either a FAMILY member or
+   on an explicit, reasoned exclusion list. A new caller fails until somebody
+   classifies it, which is the point. */
+const EXCLUDED = {
+    _prodCanonicalCommentGate: 'the gate itself',
+    _writeUiCardCommentLifecycle: 'shared write-UI plumbing, not a per-surface operation',
+    _writeUiCurrentCardCommentForResolve: 'the same, on the resolve path',
+    /* Samples-only, and deliberately NOT asserted as missing twins: the two
+       surfaces read differently on a client link. `_sxrCommentsForView`
+       consults the gate and fails closed on an unready or unauthorised thread,
+       while `_calCommentsForView` filters an already-loaded list by audience.
+       Whether that difference is correct is a real question and it is recorded
+       in OPEN_REPAIRS 139 rather than answered by an assertion here — this
+       suite checks symmetry it can justify, not symmetry it assumes. */
+    _sxrCommentsForView: 'Samples client read consults the gate; the calendar twin filters instead — open question, OPEN_REPAIRS 139',
+    _sxrCommentsForAction: 'Samples-only; the calendar has no _calCommentsForAction at all — same open question',
+    _sxrPostLinearComment: 'the Samples transport 105.3 repaired; the calendar gates one level up, in _calAppendComment',
+};
+
+function gateCallers() {
+    const code = stripNonCode(INDEX);
+    const decls = [];
+    const dre = /\n[ \t]*(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
+    let m;
+    while ((m = dre.exec(code))) decls.push({ at: m.index, name: m[1] });
+    const names = new Set();
+    const gre = /_prodCanonicalCommentGate\s*\(/g;
+    while ((m = gre.exec(code))) {
+        const at = m.index;
+        let lo = 0, hi = decls.length - 1, best = null;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (decls[mid].at < at) { best = decls[mid]; lo = mid + 1; } else hi = mid - 1;
+        }
+        if (best) names.add(best.name);
+    }
+    return names;
+}
+
+const callers = gateCallers();
+ok(callers.size >= 12, 'the gate has callers to enumerate at all (found ' + callers.size + ')');
+const rostered = new Set(FAMILY.flatMap(r => [r.cal, r.sxr]));
+for (const name of Array.from(callers).sort()) {
+    ok(rostered.has(name) || Object.prototype.hasOwnProperty.call(EXCLUDED, name),
+        name + ' consults the gate and is either in the family roster or explicitly excluded');
+}
+for (const row of FAMILY) {
+    ok(callers.has(row.cal) && callers.has(row.sxr),
+        row.op + ': both roster entries really are gate callers, so the roster has not rotted');
+}
+
 /* The stripper is now load-bearing: if it stopped removing comments, every
    answer above could be satisfied by prose. Asserted against the real body
    that produced the hole rather than a synthetic one. */

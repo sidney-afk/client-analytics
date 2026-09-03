@@ -517,6 +517,22 @@ async function loadLinearIssuesById(ids) {
     }
     if (PAGE_DELAY_MS) await sleep(PAGE_DELAY_MS);
   }
+  /* A FEW MISSING IS DELETION. MOST MISSING IS AN ACCESS LOSS, AND LOOKS
+     IDENTICAL ON THE WIRE. Linear answers `Entity not found: Issue` for an id
+     that was deleted and for an id this key simply cannot see -- a team made
+     private, a workspace the key does not cover, a wrong uuid. Review on PR
+     #1244 caught that the per-error tolerance cannot tell those apart, so a
+     key removed from the Video team would make every alias "not found", the
+     run would go GREEN, and the health gate would page "hundreds of issues
+     deleted" instead of "reconciler cannot read Linear". The tolerance exists
+     for item 119, which was ONE issue. So it is bounded: past the cap the run
+     fails loudly again, which is what it did before the tolerance existed. */
+  const notFoundCap = Math.max(1, Number(process.env.RECONCILE_NOT_FOUND_CAP || 10) || 10);
+  if (LINEAR_ISSUES_NOT_FOUND.size > notFoundCap) {
+    throw new Error(`Linear answered "Entity not found" for ${LINEAR_ISSUES_NOT_FOUND.size} of ${unique.length} issue ids `
+      + `(cap ${notFoundCap}). That is an access loss or a key on the wrong workspace, not a deletion -- `
+      + 'refusing to reconcile against a Linear this key cannot read. Set RECONCILE_NOT_FOUND_CAP to raise the cap for a known bulk deletion.');
+  }
   return out;
 }
 

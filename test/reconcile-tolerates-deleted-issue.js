@@ -29,6 +29,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { extractFunction } = require('./helpers/extract-function.js');
 
 const SRC = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'linear-deliverables-reconcile.js'), 'utf8');
 let failures = 0;
@@ -225,6 +226,50 @@ const NOT_FOUND = {
     'and the branch they land in still raises outbound_issue_missing');
   ok(/native_create_context_missing/.test(LIB),
     'with the repair entry that says what to do about it');
+
+  /* ---- BOUNDED: a few not-found is deletion, most not-found is access loss --
+   *
+   * Review on PR #1244: Linear's wire shape for a deleted issue is byte-identical
+   * to its shape for an issue this key cannot see. Unbounded, the tolerance would
+   * turn a key removed from a team into a green run reporting mass deletion. So
+   * the loader runs for real here, against a stubbed `linear`, and the cap is
+   * asserted from the outside: one miss passes, a whole chunk of misses throws. */
+  {
+    const loaderSrc = extractFunction(SRC, 'loadLinearIssuesById');
+    const mk = missing => {
+      const ctx = vm.createContext({ console, Promise, Map, Set, Array, Number, String, Math, Error, process: { env: {} } });
+      vm.runInContext(`
+        const LINEAR_ISSUES_NOT_FOUND = new Set();
+        const PAGE_DELAY_MS = 0;
+        const clean = v => String(v == null ? '' : v).trim();
+        const safeGraphqlString = v => JSON.stringify(String(v));
+        const issueFields = () => 'id';
+        const sleep = () => Promise.resolve();
+        // Every alias resolves except the first MISSING of each chunk, which come
+        // back exactly as Linear sends them.
+        async function linear(query, opts) {
+          const n = (query.match(/i\\d+: issue/g) || []).length;
+          const data = {};
+          for (let i = 0; i < n; i++) {
+            if (i < ${missing}) opts.collectNotFound.push({ message: 'Entity not found: Issue', path: ['i' + i], extensions: { type: 'invalid input', code: 'INPUT_ERROR' } });
+            else data['i' + i] = { id: 'x' + i };
+          }
+          return data;
+        }
+      `, ctx);
+      vm.runInContext(loaderSrc, ctx);
+      return ctx;
+    };
+    const ids = Array.from({ length: 35 }, (_, i) => 'id-' + i);
+    let one; try { one = await vm.runInContext('loadLinearIssuesById', mk(1))(ids); } catch (e) { one = e; }
+    ok(one instanceof Map && one.size === 34,
+      'ONE missing issue in a chunk of 35 is tolerated -- the run proceeds with the other 34 (item 119)');
+    let all; try { all = await vm.runInContext('loadLinearIssuesById', mk(35))(ids); } catch (e) { all = e; }
+    ok(all instanceof Error && /access loss|cannot read/.test(all.message),
+      'EVERY issue missing throws, and the message says access loss rather than deletion: ' + String(all && all.message).slice(0, 80));
+    ok(all instanceof Error && /RECONCILE_NOT_FOUND_CAP/.test(all.message),
+      'and names the env override, so a known bulk deletion can be reconciled without a code change');
+  }
 
   /* ---- no other caller was loosened --------------------------------------- */
   const optIn = (SRC.match(/tolerateNotFound: true/g) || []).length;

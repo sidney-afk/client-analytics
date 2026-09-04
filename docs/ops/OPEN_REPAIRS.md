@@ -11566,6 +11566,65 @@ way to fake a pass: it is not a TLS bypass, it is a transport and not a fixture,
 its hosts are an allowlist rather than a general-purpose hole out of the
 sandbox, and it can assert it actually carried traffic — because a bridge that
 silently carried nothing would let every check "pass" on an empty page.
+### What the six actually are, now that the lane runs
+
+Second run under the bridge reproduced the set exactly — `161/168`, bridge
+carried 120 requests, all 200 — and **every one of the six returns `false`, not
+an error**. That distinction is the whole diagnosis: the assertions run to
+completion, so none of these is a broken selector or a timeout. Each is a real
+disagreement between what the check expects and what the app does.
+
+**`kbProj` — STALE, and re-basing it the other way would break a decision.**
+It presses `Shift+P` and expects a project picker to open. `_prodOpenPicker`
+refuses `proj` at the door, deliberately, with the reason written beside it:
+there is no gateway operation that writes `client_slug` on any surface for any
+role, so the picker used to build a searchable list of every client and then
+hard-return a read-only guard when you pressed one. Making this check pass means
+re-opening that picker. **Do not.**
+
+**`titleTooltip` and `pcardNameTooltip` — STALE, same single cause.** Both assert
+that a SHORT title carries no `title` attribute. `_prodTitleAttrs` emits
+`data-fulltitle` and `title` unconditionally — it has no short/long branch at
+all, so the assertion is false by construction for every row. One helper, two
+red checks.
+
+**`chip` — STALE, and the correct pattern is already in this file.** It reads a
+slug from the first `.prod-row` and then clicks the first `.prod-row
+.prod-chip-client`. Those are **two different rows**: the first row's
+`data-prod-client` is the `__needs_attribution__` sentinel, which renders no
+client chip, so the first chip belongs to a later row. Measured: the click
+navigated correctly — `view === 'project'`, `clientSlug` and `openId` both
+cleared — and only `openProjectId === slug` failed, because the slug came from
+the wrong row. The sibling check at line 2179 already does it correctly, reading
+`data-prod-crumbclient` off the chip it is about to click. This check simply
+never caught up with attribution sentinels.
+
+**`ringClearOnNav` — STALE, and this file already knows why.** It clicks a nav
+button and then presses `j`. Measured: the first `j` focused a card, nav
+correctly cleared the ring, and the second `j` set nothing — because a
+just-clicked nav button holds focus, and the key never reaches the board
+handler. Refusing to hijack keys while a control is focused is correct
+behaviour, and `cmdASelectsCollapsed` in this same file calls
+`document.activeElement.blur()` before dispatching for exactly this reason. The
+check needs the same blur; the app needs nothing.
+
+**`detailScrollNavBack` — NOT CLASSIFIED. I could not reproduce it.** In
+isolation the check PASSES: it inflates `parent.desc` to force an overflow, but
+descriptions are hydrated on demand and the filler never reaches the DOM, so the
+pane measures 833/833, is not scrollable, and the check early-returns true.
+Inside the full sweep it returns false, so something earlier leaves the pane
+genuinely scrollable. Until that is reproduced, whether scroll position is
+really lost on navigating back to a parent is **an open question, not a stale
+check** — and it is the one of the six that would be a real bug.
+
+**`noConsoleErrors` is sandbox-only.** It fails on `ERR_CONNECTION_RESET` from
+`docs.google.com`, `cdn.jsdelivr.net` and `fonts.googleapis.com`, which the
+bridge deliberately does not carry. It is not evidence about the app.
+
+**Nothing is re-based here.** Five of the six are stale for reasons that are now
+written down, but the re-base is the owner's call, and one of them is still
+unexplained.
+
 ## 145. `/*` inside a string is not a comment, and ~64k characters of `index.html` were invisible to a dozen gates
 
 Found while writing item 144's test, which failed on its own prose. The usual

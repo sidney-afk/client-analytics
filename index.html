@@ -24424,7 +24424,7 @@
     const SRP_MOOD = ['Great', 'Fine', 'Cooling', 'Concerned'];
     const SRP_SCHEDULE = ['Ahead', 'On track', 'Slightly behind', 'At risk'];
     const SRP_PERFORMANCE = ['Numbers up', 'Flat', 'Down', 'Too early to tell'];
-    const _srpState = { managers: [], currentWeek: '', lastSubmitted: null, reports: [], weeks: [], filters: { week: '', smm: '', client: '', status: '' }, loadError: '' };
+    const _srpState = { managers: [], managersLoaded: false, currentWeek: '', lastSubmitted: null, reports: [], weeks: [], filters: { week: '', smm: '', client: '', status: '' }, loadError: '' };
     const SRP_ICON_CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3"/></svg>';
     const SRP_ICON_CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2 5 8.7 9.5 3.5"/></svg>';
     let _srpOpenSelectId = null;
@@ -24509,6 +24509,7 @@
     async function _srpLoadOptions() {
         const data = await _srpApi({ action: 'options' });
         _srpState.managers = Array.isArray(data.managers) ? data.managers : [];
+        _srpState.managersLoaded = true;
         _srpState.currentWeek = data.current_week_start || _srpWeekStartISO();
         return data;
     }
@@ -59422,8 +59423,34 @@
            the F88 revocation, and a manager roster is not worth that. */
         let _prodSmmDir = null;
         let _prodSmmLoading = false;
+        function _prodSmmDirFrom(managers) {
+            const dir = new Map();
+            for (const m of (Array.isArray(managers) ? managers : [])) {
+                const name = String(m && m.name || '').trim();
+                if (!name) continue;
+                const owned = Array.isArray(m.source_clients) ? m.source_clients : [];
+                for (const c of owned) {
+                    /* The sheet names clients the way a person writes them; this
+                       app keys them by slug. One normalizer for both sides, the
+                       same one the workload uses. */
+                    const key = wlNormalizeClient(c);
+                    if (key && !dir.has(key)) dir.set(key, { name: name, syncedAt: String(m.synced_at || '') });
+                }
+            }
+            return dir;
+        }
         async function _prodLoadSmmDirectory() {
             if (_prodSmmDir || _prodSmmLoading) return;
+            /* If the roster is already in memory -- the weekly-reports page
+               loads it through _srpLoadOptions -- build from that and make no
+               request at all. This is not only an optimisation: the Production
+               tab makes NO unprompted staff-authenticated read (descriptions
+               hydrate on demand, _prodLoadBriefs is a marker), and a read that
+               can 401 is a read this tab's console audit counts as a failure.
+               So the one request below happens only when nothing has answered
+               yet, and its answer is cached where the other surface will find
+               it too. */
+            if (_srpState.managersLoaded) { _prodSmmDir = _prodSmmDirFrom(_srpState.managers); return; }
             const ident = _syncviewStaffIdentityForHeaders();
             if (!ident || !_syncviewStaffCan('weekly-report-submit')) return;
             _prodSmmLoading = true;
@@ -59438,22 +59465,9 @@
                 });
                 let data = null;
                 try { data = await resp.json(); } catch (e) {}
-                const dir = new Map();
-                if (resp.ok && data && Array.isArray(data.managers)) {
-                    for (const m of data.managers) {
-                        const name = String(m && m.name || '').trim();
-                        if (!name) continue;
-                        const owned = Array.isArray(m.source_clients) ? m.source_clients : [];
-                        for (const c of owned) {
-                            /* The sheet names clients the way a person writes
-                               them; this app keys them by slug. One normalizer
-                               for both sides, the same one the workload uses. */
-                            const key = wlNormalizeClient(c);
-                            if (key && !dir.has(key)) dir.set(key, { name: name, syncedAt: String(m.synced_at || '') });
-                        }
-                    }
-                }
-                _prodSmmDir = dir;
+                const managers = resp.ok && data && Array.isArray(data.managers) ? data.managers : [];
+                if (resp.ok) { _srpState.managers = managers; _srpState.managersLoaded = true; }
+                _prodSmmDir = _prodSmmDirFrom(managers);
             } catch (e) {
                 /* One attempt. An empty directory renders no row, which is the
                    same as not knowing -- and a roster is not worth retrying

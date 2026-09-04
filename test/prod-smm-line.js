@@ -37,6 +37,7 @@ const card = extractFunction(INDEX, '_prodSmmCardHTML');
 const props = extractFunction(INDEX, '_prodProps');
 const loaderCode = stripNonCode(loader);
 const cardCode = stripNonCode(card);
+const dirFromCode = stripNonCode(extractFunction(INDEX, '_prodSmmDirFrom'));
 const efCode = stripNonCode(EF);
 
 /* ---- 1. It must never be the reason a sign-in dialog opens -------------- */
@@ -59,12 +60,20 @@ ok(!/social_media_managers/.test(loaderCode),
 
 /* ---- 3. The roster is derived, never held ------------------------------ */
 
-ok(/wlNormalizeClient/.test(loaderCode),
+ok(/wlNormalizeClient/.test(dirFromCode),
   'sheet client names and app slugs are matched through one normalizer, not a hand-kept mapping');
 ok(!/\{\s*['"][a-z0-9]+['"]\s*:\s*['"][A-Z]/.test(card + loader),
   'no client-to-manager pairs are written into the app — the whole point is that the sheet stays the source of truth');
 ok(/_prodSmmDir = new Map\(\)/.test(loaderCode) && /_prodSmmLoading = false/.test(loaderCode),
   'a failed read caches an empty directory rather than retrying inside the render loop');
+
+/* ---- 3b. It makes no unprompted staff read the tab cannot afford -------- */
+
+ok(/if \(_srpState\.managersLoaded\)/.test(loaderCode)
+  && loaderCode.indexOf('_srpState.managersLoaded') < loaderCode.indexOf('_syncviewStaffIdentityForHeaders'),
+  'an already-loaded roster is used BEFORE any request is considered — the Production tab makes no unprompted staff-authenticated read, and one that can 401 is counted as a failed read by its own console audit');
+ok(/_srpState\.managersLoaded = true/.test(stripNonCode(INDEX.slice(INDEX.indexOf('async function _srpLoadOptions'), INDEX.indexOf('async function _srpLoadOptions') + 600))),
+  'and the weekly-reports page primes that cache, so the two surfaces answer from one roster rather than fetching twice');
 
 /* ---- 4. It renders under Project, and only with an answer -------------- */
 

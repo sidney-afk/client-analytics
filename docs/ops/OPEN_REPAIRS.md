@@ -10232,6 +10232,14 @@ mistake.
 Numbered 142 because 135–141 are claimed by open, unmerged branches at the time
 of writing. Check for duplicate `## N.` headers after any of them merges.
 
+**And mind the hole at 130–133.** `main` jumps straight from 129 to 134. Those
+four numbers are not free: they are claimed by `claude/reduce-n8n-linear-deps`,
+the branch behind PR #1248, which the owner had unmerged by #1250. A session
+appending "the next number" by reading `main` will pick 130 and collide the
+moment anything from that branch is revived. The gap is the ledger's
+duplicate-numbering hazard in its other direction, and it is invisible to the
+usual check, which looks for repeated headers rather than missing ones.
+
 ### What was asked
 
 On a SyncLinear sub-issue (`?prod=1`, detail view), in the right-hand properties

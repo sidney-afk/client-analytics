@@ -1,0 +1,673 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * ROLLBACK.md's live row against EXECUTION_LOG.md's newest deploy receipt.
+ *
+ * WHY THIS EXISTS (OPEN_REPAIRS 118, and the row's own middle column). The
+ * F27 Section 4 lane emits its deployed-versions receipt into
+ * EXECUTION_LOG.md automatically. The "what is live" row in ROLLBACK.md is
+ * hand-maintained, so it decays silently after every dispatch — it has been
+ * found stale twice on record, once ELEVEN deploys behind. Both the row and
+ * docs/ops/F27_INSTALL_RUNBOOK.md already carry a written rule saying a deploy
+ * is not finished until the row is updated. A written rule has now failed
+ * twice, which is the argument for a derivable check rather than a third
+ * reminder.
+ *
+ * The danger is specific and it does not announce itself: a stale row does not
+ * fail loudly, it hands whoever is mid-incident a rollback bundle that reverts
+ * one MORE release than they intended.
+ *
+ * What is compared, all of it derived from the repository and nothing else:
+ *   1. the GitHub run id and the dispatched commit,
+ *   2. every function's active version and source-closure hash,
+ *   3. the one-step rollback bundle's claimed capture — it must be the version
+ *      that was live BEFORE the newest deploy, i.e. the previous receipt's, or
+ *      it is not one step back,
+ *   4. that no OTHER workflow which deploys these functions has shipped since
+ *      the newest §4 receipt. The §4 lane is not the only one — see
+ *      otherOwningLanes(), which derives the list from .github/workflows —
+ *      and a deploy this guard cannot read is not a deploy that did not
+ *      happen. That is exactly how the row went stale on 2026-08-27.
+ *
+ * Usage:  node scripts/rollback-row-freshness-check.js [--json]
+ * Exit 0 agreement, 1 disagreement or nothing to compare.
+ */
+const fs = require('fs');
+const path = require('path');
+
+/* --root lets the suite point the same code at a fixture pair. Without it a
+   test could only ever assert that today's two files agree, which is the one
+   thing that says nothing about whether the check can SEE a stale row. */
+const rootArg = process.argv.find(a => a.indexOf('--root=') === 0);
+const ROOT = rootArg ? path.resolve(rootArg.slice('--root='.length)) : path.resolve(__dirname, '..');
+/* --root points the two MARKDOWN files at a fixture pair. The workflow files are
+   not data under test, they are this repository's own answer to "which lanes can
+   move these functions", so they are always read from the real checkout — a
+   fixture that had to carry a copy of .github/workflows to exercise the lane
+   check would be testing its own copy, not the shipped roster. */
+const REPO = path.resolve(__dirname, '..');
+const SLUGS = ['production-write', 'linear-outbound', 'deliverable-write', 'batch-write'];
+const SCHEMA = 'syncview_f27_section4_deployed_versions_v1';
+
+const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+
+/* ---- EXECUTION_LOG.md: every deploy receipt, oldest first ---------------- */
+
+/* The receipt exists in two shapes and BOTH are load-bearing. The lane's own
+   instruction is to copy the full JSON attestation block; entries have shipped
+   with only the human-readable table (noted on #1215 and again in item 118),
+   and refusing to read those would make this check blind exactly when the
+   record is already thinner than it should be. So: read the JSON when it is
+   there, fall back to the table, and SAY which one was used. */
+function receiptsFromJson(log) {
+    const out = [];
+    const re = new RegExp('```json\\s*(\\{[\\s\\S]*?\\})\\s*```', 'g');
+    let m;
+    while ((m = re.exec(log))) {
+        if (m[1].indexOf(SCHEMA) < 0) continue;
+        let obj;
+        try { obj = JSON.parse(m[1]); } catch (e) { continue; }
+        if (!obj || obj.schema !== SCHEMA || !Array.isArray(obj.functions)) continue;
+        const fns = {};
+        for (const f of obj.functions) {
+            if (!f || !f.slug) continue;
+            fns[f.slug] = {
+                version: String(f.active_version || '').trim(),
+                closure: String(f.source_closure_sha256 || '').trim().toLowerCase(),
+            };
+        }
+        out.push({
+            at: m.index, source: 'attestation block',
+            run: String(obj.github_run_id || '').trim(),
+            commit: String(obj.deploy_commit || '').trim().toLowerCase(),
+            fns,
+        });
+    }
+    return out;
+}
+
+/* A four-function table. The version cell is "34", "**51**" or "65 → **66**";
+   the deployed version is the LAST number in it, never the first — reading the
+   first would report the version this deploy replaced as the one that is live,
+   which is the precise error this whole check exists to catch. */
+function receiptsFromTables(log) {
+    const rowRe = /^\|\s*`([a-z-]+)`\s*\|([^|]*)\|\s*`([0-9a-f]{64})`\s*\|/gm;
+    const rows = [];
+    let m;
+    while ((m = rowRe.exec(log))) {
+        if (SLUGS.indexOf(m[1]) < 0) continue;
+        const nums = String(m[2]).match(/\d+/g);
+        if (!nums || !nums.length) continue;
+        rows.push({
+            at: m.index, slug: m[1], version: nums[nums.length - 1], closure: m[3].toLowerCase(),
+            entry: log.lastIndexOf('\n## ', m.index),
+        });
+    }
+    /* A table belongs to the ENTRY it is written in — that is the real boundary,
+       and it is knowable, so the byte-distance heuristic is gone. It merged rows
+       from two entries whenever the first table was SHORT, which is exactly the
+       truncated-receipt case: the lone surviving row joined the next deploy's
+       table and the truncation disappeared. A repeated slug still starts a new
+       table, for the before/after pair some entries carry. */
+    const out = [];
+    let cur = null;
+    for (const r of rows) {
+        if (cur && cur.entry === r.entry && !cur.fns[r.slug]) {
+            cur.fns[r.slug] = { version: r.version, closure: r.closure };
+            cur.end = r.at;
+            continue;
+        }
+        if (cur) out.push(cur);
+        cur = {
+            at: r.at, end: r.at, entry: r.entry, source: 'summary table',
+            fns: { [r.slug]: { version: r.version, closure: r.closure } },
+        };
+    }
+    if (cur) out.push(cur);
+    return out;
+}
+
+/* WHERE A DISPATCH BEGINS — and the reason the nearest run TOKEN is not it.
+
+   Codex P1 on #1253, with evidence in the file: deploy #5's own heading names
+   run `31217806479`, and its very first sentence says the deploy was "fully
+   green, including the final four-function verification step that FAILED on run
+   `31214635190`". The nearest preceding run token before #5's table is
+   therefore the id of a run that deployed nothing. Its table receipt was being
+   filed under that failed run, which splits one deploy into two identities:
+   with the JSON block present they disagree and a phantom receipt appears, and
+   without it the deploy vanishes under the wrong id and a stale live row
+   passes.
+
+   A run token is a MENTION. An anchor is a CLAIM — a heading that says "this
+   section is deploy N, run X", or the concise-prose marker that says the same
+   thing inline. Only anchors decide identity and section bounds; a bare token
+   is the last-resort fallback for a receipt with no anchor above it at all. */
+function deployAnchors(log) {
+    const out = [];
+    const heading = /^#{2,4} [^\n]*?\brun `(\d{6,})`/gm;
+    const prose = /\*\*Section 4 forward from `[0-9a-f]{7,40}`, run `(\d{6,})`/g;
+    let m;
+    while ((m = heading.exec(log))) out.push({ at: m.index, run: m[1] });
+    while ((m = prose.exec(log))) out.push({ at: m.index, run: m[1] });
+    out.sort((a, b) => a.at - b.at);
+    return out;
+}
+
+/* The anchor a position belongs to: the nearest one at or before it, bounded
+   below by the enclosing `##` entry so a receipt can never inherit the identity
+   of a dispatch recorded under a different day's heading. */
+function enclosingAnchor(log, at, anchors) {
+    const entryStart = log.lastIndexOf('\n## ', at);
+    let best = null;
+    for (const a of anchors) {
+        if (a.at > at) break;
+        if (entryStart >= 0 && a.at < entryStart) continue;
+        best = a;
+    }
+    return best;
+}
+
+/* Run id and dispatched commit live in the entry's prose when the JSON block is
+   absent. Look backwards from the table to the entry heading above it. */
+/* THE NEAREST PRECEDING MENTION, not the first in the entry. One `##` entry can
+   hold many deploys — the 2026-08-05 one names TWELVE run ids and carries six
+   receipts — so taking the first match assigns a later table-only receipt the
+   identity of the oldest deploy in its entry, after which `byRun` folds it away
+   as a duplicate and the newest deploy can disappear entirely. Codex P1 on
+   #1253. A receipt whose own attestation block carries the run id never reaches
+   here; this is the fallback for the table-only shape, which is exactly the
+   shape that would vanish. */
+function lastMatch(text, re) {
+    const g = new RegExp(re.source, re.flags.replace('g', '') + 'g');
+    let m, last = null;
+    while ((m = g.exec(text))) last = m;
+    return last;
+}
+
+/* A DATE HAS TO BE A DATE. `2026-99-99` matches the shape, sorts after every
+   real date, and would have made the second chronology signal meaningless while
+   looking present. Round-tripped through Date so only a real calendar day
+   counts. Codex P2 on #1253. */
+function validDate(text) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(text || ''))) return '';
+    const d = new Date(text + 'T00:00:00Z');
+    return isFinite(d.getTime()) && d.toISOString().slice(0, 10) === text ? text : '';
+}
+
+function proseContext(log, at, anchors) {
+    const start = log.lastIndexOf('\n## ', at);
+    const chunk = log.slice(start < 0 ? 0 : start, at);
+    /* An anchor OUTRANKS a bare token, always. See deployAnchors: the token
+       nearest a table is routinely the id of the run that failed before it. */
+    const anchor = anchors ? enclosingAnchor(log, at, anchors) : null;
+    const run = anchor ? null : lastMatch(chunk, /[Rr]un\s+`(\d{6,})`/);
+    const commit = lastMatch(chunk, /from\s+`([0-9a-f]{7,40})`/);
+    const date = chunk.match(/^\n?## (\d{4}-\d{2}-\d{2})/);
+    return {
+        run: anchor ? anchor.run : (run ? run[1] : ''),
+        commit: commit ? commit[1].toLowerCase() : '',
+        date: date ? validDate(date[1]) : '',
+    };
+}
+
+/* FILE POSITION IS NOT CHRONOLOGY, and this is the finding that made the first
+   version of this check pass by luck. EXECUTION_LOG.md is REVERSE-chronological
+   at the top (2026-08-31 at line 5, descending) and forward-chronological
+   further down (2026-08-25 → 2026-09-01 → 2026-09-02). Taking the last receipt
+   in the file happens to be right today; the next entry written at the top the
+   way the top section is written would silently make it compare against an
+   older deploy, and a stale ROLLBACK row would pass. Codex P1 on #1253.
+
+   The run id is the unambiguous signal: GitHub run ids increase with time, and
+   every receipt carries one in its block or in its entry's prose. It also
+   solves the folding question — a JSON block and its own summary table are the
+   SAME deploy because they carry the same run id, not because they sit near
+   each other in the file. */
+/* The whole entry a receipt sits in, heading to next heading. The sealed-bundle
+   line comes AFTER the versions table in a forward-deploy entry, so the
+   backwards-only prose slice above cannot see it. */
+function entryText(log, at) {
+    const start = log.lastIndexOf('\n## ', at);
+    const from = start < 0 ? 0 : start;
+    const next = log.indexOf('\n## ', at);
+    return log.slice(from, next < 0 ? log.length : next);
+}
+
+/* THE DISPATCH SECTION a receipt belongs to, not its whole entry — bounded by
+   ANCHORS now, for the reason deployAnchors gives. The previous version used
+   run tokens, and Codex P1 on #1253 showed why that is not enough: deploy #5's
+   own TEST-drill run (`31217933580`) is mentioned between its receipt and its
+   bundle, so the section ended before the bundle line and the entry-wide
+   fallback below took over — reaching back to the FIRST bundle in a `##` entry
+   that holds six of them, i.e. deploy #4's. That is the wrong digest presented
+   as this deploy's, and the captured-version check cannot catch it whenever the
+   intervening deploy moved a different function. A drill run is a mention; it
+   does not begin a dispatch, and now it does not end one either. */
+function deploySection(log, at, anchors) {
+    const entryStart = log.lastIndexOf('\n## ', at);
+    const entryEnd = log.indexOf('\n## ', at);
+    const from = entryStart < 0 ? 0 : entryStart;
+    const to = entryEnd < 0 ? log.length : entryEnd;
+    let start = from, end = to;
+    for (const a of (anchors || [])) {
+        if (a.at < from || a.at > to) continue;
+        if (a.at <= at) start = a.at;
+        else { end = a.at; break; }
+    }
+    return log.slice(start, Math.max(start, end));
+}
+
+/* HOW MANY DISPATCHES THIS `##` ENTRY HOLDS. One is the shape where the entry
+   and the section are the same text and an entry-wide fallback is harmless.
+   More than one is exactly the shape where it is not. */
+function anchorsInEntry(log, at, anchors) {
+    const entryStart = log.lastIndexOf('\n## ', at);
+    const entryEnd = log.indexOf('\n## ', at);
+    const from = entryStart < 0 ? 0 : entryStart;
+    const to = entryEnd < 0 ? log.length : entryEnd;
+    return (anchors || []).filter(a => a.at >= from && a.at < to).length;
+}
+
+/* BOTH SPELLINGS, because the log overwhelmingly uses the one this did not
+   read. `sealed_bundle_sha256 = <hex>` appears ONCE in EXECUTION_LOG.md;
+   `rollback_bundle_sha256   <hex>` — the shape the capture receipt actually
+   prints, no equals sign — appears six times. So the bundle comparison was
+   silently skipped for every entry written in the common shape, which is a
+   check that reports the same thing whether it looked or not. */
+function sealedBundleIn(text) {
+    const t = String(text || '');
+    const sha = t.match(/(?:sealed|rollback)_bundle_sha256\s*=?\s*`?([0-9a-f]{64})/);
+    const bytes = t.match(/(?:rollback_bundle_)?byte_length\s*=?\s*`?(\d+)/);
+    return sha ? { sha: sha[1], bytes: bytes ? bytes[1] : '' } : null;
+}
+
+/* ---- the lanes this guard does NOT read ---------------------------------- */
+
+/* EVERY WORKFLOW THAT CAN MOVE THESE FOUR FUNCTIONS, derived from the workflow
+   files rather than listed here — the roster lesson this repo has now learned
+   twice. Today it finds two: the §4 lane, and `deploy-onboarding-edge-functions`
+   (workflow name "Deploy staff-sensitive edge functions"), whose Track-B step
+   deploys `linear-outbound` and `production-write`.
+
+   Codex P1 on #1253, and it is not hypothetical: ROLLBACK.md's own row records
+   that this row "decayed again within three days" of the update step being
+   added, "because the deploys went through the ONBOARDING lane, which the step
+   does not cover", and calls the onboarding-lane gap "the durable fix still
+   owed". That lane emits an `ef-fingerprint` attestation into its job summary,
+   not the §4 JSON/table/prose shapes this file reads — so a deploy through it
+   moves the live versions and leaves this guard reporting agreement. */
+function otherOwningLanes() {
+    const dir = path.join(REPO, '.github', 'workflows');
+    let files = [];
+    try { files = fs.readdirSync(dir); } catch (e) { return []; }
+    const out = [];
+    for (const f of files) {
+        if (!/^deploy-.*\.ya?ml$/.test(f)) continue;
+        if (f.indexOf('section4') >= 0) continue;   // the lane this guard reads
+        let text = '';
+        try { text = fs.readFileSync(path.join(dir, f), 'utf8'); } catch (e) { continue; }
+        const owned = SLUGS.filter(sl => new RegExp('\\b' + sl + '\\b').test(text));
+        if (!owned.length) continue;
+        const nm = text.match(/^name:\s*(.+)$/m);
+        out.push({ file: f, base: f.replace(/\.ya?ml$/, ''), name: nm ? nm[1].trim().replace(/^["']|["']$/g, '') : '', slugs: owned });
+    }
+    return out;
+}
+
+/* A dispatch of one of those lanes recorded AT OR AFTER the newest §4 receipt's
+   day. Deliberately narrow: the lane has to be named as a reference — its
+   filename in backticks, or its workflow name in quotes — not merely alluded to
+   in prose ("not the onboarding one" is a sentence about a lane, not a record
+   of running it). Narrow because a rollback guard that cries wolf gets skimmed,
+   which is the failure this repository documents most often. */
+function laneDispatchesSince(log, sinceDate, exemptAt) {
+    const lanes = otherOwningLanes();
+    if (!lanes.length) return [];
+    const out = [];
+    const heads = [];
+    const hre = /^## (\d{4}-\d{2}-\d{2})/gm;
+    let m;
+    while ((m = hre.exec(log))) heads.push({ at: m.index, date: validDate(m[1]) });
+    for (let i = 0; i < heads.length; i++) {
+        const h = heads[i];
+        if (!h.date || (sinceDate && h.date < sinceDate)) continue;
+        const to = i + 1 < heads.length ? heads[i + 1].at : log.length;
+        if (exemptAt >= h.at && exemptAt < to) continue;   // the receipt we compare against
+        const body = log.slice(h.at, to);
+        if (!SLUGS.some(sl => body.indexOf(sl) >= 0)) continue;
+        for (const lane of lanes) {
+            const named = body.indexOf('`' + lane.base + '`') >= 0
+                || body.indexOf('`' + lane.file + '`') >= 0
+                || (lane.name && body.indexOf('"' + lane.name + '"') >= 0);
+            if (named) out.push({ date: h.date, lane: lane.base, name: lane.name, slugs: lane.slugs });
+        }
+    }
+    return out;
+}
+
+/* THE CONCISE PROSE SHAPE, which produced no receipt at all. EXECUTION_LOG.md
+   opens with one: "**Section 4 forward from `5a3365f2`, run `33434655418`,
+   PASS.** `production-write` 62 → **63**, closure `a54b6bad…`. The other three
+   were byte-identical redeploys." No table, no attestation block — so run
+   33434655418 was simply ABSENT from this guard's picture of history. If the
+   next dispatch is logged that way, the deploy before it stays `live` and its
+   stale row exits 0. Codex P1 on #1253.
+
+   These cannot be RECONSTRUCTED — "the other three were byte-identical" names
+   no versions — so they are detected and left incomplete on purpose: the
+   newest-receipt checks then fail them by name, which is the honest outcome and
+   tells the writer what the entry is missing. */
+function receiptsFromProse(log) {
+    const out = [];
+    const re = /\*\*Section 4 forward from `([0-9a-f]{7,40})`, run `(\d{6,})`[^*]*\*\*([\s\S]{0,600})/g;
+    let m;
+    while ((m = re.exec(log))) {
+        const fns = {};
+        const fre = /`([a-z-]+)`\s*(\d+)\s*(?:→|->)\s*\*\*(\d+)\*\*[\s\S]{0,40}?closure\s*`([0-9a-f]{64})`/g;
+        let f;
+        while ((f = fre.exec(m[3]))) {
+            if (SLUGS.indexOf(f[1]) < 0) continue;
+            fns[f[1]] = { version: f[3], closure: f[4].toLowerCase() };
+        }
+        out.push({
+            at: m.index, source: 'concise prose', run: m[2], commit: m[1].toLowerCase(), fns,
+        });
+    }
+    return out;
+}
+
+function executionLogReceipts() {
+    const log = read('EXECUTION_LOG.md');
+    const anchors = deployAnchors(log);
+    const all = receiptsFromJson(log).concat(receiptsFromTables(log)).concat(receiptsFromProse(log));
+    all.sort((a, b) => a.at - b.at);
+    for (const r of all) {
+        const p = proseContext(log, r.at, anchors);
+        r.run = r.run || p.run;
+        r.commit = r.commit || p.commit;
+        r.date = p.date || '';
+        /* This receipt's own dispatch section first. The entry-wide fallback is
+           allowed ONLY where the entry holds a single dispatch, because that is
+           the shape where the two are the same text; in a multi-dispatch entry
+           it is how deploy #4's bundle got presented as deploy #5's. */
+        r.sealed = sealedBundleIn(deploySection(log, r.at, anchors))
+            || (anchorsInEntry(log, r.at, anchors) > 1 ? null : sealedBundleIn(entryText(log, r.at)));
+    }
+    receiptsMeta.log = log;
+
+    // Group by deployment identity, preferring the richer shape within a group.
+    const byRun = new Map();
+    const unidentified = [];
+    for (const r of all) {
+        if (!r.run) { unidentified.push(r); continue; }
+        const prev = byRun.get(r.run);
+        if (!prev) { byRun.set(r.run, r); continue; }
+        const rank = x => x.source === 'attestation block' ? 3 : x.source === 'summary table' ? 2 : 1;
+        if (rank(r) > rank(prev)) byRun.set(r.run, r);
+        else if (prev.source === r.source) prev.siblings = (prev.siblings || []).concat([r]);
+    }
+    const receipts = Array.from(byRun.values()).sort((a, b) => {
+        const d = BigInt(a.run) - BigInt(b.run);
+        return d < 0n ? -1 : d > 0n ? 1 : 0;
+    });
+    receipts.unidentified = unidentified;
+    return receipts;
+}
+
+/* The log text, kept so main() can run the other-lane sweep without re-reading
+   and re-parsing the file. */
+const receiptsMeta = { log: '' };
+
+/* ---- ROLLBACK.md: the current live claim -------------------------------- */
+
+function rollbackClaim() {
+    const md = read('ROLLBACK.md');
+    // The FIRST bold "Live as of" is the current claim; the superseded history
+    // below it in the same cell is prose and must never be parsed as live.
+    const i = md.indexOf('**Live as of');
+    if (i < 0) return null;
+    /* BOUND THE CLAIM TO ITS OWN BOLD SPAN. A fixed window ran past the end of
+       the claim into the deliberately-retained "Superseded history" prose in the
+       same table cell, which carries an older run id, commit and version set in
+       the identical format. So a claim that OMITTED its run id silently borrowed
+       the superseded one and compared against that — found while testing Codex's
+       "absence is not agreement" P2, and worse than the finding itself. */
+    const closing = md.indexOf('.**', i);
+    const cell = md.slice(i, closing < 0 ? i + 900 : closing + 3);
+    const run = cell.match(/run\s+`(\d{6,})`/);
+    const commit = cell.match(/from\s+`([0-9a-f]{7,40})`/);
+    const fns = {};
+    const re = /`([a-z-]+)`\s*v(\d+)\s*\/\s*`([0-9a-f]{6,64})/g;
+    let m;
+    while ((m = re.exec(cell))) {
+        if (SLUGS.indexOf(m[1]) < 0) continue;
+        if (!fns[m[1]]) fns[m[1]] = { version: m[2], closure: m[3].toLowerCase() };
+    }
+    const bundle = md.slice(i, i + 3000)
+        .match(/newest sealed[^.]*?`([0-9a-f]{6,64})[^`]*`\s*\/\s*(\d+)\s*bytes[\s\S]{0,120}?captures\s+`production-write`\s+at\s+v(\d+)/);
+    return {
+        run: run ? run[1] : '', commit: commit ? commit[1].toLowerCase() : '', fns,
+        bundle: bundle ? { sha: bundle[1], bytes: bundle[2], captured: bundle[3] } : null,
+    };
+}
+
+/* ---- compare ------------------------------------------------------------ */
+
+function main() {
+    const failures = [];
+    const notes = [];
+    const receipts = executionLogReceipts();
+    const claim = rollbackClaim();
+    const live = receipts[receipts.length - 1];
+    const prior = receipts[receipts.length - 2];
+
+    if (!live) failures.push('EXECUTION_LOG.md carries no deploy receipt this check can read.');
+    if (!claim) failures.push('ROLLBACK.md carries no "**Live as of" claim this check can read.');
+
+    /* Chronology has to be ESTABLISHED, not assumed. A receipt with no run id
+       cannot be placed in time, so it cannot be ruled out as the newest — and
+       "probably not the newest" is not a property a rollback guard may rest on. */
+    for (const r of (receipts.unidentified || [])) {
+        failures.push('a deploy receipt at character ' + r.at + ' of EXECUTION_LOG.md carries no run id,'
+            + ' so it cannot be placed in time and the newest deploy cannot be established.'
+            + ' Add the run id to that entry (the attestation block carries it as github_run_id).');
+    }
+    /* Second signal, because one is a single point of failure: the entry dates
+       must agree with the run-id order about which deploy is newest. */
+    if (live && !live.date) {
+        /* The date is the SECOND chronology signal, and a check that quietly
+           drops to one signal when the first is missing is a single point of
+           failure wearing a belt. Codex P2 on #1253. */
+        failures.push('the newest receipt (run ' + (live.run || '?') + ') sits under a heading with no'
+            + ' usable YYYY-MM-DD date — absent, or shaped like one without being a real calendar day —'
+            + ' so run-id order has nothing to be cross-checked against. Date that EXECUTION_LOG heading.');
+    }
+    if (live && live.date) {
+        const laterByDate = receipts.filter(r => r.date && r.date > live.date);
+        if (laterByDate.length) {
+            failures.push('the newest receipt by run id (' + live.run + ', ' + live.date + ') is not the newest by'
+                + ' date — ' + laterByDate.map(r => r.run + ' @ ' + r.date).join(', ')
+                + '. The two chronology signals disagree, so which deploy is live cannot be established.');
+        }
+    }
+
+    /* A DEPLOY THIS GUARD CANNOT READ IS NOT A DEPLOY THAT DID NOT HAPPEN.
+       Codex P1 on #1253. The §4 lane is not the only workflow that deploys
+       these functions, and the other one has already made this exact row stale
+       once (ROLLBACK.md records it: "decayed again within three days … because
+       the deploys went through the ONBOARDING lane"). Comparing against the
+       newest §4 receipt while another lane has shipped since is agreement about
+       the wrong deploy. */
+    if (live) {
+        for (const d of laneDispatchesSince(receiptsMeta.log, live.date || '', live.at)) {
+            failures.push('the ' + d.date + ' entry records a `' + d.lane + '` dispatch'
+                + (d.name ? ' ("' + d.name + '")' : '') + ', at or after the newest §4 receipt (run '
+                + (live.run || '?') + ', ' + (live.date || 'undated') + '). That lane deploys '
+                + d.slugs.join(' and ') + ', and it does not emit the ' + SCHEMA
+                + ' receipt this guard reads — so the live versions may have moved where this check'
+                + ' cannot see it, which is the exact way this row went stale on 2026-08-27.'
+                + ' Record that dispatch\'s live versions in the same entry (the lane prints them'
+                + ' through scripts/ef-fingerprint.js) so the newest deploy is readable.');
+        }
+    }
+
+    if (live && claim) {
+        if (live.source !== 'attestation block') {
+            notes.push('the newest receipt is a ' + live.source + ', not the ' + SCHEMA
+                + ' block the lane instructs you to copy — the comparison below still holds,'
+                + ' but the entry is thinner than the record it is supposed to be');
+        }
+        /* ABSENCE IS NOT AGREEMENT. Codex P2 on #1253: a claim missing its run id
+           or its dispatched commit skipped these comparisons and exited 0, so the
+           row lost exactly the provenance this guard says it verifies. */
+        if (!claim.run) {
+            failures.push('ROLLBACK.md\'s live claim names no run id, so the deploy it describes cannot be'
+                + ' identified — the provenance this guard verifies is simply absent');
+        } else if (live.run && live.run !== claim.run) {
+            failures.push('run id: ROLLBACK says ' + claim.run + ', newest receipt says ' + live.run);
+        }
+        if (!claim.commit) {
+            failures.push('ROLLBACK.md\'s live claim names no dispatched commit, so what was deployed'
+                + ' cannot be checked against what the receipt records');
+        } else if (!live.commit) {
+            /* The receipt's side of the same rule. Codex P2 on #1253: a
+               table-only receipt whose prose omits "from <sha>" left
+               live.commit empty and the comparison was skipped, so the row
+               could name an ARBITRARY commit and still pass — on a guard whose
+               whole claim is that it verifies deployment provenance. */
+            failures.push('the newest receipt (run ' + (live.run || '?') + ') records no dispatched commit,'
+                + ' so ROLLBACK.md\'s ' + claim.commit + ' cannot be checked against anything.'
+                + ' Add "dispatched from `<sha>`" to that EXECUTION_LOG entry.');
+        } else {
+            const n = Math.min(live.commit.length, claim.commit.length);
+            if (live.commit.slice(0, n) !== claim.commit.slice(0, n)) {
+                failures.push('deploy commit: ROLLBACK says ' + claim.commit + ', newest receipt says ' + live.commit);
+            }
+        }
+        for (const slug of SLUGS) {
+            const a = live.fns[slug], b = claim.fns[slug];
+            /* A truncated receipt must not leave a function silently unchecked:
+               the §4 lane deploys the four as one serial set, so a receipt naming
+               three of them is incomplete, not a receipt about three functions. */
+            if (!a) {
+                failures.push(slug + ' is missing from the newest receipt (run ' + (live.run || '?')
+                    + '), so ROLLBACK.md\'s claim about it was not verified against anything');
+                continue;
+            }
+            if (!b) { failures.push(slug + ' is absent from ROLLBACK.md\'s live row'); continue; }
+            if (a.version !== b.version) {
+                failures.push(slug + ': ROLLBACK says v' + b.version + ', live is v' + a.version);
+            }
+            /* A receipt closure must actually BE a closure. Codex P1 on #1253:
+               an attestation block naming all four functions but omitting one
+               `source_closure_sha256` stored '', the shared prefix length came
+               out zero, and two empty slices compared equal — so that
+               function's closure was never checked and the guard exited 0. */
+            if (!/^[0-9a-f]{64}$/.test(a.closure)) {
+                failures.push(slug + ': the newest receipt records no usable source closure ('
+                    + (a.closure ? a.closure : 'empty') + '), so ROLLBACK.md\'s ' + b.closure
+                    + ' was not checked against anything');
+            } else if (!/^[0-9a-f]{6,64}$/.test(b.closure)) {
+                failures.push(slug + ': ROLLBACK.md records no usable closure for it');
+            } else {
+                const n = Math.min(a.closure.length, b.closure.length);
+                if (a.closure.slice(0, n) !== b.closure.slice(0, n)) {
+                    failures.push(slug + ': ROLLBACK closure ' + b.closure + ' does not prefix-match live ' + a.closure);
+                }
+            }
+        }
+        /* One step back, not two. The named bundle must capture what was live
+           BEFORE this deploy — which is exactly the previous receipt.
+
+           EVERY branch of this is a FAILURE, never a note. Codex P1 on #1253:
+           a row that updates the live versions while naming no readable bundle
+           passes nothing on to the person mid-incident, which is the exact
+           hazard this guard exists for. "We could not check" and "it is fine"
+           must not print the same verdict. */
+        if (!claim.bundle) {
+            failures.push('ROLLBACK.md names no "newest sealed" bundle this check can read, so the row'
+                + ' updates what is live while leaving the one-step restore unverified — the state this'
+                + ' guard exists to prevent. Keep the sentence in the form: the newest sealed §4 rollback'
+                + ' bundle is `<sha8>…` / <N> bytes and it captures `production-write` at v<NN>.');
+        } else if (!prior) {
+            failures.push('bundle ' + claim.bundle.sha + ' claims production-write v' + claim.bundle.captured
+                + ', but EXECUTION_LOG.md holds no receipt older than the newest one, so "one release back"'
+                + ' cannot be checked against anything.');
+        } else if (!prior.fns['production-write']) {
+            failures.push('bundle ' + claim.bundle.sha + ' claims production-write v' + claim.bundle.captured
+                + ', but the previous receipt (run ' + (prior.run || '?') + ') does not name production-write,'
+                + ' so "one release back" cannot be established.');
+        } else if (live.sealed && (
+            claim.bundle.sha.length === 0
+            || live.sealed.sha.slice(0, claim.bundle.sha.length) !== claim.bundle.sha)) {
+            /* The captured VERSION matching is not the bundle matching. Codex P1
+               on #1253: with the right version the row could name any digest —
+               `deadbeef… / 1 bytes` passed — and an older bundle is exactly the
+               one that is indistinguishable by version when an intervening
+               deploy moved a different function. The receipt records the sealed
+               bundle it was dispatched against; that is the identity to match. */
+            failures.push('rollback bundle: ROLLBACK names ' + claim.bundle.sha
+                + '…, but the newest deploy receipt sealed ' + live.sealed.sha.slice(0, 16)
+                + '… — the row names a different bundle from the one that deploy captured');
+        } else if (live.sealed && !live.sealed.bytes) {
+            /* Codex P2 on #1253: a receipt with a sealed digest but no
+               byte_length made this comparison truthiness-skip, so the bundle
+               was accepted without its length ever being proved. A missing
+               length fails exactly like a missing digest — half an identity is
+               not an identity. */
+            failures.push('the newest receipt records sealed_bundle_sha256 but no byte_length, so the'
+                + ' bundle ROLLBACK.md names is only half checked. Copy both fields from the capture'
+                + ' receipt into that EXECUTION_LOG entry.');
+        } else if (live.sealed && claim.bundle.bytes !== live.sealed.bytes) {
+            failures.push('rollback bundle ' + claim.bundle.sha + '…: ROLLBACK says '
+                + claim.bundle.bytes + ' bytes, the receipt records ' + live.sealed.bytes);
+        } else if (!live.sealed) {
+            failures.push('the newest deploy receipt records no sealed_bundle_sha256, so the bundle'
+                + ' ROLLBACK.md names cannot be checked against the one that deploy actually captured.'
+                + ' Copy the capture receipt into the EXECUTION_LOG entry.');
+        } else if (claim.bundle.captured !== prior.fns['production-write'].version) {
+            failures.push('rollback bundle ' + claim.bundle.sha + ' claims it captures production-write v'
+                + claim.bundle.captured + ', but the release before the newest one was v'
+                + prior.fns['production-write'].version
+                + ' — restoring it would step back more than once');
+        }
+    }
+
+    const out = {
+        ok: failures.length === 0,
+        receipts: receipts.length,
+        live: live ? { run: live.run, commit: live.commit, source: live.source, functions: live.fns } : null,
+        rollback: claim,
+        failures, notes,
+    };
+    if (process.argv.indexOf('--json') >= 0) {
+        console.log(JSON.stringify(out, null, 2));
+    } else {
+        console.log('ROLLBACK.md live row vs EXECUTION_LOG.md newest deploy receipt\n');
+        if (live) {
+            console.log('  newest receipt   run ' + (live.run || '?') + ' from ' + (live.commit || '?')
+                + '  (' + live.source + ')');
+            for (const slug of SLUGS) {
+                const a = live.fns[slug], b = claim && claim.fns[slug];
+                console.log('    ' + slug.padEnd(18)
+                    + ' live v' + (a ? a.version : '?').padEnd(4)
+                    + ' rollback v' + (b ? b.version : '?'));
+            }
+        }
+        if (notes.length) { console.log('\n  NOTE'); notes.forEach(n => console.log('    • ' + n)); }
+        console.log('');
+        if (failures.length) {
+            console.log('  ROLLBACK.md is STALE or wrong — a rollback from this row is not one step back:');
+            failures.forEach(f => console.log('    ✗ ' + f));
+            console.log('\n  Fix the row, not this check. The newest receipt is the fact.');
+        } else {
+            console.log('  ROLLBACK.md agrees with the newest deploy receipt ✅');
+        }
+    }
+    process.exit(failures.length ? 1 : 0);
+}
+
+if (require.main === module) main();
+module.exports = { executionLogReceipts, rollbackClaim, deployAnchors, deploySection,
+    sealedBundleIn, otherOwningLanes, laneDispatchesSince };

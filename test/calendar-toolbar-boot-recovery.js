@@ -54,9 +54,9 @@ function ok(condition, label) {
     'sheet-only Calendar deep links also resolve from essentials');
   ok(applyChromeSource.includes('_calResolveClientAfterDataReady()'),
     'the essentials-ready hook includes Calendar client recovery');
-  ok(recoverSource.indexOf('calState.client = next') < recoverSource.indexOf('_calRenderShell()'),
+  ok(recoverSource.indexOf('_calSetClient(next)') < recoverSource.indexOf('_calRenderShell()'),
     'Calendar restores the active client before repainting the toolbar shell');
-  ok(/shellNeedsClientChrome = !calState\.client[\s\S]*calState\.client = name[\s\S]*if \(shellNeedsClientChrome\) _calRenderShell\(\)/.test(openClientSource),
+  ok(/shellNeedsClientChrome = !calState\.client[\s\S]*_calSetClient\(name\)[\s\S]*if \(shellNeedsClientChrome\) _calRenderShell\(\)/.test(openClientSource),
     'deferred no-client activation repaints the shell after assigning the client');
   ok(/if \(pins\.length\) _calOpenClientTab\(pins\[0\]\)/.test(pendingDeepLinkSource),
     'unresolved deep links use the same complete toolbar activation path');

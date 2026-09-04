@@ -96,6 +96,10 @@ jobs:
             echo "::error::This change names a client or a colleague. See the file list above — the tool deliberately does not print what it matched; run the same command locally to see it."
             exit 1
           fi
+          if [[ $code -eq 3 ]]; then
+            echo "::error::identity exposure check could not CLASSIFY the roster (exit 3) — clients.kind returned a value the guard does not know is a person or not. This is not an availability failure: the read worked. Classify it in NON_PERSON_KINDS, or the gate is off for everyone."
+            exit 1
+          fi
           if [[ $code -ne 0 ]]; then
             echo "::warning::identity exposure check could not run (exit $code) — not a finding, and not a reason to block. The tree-mode baseline in PRE_FLIP_HEALTH_CHECK.md still covers this."
           fi

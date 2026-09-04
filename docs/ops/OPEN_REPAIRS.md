@@ -11838,3 +11838,119 @@ in this change.
 Deploying it needs `deploy-onboarding-edge-functions.yml`, which attests the
 function fingerprint rather than gating on a stored digest, so there is nothing
 to re-pin.
+## 147. [2026-09-04, STRATEGY WRITTEN AND THEN CORRECTED — revision 1 got four things wrong, one of which would have corrupted data. Nothing executed] The crosswalk repair, measured against the real predicate: 172 mismatching slots on 153 cards
+
+Full plan in `docs/ops/CROSSWALK_REPAIR_STRATEGY.md`. This entry records the two
+findings that changed the shape of it, both measured live 2026-09-04.
+
+### REVISION 1 WAS REVIEWED AND FOUR CLAIMS FAILED. This is what survived.
+
+The entry below is revision 1, kept because the errors matter more than a tidy
+record. Corrections first:
+
+**1. The repair set is 172 slots on 153 cards, not 137.** Revision 1 counted
+NULL `card_id` values. `_prodCrosswalkMismatchFields` compares FOUR fields —
+`origin`, `team`, `client_slug`, `card_id` — and a non-NULL `card_id` proves
+none of the other three. Measured properly over all 1,271 client-calendar slots:
+1,099 clean, **172 mismatching**. By reason: 134 `card_id+origin`, 17 `origin`,
+8 `card_id`, 8 `team`, 2 `card_id+team`, 2 `card_id+origin+team`, 1
+`card_id+client_slug+origin`. **The eight `card_id`-only rows name a DIFFERENT
+card** — the eight item 99 already recorded. A missing binding fails safe; a
+wrong one points confidently at the wrong place. Revision 1 would have left all
+38 non-NULL defects untouched while asserting the set was clean.
+
+**2. `calendar_posts.id` IS fine, and "fixing" it would have corrupted data.**
+Revision 1 called 13 repeated ids a hard precondition. The table's primary key
+is `(client, id)` (`live-schema-baseline-2026-07-03.sql:310`) and the deliverable
+contract joins through `(client_slug, card_id)` — which is exactly why the
+predicate compares both. Re-measured on the composite key: **`(client, id)`
+pairs appearing more than once: ZERO.** The 13 are one bare id used by up to 16
+different clients, a per-client row working as designed, and the sixteen-way one
+is already documented as valid. "Resolving the collisions" would have renumbered
+or merged legitimate rows to fix a violation that does not exist. A count is not
+a finding until you know what the key is.
+
+**3. The hazard is the projection, not a routing inversion.**
+`_prodCommentAddRoutesLegacy` routes legacy only on a proven `mismatch`; a
+`legacy_retained` stamp does not send staff to the legacy lane, because the
+item-99 fix closed that inversion. The real hazard: with the crosswalk valid and
+the canonical store empty, the projection keeps showing the legacy thread while
+new writes land canonically — the card displays one conversation and accumulates
+another. Nobody is refused and nothing errors, which makes it harder to notice,
+not easier.
+
+**4. Phase 2 was not executable.** `production_comment_card_import` raises
+`production comment card import crosswalk mismatch` BEFORE copying anything
+(`2026-07-23-production-comment-thread-lifecycle.sql:689`), so "copy first, then
+backfill" cannot use the existing lane — the import refuses precisely while the
+crosswalk is still broken. Backfilling first to satisfy it re-opens the window
+the ordering exists to avoid. **A new combined RPC is required**, committing the
+binding and the import in one transaction. That is a schema change with an owner
+decision behind it.
+
+Full corrected plan in `docs/ops/CROSSWALK_REPAIR_STRATEGY.md` revision 2.
+
+---
+
+### Revision 1, kept as written — the client-facing gap is 137 rows, not 5,150
+
+Item 102's number is the whole table and it is correct: 5,150 of 6,330
+`deliverables` have `card_id` NULL. It is also the wrong number for the repair
+the owner asked for, which is scoped to cards on clients' calendars. Measured:
+739 cards carry a `*_deliverable_id`, referencing 1,261 distinct deliverables;
+**zero** of those references dangle; **1,124 already carry `card_id`** — the
+crosswalk is already two-way for 89% of client-facing work — and **137 do not**.
+All 137 are `origin = 'manual'`, 71 graphics and 66 video.
+
+So the repair is two orders of magnitude smaller than the ledger implies, and
+the ~5,013 remaining NULL rows are `manual` deliverables no card references at
+all. They cannot reach a client and are not this repair's job.
+
+### `calendar_posts.id` IS NOT UNIQUE, and that is a hard precondition
+
+9,937 rows, **9,909 distinct ids**: 13 ids duplicated, 28 extra rows, one id
+appearing **sixteen** times. The backfill writes `deliverables.card_id = <card
+id>`, so for a duplicated id the resulting binding names two or more rows —
+which is exactly the `rows.length !== 1` condition item 100 spent three rounds
+learning to report honestly. **The repair would manufacture the ambiguity item
+100 is about.**
+
+At least one collision is already inside the client-calendar set, and its two
+rows carry *different* video and graphic deliverables — so "the card knows its
+deliverable" is already ambiguous there today, before anyone touches it.
+
+Nothing in the repair may run before this is resolved. Found only because the
+population was counted rather than assumed; a straight `UPDATE ... WHERE card_id
+IS NULL` would have written it and looked successful.
+
+### Item 103's hazard, now with a row count against each half
+
+The permanent half of the hazard — the inverted split — needs canonical empty
+AND legacy non-empty, so it applies to exactly the cards that already carry a
+thread. Of the **121 cards** those 137 deliverables sit on: **63 carry legacy
+comment messages (160 in total), 58 carry none.** So the plan splits there: the
+58 can be backfilled directly because there is no thread to strand, and the 63
+need their 160 messages migrated into the canonical store first, per card, in
+one transaction.
+
+### The long-term answer the owner asked for
+
+Two stored columns that must agree is a bug class, not a bug: they are written
+by different code at different times, nothing enforces the match, and drift can
+only ever be found afterwards. Cheapest first — **guard it** (a check that fails
+when a card names a deliverable that does not name it back; smallest change,
+same shape as the guards already running here, and it should exist whatever else
+is chosen); **write both sides in one transaction**; or **stop storing it
+twice** and derive the deliverable→card direction from the card side, which is
+the populated one.
+
+And the part worth knowing before scheduling anything: the ~5,013 unreferenced
+`manual` rows exist because B1 imports a Linear issue into a deliverable that no
+SyncView card ever produced. **The Linear exit removes the generator**, so that
+population stops growing as a side effect of work already planned — which argues
+for doing the exit before any large backfill, and for scoping this repair to the
+137 a client can actually see.
+
+**Recommendation: the guard now regardless; the 137 in the phased order; defer
+the structural change until after the Linear exit, when the write paths that
+would have to change are the ones that will survive.**

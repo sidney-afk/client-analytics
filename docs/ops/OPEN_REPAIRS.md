@@ -10224,3 +10224,133 @@ from the function's start, so adding ~25 lines pushed half the assertions past
 the end and they failed as a block while reporting nothing about the code they
 guard. It now uses `extractFunction`, which exists in this repo for exactly that
 mistake.
+
+---
+
+## 141. [2026-09-04] The polish gate's public summary named five of six failing checks and hid the sixth behind "+1more" — for 27 consecutive runs, and the hidden one is unrecoverable
+
+Numbered 141 because 135–140 are claimed by branches that are open and unmerged
+at the time of writing (PRs 1252–1256). Check for duplicate `## N.` headers after
+any of them merges.
+
+Follow-up to item 125, which named five of the six failing behaviour checks and
+recorded the sixth as "one unnamed". This entry is about **why** it was unnamed,
+and closes that half.
+
+### The mechanism
+
+`prod-polish-gate.js` classifies a heavy-lane failure into a code that carries no
+live text, because the suite's own output is live-derived and must stay on the
+ephemeral runner. For `behav-wired.js` it names the failing checks, matched
+against an allowlist harvested from that suite's own source — and then caps the
+list:
+
+```js
+const BEHAV_WIRED_NAME_CAP = 5;
+```
+
+The cap's stated reason was sound in the abstract: *"a 40-name summary line is
+the same blackout in a different shape"*. But the failure it met was **six**
+checks, not forty, so every run since 2026-08-30 has emitted:
+
+```
+behav_wired:chip+kbProj+titleTooltip+ringClearOnNav+pcardNameTooltip+1more
+```
+
+The sixth name exists only in `.codex-tmp/prod-heavy-private.log` on a runner that
+no longer exists. It is not in the run history, not in the job summary, and not
+recoverable after the fact. **The one check nobody could name is the one check
+nobody has looked at, five days running.** A cap set below the size of a real
+failure does not summarise it, it conceals it.
+
+Nothing was being protected. The names are matched against
+`BEHAV_WIRED_CHECKS`, read from `behav-wired.js` in this public repository, and
+the emitted string is assembled from allowlist entries — never from the run's
+output. A longer list carries exactly as much live text as a short one, which is
+none. The cap is a readability limit and was simply set too low.
+
+**FIXED:** cap raised 5 → 24. A realistic partial breakage is now named in full;
+a catastrophic one still collapses into a count. The next heavy-lane run names
+the sixth check.
+
+### The test was describing a cap of its own
+
+`test/prod-polish-names-the-check.js` built the classifier with a hardcoded `5`
+rather than reading `BEHAV_WIRED_NAME_CAP` out of the gate, so changing the
+shipped cap moved the summary and left every assertion green. That is the exact
+shape of defect the file exists to catch, sitting inside the file. It now reads
+the constant, asserts a failure exactly at the cap is named in full, and asserts
+the cap is at least as large as the failure that has been live since 2026-08-30.
+
+### Three of item 125's four unmeasured checks, read from source
+
+Not executed — this sandbox has no route to the live backend and that has not
+changed. These are **source-verified statements about what the check demands
+versus what the shipped code can produce**, which is a weaker claim than
+item 125's two offline reproductions and is labelled as such.
+
+**`kbProj` — STALE, and provably so from source alone.** The check presses
+Shift+P and requires a picker to appear:
+
+```js
+await page.keyboard.press('Shift+p');
+return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0;
+```
+
+`_prodOpenPicker` now refuses `proj` **at the door**, before building anything,
+and says so in a twenty-line comment: *"`proj` never opens … There is no gateway
+operation that writes client_slug, on any surface, for any role … Refusing at the
+door, with the reason, is the only honest shape."* It was refused there rather
+than at each of the four callers — and Shift+P is named as one of those four. The
+check asserts the behaviour that was deliberately removed. Its three neighbours
+(`kbStatus`, `kbAssign`, `kbDue`) already assert the *blocked* shape through
+`signedOutWriteGuard`; `kbProj` is the one that was never re-based.
+
+**`pcardNameTooltip` — STALE, same cause as `titleTooltip`.** It requires a short
+project-card name to carry `data-fulltitle` but **no** `title`:
+
+```js
+const shortOk = !shortEl.hasAttribute('title') && shortEl.getAttribute('data-fulltitle') === 'Zz';
+```
+
+The card title is rendered through `_prodTitleAttrs`, whose entire body is:
+
+```js
+return ' data-fulltitle="' + _calEscAttr(s) + '" title="' + _calEscAttr(s) + '"';
+```
+
+It emits `title` unconditionally, so `shortOk` cannot be true for any input. This
+is PR #1229's "Always emit it" — the same deliberate change item 125 already
+identified behind `titleTooltip`, reaching a second check. The long-title half
+still passes, exactly as it does for `titleTooltip`.
+
+**`ringClearOnNav` — NOT explained, and the obvious candidate is REFUTED.** The
+check clicks a nav button and then presses `j`, and the keydown handler now
+returns early whenever a native control has focus (*"do not let Production row
+shortcuts steal Enter from the global header nav"*). `.prod-nav-btn` is a real
+`<button>`, so that guard looked like the answer. It is not: `_prodRender()`
+assigns `root.innerHTML = _prodSidebar() + …`, which destroys the clicked button
+and drops focus back to `<body>`, so `activeControl` is null by the time the key
+arrives. Recorded as ruled out so the next session does not spend the same hour.
+
+What remains structurally possible, unmeasured: on an **empty** board
+`_prodMoveCardFocus` early-returns with `focusCard = ''` while `_prodBoardFlat()[0]`
+is `undefined`, and the check's `focusCard === _prodBoardFlat()[0]` compares
+`'' === undefined` — false. That is the check failing for a reason that is not a
+product defect, and it is worth fixing in the check whichever way the rest lands.
+
+### Where item 125 now stands
+
+| check | status |
+|---|---|
+| `titleTooltip` | stale, reproduced offline (item 125) |
+| `chip` | changed assumption, reproduced offline, data-dependent (item 125) |
+| `kbProj` | **stale, source-verified here** |
+| `pcardNameTooltip` | **stale, source-verified here** |
+| `ringClearOnNav` | unexplained; the leading candidate is ruled out here |
+| the sixth | **nameable from the next heavy run**, which is what this entry fixes |
+| `pixel parity [error_generic]` | untouched |
+
+Item 125's conclusion is unchanged and deliberately not pre-empted: re-basing a
+quality gate's expectations is an owner decision, and four of seven now looking
+stale is an argument for making that decision, not for making it quietly.

@@ -11608,22 +11608,44 @@ behaviour, and `cmdASelectsCollapsed` in this same file calls
 `document.activeElement.blur()` before dispatching for exactly this reason. The
 check needs the same blur; the app needs nothing.
 
-**`detailScrollNavBack` — NOT CLASSIFIED. I could not reproduce it.** In
-isolation the check PASSES: it inflates `parent.desc` to force an overflow, but
-descriptions are hydrated on demand and the filler never reaches the DOM, so the
-pane measures 833/833, is not scrollable, and the check early-returns true.
-Inside the full sweep it returns false, so something earlier leaves the pane
-genuinely scrollable. Until that is reproduced, whether scroll position is
-really lost on navigating back to a parent is **an open question, not a stale
-check** — and it is the one of the six that would be a real bug.
+**`detailScrollNavBack` — STALE, and this one took instrumenting the sweep to
+say so.** In isolation it PASSES, so it could not be diagnosed the way the other
+five were: it inflates `parent.desc` to force an overflow, descriptions are
+hydrated on demand, the filler never reaches the DOM, the pane measures 833/833
+and the check early-returns true. Instrumenting it inside the full run gave the
+numbers:
+
+```
+set=3  after=0  sameNode=false  hadChild=true  h2=836  c2=833
+```
+
+Two things there. `set=3`, not 180 — the pane overflows by three pixels, which
+is incidental layout, not the 300 lines of filler the check believes it
+inserted. So it is not measuring what it claims to measure at all. And
+`sameNode=false`: `_prodRender` replaces the pane, so a fresh node starts at
+zero.
+
+The behaviour it asserts is one the app deliberately does not have.
+`_prodOpenDeliverable` ends by calling `_prodScrollDetailToTop`, which sets
+`detailScrollTop = 0` and `detailScrollKey = ''`. Opening a DIFFERENT
+deliverable is meant to scroll to top and forget the offset; the restore only
+fires when the painted key still matches the saved one. The check opens a child
+— deliberately clearing the offset — and then expects the parent's old position
+back. **Making it pass means deleting that reset, which is the deliberate fix
+recorded beside it** (the "snap": a restore and a deferred reset fighting, with
+a visible flash where there should have been nothing).
+
+So the count is six stale, zero real bugs, and `detailScrollNavBack` is the one
+that most looked like a real bug until it was measured.
 
 **`noConsoleErrors` is sandbox-only.** It fails on `ERR_CONNECTION_RESET` from
 `docs.google.com`, `cdn.jsdelivr.net` and `fonts.googleapis.com`, which the
 bridge deliberately does not carry. It is not evidence about the app.
 
-**Nothing is re-based here.** Five of the six are stale for reasons that are now
-written down, but the re-base is the owner's call, and one of them is still
-unexplained.
+**Nothing is re-based here.** All six are stale for reasons that are now written
+down, but the re-base is the owner's call — and two of them (`kbProj`,
+`detailScrollNavBack`) would require undoing a deliberate decision to make
+green, so those two want deleting or rewriting rather than "fixing".
 
 ## 145. `/*` inside a string is not a comment, and ~64k characters of `index.html` were invisible to a dozen gates
 

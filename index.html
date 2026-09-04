@@ -59400,6 +59400,86 @@
                 + '<div class="prod-prop"><span class="prod-prop-label">Updated</span><span data-prod-tip="Updated ' + _calEscAttr(_prodFmtDateFull(batch.updated_at)) + '">' + _calEsc(_prodFmtDate(batch.updated_at)) + '</span></div>'
                 + '</div></aside></div>';
         }
+        /* WHO RUNS THIS CLIENT.
+
+           The roster lives in a Google Sheet the owner edits, and a nightly n8n
+           job mirrors it into social_media_managers. So this reads the mirror
+           rather than keeping a second copy here: edit the sheet, and this line
+           follows within a day. Nothing to maintain in the app.
+
+           TWO THINGS THIS DELIBERATELY DOES NOT DO.
+
+           It does not call _srpApi. That wrapper routes through
+           _syncviewRequireStaffIdentity, which OPENS A SIGN-IN DIALOG when the
+           viewer has no staff key -- and a passive line in a properties column
+           must never be the reason a dialog appears. So it checks for an
+           identity that already exists and returns silently when there is none.
+
+           And it does not weaken the endpoint. ?action=options is Admin/SMM, and
+           it stays that way; a Creative or an unsigned preview simply does not
+           see this row, exactly as they do not see the rest of that endpoint.
+           The alternative -- opening the table to anonymous reads -- would undo
+           the F88 revocation, and a manager roster is not worth that. */
+        let _prodSmmDir = null;
+        let _prodSmmLoading = false;
+        async function _prodLoadSmmDirectory() {
+            if (_prodSmmDir || _prodSmmLoading) return;
+            const ident = _syncviewStaffIdentityForHeaders();
+            if (!ident || !_syncviewStaffCan('weekly-report-submit')) return;
+            _prodSmmLoading = true;
+            try {
+                const resp = await fetch(SMM_WEEKLY_REPORTS_URL + '?action=options', {
+                    headers: {
+                        Accept: 'application/json',
+                        apikey: CAL_SUPABASE_ANON_KEY,
+                        Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                        'X-Syncview-Key': ident.key
+                    }
+                });
+                let data = null;
+                try { data = await resp.json(); } catch (e) {}
+                const dir = new Map();
+                if (resp.ok && data && Array.isArray(data.managers)) {
+                    for (const m of data.managers) {
+                        const name = String(m && m.name || '').trim();
+                        if (!name) continue;
+                        const owned = Array.isArray(m.source_clients) ? m.source_clients : [];
+                        for (const c of owned) {
+                            /* The sheet names clients the way a person writes
+                               them; this app keys them by slug. One normalizer
+                               for both sides, the same one the workload uses. */
+                            const key = wlNormalizeClient(c);
+                            if (key && !dir.has(key)) dir.set(key, { name: name, syncedAt: String(m.synced_at || '') });
+                        }
+                    }
+                }
+                _prodSmmDir = dir;
+            } catch (e) {
+                /* One attempt. An empty directory renders no row, which is the
+                   same as not knowing -- and a roster is not worth retrying
+                   inside a render loop. */
+                _prodSmmDir = new Map();
+            }
+            _prodSmmLoading = false;
+            _prodRender();
+        }
+        function _prodSmmCardHTML(d) {
+            _prodLoadSmmDirectory();
+            if (!_prodSmmDir || !_prodSmmDir.size) return '';
+            const project = d && d.project || '';
+            /* Match on the slug, and fall back to the display name, because a
+               project key and what the sheet calls the client are not always
+               spelled the same. */
+            const hit = _prodSmmDir.get(wlNormalizeClient(project))
+                || _prodSmmDir.get(wlNormalizeClient(_prodDisplayClient(project)));
+            if (!hit) return '';
+            const tip = hit.syncedAt
+                ? 'From the managers sheet, last synced ' + _prodFmtDateFull(hit.syncedAt)
+                : 'From the managers sheet';
+            return '<div class="prod-side-card" data-prod-detail-card="smm"><div class="prod-side-card-head"><span>Social media manager</span></div>'
+                + '<div class="prod-side-row"><span class="prod-prop-btn" data-prod-prop="smm" aria-disabled="true" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">'
+                + _prodIcon('assign') + '<span>' + _calEsc(hit.name) + '</span></span></div></div>';
+        }
         function _prodProps(d, parent, assignee, file) {
             const statusHistory = _prodStatusBreakdown((_prodState.events && _prodState.events.get ? _prodState.events.get(d.id) : null) || [], d.createdRaw);
             const sideRow = (value, cls) => '<div class="prod-side-row' + (cls ? ' ' + cls : '') + '">' + value + '</div>';
@@ -59413,6 +59493,7 @@
                 + '</div>'
                 + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
                 + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row">' + _prodAttributionProjectControlHTML(d) + '</div></div>'
+                + _prodSmmCardHTML(d)
                 + '</div>';
         }
         function _prodActivity(events) {

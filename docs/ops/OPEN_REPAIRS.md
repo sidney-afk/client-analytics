@@ -11521,3 +11521,54 @@ past the saved month, status and ready-only filters long after the reader had
 moved on. `navTo` now drops it whenever it routes away from the calendar, beside
 the calendar teardown that already lives there. All three exits are asserted
 together, so it is visible that there are three.
+
+---
+
+## 146. Who runs this client, on the sub-issue, without a second copy of the roster
+
+The owner asked to see the social media manager on a SyncLinear sub-issue —
+derive it from the project, render it under `Project` in the right-hand column.
+His actual worry was maintenance, in his words: *"I don't want to hard code
+which social media manager has which client in Supabase, because whenever I
+change it on a Google Sheet it wouldn't update."*
+
+That worry turned out to be already solved and nobody had noticed. The n8n
+workflow `y3rEWCVdB0esN3tO` ("SyncView SMM Reports – Manager Sync") is active,
+runs daily at 06:00 America/Guatemala, and posts each manager's `source_clients`
+to the `smm-weekly-reports` function, which persists them to
+`social_media_managers`. **The mapping has been mirrored from the sheet, nightly,
+for weeks.** It was simply never handed back to a caller: `serializeManager`
+returned `slug`, `name`, `email` and `active` and dropped the two fields that
+answer the question. So this adds `source_clients` and `synced_at` to that
+projection and to `loadOptions`' select, and reads the mirror. Edit the sheet;
+the line follows within a day. Nothing to maintain in the app, and no
+hand-written client-to-manager pairs anywhere — the test asserts there are none.
+
+`synced_at` travels with the name deliberately. A roster is only as true as its
+last sync, and the hover says when that was, so a stale answer can be recognised
+as one rather than trusted.
+
+**Two things this deliberately does not do.**
+
+It does not call `_srpApi`. That wrapper routes through
+`_syncviewRequireStaffIdentity`, which **opens a sign-in dialog** when the viewer
+has no staff key — and a passive line in a properties column must never be the
+reason a dialog appears. The loader checks for an identity that already exists
+and returns silently when there is none.
+
+And it does not weaken the endpoint. `?action=options` is Admin/SMM and stays
+that way. The tempting shortcut was to read `social_media_managers` straight
+from the browser, which would have been far less code — but F88 revoked that
+`anon` grant on purpose (`2026-07-14-f88-safe-sensitive-read-revocations.sql`),
+and it is still revoked: a live check returns **401**. A manager roster is not
+worth undoing a deliberate revocation for.
+
+**The consequence, stated plainly because it is a real limitation:** a Creative
+account and the unsigned client preview do not see this row. They cannot reach
+that endpoint, and the fix for that is a lower-privilege projection, not a wider
+grant. If the owner wants Creative to see it, that is the work — it is not a bug
+in this change.
+
+Deploying it needs `deploy-onboarding-edge-functions.yml`, which attests the
+function fingerprint rather than gating on a stored digest, so there is nothing
+to re-pin.

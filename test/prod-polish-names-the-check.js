@@ -59,8 +59,15 @@ ok(allowlist.size === total,
   'and covers EVERY check the suite counts (' + allowlist.size + ' names vs TOTAL = ' + total
     + ') — a check the allowlist cannot name is a check that reports as unclassified');
 
+/* THE CAP IS READ, NOT ASSUMED. It used to be passed in as a literal 5 here,
+   which meant this suite described a cap of its own rather than the shipped
+   one: raising or lowering the real constant changed the summary and left
+   every assertion below green. That is the shape of defect this whole file
+   exists to catch, sitting in the file itself. */
+const CAP = Number((gateSrc.match(/const BEHAV_WIRED_NAME_CAP = (\d+);/) || [])[1]);
+ok(Number.isInteger(CAP) && CAP > 0, 'the shipped name cap is readable (' + CAP + ')');
 const classify = new Function('BEHAV_WIRED_CHECKS', 'BEHAV_WIRED_NAME_CAP',
-  fnSrc + '\nreturn behavWiredFailedChecks;')(allowlist, 5);
+  fnSrc + '\nreturn behavWiredFailedChecks;')(allowlist, CAP);
 
 const names = [...allowlist];
 ok(classify('BEHAV_WIRED_FAILED_CHECKS ' + names[0]) === 'behav_wired:' + names[0],
@@ -69,10 +76,32 @@ ok(classify('noise before\nBEHAV_WIRED_FAILED_CHECKS ' + names[0] + ' ' + names[
   === 'behav_wired:' + names[0] + '+' + names[1],
   'two are joined, and surrounding suite output is ignored');
 
-const many = names.slice(0, 9);
+const many = names.slice(0, CAP + 4);
 const capped = classify('BEHAV_WIRED_FAILED_CHECKS ' + many.join(' '));
-ok(capped === 'behav_wired:' + many.slice(0, 5).join('+') + '+4more',
-  'a wide breakage names the first few and COUNTS the rest — a forty-name line is the same blackout in another shape');
+ok(capped === 'behav_wired:' + many.slice(0, CAP).join('+') + '+4more',
+  'a wide breakage names the first ' + CAP + ' and COUNTS the rest — a forty-name line is the same blackout in another shape');
+ok(classify('BEHAV_WIRED_FAILED_CHECKS ' + names.slice(0, CAP).join(' ')).indexOf('more') < 0,
+  'and a failure exactly at the cap is named in full, with nothing hidden behind a count');
+
+/* THE CAP MUST BE BIGGER THAN A REAL FAILURE, or it is the blackout it was
+   written to prevent. Measured, not asserted from taste: the heavy lane has
+   been red since 2026-08-30 with six failing checks, and at a cap of 5 the
+   public summary named five of them and hid the sixth behind "+1more" on 27
+   consecutive runs. That sixth check is unnamed in the ledger and unrecoverable
+   from the run history, because the text it came from is live-derived and stays
+   on the ephemeral runner (OPEN_REPAIRS 125). A cap set below the size of an
+   actual failure does not summarise it, it conceals it — and the names cost
+   nothing to print, since every one of them is matched against an allowlist
+   read out of this public repository's own source. */
+ok(CAP >= 6,
+  'the cap can name the whole of the failure that has been live since 2026-08-30 (cap ' + CAP + ' ≥ 6)');
+const six = ['chip', 'kbProj', 'titleTooltip', 'ringClearOnNav', 'pcardNameTooltip'];
+for (const name of six) {
+  ok(allowlist.has(name), 'the real failing check "' + name + '" is one the summary can name');
+}
+ok(classify('BEHAV_WIRED_FAILED_CHECKS ' + names.slice(0, 6).join(' '))
+  === 'behav_wired:' + names.slice(0, 6).join('+'),
+  'so a six-check failure now reports all six names instead of five and a shrug');
 
 // ---- the discipline: nothing from a run reaches the summary --------------
 ok(classify('BEHAV_WIRED_FAILED_CHECKS ClientName Acme_Corp') === '',

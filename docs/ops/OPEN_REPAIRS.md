@@ -10355,6 +10355,170 @@ it.
 
 **Owner decision needed before any code:** route A-via-n8n, A-via-Edge-Function,
 or B.
+## 141. [2026-09-04] The polish gate's public summary named five of six failing checks and hid the sixth behind "+1more" — for 27 consecutive runs, and the hidden one is unrecoverable
+
+Numbered 141 because 135–140 are claimed by branches that are open and unmerged
+at the time of writing (PRs 1252–1256). Check for duplicate `## N.` headers after
+any of them merges.
+
+Follow-up to item 125, which named five of the six failing behaviour checks and
+recorded the sixth as "one unnamed". This entry is about **why** it was unnamed,
+and closes that half.
+
+### The mechanism
+
+`prod-polish-gate.js` classifies a heavy-lane failure into a code that carries no
+live text, because the suite's own output is live-derived and must stay on the
+ephemeral runner. For `behav-wired.js` it names the failing checks, matched
+against an allowlist harvested from that suite's own source — and then caps the
+list:
+
+```js
+const BEHAV_WIRED_NAME_CAP = 5;
+```
+
+The cap's stated reason was sound in the abstract: *"a 40-name summary line is
+the same blackout in a different shape"*. But the failure it met was **six**
+checks, not forty, so every run since 2026-08-30 has emitted:
+
+```
+behav_wired:chip+kbProj+titleTooltip+ringClearOnNav+pcardNameTooltip+1more
+```
+
+The sixth name exists only in `.codex-tmp/prod-heavy-private.log` on a runner that
+no longer exists. It is not in the run history, not in the job summary, and not
+recoverable after the fact. **The one check nobody could name is the one check
+nobody has looked at, five days running.** A cap set below the size of a real
+failure does not summarise it, it conceals it.
+
+Nothing was being protected. The names are matched against
+`BEHAV_WIRED_CHECKS`, read from `behav-wired.js` in this public repository, and
+the emitted string is assembled from allowlist entries — never from the run's
+output. A longer list carries exactly as much live text as a short one, which is
+none. The cap is a readability limit and was simply set too low.
+
+**FIXED:** cap raised 5 → 24. A realistic partial breakage is now named in full;
+a catastrophic one still collapses into a count. The next heavy-lane run names
+the sixth check.
+
+### The test was describing a cap of its own
+
+`test/prod-polish-names-the-check.js` built the classifier with a hardcoded `5`
+rather than reading `BEHAV_WIRED_NAME_CAP` out of the gate, so changing the
+shipped cap moved the summary and left every assertion green. That is the exact
+shape of defect the file exists to catch, sitting inside the file. It now reads
+the constant, asserts a failure exactly at the cap is named in full, and asserts
+the cap is at least as large as the failure that has been live since 2026-08-30.
+
+### Three of item 125's four unmeasured checks, read from source
+
+Not executed — this sandbox has no route to the live backend and that has not
+changed. These are **source-verified statements about what the check demands
+versus what the shipped code can produce**, which is a weaker claim than
+item 125's two offline reproductions and is labelled as such.
+
+**`kbProj` — STALE, and provably so from source alone.** The check presses
+Shift+P and requires a picker to appear:
+
+```js
+await page.keyboard.press('Shift+p');
+return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0;
+```
+
+`_prodOpenPicker` now refuses `proj` **at the door**, before building anything,
+and says so in a twenty-line comment: *"`proj` never opens … There is no gateway
+operation that writes client_slug, on any surface, for any role … Refusing at the
+door, with the reason, is the only honest shape."* It was refused there rather
+than at each of the four callers — and Shift+P is named as one of those four. The
+check asserts the behaviour that was deliberately removed. Its three neighbours
+(`kbStatus`, `kbAssign`, `kbDue`) already assert the *blocked* shape through
+`signedOutWriteGuard`; `kbProj` is the one that was never re-based.
+
+**`pcardNameTooltip` — STALE, same cause as `titleTooltip`.** It requires a short
+project-card name to carry `data-fulltitle` but **no** `title`:
+
+```js
+const shortOk = !shortEl.hasAttribute('title') && shortEl.getAttribute('data-fulltitle') === 'Zz';
+```
+
+The card title is rendered through `_prodTitleAttrs`, whose entire body is:
+
+```js
+return ' data-fulltitle="' + _calEscAttr(s) + '" title="' + _calEscAttr(s) + '"';
+```
+
+It emits `title` unconditionally, so `shortOk` cannot be true for any input. This
+is PR #1229's "Always emit it" — the same deliberate change item 125 already
+identified behind `titleTooltip`, reaching a second check. The long-title half
+still passes, exactly as it does for `titleTooltip`.
+
+**`ringClearOnNav` — NOT explained, and the obvious candidate is REFUTED.** The
+check clicks a nav button and then presses `j`, and the keydown handler now
+returns early whenever a native control has focus (*"do not let Production row
+shortcuts steal Enter from the global header nav"*). `.prod-nav-btn` is a real
+`<button>`, so that guard looked like the answer. It is not: `_prodRender()`
+assigns `root.innerHTML = _prodSidebar() + …`, which destroys the clicked button
+and drops focus back to `<body>`, so `activeControl` is null by the time the key
+arrives. Recorded as ruled out so the next session does not spend the same hour.
+
+What remains structurally possible, unmeasured: on an **empty** board
+`_prodMoveCardFocus` early-returns with `focusCard = ''` while `_prodBoardFlat()[0]`
+is `undefined`, and the check's `focusCard === _prodBoardFlat()[0]` compares
+`'' === undefined` — false. That is the check failing for a reason that is not a
+product defect, and it is worth fixing in the check whichever way the rest lands.
+
+### WHY the sandbox cannot run the heavy lane — measured, and it is not "no route"
+
+Item 125 says reproducing needs "the live backend this sandbox cannot reach",
+and `CLAUDE.md` says the lanes "cannot pass in a sandbox with no route to the
+live backend". Both are true in effect and wrong in mechanism, and the mechanism
+is worth recording because it is one dependency away from being fixable.
+
+There IS a route. `curl` reaches the Supabase REST API from this sandbox and
+returns rows — every gating read in the pre-flip health check runs that way. What
+fails is specifically **Chromium**, and it fails in a way that looks like a
+network outage:
+
+- Playwright's Chromium does not use `HTTPS_PROXY`. Launched plainly it dials
+  the internet directly and every off-host request ends `ERR_CONNECTION_RESET`,
+  which reads as "no route" and is where the belief above comes from.
+- Pointed at the agent proxy (`proxy: { server: HTTPS_PROXY }`, plus
+  `PLAYWRIGHT_DISABLE_FORCED_CHROMIUM_PROXIED_LOOPBACK=1` so Playwright stops
+  appending `<-loopback>` and forcing the suite's own 127.0.0.1 static server
+  through the proxy, which otherwise 405s and the page never loads at all) the
+  requests DO reach the proxy. They then die in the TLS handshake: the proxy's
+  own status endpoint records `ws_closed_mid_exchange` for
+  `<project>.supabase.co:443`, `fonts.googleapis.com:443` and
+  `cdn.jsdelivr.net:443` — "tunnel closed (code 1006) after 6s; ~1.76 kB sent,
+  39 B received". 1.76 kB out is a ClientHello; 39 B back is an alert. Chromium
+  is rejecting the proxy's re-terminated certificate.
+
+Everything else in this sandbox trusts that CA (`/root/.ccr/ca-bundle.crt`).
+Chromium reads its own NSS store at `~/.pki/nssdb`, which exists here but cannot
+be inspected or amended because `certutil` (`libnss3-tools`) is not installed.
+**So the blocker is one package and one `certutil -A` away**, and a session that
+can install it should be able to run `behav-wired.js` against live data and
+settle `ringClearOnNav`, the sixth check and the pixel lane in one pass — the
+thing item 125 says is the right next step and has been waiting for since
+2026-08-30. Not attempted further here: the only browser-side shortcut is
+`--ignore-certificate-errors`, and the sandbox's own README says never to
+disable TLS verification.
+
+### Where item 125 now stands
+
+| check | status |
+|---|---|
+| `titleTooltip` | stale, reproduced offline (item 125) |
+| `chip` | changed assumption, reproduced offline, data-dependent (item 125) |
+| `kbProj` | **stale, source-verified here** |
+| `pcardNameTooltip` | **stale, source-verified here** |
+| `ringClearOnNav` | unexplained; the leading candidate is ruled out here |
+| the sixth | **nameable from the next heavy run**, which is what this entry fixes |
+| `pixel parity [error_generic]` | untouched |
+
+Item 125's conclusion is unchanged and deliberately not pre-empted: re-basing a
+quality gate's expectations is an owner decision, and four of seven now looking
+stale is an argument for making that decision, not for making it quietly.
 ## 139. [2026-09-03, WATCHER SHIPPED — test-only, no product change] The comment family's twin drift is now a check, after a written prediction failed three times
 
 Two entries describe the same defect from two angles, and both end in prose:

@@ -6684,10 +6684,15 @@ zero:*
 
 **PARTLY ANSWERED 2026-09-03 — the lane exists, as a RATCHET (item 140).**
 `.github/workflows/edge-function-type-ratchet.yml` runs `deno check` on
-`production-write` — and on the five other hand-deployed functions that had no
-lane either — comparing each to a recorded per-error-code baseline: new type
-errors fail, the existing ones do not. Three of the six turned out to be CLEAN,
-so on those it is a gate rather than a ratchet. The typing repair this entry
+`production-write` and on **every other Edge Function in the repository**,
+comparing each to a recorded per-error-code baseline: new type errors fail, the
+existing ones do not. The roster is DERIVED from `supabase/functions/*/index.ts`
+rather than hand-listed, which is what took it from the six functions the first
+version named to **34 targets, 26 of them CLEAN** — so on the large majority it
+is a gate rather than a ratchet, and eight carry recorded debt. (This paragraph
+first said "six, three clean", from the hand-written roster the derived one
+replaced; the correction is the whole point of item 140's own finding, so it is
+made here rather than left to contradict it.) The typing repair this entry
 describes is still owed and still should not be done unattended, for exactly
 the reason below — but it is no longer the only thing standing between a NEW
 type error and production. Re-measured while building it: **15, not 14** — a

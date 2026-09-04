@@ -25,6 +25,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const { extractFunction } = require('./helpers/extract-function.js');
 
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -63,6 +64,7 @@ function harness(options) {
   const notified = [];
   const viewChanges = [];
   const cleared = [];
+  const renders = [];
   /* calState carries a view now, because a card only paints in the Sheet and
      the deferred deep-link path arrives with whatever view the client saved. */
   const calState = {
@@ -76,7 +78,7 @@ function harness(options) {
     '_calFocusRequest', 'calState', 'wlNormalizeClient', 'showNotify',
     'requestAnimationFrame', 'document', 'window', 'setTimeout',
     '_calClearFocusHighlight', '_calFocusOutsideHandler',
-    'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive',
+    'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive', '_calRenderBody',
     src + '\nreturn _calApplyFocusRequest;',
   )(
     { client: 'Client', cardId: 'p_target' },
@@ -92,10 +94,11 @@ function harness(options) {
     v => { viewChanges.push(v); calState.view = v; },
     () => { cleared.push(calState.client); calState.monthFilter = 'all'; },
     () => calState.monthFilter !== 'all' || calState.statusFilter !== 'all',
+    () => { renders.push(calState.focusPid); },
   );
   fn();
   return {
-    log, notified, card, timers, viewChanges, cleared, calState,
+    log, notified, card, timers, viewChanges, cleared, calState, renders,
     runFrames(n) { for (let i = 0; i < n; i++) { frameNo++; const queued = frames.splice(0); queued.forEach(cb => cb()); } },
     runTimers() { timers.splice(0).forEach(t => t.cb()); },
     pendingFrames: () => frames.length,
@@ -205,13 +208,70 @@ function harness(options) {
     'and it says nothing, because the reader has already moved on');
 }
 {
-  // The ordinary case still works: filters hid the card, so clear them once.
-  const h = harness({ appearsAtFrame: 45, monthFilter: '2026-04' });
-  h.runFrames(60);
-  ok(h.cleared.length === 1, 'filters that hid the card are cleared exactly once');
-  ok(h.notified.some(n => /Filters cleared/.test(n)), 'and the reader is told');
+  /* The filter-CLEARING version was replaced by a focusPid bypass, which is
+     what _calReviewOpenInSheet has always used. Nothing is cleared and nothing
+     is persisted; the card is forced through the filters instead. */
+  const h = harness({ appearsAtFrame: 2, monthFilter: '2026-04' });
+  h.runFrames(10);
+  ok(h.cleared.length === 0,
+    'a filtered-out card is shown by bypassing the filters, never by clearing them');
+  ok(h.calState.focusPid === 'p_target',
+    'the card is pinned through the month, status and ready filters via focusPid');
+  ok(!h.notified.some(n => /Filters cleared/.test(n)),
+    'and the reader is told nothing, because nothing of theirs was changed');
 }
 
+/* ---- the pin cannot outlive the client it belongs to -------------------- */
+
+/* `calState.focusPid` is GLOBAL, so a client switch is the other way it goes
+   stale (the first is leaving the Sheet, which onCalViewChange handles). The
+   first fix cleared it inside `_calOpenClientTab` alone; Codex caught on #1252
+   that an ordinary tab click goes through onCalTabClick -> onCalClientChange,
+   and that the search picker, active-tab removal, boot mount and client-entry
+   purge assign the client too. Seven assignments, one of them remembering is
+   not a rule. So the rule lives in the assignment: there is exactly ONE place
+   the active client changes, and it carries the clear. */
+{
+  const INDEX = html;
+  const setter = extractFunction(INDEX, '_calSetClient');
+  ok(/calState\.client !== name.*calState\.focusPid = null/s.test(setter),
+    '_calSetClient drops the focus pin whenever the client actually changes');
+
+  const assignments = (INDEX.match(/calState\.client = /g) || []).length;
+  ok(assignments === 1,
+    'and it is the ONLY place calState.client is assigned, so a new switch path '
+    + 'gets the rule by construction (found ' + assignments + ')');
+  ok(/function _calSetClient\(name\) \{[^}]*calState\.client = name;/s.test(INDEX),
+    'that one assignment being the setter\'s own');
+
+  // Run it, rather than only reading it.
+  const run = new Function('calState', `${setter}; return _calSetClient;`);
+  let st = { client: 'a', focusPid: 'p1' };
+  run(st)('b');
+  ok(st.client === 'b' && st.focusPid === null, 'switching client drops the pin');
+  st = { client: 'a', focusPid: 'p1' };
+  run(st)('a');
+  ok(st.client === 'a' && st.focusPid === 'p1',
+    'while re-setting the SAME client keeps it — a no-op switch must not cancel a deep link mid-flight');
+  st = { client: 'a', focusPid: 'p1' };
+  run(st)(null);
+  ok(st.client === null && st.focusPid === null, 'and clearing the client drops it too');
+
+  /* THE THIRD WAY IT GOES STALE. onCalViewChange covers leaving the Sheet and
+     _calSetClient covers changing client; neither fires when you navigate to
+     Home and back, and returning to the SAME pinned client is a no-op switch,
+     so the pin survived the round trip. navTo drops it on the way out. */
+  const navToSrc = extractFunction(INDEX, 'navTo');
+  ok(/if \(page !== 'calendar'\) calState\.focusPid = null;/.test(navToSrc),
+    'navTo drops the focus pin whenever it routes away from the calendar');
+  ok(navToSrc.indexOf("if (page !== 'calendar') calState.focusPid = null;")
+       > navToSrc.indexOf('_calV2Teardown'),
+    'beside the calendar teardown, which is where leaving-the-calendar cleanup lives');
+  ok(/if \(v !== 'organizer'\) calState\.focusPid = null;/.test(INDEX),
+    'and the two older exits are still there: leaving the Sheet…');
+  ok(/calState\.client !== name\) calState\.focusPid = null;/.test(INDEX),
+    '…and changing client');
+}
 
 if (failures) {
   console.error(`\n${failures} calendar deep-link focus check(s) failed`);

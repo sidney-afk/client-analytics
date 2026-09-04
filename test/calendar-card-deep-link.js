@@ -36,39 +36,29 @@ const ok = (c, m) => { if (c) { pass++; console.log('  ok  ' + m); } else { fail
    `extractFunction` is in this repo for exactly that reason. */
 const focus = extractFunction(SRC, '_calApplyFocusRequest');
 
-ok(/let clearedFilters = false;/.test(focus),
-  'the focus path can clear the filters that hid the card');
+/* The first version of this fix CLEARED the per-client Organize filters to make
+   the card appear. It worked, and it was the wrong tool: it threw away a saved
+   view to show one card, and persisted the loss. `calState.focusPid` already
+   forces a single card through the month, status and client-ready filters —
+   the mechanism `_calReviewOpenInSheet` has always used for the review→Sheet
+   jump, which is what the owner meant by "we had that before". */
+ok(/if \(req\.cardId\) calState\.focusPid = post\.id;/.test(focus),
+  'a card link pins focusPid, bypassing the filters instead of clearing them');
+ok(!/onCalClearFilters/.test(focus),
+  'and it never clears or persists over the reader\'s saved view');
+ok(/if \(calState\.view !== 'organizer'\) onCalViewChange\('organizer'\);/.test(focus),
+  'it switches to the Sheet, the only view that renders .cal-card');
+ok(/else if \(req\.cardId\) _calRenderBody\(\{ preserveScroll: true \}\);/.test(focus),
+  'and re-renders when already on the Sheet, so the new focusPid takes effect');
 {
-  /* Asserted as a property over the guard, not as one exact line: the guard
-     grew a client re-check (below) and a punctuation-exact pin would have
-     failed for that alone, which teaches people to edit pins. */
-  const guard = focus.slice(focus.indexOf('if (!clearedFilters'), focus.indexOf('onCalClearFilters()'));
-  ok(/_calOrganizeIsActive\(\)/.test(guard) && /typeof _calOrganizeIsActive === 'function'/.test(guard),
-    'it only clears when filters are actually active — a default view is never disturbed');
-}
-ok(/clearedFilters = true;[\s\S]{0,80}framesWaited = 0;/.test(focus),
-  'and it restarts the frame budget, so the card gets a fresh chance to paint');
-ok(/onCalClearFilters\(\)/.test(focus),
-  'it reuses the Organize menu\'s own Clear, so ordering mode survives and the change persists identically');
-ok(/showNotify\('Filters cleared'/.test(focus),
-  'the reader is told their view changed rather than left to notice');
-{
-  // Load-bearing ordering: clearing BEFORE the frame budget would throw away a
-  // saved view on every deep link, including the ones about to paint anyway.
-  const budget = focus.indexOf('framesWaited < CAL_FOCUS_MAX_FRAMES');
-  const clear = focus.indexOf('onCalClearFilters()');
-  ok(budget > 0 && clear > budget,
-    'the clear happens only AFTER the frame budget is spent, never up front');
+  // focusPid and the view must both be settled BEFORE we start hunting for the
+  // element, or the frame budget is spent looking for something that cannot exist.
+  const pin = focus.indexOf('calState.focusPid = post.id');
+  const loop = focus.indexOf('const focusWhenPainted');
+  ok(pin > 0 && pin < loop, 'both happen before the frame budget starts, not after it is spent');
 }
 ok(/showNotify\('Card not shown'/.test(focus),
   'a card that still will not render says so — the path never ends in silence');
-{
-  // The old copy told the reader to go check the filters. Now it clears them,
-  // so that instruction would be stale advice about work already done.
-  const notShown = focus.slice(focus.indexOf("showNotify('Card not shown'"), focus.indexOf("showNotify('Card not shown'") + 300);
-  ok(!/Organize filters/.test(notShown),
-    'and it no longer tells the reader to check filters the code just cleared');
-}
 
 // --- two review findings, both real, both verified against source ---------
 /* Codex on PR #1251. Neither was cosmetic: the second would have made the fix
@@ -89,11 +79,13 @@ ok(/const focusClient = req\.client;/.test(focus),
 ok(/if \(!focusClientStillActive\(\)\) return;/.test(focus),
   'a client switch mid-wait abandons the focus instead of acting on the new client');
 {
-  // onCalClearFilters writes AND PERSISTS against whatever client is current.
-  // Clearing without re-checking would erase a bystander client's saved filters.
-  const clearGuard = focus.slice(focus.indexOf('if (!clearedFilters'), focus.indexOf('if (!clearedFilters') + 200);
-  ok(/focusClientStillActive\(\)/.test(clearGuard),
-    'and the clear itself re-checks the client, because it persists to that client\'s prefs');
+  /* focusPid is global state, so a client switch mid-wait would leave one
+     client's focus pinned on another client's board. The clear-based version
+     had the same hazard for a different reason; the guard survives the rewrite
+     because the hazard did. */
+  const loopTop = focus.slice(focus.indexOf('const focusWhenPainted'), focus.indexOf('const safe ='));
+  ok(/focusClientStillActive\(\)/.test(loopTop),
+    'and every frame re-checks the client, because focusPid is global state');
 }
 
 // --- the unresolved-slug path --------------------------------------------

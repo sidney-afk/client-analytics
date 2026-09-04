@@ -86,6 +86,17 @@ ok(/route\.fulfill\(\{ status: res\.status/.test(CODE),
 ok(/return route\.abort\('failed'\)/.test(CODE) && !/status: 500/.test(CODE),
   'and a transport failure ABORTS rather than fulfilling a fake error — a test must see a failed request as a failed request, not as a backend defect');
 
+/* ---- 2b. It must not be able to write to production -------------------- */
+
+ok(/if \(!\['GET', 'HEAD'\]\.includes\(req\.method\(\)\)\)/.test(CODE),
+  'it refuses every non-GET/HEAD method');
+ok(CODE.indexOf("includes(req.method())") < CODE.indexOf('await fetch(url'),
+  'and refuses BEFORE the fetch — a mutation that reaches the fetch has already changed production, so a check that reports it afterwards is not a guard');
+ok(/blockedWrites/.test(CODE) && /blockedWrites: \(\) => stats\.blockedWrites\.slice\(\)/.test(CODE),
+  'a refused mutation is recorded and readable, so an application regression that tries to write during a read-only run is visible rather than silent');
+ok(!/allowWrites|allowMutations|opts\.write/.test(CODE),
+  'and there is no opt-in that turns writing back on — a bridge that can be talked into writing is one someone will talk into writing');
+
 /* ---- 3. It must not become a general-purpose internet hole ------------- */
 
 ok(Array.isArray(BRIDGED) && BRIDGED.length >= 1,

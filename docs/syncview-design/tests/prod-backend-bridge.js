@@ -61,7 +61,7 @@ async function probe() {
 
 async function installBackendBridge(page, opts) {
   const options = opts || {};
-  const stats = { bridged: 0, failed: 0, preflight: 0, byStatus: {} };
+  const stats = { bridged: 0, failed: 0, preflight: 0, blockedWrites: [], byStatus: {} };
 
   await page.route('**/*', async (route) => {
     const req = route.request();
@@ -84,6 +84,20 @@ async function installBackendBridge(page, opts) {
         },
         body: '',
       });
+    }
+
+    /* REFUSE MUTATIONS AT THE DOOR. This carries traffic to the REAL backend, so
+       a POST/PATCH/DELETE that reaches `fetch` below has already changed
+       production data -- and AGENTS.md is unambiguous: no suite may mutate a
+       live backend. The lane's `noWriteRequests` check is a report, not a
+       guard: it runs at the end and can only say a mutation happened. A guard
+       has to be here, before the request is made, so that an application
+       regression during a read-only run cannot write to production even once.
+       There is deliberately NO opt-in flag: a bridge that can be talked into
+       writing is a bridge someone will talk into writing. */
+    if (!['GET', 'HEAD'].includes(req.method())) {
+      stats.blockedWrites.push(req.method() + ' ' + new URL(url).pathname);
+      return route.abort('failed');
     }
 
     const headers = Object.assign({}, req.headers());
@@ -122,6 +136,10 @@ async function installBackendBridge(page, opts) {
   if (options.verbose) console.log('backend bridge installed for: ' + BRIDGED.map(String).join(', '));
   return {
     stats: () => JSON.parse(JSON.stringify(stats)),
+    /* Any mutation the page attempted, refused before it could reach the
+       backend. Non-empty means the app tried to write during a read-only run —
+       worth failing over, and visible rather than silent. */
+    blockedWrites: () => stats.blockedWrites.slice(),
     /* So a suite can assert it actually carried traffic rather than passing on
        an empty page — the failure mode a bridge makes possible. */
     assertCarried(minimum) {

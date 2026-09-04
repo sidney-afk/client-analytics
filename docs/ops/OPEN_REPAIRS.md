@@ -10224,3 +10224,182 @@ from the function's start, so adding ~25 lines pushed half the assertions past
 the end and they failed as a block while reporting nothing about the code they
 guard. It now uses `extractFunction`, which exists in this repo for exactly that
 mistake.
+
+---
+
+## 135. [2026-09-03, FIXED — browser-only, live on merge] Kasper could not approve a caption that was already written, and the notice blamed the SMM for a file nobody owed
+
+**Reported.** The owner opened the four cards from item 134's notice and said:
+*"you can see that the cards are fine… they have captions, so can you find out
+what's happening?"* They were right. Three of the four were waiting on the
+CAPTION, with the caption written and sitting there — one of them a
+caption-only card whose video and thumbnail are both **N/A**.
+
+**The gate asked a question a caption cannot answer.** Admission to Kasper's
+queue was `hasKasperWork && (hasAsset || hasThumb)` — one question about the
+WHOLE card: does it carry any media? A caption is text. It needs no file, so a
+caption-only card always answered no, fell into the stranded notice, and told
+the SMM to *"add the file"* for work that was finished and needed none. Kasper
+had no way to approve it.
+
+**Now asked per component:** a `video` needs `asset_url`, a `graphic` needs
+`thumbnail_url`, and `caption` and `title` need neither. A card is admitted when
+**any** component waiting on Kasper is reviewable, and reported as stranded only
+when none is.
+
+**`_kasperRenderCard` was already built for this**, which is what makes the fix
+small and the old gate clearly the anomaly: it falls back to a placeholder when
+there is no thumbnail, disables the watch button when there is no video, and its
+own comment says the single-panel hero layout *"applies to video, thumbnail, and
+caption alike so the visual weight stays consistent regardless of which single
+component Kasper is looking at."* Only the upstream gate was hiding these cards.
+
+**The banner copy was also wrong, not just incomplete.** It asserted "no video
+and no thumbnail attached, so there is nothing to review yet", which is false for
+a caption. It now says a video or thumbnail is missing and states plainly that a
+caption or title never lands there.
+
+**Follow-up from review, same fix.** The per-component test has to be applied in
+all three places or it makes things worse: admission, the rendered panels, and
+the "Finish reviewing" gate. Admitting a card on its caption and then leaving the
+fileless video in the gate's set would strand Kasper on a card whose Finish
+button is disabled with nothing left to click.
+
+**I then split the set in two, and that was wrong — Codex caught it, and it was
+worse than the bug it was meant to avoid.** The reasoning was that "has something
+been re-sent to me?" and "what stops me finishing?" are different questions, the
+first media-blind, so `_kasperUndecidedComps` stayed blind for `_kasperIsFinished`
+while a new `_kasperBlockingComps` fed the Finish gate. **Any daylight between
+those two sets is a card that can be finished and never reads as finished.** On
+the exact card this entry is about — a written caption and a fileless video both
+at Kasper Approval — deciding the caption emptied the media-aware gate, so Finish
+was allowed; the media-blind test then still saw the video as a fresh re-route
+and returned false **forever**. The card could never leave Waiting and clicking
+Finish again could not help. The no-tweak branch was worse still: it removed the
+card and logged it Approved with a component undecided.
+
+**The suite had already stated the rule the split ignored.** Its G3 case is *"an
+ACTIONABLE component is back at Kasper Approval → fresh ask"* and G4 is the
+unlinked graphic that is *"NOT actionable, so it must not un-finish the card"*. A
+fileless video is G4, not G3 — Kasper cannot watch what is not there, exactly as
+he cannot act on a thumbnail with no sub-issue. I preserved a fixture's
+INCIDENTAL shape (G3's video happened to carry no `asset_url`, because before
+this entry nothing looked) over the suite's STATED rule, and built a second
+function to keep the accident alive.
+
+So there is one set again, media-aware, read by all three sites. Nothing is lost
+by scoping a fileless component out: `_kasperRenderStrandedNotice` reports it to
+the SMM by name, who is the person who can fix it. G3's fixture now carries a
+file so it tests what its own title says, G3b is the fileless counterpart
+asserting the G4 rule, and `test/kasper-review-state-global.js` adds the
+invariant as a property over six card shapes: **if the guard allows Finish, the
+stamp it writes must make the card read as finished.** Re-introducing the split
+fails six checks across two suites.
+
+**The Samples twin is deliberately NOT changed, and the reason is recorded so
+nobody re-derives it.** `SXR_REVIEW_COMPONENTS` is `['video','graphic']` — there
+is no caption and no title on that surface, so this entry's actual defect cannot
+occur there. And samples is already SELF-CONSISTENT: one set,
+`_sxrKasperUndecidedComps`, read by its finish gate, its finished-state test and
+its finish handler alike, and it both counts a component and renders its panel.
+Adding the media filter to that set alone would break precisely that consistency
+— a fileless component would stop counting while its panel still rendered an
+enabled Approve, the mirror image of the trap just removed from the calendar.
+Doing it properly means filtering the samples panel render too, which is a
+larger change than this one. All four facts are asserted in
+`test/kasper-stranded-handoff.js`, so the difference reads as a decision rather
+than as drift — which is what item 117 asks for.
+
+**ANSWERED 2026-09-03, from the code rather than by guessing: nothing anomalous
+happened.** The question was why a caption reached Kasper Approval on a card
+with no media at all. Review approval is **per component**, and the SMM lane's
+destination is Kasper:
+
+```js
+const _CAL_REVIEW_CFG = {
+    client: { reviewStatus: 'Client Approval', approveTo: 'Approved' },
+    smm:    { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' },
+};
+…
+post[subKey] = approveTo;          // subKey is comp + '_status'
+```
+
+So an SMM approving the CAPTION in SMM Review writes
+`caption_status = 'Kasper Approval'` and touches nothing else. A caption is
+text; it needs no file; the card's video and thumbnail being `N/A` is
+irrelevant to that write. The state was produced by the ordinary route working
+exactly as designed, and the only defect was the admission gate refusing to
+show it.
+
+Stated honestly: this identifies the mechanism that produces the state, not a
+record of those four specific cards being moved that way — the per-card history
+would need the data, and item 101 is the entry about there not being any. But
+the alternative reading ("someone or something set it wrongly") has no mechanism
+anywhere in the code, and this one is the normal path. **This entry needed a
+fix, not an investigation, and the fix is above.**
+
+---
+
+## 136. [2026-09-03, FIXED — browser-only, live on merge; replaces item 134's mechanism] A card deep link should bypass the filters, not clear them
+
+**Reported, after 134 shipped.** *"Nothing happens when I open a card link… it
+should be at the center, and it should be highlighted or something, we had that
+before."*
+
+**They had it before, and the mechanism was still there.** `calState.focusPid`
+forces one card through the month filter, the status filter and the client
+"ready only" filter — three `p.id === calState.focusPid ||` clauses in the
+organizer's post list. `_calReviewOpenInSheet` has always used it for the
+review→Sheet jump, with the comment *"sets a transient focus pid so the Sheet
+shows the card even if the client's ready-only filter (or an active month
+filter) would otherwise hide an in-review post."* That is exactly what a card
+link needs, and the deep-link path simply never used it.
+
+**Item 134 cleared the filters instead.** That worked, and it was the wrong
+tool: it threw away a saved per-client view to show one card, and PERSISTED the
+loss. It also carried a hazard review had to catch — the clear writes against
+whatever client is current, so a client switch mid-wait could erase a
+bystander's filters. A surgical bypass existed the whole time.
+
+The deep link now does the three things the review jump does: pin `focusPid`,
+ensure the Sheet (the only view that emits `.cal-card`), re-render so both take
+effect — then find, outline and centre the card. `focusPid` is state, so it
+survives a later repaint; the highlight class is on a DOM node and does not,
+which is why the card stays visible even after the strip re-renders.
+
+The client re-check survives the rewrite because the hazard did: `focusPid` is
+global, so a client switch mid-wait would otherwise pin one client's focus onto
+another client's board.
+
+### Follow-up, and the first fix was one site short (Codex on #1252)
+
+`calState.focusPid` is the bypass, and it is GLOBAL. `onCalViewChange` drops it
+when you leave the Sheet; a CLIENT switch is the other way it goes stale, and
+nothing dropped it there — so returning to a client later still forced its card
+past the month, status and ready-only filters, long after the highlight was
+dismissed.
+
+The first fix cleared it inside `_calOpenClientTab`. That is the deep-link path
+and **not** the ordinary one: a tab click goes `onCalTabClick` →
+`onCalClientChange`, and the search picker, the active-tab removal, the boot
+mount, the embedded mount, the after-data-ready resolve and the client-entry
+purge all assign the client too. **Seven assignments, one of them remembering,
+is not a rule.**
+
+So the rule lives in the assignment. `_calSetClient(name)` is now the only place
+`calState.client` is written — asserted, as a count of one — and it drops the
+pin whenever the client actually changes while leaving it alone on a no-op
+re-set, because a deep link mid-flight must not cancel itself. A new switch path
+gets the behaviour by construction rather than by somebody remembering a comment
+exists. `test/calendar-deep-link-focus.js` runs the setter for real over all
+three cases and pins the count.
+
+**And there was a THIRD way it went stale, which the setter does not cover.**
+`onCalViewChange` drops the pin when you leave the Sheet and `_calSetClient`
+drops it when the client changes — but neither fires when you navigate to Home
+or another top-level route, and coming back to the SAME pinned client is a
+no-op switch, so the pin survived the whole round trip and kept forcing one card
+past the saved month, status and ready-only filters long after the reader had
+moved on. `navTo` now drops it whenever it routes away from the calendar, beside
+the calendar teardown that already lives there. All three exits are asserted
+together, so it is visible that there are three.

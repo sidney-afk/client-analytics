@@ -83,11 +83,12 @@ ${grabConst('CAL_PINS_KEY')}
 ${grabFunc('wlNormalizeClient')}
 ${grabFunc('_calGetPins')}
 ${grabFunc('_calSavePins')}
+${grabFunc('_calSetClient')}
 ${grabFunc('_calOpenClientTab')}
 ${grabFunc('_calResolvePendingDeepLink')}
 return {
   _store, CAL_PINS_KEY, calls, notices,
-  _calGetPins, _calSavePins, _calOpenClientTab, _calResolvePendingDeepLink,
+  _calGetPins, _calSavePins, _calSetClient, _calOpenClientTab, _calResolvePendingDeepLink,
   get calState(){ return calState; },
   get pending(){ return _calPendingDeepLink; }, set pending(v){ _calPendingDeepLink = v; },
   get focus(){ return _calFocusRequest; }, set focus(v){ _calFocusRequest = v; },

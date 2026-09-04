@@ -276,7 +276,7 @@ assert(
   'Calendar → client Samples must retire transport without relying on navTo',
 );
 assert(
-  purgeSource.indexOf("_calV2Teardown === 'function'") < purgeSource.indexOf('calState.client = null'),
+  purgeSource.indexOf("_calV2Teardown === 'function'") < purgeSource.indexOf('_calSetClient(null)'),
   'invalid-link/pagehide purge must abort Calendar before clearing client state',
 );
 assert(

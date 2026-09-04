@@ -169,14 +169,21 @@ vm.createContext(linkageContext);
 vm.runInContext([
   extract('_calCompLinked'),
   extract('_calCompKasperVisible'),
+  extract('_kasperCompReviewable'),
   extract('_kasperUndecidedComps'),
   extract('_sxrCompKasperVisible'),
   extract('_sxrKasperUndecidedComps'),
 ].join('\n'), linkageContext);
+/* thumbnail_url is what makes this graphic ACTIONABLE, and the assertions below
+   are about LINKAGE, not about media. Kasper's undecided set has counted only
+   components he can act on since OPEN_REPAIRS 135 -- an unlinked thumbnail, and
+   now also one whose image never arrived -- so a fixture with no image would be
+   testing the media rule by accident instead of the linkage rule on purpose. */
 const nativeGraphic = {
   graphic_linear_issue_id: '',
   graphic_deliverable_id: 'deliverable-native',
   graphic_status: 'Kasper Approval',
+  thumbnail_url: 'https://drive.google.com/native-thumb.png',
   video_status: 'In Progress',
   caption_status: 'In Progress',
 };

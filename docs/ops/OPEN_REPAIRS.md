@@ -11521,3 +11521,48 @@ past the saved month, status and ready-only filters long after the reader had
 moved on. `navTo` now drops it whenever it routes away from the calendar, beside
 the calendar teardown that already lives there. All three exits are asserted
 together, so it is visible that there are three.
+
+---
+
+## 144. The heavy lane could not run off-CI, so six of its checks were guesses
+
+`npm run test:prod-polish`'s heavy lanes boot the real app against the real
+backend. In a sandbox they could not: outbound HTTPS goes through a policy proxy
+that re-terminates TLS, and Playwright's bundled Chromium does not trust that
+proxy's CA. It does not read the system NSS store either, so adding the CA there
+changes nothing — measured 2026-09-04, after installing `libnss3-tools` and
+trying exactly that. Pointed at the proxy the requests die in the handshake;
+pointed nowhere they die on the connection. Both look identical from the page:
+`ERR_CONNECTION_RESET`, every backend read empty.
+
+That is where "the sandbox has no route to the live backend" came from
+(`CLAUDE.md`, item 125). It was half true. There IS a route — Node's `fetch`
+uses it, which is how every backend measurement in this ledger was taken. Only
+the *browser* lacked one.
+
+So `docs/syncview-design/tests/prod-backend-bridge.js` lets Node open the
+connection, verifying the certificate exactly as every other tool here does, and
+hands the response back through `page.route`. Nothing is bypassed, ignored or
+disabled; `--ignore-certificate-errors` is deliberately not used. It is a
+TRANSPORT, NOT A FIXTURE — the bytes are the live backend's, nothing is recorded
+or replayed — which is the only reason a check that passes under it means
+anything. Opt-in via `PROD_BACKEND_BRIDGE=1`, so CI runs byte-identically
+without it.
+
+**What it bought immediately.** The lane ran to completion for the first time:
+`behav-wired: 161/168`, and the sixth failing check — hidden behind "+1 more"
+for six days because `BEHAV_WIRED_NAME_CAP` was 5 — is named:
+`detailScrollNavBack`. The full set is `chip`, `kbProj`, `titleTooltip`,
+`ringClearOnNav`, `pcardNameTooltip`, `detailScrollNavBack`, plus
+`noConsoleErrors`, which fails only in the sandbox because `docs.google.com`,
+`cdn.jsdelivr.net` and `fonts.googleapis.com` are deliberately not bridged.
+
+Those six are now measurable rather than arguable. **None has been re-based, and
+none should be until each is classified stale-or-broken with evidence** — a
+check re-based because it was inconvenient is worse than a check that is red.
+
+`test/prod-backend-bridge.js` pins the four properties that stop it becoming a
+way to fake a pass: it is not a TLS bypass, it is a transport and not a fixture,
+its hosts are an allowlist rather than a general-purpose hole out of the
+sandbox, and it can assert it actually carried traffic — because a bridge that
+silently carried nothing would let every check "pass" on an empty page.

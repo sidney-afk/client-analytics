@@ -409,3 +409,26 @@ prior browser hierarchy projection. It has no data migration or live-state clean
 **Validation.** Proven on the live table, not only on captured rows: the old pager (OFFSET + `created_at.desc` + the four-wide burst) and the new one, run side by side three times, return the same 1,665 rows with zero only-in-old and zero only-in-new. The real app booted over the same rows in server order and in a shuffled order produces an identical batch set, issue set and rendered list. Boot backend requests fall from 21 to 18 — the burst had been issuing `offset=2000/3000/4000` for two bytes each. Guarded by `test/prod-batches-keyset-paging.js`, which also pins the class: every `created_at` ordering in the file must carry a unique tiebreak. Ledger: `docs/ops/OPEN_REPAIRS.md` 121.
 
 **Rollback.** Frontend-only; revert the commit that changes the `batches` line in `_prodLoadData`. No schema, writer, runtime flag, authority, n8n workflow, Edge Function, migration, or live row changes, so rollback is the Pages deploy itself. `ROLLBACK.md` is unchanged and correct.
+
+---
+
+## Addendum 2026-09-04 — Social media manager side card
+
+The SyncLinear detail column gained one read-only side card below `Project`,
+naming the client's social media manager. It writes nothing and adds no
+migration; `social_media_managers` remains populated solely by the nightly n8n
+manager sync.
+
+Two facts belong in a foundation audit rather than only in a changelog:
+
+- **A new protected Edge Function dependency.** The card reads
+  `smm-weekly-reports` `?action=options`, which is Admin/SMM. Creative and the
+  unsigned client preview cannot reach it and render no row. The table's `anon`
+  grant stays revoked (F88); widening the audience means a lower-privilege
+  projection, not a wider grant.
+- **The tab's read posture is unchanged.** Production still issues no unprompted
+  staff-authenticated read: the roster is taken from `_srpState`, filled by the
+  weekly-reports page, and a request is made only when nothing has answered yet.
+  The cache is bounded (5-minute TTL, 1-minute retry, three-failure stop) and is
+  cleared on sign-out or account switch by `_prodSmmPurgeSensitiveState`, so
+  Admin/SMM-only data does not outlive the identity that fetched it.

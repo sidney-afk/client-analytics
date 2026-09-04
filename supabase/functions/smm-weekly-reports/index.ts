@@ -90,6 +90,13 @@ function serializeManager(row: JsonMap): JsonMap {
     name: row.name || "",
     email: row.email || "",
     active: row.active !== false,
+    // The clients this manager owns, and when the nightly sheet sync last said
+    // so. Both were already stored and neither was ever handed back, so the one
+    // caller could not answer "who runs this client?" without a second source.
+    // synced_at travels with them on purpose: a roster is only as true as its
+    // last sync, and a reader looking at a stale answer should be able to tell.
+    source_clients: Array.isArray(row.source_clients) ? row.source_clients : [],
+    synced_at: row.synced_at || "",
   };
 }
 
@@ -134,7 +141,7 @@ async function loadOptions(): Promise<Response> {
   const supabase = db();
   const { data, error } = await supabase
     .from("social_media_managers")
-    .select("slug,name,email,active")
+    .select("slug,name,email,active,source_clients,synced_at")
     .eq("active", true)
     .order("name", { ascending: true })
     .limit(500);

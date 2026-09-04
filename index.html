@@ -44491,6 +44491,31 @@
     function _calPostKasperVisible(post) {
         return _calComponentsFor(post).some(c => _calCompKasperVisible(post, c));
     }
+    /* THE COMPONENTS KASPER'S EXPANDED CARD ACTUALLY RENDERS — the one
+       definition, so the badge and the card can never disagree.
+
+       _calCompKasperVisible answers "is this Kasper's work" and admits a
+       component for one of two reasons: (1) it is at Kasper Approval and his
+       decision is pending, or (2) it sits at Tweaks Needed carrying an
+       unresolved tweak of his, where the panel is a thread view. Only reason
+       (1) needs the content itself: there is no honest Approve over a video
+       that was never attached or a caption nobody wrote, so an unreviewable
+       component pending decision keeps its panel closed (and
+       _kasperUndecidedComps scopes it out of the Finish gate in the same
+       breath). Reason (2) is a conversation, and a conversation needs no file
+       — its Approve button is already hidden by `showApprove`.
+
+       Applying the content rule to BOTH reasons was caught by Codex on PR 1252:
+       it re-created the very defect the tweak chip was written to kill — the
+       badge saying "3" while the expanded card shows two threads. That is why
+       the chip and the renderer read this function and not their own copy. */
+    function _kasperPanelComps(post) {
+        return _calComponentsFor(post).filter(c => {
+            if (!_calCompKasperVisible(post, c)) return false;
+            if (_calNormStatus(post[c + '_status'] || '') === 'Kasper Approval') return _kasperCompReviewable(post, c);
+            return true;
+        });
+    }
     /* Open-tweak count for Kasper's review-card chip. Same tally as
        _calOpenCommentCount, but SCOPED to the components Kasper can actually
        see/act on (_calCompKasperVisible) — i.e. those at Kasper Approval or
@@ -44504,8 +44529,7 @@
     function _kasperOpenTweakCount(post) {
         if (!post) return 0;
         let n = 0;
-        for (const c of _calComponentsFor(post)) {
-            if (!_calCompKasperVisible(post, c)) continue;
+        for (const c of _kasperPanelComps(post)) {
             const list = _calCommentsForView(post, c);
             if (!Array.isArray(list) || !list.length) continue;
             for (const root of _calCommentRoots(list)) {
@@ -44566,11 +44590,18 @@
     /* Is this component reviewable RIGHT NOW — as distinct from
      * `_calCompKasperVisible`, which asks whether it is Kasper's WORK.
      *
-     * A video is reviewed by watching it and a thumbnail by looking at it, so
-     * each needs its file. A caption and a title are text that lives on the
-     * card itself and need nothing. Before this existed the question was asked
-     * once about the whole card ("does it carry any media"), which a caption
-     * cannot answer — see OPEN_REPAIRS 135.
+     * EVERY component needs the thing it is reviewed BY; only where that thing
+     * is stored differs. A video is watched, so it needs its `asset_url`; a
+     * thumbnail is looked at, so it needs its `thumbnail_url`; a caption and a
+     * title are READ, so they need their text — `caption` or `caption_alt`
+     * for the caption, `name` for the title. Before this existed the question
+     * was asked once about the whole card ("does it carry any media"), which a
+     * caption cannot answer — see OPEN_REPAIRS 135. The first fix for that
+     * over-corrected and let text through unconditionally, which Codex caught
+     * on #1252: an empty caption at Kasper Approval was admitted, so Kasper was
+     * offered an enabled Approve over the "No caption yet." placeholder and
+     * could sign off content nobody had written. Missing is missing; the
+     * storage is an implementation detail.
      *
      * It has to be applied in all THREE places or it makes things worse rather
      * than better: admission to the queue, which panels render, and which
@@ -44583,6 +44614,11 @@
     function _kasperCompReviewable(post, comp) {
         if (comp === 'video') return String((post && post.asset_url) || '').trim() !== '';
         if (comp === 'graphic') return String((post && post.thumbnail_url) || '').trim() !== '';
+        if (comp === 'title') return String((post && post.name) || '').trim() !== '';
+        if (comp === 'caption') {
+            return String((post && post.caption) || '').trim() !== ''
+                || String((post && post.caption_alt) || '').trim() !== '';
+        }
         return true;
     }
     /* THE COMPONENTS KASPER STILL HAS TO DECIDE — one question, not two.
@@ -72938,8 +72974,10 @@
                  * The old gate asked one question about the whole card -- does
                  * it carry ANY media -- and a caption cannot answer it. So ask
                  * it per component instead: a video needs `asset_url`, a
-                 * thumbnail needs `thumbnail_url`, and caption and title are
-                 * text that needs neither.
+                 * thumbnail needs `thumbnail_url`, a caption needs `caption` or
+                 * `caption_alt`, and a title needs `name`. Each component is
+                 * asked for the thing it is actually reviewed by; none of them
+                 * is exempt from being asked.
                  *
                  * `_kasperRenderCard` was already built for this. It falls back
                  * to a placeholder when there is no thumbnail, disables the
@@ -73347,13 +73385,18 @@
         </div>`;
     }
 
-    /* Cards sitting at Kasper Approval with no video and no thumbnail. They
-       are not review work, so they stay out of the list -- but the SMM has
-       handed them over and Kasper is the only person who can tell them the
-       file never arrived. Before this, the queue discarded them without a
-       word, which is how the flip-day tester read an empty queue as "Kasper
-       cannot see natively-created cards at all". Renders nothing when the
-       bucket is empty, so a healthy day is unchanged. */
+    /* Cards sitting at Kasper Approval where not one waiting component has the
+       thing it is reviewed by -- no video file, no thumbnail, no caption text,
+       no title text. They are not review work, so they stay out of the list --
+       but the SMM has handed them over and Kasper is the only person who can
+       tell them the content never arrived. Before this, the queue discarded
+       them without a word, which is how the flip-day tester read an empty queue
+       as "Kasper cannot see natively-created cards at all". Renders nothing
+       when the bucket is empty, so a healthy day is unchanged.
+
+       The copy says CONTENT, not "a file", deliberately: an empty caption or
+       title lands here too, and telling the SMM to attach a file for a caption
+       is the exact wrong instruction the 2026-09-03 owner report was about. */
     function _kasperRenderStrandedNotice() {
         const list = Array.isArray(_kasperState.stranded) ? _kasperState.stranded : [];
         if (!list.length) return '';
@@ -73361,8 +73404,8 @@
         const more = list.length > 12 ? `<li>and ${list.length - 12} more</li>` : '';
         const noun = list.length === 1 ? 'card is' : 'cards are';
         return `<div class="kasper-stranded" data-kasper-stranded="${list.length}">
-            <div class="kasper-stranded-title">${list.length} ${noun} waiting on a file, not on you</div>
-            <div class="kasper-stranded-sub">Waiting on a video or thumbnail that has not been attached yet, so there is nothing to look at. A caption or title never lands here — text needs no file, and those cards are in the queue above.</div>
+            <div class="kasper-stranded-title">${list.length} ${noun} waiting on content, not on you</div>
+            <div class="kasper-stranded-sub">Every part still with you is empty — a video or thumbnail that was never attached, or a caption or title that was never written — so there is nothing to review yet. The moment any one of them lands, the card joins the queue above.</div>
             <ul class="kasper-stranded-list">${rows}${more}</ul>
         </div>`;
     }
@@ -73621,7 +73664,10 @@
         // pin a panel open — the sub-status must still be Kasper Approval
         // OR Tweaks Needed-with-unresolved-tweak. Anything past that and
         // the panel drops out (handled by _calCompKasperVisible).
-        const activeComps = _calComponentsFor(p).filter(c => _calCompKasperVisible(p, c) && _kasperCompReviewable(p, c));
+        // Which components those are, and why only the pending-decision ones
+        // are content-gated, lives on _kasperPanelComps — the SAME function the
+        // open-tweak chip tallies, so the badge and this card cannot disagree.
+        const activeComps = _kasperPanelComps(p);
         if (!activeComps.length) {
             return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
         }

@@ -174,7 +174,12 @@ const LEGACY_STUB = {
  * N/A. A caption is text; it needs no file. The old gate asked one question
  * about the whole card -- does it carry ANY media -- which a caption cannot
  * answer, so finished work sat in a notice telling the SMM to attach a file
- * that was never going to exist, and Kasper could not approve it. */
+ * that was never going to exist, and Kasper could not approve it.
+ *
+ * The caption text is load-bearing in this fixture, not decoration: the owner's
+ * report was about captions that were ALREADY WRITTEN. Its absence is the
+ * separate case below (CAPTION_BLANK), and the two must not be conflated --
+ * that conflation was the over-correction Codex caught on #1252. */
 const CAPTION_ONLY = {
   id: 'p_caption_only',
   name: 'Bank of music',
@@ -182,6 +187,25 @@ const CAPTION_ONLY = {
   video_status: 'N/A',
   graphic_status: 'N/A',
   caption_status: 'Kasper Approval',
+  caption: 'Three tracks, all royalty-free. Save this one.',
+  asset_url: '',
+  thumbnail_url: '',
+};
+
+/* The same card with the caption never written. Codex, #1252: the first fix
+ * for the owner report let text through unconditionally, so this shape was
+ * admitted to the queue and Kasper was offered an enabled Approve over the
+ * "No caption yet." placeholder -- content nobody had written could be signed
+ * off. Missing is missing; where it is stored is an implementation detail. */
+const CAPTION_BLANK = {
+  id: 'p_caption_blank',
+  name: 'Bank of music',
+  status: 'In Progress',
+  video_status: 'N/A',
+  graphic_status: 'N/A',
+  caption_status: 'Kasper Approval',
+  caption: '',
+  caption_alt: '   ',
   asset_url: '',
   thumbnail_url: '',
 };
@@ -223,7 +247,7 @@ ok(render() === '', 'a healthy queue renders no notice at all');
 
 renderState = [{ id: 'a', client: 'Sidney Laruel', slug: 'sidneylaruel', name: 'Video 1', native: true }];
 const one = render();
-ok(/1 card is waiting on a file, not on you/.test(one),
+ok(/1 card is waiting on content, not on you/.test(one),
   'a single stranded card reads in the singular');
 ok(one.includes('Sidney Laruel') && one.includes('Video 1'),
   'and names the client and the card');
@@ -233,7 +257,7 @@ renderState = [
   { id: 'b', client: 'Two', slug: 't', name: 'Video 2', native: false },
 ];
 const two = render();
-ok(/2 cards are waiting on a file/.test(two), 'two stranded cards read in the plural');
+ok(/2 cards are waiting on content/.test(two), 'two stranded cards read in the plural');
 ok(!/<script>/.test(two) && /&lt;script&gt;/.test(two) && /A &amp; B/.test(two),
   'client and card names are escaped -- they are sheet-sourced text, not markup');
 
@@ -253,7 +277,13 @@ const captionOut = sandbox('Neutral Test Client', { ok: true, posts: [CAPTION_ON
 ok(captionOut.queue.some(item => item.post.id === CAPTION_ONLY.id),
   'a caption awaiting Kasper reaches the QUEUE even with no video and no thumbnail');
 ok(!captionOut.stranded.some(st => st.id === CAPTION_ONLY.id),
-  'and it is never reported as waiting on a file, because no file was ever owed');
+  'and it is never reported as waiting on content, because the caption is written');
+
+const blankOut = sandbox('Neutral Test Client', { ok: true, posts: [CAPTION_BLANK] });
+ok(!blankOut.queue.some(item => item.post.id === CAPTION_BLANK.id),
+  'a caption at Kasper Approval that nobody has written does NOT reach the queue');
+ok(blankOut.stranded.some(st => st.id === CAPTION_BLANK.id),
+  'it is reported to the SMM instead -- the one person who can write it');
 
 /* MIXED: a written caption waiting on Kasper, alongside a video also waiting on
  * him whose file never arrived. Caught in review: admitting the card on the
@@ -270,6 +300,7 @@ const MIXED = {
   video_status: 'Kasper Approval',
   graphic_status: 'N/A',
   caption_status: 'Kasper Approval',
+  caption: 'Ready to go — the video is the only thing outstanding.',
   asset_url: '',
   thumbnail_url: '',
 };
@@ -282,16 +313,59 @@ ok(!mixedOut.stranded.some(st => st.id === MIXED.id),
 /* The rule itself, run directly: it is what keeps the unreviewable component
    out of the rendered panels and out of the Finish-reviewing gate. */
 const reviewable = new Function(`${realReviewable}; return _kasperCompReviewable;`)();
-ok(reviewable(MIXED, 'caption') === true, 'a caption needs no file');
 ok(reviewable(MIXED, 'video') === false, 'a video with no asset_url is not reviewable');
 ok(reviewable({ asset_url: 'https://f.io/x' }, 'video') === true, 'a video with a file is');
 ok(reviewable(MIXED, 'graphic') === false, 'a thumbnail with no thumbnail_url is not reviewable');
 ok(reviewable({ thumbnail_url: 'https://d/x.png' }, 'graphic') === true, 'a thumbnail with an image is');
-ok(reviewable(MIXED, 'title') === true, 'a title needs no file either');
+/* Text is asked the same question, for the same reason -- Codex, #1252. Only
+   the column the content lives in differs. */
+ok(reviewable(MIXED, 'caption') === true, 'a caption with text written is reviewable');
+ok(reviewable(CAPTION_BLANK, 'caption') === false,
+  'a caption with nothing written is NOT -- there is no honest Approve over "No caption yet."');
+ok(reviewable({ caption: '', caption_alt: 'Version B for the reel' }, 'caption') === true,
+  'the alternate caption alone is enough -- either column carries the review');
+ok(reviewable(MIXED, 'title') === true, 'a title with text is reviewable');
+ok(reviewable({ name: '   ' }, 'title') === false,
+  'a title that is blank or whitespace is not -- same rule, same reason');
 
 /* ---- 3. Wiring --------------------------------------------------------- */
-ok(/_calCompKasperVisible\(p, c\) && _kasperCompReviewable\(p, c\)/.test(INDEX),
-  'the rendered panels exclude components that are not reviewable');
+/* The renderer and the open-tweak chip read ONE definition of "which panels
+   does this card show", so the badge can never promise a thread the card does
+   not render (Codex P2 on PR 1252 -- the defect _kasperOpenTweakCount was
+   written to kill, re-created by content-gating both reasons a panel exists). */
+ok(/const activeComps = _kasperPanelComps\(p\);/.test(INDEX),
+  'the expanded card renders exactly _kasperPanelComps');
+ok(/for \(const c of _kasperPanelComps\(post\)\) \{/.test(INDEX),
+  'and the open-tweak chip tallies exactly the same set');
+const CAL_STATUSES_SRC = (INDEX.match(/const CAL_STATUSES\s*=\s*\[[^\]]*\];/) || [''])[0];
+ok(CAL_STATUSES_SRC !== '', 'the shipped status vocabulary is readable, so _calNormStatus is the real one');
+const panelComps = new Function(`
+  ${CAL_STATUSES_SRC}
+  ${grabFunc('_calCompHasUnresolvedKasperTweak')}
+  ${grabFunc('_calMsgIsTweak')}
+  ${grabFunc('_calCommentsFor')}
+  ${grabFunc('_calCompLinked')}
+  ${grabFunc('_calShowApprovedAfterTweaks')}
+  ${grabFunc('_calNormStatus')}
+  ${grabFunc('_calCompKasperVisible')}
+  ${realReviewable}
+  const _calComponentsFor = () => ['video', 'graphic', 'caption'];
+  ${grabFunc('_kasperPanelComps')}
+  return _kasperPanelComps;
+`)();
+const kTweak = { id: 'k1', role: 'kasper', is_tweak: true, done: false, deleted: false, body: 'tighten the intro' };
+/* Reason (2): a tweak Kasper already sent, on a video whose file never came.
+   The panel is a thread, not a review -- its Approve is already hidden by
+   `showApprove` -- so it stays, and the chip's count stays honest. */
+ok(panelComps({
+  video_status: 'Tweaks Needed', graphic_status: 'N/A', caption_status: 'N/A',
+  asset_url: '', video_comments: [kTweak],
+}).includes('video'), 'a fileless video carrying an unresolved tweak KEEPS its thread panel');
+/* Reason (1) on the same card: nothing to decide on, so nothing is shown. */
+ok(!panelComps({
+  video_status: 'Kasper Approval', graphic_status: 'N/A', caption_status: 'N/A',
+  asset_url: '', video_comments: [],
+}).includes('video'), 'a fileless video merely PENDING his decision does not');
 /* The Finish gate, and the one thing that must be true of it: the set that
    decides whether Finish is ALLOWED and the set that decides whether the card
    READS as finished have to be the same set.

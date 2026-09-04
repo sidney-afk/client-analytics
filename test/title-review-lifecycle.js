@@ -117,9 +117,16 @@ check('existing title_status is normalized', _calMigratePostShape(yt({ title_sta
 check('migrate parses title_comments array', Array.isArray(_calMigratePostShape(yt({})).title_comments), true);
 
 console.log('\n— Flow: Kasper queue + client review treat title like a no-Linear component —');
-const kReady = yt({ video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved', title_status: 'Kasper Approval' });
+// `name` is the title's content. It is load-bearing here, not scenery: a title
+// is reviewed by READING it, exactly as a video is reviewed by watching it, so
+// an unwritten title is out of scope rather than undecided (Codex, PR 1252).
+const kReady = yt({ name: 'How we cut churn 40% in one quarter', video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved', title_status: 'Kasper Approval' });
 check('title at Kasper Approval surfaces the card in Kasper queue', _calPostKasperVisible(kReady), true);
 check('title is an undecided component for "Finish reviewing"', _kasperUndecidedComps(kReady), ['title']);
+// The same card with nothing written: Kasper must not be offered Approve over
+// the "No title yet." placeholder, and an absent title must not block Finish.
+const kBlank = yt({ name: '   ', video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved', title_status: 'Kasper Approval' });
+check('an unwritten title is NOT undecided — there is nothing to read', _kasperUndecidedComps(kBlank), []);
 check('same statuses on a NON-YouTube card → not in Kasper queue', _calPostKasperVisible(ig({ video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved', title_status: 'Kasper Approval' })), false);
 const cReady = yt({ video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved', title_status: 'Client Approval' });
 check('title at Client Approval is active on the client review surface', _calReviewComponentActive(cReady, 'title', 'client'), true);

@@ -154,8 +154,23 @@ ok(/process\.exit\(failed \? 1 : 0\)/.test(CODE),
 
 ok(/const MIN_SLUG = 5;/.test(CODE) && /slug\.length < MIN_SLUG/.test(CODE),
   'a slug shorter than five characters is skipped — it matches ordinary English and is not identifying on its own');
-ok(/c\.kind === 'test'/.test(CODE),
-  'the TEST client is skipped: it is a fixture, it is named in the code by design, and gating on it would ring forever for nobody');
+ok(/const NON_PERSON_KINDS = new Set\(\['test', 'internal'\]\);/.test(CODE),
+  'rows in `clients` that are not people are skipped: a fixture and a sentinel are named in the code by design, and gating on them would ring forever for nobody');
+/* The one that was found the hard way. The attribution carve-out in
+   linear-inbound writes a sentinel slug into client_slug, and that sentinel is a
+   `clients` row — so on 2026-09-04 this guard failed a DOCS change for quoting a
+   string that had been sitting in index.html and linear-inbound/index.ts on main
+   all along. A guard that fails on documentation of ordinary code is one people
+   learn to route around, which is the single thing it cannot afford. */
+ok(/'internal'/.test(CODE),
+  "and 'internal' specifically, because the invalid-attribution sentinel lives in that table and is written by the shipped source");
+/* An unknown kind must STOP the run. Including it re-creates the false positive
+   for whatever the next sentinel is called; skipping it drops a real client out
+   of the roster with nobody the wiser, which is the direction that leaks. */
+ok(/unknownKinds/.test(CODE) && /throw new Error\('clients\.kind carries value\(s\)/.test(CODE),
+  'and a kind the guard does not classify fails the run rather than being guessed at in either direction');
+ok(/const PERSON_KIND = 'client';/.test(CODE),
+  'with the person kind named once, so the classification is readable rather than implied by what is absent');
 ok(/name\.split\(\/\\s\+\/\)\.length < 2/.test(CODE),
   'a single given name is skipped — it matches too much prose to be evidence');
 

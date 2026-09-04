@@ -81,6 +81,12 @@ const BASELINE_TERMS = arg('baseline-terms') ?? 45;
 /* Short or common slugs would match ordinary English and report noise as
    exposure. A slug this short is also not identifying on its own. */
 const MIN_SLUG = 5;
+/* `clients` rows that are not people. Naming one of these exposes nobody, and
+   gating on them makes the guard fire on ordinary code and documentation — see
+   the comment in roster(). Anything outside these plus PERSON_KIND stops the
+   run rather than being guessed at. */
+const PERSON_KIND = 'client';
+const NON_PERSON_KINDS = new Set(['test', 'internal']);
 
 async function roster() {
   const get = async (path) => {
@@ -97,12 +103,37 @@ async function roster() {
     get('team_members?select=name,active&limit=1000'),
   ]);
   const terms = [];
+  const unknownKinds = new Set();
   for (const c of clients) {
     const slug = String(c.slug || '').trim();
-    /* The TEST client is excluded on purpose: it is a fixture, it is named in
-       the code by design, and gating on it would ring forever for nobody. */
-    if (slug.length < MIN_SLUG || c.kind === 'test') continue;
+    const kind = String(c.kind || '').trim();
+    /* NOT EVERY ROW IN `clients` IS A PERSON, and a row that is not a person
+       cannot be exposed by naming it.
+
+       The TEST client was the first of these: a fixture, named in the code by
+       design, and gating on it would ring forever for nobody. `internal` is the
+       same shape and was found the hard way on 2026-09-04 — the attribution
+       carve-out in `linear-inbound` writes a sentinel slug into `client_slug`
+       when it invalidates an ownership claim, and that sentinel is a row in
+       this table with `kind: 'internal'`. So the guard failed a docs change
+       for quoting a string that has been sitting in `index.html` and
+       `linear-inbound/index.ts` on `main` all along. A guard that fails on
+       documentation of ordinary code is a guard people learn to route around,
+       which is the one thing this tool cannot afford.
+
+       An UNKNOWN kind is a hard failure rather than a silent include or a
+       silent skip. Including it would re-create the false positive for whatever
+       the next sentinel is called; skipping it would drop a real client out of
+       the roster without anyone noticing, which is the failure that matters. */
+    if (!NON_PERSON_KINDS.has(kind) && kind !== PERSON_KIND) { unknownKinds.add(kind || '(empty)'); continue; }
+    if (slug.length < MIN_SLUG || NON_PERSON_KINDS.has(kind)) continue;
     terms.push({ kind: 'client_slug', term: slug });
+  }
+  if (unknownKinds.size) {
+    /* The kind VALUES are printed; they are a column vocabulary, never a name. */
+    throw new Error('clients.kind carries value(s) this guard does not classify: '
+      + Array.from(unknownKinds).sort().join(', ')
+      + ' — classify each as a person or a non-person in NON_PERSON_KINDS before this can gate again');
   }
   for (const m of members) {
     const name = String(m.name || '').trim();

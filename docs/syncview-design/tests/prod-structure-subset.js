@@ -571,6 +571,15 @@ async function assertNoWriteRequests(requests) {
       };
       _syncviewStaffIdentityLoaded = true;
       _syncviewStaffIdentityVerified = true;
+      /* This identity is FORGED -- 'structure-fixture-key' is not a key any
+         server accepts -- and it exists only to reach the authority refusal
+         below. Any feature that reacts to a staff identity by CALLING a server
+         would therefore issue a request that 401s, and this suite's console
+         audit counts a 401 read as a persistent read failure. Marking the
+         manager roster as already answered keeps the forgery from enlisting a
+         network read it was never meant to make. Nothing asserted below reads
+         this roster. */
+      _srpState.managersLoaded = true;
       _prodState.authority = { video: 'linear', graphics: 'linear' };
       _prodState.authorityLoaded = true;
       _prodRender();

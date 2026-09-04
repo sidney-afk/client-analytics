@@ -209,8 +209,28 @@ const BEHAV_WIRED_CHECKS = (() => {
 
 /* Cap the emitted list. A suite-wide breakage fails dozens of checks at once,
    and a 40-name summary line is the same blackout in a different shape -- the
-   first few name the area, and the count says how wide it went. */
-const BEHAV_WIRED_NAME_CAP = 5;
+   first few name the area, and the count says how wide it went.
+
+   RAISED FROM 5 TO 24 on 2026-09-04, because at 5 the cap became the blackout
+   it was written to prevent. The heavy lane has been red since 2026-08-30 with
+   SIX failing checks, and the public summary has reported the same line on
+   every one of those runs:
+
+       behav_wired:chip+kbProj+titleTooltip+ringClearOnNav+pcardNameTooltip+1more
+
+   The sixth name is not in the ledger, not in the run history, and not
+   recoverable afterwards -- the detail it came from is live-derived and stays
+   on the ephemeral runner by design. So the one check nobody could name is the
+   one check nobody has looked at, five days running (OPEN_REPAIRS 125).
+
+   Nothing about the cap was protecting anything. The names are matched against
+   BEHAV_WIRED_CHECKS, harvested from behav-wired.js's own source in this public
+   repository, and the emitted string is assembled from allowlist entries -- so
+   a longer list carries exactly as much live text as a short one, which is
+   none. The cap is a readability limit and nothing more, and it was set below
+   the size of a real failure. 24 names a realistic partial breakage in full
+   while still collapsing a catastrophic one into a count. */
+const BEHAV_WIRED_NAME_CAP = 24;
 
 function behavWiredFailedChecks(text) {
   const line = (String(text || '').match(/BEHAV_WIRED_FAILED_CHECKS([^\n]*)/) || [])[1];

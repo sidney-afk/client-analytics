@@ -17,12 +17,17 @@
  * fail loudly, it hands whoever is mid-incident a rollback bundle that reverts
  * one MORE release than they intended.
  *
- * What is compared, all of it derived from the two files and nothing else:
+ * What is compared, all of it derived from the repository and nothing else:
  *   1. the GitHub run id and the dispatched commit,
  *   2. every function's active version and source-closure hash,
  *   3. the one-step rollback bundle's claimed capture — it must be the version
  *      that was live BEFORE the newest deploy, i.e. the previous receipt's, or
- *      it is not one step back.
+ *      it is not one step back,
+ *   4. that no OTHER workflow which deploys these functions has shipped since
+ *      the newest §4 receipt. The §4 lane is not the only one — see
+ *      otherOwningLanes(), which derives the list from .github/workflows —
+ *      and a deploy this guard cannot read is not a deploy that did not
+ *      happen. That is exactly how the row went stale on 2026-08-27.
  *
  * Usage:  node scripts/rollback-row-freshness-check.js [--json]
  * Exit 0 agreement, 1 disagreement or nothing to compare.
@@ -35,6 +40,12 @@ const path = require('path');
    thing that says nothing about whether the check can SEE a stale row. */
 const rootArg = process.argv.find(a => a.indexOf('--root=') === 0);
 const ROOT = rootArg ? path.resolve(rootArg.slice('--root='.length)) : path.resolve(__dirname, '..');
+/* --root points the two MARKDOWN files at a fixture pair. The workflow files are
+   not data under test, they are this repository's own answer to "which lanes can
+   move these functions", so they are always read from the real checkout — a
+   fixture that had to carry a copy of .github/workflows to exercise the lane
+   check would be testing its own copy, not the shipped roster. */
+const REPO = path.resolve(__dirname, '..');
 const SLUGS = ['production-write', 'linear-outbound', 'deliverable-write', 'batch-write'];
 const SCHEMA = 'syncview_f27_section4_deployed_versions_v1';
 
@@ -116,6 +127,47 @@ function receiptsFromTables(log) {
     return out;
 }
 
+/* WHERE A DISPATCH BEGINS — and the reason the nearest run TOKEN is not it.
+
+   Codex P1 on #1253, with evidence in the file: deploy #5's own heading names
+   run `31217806479`, and its very first sentence says the deploy was "fully
+   green, including the final four-function verification step that FAILED on run
+   `31214635190`". The nearest preceding run token before #5's table is
+   therefore the id of a run that deployed nothing. Its table receipt was being
+   filed under that failed run, which splits one deploy into two identities:
+   with the JSON block present they disagree and a phantom receipt appears, and
+   without it the deploy vanishes under the wrong id and a stale live row
+   passes.
+
+   A run token is a MENTION. An anchor is a CLAIM — a heading that says "this
+   section is deploy N, run X", or the concise-prose marker that says the same
+   thing inline. Only anchors decide identity and section bounds; a bare token
+   is the last-resort fallback for a receipt with no anchor above it at all. */
+function deployAnchors(log) {
+    const out = [];
+    const heading = /^#{2,4} [^\n]*?\brun `(\d{6,})`/gm;
+    const prose = /\*\*Section 4 forward from `[0-9a-f]{7,40}`, run `(\d{6,})`/g;
+    let m;
+    while ((m = heading.exec(log))) out.push({ at: m.index, run: m[1] });
+    while ((m = prose.exec(log))) out.push({ at: m.index, run: m[1] });
+    out.sort((a, b) => a.at - b.at);
+    return out;
+}
+
+/* The anchor a position belongs to: the nearest one at or before it, bounded
+   below by the enclosing `##` entry so a receipt can never inherit the identity
+   of a dispatch recorded under a different day's heading. */
+function enclosingAnchor(log, at, anchors) {
+    const entryStart = log.lastIndexOf('\n## ', at);
+    let best = null;
+    for (const a of anchors) {
+        if (a.at > at) break;
+        if (entryStart >= 0 && a.at < entryStart) continue;
+        best = a;
+    }
+    return best;
+}
+
 /* Run id and dispatched commit live in the entry's prose when the JSON block is
    absent. Look backwards from the table to the entry heading above it. */
 /* THE NEAREST PRECEDING MENTION, not the first in the entry. One `##` entry can
@@ -143,14 +195,17 @@ function validDate(text) {
     return isFinite(d.getTime()) && d.toISOString().slice(0, 10) === text ? text : '';
 }
 
-function proseContext(log, at) {
+function proseContext(log, at, anchors) {
     const start = log.lastIndexOf('\n## ', at);
     const chunk = log.slice(start < 0 ? 0 : start, at);
-    const run = lastMatch(chunk, /[Rr]un\s+`(\d{6,})`/);
+    /* An anchor OUTRANKS a bare token, always. See deployAnchors: the token
+       nearest a table is routinely the id of the run that failed before it. */
+    const anchor = anchors ? enclosingAnchor(log, at, anchors) : null;
+    const run = anchor ? null : lastMatch(chunk, /[Rr]un\s+`(\d{6,})`/);
     const commit = lastMatch(chunk, /from\s+`([0-9a-f]{7,40})`/);
     const date = chunk.match(/^\n?## (\d{4}-\d{2}-\d{2})/);
     return {
-        run: run ? run[1] : '',
+        run: anchor ? anchor.run : (run ? run[1] : ''),
         commit: commit ? commit[1].toLowerCase() : '',
         date: date ? validDate(date[1]) : '',
     };
@@ -179,34 +234,116 @@ function entryText(log, at) {
     return log.slice(from, next < 0 ? log.length : next);
 }
 
-/* THE DISPATCH SECTION a receipt belongs to, not its whole entry. One `##` can
-   hold several dispatches, so the entry's FIRST sealed bundle was being handed
-   to every receipt in it — a later row could then name that older digest and
-   pass, and the captured-version check does not catch it when the intervening
-   deploy moved a different function. Codex P1 on #1253, the same multi-deploy
-   problem as the run id, on the half I had not applied it to. Bounded by the
-   nearest preceding run mention and the next one after it. */
-function dispatchSection(log, at) {
+/* THE DISPATCH SECTION a receipt belongs to, not its whole entry — bounded by
+   ANCHORS now, for the reason deployAnchors gives. The previous version used
+   run tokens, and Codex P1 on #1253 showed why that is not enough: deploy #5's
+   own TEST-drill run (`31217933580`) is mentioned between its receipt and its
+   bundle, so the section ended before the bundle line and the entry-wide
+   fallback below took over — reaching back to the FIRST bundle in a `##` entry
+   that holds six of them, i.e. deploy #4's. That is the wrong digest presented
+   as this deploy's, and the captured-version check cannot catch it whenever the
+   intervening deploy moved a different function. A drill run is a mention; it
+   does not begin a dispatch, and now it does not end one either. */
+function deploySection(log, at, anchors) {
     const entryStart = log.lastIndexOf('\n## ', at);
     const entryEnd = log.indexOf('\n## ', at);
     const from = entryStart < 0 ? 0 : entryStart;
     const to = entryEnd < 0 ? log.length : entryEnd;
-    const runRe = /[Rr]un\s+`(\d{6,})`/g;
-    let start = from, end = to, m;
-    runRe.lastIndex = from;
-    const marks = [];
-    while ((m = runRe.exec(log)) && m.index < to) marks.push(m.index);
-    for (let i = 0; i < marks.length; i++) {
-        if (marks[i] <= at) start = marks[i];
-        else { end = marks[i]; break; }
+    let start = from, end = to;
+    for (const a of (anchors || [])) {
+        if (a.at < from || a.at > to) continue;
+        if (a.at <= at) start = a.at;
+        else { end = a.at; break; }
     }
     return log.slice(start, Math.max(start, end));
 }
 
+/* HOW MANY DISPATCHES THIS `##` ENTRY HOLDS. One is the shape where the entry
+   and the section are the same text and an entry-wide fallback is harmless.
+   More than one is exactly the shape where it is not. */
+function anchorsInEntry(log, at, anchors) {
+    const entryStart = log.lastIndexOf('\n## ', at);
+    const entryEnd = log.indexOf('\n## ', at);
+    const from = entryStart < 0 ? 0 : entryStart;
+    const to = entryEnd < 0 ? log.length : entryEnd;
+    return (anchors || []).filter(a => a.at >= from && a.at < to).length;
+}
+
+/* BOTH SPELLINGS, because the log overwhelmingly uses the one this did not
+   read. `sealed_bundle_sha256 = <hex>` appears ONCE in EXECUTION_LOG.md;
+   `rollback_bundle_sha256   <hex>` — the shape the capture receipt actually
+   prints, no equals sign — appears six times. So the bundle comparison was
+   silently skipped for every entry written in the common shape, which is a
+   check that reports the same thing whether it looked or not. */
 function sealedBundleIn(text) {
-    const sha = String(text || '').match(/sealed_bundle_sha256\s*=\s*([0-9a-f]{64})/);
-    const bytes = String(text || '').match(/byte_length\s*=\s*(\d+)/);
+    const t = String(text || '');
+    const sha = t.match(/(?:sealed|rollback)_bundle_sha256\s*=?\s*`?([0-9a-f]{64})/);
+    const bytes = t.match(/(?:rollback_bundle_)?byte_length\s*=?\s*`?(\d+)/);
     return sha ? { sha: sha[1], bytes: bytes ? bytes[1] : '' } : null;
+}
+
+/* ---- the lanes this guard does NOT read ---------------------------------- */
+
+/* EVERY WORKFLOW THAT CAN MOVE THESE FOUR FUNCTIONS, derived from the workflow
+   files rather than listed here — the roster lesson this repo has now learned
+   twice. Today it finds two: the §4 lane, and `deploy-onboarding-edge-functions`
+   (workflow name "Deploy staff-sensitive edge functions"), whose Track-B step
+   deploys `linear-outbound` and `production-write`.
+
+   Codex P1 on #1253, and it is not hypothetical: ROLLBACK.md's own row records
+   that this row "decayed again within three days" of the update step being
+   added, "because the deploys went through the ONBOARDING lane, which the step
+   does not cover", and calls the onboarding-lane gap "the durable fix still
+   owed". That lane emits an `ef-fingerprint` attestation into its job summary,
+   not the §4 JSON/table/prose shapes this file reads — so a deploy through it
+   moves the live versions and leaves this guard reporting agreement. */
+function otherOwningLanes() {
+    const dir = path.join(REPO, '.github', 'workflows');
+    let files = [];
+    try { files = fs.readdirSync(dir); } catch (e) { return []; }
+    const out = [];
+    for (const f of files) {
+        if (!/^deploy-.*\.ya?ml$/.test(f)) continue;
+        if (f.indexOf('section4') >= 0) continue;   // the lane this guard reads
+        let text = '';
+        try { text = fs.readFileSync(path.join(dir, f), 'utf8'); } catch (e) { continue; }
+        const owned = SLUGS.filter(sl => new RegExp('\\b' + sl + '\\b').test(text));
+        if (!owned.length) continue;
+        const nm = text.match(/^name:\s*(.+)$/m);
+        out.push({ file: f, base: f.replace(/\.ya?ml$/, ''), name: nm ? nm[1].trim().replace(/^["']|["']$/g, '') : '', slugs: owned });
+    }
+    return out;
+}
+
+/* A dispatch of one of those lanes recorded AT OR AFTER the newest §4 receipt's
+   day. Deliberately narrow: the lane has to be named as a reference — its
+   filename in backticks, or its workflow name in quotes — not merely alluded to
+   in prose ("not the onboarding one" is a sentence about a lane, not a record
+   of running it). Narrow because a rollback guard that cries wolf gets skimmed,
+   which is the failure this repository documents most often. */
+function laneDispatchesSince(log, sinceDate, exemptAt) {
+    const lanes = otherOwningLanes();
+    if (!lanes.length) return [];
+    const out = [];
+    const heads = [];
+    const hre = /^## (\d{4}-\d{2}-\d{2})/gm;
+    let m;
+    while ((m = hre.exec(log))) heads.push({ at: m.index, date: validDate(m[1]) });
+    for (let i = 0; i < heads.length; i++) {
+        const h = heads[i];
+        if (!h.date || (sinceDate && h.date < sinceDate)) continue;
+        const to = i + 1 < heads.length ? heads[i + 1].at : log.length;
+        if (exemptAt >= h.at && exemptAt < to) continue;   // the receipt we compare against
+        const body = log.slice(h.at, to);
+        if (!SLUGS.some(sl => body.indexOf(sl) >= 0)) continue;
+        for (const lane of lanes) {
+            const named = body.indexOf('`' + lane.base + '`') >= 0
+                || body.indexOf('`' + lane.file + '`') >= 0
+                || (lane.name && body.indexOf('"' + lane.name + '"') >= 0);
+            if (named) out.push({ date: h.date, lane: lane.base, name: lane.name, slugs: lane.slugs });
+        }
+    }
+    return out;
 }
 
 /* THE CONCISE PROSE SHAPE, which produced no receipt at all. EXECUTION_LOG.md
@@ -242,18 +379,22 @@ function receiptsFromProse(log) {
 
 function executionLogReceipts() {
     const log = read('EXECUTION_LOG.md');
+    const anchors = deployAnchors(log);
     const all = receiptsFromJson(log).concat(receiptsFromTables(log)).concat(receiptsFromProse(log));
     all.sort((a, b) => a.at - b.at);
     for (const r of all) {
-        const p = proseContext(log, r.at);
+        const p = proseContext(log, r.at, anchors);
         r.run = r.run || p.run;
         r.commit = r.commit || p.commit;
         r.date = p.date || '';
-        /* Look in this receipt's own dispatch section first; fall back to the
-           entry only when the section carries no bundle line, which is the
-           single-dispatch shape where the two are the same text anyway. */
-        r.sealed = sealedBundleIn(dispatchSection(log, r.at)) || sealedBundleIn(entryText(log, r.at));
+        /* This receipt's own dispatch section first. The entry-wide fallback is
+           allowed ONLY where the entry holds a single dispatch, because that is
+           the shape where the two are the same text; in a multi-dispatch entry
+           it is how deploy #4's bundle got presented as deploy #5's. */
+        r.sealed = sealedBundleIn(deploySection(log, r.at, anchors))
+            || (anchorsInEntry(log, r.at, anchors) > 1 ? null : sealedBundleIn(entryText(log, r.at)));
     }
+    receiptsMeta.log = log;
 
     // Group by deployment identity, preferring the richer shape within a group.
     const byRun = new Map();
@@ -273,6 +414,10 @@ function executionLogReceipts() {
     receipts.unidentified = unidentified;
     return receipts;
 }
+
+/* The log text, kept so main() can run the other-lane sweep without re-reading
+   and re-parsing the file. */
+const receiptsMeta = { log: '' };
 
 /* ---- ROLLBACK.md: the current live claim -------------------------------- */
 
@@ -344,6 +489,26 @@ function main() {
             failures.push('the newest receipt by run id (' + live.run + ', ' + live.date + ') is not the newest by'
                 + ' date — ' + laterByDate.map(r => r.run + ' @ ' + r.date).join(', ')
                 + '. The two chronology signals disagree, so which deploy is live cannot be established.');
+        }
+    }
+
+    /* A DEPLOY THIS GUARD CANNOT READ IS NOT A DEPLOY THAT DID NOT HAPPEN.
+       Codex P1 on #1253. The §4 lane is not the only workflow that deploys
+       these functions, and the other one has already made this exact row stale
+       once (ROLLBACK.md records it: "decayed again within three days … because
+       the deploys went through the ONBOARDING lane"). Comparing against the
+       newest §4 receipt while another lane has shipped since is agreement about
+       the wrong deploy. */
+    if (live) {
+        for (const d of laneDispatchesSince(receiptsMeta.log, live.date || '', live.at)) {
+            failures.push('the ' + d.date + ' entry records a `' + d.lane + '` dispatch'
+                + (d.name ? ' ("' + d.name + '")' : '') + ', at or after the newest §4 receipt (run '
+                + (live.run || '?') + ', ' + (live.date || 'undated') + '). That lane deploys '
+                + d.slugs.join(' and ') + ', and it does not emit the ' + SCHEMA
+                + ' receipt this guard reads — so the live versions may have moved where this check'
+                + ' cannot see it, which is the exact way this row went stale on 2026-08-27.'
+                + ' Record that dispatch\'s live versions in the same entry (the lane prints them'
+                + ' through scripts/ef-fingerprint.js) so the newest deploy is readable.');
         }
     }
 
@@ -504,4 +669,5 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { executionLogReceipts, rollbackClaim };
+module.exports = { executionLogReceipts, rollbackClaim, deployAnchors, deploySection,
+    sealedBundleIn, otherOwningLanes, laneDispatchesSince };

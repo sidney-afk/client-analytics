@@ -527,7 +527,144 @@ ok(empty.code === 1, 'a log with no receipt at all fails rather than passing vac
 const noRow = run(fixture('norow', LOG, '# Rollback\n\nNothing here.\n'));
 ok(noRow.code === 1, 'and so does a ROLLBACK.md with no live claim');
 
-/* ---- 7. the real repository -------------------------------------------- */
+/* ---- 7. round five: a mention is not a claim ---------------------------- */
+
+/* THE FAILED RUN BEFORE THE TABLE. Codex P1 on #1253, and the shape is verbatim
+   from EXECUTION_LOG.md: deploy #5's own heading names its run, and its first
+   sentence names the run whose verification step FAILED. Taking the nearest
+   preceding run token files the table under the failed run — two identities for
+   one deploy with the JSON block present, and the wrong one without it. */
+const FAILED_RUN_FIRST = [
+    '# Execution log',
+    '',
+    '## 2026-09-01 — F27 Section 4 deploys',
+    '',
+    '### Deploy #24 — RECORDED (run `33555586230`, 2026-09-01)',
+    '',
+    'Dispatched from `da2195f0b9bb8febd5c8e3d01bc80a91fb3b71b9`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 34 | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 34 | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 46 | `' + H.lo46 + '` | `verify_jwt=false` |',
+    '| `production-write` | **65** | `' + H.pw65 + '` | `verify_jwt=false` |',
+    '',
+    '```',
+    'rollback_bundle_sha256        1111111111111111111111111111111111111111111111111111111111111111',
+    'rollback_bundle_byte_length   111111',
+    '```',
+    '',
+    '### Deploy #25 — RECORDED (run `33684111985`, 2026-09-02)',
+    '',
+    'Owner-dispatched from `152c050e0179ee127e02d0ea50853960d9019eab`. **Fully green,',
+    'including the final four-function verification step that failed on run',
+    '`33555586230`.**',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 34 → **35** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 34 → **35** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 46 → **47** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 65 → **66** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+    'The TEST drill (run `33684999999`) exercised it end to end minutes later.',
+    '',
+    '```',
+    'rollback_bundle_sha256        3010578bb45a80a5eba29b3c499274f27708da62171c3dc2925bbaf3bb919652',
+    'rollback_bundle_byte_length   524885',
+    '```',
+    '',
+].join('\n');
+
+const failedFirst = run(fixture('failedfirst', FAILED_RUN_FIRST, rollback()));
+ok(failedFirst.json && failedFirst.json.receipts === 2,
+    'a deploy whose prose names an earlier FAILED run is still one receipt, not two');
+ok(failedFirst.json && failedFirst.json.live.run === '33684111985',
+    'and it is filed under the run its own heading claims, not the failed one it mentions');
+ok(failedFirst.code === 0,
+    'so the matching row passes — before this, the newest deploy wore the failed run\'s identity');
+
+/* THE DRILL RUN BETWEEN THE RECEIPT AND ITS BUNDLE. Same fixture: deploy #25's
+   bundle sits after a TEST-drill run mention. Bounding the section by run tokens
+   ended it at the drill and fell back to the entry, whose FIRST bundle belongs
+   to deploy #24 — the wrong digest presented as this deploy's. */
+ok(failedFirst.json && failedFirst.json.live && failedFirst.json.rollback
+    && failedFirst.json.rollback.bundle.sha === '3010578b',
+    'and its bundle is its own, read past a drill-run mention rather than borrowed from the deploy above');
+const borrowed = run(fixture('borrowed', FAILED_RUN_FIRST,
+    rollback({ bundleSha: '11111111', bundleBytes: '111111' })));
+ok(borrowed.code === 1
+    && /names a different bundle from the one that deploy captured/.test(borrowed.json.failures.join(' ')),
+    'naming the PREVIOUS dispatch\'s bundle in a multi-deploy entry fails, which is the borrow it used to permit');
+
+/* Both spellings. `rollback_bundle_sha256 <hex>` — no equals sign — is what the
+   capture receipt prints and what EXECUTION_LOG.md overwhelmingly carries; the
+   first version read only `sealed_bundle_sha256 = <hex>`, so the bundle
+   comparison was silently skipped for almost every real entry. */
+ok(failedFirst.json && failedFirst.json.live.run === '33684111985'
+    && borrowed.json && /3010578bb4/.test(borrowed.json.failures.join(' ')),
+    'the `rollback_bundle_sha256` spelling is read, not just the `sealed_bundle_sha256 =` one');
+
+/* ---- 8. a lane this guard cannot read is still a deploy ----------------- */
+
+/* Codex P1 on #1253. `deploy-onboarding-edge-functions` also deploys
+   `linear-outbound` and `production-write`, and it emits an ef-fingerprint
+   attestation rather than the §4 receipt shape — so a dispatch through it moves
+   the live versions where this check cannot see them. ROLLBACK.md's own row
+   records that this is how the row went stale on 2026-08-27. */
+const OTHER_LANE = LOG + [
+    '## 2026-09-03 — Staff-sensitive edge functions redeployed',
+    '',
+    'A `deploy-onboarding-edge-functions` dispatch went out from `abc1234`; it',
+    'carries `production-write` and `linear-outbound` in its Track-B step.',
+    '',
+].join('\n');
+const otherLane = run(fixture('otherlane', OTHER_LANE, rollback()));
+ok(otherLane.code === 1,
+    'a dispatch of another lane that owns these functions, recorded after the newest receipt, FAILS');
+const otherText = otherLane.json ? otherLane.json.failures.join(' | ') : '';
+ok(/deploy-onboarding-edge-functions/.test(otherText)
+    && /production-write/.test(otherText) && /linear-outbound/.test(otherText),
+    'and names the lane and which of the four it can move');
+ok(/2026-09-03/.test(otherText) && /33684111985/.test(otherText),
+    'and both dates, so the reader can see which deploy the row was compared against');
+
+/* Narrow on purpose: a rollback guard that cries wolf gets skimmed, which is
+   the failure this repository documents more than any other. */
+const laneProse = run(fixture('laneprose', LOG + [
+    '## 2026-09-03 — A note about lanes',
+    '',
+    'This one went through the proper section 4 lane, not the onboarding one,',
+    'so `production-write` provenance is intact.',
+    '',
+].join('\n'), rollback()));
+ok(laneProse.code === 0,
+    'while prose that merely mentions the onboarding lane, without naming the workflow, does not fire');
+const laneBefore = run(fixture('lanebefore', [
+    '# Execution log',
+    '',
+    '## 2026-08-20 — Staff-sensitive edge functions redeployed',
+    '',
+    'A `deploy-onboarding-edge-functions` dispatch carrying `production-write`.',
+    '',
+].join('\n') + '\n' + LOG.replace('# Execution log\n\n', ''), rollback()));
+ok(laneBefore.code === 0,
+    'and neither does one recorded BEFORE the newest receipt — that deploy is already accounted for');
+
+/* The lane roster is DERIVED from the workflow files, not written here: a third
+   workflow that starts deploying one of the four has to be picked up without
+   anyone remembering to add it. */
+const mod = require(SCRIPT);
+const lanes = mod.otherOwningLanes();
+ok(lanes.length >= 1 && lanes.every(l => l.slugs.length),
+    'the other-lane roster is read out of .github/workflows, not listed in the script (' + lanes.length + ' found)');
+ok(lanes.some(l => l.base === 'deploy-onboarding-edge-functions'),
+    'and it finds the onboarding lane, which is the one that has already made this row stale');
+ok(!lanes.some(l => l.base.indexOf('section4') >= 0),
+    'while the §4 lane itself is excluded, because its receipts are exactly what this guard reads');
+
+/* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);
 ok(real.code === 0, 'and the repository as it stands right now is consistent');

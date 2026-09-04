@@ -10410,6 +10410,57 @@ deploy's table and the truncation disappeared. Tables are grouped by the entry
 they are written in now, which is the real boundary and is knowable, so the
 heuristic is gone.
 
+**ROUND FIVE, and the largest of the five: A LANE THIS GUARD CANNOT READ IS
+STILL A DEPLOY.** The §4 lane is not the only workflow that deploys these four
+functions — `deploy-onboarding-edge-functions` ("Deploy staff-sensitive edge
+functions") carries `linear-outbound` and `production-write` in its Track-B
+step, and emits an `ef-fingerprint` attestation into its job summary rather
+than the receipt shape this check reads. So a dispatch through it moves the live
+versions and the guard goes on reporting agreement with a §4 receipt that is no
+longer the newest deploy.
+
+This is not a hypothetical: the row's own middle column in `ROLLBACK.md` records
+that it "decayed again within three days" of the update step being added,
+"because the deploys went through the ONBOARDING lane, which the step does not
+cover", and names the onboarding-lane gap as "the durable fix still owed". A
+guard written for that row that shares the gap is a guard that certifies exactly
+the state it exists to catch. Now: the lane roster is DERIVED from
+`.github/workflows` (any `deploy-*.yml` naming one of the four, minus the §4
+lane itself — a third one appears without anybody remembering to add it), and a
+recorded dispatch of such a lane at or after the newest §4 receipt's day FAILS,
+naming the lane, which functions it can move, and both dates. Deliberately
+narrow — the lane has to be named as a reference, its filename in backticks or
+its workflow name in quotes, not alluded to in prose — because a rollback guard
+that cries wolf gets skimmed, which is the failure this file records more often
+than any other.
+
+**Two more from the same round, both the same lesson: a MENTION is not a CLAIM.**
+
+- **The run token nearest a table is routinely the wrong run.** Deploy #5's
+  heading names run `31217806479`, and its first sentence names run
+  `31214635190` — "the final four-function verification step that FAILED on"
+  it. Taking the nearest preceding token filed #5's table under a run that
+  deployed nothing: two identities for one deploy with the JSON block present,
+  and the wrong one without it. Identity now comes from an ANCHOR — a heading
+  that says "this section is deploy N, run X", or the concise-prose marker that
+  says the same thing inline — and a bare token is the last-resort fallback only.
+- **A drill run does not end a dispatch either.** Round four bounded each
+  dispatch section by run tokens, so deploy #5's section ended at its own TEST
+  drill (`31217933580`), which sits between the receipt and its bundle. The
+  entry-wide fallback then took over and handed it deploy #4's bundle — the
+  round-four fix defeated by the round-five bug. Sections are bounded by anchors
+  now, and the entry-wide fallback is refused outright in any entry holding more
+  than one dispatch.
+
+**And one the review did not raise, found while proving the above: the bundle
+comparison had been reading a spelling the log barely uses.** It matched
+`sealed_bundle_sha256 = <hex>`, which appears ONCE in `EXECUTION_LOG.md`;
+the capture receipt actually prints `rollback_bundle_sha256   <hex>` with no
+equals sign, and that appears six times. So for almost every real entry the
+bundle check found nothing and said nothing — a check that reports the same
+verdict whether it looked or not. Both spellings now.
+
 - Done when: it has caught one. Until a deploy runs, the evidence that it works
-  is the suite's stale-row fixture, which reproduces the 2026-09-03 finding
-  exactly and fails.
+  is the suite's fixtures, which reproduce the 2026-09-03 finding, the
+  failed-run-before-the-table shape, the drill-run-between-receipt-and-bundle
+  shape and the other-lane dispatch exactly, and fail.

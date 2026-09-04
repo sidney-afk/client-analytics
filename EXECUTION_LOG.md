@@ -5953,6 +5953,61 @@ applied to this tab's own writes. One refresh per row. `CAL_V2_RT_MIN_RELOAD_MS`
 the real handler against a mutant. Browser half only; the cure is item 76.
 OPEN_REPAIRS 129.
 
+## 2026-09-04 — F27 P.3 `linear-inbound` forward deploy executed (first since 2026-07-30)
+
+**Owner-dispatched, run `33899387402`, `deploy-f27-linear-inbound`, fully green.**
+Reviewed release SHA `72fbc4a5be6c570c2d6638a49b320abd4e4b2c5c` (merge of #1238);
+operation `deploy-reviewed-release`; confirmation accepted.
+
+| field | value |
+|---|---|
+| deployed slug | `linear-inbound` |
+| deployed function count | 1 |
+| candidate source closure SHA-256 | `019a463dee2b4b91ff0b19a0220479e7602e9a5880da6d19519f9113716bf0fc` |
+| candidate source files | 5 |
+| JWT posture | `verify_jwt=false` |
+| Supabase CLI | `2.109.0` |
+| Deno | `2.2.15` |
+| frozen `deno.json` SHA-256 | `e13cf0336d14f38013762c11935bd6123978f809120f530738d5b69669281524` |
+| frozen `deno.lock` SHA-256 | `a42630fbcde6d3f93da9ca2f5a9a39fd92ad23614853338443a56e7d4ab525ed` |
+| sealed v39 private fetch | PASS |
+| sealed v39 bundle SHA-256 | `cd0b391962a18b5e912dacf0c0e63c2ae972818343d1c41f77058039dd570690` |
+| sealed v39 bundle bytes | `49968` |
+| F27 Shared Drive root id SHA-256 | `9d1480048b17bcd038650c4d3191e12cb94b65938374ab335b955a9cab2df042` |
+
+**The receipt does NOT carry an active version number.** This lane's summary
+reports the deployed CLOSURE, not the version, so the live version is recorded
+here as "one past v40" and not as a number nobody read back. The workflow says so
+itself in its closing line: *"Post-deploy provider readback, sealed capture, Drive
+round-trip, freshness, and before/after state checks remain required outside this
+workflow."* **That readback is owed and has not been done.** Until it is, v40
+remains the last version this log can name from evidence.
+
+**What went live, and what did not.** Five commits had accumulated on
+`linear-inbound` since the 2026-07-30 deploy (`e3bcee98`), 136 lines:
+
+- **Item 100's `readStoredComment` repair — LIVE and reachable.**
+  `persistProductionComment` is called at index.ts:1245, *before* the
+  detect-only gate at 1247, so the defect that answered "no such row" and "two
+  rows" identically — skipping echo suppression and tombstone protection, and
+  corrupting rows rather than refusing writes — is now fixed in production. This
+  was the actively-harmful half.
+- **Item 77's cleared-assignee repair — SHIPPED BUT UNREACHABLE on current
+  authority.** `isDetectOnlyTeam` (index.ts:678-685) returns true whenever a
+  team's `prod_authority` reads `syncview`; both teams have since the
+  2026-08-28 video flip. The issue lane therefore returns inside the detect-only
+  branch at ~line 803, and the assignee write is at line 868. No Linear
+  unassignment can clear a stale `assignee_id` while that holds. See OPEN_REPAIRS
+  143's correction.
+- Self-echo labelling for the comment lane, plus review follow-ups and register
+  units.
+
+**ROLLBACK POSITION CHANGED, and not by one step.** This lane's only automated
+restore is `restore-captured-v39`, which writes back the pinned
+`V39_BUNDLE_SHA256` artifact. Before today that was one release behind live
+(v39 → v40). It is now **two** behind, and there is no automated path to v40.
+Restoring through the lane therefore undoes this release *and* the 2026-08-02
+one. `ROLLBACK.md`'s Linear-inbound row is updated to say so.
 ## Social media manager on a SyncLinear sub-issue
 
 Owner asked to see who runs the client, under `Project`. His constraint was

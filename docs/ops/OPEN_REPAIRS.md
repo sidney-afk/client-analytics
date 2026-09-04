@@ -5641,7 +5641,7 @@ pull-only classification should go detect-only for flipped teams.
 
 ---
 
-## 77. [FIXED IN REPO 2026-08-30 — **DEPLOY PENDING, AND NOW DISPATCHABLE**: the lane was re-pinned on 2026-09-02 by #1239, so the deploy can be run; until the owner runs it production still runs the old gate] linear-inbound cannot see a CLEARED assignee — mechanism corrected, fix shipped with an executing test
+## 77. [FIXED IN REPO 2026-08-30 — **DEPLOYED 2026-09-04** (run `33899387402`, closure `019a463d…`) AND STILL NOT IN EFFECT: the repair sits at `linear-inbound` index.ts:868, *after* the detect-only branch returns at ~803, and `isDetectOnlyTeam` is true for both teams while `prod_authority` reads `syncview`. So the code is live and unreachable. Owner SQL remains the only repair; see item 143's correction] linear-inbound cannot see a CLEARED assignee — mechanism corrected, fix shipped with an executing test
 
 > **STATUS, 2026-09-03.** The blocker the 2026-09-01 correction below describes
 > is CLOSED. `deploy-f27-linear-inbound.yml` now pins
@@ -5950,7 +5950,7 @@ not direction). All three were found by measuring rather than by reading.
 
 ---
 
-## 85. [found 2026-08-30 hands-on test, HALF-FIXED same day — DEPLOY PENDING; the other half is an owner call]
+## 85. [found 2026-08-30 hands-on test, HALF-FIXED same day — **DEPLOYED 2026-09-04** (run `33899387402`); the enrichment half is live, and the other half remains an owner call]
 
 `foreign_write_detected` is ~80% self-noise. **Root cause found, and it is one
 branch.** There is exactly one producer of the signal — `recordDetectOnly` in
@@ -7147,7 +7147,7 @@ the same way as its siblings. **Baseline 20.**
 
 ---
 
-## 100. [2026-09-02, **production-write DEPLOYED AND LIVE 2026-09-02** (run `33684111985`, v65 → v66, closure `cc44bf93…`); the `linear-inbound` site remains UNDEPLOYED and undeployable — see items 77 and 106] A parent lookup that cannot tell "no such row" from "two rows" — and one of the four reported it as a permissions problem while another corrupted data in silence
+## 100. [2026-09-02, **production-write DEPLOYED AND LIVE 2026-09-02** (run `33684111985`, v65 → v66, closure `cc44bf93…`); the `linear-inbound` site is **DEPLOYED AND LIVE 2026-09-04**, run `33899387402`, closure `019a463d…` — and it is REACHABLE, unlike item 77's repair in the same deploy: `persistProductionComment` runs at index.ts:1245, before the detect-only gate at 1247. The earlier "undeployable" wording was corrected to "undeployed" by item 118 and is now moot] A parent lookup that cannot tell "no such row" from "two rows" — and one of the four reported it as a permissions problem while another corrupted data in silence
 
 **One shape, four copies.** Every one of them was:
 
@@ -10274,7 +10274,7 @@ mistake.
 
 ---
 
-## 143. [2026-09-04, AUDIT — nothing to build; one dispatch closes three items, and it is dispatchable right now] The `linear-inbound` lane has not run since 2026-07-30, and tonight's health check measured what that costs
+## 143. [2026-09-04, **DISPATCHED AND GREEN** — run `33899387402`, release `72fbc4a5…`, closure `019a463d…`, `verify_jwt=false`. One of the three items it was supposed to close does NOT close; see the correction at the end.] The `linear-inbound` lane had not run since 2026-07-30, and the health check measured what that cost
 
 Numbered 143 because 135–142 are claimed by open, unmerged branches and 130–133
 by the reverted #1248 branch. Check for duplicate `## N.` headers after any of
@@ -10299,7 +10299,7 @@ on `main`, unreachable by production, for five days — and item 100's header
 still said the site was "undeployable", which item 118 already corrected to
 "undeployed".
 
-### It is dispatchable TODAY — measured, not assumed
+### It was dispatchable, and it has now been dispatched — measured, not assumed
 
 `node scripts/ef-fingerprint.js 00d0e888… --slugs=linear-inbound
 --expected-only` returns
@@ -10326,14 +10326,61 @@ bucket was driven to ZERO on 2026-08-28 when the owner unassigned all 25 in
 Linear. It has regrown, and item 77 is the mechanism: the unassignments are
 delivered and dropped, so every future one has to be repaired by owner SQL
 instead of mirroring for free. The owner-SQL half is in item 11 of
-`docs/ops/PRE_FLIP_HEALTH_CHECK.md` and repairs the 12 that exist; the deploy is
-what stops the thirteenth.
+`docs/ops/PRE_FLIP_HEALTH_CHECK.md` and repairs the 12 that exist. **The claim
+that the deploy stops the thirteenth was WRONG — see below.**
 
 This entry adds no code. It exists because three items reading "DEPLOY PENDING"
 in three different places is not the same as anyone knowing that one un-run
 workflow is holding all of them, and because the ledger has now twice recorded a
 status that was false on `main` (item 118).
-## 142. [2026-09-04, REQUESTED BY THE OWNER — not started, and it needs one decision before it can be] Show the social media manager on a SyncLinear sub-issue, without hand-keeping the mapping
+
+### CORRECTION, same day, from Codex on PR #1260: item 77's fix is UNREACHABLE
+
+The entry above claims the deploy "stops the thirteenth" ghost assignment. It
+does not, and the mechanism is not subtle once you look:
+
+- `isDetectOnlyTeam` (index.ts:678-685) returns **true** whenever that team's
+  `prod_authority` reads `syncview`. Both teams have read `syncview` since the
+  video flip on 2026-08-28.
+- The issue-update lane therefore enters the detect-only branch at line 751 and
+  **returns at line ~803**.
+- Item 77's cleared-assignee repair lives at line 868 — *after* that return.
+
+So on today's authority the assignee write is not reached at all, and no
+unassignment made in Linear can clear a stale `assignee_id`. The deploy enriched
+the detection trail and made the rollback position current; it did not close the
+recurrence. Owner SQL remains the only repair, which is exactly the state this
+entry claimed the deploy would end.
+
+**What the deploy DID fix, and this half is real:** item 100's
+`readStoredComment` repair. `persistProductionComment` is called at line 1245,
+*before* the detect-only gate at 1247, so the comment lane's "no such row and
+two rows are the same answer" defect — the one that skips echo suppression and
+tombstone protection and corrupts rows rather than refusing writes — is now
+live. That was the actively-harmful one.
+
+**The durable fix — and the first proposal here was WRONG, corrected by Codex on
+PR #1261.** This entry first proposed adding a cleared assignee to the
+detect-only branch's existing narrow exception, on the grounds that the
+attribution carve-out uses the same argument. It does not, and the difference is
+the whole point of the flip: the attribution exception writes
+the invalid-attribution sentinel into `client_slug` — it INVALIDATES a stored
+value it can no longer trust. It never applies a value Linear sent. Applying an inbound assignee clear
+would apply one, which makes Linear a writer again for a field SyncView now owns:
+a delayed or foreign unassignment would then erase an assignee chosen in
+SyncView, restoring the two-writers-one-field state the flip removed. Detect-only
+is correct here and stays.
+
+So the repair is native, not inbound: clear the stale rows through SyncView's own
+assignment control or a targeted SQL repair, and stop assigning in Linear. The
+latter is where the Linear exit goes anyway, which makes this a transitional
+nuisance rather than an architecture question.
+
+**And the wider consequence, which is not about ghosts:** while both teams are
+`syncview`, NO assignment change made in Linear reaches SyncView. That is the
+flip working as designed, but anyone still reassigning in Linear is writing to a
+surface SyncView no longer reads.
+## 142. [2026-09-04, **PREMISE SUPERSEDED SAME DAY** — the sync this entry says must be built already exists and runs daily; the decision it asks for is moot. See the correction at the end.] Show the social media manager on a SyncLinear sub-issue, without hand-keeping the mapping
 
 Numbered 142 because 135–141 are claimed by open, unmerged branches at the time
 of writing. Check for duplicate `## N.` headers after any of them merges.
@@ -10414,6 +10461,54 @@ it.
 
 **Owner decision needed before any code:** route A-via-n8n, A-via-Edge-Function,
 or B.
+
+### CORRECTION, same day — route A ALREADY EXISTS, so none of the above is needed
+
+Raised by Codex on PR #1259 and confirmed independently against the live n8n
+instance and the function source. Everything the three routes above propose
+building is already built and running:
+
+- **n8n workflow "SyncView SMM Reports – Manager Sync"** (`y3rEWCVdB0esN3tO`),
+  ACTIVE, schedule trigger daily at 06:00 America/Guatemala. It reads the
+  *Social Media Managers* tab of the SYNCVIEW sheet, groups rows by manager,
+  and POSTs `{action: "sync_managers", replace: true, managers: [...]}` — each
+  manager carrying a `source_clients` array — to `smm-weekly-reports`. Its last
+  four executions all succeeded, most recently 2026-09-04 12:00Z.
+- **`smm-weekly-reports`** persists that into `social_media_managers` with
+  `source_clients` and `synced_at` (index.ts:235-290), and already serves the
+  table to the browser through `?action=options` (`loadOptions`, line 133) —
+  which the SyncLinear page already calls, with a staff identity it already
+  holds.
+
+`replace: true` is the wholesale-overwrite discipline this entry recommends,
+already in place. So the remaining work is not a storage decision, it is two
+small edits: add **`source_clients` AND `synced_at`** to `loadOptions`'s
+`.select(...)` and to `serializeManager` (which today returns only
+slug/name/email/active), then invert the mapping in the browser and render one
+line under Project in `_prodProps`. No new function, no new table, no migration,
+no Google service account, no new schedule.
+
+`synced_at` is not optional and was missing from the first version of this
+recipe (Codex, PR #1261): the staleness rule the entry above insists on cannot
+be implemented without it, and a mapping left behind by a failed daily sync would
+be displayed as current indefinitely — the exact failure item 122 is about.
+
+**One thing this does NOT get for free, corrected on the same review: the
+audience.** `?action=options` runs under the `weekly-report-submit` capability,
+which `index.html:22190` grants to **admin and smm only**. `?prod=1` also serves
+an unsigned read-only preview, and Creative is a supported Production role — so
+reusing this endpoint renders the line for Admin/SMM and refuses everyone else.
+That is a narrowing of the feature, not an absence of auth work, and it is the
+owner's call: accept the narrower audience (zero extra work), or add a
+lower-privilege projection carrying client → SMM name only, which is small but
+is real auth surface.
+
+**What survives from the entry above:** the reasoning about why a hand-kept copy
+goes stale, and the ruling against the "publish the sheet to web" CSV shortcut
+(that URL is effectively public and the mapping pairs staff names with clients).
+Both stand. Only the build-it-yourself conclusion is retracted — and the reason
+it was wrong is worth keeping: the entry proposed three ways to build a thing
+without first checking whether the estate already had it.
 ## 141. [2026-09-04] The polish gate's public summary named five of six failing checks and hid the sixth behind "+1more" — for 27 consecutive runs, and the hidden one is unrecoverable
 
 Numbered 141 because 135–140 are claimed by branches that are open and unmerged
@@ -11524,6 +11619,177 @@ together, so it is visible that there are three.
 
 ---
 
+## 144. The heavy lane could not run off-CI, so six of its checks were guesses
+
+`npm run test:prod-polish`'s heavy lanes boot the real app against the real
+backend. In a sandbox they could not: outbound HTTPS goes through a policy proxy
+that re-terminates TLS, and Playwright's bundled Chromium does not trust that
+proxy's CA. It does not read the system NSS store either, so adding the CA there
+changes nothing — measured 2026-09-04, after installing `libnss3-tools` and
+trying exactly that. Pointed at the proxy the requests die in the handshake;
+pointed nowhere they die on the connection. Both look identical from the page:
+`ERR_CONNECTION_RESET`, every backend read empty.
+
+That is where "the sandbox has no route to the live backend" came from
+(`CLAUDE.md`, item 125). It was half true. There IS a route — Node's `fetch`
+uses it, which is how every backend measurement in this ledger was taken. Only
+the *browser* lacked one.
+
+So `docs/syncview-design/tests/prod-backend-bridge.js` lets Node open the
+connection, verifying the certificate exactly as every other tool here does, and
+hands the response back through `page.route`. Nothing is bypassed, ignored or
+disabled; `--ignore-certificate-errors` is deliberately not used. It is a
+TRANSPORT, NOT A FIXTURE — the bytes are the live backend's, nothing is recorded
+or replayed — which is the only reason a check that passes under it means
+anything. Opt-in via `PROD_BACKEND_BRIDGE=1`, so CI runs byte-identically
+without it.
+
+**What it bought immediately.** The lane ran to completion for the first time:
+`behav-wired: 161/168`, and the sixth failing check — hidden behind "+1 more"
+for six days because `BEHAV_WIRED_NAME_CAP` was 5 — is named:
+`detailScrollNavBack`. The full set is `chip`, `kbProj`, `titleTooltip`,
+`ringClearOnNav`, `pcardNameTooltip`, `detailScrollNavBack`, plus
+`noConsoleErrors`, which fails only in the sandbox because `docs.google.com`,
+`cdn.jsdelivr.net` and `fonts.googleapis.com` are deliberately not bridged.
+
+Those six are now measurable rather than arguable. **None has been re-based, and
+none should be until each is classified stale-or-broken with evidence** — a
+check re-based because it was inconvenient is worse than a check that is red.
+
+`test/prod-backend-bridge.js` pins the four properties that stop it becoming a
+way to fake a pass: it is not a TLS bypass, it is a transport and not a fixture,
+its hosts are an allowlist rather than a general-purpose hole out of the
+sandbox, and it can assert it actually carried traffic — because a bridge that
+silently carried nothing would let every check "pass" on an empty page.
+### What the six actually are, now that the lane runs
+
+Second run under the bridge reproduced the set exactly — `161/168`, bridge
+carried 120 requests, all 200 — and **every one of the six returns `false`, not
+an error**. That distinction is the whole diagnosis: the assertions run to
+completion, so none of these is a broken selector or a timeout. Each is a real
+disagreement between what the check expects and what the app does.
+
+**`kbProj` — STALE, and re-basing it the other way would break a decision.**
+It presses `Shift+P` and expects a project picker to open. `_prodOpenPicker`
+refuses `proj` at the door, deliberately, with the reason written beside it:
+there is no gateway operation that writes `client_slug` on any surface for any
+role, so the picker used to build a searchable list of every client and then
+hard-return a read-only guard when you pressed one. Making this check pass means
+re-opening that picker. **Do not.**
+
+**`titleTooltip` and `pcardNameTooltip` — STALE, same single cause.** Both assert
+that a SHORT title carries no `title` attribute. `_prodTitleAttrs` emits
+`data-fulltitle` and `title` unconditionally — it has no short/long branch at
+all, so the assertion is false by construction for every row. One helper, two
+red checks.
+
+**`chip` — STALE, and the correct pattern is already in this file.** It reads a
+slug from the first `.prod-row` and then clicks the first `.prod-row
+.prod-chip-client`. Those are **two different rows**: the first row's
+`data-prod-client` is the `__needs_attribution__` sentinel, which renders no
+client chip, so the first chip belongs to a later row. Measured: the click
+navigated correctly — `view === 'project'`, `clientSlug` and `openId` both
+cleared — and only `openProjectId === slug` failed, because the slug came from
+the wrong row. The sibling check at line 2179 already does it correctly, reading
+`data-prod-crumbclient` off the chip it is about to click. This check simply
+never caught up with attribution sentinels.
+
+**`ringClearOnNav` — STALE, and this file already knows why.** It clicks a nav
+button and then presses `j`. Measured: the first `j` focused a card, nav
+correctly cleared the ring, and the second `j` set nothing — because a
+just-clicked nav button holds focus, and the key never reaches the board
+handler. Refusing to hijack keys while a control is focused is correct
+behaviour, and `cmdASelectsCollapsed` in this same file calls
+`document.activeElement.blur()` before dispatching for exactly this reason. The
+check needs the same blur; the app needs nothing.
+
+**`detailScrollNavBack` — STALE, and this one took instrumenting the sweep to
+say so.** In isolation it PASSES, so it could not be diagnosed the way the other
+five were: it inflates `parent.desc` to force an overflow, descriptions are
+hydrated on demand, the filler never reaches the DOM, the pane measures 833/833
+and the check early-returns true. Instrumenting it inside the full run gave the
+numbers:
+
+```
+set=3  after=0  sameNode=false  hadChild=true  h2=836  c2=833
+```
+
+Two things there. `set=3`, not 180 — the pane overflows by three pixels, which
+is incidental layout, not the 300 lines of filler the check believes it
+inserted. So it is not measuring what it claims to measure at all. And
+`sameNode=false`: `_prodRender` replaces the pane, so a fresh node starts at
+zero.
+
+The behaviour it asserts is one the app deliberately does not have.
+`_prodOpenDeliverable` ends by calling `_prodScrollDetailToTop`, which sets
+`detailScrollTop = 0` and `detailScrollKey = ''`. Opening a DIFFERENT
+deliverable is meant to scroll to top and forget the offset; the restore only
+fires when the painted key still matches the saved one. The check opens a child
+— deliberately clearing the offset — and then expects the parent's old position
+back. **Making it pass means deleting that reset, which is the deliberate fix
+recorded beside it** (the "snap": a restore and a deferred reset fighting, with
+a visible flash where there should have been nothing).
+
+So the count is six stale, zero real bugs, and `detailScrollNavBack` is the one
+that most looked like a real bug until it was measured.
+
+**`noConsoleErrors` is sandbox-only.** It fails on `ERR_CONNECTION_RESET` from
+`docs.google.com`, `cdn.jsdelivr.net` and `fonts.googleapis.com`, which the
+bridge deliberately does not carry. It is not evidence about the app.
+
+**Nothing is re-based here.** All six are stale for reasons that are now written
+down, but the re-base is the owner's call — and two of them (`kbProj`,
+`detailScrollNavBack`) would require undoing a deliberate decision to make
+green, so those two want deleting or rewriting rather than "fixing".
+
+## 145. `/*` inside a string is not a comment, and ~64k characters of `index.html` were invisible to a dozen gates
+
+Found while writing item 144's test, which failed on its own prose. The usual
+way a gate here reads "the code, not the comments" is
+
+```js
+const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ');
+```
+
+and that opens a comment at any `/*`, including one inside a string literal. It
+then runs to the next `*/` anywhere in the file, swallowing whatever lies
+between. **Seventeen gates strip this way.** The damage is not theoretical:
+
+| file | site | swallowed |
+|---|---|---|
+| `index.html` :67329 | `accept="…,video/*"` | 37,090 chars |
+| `index.html` :68510 | `accept="…,video/*"` | 27,330 chars |
+| `supabase/functions/production-write/index.ts` :418 | `accept: "*/*"` | 2,620 chars |
+
+Every other `/*` in those files opens its own line, which is why this went
+unnoticed: the strip is right 1,135 times out of 1,138 in `index.html`.
+
+The app code is correct — `accept="video/*"` is exactly what that attribute
+should say, and it must not be contorted to suit a test. **The strippers are
+what is wrong.**
+
+Which assertions this actually breaks is narrower than it sounds, and worth
+stating precisely: a POSITIVE assertion against a gutted view fails loudly, so
+it cannot hide anything. It is the NEGATIVE ones — `ok(!/…/.test(CODE))` — that
+pass vacuously, because the text they forbid was deleted before they looked.
+Those, over the ~64k blind region, are the ones that have not been proving what
+they claim.
+
+Not yet repaired. The fix is one shared, string-aware strip helper rather than
+seventeen regexes, and migrating the gates will make some of them see code they
+have never seen — so it needs to land where a red gate is a finding to read, not
+a merge to unblock.
+
+**The general lesson, which is the third time it has cost a cycle here:** a
+"this code does NOT do X" assertion must read the code with prose removed, and a
+"this code SAYS why" assertion must read the prose. Reading the wrong one gives
+a gate that either fails on its own explanation (item 144's test, and the
+`no-hardcoded-colors` false positive on PR 1252, where a comment reading `#1252`
+parsed as a colour literal) or passes vacuously and proves nothing (the date
+assertion in `test/repo-identity-exposure.js`). **And the strip that separates
+them has to be checked too** — `test/prod-backend-bridge.js` asserts its own
+strip left the routing and the fetch behind, which is the only reason this was
+caught at all.
 ## 146. Who runs this client, on the sub-issue, without a second copy of the roster
 
 The owner asked to see the social media manager on a SyncLinear sub-issue —

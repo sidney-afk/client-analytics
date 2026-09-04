@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const {
   FROZEN_WRITER_SLUGS,
@@ -1349,7 +1350,7 @@ async function offlineProof() {
   const source = fs.readFileSync(path.join(ROOT, 'scripts', 'f27-final-verification.js'), 'utf8');
   ok((source.match(/BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY/g) || []).length >= 2
     && !/\b(?:INSERT|UPDATE|DELETE|ALTER|DROP|CREATE)\s+(?:INTO|TABLE|FUNCTION|TRIGGER|INDEX|SCHEMA|ROLE|EXTENSION)\b/i
-      .test(source.replace(/\/\*[\s\S]*?\*\//g, '')),
+      .test(stripBlockComments(source, '')),
   'database adapters contain only repeatable-read read-only proof SQL');
   ok(!/method:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/i.test(source),
     'production network adapters contain only GET methods');

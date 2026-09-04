@@ -39,6 +39,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -83,7 +84,7 @@ ok(compatible(noStamp, 'both') === compatible(withStamp, 'both')
 /* Comments stripped first: this rule carries a long note explaining WHY it
    ignores the stamp and the owner team, and a naive search would find those
    words in the explanation and call it a use. */
-const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const stripComments = text => stripBlockComments(text, '').replace(/^\s*\/\/.*$/gm, '');
 const ruleSrc = stripComments(html.slice(html.indexOf('function _calNativeBatchCompatible('), to));
 ok(/needed\.every/.test(ruleSrc), 'the stripped rule still contains its real logic (harness is not vacuous)');
 ok(!/\bbatch\.team\b/.test(ruleSrc),

@@ -73,6 +73,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const FIXED_PATH = path.join(ROOT, 'migrations', '2026-09-01-batch-description-cas-timestamptz.sql');
@@ -92,8 +93,7 @@ function ok(condition, message) {
    length and name every string they are about, so a guard that matched the
    header would report success against its own documentation. */
 function stripSql(src) {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  return stripBlockComments(src, ' ')
     .split('\n').map(line => line.replace(/--.*$/, '')).join('\n');
 }
 const fixed = stripSql(FIXED);

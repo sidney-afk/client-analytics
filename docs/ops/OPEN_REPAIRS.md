@@ -10224,3 +10224,65 @@ from the function's start, so adding ~25 lines pushed half the assertions past
 the end and they failed as a block while reporting nothing about the code they
 guard. It now uses `extractFunction`, which exists in this repo for exactly that
 mistake.
+
+---
+
+## 143. [2026-09-04, AUDIT — nothing to build; one dispatch closes three items, and it is dispatchable right now] The `linear-inbound` lane has not run since 2026-07-30, and tonight's health check measured what that costs
+
+Numbered 143 because 135–142 are claimed by open, unmerged branches and 130–133
+by the reverted #1248 branch. Check for duplicate `## N.` headers after any of
+them merges.
+
+### Three items are waiting on the same single deploy
+
+- **77** — `linear-inbound` cannot see a CLEARED assignee. Linear omits the
+  relation OBJECT when null but always sends the `*Id` scalar twin, so the
+  handler's one-key gate never fires and the native `assignee_id` stays stamped.
+  Fixed in repo 2026-08-30.
+- **85** — the enriched-row half, explicitly "same deploy as item 77".
+- **100** — the `linear-inbound` half of the parent-lookup repair. Its
+  `production-write` half went out in deploy #25 on 2026-09-02; this half did
+  not.
+
+### The lane has run twice, ever, and both were on 2026-07-30
+
+`deploy-f27-linear-inbound.yml`: run 1 failed, run 2 succeeded, both
+2026-07-30. Nothing since. So all three fixes have sat in the repository, live
+on `main`, unreachable by production, for five days — and item 100's header
+still said the site was "undeployable", which item 118 already corrected to
+"undeployed".
+
+### It is dispatchable TODAY — measured, not assumed
+
+`node scripts/ef-fingerprint.js 00d0e888… --slugs=linear-inbound
+--expected-only` returns
+`019a463dee2b4b91ff0b19a0220479e7602e9a5880da6d19519f9113716bf0fc`, which is
+character-for-character the `CANDIDATE_SOURCE_SHA256` the workflow pins (#1239
+re-pinned it 2026-09-02). The lane fails closed on a mismatch, so this is the
+difference between "will deploy" and "will decline in twenty seconds".
+
+Two things make this dispatch cheaper than a §4 one, both worth knowing before
+anyone puts it off again:
+
+- **No capture.** Its rollback bundle is pinned as `V39_BUNDLE_SHA256`; the
+  owner's `f27capture` script is not needed for this lane.
+- **No tip race.** Its only SHA rule is that the fingerprint matches, so unlike
+  the §4 lane a merge landing between hand-over and dispatch does not invalidate
+  it. The SHA above stays valid.
+
+### What the delay is actually costing, measured tonight
+
+The 2026-09-04 01:03Z pre-flip health check re-measured item 11's widened half —
+live deliverables assigned to a member whose `team_members` row is inactive —
+and found **12 live video rows, all `todo`, on one inactive member**. That
+bucket was driven to ZERO on 2026-08-28 when the owner unassigned all 25 in
+Linear. It has regrown, and item 77 is the mechanism: the unassignments are
+delivered and dropped, so every future one has to be repaired by owner SQL
+instead of mirroring for free. The owner-SQL half is in item 11 of
+`docs/ops/PRE_FLIP_HEALTH_CHECK.md` and repairs the 12 that exist; the deploy is
+what stops the thirteenth.
+
+This entry adds no code. It exists because three items reading "DEPLOY PENDING"
+in three different places is not the same as anyone knowing that one un-run
+workflow is holding all of them, and because the ledger has now twice recorded a
+status that was false on `main` (item 118).

@@ -10227,6 +10227,243 @@ mistake.
 
 ---
 
+## 137. [2026-09-03, GUARD SHIPPED — script-only, live on merge] The "what is live" row now has a check instead of a third written reminder
+
+Item 118 called the stale `ROLLBACK.md` row **the dangerous one**, and said why
+a fourth correction-in-place would not hold it:
+
+> A written rule has now failed to hold this row twice, which is the argument
+> for a check rather than a third reminder: nothing in CI compares this row
+> against `EXECUTION_LOG.md`'s newest `syncview_f27_section4_deployed_versions_v1`
+> block, and that comparison is derivable.
+
+It is now compared. `scripts/rollback-row-freshness-check.js` reads both files
+and nothing else, and `test/rollback-row-freshness.js` runs it in the suite, so
+a row left describing the previous deploy turns a PR red.
+
+**Why a check and not a reminder.** The lane WRITES the receipt into
+`EXECUTION_LOG.md` automatically; the row is typed by hand. That asymmetry is
+the whole decay: every dispatch updates one and not the other, and the gap is
+invisible until someone mid-incident reaches for a bundle. The row has been
+found stale twice on record — once **eleven deploys** behind — and its own
+middle column states the exact law it keeps breaking, which is the argument
+against writing the law a fourth time.
+
+**What it compares**, all derived, none of it hand-maintained on this side:
+
+- the GitHub run id and the dispatched commit;
+- every function's active version and source-closure hash;
+- **the one-step property.** The row names a sealed bundle and claims it
+  captures the release immediately before live. That claim is checkable: the
+  version it captures must equal `production-write`'s version in the PREVIOUS
+  receipt. A bundle two releases back passes every existing integrity check —
+  they verify the bundle, not its distance from live — and restoring it undoes
+  a deploy nobody meant to undo. This is the specific harm item 118 named, and
+  it is now the one thing here that no other gate anywhere covers.
+
+**Two parser traps, both real shapes from these files, both pinned by a test
+that fails without the handling.** A forward-deploy row writes the version as
+`65 → **66**`; reading the first number reports the release that was REPLACED
+as the one that is live, which is the very error being hunted. And the live
+claim shares a table cell with a deliberately-retained *"Superseded history
+below"* paragraph carrying an older set in the identical format — a parser that
+takes the last match reads history as the present.
+
+**One thing the check reports without failing on it.** The newest receipt
+(2026-09-02, deploy #25) is a summary table, not the attestation block the lane
+instructs you to copy; the same gap was raised as a P2 on #1215 and again in
+item 118. The comparison still holds from the table, so this is a NOTE rather
+than a failure — turning it red would block PRs on an entry already written.
+Every field the block would have carried is checked from the table today.
+
+### Codex found four P1s in the first version, and the first one is the entry's own lesson
+
+**FILE POSITION IS NOT CHRONOLOGY.** The check took the LAST receipt in
+`EXECUTION_LOG.md` as the newest. That file is **reverse**-chronological at the
+top (2026-08-31 at line 5, descending to 2026-08-18) and **forward**-
+chronological further down (2026-08-25 → 2026-09-01 → 2026-09-02). Measured
+across all fourteen receipts, file order and deploy order disagree completely:
+the receipt at character 4,791 is run `33423121197` while the one at 477,401 is
+run `31023890487`. It is right today by luck, and the next entry written at the
+top the way the top section is written would have made a guard against silent
+staleness silently stale. **A check that passes by accident is the thing this
+file has the most entries about.**
+
+Fixed by ordering on the GitHub run id, which increases with time and which
+every receipt carries. A receipt with no run id cannot be placed in time, so it
+cannot be ruled out as the newest — that now FAILS, naming the character offset
+to fix. And because one signal is a single point of failure, the entry dates
+are a second: run-id order disagreeing with date order fails too.
+
+The same key fixed the second finding. Folding a JSON block together with its
+own summary table was done by proximity (within 6,000 characters, different
+shapes), which discards a newer table-only deploy written close after a
+JSON-backed one. Receipts are now grouped by **deployment identity** — same run
+id, same deploy — so adjacency means nothing.
+
+**The other two were both "could not check" printing as "fine":**
+
+- A row naming no readable bundle recorded a NOTE and exited 0, so a PR could
+  update the live versions while leaving no verified one-step restore — the
+  exact incident-time hazard. Now a failure, and so are the two other ways the
+  one-step property can be unverifiable (no older receipt at all; the older
+  receipt not naming `production-write`).
+- A receipt naming only three of the four functions left the fourth as a note
+  and exited 0, so `production-write` could go entirely unchecked while
+  `ROLLBACK.md` named an obsolete version. The §4 lane deploys the four as one
+  serial set, so a three-function receipt is incomplete, not a receipt about
+  three functions. Now fails closed.
+
+All four have their own fixtures, including a reverse-ordered log whose stale
+row passed before and fails now.
+
+### Round two: three more, and testing one of them found a fourth
+
+- **A `>= 3` cutoff DROPPED short tables.** A newest receipt truncated to one or
+  two rows vanished entirely, and the deploy before it silently became "live" —
+  a stale row passing, by the very mechanism this entry is about. Every detected
+  table is retained now and fails on the functions it does not name.
+- **The captured VERSION matching is not the BUNDLE matching.** With the right
+  version the row could name any digest at all — `deadbeef… / 1 bytes` exited 0
+  — and an older bundle is exactly the one that is indistinguishable by version
+  when an intervening deploy moved a different function. The receipt records the
+  bundle its dispatch sealed (`sealed_bundle_sha256`, `byte_length`); the row's
+  digest and length must match it, and a receipt recording no sealed bundle
+  fails rather than skipping the comparison.
+- **Absence is not agreement.** A live claim missing its run id or its
+  dispatched commit skipped those comparisons and exited 0, losing exactly the
+  provenance this guard says it verifies. Both are now required.
+
+**And writing the test for that last one exposed something worse than the
+finding.** The claim was read as a fixed 900-character window from `**Live as
+of`, which runs past the end of the claim into the deliberately-retained
+*"Superseded history"* prose **in the same table cell** — carrying an older run
+id, commit and version set in the identical format. So a claim that omitted its
+run id did not fail: it silently borrowed the superseded one and compared
+against that. The claim is now bounded by its own bold span, and the fixture
+asserts the superseded id is not picked up.
+
+### Round three: the same rule, on the receipt's side of the comparison
+
+Two more, both the shape of round two's third finding and both on the half I
+had not applied it to:
+
+- A **receipt** whose prose omits `dispatched from <sha>` left `live.commit`
+  empty, and the comparison was skipped — so the row could name an arbitrary
+  commit and still pass, on a guard whose whole claim is that it verifies
+  deployment provenance. Now a failure naming the run, with the fix (add the
+  line to that entry).
+- A receipt recording `sealed_bundle_sha256` but no `byte_length` made the
+  length comparison truthiness-skip, so the bundle was accepted with **half an
+  identity proved**. A missing length now fails exactly like a missing digest.
+
+Worth stating because it is the pattern across all three rounds on this file:
+every finding has been *"a branch that could not check something exited 0
+anyway."* The rule is the same each time and I kept applying it to one side of a
+comparison and not the other.
+
+### Round four: one heading can hold many deploys
+
+- **The prose fallback read the FIRST run id in the entry, not the nearest one.**
+  A single `##` entry can hold several dispatches — the real 2026-08-05 one names
+  **twelve** run ids and carries six receipts. So a later table-only receipt took
+  the identity of the OLDEST deploy in its entry, and grouping by run then folded
+  it away as a duplicate: the newest deploy could disappear entirely and a stale
+  row pass. Reading the nearest preceding mention instead raised the receipts
+  this file yields from 12 to **16** — four deploys that were being silently
+  merged into their neighbours.
+- **A closure had to actually be a closure.** An attestation block naming all
+  four functions but omitting one `source_closure_sha256` stored `''`; the shared
+  prefix length came out zero and two empty slices compared equal, so that
+  function's closure was never checked and the guard exited 0.
+- **A newest receipt under an undated heading** skipped the date cross-check
+  entirely, quietly reducing the guard to a single chronology signal — the exact
+  thing the second signal exists to prevent. Now a failure.
+
+### Round five: a whole deploy shape this guard could not see
+
+- **The concise prose entry produced no receipt at all.** `EXECUTION_LOG.md`
+  OPENS with one — *"**Section 4 forward from `5a3365f2`, run `33434655418`,
+  PASS.** `production-write` 62 → **63**, closure `a54b6bad…`. The other three
+  were byte-identical redeploys."* No table, no attestation block, so **run
+  `33434655418` was simply absent from this guard's picture of history**. If the
+  next dispatch were logged that way, the deploy before it would stay `live` and
+  its stale row would exit 0. These cannot be reconstructed — *"the other three
+  were byte-identical"* names no versions — so they are detected and left
+  incomplete deliberately: when one is the newest, the per-function checks fail
+  it by name and tell the writer what the entry is missing. Receipts went from
+  16 to 17.
+- **Each sealed bundle is now bound to its own dispatch**, not to its entry.
+  Same multi-deploy-per-entry problem as the run id, on the half I had not
+  applied it to: every receipt in the 2026-08-05 entry was handed that entry's
+  FIRST bundle, so a later row could name an older digest and pass — and the
+  captured-version check does not catch that when the intervening deploy moved a
+  different function.
+- **A date has to be a date.** `2026-99-99` matched the shape, sorts after every
+  real date, and would have made the second chronology signal meaningless while
+  looking present. Round-tripped through `Date` now.
+
+**A second one came the same way.** Table rows were grouped by byte distance,
+which merged rows from two different entries whenever the first table was
+short — so a truncated newest receipt's lone surviving row joined the next
+deploy's table and the truncation disappeared. Tables are grouped by the entry
+they are written in now, which is the real boundary and is knowable, so the
+heuristic is gone.
+
+**ROUND FIVE, and the largest of the five: A LANE THIS GUARD CANNOT READ IS
+STILL A DEPLOY.** The §4 lane is not the only workflow that deploys these four
+functions — `deploy-onboarding-edge-functions` ("Deploy staff-sensitive edge
+functions") carries `linear-outbound` and `production-write` in its Track-B
+step, and emits an `ef-fingerprint` attestation into its job summary rather
+than the receipt shape this check reads. So a dispatch through it moves the live
+versions and the guard goes on reporting agreement with a §4 receipt that is no
+longer the newest deploy.
+
+This is not a hypothetical: the row's own middle column in `ROLLBACK.md` records
+that it "decayed again within three days" of the update step being added,
+"because the deploys went through the ONBOARDING lane, which the step does not
+cover", and names the onboarding-lane gap as "the durable fix still owed". A
+guard written for that row that shares the gap is a guard that certifies exactly
+the state it exists to catch. Now: the lane roster is DERIVED from
+`.github/workflows` (any `deploy-*.yml` naming one of the four, minus the §4
+lane itself — a third one appears without anybody remembering to add it), and a
+recorded dispatch of such a lane at or after the newest §4 receipt's day FAILS,
+naming the lane, which functions it can move, and both dates. Deliberately
+narrow — the lane has to be named as a reference, its filename in backticks or
+its workflow name in quotes, not alluded to in prose — because a rollback guard
+that cries wolf gets skimmed, which is the failure this file records more often
+than any other.
+
+**Two more from the same round, both the same lesson: a MENTION is not a CLAIM.**
+
+- **The run token nearest a table is routinely the wrong run.** Deploy #5's
+  heading names run `31217806479`, and its first sentence names run
+  `31214635190` — "the final four-function verification step that FAILED on"
+  it. Taking the nearest preceding token filed #5's table under a run that
+  deployed nothing: two identities for one deploy with the JSON block present,
+  and the wrong one without it. Identity now comes from an ANCHOR — a heading
+  that says "this section is deploy N, run X", or the concise-prose marker that
+  says the same thing inline — and a bare token is the last-resort fallback only.
+- **A drill run does not end a dispatch either.** Round four bounded each
+  dispatch section by run tokens, so deploy #5's section ended at its own TEST
+  drill (`31217933580`), which sits between the receipt and its bundle. The
+  entry-wide fallback then took over and handed it deploy #4's bundle — the
+  round-four fix defeated by the round-five bug. Sections are bounded by anchors
+  now, and the entry-wide fallback is refused outright in any entry holding more
+  than one dispatch.
+
+**And one the review did not raise, found while proving the above: the bundle
+comparison had been reading a spelling the log barely uses.** It matched
+`sealed_bundle_sha256 = <hex>`, which appears ONCE in `EXECUTION_LOG.md`;
+the capture receipt actually prints `rollback_bundle_sha256   <hex>` with no
+equals sign, and that appears six times. So for almost every real entry the
+bundle check found nothing and said nothing — a check that reports the same
+verdict whether it looked or not. Both spellings now.
+
+- Done when: it has caught one. Until a deploy runs, the evidence that it works
+  is the suite's fixtures, which reproduce the 2026-09-03 finding, the
+  failed-run-before-the-table shape, the drill-run-between-receipt-and-bundle
+  shape and the other-lane dispatch exactly, and fail.
 ## 135. [2026-09-03, FIXED — browser-only, live on merge] Kasper could not approve a caption that was already written, and the notice blamed the SMM for a file nobody owed
 
 **Reported.** The owner opened the four cards from item 134's notice and said:

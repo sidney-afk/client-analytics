@@ -11521,3 +11521,144 @@ past the saved month, status and ready-only filters long after the reader had
 moved on. `navTo` now drops it whenever it routes away from the calendar, beside
 the calendar teardown that already lives there. All three exits are asserted
 together, so it is visible that there are three.
+
+---
+
+## 144. [2026-09-04, REVIEW — one live client bug found and NOT yet fixed, one stale canonical row corrected, and the exit plan given a spine] The Linear-exit strategy set, checked against the live system instead of against itself
+
+Numbered 144 because 135–143 are claimed and 130–134 by the reverted #1248
+branch. Check for duplicate `## N.` headers after any open branch merges.
+
+**⚠ PROVENANCE. This entry is a SECOND-OPINION REVIEW written by a Claude Code
+session on 2026-09-04. It reviews someone else's work: the three Linear-exit
+documents authored by a Codex session on 2026-09-03 and shipped as draft PR
+#1257. Those three documents are merged into this branch BYTE-IDENTICAL to that
+PR — not one line was edited, corrected in place, or blended with this review —
+and their author did not write this entry.** Everything below, including the
+verification results, the two corrections, the B5 staging and the §4
+recommendation, is the reviewer's. Full review, with the authorship table:
+`docs/audits/2026-09-04-linear-exit-strategy-review.md`.
+
+### The audit's core is sound, and I re-checked the parts that carry it
+
+Its conclusion — Linear cannot be switched off, and native authority does not
+prove client continuity — is correct. Five of its load-bearing claims were
+re-verified independently on 2026-09-04 and all five held, including a live read
+of `syncview_runtime_flags` that matched its snapshot exactly: both teams
+SyncView-authoritative, outbound `live`, all three rosters at 43 with identical
+membership. Its evidence vocabulary (`SOURCE-REACHABLE` versus
+`DEPLOYMENT-UNPROVEN`, and a protected-table `401` meaning unproven rather than
+empty) is the discipline the reverted #1248 attempt lacked, and it should be kept.
+
+### 1. `_sxrFetchPosts` can render AND CACHE a false empty Samples board — LIVE, NOT FIXED
+
+This is item 86's fourth handling site, and item 86 fixed only three.
+
+```js
+const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + ...);
+const j = await resp.json();
+return { ok: true, posts: (j && (j.items || j.samples || j.posts)) || [] };
+```
+
+No `resp.ok` check. No envelope check. Any wrong-shaped 200 becomes
+`{ok: true, posts: []}`, `loadSxrCards` treats it as a successful read, clears
+the stale/error state, writes the empty list to the seven-day cache, and renders
+an empty board. A client sees "no samples" instead of their content, and the lie
+survives a cold load.
+
+Item 86 measured this exact failure happening on the Calendar twin: `calendar-get`
+answered HTTP 200 with a **zero-byte body** for two live clients holding 32 and 17
+non-archived rows, and `{"ok":true,"posts":[]}` for a third holding 24. The cause
+is server-side and still live: a Google Sheets node with no error branch, in a
+workflow that must not be edited without the owner. `_calV2FetchPosts` was
+hardened for it and carries a 16-line comment explaining why. `_sxrFetchPosts`,
+26,000 lines down the same file, was not.
+
+**This is a live client bug today and it has nothing to do with Linear.** It does
+not need Linear to be off to fire; it needs the primary Supabase read to throw,
+which is the ordinary case the fallback exists for. The 2026-09-03 set correctly
+calls it P0 and then files it as gate D1 of a 35-gate exit programme, which puts
+a one-hour fix behind a multi-month one. It belongs in the fix-now lane instead.
+
+Fix shape: copy the ratified `_calV2FetchPosts` guard (throw on `!resp.ok`, on an
+unusable envelope, and on zero rows), let `loadSxrCards` keep last-good cards and
+show the existing stale notice, and add a twin-parity test beside
+`test/comment-family-twin-parity.js`. **Not built in this branch** — the review was
+docs-only, and this touches the client-facing bundle that deploys on merge.
+
+### 2. `GO_LIVE_CHECKLIST.md`'s live-state table was wrong on three of six rows — CORRECTED HERE
+
+The table headed "Current state (update when flags move)" said `prod_authority`
+was `{video: linear, graphics: linear}` and "Both teams still run on Linear",
+that `linear_outbound_enabled` was `off`, and that the reroute cohort was
+"TEST-only". Live, all three are false: graphics flipped 2026-08-16, video
+2026-08-28, and wave 3 enrolled the full roster on 2026-08-14. The paragraph
+below it still said "no real-client enrollment is authorized".
+
+So the document that calls itself "the single canonical, owner-facing sequence"
+described a pre-flip world in which Phases 2 and 4 had not happened, and an owner
+opening it to plan the exit read three false facts before reaching Phase 5, the
+only phase that is current work.
+
+**This is the third recorded instance of one fracture pattern: a hand-maintained
+live-state row decaying in the direction that makes an incident worse.**
+`ROLLBACK.md`'s "what is live" row was the first, found stale twice and once
+eleven deploys behind, and is now guarded by
+`scripts/rollback-row-freshness-check.js` (items 118 and 137). `docs/truth/BRIEFING.md`
+was the second, corrected by hand on 2026-08-25 with the note that the old text
+"was wrong in the dangerous direction: it said writes were off when they are on".
+This table was the unguarded third.
+
+`docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 and `ROLLBACK.md` row 139 were both
+current and correct throughout, so the repository held the right values. The
+defect is that the checklist is not derived from them and nothing checks that
+they agree. **Proposed, not built:** a freshness check over every hand-written
+live-flag claim in those four documents, failing when they disagree. Item 137's
+own header is the argument for it: "a written rule has now failed twice, which is
+the argument for a derivable check rather than a third reminder." It has now
+failed three times.
+
+### 3. The plan needed a spine, not more analysis
+
+The set is 951 lines across three documents carrying **35 gates in four numbering
+schemes** (Steps 0–9, D0–D7, E0–E9 plus E0a, C0–C5), with no crosswalk between
+them, and the closure ledger says the order "remains D0--D7 and E0--E9", which is
+two orders. There is no single first action anywhere in it.
+
+It was also written without opening `docs/independence/`, so it stands beside the
+ratified programme rather than inside it. `GO_LIVE_CHECKLIST.md` Phase 5 is
+already titled "B5: retire Linear" and already carries ten owner-ratified
+retirement gates. Several E-gates restate one of them under a new name: E7 is
+largely F60, E8 is largely F34.
+
+The review restages the whole set as **B5.0 through B5.5** inside the existing
+Phase 5, crosswalks every gate ID from all four schemes into it, and writes out
+B5.0 (the serving baseline) as a concrete afternoon's work rather than "an
+owner-authorized private preflight". E6 (RLS and writer-auth modernization) stays
+excluded, which the set got right: bundling an auth change into this cutover is
+exactly how the two historical client-wide `401` outages happened.
+
+### 4. The strategic gap: three decisions were presented as one
+
+All three documents treat the exit as one binary event with an irreversible tail,
+then spend most of their length managing that irreversibility. But **stopping
+depending on Linear, stopping paying for Linear, and deleting the workspace are
+separable**, and only the third is irreversible. Keeping the workspace alive
+read-only on a cheap seat for a window after cutover moves the entire Exit Archive
+requirement (D5, E8, most of E7) off the critical path: exporting a frozen source
+is strictly easier than exporting a live one, attachment rescue gets more than one
+attempt, and a gap found three weeks later is answerable by looking rather than
+by recovery. None of the three documents names this option. It is the largest
+available risk reduction on the programme and it costs one seat.
+
+### Also noted, not acted on
+
+The set's citations are pinned to `00d0e888` by line number only, and `index.html`
+has moved ~294 lines since; its headline citation no longer resolves on `main`.
+Cite the symbol first and the line second. Separately, `OPEN_REPAIRS.md` currently
+has four duplicate `## N.` headers (13, 14, 22, 23), pre-existing and unrelated to
+this work.
+
+Full review, with the verification table, the crosswalk, the B5.0 worksheet, and
+an explicit list of what this review did NOT establish:
+`docs/audits/2026-09-04-linear-exit-strategy-review.md`.

@@ -37,14 +37,38 @@ owner merging this file (see D-32)._
 
 ## Current state (update when flags move)
 
-| Flag | Value today | Meaning |
+> **RE-READ LIVE 2026-09-04 AND CORRECTED** by the Claude Code review session that
+> wrote `docs/audits/2026-09-04-linear-exit-strategy-review.md`. This correction is
+> that reviewer's, made against a live flag read on 2026-09-04. It is **not** part
+> of the 2026-09-03 Codex Linear-exit audit set (PR #1257), which did not open this
+> file; those three documents are unedited and remain the separate work of their
+> own author.
+>
+> **Three of the six rows below described the PRE-FLIP world and were wrong in the
+> dangerous direction:** they said both
+> teams were Linear-authoritative, that outbound mirroring was off, and that the
+> reroute cohort was TEST-only. All three flips had already executed. Graphics
+> flipped 2026-08-16 (`flag_flips` id 54), video 2026-08-28 (`flag_flips` id 89),
+> and enrollment wave 3 put the full roster on the reroute lane on 2026-08-14.
+> This is the **third** recorded instance of a hand-maintained live-state row
+> decaying in the direction that makes an incident worse: `ROLLBACK.md`'s "what is
+> live" row was found stale twice (OPEN_REPAIRS 118, now guarded by
+> `scripts/rollback-row-freshness-check.js`), `docs/truth/BRIEFING.md` was
+> corrected by hand on 2026-08-25 for the same reason, and this table was the
+> unguarded third. See `docs/audits/2026-09-04-linear-exit-strategy-review.md` §2.2
+> and OPEN_REPAIRS 144. **The authorities on expected flag values remain
+> `docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 and `ROLLBACK.md`; both were current
+> and correct. Read the live flags before any action and trust them over this
+> table.** Correcting this table authorizes no flag change and no gate below.
+
+| Flag | Value today (live read 2026-09-04) | Meaning |
 |---|---|---|
-| `prod_authority` | `{video: linear, graphics: linear}` | Both teams still run on Linear |
-| `linear_outbound_enabled` | `off` | No mirroring back to Linear |
+| `prod_authority` | `{video: syncview, graphics: syncview}` | **Both teams are SyncView-authoritative.** Graphics flipped 2026-08-16, video 2026-08-28. `{video: linear, graphics: syncview}` is now the video ROLLBACK signature. Phases 2 and 4 below are EXECUTED. |
+| `linear_outbound_enabled` | `{mode: live}` | **Mirroring back to Linear is ON.** Native commits still schedule Linear mirror work, so Linear cannot be switched off while this is live. |
 | `linear_inbound_enabled` | `enabled` | Linear → SyncView copy (always on until B5) |
 | `linear_legacy_parity_enabled` | `enabled` | Armed early by owner decision 2026-07-28 to restore the linked-card mark-done lane; do not silently disarm |
 | `auth_enforcement` | `permissive` | Client-link verifier permits missing/invalid tokens; this is not a staff-write gate |
-| `write_ui_reroute_clients` | last verified live TEST-only allowlist (`clients:[<TEST_CLIENT>]`) | Required D-32 boundary; #850 merged the reroute code carried from `e3aa028`. Read the value fresh before any action; this dated row authorizes no flag change or real enrollment. |
+| `write_ui_reroute_clients` | **full active roster** (43 at this read; membership tracks the `*_ef_clients` rosters by equality and moves with onboarding) | Enrollment wave 3 executed 2026-08-14, stamped `owner-enrollment-wave-3-full-roster`. Its fail direction is unchanged and is the OPPOSITE of the Track-A allowlists: a missing or unreadable read still fails to the LEGACY lane. Read the value fresh before any action; this row authorizes no flag change. |
 
 F27 was installed from exact release
 `968a895108beb2a2c41e86bb8b788115e35b14a0` on 2026-08-02. At window close the
@@ -60,8 +84,22 @@ defective-release recovery remain in `docs/ops/F27_INSTALL_RUNBOOK.md`.
 
 Merged & live: #810 gateway (deployed), #811 guards + daily TEST drill + nightly shadow audit,
 #812 mirror write-UI (locked for real teams), #850's dark Calendar/Samples/Submit reroutes,
-62/62 client→project mappings, and Samples retirement + rename. The reroute cohort was last
-verified TEST-only; no real-client enrollment is authorized by the merge or deployment.
+62/62 client→project mappings, and Samples retirement + rename. ~~The reroute cohort was last
+verified TEST-only; no real-client enrollment is authorized by the merge or deployment.~~
+**Superseded 2026-09-04 by live readback** (correction by the Claude Code review session, not by
+the 2026-09-03 Codex audit): owner-executed enrollment reached the full active roster in wave 3 on
+2026-08-14, and both authority flips have since executed. The sentence above is retained struck
+through because it is the exact claim that went stale; see the corrected state table and
+`docs/audits/2026-09-04-linear-exit-strategy-review.md` §2.2.
+
+**Where the live work now is** *(proposed 2026-09-04 by the review session named above; this
+staging is that reviewer's, not the 2026-09-03 audit's, and it is a proposal until the owner
+ratifies it)*. With Phases 1 through 4 executed, the only phase carrying current work is
+**Phase 5 (B5: retire Linear)**. It is staged as B5.0 through B5.5 in
+`docs/audits/2026-09-04-linear-exit-strategy-review.md` §4, which also crosswalks the separate
+2026-09-03 Linear-exit audit set (PR #1257) into these gates. That review is the suggested entry
+point for exit planning; nothing in it changes a gate below, and B5.0 (serving baseline) blocks
+every other stage.
 
 > **IMMEDIATE PRIVACY CONTAINMENT — do not wait for Phase 0 (F64):** reviewed schema-only
 > replacements pass the private count-only census but are deliberately excluded from this public

@@ -460,8 +460,17 @@ async function txt(page, sel) {
     // Artifact-order coverage batch: behav.js chip -> kfocusShortcut,
     // with mutation checks adapted to read-only guard mode.
     await ok('chip', async () => {
-      const slug = await page.locator('.prod-row').first().getAttribute('data-prod-client');
-      await page.locator('.prod-row .prod-chip-client').first().click();
+      /* Read the slug off the chip that is about to be clicked, not off the
+         first row. They are not the same row: a row awaiting attribution
+         carries the sentinel client and renders NO client chip, so
+         `.prod-row` first and `.prod-chip-client` first pointed at different
+         cards and the check failed on a slug it never clicked. Measured under
+         the bridge: the click navigated correctly every time -- view,
+         clientSlug and openId all right -- and only the expected slug was
+         wrong. `rowClientChipProjectPath` below already reads it this way. */
+      const chip = page.locator('.prod-row .prod-chip-client').first();
+      const slug = await chip.getAttribute('data-prod-crumbclient');
+      await chip.click();
       return await page.evaluate(s => _prodState.view === 'project' && _prodState.openProjectId === s && !_prodState.clientSlug && !_prodState.openId, slug);
     }); await reset();
     await ok('scopePillMatchesTabScale', async () => {
@@ -774,7 +783,16 @@ async function txt(page, sel) {
     await ok('kbStatus', async () => signedOutWriteGuard(() => page.keyboard.press('s'))); await reset();
     await ok('kbAssign', async () => signedOutWriteGuard(() => page.keyboard.press('a'))); await reset();
     await ok('kbDue', async () => signedOutWriteGuard(() => page.keyboard.press('Shift+d'))); await reset();
-    await ok('kbProj', async () => { await page.keyboard.press('Shift+p'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0; }); await reset();
+    /* INVERTED on purpose, and the inversion is the point. This asked
+       Shift+P to OPEN a project picker. `_prodOpenPicker` refuses `proj` at the
+       door, deliberately and with the reason written beside it: no gateway
+       operation writes `client_slug` on any surface for any role, so the picker
+       used to build a searchable list of every client and then hard-return a
+       read-only guard when the reader pressed one. Making the old assertion
+       pass would mean re-opening that picker. So it now guards the refusal --
+       the shortcut must open nothing -- which is worth a check, because a
+       future edit that quietly restores the picker would otherwise pass. */
+    await ok('kbProj', async () => { await page.keyboard.press('Shift+p'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() === 0; }); await reset();
     await ok('kbSelectAll', async () => {
       await page.keyboard.press('Control+a');
       return await page.evaluate(() => _prodState.selected.size === new Set(_prodIssueRows().map(i => i.id)).size && _prodState.selected.size > 0)
@@ -1610,7 +1628,18 @@ async function txt(page, sel) {
       row.title = 'Hi';
       _prodRender();
       const shortEl = document.querySelector('[data-prod-row="' + CSS.escape(id) + '"] .prod-title');
-      const shortOk = shortEl.getAttribute('data-fulltitle') === 'Hi' && !shortEl.hasAttribute('title');
+      /* `_prodTitleAttrs` emits `data-fulltitle` AND `title` unconditionally --
+         it has no short/long branch at all, so "a short title carries no title
+         attribute" was false by construction for every row in the app. The
+         contract worth guarding is the one that exists: the hover text is
+         always present and always agrees with the full title, so a truncated
+         row can never hover a DIFFERENT string than it holds. Compared against
+         each other rather than a literal, because the row composes a
+         breadcrumb onto the title -- a short title renders as
+         "Hi > <project>", and asserting equality with the bare string measured
+         the composition, not the tooltip. */
+      const shortOk = shortEl.getAttribute('title') === shortEl.getAttribute('data-fulltitle')
+        && (shortEl.getAttribute('data-fulltitle') || '').startsWith('Hi');
       row.title = 'X'.repeat(300);
       _prodRender();
       const longEl = document.querySelector('[data-prod-row="' + CSS.escape(id) + '"] .prod-title');
@@ -1647,6 +1676,12 @@ async function txt(page, sel) {
       await page.locator('.prod-nav-btn', { hasText: 'Issues' }).first().click();
       const cleared = await page.evaluate(() => !_prodState.focusCard);
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      /* Blur first. A just-clicked nav button holds focus, and the board's key
+         handler correctly declines to hijack keys while a control is focused --
+         so the `j` below reached nothing and the check read a real behaviour as
+         a failure. `cmdASelectsCollapsed` in this same file already blurs for
+         exactly this reason. */
+      await page.evaluate(() => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
       await page.keyboard.press('j');
       const fresh = await page.evaluate(() => _prodState.focusCard === (_prodBoardFlat()[0] || ''));
       return (!focused || cleared) && fresh;
@@ -1781,7 +1816,10 @@ async function txt(page, sel) {
       cl.name = 'Zz';
       _prodRender();
       const shortEl = document.querySelector('[data-prod-client-card="' + CSS.escape(pid) + '"] .prod-card-title');
-      const shortOk = !shortEl.hasAttribute('title') && shortEl.getAttribute('data-fulltitle') === 'Zz';
+      /* Same single cause as titleTooltip: _prodTitleAttrs always emits both.
+         Assert they agree rather than that one is absent. */
+      const shortOk = shortEl.getAttribute('title') === shortEl.getAttribute('data-fulltitle')
+        && (shortEl.getAttribute('data-fulltitle') || '').startsWith('Zz');
       cl.name = orig;
       _prodRender();
       return longOk && shortOk;
@@ -1977,23 +2015,50 @@ async function txt(page, sel) {
       _prodRender();
       return set > 0 && after === set;
     })); await reset();
+    /* REWRITTEN, because the old check could not measure what it claimed and
+       the behaviour it wanted is one the app deliberately does not have.
+
+       It inflated `parent.desc` with 300 lines of filler to force the pane to
+       overflow -- but descriptions hydrate on demand (`_prodLoadBriefs` is only
+       a marker), so the filler never reached the DOM. Instrumented inside the
+       full sweep it measured `set=3`: three pixels of incidental layout, not
+       the overflow it believed it had created. In isolation the pane is not
+       scrollable at all and the check early-returned true, which is why it
+       passed alone and failed in the sweep.
+
+       And `_prodOpenDeliverable` ends by calling `_prodScrollDetailToTop`,
+       which sets `detailScrollTop = 0` and `detailScrollKey = ''`. Opening a
+       DIFFERENT deliverable is MEANT to scroll to top and forget the offset;
+       the restore only fires while the painted key still matches. The old
+       check opened a child -- clearing the offset by design -- then demanded
+       the parent's old position back. Making it pass meant deleting that
+       reset, which is the deliberate fix recorded beside it: a restore and a
+       deferred reset fighting, with a visible flash where there should have
+       been nothing.
+
+       So it now asserts that contract directly, in state rather than pixels:
+       a saved offset exists, opening another deliverable clears it, and coming
+       back does not resurrect it. */
     await ok('detailScrollNavBack', async () => await page.evaluate(() => {
-      const parent = _prodIssues().find(i => _prodChildrenOf(i.id).length > 0) || _prodIssue(_prodFlatOrder()[0]);
-      if (!parent) return true;
-      const orig = parent.desc;
-      parent.desc = 'Long filler line. '.repeat(300);
+      const parent = _prodIssues().find(i => _prodChildrenOf(i.id).length > 0);
+      const child = parent ? _prodChildrenOf(parent.id)[0] : null;
+      if (!parent || !child) return true;
       _prodOpenDeliverable(parent.id);
-      const dm = document.querySelector('.prod-detail-main');
-      if (!dm || dm.scrollHeight <= dm.clientHeight) { parent.desc = orig; _prodRender(); return true; }
-      dm.scrollTop = 180;
-      const set = dm.scrollTop;
-      const child = _prodChildrenOf(parent.id)[0];
-      if (child) _prodOpenDeliverable(child.id);
+      _prodState.detailScrollTop = 180;
+      _prodState.detailScrollKey = 'sentinel';
+      const armed = _prodState.detailScrollTop === 180 && _prodState.detailScrollKey === 'sentinel';
+      _prodOpenDeliverable(child.id);
+      /* The OFFSET is the contract, not the key. `_prodScrollDetailToTop`
+         clears both, but the very next render re-stamps the key through
+         `_prodCaptureDetailScroll` -- with a zero offset beside it. That is
+         harmless by construction: the restore is guarded on a TRUTHY
+         `detailScrollTop`, so a zero offset restores nothing whatever the key
+         says, and the code comment there states exactly that. Asserting the
+         key would have measured render bookkeeping instead of the behaviour. */
+      const clearedOnNav = _prodState.detailScrollTop === 0;
       _prodOpenDeliverable(parent.id);
-      const after = document.querySelector('.prod-detail-main').scrollTop;
-      parent.desc = orig;
-      _prodRender();
-      return set > 0 && after === set;
+      const staysCleared = _prodState.detailScrollTop === 0;
+      return armed && clearedOnNav && staysCleared;
     })); await reset();
     await ok('boardXSelect', async () => {
       await page.evaluate(() => { _prodState.view = 'board'; _prodState.team = 'all'; _prodState.focusCard = ''; _prodState.cardSel.clear(); _prodRender(); });

@@ -10364,8 +10364,8 @@ PR #1261.** This entry first proposed adding a cleared assignee to the
 detect-only branch's existing narrow exception, on the grounds that the
 attribution carve-out uses the same argument. It does not, and the difference is
 the whole point of the flip: the attribution exception writes
-`client_slug = "unattributed"` — it INVALIDATES a stored value it can no longer
-trust. It never applies a value Linear sent. Applying an inbound assignee clear
+the invalid-attribution sentinel into `client_slug` — it INVALIDATES a stored
+value it can no longer trust. It never applies a value Linear sent. Applying an inbound assignee clear
 would apply one, which makes Linear a writer again for a field SyncView now owns:
 a delayed or foreign unassignment would then erase an assignee chosen in
 SyncView, restoring the two-writers-one-field state the flip removed. Detect-only

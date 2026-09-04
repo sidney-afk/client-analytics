@@ -10274,6 +10274,87 @@ mistake.
 
 ---
 
+## 142. [2026-09-04, REQUESTED BY THE OWNER — not started, and it needs one decision before it can be] Show the social media manager on a SyncLinear sub-issue, without hand-keeping the mapping
+
+Numbered 142 because 135–141 are claimed by open, unmerged branches at the time
+of writing. Check for duplicate `## N.` headers after any of them merges.
+
+**And mind the hole at 130–133.** `main` jumps straight from 129 to 134. Those
+four numbers are not free: they are claimed by `claude/reduce-n8n-linear-deps`,
+the branch behind PR #1248, which the owner had unmerged by #1250. A session
+appending "the next number" by reading `main` will pick 130 and collide the
+moment anything from that branch is revived. The gap is the ledger's
+duplicate-numbering hazard in its other direction, and it is invisible to the
+usual check, which looks for repeated headers rather than missing ones.
+
+### What was asked
+
+On a SyncLinear sub-issue (`?prod=1`, detail view), in the right-hand properties
+column **below `Project`**, show who the social media manager is for that
+sub-issue's client. Derived, not entered: sub-issue → its project → that
+project's SMM. The owner was explicit that this is **not** an activity feed and
+not a "who touched this" — it is one fact, always visible, in the place the eye
+already goes for Project.
+
+### Why it is not a two-hour job
+
+The mapping does not exist anywhere this app can read. It lives in a Google
+Sheet the owner edits by hand, and his own stated objection is the whole problem:
+
+> "I don't want to hard code which social media manager has which client in
+> Supabase because whenever I change it on a Google Sheet it wouldn't update."
+
+That is exactly right, and it is the same failure mode this ledger has recorded
+from three other directions (a hand-kept list is the artefact that goes stale).
+So the feature is really two things, and only the second one is UI:
+
+1. **Where the mapping lives, and how it stays true.** ← the decision
+2. Reading it and rendering one line. ← the easy half
+
+### The three routes, and what each costs
+
+**A — the Sheet stays the source of truth; Supabase holds a cache that a
+schedule overwrites.** One table, one row per client slug
+(`client_slug`, `smm`, `synced_at`, `source_row`), never authored by hand and
+never merged into — each sync REPLACES it wholesale, because a hand-edited row is
+precisely the thing that would silently disagree with the Sheet. The owner keeps
+editing the Sheet exactly as he does now, and staleness is bounded by the
+schedule and made visible in the UI ("as of 09:15"). Two ways to run the sync:
+
+  - **n8n** — least new machinery, since Google Sheets is already connected
+    there. **Requires the owner's explicit go-ahead in the same request**
+    (standing rule: never edit an n8n workflow without it).
+  - **A scheduled Edge Function** reading the Sheets API with a service account,
+    credentials in the function's env. No n8n change, more new machinery.
+
+  Do **not** solve it with Sheets' "publish to web" CSV: that URL is effectively
+  public, and the mapping is staff names against client names — the exact pairing
+  `scripts/repo-identity-exposure-check.js` exists to keep out of public reach.
+
+**B — flip the source of truth into SyncView.** The SMM becomes an editable
+field on the client/project row, and the Sheet is retired for this one column.
+Removes the sync entirely and removes the staleness question with it. Costs the
+owner a habit change, and is only worth doing if the Sheet is not carrying other
+columns that need to stay beside it.
+
+**C — hardcode it.** Named only to be ruled out, for the reason the owner gave.
+
+**Recommendation: A now, with B as the destination.** A changes nothing about
+how the owner works today and can ship behind whichever sync route he approves;
+B is where this ends up if the Sheet's other columns ever move too, and A's cache
+table is the same shape B would want, so A is not throwaway work.
+
+### The one rule the UI half must follow
+
+If the mapping cannot be read — sync failed, or the last sync is older than some
+agreed window — the line must say so or say nothing. It must **never** show a
+stale name as though it were current. This app has a whole sweep (item 122) about
+lazy reads that presented absence as fact, and a wrong SMM name is worse than no
+SMM name: it routes a question to the wrong person and looks authoritative doing
+it.
+
+**Owner decision needed before any code:** route A-via-n8n, A-via-Edge-Function,
+or B.
 ## 141. [2026-09-04] The polish gate's public summary named five of six failing checks and hid the sixth behind "+1more" — for 27 consecutive runs, and the hidden one is unrecoverable
 
 Numbered 141 because 135–140 are claimed by branches that are open and unmerged

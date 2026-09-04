@@ -5641,7 +5641,7 @@ pull-only classification should go detect-only for flipped teams.
 
 ---
 
-## 77. [FIXED IN REPO 2026-08-30 — **DEPLOY PENDING, AND NOW DISPATCHABLE**: the lane was re-pinned on 2026-09-02 by #1239, so the deploy can be run; until the owner runs it production still runs the old gate] linear-inbound cannot see a CLEARED assignee — mechanism corrected, fix shipped with an executing test
+## 77. [FIXED IN REPO 2026-08-30 — **DEPLOYED 2026-09-04** (run `33899387402`, closure `019a463d…`) AND STILL NOT IN EFFECT: the repair sits at `linear-inbound` index.ts:868, *after* the detect-only branch returns at ~803, and `isDetectOnlyTeam` is true for both teams while `prod_authority` reads `syncview`. So the code is live and unreachable. Owner SQL remains the only repair; see item 143's correction] linear-inbound cannot see a CLEARED assignee — mechanism corrected, fix shipped with an executing test
 
 > **STATUS, 2026-09-03.** The blocker the 2026-09-01 correction below describes
 > is CLOSED. `deploy-f27-linear-inbound.yml` now pins
@@ -5950,7 +5950,7 @@ not direction). All three were found by measuring rather than by reading.
 
 ---
 
-## 85. [found 2026-08-30 hands-on test, HALF-FIXED same day — DEPLOY PENDING; the other half is an owner call]
+## 85. [found 2026-08-30 hands-on test, HALF-FIXED same day — **DEPLOYED 2026-09-04** (run `33899387402`); the enrichment half is live, and the other half remains an owner call]
 
 `foreign_write_detected` is ~80% self-noise. **Root cause found, and it is one
 branch.** There is exactly one producer of the signal — `recordDetectOnly` in
@@ -7147,7 +7147,7 @@ the same way as its siblings. **Baseline 20.**
 
 ---
 
-## 100. [2026-09-02, **production-write DEPLOYED AND LIVE 2026-09-02** (run `33684111985`, v65 → v66, closure `cc44bf93…`); the `linear-inbound` site remains UNDEPLOYED and undeployable — see items 77 and 106] A parent lookup that cannot tell "no such row" from "two rows" — and one of the four reported it as a permissions problem while another corrupted data in silence
+## 100. [2026-09-02, **production-write DEPLOYED AND LIVE 2026-09-02** (run `33684111985`, v65 → v66, closure `cc44bf93…`); the `linear-inbound` site is **DEPLOYED AND LIVE 2026-09-04**, run `33899387402`, closure `019a463d…` — and it is REACHABLE, unlike item 77's repair in the same deploy: `persistProductionComment` runs at index.ts:1245, before the detect-only gate at 1247. The earlier "undeployable" wording was corrected to "undeployed" by item 118 and is now moot] A parent lookup that cannot tell "no such row" from "two rows" — and one of the four reported it as a permissions problem while another corrupted data in silence
 
 **One shape, four copies.** Every one of them was:
 
@@ -10359,15 +10359,22 @@ two rows are the same answer" defect — the one that skips echo suppression and
 tombstone protection and corrupts rows rather than refusing writes — is now
 live. That was the actively-harmful one.
 
-**The durable fix for the assignee half, and the precedent is already in the
-file.** The detect-only branch already carves out ONE narrow exception, for
-attribution: *"retaining the former client after a project/hierarchy change
-would be a silent false ownership claim."* A retained assignee is the identical
-argument — a departed editor keeps a queue of live work that the Workload board
-does not render, because it renders active members. Adding a cleared assignee to
-that same exception is the small version. The large version is that assignment
-stops being managed in Linear at all, which is where the Linear exit is going
-anyway.
+**The durable fix — and the first proposal here was WRONG, corrected by Codex on
+PR #1261.** This entry first proposed adding a cleared assignee to the
+detect-only branch's existing narrow exception, on the grounds that the
+attribution carve-out uses the same argument. It does not, and the difference is
+the whole point of the flip: the attribution exception writes
+`client_slug = "unattributed"` — it INVALIDATES a stored value it can no longer
+trust. It never applies a value Linear sent. Applying an inbound assignee clear
+would apply one, which makes Linear a writer again for a field SyncView now owns:
+a delayed or foreign unassignment would then erase an assignee chosen in
+SyncView, restoring the two-writers-one-field state the flip removed. Detect-only
+is correct here and stays.
+
+So the repair is native, not inbound: clear the stale rows through SyncView's own
+assignment control or a targeted SQL repair, and stop assigning in Linear. The
+latter is where the Linear exit goes anyway, which makes this a transitional
+nuisance rather than an architecture question.
 
 **And the wider consequence, which is not about ghosts:** while both teams are
 `syncview`, NO assignment change made in Linear reaches SyncView. That is the
@@ -10475,15 +10482,26 @@ building is already built and running:
 
 `replace: true` is the wholesale-overwrite discipline this entry recommends,
 already in place. So the remaining work is not a storage decision, it is two
-small edits: add `source_clients` to `loadOptions`'s `.select(...)` and to
-`serializeManager` (which today returns only slug/name/email/active), then
-invert the mapping in the browser and render one line under Project in
-`_prodProps`. No new function, no new table, no migration, no Google service
-account, no new schedule, no new auth surface.
+small edits: add **`source_clients` AND `synced_at`** to `loadOptions`'s
+`.select(...)` and to `serializeManager` (which today returns only
+slug/name/email/active), then invert the mapping in the browser and render one
+line under Project in `_prodProps`. No new function, no new table, no migration,
+no Google service account, no new schedule.
 
-The staleness rule from the entry above still applies and is now cheaper: the
-row already carries `synced_at`, so withholding a name when the sync is overdue
-is a comparison, not new plumbing.
+`synced_at` is not optional and was missing from the first version of this
+recipe (Codex, PR #1261): the staleness rule the entry above insists on cannot
+be implemented without it, and a mapping left behind by a failed daily sync would
+be displayed as current indefinitely — the exact failure item 122 is about.
+
+**One thing this does NOT get for free, corrected on the same review: the
+audience.** `?action=options` runs under the `weekly-report-submit` capability,
+which `index.html:22190` grants to **admin and smm only**. `?prod=1` also serves
+an unsigned read-only preview, and Creative is a supported Production role — so
+reusing this endpoint renders the line for Admin/SMM and refuses everyone else.
+That is a narrowing of the feature, not an absence of auth work, and it is the
+owner's call: accept the narrower audience (zero extra work), or add a
+lower-privilege projection carrying client → SMM name only, which is small but
+is real auth surface.
 
 **What survives from the entry above:** the reasoning about why a hand-kept copy
 goes stale, and the ruling against the "publish the sheet to web" CSV shortcut

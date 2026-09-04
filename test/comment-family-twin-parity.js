@@ -101,26 +101,96 @@ function roleGuardedSpans(code) {
     return spans;
 }
 
+/* EVERY conditional expression, as three facts: the condition, the true branch
+   and the false branch.
+
+   The regex this replaced could only read a ternary forwards — it required the
+   gate call to follow the `?` with no `:` in between — so it saw
+       _isClientLink ? _prodCanonicalCommentGate(…) : null
+   and walked straight past its mirror image
+       !_isClientLink ? null : _prodCanonicalCommentGate(…)
+   which is the identical defect written the other way round. Codex caught that
+   on #1255. A negated condition is not a rarer shape than a plain one, and a
+   detector that only reads one of the two directions is a detector that reports
+   clean on half the defects it exists for — the recurring failure this whole
+   suite is a response to.
+
+   Bracket depth is tracked in all three walks, so a nested ternary, an object
+   literal's `:` and an argument list's `,` cannot be mistaken for this
+   expression's own punctuation. `??` and `?.` are not conditionals and are
+   skipped. Input is already comment- and string-free (see stripNonCode), so a
+   `?` in prose or a URL never reaches here. */
+function ternaryBranches(code) {
+    const out = [];
+    for (let i = 0; i < code.length; i++) {
+        if (code[i] !== '?') continue;
+        if (code[i + 1] === '?') { i++; continue; }          // `??`
+        if (code[i + 1] === '.') continue;                    // `?.`
+        if (code[i - 1] === '?') continue;                    // tail of `??`
+        // The condition: back to the nearest boundary this expression sits on.
+        let d = 0, s = i - 1;
+        for (; s >= 0; s--) {
+            const c = code[s];
+            if (c === ')' || c === ']' || c === '}') d++;
+            else if (c === '(' || c === '[' || c === '{') { if (d === 0) break; d--; }
+            else if (d === 0 && (c === ';' || c === ',' || c === '=' || c === ':' || c === '?')) break;
+        }
+        const cond = code.slice(s + 1, i);
+        // This `?`'s own `:` — nested ternaries consume theirs first.
+        let nested = 0, d2 = 0, colon = -1;
+        for (let j = i + 1; j < code.length; j++) {
+            const c = code[j];
+            if (c === '(' || c === '[' || c === '{') d2++;
+            else if (c === ')' || c === ']' || c === '}') { if (d2 === 0) break; d2--; }
+            else if (d2 !== 0) continue;
+            else if (c === '?' && code[j + 1] !== '.' && code[j + 1] !== '?' && code[j - 1] !== '?') nested++;
+            else if (c === ':') { if (!nested) { colon = j; break; } nested--; }
+            else if (c === ';') break;
+        }
+        if (colon < 0) continue;
+        // The false branch runs to the end of the expression.
+        let e = colon + 1, d3 = 0;
+        for (; e < code.length; e++) {
+            const c = code[e];
+            if (c === '(' || c === '[' || c === '{') d3++;
+            else if (c === ')' || c === ']' || c === '}') { if (d3 === 0) break; d3--; }
+            else if (d3 === 0 && (c === ';' || c === ',')) break;
+        }
+        out.push({ cond, whenTrue: [i, colon], whenFalse: [colon, e] });
+    }
+    return out;
+}
+
 function gateHiddenBehindRole(body) {
     const code = String(body || '');
-    /* The expression forms. The role does not have to be the token immediately
-       before the `?` or `&&` — `ready && _isClientLink ? gate : null` is the
-       same defect — so this asks whether the condition ENDING at the call
-       mentions the role at all, not whether it starts with it. */
+    const calls = [];
+    const gre = /_prodCanonicalCommentGate\s*\(/g;
+    let g;
+    while ((g = gre.exec(code))) calls.push(g.index);
+    if (!calls.length) return false;
+    const inSpan = ([a, b]) => calls.some(at => at > a && at < b);
+
+    /* Conditional EXPRESSION, both directions. The defect is not "a ternary
+       mentions the role" — `_isClientLink ? gateA(…) : gateB(…)` computes a
+       gate for everyone and is fine — it is that ONE branch gets a gate and the
+       other silently gets none. So compare the branches rather than looking at
+       just one of them. */
+    for (const t of ternaryBranches(code)) {
+        if (!/_isClientLink\b/.test(t.cond)) continue;
+        if (inSpan(t.whenTrue) !== inSpan(t.whenFalse)) return true;
+    }
+
+    /* Short-circuit: `… && _isClientLink && _prodCanonicalCommentGate(…)`. The
+       role does not have to be the token immediately before the call, so this
+       asks whether the condition ENDING at the call mentions it at all. */
     const parts = code.split('_prodCanonicalCommentGate');
     for (let i = 1; i < parts.length; i++) {
         const before = parts[i - 1].slice(-200);
-        if (/(\?|&&)\s*$/.test(before) && /_isClientLink\b[^;{}]*(\?|&&)\s*$/.test(before)) return true;
-        if (/_isClientLink\b[^:;{}]*\?[^:;{}]*$/.test(before)) return true;
+        if (/&&\s*$/.test(before) && /_isClientLink\b[^;{}]*&&\s*$/.test(before)) return true;
     }
-    const spans = roleGuardedSpans(code);
-    if (!spans.length) return false;
-    const gre = /_prodCanonicalCommentGate\s*\(/g;
-    let g;
-    while ((g = gre.exec(code))) {
-        if (spans.some(([a, b]) => g.index > a && g.index < b)) return true;
-    }
-    return false;
+
+    /* Statement form: `if (_isClientLink) gate = _prodCanonicalCommentGate(…)`. */
+    return roleGuardedSpans(code).some(inSpan);
 }
 
 function survey(name) {
@@ -336,6 +406,29 @@ ok(!gateHiddenBehindRole('if (ready && post) { const g = _prodCanonicalCommentGa
     'while a guard that does not mention the role at all is left alone');
 ok(!gateHiddenBehindRole('if (!post) return;\nconst g = _prodCanonicalCommentGate(post, comp);\nif (_isClientLink) x();'),
     'and a role check AFTER the gate is correct code, not a hidden gate');
+
+/* THE MIRROR IMAGE, which the regex form could not read at all (Codex, #1255).
+   A negated condition puts the gate in the FALSE branch; the defect is
+   identical and a detector blind to it reports clean on half of them. */
+ok(gateHiddenBehindRole('const g = !_isClientLink ? null : _prodCanonicalCommentGate(post, comp);'),
+    'the gate hidden in a ternary FALSE branch is caught — the same defect, mirrored');
+ok(gateHiddenBehindRole('const g = (!ready || !_isClientLink) ? null : _prodCanonicalCommentGate(post, comp);'),
+    'and the compound negated form');
+ok(gateHiddenBehindRole('const g = _isClientLink ? _prodCanonicalCommentGate(post, comp) : fallback(post);'),
+    'a non-null other branch does not excuse it — that branch still has no gate');
+ok(!gateHiddenBehindRole('const g = _isClientLink ? _prodCanonicalCommentGate(post, comp) : _prodCanonicalCommentGate(post, comp, true);'),
+    'while a ternary that gates BOTH roles is correct code, not a hidden gate');
+ok(!gateHiddenBehindRole('const label = _isClientLink ? "client" : "staff";\nconst g = _prodCanonicalCommentGate(post, comp);'),
+    'and a role ternary that chooses something else entirely leaves the gate alone');
+/* Punctuation the walker has to survive, or it reads the wrong branch. */
+ok(gateHiddenBehindRole('const g = _isClientLink ? (ready ? _prodCanonicalCommentGate(post, comp) : null) : null;'),
+    'a nested ternary does not steal the outer one\'s colon');
+ok(!gateHiddenBehindRole('const o = { a: _isClientLink ? 1 : 2 };\nconst g = _prodCanonicalCommentGate(post, comp);'),
+    'an object literal colon inside a branch is not mistaken for the ternary\'s own');
+ok(!gateHiddenBehindRole('const g = f(_isClientLink ? 1 : 2, _prodCanonicalCommentGate(post, comp));'),
+    'and a later argument is outside the branch, not inside the false one');
+ok(!gateHiddenBehindRole('const n = a ?? b;\nconst m = obj?.x;\nconst g = _prodCanonicalCommentGate(post, comp);\nif (_isClientLink) y();'),
+    '`??` and `?.` are not conditionals and do not invent a branch');
 
 if (failures) {
     console.log('\n' + failures + ' check(s) failed.');

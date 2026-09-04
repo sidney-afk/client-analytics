@@ -1,5 +1,12 @@
 # SyncView Monitoring Coverage
 
+First Samples repair preparation (inactive):
+[`CLIENT_CONTINUITY_PREPARATION.md`](CLIENT_CONTINUITY_PREPARATION.md) documents
+the synthetic W01/W02/W10 checks, gated TEST runner, independent delivery and
+liveness interfaces, required product integration, activation drills and disable
+procedure. Local detector success does not establish installed monitoring or
+live journey/delivery proof; the strict source gate remains red on current Samples.
+
 This page answers: what watches each critical SyncView sync edge, where alerts land, and how to
 contain or roll it back. A one-step kill may stop new behavior; F27 and F51 prove that safe team
 authority recovery and exact Edge Function rollback require additional evidence.

@@ -4521,7 +4521,10 @@ async function main() {
   }
 }
 
-main().catch(error => {
+module.exports = { startStreamServer, openCase, streamedNavigation, waitForCalendarSettled,
+  waitForReviewSettled, runClientTabScenario, runLegacySamplesScenario };
+
+if (require.main === module) main().catch(error => {
   console.error(error && error.stack || error);
   process.exitCode = 1;
 });

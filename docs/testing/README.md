@@ -32,6 +32,15 @@ no design-kit suite may send a live mutation.
 
 ## Suites and gates
 
+First Samples repair preparation: `node test/client-continuity-monitor.js`
+tests detection, isolated persisted TEST actions, relay fallback and liveness;
+`node qa/client-continuity.js` reuses the intercepted boot harness.
+`node test/client-continuity-monitor.js --strict-source` must also pass on the
+coordinator's repaired product before release; ordinary detector tests may pass
+while identifying current product defects. See
+[`../ops/CLIENT_CONTINUITY_PREPARATION.md`](../ops/CLIENT_CONTINUITY_PREPARATION.md)
+for the inactive/manual-only posture and integration prerequisites.
+
 | Command | What it runs | When |
 |---|---|---|
 | `npm test` | Every `test/*.js`, auto-discovered. Most are offline pure-logic suites; CI also requires `test/f63-flip-runbook-sql-gate.js` to execute every actionable runbook fence against its disposable PostgreSQL 16 flag store. | Every push (CI) and before every commit |

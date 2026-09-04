@@ -62,6 +62,14 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 ## Test & automation entry points
 
+Inactive first-Samples-repair monitoring preparation:
+`scripts/client-continuity-monitor.js` (read truth, relay/fallback and liveness),
+`scripts/client-continuity-view.js` (gated anonymous read adapter),
+`scripts/client-continuity-actions.js` (gated TEST persistence runner),
+`test/client-continuity-monitor.js` (offline fixtures and actual reader checks),
+`qa/client-continuity.js` (existing intercepted boot harness reuse), and
+`docs/ops/CLIENT_CONTINUITY_PREPARATION.md` (activation/recovery requirements).
+
 | Command / trigger | What runs | Notes |
 |---|---|---|
 | `npm test` | `test/run-all.js` → every `test/*.js` (dependency-free; normally offline, with F63 using only an explicitly required disposable PostgreSQL 16 service) | Runs on every push (`calendar-unit-tests.yml`). It never targets a live backend. Run before every commit. |

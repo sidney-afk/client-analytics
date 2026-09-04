@@ -11521,3 +11521,73 @@ past the saved month, status and ready-only filters long after the reader had
 moved on. `navTo` now drops it whenever it routes away from the calendar, beside
 the calendar teardown that already lives there. All three exits are asserted
 together, so it is visible that there are three.
+
+---
+
+## 144. [2026-09-04, STRATEGY WRITTEN, NOTHING EXECUTED — owner asked for the plan to be reviewed before any of it runs] The crosswalk repair, measured: it is 137 rows for the client, not 5,150 — and `calendar_posts.id` is not unique
+
+Full plan in `docs/ops/CROSSWALK_REPAIR_STRATEGY.md`. This entry records the two
+findings that changed the shape of it, both measured live 2026-09-04.
+
+### The client-facing gap is 137 rows, not 5,150
+
+Item 102's number is the whole table and it is correct: 5,150 of 6,330
+`deliverables` have `card_id` NULL. It is also the wrong number for the repair
+the owner asked for, which is scoped to cards on clients' calendars. Measured:
+739 cards carry a `*_deliverable_id`, referencing 1,261 distinct deliverables;
+**zero** of those references dangle; **1,124 already carry `card_id`** — the
+crosswalk is already two-way for 89% of client-facing work — and **137 do not**.
+All 137 are `origin = 'manual'`, 71 graphics and 66 video.
+
+So the repair is two orders of magnitude smaller than the ledger implies, and
+the ~5,013 remaining NULL rows are `manual` deliverables no card references at
+all. They cannot reach a client and are not this repair's job.
+
+### `calendar_posts.id` IS NOT UNIQUE, and that is a hard precondition
+
+9,937 rows, **9,909 distinct ids**: 13 ids duplicated, 28 extra rows, one id
+appearing **sixteen** times. The backfill writes `deliverables.card_id = <card
+id>`, so for a duplicated id the resulting binding names two or more rows —
+which is exactly the `rows.length !== 1` condition item 100 spent three rounds
+learning to report honestly. **The repair would manufacture the ambiguity item
+100 is about.**
+
+At least one collision is already inside the client-calendar set, and its two
+rows carry *different* video and graphic deliverables — so "the card knows its
+deliverable" is already ambiguous there today, before anyone touches it.
+
+Nothing in the repair may run before this is resolved. Found only because the
+population was counted rather than assumed; a straight `UPDATE ... WHERE card_id
+IS NULL` would have written it and looked successful.
+
+### Item 103's hazard, now with a row count against each half
+
+The permanent half of the hazard — the inverted split — needs canonical empty
+AND legacy non-empty, so it applies to exactly the cards that already carry a
+thread. Of the **121 cards** those 137 deliverables sit on: **63 carry legacy
+comment messages (160 in total), 58 carry none.** So the plan splits there: the
+58 can be backfilled directly because there is no thread to strand, and the 63
+need their 160 messages migrated into the canonical store first, per card, in
+one transaction.
+
+### The long-term answer the owner asked for
+
+Two stored columns that must agree is a bug class, not a bug: they are written
+by different code at different times, nothing enforces the match, and drift can
+only ever be found afterwards. Cheapest first — **guard it** (a check that fails
+when a card names a deliverable that does not name it back; smallest change,
+same shape as the guards already running here, and it should exist whatever else
+is chosen); **write both sides in one transaction**; or **stop storing it
+twice** and derive the deliverable→card direction from the card side, which is
+the populated one.
+
+And the part worth knowing before scheduling anything: the ~5,013 unreferenced
+`manual` rows exist because B1 imports a Linear issue into a deliverable that no
+SyncView card ever produced. **The Linear exit removes the generator**, so that
+population stops growing as a side effect of work already planned — which argues
+for doing the exit before any large backfill, and for scoping this repair to the
+137 a client can actually see.
+
+**Recommendation: the guard now regardless; the 137 in the phased order; defer
+the structural change until after the Linear exit, when the write paths that
+would have to change are the ones that will survive.**

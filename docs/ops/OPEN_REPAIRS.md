@@ -11524,12 +11524,61 @@ together, so it is visible that there are three.
 
 ---
 
-## 144. [2026-09-04, STRATEGY WRITTEN, NOTHING EXECUTED — owner asked for the plan to be reviewed before any of it runs] The crosswalk repair, measured: it is 137 rows for the client, not 5,150 — and `calendar_posts.id` is not unique
+## 144. [2026-09-04, STRATEGY WRITTEN AND THEN CORRECTED — revision 1 got four things wrong, one of which would have corrupted data. Nothing executed] The crosswalk repair, measured against the real predicate: 172 mismatching slots on 153 cards
 
 Full plan in `docs/ops/CROSSWALK_REPAIR_STRATEGY.md`. This entry records the two
 findings that changed the shape of it, both measured live 2026-09-04.
 
-### The client-facing gap is 137 rows, not 5,150
+### REVISION 1 WAS REVIEWED AND FOUR CLAIMS FAILED. This is what survived.
+
+The entry below is revision 1, kept because the errors matter more than a tidy
+record. Corrections first:
+
+**1. The repair set is 172 slots on 153 cards, not 137.** Revision 1 counted
+NULL `card_id` values. `_prodCrosswalkMismatchFields` compares FOUR fields —
+`origin`, `team`, `client_slug`, `card_id` — and a non-NULL `card_id` proves
+none of the other three. Measured properly over all 1,271 client-calendar slots:
+1,099 clean, **172 mismatching**. By reason: 134 `card_id+origin`, 17 `origin`,
+8 `card_id`, 8 `team`, 2 `card_id+team`, 2 `card_id+origin+team`, 1
+`card_id+client_slug+origin`. **The eight `card_id`-only rows name a DIFFERENT
+card** — the eight item 99 already recorded. A missing binding fails safe; a
+wrong one points confidently at the wrong place. Revision 1 would have left all
+38 non-NULL defects untouched while asserting the set was clean.
+
+**2. `calendar_posts.id` IS fine, and "fixing" it would have corrupted data.**
+Revision 1 called 13 repeated ids a hard precondition. The table's primary key
+is `(client, id)` (`live-schema-baseline-2026-07-03.sql:310`) and the deliverable
+contract joins through `(client_slug, card_id)` — which is exactly why the
+predicate compares both. Re-measured on the composite key: **`(client, id)`
+pairs appearing more than once: ZERO.** The 13 are one bare id used by up to 16
+different clients, a per-client row working as designed, and the sixteen-way one
+is already documented as valid. "Resolving the collisions" would have renumbered
+or merged legitimate rows to fix a violation that does not exist. A count is not
+a finding until you know what the key is.
+
+**3. The hazard is the projection, not a routing inversion.**
+`_prodCommentAddRoutesLegacy` routes legacy only on a proven `mismatch`; a
+`legacy_retained` stamp does not send staff to the legacy lane, because the
+item-99 fix closed that inversion. The real hazard: with the crosswalk valid and
+the canonical store empty, the projection keeps showing the legacy thread while
+new writes land canonically — the card displays one conversation and accumulates
+another. Nobody is refused and nothing errors, which makes it harder to notice,
+not easier.
+
+**4. Phase 2 was not executable.** `production_comment_card_import` raises
+`production comment card import crosswalk mismatch` BEFORE copying anything
+(`2026-07-23-production-comment-thread-lifecycle.sql:689`), so "copy first, then
+backfill" cannot use the existing lane — the import refuses precisely while the
+crosswalk is still broken. Backfilling first to satisfy it re-opens the window
+the ordering exists to avoid. **A new combined RPC is required**, committing the
+binding and the import in one transaction. That is a schema change with an owner
+decision behind it.
+
+Full corrected plan in `docs/ops/CROSSWALK_REPAIR_STRATEGY.md` revision 2.
+
+---
+
+### Revision 1, kept as written — the client-facing gap is 137 rows, not 5,150
 
 Item 102's number is the whole table and it is correct: 5,150 of 6,330
 `deliverables` have `card_id` NULL. It is also the wrong number for the repair

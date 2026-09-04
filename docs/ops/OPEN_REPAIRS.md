@@ -10274,7 +10274,7 @@ mistake.
 
 ---
 
-## 143. [2026-09-04, AUDIT — nothing to build; one dispatch closes three items, and it is dispatchable right now] The `linear-inbound` lane has not run since 2026-07-30, and tonight's health check measured what that costs
+## 143. [2026-09-04, **DISPATCHED AND GREEN** — run `33899387402`, release `72fbc4a5…`, closure `019a463d…`, `verify_jwt=false`. One of the three items it was supposed to close does NOT close; see the correction at the end.] The `linear-inbound` lane had not run since 2026-07-30, and the health check measured what that cost
 
 Numbered 143 because 135–142 are claimed by open, unmerged branches and 130–133
 by the reverted #1248 branch. Check for duplicate `## N.` headers after any of
@@ -10299,7 +10299,7 @@ on `main`, unreachable by production, for five days — and item 100's header
 still said the site was "undeployable", which item 118 already corrected to
 "undeployed".
 
-### It is dispatchable TODAY — measured, not assumed
+### It was dispatchable, and it has now been dispatched — measured, not assumed
 
 `node scripts/ef-fingerprint.js 00d0e888… --slugs=linear-inbound
 --expected-only` returns
@@ -10326,14 +10326,54 @@ bucket was driven to ZERO on 2026-08-28 when the owner unassigned all 25 in
 Linear. It has regrown, and item 77 is the mechanism: the unassignments are
 delivered and dropped, so every future one has to be repaired by owner SQL
 instead of mirroring for free. The owner-SQL half is in item 11 of
-`docs/ops/PRE_FLIP_HEALTH_CHECK.md` and repairs the 12 that exist; the deploy is
-what stops the thirteenth.
+`docs/ops/PRE_FLIP_HEALTH_CHECK.md` and repairs the 12 that exist. **The claim
+that the deploy stops the thirteenth was WRONG — see below.**
 
 This entry adds no code. It exists because three items reading "DEPLOY PENDING"
 in three different places is not the same as anyone knowing that one un-run
 workflow is holding all of them, and because the ledger has now twice recorded a
 status that was false on `main` (item 118).
-## 142. [2026-09-04, REQUESTED BY THE OWNER — not started, and it needs one decision before it can be] Show the social media manager on a SyncLinear sub-issue, without hand-keeping the mapping
+
+### CORRECTION, same day, from Codex on PR #1260: item 77's fix is UNREACHABLE
+
+The entry above claims the deploy "stops the thirteenth" ghost assignment. It
+does not, and the mechanism is not subtle once you look:
+
+- `isDetectOnlyTeam` (index.ts:678-685) returns **true** whenever that team's
+  `prod_authority` reads `syncview`. Both teams have read `syncview` since the
+  video flip on 2026-08-28.
+- The issue-update lane therefore enters the detect-only branch at line 751 and
+  **returns at line ~803**.
+- Item 77's cleared-assignee repair lives at line 868 — *after* that return.
+
+So on today's authority the assignee write is not reached at all, and no
+unassignment made in Linear can clear a stale `assignee_id`. The deploy enriched
+the detection trail and made the rollback position current; it did not close the
+recurrence. Owner SQL remains the only repair, which is exactly the state this
+entry claimed the deploy would end.
+
+**What the deploy DID fix, and this half is real:** item 100's
+`readStoredComment` repair. `persistProductionComment` is called at line 1245,
+*before* the detect-only gate at 1247, so the comment lane's "no such row and
+two rows are the same answer" defect — the one that skips echo suppression and
+tombstone protection and corrupts rows rather than refusing writes — is now
+live. That was the actively-harmful one.
+
+**The durable fix for the assignee half, and the precedent is already in the
+file.** The detect-only branch already carves out ONE narrow exception, for
+attribution: *"retaining the former client after a project/hierarchy change
+would be a silent false ownership claim."* A retained assignee is the identical
+argument — a departed editor keeps a queue of live work that the Workload board
+does not render, because it renders active members. Adding a cleared assignee to
+that same exception is the small version. The large version is that assignment
+stops being managed in Linear at all, which is where the Linear exit is going
+anyway.
+
+**And the wider consequence, which is not about ghosts:** while both teams are
+`syncview`, NO assignment change made in Linear reaches SyncView. That is the
+flip working as designed, but anyone still reassigning in Linear is writing to a
+surface SyncView no longer reads.
+## 142. [2026-09-04, **PREMISE SUPERSEDED SAME DAY** — the sync this entry says must be built already exists and runs daily; the decision it asks for is moot. See the correction at the end.] Show the social media manager on a SyncLinear sub-issue, without hand-keeping the mapping
 
 Numbered 142 because 135–141 are claimed by open, unmerged branches at the time
 of writing. Check for duplicate `## N.` headers after any of them merges.
@@ -10414,6 +10454,43 @@ it.
 
 **Owner decision needed before any code:** route A-via-n8n, A-via-Edge-Function,
 or B.
+
+### CORRECTION, same day — route A ALREADY EXISTS, so none of the above is needed
+
+Raised by Codex on PR #1259 and confirmed independently against the live n8n
+instance and the function source. Everything the three routes above propose
+building is already built and running:
+
+- **n8n workflow "SyncView SMM Reports – Manager Sync"** (`y3rEWCVdB0esN3tO`),
+  ACTIVE, schedule trigger daily at 06:00 America/Guatemala. It reads the
+  *Social Media Managers* tab of the SYNCVIEW sheet, groups rows by manager,
+  and POSTs `{action: "sync_managers", replace: true, managers: [...]}` — each
+  manager carrying a `source_clients` array — to `smm-weekly-reports`. Its last
+  four executions all succeeded, most recently 2026-09-04 12:00Z.
+- **`smm-weekly-reports`** persists that into `social_media_managers` with
+  `source_clients` and `synced_at` (index.ts:235-290), and already serves the
+  table to the browser through `?action=options` (`loadOptions`, line 133) —
+  which the SyncLinear page already calls, with a staff identity it already
+  holds.
+
+`replace: true` is the wholesale-overwrite discipline this entry recommends,
+already in place. So the remaining work is not a storage decision, it is two
+small edits: add `source_clients` to `loadOptions`'s `.select(...)` and to
+`serializeManager` (which today returns only slug/name/email/active), then
+invert the mapping in the browser and render one line under Project in
+`_prodProps`. No new function, no new table, no migration, no Google service
+account, no new schedule, no new auth surface.
+
+The staleness rule from the entry above still applies and is now cheaper: the
+row already carries `synced_at`, so withholding a name when the sync is overdue
+is a comparison, not new plumbing.
+
+**What survives from the entry above:** the reasoning about why a hand-kept copy
+goes stale, and the ruling against the "publish the sheet to web" CSV shortcut
+(that URL is effectively public and the mapping pairs staff names with clients).
+Both stand. Only the build-it-yourself conclusion is retracted — and the reason
+it was wrong is worth keeping: the entry proposed three ways to build a thing
+without first checking whether the estate already had it.
 ## 141. [2026-09-04] The polish gate's public summary named five of six failing checks and hid the sixth behind "+1more" — for 27 consecutive runs, and the hidden one is unrecoverable
 
 Numbered 141 because 135–140 are claimed by branches that are open and unmerged

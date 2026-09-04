@@ -54,6 +54,15 @@
  * reopens, `test/extract-function-integrity.js` fails and names the function.
  */
 
+/* A COMPLETED LITERAL ENDS AN EXPRESSION, so the next `/` is division. Without
+   this, `prev` still holds the token BEFORE the literal (`=` in
+   `const n = "8" / 2`), the slash reads as the start of a regex, and everything
+   after it is swallowed to end of input. Codex on #1255, found in stripNonCode
+   and true of extractFunction for the same reason -- one lexer, one fix. '0'
+   is simply a character REGEX_ALLOWED_AFTER does not contain: it stands for
+   "an operand just ended", exactly like an identifier or a number would. */
+const LITERAL_ENDED = '0';
+
 const REGEX_ALLOWED_AFTER = new Set(
   ['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '~', '^', '<', '>'],
 );
@@ -101,7 +110,7 @@ function extractFunction(source, name) {
     if (quote) {
       if (escaped) escaped = false;
       else if (c === '\\') escaped = true;
-      else if (c === quote) quote = '';
+      else if (c === quote) { quote = ''; prev = LITERAL_ENDED; }
       continue;
     }
     if (regex) {
@@ -109,16 +118,19 @@ function extractFunction(source, name) {
       else if (c === '\\') escaped = true;
       else if (charClass) { if (c === ']') charClass = false; }
       else if (c === '[') charClass = true;
-      else if (c === '/') regex = false;
-      else if (c === '\n') regex = false; // unterminated: do not run away
+      else if (c === '/') { regex = false; prev = LITERAL_ENDED; }
+      else if (c === '\n') { regex = false; prev = LITERAL_ENDED; } // unterminated: do not run away
       continue;
     }
 
     if (top.kind === 'template') {
       if (escaped) { escaped = false; continue; }
       if (c === '\\') { escaped = true; continue; }
-      if (c === '`') { stack.pop(); continue; }
-      if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); i++; continue; }
+      if (c === '`') { stack.pop(); prev = LITERAL_ENDED; continue; }
+      // A fresh `${ … }` is a fresh expression: a `/` at its start is a regex,
+      // so the token from BEFORE the template must not decide that. Codex on
+      // #1255, for the second interpolation in `${x}${/re/.test(y)}`.
+      if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); prev = ''; i++; continue; }
       continue;
     }
 
@@ -180,4 +192,99 @@ function extractFunctionNaive(source, name) {
   throw new Error('unclosed function: ' + name);
 }
 
-module.exports = { extractFunction, extractFunctionNaive };
+/*
+ * CODE ONLY, for suites that assert "this function CALLS x" over a slice.
+ *
+ * Codex, on PR #1255: `test/comment-family-twin-parity.js` matched
+ * `_prodCanonicalCommentGate(` against the raw body, and `_calAppendComment`
+ * carries a block comment that quotes the call verbatim while explaining the
+ * routing rule -- so deleting the REAL call left every assertion green. A
+ * comment is documentation; a suite that reads it as behaviour is asserting
+ * that somebody wrote a sentence.
+ *
+ * Comments, string bodies, template bodies and regex bodies become spaces;
+ * everything else is kept at its original offset, so lengths and indices still
+ * line up with the input. `${ ... }` inside a template is CODE and survives,
+ * which is the case a naive strip gets wrong in the other direction.
+ *
+ * Same lexer as extractFunction above, and here for the same reason that one
+ * is: so there is one of it.
+ */
+function stripNonCode(source) {
+  const src = String(source || '');
+  const out = new Array(src.length);
+  const stack = [{ kind: 'code', depth: 0 }];
+  let escaped = false;
+  let quote = '';
+  let comment = '';
+  let regex = false;
+  let charClass = false;
+  let prev = '';
+  const blank = i => { out[i] = src[i] === '\n' ? '\n' : ' '; };
+
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    const n = src[i + 1];
+    const top = stack[stack.length - 1];
+
+    if (comment) {
+      blank(i);
+      if (comment === 'line' && c === '\n') comment = '';
+      else if (comment === 'block' && c === '*' && n === '/') { comment = ''; blank(i + 1); i++; }
+      continue;
+    }
+    if (quote) {
+      blank(i);
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (c === quote) { quote = ''; prev = LITERAL_ENDED; }
+      continue;
+    }
+    if (regex) {
+      blank(i);
+      if (escaped) escaped = false;
+      else if (c === '\\') escaped = true;
+      else if (charClass) { if (c === ']') charClass = false; }
+      else if (c === '[') charClass = true;
+      else if (c === '/') { regex = false; prev = LITERAL_ENDED; }
+      else if (c === '\n') { regex = false; prev = LITERAL_ENDED; }
+      continue;
+    }
+    if (top.kind === 'template') {
+      if (escaped) { escaped = false; blank(i); continue; }
+      if (c === '\\') { escaped = true; blank(i); continue; }
+      if (c === '`') { stack.pop(); blank(i); prev = LITERAL_ENDED; continue; }
+      if (c === '$' && n === '{') { stack.push({ kind: 'code', depth: 1 }); prev = ''; blank(i); blank(i + 1); i++; continue; }
+      blank(i);
+      continue;
+    }
+
+    if (c === '/' && n === '/') { comment = 'line'; blank(i); blank(i + 1); i++; continue; }
+    if (c === '/' && n === '*') { comment = 'block'; blank(i); blank(i + 1); i++; continue; }
+    if (c === '/') {
+      const back = src.slice(Math.max(0, i - 16), i);
+      if (!prev || REGEX_ALLOWED_AFTER.has(prev) || REGEX_ALLOWED_KEYWORD.test(back)) {
+        regex = true; charClass = false; blank(i); continue;
+      }
+    }
+    if (c === '`') { stack.push({ kind: 'template' }); blank(i); continue; }
+    if (c === '"' || c === "'") { quote = c; blank(i); continue; }
+    /* A `${ ... }` frame must COUNT braces, not pop on the first one it sees.
+       Codex on #1255: `${foo({x: 1}) + keep}` was closed by the object's brace,
+       so `+ keep` -- executable code -- was blanked, and a gate call sitting
+       there would be invisible to a suite reading this output. extractFunction
+       above tracks depth for exactly this reason; so does this now. */
+    if (c === '{') { top.depth = (top.depth || 0) + 1; }
+    else if (c === '}') {
+      top.depth = (top.depth || 0) - 1;
+      if (top.depth === 0 && stack.length > 1) {
+        stack.pop(); blank(i); continue;   // closes a ${ ... } back into its template
+      }
+    }
+    out[i] = c;
+    if (!/\s/.test(c)) prev = c;
+  }
+  return out.join('');
+}
+
+module.exports = { extractFunction, extractFunctionNaive, stripNonCode };

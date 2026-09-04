@@ -80,6 +80,13 @@ const REAL = [
   // pre-clearance, so the reader has to come along or the slice throws.
   grabFunc('_calShowApprovedAfterTweaks'),
   grabFunc('_calCompKasperVisible'),
+  // The chip no longer keeps its own idea of which components the expanded
+  // card shows: it tallies _kasperPanelComps, the same set the renderer
+  // renders, so a badge can never promise a thread the card does not open.
+  // That set content-gates the pending-decision reason only, which is why the
+  // media rule has to come along too.
+  grabFunc('_kasperCompReviewable'),
+  grabFunc('_kasperPanelComps'),
   grabFunc('_calOpenCommentCount'),
   grabFunc('_kasperOpenTweakCount'),
 ].join('\n\n');
@@ -133,13 +140,40 @@ check('his tweak on the linked thumbnail makes it count → 4',
   })), 4);
 
 // R3 — graphic back at Kasper Approval (case a) → its tweaks count even if client.
+// The thumbnail is ATTACHED: at Kasper Approval the panel is a pending
+// decision, and a decision needs the thing being decided on.
 check('thumbnail at Kasper Approval counts its (client) tweak → 3',
   _kasperOpenTweakCount(post({
     video_status: 'Tweaks Needed',
     graphic_status: 'Kasper Approval', graphic_linear_issue_id: GRA,
+    thumbnail_url: 'https://example.invalid/thumb.png',
     video_comments:   [kTweak('v-k', T.a), cTweak('v-c', T.b)],
     graphic_comments: [cTweak('g-c', T.b)],
   })), 3);
+
+// R3b — the same card with the image never attached. Its panel is not rendered
+// (there is no honest Approve over a thumbnail that does not exist), so the
+// chip must not count it either: that mismatch IS the Lion's Mane defect this
+// suite exists for, and content-gating the renderer alone re-created it on
+// PR 1252. The video's two stay; the thumbnail's one goes.
+check('the same thumbnail with no image → its tweak is not counted (2)',
+  _kasperOpenTweakCount(post({
+    video_status: 'Tweaks Needed',
+    graphic_status: 'Kasper Approval', graphic_linear_issue_id: GRA,
+    thumbnail_url: '',
+    video_comments:   [kTweak('v-k', T.a), cTweak('v-c', T.b)],
+    graphic_comments: [cTweak('g-c', T.b)],
+  })), 2);
+
+// R3c — and the reason (2) half of the same rule: a fileless VIDEO at Tweaks
+// Needed carrying his own unresolved tweak is a conversation, not a review, so
+// it keeps its panel and keeps counting. R1 above already relies on this; this
+// case states it on purpose so the two halves cannot be collapsed into one.
+check('a fileless video at Tweaks Needed with his tweak still counts → 1',
+  _kasperOpenTweakCount(post({
+    video_status: 'Tweaks Needed', asset_url: '',
+    video_comments: [kTweak('v-k', T.a)],
+  })), 1);
 
 console.log('\n— Gates: unlinked thumbnail, resolved, deleted —');
 // R4 — unlinked thumbnail (no GRA link): never visible, never counts, even with a tweak.

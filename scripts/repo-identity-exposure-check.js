@@ -75,8 +75,31 @@ const arg = name => {
    term count. Only counting terms lets a new file quietly name six clients as
    long as six others stopped being mentioned; only counting files lets one file
    name the whole roster. */
-const BASELINE_FILES = arg('baseline-files') ?? 108;
-const BASELINE_TERMS = arg('baseline-terms') ?? 45;
+/* MEASURED, not guessed, and re-measured whenever the roster rules change.
+   2026-09-04: 83 files / 44 terms, immediately after `internal` rows left the
+   roster. The previous 108/45 was 25 files and one term of silent headroom —
+   a real client added later whose slug already appears in the repository could
+   have risen into that gap without the ratchet firing, which is the one thing a
+   baseline exists to prevent. Raised by review on #1262. */
+const BASELINE_FILES = arg('baseline-files') ?? 83;
+const BASELINE_TERMS = arg('baseline-terms') ?? 44;
+
+/* THREE FAILURE MEANINGS, THREE EXIT CODES — because the CI job treats them
+   differently and must be able to. 1 is a finding and blocks. 2 is "this check
+   could not run" (the roster read failed) and is deliberately a warning, since
+   an unreachable backend is not evidence of an exposure. 3 is new: the roster
+   read WORKED and returned something this script cannot classify, which is not
+   an availability problem and must block — otherwise a new `clients.kind` value
+   silently switches the gate off and the job still goes green. Raised by review
+   on #1262, where the first version of the classification check threw into the
+   generic handler and therefore exited 2. */
+const EXIT_FINDING = 1;
+const EXIT_UNAVAILABLE = 2;
+const EXIT_UNCLASSIFIED = 3;
+
+class UnclassifiedRoster extends Error {
+  constructor(message) { super(message); this.exitCode = EXIT_UNCLASSIFIED; }
+}
 
 /* Short or common slugs would match ordinary English and report noise as
    exposure. A slug this short is also not identifying on its own. */
@@ -131,7 +154,7 @@ async function roster() {
   }
   if (unknownKinds.size) {
     /* The kind VALUES are printed; they are a column vocabulary, never a name. */
-    throw new Error('clients.kind carries value(s) this guard does not classify: '
+    throw new UnclassifiedRoster('clients.kind carries value(s) this guard does not classify: '
       + Array.from(unknownKinds).sort().join(', ')
       + ' — classify each as a person or a non-person in NON_PERSON_KINDS before this can gate again');
   }
@@ -281,5 +304,10 @@ function addedPathsContaining(term, base) {
       console.log('  audits are worth keeping. Both are the owner\'s.');
     }
   }
-  process.exit(failed ? 1 : 0);
-})().catch(err => { console.error('identity exposure check failed:', err.message); process.exit(2); });
+  process.exit(failed ? EXIT_FINDING : 0);
+})().catch(err => {
+  console.error('identity exposure check failed:', err.message);
+  /* An UnclassifiedRoster carries its own code so the CI job can block on it.
+     Everything else is an availability failure and stays a warning. */
+  process.exit(err && err.exitCode ? err.exitCode : EXIT_UNAVAILABLE);
+});

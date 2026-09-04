@@ -377,9 +377,15 @@ identically is the house convention, so this recurs.
 
 ## 6. [watch] Nightly E2E lanes: samples red 26 nights, calendar 16
 
-> **SUPERSEDED 2026-08-22 by item 25.** Read that first: neither lane is red in
-> the way this entry implies. Each fails on exactly ONE assertion inside an
-> otherwise green run, both causes are now diagnosed, and both are fixed.
+> **SUPERSEDED 2026-08-22 by item 25, and again 2026-09-03 by item 138.** Read
+> those first — this header's counts have been wrong since 2026-08-22 and the
+> lanes have moved twice more since. Item 25 diagnosed one assertion per lane
+> and fixed both; **item 138 read the actual runs and confirms both fixes
+> worked** — samples went GREEN on 2026-09-02 (run 62, its first success in the
+> visible history) and the calendar's p92 now passes. What is red today is not
+> what was red when this entry was written: samples on a fixed-sleep race in the
+> opt-out probe, the calendar on three probes that assert the pre-F1 video
+> link-paste contract.
 
 
 **2026-08-11 — TRIAGED. The nightly could not report its own failure.** Run
@@ -1888,6 +1894,11 @@ different ways in two different consumers, and the durable event ledger
 
 - Done when: the next samples nightly is green. The fix cannot be run locally —
   the lane needs the staff key and a live backend — so the nightly is the proof.
+- **ANSWERED 2026-09-03 by item 138: it went green.** Run 62, 2026-09-02 — the
+  lane's first success in its visible history, and `create_drag_reorder_persist`
+  passes. This half is DONE. Run 63 is red again on a different probe entirely
+  (`sxr_gating_flags`), diagnosed in item 138 as a fixed-sleep race and fixed
+  there; do not read that red as this entry re-opening.
 
 **Calendar E2E — fixed here too.** `1 of 68 probes FAILED after 3 attempts:
 p92_sxr_resolve_pill_inplace.js`, and the run printed exactly which assertions:
@@ -1926,6 +1937,11 @@ rather than of two changes at once. If it still fails on the same two
 assertions, the 400 ms is the next thing to replace with a bounded wait.
 
 - Done when: the next calendar nightly is green.
+- **ANSWERED 2026-09-03 by item 138 for THIS probe:** `p92_sxr_resolve_pill_inplace.js`
+  reports `pass=10 fail=0`. The linkage diagnosis was right and the 400 ms
+  residual risk recorded just above did not bite. The lane is still red, but on
+  three OTHER probes (`p77`, `p81`, `p86`), all failing on the pre-F1 video
+  link-paste contract — see item 138.
 
 ---
 
@@ -8095,9 +8111,23 @@ shows on the exits nobody writes a test for.
 > cross-reference inside them points at items 72-102, none of which moved.
 >
 > Separately: items 13, 14, 22, 23 each appear twice from
-> BEFORE this session. Left alone deliberately -- they are old closed entries and
-> renumbering them could break references this session cannot see. Flagged here so
-> the next reader knows it is known, not missed.
+> BEFORE this session. Left alone deliberately -- renumbering them could break
+> references this session cannot see. Flagged here so the next reader knows it is
+> known, not missed.
+>
+> **Correction, 2026-09-03: "they are old closed entries" was wrong, and it is the
+> half of this note that would stop someone acting on it.** Only the second 13 and
+> the second 14 are closed. The first 14 is `[repair]`, BOTH 22s are `[repair]`,
+> and the 23s are `[repair]` and `[owner]` -- so four OPEN entries currently share
+> two numbers, and "see item 22" today points at two different live repairs. The
+> decision to leave them alone still stands (the references are real and this is
+> not a 2 a.m. change), but it should be made against what they actually are. What
+> a renumber would cost, measured: OPEN_REPAIRS' 22s have **no** cross-reference
+> anywhere -- the two "Item 22" hits in `WIRED-PARITY.md` are that file's own
+> numbering -- and the 23s have exactly two, one to each, both resolvable from
+> their surrounding sentence (`EXECUTION_LOG.md` names the archiving/sub-issue
+> regression, `PRE_FLIP_HEALTH_CHECK.md` names `GRA-7112`). The 13/14 pairs carry
+> more, and are the ones a renumber should approach carefully.
 
 ## 109. [2026-09-02, SCOPED — one owner decision, then it is a day's work] Pasting an image into a description: the render half shipped, the upload half needs a storage answer
 
@@ -10637,3 +10667,553 @@ than silently added, and `--target` alone also works for checking one function.
 
 - Done when: it catches one. The typing repair item 94 describes is still owed
   and still belongs alongside a deploy that was happening anyway.
+## 138. [2026-09-03] Both nightlies re-read against their actual runs: item 25's two fixes WORKED, and what is red now is not what was red then
+
+Item 25 ends both halves with *"Done when: the next nightly is green"*, and item
+6 still describes the lanes as "samples red 26 nights, calendar 16". Neither had
+been checked against a run since. Read from the run history rather than from the
+rollups, which is the same correction item 25 itself opens with.
+
+### Samples — item 25's fix worked, and the lane went green
+
+| run | date | result |
+|---|---|---|
+| 61 | 2026-09-01 | ❌ `sxr_gating_flags.js` |
+| **62** | **2026-09-02** | **✅ GREEN — the first success in the visible history** |
+| 63 | 2026-09-03 | ❌ `sxr_gating_flags.js`, 1 of 10 probes, 12 pass / 1 fail |
+
+`create_drag_reorder_persist` — the assertion item 25 chased through two rounds
+of harness defects — **passes**. That half is done. The lane now fails on one
+assertion in a different probe.
+
+### And what it fails on is a RACE in the probe, not a defect in the product
+
+```
+✗  opt-out: #sample-reviews route refused (hash cleared, no sxr view mounted)
+   [hash="#sample-reviews/sidneylaruel" mounted=false]
+```
+
+`mounted=false` is the important half: **the route WAS refused.** With `?sxr=0`
+nothing mounted, the nav stayed hidden, zero cards rendered — the three
+assertions beside it all pass. The only thing that did not happen is the hash
+being cleared, and the hash is cleared by `navTo`, which runs at the END of
+boot. The probe waited a flat 2500 ms and then read. On a slow boot it reads
+before `navTo` has run and reports a page that is merely still booting as a
+route refusal that failed.
+
+The lane's own history is that shape and is the evidence: **red 09-01, green
+09-02, red 09-03, same assertion, with no change to the opt-out path between
+them.** A fixed sleep that alternates with backend latency is a race, not a
+regression.
+
+**Fixed by waiting for the event instead of for a duration.** `navTo` is the
+only thing that writes `history.state.nav`, so the probe now waits on exactly
+that, bounded at 20 s, and the wait's failure is its OWN named check. The old
+single assertion could not distinguish "boot never finished" from "boot
+finished and left the hash", which are different facts with different owners;
+its failure line now carries `routed=` and `routedTo=` so a red run says which.
+
+**The BOUND had to cover the boot, or the race just moves later** — Codex P2 on
+the fix. With `?sxr=0` the Samples branch falls through, `sample-reviews` is not
+a fast tab, and `init()` awaits the whole analytics fetch before calling
+`navTo`; the courier permits a request to take up to 60 s
+(`_CURL_OPTIONS.timeout`). A 20 s cap would have reported the same false
+failure on any slow CSV, at 20 seconds instead of 2.5. The cap is 75 s: it
+covers that window with margin, costs nothing on a healthy run because
+`waitForFunction` returns the moment the condition holds, and stays inside the
+runner's 240 s per-probe budget alongside this probe's other work (~70 s in the
+2026-09-03 nightly). The suite asserts all three of those bounds, and asserts
+the courier's own 60 s is still 60 s — if that moves, this has to move with it.
+
+**And the bound was not the bound.** Codex, round two: Playwright's signature is
+`waitForFunction(pageFunction, arg, options)`. Passing `{ timeout: 75000 }` in
+the SECOND position makes it the predicate's unused **argument**, leaving the
+library's 30 s default in force — so the fix would have read 75 s in the source
+and behaved as 30 s, still under the 60 s the courier permits, still a false
+failure. It is now `waitForFunction(fn, undefined, { timeout: 75000 })`, and the
+suite matches the whole call shape rather than the first `timeout:` literal it
+can find, plus reads Playwright's own `.d.ts` to confirm options are still third.
+
+**The same footgun is estate-wide in the QA harness, and is NOT fixed here.**
+Measured: **46 `waitForFunction` calls across 25 files** pass their options in
+the second position, and **zero** currently pass them third. Most are wrapped in
+`.catch(() => {})`, so the effect is a 30 s default in place of an intended 15 s
+or 20 s — longer, not shorter, which is the harmless direction and is why nobody
+noticed. It is recorded rather than swept because a 46-call edit across 25 probe
+files is exactly the kind of unattended sweep that turns a green lane red for
+reasons unrelated to the change that carried it.
+
+`test/sxr-optout-probe-waits-for-route.js` pins both ends — the probe waits for
+the signal, and `navTo` still emits it — because the probe now depends on a
+product detail, and if that detail moved the nightly would start timing out
+every night with no explanation. 3 mutations, all killed. **It is not proof the
+race is gone; the next nightly is.**
+
+### Calendar — item 25's p92 fix ALSO worked, and three different probes are red
+
+`p92_sxr_resolve_pill_inplace.js` — the probe item 25 diagnosed as demanding
+`Kasper Approval` where the product correctly rendered `N/A` — now reports
+**`pass=10 fail=0`**. That half is done too. The 400 ms residual risk item 25
+recorded did not bite.
+
+Red now, 3 of 69, each after 3 attempts: `p77_linear_link_validation.js`,
+`p81_link_move_conflict.js`, `p86_hidden_owner_warns.js`.
+
+**All three are the same cause, and it is the F1 video cutover.** Their failing
+assertions are exactly the ones that paste a Linear **VID-** link into the video
+slot:
+
+```
+p77  ❌ valid VID- link saves to the video slot
+     ❌ GRA- link in the video slot → wrong-slot prompt fired
+     ❌ wrong-slot prompt CANCELLED → video link unchanged
+     ❌ wrong-slot prompt ACCEPTED → override saves it
+     ✅ graphics is SyncView-owned → a GRA- paste is REFUSED and nothing is stored
+     ✅ and the person is told why, rather than the paste silently vanishing
+p81  ❌ duplicate link surfaces the Move/Cancel conflict     (all 3 link-move assertions)
+p86  ❌ pasting the owner's link surfaces the "already linked — Move it here?" conflict
+```
+
+**Confirmed in the code, not inferred from the names.** `_calLinearCommit`'s
+guard **(0)** is a seal on a LIVE authority read —
+`_writeUiLinkSlotSealedLive(which)` returns sealed when that component's team
+authority is `syncview` — and it runs *"ahead of every other check … before the
+format, component and uniqueness guards even look at the value."* Post-F1 the
+video team is SyncView-authoritative, so a valid VID- paste is refused at guard
+0 and never reaches the wrong-slot prompt (guard 2) or the duplicate/move
+conflict (guard 3). p77's graphics assertions pass because graphics was sealed
+at its own flip and that probe was re-based then; the video half still asserts
+the pre-flip contract.
+
+**So the product is right and these three probes are stale** — the same verdict,
+for the same reason, as p92. This is not a repair, it is a re-base.
+
+**Deliberately NOT re-based here**, and the distinction matters:
+
+- p77's video half is a mechanical mirror of assertions already passing beside
+  it for graphics, and could be re-based safely.
+- p81 and p86 are *entire probes about the link-move conflict flow*, and post-F1
+  that flow is unreachable from **either** component — both are sealed. Re-basing
+  them to assert the seal would delete the coverage rather than move it, and
+  "the move-conflict flow may now be dead code" is a finding for the Linear-exit
+  work, not something to erase quietly at 2 a.m. on the way to a green light.
+
+A wrong re-base of a mandatory gate turns "no signal" into "false signal", which
+is item 125's warning and worse than the red.
+
+- Done when: the samples nightly is green on the fixed probe, and the owner (or
+  the Linear-exit work) rules on whether the video link-paste flow — and the
+  move-conflict flow behind it — still exists to be tested at all.
+## 137. [2026-09-03, GUARD SHIPPED — script-only, live on merge] The "what is live" row now has a check instead of a third written reminder
+
+Item 118 called the stale `ROLLBACK.md` row **the dangerous one**, and said why
+a fourth correction-in-place would not hold it:
+
+> A written rule has now failed to hold this row twice, which is the argument
+> for a check rather than a third reminder: nothing in CI compares this row
+> against `EXECUTION_LOG.md`'s newest `syncview_f27_section4_deployed_versions_v1`
+> block, and that comparison is derivable.
+
+It is now compared. `scripts/rollback-row-freshness-check.js` reads both files
+and nothing else, and `test/rollback-row-freshness.js` runs it in the suite, so
+a row left describing the previous deploy turns a PR red.
+
+**Why a check and not a reminder.** The lane WRITES the receipt into
+`EXECUTION_LOG.md` automatically; the row is typed by hand. That asymmetry is
+the whole decay: every dispatch updates one and not the other, and the gap is
+invisible until someone mid-incident reaches for a bundle. The row has been
+found stale twice on record — once **eleven deploys** behind — and its own
+middle column states the exact law it keeps breaking, which is the argument
+against writing the law a fourth time.
+
+**What it compares**, all derived, none of it hand-maintained on this side:
+
+- the GitHub run id and the dispatched commit;
+- every function's active version and source-closure hash;
+- **the one-step property.** The row names a sealed bundle and claims it
+  captures the release immediately before live. That claim is checkable: the
+  version it captures must equal `production-write`'s version in the PREVIOUS
+  receipt. A bundle two releases back passes every existing integrity check —
+  they verify the bundle, not its distance from live — and restoring it undoes
+  a deploy nobody meant to undo. This is the specific harm item 118 named, and
+  it is now the one thing here that no other gate anywhere covers.
+
+**Two parser traps, both real shapes from these files, both pinned by a test
+that fails without the handling.** A forward-deploy row writes the version as
+`65 → **66**`; reading the first number reports the release that was REPLACED
+as the one that is live, which is the very error being hunted. And the live
+claim shares a table cell with a deliberately-retained *"Superseded history
+below"* paragraph carrying an older set in the identical format — a parser that
+takes the last match reads history as the present.
+
+**One thing the check reports without failing on it.** The newest receipt
+(2026-09-02, deploy #25) is a summary table, not the attestation block the lane
+instructs you to copy; the same gap was raised as a P2 on #1215 and again in
+item 118. The comparison still holds from the table, so this is a NOTE rather
+than a failure — turning it red would block PRs on an entry already written.
+Every field the block would have carried is checked from the table today.
+
+### Codex found four P1s in the first version, and the first one is the entry's own lesson
+
+**FILE POSITION IS NOT CHRONOLOGY.** The check took the LAST receipt in
+`EXECUTION_LOG.md` as the newest. That file is **reverse**-chronological at the
+top (2026-08-31 at line 5, descending to 2026-08-18) and **forward**-
+chronological further down (2026-08-25 → 2026-09-01 → 2026-09-02). Measured
+across all fourteen receipts, file order and deploy order disagree completely:
+the receipt at character 4,791 is run `33423121197` while the one at 477,401 is
+run `31023890487`. It is right today by luck, and the next entry written at the
+top the way the top section is written would have made a guard against silent
+staleness silently stale. **A check that passes by accident is the thing this
+file has the most entries about.**
+
+Fixed by ordering on the GitHub run id, which increases with time and which
+every receipt carries. A receipt with no run id cannot be placed in time, so it
+cannot be ruled out as the newest — that now FAILS, naming the character offset
+to fix. And because one signal is a single point of failure, the entry dates
+are a second: run-id order disagreeing with date order fails too.
+
+The same key fixed the second finding. Folding a JSON block together with its
+own summary table was done by proximity (within 6,000 characters, different
+shapes), which discards a newer table-only deploy written close after a
+JSON-backed one. Receipts are now grouped by **deployment identity** — same run
+id, same deploy — so adjacency means nothing.
+
+**The other two were both "could not check" printing as "fine":**
+
+- A row naming no readable bundle recorded a NOTE and exited 0, so a PR could
+  update the live versions while leaving no verified one-step restore — the
+  exact incident-time hazard. Now a failure, and so are the two other ways the
+  one-step property can be unverifiable (no older receipt at all; the older
+  receipt not naming `production-write`).
+- A receipt naming only three of the four functions left the fourth as a note
+  and exited 0, so `production-write` could go entirely unchecked while
+  `ROLLBACK.md` named an obsolete version. The §4 lane deploys the four as one
+  serial set, so a three-function receipt is incomplete, not a receipt about
+  three functions. Now fails closed.
+
+All four have their own fixtures, including a reverse-ordered log whose stale
+row passed before and fails now.
+
+### Round two: three more, and testing one of them found a fourth
+
+- **A `>= 3` cutoff DROPPED short tables.** A newest receipt truncated to one or
+  two rows vanished entirely, and the deploy before it silently became "live" —
+  a stale row passing, by the very mechanism this entry is about. Every detected
+  table is retained now and fails on the functions it does not name.
+- **The captured VERSION matching is not the BUNDLE matching.** With the right
+  version the row could name any digest at all — `deadbeef… / 1 bytes` exited 0
+  — and an older bundle is exactly the one that is indistinguishable by version
+  when an intervening deploy moved a different function. The receipt records the
+  bundle its dispatch sealed (`sealed_bundle_sha256`, `byte_length`); the row's
+  digest and length must match it, and a receipt recording no sealed bundle
+  fails rather than skipping the comparison.
+- **Absence is not agreement.** A live claim missing its run id or its
+  dispatched commit skipped those comparisons and exited 0, losing exactly the
+  provenance this guard says it verifies. Both are now required.
+
+**And writing the test for that last one exposed something worse than the
+finding.** The claim was read as a fixed 900-character window from `**Live as
+of`, which runs past the end of the claim into the deliberately-retained
+*"Superseded history"* prose **in the same table cell** — carrying an older run
+id, commit and version set in the identical format. So a claim that omitted its
+run id did not fail: it silently borrowed the superseded one and compared
+against that. The claim is now bounded by its own bold span, and the fixture
+asserts the superseded id is not picked up.
+
+### Round three: the same rule, on the receipt's side of the comparison
+
+Two more, both the shape of round two's third finding and both on the half I
+had not applied it to:
+
+- A **receipt** whose prose omits `dispatched from <sha>` left `live.commit`
+  empty, and the comparison was skipped — so the row could name an arbitrary
+  commit and still pass, on a guard whose whole claim is that it verifies
+  deployment provenance. Now a failure naming the run, with the fix (add the
+  line to that entry).
+- A receipt recording `sealed_bundle_sha256` but no `byte_length` made the
+  length comparison truthiness-skip, so the bundle was accepted with **half an
+  identity proved**. A missing length now fails exactly like a missing digest.
+
+Worth stating because it is the pattern across all three rounds on this file:
+every finding has been *"a branch that could not check something exited 0
+anyway."* The rule is the same each time and I kept applying it to one side of a
+comparison and not the other.
+
+### Round four: one heading can hold many deploys
+
+- **The prose fallback read the FIRST run id in the entry, not the nearest one.**
+  A single `##` entry can hold several dispatches — the real 2026-08-05 one names
+  **twelve** run ids and carries six receipts. So a later table-only receipt took
+  the identity of the OLDEST deploy in its entry, and grouping by run then folded
+  it away as a duplicate: the newest deploy could disappear entirely and a stale
+  row pass. Reading the nearest preceding mention instead raised the receipts
+  this file yields from 12 to **16** — four deploys that were being silently
+  merged into their neighbours.
+- **A closure had to actually be a closure.** An attestation block naming all
+  four functions but omitting one `source_closure_sha256` stored `''`; the shared
+  prefix length came out zero and two empty slices compared equal, so that
+  function's closure was never checked and the guard exited 0.
+- **A newest receipt under an undated heading** skipped the date cross-check
+  entirely, quietly reducing the guard to a single chronology signal — the exact
+  thing the second signal exists to prevent. Now a failure.
+
+### Round five: a whole deploy shape this guard could not see
+
+- **The concise prose entry produced no receipt at all.** `EXECUTION_LOG.md`
+  OPENS with one — *"**Section 4 forward from `5a3365f2`, run `33434655418`,
+  PASS.** `production-write` 62 → **63**, closure `a54b6bad…`. The other three
+  were byte-identical redeploys."* No table, no attestation block, so **run
+  `33434655418` was simply absent from this guard's picture of history**. If the
+  next dispatch were logged that way, the deploy before it would stay `live` and
+  its stale row would exit 0. These cannot be reconstructed — *"the other three
+  were byte-identical"* names no versions — so they are detected and left
+  incomplete deliberately: when one is the newest, the per-function checks fail
+  it by name and tell the writer what the entry is missing. Receipts went from
+  16 to 17.
+- **Each sealed bundle is now bound to its own dispatch**, not to its entry.
+  Same multi-deploy-per-entry problem as the run id, on the half I had not
+  applied it to: every receipt in the 2026-08-05 entry was handed that entry's
+  FIRST bundle, so a later row could name an older digest and pass — and the
+  captured-version check does not catch that when the intervening deploy moved a
+  different function.
+- **A date has to be a date.** `2026-99-99` matched the shape, sorts after every
+  real date, and would have made the second chronology signal meaningless while
+  looking present. Round-tripped through `Date` now.
+
+**A second one came the same way.** Table rows were grouped by byte distance,
+which merged rows from two different entries whenever the first table was
+short — so a truncated newest receipt's lone surviving row joined the next
+deploy's table and the truncation disappeared. Tables are grouped by the entry
+they are written in now, which is the real boundary and is knowable, so the
+heuristic is gone.
+
+**ROUND FIVE, and the largest of the five: A LANE THIS GUARD CANNOT READ IS
+STILL A DEPLOY.** The §4 lane is not the only workflow that deploys these four
+functions — `deploy-onboarding-edge-functions` ("Deploy staff-sensitive edge
+functions") carries `linear-outbound` and `production-write` in its Track-B
+step, and emits an `ef-fingerprint` attestation into its job summary rather
+than the receipt shape this check reads. So a dispatch through it moves the live
+versions and the guard goes on reporting agreement with a §4 receipt that is no
+longer the newest deploy.
+
+This is not a hypothetical: the row's own middle column in `ROLLBACK.md` records
+that it "decayed again within three days" of the update step being added,
+"because the deploys went through the ONBOARDING lane, which the step does not
+cover", and names the onboarding-lane gap as "the durable fix still owed". A
+guard written for that row that shares the gap is a guard that certifies exactly
+the state it exists to catch. Now: the lane roster is DERIVED from
+`.github/workflows` (any `deploy-*.yml` naming one of the four, minus the §4
+lane itself — a third one appears without anybody remembering to add it), and a
+recorded dispatch of such a lane at or after the newest §4 receipt's day FAILS,
+naming the lane, which functions it can move, and both dates. Deliberately
+narrow — the lane has to be named as a reference, its filename in backticks or
+its workflow name in quotes, not alluded to in prose — because a rollback guard
+that cries wolf gets skimmed, which is the failure this file records more often
+than any other.
+
+**Two more from the same round, both the same lesson: a MENTION is not a CLAIM.**
+
+- **The run token nearest a table is routinely the wrong run.** Deploy #5's
+  heading names run `31217806479`, and its first sentence names run
+  `31214635190` — "the final four-function verification step that FAILED on"
+  it. Taking the nearest preceding token filed #5's table under a run that
+  deployed nothing: two identities for one deploy with the JSON block present,
+  and the wrong one without it. Identity now comes from an ANCHOR — a heading
+  that says "this section is deploy N, run X", or the concise-prose marker that
+  says the same thing inline — and a bare token is the last-resort fallback only.
+- **A drill run does not end a dispatch either.** Round four bounded each
+  dispatch section by run tokens, so deploy #5's section ended at its own TEST
+  drill (`31217933580`), which sits between the receipt and its bundle. The
+  entry-wide fallback then took over and handed it deploy #4's bundle — the
+  round-four fix defeated by the round-five bug. Sections are bounded by anchors
+  now, and the entry-wide fallback is refused outright in any entry holding more
+  than one dispatch.
+
+**And one the review did not raise, found while proving the above: the bundle
+comparison had been reading a spelling the log barely uses.** It matched
+`sealed_bundle_sha256 = <hex>`, which appears ONCE in `EXECUTION_LOG.md`;
+the capture receipt actually prints `rollback_bundle_sha256   <hex>` with no
+equals sign, and that appears six times. So for almost every real entry the
+bundle check found nothing and said nothing — a check that reports the same
+verdict whether it looked or not. Both spellings now.
+
+- Done when: it has caught one. Until a deploy runs, the evidence that it works
+  is the suite's fixtures, which reproduce the 2026-09-03 finding, the
+  failed-run-before-the-table shape, the drill-run-between-receipt-and-bundle
+  shape and the other-lane dispatch exactly, and fail.
+## 135. [2026-09-03, FIXED — browser-only, live on merge] Kasper could not approve a caption that was already written, and the notice blamed the SMM for a file nobody owed
+
+**Reported.** The owner opened the four cards from item 134's notice and said:
+*"you can see that the cards are fine… they have captions, so can you find out
+what's happening?"* They were right. Three of the four were waiting on the
+CAPTION, with the caption written and sitting there — one of them a
+caption-only card whose video and thumbnail are both **N/A**.
+
+**The gate asked a question a caption cannot answer.** Admission to Kasper's
+queue was `hasKasperWork && (hasAsset || hasThumb)` — one question about the
+WHOLE card: does it carry any media? A caption is text. It needs no file, so a
+caption-only card always answered no, fell into the stranded notice, and told
+the SMM to *"add the file"* for work that was finished and needed none. Kasper
+had no way to approve it.
+
+**Now asked per component:** a `video` needs `asset_url`, a `graphic` needs
+`thumbnail_url`, and `caption` and `title` need neither. A card is admitted when
+**any** component waiting on Kasper is reviewable, and reported as stranded only
+when none is.
+
+**`_kasperRenderCard` was already built for this**, which is what makes the fix
+small and the old gate clearly the anomaly: it falls back to a placeholder when
+there is no thumbnail, disables the watch button when there is no video, and its
+own comment says the single-panel hero layout *"applies to video, thumbnail, and
+caption alike so the visual weight stays consistent regardless of which single
+component Kasper is looking at."* Only the upstream gate was hiding these cards.
+
+**The banner copy was also wrong, not just incomplete.** It asserted "no video
+and no thumbnail attached, so there is nothing to review yet", which is false for
+a caption. It now says a video or thumbnail is missing and states plainly that a
+caption or title never lands there.
+
+**Follow-up from review, same fix.** The per-component test has to be applied in
+all three places or it makes things worse: admission, the rendered panels, and
+the "Finish reviewing" gate. Admitting a card on its caption and then leaving the
+fileless video in the gate's set would strand Kasper on a card whose Finish
+button is disabled with nothing left to click.
+
+**I then split the set in two, and that was wrong — Codex caught it, and it was
+worse than the bug it was meant to avoid.** The reasoning was that "has something
+been re-sent to me?" and "what stops me finishing?" are different questions, the
+first media-blind, so `_kasperUndecidedComps` stayed blind for `_kasperIsFinished`
+while a new `_kasperBlockingComps` fed the Finish gate. **Any daylight between
+those two sets is a card that can be finished and never reads as finished.** On
+the exact card this entry is about — a written caption and a fileless video both
+at Kasper Approval — deciding the caption emptied the media-aware gate, so Finish
+was allowed; the media-blind test then still saw the video as a fresh re-route
+and returned false **forever**. The card could never leave Waiting and clicking
+Finish again could not help. The no-tweak branch was worse still: it removed the
+card and logged it Approved with a component undecided.
+
+**The suite had already stated the rule the split ignored.** Its G3 case is *"an
+ACTIONABLE component is back at Kasper Approval → fresh ask"* and G4 is the
+unlinked graphic that is *"NOT actionable, so it must not un-finish the card"*. A
+fileless video is G4, not G3 — Kasper cannot watch what is not there, exactly as
+he cannot act on a thumbnail with no sub-issue. I preserved a fixture's
+INCIDENTAL shape (G3's video happened to carry no `asset_url`, because before
+this entry nothing looked) over the suite's STATED rule, and built a second
+function to keep the accident alive.
+
+So there is one set again, media-aware, read by all three sites. Nothing is lost
+by scoping a fileless component out: `_kasperRenderStrandedNotice` reports it to
+the SMM by name, who is the person who can fix it. G3's fixture now carries a
+file so it tests what its own title says, G3b is the fileless counterpart
+asserting the G4 rule, and `test/kasper-review-state-global.js` adds the
+invariant as a property over six card shapes: **if the guard allows Finish, the
+stamp it writes must make the card read as finished.** Re-introducing the split
+fails six checks across two suites.
+
+**The Samples twin is deliberately NOT changed, and the reason is recorded so
+nobody re-derives it.** `SXR_REVIEW_COMPONENTS` is `['video','graphic']` — there
+is no caption and no title on that surface, so this entry's actual defect cannot
+occur there. And samples is already SELF-CONSISTENT: one set,
+`_sxrKasperUndecidedComps`, read by its finish gate, its finished-state test and
+its finish handler alike, and it both counts a component and renders its panel.
+Adding the media filter to that set alone would break precisely that consistency
+— a fileless component would stop counting while its panel still rendered an
+enabled Approve, the mirror image of the trap just removed from the calendar.
+Doing it properly means filtering the samples panel render too, which is a
+larger change than this one. All four facts are asserted in
+`test/kasper-stranded-handoff.js`, so the difference reads as a decision rather
+than as drift — which is what item 117 asks for.
+
+**ANSWERED 2026-09-03, from the code rather than by guessing: nothing anomalous
+happened.** The question was why a caption reached Kasper Approval on a card
+with no media at all. Review approval is **per component**, and the SMM lane's
+destination is Kasper:
+
+```js
+const _CAL_REVIEW_CFG = {
+    client: { reviewStatus: 'Client Approval', approveTo: 'Approved' },
+    smm:    { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' },
+};
+…
+post[subKey] = approveTo;          // subKey is comp + '_status'
+```
+
+So an SMM approving the CAPTION in SMM Review writes
+`caption_status = 'Kasper Approval'` and touches nothing else. A caption is
+text; it needs no file; the card's video and thumbnail being `N/A` is
+irrelevant to that write. The state was produced by the ordinary route working
+exactly as designed, and the only defect was the admission gate refusing to
+show it.
+
+Stated honestly: this identifies the mechanism that produces the state, not a
+record of those four specific cards being moved that way — the per-card history
+would need the data, and item 101 is the entry about there not being any. But
+the alternative reading ("someone or something set it wrongly") has no mechanism
+anywhere in the code, and this one is the normal path. **This entry needed a
+fix, not an investigation, and the fix is above.**
+
+---
+
+## 136. [2026-09-03, FIXED — browser-only, live on merge; replaces item 134's mechanism] A card deep link should bypass the filters, not clear them
+
+**Reported, after 134 shipped.** *"Nothing happens when I open a card link… it
+should be at the center, and it should be highlighted or something, we had that
+before."*
+
+**They had it before, and the mechanism was still there.** `calState.focusPid`
+forces one card through the month filter, the status filter and the client
+"ready only" filter — three `p.id === calState.focusPid ||` clauses in the
+organizer's post list. `_calReviewOpenInSheet` has always used it for the
+review→Sheet jump, with the comment *"sets a transient focus pid so the Sheet
+shows the card even if the client's ready-only filter (or an active month
+filter) would otherwise hide an in-review post."* That is exactly what a card
+link needs, and the deep-link path simply never used it.
+
+**Item 134 cleared the filters instead.** That worked, and it was the wrong
+tool: it threw away a saved per-client view to show one card, and PERSISTED the
+loss. It also carried a hazard review had to catch — the clear writes against
+whatever client is current, so a client switch mid-wait could erase a
+bystander's filters. A surgical bypass existed the whole time.
+
+The deep link now does the three things the review jump does: pin `focusPid`,
+ensure the Sheet (the only view that emits `.cal-card`), re-render so both take
+effect — then find, outline and centre the card. `focusPid` is state, so it
+survives a later repaint; the highlight class is on a DOM node and does not,
+which is why the card stays visible even after the strip re-renders.
+
+The client re-check survives the rewrite because the hazard did: `focusPid` is
+global, so a client switch mid-wait would otherwise pin one client's focus onto
+another client's board.
+
+### Follow-up, and the first fix was one site short (Codex on #1252)
+
+`calState.focusPid` is the bypass, and it is GLOBAL. `onCalViewChange` drops it
+when you leave the Sheet; a CLIENT switch is the other way it goes stale, and
+nothing dropped it there — so returning to a client later still forced its card
+past the month, status and ready-only filters, long after the highlight was
+dismissed.
+
+The first fix cleared it inside `_calOpenClientTab`. That is the deep-link path
+and **not** the ordinary one: a tab click goes `onCalTabClick` →
+`onCalClientChange`, and the search picker, the active-tab removal, the boot
+mount, the embedded mount, the after-data-ready resolve and the client-entry
+purge all assign the client too. **Seven assignments, one of them remembering,
+is not a rule.**
+
+So the rule lives in the assignment. `_calSetClient(name)` is now the only place
+`calState.client` is written — asserted, as a count of one — and it drops the
+pin whenever the client actually changes while leaving it alone on a no-op
+re-set, because a deep link mid-flight must not cancel itself. A new switch path
+gets the behaviour by construction rather than by somebody remembering a comment
+exists. `test/calendar-deep-link-focus.js` runs the setter for real over all
+three cases and pins the count.
+
+**And there was a THIRD way it went stale, which the setter does not cover.**
+`onCalViewChange` drops the pin when you leave the Sheet and `_calSetClient`
+drops it when the client changes — but neither fires when you navigate to Home
+or another top-level route, and coming back to the SAME pinned client is a
+no-op switch, so the pin survived the whole round trip and kept forcing one card
+past the saved month, status and ready-only filters long after the reader had
+moved on. `navTo` now drops it whenever it routes away from the calendar, beside
+the calendar teardown that already lives there. All three exits are asserted
+together, so it is visible that there are three.

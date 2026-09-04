@@ -157,7 +157,14 @@ From a clean checkout of the exact owner-merged toolkit commit on `origin/main`:
 >    breaking, which is the lesson: a warning stored beside the data does not
 >    keep the data fresh. After every green dispatch, update that row with the
 >    new live versions AND the sealed bundle that is now current, and mark every
->    earlier bundle stale.
+>    earlier bundle stale. **Since 2026-09-03 this step is checked rather than
+>    only written down**: `npm test` runs
+>    `scripts/rollback-row-freshness-check.js`, which compares the row against
+>    `EXECUTION_LOG.md`'s newest deploy receipt — run id, dispatched commit,
+>    every function's version and closure, and whether the bundle the row names
+>    is one release back rather than two. Forgetting this step now turns the
+>    next PR red (OPEN_REPAIRS 137). Run it locally after editing the row and
+>    before opening the PR.
 >
 3. confirm no unrelated deploy is in progress and select a quiet window;
 4. record active inbound version/status/JWT posture/provider hash and capture

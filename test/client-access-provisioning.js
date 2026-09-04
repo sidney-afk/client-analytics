@@ -28,6 +28,7 @@ const path = require('path');
 const vm = require('vm');
 const { spawnSync } = require('child_process');
 const { pathToFileURL } = require('url');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
@@ -50,8 +51,7 @@ function ok(condition, message) {
 // Assertions about what the code DOES must not be satisfiable — or defeated —
 // by what a comment happens to say about it.
 function executableOnly(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  return stripBlockComments(source, ' ')
     .split('\n')
     .filter(line => !/^\s*(?:\/\/|--|#)/.test(line))
     .join('\n');

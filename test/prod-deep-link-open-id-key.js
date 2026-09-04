@@ -36,6 +36,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
@@ -70,8 +71,7 @@ function grabFunc(signature) {
   throw new Error('unclosed: ' + signature);
 }
 function stripComments(src) {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  return stripBlockComments(src, ' ')
     .split('\n').map(line => line.replace(/\/\/.*$/, '')).join('\n');
 }
 

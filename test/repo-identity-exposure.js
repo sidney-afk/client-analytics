@@ -24,13 +24,14 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = fs.readFileSync(path.join(ROOT, 'scripts', 'repo-identity-exposure-check.js'), 'utf8');
 const WORKFLOW = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'calendar-unit-tests.yml'), 'utf8');
 /* Comments carry the reasoning and would otherwise satisfy or trip every
    regex below. Rules are asserted against CODE. */
-const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ')
+const CODE = stripBlockComments(SRC, ' ')
   .split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
 
 let failures = 0;

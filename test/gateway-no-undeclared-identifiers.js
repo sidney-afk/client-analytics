@@ -22,6 +22,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const SRC = fs.readFileSync(
   path.resolve(__dirname, '..', 'supabase', 'functions', 'production-write', 'index.ts'), 'utf8');
@@ -84,7 +85,7 @@ for (const re of [
 for (const m of SRC.matchAll(/\bimport\s+(?:type\s+)?\{([\s\S]*?)\}\s*from/g)) {
   // Comments inside an import clause are legal and carry commas, which would
   // shred a naive split. Strip them before parsing the names.
-  const clause = m[1].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+  const clause = stripBlockComments(m[1], ' ').replace(/\/\/[^\n]*/g, ' ');
   for (const piece of clause.split(',')) {
     const nm = piece.trim().split(/\s+as\s+/).pop().trim();
     if (/^[A-Za-z_$][\w$]*$/.test(nm)) moduleNames.add(nm);
@@ -147,8 +148,7 @@ function undeclaredIn(body) {
   /* Strip everything that is not a bare identifier reference: comments,
      strings, template literals, then property accesses and object KEYS.
      Shorthand (`team,`) survives on purpose — it is exactly the bug. */
-  const stripped = body
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  const stripped = stripBlockComments(body, ' ')
     .replace(/\/\/[^\n]*/g, ' ')
     .replace(/`(?:\\.|[^`\\])*`/g, ' ')
     .replace(/"(?:\\.|[^"\\])*"/g, ' ')

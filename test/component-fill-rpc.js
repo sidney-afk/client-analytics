@@ -29,6 +29,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const SQL = fs.readFileSync(
@@ -40,8 +41,7 @@ const SQL = fs.readFileSync(
    so scanning the raw file reported two failures for text that is an
    explanation of the bug rather than the bug. Comments are stripped first;
    the assertions that are ABOUT the documentation use SQL. */
-const CODE = SQL
-  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+const CODE = stripBlockComments(SQL, ' ')
   .split('\n').map(line => line.replace(/--.*$/, '')).join('\n');
 
 let failures = 0;

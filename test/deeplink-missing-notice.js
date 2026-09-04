@@ -27,6 +27,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -43,8 +44,7 @@ function ok(condition, message) {
    reader learns why the wording changed, and it must not read as the wording
    still being there. Code-fact assertions further down use the raw source. */
 function stripComments(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  return stripBlockComments(source, ' ')
     .split('\n').map(line => line.replace(/(^|[^:'"])\/\/.*$/, '$1')).join('\n');
 }
 

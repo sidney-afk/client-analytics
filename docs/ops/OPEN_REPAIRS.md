@@ -11566,3 +11566,51 @@ way to fake a pass: it is not a TLS bypass, it is a transport and not a fixture,
 its hosts are an allowlist rather than a general-purpose hole out of the
 sandbox, and it can assert it actually carried traffic — because a bridge that
 silently carried nothing would let every check "pass" on an empty page.
+## 145. `/*` inside a string is not a comment, and ~64k characters of `index.html` were invisible to a dozen gates
+
+Found while writing item 144's test, which failed on its own prose. The usual
+way a gate here reads "the code, not the comments" is
+
+```js
+const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ');
+```
+
+and that opens a comment at any `/*`, including one inside a string literal. It
+then runs to the next `*/` anywhere in the file, swallowing whatever lies
+between. **Seventeen gates strip this way.** The damage is not theoretical:
+
+| file | site | swallowed |
+|---|---|---|
+| `index.html` :67329 | `accept="…,video/*"` | 37,090 chars |
+| `index.html` :68510 | `accept="…,video/*"` | 27,330 chars |
+| `supabase/functions/production-write/index.ts` :418 | `accept: "*/*"` | 2,620 chars |
+
+Every other `/*` in those files opens its own line, which is why this went
+unnoticed: the strip is right 1,135 times out of 1,138 in `index.html`.
+
+The app code is correct — `accept="video/*"` is exactly what that attribute
+should say, and it must not be contorted to suit a test. **The strippers are
+what is wrong.**
+
+Which assertions this actually breaks is narrower than it sounds, and worth
+stating precisely: a POSITIVE assertion against a gutted view fails loudly, so
+it cannot hide anything. It is the NEGATIVE ones — `ok(!/…/.test(CODE))` — that
+pass vacuously, because the text they forbid was deleted before they looked.
+Those, over the ~64k blind region, are the ones that have not been proving what
+they claim.
+
+Not yet repaired. The fix is one shared, string-aware strip helper rather than
+seventeen regexes, and migrating the gates will make some of them see code they
+have never seen — so it needs to land where a red gate is a finding to read, not
+a merge to unblock.
+
+**The general lesson, which is the third time it has cost a cycle here:** a
+"this code does NOT do X" assertion must read the code with prose removed, and a
+"this code SAYS why" assertion must read the prose. Reading the wrong one gives
+a gate that either fails on its own explanation (item 144's test, and the
+`no-hardcoded-colors` false positive on PR 1252, where a comment reading `#1252`
+parsed as a colour literal) or passes vacuously and proves nothing (the date
+assertion in `test/repo-identity-exposure.js`). **And the strip that separates
+them has to be checked too** — `test/prod-backend-bridge.js` asserts its own
+strip left the routing and the fetch behind, which is the only reason this was
+caught at all.

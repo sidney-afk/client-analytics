@@ -22366,6 +22366,7 @@
         try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
         try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
+        try { if (typeof _prodSmmPurgeSensitiveState === 'function') _prodSmmPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _hpPurgeSensitiveState === 'function') _hpPurgeSensitiveState(); } catch (e) {}
         try { if (typeof _ptoCalResetView === 'function') _ptoCalResetView(); } catch (e) {}
         try { if (typeof _ccCloseModal === 'function') _ccCloseModal(); } catch (e) {}
@@ -59421,8 +59422,33 @@
            see this row, exactly as they do not see the rest of that endpoint.
            The alternative -- opening the table to anonymous reads -- would undo
            the F88 revocation, and a manager roster is not worth that. */
+        /* Bounded, and NOT permanent. The nightly sheet sync can change an
+           assignment while a tab stays open, so a directory cached forever
+           would make "the line follows within a day" quietly require a reload.
+           A failure is not cached forever either: one transient 401 or 500
+           would otherwise hide the row for the rest of the session. It does
+           give up after PROD_SMM_MAX_FAILURES, because a key the endpoint keeps
+           refusing will not start working, and retrying it every minute for an
+           afternoon is just noise against the backend. */
+        const PROD_SMM_TTL_MS = 5 * 60 * 1000;
+        const PROD_SMM_RETRY_MS = 60 * 1000;
+        const PROD_SMM_MAX_FAILURES = 3;
         let _prodSmmDir = null;
+        let _prodSmmDirAt = 0;
+        let _prodSmmFailures = 0;
         let _prodSmmLoading = false;
+        /* The roster is Admin/SMM-only data. Sign-out and an account switch
+           must drop it, or the next reader keeps seeing a protected
+           client-to-manager assignment their identity could not fetch. Every
+           other sensitive surface is cleared this way; this one joins them
+           (see _syncviewStaffPurgeSensitiveState). */
+        function _prodSmmPurgeSensitiveState() {
+            _prodSmmDir = null;
+            _prodSmmDirAt = 0;
+            _prodSmmFailures = 0;
+            _prodSmmLoading = false;
+            try { _srpState.managers = []; _srpState.managersLoaded = false; } catch (e) {}
+        }
         function _prodSmmDirFrom(managers) {
             const dir = new Map();
             for (const m of (Array.isArray(managers) ? managers : [])) {
@@ -59440,17 +59466,23 @@
             return dir;
         }
         async function _prodLoadSmmDirectory() {
-            if (_prodSmmDir || _prodSmmLoading) return;
+            if (_prodSmmLoading) return;
+            const ttl = _prodSmmFailures ? PROD_SMM_RETRY_MS : PROD_SMM_TTL_MS;
+            if (_prodSmmDir && (Date.now() - _prodSmmDirAt) < ttl) return;
+            if (_prodSmmFailures >= PROD_SMM_MAX_FAILURES) return;
             /* If the roster is already in memory -- the weekly-reports page
                loads it through _srpLoadOptions -- build from that and make no
                request at all. This is not only an optimisation: the Production
                tab makes NO unprompted staff-authenticated read (descriptions
                hydrate on demand, _prodLoadBriefs is a marker), and a read that
                can 401 is a read this tab's console audit counts as a failure.
-               So the one request below happens only when nothing has answered
-               yet, and its answer is cached where the other surface will find
-               it too. */
-            if (_srpState.managersLoaded) { _prodSmmDir = _prodSmmDirFrom(_srpState.managers); return; }
+               So a request happens only when nothing has answered yet, and its
+               answer is cached where the other surface will find it too. */
+            if (!_prodSmmDir && _srpState.managersLoaded) {
+                _prodSmmDir = _prodSmmDirFrom(_srpState.managers);
+                _prodSmmDirAt = Date.now();
+                return;
+            }
             const ident = _syncviewStaffIdentityForHeaders();
             if (!ident || !_syncviewStaffCan('weekly-report-submit')) return;
             _prodSmmLoading = true;
@@ -59465,14 +59497,21 @@
                 });
                 let data = null;
                 try { data = await resp.json(); } catch (e) {}
-                const managers = resp.ok && data && Array.isArray(data.managers) ? data.managers : [];
-                if (resp.ok) { _srpState.managers = managers; _srpState.managersLoaded = true; }
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const managers = data && Array.isArray(data.managers) ? data.managers : [];
+                _srpState.managers = managers;
+                _srpState.managersLoaded = true;
                 _prodSmmDir = _prodSmmDirFrom(managers);
+                _prodSmmDirAt = Date.now();
+                _prodSmmFailures = 0;
             } catch (e) {
-                /* One attempt. An empty directory renders no row, which is the
-                   same as not knowing -- and a roster is not worth retrying
-                   inside a render loop. */
-                _prodSmmDir = new Map();
+                /* Count it and back off, rather than caching the failure as an
+                   answer. An empty directory renders no row, which is the same
+                   as not knowing -- but "not knowing" must not become permanent
+                   on one bad response. */
+                _prodSmmFailures++;
+                _prodSmmDir = _prodSmmDir || new Map();
+                _prodSmmDirAt = Date.now();
             }
             _prodSmmLoading = false;
             _prodRender();
@@ -59487,12 +59526,19 @@
             const hit = _prodSmmDir.get(wlNormalizeClient(project))
                 || _prodSmmDir.get(wlNormalizeClient(_prodDisplayClient(project)));
             if (!hit) return '';
-            const tip = hit.syncedAt
-                ? 'From the managers sheet, last synced ' + _prodFmtDateFull(hit.syncedAt)
+            /* The provenance is VISIBLE TEXT, not a tooltip. It is the only
+               signal that an assignment may be stale, and the Production
+               tooltip layer listens for mouseover/mouseout only -- so on a
+               keyboard or a phone a title attribute would carry it to nobody.
+               A line of muted text needs no focus, no hover and no Escape
+               behaviour to read. */
+            const provenance = hit.syncedAt
+                ? 'Sheet, synced ' + _prodFmtDateFull(hit.syncedAt)
                 : 'From the managers sheet';
             return '<div class="prod-side-card" data-prod-detail-card="smm"><div class="prod-side-card-head"><span>Social media manager</span></div>'
-                + '<div class="prod-side-row"><span class="prod-prop-btn" data-prod-prop="smm" aria-disabled="true" title="' + _calEscAttr(tip) + '" data-prod-tip="' + _calEscAttr(tip) + '">'
-                + _prodIcon('assign') + '<span>' + _calEsc(hit.name) + '</span></span></div></div>';
+                + '<div class="prod-side-row"><span class="prod-prop-btn" data-prod-prop="smm" aria-disabled="true">'
+                + _prodIcon('assign') + '<span>' + _calEsc(hit.name) + '</span></span></div>'
+                + '<div class="prod-side-row"><span class="muted" data-prod-smm-provenance="1">' + _calEsc(provenance) + '</span></div></div>';
         }
         function _prodProps(d, parent, assignee, file) {
             const statusHistory = _prodStatusBreakdown((_prodState.events && _prodState.events.get ? _prodState.events.get(d.id) : null) || [], d.createdRaw);

@@ -501,3 +501,38 @@ claim “nothing is lost” until the affected team's outbox/foreign-intent reco
   to the total outage. If the function must go back, drop it as step 3 above.
   `test/batch-description-cas-timestamptz.js` executes the deployed mapper's own regexes against
   the migration's own raise strings, so the pairing cannot rot silently.
+
+## Social media manager side card (SyncLinear detail)
+
+Two halves, independently reversible, and safe in either order.
+
+- **Browser half** (`index.html`): the `Social media manager` side card under
+  `Project`, plus `_prodSmmDirFrom`, `_prodLoadSmmDirectory` and
+  `_prodSmmPurgeSensitiveState`. Ships with the ordinary Pages deploy on push to
+  `main`. To disable without a revert, make `_prodSmmCardHTML` return `''` — the
+  card is additive and nothing else reads its cache.
+- **Function half** (`smm-weekly-reports`): `loadOptions` selects
+  `source_clients` and `synced_at`, and `serializeManager` returns them.
+  Deployed by `deploy-onboarding-edge-functions.yml`, which **attests** the
+  function fingerprint rather than gating on a stored digest, so there is
+  nothing to re-pin and nothing to reseal. Reverting the two fields is safe on
+  its own: with them absent the browser builds an empty directory and the card
+  simply does not render.
+
+**There is no data to roll back.** This change writes nothing. It adds two
+fields to a read projection and one read-only card. `social_media_managers` is
+still populated only by the nightly n8n manager sync (`y3rEWCVdB0esN3tO`), which
+this change does not touch.
+
+**Access limitation, recorded because it is a rollout dependency and not a
+bug:** `?action=options` is Admin/SMM (`authorizeStaffKey(given, ["admin",
+"smm"])`) and this change deliberately does not widen it. A Creative account and
+the unsigned client preview cannot reach the endpoint and therefore never see
+the row. Widening it means a lower-privilege projection, not a wider grant on
+`social_media_managers` — that table's `anon` grant was revoked by F88
+(`2026-07-14-f88-safe-sensitive-read-revocations.sql`) and a live check still
+returns 401.
+
+**If the browser half ships before the function half**, the endpoint returns
+managers without `source_clients`, the directory is empty, and the card does not
+render. No error, no console noise, no partial state.

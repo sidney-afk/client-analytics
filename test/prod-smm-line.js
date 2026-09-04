@@ -64,16 +64,35 @@ ok(/wlNormalizeClient/.test(dirFromCode),
   'sheet client names and app slugs are matched through one normalizer, not a hand-kept mapping');
 ok(!/\{\s*['"][a-z0-9]+['"]\s*:\s*['"][A-Z]/.test(card + loader),
   'no client-to-manager pairs are written into the app — the whole point is that the sheet stays the source of truth');
-ok(/_prodSmmDir = new Map\(\)/.test(loaderCode) && /_prodSmmLoading = false/.test(loaderCode),
-  'a failed read caches an empty directory rather than retrying inside the render loop');
-
 /* ---- 3b. It makes no unprompted staff read the tab cannot afford -------- */
 
-ok(/if \(_srpState\.managersLoaded\)/.test(loaderCode)
+ok(/_srpState\.managersLoaded\)/.test(loaderCode)
   && loaderCode.indexOf('_srpState.managersLoaded') < loaderCode.indexOf('_syncviewStaffIdentityForHeaders'),
   'an already-loaded roster is used BEFORE any request is considered — the Production tab makes no unprompted staff-authenticated read, and one that can 401 is counted as a failed read by its own console audit');
 ok(/_srpState\.managersLoaded = true/.test(stripNonCode(INDEX.slice(INDEX.indexOf('async function _srpLoadOptions'), INDEX.indexOf('async function _srpLoadOptions') + 600))),
   'and the weekly-reports page primes that cache, so the two surfaces answer from one roster rather than fetching twice');
+
+/* ---- 3c. Admin/SMM data must not outlive the identity that fetched it --- */
+
+const purge = stripNonCode(extractFunction(INDEX, '_prodSmmPurgeSensitiveState'));
+ok(/_prodSmmDir = null/.test(purge) && /managersLoaded = false/.test(purge),
+  'a purge drops both the directory and the shared roster');
+ok(/_prodSmmPurgeSensitiveState/.test(stripNonCode(extractFunction(INDEX, '_syncviewStaffPurgeSensitiveState'))),
+  'and the sign-out/account-switch purge actually calls it — otherwise an Admin signs out and the next reader still sees a client-to-manager assignment their identity could not have fetched');
+
+/* ---- 3d. Bounded: neither an answer nor a failure is cached forever ----- */
+
+ok(/PROD_SMM_TTL_MS/.test(loaderCode) && /Date\.now\(\) - _prodSmmDirAt/.test(loaderCode),
+  'the directory expires — cached forever would make "the line follows within a day" quietly require a page reload');
+ok(/_prodSmmFailures\+\+/.test(loaderCode) && !/_prodSmmDir = new Map\(\);\s*$/m.test(loaderCode),
+  'a failed read is counted and retried rather than cached as an answer, so one transient 401 does not hide the row for the session');
+ok(/_prodSmmFailures >= PROD_SMM_MAX_FAILURES/.test(loaderCode),
+  'and it gives up after a bounded number of failures, because a key the endpoint keeps refusing will not start working');
+
+/* ---- 3e. The staleness signal must reach a keyboard and a phone -------- */
+
+ok(/data-prod-smm-provenance/.test(card) && !/data-prod-tip/.test(cardCode),
+  'the last-sync provenance is visible text rather than a title/tooltip — the Production tooltip layer listens for mouseover/mouseout only, and this is the one signal that an assignment may be stale');
 
 /* ---- 4. It renders under Project, and only with an answer -------------- */
 

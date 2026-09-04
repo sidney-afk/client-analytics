@@ -5952,3 +5952,42 @@ applied to this tab's own writes. One refresh per row. `CAL_V2_RT_MIN_RELOAD_MS`
 (8 s) now re-arms foreign bursts the same way: 15 reloads become 2, measured on
 the real handler against a mutant. Browser half only; the cure is item 76.
 OPEN_REPAIRS 129.
+
+## Social media manager on a SyncLinear sub-issue
+
+Owner asked to see who runs the client, under `Project`. His constraint was
+maintenance: no hardcoded client-to-manager map, because editing the Google
+Sheet would not update it.
+
+Nothing needed hardcoding. n8n `y3rEWCVdB0esN3tO` has mirrored the sheet into
+`social_media_managers` nightly for weeks; `serializeManager` simply never
+returned `source_clients` or `synced_at`, so no caller could answer the
+question. Those two fields are now in the projection and the card reads the
+mirror. No client-to-manager pairs exist in the app, and `test/prod-smm-line.js`
+asserts there are none.
+
+Three properties are load-bearing rather than incidental, each found by a
+reviewer or by CI rather than by design:
+
+1. **No unprompted staff-authenticated read.** The first version fetched on
+   detail render and turned `production-polish` red — `prod-structure-subset.js`
+   forges an admin identity (`structure-fixture-key`) to reach the
+   Linear-authority refusal, the call 401'd, and the tab's console audit counts
+   that as a persistent read failure. The tab makes no such read anywhere
+   (descriptions hydrate on demand; `_prodLoadBriefs` is only a marker). The
+   roster now comes from `_srpState`, which the weekly-reports page already
+   fills, and a request happens only when nothing has answered yet.
+2. **The cache is Admin/SMM data and dies with the identity.**
+   `_prodSmmPurgeSensitiveState` joins `_syncviewStaffPurgeSensitiveState`;
+   without it, signing out or switching to Creative left a protected
+   client-to-manager assignment on screen that the new identity could not have
+   fetched.
+3. **Bounded, and failures are not answers.** A five-minute TTL, a one-minute
+   retry, and a three-failure stop: cached forever would have made "follows
+   within a day" require a reload, and caching one transient 401 as an answer
+   would have hidden the row for the rest of the session.
+
+The provenance is visible muted text, not a `title`. It is the only signal that
+an assignment may be stale, and the Production tooltip layer listens for
+mouseover/mouseout only — as an attribute it would reach neither a keyboard nor
+a phone. OPEN_REPAIRS 146.

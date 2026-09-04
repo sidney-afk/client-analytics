@@ -835,3 +835,39 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     **Rollback boundary unchanged.** Browser-only, ships via Pages on merge; no
     Edge Function, no migration, no F27 Section 4 dispatch, so `ROLLBACK.md`
     needs no new row.
+
+## 2026-09-04 Social Media Manager Side Card
+
+-   **Who runs this client, under `Project`, derived and never held.** The
+    SyncLinear detail column gained a `Social media manager` side card below
+    `Project`. It is read-only and additive: no picker, no write path, nothing
+    else reads its cache. The mapping is not stored in the app — n8n
+    `y3rEWCVdB0esN3tO` mirrors the owner's Google Sheet into
+    `social_media_managers` nightly, and `smm-weekly-reports` now returns the
+    `source_clients` and `synced_at` it had always stored but never handed back.
+    Sheet client names and app slugs meet through `wlNormalizeClient`, the same
+    normalizer the workload uses, so there is no hand-kept pairing to rot;
+    `test/prod-smm-line.js` asserts none exists.
+-   **Parity note — this card is not visible to every role, by design.**
+    `?action=options` is Admin/SMM and stays that way. Creative and the unsigned
+    client preview cannot reach it and see no row at all, rather than an empty
+    one. That is an access limitation to widen deliberately with a
+    lower-privilege projection if wanted, never by regranting `anon` on
+    `social_media_managers` — F88 revoked that on purpose and a live check still
+    returns 401.
+-   **The Production tab still makes no unprompted staff-authenticated read.**
+    The first version fetched on detail render and turned the structure lane red
+    against the forged fixture identity. The roster now comes from `_srpState`,
+    which the weekly-reports page fills, and a request happens only when nothing
+    has answered yet — bounded by a 5-minute TTL, a 1-minute retry and a
+    three-failure stop, and dropped entirely on sign-out or account switch via
+    `_prodSmmPurgeSensitiveState`.
+-   **Keyboard and touch.** The last-sync provenance is visible muted text, not
+    a `title`: the Production tooltip layer listens for mouseover/mouseout only,
+    and this is the one signal that an assignment may be stale, so an attribute
+    would have carried it to neither a keyboard nor a phone.
+-   **Rollback boundary CHANGED.** Two halves — the Pages browser half and the
+    `smm-weekly-reports` function half deployed by
+    `deploy-onboarding-edge-functions.yml`, which attests the fingerprint rather
+    than gating on a stored digest. Safe in either order; `ROLLBACK.md` carries
+    the new row.

@@ -18,6 +18,7 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -72,7 +73,7 @@ const wallTo = iife.indexOf('function showBar(', wallFrom);
 ok(wallFrom > -1 && wallTo > wallFrom, 'the wall builder is findable (harness is not vacuous)');
 /* Comments stripped first: the builder carries a note explaining WHY Escape is
    not handled, and a naive search would find the word in the explanation. */
-const stripComments = text => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const stripComments = text => stripBlockComments(text, '').replace(/^\s*\/\/.*$/gm, '');
 const wallSrc = stripComments(iife.slice(wallFrom, wallTo));
 ok(!/sv-up-x|[Dd]ismiss|Escape/.test(wallSrc),
   'the wall has no dismiss button and no Escape handler — no way out but Reload');

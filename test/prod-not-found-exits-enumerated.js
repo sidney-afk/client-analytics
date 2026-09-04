@@ -25,6 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const { extractFunction } = require('./helpers/extract-function.js');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const INDEX = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let failures = 0;
@@ -39,7 +40,7 @@ const CONSULTS = '_prodIncompletePaneHTML(';
    call; strings are kept because the live call sites sit inside template
    literals (`${_prodIncompletePaneHTML(...)}`). */
 function withoutComments(src) {
-  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
+  return stripBlockComments(src, '').replace(/(^|[^:'"`\\])\/\/[^\n]*/g, '$1');
 }
 
 /* The scan is a pure function of the source so it can be run against a fixture

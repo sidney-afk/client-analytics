@@ -24,13 +24,14 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = fs.readFileSync(path.join(ROOT, 'scripts', 'repo-identity-exposure-check.js'), 'utf8');
 const WORKFLOW = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'calendar-unit-tests.yml'), 'utf8');
 /* Comments carry the reasoning and would otherwise satisfy or trip every
    regex below. Rules are asserted against CODE. */
-const CODE = SRC.replace(/\/\*[\s\S]*?\*\//g, ' ')
+const CODE = stripBlockComments(SRC, ' ')
   .split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
 
 let failures = 0;
@@ -147,15 +148,60 @@ ok(/BASELINE_FILES/.test(CODE) && /BASELINE_TERMS/.test(CODE),
   'TWO baselines, a file count and a term count');
 ok(/files\.length > BASELINE_FILES \|\| matchedTerms > BASELINE_TERMS/.test(CODE),
   'and either one failing fails the run — counting only terms lets a new file name six clients as long as six others stopped being mentioned, and counting only files lets one file name the whole roster');
-ok(/process\.exit\(failed \? 1 : 0\)/.test(CODE),
-  'it exits non-zero above the baseline, so it can gate rather than only inform');
+ok(/process\.exit\(failed \? EXIT_FINDING : 0\)/.test(CODE) && /const EXIT_FINDING = 1;/.test(CODE),
+  'it exits non-zero above the baseline, so it can gate rather than only inform — and the code is named, because the CI job branches on the number');
 
 /* ---- 3. The exclusions, each a false-positive it would otherwise report - */
 
 ok(/const MIN_SLUG = 5;/.test(CODE) && /slug\.length < MIN_SLUG/.test(CODE),
   'a slug shorter than five characters is skipped — it matches ordinary English and is not identifying on its own');
-ok(/c\.kind === 'test'/.test(CODE),
-  'the TEST client is skipped: it is a fixture, it is named in the code by design, and gating on it would ring forever for nobody');
+ok(/const NON_PERSON_KINDS = new Set\(\['test', 'internal'\]\);/.test(CODE),
+  'rows in `clients` that are not people are skipped: a fixture and a sentinel are named in the code by design, and gating on them would ring forever for nobody');
+/* The one that was found the hard way. The attribution carve-out in
+   linear-inbound writes a sentinel slug into client_slug, and that sentinel is a
+   `clients` row — so on 2026-09-04 this guard failed a DOCS change for quoting a
+   string that had been sitting in index.html and linear-inbound/index.ts on main
+   all along. A guard that fails on documentation of ordinary code is one people
+   learn to route around, which is the single thing it cannot afford. */
+ok(/'internal'/.test(CODE),
+  "and 'internal' specifically, because the invalid-attribution sentinel lives in that table and is written by the shipped source");
+/* An unknown kind must STOP the run. Including it re-creates the false positive
+   for whatever the next sentinel is called; skipping it drops a real client out
+   of the roster with nobody the wiser, which is the direction that leaks. */
+ok(/unknownKinds/.test(CODE) && /throw new UnclassifiedRoster\('clients\.kind carries value\(s\)/.test(CODE),
+  'and a kind the guard does not classify fails the run rather than being guessed at in either direction');
+
+/* THE FAILURE HAS TO REACH THE GATE, and the first version of it did not.
+   The CI job blocks on exit 1 and turns every OTHER nonzero into a warning
+   followed by success — correct for an unreachable roster, fatal for a
+   classification failure, because the read WORKED and the gate would have
+   silently switched off while the job went green. Raised by review on #1262. */
+ok(/const EXIT_UNCLASSIFIED = 3;/.test(CODE) && /class UnclassifiedRoster extends Error/.test(CODE)
+  && /this\.exitCode = EXIT_UNCLASSIFIED/.test(CODE),
+  'an unclassified roster exits on its own code, distinct from "could not run"');
+ok(/err && err\.exitCode \? err\.exitCode : EXIT_UNAVAILABLE/.test(CODE),
+  'and the top-level handler honours that code instead of flattening every failure to the warn-only one');
+{
+  const wf = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'calendar-unit-tests.yml'), 'utf8');
+  ok(/if \[\[ \$code -eq 3 \]\]; then/.test(wf) && /exit 1/.test(wf.slice(wf.indexOf('$code -eq 3'))),
+    'and the CI job BLOCKS on it rather than warning — a gate that switches itself off must not report success');
+  ok(wf.indexOf('$code -eq 3') < wf.indexOf('$code -ne 0'),
+    'checked before the catch-all warning, or the warning would swallow it');
+}
+
+/* A baseline above the measured truth is headroom a new exposure can rise into
+   without the ratchet firing. Re-measure whenever the roster rules change —
+   excluding `internal` moved both numbers, and only one of them was noticed. */
+ok(/const BASELINE_FILES = arg\('baseline-files'\) \?\? 83;/.test(CODE)
+  && /const BASELINE_TERMS = arg\('baseline-terms'\) \?\? 44;/.test(CODE),
+  'the tree-mode baselines sit at the measured value, not above it (83 files / 44 terms, 2026-09-04)');
+/* Against SRC, not CODE: CODE has block comments stripped, and the measurement
+   date lives in one. Asserting it against CODE passes vacuously for the wrong
+   reason, which is the failure mode this whole file is about. */
+ok(/2026-09-04: 83 files \/ 44 terms/.test(SRC),
+  'and carry the date they were measured, so a stale one is visible rather than assumed');
+ok(/const PERSON_KIND = 'client';/.test(CODE),
+  'with the person kind named once, so the classification is readable rather than implied by what is absent');
 ok(/name\.split\(\/\\s\+\/\)\.length < 2/.test(CODE),
   'a single given name is skipped — it matches too much prose to be evidence');
 

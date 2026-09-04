@@ -36,6 +36,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'linear-outbound', 'index.ts'), 'utf8');
@@ -46,8 +47,7 @@ function ok(condition, message) {
   if (condition) console.log('  ok  ' + message);
   else { failures++; console.error('FAIL  ' + message); }
 }
-const stripped = SRC
-  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+const stripped = stripBlockComments(SRC, ' ')
   .split('\n').map(l => l.replace(/\/\/.*$/, '')).join('\n');
 
 /* ---- 1. The premise: the mapping really does send Duplicate -------------- */

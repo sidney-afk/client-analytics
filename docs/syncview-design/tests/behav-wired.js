@@ -53,6 +53,18 @@ async function txt(page, sel) {
   // A stale actionability assumption must fail locally, not stall the rest of
   // this 168-check sweep behind Playwright's 30-second default.
   page.setDefaultTimeout(5000);
+  /* OPT-IN, so CI behaviour is byte-identical without it. Set
+     PROD_BACKEND_BRIDGE=1 in an environment whose browser cannot reach the
+     backend directly — an agent sandbox behind a TLS-re-terminating proxy — and
+     the page's backend calls are carried by Node, which can. It is a transport,
+     not a fixture: the bytes are the live backend's, nothing is recorded or
+     stubbed, so a check that passes under it passed against real data. See
+     prod-backend-bridge.js for why Chromium cannot do it itself. */
+  let backendBridge = null;
+  if (process.env.PROD_BACKEND_BRIDGE === '1') {
+    const { installBackendBridge } = require('./prod-backend-bridge');
+    backendBridge = await installBackendBridge(page);
+  }
   const readConsoleAudit = installReadConsoleAudit(page);
   const requests = [];
   const results = {};
@@ -2241,6 +2253,14 @@ async function txt(page, sel) {
       + '; navigation-aborted reads: ' + readConsole.navigationAborts);
     console.log('behav-wired deferred-B3: ' + Object.keys(deferred).join(', '));
     const passed = Object.keys(results).length - failed.length;
+    /* If the bridge is carrying the backend, say how much it carried and refuse
+       a run where it carried nothing. A page that reached no backend can still
+       report a tidy pass count on empty state, and that number would be a lie —
+       exactly the failure mode a transport in front of the tests makes possible. */
+    if (backendBridge) {
+      console.log('behav-wired backend bridge: ' + JSON.stringify(backendBridge.stats()));
+      backendBridge.assertCarried(1);
+    }
     console.log('behav-wired: ' + passed + '/' + TOTAL + ' (guard mode)');
     if (failed.length) {
       console.error('behav-wired failures: ' + failed.map(([k, v]) => k + '=' + v).join(', '));

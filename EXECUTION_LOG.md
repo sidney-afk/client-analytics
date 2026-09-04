@@ -2,6 +2,31 @@
 
 All times are UTC unless noted.
 
+## 2026-09-04 — Samples G1 reader candidate; draft, release held
+
+Isolated worktree from remote main `13e187a7d0043ed110b486feb50502758a026229`.
+Analysis draft #1268 remained at `c1aa4d934d1a1532632842295cddaf0b176c1b73`;
+its operative G1 and Samples evidence were read, and `index.html` had no drift.
+An offline actual-source probe reproduced HTTP 500 / `ok:false` / empty fallback
+as Samples empty success while Calendar v2 refused those fixtures.
+
+The candidate requires counted, client-scoped primary pages and validates fallback
+HTTP/envelope/rows/completeness before replacement. A fallback without a completeness
+receipt is unavailable; an empty fallback never proves emptiness. Failed refreshes
+keep useful scoped rows/cache visibly stale with retry; a complete primary empty result
+may clear the board. Cache authority and source-repair rules remain intact.
+
+Local proof: 49 isolated Samples cases; 24 fully mocked browser groups, including
+stale/retry at 360/768/1280 in light/dark; Calendar fallback and writer durability
+regressions pass. The 397-suite run initially had three failures: two Windows
+environment failures reproduced on untouched baseline (ESM absolute-path import and
+hard-coded `/tmp`), plus a cache sandbox missing the new validator/client field,
+which was corrected and rerun successfully. Disposable database lanes were skipped
+locally; hosted CI remains required. No live persistence, deployed-byte, monitoring
+or client-continuity release proof is claimed. No live data, writer/auth, EF, n8n,
+flag, migration, notification or deployment changed. Rollback: the Samples G1 entry
+in `ROLLBACK.md`; coordinator monitoring/client-continuity gates hold production release.
+
 ## 2026-08-31 — Deploy: a card can be completed from the card
 
 **Section 4 forward from `5a3365f2`, run `33434655418`, PASS.** `production-write`

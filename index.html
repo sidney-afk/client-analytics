@@ -60803,7 +60803,7 @@
                 </div>
                 <div class="cal-toolbar-right">
                     <span class="cal-refreshing" id="sxrRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
-                    <span class="cal-stale-notice" id="sxrStaleNotice" hidden onclick="loadSxrCards({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
+                    <button type="button" class="cal-stale-notice" id="sxrStaleNotice" hidden onclick="loadSxrCards({skipCache:true})" style="min-height:44px;white-space:normal" aria-live="polite">Samples may be outdated — retry refresh</button>
                     ${selectBtnHtml}
                     ${kebabHtml}
                 </div>
@@ -61041,14 +61041,16 @@
         return true;
     }
     const SXR_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // parity with CAL_CACHE_TTL_MS
-    function _sxrCacheRead(slug) {
+    function _sxrCacheRead(slug, options) {
         try {
             const authority = _writeUiAuthoritySnapshot();
             if (!authority) return null;
             const o = JSON.parse(localStorage.getItem(SXR_CACHE_PREFIX + slug) || 'null');
             if (!o || !Array.isArray(o.posts)) return null;
+            _sxrValidateReadRows(o.posts, slug);
             const hasRepair = o.posts.some(post => post && post._writeUiRetrySourceAt);
-            if (!o.at || (!hasRepair && (Date.now() - Number(o.at)) > SXR_CACHE_TTL_MS)) return null;
+            if (!Number.isFinite(Number(o.at)) || Number(o.at) <= 0) return null;
+            if (!hasRepair && !(options && options.allowStale) && (Date.now() - Number(o.at)) > SXR_CACHE_TTL_MS) return null;
             return Object.assign({}, o, { posts: _writeUiFilterCachedPosts(o.posts, authority) });
         } catch { return null; }
     }
@@ -61155,6 +61157,54 @@
         Object.keys(m).forEach(ref => { if ((now - (m[ref] || 0)) > 24 * 60 * 60 * 1000) { delete m[ref]; changed = true; } });
         if (changed) _sxrArchivedWriteRaw(slug, m);
     }
+    function _sxrValidateReadRows(rows, slug) {
+        if (!Array.isArray(rows)) throw new Error('samples_read_shape');
+        const ids = new Set();
+        for (const row of rows) {
+            if (!row || typeof row !== 'object' || Array.isArray(row)
+                || typeof row.id !== 'string' || !row.id.trim()
+                || row.client !== slug || ids.has(row.id)) throw new Error('samples_read_shape');
+            ids.add(row.id);
+        }
+        return rows;
+    }
+    async function _sxrFetchAuthoritativePosts(baseUrl, slug, signal) {
+        // Samples needs a count receipt on every keyset page: a short/capped
+        // response alone cannot prove that the board is complete. Keep the
+        // shared Calendar/Kasper paginator and their contracts unchanged.
+        const all = [], seen = new Set();
+        let cursor = null, expected = null;
+        for (let page = 0; page < 100000; page++) {
+            let url = baseUrl + '&order=id.asc&limit=' + CAL_SUPABASE_PAGE;
+            if (cursor !== null) url += '&id=gt.' + encodeURIComponent(cursor);
+            const resp = await fetch(url, { signal, headers: {
+                apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json', Prefer: 'count=exact'
+            } });
+            if (!resp.ok) throw new Error('samples_primary_http');
+            const rows = _sxrValidateReadRows(await resp.json(), slug);
+            const range = resp.headers.get('content-range') || '';
+            if (!/^(?:\d+-\d+|\*)\/\d+$/.test(range)) throw new Error('samples_primary_count');
+            const remaining = Number(range.split('/')[1]);
+            const expectedRange = rows.length ? '0-' + (rows.length - 1) : '*';
+            if (range.split('/')[0] !== expectedRange) throw new Error('samples_primary_range');
+            if (!Number.isSafeInteger(remaining) || rows.length !== Math.min(remaining, CAL_SUPABASE_PAGE)) {
+                throw new Error('samples_primary_incomplete');
+            }
+            if (expected === null) expected = remaining;
+            if (all.length + remaining !== expected) throw new Error('samples_primary_changed');
+            for (const row of rows) {
+                // Database text collation owns ordering; JS lexical ordering
+                // need not agree. A repeated key is always an invalid page.
+                if (seen.has(row.id)) throw new Error('samples_primary_cursor');
+                seen.add(row.id);
+                cursor = row.id;
+                all.push(row);
+            }
+            if (all.length === expected) return all;
+        }
+        throw new Error('samples_primary_incomplete');
+    }
     async function _sxrFetchPosts(slug, signal) {
         // status filter: archived rows are never rendered, and long-lived test/QA
         // clients accumulate thousands of them — without the filter every load
@@ -61163,14 +61213,29 @@
         // Client-side _sxrIsArchivedRef stays as defense for the webhook fallback.
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
         try {
-            const rows = await _sxrSupabaseFetchAllRows(baseUrl, signal);
-            return { ok: true, posts: rows };
+            const rows = await _sxrFetchAuthoritativePosts(baseUrl, slug, signal);
+            return { ok: true, posts: _sxrValidateReadRows(rows, slug) };
         } catch (e) {
             if (e && e.name === 'AbortError') throw e;
-            console.warn('[Samples] Supabase read failed — falling back to sample-review-get', e);
+            // Keep response bodies, client identifiers and request URLs out of logs.
+            console.warn('[Samples] Primary read failed; checking fallback');
             const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
+            if (!resp.ok) throw new Error('samples_fallback_http');
             const j = await resp.json();
-            return { ok: true, posts: (j && (j.items || j.samples || j.posts)) || [] };
+            if (!j || j.ok !== true) throw new Error('samples_fallback_envelope');
+            const keys = ['items', 'samples', 'posts'].filter(key => Object.prototype.hasOwnProperty.call(j, key));
+            if (keys.length !== 1) throw new Error('samples_fallback_shape');
+            const rows = _sxrValidateReadRows(j[keys[0]], slug);
+            // The legacy getAll envelope has no completeness receipt. It must
+            // not replace a board/cache after the authoritative read failed.
+            // Only an explicitly complete, counted snapshot is usable; even
+            // then an empty fallback cannot establish authoritative emptiness.
+            if (!rows.some(row => _sxrNormStatus(row.status) !== 'Archived') || j.complete !== true || j.total !== rows.length
+                || j.partial || j.has_more || j.hasMore || j.next_cursor || j.nextCursor
+                || j.error || (j.errors && (!Array.isArray(j.errors) || j.errors.length))) {
+                throw new Error('samples_fallback_incomplete');
+            }
+            return { ok: true, posts: rows };
         }
     }
     async function loadSxrCards(opts) {
@@ -61181,16 +61246,22 @@
         if (!sxrState.client) { _sxrRenderBody(); return; }
         const seq = ++_sxrLoadSeq;
         const slug = sxrClientSlug(sxrState.client);
-        const cached = !opts.skipCache ? _sxrCacheRead(slug) : null;
+        // Ownership is also checked on cache prime, before any asynchronous
+        // read. A previous client's rows can never count as this client's cache.
+        sxrState.posts = sxrState.posts.filter(post => post && post.client === slug);
+        const cached = !opts.skipCache ? _sxrCacheRead(slug, { allowStale: true }) : null;
         const haveCache = !!(cached && cached.posts.length > 0);
         if (haveCache && sxrState.posts.length === 0) {
             const refs = _sxrArchivedRefs(slug);
             sxrState.posts = cached.posts.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
             sxrState.loading = false; sxrState.error = null;
+            _sxrSetStaleNotice(true);
             _sxrRenderBody();
             setTimeout(() => { if (typeof _writeUiResumeSourceRepairs === 'function') _writeUiResumeSourceRepairs(); }, 0);
         }
-        const background = (!!opts.background && sxrState.posts.length > 0) || (sxrState.posts.length > 0 && haveCache);
+        // Manual retry must keep useful rows visible too, including skipCache.
+        const background = sxrState.posts.length > 0;
+        if (!background) _sxrSetStaleNotice(false);
         if (background) { _sxrBgLoadInFlight = true; _sxrSetRefreshing(true); }
         else { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); sxrState.loading = true; sxrState.error = null; _sxrRenderBody(); }
         const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -61205,7 +61276,8 @@
             if (seq !== _sxrLoadSeq) return;                      // a newer load superseded us
             if (sxrClientSlug(sxrState.client) !== slug) return;  // client switched mid-load
             if (result === TIMEOUT) throw new Error('timeout');
-            const rows = (result && result.posts) || [];
+            if (!result || result.ok !== true) throw new Error('samples_read_failed');
+            const rows = _sxrValidateReadRows(result.posts, slug);
             _sxrCleanArchiveLedger(slug, rows);
             const refs = _sxrArchivedRefs(slug);
             const fresh = rows.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
@@ -61269,7 +61341,9 @@
         } catch (e) {
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
             if (seq !== _sxrLoadSeq) return;
-            if (sxrState.posts.length > 0) { _sxrSetStaleNotice(true); }   // keep what's on screen
+            if (sxrClientSlug(sxrState.client) !== slug) return;
+            sxrState.loading = false;
+            if (sxrState.posts.length > 0) { sxrState.error = null; _sxrSetStaleNotice(true); }   // keep what's on screen
             else { sxrState.loading = false; sxrState.error = e; _sxrRenderBody(); }
             // Open realtime even when the initial fetch failed, so the view goes
             // live the moment a peer's change lands — otherwise a first-load
@@ -61279,7 +61353,7 @@
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
-            if (seq === _sxrLoadSeq) { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); }
+            if (seq === _sxrLoadSeq && sxrClientSlug(sxrState.client) === slug) { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); }
         }
     }
 

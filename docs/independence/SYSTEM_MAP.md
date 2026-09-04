@@ -766,7 +766,11 @@ n8n in the metric read path.*
   card persists with its own slug. Client: review-limited (approve/request-change/comment, not
   organizer/general editing), embedded Review+Sheet shell, sees only client-ready components,
   Kasper authorship stripped.
-- **Failure/fallback.** Per-client read: REST → n8n → cached cards + "couldn't refresh" notice.
+- **Failure/fallback.** Per-client Samples now requires exact-count REST keyset pages;
+  n8n fallback must carry one valid scoped array and an explicit complete/count receipt.
+  Unproven or empty fallback results keep cached cards with a stale/retry notice;
+  complete primary emptiness may clear the board. This is the bounded G1 candidate,
+  not production release proof. The shared Calendar/Kasper paginator is unchanged.
   Kasper read: no fallback → keeps items, "try again" only when empty. Upsert: per-card retry chip,
   no n8n fallback. Reorder: flagged EF failure is visible/fail-closed; unflagged clients retain the
   legacy n8n route. Archive: optimistic + ledger, restore on failure. Current `main` retries Linear

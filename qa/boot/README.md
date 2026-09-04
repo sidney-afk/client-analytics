@@ -16,6 +16,10 @@ surface.
 
 ## Coverage
 
+- Samples G1: fully intercepted read failures preserve visible cards and cache,
+  expose keyboard retry at 360/768/1280 in light/dark, recover through the real
+  retry button, and show an honest load error without cached content. Mock REST
+  replies include exact-count headers, including browser CORS exposure.
 - staff client-profile history reload: Calendar and Brief own first paint;
 - client Calendar and Brief links: neutral verification, then a route-owned
   loader, then the requested tab, on first navigation and reload;

@@ -31,6 +31,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const SQL = fs.readFileSync(path.join(ROOT, 'migrations', '2026-09-01-batch-description-write.sql'), 'utf8');
@@ -51,8 +52,7 @@ function stripSql(src) {
   return src.split('\n').map(line => line.replace(/--.*$/, '')).join('\n');
 }
 function stripJs(src) {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  return stripBlockComments(src, ' ')
     .split('\n').map(line => line.replace(/\/\/.*$/, '')).join('\n');
 }
 function grabFunc(src, signature) {

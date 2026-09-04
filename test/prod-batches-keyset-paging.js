@@ -31,6 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 const { extractFunction } = require('./helpers/extract-function.js');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const INDEX = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let failures = 0;
@@ -38,8 +39,7 @@ function ok(cond, msg) {
   console.log((cond ? '  ok  ' : 'FAIL  ') + msg);
   if (!cond) failures++;
 }
-const stripComments = s => String(s)
-  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+const stripComments = s => stripBlockComments(String(s), ' ')
   .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
 
 const loadData = stripComments(extractFunction(INDEX, '_prodLoadData'));

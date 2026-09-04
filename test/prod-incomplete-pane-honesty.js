@@ -28,6 +28,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { stripBlockComments } = require('./helpers/strip-comments');
 
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 let failures = 0;
@@ -206,7 +207,7 @@ const tail = grabFunc('_prodLoadTerminalTail');
    in order to explain why -- and reported the fix as absent. Searching source
    text for a call and hitting prose about that call is the same mistake as
    OPEN_REPAIRS 111's extractor: read the code, not the file. */
-const tailCode = tail.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+const tailCode = stripBlockComments(tail, '').replace(/^\s*\/\/.*$/gm, '');
 ok(/_prodState\.terminalTailFailed = true;/.test(tailCode),
 'the tail records that it failed');
 ok(!/else if \(!settled\) \{[\s\S]{0,900}?_prodApplyDeepLinkFallback\(true\)/.test(tailCode),

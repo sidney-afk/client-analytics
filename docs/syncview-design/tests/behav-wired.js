@@ -792,7 +792,21 @@ async function txt(page, sel) {
        pass would mean re-opening that picker. So it now guards the refusal --
        the shortcut must open nothing -- which is worth a check, because a
        future edit that quietly restores the picker would otherwise pass. */
-    await ok('kbProj', async () => { await page.keyboard.press('Shift+p'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() === 0; }); await reset();
+    await ok('kbProj', async () => {
+      /* Absence of a picker is not enough on its own: if the keydown handler
+         stopped routing Shift+P to _prodOpenPicker at all, nothing would open
+         and a bare count check would still pass, proving nothing. The refusal
+         is observable -- _prodOpenPicker toasts PROD_PROJECT_MOVE_UNSUPPORTED
+         for `proj` -- so assert the reader is actually told. Codex on PR 1267. */
+      await page.keyboard.press('Shift+p');
+      const noPicker = await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() === 0;
+      let toasted = false;
+      try {
+        await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+        toasted = (await txt(page, '#prodToast')).includes('cannot be moved between clients');
+      } catch (e) { toasted = false; }
+      return noPicker && toasted;
+    }); await reset();
     await ok('kbSelectAll', async () => {
       await page.keyboard.press('Control+a');
       return await page.evaluate(() => _prodState.selected.size === new Set(_prodIssueRows().map(i => i.id)).size && _prodState.selected.size > 0)
@@ -1643,7 +1657,12 @@ async function txt(page, sel) {
       row.title = 'X'.repeat(300);
       _prodRender();
       const longEl = document.querySelector('[data-prod-row="' + CSS.escape(id) + '"] .prod-title');
-      const longOk = longEl.getAttribute('title') === longEl.getAttribute('data-fulltitle');
+      /* Require the attribute to EXIST before comparing. `null === null` is
+         true, so a regression that dropped the tooltip from truncated titles --
+         the one case a reader actually needs it -- would have satisfied a bare
+         equality and kept this green. Codex on PR 1267. */
+      const longTitle = longEl.getAttribute('title');
+      const longOk = !!longTitle && longTitle === longEl.getAttribute('data-fulltitle');
       row.title = orig;
       _prodRender();
       return shortOk && longOk;
@@ -1812,7 +1831,9 @@ async function txt(page, sel) {
       cl.name = 'Z'.repeat(200);
       _prodRender();
       const longEl = document.querySelector('[data-prod-client-card="' + CSS.escape(pid) + '"] .prod-card-title');
-      const longOk = longEl.getAttribute('title') === longEl.getAttribute('data-fulltitle');
+      /* Same nullable-equality hole as titleTooltip; require it to exist. */
+      const longCardTitle = longEl.getAttribute('title');
+      const longOk = !!longCardTitle && longCardTitle === longEl.getAttribute('data-fulltitle');
       cl.name = 'Zz';
       _prodRender();
       const shortEl = document.querySelector('[data-prod-client-card="' + CSS.escape(pid) + '"] .prod-card-title');
@@ -2039,27 +2060,56 @@ async function txt(page, sel) {
        So it now asserts that contract directly, in state rather than pixels:
        a saved offset exists, opening another deliverable clears it, and coming
        back does not resurrect it. */
-    await ok('detailScrollNavBack', async () => await page.evaluate(() => {
-      const parent = _prodIssues().find(i => _prodChildrenOf(i.id).length > 0);
-      const child = parent ? _prodChildrenOf(parent.id)[0] : null;
-      if (!parent || !child) return true;
-      _prodOpenDeliverable(parent.id);
-      _prodState.detailScrollTop = 180;
-      _prodState.detailScrollKey = 'sentinel';
-      const armed = _prodState.detailScrollTop === 180 && _prodState.detailScrollKey === 'sentinel';
-      _prodOpenDeliverable(child.id);
-      /* The OFFSET is the contract, not the key. `_prodScrollDetailToTop`
-         clears both, but the very next render re-stamps the key through
-         `_prodCaptureDetailScroll` -- with a zero offset beside it. That is
-         harmless by construction: the restore is guarded on a TRUTHY
-         `detailScrollTop`, so a zero offset restores nothing whatever the key
-         says, and the code comment there states exactly that. Asserting the
-         key would have measured render bookkeeping instead of the behaviour. */
-      const clearedOnNav = _prodState.detailScrollTop === 0;
-      _prodOpenDeliverable(parent.id);
-      const staysCleared = _prodState.detailScrollTop === 0;
-      return armed && clearedOnNav && staysCleared;
-    })); await reset();
+    await ok('detailScrollNavBack', async () => {
+      /* Two things have to be true for this to measure anything, and the first
+         two attempts each missed one.
+         1. THE PANE MUST GENUINELY SCROLL. The original inflated `parent.desc`,
+            but descriptions hydrate on demand so the filler never reached the
+            DOM -- instrumented in the sweep it scrolled three pixels. Real
+            content plus a short viewport overflows for real, so the scroll
+            below is a scroll.
+         2. THE RESET MUST BE OBSERVED. A fresh pane starts at zero anyway, so
+            "back at top" is satisfied whether or not _prodScrollDetailToTop
+            ran -- the check would pass with the reset deleted. So spy on it.
+            Codex on PR 1267 caught exactly this. */
+      const prevViewport = page.viewportSize();
+      await page.setViewportSize({ width: 1440, height: 320 });
+      try {
+        return await page.evaluate(() => {
+          const parent = _prodIssues().find(i => _prodChildrenOf(i.id).length > 0);
+          const child = parent ? _prodChildrenOf(parent.id)[0] : null;
+          if (!parent || !child) return true;
+          const real = window._prodScrollDetailToTop;
+          if (typeof real !== 'function') return 'the reset helper is not reachable to spy on';
+          let calls = 0;
+          window._prodScrollDetailToTop = function () { calls++; return real.apply(this, arguments); };
+          try {
+            _prodOpenDeliverable(parent.id);
+            const dm = document.querySelector('.prod-detail-main');
+            if (!dm) return 'no detail pane';
+            /* Deliberately NOT an early `return true`: a pane that cannot
+               overflow means this check measured nothing, and the previous
+               version passed in isolation for exactly that reason. */
+            if (dm.scrollHeight <= dm.clientHeight) {
+              return 'pane did not overflow (' + dm.scrollHeight + ' <= ' + dm.clientHeight + '); nothing to measure';
+            }
+            dm.scrollTop = 120;
+            const scrolled = dm.scrollTop > 0;
+            const before = calls;
+            _prodOpenDeliverable(child.id);
+            const resetRan = calls > before;
+            _prodOpenDeliverable(parent.id);
+            const pane = document.querySelector('.prod-detail-main');
+            const backAtTop = !!pane && pane.scrollTop === 0;
+            return scrolled && resetRan && backAtTop;
+          } finally {
+            window._prodScrollDetailToTop = real;
+          }
+        });
+      } finally {
+        if (prevViewport) await page.setViewportSize(prevViewport);
+      }
+    }); await reset();
     await ok('boardXSelect', async () => {
       await page.evaluate(() => { _prodState.view = 'board'; _prodState.team = 'all'; _prodState.focusCard = ''; _prodState.cardSel.clear(); _prodRender(); });
       if (!await page.locator('.prod-card').count()) return true;

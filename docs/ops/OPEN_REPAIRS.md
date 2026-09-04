@@ -10257,6 +10257,189 @@ mistake.
 
 ---
 
+## 139. [2026-09-03, WATCHER SHIPPED — test-only, no product change] The comment family's twin drift is now a check, after a written prediction failed three times
+
+Two entries describe the same defect from two angles, and both end in prose:
+
+- **105.3** — *"when one operation in a family routes differently from its
+  siblings, that difference is the bug, and this is the second time this family
+  has produced one."* ADD was the only comment operation without the fallback
+  its siblings had, on both surfaces; on Samples the staff add computed the gate
+  only `_isClientLink ? … : null`, so staff had none at all.
+- **117** — *"This is the third time this repo has repaired one of these two
+  surfaces and not its twin."* Item 87.3 had written the prediction down a month
+  earlier — *"whatever is done here must also be checked against the Samples
+  twin"* — and the very next repair missed the twin anyway.
+
+A prediction in prose has now failed three times on this exact family. This is
+the same prediction as a check: `test/comment-family-twin-parity.js`.
+
+**Why an asymmetry check and not a rule.** The calendar and Samples comment
+surfaces are twins by construction — the same six operations, the same
+canonical-vs-legacy decision, the same `_prodCanonicalCommentGate`:
+
+| operation | calendar | Samples |
+|---|---|---|
+| render the composer | `_calComposerHtml` | `_sxrComposerHtml` |
+| add a comment | `_calAppendComment` | `_sxrAppendComment` |
+| edit a comment | `_calSaveCommentEdit` | `_sxrSaveCommentEdit` |
+| resolve / unresolve | `_calToggleCommentDone` | `_sxrToggleCommentDone` |
+| delete a comment | `_calDeleteComment` | `_sxrDeleteComment` |
+| resolve the last tweak | `_calResolveLastTweak` | `_sxrResolveLastTweak` |
+
+Both failure modes are **asymmetries**, and asymmetry is checkable without
+deciding which predicate is right — which matters, because 105.3 also records
+that the right predicate DIFFERS by operation (`.linked` is correct for a READ
+and too wide for a WRITE, so ADD asks the crosswalk directly). A suite that
+asserted "use `.linked`" would have been wrong the day it shipped. This one
+asserts that the twins answer the same questions the same way, that no member
+routes blind, and that no member computes its gate behind the reader's role.
+
+**Three mutations, all killed, each naming what broke:** removing the gate from
+the Samples add (2 checks red — the symmetry and the floor), rewriting it to
+105.3's `_isClientLink ? … : null` shape (the role check), and renaming a twin
+so it no longer exists (the twin-exists check). The third one is why `survey()`
+catches `extractFunction`'s throw: a missing twin IS the drift, so it has to
+arrive as a named failing check and not as a stack trace that says nothing
+about which twin went.
+
+The detector for the role-guard shape is itself tested against the literal
+Samples defect and against correct code that reads a shared gate per role, so
+the six clean answers above are not six accidents.
+
+**Why this family and not another.** This is the client's path. A member that
+loses its fallback is a client who cannot leave a note, and each of the last
+three times that happened, nobody found out until the client said so — which is
+item 101's whole point.
+
+**The first version of this suite had the hole it was built to close, and
+Codex found it.** The three regexes ran over the RAW extracted body, and
+`_calAppendComment` carries a block comment that quotes
+`_prodCanonicalCommentGate(post, comp).linked` verbatim while explaining the
+routing rule. So deleting the calendar side's real gate left `gate: true` and
+`linked: true` and every assertion green — a suite asserting that somebody
+wrote a sentence. My own mutation run missed it because I mutated the SAMPLES
+add, which has no such comment; the twin that carried the trap was the one I
+did not try.
+
+Fixed by matching over code only. `stripNonCode` joins `extractFunction` in
+`test/helpers/extract-function.js` — same lexer, same reason for living there
+(item 96: so there is one of it): comments, string bodies, template bodies and
+regex bodies become spaces at their original offsets, while `${ … }` inside a
+template survives because it is code. The stripper is now load-bearing, so it
+is asserted against the real body that produced the hole, not a synthetic one,
+and the mutation Codex named — delete the calendar gate, leave the comment —
+now fails six checks.
+
+### The roster is checked against the code, and doing that surfaced a real question
+
+A hand-written list of six pairs rots the moment somebody adds a seventh
+operation to one surface — the drift this suite is for, arriving through the
+suite's own blind spot. So the roster is now derived-and-compared: every
+function in `index.html` that consults `_prodCanonicalCommentGate` must be
+either a family member or on an explicit, reasoned exclusion list. Adding an
+unclassified seventh caller fails until someone classifies it. **18 callers
+today**, and the mutation is killed.
+
+Building that enumeration turned up an asymmetry I did **not** assert, because I
+could not justify asserting it. Three `_sxr` functions consult the gate with no
+calendar counterpart that does:
+
+| Samples | calendar |
+|---|---|
+| `_sxrCommentsForView` — consults the gate | `_calCommentsForView` exists and does **not** |
+| `_sxrCommentsForAction` | `_calCommentsForAction` **does not exist at all** |
+| `_sxrPostLinearComment` — the transport 105.3 repaired | `_calPostLinearComment` exists and does not gate |
+
+The read paths genuinely differ on a client link. Samples asks the gate and
+**fails closed** — unlinked falls back to `_sxrClientVisibleLegacyRows`, and
+linked-but-unready-or-unauthorised returns `[]`. The calendar filters an
+already-loaded list by audience and role, and never asks. `_sxrPostLinearComment`
+is plausibly benign: the calendar gates one level up, in `_calAppendComment`.
+
+**And then I went and answered it, because "open question" was the lazy version
+of the same mistake this file keeps recording.** The read difference is correct,
+and the reason is structural: **the calendar has no canonical comment store at
+all.** There is no `_calCanonicalCommentsFor` to match `_sxrCanonicalCommentsFor`
+— so on the calendar the card column IS the projection of canonical state, and
+reading it is reading canonical, one step removed.
+
+What keeps it one step removed rather than stale is a specific invariant. Four
+of the five calendar write operations call
+`_writeUiPersistCanonicalCommentProjection('calendar', …)` after a canonical
+write, which writes `_calCommentsFor(post, component)` back into the card
+column. The fifth, ADD, needs no such call because it writes that column itself,
+through `_calPendingEdits` + `_calStringifyComments` + `_calWatchNoteSave` — the
+same mechanism the projection uses. The transport asymmetry
+(`_sxrPostLinearComment` gating where `_calPostLinearComment` does not) is
+likewise benign: the calendar gates one level up, in `_calAppendComment`.
+
+**So the suite pins the invariant instead of the symmetry.** All four
+projectors are asserted, ADD's own card-column write is asserted, and so is the
+ABSENCE of `_calCanonicalCommentsFor` — because if a canonical store ever
+appears on the calendar, this entire line of reasoning has to be redone rather
+than quietly inherited. If a projection call were dropped, the calendar's client
+would read a stale copy of a thread that had moved on canonically, with nothing
+anywhere to report it: item 101's shape exactly, which is why it is asserted and
+not trusted.
+
+**Round two found two more, one of them in the stripper itself.** A `${ … }`
+frame was popped by the FIRST `}` inside it, so `${foo({x: 1}) + keep}` ended at
+the object's brace and `+ keep` — executable code — was blanked. A gate call
+sitting after a nested object or a nested template would have been invisible to
+this suite, which is the same defect it was written to fix, one level down.
+`extractFunction` has always counted braces for exactly this reason; `stripNonCode`
+does now, with the nested-object and nested-template cases asserted. The other
+was the suite not being registered in `REPO_MAP.md`, which is now done.
+
+### Round three found three more, and two of them were this suite's own blind spots
+
+- **The roster only saw `function` declarations.** A seventh operation written
+  as `const _calFoo = () => _prodCanonicalCommentGate(…)` would have been
+  attributed to whatever named function preceded it — and if that one was
+  already rostered or excluded, the promised unclassified-caller failure would
+  never have fired. Assigned function expressions are now enumerated too, but
+  only at the module's TOP-LEVEL indent: widening them everywhere let an inner
+  `const chosen = …` inside a function body steal the attribution from the
+  function it lives in, which is not hypothetical — it moved
+  `_calResolveLastTweak`'s gate call onto a local variable the first time.
+  `function` declarations stay matched at any indent, because
+  `_prodCanonicalCommentGate` itself is declared eight spaces in.
+- **The role-guard detector only knew two shapes.** It matched `?:` and `&&`
+  immediately before the call, so the equivalent statement form —
+  `let gate = null; if (_isClientLink) gate = _prodCanonicalCommentGate(…);` —
+  walked past it while the other checks still saw a gate call and a later
+  `.linked` and stayed green: staff with no gate, the exact regression this
+  suite claims to prevent. It now works out the SPAN each `if (_isClientLink…)`
+  guards — its braced block, or the single statement after it — and flags a
+  gate call inside one, with the correct-code case (a role-guarded block doing
+  something else, gate outside) asserted so it cannot just fire on everything.
+- **`stripNonCode` mistook division for a regex after a literal.** `prev` still
+  held the token BEFORE a completed string, template or regex, so
+  `const n = "8" / 2; keep()` read the slash as the start of a regex and
+  swallowed everything after it — a gate call there would have vanished from
+  the derived roster. A completed literal now ends an expression, in
+  `extractFunction` as well: one lexer, one fix, and
+  `test/extract-function-integrity.js` still passes.
+
+Each has its mutation: a new arrow-function gate caller, the statement-form role
+guard, and the six slash cases.
+
+**Round four, two more, both narrower versions of the same two bugs:**
+
+- The role-guard detector required `_isClientLink` to be the FIRST token of the
+  condition, so `if (ready && _isClientLink) gate = …` walked past it. It now
+  reads every `if`'s balanced condition and asks whether that condition mentions
+  the role at all — same for the ternary and `&&` forms. Four cases assert the
+  boundary in both directions, including a role check AFTER the gate, which is
+  correct code and must not fire.
+- `stripNonCode` carried the slash context across into a `${ … }`, so a later
+  interpolation beginning with a regex — `${x}${/re/.test(y)}` — was read with
+  the token from before the template. A fresh interpolation is a fresh
+  expression, so the context resets on entering one, in `extractFunction` too.
+
+- Done when: it catches a fourth. Until then, it costs nothing and holds the
+  prediction that three prose warnings could not.
 ## 138. [2026-09-03] Both nightlies re-read against their actual runs: item 25's two fixes WORKED, and what is red now is not what was red then
 
 Item 25 ends both halves with *"Done when: the next nightly is green"*, and item

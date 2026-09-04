@@ -111,11 +111,16 @@ The interesting version of this is the one the flip made reachable:
 1. Create a card, attach **nothing**.
 2. Move it to `Kasper Approval` **from the Production tab**, not from the
    calendar pill — a status move that never touches media.
-3. Kasper's tab must show, above the queue: *"1 card is waiting on a file, not on
-   you"*, naming the client and the card. It must **not** be in the review list.
+3. Kasper's tab must show, above the queue: *"1 card is waiting on content, not
+   on you"*, naming the client and the card. It must **not** be in the review
+   list.
 4. Now attach a video URL to that card. On the next Kasper load the notice must
    go, and the card must appear in the queue.
 5. Repeat with a thumbnail instead of a video (either one alone is enough).
+6. Repeat once more with **no media at all and only a caption** — leave the
+   caption blank, move `Caption` to `Kasper Approval`, and the card must land in
+   the same notice; type a caption and it must move into the queue. The notice
+   says "content", not "a file", precisely because this case reaches it.
 
 ### 3b. The reconciler's refusal (item 82) — the important one
 

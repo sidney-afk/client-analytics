@@ -104,6 +104,7 @@ const REAL = [
   grabFunc('_calCompKasperVisible'),
   grabFunc('_calPostKasperVisible'),
   grabFunc('_calPostHasUnresolvedKasperTweak'),
+  grabFunc('_kasperCompReviewable'),
   grabFunc('_kasperUndecidedComps'),
   grabFunc('_kasperFinishedAt'),
   grabFunc('_kasperIsFinished'),

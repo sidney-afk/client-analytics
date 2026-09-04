@@ -377,9 +377,15 @@ identically is the house convention, so this recurs.
 
 ## 6. [watch] Nightly E2E lanes: samples red 26 nights, calendar 16
 
-> **SUPERSEDED 2026-08-22 by item 25.** Read that first: neither lane is red in
-> the way this entry implies. Each fails on exactly ONE assertion inside an
-> otherwise green run, both causes are now diagnosed, and both are fixed.
+> **SUPERSEDED 2026-08-22 by item 25, and again 2026-09-03 by item 138.** Read
+> those first — this header's counts have been wrong since 2026-08-22 and the
+> lanes have moved twice more since. Item 25 diagnosed one assertion per lane
+> and fixed both; **item 138 read the actual runs and confirms both fixes
+> worked** — samples went GREEN on 2026-09-02 (run 62, its first success in the
+> visible history) and the calendar's p92 now passes. What is red today is not
+> what was red when this entry was written: samples on a fixed-sleep race in the
+> opt-out probe, the calendar on three probes that assert the pre-F1 video
+> link-paste contract.
 
 
 **2026-08-11 — TRIAGED. The nightly could not report its own failure.** Run
@@ -1888,6 +1894,11 @@ different ways in two different consumers, and the durable event ledger
 
 - Done when: the next samples nightly is green. The fix cannot be run locally —
   the lane needs the staff key and a live backend — so the nightly is the proof.
+- **ANSWERED 2026-09-03 by item 138: it went green.** Run 62, 2026-09-02 — the
+  lane's first success in its visible history, and `create_drag_reorder_persist`
+  passes. This half is DONE. Run 63 is red again on a different probe entirely
+  (`sxr_gating_flags`), diagnosed in item 138 as a fixed-sleep race and fixed
+  there; do not read that red as this entry re-opening.
 
 **Calendar E2E — fixed here too.** `1 of 68 probes FAILED after 3 attempts:
 p92_sxr_resolve_pill_inplace.js`, and the run printed exactly which assertions:
@@ -1926,6 +1937,11 @@ rather than of two changes at once. If it still fails on the same two
 assertions, the 400 ms is the next thing to replace with a bounded wait.
 
 - Done when: the next calendar nightly is green.
+- **ANSWERED 2026-09-03 by item 138 for THIS probe:** `p92_sxr_resolve_pill_inplace.js`
+  reports `pass=10 fail=0`. The linkage diagnosis was right and the 400 ms
+  residual risk recorded just above did not bite. The lane is still red, but on
+  three OTHER probes (`p77`, `p81`, `p86`), all failing on the pre-F1 video
+  link-paste contract — see item 138.
 
 ---
 
@@ -8078,9 +8094,23 @@ shows on the exits nobody writes a test for.
 > cross-reference inside them points at items 72-102, none of which moved.
 >
 > Separately: items 13, 14, 22, 23 each appear twice from
-> BEFORE this session. Left alone deliberately -- they are old closed entries and
-> renumbering them could break references this session cannot see. Flagged here so
-> the next reader knows it is known, not missed.
+> BEFORE this session. Left alone deliberately -- renumbering them could break
+> references this session cannot see. Flagged here so the next reader knows it is
+> known, not missed.
+>
+> **Correction, 2026-09-03: "they are old closed entries" was wrong, and it is the
+> half of this note that would stop someone acting on it.** Only the second 13 and
+> the second 14 are closed. The first 14 is `[repair]`, BOTH 22s are `[repair]`,
+> and the 23s are `[repair]` and `[owner]` -- so four OPEN entries currently share
+> two numbers, and "see item 22" today points at two different live repairs. The
+> decision to leave them alone still stands (the references are real and this is
+> not a 2 a.m. change), but it should be made against what they actually are. What
+> a renumber would cost, measured: OPEN_REPAIRS' 22s have **no** cross-reference
+> anywhere -- the two "Item 22" hits in `WIRED-PARITY.md` are that file's own
+> numbering -- and the 23s have exactly two, one to each, both resolvable from
+> their surrounding sentence (`EXECUTION_LOG.md` names the archiving/sub-issue
+> regression, `PRE_FLIP_HEALTH_CHECK.md` names `GRA-7112`). The 13/14 pairs carry
+> more, and are the ones a renumber should approach carefully.
 
 ## 109. [2026-09-02, SCOPED — one owner decision, then it is a day's work] Pasting an image into a description: the render half shipped, the upload half needs a storage answer
 
@@ -10227,6 +10257,143 @@ mistake.
 
 ---
 
+## 138. [2026-09-03] Both nightlies re-read against their actual runs: item 25's two fixes WORKED, and what is red now is not what was red then
+
+Item 25 ends both halves with *"Done when: the next nightly is green"*, and item
+6 still describes the lanes as "samples red 26 nights, calendar 16". Neither had
+been checked against a run since. Read from the run history rather than from the
+rollups, which is the same correction item 25 itself opens with.
+
+### Samples — item 25's fix worked, and the lane went green
+
+| run | date | result |
+|---|---|---|
+| 61 | 2026-09-01 | ❌ `sxr_gating_flags.js` |
+| **62** | **2026-09-02** | **✅ GREEN — the first success in the visible history** |
+| 63 | 2026-09-03 | ❌ `sxr_gating_flags.js`, 1 of 10 probes, 12 pass / 1 fail |
+
+`create_drag_reorder_persist` — the assertion item 25 chased through two rounds
+of harness defects — **passes**. That half is done. The lane now fails on one
+assertion in a different probe.
+
+### And what it fails on is a RACE in the probe, not a defect in the product
+
+```
+✗  opt-out: #sample-reviews route refused (hash cleared, no sxr view mounted)
+   [hash="#sample-reviews/sidneylaruel" mounted=false]
+```
+
+`mounted=false` is the important half: **the route WAS refused.** With `?sxr=0`
+nothing mounted, the nav stayed hidden, zero cards rendered — the three
+assertions beside it all pass. The only thing that did not happen is the hash
+being cleared, and the hash is cleared by `navTo`, which runs at the END of
+boot. The probe waited a flat 2500 ms and then read. On a slow boot it reads
+before `navTo` has run and reports a page that is merely still booting as a
+route refusal that failed.
+
+The lane's own history is that shape and is the evidence: **red 09-01, green
+09-02, red 09-03, same assertion, with no change to the opt-out path between
+them.** A fixed sleep that alternates with backend latency is a race, not a
+regression.
+
+**Fixed by waiting for the event instead of for a duration.** `navTo` is the
+only thing that writes `history.state.nav`, so the probe now waits on exactly
+that, bounded at 20 s, and the wait's failure is its OWN named check. The old
+single assertion could not distinguish "boot never finished" from "boot
+finished and left the hash", which are different facts with different owners;
+its failure line now carries `routed=` and `routedTo=` so a red run says which.
+
+**The BOUND had to cover the boot, or the race just moves later** — Codex P2 on
+the fix. With `?sxr=0` the Samples branch falls through, `sample-reviews` is not
+a fast tab, and `init()` awaits the whole analytics fetch before calling
+`navTo`; the courier permits a request to take up to 60 s
+(`_CURL_OPTIONS.timeout`). A 20 s cap would have reported the same false
+failure on any slow CSV, at 20 seconds instead of 2.5. The cap is 75 s: it
+covers that window with margin, costs nothing on a healthy run because
+`waitForFunction` returns the moment the condition holds, and stays inside the
+runner's 240 s per-probe budget alongside this probe's other work (~70 s in the
+2026-09-03 nightly). The suite asserts all three of those bounds, and asserts
+the courier's own 60 s is still 60 s — if that moves, this has to move with it.
+
+**And the bound was not the bound.** Codex, round two: Playwright's signature is
+`waitForFunction(pageFunction, arg, options)`. Passing `{ timeout: 75000 }` in
+the SECOND position makes it the predicate's unused **argument**, leaving the
+library's 30 s default in force — so the fix would have read 75 s in the source
+and behaved as 30 s, still under the 60 s the courier permits, still a false
+failure. It is now `waitForFunction(fn, undefined, { timeout: 75000 })`, and the
+suite matches the whole call shape rather than the first `timeout:` literal it
+can find, plus reads Playwright's own `.d.ts` to confirm options are still third.
+
+**The same footgun is estate-wide in the QA harness, and is NOT fixed here.**
+Measured: **46 `waitForFunction` calls across 25 files** pass their options in
+the second position, and **zero** currently pass them third. Most are wrapped in
+`.catch(() => {})`, so the effect is a 30 s default in place of an intended 15 s
+or 20 s — longer, not shorter, which is the harmless direction and is why nobody
+noticed. It is recorded rather than swept because a 46-call edit across 25 probe
+files is exactly the kind of unattended sweep that turns a green lane red for
+reasons unrelated to the change that carried it.
+
+`test/sxr-optout-probe-waits-for-route.js` pins both ends — the probe waits for
+the signal, and `navTo` still emits it — because the probe now depends on a
+product detail, and if that detail moved the nightly would start timing out
+every night with no explanation. 3 mutations, all killed. **It is not proof the
+race is gone; the next nightly is.**
+
+### Calendar — item 25's p92 fix ALSO worked, and three different probes are red
+
+`p92_sxr_resolve_pill_inplace.js` — the probe item 25 diagnosed as demanding
+`Kasper Approval` where the product correctly rendered `N/A` — now reports
+**`pass=10 fail=0`**. That half is done too. The 400 ms residual risk item 25
+recorded did not bite.
+
+Red now, 3 of 69, each after 3 attempts: `p77_linear_link_validation.js`,
+`p81_link_move_conflict.js`, `p86_hidden_owner_warns.js`.
+
+**All three are the same cause, and it is the F1 video cutover.** Their failing
+assertions are exactly the ones that paste a Linear **VID-** link into the video
+slot:
+
+```
+p77  ❌ valid VID- link saves to the video slot
+     ❌ GRA- link in the video slot → wrong-slot prompt fired
+     ❌ wrong-slot prompt CANCELLED → video link unchanged
+     ❌ wrong-slot prompt ACCEPTED → override saves it
+     ✅ graphics is SyncView-owned → a GRA- paste is REFUSED and nothing is stored
+     ✅ and the person is told why, rather than the paste silently vanishing
+p81  ❌ duplicate link surfaces the Move/Cancel conflict     (all 3 link-move assertions)
+p86  ❌ pasting the owner's link surfaces the "already linked — Move it here?" conflict
+```
+
+**Confirmed in the code, not inferred from the names.** `_calLinearCommit`'s
+guard **(0)** is a seal on a LIVE authority read —
+`_writeUiLinkSlotSealedLive(which)` returns sealed when that component's team
+authority is `syncview` — and it runs *"ahead of every other check … before the
+format, component and uniqueness guards even look at the value."* Post-F1 the
+video team is SyncView-authoritative, so a valid VID- paste is refused at guard
+0 and never reaches the wrong-slot prompt (guard 2) or the duplicate/move
+conflict (guard 3). p77's graphics assertions pass because graphics was sealed
+at its own flip and that probe was re-based then; the video half still asserts
+the pre-flip contract.
+
+**So the product is right and these three probes are stale** — the same verdict,
+for the same reason, as p92. This is not a repair, it is a re-base.
+
+**Deliberately NOT re-based here**, and the distinction matters:
+
+- p77's video half is a mechanical mirror of assertions already passing beside
+  it for graphics, and could be re-based safely.
+- p81 and p86 are *entire probes about the link-move conflict flow*, and post-F1
+  that flow is unreachable from **either** component — both are sealed. Re-basing
+  them to assert the seal would delete the coverage rather than move it, and
+  "the move-conflict flow may now be dead code" is a finding for the Linear-exit
+  work, not something to erase quietly at 2 a.m. on the way to a green light.
+
+A wrong re-base of a mandatory gate turns "no signal" into "false signal", which
+is item 125's warning and worse than the red.
+
+- Done when: the samples nightly is green on the fixed probe, and the owner (or
+  the Linear-exit work) rules on whether the video link-paste flow — and the
+  move-conflict flow behind it — still exists to be tested at all.
 ## 137. [2026-09-03, GUARD SHIPPED — script-only, live on merge] The "what is live" row now has a check instead of a third written reminder
 
 Item 118 called the stale `ROLLBACK.md` row **the dangerous one**, and said why

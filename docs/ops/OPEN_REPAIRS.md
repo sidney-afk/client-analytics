@@ -10339,6 +10339,43 @@ is `undefined`, and the check's `focusCard === _prodBoardFlat()[0]` compares
 `'' === undefined` — false. That is the check failing for a reason that is not a
 product defect, and it is worth fixing in the check whichever way the rest lands.
 
+### WHY the sandbox cannot run the heavy lane — measured, and it is not "no route"
+
+Item 125 says reproducing needs "the live backend this sandbox cannot reach",
+and `CLAUDE.md` says the lanes "cannot pass in a sandbox with no route to the
+live backend". Both are true in effect and wrong in mechanism, and the mechanism
+is worth recording because it is one dependency away from being fixable.
+
+There IS a route. `curl` reaches the Supabase REST API from this sandbox and
+returns rows — every gating read in the pre-flip health check runs that way. What
+fails is specifically **Chromium**, and it fails in a way that looks like a
+network outage:
+
+- Playwright's Chromium does not use `HTTPS_PROXY`. Launched plainly it dials
+  the internet directly and every off-host request ends `ERR_CONNECTION_RESET`,
+  which reads as "no route" and is where the belief above comes from.
+- Pointed at the agent proxy (`proxy: { server: HTTPS_PROXY }`, plus
+  `PLAYWRIGHT_DISABLE_FORCED_CHROMIUM_PROXIED_LOOPBACK=1` so Playwright stops
+  appending `<-loopback>` and forcing the suite's own 127.0.0.1 static server
+  through the proxy, which otherwise 405s and the page never loads at all) the
+  requests DO reach the proxy. They then die in the TLS handshake: the proxy's
+  own status endpoint records `ws_closed_mid_exchange` for
+  `<project>.supabase.co:443`, `fonts.googleapis.com:443` and
+  `cdn.jsdelivr.net:443` — "tunnel closed (code 1006) after 6s; ~1.76 kB sent,
+  39 B received". 1.76 kB out is a ClientHello; 39 B back is an alert. Chromium
+  is rejecting the proxy's re-terminated certificate.
+
+Everything else in this sandbox trusts that CA (`/root/.ccr/ca-bundle.crt`).
+Chromium reads its own NSS store at `~/.pki/nssdb`, which exists here but cannot
+be inspected or amended because `certutil` (`libnss3-tools`) is not installed.
+**So the blocker is one package and one `certutil -A` away**, and a session that
+can install it should be able to run `behav-wired.js` against live data and
+settle `ringClearOnNav`, the sixth check and the pixel lane in one pass — the
+thing item 125 says is the right next step and has been waiting for since
+2026-08-30. Not attempted further here: the only browser-side shortcut is
+`--ignore-certificate-errors`, and the sandbox's own README says never to
+disable TLS verification.
+
 ### Where item 125 now stands
 
 | check | status |

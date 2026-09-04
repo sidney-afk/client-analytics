@@ -6698,6 +6698,23 @@ zero:*
   defect, is the wrong trade. Do it alongside a deploy that was happening
   anyway.
 
+**PARTLY ANSWERED 2026-09-03 — the lane exists, as a RATCHET (item 140).**
+`.github/workflows/edge-function-type-ratchet.yml` runs `deno check` on
+`production-write` and on **every other Edge Function in the repository**,
+comparing each to a recorded per-error-code baseline: new type errors fail, the
+existing ones do not. The roster is DERIVED from `supabase/functions/*/index.ts`
+rather than hand-listed, which is what took it from the six functions the first
+version named to **34 targets, 26 of them CLEAN** — so on the large majority it
+is a gate rather than a ratchet, and eight carry recorded debt. (This paragraph
+first said "six, three clean", from the hand-written roster the derived one
+replaced; the correction is the whole point of item 140's own finding, so it is
+made here rather than left to contradict it.) The typing repair this entry
+describes is still owed and still should not be done unattended, for exactly
+the reason below — but it is no longer the only thing standing between a NEW
+type error and production. Re-measured while building it: **15, not 14** — a
+`TS2352` cast at line 1888, outside the assignee/parent-route region and of a
+code this entry never saw. One arrived in three days, which is the argument.
+
 **The leave-evidence packet fingerprints `package.json` in its entirety.** Adding
 ANY npm script — to any part of the repo, for any reason — changes the hash and
 marks a 101-screenshot leave-lifecycle audit "stale for the current source
@@ -10440,6 +10457,216 @@ guard, and the six slash cases.
 
 - Done when: it catches a fourth. Until then, it costs nothing and holds the
   prediction that three prose warnings could not.
+
+---
+
+## 140. [2026-09-03, LANE SHIPPED — CI-only, no function change] `production-write` now has a type lane, and it is a ratchet because item 94 says the repair must wait
+
+Item 94 states the gap plainly: `production-write` does not typecheck, nothing
+in CI looks, and it is *"the estate's most safety-critical write path, it is
+hand-deployed, and the only thing standing between a type error and production
+is review."* `pto-ui-tests.yml` already runs `deno check` on
+`supabase/functions/pto/index.ts`, so the pattern existed and this function
+simply was not in it.
+
+**It is a ratchet, not a gate, and that is item 94's own instruction.** The
+existing errors are inference limits rather than missing guards — a `const` a
+long disjunction cannot narrow, a five-way `Promise.all` destructure that loses
+its tuple shape — and item 94 says explicitly not to repair them unattended,
+because **any** edit to that file changes the deployed bundle and creates a
+capture-and-hand-deploy obligation for a change with no behavioural effect. A
+red gate would have forced exactly that. So the lane holds the line at what was
+measured: new errors fail, existing ones do not.
+
+**It already has its evidence, from before it shipped.** Item 94 measured **14**
+on 2026-08-31. Re-measured on 2026-09-03 with the same pinned deno (v2.5.2, the
+version `pto-ui-tests.yml` uses): **15** — fourteen `TS18047` in the
+assignee/parent-route region item 94 describes, plus one `TS2352` cast at line
+1888, a different code in a different part of the file. **A type error was added
+to the most safety-critical write path in the estate in three days, and nothing
+noticed.** That is the case for the ratchet, made by the file itself.
+
+**It covers EVERY Edge Function, and the roster is DERIVED rather than listed.**
+I first hand-listed six and called that complete coverage. Codex found two more
+on #1256 — `calendar-upsert` and `sample-review-upsert`, both live, both
+hand-deployed, both **client-facing writers**, and both marked NO CI DEPLOY PATH
+in the manifest. Counting properly, this repository has **thirty-five**
+functions with an `index.ts` and I had covered six. A hand-kept list was the
+wrong shape for the answer: it is precisely the artefact that goes stale, and
+the next function added would have been missed the same way. The roster is now
+read off the filesystem, so a new function is covered the day it appears.
+
+**Thirty-four targets. Twenty-six are CLEAN** — on those it is not a ratchet at
+all but a real GATE: an empty baseline means the FIRST type error to appear
+fails. `calendar-upsert` and `sample-review-upsert` are both among them, so the
+two functions the hand-list missed are now gated rather than merely ratcheted.
+The eight carrying debt:
+
+| function | errors | codes |
+|---|---|---|
+| `production-write` | 15 | `TS18047` ×14, `TS2352` ×1 |
+| `smm-weekly-reports` | 14 | `TS2339` ×13, `TS7006` ×1 |
+| `linear-inbound` | 12 | `TS2339` ×9, `TS7053` ×2, `TS2551` ×1 |
+| `linear-outbound` | 12 | `TS2345` ×10, `TS2339` ×2 |
+| `production-archive` | 4 | `TS2352` ×4 |
+| `workload-linear` | 4 | `TS7006` ×4 |
+| `client-credentials` | 1 | `TS2339` ×1 |
+| `production-comments` | 1 | `TS2352` ×1 |
+
+`pto` is the one exclusion and it is a real gate, not an omission:
+`pto-ui-tests.yml` runs `deno check` on it and it passes, so a ratchet there
+would replace a stronger check with a weaker one.
+
+**Two things the wider sweep taught the checker about itself**, both found by
+its own guards rather than by review:
+
+- **deno prints `Found N errors.` only when N > 1.** A single-error check goes
+  straight from its diagnostic to `error: Type checking failed.` with no tally —
+  so demanding the tally on every non-zero exit called a perfectly complete
+  one-error report a fragment and refused to record `client-credentials`. Both
+  terminal shapes are recognised now, and the two-diagnostics-without-a-tally
+  case is still a fragment.
+- **Seeding is not blessing.** A target with no baseline entry has an implicit
+  `{}`, so its first measurement reads as an increase for every code it has —
+  and the may-only-LOWER rule refused to record a function for the first time.
+  That rule protects an EXISTING baseline from being raised; it has nothing to
+  say about one that does not exist yet. First-time entries are marked `+` in
+  the update output so a seed is never mistaken for a rise.
+
+**Keyed by error code, not by line number.** Line numbers move whenever anything
+above them is edited, and a check that goes red on an unrelated edit is one
+people learn to ignore — this repository has an entry about a mandatory gate
+that went exactly that way (item 125). Counting per code also catches the swap a
+bare total misses: one error fixed and a different KIND introduced nets to zero.
+A swap *within* one code still slips, and that is the stated limit.
+
+**A decrease fails too, on purpose.** This repository keeps finding documents
+that were true when they were written (item 118), and a baseline nobody has to
+update is one of those. Fixing an error costs one line in
+`docs/ops/DENO_TYPECHECK_BASELINE.json`, and the failure that asks for it says
+so in those words.
+
+**No `npm run` alias, and that is deliberate**, not an oversight: item 94's
+second half records that the leave-evidence packet fingerprints `package.json`
+in its entirety, so adding any script marks a 101-screenshot leave-lifecycle
+audit stale — whose only sanctioned repair is a human re-reviewing all 101
+shots. Invoked by path, exactly as `scripts/component-fill-rehearsal.js` is, and
+`test/deno-typecheck-ratchet.js` asserts the alias stays absent so nobody adds
+one helpfully later.
+
+**The suite tests the half CI cannot.** The lane needs deno; the parser does
+not, and the parser is what can be silently wrong. `test/deno-typecheck-ratchet.js`
+drives `parseReport` and `compare` over recorded output — colour escapes and
+all, because stripping them is the thing being tested — for the increase, the
+new-code, the decrease and the swap. It also asserts that deno's own
+`Found N errors.` tally agrees with the number of lines the parser matched, and
+reports a disagreement as *unreliable* rather than smoothing it over: a parser
+that drifts from the output format would otherwise report a confident green.
+
+### Codex found two P2s, and one of them was the test fighting the feature
+
+**The suite froze the numbers the ratchet exists to lower.** It asserted
+`TS18047: 14` and `TS2352: 1` against the committed baseline, so the moment a
+real fix landed and `--update` brought the baseline down as designed, `npm test`
+would fail on a second hard-coded copy of it — the advertised one-line update
+could not succeed. Replaced with INVARIANTS that hold at every value the
+baseline will ever take: total equals the sum of its per-code counts, every key
+is a TypeScript error code, every count is a positive integer (a fixed code is
+removed, not left at `0`), the six targets are covered by name and `pto` is not,
+and at least one target is clean. The measured numbers live here, in the entry,
+which is where a record belongs.
+
+**An unusable report could still print a green verdict.** A check killed after
+its diagnostics but before `Found N errors.` left the tally `null`, which
+skipped the drift comparison entirely — so per-code counts that happened to
+match the baseline reported "no new type errors" over a torn page. The
+comparison now stops at an incomplete report and says which way it was
+incomplete; "we could not read this" and "nothing got worse" no longer share a
+verdict.
+
+**And building that turned up a measurement worth writing down:** a clean
+`deno check` on a warm cache prints **nothing at all** and exits 0 — no
+`Check file:` line, no tally, no output. The text alone therefore cannot tell a
+clean run from a run that died before writing anything, which is exactly the
+case being guarded. The **exit status** is what distinguishes them, so that is
+what the completeness rules lean on, and the first version of those rules was
+wrong because it did not know this. `--update` now also refuses without
+`--stamp=YYYY-MM-DD`, so a re-measured baseline cannot keep an old date and
+become another document that was true when it was written (item 118).
+
+**A third thing, found by the repository's own guard rather than by review:**
+`deno check` writes a `deno.lock` at the repository root as a side effect, and
+the first local run of the widened ratchet committed it — turning
+`test/repo-map-sync.js` red on an untracked top-level file. **A checker must not
+leave anything behind.** Fixed at the source with `--no-lock`, with the stray
+file untracked and a `.gitignore` backstop that deliberately does NOT cover
+`supabase/functions/*/deno.lock`, the one intentional Deno lock in this
+repository (F27's per-function frozen lock under `linear-inbound`), verified
+with `git check-ignore`.
+
+**And one more of the same class, found by re-reading my own file for it rather
+than by review.** The script exits 0 when deno is absent — right for a
+contributor who does not have it, catastrophic for CI: a runner that failed to
+install deno would check nothing and report a green, **which is worse than
+having no lane, because it looks like one.** The workflow now passes
+`--require-deno`, under which an absent binary fails and says why; without it
+the local skip is unchanged. The suite asserts the workflow still passes the
+flag, and drives both paths, because a flag silently removed reopens the hole.
+
+**Round two: a replayed report belonged to nobody.** `--report=<file>` was
+re-read once per target, so a report captured from one function was compared
+against all six baselines — and `--report … --update` would have rewritten every
+target with that one function's counts, destroying the per-function measurements
+the file exists to hold. There is no output shape that carries six functions, so
+`--report` now requires `--target=<slug>`, an unknown target is refused rather
+than silently added, and `--target` alone also works for checking one function.
+
+### Round three: three more, and one of them was the instruction defeating the gate
+
+- **`--update` would have blessed a new error.** When a real fix lands beside a
+  NEW diagnostic, the run produces both a decrease and an increase — and the
+  decrease's own failure message says *"re-run with `--update`"*. Following that
+  instruction would have written the increase in as the new baseline and handed
+  the next CI run a green. **The instruction must not be a way round the gate**,
+  so an update may only LOWER: any per-code increase in the same run refuses the
+  write and says to fix the increase first.
+- **A replayed report could be a truncated one.** With `--report` and no
+  `--status`, a file holding only deno's opening `Check file:` line reached the
+  clean verdict — even though the process may have been killed a moment later,
+  before printing anything. A clean check has no terminal marker (it prints
+  NOTHING), so replaying one now requires the exit status; otherwise a
+  clean-baseline target reports green off a fragment and `--update` could zero a
+  dirty target's baseline.
+- **The graph checked was not the graph deployed.** `linear-inbound` carries a
+  frozen per-function `deno.json`/`deno.lock`, and its deploy lane proves the
+  source with `deno cache --frozen --config supabase/functions/linear-inbound/deno.json`.
+  The unconditional `--no-lock` resolved that target's transitive dependencies
+  from the repository ROOT instead, so drift there could introduce or hide a
+  diagnostic relative to the graph actually approved for deployment. A target
+  with its own config is now checked under it; every other target keeps
+  `--no-lock` so the checker still leaves no root lock behind. Measured either
+  way: the same 12 errors, so the fix changes the guarantee rather than the
+  number — which is the point, since the number agreeing today is exactly what
+  would have hidden the drift tomorrow.
+
+**Round four, two more, both "unknown" reading as "fine":**
+
+- **A signal-killed check reported green.** `spawnSync` reports a
+  terminated-by-signal process as `status: null`, which fell through to the
+  branch written for REPLAYED reports — where the opening `Check file:` line
+  alone reads as a complete clean run. So a clean-baseline target whose check
+  was killed after one line passed. A fresh run without a numeric exit status
+  now fails; the status-less branch is for saved reports only, which is what it
+  was for.
+- **The measurement date belonged to the file, not to the measurement.** One
+  global `measured_on` meant a `--target=<slug> --update` restamped all six, so
+  five targets whose counts were merely copied forward looked freshly measured —
+  the same defect as a stale ledger row, a date asserting something nobody
+  checked. Each target carries its own date now. Verified by running a
+  single-target update: only that target's counts and date moved.
+
+- Done when: it catches one. The typing repair item 94 describes is still owed
+  and still belongs alongside a deploy that was happening anyway.
 ## 138. [2026-09-03] Both nightlies re-read against their actual runs: item 25's two fixes WORKED, and what is red now is not what was red then
 
 Item 25 ends both halves with *"Done when: the next nightly is green"*, and item

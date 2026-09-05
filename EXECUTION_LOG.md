@@ -6343,27 +6343,26 @@ into canonical threads. 7 slots remain, all for a person, named by reason in
 every plan summary. OPEN_REPAIRS 156 ("Second live apply");
 CROSSWALK_REPAIR_STRATEGY status table.
 
-## 2026-09-05 — one-row crosswalk move: an approved card takes its deliverable back from its archived first draft
+## 2026-09-05 — one-row crosswalk re-point under the owner's ruling
 
-**DB mutation, owner-applied, SQL Editor, late evening UTC, after the second apply.** One row of
-`public.deliverables` (one client's approved reel): `card_id` from the
-archived native card that auto-created its Linear issue to the approved card
-that links the same issue. Row identities, and anything that selects the row — the exact time, the
-event predicate — are kept out of this public file: `deliverable_events` and
-the browser projection are anonymously readable, so a lookup key here would be
-the identity. The exact statement is in the owner's SQL Editor history and in
-the session record; the guard's bare `update` event on the row is the only
-server-side trace, and it carries no before-value.
-The statement was guarded on the old value, so it could touch at most that one
-row in that one state. The SQL Editor prints "Success. No rows returned" for an
-UPDATE; the move was confirmed by reading the row back with the publishable
-key (new `card_id`, `updated_at` at the moment of the statement) and by the
-ledger guard's bare `update` event on the row at the same second.
+**DB mutation, owner-applied, SQL Editor, late evening UTC, after the second
+apply.** One row of `public.deliverables`: `card_id` re-pointed from one card
+to another card of the same client, applying a ruling the owner made while
+reviewing the 7 slots the runner hands to a person (OPEN_REPAIRS 156, "The
+seven, ruled"). The statement was guarded on the old value, so it could touch
+at most that one row in that one state. The SQL Editor prints "Success. No
+rows returned" for an UPDATE; the move was confirmed by reading the row back
+with the publishable key (new `card_id`, `updated_at` at the moment of the
+statement) and by the ledger guard's bare `update` event on the row at the
+same second. Nothing here selects the row: `deliverable_events`,
+`calendar_posts` and the browser projection are anonymously readable, so any
+identifier, time, or card relationship in this file would be the identity. The
+statement and the row are in the owner's SQL Editor history and the session
+record.
 
-**Why by hand.** The bind RPC refuses `already_bound_elsewhere` whether or
-not the holding card is archived (OPEN_REPAIRS 156, "The seven, ruled"). The
-owner's ruling — an archived card never wins — was applied to this one row by
-a person, which is the intended path for the slots the rule hands back.
+**Why by hand.** The bind RPC refuses `already_bound_elsewhere` regardless of
+what kind of card holds the row. The ruling was applied to this one row by a
+person, which is the intended path for the slots the rule hands back.
 
 **What changed, and reversal.** Only `card_id` and, via the touch trigger,
 `updated_at` (status unchanged, so `status_at` did not move). No Linear
@@ -6371,12 +6370,10 @@ write, no outbox intent, no comment moved: the issue, its status, and both
 cards' links are what they were. Reversal is the same statement with the two
 card ids swapped. The old card id is **not** on the ledger event (the guard
 records only op and reason, and the row keeps only the new value); it survives
-in the owner's SQL Editor history and in the session record (the archived
-card's own slot pointer also still names the deliverable, but this file does
-not describe how to find it). The prior `updated_at` (from the second apply) is not
-restorable. Not exercised.
+in the owner's SQL Editor history and in the session record. The prior
+`updated_at` (from the second apply) is not restorable. Not exercised.
 
 **After.** The runner's classifier, re-run read-only minutes later: 1,214
-slots, 1,207 clean, 7 mismatching, 0 bindable — the approved card's slot is
-now clean and the archived native card is the one refused. All 7 carry a
-recorded ruling (OPEN_REPAIRS 156). Phase 3 (b) closed; (c) open.
+slots, 1,207 clean, 7 mismatching, 0 bindable, the same three reason counts as
+before (5 / 1 / 1). All 7 carry a recorded ruling (OPEN_REPAIRS 156). Phase 3
+(b) closed; (c) open.

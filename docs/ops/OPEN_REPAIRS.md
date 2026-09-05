@@ -12868,22 +12868,22 @@ same issue; a pair of live cards that correctly share one Linear issue because
 that client's work was tracked as one issue per filming day at the time; an
 unstarted thumbnail on an archived card with no Linear link to prove identity;
 and an archived card pointing at another client's issue (the item 147 §2 case),
-which is never bound. The "move" is the owner's standing ruling — an archived
-card never wins — applied by hand to one row (`EXECUTION_LOG.md`, 2026-09-05,
-"one-row crosswalk move"); the ledger guard wrote its bare `update` event.
+which is never bound. The "move" is one of the owner's standing rulings applied by hand to one
+row (`EXECUTION_LOG.md`, 2026-09-05, "one-row crosswalk re-point"); the
+ledger guard wrote its bare `update` event.
 Re-read with the runner's own classifier minutes later: still 7 mismatching, 0
 bindable, the same three reasons — and every one of the 7 now carries a ruling.
-An unused auto-made thumbnail that came with the moved row's archived card can
-be retired whenever the owner likes — **through SyncView's native status path,
+One unused auto-made Graphics issue that surfaced during the review can be
+retired whenever the owner likes — **through SyncView's native status path,
 not by editing Linear**: Graphics is SyncView-authoritative, so `linear-inbound`
 treats a manual Linear status edit as detect-only and reconciliation would put
 it back; a native cancel goes out through the outbox with the F27 binder like
 tonight's eleven did.
 
-The RPC refuses `already_bound_elsewhere` without asking whether the holding
-card is archived. That is deliberate — a person decided each of these — and the
-rule that "an archived card never wins" is recorded here, not encoded, until
-a case shows it needs to be.
+The RPC refuses `already_bound_elsewhere` without asking what kind of card
+holds the row. That is deliberate — a person decided each of these — and the
+owner's rulings about which card wins are recorded here, not encoded, until a
+case shows they need to be.
 
 This closes Phase 3 (b) in `CROSSWALK_REPAIR_STRATEGY.md` §5: every
 remaining mismatch has a recorded ruling. (c), the browser-side readback, is

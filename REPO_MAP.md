@@ -8,6 +8,13 @@ commit as any structural change.
 
 ## Top level
 
+Review composer preservation: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md` owns the
+schema/authority/recovery limits. `test/review-draft-ownership.js` executes the
+actual helpers through `test/helpers/review-draft-source.js`.
+`qa/feedback-drafts/` contains complete-document failure/retry/identity and real
+BFCache tests with fictional intercepted transports; its README states the
+server assumptions and local-only proof limits.
+
 First Samples release composition and held live gates:
 `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts
 `SAMPLES_RECOVERY_TARGET_SHA` and records the exact integrated document tested.

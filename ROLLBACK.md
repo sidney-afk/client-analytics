@@ -596,3 +596,14 @@ no row at install time.
 construction — the panel behaves exactly as it did on 2026-09-04 for the two
 shared slots, and the file pills improve on the posts that already had them. No
 error, no console noise, no partial state.
+## 2026-09-05 review feedback draft compatibility (unreleased)
+
+Do not raw-revert the full HTML while owned review drafts remain. The prior
+document cannot display `syncview_review_draft_v1:` records. Preserve those
+bytes, the composer ownership/display bridge, and existing Samples/native/source
+repair queues. The Samples reader-only inverse can retain all of this code;
+its exact-head builder refuses other writer/schema drift. Removing the feedback
+implementation itself still requires a separately verified compatibility bridge
+or per-owner reconciliation. It is an explicit release blocker, not a safe
+whole-file revert. Procedure: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.
+The frozen anonymous client writers must never be re-gated as recovery.

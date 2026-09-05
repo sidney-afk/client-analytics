@@ -20,8 +20,15 @@ function build(target = gitSource(CANDIDATE), baseline = gitSource(BASELINE), ca
   const end = candidate.indexOf('    function _sxrValidateReadRows', start);
   assert.ok(start > 0 && end > start);
   assert.ok(target.includes(candidate.slice(start, end)), 'local work schema/ownership compatibility drift');
+  const reviewAckObserver = "            if (typeof _reviewDraftSourceAck === 'function') _reviewDraftSourceAck('samples', _saveSlug, wirePost, owner.principal);\n";
   for (const name of ['loadSxrCards', '_sxrFlushCardSave', '_sxrOnFieldInput', '_sxrOnFieldBlur', '_sxrBlankSample', '_sxrCacheWrite', '_sxrCacheRead']) {
-    assert.equal(extractFunction(target, name), extractFunction(candidate, name), name + ' compatibility drift');
+    const targetFunction = extractFunction(target, name), candidateFunction = extractFunction(candidate, name);
+    // The feedback composer observes the existing acknowledged wire without
+    // changing this writer. Permit only that exact additive call when comparing
+    // with the preserved pre-feedback candidate; every other byte stays guarded.
+    const comparable = name === '_sxrFlushCardSave' && !candidateFunction.includes(reviewAckObserver)
+      ? targetFunction.replace(reviewAckObserver, '') : targetFunction;
+    assert.equal(comparable, candidateFunction, name + ' compatibility drift');
   }
   const original = extractFunction(candidate, '_sxrFetchPosts');
   assert.equal(extractFunction(target, '_sxrFetchPosts'), original, 'reader drift');

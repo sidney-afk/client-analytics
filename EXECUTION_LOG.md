@@ -6173,3 +6173,14 @@ the write path and both real:
 
 Both were fixed before the `production-write` closure was deployed; the fingerprint
 was re-pinned on the corrected tree.
+# 2026-09-05 — Review composer preservation (draft, not deployed)
+
+Bounded follow-up from integrated Samples `343446aa435e07222b60455ca9bb603a31e82e67`.
+Reproduced lost review feedback, added scoped unsent/captured revision ownership,
+and preserved the existing Samples queue plus native/source repair receipts.
+Independent review identified and corrected exact-body acknowledgement loss and
+outgoing-actor optimistic feedback visibility during storage-event replacement.
+Local evidence: 13 ownership groups, 18 visible browser conservation cells,
+15 behavior groups, 3 real BFCache groups. Existing suite results accompany the
+draft PR. No live mutations, notifications, deployment, auth/flag or n8n changes.
+Recovery and proof limits: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.

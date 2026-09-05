@@ -6075,3 +6075,11 @@ the regression.
 
 `synced_at` still travels from `smm-weekly-reports`; the browser directory no
 longer carries the unused field.
+
+
+## 2026-09-05 - Kasper roster readiness candidate
+
+Reproduced cold-entry roster loss against current main with PR #1282's unchanged
+fixture; added a reader-readiness wait and request-owner cleanup guard. The
+isolated timing matrix and exact-source receipts are in `qa/kasper-roster/README.md`.
+No deployed/live-writer claim; no live changes.

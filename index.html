@@ -9388,6 +9388,7 @@
     async function fetchEssentials(clientEntryRun){
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
+        if(!mr.ok||!cr.ok)throw new Error('Client list could not load. Refresh to try again.');
         const metricsText=await mr.text(), clientsText=await cr.text();
         if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
         const publicClientRows = _applyEssentialTexts(metricsText, clientsText);
@@ -47980,6 +47981,9 @@
         // failed and the nav button stayed hidden on every refresh).
         const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
         let _kasperUnlocked = false;
+        // Assigned before fast routing; the review reader must not snapshot the
+        // seed roster while Clients Info is still merging its authorized names.
+        let _kasperRosterReady = null;
         // TikTok Pilot unlock state — declared alongside Kasper's (and early)
         // for the same TDZ reason: the unlock block near the top of init()
         // assigns _ttpUnlocked, and navTo's teardown reads it, before the
@@ -60161,6 +60165,7 @@
             // soon as essentials land; analytics extras must never hold the
             // More / multi-select / zoom toolbar recovery hostage.
             const dataLoad = fetchAll(_isClientLink?clientEntryRun:null);
+            _kasperRosterReady = dataLoad.essentials;
             const dataPromise = dataLoad.complete;
             dataLoad.essentials.then(() => {
                 if(_clientEntryStillCurrent())_applyAllDataDependentChrome();
@@ -70933,6 +70938,7 @@
        just before the user approves a card can finish 200 ms later and
        repaint with the pre-approval state, making the card "snap back". */
     let _kasperLoadGen = 0;
+    let _kasperLoadingGen = 0;       // load owner; user mutations only bump LoadGen
     let _kasperLastLocalWriteAt = 0;   // last local Kasper action — used to ignore the realtime echo of our own writes
     function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; _kasperLastLocalWriteAt = Date.now(); }
     /* Click-eaten-by-re-render guard. The queue repaints by rebuilding DOM
@@ -73343,6 +73349,17 @@
         _kasperLoadReview(true);
     }
 
+    async function _kasperWaitForRoster() {
+        const ready = _kasperRosterReady || (_kasperRosterReady = fetchEssentials());
+        try { await ready; }
+        catch (e) {
+            // A visible Refresh after a failed boot retries the existing roster
+            // reader. Concurrent review loads share that same retry promise.
+            if (_kasperRosterReady === ready) _kasperRosterReady = null;
+            throw new Error('Client list could not load. Refresh to try again.');
+        }
+    }
+
     async function _kasperLoadReview(forceRefresh) {
         const body = document.getElementById('kasperReviewBody');
         const btn  = document.getElementById('kasperReviewRefresh');
@@ -73361,8 +73378,11 @@
         // Capture the current generation so a user mutation during the
         // await can invalidate this load before its results are applied.
         const myGen = ++_kasperLoadGen;
+        _kasperLoadingGen = myGen;
 
         try {
+            await _kasperWaitForRoster();
+            if (myGen !== _kasperLoadGen) return;
             // SMM sheet + every client's calendar in parallel.
             // forceRefresh propagates so the Refresh button bypasses the 5-min cache.
             const [smmMap, fetched] = await Promise.all([
@@ -73479,14 +73499,20 @@
             _kasperRefreshTabCounts();   // keep review/samples/filming pills live even when those tabs aren't mounted
             if (_kasperState.tab === 'replies') _kasperRenderReplies();
         } catch (e) {
+            if (myGen !== _kasperLoadGen) return;
             _kasperState.error = e && e.message ? e.message : String(e);
             const body2 = document.getElementById('kasperReviewBody');
             if (body2) body2.innerHTML = `<div class="kasper-empty"><div class="kasper-empty-title">Couldn't load the queue</div><div class="kasper-empty-sub">${_calEsc(_kasperState.error)}</div></div>`;
         } finally {
-            _kasperState.loading = false;
-            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
-            const pill = document.getElementById('kasperReviewRefreshPill');
-            if (pill) pill.hidden = true;
+            // An older request (including a failed roster wait) cannot clear a
+            // newer request's loading UI. A mutation may invalidate this read
+            // without starting another, so ownership is separate from LoadGen.
+            if (myGen === _kasperLoadingGen) {
+                _kasperState.loading = false;
+                if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+                const pill = document.getElementById('kasperReviewRefreshPill');
+                if (pill) pill.hidden = true;
+            }
         }
     }
 

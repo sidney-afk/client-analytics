@@ -302,6 +302,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Reviews (client / Kasper / SMM)
 
+Scoped candidate correction (2026-09-05, **ISOLATED_BROWSER**, deployment unproven):
+Kasper's review reader waits for the existing Clients Info essentials promise
+before snapshotting the allowed roster. Cached cards remain during the wait;
+failed roster reads report an error and revisiting Review retries them. Request
+ownership keeps old completions from clearing newer loading/error UI, while the
+existing mutation generation still rejects pre-action snapshots. See
+`qa/kasper-roster/README.md`; no writer/auth scope changes or live proof refresh.
+
 - The three flows as state machines + transition table:
   `docs/audits/2026-07-05-logic-reviews.md`.
 - Linear comments are written prefixed `**{Reviewer} (via SyncView):**`.

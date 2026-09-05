@@ -60,6 +60,11 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/archive/` | Completed/superseded docs: finished migration plans, spent prompts, incident notes, old QA reports (`docs/archive/qa/`). Nothing here is current truth. |
 | `docs/syncview-design/` | The **locked design kit** for the visible **Linear** mirror (internally the `production` surface): `docs/syncview-design/SyncView.html` (behavior source of truth), `docs/syncview-design/linear-design-tokens.md` (visual build spec), `docs/syncview-design/WIRED-PARITY.md` (parity contract), wired test gates in `docs/syncview-design/tests/`, raw probe measurements in `docs/syncview-design/probe-data/`, prototype-era suites in `docs/syncview-design/tests/design-machine-originals/`. |
 
+
+## Current Linear exit audit (2026-09-04)
+
+`docs/independence/GO_LIVE_CHECKLIST.md` owns the current G0–G10 Linear retirement sequence; its older flip material is preserved as nonoperative history. `docs/audits/2026-09-04-linear-exit-evidence.md` holds the sealed independent surface/source ledger, `docs/audits/2026-09-04-linear-exit-measurements.json` holds sanitized live/source proof, and `docs/audits/2026-09-04-linear-exit-adjudication.md` judges all prior plans/reviews. These are analysis only: no release, flag, writer, n8n, billing or data change is authorized by their existence.
+
 ## Test & automation entry points
 
 | Command / trigger | What runs | Notes |

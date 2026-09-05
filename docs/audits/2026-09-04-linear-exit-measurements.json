@@ -1,0 +1,3829 @@
+{
+  "audit_kind": "read-only final-arbiter evidence; not execution approval",
+  "source_sha": "5765cfe80b7ca9844bab79a55fd75784bf9cb693",
+  "copy_only_successor_sha": "85a1bafc268722eda310d8f1af94c9686585bbe0",
+  "seal": {
+    "sealed_at": "2026-09-04T21:01:36.277Z",
+    "snapshot_sha256": "b863b7d025d763b629fb70824d8f18ca33040e0a830e14aa818dd6fec6b15c4a",
+    "artifacts": [
+      {
+        "file": "phase1-client-surfaces.md",
+        "bytes": 20178,
+        "sha256": "8ae4ec30cd8beae499ebd6d123156d082a0a37f318036a581d67c485249e1785"
+      },
+      {
+        "file": "phase1-staff-surfaces.md",
+        "bytes": 13538,
+        "sha256": "4b25cd28a9881861c395782d320922fb80f8dc7b5c37be9e6ec02b70cc450735"
+      },
+      {
+        "file": "phase1-backend-paths.md",
+        "bytes": 16589,
+        "sha256": "f0c1836d966b423263d8692cdeb789eb8c02a61555dd7f77bec7603347d962ca"
+      },
+      {
+        "file": "phase1-serving-deltas.md",
+        "bytes": 5102,
+        "sha256": "93b2adc22e75b8687b1bcc2dfb490bd3296d96bc8adafa5028eb3fc0661d9405"
+      },
+      {
+        "file": "phase1-n8n-targeted.md",
+        "bytes": 3759,
+        "sha256": "c4e41d1e3e513607dcb94c6e69db0e76a22c7f425f833ff3dd08e4033b25022f"
+      },
+      {
+        "file": "phase1-reader-probe.cjs",
+        "bytes": 1651,
+        "sha256": "108dc9b25b52d002a9173b406b7e97b527de156c75db8902dfd18eff9f7dcfb8"
+      },
+      {
+        "file": "phase1-live-measurements.json",
+        "bytes": 14304,
+        "sha256": "885e346cbd145d055d7718d4346da10b879a49437538a4adf47f40a821fe94de"
+      },
+      {
+        "file": "phase1-live-accounting.json",
+        "bytes": 4312,
+        "sha256": "3b529cdf84b07bf0d34806914570040da00093ce010bc972dca64799fa3db4bb"
+      },
+      {
+        "file": "phase1-serving-proof.json",
+        "bytes": 28020,
+        "sha256": "07bd5ba77d9c6cb09666c3aa6cba7d90aefc81d7028471704fe1a11975c7d5a5"
+      },
+      {
+        "file": "phase1-serving-captures.json",
+        "bytes": 2895,
+        "sha256": "eddd43031bb13495602849dbbbdfa95f70781f3e16e1a6335daef6d946937605"
+      },
+      {
+        "file": "phase1-n8n-inventory.json",
+        "bytes": 49379,
+        "sha256": "b3a6ecd50b6a3dd9dd52c4d73a1deb31c63146e5acdb6369806b573af05bf3fc"
+      },
+      {
+        "file": "phase1-n8n-traces.json",
+        "bytes": 4436,
+        "sha256": "ee43f4a1dfd9f06bc27ca18ce08901bf846d1e0cd27f437afd92702ea438a4f7"
+      }
+    ]
+  },
+  "phase1-live-measurements": {
+    "started_at": "2026-09-04T20:54:06.838Z",
+    "source_sha": "5765cfe80b7ca9844bab79a55fd75784bf9cb693",
+    "functions": {
+      "status": 200,
+      "rows": [
+        {
+          "slug": "onboarding-capture",
+          "version": 34,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1783027944048
+        },
+        {
+          "slug": "client-credentials",
+          "version": 44,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788553812257
+        },
+        {
+          "slug": "calendar-upsert",
+          "version": 48,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784128589387
+        },
+        {
+          "slug": "calendar-reorder",
+          "version": 37,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784067795055
+        },
+        {
+          "slug": "sample-review-upsert",
+          "version": 49,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784128592718
+        },
+        {
+          "slug": "sample-review-reorder",
+          "version": 37,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784481711600
+        },
+        {
+          "slug": "templates-save",
+          "version": 35,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784067800876
+        },
+        {
+          "slug": "caption-prompts-save",
+          "version": 35,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784067803482
+        },
+        {
+          "slug": "client-token-verify",
+          "version": 33,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784757946570
+        },
+        {
+          "slug": "key-verify",
+          "version": 39,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788553819340
+        },
+        {
+          "slug": "linear-inbound",
+          "version": 46,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788542054183
+        },
+        {
+          "slug": "onboarding-list",
+          "version": 36,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788553798507
+        },
+        {
+          "slug": "ai-onboarding-list",
+          "version": 36,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788553801970
+        },
+        {
+          "slug": "legacy-onboarding-list",
+          "version": 36,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788553807140
+        },
+        {
+          "slug": "onboarding-full",
+          "version": 36,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788553809626
+        },
+        {
+          "slug": "filming-plans",
+          "version": 34,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788553814959
+        },
+        {
+          "slug": "thumbnail-folder-resolve",
+          "version": 27,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784310899890
+        },
+        {
+          "slug": "thumbnail-revision-scan",
+          "version": 29,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1787610947940
+        },
+        {
+          "slug": "smm-weekly-reports",
+          "version": 32,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788553817052
+        },
+        {
+          "slug": "linear-outbound",
+          "version": 47,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788383778520
+        },
+        {
+          "slug": "deliverable-write",
+          "version": 35,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788383787723
+        },
+        {
+          "slug": "batch-write",
+          "version": 35,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788383791906
+        },
+        {
+          "slug": "production-comments",
+          "version": 24,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1787783035889
+        },
+        {
+          "slug": "production-write",
+          "version": 66,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1788383783460
+        },
+        {
+          "slug": "thumbnail-revision-read",
+          "version": 25,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1787610944750
+        },
+        {
+          "slug": "client-review-link",
+          "version": 8,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1786212932349
+        },
+        {
+          "slug": "pto",
+          "version": 8,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1786466691326
+        },
+        {
+          "slug": "workload-plan",
+          "version": 8,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784749990383
+        },
+        {
+          "slug": "workload-linear",
+          "version": 6,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1784750060609
+        },
+        {
+          "slug": "production-archive",
+          "version": 8,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1787961989177
+        },
+        {
+          "slug": "kasper-ad-performance-read",
+          "version": 8,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1787863002825
+        },
+        {
+          "slug": "quiz-capture",
+          "version": 5,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1787609479476
+        },
+        {
+          "slug": "quiz-leads-list",
+          "version": 5,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1787609481760
+        },
+        {
+          "slug": "hiring-applications",
+          "version": 3,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1787620234856
+        },
+        {
+          "slug": "hiring-automation",
+          "version": 3,
+          "status": "ACTIVE",
+          "verify_jwt": false,
+          "updated_at": 1787621925198
+        }
+      ]
+    },
+    "flags": {
+      "status": 200,
+      "rows": [
+        {
+          "key": "calendar_upsert_ef_clients",
+          "updated_at": "2026-09-03T16:30:24.84668+00:00",
+          "value": {
+            "sha256": "bc1814168f73f24d8ecf79041f0f1fa572c5d96d67804a7e6429be9db774bbe0",
+            "array_counts": {
+              "clients": 43
+            }
+          }
+        },
+        {
+          "key": "write_ui_overdue_due_bump",
+          "updated_at": "2026-07-13T23:14:27.388602+00:00",
+          "value": {
+            "sha256": "26b3426b2593763c96d0890b4a77a0bbf66d13fc512b0c6b138a23c290f30a2a",
+            "array_counts": {}
+          }
+        },
+        {
+          "key": "linear_outbound_pending_age_alert",
+          "updated_at": "2026-07-13T23:14:27.655292+00:00",
+          "value": {
+            "sha256": "52fa3317f4b17fc303c060ab33e683faa9df5e0a43a49a3aa1c502780c643c18",
+            "array_counts": {}
+          }
+        },
+        {
+          "key": "auth_enforcement",
+          "updated_at": "2026-07-05T21:47:09.677267+00:00",
+          "value": {
+            "mode": "permissive"
+          }
+        },
+        {
+          "key": "prod_authority",
+          "updated_at": "2026-08-28T23:54:16.565968+00:00",
+          "value": {
+            "video": "syncview",
+            "graphics": "syncview"
+          }
+        },
+        {
+          "key": "thumbnail_revision_v2",
+          "updated_at": "2026-07-14T21:39:02.007179+00:00",
+          "value": {
+            "sha256": "4bcf434095bb6cf84816938ab3dab3cb07f8efb222ef4dc54cc2968809d01118",
+            "array_counts": {
+              "clients": 0
+            }
+          }
+        },
+        {
+          "key": "pto_v1",
+          "updated_at": "2026-07-15T21:57:01.739111+00:00",
+          "value": {
+            "sha256": "b1acf1e08205135e29ab5e0cc2d48ceffb9bef63a6309295b2a9976f2890ed81",
+            "array_counts": {}
+          }
+        },
+        {
+          "key": "client_comment_gateway_enabled",
+          "updated_at": "2026-08-14T19:26:45.625897+00:00",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "key": "linear_outbound_enabled",
+          "updated_at": "2026-08-16T19:36:49.784881+00:00",
+          "value": {
+            "mode": "live"
+          }
+        },
+        {
+          "key": "linear_inbound_enabled",
+          "updated_at": "2026-07-07T23:17:25.096709+00:00",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "key": "linear_legacy_parity_enabled",
+          "updated_at": "2026-08-02T21:00:51.830318+00:00",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "key": "quiz_intake_enabled",
+          "updated_at": "2026-08-25T00:50:30.635033+00:00",
+          "value": {
+            "sha256": "26b3426b2593763c96d0890b4a77a0bbf66d13fc512b0c6b138a23c290f30a2a",
+            "array_counts": {}
+          }
+        },
+        {
+          "key": "public_intake_enabled",
+          "updated_at": "2026-08-25T03:22:43.247946+00:00",
+          "value": {
+            "enabled": true
+          }
+        },
+        {
+          "key": "hiring_invites_enabled",
+          "updated_at": "2026-08-28T23:49:33.655627+00:00",
+          "value": {
+            "sha256": "26b3426b2593763c96d0890b4a77a0bbf66d13fc512b0c6b138a23c290f30a2a",
+            "array_counts": {}
+          }
+        },
+        {
+          "key": "sample_review_ef_clients",
+          "updated_at": "2026-09-03T16:30:24.84668+00:00",
+          "value": {
+            "sha256": "bc1814168f73f24d8ecf79041f0f1fa572c5d96d67804a7e6429be9db774bbe0",
+            "array_counts": {
+              "clients": 43
+            }
+          }
+        },
+        {
+          "key": "write_ui_reroute_clients",
+          "updated_at": "2026-09-03T16:30:24.84668+00:00",
+          "value": {
+            "sha256": "bc1814168f73f24d8ecf79041f0f1fa572c5d96d67804a7e6429be9db774bbe0",
+            "array_counts": {
+              "clients": 43
+            }
+          }
+        },
+        {
+          "key": "settings_ef_clients",
+          "updated_at": "2026-09-03T16:30:24.84668+00:00",
+          "value": {
+            "sha256": "bc1814168f73f24d8ecf79041f0f1fa572c5d96d67804a7e6429be9db774bbe0",
+            "array_counts": {
+              "clients": 43
+            }
+          }
+        }
+      ]
+    },
+    "tables": [
+      {
+        "table": "clients",
+        "status": 200,
+        "count": "49"
+      },
+      {
+        "table": "deliverables",
+        "status": 206,
+        "count": "6330"
+      },
+      {
+        "table": "production_deliverables_browser_v1",
+        "status": 206,
+        "count": "6330"
+      },
+      {
+        "table": "batches",
+        "status": 206,
+        "count": "1674"
+      },
+      {
+        "table": "calendar_posts",
+        "status": 206,
+        "count": "9937"
+      },
+      {
+        "table": "sample_reviews",
+        "status": 206,
+        "count": "6655"
+      },
+      {
+        "table": "workload_issues",
+        "status": 206,
+        "count": "3538"
+      },
+      {
+        "table": "mirror_outbox",
+        "status": 206,
+        "count": "6567"
+      },
+      {
+        "table": "deliverable_events",
+        "status": 206,
+        "count": "99470"
+      },
+      {
+        "table": "deliverable_comments",
+        "status": 404,
+        "count": null
+      },
+      {
+        "table": "linear_attachments",
+        "status": 404,
+        "count": null
+      }
+    ],
+    "outbox": [
+      {
+        "status": "pending",
+        "http": 200,
+        "count": "0"
+      },
+      {
+        "status": "failed",
+        "http": 200,
+        "count": "14"
+      },
+      {
+        "status": "shadow_ok",
+        "http": 200,
+        "count": "0"
+      },
+      {
+        "status": "written",
+        "http": 206,
+        "count": "5595"
+      },
+      {
+        "status": "skipped",
+        "http": 200,
+        "count": "863"
+      },
+      {
+        "status": "superseded",
+        "http": 200,
+        "count": "0"
+      },
+      {
+        "status": "quarantined",
+        "http": 200,
+        "count": "0"
+      }
+    ],
+    "pages": {
+      "status": 200,
+      "etag": "W/\"6a9b2b20-4e533d\"",
+      "bytes": 5133117,
+      "sha256": "2d83eb13cc0299d8d468bd7cf4f4053e1f52d0569108910fe70f23185b0a639e",
+      "matches_index": true
+    },
+    "linear": {
+      "status": 200,
+      "graphql_errors": 0,
+      "organization_hash": "e580e7989d2f8deb68cdb7813dc0fa4edd80b5757f2318138c9089bff1f2fa7a",
+      "organization_fields": [
+        "id",
+        "createdAt",
+        "updatedAt",
+        "archivedAt",
+        "name",
+        "urlKey",
+        "logoUrl",
+        "periodUploadVolume",
+        "facets",
+        "gitBranchFormat",
+        "gitLinkbackMessagesEnabled",
+        "gitPublicLinkbackMessagesEnabled",
+        "gitLinkbackDescriptionsEnabled",
+        "roadmapEnabled",
+        "projectUpdateReminderFrequencyInWeeks",
+        "projectUpdateRemindersDay",
+        "projectUpdateRemindersHour",
+        "initiativeUpdateReminderFrequencyInWeeks",
+        "initiativeUpdateRemindersDay",
+        "initiativeUpdateRemindersHour",
+        "fiscalYearStartMonth",
+        "workingDays",
+        "defaultHomeView",
+        "defaultHomeViewTargetId",
+        "samlEnabled",
+        "samlSettings",
+        "scimEnabled",
+        "scimSettings",
+        "securitySettings",
+        "authSettings",
+        "allowedFileUploadContentTypes",
+        "ipRestrictions",
+        "deletionRequestedAt",
+        "trialEndsAt",
+        "trialStartsAt",
+        "previousUrlKeys",
+        "restrictAgentInvocationToMembers",
+        "hipaaComplianceEnabled",
+        "themeSettings",
+        "releaseChannel",
+        "customersConfiguration",
+        "codeIntelligenceEnabled",
+        "codeIntelligenceRepository",
+        "defaultFeedSummarySchedule",
+        "feedEnabled",
+        "aiAddonEnabled",
+        "agentAutomationEnabled",
+        "generatedUpdatesEnabled",
+        "aiTelemetryEnabled",
+        "aiThreadSummariesEnabled",
+        "aiDiscussionSummariesEnabled",
+        "pullRequestTourEnabled",
+        "pullRequestIssueMode",
+        "aiProviderConfiguration",
+        "linearAgentEnabled",
+        "linearAgentSettings",
+        "codingAgentEnabled",
+        "codingAgentSettings",
+        "users",
+        "teams",
+        "projectStatuses",
+        "integrations",
+        "slackProjectChannelIntegration",
+        "slackProjectChannelPrefix",
+        "slackProjectChannelsEnabled",
+        "slackAutoCreateProjectChannel",
+        "subscription",
+        "userCount",
+        "createdIssueCount",
+        "templates",
+        "labels",
+        "projectLabels",
+        "customerCount",
+        "customersEnabled",
+        "releasesEnabled"
+      ]
+    },
+    "finished_at": "2026-09-04T20:54:24.726Z"
+  },
+  "phase1-live-accounting": {
+    "started_at": "2026-09-04T20:59:15.751Z",
+    "outbox": {
+      "status": 206,
+      "complete": true,
+      "total": 6567,
+      "by_status": {
+        "skipped": 863,
+        "written": 5595,
+        "stale": 95,
+        "failed": 14
+      },
+      "by_lane": {
+        "real_normal": 2831,
+        "test": 2070,
+        "parity": 1666
+      },
+      "debt": {
+        "count": 14,
+        "real_normal": 0,
+        "test": 14,
+        "parity": 0,
+        "by_team": {
+          "video": 7,
+          "graphics": 7
+        },
+        "oldest_created_at": "2026-08-05T21:18:04.058853+00:00",
+        "max_attempts": 8,
+        "locked": 0
+      }
+    },
+    "roster": {
+      "complete": true,
+      "total": 49,
+      "active": 43,
+      "active_by_kind": {
+        "client": 42,
+        "test": 1
+      }
+    },
+    "cohorts": [
+      {
+        "key": "calendar_upsert_ef_clients",
+        "count": 43,
+        "missing_active": 0,
+        "extras": 0
+      },
+      {
+        "key": "sample_review_ef_clients",
+        "count": 43,
+        "missing_active": 0,
+        "extras": 0
+      },
+      {
+        "key": "write_ui_reroute_clients",
+        "count": 43,
+        "missing_active": 0,
+        "extras": 0
+      },
+      {
+        "key": "settings_ef_clients",
+        "count": 43,
+        "missing_active": 0,
+        "extras": 0
+      }
+    ],
+    "accounting": [
+      {
+        "table": "production_comments",
+        "status": 206,
+        "total": "14607"
+      },
+      {
+        "table": "production_comment_mutation_receipts",
+        "status": 200,
+        "total": "465"
+      },
+      {
+        "table": "production_comment_card_links",
+        "status": 200,
+        "total": "615"
+      },
+      {
+        "table": "production_comment_import_conflicts",
+        "status": 200,
+        "total": "0"
+      },
+      {
+        "table": "public_intake_log",
+        "status": 200,
+        "total": "1"
+      },
+      {
+        "table": "linear_archive_asset_refs",
+        "status": 200,
+        "total": "0"
+      },
+      {
+        "table": "linear_archive_assets",
+        "status": 404,
+        "total": null
+      }
+    ],
+    "assets": {
+      "status": 200,
+      "complete": true,
+      "total": 0,
+      "by_state": {},
+      "by_source": {},
+      "by_audience": {},
+      "verified_with_hash_bytes": 0
+    },
+    "subscription_fields": [
+      "commentCreated",
+      "commentUpdated",
+      "commentArchived",
+      "commentUnarchived",
+      "commentDeleted",
+      "cycleCreated",
+      "cycleUpdated",
+      "cycleArchived",
+      "documentCreated",
+      "documentUpdated",
+      "documentArchived",
+      "documentUnarchived",
+      "documentContentCreated",
+      "documentContentUpdated",
+      "documentContentDraftCreated",
+      "documentContentDraftUpdated",
+      "documentContentDraftDeleted",
+      "documentContentRevisionCreated",
+      "documentContentRevisionUpdated",
+      "documentContentRevisionDeleted",
+      "draftCreated",
+      "draftUpdated",
+      "draftDeleted",
+      "favoriteCreated",
+      "favoriteUpdated",
+      "favoriteDeleted",
+      "issueCreated",
+      "issueUpdated",
+      "issueArchived",
+      "issueUnarchived",
+      "issueHistoryCreated",
+      "issueHistoryUpdated",
+      "issueDraftCreated",
+      "issueDraftUpdated",
+      "issueDraftDeleted",
+      "issueLabelCreated",
+      "issueLabelUpdated",
+      "issueLabelDeleted",
+      "issueRelationCreated",
+      "issueRelationUpdated",
+      "issueRelationDeleted",
+      "notificationCreated",
+      "notificationUpdated",
+      "notificationArchived",
+      "notificationUnarchived",
+      "notificationDeleted",
+      "organizationUpdated",
+      "projectCreated",
+      "projectUpdated",
+      "projectArchived",
+      "projectUnarchived",
+      "projectUpdateCreated",
+      "projectUpdateUpdated",
+      "projectUpdateArchived",
+      "projectUpdateDeleted",
+      "pullRequestUpdated",
+      "roadmapCreated",
+      "roadmapUpdated",
+      "roadmapDeleted",
+      "initiativeCreated",
+      "initiativeUpdated",
+      "initiativeDeleted",
+      "agentSessionCreated",
+      "agentSessionUpdated",
+      "agentActivityCreated",
+      "agentActivityUpdated",
+      "agentActivityArchived",
+      "aiConversationUpdated",
+      "aiPromptProgressCreated",
+      "aiPromptProgressUpdated",
+      "teamCreated",
+      "teamUpdated",
+      "teamDeleted",
+      "teamMembershipCreated",
+      "teamMembershipUpdated",
+      "teamMembershipDeleted",
+      "userCreated",
+      "userUpdated",
+      "userSettingsUpdated",
+      "workflowStateCreated",
+      "workflowStateUpdated",
+      "workflowStateArchived"
+    ],
+    "finished_at": "2026-09-04T20:59:21.699Z"
+  },
+  "phase1-serving-proof": {
+    "schema_version": 1,
+    "pinned_sha": "5765cfe80b7ca9844bab79a55fd75784bf9cb693",
+    "mode": "live-read-only",
+    "algorithm": "sha256(path-length:path\\ncontent-length:raw-git-source-bytes\\n) over sorted repository-local import closure",
+    "results": [
+      {
+        "slug": "ai-onboarding-list",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 36,
+        "verify_jwt": false,
+        "expected_fingerprint": "bce568a72fcefc93cc2e62a31fc183597a02dfc56881827a443f774a7f97e123",
+        "live_fingerprint": "bce568a72fcefc93cc2e62a31fc183597a02dfc56881827a443f774a7f97e123",
+        "expected_entrypoint": "functions/ai-onboarding-list/index.ts",
+        "live_entrypoint": "functions/ai-onboarding-list/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "5053abbec5c940df0aba73a83463a0819aef29118dd29a404828b70cdfa5a431",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "batch-write",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 35,
+        "verify_jwt": false,
+        "expected_fingerprint": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a",
+        "live_fingerprint": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a",
+        "expected_entrypoint": "functions/batch-write/index.ts",
+        "live_entrypoint": "functions/batch-write/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "ccc36ce94f39efbb8db84a554eeaef6b5ce013547be5d2349ee8adbdddc2fda5",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "calendar-reorder",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 37,
+        "verify_jwt": false,
+        "expected_fingerprint": "1fd89c7aebbd70240a17155142421f530a3977d48479f6c4e248946c57124d07",
+        "live_fingerprint": "1fd89c7aebbd70240a17155142421f530a3977d48479f6c4e248946c57124d07",
+        "expected_entrypoint": "functions/calendar-reorder/index.ts",
+        "live_entrypoint": "functions/calendar-reorder/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "70162f2a788ce3ec54532eb546c9d683bc329785da691d9ce1b078a60ce33202",
+        "expected_files": 4,
+        "live_files": 4,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "calendar-upsert",
+        "result": "FAIL",
+        "status": "ACTIVE",
+        "version": 48,
+        "verify_jwt": false,
+        "expected_fingerprint": "84d5297a2ce20c5d4248cfd6b11ff3b0165ec0b331b2dfd6634e8cd04b4b5bf9",
+        "live_fingerprint": "e849f9cce1a63f286d7dc059726b7aa8a709be1b2b92654ef1c5269bebdc4e4e",
+        "expected_entrypoint": "functions/calendar-upsert/index.ts",
+        "live_entrypoint": "functions/calendar-upsert/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "91ce449e8fd19b451f218572a0f42db385c64841b1f4b4b14ff27b76839a425f",
+        "expected_files": 5,
+        "live_files": 2,
+        "comparison": {
+          "pass": false,
+          "missing": [
+            "functions/_shared/browser-write-auth-policy.mjs",
+            "functions/_shared/browser-write-auth.ts",
+            "functions/_shared/staff-role-auth.ts"
+          ],
+          "extra": [],
+          "changed": [
+            "functions/calendar-upsert/index.ts"
+          ]
+        }
+      },
+      {
+        "slug": "caption-prompts-save",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 35,
+        "verify_jwt": false,
+        "expected_fingerprint": "74896be23bea7749cf4f8c59df6a959cabf2c1a479b91cbc8a1ec2e0476cacad",
+        "live_fingerprint": "74896be23bea7749cf4f8c59df6a959cabf2c1a479b91cbc8a1ec2e0476cacad",
+        "expected_entrypoint": "functions/caption-prompts-save/index.ts",
+        "live_entrypoint": "functions/caption-prompts-save/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "220139c167f30cf9d0ecc73f9da6f6482300afaf91400f029f3a9e4b002451e1",
+        "expected_files": 4,
+        "live_files": 4,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "client-credentials",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 44,
+        "verify_jwt": false,
+        "expected_fingerprint": "d6300381fa191b007f51f8c2440f894ba94f3c823c1b072f71e66fb45fd6dcd0",
+        "live_fingerprint": "d6300381fa191b007f51f8c2440f894ba94f3c823c1b072f71e66fb45fd6dcd0",
+        "expected_entrypoint": "functions/client-credentials/index.ts",
+        "live_entrypoint": "functions/client-credentials/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "74296d0792b1bf33bdf0b3e2f91d3b6aa4eba33f91180c39e172b861fbee20a2",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "client-review-link",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 8,
+        "verify_jwt": false,
+        "expected_fingerprint": "cf0d29406bbbe80d0664c2997d539a299e18d0671d79f50ef3b2d94bf8a01f1e",
+        "live_fingerprint": "cf0d29406bbbe80d0664c2997d539a299e18d0671d79f50ef3b2d94bf8a01f1e",
+        "expected_entrypoint": "functions/client-review-link/index.ts",
+        "live_entrypoint": "functions/client-review-link/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "da95e4312e253794c4e1cd82b998e63f0779af27b36d46a06ae5afcd8579b10a",
+        "expected_files": 5,
+        "live_files": 5,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "client-token-verify",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 33,
+        "verify_jwt": false,
+        "expected_fingerprint": "9cb19f80d33aa1a53de8697b82e1f84e62c96a8eb21971c6bb7641fea7688c72",
+        "live_fingerprint": "9cb19f80d33aa1a53de8697b82e1f84e62c96a8eb21971c6bb7641fea7688c72",
+        "expected_entrypoint": "functions/client-token-verify/index.ts",
+        "live_entrypoint": "functions/client-token-verify/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "2261f48904d70e69cf5e5919797ad62d93dbf885cbd8c4227afd808820de78da",
+        "expected_files": 1,
+        "live_files": 1,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "deliverable-write",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 35,
+        "verify_jwt": false,
+        "expected_fingerprint": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575",
+        "live_fingerprint": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575",
+        "expected_entrypoint": "functions/deliverable-write/index.ts",
+        "live_entrypoint": "functions/deliverable-write/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "3868706acd8e86632c960a6d08cc8ed94e3e8787237a530b135c6e5a05a1f3dd",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "filming-plans",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 34,
+        "verify_jwt": false,
+        "expected_fingerprint": "ef1f6aee94d09fe3c3a6f82570fb935d3f2ab2fe50cc53b768dbba4e1bf9e5b3",
+        "live_fingerprint": "ef1f6aee94d09fe3c3a6f82570fb935d3f2ab2fe50cc53b768dbba4e1bf9e5b3",
+        "expected_entrypoint": "functions/filming-plans/index.ts",
+        "live_entrypoint": "functions/filming-plans/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "909b84e33a51a1674a07a7878ed6facbb1eef9bbbca5933628e8acde415315df",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "hiring-applications",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 3,
+        "verify_jwt": false,
+        "expected_fingerprint": "8f4ec83de8ebffbcd3ea403f90041df59f058063ee8bd8fd7c8776d633eefafb",
+        "live_fingerprint": "8f4ec83de8ebffbcd3ea403f90041df59f058063ee8bd8fd7c8776d633eefafb",
+        "expected_entrypoint": "functions/hiring-applications/index.ts",
+        "live_entrypoint": "functions/hiring-applications/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "bfbec1954da0aa1e7e07728c19ef5203a7cac30ea2a2ffdc26fc6207a5fa3640",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "hiring-automation",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 3,
+        "verify_jwt": false,
+        "expected_fingerprint": "b89c2ab330afd5a02157e81c0433c8037e71745b98884a79de2711d35f10a670",
+        "live_fingerprint": "b89c2ab330afd5a02157e81c0433c8037e71745b98884a79de2711d35f10a670",
+        "expected_entrypoint": "functions/hiring-automation/index.ts",
+        "live_entrypoint": "functions/hiring-automation/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "3d0069f2a32605e5ed18d0ecbe843d16fbb022b0d4cfcb88715dc46249174586",
+        "expected_files": 1,
+        "live_files": 1,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "kasper-ad-performance-read",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 8,
+        "verify_jwt": false,
+        "expected_fingerprint": "979ccf6436fbbc58ed5bf43cd7d7207c259a645bde09dfafdb7b1e1bcc6e1859",
+        "live_fingerprint": "979ccf6436fbbc58ed5bf43cd7d7207c259a645bde09dfafdb7b1e1bcc6e1859",
+        "expected_entrypoint": "functions/kasper-ad-performance-read/index.ts",
+        "live_entrypoint": "functions/kasper-ad-performance-read/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "52c9b4c0d9bf58784263e8986fbc0dbf3eeadb8d6f2aa136a2f5fdb205993119",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "key-verify",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 39,
+        "verify_jwt": false,
+        "expected_fingerprint": "68e6d3094a08a0c470225ba9aa5a62f707bb36f9f5e25403166f5cbab424a043",
+        "live_fingerprint": "68e6d3094a08a0c470225ba9aa5a62f707bb36f9f5e25403166f5cbab424a043",
+        "expected_entrypoint": "functions/key-verify/index.ts",
+        "live_entrypoint": "functions/key-verify/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "73f80c1b2cd92294697e8df4e5bda01869f042e457356d9e3cfead8ba44d078f",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "legacy-onboarding-list",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 36,
+        "verify_jwt": false,
+        "expected_fingerprint": "d1f6a2d9caf49699582400c76c25d2299346d7329dcf0846bbe6ae9c41ecf1f3",
+        "live_fingerprint": "d1f6a2d9caf49699582400c76c25d2299346d7329dcf0846bbe6ae9c41ecf1f3",
+        "expected_entrypoint": "functions/legacy-onboarding-list/index.ts",
+        "live_entrypoint": "functions/legacy-onboarding-list/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "34b5bda1322d49ef8f6054c628ee3091094acef967329e5b0adeba2bafc2f9f9",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "linear-inbound",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 46,
+        "verify_jwt": false,
+        "expected_fingerprint": "019a463dee2b4b91ff0b19a0220479e7602e9a5880da6d19519f9113716bf0fc",
+        "live_fingerprint": "019a463dee2b4b91ff0b19a0220479e7602e9a5880da6d19519f9113716bf0fc",
+        "expected_entrypoint": "functions/linear-inbound/index.ts",
+        "live_entrypoint": "functions/linear-inbound/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "0b4eda528223220ccac17369b1a89e76688b8406ccebc5bad542e68c2e813721",
+        "expected_files": 5,
+        "live_files": 5,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "linear-outbound",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 47,
+        "verify_jwt": false,
+        "expected_fingerprint": "1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39",
+        "live_fingerprint": "1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39",
+        "expected_entrypoint": "functions/linear-outbound/index.ts",
+        "live_entrypoint": "functions/linear-outbound/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "b72429af7131bc954c8140f8f15c0c437c1fa4568f300bb3134a4f2752f8d626",
+        "expected_files": 5,
+        "live_files": 5,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "onboarding-capture",
+        "result": "FAIL",
+        "status": "ACTIVE",
+        "version": 34,
+        "verify_jwt": false,
+        "expected_fingerprint": "06dba2938d8a83909ffcbdff1f727f80a61e60800ce26373e16c12187dea67c7",
+        "live_fingerprint": "a894ebb8dd4491494ca82f10660afe0f28237ccbbc1ca5bbae8b8b31f04f0533",
+        "expected_entrypoint": "functions/onboarding-capture/index.ts",
+        "live_entrypoint": "functions/onboarding-capture/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "f9d0973dae5b591683b3994327d158fb0213be51058e1d3b1517ba44c88f3564",
+        "expected_files": 1,
+        "live_files": 1,
+        "comparison": {
+          "pass": false,
+          "missing": [],
+          "extra": [],
+          "changed": [
+            "functions/onboarding-capture/index.ts"
+          ]
+        }
+      },
+      {
+        "slug": "onboarding-full",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 36,
+        "verify_jwt": false,
+        "expected_fingerprint": "68da4d8f413d4dbf942ec4ca4e3320c27841dbd5237fb547c02c7bac38da61af",
+        "live_fingerprint": "68da4d8f413d4dbf942ec4ca4e3320c27841dbd5237fb547c02c7bac38da61af",
+        "expected_entrypoint": "functions/onboarding-full/index.ts",
+        "live_entrypoint": "functions/onboarding-full/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "f110409fedb3cef65b9ac954eff747dbbb42dc2fd3721d88fd153f97ddeb4f9c",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "onboarding-list",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 36,
+        "verify_jwt": false,
+        "expected_fingerprint": "a23980f1da39cb30de7686ebafe4bb4ada50e9f721c1ac7951c812adc3d1b1fd",
+        "live_fingerprint": "a23980f1da39cb30de7686ebafe4bb4ada50e9f721c1ac7951c812adc3d1b1fd",
+        "expected_entrypoint": "functions/onboarding-list/index.ts",
+        "live_entrypoint": "functions/onboarding-list/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "19f6b96b49477360a0194407d48983c42ccf283b6ce151139b8e6a7903148c9f",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "production-archive",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 8,
+        "verify_jwt": false,
+        "expected_fingerprint": "3c478af053f2e20aa9f12f1b0281e6a45c1684ee933e968469162c5dcc29bb10",
+        "live_fingerprint": "3c478af053f2e20aa9f12f1b0281e6a45c1684ee933e968469162c5dcc29bb10",
+        "expected_entrypoint": "functions/production-archive/index.ts",
+        "live_entrypoint": "functions/production-archive/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "1f3e70f7f9490798f27e0c00739c2e25176d6cdbb24257aa05a0411e2caafc4a",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "production-comments",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 24,
+        "verify_jwt": false,
+        "expected_fingerprint": "202c9492e0632a8e83561340ca0117d0c858d13bbf4e1f46bdc2ef83baae082b",
+        "live_fingerprint": "202c9492e0632a8e83561340ca0117d0c858d13bbf4e1f46bdc2ef83baae082b",
+        "expected_entrypoint": "functions/production-comments/index.ts",
+        "live_entrypoint": "functions/production-comments/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "25251ea5423655544b77d275a495da6603aa8aea0e730d752d39b25e6a0ba945",
+        "expected_files": 3,
+        "live_files": 3,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "production-write",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 66,
+        "verify_jwt": false,
+        "expected_fingerprint": "cc44bf938fd666595061972c27721fbf10d17cb11b184e417f59478b0add5370",
+        "live_fingerprint": "cc44bf938fd666595061972c27721fbf10d17cb11b184e417f59478b0add5370",
+        "expected_entrypoint": "functions/production-write/index.ts",
+        "live_entrypoint": "functions/production-write/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "2e1c08db381ad225394fa78cc49bd0fc8d59455b40dc685e6dda2b8445741452",
+        "expected_files": 5,
+        "live_files": 5,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "pto",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 8,
+        "verify_jwt": false,
+        "expected_fingerprint": "b87ad891d6ce497d0dc89b48c1d96467c83ed05e85e6a963d0eabd2778314919",
+        "live_fingerprint": "b87ad891d6ce497d0dc89b48c1d96467c83ed05e85e6a963d0eabd2778314919",
+        "expected_entrypoint": "functions/pto/index.ts",
+        "live_entrypoint": "functions/pto/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "875aa80b3b6dbbb6fecaa9da81b3c4f863041bf6382ccbed1c4c39826b5dd9de",
+        "expected_files": 3,
+        "live_files": 3,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "quiz-capture",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 5,
+        "verify_jwt": false,
+        "expected_fingerprint": "618be8d5ffaeeeedc9e6c778f50c90decbd220f6f5424c60cc2127d41406c97f",
+        "live_fingerprint": "618be8d5ffaeeeedc9e6c778f50c90decbd220f6f5424c60cc2127d41406c97f",
+        "expected_entrypoint": "functions/quiz-capture/index.ts",
+        "live_entrypoint": "functions/quiz-capture/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "31877b05511723dbb060aa417681f44455ddb7791bcd556d70ac62a088c7e2c7",
+        "expected_files": 1,
+        "live_files": 1,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "quiz-leads-list",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 5,
+        "verify_jwt": false,
+        "expected_fingerprint": "cc7b12e292f78c715e13dd5c6a225655db4938c578c77d6fc3ef3b0d3094a4de",
+        "live_fingerprint": "cc7b12e292f78c715e13dd5c6a225655db4938c578c77d6fc3ef3b0d3094a4de",
+        "expected_entrypoint": "functions/quiz-leads-list/index.ts",
+        "live_entrypoint": "functions/quiz-leads-list/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "5b5478de1cb03529e4ef2c717be5b43dbbdd8f0cfcb1809407c09a2c85afbdc8",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "sample-review-reorder",
+        "result": "FAIL",
+        "status": "ACTIVE",
+        "version": 37,
+        "verify_jwt": false,
+        "expected_fingerprint": "d304dd9b4102f64659f88873d5163734f37dde2f076fb0db01bfb8458cdb3cad",
+        "live_fingerprint": "7e4cc5b0b52ba15c5b973f2d72dfce1b6f9d8dc43dcfcab94edbc924a942d5c9",
+        "expected_entrypoint": "functions/sample-review-reorder/index.ts",
+        "live_entrypoint": "functions/sample-review-reorder/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "c3eca2418c4e598ef598475b45e1fbec692570ddbe52f2916130f1a968f98ba5",
+        "expected_files": 4,
+        "live_files": 4,
+        "comparison": {
+          "pass": false,
+          "missing": [],
+          "extra": [],
+          "changed": [
+            "functions/_shared/browser-write-auth-policy.mjs"
+          ]
+        }
+      },
+      {
+        "slug": "sample-review-upsert",
+        "result": "FAIL",
+        "status": "ACTIVE",
+        "version": 49,
+        "verify_jwt": false,
+        "expected_fingerprint": "6b149e0015e6039e736141bc94b17807a1dd957b79c8d75fa45fb1ae5a4a0b2a",
+        "live_fingerprint": "0da507abdb51b885f39e4776b421dacb1cdae985623b29c97b8b56330abb350d",
+        "expected_entrypoint": "functions/sample-review-upsert/index.ts",
+        "live_entrypoint": "functions/sample-review-upsert/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "50b63fbadcdf03d3de0fc04131dd9258f50aabd1631e59bcb6f57554e0b918fb",
+        "expected_files": 5,
+        "live_files": 2,
+        "comparison": {
+          "pass": false,
+          "missing": [
+            "functions/_shared/browser-write-auth-policy.mjs",
+            "functions/_shared/browser-write-auth.ts",
+            "functions/_shared/staff-role-auth.ts"
+          ],
+          "extra": [],
+          "changed": [
+            "functions/sample-review-upsert/index.ts"
+          ]
+        }
+      },
+      {
+        "slug": "smm-weekly-reports",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 32,
+        "verify_jwt": false,
+        "expected_fingerprint": "e1f92528924556cb176928d209226bb8d438733a9c8a94a8c37d113c0ae7f238",
+        "live_fingerprint": "e1f92528924556cb176928d209226bb8d438733a9c8a94a8c37d113c0ae7f238",
+        "expected_entrypoint": "functions/smm-weekly-reports/index.ts",
+        "live_entrypoint": "functions/smm-weekly-reports/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "147141e549269d33c3456f9504ba329775b73fb5c9afbd22988da28784ca5f25",
+        "expected_files": 2,
+        "live_files": 2,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "templates-save",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 35,
+        "verify_jwt": false,
+        "expected_fingerprint": "6382673c07055ee68a0f4d3facaadf06b32df5ddd1ab1d4ac2cc659dc3d0b637",
+        "live_fingerprint": "6382673c07055ee68a0f4d3facaadf06b32df5ddd1ab1d4ac2cc659dc3d0b637",
+        "expected_entrypoint": "functions/templates-save/index.ts",
+        "live_entrypoint": "functions/templates-save/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "989f4e36f804c0a6692c94f0bb1b2726d94d746111b6b559d5b41b4f3de2d43d",
+        "expected_files": 4,
+        "live_files": 4,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "thumbnail-folder-resolve",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 27,
+        "verify_jwt": false,
+        "expected_fingerprint": "006a1136a92b19817ed3ceacce8a4fa22adea81c3b33b175cef861dfe3cbba48",
+        "live_fingerprint": "006a1136a92b19817ed3ceacce8a4fa22adea81c3b33b175cef861dfe3cbba48",
+        "expected_entrypoint": "functions/thumbnail-folder-resolve/index.ts",
+        "live_entrypoint": "functions/thumbnail-folder-resolve/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "7e6b53b5e588b23ff6cc30984c647da4c0071fff857fbb3597e35832b06a148d",
+        "expected_files": 1,
+        "live_files": 1,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "thumbnail-revision-read",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 25,
+        "verify_jwt": false,
+        "expected_fingerprint": "1b1435f9471ca13324260ae0711d64406e89801046608bbe4e35790dad882c27",
+        "live_fingerprint": "1b1435f9471ca13324260ae0711d64406e89801046608bbe4e35790dad882c27",
+        "expected_entrypoint": "functions/thumbnail-revision-read/index.ts",
+        "live_entrypoint": "functions/thumbnail-revision-read/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "8a6913f4af01b57ca80b97faab55d6e7423bfd3f9a7c1a6cefb90ed4157dc6c8",
+        "expected_files": 3,
+        "live_files": 3,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "thumbnail-revision-scan",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 29,
+        "verify_jwt": false,
+        "expected_fingerprint": "2089f41643f8f55424bd1af3fff2bc86cbe024b862c9b257e27187a920ac11e5",
+        "live_fingerprint": "2089f41643f8f55424bd1af3fff2bc86cbe024b862c9b257e27187a920ac11e5",
+        "expected_entrypoint": "functions/thumbnail-revision-scan/index.ts",
+        "live_entrypoint": "functions/thumbnail-revision-scan/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "46ba519a75d01fec8f7fd0eb66c34181f773c53b1738b4a01584de4520323138",
+        "expected_files": 3,
+        "live_files": 3,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      },
+      {
+        "slug": "workload-linear",
+        "result": "FAIL",
+        "status": "ACTIVE",
+        "version": 6,
+        "verify_jwt": false,
+        "expected_fingerprint": "3450b37487fc61002b6a0055050d78171d3ab57eeb53d98a9af24bf8c36e3e23",
+        "live_fingerprint": "c7878772a205b711182f806814f59be1bf79f7512c0ef2efc4bba78f3df00cb3",
+        "expected_entrypoint": "functions/workload-linear/index.ts",
+        "live_entrypoint": "functions/workload-linear/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "6ce6ed1dffd2125e4b93cb661fc2751c60204c6aabd8564ac8f81a3024c00d3b",
+        "expected_files": 5,
+        "live_files": 5,
+        "comparison": {
+          "pass": false,
+          "missing": [],
+          "extra": [],
+          "changed": [
+            "functions/workload-linear/index.ts",
+            "functions/workload-linear/policy.mjs"
+          ]
+        }
+      },
+      {
+        "slug": "workload-plan",
+        "result": "PASS",
+        "status": "ACTIVE",
+        "version": 8,
+        "verify_jwt": false,
+        "expected_fingerprint": "2e778d88c64dca06895b95949e348fc9ac518c49ec70c89b3d116f9b11047b56",
+        "live_fingerprint": "2e778d88c64dca06895b95949e348fc9ac518c49ec70c89b3d116f9b11047b56",
+        "expected_entrypoint": "functions/workload-plan/index.ts",
+        "live_entrypoint": "functions/workload-plan/index.ts",
+        "entrypoint_match": true,
+        "bundle_fingerprint": "c27cc92d4edf91ecc5ca45a68680806087dfc96d8517f6872f3a3e537ef187e5",
+        "expected_files": 4,
+        "live_files": 4,
+        "comparison": {
+          "pass": true,
+          "missing": [],
+          "extra": [],
+          "changed": []
+        }
+      }
+    ],
+    "summary": {
+      "pass": 30,
+      "fail": 5,
+      "error": 0,
+      "jwt_ok": 35,
+      "jwt_flagged": 0,
+      "entrypoint_ok": 35,
+      "entrypoint_flagged": 0
+    },
+    "observed_at": "2026-09-04T20:56:27.862Z"
+  },
+  "phase1-serving-captures": {
+    "observed_at": "2026-09-04T20:57:54.380Z",
+    "rows": [
+      {
+        "slug": "calendar-upsert",
+        "version": 48,
+        "files": [
+          {
+            "file": "functions/calendar-upsert/index.ts",
+            "sha256": "414976024b7651afd03ddd9bc6b18eba3b97951fa3ed6bc98c05c0fc3256e389"
+          },
+          {
+            "file": "functions/_shared/thumbnail-revisions.ts",
+            "sha256": "8e8478cb8812688656fb5dee5fe022dd32090722da9db78f12556459de81cb51"
+          }
+        ]
+      },
+      {
+        "slug": "sample-review-upsert",
+        "version": 49,
+        "files": [
+          {
+            "file": "functions/sample-review-upsert/index.ts",
+            "sha256": "d95eb9760a77305397ad045556cd160b2b12f125b23b1ca92f97acfa225b71c6"
+          },
+          {
+            "file": "functions/_shared/thumbnail-revisions.ts",
+            "sha256": "8e8478cb8812688656fb5dee5fe022dd32090722da9db78f12556459de81cb51"
+          }
+        ]
+      },
+      {
+        "slug": "sample-review-reorder",
+        "version": 37,
+        "files": [
+          {
+            "file": "functions/sample-review-reorder/index.ts",
+            "sha256": "45ee17dd4bbd982a1b8c48cd4ee4d8a9f47e889584a267d0cda7e0421c43fb30"
+          },
+          {
+            "file": "functions/_shared/browser-write-auth.ts",
+            "sha256": "5e26152c8e98aa12976247379d16b5725d830c42bf02efa03b3be085159cfa79"
+          },
+          {
+            "file": "functions/_shared/staff-role-auth.ts",
+            "sha256": "b34fc009465eabad929088b6037fec622706c2711c3a91945ec4567352587b02"
+          },
+          {
+            "file": "functions/_shared/browser-write-auth-policy.mjs",
+            "sha256": "940be5d3614cba0c592b4dbd404de3681138f8f606e461227e6acb9c68e2c76e"
+          }
+        ]
+      },
+      {
+        "slug": "onboarding-capture",
+        "version": 34,
+        "files": [
+          {
+            "file": "functions/onboarding-capture/index.ts",
+            "sha256": "a7c0e1efe6b182222c9b0ec99a0afcaedaa8e9e3237a951712e2bf4ec2aa3690"
+          }
+        ]
+      },
+      {
+        "slug": "workload-linear",
+        "version": 6,
+        "files": [
+          {
+            "file": "functions/workload-linear/index.ts",
+            "sha256": "c710335c13e5c70bc31a10c6174e79f4d9bd8a9f40d226caa68bee2dc573fc96"
+          },
+          {
+            "file": "functions/_shared/browser-write-auth.ts",
+            "sha256": "5e26152c8e98aa12976247379d16b5725d830c42bf02efa03b3be085159cfa79"
+          },
+          {
+            "file": "functions/_shared/staff-role-auth.ts",
+            "sha256": "b34fc009465eabad929088b6037fec622706c2711c3a91945ec4567352587b02"
+          },
+          {
+            "file": "functions/_shared/browser-write-auth-policy.mjs",
+            "sha256": "6cc0b9e404beafbf99bceabe246fa37e35ae6b80848af295321ae5ea9eb9b73b"
+          },
+          {
+            "file": "functions/workload-linear/policy.mjs",
+            "sha256": "b97ad665cde8c83eb6ce5ba4c137e05d3ef5d9d092fa2196200d73469e005aea"
+          }
+        ]
+      }
+    ]
+  },
+  "phase1-n8n-inventory": {
+    "observed_at": "2026-09-04T20:59:21.754Z",
+    "total": 129,
+    "active": 93,
+    "credential_types": {
+      "httpHeaderAuth": 12,
+      "gmailOAuth2": 2,
+      "httpQueryAuth": 3,
+      "slackOAuth2Api": 2,
+      "slackApi": 4,
+      "notionOAuth2Api": 1,
+      "httpBearerAuth": 2,
+      "googleDocsOAuth2Api": 1,
+      "googleSheetsOAuth2Api": 1,
+      "supabaseApi": 1,
+      "twilioApi": 1,
+      "stripeApi": 1,
+      "calendlyOAuth2Api": 1,
+      "telegramApi": 1,
+      "hubspotAppToken": 1,
+      "googleDriveOAuth2Api": 2,
+      "n8nApi": 1,
+      "facebookGraphApi": 1,
+      "calendlyApi": 2
+    },
+    "rows": [
+      {
+        "label": "W001",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-04T18:25:35.258Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.dataTable": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.slack": 1
+        }
+      },
+      {
+        "label": "W002",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 20,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-04T18:19:32.019Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.dataTable": 5,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.hubspot": 3,
+          "n8n-nodes-base.if": 3,
+          "n8n-nodes-base.gmail": 1,
+          "n8n-nodes-base.slack": 2,
+          "n8n-nodes-base.telegram": 2,
+          "n8n-nodes-base.twilio": 1
+        }
+      },
+      {
+        "label": "W003",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 16,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-04T18:19:30.853Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 3,
+          "n8n-nodes-base.if": 5,
+          "n8n-nodes-base.dataTable": 4,
+          "n8n-nodes-base.respondToWebhook": 2,
+          "n8n-nodes-base.hubspot": 1
+        }
+      },
+      {
+        "label": "W005",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-04T17:16:51.541Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.dataTable": 1,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.slack": 1,
+          "n8n-nodes-base.stickyNote": 1
+        }
+      },
+      {
+        "label": "W004",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 7,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-04T17:17:13.527Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.slack": 2,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.dataTable": 1,
+          "n8n-nodes-base.stickyNote": 1
+        }
+      },
+      {
+        "label": "W006",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 6,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-03T17:49:15.665Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.slack": 2,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.googleSheets": 1
+        }
+      },
+      {
+        "label": "W007",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 8,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-03T17:46:59.556Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.slack": 3,
+          "n8n-nodes-base.code": 3,
+          "n8n-nodes-base.googleSheets": 1
+        }
+      },
+      {
+        "label": "W009",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 7,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T15:45:05.789Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.slack": 3,
+          "n8n-nodes-base.googleSheets": 3
+        }
+      },
+      {
+        "label": "W008",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 44,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-03T16:30:16.966Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.dataTable": 7,
+          "n8n-nodes-base.code": 12,
+          "n8n-nodes-base.googleSheets": 4,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.switch": 1,
+          "n8n-nodes-base.slack": 9,
+          "n8n-nodes-base.if": 9
+        }
+      },
+      {
+        "label": "W010",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T15:43:34.558Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.googleSheets": 4
+        }
+      },
+      {
+        "label": "W011",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T15:41:52.113Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.noOp": 1,
+          "n8n-nodes-base.slack": 1,
+          "n8n-nodes-base.splitInBatches": 1
+        }
+      },
+      {
+        "label": "W012",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 9,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T15:21:04.753Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.code": 3,
+          "n8n-nodes-base.noOp": 1,
+          "n8n-nodes-base.slack": 2,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.splitInBatches": 1
+        }
+      },
+      {
+        "label": "W013",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 12,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T15:21:03.237Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.code": 4,
+          "n8n-nodes-base.noOp": 1,
+          "n8n-nodes-base.slack": 3,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.splitInBatches": 1
+        }
+      },
+      {
+        "label": "W014",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 3,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T15:16:39.912Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.slack": 1,
+          "n8n-nodes-base.googleSheets": 1
+        }
+      },
+      {
+        "label": "W015",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T15:14:42.800Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.googleSheets": 1
+        }
+      },
+      {
+        "label": "W016",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T15:02:50.697Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.slack": 1
+        }
+      },
+      {
+        "label": "W021",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T14:28:39.691Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.googleSheets": 1
+        }
+      },
+      {
+        "label": "W017",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 7,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T15:02:22.168Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.googleSheets": 4,
+          "n8n-nodes-base.code": 2
+        }
+      },
+      {
+        "label": "W019",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T14:40:10.014Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.googleSheets": 1
+        }
+      },
+      {
+        "label": "W018",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 9,
+        "direct_provider_node_count": 1,
+        "updated_at": "2026-09-02T14:48:57.079Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.slack": 1,
+          "n8n-nodes-base.respondToWebhook": 2
+        }
+      },
+      {
+        "label": "W020",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T14:39:37.582Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 2,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.googleSheets": 2
+        }
+      },
+      {
+        "label": "W022",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 15,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T14:26:07.872Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.httpRequest": 9,
+          "n8n-nodes-base.merge": 1,
+          "n8n-nodes-base.code": 3,
+          "n8n-nodes-base.dataTable": 1
+        }
+      },
+      {
+        "label": "W023",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 22,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-09-02T03:42:43.087Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.googleSheets": 4,
+          "n8n-nodes-base.code": 7,
+          "n8n-nodes-base.switch": 1,
+          "n8n-nodes-base.slack": 4,
+          "n8n-nodes-base.if": 4,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W025",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 19,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-27T21:22:37.000Z",
+        "types": {
+          "n8n-nodes-base.executeWorkflowTrigger": 1,
+          "n8n-nodes-base.googleDrive": 1,
+          "n8n-nodes-base.hubspot": 5,
+          "n8n-nodes-base.if": 2,
+          "n8n-nodes-base.code": 4,
+          "n8n-nodes-base.slack": 3,
+          "n8n-nodes-base.dataTable": 2,
+          "n8n-nodes-base.switch": 1
+        }
+      },
+      {
+        "label": "W024",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 142,
+        "direct_provider_node_count": 9,
+        "updated_at": "2026-08-28T18:53:54.465Z",
+        "types": {
+          "n8n-nodes-base.webhook": 6,
+          "n8n-nodes-base.httpRequest": 27,
+          "n8n-nodes-base.code": 45,
+          "n8n-nodes-base.respondToWebhook": 16,
+          "n8n-nodes-base.splitInBatches": 2,
+          "n8n-nodes-base.if": 18,
+          "n8n-nodes-base.googleSheets": 2,
+          "n8n-nodes-base.slack": 4,
+          "n8n-nodes-base.googleDrive": 3,
+          "n8n-nodes-base.wait": 2,
+          "n8n-nodes-base.editImage": 2,
+          "n8n-nodes-base.aggregate": 1,
+          "n8n-nodes-base.supabase": 12,
+          "n8n-nodes-base.dataTable": 2
+        }
+      },
+      {
+        "label": "W026",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-27T21:13:29.271Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.slack": 3
+        }
+      },
+      {
+        "label": "W027",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 22,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-27T18:48:26.536Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.if": 7,
+          "n8n-nodes-base.hubspot": 4,
+          "n8n-nodes-base.gmail": 2,
+          "n8n-nodes-base.executeWorkflow": 2,
+          "n8n-nodes-base.noOp": 1,
+          "n8n-nodes-base.telegram": 2,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.twilio": 1
+        }
+      },
+      {
+        "label": "W030",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-27T14:59:03.800Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.telegram": 1
+        }
+      },
+      {
+        "label": "W029",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 12,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-27T15:40:23.200Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.if": 3,
+          "n8n-nodes-base.dataTable": 2,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.respondToWebhook": 3
+        }
+      },
+      {
+        "label": "W028",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 14,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-27T18:48:25.832Z",
+        "types": {
+          "n8n-nodes-base.executeWorkflowTrigger": 1,
+          "n8n-nodes-base.hubspot": 4,
+          "n8n-nodes-base.if": 4,
+          "n8n-nodes-base.gmail": 2,
+          "n8n-nodes-base.executeWorkflow": 1,
+          "n8n-nodes-base.twilio": 1,
+          "n8n-nodes-base.telegram": 1
+        }
+      },
+      {
+        "label": "W031",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 7,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-25T17:19:44.508Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.if": 2,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.slack": 1,
+          "n8n-nodes-base.telegram": 1
+        }
+      },
+      {
+        "label": "W034",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 8,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-25T15:27:12.265Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.httpRequest": 4,
+          "n8n-nodes-base.if": 2,
+          "n8n-nodes-base.gmail": 1
+        }
+      },
+      {
+        "label": "W032",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-25T16:47:27.167Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W033",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 3,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-25T15:33:45.914Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.googleSheets": 1
+        }
+      },
+      {
+        "label": "W035",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-25T14:42:38.495Z",
+        "types": {
+          "n8n-nodes-base.executeWorkflowTrigger": 1,
+          "n8n-nodes-base.gmail": 1,
+          "n8n-nodes-base.hubspot": 2,
+          "n8n-nodes-base.if": 1
+        }
+      },
+      {
+        "label": "W036",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-25T14:42:37.819Z",
+        "types": {
+          "n8n-nodes-base.executeWorkflowTrigger": 1,
+          "n8n-nodes-base.gmail": 1,
+          "n8n-nodes-base.hubspot": 2,
+          "n8n-nodes-base.if": 1
+        }
+      },
+      {
+        "label": "W037",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 11,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-24T22:06:46.827Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.if": 2,
+          "n8n-nodes-base.dataTable": 1,
+          "n8n-nodes-base.hubspot": 3,
+          "n8n-nodes-base.respondToWebhook": 2
+        }
+      },
+      {
+        "label": "W038",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-24T21:57:20.521Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.dataTable": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.slack": 1
+        }
+      },
+      {
+        "label": "W041",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 6,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-24T17:42:35.216Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.httpRequest": 3,
+          "n8n-nodes-base.merge": 1,
+          "n8n-nodes-base.code": 1
+        }
+      },
+      {
+        "label": "W039",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 10,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-24T21:56:39.572Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.dataTable": 3,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.hubspot": 1,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.gmail": 1,
+          "n8n-nodes-base.slack": 1
+        }
+      },
+      {
+        "label": "W040",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 11,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-24T20:56:44.397Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.httpRequest": 7,
+          "n8n-nodes-base.merge": 1,
+          "n8n-nodes-base.code": 2
+        }
+      },
+      {
+        "label": "W045",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-20T00:59:09.670Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.googleSheets": 2,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W042",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 25,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-23T20:06:12.478Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.supabase": 6,
+          "n8n-nodes-base.httpRequest": 4,
+          "n8n-nodes-base.respondToWebhook": 3,
+          "n8n-nodes-base.gmail": 2,
+          "n8n-nodes-base.slack": 3,
+          "n8n-nodes-base.if": 2,
+          "n8n-nodes-base.filter": 1,
+          "n8n-nodes-base.hubspot": 1
+        }
+      },
+      {
+        "label": "W044",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 16,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-21T23:49:15.587Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 2,
+          "n8n-nodes-base.httpRequest": 11,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.slack": 1
+        }
+      },
+      {
+        "label": "W046",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 17,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-19T15:28:53.244Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.filter": 1,
+          "n8n-nodes-base.hubspot": 3,
+          "n8n-nodes-base.if": 5,
+          "n8n-nodes-base.executeWorkflow": 2,
+          "n8n-nodes-base.slack": 2,
+          "n8n-nodes-base.noOp": 1
+        }
+      },
+      {
+        "label": "W043",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 27,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-23T20:04:24.011Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.dataTable": 1,
+          "n8n-nodes-base.code": 4,
+          "n8n-nodes-base.if": 6,
+          "n8n-nodes-base.slack": 6,
+          "n8n-nodes-base.switch": 1,
+          "n8n-nodes-base.noOp": 2,
+          "n8n-nodes-base.hubspot": 4,
+          "n8n-nodes-base.executeWorkflow": 2
+        }
+      },
+      {
+        "label": "W047",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 8,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-18T17:09:38.497Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 4,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W048",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-18T15:49:30.110Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W049",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 28,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-12T18:33:52.301Z",
+        "types": {
+          "n8n-nodes-base.executeWorkflowTrigger": 1,
+          "n8n-nodes-base.wait": 6,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.dataTable": 6,
+          "n8n-nodes-base.if": 8,
+          "n8n-nodes-base.gmail": 6
+        }
+      },
+      {
+        "label": "W050",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 28,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-08-10T23:48:57.590Z",
+        "types": {
+          "n8n-nodes-base.executeWorkflowTrigger": 1,
+          "n8n-nodes-base.wait": 6,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.dataTable": 6,
+          "n8n-nodes-base.if": 8,
+          "n8n-nodes-base.gmail": 6
+        }
+      },
+      {
+        "label": "W052",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 19,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-27T21:53:27.807Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.googleDrive": 6,
+          "n8n-nodes-base.httpRequest": 2,
+          "n8n-nodes-base.n8n": 1,
+          "n8n-nodes-base.code": 3,
+          "n8n-nodes-base.stickyNote": 1,
+          "n8n-nodes-base.supabase": 4,
+          "n8n-nodes-base.extractFromFile": 1
+        }
+      },
+      {
+        "label": "W051",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 68,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-29T14:25:19.435Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 2,
+          "n8n-nodes-base.googleSheets": 10,
+          "n8n-nodes-base.splitInBatches": 2,
+          "n8n-nodes-base.httpRequest": 11,
+          "n8n-nodes-base.code": 21,
+          "n8n-nodes-base.if": 7,
+          "n8n-nodes-base.set": 7,
+          "n8n-nodes-base.wait": 4,
+          "n8n-nodes-base.limit": 4
+        }
+      },
+      {
+        "label": "W053",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-17T19:45:44.248Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.gmail": 1
+        }
+      },
+      {
+        "label": "W054",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 14,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-17T19:45:34.992Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.if": 5,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.hubspot": 3,
+          "n8n-nodes-base.executeWorkflow": 2,
+          "n8n-nodes-base.slack": 1,
+          "n8n-nodes-base.noOp": 1
+        }
+      },
+      {
+        "label": "W055",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-17T19:45:32.785Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.filter": 1,
+          "n8n-nodes-base.gmail": 1
+        }
+      },
+      {
+        "label": "W058",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-14T21:58:19.183Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W056",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-17T19:45:30.119Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.gmail": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W057",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 12,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-17T19:45:23.566Z",
+        "types": {
+          "n8n-nodes-base.formTrigger": 1,
+          "n8n-nodes-base.switch": 1,
+          "n8n-nodes-base.hubspot": 6,
+          "n8n-nodes-base.if": 2,
+          "n8n-nodes-base.gmail": 2
+        }
+      },
+      {
+        "label": "W062",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W060",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 3,
+        "direct_provider_node_count": 1,
+        "updated_at": "2026-07-13T02:13:12.455Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W061",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 3,
+        "direct_provider_node_count": 1,
+        "updated_at": "2026-07-13T02:13:11.759Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W059",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 5,
+        "direct_provider_node_count": 2,
+        "updated_at": "2026-07-13T02:15:06.679Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 3,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W063",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-07T21:52:02.947Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W064",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-06T23:05:09.733Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W066",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-05T23:45:27.754Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W065",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-05T23:45:45.239Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W068",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 12,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-03T02:56:16.928Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.slack": 2,
+          "n8n-nodes-base.respondToWebhook": 3,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.dataTable": 1,
+          "n8n-nodes-base.executeWorkflow": 1,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W069",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 6,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-02T20:41:11.131Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.dataTable": 1,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.slack": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W070",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-02T16:48:31.746Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.filter": 1,
+          "n8n-nodes-base.dataTable": 1
+        }
+      },
+      {
+        "label": "W067",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 12,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-03T02:56:17.708Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.slack": 2,
+          "n8n-nodes-base.respondToWebhook": 3,
+          "n8n-nodes-base.executeWorkflow": 1,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.dataTable": 1,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W072",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 16,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-02T16:14:39.894Z",
+        "types": {
+          "n8n-nodes-base.stickyNote": 1,
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.httpRequest": 5,
+          "n8n-nodes-base.googleSheets": 2,
+          "n8n-nodes-base.code": 4,
+          "n8n-nodes-base.slack": 1,
+          "n8n-nodes-base.respondToWebhook": 1,
+          "n8n-nodes-base.webhook": 1
+        }
+      },
+      {
+        "label": "W071",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-02T16:40:18.937Z",
+        "types": {
+          "n8n-nodes-base.errorTrigger": 1,
+          "n8n-nodes-base.slack": 1
+        }
+      },
+      {
+        "label": "W073",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 16,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-07-02T16:05:32.468Z",
+        "types": {
+          "n8n-nodes-base.stickyNote": 2,
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.httpRequest": 5,
+          "n8n-nodes-base.googleSheets": 2,
+          "n8n-nodes-base.code": 4,
+          "n8n-nodes-base.slack": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W074",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 3,
+        "direct_provider_node_count": 1,
+        "updated_at": "2026-06-29T18:15:58.173Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W075",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-29T01:51:49.481Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W077",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T16:05:38.079Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W079",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 6,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T03:11:00.608Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.supabase": 3,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.code": 1
+        }
+      },
+      {
+        "label": "W082",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T02:50:12.724Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W078",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T03:49:11.661Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.supabase": 2,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.code": 1
+        }
+      },
+      {
+        "label": "W081",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T02:56:27.840Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W080",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 12,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T03:08:27.985Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 5,
+          "n8n-nodes-base.supabase": 2,
+          "n8n-nodes-base.httpRequest": 2,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W076",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 17,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T20:33:38.707Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 7,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.respondToWebhook": 1,
+          "n8n-nodes-base.if": 2,
+          "n8n-nodes-base.supabase": 4,
+          "n8n-nodes-base.executeWorkflow": 1
+        }
+      },
+      {
+        "label": "W083",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 6,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T02:49:48.511Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.httpRequest": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W085",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 14,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T01:36:01.465Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 3,
+          "n8n-nodes-base.supabase": 4,
+          "n8n-nodes-base.if": 2,
+          "n8n-nodes-base.httpRequest": 2,
+          "n8n-nodes-base.respondToWebhook": 2
+        }
+      },
+      {
+        "label": "W086",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 2,
+        "direct_provider_node_count": 1,
+        "updated_at": "2026-06-26T00:22:06.707Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1
+        }
+      },
+      {
+        "label": "W084",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-26T01:36:35.007Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W088",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-25T19:34:26.922Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W087",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 17,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-25T20:04:46.534Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 8,
+          "n8n-nodes-base.supabase": 4,
+          "n8n-nodes-base.if": 2,
+          "n8n-nodes-base.respondToWebhook": 1,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W089",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 5,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-25T19:34:24.102Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 2,
+          "n8n-nodes-base.supabase": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W090",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 3,
+        "direct_provider_node_count": 1,
+        "updated_at": "2026-06-24T22:41:57.938Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.respondToWebhook": 1
+        }
+      },
+      {
+        "label": "W091",
+        "active": false,
+        "error": false,
+        "published_version_present": false,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-22T20:48:49.765Z",
+        "types": {
+          "n8n-nodes-base.manualTrigger": 1,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W092",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 10,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-22T19:47:22.482Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 4,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.respondToWebhook": 1,
+          "n8n-nodes-base.httpRequest": 3
+        }
+      },
+      {
+        "label": "W094",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 4,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-17T17:41:36.632Z",
+        "types": {
+          "n8n-nodes-base.scheduleTrigger": 1,
+          "n8n-nodes-base.code": 1,
+          "n8n-nodes-base.httpRequest": 2
+        }
+      },
+      {
+        "label": "W093",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 2,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-18T03:28:33.290Z",
+        "types": {
+          "n8n-nodes-base.executeWorkflowTrigger": 1,
+          "n8n-nodes-base.httpRequest": 1
+        }
+      },
+      {
+        "label": "W095",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 12,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-15T03:56:18.856Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 6,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.respondToWebhook": 1,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.supabase": 2
+        }
+      },
+      {
+        "label": "W099",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W096",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 12,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-15T03:52:47.422Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 5,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.respondToWebhook": 1,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.supabase": 3
+        }
+      },
+      {
+        "label": "W097",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 9,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-15T03:48:21.379Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 4,
+          "n8n-nodes-base.googleSheets": 1,
+          "n8n-nodes-base.respondToWebhook": 1,
+          "n8n-nodes-base.stickyNote": 1,
+          "n8n-nodes-base.supabase": 1
+        }
+      },
+      {
+        "label": "W098",
+        "active": true,
+        "error": false,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "nodeCount": 13,
+        "direct_provider_node_count": 0,
+        "updated_at": "2026-06-15T03:48:17.437Z",
+        "types": {
+          "n8n-nodes-base.webhook": 1,
+          "n8n-nodes-base.code": 5,
+          "n8n-nodes-base.httpRequest": 3,
+          "n8n-nodes-base.if": 1,
+          "n8n-nodes-base.respondToWebhook": 1,
+          "n8n-nodes-base.stickyNote": 1,
+          "n8n-nodes-base.supabase": 1
+        }
+      },
+      {
+        "label": "W100",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W101",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W103",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W104",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W102",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W105",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W106",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W107",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W108",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W109",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W110",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W111",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W112",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W113",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W114",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W115",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W116",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W117",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W118",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W119",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W120",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W121",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W122",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W123",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W124",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W125",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W126",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W127",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W128",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      },
+      {
+        "label": "W129",
+        "error": true,
+        "direct_provider_node_count": 0,
+        "types": {}
+      }
+    ]
+  },
+  "phase1-n8n-traces": {
+    "observed_at": "2026-09-04T20:59:59.126Z",
+    "method": "Published graph structural reachability. Conditions are not evaluated. Dynamic targets and inaccessible graphs remain unknown.",
+    "rows": [
+      {
+        "label": "W018",
+        "active": true,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "traces": [
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "send-urgent-slack",
+            "reachable_provider_nodes": 1,
+            "operation_markers": []
+          }
+        ]
+      },
+      {
+        "label": "W024",
+        "active": true,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "traces": [
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "video-form",
+            "reachable_provider_nodes": 3,
+            "operation_markers": [
+              "projects",
+              "projects",
+              "issueCreate",
+              "viewer"
+            ]
+          },
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "linear-projects",
+            "reachable_provider_nodes": 1,
+            "operation_markers": [
+              "projects"
+            ]
+          },
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "graphic-form",
+            "reachable_provider_nodes": 2,
+            "operation_markers": [
+              "projects",
+              "projects",
+              "issueCreate",
+              "viewer"
+            ]
+          },
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "add-to-calendar",
+            "reachable_provider_nodes": 1,
+            "operation_markers": [
+              "comments"
+            ]
+          },
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "log-linear-submission",
+            "reachable_provider_nodes": 0,
+            "operation_markers": []
+          },
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "linear-issues",
+            "reachable_provider_nodes": 1,
+            "operation_markers": [
+              "issues"
+            ]
+          }
+        ]
+      },
+      {
+        "label": "W060",
+        "active": true,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "traces": [
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "linear-add-comment",
+            "reachable_provider_nodes": 1,
+            "operation_markers": [
+              "commentCreate"
+            ]
+          }
+        ]
+      },
+      {
+        "label": "W061",
+        "active": true,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "traces": [
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "linear-set-status",
+            "reachable_provider_nodes": 1,
+            "operation_markers": [
+              "issueUpdate"
+            ]
+          }
+        ]
+      },
+      {
+        "label": "W059",
+        "active": false,
+        "published_version_present": false,
+        "traces": [
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "linear-status-sync",
+            "reachable_provider_nodes": 2,
+            "operation_markers": []
+          }
+        ]
+      },
+      {
+        "label": "W074",
+        "active": true,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "traces": [
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "editors-week",
+            "reachable_provider_nodes": 1,
+            "operation_markers": [
+              "issues"
+            ]
+          }
+        ]
+      },
+      {
+        "label": "W086",
+        "active": false,
+        "published_version_present": false,
+        "traces": [
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "sample-linear-status-sync",
+            "reachable_provider_nodes": 1,
+            "operation_markers": []
+          }
+        ]
+      },
+      {
+        "label": "W090",
+        "active": true,
+        "published_version_present": true,
+        "same_as_draft": true,
+        "traces": [
+          {
+            "trigger_type": "n8n-nodes-base.webhook",
+            "known_static_route": "linear-issue-statuses",
+            "reachable_provider_nodes": 1,
+            "operation_markers": [
+              "issues"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "phase2-linear-workspace-facts": {
+    "observed_at": "2026-09-04T21:06:52.441Z",
+    "graphql_errors": 0,
+    "subscription_type": "PaidSubscription",
+    "available_subscription_fields": [
+      "id",
+      "createdAt",
+      "updatedAt",
+      "archivedAt",
+      "type",
+      "seats",
+      "seatsMinimum",
+      "seatsMaximum",
+      "creator",
+      "organization",
+      "collectionMethod",
+      "canceledAt",
+      "cancelAt",
+      "pendingChangeType",
+      "nextBillingAt"
+    ],
+    "workspace": {
+      "userCount": 14,
+      "createdIssueCount": 19321,
+      "deletionRequestedAt": null,
+      "subscription": {
+        "type": "basic_monthly_12",
+        "seats": 13,
+        "canceledAt": "2026-08-26T17:10:20.000Z",
+        "cancelAt": "2026-09-15T13:46:53.000Z"
+      }
+    },
+    "accessible_issues_lower_bound": 251,
+    "archive_inclusion_requested": true,
+    "not_complete_export": true
+  },
+  "phase2-linkage-workload-measurements": {
+    "source_sha": "5765cfe80b7ca9844bab79a55fd75784bf9cb693",
+    "observed_at": "2026-09-04T21:10:38.557Z",
+    "calendar": {
+      "started_at": "2026-09-04T21:10:38.558Z",
+      "finished_at": "2026-09-04T21:10:46.311Z",
+      "exit_status": 1,
+      "parsed": true,
+      "script_sha256": "8798c22ded80da89affce1560bec2d77a46620e386362225b234b172c271bfc7",
+      "public_read_only": true,
+      "generated_at": "2026-09-04T21:10:46.286Z",
+      "authority": {
+        "video": "syncview",
+        "graphics": "syncview"
+      },
+      "flip_at": "2026-08-16T19:58:55Z",
+      "cards_scanned": 9937,
+      "totals": {
+        "blocked": 589,
+        "archived": 394,
+        "settled": 164,
+        "actionable": 31,
+        "post_flip": 4
+      },
+      "by_component": {
+        "video": 425,
+        "graphic": 164
+      },
+      "post_flip_by_component": {
+        "graphic": 2,
+        "video": 2
+      },
+      "limitations": [
+        "Single default graphics flip timestamp is applied to both teams.",
+        "Actionable is a status predicate; no client journey was executed.",
+        "Fully targetless slots, invalid native ids, crosswalks, flag failures and canonical history are outside this classifier.",
+        "Public REST pagination is not an atomic snapshot."
+      ]
+    },
+    "workload": {
+      "started_at": "2026-09-04T21:10:46.312Z",
+      "finished_at": "2026-09-04T21:10:47.859Z",
+      "exit_status": 1,
+      "parsed": true,
+      "script_sha256": "73d01f1c6083c397646dd9c5bbf11d5b460f51c0e68e6727c8d2b6359b772be7",
+      "public_read_only": true,
+      "baseline": 0,
+      "gated_count": 13,
+      "counts": {
+        "mirror_says_inactive": 4,
+        "never_imported": 6,
+        "parked_by_name": 3,
+        "other": 0,
+        "test_client": 10
+      },
+      "team_counts": {
+        "video": 7,
+        "graphics": 6
+      },
+      "real_with_recorded_cause": 10,
+      "real_with_historical_note": 0,
+      "cause_lookup_succeeded": true,
+      "visible": 366,
+      "batch_parents_excluded": 81,
+      "stale_natively_excluded": 179,
+      "limitations": [
+        "Pass tolerates the explicit nonzero baseline.",
+        "Rows without a provider identifier are excluded as stale; this is not a native-only completeness test.",
+        "Uses raw parent/archive/cancel fields and selected mirror visibility predicates; does not prove rendering, due dates, plans, staff permissions or serving versions.",
+        "Deletion events support a bounded recorded-cause diagnosis, not exhaustive external history.",
+        "Public REST pagination is not an atomic snapshot."
+      ]
+    }
+  }
+}

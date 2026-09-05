@@ -361,18 +361,27 @@ const CANDIDATES = new Map([
     // replaces walked only downward and switched itself off as soon as the
     // reader's own batch carried any one of the three, so a frame folder saved
     // on a parent reached no sub-issue and the save itself blanked the parent's
-    // raw footage. 109 of 1,136 posts measured span more than one batch row.
+    // raw footage. 44 of 1,138 posts measured span more than one batch row.
     // assetSnapshot now resolves the post from either direction, orders its
     // batch rows deterministically and answers per slot, and names the row a
     // post-level write should land on so the browser can aim at it. policy.mjs
     // accepts st / subfolder_nav_tracking / e / preview on dropbox.com only --
     // 19 of 171 live Dropbox links passed before, 171 after -- with the
     // credential guard unchanged and still running first. Read-side plus one
-    // additive response field; no migration, no new import, file count
+    // additive response field in that asset release; no migration, no new import, file count
     // unchanged at 5.
+    // Amended before deploy for two review P1s on #1287, both in the write
+    // path: the write target is now named PER SLOT (a post's slots can sit on
+    // different batch rows, so a panel-wide target aimed the Frame folder
+    // editor at a row whose column is empty -- clearing the link on screen
+    // would have written a blank over a blank and the value would have come
+    // back), and a bucket carrying another post's work is never offered for an
+    // empty slot (43 of 1,567 buckets hold more than one post; one holds
+    // seven). One extra client-pinned read, asked only when the post spans
+    // more than one bucket.
     // Draft root expected-request manifest; additive migration must precede
     // a separately authorized deploy. Existing five-file closure and entrypoint.
-    source: 'efd71e9cab56c38470133a4a1e40f31d385af1f8b0757dda212193d32bc8d2d2',
+    source: 'd2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

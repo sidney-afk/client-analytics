@@ -12327,10 +12327,9 @@ should appear everywhere, and same for the raw footage."
 
 `footage_folder_url` and `delivery_folder_url` are columns on ONE `batches` row,
 and the rows of one post routinely sit on more than one. **Measured live across
-all 6,330 browser-visible deliverables: of 1,136 posts (a parent uuid carrying at
-least one child), 109 span more than one batch row; 107 of those have a real
-parent deliverable row, stranding 351 child rows. 28 posts have children that
-disagree among themselves.** On the reported post the parent is a `b1_d_` row on
+all 6,332 browser-visible deliverables: of 1,138 posts (a key carrying at least
+one child), **44 span more than one batch row**, stranding 141 rows off the
+bucket their post resolves first.** On the reported post the parent is a `b1_d_` row on
 the mirror batch `b1_b_…` while all 32 sub-issues are native `del_` rows on
 `bat_…`, so the read and the write were addressing two different rows.
 
@@ -12370,7 +12369,7 @@ The same split owns two symptoms nobody had connected to it:
   ascending, the tie-break already codified for competing parent claims — and
   answers PER SLOT from the first row carrying a value. Correctness does not need
   the tie-break to pick the right row, only every seat to pick the same row. A
-  post on one batch row (1,027 of 1,136) makes no extra query; a failed
+  post on one batch row (1,094 of 1,138) makes no extra query; a failed
   resolution degrades to exactly what the row showed before, never to `Missing`.
 - **Write**: the read names the row a post-level write should land on and the
   browser aims `batch_asset` at it with the matching CAS clock. Without this a
@@ -12434,13 +12433,29 @@ consulted `preferred.origin`.
 
 ### Left open, deliberately
 
-- **A canonical row shared with other posts.** Of the 109 split posts, **41 have a
-  canonical row that also serves another post** (73 of 1,127 batch rows carry
-  more than one post). Post-level writes on those become visible to the other
-  posts on that row. This is the existing "shared by the whole batch" semantics
-  extended by one row rather than a new exposure, and the editor copy now says
-  "shared by the whole post" rather than promising batch scope — but it is a real
-  widening for a parent-seat write and is the owner's to accept or refuse.
+- ~~**A canonical row shared with other posts.**~~ **CLOSED 2026-09-05 by review
+  (#1287, Codex P1) before the closure was deployed.** Of the 44 split posts, 8 had a
+  first-ordered bucket that also carried another post (43 of 1,567 batch rows
+  carry more than one post; one carries ten), and 5 have no exclusive bucket at
+  all. Offering such
+  a row as a write target would have put a link saved on one post onto posts
+  nobody was looking at, while the editor said "shared by the whole post". A
+  shared bucket is no longer offered for an EMPTY slot: the target is the first
+  bucket belonging to this post alone, and when none qualifies — or exclusivity
+  could not be determined — nothing is offered and the browser writes the row it
+  is on, which is what shipped before. A slot whose value already lives on a
+  shared bucket is still written there: that row is what every seat displays and
+  is already shared with whatever sits in it, so editing it exposes nothing new,
+  and refusing would make the value on screen uneditable.
+
+- **A second P1 from the same review, and the sharper of the two.** The write
+  target was PANEL-wide while a post's slots can sit on DIFFERENT rows — on the
+  reported post the raw footage is on the native batch and the frame folder on
+  the mirror. So the Frame folder editor would have aimed at a row whose column
+  is empty: clearing the link on screen would have written a blank over a blank
+  and the value would have reappeared, and replacing it would have left a stale
+  duplicate that resurfaces the moment the new one is cleared. It would have hit
+  the owner on the first thing he tried. The target is per slot now.
 - **Repairing the 7 drifted `origin` values.** A write on live client rows, needs
   a per-row collision pre-check against `deliverables_card_slot_unique`, and would
   move those cards from legacy to canonical comment rendering (item 147's
@@ -12451,3 +12466,37 @@ consulted `preferred.origin`.
   all, which is how the reported row acquired a value the product itself would
   have refused. Not touched here; it is why an `Invalid` pill can exist on a value
   no seat could have typed.
+
+### Correction, same day: the first numbers published for this were wrong
+
+The figures in the first version of this entry — "109 of 1,136 posts", "73 of
+1,127 buckets", "41 with a shared canonical row" — came from a grouping that
+treated **any row with children as a post root**, including a row that is itself
+a sub-issue. The shipped code does not group that way: its key is
+`raw_issue_parent_id` when present, else `linear_issue_uuid`, so a middle node of
+a three-level tree belongs to its PARENT's post, not to its own. Re-measured with
+exactly the key the code uses:
+
+| | first published | correct |
+|---|---|---|
+| posts (a key with ≥1 child) | 1,136 | **1,138** |
+| spanning more than one bucket | 109 | **44** |
+| rows stranded off the bucket resolved first | 351 | **141** |
+| buckets carrying deliverables | 1,127 | **1,567** |
+| buckets carrying more than one post | 73 | **43** |
+| most posts in one bucket | 7 | **10** |
+| split posts whose first bucket is shared | 41 | **8** |
+
+Nothing about the fix changes: the defect, its direction, both review P1s and
+every guard stand. The problem is smaller than advertised and the shared-bucket
+exposure much smaller (8 posts, not 41), and 5 split posts have no exclusive
+bucket at all, so their empty slots are offered no target and writes stay on the
+row the reader is on.
+
+**A bound this measurement exposed, stated rather than discovered later.** 65
+rows are parents that are themselves sub-issues. For those, the post key groups
+the middle row with its OWN parent while its children form a separate key — so a
+three-level tree resolves as two posts, and a link on the middle row's bucket is
+not shared with its children's bucket unless they happen to coincide. Not
+regressed by this change (nothing shared across levels before either), not
+reported by anyone, and not fixed here.

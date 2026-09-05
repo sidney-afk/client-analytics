@@ -49482,16 +49482,6 @@
                     saving: false,
                     writeError: '',
                     remoteChanged: false,
-                    /* WHERE A POST-LEVEL WRITE SHOULD LAND, learned from the
-                       asset read. The two folder links belong to the POST, and
-                       a post's rows can sit on several batch rows, so the row
-                       the reader happens to be on is not necessarily the one
-                       every other seat resolves first. Empty until a read
-                       lands, and empty against a gateway that predates the
-                       field -- and both of those fall back to the open row's
-                       own batch, which is exactly what this did before. */
-                    postBatchId: '',
-                    postBatchUpdatedAt: '',
                     // Set only when a read COMPLETES; see _prodEnsureAssets.
                     scopeSignature: ''
                 };
@@ -49828,6 +49818,16 @@
                            nothing instead of arbitrary server text. */
                         source: ['deliverable','calendar_card','samples_card','client_plan','post']
                             .includes(String(asset.source || '')) ? String(asset.source) : '',
+                        /* WHERE THIS SLOT SHOULD BE WRITTEN, learned from the
+                           read. The two folder links belong to the POST, whose
+                           rows can sit on several batch rows -- and the post's
+                           slots can sit on DIFFERENT ones, so this is per slot
+                           rather than per panel. Empty against a gateway that
+                           predates the field, and empty when the gateway has
+                           nothing safe to offer; both fall back to the open
+                           row's own batch, which is what shipped before. */
+                        writeBatchId: String(asset.write_batch_id || '').trim(),
+                        writeBatchUpdatedAt: String(asset.write_batch_updated_at || '').trim(),
                         http_status: Number(asset.http_status) || null
                     });
                 });
@@ -49847,8 +49847,6 @@
                 current.status = 'ready';
                 current.complete = true;
                 current.assets = next;
-                current.postBatchId = String(json.post_batch_id || '').trim();
-                current.postBatchUpdatedAt = String(json.post_batch_updated_at || '').trim();
                 current.error = '';
                 /* The scope this answer is true for. requestStillCurrent() has
                    just re-checked it, so it is the row's scope at the moment
@@ -53509,29 +53507,36 @@
                 payload.id = String(issue.batchId || '');
                 let batchClock = '';
                 if (operation === 'batch_asset') {
-                    /* THE POST'S ROW, NOT THIS ROW'S (2026-09-05).
-                       The two folder links belong to the post, and 109 of 1,136
-                       measured posts have their rows spread over more than one
-                       batch row -- so writing the open row's own batch is how a
-                       link typed on the parent stayed invisible to all 32
-                       sub-issues. The asset read resolves the post and names
-                       the row every seat of it reads first; aiming here means a
-                       value the reader was SHOWN from elsewhere is edited back
-                       to where it was shown from, instead of forking a second
-                       copy onto whichever row they happened to open.
-                       The CAS clock has to move with the target: comparing this
-                       row's updated_at against another row's would fail its CAS
-                       forever, which is the same trap batch_description was
-                       retargeted to avoid. Both come from the same read, so
-                       they cannot disagree.
-                       No post row means an older gateway or an unread panel,
-                       and both fall back to the open row's own batch -- exactly
-                       the behaviour that shipped before this. */
+                    const writeSlot = String(fields && fields.slot || '');
+                    /* THE ROW THIS SLOT LIVES ON, NOT THIS DELIVERABLE'S
+                       (2026-09-05). The two folder links belong to the post,
+                       and 44 of 1,138 measured posts spread their rows over
+                       more than one batch row -- so writing the open row's own
+                       batch is how a link typed on the parent stayed invisible
+                       to all 32 sub-issues. The read names a target PER SLOT,
+                       because a post's slots can sit on different rows: aiming
+                       a whole panel at one row would point the Frame folder
+                       editor at a row whose column is empty, so clearing the
+                       link on screen would write a blank over a blank and the
+                       value would reappear. Editing a value where it already
+                       is means the edit lands where every seat reads it,
+                       instead of forking a second copy onto whichever row the
+                       editor happened to open.
+                       The CAS clock moves with the target: comparing this row's
+                       updated_at against another row's fails its CAS forever,
+                       the same trap batch_description was retargeted to avoid.
+                       Both come from the same read, so they cannot disagree.
+                       No target means an older gateway, an unread panel, or a
+                       gateway with nothing safe to offer -- all three fall back
+                       to the open row's own batch, exactly what shipped
+                       before. */
                     const assetState = _prodState.assets.get(String(issue.id));
-                    const postBatchId = String(assetState && assetState.postBatchId || '').trim();
-                    if (postBatchId) {
-                        payload.id = postBatchId;
-                        batchClock = String(assetState.postBatchUpdatedAt || '').trim();
+                    const evidence = assetState && assetState.assets
+                        && assetState.assets[writeSlot] || null;
+                    const target = String(evidence && evidence.writeBatchId || '').trim();
+                    if (target) {
+                        payload.id = target;
+                        batchClock = String(evidence.writeBatchUpdatedAt || '').trim();
                     }
                 }
                 const batch = _prodBatch(payload.id);
@@ -59125,7 +59130,7 @@
                    Per post rather than per row since 2026-09-05. batch_files_read
                    answers `deliverables where batch_id = <one id>`, and this
                    asked for the open parent's own batch only -- so on a post
-                   whose children sit on a different batch row (109 of 1,136
+                   whose children sit on a different batch row (44 of 1,138
                    measured) the response carried the parent and nothing else,
                    _prodBatchFileFor found no entry for any sub-issue, and every
                    pill was omitted. Reported by the owner as pills that used to

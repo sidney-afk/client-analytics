@@ -3843,9 +3843,9 @@ async function assetSnapshot(
      It did not, because `filming_doc_url`, `footage_folder_url` and
      `delivery_folder_url` are columns on ONE `batches` row, and the rows of one
      post routinely sit on more than one of them. Measured live 2026-09-05
-     across all 6,330 browser-visible deliverables: of 1,136 posts (a parent
-     uuid carrying at least one child), 109 span more than one batch row, and
-     107 of those have a real parent deliverable row. On the post the owner
+     across all 6,332 browser-visible deliverables: of 1,138 posts (a key
+     carrying at least one child), 44 span more than one batch row, stranding
+     141 rows off the bucket their post resolves first. On the post the owner
      reported, the parent is a B1 row on the mirror batch `b1_b_...` while all
      32 sub-issues are native rows on `bat_...` -- so the Frame folder he saved
      from the parent landed on a row no child reads, and the Raw footage on the
@@ -3951,7 +3951,6 @@ async function assetSnapshot(
      row of the post reads it back. Announced to the browser beside the values;
      a page that does not read it keeps writing its own batch row, which is
      exactly today's behaviour. */
-  const canonicalBatch: JsonMap = orderedBatches[0] || batch;
   const postValue = (field: string) => {
     for (const row of orderedBatches) {
       const value = clean(row[field]);
@@ -3962,6 +3961,68 @@ async function assetSnapshot(
   const postFilmingPlan = postValue("filming_doc_url");
   const postRawFootage = postValue("footage_folder_url");
   const postDeliveryFolder = postValue("delivery_folder_url");
+  /* WHICH CANDIDATE BATCHES CARRY WORK FOR OTHER POSTS TOO.
+     A `batches` row is a bucket, and 43 of the 1,567 buckets measured
+     2026-09-05 hold more than one post: one holds ten. Naming such a row as
+     a write target would let a link saved on THIS post appear on posts nobody
+     was looking at -- while the editor says "shared by the whole post". So a
+     bucket is only offered as a target when every row in it belongs to this
+     post. Asked only when the post spans more than one bucket (44 of 1,138),
+     and a failed read leaves exclusivity UNKNOWN, which offers no target at
+     all rather than guessing one. */
+  let exclusiveBatchIds: Set<string> | null = null;
+  if (orderedBatches.length > 1 && postUuid && deliverableClient) {
+    const candidateIds = orderedBatches.map(row => clean(row.id)).filter(Boolean);
+    const { data: occupants, error: occupantsError } = await supabase
+      .from("production_deliverables_browser_v1")
+      .select("batch_id,linear_issue_uuid,raw_issue_parent_id")
+      .in("batch_id", candidateIds)
+      .eq("client_slug", deliverableClient)
+      .limit(POST_ROW_LOOKUP_LIMIT * 4);
+    if (!occupantsError) {
+      const shared = new Set<string>();
+      for (const row of ((occupants || []) as JsonMap[])) {
+        // The same post key the roster is built from: a child names its parent,
+        // a parent names itself. Anything else in the bucket is another post.
+        const key = clean(row.raw_issue_parent_id) || clean(row.linear_issue_uuid);
+        if (key && key !== postUuid) shared.add(clean(row.batch_id));
+      }
+      exclusiveBatchIds = new Set(candidateIds.filter(id => !shared.has(id)));
+    }
+  }
+  /* WHERE A POST-LEVEL WRITE SHOULD LAND, PER SLOT.
+     Per slot, because the post's slots can live on DIFFERENT rows: on the post
+     the owner reported, the raw footage is on the native batch and the frame
+     folder on the mirror. A single panel-wide target would aim the Frame
+     folder editor at a row whose column is empty -- so clearing the link the
+     panel is showing would write a blank over a blank and the value would
+     simply reappear, and replacing it would leave a stale duplicate behind
+     that resurfaces the moment the new one is cleared. Raised by review on
+     #1287 before this reached a deploy.
+     A slot that HAS a value is written where that value already is: that row
+     is what every seat displays, and it is already shared with whatever else
+     sits in that bucket, so writing there exposes nothing new. A slot that is
+     empty across the whole post has nothing to follow, so it takes the first
+     bucket in canonical order that belongs to this post alone -- and when no
+     bucket qualifies, or exclusivity could not be determined, it offers
+     nothing and the browser writes the row it is already on, which is exactly
+     what shipped before any of this. */
+  const batchClocks = new Map(orderedBatches.map(row => [clean(row.id), clean(row.updated_at)]));
+  let exclusiveFallbackId = "";
+  if (orderedBatches.length === 1) {
+    exclusiveFallbackId = clean(orderedBatches[0].id);
+  } else if (exclusiveBatchIds) {
+    const row = orderedBatches.find(candidate => exclusiveBatchIds!.has(clean(candidate.id)));
+    exclusiveFallbackId = row ? clean(row.id) : "";
+  }
+  const writeTargetFor = (resolved: { from: string }) => {
+    const id = resolved.from || exclusiveFallbackId;
+    return id ? { id, updated_at: batchClocks.get(id) || "" } : null;
+  };
+  const postWriteTargets: Record<string, { id: string; updated_at: string } | null> = {
+    raw_footage: writeTargetFor(postRawFootage),
+    delivery_folder: writeTargetFor(postDeliveryFolder),
+  };
   // The canonical file if the deliverable has one; otherwise the link on the
   // card bound to it, which for the team that pastes it IS this file. See
   // boundCardArtifact for why the binding is required.
@@ -4050,19 +4111,22 @@ async function assetSnapshot(
         && !(slot.key === "filming_plan" && filmingPlanFromClient)
         ? { source: "post" }
         : {}),
+      /* The row THIS slot should be written to, and its clock. Carried per
+         slot because a post's slots can sit on different rows; absent when
+         nothing may be offered, and a page that reads no target writes the row
+         it is already on -- exactly what shipped before this. The clock rides
+         with the target because a CAS against another row's updated_at fails
+         forever, which is the trap batch_description was retargeted to avoid. */
+      ...(postWriteTargets[slot.key]
+        ? {
+          write_batch_id: postWriteTargets[slot.key]!.id,
+          write_batch_updated_at: postWriteTargets[slot.key]!.updated_at || null,
+        }
+        : {}),
     };
   }));
   return {
     checked_at: new Date().toISOString(),
-    /* WHERE A POST-LEVEL WRITE SHOULD LAND. The browser aims `batch_asset` at
-       this row and CASes against this clock, so a link typed from any seat of
-       the post lands on the one row every seat resolves first -- which is what
-       stops a new split being created the moment someone edits a value they
-       were shown from elsewhere. A page that predates this field keeps writing
-       its own batch row, i.e. exactly today's behaviour, so the deploy order
-       between the page and this function does not matter. */
-    post_batch_id: clean(canonicalBatch.id) || null,
-    post_batch_updated_at: clean(canonicalBatch.updated_at) || null,
     assets,
   };
 }

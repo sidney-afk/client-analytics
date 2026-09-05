@@ -544,3 +544,44 @@ returns 401.
 **If the browser half ships before the function half**, the endpoint returns
 managers without `source_clients`, the directory is empty, and the card does not
 render. No error, no console noise, no partial state.
+
+## 2026-09-05 — post-scoped shared assets, Dropbox share keys, binding-first card surface
+
+**Three independent halves, and they roll back independently.**
+
+**1. The Pages browser half** (`index.html`). Ships on merge. Reverting it alone
+is safe in both directions: a browser without it reads no per-slot write target
+and writes the batch row the open deliverable names, which is the behavior that
+shipped before 2026-09-05. The sub-issue file pills degrade to being asked for on
+the open row's batch only — i.e. absent on the 109 split posts, as before.
+
+**2. The `production-write` half** (`index.ts`, `policy.mjs`), deployed by
+`deploy-f27-section4-closures.yml` against a re-pinned closure. Reverting it
+alone returns the asset read to the 2026-09-01 downward, all-or-nothing borrow
+and returns `assetUrlType` to refusing Dropbox links carrying `st`, `e`,
+`preview` or `subfolder_nav_tracking`. A browser that is ahead of it reads no
+write target and falls back, so **there is no order in which this pair produces a
+control that fails** — unlike the 2026-08-30 artifact widening, where reverting
+the database alone left the gateway calling a function that would raise.
+
+**There is no data to roll back for these two.** The read half writes nothing.
+The write half changes only which existing `batches` row a `batch_asset` write
+names; no column, table, index, policy or grant is touched, and no backfill runs.
+A link written to the post's row while this was live stays exactly where it was
+written and is readable by both the old and new read paths (the old one reads it
+whenever the reader's own batch is that row, the new one from anywhere on the
+post).
+
+**3. `migrations/2026-09-05-artifact-card-binding-first.sql`** — owner-run, and
+in **no deploy lane's closure**: it adds and edits no file under
+`supabase/functions/`, so it needs no fingerprint re-pin, no sealed capture and no
+merge freeze. Rollback is re-applying the definition from
+`migrations/2026-08-30-artifact-video-projection.sql`. Nothing else needs undoing:
+no layer above it was widened for it, and the only rows whose behavior it changes
+are the 7 that were refused before and would simply be refused again. It writes
+no row at install time.
+
+**If the browser half ships before the function half** — which it does, by
+construction — the panel behaves exactly as it did on 2026-09-04 for the two
+shared slots, and the file pills improve on the posts that already had them. No
+error, no console noise, no partial state.

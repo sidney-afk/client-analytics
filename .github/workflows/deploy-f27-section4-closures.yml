@@ -278,12 +278,12 @@ jobs:
       # 403 comment_forbidden stays, and stays non-enumerating, because the
       # status there must not disclose whether a row exists. One shared
       # resolveCommentByRef replaces the three copies. Refusal-taxonomy change
-      # only: no migration, no schema, no new import -- file count unchanged
+      # only in that historical release: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
       # Draft root manifest closure: apply the additive root-manifest migration
       # before any separately authorized deployment. No activation in this PR.
-      PRODUCTION_WRITE_SOURCE_SHA256: efd71e9cab56c38470133a4a1e40f31d385af1f8b0757dda212193d32bc8d2d2
+      PRODUCTION_WRITE_SOURCE_SHA256: d2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

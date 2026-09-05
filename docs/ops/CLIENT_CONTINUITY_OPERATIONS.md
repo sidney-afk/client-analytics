@@ -16,6 +16,17 @@ against isolated file-backed fixtures. Installed watchers, alert delivery,
 human acknowledgement and live TEST action journeys are **NOT PROVEN** here.
 No schedule, secret, recipient, flag or relay has been configured by this work.
 
+A later approved read attempt exposed a monitor-process defect: peer reset on a
+refused CONNECT/upgrade socket could emit an unhandled `ECONNRESET` after Node
+removed its HTTP parser listeners. The proxy now handles that socket error,
+latches transport denial and destroys the socket; it never forwards or converts
+the event into healthy viewing. The existing offline transport suite includes
+isolated child-process controls that reproduce the crash only when that exact
+handler is removed, plus surviving CONNECT/upgrade resets with zero receiver
+escapes and closed sockets. This is harness recovery evidence, not website
+failure or live viewing success. Keep missing/blocked receipts non-green and
+rerun only under the coordinator's read approval. Canary eligibility is unchanged.
+
 ## Read readiness and TEST action readiness are separate
 
 The viewing command reuses the approved request/DOM observer and refusing

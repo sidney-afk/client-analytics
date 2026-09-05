@@ -3,12 +3,67 @@
 // frames. No business endpoint, credentials, content, screenshots or raw logs.
 const assert=require('node:assert/strict');
 const http=require('node:http'),crypto=require('node:crypto');
+const net=require('node:net'),{spawnSync}=require('node:child_process');
 const {chromium}=require('playwright');
 const H=require('./boot/client-entry-sequence');
 const {fixture}=require('./client-continuity-fixtures');
 const {captureView}=require('../scripts/client-continuity-view');
-const {openGuardedContext}=require('../scripts/client-continuity-transport');
+const {openGuardedContext,denyProxy}=require('../scripts/client-continuity-transport');
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function socketResetChild(mode,control) {
+  let deliveries=0,denied=0,closed=false,proxyServer;
+  const sink=net.createServer(socket=>{deliveries++;socket.destroy();});
+  await new Promise(resolve=>sink.listen(0,'127.0.0.1',resolve));
+  const create=http.createServer;
+  http.createServer=(...args)=>{proxyServer=create(...args);return proxyServer;};
+  let firewall;
+  try{firewall=await denyProxy();}finally{http.createServer=create;}
+  firewall.onDenied=()=>{denied++;};
+  const deadline=setTimeout(()=>{console.error('socket_reset_fixture_timeout');process.exit(2);},3000);
+  try {
+    proxyServer.once(mode,(_,socket)=>{
+      const handler=socket.listeners('error').find(fn=>fn.name==='onProxySocketError');
+      assert.equal(typeof handler,'function','actual proxy socket handler installed');
+      if(control)socket.removeListener('error',handler);
+      socket.once('close',()=>{closed=true;});
+      console.log(JSON.stringify({stage:'reset_injected',mode,guardInstalled:true}));
+      // An actual accepted TCP socket emits error asynchronously on destroy.
+      // This deterministically reproduces the peer-reset path after HTTP has
+      // detached its parser listeners, without relying on OS RST timing.
+      socket.destroy(Object.assign(new Error('read ECONNRESET'),{code:'ECONNRESET',errno:-4077,syscall:'read'}));
+    });
+    const client=net.connect(proxyServer.address().port,'127.0.0.1');
+    client.on('error',()=>{});client.resume();
+    await new Promise(resolve=>client.once('connect',resolve));
+    const target='127.0.0.1:'+sink.address().port;
+    client.write(mode==='connect'?`CONNECT ${target} HTTP/1.1\r\nHost: ${target}\r\n\r\n`:
+      `GET http://${target}/synthetic HTTP/1.1\r\nHost: ${target}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`);
+    await new Promise(resolve=>client.once('close',resolve));
+    await sleep(25);
+    assert.equal(closed,true);assert.ok(denied>=2);assert.equal(deliveries,0);
+    await firewall.close();firewall=null;
+    console.log(JSON.stringify({stage:'reset_survived',mode,denied:true,socketsClosed:true,receiverEscapes:deliveries}));
+  }finally{clearTimeout(deadline);if(firewall)await firewall.close();await new Promise(resolve=>sink.close(resolve));}
+}
+function socketResetRegressions() {
+  let passed=0;
+  for(const mode of ['connect','upgrade']) {
+    for(const control of [true,false]) {
+      const child=spawnSync(process.execPath,[__filename,'--socket-reset-child',mode,...(control?['--control']:[])],{encoding:'utf8',timeout:5000,maxBuffer:16384});
+      const events=child.stdout.trim().split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line));
+      assert.deepEqual(events[0],{stage:'reset_injected',mode,guardInstalled:true});
+      if(control) {
+        assert.equal(child.status,1);assert.match(child.stderr,/Unhandled 'error' event/);assert.match(child.stderr,/read ECONNRESET/);
+        assert.equal(events.length,1); // An unrelated startup/fixture error is not proof.
+      }else {
+        assert.equal(child.status,0);assert.equal(child.stderr,'');
+        assert.deepEqual(events[1],{stage:'reset_survived',mode,denied:true,socketsClosed:true,receiverEscapes:0});
+      }
+      passed++;
+    }
+  }
+  return passed;
+}
 async function receiver() {
   const receipt={http:0,upgrades:0,frames:0},sockets=new Set();let redirect;
   const server=http.createServer((req,res)=>{
@@ -46,9 +101,10 @@ async function attempt(page,mode,origin) {
 }
 let stage='startup';
 async function main() {
+  stage='socket_reset_regression';const resetCases=socketResetRegressions();
   const sink=await receiver(),reader=await receiver(),server=await H.startStreamServer();
   reader.setRedirect(sink.origin+'/business');
-  const browser=await chromium.launch({headless:true});let passed=0;
+  const browser=await chromium.launch({headless:true});let passed=resetCases;
   try {
     // Negative control: without the guard, these same real receivers must see
     // HTTP and WS data. Otherwise zero receipts below could be a broken fixture.
@@ -133,4 +189,6 @@ async function main() {
     console.log(JSON.stringify({suite:'client_continuity_transport',passed,receiverEscapes:0,live:false}));
   } finally {await browser.close();await server.close();await reader.close();await sink.close();}
 }
-main().catch(()=>{console.error(JSON.stringify({suite:'client_continuity_transport',stage,code:'assertion_or_fixture_failed'}));process.exitCode=1;});
+if(process.argv[2]==='--socket-reset-child')socketResetChild(process.argv[3],process.argv.includes('--control'))
+  .catch(()=>{console.error('socket_reset_fixture_failed');process.exitCode=2;});
+else main().catch(()=>{console.error(JSON.stringify({suite:'client_continuity_transport',stage,code:'assertion_or_fixture_failed'}));process.exitCode=1;});

@@ -120,7 +120,13 @@ async function denyProxy() {
   const server=http.createServer((_,response)=>{firewall.onDenied();response.writeHead(403);response.end();});
   const refuse=(_,socket)=>{firewall.onDenied();socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');};
   server.on('connect',refuse);server.on('upgrade',refuse);
-  server.on('connection',socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket));});
+  server.on('connection',socket=>{
+    sockets.add(socket);
+    // CONNECT/upgrade detaches Node's HTTP parser error handling. A peer reset
+    // must remain a denied transport, not become an unhandled process error.
+    socket.on('error',function onProxySocketError(){firewall.onDenied();socket.destroy();});
+    socket.on('close',()=>sockets.delete(socket));
+  });
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   firewall.proxy={server:'http://127.0.0.1:'+server.address().port,bypass:'<-loopback>'};
   firewall.close=async()=>{for(const socket of sockets)socket.destroy();await new Promise(resolve=>server.close(resolve));};
@@ -151,4 +157,4 @@ async function openGuardedContext(browser,config,deps={}) {
     throw error;
   }
 }
-module.exports={requestPolicy,installRealmGuard,openGuardedContext};
+module.exports={requestPolicy,installRealmGuard,openGuardedContext,denyProxy};

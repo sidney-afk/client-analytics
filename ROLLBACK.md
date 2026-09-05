@@ -577,3 +577,29 @@ no row at install time.
 construction — the panel behaves exactly as it did on 2026-09-04 for the two
 shared slots, and the file pills improve on the posts that already had them. No
 error, no console noise, no partial state.
+
+## 2026-09-05 — deployed: production-write v67
+
+`production-write` moved 66 → 67 (closure `cc44bf93…` → `d2914ac2…`) from commit
+`a05e1126437bb8c36bd3f33e3701a58924a8627d`, carrying the post-scoped shared
+asset resolution, the per-slot write target, the Dropbox share query keys, and
+the sub-issue file pill scope. `batch-write` (35), `deliverable-write` (35) and
+`linear-outbound` (47) redeployed unchanged at their existing closures.
+
+**Restore path:** the sealed prior four are in the `SyncView Backups/` Shared
+Drive root as `b66c0ae103e18077521c153fe88b98191de6038a656251fbb2421c73118cde31`
+(534,985 bytes), sealing `production-write` v66 / `cc44bf93…`. Restore is the
+same lane with `operation = restore-captured-prior-four` and its own
+confirmation from the F27 runbook — never a re-dispatch of the forward
+operation, per the lane's own instruction that an ambiguous forward response
+must not be retried.
+
+**The browser half is already live** and was before this deploy, by
+construction: it degrades to writing the row it is on when the gateway offers no
+per-slot target. So rolling the function back alone leaves a working page with
+the pre-2026-09-05 behaviour, not a broken control.
+
+`migrations/2026-09-05-artifact-card-binding-first.sql` was applied by the owner
+the same day, separately and independently of this lane. Its rollback is
+unchanged: re-apply the definition from
+`migrations/2026-08-30-artifact-video-projection.sql`.

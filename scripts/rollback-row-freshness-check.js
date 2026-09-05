@@ -426,33 +426,62 @@ const receiptsMeta = { log: '', positions: [] };
    slugs unquoted in the versions table, no run id in the heading and no
    attestation block -- none of the three receipt shapes above. Both parsed to
    nothing, the guard compared ROLLBACK.md against the previous receipt, and the
-   Live State row sat two releases stale while this check exited 0. So an entry
-   that LOOKS like a Section 4 deploy -- a heading naming Section 4 and a deploy,
-   or a body carrying a four-function versions table in any shape, quoted or not
-   -- must hold at least one receipt this file actually parsed, or it is named
-   here as unreadable with what to fix. "NOT DISPATCHED" in the heading is the
-   one shape the log already uses for a deploy that did not happen, and is the
-   only exemption. */
+   Live State row sat two releases stale while this check exited 0.
+
+   PER SECTION, NOT PER `##` ENTRY. Codex's second finding on the same PR: one
+   `##` entry legitimately holds several deploys as `###` subsections (the
+   2026-08-05 entry carries six), so a rule that accepted a whole entry because
+   SOME receipt sat inside it let a malformed subsection ride on a readable
+   sibling. Every heading of level 2-4 opens a section here, judged on its own:
+     - a versions-table row in the section's own block (heading to the next
+       heading of any level) that the strict table parser did not read -- a
+       slug without backticks, a bold cell -- is a deploy record this guard is
+       blind to, whatever the heading says and whatever else the block holds;
+     - a heading that names Section 4 and a deploy must have at least one
+       parsed receipt somewhere in its SUBTREE (down to the next heading of the
+       same or a higher level), so a container heading over readable
+       subsections passes while a deploy heading with nothing readable under it
+       does not. "NOT DISPATCHED" in the heading is the one exemption, the
+       shape the log already uses for a deploy that did not happen. */
 function unreadableDeployEntries(log, receiptPositions) {
     const out = [];
     const heads = [];
-    const hre = /^## [^\n]*/gm;
+    const hre = /^(#{2,4}) [^\n]*/gm;
     let m;
-    while ((m = hre.exec(log))) heads.push({ at: m.index, text: m[0] });
+    while ((m = hre.exec(log))) heads.push({ at: m.index, level: m[1].length, text: m[0] });
+    const strict = /^\|\s*`([a-z-]+)`\s*\|[^|]*\|\s*`[0-9a-f]{64}`\s*\|/gm;
     const loose = /^\|\s*\**`?(?:batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|]*\|\s*`?[0-9a-f]{64}`?\s*\|/gm;
+    const within = (from, to) => receiptPositions.some(at => at >= from && at < to);
     for (let i = 0; i < heads.length; i++) {
         const h = heads[i];
-        const end = i + 1 < heads.length ? heads[i + 1].at : log.length;
-        const body = log.slice(h.at, end);
+        const blockEnd = i + 1 < heads.length ? heads[i + 1].at : log.length;
+        let treeEnd = log.length;
+        for (let j = i + 1; j < heads.length; j++) {
+            if (heads[j].level <= h.level) { treeEnd = heads[j].at; break; }
+        }
+        const block = log.slice(h.at, blockEnd);
+        const strictRows = (block.match(strict) || [])
+            .filter(row => SLUGS.some(slug => row.indexOf('`' + slug + '`') >= 0)).length;
+        const looseRows = (block.match(loose) || []).length;
+        const unreadableRows = Math.max(0, looseRows - strictRows);
         const headSaysDeploy = /(Section 4|§4)/i.test(h.text) && /deploy/i.test(h.text)
             && !/NOT DISPATCHED/i.test(h.text);
-        const tableRows = (body.match(loose) || []).length;
-        if (!headSaysDeploy && !tableRows) continue;
-        if (receiptPositions.some(at => at >= h.at && at < end)) continue;
+        const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
+        if (!unreadableRows && !noReceiptUnder) continue;
+        const heading = h.text.replace(/^#+ /, '').slice(0, 120);
+        const line = log.slice(0, h.at).split('\n').length;
         out.push({
-            line: log.slice(0, h.at).split('\n').length,
-            heading: h.text.slice(3, 120),
-            tableRows,
+            line,
+            heading,
+            tableRows: unreadableRows,
+            message: 'the EXECUTION_LOG.md section at line ' + line + ' ("' + heading + '") '
+                + (unreadableRows
+                    ? 'carries ' + unreadableRows + ' versions-table row(s) this guard cannot read'
+                    : 'reads as a Section 4 deploy but holds no receipt this guard can read, in it or under it')
+                + ': quote the four slugs in the table (`production-write`, not production-write or'
+                + ' **production-write**), put the run id in the heading as run `<id>`, write "dispatched from'
+                + ' `<sha>`", and copy the lane\'s JSON attestation block. Until then the deploy it records is'
+                + ' invisible here, which is exactly how the Live State row went two releases stale on 2026-09-05.',
         });
     }
     return out;
@@ -513,12 +542,7 @@ function main() {
             + ' Add the run id to that entry (the attestation block carries it as github_run_id).');
     }
     for (const u of unreadableDeployEntries(receiptsMeta.log, receiptsMeta.positions || [])) {
-        failures.push('the EXECUTION_LOG.md entry at line ' + u.line + ' ("' + u.heading + '") reads as a Section 4 deploy'
-            + (u.tableRows ? ' and carries a ' + u.tableRows + '-row versions table' : '')
-            + ', but no receipt this guard can read: quote the four slugs in the table (`production-write`, not'
-            + ' production-write), put the run id in the heading as run `<id>`, write "dispatched from `<sha>`",'
-            + ' and copy the lane\'s JSON attestation block. Until then the deploy it records is invisible here,'
-            + ' which is exactly how the Live State row went two releases stale on 2026-09-05.');
+        failures.push(u.message);
     }
     /* Second signal, because one is a single point of failure: the entry dates
        must agree with the run-id order about which deploy is newest. */

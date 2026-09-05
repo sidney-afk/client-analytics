@@ -688,7 +688,7 @@ const malformed = [
 ].join('\n');
 const unread = run(fixture('unreadable-entry', realLog + malformed, realRb));
 ok(unread.code === 1 && unread.json
-    && unread.json.failures.some(f => /line \d+ \("2026-09-06 — F27 Section 4 deploy, run #40/.test(f) && /no receipt this guard can read/.test(f)),
+    && unread.json.failures.some(f => /section at line \d+ \("2026-09-06 — F27 Section 4 deploy, run #40/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
     'THE SHAPE THAT BLINDED THE GUARD: a Section 4 deploy entry with unquoted slugs, no run id and no attestation is named as unreadable, by line and heading, instead of being silently skipped');
 ok(unread.json && unread.json.live && unread.json.live.run === '33991332628',
     'and the verdict still shows the last receipt it COULD read, so the writer sees both what it saw and what it could not');
@@ -697,7 +697,7 @@ const headless = malformed.replace(
     '## 2026-09-06 — production-write 68 → 69 shipped');
 const headlessRun = run(fixture('unreadable-table', realLog + headless, realRb));
 ok(headlessRun.code === 1 && headlessRun.json
-    && headlessRun.json.failures.some(f => /4-row versions table/.test(f) && /no receipt this guard can read/.test(f)),
+    && headlessRun.json.failures.some(f => /section at line \d+ \("2026-09-06 — production-write 68 → 69 shipped/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
     'a four-function versions table the guard cannot read is caught even when the heading never says Section 4');
 const readable = malformed
     .replace('run #40', 'run `33999999999`')
@@ -708,15 +708,68 @@ const readable = malformed
     .replace('| **production-write** | **69** |', '| `production-write` | 68 → **69** |');
 const readableRun = run(fixture('readable-entry', realLog + readable, realRb));
 ok(readableRun.code === 1 && readableRun.json
-    && !readableRun.json.failures.some(f => /no receipt this guard can read/.test(f))
+    && !readableRun.json.failures.some(f => /cannot read/.test(f))
     && readableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
     'the same entry in the parsed shape is READ: the unreadable finding goes away and the stale-row finding takes its place, which is the one the row is then fixed for');
+
+/* ---- 8c. per SECTION, not per entry (Codex, second round on #1306) ------- */
+/* One `##` entry legitimately holds several deploys as `###` subsections (the
+   2026-08-05 entry carries six). A sweep that accepted a whole entry because
+   some receipt sat inside it let a malformed subsection ride on a readable
+   sibling: Codex appended the v69 reproduction as a `###` under the v68 entry
+   and the guard stayed green. The real log's last entry IS the v68 entry, so
+   appending to the file appends inside it. */
+const subsection = malformed.replace(
+    '## 2026-09-06 — F27 Section 4 deploy, run #40: production-write 68 → 69',
+    '### Later the same day, deploy #40: production-write 68 → 69');
+const subRun = run(fixture('unreadable-subsection', realLog + subsection, realRb));
+ok(subRun.code === 1 && subRun.json
+    && subRun.json.failures.some(f => /section at line \d+ \("Later the same day, deploy #40/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'THE RIDE-ALONG: a malformed deploy written as a ### subsection under an entry that already holds a readable receipt is named on its own, by its own heading');
+const sameBlock = malformed.split('\n').filter(l => !/^## /.test(l) && !/^Deployed from commit/.test(l)).join('\n');
+const sameBlockRun = run(fixture('unreadable-same-block', realLog + sameBlock, realRb));
+ok(sameBlockRun.code === 1 && sameBlockRun.json
+    && sameBlockRun.json.failures.some(f => /section at line \d+ \("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'and a malformed table appended to the readable entry with no heading at all is caught in the same block, because unreadable rows are counted against parsed rows rather than excused by a neighbour');
+const container = [
+    '',
+    '## 2026-09-07 — F27 Section 4 deploys #40–#41: two in one day',
+    '',
+    'Both dispatched by the owner; each subsection carries its own receipt.',
+    '',
+    '### Deploy #40, run `33999999901`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+    '### Deploy #41, run `33999999902`',
+    '',
+    'Dispatched from `89abcdef0123456789abcdef0123456789abcdef`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 69 → **70** | `' + 'f'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const containerRun = run(fixture('container-heading', realLog + container, realRb));
+ok(containerRun.json && !containerRun.json.failures.some(f => /cannot read/.test(f))
+    && containerRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v70/.test(f)),
+    'a container heading that names Section 4 deploys over two READABLE subsections is not flagged -- the receipts under it count for it -- and the guard moves on to the row, which is stale');
 
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);
 ok(real.code === 0, 'and the repository as it stands right now is consistent');
-ok(real.json && !real.json.failures.some(f => /no receipt this guard can read/.test(f)),
+ok(real.json && !real.json.failures.some(f => /cannot read/.test(f)),
     'and every Section 4 deploy entry in the real log is one the guard can read, today included');
 
 fs.rmSync(tmp, { recursive: true, force: true });

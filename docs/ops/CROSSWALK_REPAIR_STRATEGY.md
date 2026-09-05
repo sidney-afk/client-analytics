@@ -163,7 +163,10 @@ order, and revision 1's plan would have stalled at its second step.
 **That RPC is now written** (2026-09-05):
 `public.production_comment_card_bind_and_import(p_binding, p_comments, p_event)`
 in `migrations/2026-09-05-crosswalk-bind-and-import.sql`, service-role only.
-**Written is not applied** — nothing in the live database has this function yet.
+~~**Written is not applied** — nothing in the live database has this function yet.~~
+*(Superseded 2026-09-05: applied live twice by the owner — Epoch 1 at ~18:25Z,
+Epoch 2 at ~20:1xZ — and run to completion; the status table at the top is
+current.)*
 
 It refuses more than the first draft did, and the two additions are worth
 naming here because they change what Phase 2 can finish on its own. Binding on

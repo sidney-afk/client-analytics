@@ -11957,7 +11957,7 @@ would have to change are the ones that will survive.**
 
 ---
 
-## 148. [2026-09-05, SOURCE WRITTEN, NOT APPLIED — updates item 147's state] The Phase 2 RPC exists in source, and it refuses two things item 147 did not think to refuse
+## 148. [2026-09-05, SOURCE WRITTEN; APPLIED LIVE AND RUN LATER THE SAME DAY, see item 156 — updates item 147's state] The Phase 2 RPC exists in source, and it refuses two things item 147 did not think to refuse
 
 Item 147 §4 named the blocker: `production_comment_card_import` validates the
 crosswalk *before* it copies, so it refuses precisely while the crosswalk is
@@ -12645,7 +12645,7 @@ Pin: `PRODUCTION_WRITE_SOURCE_SHA256` re-pinned with this change. Live is still
 `d2914ac2…` (v67, deployed from `a05e1126`); the repo had already moved to
 `6a39a2bc…` (the exclusivity truncation guard). The next dispatch carries both.
 
-## 156. [2026-09-05, RULED AND WRITTEN, NOT APPLIED — updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
+## 156. [2026-09-05, RULED, WRITTEN, APPLIED LIVE TWICE AND RUN — 100 of 100, 7 for a person; updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
 
 Item 148's RPC required a deliverable's `kind` to match the card slot ("team is
 too coarse: team='video' covers kind='video' and kind='other'"). Measured
@@ -12688,7 +12688,7 @@ seven. Two shells had been **canceled by hand and resurrected by the sync**
 the card's status, so cancelling in Linear alone did not stick. The six at
 Kasper approval are phantom items in his queue today.
 
-### What changed in source (all in one PR, migration still NOT applied)
+### What changed in source (all in one PR; ~~migration still NOT applied~~ applied live later the same day — "First live apply" and "Second live apply" below)
 
 `migrations/2026-09-05-crosswalk-bind-and-import.sql`,
 `scripts/f42-linkage-defect-repair.js` (`classAObjections`),

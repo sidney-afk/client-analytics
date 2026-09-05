@@ -12788,3 +12788,36 @@ name, the SQLSTATE and the bounded message on every refusal. Re-applying the
 migration (SQL Editor, `create or replace`) and re-dispatching plan → apply at
 https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
 finishes the 11. Logged in `EXECUTION_LOG.md` (2026-09-05, Crosswalk Phase 2).
+
+### Second live apply (same day, 20:53 UTC) — 11 of 11, 0 refused; the rule has done everything it can
+
+The owner re-applied the same migration file (Epoch 2, as merged in #1301,
+`5b9c0720`), dispatched `plan` under run id `crosswalk-phase2-2026-09-05-b`
+— 1,214 slots, 1,196 clean, 18 mismatching → **11 calls, every one with an
+eviction**, 4 carrying a legacy thread (12 comments), 7 skipped for a person:
+the exact residue the first apply left — then `apply` against that plan's
+digest. Result: **11 bound, 11 occupants evicted, all `canceled`, 12 comments
+imported, 0 already linked, 0 refused.** After: 7 mismatching slots remain, 0
+bindable (already_bound_elsewhere 5, client_mismatch 1,
+linear_identity_unproven 1).
+
+Read back minutes later with the publishable key: `deliverable_events` holds
+100 `crosswalk_bound` rows for the day (89 + 11; 47 video slots, 53 graphic;
+14 clients; 100 distinct deliverables) and 18 `crosswalk_occupant_evicted` (7
+`detached` from the first apply, 11 `canceled` from this one). The 11 cancels
+carry `authority=syncview` and `authority_generation=0` — the binder the first
+apply lacked; the occupants' statuses before eviction were Kasper approval 6,
+scheduled 4, tweak 1, the same 11 the fence refused at 19:3x. All 11 kept rows
+hold their card (`origin=calendar`, kind `video`); all 11 occupants have
+`card_id` null and `status=canceled`. The occupants are the duplicate shells
+SyncView Mirror created and that were verified empty in Linear earlier in the
+day, so no editor's work was closed. The 11 native cancels reach Linear through
+the outbound drain (`linear-outbound-drain.yml`, every 10 minutes); the outbox
+is not readable with the publishable key (42501), so delivery is confirmed
+against Linear itself — recorded in `EXECUTION_LOG.md` (2026-09-05, Crosswalk
+Phase 2, second apply).
+
+That closes the repair set the rule can close: every slot the runner examines
+is either clean or one of the 7 named for a person, and the runner's plan
+summary lists those 7 by reason on every run. Item 147's residue and the "Still
+open" list above are the whole of what is left.

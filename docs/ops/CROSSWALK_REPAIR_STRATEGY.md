@@ -16,7 +16,7 @@ separates them deliberately:
 | Phase 1 (90 cards with no legacy thread) | **RAN 2026-09-04.** 172 mismatching slots → 112; 60 repaired. Owner-executed SQL. |
 | Phase 2's combined RPC | **Epoch 1 — APPLIED LIVE 2026-09-05 (#1291, owner, SQL Editor)**: kind never refuses, labels follow the card, contested slots resolve on request (§4b); 89 cards repaired through it. Its cancel-eviction path enqueued without the F27 authority binder and was refused on 11 slots. **Epoch 2 — APPLIED LIVE 2026-09-05 ~20:1xZ (#1301, owner, SQL Editor)**: same function, cancel path mints the binder via `track_b_f27_write_authorization`, detaches only under Linear authority; rehearsed against the F27 outbox fence installed verbatim (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). The remaining 11 cards went through it at 20:53Z, 0 refused. |
 | Phase 2 (the remaining slots) | **RAN 2026-09-05, 100 of 100, in two applies.** Migration applied by the owner; lane dispatched plan then apply (89 bound, 7 shells detached, 97 comments imported; 11 refused by the live F27 outbox fence because the cancel intent carried no authority binder — OPEN_REPAIRS 156, "First live apply"); RPC fixed, migration re-applied, plan then apply again (11 bound, 11 shells canceled natively with the binder, 12 comments imported, 0 refused — "Second live apply"). **7 slots remain, all for a person**: already_bound_elsewhere 5, client_mismatch 1, linear_identity_unproven 1; the plan summary names them by reason on every run. |
-| Phase 3 (verify) | **Partly done 2026-09-05.** After each apply the runner re-exports and applies the same four-field test to every slot (1,214 examined, 7 mismatching, none bindable), and the ledger and the touched rows were read back with the publishable key (`EXECUTION_LOG.md`, both crosswalk entries). Not yet done: the browser-side readback through `_prodCrosswalkMismatchFields` itself, and confirming the 7 named slots with a person. |
+| Phase 3 (verify) | **Partly done 2026-09-05.** After each apply the runner re-exports and applies the same four-field test to every slot (1,214 examined, 7 mismatching, none bindable), and the ledger and the touched rows were read back with the publishable key (`EXECUTION_LOG.md`, both crosswalk entries). Exit condition and population are defined in §5 ("Phase 3"): (a) 0 bindable — holds; (b) a recorded ruling for each of the 7 named slots — not yet; (c) the browser-side readback through `_prodCrosswalkMismatchFields` over the same population agreeing with the runner — not yet. |
 
 ~~**Status: PROPOSAL. Nothing here has been executed. No migration is written.**~~
 *(Superseded 2026-09-05. Kept because the sentence was quoted as evidence the
@@ -376,9 +376,22 @@ planner, so the RPC refusing it is consistency, not a new restriction.
 deliverable already bound elsewhere, a cross-client reference (the one item 147
 §2 records), and one slot where neither side names an issue.
 
-**Phase 3 — verify against the predicate.** `_prodCrosswalkMismatchFields` must
-return empty for all 1,271 slots. Item 99's lesson: do not relax a readback to a
-row count.
+**Phase 3 — verify against the predicate.** ~~`_prodCrosswalkMismatchFields`
+must return empty for all 1,271 slots.~~ *(Revised 2026-09-05, after the two
+applies.)* **Population:** what the runner examines — every filled video/graphic
+slot on every calendar card of an active client, test client excluded (1,214
+slots on 2026-09-05). The 1,271 of 2026-09-04 (§1) was measured over every
+client's calendar, test client included, before Phase 1; it is a different
+population and the two are not compared against each other. **Exit condition:**
+(a) the runner's post-apply re-export reports 0 bindable slots, and (b) every
+slot it still reports as mismatching is one of the named-reason exceptions
+(today 7: already_bound_elsewhere 5, client_mismatch 1,
+linear_identity_unproven 1) with a person's ruling for it recorded in
+OPEN_REPAIRS — a ruling may be "repair by hand" or "leave it, and here is why";
+either closes the slot — and (c) the browser-side readback through
+`_prodCrosswalkMismatchFields`, run over the same population, names the same
+slots and no others. (a) holds as of 2026-09-05 21:00Z; (b) and (c) do not
+yet. Item 99's lesson: do not relax a readback to a row count.
 
 **Rehearsal first, each phase.** The repo has the pattern
 (`scripts/component-fill-rehearsal.js`, `f42-apply-rehearsal.yml`): a dry run

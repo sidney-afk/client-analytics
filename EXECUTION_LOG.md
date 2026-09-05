@@ -6290,8 +6290,21 @@ and status (the `crosswalk_occupant_evicted` event carries `from_status`, and
 the `card_id` they held is the event's `card_id`) but **not in their
 timestamps**: `track_b_deliverable_touch_timestamps` stamps `updated_at` on
 every row the RPC updates and `status_at` on the rows whose status changed
-(the 11 cancels), and neither prior value is recorded anywhere. The 11 Linear
-cancels are reversed by hand in Linear. **The 100 kept rows are not fully
+(the 11 cancels), and neither prior value is recorded anywhere. **The 11
+Linear cancels are not reversed by hand in Linear.** Video is
+SyncView-authoritative (`prod_authority`), so a Linear-side edit is a foreign
+mutation the authoritative reconciler may overwrite, and restoring the row's
+status directly in the database enqueues no inverse outbound intent. The
+reversal is the forward path run backwards: a native status write of each
+occupant back to its `from_status` through a path that enqueues the outbound
+intent with the F27 binder (`track_b_f27_write_authorization('video')` →
+`mirror_outbox_enqueue` with `_f27_authority_generation`, exactly as the RPC's
+cancel branch does), delivered to Linear by the drain. If a person must edit
+Linear instead, hold the reconcilers first (the reconciler lanes are
+manual-dispatch and cron; disable the cron or wait for a quiet window) and
+restore the database rows in the same window, or flip Video's authority to
+Linear for the duration. Not written as a script; not exercised. **The 100
+kept rows are not fully
 reversible from the ledger** (their `updated_at` moved too):
 the RPC overwrites `card_id`, `client_slug`, `origin`, `team` and `kind`,
 and the `crosswalk_bound` event records only `kind_before`. Of the other four,

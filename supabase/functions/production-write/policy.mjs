@@ -701,23 +701,50 @@ const ASSET_HOSTS = Object.freeze([
   "uploads.linear.app",
 ]);
 /*
- * `export` and `format` were added 2026-08-05. They are not optional extras:
- * `assetProbeUrl` BUILDS them. A Drive probe is `/uc?export=download&id=…` and a
- * Docs probe is `/document/d/…/export?format=pdf`, so without these keys the
- * gateway constructed a URL its own `assetUrlType` then judged `invalid`, and
- * `boundedAssetFetch` threw `asset_redirect_invalid` at hop 0 without making a
- * request. Every Google Drive and Google Docs artifact was unprobeable; Dropbox
- * worked only because `raw` and `rlkey` happened to be listed already.
+ * `st` AND `subfolder_nav_tracking` WERE ADDED 2026-09-05, AND THE SLOT WAS A
+ * DEAD END WITHOUT THEM.
  *
- * Neither key is a credential — `CREDENTIAL_QUERY_KEY` still rejects token,
- * auth, key, secret, signature, expires, credential and policy — and neither
- * changes a folder into a file. `test/asset-probe-url-policy.js` holds the
- * property that made this findable: every URL `assetProbeUrl` constructs must
- * pass `assetUrlType`.
+ * Owner report: a Dropbox raw-footage link showed a red `Invalid` under a
+ * perfectly good "Open folder" link -- "can we change the cosmetic thing that
+ * says invalid for a Dropbox folder, because it's okay, it's acceptable."
+ *
+ * It was not cosmetic. Dropbox appends `st=` to every share link it hands out
+ * of the current UI, and a folder link opened through the folder navigator also
+ * carries `subfolder_nav_tracking=1`. Neither was on this list, so
+ * `providerQuerySafe` refused the URL, `assetUrlType` returned `invalid`, and
+ * every layer downstream refused with it: `probeAssetUrl` painted the red pill,
+ * `handleBatchAssetWrite` refused the save with 400 invalid_artifact_url, and
+ * `canonicalArtifactUrl` returned null. All four of the owner's own links --
+ * the raw footage, the frame folder, the general drive and the photos folder --
+ * failed on this, in all four slots. So no Dropbox share link copied out of
+ * Dropbox today could be SAVED at all, from any seat; the red pill was the only
+ * visible half of it.
+ *
+ * The 2026-09-01 ruling that widened `assetTypeAllowed` to accept a Dropbox
+ * FILE was aimed at this same report and did not reach it, because the refusal
+ * is decided one step earlier, on the query rather than on the shape.
+ *
+ * NEITHER IS A CREDENTIAL. `CREDENTIAL_QUERY_KEY` still rejects token, auth,
+ * key, secret, signature, sig, expires, credential and policy, and
+ * `signedAssetExpired` reads only the Expires/X-Goog-Date pair, which neither
+ * of these is. Neither turns a folder into a file. The host allowlist is what
+ * actually protects these slots and it is untouched -- a Google Doc is still
+ * refused as raw footage, and a link off the allowlist is still refused
+ * outright. `test/asset-probe-url-policy.js` holds the property that made the
+ * original gap findable: every URL `assetProbeUrl` constructs must itself pass
+ * `assetUrlType`.
+ *
+ * `export` and `format` were added 2026-08-05 for the same class of reason:
+ * `assetProbeUrl` BUILDS them. A Drive probe is `/uc?export=download&id=...`
+ * and a Docs probe is `/document/d/.../export?format=pdf`, so without those two
+ * the gateway constructed a URL its own `assetUrlType` then judged `invalid`
+ * and `boundedAssetFetch` threw `asset_redirect_invalid` at hop 0 without
+ * making a request. Every Drive and Docs artifact was unprobeable; Dropbox
+ * worked only because `raw` and `rlkey` happened to be listed already.
  */
 const SAFE_ASSET_QUERY_KEYS = new Set([
   "usp", "dl", "raw", "download", "id", "tab", "rlkey", "resourcekey",
-  "export", "format",
+  "export", "format", "st", "subfolder_nav_tracking",
 ]);
 const CREDENTIAL_QUERY_KEY = /(?:^|[-_])(?:token|auth|key|secret|signature|sig|expires?|credential|policy)(?:$|[-_])/i;
 

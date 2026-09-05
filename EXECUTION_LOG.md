@@ -6051,3 +6051,10 @@ a phone. OPEN_REPAIRS 146.
 ## 2026-09-05 - Publish the Linear-exit execution evidence and bounded handoffs
 
 Documentation only under draft PR1268. GO_LIVE_CHECKLIST remains the single G0-G10 sequence and Decision A remains NOT READY. Publish the 23:15 UTC exact-head GitHub inventory, the independent PR1308 review (two real human-reset failures retained), and the three previously delivered Claude assignment texts. Update assignment69 and history1311aab to their completed independent review/current-head CI; distinguish the published fingerprint7e branch with 238 local handler groups from absent hosted/SQL/full-recovery proof. Preserve the sealed September4 evidence and historical failed receipts. Private operator packets, raw sensitive records and credentials remain outside GitHub. No application, workflow, SQL, deployment, data, flag, alert or billing change. Validation and publication status are recorded with the resulting PR head; the snapshot does not pre-claim checks on its own later documentation commit.
+
+
+## 2026-09-05 - Confirm Claude execution and start native intake picker work
+
+The owner confirmed the three archived Claude assignments are running: native card completion, complete Calendar feedback recovery and authenticated schema/empty-target restore. Codex started one non-overlapping intake-aligned Create Post editor projection on PR1309 at69ae5d33. This documentation checkpoint changes no product behavior and claims no new implementation result or activation. The same G0-G10 release gates remain held.
+
+The native-label trace found no complete catalog owner. The coordinator authorized one dormant versioned catalog foundation and staged read/validation contract; no live import, completed implementation or activation is claimed.

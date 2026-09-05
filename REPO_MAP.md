@@ -116,6 +116,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 ## Meta
 
+Historical client-content coverage: `scripts/linear-history-coverage/` contains a local-input-only scanner, synthetic fixtures/tests, input contract, and `scripts/linear-history-coverage/2026-09-05-report.md`. It measures candidate references separately from staff archives and client retrieval; run `node scripts/linear-history-coverage/test.js` explicitly (outside the auto-discovered unit directory). It performs no exports, rescue, downloads, live reads or writes.
+
 | Path | What it is |
 |---|---|
 | `.github/` | CI workflows (unit, client-entry visible boot, nightlies, prod-polish gate, reconcile crons, edge-function deploy), PR template, Copilot instructions. |

@@ -1,0 +1,33 @@
+{
+  "source_state": "fetched_base_plus_uncommitted_tooling_pinned_by_content_digests",
+  "evidence_class": "OFFLINE_TEST",
+  "started_at": "2026-09-05T06:59:38.700Z",
+  "head": "706359752e861969e6c68898daa26e29a2eb6edb",
+  "source_sha256": {
+    "index.html": "8f64f648d4b92ac2147bd9ecf3c3f0747f4081331df275b8c10ff25e0f10c53a",
+    "scripts/f34-linear-asset-rescue.js": "2d0e38a165fcfb1249d42a68235d755ff9d0fc5ff1183c491fd06a19e58e8516",
+    "supabase/functions/production-comments/policy.mjs": "7350215bf77e4928fa48d0f926db08e27ac73e990451427458db700ba4f01d12",
+    "test/helpers/extract-function.js": "364805d91956b24d9177d061f15f1c68c47b6e971f03f7427f375855f3e2607a",
+    "scripts/linear-history-coverage/scan.js": "c1a40f8e372509d23a159b84f13008426ec9eb8734a150329af6cc6c23f83197",
+    "scripts/linear-history-coverage/reader-helpers.js": "cb9afe9ef6368d4293fe885bf0af12b4fdee7cad1404808024bd563c12b28326",
+    "scripts/linear-history-coverage/test.js": "80096460178a94df0fca7f24c6bb0b8f6b4101c17d64f743b18c4339e0f56554",
+    "scripts/linear-history-coverage/fixtures/synthetic.js": "8c01b8452aa5d059a273cdb0685021748c61b0dcf4e07861855e4c668f75b3d9"
+  },
+  "result": {
+    "evidence_class": "OFFLINE_TEST",
+    "passed": 25,
+    "failed": 0
+  },
+  "full_repository_suite": {
+    "evidence_class": "OFFLINE_TEST",
+    "source_head": "706359752e861969e6c68898daa26e29a2eb6edb",
+    "completed_at": "2026-09-05T06:54:34.166Z",
+    "suite_processes": 399,
+    "successful_suite_processes": 398,
+    "failed_suites": [
+      "asset-access-any-team.js"
+    ],
+    "failure_class": "windows_esm_absolute_path_import",
+    "disposable_postgresql": "NOT_TESTED"
+  }
+}

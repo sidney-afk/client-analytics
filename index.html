@@ -38610,6 +38610,12 @@
         if (which) {
             const key = which + '_status';
             if (post[key] === status) return;
+            /* Refuse to send an empty component for review. */
+            const blocked = _calReviewBlockReason(post, which, status);
+            if (blocked) {
+                showNotify('Nothing to review yet', blocked);
+                return;
+            }
             post[key] = status;
             _calPendingEdits[pid][key] = status;
             // Title is independent of the overall card status — never fold it in.
@@ -38622,14 +38628,26 @@
             if (post.status === status) return;
             // Main status dropdown is a bulk override — set every sub-status
             // so the lower-wins overall computation lands on the chosen value.
+            /* ...except a component with nothing in it, which is skipped rather
+               than failing the whole action: sending two of three for review is
+               what the reader asked for, and refusing all three because one
+               caption is blank would be the more annoying answer. */
+            const movable = CAL_COMPONENTS.filter(c => !_calReviewBlockReason(post, c, status));
+            const held = CAL_COMPONENTS.filter(c => !movable.includes(c));
+            if (!movable.length) {
+                showNotify('Nothing to review yet', 'Every part of this card is still empty, so there is nothing to send for approval.');
+                return;
+            }
             post.status = status;
-            post.video_status = status;
-            post.graphic_status = status;
-            post.caption_status = status;
             _calPendingEdits[pid].status = status;
-            _calPendingEdits[pid].video_status = status;
-            _calPendingEdits[pid].graphic_status = status;
-            _calPendingEdits[pid].caption_status = status;
+            for (const c of movable) {
+                post[c + '_status'] = status;
+                _calPendingEdits[pid][c + '_status'] = status;
+            }
+            if (held.length) {
+                showNotify('Sent without ' + held.map(c => String(CAL_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
             _calMarkLocalStatus(pid);
         }
         // If any sub regressed below Client Approval, the matching
@@ -38694,6 +38712,52 @@
        live (0 samples and 0 live calendar cards carry a deliverable id with no
        url), which is exactly why it had to be fixed before it stopped being
        latent: post-flip, native-only IS the shape new work arrives in. */
+    /* ONE RULE FOR "DOES THIS COMPONENT HAVE THE THING IT IS ASKING TO BE
+       REVIEWED", and every surface that needs the answer asks HERE.
+
+       It already existed three times over: Kasper's queue asked it to decide
+       what he can act on (_kasperCompReviewable), the calendar asked a narrower
+       version of it to draw the "No video linked" warning (_calSmmMediaGap),
+       and nothing asked it before letting the status move. That last gap is why
+       cards keep arriving in Kasper's stranded notice: a status can be sent for
+       review while the thing to review is empty, so the SMM believes it is with
+       him and he opens a card with nothing on it.
+
+       Owner, 2026-09-05: "if the caption is empty or there is no thumbnail URL
+       or no video URL then it shouldn't go to Kasper Approval."
+
+       A component is reviewable when its OWN content is present -- video needs
+       a file, thumbnail needs an image, caption needs either caption body. */
+    function _calCompHasContent(post, comp) {
+        /* Delegates to Kasper's definition rather than copying it, so what he
+           can review and what may be sent to him cannot drift apart. The
+           direction matters: his is the one six suites compile in isolation,
+           so it stays dependency-free and this side does the reaching. */
+        return _kasperCompReviewable(post, comp);
+    }
+    /* The statuses that mean "somebody is being asked to look at this". Only
+       these are gated. Tweaks Needed is a REJECTION -- the content may well be
+       missing, that is often the point -- and the terminal three are left alone
+       deliberately: blocking Approved/Scheduled/Posted would break bulk edits on
+       legacy cards that were completed before the calendar carried media at all,
+       which is a real workflow, not a hypothetical. */
+    const CAL_REVIEW_STATUSES = new Set(['For SMM Approval', 'Kasper Approval', 'Client Approval']);
+    function _calStatusNeedsContent(status) {
+        return CAL_REVIEW_STATUSES.has(_calNormStatus(status || ''));
+    }
+    /* '' when the move is allowed, otherwise the reason, phrased the way the
+       existing media warning phrases it so the two agree. */
+    function _calReviewBlockReason(post, comp, status) {
+        if (!_calStatusNeedsContent(status)) return '';
+        if (_calCompHasContent(post, comp)) return '';
+        if (comp === 'video') return 'Add the video URL before sending it for approval.';
+        if (comp === 'graphic') return 'Add the thumbnail URL before sending it for approval.';
+        if (comp === 'caption') return 'Write the caption before sending it for approval.';
+        if (comp === 'title') return 'Write the title before sending it for approval.';
+        return '';
+    }
+    const CAL_COMP_LABEL = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
+
     function _calSetAllSettable(post, comp) {
         if (!post) return false;
         if (comp === 'caption') return true;
@@ -38708,7 +38772,17 @@
         _calCloseStatusMenu();
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
-        const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c));
+        /* Same rule as the pill: a component with no content is not settable to
+           a review status. Filtered here rather than inside apply() so the
+           confirm dialog counts what will actually move. */
+        const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c)
+            && !_calReviewBlockReason(post, c, status));
+        const heldEmpty = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c)
+            && _calReviewBlockReason(post, c, status));
+        if (!settable.length && heldEmpty.length) {
+            showNotify('Nothing to review yet', 'Every part you can set is still empty, so there is nothing to send for approval.');
+            return;
+        }
         if (!settable.length) {
             // Was "link the Linear sub-issues first" -- the same dead-control
             // instruction the locked pill carried, in a third place the sweep
@@ -43555,6 +43629,15 @@
         // Routing to Kasper means this component has now appeared in Kasper
         // review — record it on the post's cross-device kasper_seen column so
         // every device (each SMM, Kasper) treats it as no-longer-brand-new.
+        /* Approving a component ONTO someone else is still sending it for
+           review, so it obeys the same rule. Guarded before the kasper_seen
+           stamp, or the card would be marked seen for a review that never
+           happened. */
+        const _reviewBlocked = _calReviewBlockReason(post, comp, approveTo);
+        if (_reviewBlocked) {
+            showNotify('Nothing to review yet', _reviewBlocked);
+            return false;
+        }
         let _kasperSeenCsv = null;
         if (approveTo === 'Kasper Approval') _kasperSeenCsv = _calRecordKasperSeenOnPost(post, comp);
         post[subKey] = approveTo;
@@ -44613,6 +44696,11 @@
      * unlinked-graphic clause in _kasperUndecidedComps is the same shape and
      * the precedent for it, and that function's comment records why the finish
      * gate and the fresh-ask test must read one set and not two. */
+    /* THE canonical answer to "does this component have the thing it is asking
+       to be reviewed". Deliberately self-contained: six suites compile this
+       function in isolation, so a dependency here breaks them all. The
+       calendar's status gate delegates TO this rather than the other way round
+       (_calCompHasContent). */
     function _kasperCompReviewable(post, comp) {
         if (comp === 'video') return String((post && post.asset_url) || '').trim() !== '';
         if (comp === 'graphic') return String((post && post.thumbnail_url) || '').trim() !== '';
@@ -45625,6 +45713,12 @@
             if (post[subKey] !== target) next = target;
         }
         if (!next) return false;
+        /* An AUTOMATIC route must not send an empty component for review. This
+           is the path that moves a card along on its own, so it is the one most
+           likely to strand a card without anybody choosing to -- and returning
+           false leaves the component exactly where it was, which is the correct
+           outcome: there is nothing to review. */
+        if (_calReviewBlockReason(post, which, next)) return false;
         // Only the component the comment belongs to flips status. Overall
         // card status is recomputed from all three sub-statuses (lower-wins).
         post[subKey] = next;

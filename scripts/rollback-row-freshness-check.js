@@ -98,6 +98,7 @@ function receiptsFromTables(log) {
         if (SLUGS.indexOf(m[1]) < 0) continue;
         const nums = String(m[2]).match(/\d+/g);
         if (!nums || !nums.length) continue;
+        receiptsMeta.parsedRows.add(m.index);
         rows.push({
             at: m.index, slug: m[1], version: nums[nums.length - 1], closure: m[3].toLowerCase(),
             entry: log.lastIndexOf('\n## ', m.index),
@@ -419,7 +420,7 @@ function executionLogReceipts() {
 /* The log text, kept so main() can run the other-lane sweep without re-reading
    and re-parsing the file; and the position of every receipt it parsed, so the
    unreadable-entry sweep below can tell an entry with a receipt from one without. */
-const receiptsMeta = { log: '', positions: [] };
+const receiptsMeta = { log: '', positions: [], parsedRows: new Set() };
 
 /* A DEPLOY ENTRY THIS GUARD CANNOT READ IS A DEPLOY THIS GUARD CANNOT SEE.
    Codex P1 on #1306. On 2026-09-05 two forward deploys were logged with the
@@ -480,21 +481,28 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
        is NOT required to carry a 64-hex closure: an abbreviated closure
        (`c7c6edce...`) is itself a reason the strict parser cannot read the row
        (Codex, eighth round). Rows are grouped by adjacency; a group in which no
-       row parses strictly is a table this guard is blind to. A group with at
-       least one strict row is a table it read (the 2026-08-31 entry abbreviates
-       one closure beside three full ones, and its receipt is the concise prose). */
+       row was ACCEPTED BY receiptsFromTables is a table this guard is blind
+       to. Whether a row was accepted is asked of the parser itself, by
+       position, not re-derived here with a lookalike regex: the first draft's
+       lookalike required the closure but not the numeric version the parser
+       requires, so a row with a quoted slug, a full closure and a version of
+       "unknown" made its whole group look readable while the parser had
+       rejected every row (Codex, ninth round on #1306). A group with at least
+       one accepted row is a table it read (the 2026-08-31 entry abbreviates one
+       closure beside three full ones, and its receipt is the concise prose). */
     const candidateRow = /^\|\s*\**`?(?:batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
-    const strictRow = /^\|\s*`(?:batch-write|deliverable-write|linear-outbound|production-write)`\s*\|[^|]*\|\s*`[0-9a-f]{64}`\s*\|/;
-    const unreadableTableRows = block => {
+    const unreadableTableRows = (block, blockStart) => {
         let total = 0;
         let group = [];
+        let offset = 0;
         const flush = () => {
-            if (group.length && !group.some(row => strictRow.test(row))) total += group.length;
+            if (group.length && !group.some(at => receiptsMeta.parsedRows.has(at))) total += group.length;
             group = [];
         };
         for (const line of block.split('\n')) {
-            if (candidateRow.test(line)) group.push(line);
+            if (candidateRow.test(line)) group.push(blockStart + offset);
             else flush();
+            offset += line.length + 1;
         }
         flush();
         return total;
@@ -516,7 +524,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
             if (heads[j].level <= h.level) { treeEnd = heads[j].at; break; }
         }
         const block = log.slice(h.at, blockEnd);
-        const unreadableRows = unreadableTableRows(block);
+        const unreadableRows = unreadableTableRows(block, h.at);
         /* Section 4 may be named in the heading, in an ancestor heading, or --
            the concise-prose layout the top of this log uses -- only in the body
            ("**Section 4 forward from `<sha>`, run `<id>`**" under a generic

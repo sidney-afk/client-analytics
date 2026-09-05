@@ -915,6 +915,28 @@ ok(abbreviatedRun.code === 1 && abbreviatedRun.json
     && abbreviatedRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
     'ABBREVIATED CLOSURES: a four-function table whose closures are shortened is still a table, and one the guard cannot read, so it is named -- a 64-hex closure is not a precondition for being counted');
 
+/* ---- 8h. "accepted by the parser", not "looks strict" (round nine) --------- */
+/* A row with a quoted slug and a full closure but a version cell of "unknown"
+   is rejected by receiptsFromTables (it needs a number), yet a lookalike regex
+   in the detector called it strict and excused the whole group. The detector
+   now asks the parser which rows it accepted, by position. */
+const unknownVersion = [
+    '',
+    '## 2026-09-06 — production-write 68 → 69 shipped',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `production-write` | unknown | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '| batch-write | 35 | `86f9f187...` | verify_jwt=false |',
+    '| deliverable-write | 35 | `78df060b...` | verify_jwt=false |',
+    '| linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
+    '',
+].join('\n');
+const unknownVersionRun = run(fixture('unknown-version-row', realLog + unknownVersion, realRb));
+ok(unknownVersionRun.code === 1 && unknownVersionRun.json
+    && unknownVersionRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'ACCEPTED, NOT LOOKALIKE: a group whose one strict-looking row the parser actually rejected (version "unknown") is wholly unreadable and named -- the detector defers to the parser by position');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

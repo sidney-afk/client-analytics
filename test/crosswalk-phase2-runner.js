@@ -60,6 +60,12 @@ const LIVE = {
         { id: 'dup', author: 'SMM', role: 'smm', body: 'one', created_at: '2026-07-23T10:00:00Z' },
         { id: 'dup', author: 'SMM', role: 'smm', body: 'two', created_at: '2026-07-23T10:00:00Z' },
       ] },
+    // beta reuses acme's card ids (calendar_posts is keyed on (client, id)):
+    // its own thread on 'c_thread', and a clean mismatch on 'c_badthread' that
+    // acme's unplannable thread must not hold back.
+    { id: 'c_thread', client: 'beta', video_deliverable_id: 'd_thread_beta', linear_issue_id: 'VID-20',
+      comments: [{ id: 'beta-root', author: 'SMM', role: 'smm', body: 'Beta note', created_at: '2026-07-24T10:00:00Z' }] },
+    { id: 'c_badthread', client: 'beta', video_deliverable_id: 'd_beta_ok', linear_issue_id: 'VID-21' },
     // inactive client and the test client: never examined by default
     { id: 'c_gone', client: 'gone', video_deliverable_id: 'd_gone', linear_issue_id: 'VID-14' },
     { id: 'c_test', client: runner.TEST_CLIENT, video_deliverable_id: 'd_test', linear_issue_id: 'VID-15' },
@@ -80,12 +86,14 @@ const LIVE = {
     deliverable({ id: 'd_elsewhere', origin: 'calendar', card_id: 'c_somewhere_else', linear_identifier: 'VID-10' }),
     deliverable({ id: 'd_thread', linear_identifier: 'VID-12' }),
     deliverable({ id: 'd_badthread', linear_identifier: 'VID-13' }),
+    deliverable({ id: 'd_thread_beta', client_slug: 'beta', linear_identifier: 'VID-20' }),
+    deliverable({ id: 'd_beta_ok', client_slug: 'beta', linear_identifier: 'VID-21' }),
     deliverable({ id: 'd_gone', linear_identifier: 'VID-14' }),
     deliverable({ id: 'd_test', client_slug: runner.TEST_CLIENT, linear_identifier: 'VID-15' }),
   ],
 };
-const byCard = (plan, cardId) => plan.calls.find(c => c.card_id === cardId);
-const skippedFor = (plan, cardId) => plan.skipped.find(s => s.card_id === cardId);
+const byCard = (plan, cardId, client = 'acme') => plan.calls.find(c => c.card_id === cardId && c.client === client);
+const skippedFor = (plan, cardId, client = 'acme') => plan.skipped.find(s => s.card_id === cardId && s.client === client);
 
 /* ---- 1. the plan asks the RPC's questions ------------------------------- */
 
@@ -130,7 +138,13 @@ ok(thread && thread.comments.length === 2
   && thread.comments.every(c => c.native_comment_id && c.source_fingerprint && c.body && c.role)
   && thread.comments.map(c => c.native_comment_id).sort().join(',') === 'reply,root',
   'a slot with a legacy thread carries every comment as the RPC\'s p_comments shape (native_comment_id + source_fingerprint + the import payload)');
-ok(plan.counts.calls_with_thread === 1 && plan.counts.comments_to_import === 2,
+const betaThread = byCard(plan, 'c_thread', 'beta');
+ok(betaThread && betaThread.comments.length === 1 && betaThread.comments[0].native_comment_id === 'beta-root'
+  && thread.comments.every(c => c.native_comment_id !== 'beta-root'),
+  "two clients sharing a card id each get ONLY their own thread — beta's 'c_thread' carries beta-root and acme's carries root+reply (Codex P1)");
+ok(byCard(plan, 'c_badthread', 'beta') && skippedFor(plan, 'c_badthread', 'acme'),
+  "and acme's unplannable thread on 'c_badthread' does not hold back beta's clean call on the same card id");
+ok(plan.counts.calls_with_thread === 2 && plan.counts.comments_to_import === 3,
   'and the counts say so');
 const bad = skippedFor(plan, 'c_badthread');
 ok(bad && bad.reason === 'thread_not_plannable' && bad.classifications.includes('duplicate_identity'),
@@ -138,10 +152,10 @@ ok(bad && bad.reason === 'thread_not_plannable' && bad.classifications.includes(
 const RUNNER_SRC = fs.readFileSync(path.join(ROOT, 'scripts', 'crosswalk-phase2-runner.js'), 'utf8');
 ok(/reason: 'thread_partially_planned'/.test(RUNNER_SRC) && /if \(deferred\) \{/.test(RUNNER_SRC) && plan.counts.comments_deferred === 0,
   'a slot whose thread the import policy would only partly import is held back (thread_partially_planned) — a bound card never shows fewer comments than before; none in this fixture');
-ok(plan.counts.calls === 5 && plan.counts.mismatching_slots === 12
+ok(plan.counts.calls === 7 && plan.counts.mismatching_slots === 14
   && plan.counts.skipped_by_reason.thread_not_plannable === 1
   && plan.counts.relabels['thumbnail->video'] === 1 && plan.counts.relabels['other->thumbnail'] === 1,
-  'the plan\'s counts add up: 5 calls, 12 mismatching slots, one relabel of each kind');
+  'the plan\'s counts add up: 7 calls, 14 mismatching slots, one relabel of each kind');
 
 /* ---- 3. the digest pins what will be called ------------------------------- */
 
@@ -171,17 +185,20 @@ ok(runner.planRepair(moved, { runId: 'unit' }).digest !== plan.digest,
     };
   };
   const applied = await runner.applyPlan(plan, rpc, { cap: 10 });
-  ok(bodies.length === 5 && bodies.every(x => x.name === runner.RPC_NAME),
+  ok(bodies.length === 7 && bodies.every(x => x.name === runner.RPC_NAME),
     'apply makes exactly one RPC call per planned slot, to production_comment_card_bind_and_import');
   const shellBody = bodies.find(x => x.body.p_binding.card_id === 'c_shell').body;
   const plainBody = bodies.find(x => x.body.p_binding.card_id === 'c_plain').body;
+  const betaBody = bodies.find(x => x.body.p_binding.card_id === 'c_thread' && x.body.p_binding.client_slug === 'beta').body;
+  ok(betaBody.p_comments.length === 1 && betaBody.p_comments[0].native_comment_id === 'beta-root' && betaBody.p_binding.deliverable_id === 'd_thread_beta',
+    "beta's call on the shared card id sends beta's one comment to beta's deliverable, nothing of acme's");
   ok(shellBody.p_binding.evict_occupant === runner.EVICT_MODE && !('evict_occupant' in plainBody.p_binding),
     "evict_occupant='card_wins' is sent ONLY on the call whose slot is held by an occupant");
-  const threadBody = bodies.find(x => x.body.p_binding.card_id === 'c_thread').body;
+  const threadBody = bodies.find(x => x.body.p_binding.card_id === 'c_thread' && x.body.p_binding.client_slug === 'acme').body;
   ok(threadBody.p_comments.length === 2 && threadBody.p_event.import_run_id === 'unit' && threadBody.p_event.action === 'crosswalk_phase2_bind_and_import',
     'the thread travels in p_comments and the event names the run');
-  ok(applied.applied_count === 4 && applied.refusal_count === 1 && applied.refusals_by_code.slot_occupied === 1
-    && applied.evicted_count === 1 && applied.evicted_by_mode.canceled === 1 && applied.imported_count === 2,
+  ok(applied.applied_count === 6 && applied.refusal_count === 1 && applied.refusals_by_code.slot_occupied === 1
+    && applied.evicted_count === 1 && applied.evicted_by_mode.canceled === 1 && applied.imported_count === 3,
     'receipts and refusals are counted separately, by the RPC\'s own code with the crosswalk_bind_ prefix dropped');
   let capped = '';
   try { await runner.applyPlan(plan, rpc, { cap: 3 }); } catch (e) { capped = e.message; }
@@ -209,9 +226,9 @@ ok(runner.planRepair(moved, { runId: 'unit' }).digest !== plan.digest,
 
   /* ---- 6. the public log sees counts, never identifiers ------------------ */
   const md = runner.renderSummaryMarkdown(result);
-  ok(/calls planned: 5/.test(md) && /refused by the RPC: 1 — slot_occupied 1/.test(md) && /relabels on bind: other->thumbnail 1, thumbnail->video 1/.test(md),
+  ok(/calls planned: 7/.test(md) && /refused by the RPC: 1 — slot_occupied 1/.test(md) && /relabels on bind: other->thumbnail 1, thumbnail->video 1/.test(md),
     'the summary renders the counts and reason enums');
-  ok(!/c_plain|d_shell|VID-500|acme/.test(md), 'and no card id, deliverable id, Linear identifier or client slug');
+  ok(!/c_plain|d_shell|VID-500|acme|beta-root/.test(md), 'and no card id, deliverable id, Linear identifier or client slug');
 
   /* ---- 7. the lane ----------------------------------------------------------- */
   const LANE = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'crosswalk-phase2-repair.yml'), 'utf8');

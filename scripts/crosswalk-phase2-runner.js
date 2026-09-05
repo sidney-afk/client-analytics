@@ -20,9 +20,11 @@
  *
  * THE LEGACY THREAD RIDES ALONG. A slot whose card carries legacy comments is
  * bound AND imported in one transaction, or not at all: the import planner
- * (scripts/f42-card-comment-import.js) is run over a snapshot in which the
- * deliverable rows of the planned calls are already in their POST-BIND state,
- * so it plans exactly the comments the RPC will accept after binding. A slot
+ * (scripts/f42-card-comment-import.js) is run ONE CLIENT AT A TIME over a
+ * snapshot in which the deliverable rows of the planned calls are already in
+ * their POST-BIND state, so it plans exactly the comments the RPC will accept
+ * after binding — and a card id reused by two clients (calendar_posts is keyed
+ * on (client, id)) can never mix their threads. A slot
  * whose thread the planner cannot plan cleanly (a conflict or a link defect
  * naming that card+component) is skipped as `thread_not_plannable` rather than
  * bound without its conversation — binding first and importing later is the
@@ -171,8 +173,14 @@ function classifySlot(card, slot, deliverable, rowsByCard) {
 
 /* ---- the comment threads, planned against the post-bind crosswalk ----------- */
 
-function buildCommentSnapshot(live, calls, activeClients) {
-  const patched = new Map(calls.map(call => [clean(call.deliverable_id), call]));
+/* ONE CLIENT PER SNAPSHOT. calendar_posts is keyed on (client, id) and the bare
+   card id is reused across clients by design, while the import planner's
+   defect and deferral rows carry only card_id + component. Planning each
+   client alone is what makes "this card's thread" unambiguous: an import can
+   never be attributed to another client's card of the same id, and another
+   client's defect can never hold this client's slot back (Codex P1 on #1296). */
+function buildCommentSnapshot(live, calls, client) {
+  const patched = new Map(calls.filter(call => call.client === client).map(call => [clean(call.deliverable_id), call]));
   const deliverables = (live.deliverables || [])
     .map(row => {
       const projected = commentExport.projectDeliverable(row);
@@ -188,7 +196,7 @@ function buildCommentSnapshot(live, calls, activeClients) {
     .filter(row => clean(row.id))
     .sort((a, b) => clean(a.id).localeCompare(clean(b.id)));
   const calendar = (live.cards || [])
-    .filter(card => activeClients.has(cardSlug(card)))
+    .filter(card => cardSlug(card) === client)
     .map(commentExport.projectCard)
     .filter(commentExport.cardHasComments);
   return {
@@ -215,11 +223,14 @@ function namesSlot(row, call) {
   return text.includes(call.card_id) && text.includes(call.component);
 }
 
-function attachComments(calls, commentPlan) {
+function attachCommentsForClient(client, calls, commentPlan) {
   const importsBySlot = new Map();
   for (const item of commentPlan.imports || []) {
     const link = item && item.link ? item.link : {};
     if (low(link.source_surface) !== 'calendar') continue;
+    // The snapshot held one client; a link naming another would be a planner
+    // defect, and is dropped rather than attributed to this client's call.
+    if (clean(link.client_slug) !== client) continue;
     const key = `${clean(link.card_id)}|${clean(link.component)}`;
     if (!importsBySlot.has(key)) importsBySlot.set(key, []);
     importsBySlot.get(key).push({
@@ -233,6 +244,7 @@ function attachComments(calls, commentPlan) {
   const kept = [];
   const skipped = [];
   for (const call of calls) {
+    if (call.client !== client) continue;
     const blocking = problems.filter(row => namesSlot(row, call));
     if (blocking.length) {
       skipped.push({
@@ -260,6 +272,25 @@ function attachComments(calls, commentPlan) {
       continue;
     }
     kept.push({ ...call, comments, deferred_comments: 0 });
+  }
+  return { calls: kept, skipped };
+}
+
+function attachComments(calls, live, runId) {
+  const clients = [...new Set(calls.map(call => call.client))].sort();
+  const kept = [];
+  const skipped = [];
+  for (const client of clients) {
+    const commentPlan = commentImport.planCardCommentImport(buildCommentSnapshot(live, calls, client), { importRunId: runId });
+    const snapshotLevel = (commentPlan.conflicts || []).filter(row => clean(row.classification) === 'snapshot_contract_required');
+    if (snapshotLevel.length) {
+      const error = new Error('comment_snapshot_invalid');
+      error.reasons = [...new Set(snapshotLevel.map(row => clean(row.reason)))].sort();
+      throw error;
+    }
+    const attached = attachCommentsForClient(client, calls, commentPlan);
+    kept.push(...attached.calls);
+    skipped.push(...attached.skipped);
   }
   return { calls: kept, skipped };
 }
@@ -320,14 +351,7 @@ function planRepair(live, options = {}) {
     }
   }
 
-  const commentPlan = commentImport.planCardCommentImport(buildCommentSnapshot(live, calls, activeClients), { importRunId: runId });
-  const snapshotLevel = (commentPlan.conflicts || []).filter(row => clean(row.classification) === 'snapshot_contract_required');
-  if (snapshotLevel.length) {
-    const error = new Error('comment_snapshot_invalid');
-    error.reasons = [...new Set(snapshotLevel.map(row => clean(row.reason)))].sort();
-    throw error;
-  }
-  const attached = attachComments(calls, commentPlan);
+  const attached = attachComments(calls, live, runId);
   const finalCalls = attached.calls
     .sort((a, b) => (a.client + a.card_id + a.component).localeCompare(b.client + b.card_id + b.component));
   const finalSkipped = [...skipped, ...attached.skipped];

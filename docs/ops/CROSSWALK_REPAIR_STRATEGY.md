@@ -7,7 +7,7 @@ different things and this line separates them deliberately:
 | | State |
 |---|---|
 | Phase 1 (90 cards with no legacy thread) | **RAN 2026-09-04.** 172 mismatching slots → 112; 60 repaired. Owner-executed SQL. |
-| Phase 2's combined RPC | **WRITTEN**, `migrations/2026-09-05-crosswalk-bind-and-import.sql`, rehearsed against a disposable PostgreSQL 16 (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). **NOT APPLIED to the live database, and no card has been repaired through it.** |
+| Phase 2's combined RPC | **WRITTEN**, `migrations/2026-09-05-crosswalk-bind-and-import.sql`, rehearsed against a disposable PostgreSQL 16 (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). **REVISED 2026-09-05 evening under the owner's label ruling (§4b): kind never refuses, labels follow the card, contested slots resolve on request.** **NOT APPLIED to the live database, and no card has been repaired through it.** |
 | Phase 2 (the remaining slots) | **NOT STARTED.** Needs the migration applied and a per-card call list measured fresh. |
 | Phase 3 (verify) | Not started. |
 
@@ -163,18 +163,83 @@ the card's own pointer is not enough authority: a STALE pointer that happens to
 name an unbound row of the same client would have that unrelated row rewritten
 and the card's conversation copied onto it. So the function also requires
 
-  * the deliverable's `kind` to be the kind the card slot implies — `team` is
-    too coarse, because `team='video'` covers `kind='video'` and `kind='other'`;
+  * ~~the deliverable's `kind` to be the kind the card slot implies — `team` is
+    too coarse, because `team='video'` covers `kind='video'` and `kind='other'`;~~
+    **withdrawn 2026-09-05 evening, see §4b;**
   * the card and the deliverable to name **the same Linear issue**, with either
     side missing treated as unproven rather than as permission.
 
-These are the same two questions `scripts/f42-linkage-defect-repair.js`
-(`classAObjections`) already asks before planning a Class A repair, so the SQL
-repair and the JS planner now agree about what "the same work item" means.
+~~These are the same two questions~~ The identity question is the same one
+`scripts/f42-linkage-defect-repair.js` (`classAObjections`) asks before
+planning a Class A repair, so the SQL repair and the JS planner agree about what
+"the same work item" means — and both dropped the kind question in the same
+change.
 **Consequence for the plan:** a slot that cannot prove its identity is not a
 slot this RPC will repair. Those are for a person, and the Phase 2 call list has
 to be measured with that in mind rather than assumed to cover every remaining
 slot.
+
+### 4b. The label ruling (2026-09-05 evening) — kind never refuses, the card wins
+
+The first measurement of the call list (§5) found the kind guard refusing **40
+of 107** slots in which the card and the row named the **same** Linear issue —
+26 graphics rows titled "Carousel"/"Story"/"Webinar … story" (`kind='other'`)
+sitting in graphic slots, and 14 "Reel N"/"Video N" rows on one client stamped
+`kind='thumbnail'` because their *batch parent* was titled "… Reels and
+Thumbnails". `kind` is `classifyKind()` in `b1-linear-backfill.js`: a regex
+over the issue's title and its parent's title. It is a guess about the artifact,
+not a fact about it, and the owner's ruling was the obvious one: *"I would
+believe the card."* The RPC, the planner, the rehearsal and the source guards
+were revised together (OPEN_REPAIRS 156):
+
+  * **kind never refuses.** Identity — both sides naming the same Linear issue —
+    is the one proof of "the same work item". A Linear identifier's team prefix
+    is not required to match the slot either: 9 live graphic slots hold
+    thumbnails tracked on the Video team, and the card's word is what the
+    client sees.
+  * **the labels follow the card on bind.** A row bound into the video slot
+    becomes `kind='video'`; a graphic-slot row keeps `thumbnail`/`other`; team
+    is the slot's team, as before. This is not cosmetic:
+    `deliverables_card_slot_unique` keys on kind, so a video-slot row left at
+    `thumbnail` would collide with the same card's real thumbnail. Exactly 14
+    live rows relabel, all thumbnail→video, all the "Reel" rows above.
+  * **a contested slot resolves on request, and the card wins.** With
+    `"evict_occupant": "card_wins"` in the binding, a row holding the slot
+    that the card does *not* point at is detached (`card_id → null`) and, if
+    still in a live status, set `canceled` natively with the cancel queued
+    for the outbound lane; a terminal occupant is only detached. Each eviction
+    is a `crosswalk_occupant_evicted` event and is returned in the receipt.
+    Without the flag, `slot_occupied` is still a refusal. An occupant naming
+    the **same** issue as the card is never evicted (`occupant_same_issue`):
+    that is two projections of one issue, and cancelling it would cancel the
+    issue the card keeps. The row the card's *other* slot points at is never
+    an occupant.
+
+  Why the card wins, measured rather than assumed: all 18 live occupants are
+  native-born rows ("Video N", created by SyncView Mirror when the card was
+  created natively) on cards a person then re-pointed by hand at the older
+  batch issue. Every one inspected in Linear — the seven whose status looked
+  like live work — was an empty shell: no description, no attachment, no
+  lifecycle of its own, its status stamped from the card at birth and never
+  moved since. Two had been canceled by hand and were **resurrected by the
+  sync** because the shell stayed attached to the card. Detaching is therefore
+  the half that makes the cancel stick.
+
+**The call list under the ruling** (re-measured 2026-09-05 17:50 UTC, same
+population of 107 mismatching slots, same read-only method):
+
+| Outcome | Slots |
+|---|---|
+| **Binds on its own** (identity agrees, slot free) | **82** — of which 14 relabel thumbnail→video |
+| **Binds with `evict_occupant=card_wins`** — occupant is a native-born shell, 0 name the same issue | **18** — occupant statuses: Kasper approval 6, scheduled 4, canceled 3, posted 3, tweak 1, approved 1 |
+| Refused: `already_bound_elsewhere` | 5 |
+| Refused: `client_mismatch` | 1 |
+| Refused: `linear_identity_unproven` | 1 |
+
+**100 of 107 the RPC can repair unattended; 7 need a person**, unchanged from
+the first measurement's "other 25" minus the 18 contested slots the ruling
+decides. The 6 shells at Kasper approval are phantom items in his queue today
+and leave it the moment the migration is applied and the 18 calls run.
 
 ---
 

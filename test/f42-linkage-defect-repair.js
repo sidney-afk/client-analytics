@@ -191,9 +191,9 @@ function snapshot(cards, deliverables) {
     { calendar: [card({ video_deliverable_id: 'dlv-1' })] },
     [deliverable({ kind: 'other' })],
   ), { runId: 'test-kind' });
-  ok(planWrongKind.writes.length === 0
-    && planWrongKind.skipped.some(row => (row.objections || []).includes('kind_does_not_match_the_card_slot')),
-  'R15: Class A refuses when the deliverable kind does not match the card slot (team alone is too coarse)');
+  ok(planWrongKind.writes.length === 1
+    && !planWrongKind.skipped.some(row => (row.objections || []).includes('kind_does_not_match_the_card_slot')),
+  "R15 (revised 2026-09-05, owner ruling): a title-guessed kind no longer refuses a Class A repair when the card and the deliverable name the same Linear issue — identity is the proof, kind is a label; the SQL repair applies the same rule");
 
   const planNoLinear = repair.planLinkageRepair(snapshot(
     { calendar: [card({ video_deliverable_id: 'dlv-1', linear_issue_id: '' })] },

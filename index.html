@@ -49219,6 +49219,16 @@
                     saving: false,
                     writeError: '',
                     remoteChanged: false,
+                    /* WHERE A POST-LEVEL WRITE SHOULD LAND, learned from the
+                       asset read. The two folder links belong to the POST, and
+                       a post's rows can sit on several batch rows, so the row
+                       the reader happens to be on is not necessarily the one
+                       every other seat resolves first. Empty until a read
+                       lands, and empty against a gateway that predates the
+                       field -- and both of those fall back to the open row's
+                       own batch, which is exactly what this did before. */
+                    postBatchId: '',
+                    postBatchUpdatedAt: '',
                     // Set only when a read COMPLETES; see _prodEnsureAssets.
                     scopeSignature: ''
                 };
@@ -49242,16 +49252,53 @@
            was just written is left alone: its caller re-reads it immediately
            and dropping it here would race that read. */
         function _prodInvalidateBatchAssetReads(issue, writtenId) {
-            const batchId = String(issue && issue.batchId || '').trim();
-            if (!batchId) return;
+            if (!issue) return;
             const keep = String(writtenId || '');
-            _prodIssues().forEach(row => {
-                if (!row || String(row.batchId || '') !== batchId) return;
-                if (String(row.id) === keep) return;
+            /* THE POST, NOT THE BATCH ID (2026-09-05).
+               This used to drop cached reads for rows whose batchId matched the
+               written one, which is precisely the set that does NOT need it on
+               a split post: the parent sits on another batch row, so it kept
+               painting its stale cached read after a sub-issue write, and every
+               sub-issue kept painting theirs after a write from the parent. The
+               read resolves these two slots across the whole post now, so the
+               rows whose answer just changed are the post's rows -- the parent
+               and every sub-issue -- whatever batch row each of them names.
+               Same batch row is still covered: a sibling on the shared row is
+               also a row of this post. The row that was just written is left
+               alone because its caller re-reads it immediately, and dropping it
+               here would race that read. */
+            const rows = _prodPostRows(issue);
+            rows.forEach(row => {
+                if (!row || String(row.id) === keep) return;
                 const state = _prodState.assets.get(String(row.id));
                 if (!state || state.editing || state.saving) return;
                 _prodState.assets.delete(String(row.id));
             });
+        }
+        /* Every row of the post `issue` belongs to: its parent (or itself, when
+           it is the parent) and all of that row's children, plus any sibling
+           sharing its batch row. Deliberately built from the projection the
+           reader can already see rather than asked for -- the gateway resolves
+           the same post server-side, and this only decides which cached reads
+           to drop, so a row this misses is re-read on its next open rather than
+           shown wrong. */
+        function _prodPostRows(issue) {
+            if (!issue) return [];
+            const seen = new Map();
+            const add = row => { if (row && row.id && !seen.has(row.id)) seen.set(row.id, row); };
+            add(issue);
+            const root = issue.parent ? _prodIssue(issue.parent) : issue;
+            if (root) {
+                add(root);
+                _prodChildrenOf(root.id).forEach(add);
+            }
+            const batchId = String(issue.batchId || '').trim();
+            if (batchId) {
+                _prodIssues().forEach(row => {
+                    if (row && String(row.batchId || '') === batchId) add(row);
+                });
+            }
+            return Array.from(seen.values());
         }
         /* The file links behind the sub-issue pills, one request per batch.
            Deliberately quiet: a failure leaves the pills absent rather than
@@ -49507,7 +49554,7 @@
                            say so rather than present a derived value as its
                            own. Closed vocabulary, so a surprising value renders
                            nothing instead of arbitrary server text. */
-                        source: ['deliverable','calendar_card','samples_card','client_plan']
+                        source: ['deliverable','calendar_card','samples_card','client_plan','post']
                             .includes(String(asset.source || '')) ? String(asset.source) : '',
                         http_status: Number(asset.http_status) || null
                     });
@@ -49528,6 +49575,8 @@
                 current.status = 'ready';
                 current.complete = true;
                 current.assets = next;
+                current.postBatchId = String(json.post_batch_id || '').trim();
+                current.postBatchUpdatedAt = String(json.post_batch_updated_at || '').trim();
                 current.error = '';
                 /* The scope this answer is true for. requestStillCurrent() has
                    just re-checked it, so it is the row's scope at the moment
@@ -49713,8 +49762,8 @@
                 state.remoteChanged = false;
                 _prodToast(operation === 'batch_asset'
                     ? (value
-                        ? _prodAssetSlotLabel(issue, slot) + ' updated for the whole batch'
-                        : _prodAssetSlotLabel(issue, slot) + ' cleared for the whole batch')
+                        ? _prodAssetSlotLabel(issue, slot) + ' updated for the whole post'
+                        : _prodAssetSlotLabel(issue, slot) + ' cleared for the whole post')
                     : 'Canonical deliverable attached');
                 if (operation === 'batch_asset') _prodInvalidateBatchAssetReads(issue, id);
                 await _prodEnsureAssets(id, true);
@@ -53186,8 +53235,36 @@
                    against the batch clock. */
                 payload.entity = 'batch';
                 payload.id = String(issue.batchId || '');
+                let batchClock = '';
+                if (operation === 'batch_asset') {
+                    /* THE POST'S ROW, NOT THIS ROW'S (2026-09-05).
+                       The two folder links belong to the post, and 109 of 1,136
+                       measured posts have their rows spread over more than one
+                       batch row -- so writing the open row's own batch is how a
+                       link typed on the parent stayed invisible to all 32
+                       sub-issues. The asset read resolves the post and names
+                       the row every seat of it reads first; aiming here means a
+                       value the reader was SHOWN from elsewhere is edited back
+                       to where it was shown from, instead of forking a second
+                       copy onto whichever row they happened to open.
+                       The CAS clock has to move with the target: comparing this
+                       row's updated_at against another row's would fail its CAS
+                       forever, which is the same trap batch_description was
+                       retargeted to avoid. Both come from the same read, so
+                       they cannot disagree.
+                       No post row means an older gateway or an unread panel,
+                       and both fall back to the open row's own batch -- exactly
+                       the behaviour that shipped before this. */
+                    const assetState = _prodState.assets.get(String(issue.id));
+                    const postBatchId = String(assetState && assetState.postBatchId || '').trim();
+                    if (postBatchId) {
+                        payload.id = postBatchId;
+                        batchClock = String(assetState.postBatchUpdatedAt || '').trim();
+                    }
+                }
                 const batch = _prodBatch(payload.id);
-                payload.expected_updated_at = batch ? String(batch.updated_at || '') : '';
+                payload.expected_updated_at = batchClock
+                    || (batch ? String(batch.updated_at || '') : '');
             } else if (operation !== 'comment') {
                 payload.expected_updated_at = issue.updatedRaw;
                 if (operation === 'status') payload.expected_status = issue.sourceStatus;
@@ -55853,7 +55930,7 @@
                        every sibling sub-issue and on the parent -- which is the
                        point, and exactly the kind of thing a reader should not
                        have to discover by watching another issue change. */
-                    + (batchWide ? '<div class="prod-assets-scope">Shared by the whole batch — every issue on this post shows this link.</div>' : '')
+                    + (batchWide ? '<div class="prod-assets-scope">Shared by the whole post — the parent issue and every sub-issue show this link.</div>' : '')
                     + '<div class="prod-assets-editor-actions"><button class="prod-assets-action" type="button" onclick="return _prodCancelAssetEdit(' + _jsAttrArg(id) + ')"' + (pending ? ' disabled' : '') + '>Cancel</button><span class="prod-spacer"></span>'
                     + '<button class="prod-assets-action prod-assets-save" type="submit"' + (pending ? ' disabled' : '') + '>'
                     + (pending ? 'Saving…' : (batchWide ? 'Save for the batch' : 'Save deliverable')) + '</button></div>'
@@ -55915,6 +55992,14 @@
                        other way of being answered on screen. */
                     : url && asset.source === 'client_plan'
                     ? '<span class="prod-asset-origin">from the client</span>'
+                    /* The post holds this link on a different batch row than
+                       the one this deliverable names. Same rule as the two
+                       above: a row says when it is showing something it does
+                       not itself store. It also answers the question the reader
+                       would otherwise ask on a split post -- why the parent and
+                       the sub-issue now agree when their rows do not. */
+                    : url && asset.source === 'post'
+                    ? '<span class="prod-asset-origin">from the post</span>'
                     : '';
                 /* FIRST PAINT DRAWS A SKELETON, not a word.
                    After the revalidate-in-place change, `checking` on an empty
@@ -55951,7 +56036,7 @@
                         + ' onclick="return _prodBeginAssetEdit(' + _jsAttrArg(id) + ',' + _jsAttrArg(spec.key) + ')"'
                         + _prodWriteGateAttrs(issue, operation, {
                             tip: operation === 'batch_asset'
-                                ? 'Edit this link for every issue in the batch'
+                                ? 'Edit this link for every issue on this post'
                                 : 'Attach or replace the canonical deliverable'
                         }) + '>Edit</button>'
                     : '';

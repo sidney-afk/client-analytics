@@ -41,6 +41,8 @@ const FUNCTIONS = [
   '_linearIntakeLogSubmissionRequest', '_runNativeIntakeJob', '_linearIntakeDiscardTerminallyRefused',
   '_resumeNativeIntakeJob', '_writeUiQueueDiagnostic', '_writeUiDiagnosticIds',
 ];
+const RECOVERY_FUNCTIONS = ['_linearIntakeRecoveryText', '_linearIntakeRecoveryHtml', '_linearIntakeRefreshRecovery', '_linearIntakeRetrySaved',
+  '_linearIntakeAutomaticAttempts', '_linearIntakeScope', '_linearIntakeUnresolvedRead', '_linearIntakeParkUnknown', '_linearIntakeRecoveryJobHtml'];
 
 function makeWorld(options = {}) {
   const store = options.store || new Map();
@@ -54,7 +56,6 @@ function makeWorld(options = {}) {
     onGatewayResponse: null,    // hook: runs when the gateway responds (before the browser sees it)
     notifications: [],
     identity: { role: 'admin', member: { id: 'actor-a', name: 'Fixture Admin' } },
-    uuidSeq: 0,
   };
   let lockChain = Promise.resolve();
   const context = {
@@ -80,7 +81,7 @@ function makeWorld(options = {}) {
       lockChain = run.catch(() => {});
       return run;
     } } },
-    crypto: { randomUUID: () => { world.uuidSeq += 1; return '00000000-0000-4000-8000-' + String(world.uuidSeq).padStart(12, '0'); } },
+    crypto: { randomUUID: require('crypto').randomUUID },
     fetch: async (url, options = {}) => {
       const body = options.body ? JSON.parse(options.body) : null;
       if (url === context.PROD_WRITE_EF_URL) {
@@ -112,7 +113,7 @@ function makeWorld(options = {}) {
     _writeUiQueueDiagnosticSink: null,
   };
   vm.createContext(context);
-  vm.runInContext('let _nativeIntakeResumePromise = null;\n' + [...FUNCTIONS, ...['_linearIntakeRecoveryText', '_linearIntakeRecoveryHtml', '_linearIntakeRefreshRecovery', '_linearIntakeRetrySaved'].filter(n => html.includes('function ' + n + '('))].map(extract).join('\n'), context);
+  vm.runInContext('let _nativeIntakeResumePromise = null;\n' + [...FUNCTIONS, ...RECOVERY_FUNCTIONS.filter(n => html.includes('function ' + n + '('))].map(extract).join('\n'), context);
   // The resume path reports through _writeUiQueueDiagnostic; the real one is
   // loaded above, so its ring is observable in the store.
   world.context = context;
@@ -143,7 +144,7 @@ function gatewayOk(job, extra = {}) {
   return { status: 201, body: { ok: true, native_committed: true, mirror_pending: true, batch: { id: 'bat_' + job.payload.request_id.slice(-4) }, items, ...extra } };
 }
 async function pending(world, signature = 'sig-a', extra = {}) {
-  return world.context._linearIntakeWithLock(() => world.context._linearIntakePending(signature, makePayload(world), actorContext(world, extra)));
+  return world.context._linearIntakeWithLock(() => world.context._linearIntakePending(signature, makePayload(world, extra.clientSlug || 'fixture-client'), actorContext(world, extra)));
 }
 async function resume(world, reason, job) {
   try { return { ok: true, value: await world.context._resumeNativeIntakeJob(reason, job) }; }
@@ -151,4 +152,4 @@ async function resume(world, reason, job) {
 }
 
 
-module.exports = { makeWorld, pending, resume, gatewayOk, extract, html, FUNCTIONS };
+module.exports = { makeWorld, pending, resume, gatewayOk, extract, html, FUNCTIONS, RECOVERY_FUNCTIONS };

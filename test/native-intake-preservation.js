@@ -60,7 +60,7 @@ async function main() {
       for (let i=0;i<3;i++) { w.gatewayScript.push(outage); await resume(w,'startup'); }
       await w.context._linearIntakePurgeSensitiveState();
       w = makeWorld({ store: w.store });
-      const marker = w.readJob();
+      const marker = w.context._linearIntakeUnresolvedRead()[0];
       assert.ok(marker, 'retain metadata instead of mistaking unknown acceptance for a draft');
       assert.equal(marker.payload.request_id, id);
       assert.equal(marker.payload.source_edited_at, job.payload.source_edited_at);
@@ -69,7 +69,8 @@ async function main() {
       assert.equal(marker.payload.batch, undefined);
       assert.ok(marker.payload.items.every(i => Object.keys(i).sort().join(',') === 'card_id,team,videoNumber'));
       assert.equal(marker.context.draftSnapshot, undefined);
-      assert.equal((await resume(w,'manual-recovery')).ok, false);
+      assert.equal(w.readJob(), null, 'unknown evidence does not occupy the active slot');
+      assert.equal((await resume(w,'manual-recovery',marker)).ok, false);
       assert.equal(w.gatewayPosts.length, 0);
       assert.match(w.context._linearIntakeRecoveryHtml(), /Staff recovery is needed/);
       assert.doesNotMatch(w.context._linearIntakeRecoveryHtml(), /<button/);
@@ -154,6 +155,107 @@ async function main() {
     await resume(w,'submit',job); w.quotaExceeded=true;
     await w.context._linearIntakePurgeSensitiveState();
     assert.equal(w.readJob(),null); assert.ok(w.notifications.length>0);
+  });
+  await test('P1: uncertain A/sign-out permits B unrelated work; A returns to scoped duplicate protection', async () => {
+    const w=makeWorld(); const a=await pending(w,'original-a');
+    w.gatewayScript.push({throw:'partial acceptance'});await resume(w,'submit',a);
+    await w.context._linearIntakePurgeSensitiveState();
+    w.identity={role:'admin',member:{id:'actor-b'}};
+    const b=await pending(w,'unrelated-b',{clientSlug:'fixture-other'});
+    assert.equal(w.context._linearIntakeRecoveryHtml('fixture-client'),'');
+    assert.doesNotMatch(w.context._linearIntakeRecoveryHtml(),/Request details were cleared/);
+    w.gatewayScript.push(gatewayOk(b));assert.equal((await resume(w,'submit',b)).ok,true);
+    assert.equal(w.gatewayPosts.at(-1).client_slug,'fixture-other');
+    const markers=w.context._linearIntakeUnresolvedRead();assert.equal(markers.length,1);
+    assert.equal(markers[0].payload.request_id,a.payload.request_id);
+    assert.equal(markers[0].payload.source_edited_at,a.payload.source_edited_at);
+    assert.equal(markers[0].result,null);assert.equal(markers[0].context.draftSnapshot,undefined);
+    assert.equal(markers[0].payload.batch,undefined);assert.equal(w.readJob(),null);
+    w.identity={role:'admin',member:{id:'actor-a'}};
+    await assert.rejects(pending(w,'new-signature-same-client'),/native_intake_recovery_pending/);
+    await assert.rejects(pending(w,'original-a'),/native_intake_recovery_pending/);
+    assert.match(w.context._linearIntakeRecoveryHtml('fixture-client'),/Staff recovery is needed/);
+    assert.doesNotMatch(w.context._linearIntakeRecoveryHtml('fixture-client'),/<button/);
+    const sent=w.gatewayPosts.length;
+    assert.equal((await resume(w,'manual-recovery',markers[0])).ok,false);
+    assert.equal(w.gatewayPosts.length,sent);
+  });
+  await test('multiple unknown markers survive refresh; same actor can work for another client without exposing foreign markers', async () => {
+    let w=makeWorld();const ids=[];
+    for(const slug of ['fixture-client','fixture-second']){
+      const job=await pending(w,slug,{clientSlug:slug});ids.push(job.payload.request_id);
+      w.gatewayScript.push({throw:'unknown'});await resume(w,'submit',job);
+      await w.context._linearIntakePurgeSensitiveState();
+    }
+    w=makeWorld({store:w.store});
+    const markers=w.context._linearIntakeUnresolvedRead();assert.deepEqual(Array.from(markers,m=>m.payload.request_id),ids);
+    assert.equal(markers.length,2);assert.equal(w.readJob(),null);
+    assert.equal((w.context._linearIntakeRecoveryHtml().match(/Staff recovery is needed/g)||[]).length,2);
+    assert.equal((w.context._linearIntakeRecoveryHtml('fixture-second').match(/Staff recovery is needed/g)||[]).length,1);
+    for(const slug of ['fixture-client','fixture-second'])await assert.rejects(pending(w,'different',{clientSlug:slug}),/recovery_pending/);
+    w.identity={role:'admin',member:{id:'actor-b'}};assert.equal(w.context._linearIntakeRecoveryHtml(),'');
+    const b=await pending(w,'unrelated',{clientSlug:'fixture-third'});w.gatewayScript.push(gatewayOk(b));
+    assert.equal((await resume(w,'submit',b)).ok,true);assert.equal(w.context._linearIntakeUnresolvedRead().length,2);
+  });
+  for(const fault of ['throw','lost write'])await test('archive '+fault+' keeps old evidence and scrubbed active fallback; retry safely migrates it', async()=>{
+    const w=makeWorld();const first=await pending(w,'a');w.gatewayScript.push({throw:'unknown'});await resume(w,'submit',first);
+    await w.context._linearIntakePurgeSensitiveState();
+    const key=w.context.NATIVE_INTAKE_PENDING_KEY+':unresolved', prior=w.store.get(key);
+    w.identity={role:'admin',member:{id:'actor-b'}};
+    const second=await pending(w,'b',{clientSlug:'fixture-other'});w.gatewayScript.push({throw:'unknown'});await resume(w,'submit',second);
+    const set=w.context.localStorage.setItem;
+    w.context.localStorage.setItem=(k,v)=>{if(k===key){if(fault==='throw')throw new Error('fixture quota');return;}set(k,v);};
+    await w.context._linearIntakePurgeSensitiveState();
+    assert.equal(w.store.get(key),prior);
+    assert.equal(w.readJob().payload.request_id,second.payload.request_id);
+    assert.equal(w.readJob().requires_original_payload,true);assert.equal(w.readJob().payload.batch,undefined);
+    w.identity={role:'admin',member:{id:'actor-c'}};
+    const count=w.gatewayPosts.length;
+    await assert.rejects(pending(w,'c',{clientSlug:'fixture-third'}));
+    assert.equal(w.gatewayPosts.length,count);assert.equal(w.store.get(key),prior);
+    w.context.localStorage.setItem=set;
+    const third=await pending(w,'c',{clientSlug:'fixture-third'});
+    assert.equal(w.context._linearIntakeUnresolvedRead().length,2);
+    assert.equal(w.readJob().payload.request_id,third.payload.request_id);
+    assert.notEqual(third.payload.request_id,second.payload.request_id);
+  });
+  await test('unreadable archive fails safely without overwriting evidence or dispatching',async()=>{
+    const w=makeWorld(), key=w.context.NATIVE_INTAKE_PENDING_KEY+':unresolved';
+    w.store.set(key,'{broken');await assert.rejects(pending(w),/storage_unavailable/);
+    assert.equal(w.store.get(key),'{broken');assert.equal(w.gatewayPosts.length,0);
+    assert.match(w.context._linearIntakeRecoveryHtml(),/cannot be read/);
+  });
+  await test('prior-head unknown marker migrates from the global slot before unrelated work',async()=>{
+    const w=makeWorld();const a=await pending(w);w.gatewayScript.push({throw:'unknown'});await resume(w,'submit',a);
+    w.context._linearIntakePersistRecovery(w.readJob());
+    assert.equal(w.readJob().requires_original_payload,true);
+    w.identity={role:'admin',member:{id:'actor-b'}};
+    const b=await pending(w,'new-b',{clientSlug:'fixture-other'});
+    assert.equal(w.context._linearIntakeUnresolvedRead()[0].payload.request_id,a.payload.request_id);
+    assert.equal(w.readJob().payload.request_id,b.payload.request_id);
+  });
+  await test('P2: legacy accepted job remains paused through repeated sign-out; no automatic card writes',async()=>{
+    const w=makeWorld();const job=await pending(w);w.gatewayScript.push(gatewayOk(job));w.cardFail=()=>true;
+    await resume(w,'submit',job);
+    const legacy=w.readJob();delete legacy.automatic_attempts;legacy.resume_refusals=3;w.context._linearIntakeWrite(legacy);
+    const writes=w.cardWrites.length;
+    assert.equal((await resume(w,'startup')).error.code,'native_intake_recovery_paused');
+    for(let i=0;i<3;i++){
+      await w.context._linearIntakePurgeSensitiveState();assert.equal(w.readJob().automatic_attempts,3);
+      assert.equal((await resume(w,'startup')).error.code,'native_intake_recovery_paused');
+      assert.equal(w.cardWrites.length,writes);
+    }
+    w.cardFail=()=>false;assert.equal((await resume(w,'manual-recovery')).ok,true);
+    assert.equal(w.gatewayPosts.length,1);
+  });
+  await test('current budget survives unknown archival; failed attempt checkpoint still sends nothing',async()=>{
+    const w=makeWorld();const job=await pending(w);w.gatewayScript.push({throw:'unknown'});await resume(w,'submit',job);
+    for(let i=0;i<3;i++)await resume(w,'startup');
+    for(let i=0;i<3;i++)await w.context._linearIntakePurgeSensitiveState();
+    const markers=w.context._linearIntakeUnresolvedRead();assert.equal(markers.length,1);assert.equal(markers[0].automatic_attempts,3);
+    assert.equal(markers[0].result,null);assert.equal(markers[0].payload.batch,undefined);
+    const w2=makeWorld();await pending(w2);w2.quotaExceeded=true;await resume(w2,'startup');
+    assert.equal(w2.gatewayPosts.length,0);assert.equal(w2.readJob().automatic_attempts,0);
   });
   console.log(`${passed} preservation checks passed; ${failures} failed.`);
   console.log('UNPROVEN: exact recovery after uncertain sign-out or loss of browser storage requires a server-owned request/recovery record.');

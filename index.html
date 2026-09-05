@@ -40885,7 +40885,7 @@
         if (code === 'intake_assignee_override_conflict') return 'This post asked for two different editors at once. Reopen Create Post and choose one.';
         if (code === 'assignee_not_eligible' || code === 'assignee_ineligible') return 'That editor cannot take this work right now. Choose someone else.';
         if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake with Retry saved request before starting a different one.';
-        if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Use Retry saved request to recover it; automatic retries are limited.';
+        if (code === 'native_intake_recovery_pending') return 'An earlier request needs recovery. See its recovery notice before creating more work for this client.';
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
@@ -46358,12 +46358,43 @@
             completed_card_ids: Array.isArray(job && job.completed_card_ids) ? job.completed_card_ids.slice() : [],
             stage: String(job && job.stage || 'materializing_cards'),
             telemetry_sent: job && job.telemetry_sent === true,
-            automatic_attempts: Number(job && job.automatic_attempts || 0),
+            automatic_attempts: _linearIntakeAutomaticAttempts(job),
             dispatch_started: true
         };
     }
     function _linearIntakePersistRecovery(job) {
         if (!_linearIntakeWrite(_linearIntakeRecoveryCopy(job))) throw new Error('native_intake_checkpoint_failed');
+    }
+    function _linearIntakeAutomaticAttempts(job) {
+        const attempts = Number(job && (job.automatic_attempts || job.resume_refusals) || 0);
+        return Number.isFinite(attempts) ? Math.min(3, Math.max(0, attempts)) : 3;
+    }
+    function _linearIntakeScope(context) {
+        return JSON.stringify([String(context && context.initiating_actor_id || ''), String(context && context.clientSlug || '')]);
+    }
+    function _linearIntakeUnresolvedRead() {
+        try {
+            const markers = JSON.parse(localStorage.getItem(NATIVE_INTAKE_PENDING_KEY + ':unresolved') || '[]');
+            if (!Array.isArray(markers) || markers.some(job => !job || job.requires_original_payload !== true
+                || job.result !== null || !_linearIntakeJobId(job) || !job.context
+                || !job.payload.client_slug || job.context.clientSlug !== job.payload.client_slug)) throw new Error('invalid_marker_store');
+            return markers;
+        } catch (error) { throw _linearIntakeActorError(503, 'native_intake_storage_unavailable'); }
+    }
+    function _linearIntakeParkUnknown(job) {
+        // Caller holds the intake lock. Never free the active slot before the
+        // scrubbed archive is verified. A failed move retains the active marker.
+        const marker = _linearIntakeRecoveryCopy(job);
+        if (!marker.requires_original_payload) throw new Error('native_intake_not_unknown');
+        const markers = _linearIntakeUnresolvedRead();
+        const existing = markers.find(item => _linearIntakeJobId(item) === _linearIntakeJobId(marker));
+        if (existing && _linearIntakeScope(existing.context) !== _linearIntakeScope(marker.context)) throw new Error('native_intake_marker_conflict');
+        if (!existing) markers.push(marker);
+        const encoded = JSON.stringify(markers);
+        const key = NATIVE_INTAKE_PENDING_KEY + ':unresolved';
+        localStorage.setItem(key, encoded);
+        if (localStorage.getItem(key) !== encoded) throw new Error('native_intake_checkpoint_failed');
+        if (!_linearIntakeRemoveIfCurrent(_linearIntakeJobId(job))) throw new Error('native_intake_checkpoint_failed');
     }
     function _linearIntakeCheckpointOrSuspend(job) {
         try { _linearIntakeRequireActor(job); }
@@ -46386,7 +46417,12 @@
                 // Only a current-version job explicitly never sent is a draft.
                 // Older jobs and lost responses may contain partially accepted work.
                 else if (job.dispatch_started === false) _linearIntakeRemoveIfCurrent(_linearIntakeJobId(job));
-                else _linearIntakePersistRecovery(job);
+                else {
+                    _linearIntakePersistRecovery(job);
+                    // If the separate archive is unavailable, keep the scrubbed
+                    // active marker. A later locked attempt can finish the move.
+                    try { _linearIntakeParkUnknown(job); } catch (error) {}
+                }
             } catch (e) {
                 // The existing privacy purge still takes precedence if a scrubbed
                 // marker cannot be saved. Server recovery is required at this boundary.
@@ -46404,7 +46440,16 @@
         });
     }
     function _linearIntakePending(signature, makePayload, context) {
-        const saved = _linearIntakeRead();
+        let saved = _linearIntakeRead();
+        if (saved && saved.requires_original_payload === true) {
+            _linearIntakeParkUnknown(saved);
+            saved = null;
+        }
+        // Unknown evidence blocks only its original actor/client scope, across
+        // teams/surfaces. It is not a global job and can never be replayed.
+        if (_linearIntakeUnresolvedRead().some(marker => _linearIntakeScope(marker.context) === _linearIntakeScope(context))) {
+            throw _linearIntakeActorError(409, 'native_intake_recovery_pending');
+        }
         if (saved) {
             if (saved.signature !== signature) {
                 // A recovery copy blocks under its own code: it is not an
@@ -47119,7 +47164,17 @@
         // Likewise, an already-checkpointed native job remains on its recovery
         // path even if the allowlist changes while the browser is offline.
         const pendingNativeIntake = _linearIntakeRead();
-        const useGateway = pendingNativeIntake
+        let unresolvedNativeIntake = false;
+        try {
+            unresolvedNativeIntake = _linearIntakeUnresolvedRead().some(marker => {
+                if (marker.payload.client_slug !== selectedClientSlug) return false;
+                try { _linearIntakeRequireActor(marker); return true; } catch (error) { return false; }
+            });
+        } catch (error) {
+            if (status) status.textContent = 'Saved recovery records cannot be read. Retry when browser storage is available.';
+            return;
+        }
+        const useGateway = pendingNativeIntake || unresolvedNativeIntake
             ? true
             : await _writeUiRerouteUseGatewayWhenReady(selectedClientSlug || clientName);
         if (!selectionStillCurrent()) {
@@ -47229,7 +47284,9 @@
             }));
         } catch (error) {
             _linearIntakeRefreshRecovery();
-            status.textContent = error && (error.code === 'native_intake_pending_conflict' || error.code === 'native_intake_recovery_pending')
+            status.textContent = error && error.code === 'native_intake_recovery_pending'
+                ? 'An earlier request needs recovery. See its recovery notice. Your new edits are kept separately.'
+                : error && error.code === 'native_intake_pending_conflict'
                 ? 'Use Retry saved request to finish the previous submission. Your new edits are kept separately.'
                 : 'This submission could not be saved safely in this browser.';
             return;
@@ -47554,14 +47611,23 @@
     }
 
     function _linearIntakeRecoveryHtml(clientSlug) {
-        const job = _linearIntakeRead();
-        if (!job) return '';
+        let markers;
+        try { markers = _linearIntakeUnresolvedRead(); }
+        catch (error) { return '<div role="status" class="linear-status">Saved recovery records cannot be read. New requests are paused until browser storage is available.</div>'; }
+        const active = _linearIntakeRead();
+        if (active && !markers.some(job => _linearIntakeJobId(job) === _linearIntakeJobId(active))) markers.push(active);
+        return markers.map(job => {
+            if (clientSlug && String(job.payload.client_slug || '') !== String(clientSlug)) return '';
+            try { _linearIntakeRequireActor(job); } catch (error) { return ''; }
+            return _linearIntakeRecoveryJobHtml(job);
+        }).join('');
+    }
+    function _linearIntakeRecoveryJobHtml(job) {
         const slug = String(job.payload.client_slug || '');
-        if (clientSlug && slug !== String(clientSlug)) return '';
-        try { _linearIntakeRequireActor(job); } catch (e) { return ''; }
-        const paused = Number(job.automatic_attempts || job.resume_refusals || 0) >= 3;
+        const paused = _linearIntakeAutomaticAttempts(job) >= 3;
         return '<div role="status" class="linear-status">'
             + _calEsc(_linearIntakeRecoveryText(job)) + ' Client: ' + _calEsc(slug)
+            + (job.requires_original_payload === true ? ' Request: <span style="overflow-wrap:anywhere">' + _calEsc(_linearIntakeJobId(job)) + '</span>.' : '')
             + (job.requires_original_payload === true ? '' : paused ? ' Automatic retries are paused.' : ' Automatic retries are limited to three attempts.')
             + ' New edits stay separate from this saved request.</div>'
             + (job.requires_original_payload === true ? '' : '<button type="button" class="cal-import-btn-ghost" style="min-height:44px" onclick="_linearIntakeRetrySaved(this)"'
@@ -47609,8 +47675,8 @@
             _linearIntakeRequireActor(current);
             const manual = ['submit', 'calendar-create-post', 'samples-create-post', 'manual-recovery'].includes(String(reason));
             if (!manual) {
-                const attempts = Math.max(0, Number(current.automatic_attempts || current.resume_refusals || 0));
-                if (!Number.isFinite(attempts) || attempts >= 3) throw _linearIntakeActorError(409, 'native_intake_recovery_paused');
+                const attempts = _linearIntakeAutomaticAttempts(current);
+                if (attempts >= 3) throw _linearIntakeActorError(409, 'native_intake_recovery_paused');
                 current.automatic_attempts = attempts + 1;
                 // Spend the budget under the cross-tab lock BEFORE external traffic.
                 if (!_linearIntakeWrite(current)) throw new Error('native_intake_checkpoint_failed');

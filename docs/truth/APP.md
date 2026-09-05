@@ -558,8 +558,11 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - Browser intake preservation candidate (2026-09-05): errors/retry exhaustion
   retain the immutable request; three automatic attempts then visible manual
   recovery. A missing success response means unknown acceptance. Explicit sign-out
-  retains only a scrubbed unknown marker when acceptance was not confirmed;
-  exact recovery after that privacy purge or storage loss still requires a server
+  retains only a scrubbed unknown marker when acceptance was not confirmed.
+  Markers are archived separately and block only their original actor/client
+  scope; unrelated authorized work can proceed. Legacy/current retry budgets
+  stay bounded through sign-out. Exact
+  recovery after that privacy purge or storage loss still requires a server
   owner. This branch makes no live/release claim. Proof and rollback limitations:
   `docs/audits/2026-09-05-browser-intake-preservation.md`.
 

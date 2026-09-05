@@ -7,6 +7,46 @@ Its handoff and corrected G2b explain why a failed response can follow a committ
 batch and one child. Its 63 current checks, 13 red readiness gates, and seven
 unproven entries are not a native-independence certificate.
 
+## Independent-review correction
+
+The adversarial review of initial repair head
+`013eb53a2ec3c7242e5027671153a2f186607f45` reproduced two defects. Its script was
+rerun against that exact source (only its result-file destination was relocated):
+actor B/client B was blocked by A's invisible unknown marker, and a legacy
+accepted job paused at `resume_refusals=3` resumed one card write after sign-out
+reset its budget to zero. Both are corrected on this branch.
+
+Unknown markers now move to `syncview_native_intake_pending_v1:unresolved` under
+the existing intake lock. Only scrubbed metadata is archived, keyed by request
+identity; the entire archive must read back exactly before freeing the active
+slot. Duplicate protection is conservative within the original actor/client
+scope, across teams and surfaces. Unrelated authorized scopes can use the active
+slot; foreign markers remain hidden. Original-scope Submit cannot escape to a
+legacy submission when its routing allowlist changes. Returning to the original
+scope shows its unresolved notice, without a retry button for incomplete data.
+Multiple markers remain distinct; none is evicted to make room for another.
+
+If the separate archive write fails, the scrubbed active marker remains and a
+later locked request can finish moving it. New work is refused while that move
+cannot be verified. An unreadable archive is never overwritten as an empty list.
+This temporary storage-failure boundary is distinct from the original permanent
+global-slot obstruction. The existing privacy fallback still applies if even
+the initial scrub cannot be stored.
+
+One helper now normalizes the effective current/legacy attempt budget for both
+retry execution and recovery copies. Paused legacy accepted jobs stay paused
+through repeated sign-outs; current-format and malformed budgets stay bounded.
+
+Corrected targeted results: `node test/native-intake-preservation.js` **23/23**;
+Chromium fixture adds A uncertainty/sign-out -> B successful unrelated submit ->
+A visible notice/duplicate refusal, multiple markers across reload, and archive
+storage failure -> no dispatch or lost evidence -> verified recovery. Existing
+native-intake UI, Create Post picker, public intake, and routing guard tests pass.
+The unrelated full suite was not rerun for this review correction. The prior
+399/400 full-suite result below belongs to the initial repair head, not this head.
+Backend recovery remains UNPROVEN. The rollback prerequisite below is an open
+release requirement, **not a rehearsed safe rollback**.
+
 ## Behavior
 
 Only browser intake handling changes. No gateway, RPC, migration, provider
@@ -45,6 +85,7 @@ The existing sensitive-data purge is retained. A known never-sent draft can be
 removed on explicit sign-out. A validated accepted result becomes the existing
 scrubbed materialization copy. An attempted or legacy no-result job becomes a
 scoped, scrubbed marker with `result:null` and `requires_original_payload:true`.
+It is archived separately from the active job, retaining its original scope.
 It preserves request/timestamp/client/actor/card identifiers, but no notes, links,
 batch payload, brief, or form snapshot. It says staff recovery is required and
 cannot be replayed as an incomplete request. Repeated sign-out keeps it unknown.
@@ -53,7 +94,8 @@ cannot be replayed as an incomplete request. Repeated sign-out keeps it unknown.
 -> restart -> exact recovery is not achievable by this patch. The privacy purge
 removes the complete item intent, and no server-owned recovery exists. A marker
 is visible evidence of unresolved work, not evidence of completion or an
-implemented staff recovery tool. It may block a different intake indefinitely.
+implemented staff recovery tool. It blocks another intake in its original
+actor/client scope until staff recovery exists; unrelated scopes remain usable.
 If storage cannot save even a scrubbed marker, the existing privacy removal wins
 and a notice requests staff attention. No-lock/purge-failure fallback and actual
 browser-storage loss also remain recovery gaps. Do not clear these gates.
@@ -87,7 +129,7 @@ All fixtures are fictional. No external request was allowed to reach a service.
   visible focus, a 44px retry target, and contained controls. Screenshots stay in
   ignored `.codex-tmp/intake-browser/`. This is a controlled fixture with actual
   functions/styles/controls, not a complete application navigation proof.
-* Final full offline run: **399/400 suite exits pass**, with the affected
+* Initial repair head's full offline run: **399/400 suite exits pass**, with the affected
   native-intake UI, Create Post picker and public-intake tests green. The unchanged
   `test/asset-access-any-team.js` imports a Windows drive path as an ESM URL and
   fails `ERR_UNSUPPORTED_ESM_URL_SCHEME`; it is not changed in this repair.
@@ -102,7 +144,7 @@ Legacy assertions that required deletion were replaced with preservation checks.
 
 ## Rollback and review boundary
 
-Code rollback is a revert of this PR's single repair commit; no backend inverse
+Code rollback is a revert of this PR's commits, newest first; no backend inverse
 is needed. **That is not a safe data-recovery rollback while jobs remain.** The
 baseline bundle can delete retained records and cannot interpret unknown markers.
 Before any rollout/rollback, a reviewed private preservation/reconciliation plan

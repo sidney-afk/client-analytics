@@ -433,6 +433,7 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     LINEAR_RECEIPTS_KEY: 'linear-receipts',
     localStorage: { getItem: () => null },
     _linearIntakeRead: () => null,
+    _linearIntakeUnresolvedRead: () => [],
     _writeUiRerouteUseGatewayWhenReady: () => submitRoute,
     _submitLinearFormLegacy: () => submitRaceCalls.push('legacy'),
     linearClientRows: [{ slug: 'sidneylaruel' }],

@@ -5,9 +5,9 @@ const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
-const { extract, html, FUNCTIONS, gatewayOk } = require('../test/helpers/native-intake-world');
+const { extract, html, FUNCTIONS, RECOVERY_FUNCTIONS, gatewayOk } = require('../test/helpers/native-intake-world');
 const root=path.resolve(__dirname,'..');
-const functions=[...FUNCTIONS, '_linearIntakeRecoveryText','_linearIntakeRecoveryHtml','_linearIntakeRefreshRecovery','_linearIntakeRetrySaved',
+const functions=[...FUNCTIONS, ...RECOVERY_FUNCTIONS,
   '_submitLinearFormRoutedOnce','submitLinearForm','saveLinearForm','_linearDraftSnapshot','_linearStableJson','_linearStorageError','_linearCompareRemove','_linearIntakeItemsPerVideo',
   '_calSubmitNativePost','_calNativePostErrorText'];
 const script=functions.filter(n=>html.includes('function '+n+'(')).map(extract).join('\n');
@@ -144,6 +144,63 @@ async function main(){
     console.log('ok visible recovery: seven refreshes, three automatic attempts, keyboard recovery, immutable payload, newer draft retained');
     console.log('ok 360/768/1280 light/dark: keyboard focus, 44px target, contained controls; zero unhandled external requests');
     console.log('ok actual Create Post handler retains a 409 request and describes unknown acceptance');
+
+    const originalA=await page.evaluate(()=>_linearIntakeRead().payload.request_id);
+    await page.evaluate(()=>_linearIntakePurgeSensitiveState());
+    await boot();
+    async function scope(actor,slug){
+      await page.evaluate(({actor,slug})=>{
+        identity={role:'admin',member:{id:actor,name:'Fixture Staff'}};
+        linearClientRows=[{slug,name:slug}];
+        const input=document.getElementById('linearClientSearch');input.value=slug;input.dataset.clientSlug=slug;
+        _linearIntakeRefreshRecovery();
+      },{actor,slug});
+    }
+    async function submit(){await page.getByRole('button',{name:'Create deliverables'}).click();await page.waitForFunction(()=>!linearSubmitInFlight);}
+    await scope('actor-b','fixture-other');
+    assert.equal(await page.locator('[data-native-intake-recovery]').innerText(),'');
+    mode='success';const beforeB=gateway.length;await submit();
+    assert.equal(gateway.length,beforeB+1);assert.equal(gateway.at(-1).client_slug,'fixture-other');
+    assert.equal(await page.evaluate(()=>_linearIntakeUnresolvedRead()[0].payload.request_id),originalA);
+    await scope('actor-a','fixture-client');
+    assert.match(await page.locator('[data-native-intake-recovery]').innerText(),/Staff recovery is needed/);
+    assert.equal(await page.getByRole('button',{name:'Retry saved request'}).count(),0);
+    await page.evaluate(()=>{
+      window.legacyRequests=0;
+      _submitLinearFormLegacy=async()=>{window.legacyRequests++;};
+      _writeUiRerouteUseGatewayWhenReady=()=>Promise.resolve(false);
+    });
+    const beforeDuplicate=gateway.length;await submit();await submit();assert.equal(gateway.length,beforeDuplicate);
+    assert.equal(await page.evaluate(()=>window.legacyRequests),0,'same-scope marker cannot fall through to legacy submission');
+    await page.evaluate(()=>{_writeUiRerouteUseGatewayWhenReady=()=>Promise.resolve(true);});
+    assert.match(await page.locator('#linearStatus').innerText(),/See its recovery notice/);
+    await scope('actor-a','fixture-second');mode='outage';await submit();
+    await page.evaluate(()=>_linearIntakePurgeSensitiveState());await boot();
+    assert.equal(await page.evaluate(()=>_linearIntakeUnresolvedRead().length),2);
+    assert.equal((await page.locator('[data-native-intake-recovery]').innerText()).match(/Staff recovery is needed/g).length,2);
+    await scope('actor-b','fixture-other');assert.equal(await page.locator('[data-native-intake-recovery]').innerText(),'');
+
+    await scope('actor-c','fixture-third');mode='outage';await submit();
+    await page.evaluate(()=>{
+      window.archiveStorageSet=Storage.prototype.setItem;
+      Storage.prototype.setItem=function(key,value){if(key==='fixture-pending:unresolved')throw new Error('fixture archive quota');return window.archiveStorageSet.call(this,key,value);};
+    });
+    await page.evaluate(()=>_linearIntakePurgeSensitiveState());
+    assert.equal(await page.evaluate(()=>_linearIntakeRead().requires_original_payload),true);
+    assert.equal(await page.evaluate(()=>_linearIntakeUnresolvedRead().length),2);
+    await scope('actor-b','fixture-other');const beforeBlocked=gateway.length;await submit();
+    assert.equal(gateway.length,beforeBlocked);assert.match(await page.locator('#linearStatus').innerText(),/could not be saved safely/);
+    await page.evaluate(()=>{Storage.prototype.setItem=window.archiveStorageSet;});
+    mode='success';await submit();assert.equal(gateway.length,beforeBlocked+1);
+    assert.equal(await page.evaluate(()=>_linearIntakeUnresolvedRead().length),3);
+    assert.equal(await page.evaluate(()=>_linearIntakeRead()),null);
+    await scope('actor-a','fixture-client');assert.match(await page.locator('[data-native-intake-recovery]').innerText(),/Staff recovery is needed/);
+    await page.setViewportSize({width:360,height:850});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+    await page.screenshot({path:path.join(output,'markers-360.png')});
+    assert.deepEqual(unexpected,[]);
+    console.log('ok visible scope isolation: A uncertainty/sign-out, B succeeds, A duplicate blocked, multiple markers survive reload');
+    console.log('ok visible archive failure: safe pending feedback, no dispatch/lost marker, successful verified move after storage recovers');
   } finally {await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

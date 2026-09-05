@@ -153,6 +153,7 @@ const PICKER_SOURCES = [
   extract('_calRenderNativePostChoice'),
   extract('_linearIntakeRecoveryHtml'),
   'function _linearIntakeRead() { return null; }',
+  'function _linearIntakeUnresolvedRead() { return []; }',
   extract('_calNativePrevBatchPick'),
 ].join('\n');
 

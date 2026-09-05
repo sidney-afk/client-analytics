@@ -90,6 +90,10 @@ vm.runInContext([
   extract('_linearIntakeActorError'),
   extract('_linearIntakeRequireActor'),
   extract('_linearIntakeRecoveryCopy'),
+  extract('_linearIntakeAutomaticAttempts'),
+  extract('_linearIntakeScope'),
+  extract('_linearIntakeUnresolvedRead'),
+  extract('_linearIntakeParkUnknown'),
   extract('_linearIntakePersistRecovery'),
   extract('_linearIntakeCheckpointOrSuspend'),
   extract('_linearIntakePurgeSensitiveState'),
@@ -438,7 +442,7 @@ const result = {
     for (let i = 0; i < 8; i++) context._linearIntakeDiscardTerminallyRefused('startup', 'fixture-kept', { status });
     ok(store.get('pending') === JSON.stringify(retained), 'error ' + status + ' never establishes permission to discard');
   }
-  ok(extract('_calNativePostErrorText').includes('Use Retry saved request'), 'recovery error names the available action');
+  ok(extract('_calNativePostErrorText').includes('See its recovery notice'), 'recovery error points to the scoped notice without promising a replay of unknown work');
   ok(!extract('_calSubmitNativePost').includes('_linearIntakeRemoveIfCurrent'), 'Create Post never deletes from a 4xx response');
 
   if (failures) process.exit(1);

@@ -11,6 +11,7 @@ node qa/feedback-drafts/run.js
 node qa/feedback-drafts/behavior.js
 node qa/feedback-drafts/bfcache.js
 node qa/feedback-drafts/recovery.js
+node qa/feedback-drafts/calendar-recovery-access.js
 ```
 
 `run.js` loads the complete current document and executes real composer inputs,
@@ -46,3 +47,8 @@ Reports/screenshots remain under ignored `.codex-tmp/`. They are private local
 diagnostics, never attachments for a public PR. `FEEDBACK_SOURCE` can select a
 separate exact checkout for negative controls; normal runs use this checkout.
 See `docs/ops/REVIEW_FEEDBACK_DRAFTS.md` for proof limits and recovery constraints.
+
+Calendar's bounded exact-receipt recovery and its old-attempt limitations are
+documented in `docs/ops/CALENDAR_FEEDBACK_RECONCILIATION.md`. Its separate
+16-group runner uses only intercepted source/native receivers, preserves
+negative-control failures, and never dispatches a production or TEST workflow.

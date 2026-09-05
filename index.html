@@ -27298,7 +27298,7 @@
             body: JSON.stringify(payload)
         });
     }
-    function _calUpsertFetchPinned(clientOrSlug, payload, source, transport) {
+    function _calUpsertFetchPinned(clientOrSlug, payload, source, transport, signal) {
         if (transport !== 'supabase' && transport !== 'webhook') {
             return _calUpsertFetch(clientOrSlug, payload, source);
         }
@@ -27306,6 +27306,7 @@
         return fetch(url, {
             method: 'POST',
             headers: _calUpsertHeaders(source, url),
+            signal,
             body: JSON.stringify(payload)
         });
     }
@@ -32445,14 +32446,18 @@
                 })
                 : targetless;
         }
-        // Client gateway writes carry no source-repair journal, matching the
-        // linked-sxr client precedent (_sxrPostLinearComment): the card save
-        // path owns the source edit for client links.
+        // Keep the actual receipt fingerprint in the existing owned attempt.
+        // This is metadata for read-only reconciliation, not another send queue.
+        const ownedReview = _isClientLink && meta && meta.isTweak
+            && _reviewDraftContext('calendar', meta.post, component);
+        const ownedAttempt = ownedReview && ownedReview.value.attempt;
+        const captureReview = ownedAttempt && _reviewDraftCurrent(ownedReview)
+            && ownedAttempt.id === String(meta.comment && meta.comment.id || '');
         const repair = _isClientLink
             ? null
             : meta && meta.repairRecord ? meta.repairRecord : _writeUiBuildSourceRepair('calendar', 'comment', meta);
         const nativeCommentId = String(meta && meta.comment && meta.comment.id || _writeUiIntentId('calendar', 'comment', [Date.now(), txt.slice(0, 24)]));
-        return _writeUiGatewayWithRepair({
+        const intent = {
                     surface: 'calendar', operation: 'comment', team: _writeUiTeam(component),
                     issue: url, nativeId,
                     sourceEditedAt: meta && meta.comment && (meta.comment.updated_at || meta.comment.created_at || meta.comment.editedAt || meta.comment.createdAt),
@@ -32469,7 +32474,13 @@
                         // it against the row card binding when one exists.
                         ...(clientGatewaySurface ? { card_id: clientGatewaySurface.card_id } : {})
                     }
-                }, repair);
+                };
+        if (captureReview) return _writeUiGatewayPost(Object.assign({}, intent, { legacyResumeOwner: _writeUiLegacyResumeOwner() }), { beforeAttempt: payload => {
+            if (!_reviewDraftCurrent(ownedReview) || ownedReview.value.attempt?.id !== ownedAttempt.id) throw new Error('Review owner changed; draft kept.');
+            const next = Object.assign({}, ownedReview.value, { attempt: Object.assign({}, ownedReview.value.attempt, { recoveryPayload: payload }) });
+            if (!_reviewDraftWrite(ownedReview, next, false)) throw new Error('Receipt metadata could not be stored; draft kept.');
+        } });
+        return _writeUiGatewayWithRepair(intent, repair);
     }
     async function _writeUiCardCommentLifecycle(surface, post, component, comment, action, body, retryCursor) {
         const nativeId = _writeUiNativeId(post, component);
@@ -39892,6 +39903,9 @@
     function _calRetrySave(pid) {
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
+        const recovery = post && _calComponentsFor(post).map(comp => _calReviewRecoveryContext(post, comp))
+            .find(ctx => ctx && ctx.value.attempt && ctx.value.attempt.phase === 'native');
+        if (recovery) { _calReviewRetryRecovery({ dataset: { calRecoveryKey: recovery.key } }); return; }
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = Object.assign({}, post && post._writeUiRetryEdits || {});
         _calSetCardStatus(pid, 'saving');
         _calFlushCardSave(pid);
@@ -43466,33 +43480,21 @@
         const attempt = ctx.value.attempt;
         // A newer, unsent revision survives acknowledgment of the earlier one.
         if (!attempt) return ctx.value.text.trim() ? ctx : null;
-        if (attempt.kind !== 'tweak' || !['native', 'saving'].includes(attempt.phase)
-            || !post._writeUiRetrySourceAt || post._writeUiRetryPrincipal !== ctx.principal) return null;
-        let comments;
-        try { comments = JSON.parse((post._writeUiRetryEdits || {})[comp + '_tweaks'] || 'null'); } catch (e) { return null; }
-        if (!Array.isArray(comments) || !comments.some(comment => comment.id === attempt.id
-            && String(comment.body || '').trim() === attempt.text.trim()
-            && comment.is_tweak === true && comment.role === 'client' && comment.audience === 'client')) return null;
-        const journal = _writeUiRepairJournalRead();
-        if (journal.unknown) return null;
-        const refs = _writeUiSnapshotRepairRefs(post);
-        return journal.rows.some(row => row.surface === 'calendar' && (row.lane || 'card') === 'card'
-            && row.client_slug === ctx.slug && row.post_id === ctx.pid && row.principal === ctx.principal
-            && refs.some(ref => ref.key === row.key && ref.token === row.token)
-            && (row.intents || []).some(intent => intent.component === comp
-                && intent.native_committed === true
-                && _writeUiReceiptMatchesSource(row, intent, post, { row: intent.response_row }))) ? ctx : null;
+        // Ownership permits displaying the user's own text, not claiming that
+        // native/source accepted it. Missing receipts remain visible and retryable.
+        return attempt.kind === 'tweak' && ['native', 'saving', 'unconfirmed'].includes(attempt.phase) ? ctx : null;
     }
     function _calReviewRecoveryHtml(post, comp) {
         const ctx = _calReviewRecoveryContext(post, comp);
         if (!ctx) return '';
         const attempt = ctx.value.attempt;
-        const saving = !!_calSaveInFlight[post.id] || !!_calReviewState.saving[post.id + '|' + comp];
-        const retry = attempt && post._writeUiRetrySourceAt && post._writeUiRetryPrincipal === ctx.principal;
+        const saving = !!ctx.recovering || !!_calSaveInFlight[post.id] || !!_calReviewState.saving[post.id + '|' + comp];
+        const retry = !!attempt;
+        const note = ctx.value.text && (!attempt || ctx.value.revision !== attempt.revision) ? ctx.value.text : '';
         return `<div class="cal-review-panel" data-comp="${_calEscAttr(comp)}" data-cal-review-recovery="${_calEscAttr(comp)}">
-            <div class="cal-review-panel-err" role="status">${attempt ? 'Feedback was accepted; card sync is still pending.' : 'Your newer note is still unsent.'}</div>
+            <div class="cal-review-panel-err" role="status">${_calEsc(ctx.recoveryError || (attempt ? attempt.recoveryPayload ? 'Feedback confirmation is pending. Your original text is kept.' : 'This earlier attempt has no complete receipt metadata. Your original text is kept; its saved state needs review.' : 'Your newer note is still unsent.'))}</div>
             ${attempt ? `<div class="cal-review-preview-caption" role="note" aria-label="Earlier feedback" style="white-space:pre-wrap;overflow-wrap:anywhere">${_calEsc(attempt.text)}</div>` : ''}
-            ${ctx.value.text && (!attempt || ctx.value.revision !== attempt.revision) ? `<div class="cal-review-preview-caption" role="note" aria-label="Unsent note" style="white-space:pre-wrap;overflow-wrap:anywhere">${_calEsc(ctx.value.text)}</div>` : ''}
+            <label>Newer unsent note<textarea class="cal-review-textarea" aria-label="Newer unsent note" data-cal-review-draft="${_calEscAttr(ctx.pid)}|${_calEscAttr(comp)}" oninput="_calReviewOnDraftInput(this,'${_calEscAttr(ctx.pid)}','${_calEscAttr(comp)}')">${_calEsc(note)}</textarea></label>
             ${retry ? `<button type="button" class="cal-link" style="min-height:44px" data-cal-recovery-key="${_calEscAttr(ctx.key)}" onclick="_calReviewRetryRecovery(this)" ${saving ? 'disabled' : ''}>Retry card sync</button>` : ''}
             <div>Open this card in Sheet to read its notes.</div>
         </div>`;
@@ -43501,13 +43503,123 @@
         const ctx = _reviewDraftRecords.get(button.dataset.calRecoveryKey);
         if (!ctx || !_reviewDraftCurrent(ctx)) return;
         const post = calState.posts.find(p => p.id === ctx.pid && p.client === ctx.slug);
-        if (_calReviewRecoveryContext(post, ctx.comp) !== ctx || !ctx.value.attempt
-            || !post._writeUiRetrySourceAt || post._writeUiRetryPrincipal !== ctx.principal
+        if (_calReviewRecoveryContext(post, ctx.comp) !== ctx || !ctx.value.attempt || ctx.recovering
             || _calSaveInFlight[ctx.pid] || _calReviewState.saving[ctx.pid + '|' + ctx.comp]) return;
         button.disabled = true;
-        _calRetrySave(ctx.pid);
-        await _calAwaitCardSave(ctx.pid);
-        if (_reviewDraftCurrent(ctx)) _calRenderBody({ preserveScroll: true });
+        ctx.recovering = true;
+        try { await _calReviewReconcileFeedback(ctx); ctx.recoveryError = ''; }
+        catch (e) { ctx.recoveryFailure = String(e && e.message || 'unknown'); ctx.recoveryError = e && e.message === 'review_receipt_metadata_missing'
+            ? 'This earlier attempt has no complete receipt metadata. Your original text is kept; its saved state needs review.'
+            : 'Feedback could not be confirmed. Your text is kept; retry when the connection recovers. If this continues, the saved feedback or its card binding needs review.'; }
+        finally { ctx.recovering = false; if (_reviewDraftCurrent(ctx)) _calRenderBody({ preserveScroll: true }); }
+    }
+    async function _calReviewReconcileFeedback(ctx) {
+        const attempt = ctx.value.attempt, run = _syncviewClientEntryDataRun;
+        if (!attempt || typeof attempt.recoveryPayload !== 'string') throw new Error('review_receipt_metadata_missing');
+        const payload = JSON.parse(attempt.recoveryPayload), input = payload.comment;
+        const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
+            && Object.keys(value).sort().join('|') === keys.sort().join('|');
+        const current = () => {
+            if (!_reviewDraftCurrent(ctx) || !_syncviewClientEntryRunCurrent(run)
+                || ctx.value.attempt?.id !== attempt.id) throw new Error('review_owner_changed');
+            const post = calState.posts.find(p => p.id === ctx.pid && p.client === ctx.slug);
+            if (!post || _writeUiNativeId(post, ctx.comp) !== payload.id) throw new Error('review_binding_changed');
+            return post;
+        };
+        if (!exactKeys(payload, ['operation', 'surface', 'entity', 'request_id', 'source_edited_at', 'id', 'comment'])
+            || !exactKeys(input, ['body', 'native_comment_id', 'parent_id', 'audience', 'component', 'is_tweak', 'round', 'card_id'])
+            || payload.operation !== 'comment' || payload.surface !== 'calendar' || payload.entity !== 'deliverable'
+            || payload.request_id !== _writeUiIntentId('calendar', 'comment', [attempt.id])
+            || !input || input.native_comment_id !== attempt.id || input.body !== attempt.text.trim()
+            || input.card_id !== ctx.pid || input.component !== ctx.comp || input.audience !== 'client'
+            || input.is_tweak !== true || input.parent_id !== '' || !Number.isInteger(input.round)
+            || payload.source_edited_at !== attempt.createdAt || payload.legacy_parity) throw new Error('review_receipt_mismatch');
+        const post = current(), binding = _prodCardBindingToken('calendar', post, [ctx.comp]);
+        const check = () => {
+            const value = current();
+            if (_prodCardBindingToken('calendar', value, [ctx.comp]) !== binding) throw new Error('review_binding_changed');
+            return value;
+        };
+        const scope = await _prodClientCommentGatewayContext('calendar', post, ctx.comp);
+        check();
+        if (!scope || scope.card_id !== ctx.pid || !_calUpsertUseEf(ctx.slug)) throw new Error('review_source_not_verifiable');
+        const timeout = new AbortController(), timer = setTimeout(() => timeout.abort(), 15000);
+        const field = ctx.comp + '_tweaks';
+        const readSource = async () => {
+            check();
+            const response = await fetch(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(ctx.slug)
+                + '&id=eq.' + encodeURIComponent(ctx.pid) + '&limit=2', {
+                cache: 'no-store', signal: timeout.signal,
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json', Prefer: 'count=exact' }
+            });
+            const rows = await response.json(); check();
+            if (!response.ok || response.headers.get('content-range') !== '0-0/1' || !Array.isArray(rows) || rows.length !== 1
+                || rows[0].id !== ctx.pid || rows[0].client !== ctx.slug || !Number.isFinite(Date.parse(rows[0].updated_at))
+                || _writeUiNativeId(rows[0], ctx.comp) !== payload.id || !Object.prototype.hasOwnProperty.call(rows[0], field)
+                || (rows[0][field] !== null && typeof rows[0][field] !== 'string')) throw new Error('review_source_incomplete');
+            const comments = rows[0][field] == null || !rows[0][field].trim() ? [] : JSON.parse(rows[0][field]);
+            if (!Array.isArray(comments) || comments.some(c => !c || typeof c.id !== 'string' || !c.id || typeof c.body !== 'string')
+                || new Set(comments.map(c => c.id)).size !== comments.length) throw new Error('review_source_incomplete');
+            const found = comments.find(c => c.id === attempt.id);
+            const matches = c => c.body.trim() === attempt.text.trim() && c.audience === 'client' && c.role === 'client'
+                && c.is_tweak === true && c.round === input.round && !c.parent_id && !c.deleted && !c.done && !c.edited;
+            if (found && !matches(found)) throw new Error('review_source_conflict');
+            if (ctx.comp === 'video' && rows[0].tweaks != null) {
+                if (typeof rows[0].tweaks !== 'string') throw new Error('review_source_incomplete');
+                const alias = rows[0].tweaks.trim() ? JSON.parse(rows[0].tweaks) : [];
+                if (!Array.isArray(alias) || alias.some(c => !c || typeof c.id !== 'string' || typeof c.body !== 'string')) throw new Error('review_source_incomplete');
+                if (alias.some(c => c.id === attempt.id && !matches(c))) throw new Error('review_source_conflict');
+                // The frozen RPC derives both video cells from video_tweaks.
+                // Do not erase legacy-only alias content by treating it as empty.
+                if (alias.some(c => !comments.some(p => JSON.stringify(p) === JSON.stringify(c)))) throw new Error('review_source_conflict');
+            }
+            return { row: rows[0], comments, found };
+        };
+        const readNative = async () => {
+            check();
+            const response = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, {
+                method: 'POST', cache: 'no-store', signal: timeout.signal,
+                headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json', 'Content-Type': 'application/json', 'X-Syncview-Source': 'calendar' }, WRITE_UI_PRODUCTION_WRITE_URL),
+                body: JSON.stringify(Object.assign({}, payload, { reconcile_only: true }))
+            });
+            const result = await response.json(); check();
+            const row = result.row, comment = result.comment;
+            if (!response.ok || result.ok !== true || result.reconcile_only !== true || result.outcome !== 'committed_exact'
+                || !row || row.id !== payload.id || row.card_id !== ctx.pid || row.client_slug !== ctx.slug
+                || _writeUiTeam(ctx.comp) !== String(row.team || '').toLowerCase() || row.origin !== 'calendar'
+                || !comment || typeof comment.id !== 'string' || !comment.id || comment.native_comment_id !== attempt.id || comment.body !== input.body
+                || comment.component !== ctx.comp || comment.audience !== 'client' || comment.is_tweak !== true
+                || comment.role !== 'client' || comment.round !== input.round || comment.parent_id || comment.version !== 1
+                || Date.parse(comment.source_created_at) !== Date.parse(payload.source_edited_at)
+                || Date.parse(comment.source_updated_at) !== Date.parse(payload.source_edited_at)
+                || comment.edited_at || comment.deleted_at || comment.resolved_at
+                || !Number.isFinite(Date.parse(comment.updated_at))) throw new Error('review_native_conflict');
+            return comment;
+        };
+        try {
+            let source = await readSource();
+            const native = await readNative();
+            if (!source.found) {
+                const original = _writeUiCanonicalSourceComment(native, { id: attempt.id, created_at: attempt.createdAt, updated_at: attempt.createdAt });
+                const patch = { id: ctx.pid, [field]: JSON.stringify([original]) };
+                if (ctx.comp === 'video') patch.tweaks = patch[field];
+                // Existing routing and atomic comment-cell merge, with no
+                // stale status, whole-card snapshot, or unrelated repair refs.
+                check();
+                const response = await _calUpsertFetchPinned(ctx.slug, { client: ctx.slug, post: patch, comments_base_at: '' }, 'ui', 'supabase', timeout.signal);
+                const result = await response.json(); check();
+                if (!response.ok || result.ok !== true) throw new Error('review_source_save_failed');
+                source = await readSource();
+                if (!source.found) throw new Error('review_source_unconfirmed');
+                const confirmed = await readNative();
+                if (confirmed.updated_at !== native.updated_at || confirmed.id !== native.id) throw new Error('review_native_changed');
+            }
+            const latest = check();
+            _calSetCommentsFor(latest, ctx.comp, _calMergeCommentLists(_calCommentsFor(latest, ctx.comp), source.comments));
+            _reviewDraftFinish({ ctx, ...attempt }, 'accepted');
+            _calCacheWrite(ctx.slug, calState.posts);
+        } finally { clearTimeout(timer); }
     }
     function _calReviewItems() {
         const mode = _calReviewMode();
@@ -43697,7 +43809,8 @@
         if (!activeComps.length) {
             return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;
         }
-        const panels = activeComps.map(comp => _isClientLink && !_calReviewComponentActive(p, comp, 'client')
+        const panels = activeComps.map(comp => _isClientLink && (!_calReviewComponentActive(p, comp, 'client')
+            || _calReviewRecoveryContext(p, comp)?.value.attempt?.phase === 'native')
             ? _calReviewRecoveryHtml(p, comp) : _calReviewPanelHtml(p, comp)).join('');
         const cols = activeComps.length;
         // 4 components (a YouTube card with title review on) lay out 2×2 instead
@@ -67201,6 +67314,16 @@
         }
     }
     async function _writeUiReplayJournalGroup(group, principal) {
+        // An owned Calendar client comment needs exact original readback first.
+        // A status-only journal group must not replace its comment debt on boot.
+        if (_isClientLink && group.surface === 'calendar' && group.lane === 'card'
+            && group.client_slug === calClientSlug(calState.client) && principal === _reviewDraftPrincipal()) {
+            const pendingPost = calState.posts.find(p => p.id === group.post_id && p.client === group.client_slug);
+            if (pendingPost && _calComponentsFor(pendingPost).some(comp => {
+                const ctx = _calReviewRecoveryContext(pendingPost, comp);
+                return ctx && ctx.value.attempt;
+            })) return false;
+        }
         let post = null;
         let item = null;
         if (group.lane === 'kasper-calendar' && typeof _kasperState === 'object') {

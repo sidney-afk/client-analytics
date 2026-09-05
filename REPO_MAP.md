@@ -17,6 +17,10 @@ server assumptions and local-only proof limits.
 The blocked Calendar visibility experiment and its red fresh-page prerequisite
 are recorded in `docs/ops/CALENDAR_FEEDBACK_RECOVERY_ACCESS_BLOCKER.md`;
 `qa/feedback-drafts/calendar-recovery-access.js` is its intercepted regression.
+The bounded frontend extension and legacy-debt limits live in
+`docs/ops/CALENDAR_FEEDBACK_RECONCILIATION.md`.
+`qa/feedback-drafts/calendar-recovery-races.js` preserves nullable-cell, alias and
+native/source race acceptance controls, including unresolved failures.
 
 First Samples release composition and held live gates:
 `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts

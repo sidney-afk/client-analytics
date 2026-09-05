@@ -118,7 +118,12 @@ function webp(width, height, headerOnly, options) {
   b.set([87, 69, 66, 80], 8);
   b.set([86, 80, 56, 32], 12);
   new DataView(b.buffer).setUint32(16, o.badChunkSize ? 100 : 20, true);
-  b.set(o.noStartCode ? [0x10, 0x02, 0x00, 0, 0, 0] : [0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a], 20);
+  /* frame tag 0x50 0x01 0x00 = 0x150: bit 0 clear (key frame), bit 4 set
+     (show_frame), bits 5..23 = 10 (first partition size) — the 10-byte
+     header plus a 10-byte partition fit the 20-byte chunk exactly. */
+  b.set(o.noStartCode ? [0x50, 0x01, 0x00, 0, 0, 0] : [0x50, 0x01, 0x00, 0x9d, 0x01, 0x2a], 20);
+  if (o.emptyPartition) b.set([0x10, 0x00, 0x00], 20);
+  if (o.oversizedPartition) b.set([0x10, 0x20, 0x00], 20);
   new DataView(b.buffer).setUint16(26, width, true);
   new DataView(b.buffer).setUint16(28, height, true);
   return b;
@@ -257,15 +262,29 @@ const gifOffsetFrame = gif(1, 1);
 new DataView(gifOffsetFrame.buffer).setUint16(gifOffsetFrame.length - 14 + 1 - 4, 1, true); /* image descriptor left = 1 on a 1-wide screen */
 ok((await policy.verifyImage('image/gif', gifOffsetFrame)).error === 'image_incomplete', 'a frame whose offset pushes it past the screen edge is refused');
 /* Round six: an animated WebP keeps its image chunks inside ANMF frames. */
-const vp8Payload = (() => { const p = new Uint8Array(20); p.set([0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a, 1, 0, 1, 0], 0); return p; })();
+const vp8Payload = (() => { const p = new Uint8Array(20); p.set([0x50, 0x01, 0x00, 0x9d, 0x01, 0x2a, 1, 0, 1, 0], 0); return p; })();
+/* Round eight: the VP8 first-partition size must fit the chunk and be nonempty; VP8X flags must agree with the chunks. */
+ok((await policy.verifyImage('image/webp', webp(10, 10, false, { emptyPartition: true }))).error === 'image_incomplete',
+  'THE ROUND-EIGHT FINDING: a VP8 header whose first partition is empty (dimensions readable, no pixels behind them) is refused');
+ok((await policy.verifyImage('image/webp', webp(10, 10, false, { oversizedPartition: true }))).error === 'image_incomplete', 'a first partition larger than the chunk is refused');
 const riffChunk = (fourcc, data) => { const c = new Uint8Array(8 + data.length + (data.length & 1)); c.set([...fourcc].map(ch => ch.charCodeAt(0)), 0); new DataView(c.buffer).setUint32(4, data.length, true); c.set(data, 8); return c; };
 const anmf = concat([new Uint8Array(16), riffChunk('VP8 ', vp8Payload)]);
 const animatedBody = concat([riffChunk('VP8X', new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0, 0, 0])), riffChunk('ANIM', new Uint8Array(6)), riffChunk('ANMF', anmf), riffChunk('ANMF', anmf)]);
+const unflaggedBody = concat([riffChunk('VP8X', new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])), riffChunk('ANIM', new Uint8Array(6)), riffChunk('ANMF', anmf)]);
+const unflaggedWebp = (() => { const out = new Uint8Array(12 + unflaggedBody.length); out.set([82, 73, 70, 70], 0); new DataView(out.buffer).setUint32(4, out.length - 8, true); out.set([87, 69, 66, 80], 8); out.set(unflaggedBody, 12); return out; })();
+ok((await policy.verifyImage('image/webp', unflaggedWebp)).error === 'image_incomplete',
+  'THE ROUND-EIGHT FINDING: ANIM/ANMF chunks under a VP8X header whose animation bit is clear are refused, as libwebp refuses them');
+const flaggedNoFramesBody = concat([riffChunk('VP8X', new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0, 0, 0])), riffChunk('VP8 ', vp8Payload)]);
+const flaggedNoFramesWebp = (() => { const out = new Uint8Array(12 + flaggedNoFramesBody.length); out.set([82, 73, 70, 70], 0); new DataView(out.buffer).setUint32(4, out.length - 8, true); out.set([87, 69, 66, 80], 8); out.set(flaggedNoFramesBody, 12); return out; })();
+ok((await policy.verifyImage('image/webp', flaggedNoFramesWebp)).error === 'image_incomplete', 'and an animation bit with a bare still and no ANIM/ANMF is refused too');
+const reservedBody = concat([riffChunk('VP8X', new Uint8Array([0x41, 0, 0, 0, 0, 0, 0, 0, 0, 0])), riffChunk('VP8 ', vp8Payload)]);
+const reservedWebp = (() => { const out = new Uint8Array(12 + reservedBody.length); out.set([82, 73, 70, 70], 0); new DataView(out.buffer).setUint32(4, out.length - 8, true); out.set([87, 69, 66, 80], 8); out.set(reservedBody, 12); return out; })();
+ok((await policy.verifyImage('image/webp', reservedWebp)).error === 'image_incomplete', 'reserved VP8X flag bits set are refused');
 const animatedWebp = (() => { const out = new Uint8Array(12 + animatedBody.length); out.set([82, 73, 70, 70], 0); new DataView(out.buffer).setUint32(4, out.length - 8, true); out.set([87, 69, 66, 80], 8); out.set(animatedBody, 12); return out; })();
 ok((await policy.verifyImage('image/webp', animatedWebp)).ok === true,
   'THE ROUND-SIX FINDING: a VP8X animation whose image chunks live inside ANMF frames passes');
 /* Round seven: a nested frame's bitstream must fit its frame and the canvas. */
-const hugeVp8 = (() => { const p = new Uint8Array(20); p.set([0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a], 0); new DataView(p.buffer).setUint16(6, 16383, true); new DataView(p.buffer).setUint16(8, 16383, true); return p; })();
+const hugeVp8 = (() => { const p = new Uint8Array(20); p.set([0x50, 0x01, 0x00, 0x9d, 0x01, 0x2a], 0); new DataView(p.buffer).setUint16(6, 16383, true); new DataView(p.buffer).setUint16(8, 16383, true); return p; })();
 const hugeFrameBody = concat([riffChunk('VP8X', new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0, 0, 0])), riffChunk('ANIM', new Uint8Array(6)), riffChunk('ANMF', concat([new Uint8Array(16), riffChunk('VP8 ', hugeVp8)]))]);
 const hugeFrameWebp = (() => { const out = new Uint8Array(12 + hugeFrameBody.length); out.set([82, 73, 70, 70], 0); new DataView(out.buffer).setUint32(4, out.length - 8, true); out.set([87, 69, 66, 80], 8); out.set(hugeFrameBody, 12); return out; })();
 ok((await policy.verifyImage('image/webp', hugeFrameWebp)).error === 'image_incomplete',

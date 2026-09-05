@@ -56140,6 +56140,7 @@
                 return 'Only PNG, JPEG, WebP or GIF images can be pasted.';
             }
             if (code === 'image_incomplete' || code === 'image_undecodable') return 'That image file is cut off or damaged. Try copying it again.';
+            if (code === 'image_encode_failed') return 'This browser could not prepare the image. Try a PNG or JPEG.';
             if (code === 'image_too_large') return 'That image is over 4 MB even after resizing. Try a smaller crop.';
             if (code === 'rate_limited') return 'Too many images uploaded in the last hour. Try again a little later.';
             if (code === 'operation_forbidden') return 'Only admin and SMM accounts can add images to a description.';
@@ -56316,12 +56317,19 @@
             if (type === 'image/gif') return passThrough();
             let bitmap = null;
             try { bitmap = await createImageBitmap(file); } catch (e) { bitmap = null; }
-            /* Undecodable here is not undecodable: an older browser without
-               createImageBitmap still gets its paste, and the server's own
-               byte check decides. */
-            if (!bitmap) return passThrough();
+            /* A file this browser cannot decode is refused HERE, not shipped
+               for the server to guess at: the server checks structure, not
+               pixels, and a file that fails to decode in the browser would
+               fail to render for every reader too. (Codex on #1310, round
+               eight.) The one exception is GIF above, which is never
+               decoded here because redrawing it would drop its frames. */
+            if (!bitmap) throw fail('image_undecodable');
             const fit = _prodDescriptionImageFit(bitmap.width, bitmap.height, PROD_DESCRIPTION_IMAGE_MAX_EDGE);
-            if (fit.scale === 1 && file.size <= PROD_DESCRIPTION_IMAGE_MAX_BYTES) {
+            /* PNG and JPEG that already fit travel byte-identical. WebP is
+               ALWAYS redrawn: the server cannot decode its bitstream, so a
+               WebP reaches it only as a PNG or JPEG this browser has
+               actually decoded. */
+            if (fit.scale === 1 && file.size <= PROD_DESCRIPTION_IMAGE_MAX_BYTES && type !== 'image/webp') {
                 if (bitmap.close) bitmap.close();
                 return { blob: file, type, width: bitmap.width, height: bitmap.height };
             }
@@ -56329,7 +56337,7 @@
             canvas.width = fit.width;
             canvas.height = fit.height;
             const context = canvas.getContext('2d');
-            if (!context) { if (bitmap.close) bitmap.close(); return passThrough(); }
+            if (!context) { if (bitmap.close) bitmap.close(); throw fail('image_encode_failed'); }
             context.drawImage(bitmap, 0, 0, fit.width, fit.height);
             if (bitmap.close) bitmap.close();
             let outType = _prodDescriptionImageOutputType(type);

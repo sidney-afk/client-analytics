@@ -89,9 +89,14 @@ image, the trailer as the last byte. JPEG: a frame header and a Start Of
 Scan, entropy-coded data where 0xFF is followed only by a stuffed zero, a
 restart marker or a real segment, at least one entropy byte, EOI as the
 last two bytes. WebP: the RIFF size states the file's length, the chunks
-tile the payload exactly, and exactly one image chunk (a VP8 key frame with
-its start code, or a VP8L stream, directly or inside VP8X) is present. None
-of this decodes pixels; it is what a decoder checks before it starts.
+tile the payload exactly, the VP8X flags and reserved bits are parsed and
+the animation bit must agree with the ANIM/ANMF chunks, every frame and
+bitstream must fit its canvas and the ceiling, and a VP8 first partition
+must be nonempty and fit its chunk. None of this decodes pixels; it is what
+a decoder checks before it starts. The browser closes the gap from its side:
+a file it cannot decode is refused at paste time, and a decodable WebP is
+always redrawn to PNG or JPEG, so raw WebP reaches the function only from a
+direct authenticated caller.
 
 **Sizing, because it was the second half of the ask** (*"avoid things where
 people paste something and it looks huge or horrible"*): a Retina screenshot

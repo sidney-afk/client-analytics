@@ -117,8 +117,16 @@ f = ctx.fit(0, 0, 1600);
 ok(f.width === 1 && f.height === 1, 'nonsense dimensions clamp to a pixel rather than dividing by zero');
 ok(ctx.outType('image/png') === 'image/png', 'PNG stays PNG — text and flat colour stay crisp, transparency survives');
 ok(ctx.outType('image/webp') === 'image/jpeg' && ctx.outType('image/jpeg') === 'image/jpeg', 'anything else redrawn goes out as JPEG');
-ok(/if \(type === 'image\/gif'\) return passThrough\(\);[\s\S]*createImageBitmap/.test(grabFunc('async function _prodDescriptionPrepareImage(')),
+const prepare = grabFunc('async function _prodDescriptionPrepareImage(');
+ok(/if \(type === 'image\/gif'\) return passThrough\(\);[\s\S]*createImageBitmap/.test(prepare),
   'a GIF passes through untouched BEFORE any decode — redrawing it on a canvas would drop its frames');
+/* Codex on #1310, round eight: the server checks structure, not pixels, so
+   the browser must never ship bytes it could not decode itself. */
+ok(/if \(!bitmap\) throw fail\('image_undecodable'\)/.test(prepare),
+  'a file this browser cannot decode is REFUSED here, never passed through for the server to guess at');
+ok(/type !== 'image\/webp'\)/.test(prepare) && !/passThrough\(\);\s*\}\s*const fit/.test(prepare),
+  'and a WebP is always redrawn, so it reaches the server only as a PNG or JPEG this browser actually decoded');
+ok((grabFunc('function _prodDescriptionImageErrorText(')).includes("image_encode_failed"), 'an encode failure has its own sentence');
 
 /* ---- 2. Alt text -------------------------------------------------------- */
 console.log('alt text is a name, not the clipboard\'s default');

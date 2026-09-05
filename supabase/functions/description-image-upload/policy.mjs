@@ -453,7 +453,16 @@ function webpImageChunk(b, fourcc, dataAt, size, maxW, maxH) {
   if (fourcc === "VP8 ") {
     /* frame tag (3) then the key-frame start code 9d 01 2a, then LE14 width and height */
     if (size < 10 || b[dataAt + 3] !== 0x9d || b[dataAt + 4] !== 0x01 || b[dataAt + 5] !== 0x2a) return false;
-    if (b[dataAt] & 0x01) return false; /* bit 0 set = interframe, never a still */
+    const tag = b[dataAt] + (b[dataAt + 1] << 8) + (b[dataAt + 2] << 16);
+    if (tag & 0x01) return false; /* bit 0 set = interframe, never a still */
+    if (!((tag >>> 4) & 0x01)) return false; /* show_frame must be set on a still */
+    /* bits 5..23 of the tag: the size of the first (mode) partition, which
+       must fit inside the chunk after the 10-byte header, and must not be
+       empty. A header with zero payload behind it is exactly what a decoder
+       reads the dimensions from and then fails on (Codex on #1310, round
+       eight). The DCT partitions are not decoded here. */
+    const firstPartition = tag >>> 5;
+    if (firstPartition === 0 || 10 + firstPartition > size) return false;
     w = le16(b, dataAt + 6) & 0x3fff;
     h = le16(b, dataAt + 8) & 0x3fff;
   } else if (fourcc === "VP8L") {
@@ -486,6 +495,8 @@ function webpChunksValid(b) {
   let stills = 0;
   let frames = 0;
   let extended = false;
+  let animated = false;
+  let sawAnim = false;
   /* The canvas every image and frame must fit: the VP8X header's when there
      is one, else the ceiling (a plain still IS the canvas). */
   let canvasW = MAX_DIMENSION;
@@ -498,11 +509,22 @@ function webpChunksValid(b) {
     if (fourcc === "VP8X") {
       if (at !== 12 || size !== 10) return false;
       extended = true;
+      /* Flags byte: bit 1 animation, bit 2 XMP, bit 3 EXIF, bit 4 alpha,
+         bit 5 ICC; bits 0, 6, 7 and the next three bytes are reserved and
+         must be zero. The animation bit must AGREE with the chunks that
+         follow (Codex on #1310, round eight). */
+      const flags = b[dataAt];
+      if ((flags & 0xc1) !== 0 || b[dataAt + 1] !== 0 || b[dataAt + 2] !== 0 || b[dataAt + 3] !== 0) return false;
+      animated = (flags & 0x02) !== 0;
       canvasW = le24(b, dataAt + 4) + 1;
       canvasH = le24(b, dataAt + 7) + 1;
       if (canvasW > MAX_DIMENSION || canvasH > MAX_DIMENSION) return false;
       at = dataAt + size + (size & 1);
       continue;
+    }
+    if (fourcc === "ANIM") {
+      if (!extended || !animated || size !== 6 || sawAnim) return false;
+      sawAnim = true;
     }
     const image = webpImageChunk(b, fourcc, dataAt, size, canvasW, canvasH);
     if (image === false) return false;
@@ -512,7 +534,7 @@ function webpChunksValid(b) {
          height-1 as 24-bit, duration, flags. The frame must fit the canvas,
          and its bitstream must fit the frame. Then the frame's own chunks
          must tile the payload with exactly one image chunk. */
-      if (!extended || size < 16) return false;
+      if (!extended || !animated || !sawAnim || size < 16) return false;
       const frameX = le24(b, dataAt) * 2;
       const frameY = le24(b, dataAt + 3) * 2;
       const frameW = le24(b, dataAt + 6) + 1;
@@ -539,8 +561,8 @@ function webpChunksValid(b) {
     at = dataAt + size + (size & 1);
   }
   if (at !== n) return false;
-  if (frames > 0) return stills === 0;
-  return stills === 1;
+  if (animated) return sawAnim && frames > 0 && stills === 0;
+  return frames === 0 && stills === 1;
 }
 
 /**

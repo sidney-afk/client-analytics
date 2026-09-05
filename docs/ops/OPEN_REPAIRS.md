@@ -13022,3 +13022,18 @@ PNG chunk (uppercase first letter, not one of the four that exist) passed
 with a valid CRC; it is now refused, while ancillary chunks pass. Both are
 fixtures.
 
+**Round eight (Codex on #1310): two more, taken proportionately.** [P2] VP8X
+flags were not read: ANIM/ANMF under a header whose animation bit is clear
+passed. The flags byte and reserved bytes are now parsed, reserved bits must
+be zero, and the animation bit must agree with the chunks (ANIM exactly once
+before any ANMF, at least one frame, no bare still). [P2] "Decode WebP
+bitstreams before accepting them": VP8 is a video codec and decoding it
+here is not proportionate. Taken two ways instead. Server: the VP8 first
+partition size (bits 5..23 of the frame tag) must be nonempty and fit the
+chunk, so a header with nothing behind it is refused. Browser: any file the
+browser cannot decode is now REFUSED at paste time with the "cut off or
+damaged" toast rather than passed through, and a decodable WebP is always
+redrawn to PNG or JPEG, so raw WebP reaches the function only from a bound
+admin/SMM caller using the key directly, never from the paste path. Stated
+in the doc; JPEG, GIF and WebP remain structural checks server-side.
+

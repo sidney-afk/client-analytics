@@ -3,6 +3,10 @@
 One page that ties every test suite, gate, and Claude skill together. If you
 only remember one file about testing, remember this one.
 
+`node test/asset-access-any-team.js` runs the asset authorization assertions
+offline. Its policy import uses a file URL so the same checks run on Windows
+and POSIX paths; no application or authorization rule changes with the platform.
+
 ## The three safety contracts (never confuse them)
 
 | Contract | Applies to | Rule | Canonical text |

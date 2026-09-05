@@ -6345,21 +6345,20 @@ CROSSWALK_REPAIR_STRATEGY status table.
 
 ## 2026-09-05 — one-row crosswalk move: an approved card takes its deliverable back from its archived first draft
 
-**DB mutation, owner-applied, SQL Editor, 23:06:52Z.** One row of
+**DB mutation, owner-applied, SQL Editor, late evening UTC, after the second apply.** One row of
 `public.deliverables` (one client's approved reel): `card_id` from the
 archived native card that auto-created its Linear issue to the approved card
-that links the same issue. Row identities are kept out of this public file
-(the deliverable-to-card mapping is per-row production data; see the runner's
-public-safety contract): the row is findable privately by its ledger event —
-`deliverable_events` at 23:06:52Z, `action=update`, `source=system`,
-`payload.reason=rpc_bypass_guard` — and the exact statement is in the
-owner's SQL Editor history.
+that links the same issue. Row identities, and anything that selects the row — the exact time, the
+event predicate — are kept out of this public file: `deliverable_events` and
+the browser projection are anonymously readable, so a lookup key here would be
+the identity. The exact statement is in the owner's SQL Editor history and in
+the session record; the guard's bare `update` event on the row is the only
+server-side trace, and it carries no before-value.
 The statement was guarded on the old value, so it could touch at most that one
 row in that one state. The SQL Editor prints "Success. No rows returned" for an
 UPDATE; the move was confirmed by reading the row back with the publishable
-key (`card_id`, `updated_at` 23:06:52Z) and the ledger guard's bare `update`
-event (`source=system`, `reason=rpc_bypass_guard`) on the row at the same
-second.
+key (new `card_id`, `updated_at` at the moment of the statement) and by the
+ledger guard's bare `update` event on the row at the same second.
 
 **Why by hand.** The bind RPC refuses `already_bound_elsewhere` whether or
 not the holding card is archived (OPEN_REPAIRS 156, "The seven, ruled"). The

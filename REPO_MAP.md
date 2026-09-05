@@ -48,6 +48,14 @@ disposable PostgreSQL service in `calendar-unit-tests.yml`; it reaches no live
 backend. Existing `scripts/track-b-backup.js` and
 `scripts/track-b-restore-rehearsal.js` own versioned private package coverage and
 remain separate from any production writer deployment.
+`test/track-b-backup-corpus.js` gates legacy-versus-history package coverage;
+`scripts/track-b-history-backup-prerequisites.sql` prepares the separately
+reviewed private backup grants and scratch-only restore helper after all
+expanded-corpus schema prerequisites exist.
+`scripts/card-history-backup-rehearsal.js` proves the actual 21-table private
+dump/package/restore against disposable PostgreSQL. Its PR #1293 manifest
+prerequisite is fetched at an immutable commit and hash-checked for this local
+proof only; it does not install production schema or deploy the gateway.
 
 | Path | What it is |
 |---|---|

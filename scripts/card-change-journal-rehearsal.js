@@ -38,7 +38,7 @@ class LocalDatabase {
   raw(sql, database) {
     return spawnSync(this.config.psql, this.args(database), {
       input: sql, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
-      env: { ...process.env, PGPASSWORD: process.env.CARD_HISTORY_PGPASSWORD || '', PGOPTIONS: '' },
+      env: { ...process.env, PGPASSWORD: this.config.password ?? process.env.CARD_HISTORY_PGPASSWORD ?? '', PGOPTIONS: '' },
     });
   }
   query(sql, database) {
@@ -50,7 +50,7 @@ class LocalDatabase {
   asyncQuery(sql) {
     return new Promise(resolve => {
       const child = spawn(this.config.psql, this.args(), { stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, PGPASSWORD: process.env.CARD_HISTORY_PGPASSWORD || '', PGOPTIONS: '' } });
+        env: { ...process.env, PGPASSWORD: this.config.password ?? process.env.CARD_HISTORY_PGPASSWORD ?? '', PGOPTIONS: '' } });
       let stdout = '', stderr = '';
       child.stdout.on('data', c => { stdout += c; });
       child.stderr.on('data', c => { stderr += c; });
@@ -96,6 +96,9 @@ function bootstrap(db) {
 }
 
 async function run() {
+  const proofFiles = [path.join(ROOT, 'migrations', MIGRATION), __filename, path.join(ROOT, 'scripts/card-change-journal-rollback.sql')];
+  const proofHashes = () => proofFiles.map(file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'));
+  const frozenSources = proofHashes();
   const db = new LocalDatabase(localConfig());
   const checks = [];
   const check = (name, fn) => { fn(); checks.push(name); };
@@ -221,6 +224,11 @@ async function run() {
       assert.equal(db.query('select count(*) from public.mirror_outbox'), outboxBefore);
       assert.equal(db.query("select title from public.deliverables where id='history-deliverable'"), 'Final deliverable');
     });
+    const beforeTimezoneWrite = latest('production_comments').row_after;
+    db.query("set timezone='America/Guatemala'; update public.production_comments set body=body where id='history-comment';");
+    check('direct writer timezone cannot corrupt the canonical before/after JSON chain', () => {
+      assert.deepEqual(latest('production_comments').row_before, beforeTimezoneWrite);
+    });
 
     // Actual overlapping sessions: the first row lock is held until the second
     // session is observed waiting on that lock. No timing-only concurrency claim.
@@ -273,7 +281,9 @@ async function run() {
       db.query(`create table public.synthetic_restore_${table} (like public.${table});`);
       for (const images of [priorImages, finalImages]) {
         db.query(`truncate public.synthetic_restore_${table}; insert into public.synthetic_restore_${table} select * from jsonb_populate_record(null::public.synthetic_restore_${table}, ${sqlJson(images[table])});`);
-        const actual = db.rows(`select to_jsonb(t) image from public.synthetic_restore_${table} t`)[0].image;
+        // Compare canonical UTC representations, not display-timezone strings
+        // for the same restored timestamptz instant.
+        const actual = JSON.parse(db.query(`set timezone='UTC'; select to_jsonb(t) from public.synthetic_restore_${table} t;`));
         // Schema-drift-added nullable column exists only after the source receipt.
         if (table === 'calendar_posts') delete actual.synthetic_future_field;
         assert.deepEqual(actual, images[table]);
@@ -310,10 +320,9 @@ async function run() {
       assert.equal(db.query("select name from public.calendar_posts where id='bench'"), 'Post-rollback save');
       assert.match(db.raw('delete from public.card_change_journal;').stderr, /card_change_journal_immutable/);
     });
+    assert.deepEqual(proofHashes(), frozenSources, 'proof source changed during execution');
     const result = { status: 'PASS', source_base: '287c16cd1c46da18c9d6e302e9a8d7c66c746e50',
-      migration_sha256: crypto.createHash('sha256').update(source(MIGRATION)).digest('hex'),
-      rehearsal_sha256: crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex'),
-      rollback_sha256: crypto.createHash('sha256').update(fs.readFileSync(path.join(ROOT, 'scripts/card-change-journal-rollback.sql'))).digest('hex'),
+      migration_sha256: frozenSources[0], rehearsal_sha256: frozenSources[1], rollback_sha256: frozenSources[2],
       server_version: db.query('show server_version'), checks, passed: checks.length,
       local_overhead: overhead, local_journal_relation_bytes: bytes,
       proof_scope: 'synthetic_local_SQL_only_no_live_capacity_or_backup_delivery_claim' };

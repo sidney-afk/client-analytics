@@ -12614,3 +12614,9 @@ private-grant installation; reserved real-client-link TEST canary; complete
 private snapshot/readback/scratch restore; actual alert delivery; and observed
 retention window. Existing 14-table backups are explicitly limited. No live
 change or history guarantee is implied by this draft or its local SQL tests.
+The pre-install comment-failure continuity gate is currently **FAIL**, not merely
+unproven: the separate finite browser proof at `287c16cd` found refused-note/
+tweak drafts lost immediately or on reopening, including newer typing. The
+accepted Samples-note subset remains conserved. Install must wait for the
+separate failure-preservation repairs and passing failure/reopen tests because
+a journal insertion failure intentionally rejects the corresponding save.

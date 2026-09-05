@@ -92,7 +92,7 @@ comment on table public.card_change_journal is
 comment on column public.card_change_journal.id is
   'Allocation order with rollback gaps; NOT global commit order. Same-row locks serialize versions; transaction_id groups database writes, not multi-request UI actions.';
 comment on column public.card_change_journal.request_claims is
-  'Selected transport claims only. Journal does not verify a person: service-role requests and direct SQL can assert these values. Never stores JWTs, headers, access/share tokens, or IP addresses.';
+  'Selected role/sub transport claims only; no request headers, raw JWT or IP capture. Journal does not verify a person: service-role requests and direct SQL can assert these values. Separate full business row images may themselves contain confidential URLs or arbitrary text.';
 
 create function public.card_change_journal_immutable()
 returns trigger language plpgsql set search_path = pg_catalog as $fn$
@@ -109,7 +109,8 @@ create trigger card_change_journal_immutable_truncate
   for each statement execute function public.card_change_journal_immutable();
 
 create function public.card_change_journal_capture()
-returns trigger language plpgsql security definer set search_path = pg_catalog as $fn$
+returns trigger language plpgsql security definer
+set search_path = pg_catalog set timezone = 'UTC' as $fn$
 declare
   v_before jsonb;
   v_after jsonb;

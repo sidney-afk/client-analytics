@@ -363,6 +363,9 @@ include both source cards/events, Workload, the journal and the separate PR #129
 intake manifest prerequisite. Existing 14-table packages remain limited history;
 they cannot prove this new corpus or a 30-day guarantee. See that runbook for
 staged install, retained-data rollback and the 90-day/no-auto-prune proposal.
+Journal installation is additionally blocked by a currently **failing**
+comment-refusal/reopen conservation proof; the separate browser repairs must
+pass before mandatory capture can expose users to an additional save refusal.
 The dated capacity/provider statements below are not refreshed by this draft.
 
 - The live project is on **Pro**, not Free. The 2026-07-13 readback showed seven completed daily

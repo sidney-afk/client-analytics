@@ -7,6 +7,20 @@ request to retain every card change for at least 30 days. Source base:
 No database migration, grant, writer deployment, flag, backup setting or live
 test was performed. Merging these files does not install database capture.
 
+**Current installation blocker: comment failure continuity is FAIL.** The
+independent bounded 27-case synthetic browser proof at base `287c16cd` found
+that refused Calendar/Samples plain notes recover in memory but are lost on
+reopening; Kasper plain-note refusal loses the draft immediately, and a refused
+Kasper tweak can overwrite newer typing. Refused explicit tweaks also lack
+reopen conservation. The source anchors and distinctions are recorded in the
+[local proof audit](../audits/2026-09-05-card-change-journal-local-proof.md).
+The separate Samples accepted-note preservation candidate protects its submitted
+note and comment ID; that subset does not prove all draft/new-typing paths.
+**Do not install the journal until the separate comment-failure repairs are
+reviewed and their real-document failure/reopen tests pass.** This journal
+deliberately turns capture failure into save failure, so failure UX is a present
+release dependency, not an optional improvement or merely unmeasured behavior.
+
 ## What this preserves
 
 `migrations/2026-09-05-card-change-journal.sql` installs one private append-only
@@ -64,7 +78,10 @@ URLs. Keep dumps, row samples, restore output and client/person identifiers out
 of this public repository, CI logs, browser APIs and alert messages. The six
 owners do not include credential/token identity tables. Do not add sensitive
 authentication columns to these business tables without reviewing history
-retention. The journal stores no JWT, request headers, IP address or share token.
+retention. Capture does not collect raw JWTs, request headers, IP addresses or
+share-token credentials as request metadata. Arbitrary business text and signed
+URLs can themselves contain secrets, which is why every full snapshot stays
+private; this is not a guarantee that such bytes can never occur in a row.
 
 Database session user/role and only the request's selected `role`/`sub` claims
 are retained as **transport evidence, person unverified**. Service-role requests
@@ -120,7 +137,8 @@ link is replaced or re-gated.
    the matching scratch schema and exact restore helper before testing the
    expanded package. No client surface changes in this preparation.
 4. **Install database capture in a reviewed quiet window.** Apply the exact new
-   journal migration once in its transaction. It refuses missing owner tables,
+   journal migration once in its transaction **only after the presently failing
+   comment-failure continuity gate above is repaired and proved**. It refuses missing owner tables,
    unexpected primary keys/client columns, or an existing partial installation.
    The five-second lock timeout prevents a migration from waiting indefinitely;
    a timeout aborts the entire install. SQL table locks can briefly delay saves,
@@ -138,7 +156,8 @@ link is replaced or re-gated.
    Regular clients keep the same UI and writer access; capture adds database
    work to saves. If history insertion fails, the matching save fails rather
    than committing without evidence. That failure must stay visible/retryable
-   in real clients before rollout is considered complete.
+   in real clients before installation proceeds, then be confirmed in the
+   reserved post-install canary. The current pre-install gate remains FAIL.
 6. **Activate complete private backup.** Install reviewed grants only after all
    expanded-corpus tables exist, export the exact new corpus, authenticate and
    download the actual stored package, then restore it into isolated scratch
@@ -191,6 +210,16 @@ The runner starts no service, creates a uniquely named synthetic database,
 retains it on failure, and drops only its own database on success. It refuses
 non-loopback targets. CI runs the same SQL rehearsal against its PostgreSQL 16
 service. No live HTTP transport, alerts or provider workers are invoked.
+
+Run `node scripts/card-history-backup-rehearsal.js` with the same local-only
+settings, `CARD_HISTORY_PGDUMP` when the executable is outside PATH, and
+`CARD_HISTORY_MANIFEST_SQL` pointing to the exact reviewed PR #1293 migration.
+The dependency hash is checked before use. This second runner proves the
+actual 21-table export/package/private-grant/restore path; it never calls Drive.
+The [source-pinned local proof](../audits/2026-09-05-card-change-journal-local-proof.md)
+records 31 journal assertions and 14 backup/restore assertions, including full
+typed row comparison and failure rollback. Both runners verify their runtime
+source stayed unchanged throughout execution.
 
 The rehearsal applies real baseline card columns and the owning SQL/RPC chain,
 then checks all six INSERT/UPDATE/DELETE owners, normal native and source-comment

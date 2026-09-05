@@ -12114,7 +12114,7 @@ whole class for the planner, so the RPC refusing it is consistency with the
 existing rule, not a new restriction invented here. **The owner decision is
 whether `kind='other'` on a graphics row counts as a thumbnail.** Answering it
 moves the repairable set from 42 to 68 of 107.
-## 148. A Production deep link waited for the whole board before it could show one row
+## 151. A Production deep link waited for the whole board before it could show one row
 
 **Owner report 2026-09-05**, following the calendar card's "Open the SyncView
 Production video sub-issue in a new tab" link (the graphic twin behaves the

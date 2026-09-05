@@ -182,7 +182,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     && sxrFlush.includes("_writeUiJournalCoversRepairRefs(retryPost, 'sxr', 'card'")
     && calFlush.includes('_writeUiHeldSourceEdits') && sxrFlush.includes('_writeUiHeldSourceEdits'),
   'normal retries require exact journal-ref coverage and quarantine cache-only edits');
-  assert(calFlush.includes('return _calAwaitCardSave(pid)') && sxrFlush.includes('return _sxrAwaitCardSave(pid)'), 'review acknowledgements wait through any trailing serialized save');
+  assert(calFlush.includes('return _calAwaitCardSave(pid)') && sxrFlush.includes('return _sxrAwaitCardSave(pid, owner)'), 'review acknowledgements wait through the originating owner trailing serialized save');
   assert(calFlush.indexOf('checkpointCommittedSource()') < calFlush.indexOf('await _calUpsertFetch'), 'Calendar checkpoints native acknowledgement before source IO');
   assert(sxrFlush.indexOf('checkpointCommittedSource()') < sxrFlush.indexOf('await _sxrUpsertFetch'), 'Samples checkpoints native acknowledgement before source IO');
   assert(calFlush.includes('_writeUiDeferLegacyStatusUntilSourceSave')
@@ -199,7 +199,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     && extract('_sxrUpsertFetchPinned').includes('SXR_UPSERT_N8N_URL'),
   'source-gated legacy actions write through the exact source transport recorded before staging');
   assert(calFlush.includes('_writeUiAdoptReplayStatus') && sxrFlush.includes('_writeUiAdoptReplayStatus'), 'source retries project the current native row, not a stale cached status');
-  assert(calFlush.includes('_calCacheWrite(_saveSlug, calState.posts)') && sxrFlush.includes('_sxrCacheWrite(_saveSlug, sxrState.posts)'), 'source-repair checkpoints are crash-durable in the v2 caches');
+  assert(calFlush.includes('_calCacheWrite(_saveSlug, calState.posts)') && sxrFlush.includes('_sxrCacheWrite(_saveSlug, ownedRows())'), 'source-repair checkpoints persist the captured owner rows in the v2 caches');
 
   const calReview = extract('_calReviewRequestTweak');
   const sxrReview = extract('_sxrReviewRequestTweak');
@@ -4175,6 +4175,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     _writeUiAuthoritySnapshot: () => liveAuthority,
     _writeUiFilterCachedPosts: posts => posts,
     _sxrNormStatus: status => status,
+    _sxrWorkOwners: new WeakMap(),
     localStorage: {
       get length() { return storage.size; },
       key: index => Array.from(storage.keys())[index] || null,
@@ -4194,21 +4195,23 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   vm.runInContext(exactBetween('function _calCacheKey', 'function _calCacheRead'), cacheContext);
   vm.runInContext(exactBetween('function _calCacheRead', 'function _calCacheWrite'), cacheContext);
   vm.runInContext(exactBetween('function _calCacheWrite', '/* ============================================================'), cacheContext);
+  vm.runInContext(extract('_sxrValidateReadRows'), cacheContext);
+  vm.runInContext(extract('_sxrIsBlankId'), cacheContext);
   vm.runInContext(exactBetween('function _sxrCacheRead', 'function _sxrCacheWrite'), cacheContext);
   vm.runInContext(exactBetween('function _sxrCacheWrite', 'function _sxrIsArchivedRef'), cacheContext);
-  const repair = { id: 'repair-1', video_status: 'Approved', _writeUiRetrySourceAt: '2026-07-12T00:00:00Z', _writeUiRetryEdits: { video_status: 'Approved' } };
+  const repair = { id: 'repair-1', client: 'fixture', video_status: 'Approved', _writeUiRetrySourceAt: '2026-07-12T00:00:00Z', _writeUiRetryEdits: { video_status: 'Approved' } };
   assert(cacheContext._calCacheWrite('fixture', [repair]));
   assert(cacheContext._sxrCacheWrite('fixture', [repair]));
   liveAuthority = null;
   assert.strictEqual(cacheContext._calCacheRead('fixture'), null, 'authority outage does not paint a cache');
   assert.strictEqual(cacheContext._sxrCacheRead('fixture'), null, 'authority outage does not paint a Samples cache');
   cacheContext._calCacheWrite('fixture', [{ id: 'repair-1', video_status: 'In Progress' }]);
-  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', video_status: 'In Progress' }]);
+  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', client: 'fixture', video_status: 'In Progress' }]);
   liveAuthority = { video: 'linear', graphics: 'linear' };
   assert.strictEqual(cacheContext._calCacheRead('fixture').posts[0].video_status, 'Approved', 'Calendar network revalidation cannot erase a committed repair during an authority outage');
   assert.strictEqual(cacheContext._sxrCacheRead('fixture').posts[0].video_status, 'Approved', 'Samples network revalidation cannot erase a committed repair during an authority outage');
   cacheContext._calCacheWrite('fixture', [{ id: 'repair-1', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
-  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
+  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', client: 'fixture', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
   assert(!cacheContext._calCacheRead('fixture').posts[0]._writeUiRetrySourceAt && !cacheContext._sxrCacheRead('fixture').posts[0]._writeUiRetrySourceAt,
     'source acknowledgement explicitly clears both durable repair checkpoints');
 

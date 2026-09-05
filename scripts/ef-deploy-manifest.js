@@ -54,6 +54,10 @@ const WORKFLOWS = Object.freeze([
     id: 'deploy-hiring-automation',
     file: '.github/workflows/deploy-hiring-automation.yml',
   }),
+  Object.freeze({
+    id: 'deploy-description-image-upload',
+    file: '.github/workflows/deploy-description-image-upload.yml',
+  }),
 ]);
 
 // These two functions retain the existing pinned onboarding release path

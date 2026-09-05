@@ -96,6 +96,15 @@ verify_jwt = false
 [functions.key-verify]
 verify_jwt = false
 
+# Staff-only writer for images pasted into a SyncLinear description. The
+# static browser supplies its publishable key for routing; the function
+# separately verifies the stored staff role key (admin/SMM) plus one exact
+# active roster actor, checks the image bytes against their declared type,
+# and only then writes the public description-images bucket under the
+# service role. JWT verification stays off for the same reason as the rest.
+[functions.description-image-upload]
+verify_jwt = false
+
 # Staff-only paginated Production comment reader. The static browser supplies
 # its publishable key for routing; the function separately verifies the stored
 # staff role key and active roster member before any service-role read.

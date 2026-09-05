@@ -12845,3 +12845,145 @@ That closes the repair set the rule can close: every slot the runner examines
 is either clean or one of the 7 named for a person, and the runner's plan
 summary lists those 7 by reason on every run. Item 147's residue and the "Still
 open" list above are the whole of what is left.
+
+## 157. [2026-09-05, BUILT — live once the owner applies one migration and the deploy lane runs] Pasting an image into a description, the other half
+
+**What.** Owner, 2026-09-05: *"paste an image on the description of parent
+issues or sub-issues on SyncLinear … someone could just ctrl V paste an image
+… and size it up in a smart way … avoid things where people paste something
+and it looks huge or horrible."* And then: *"if you think this is a good plan
+… let's do it."* Item 109 / `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md` had
+scoped this and stopped on the storage decision. The decision is made
+(**public bucket, unguessable path, keep forever**) and the whole of its §3
+is now code.
+
+**Why B, restated in one line.** `description` is mirrored to Linear
+verbatim, so what the description stores has to be a plain https URL Linear
+renders itself; a private bucket's signed URL would reach Linear as dead
+text. Public means "anyone holding the exact URL can fetch it", which is the
+property every Drive and Frame.io link in the same field already has, and no
+client-facing surface renders these descriptions (traced in the doc).
+
+**What was built.**
+- `migrations/2026-09-05-description-images.sql` — bucket
+  `syncview-description-images` (public, 4 MiB, png/jpeg/webp/gif) and a
+  service-role-only `description_images` ledger.
+- `supabase/functions/description-image-upload/` — raw bytes in, one URL out.
+  Binds to ONE active admin/SMM roster actor exactly as `production-write`
+  does; checks the declared type AGAINST the magic bytes (the #1225 finding:
+  an allowlist on a browser label validates a claim, SVG under `image/png`
+  satisfies it); 4 MiB and 8000px ceilings; hourly per-actor limit counted
+  off the ledger and refused when the ledger cannot be read; UUID object
+  name with the extension of the VERIFIED type; ledger row after the object,
+  object removed if the row is refused. `policy.mjs` holds the pure part so
+  the unit suite feeds it the exact bytes.
+- `.github/workflows/deploy-description-image-upload.yml` — path-triggered
+  on main, dispatchable. Not a Section 4 closure, so no sealed capture.
+- `index.html` — `paste` and `drop` on the description textarea. Plain text
+  is never intercepted. A placeholder line lands at the caret at once, the
+  bytes are downscaled to 1600px on the long edge (PNG stays PNG, GIF passes
+  through) and posted, the placeholder is swapped in place for
+  `![alt](https://…)` or removed on failure with a toast that says why. Save
+  refuses a draft still carrying a placeholder, so "Uploading image 1…" can
+  never reach Linear as literal text. Rendered images get a 360px height cap
+  and click-to-open.
+
+**Sizing, the owner's second sentence.** Two levers, one of which reaches
+Linear. Linear renders the mirrored image at natural size, so the only thing
+that controls how big it appears THERE is the pixel count of the uploaded
+file: hence the browser-side downscale. The height cap is SyncView's own.
+
+**Proof.** `test/description-image-upload.js` (43 assertions: sniffers on
+real headers, SVG-as-PNG refused, mismatch refused, ceilings, handler order,
+migration/config/lane shape) and `test/prod-description-image-paste.js`
+(editor helpers executed out of `index.html`: intercept rule, placeholder
+placement and swap with caret preserved, failure cleanup, save guard,
+display cap). `deno check` could not run in the authoring sandbox (no deno);
+the baseline records it as clean (0), so the type ratchet lane on the PR is the
+first real typecheck and any error it finds is a hard failure, which is the
+right direction for a new target.
+
+**Left to the owner.** Apply the migration in the SQL Editor, then let the
+lane run (it runs on merge). Until the function is deployed the browser
+answers a paste with "Image upload is not available yet on this backend"
+and leaves the description untouched.
+
+**Not done, and named.** Images pasted inside Linear itself come here as
+`uploads.linear.app` signed URLs and render broken in SyncView; that is the
+reverse direction and a separate proxy. Retention is forever; an image whose
+description later drops it stays in the bucket (negligible cost for
+screenshots, and the doc said forever was the honest default).
+
+**Amended before merge (Codex on #1310): three findings, all taken.**
+1. **[P1] No server-side kill switch, no ROLLBACK row.** Right: a Pages revert
+   cannot reach a cached tab or a direct authenticated caller. The function now
+   reads `description_image_upload_enabled` from `syncview_runtime_flags`
+   BEFORE authenticating anyone and fails closed on a missing, unreadable or
+   malformed row (the `quiz_intake_enabled` shape). The migration seeds it
+   enabled; `ROLLBACK.md`'s Live State table carries the one UPDATE that flips
+   it. The browser maps `upload_disabled` to "Image upload is switched off
+   right now."
+2. **[P1] The rate limit was a look, not a reservation.** Right, and the
+   browser makes the race ordinary: `_prodDescriptionInsertImages` starts every
+   dropped file without awaiting, so ten screenshots at 119 rows all observed
+   119. Now the ledger row is inserted BEFORE the object and the deciding count
+   includes the caller's own row, so concurrent requests at the ceiling all see
+   a total above it and all withdraw; a failed storage write withdraws the row
+   too. Over-refusal at the boundary is the accepted cost; the bound holds
+   without a new database function, so the applied migration did not change.
+3. **[P2] Click-to-open was mouse-only.** Right. The rendered image now carries
+   `tabindex="0" role="link"` with a visible focus ring, and Enter or Space
+   opens it through the same delegated opener as the click. Still no handler
+   attribute on the element, which the alt text must never be able to forge.
+
+**Amended again before merge (Codex on #1310, round two): three more, all taken.**
+1. **[P1] The per-actor limit was keyed to a forgeable name.** Right:
+   `x-syncview-actor` is caller-chosen and the role key is shared, so a stolen
+   key could name each active same-role member in turn and collect a fresh
+   120/hour for each. The reservation now counts a second ceiling, 600/hour,
+   keyed to `actor_role`, which is the role the SECRET resolved to and not a
+   claim. The named actor stays as audit metadata.
+2. **[P2] The sniffers stopped at the header.** Right: 24 bytes of PNG
+   signature plus IHDR passed, and a direct caller (or the browser's honest
+   pass-through when it cannot decode) would have stored it forever as a URL
+   that renders broken. `imageComplete` now requires each format's closing
+   structure (IEND, GIF trailer, EOI, RIFF length) before the verdict; refused
+   as `image_incomplete`, which the browser maps to "That image file is cut
+   off or damaged."
+3. **[P1] Nothing under `qa/` touched the new writer.** Right, and AGENTS.md
+   says the robots are part of the product. `qa/probes/p96_description_image_upload.js`
+   is in the nightly manifest: the browser's preflight, the refusal order
+   (flag, key, roster) with the key alone, and, with `SYNCVIEW_STAFF_ACTOR`
+   set in the nightly's secrets, a real 1x1 PNG round trip through the public
+   URL plus the three byte refusals. One 68-byte object is retained per full
+   run, stated in the probe rather than cleaned up through a delete path that
+   does not exist.
+
+**Round three (Codex on #1310): three more, all taken.**
+1. **[P1] The probe could stay green without ever touching the writer.** Right:
+   the nightly supplied only `SYNCVIEW_STAFF_KEY`, so the bound-actor journey
+   was skipped every night. The workflow now wires `SYNCVIEW_STAFF_ACTOR`
+   from secrets and the probe FAILS when it is absent. The nightly is red on
+   p96 until the owner adds the secret; that is the honest state, not a gap.
+2. **[P2] The PNG check matched a suffix.** Right, and the round-two fixture
+   proved it by passing with zeroed CRCs and an empty IDAT. `pngChunksValid`
+   now walks every chunk, verifies each CRC-32 against type and data, requires
+   IHDR first with length 13, at least one IDAT with data, and IEND exactly at
+   the end of the file. A JPEG must reach a Start Of Scan before its EOI. The
+   test fixtures write real CRCs and the refusals are asserted one by one.
+3. **[P2] The per-role count had no index.** Right: rows are kept forever, so
+   the count would scan a little more each day.
+   `description_images_role_created_idx (actor_role, created_at desc)` is in
+   the migration; the owner runs the one statement since the file was applied
+   before it existed.
+
+**Round four (Codex on #1310): one more, taken.** [P2] The chunk walk never
+inflated the IDAT, so a CRC-valid PNG with a one-byte garbage IDAT passed.
+`pngPixelsDecodable` now inflates the stream with Deno's built-in
+`DecompressionStream`, capped at the byte count IHDR implies (so a 1x1 header
+over a megabyte of zeros is refused at the cap, not inflated in full), and
+requires exactly that length with a defined filter type on every scanline.
+Refused as `image_undecodable`. Fixtures carry real deflated rows; a garbage
+IDAT, a short IDAT, an undefined filter and the bomb are each asserted. JPEG,
+GIF and WebP stay structural, stated in the doc.
+

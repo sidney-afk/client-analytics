@@ -194,7 +194,7 @@ check('deliverable projection paginates by primary-key keyset, not offset, and n
 check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
 check('preview callers pass page sizes explicitly', /_prodRestRows\(\s*'production_deliverables_browser_v1'[\s\S]{0,1200}1000,\s*50/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 const explicitMutationMethods = [...prodBlock.matchAll(/['"`](POST|PUT|PATCH|DELETE)['"`]/g)].map(match => match[1]);
-check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 10
+check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 11
   && explicitMutationMethods.every(method => method === 'POST')
   && /async function _prodEnsureAssigneeOptions\(id, force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'assignee_options',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
   && /fetch\(PROD_COMMENTS_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
@@ -209,6 +209,14 @@ check('preview block limits POSTs to protected reads, guarded creation, and auth
      child. */
   && /async function _prodEnsureBatchFiles\(batchId, clientSlug\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'batch_files_read',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
   && /async function _prodArchiveRequest\(body\)[\s\S]*?fetch\(PROD_ARCHIVE_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
+  /* The eleventh POST, added 2026-09-05: an image pasted into a description.
+     A staff-only WRITE to its own function, description-image-upload, which
+     binds the object to one verified admin/SMM roster actor and checks the
+     bytes before the bucket sees them; the browser ships raw bytes under the
+     same staff headers as every other gateway call and never holds a storage
+     key. Gated in the browser by the same _prodCanWrite the description save
+     uses (see _prodDescriptionInsertImages). */
+  && /async function _prodDescriptionPostImage\(issue, prepared\)[\s\S]*?const request = \{[\s\S]{0,80}method: 'POST'[\s\S]{0,900}fetch\(PROD_DESCRIPTION_IMAGE_EF_URL, request\)/.test(prodBlock)
   && /async function _prodLoadCreateOptions\(force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'create_options',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
   && /function _prodCreatePayload\(draft\)[\s\S]{0,160}operation: 'create',[\s\S]{0,100}surface: 'production'/.test(prodBlock)
   && /async function _prodPostCreatePayload\(payload\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'/.test(prodBlock)

@@ -12,6 +12,8 @@ inactive monitoring/recovery tools. Native manifest repair #1293 stays separate.
 | Samples #1269 | `a3f86c96e99b0d1ff3e93d6ac9f8e2ee496f8ca5` |
 | Samples/monitor #1270 | `83de7ae397ae4c69d04811582798a5668312d8ce` |
 | Operations #1292 | `22ea853919268c1f076c0668a020bb5c9e1c9a92` |
+| Separately pinned monitored document | `5b9e0191c17c2199ab94c3d6adc2b10ee34a3014` |
+| Refused proxy reset recovery | `637e15c14b8278f3bbb7a5ab659efcfe8d0eaf46` |
 | Recovery #1290 | `2bcca5b156a9313b41ea096b7e70cd1043963639` |
 | Integrated browser-tested source | `a8390d0342477058c4dcb39062e878f6a5848afd` |
 
@@ -37,6 +39,30 @@ Chromium141.0.7390.37 and all 24 boot groups. Product bytes are unchanged across
 those composition commits. No full unit-suite rerun is claimed; hosted CI is a
 separate gate.
 
+The two later monitoring corrections were independently reviewed and composed
+at `cd07f918607bef7790d1846328c4ff2f35b2ebed`. They change no product HTML or
+writer. Viewer 57, operations 75 and transport 27 assertions passed on that
+composition; the synthetic transport receiver recorded zero escapes.
+The document pin now identifies the actual serving HTML independently of the
+monitor code revision; the refusing proxy retains its denial on TCP reset while
+letting the worker produce a terminal failure receipt.
+
+Actual read-only TEST evidence on 2026-09-05: serving HTML matched source
+`a05e1126437bb8c36bd3f33e3701a58924a8627d`, SHA256
+`27db2f4e5e40f03cf599fbd43c5d14fdae226ddef987f3b245506012bf1ee638`.
+Fresh census counted 24 Calendar rows (including the settings sentinel) and
+zero Samples rows. The first run crashed on a proxy socket reset; the actual
+observer then reported missing terminal receipts. After the correction, both
+lanes terminated and retained `mutation_blocked`. Their read coverage remains
+HELD while background traffic is classified. This is not evidence of a failed
+website save or a successful live viewing journey. No business writes occurred.
+
+The owner-approved primary alert drill delivered exactly two labelled DRILL
+DMs, failure and recovery, at 2026-09-05T18:36:02Z. Separate Slack reads matched
+the exact messages and relay receipts. Human acknowledgment, recurring
+scheduling and independent fallback remain unproven. No product watcher has
+been installed or enabled.
+
 Recovery covers old false-empty controls, typing before debounce, held/failed/
 ambiguous saves, accepted creates with trailing field debt, refresh, client and
 same-client actor changes, late settlement and exact owned-byte conservation.
@@ -49,7 +75,7 @@ UNPROVEN. The six additional UI action fixtures are not a live writer adapter.
 | Order / actor | Completion gate | What clients see | Abort and recovery |
 |---|---|---|---|
 | 1 / coordinator + owner | Review exact composition and CI; approve release SHA and capture serving document/writer pre-state. | Existing production; local review changes no serving bytes. | Unreviewed drift holds release. |
-| 2 / coordinator + owner | Approve prepared primary-only SyncViewbot drill: labelled failure then recovery only after correlated relay confirmation; independently read exact DM and record human acknowledgment. | Only the owner's two DRILL DMs; no client/card data or business webhook. | Unknown acceptance stops sends; preserve UUID/journal and reconcile by reads, never blind POST retry. |
+| 2 / coordinator + owner | Primary-only two-message drill delivered and independently read back; owner acknowledgment remains. Preserve those receipts; no repeated drill is implied. | Only the owner's two DRILL DMs; no client/card data or business webhook. | Unknown acceptance stops sends; preserve UUID/journal and reconcile by reads, never blind POST retry. |
 | 3 / infrastructure owner + coordinator | Bind fresh scoped census/canaries and served bytes; approve/install view and receipt schedules; prove actual runs/failures/delivery. Provision and drill an observer/fallback outside Actions and n8n. | Read-only TEST viewing, with normal token access logging. | Missing starts/terminals/artifacts/delivery or independent coverage hold release. Disable only this monitor and preserve incident state. |
 | 4 / owner + supervised operator | Complete separately reviewed TEST journey packet and live persistence/readback. One Calendar Notes video comment has read-only preflight; reservation/seed and request-bound executor remain held. Approve/tweak and staff/Kasper journeys need their own populated fixtures. | Reserved synthetic TEST content and ordinary audit/realtime visibility to staff; real clients unchanged. | Scope drift, competing editor, unexpected egress or ambiguous acceptance stops writes. Keep residue; no retry, cleanup or ID reuse. |
 | 5 / owner merge + coordinator observation | Only after prior gates: authorize Samples release, verify actual serving bytes, share-link journeys, continuity and alert/queue receipts. | Complete reads show current content; failed/incomplete reads preserve owned/cache content with stale/retry feedback; authoritative emptiness remains valid. | Lost work, wrong-client content, failed approval, false success/empty or silent monitoring stops progression. Use the compatible reader inverse. |
@@ -58,8 +84,9 @@ The runbook [CLIENT_CONTINUITY_OPERATIONS.md](CLIENT_CONTINUITY_OPERATIONS.md)
 defines the proposed five-minute view/observer cadence, durable alert intents,
 external sentinel and disable/recovery. GitHub cannot guarantee the interval.
 Both Actions jobs share a failure domain. The verified destination is the
-owner's SyncViewbot DM; new delivery, acknowledgment, schedules and independent
-fallback are NOT PROVEN. A primary-only drill does not turn these gates green.
+owner's SyncViewbot DM; the two-message primary drill is delivered and
+independently read back. Acknowledgment, schedules and independent fallback
+are NOT PROVEN. A primary-only drill does not turn these gates green.
 The read watcher cannot certify media playback, every rendered detail, staff
 authority, real writes or zero Linear egress. Automatic TEST mutations remain
 unavailable under their existing stronger scope/quiescence contract; do not add

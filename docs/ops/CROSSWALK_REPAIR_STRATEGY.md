@@ -8,7 +8,7 @@ different things and this line separates them deliberately:
 |---|---|
 | Phase 1 (90 cards with no legacy thread) | **RAN 2026-09-04.** 172 mismatching slots → 112; 60 repaired. Owner-executed SQL. |
 | Phase 2's combined RPC | **WRITTEN**, `migrations/2026-09-05-crosswalk-bind-and-import.sql`, rehearsed against a disposable PostgreSQL 16 (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). **REVISED 2026-09-05 evening under the owner's label ruling (§4b): kind never refuses, labels follow the card, contested slots resolve on request.** **NOT APPLIED to the live database, and no card has been repaired through it.** |
-| Phase 2 (the remaining slots) | **NOT STARTED.** Needs the migration applied and a per-card call list measured fresh. |
+| Phase 2 (the remaining slots) | **NOT STARTED.** Needs the migration applied. The call list is measured fresh by the lane at dispatch time (`crosswalk-phase2-repair.yml`, plan then apply — §5). |
 | Phase 3 (verify) | Not started. |
 
 ~~**Status: PROPOSAL. Nothing here has been executed. No migration is written.**~~
@@ -248,6 +248,44 @@ population of 107 mismatching slots, same read-only method):
 the first measurement's "other 25" minus the 18 contested slots the ruling
 decides. The 6 shells at Kasper approval are phantom items in his queue today
 and leave it the moment the migration is applied and the 18 calls run.
+
+### The execution lane (written 2026-09-05 evening)
+
+`scripts/crosswalk-phase2-runner.js` + `.github/workflows/crosswalk-phase2-repair.yml`
+(`test/crosswalk-phase2-runner.js`). The same shape as the F42 comment-import
+lane: manual-only, pinned to a commit on `main`, the service key from the
+`production` Environment, `plan` then `apply`, a confirm token
+(`REPAIR_CROSSWALK_PHASE2`) and a plan-digest drift guard between them, the
+result document runner-local and never uploaded. The runner exports live cards
+and deliverables, forecasts every mismatching slot with the RPC's own questions
+in the RPC's order (so the plan predicts the refusals rather than discovering
+them), sends `evict_occupant='card_wins'` only on slots an occupant holds,
+and carries each card's legacy thread in `p_comments` — planned by the F42
+import planner against a snapshot in which the planned rows are already in
+their post-bind state, so bind and import are one transaction or nothing. A
+slot whose thread the planner cannot plan cleanly waits
+(`thread_not_plannable`) rather than being bound without its conversation.
+After applying it re-exports and reports what is left.
+
+**Forecast, read-only, 2026-09-05 evening, publishable key, after the migration
+was applied:** 1,214 slots, 1,107 clean, 107 mismatching → **100 calls** (18
+with an eviction, 18 occupants: Kasper approval 6, scheduled 4, canceled 3,
+posted 3, tweak 1, approved 1), **64 of the 100 carry a legacy thread — 132
+comments ride along**, 0 deferred, 0 held back; 7 skipped
+(already_bound_elsewhere 5, client_mismatch 1, linear_identity_unproven 1);
+relabels other→thumbnail 26, thumbnail→video 14. The same 100 / 18 / 7 the
+ruling measured, now produced by the runner itself. The first forecast said 133
+comments: 13 card ids are shared by two or more clients on live
+(`calendar_posts` is keyed on (client, id)), and the runner's first version
+keyed its import lookup on card id alone, so one client's comment was
+attributed to another client's call — Codex P1 on #1296. The planner now runs
+one client at a time; the comment count is what each card actually holds.
+
+**The three owner steps, in order:** (1) apply
+`migrations/2026-09-05-crosswalk-bind-and-import.sql` in the SQL Editor;
+(2) dispatch the lane in `plan` mode and read the counts; (3) dispatch it in
+`apply` mode with the plan digest and the confirm token. Expected after step 3:
+7 mismatching slots remain, all named by reason, none bindable.
 
 ---
 

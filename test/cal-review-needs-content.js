@@ -258,5 +258,86 @@ ok(sxrStaleExempt.length === 0,
   'and no samples exemption names a function that no longer stages a status'
   + (sxrStaleExempt.length ? ' — stale: ' + sxrStaleExempt.join(', ') : ''));
 
+
+/* ---- 7. the ESCAPE HATCH, and every caller of the auto-router ----------- */
+
+/* Owner, 2026-09-05: "just make sure it doesn't break anything ... it should
+   probably be N/A if there isn't a component". It already is, and this pins it:
+   N/A must stay on the menu and stay OUT of the priority table, or a lane that
+   will never have content would hold the whole card's status down and there
+   would be nowhere for the reader to put it. */
+const calStatusList = JSON.parse((statuses[1] || '[]').replace(/'/g, '"'));
+ok(calStatusList.indexOf('N/A') === 0,
+  'N/A is the first option on the component menu — the way out for a lane this post will never have');
+ok(!block(empty, 'video', 'N/A') && !block(empty, 'graphic', 'N/A') && !block(empty, 'caption', 'N/A'),
+  'and N/A is never gated, on any component, however empty it is');
+const priority = /const CAL_PRIORITY = \{([^}]*)\}/.exec(INDEX);
+ok(priority && !/'N\/A'/.test(priority[1]),
+  'and N/A stays out of CAL_PRIORITY, so marking a lane not-applicable stops it dragging the overall card status down');
+/* The one place N/A is NOT offered, and the note must not pretend otherwise. */
+const titleList = JSON.parse((/const CAL_TITLE_STATUSES = (\[[^\]]*\]);/.exec(INDEX) || ['', '[]'])[1].replace(/'/g, '"'));
+ok(titleList.indexOf('N/A') < 0,
+  'title review has no N/A — a YouTube card that is in title review has a title by definition');
+const noteFn = stripComments(extractFunction(INDEX, '_calMenuBlockedNote'), ' ');
+ok(/menu\.indexOf\('N\/A'\) >= 0/.test(noteFn),
+  "so the greyed-menu note offers N/A only where the menu actually carries it, derived from the list rather than hardcoded — telling a reader to use a control that isn't there is the dead-instruction class this repo keeps finding");
+
+/* EVERY caller of the auto-router, not just the one the gate was written for.
+   _calApplyAutoStatus returns false on an empty component and its callers
+   ignore the return, so a caller that mutates BEFORE calling it closes the
+   thread and moves nothing, silently. That is worse than the stranding it
+   replaced, and it is what the owner asked to be checked. */
+for (const [fn, gate, resolve] of [
+  ['_calResolveLastTweak', '_calReviewBlockReason', '_calResolveTweaksDone'],
+  ['_sxrResolveLastTweak', '_sxrReviewBlockReason', '_sxrResolveTweaksDone'],
+]) {
+  ok(orderOk(fn, gate, resolve),
+    fn + ' checks the content BEFORE it resolves the change-request — the auto-router returns false for an empty component and this caller ignores the return, so resolving first would close the thread and move nothing, with nobody told');
+}
+/* The chooser's destination rule is NOT the approve-onward rule: an
+   unrecognised dest means the client there and Kasper here. Two rules, two
+   functions, and each guard must consult its own or it guards the wrong move. */
+ok(/_calAutoResolveDestStatus/.test(stripComments(extractFunction(INDEX, '_calResolveLastTweak'), ' '))
+  && /_calAutoResolveDestStatus/.test(stripComments(extractFunction(INDEX, '_calApplyAutoStatus'), ' ')),
+  'and the guard and the router agree on the destination via _calAutoResolveDestStatus');
+ok(/_sxrAutoResolveDestStatus/.test(stripComments(extractFunction(INDEX, '_sxrResolveLastTweak'), ' '))
+  && /_sxrAutoResolveDestStatus/.test(stripComments(extractFunction(INDEX, '_sxrApplyAutoStatus'), ' ')),
+  'and so do the samples twins');
+const autoDest = new Function(extractFunction(INDEX, '_calAutoResolveDestStatus') + '\nreturn _calAutoResolveDestStatus;')();
+const approveTo = new Function(extractFunction(INDEX, '_calSmmApproveTo') + '\nreturn _calSmmApproveTo;')();
+ok(autoDest('kasper') === 'Kasper Approval' && autoDest('approved') === 'Approved' && autoDest('client') === 'Client Approval',
+  'the chooser route resolves its three destinations');
+ok(autoDest('') === 'Client Approval' && approveTo('') === 'Kasper Approval',
+  'and the two rules genuinely differ on an unrecognised destination — which is why they are two functions and not one shared helper');
+
+/* ---- 8. the menu refuses before the click, not after -------------------- */
+
+/* The gate stays in the handler regardless: Set all, the auto-router and both
+   approve paths reach the same rule without passing through this menu. This is
+   the cosmetic half — being told "no" after choosing is the worse half of a
+   correct refusal. */
+for (const [fn, gate] of [['_calStatusToggleMenu', '_calReviewBlockReason'], ['_sxrStatusToggleMenu', '_sxrReviewBlockReason']]) {
+  const src = stripComments(extractFunction(INDEX, fn), ' ');
+  ok(new RegExp(gate).test(src) && /disabled/.test(src),
+    fn + ' disables a status the component cannot be moved to, rather than offering it and refusing the click');
+}
+ok(/_calReviewBlockReason/.test(stripComments(extractFunction(INDEX, '_calStatusPick'), ' ')),
+  'and the handler keeps its own check — a disabled button is a courtesy, not a guard, and every other writer bypasses the menu entirely');
+
+/* THE NOTE MUST NOT BE ABLE TO HIDE WHAT IT POINTS AT. The menu is
+   position: fixed, so a menu taller than the viewport is clipped with no way to
+   scroll to the clipped part -- and the clipped part is the TOP of the list,
+   where N/A sits. Adding a multi-line note made the nine-option menu tall
+   enough to reach that on a short viewport, which would have made the sentence
+   "set it to N/A" point at an option the reader cannot reach. Codex, #1277. */
+const menuCss = /\.cal-fld-status-menu \{[\s\S]{0,900}?\}/.exec(INDEX);
+ok(menuCss && /max-height:/.test(menuCss[0]) && /overflow-y:\s*auto/.test(menuCss[0]),
+  'the status menu is capped to the viewport and scrolls — it is position:fixed, so anything taller is clipped and unreachable, starting with N/A at the top of the list');
+for (const fn of ['_calStatusToggleMenu', '_sxrStatusToggleMenu']) {
+  const src = stripComments(extractFunction(INDEX, fn), ' ');
+  ok(/top = Math\.max\(10, Math\.min\(/.test(src),
+    fn + ' floors the computed top at 10 — the inner Math.min goes negative for a menu taller than the viewport, which walks the first options off the top of the screen');
+}
+
 if (failures) { console.log('\n' + failures + ' check(s) failed.'); process.exit(1); }
 console.log('\ncalendar + samples review-needs-content checks passed');

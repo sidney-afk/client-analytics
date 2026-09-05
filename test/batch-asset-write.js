@@ -174,13 +174,26 @@ function grabFunc(source, name) {
 
   /* ---- 6. One row, many panels ------------------------------------------ */
 
+  /* The invalidation follows the POST, not the batch id (2026-09-05). Matching
+     on batchId dropped exactly the set that does not need it on a split post --
+     rows sharing the written row's batch -- while the parent on another batch
+     row kept painting its stale cached read after a sub-issue write, and every
+     sub-issue kept painting theirs after a write from the parent. A sibling on
+     the shared row is still covered, because it is also a row of this post. */
   const invalidate = grabFunc(UI, '_prodInvalidateBatchAssetReads');
-  ok(/String\(row\.batchId \|\| ''\) !== batchId/.test(invalidate),
-    'after a batch write, the cached reads of every SIBLING of that batch are dropped');
-  ok(/if \(String\(row\.id\) === keep\) return;/.test(invalidate),
+  ok(/const rows = _prodPostRows\(issue\);/.test(invalidate),
+    'after a batch write, the cached reads of every row of the POST are dropped -- the parent and every sub-issue, whatever batch row each of them names');
+  ok(/String\(row\.id\) === keep\) return;/.test(invalidate),
     'except the row that was just written, whose caller re-reads it immediately');
   ok(/if \(!state \|\| state\.editing \|\| state\.saving\) return;/.test(invalidate),
     'and except any row someone is mid-edit on, whose draft must not be thrown away');
+
+  const postRows = grabFunc(UI, '_prodPostRows');
+  ok(/_prodChildrenOf\(root\.id\)/.test(postRows)
+    && /issue\.parent \? _prodIssue\(issue\.parent\) : issue/.test(postRows),
+    'and the post is the row\'s parent (or itself) plus that row\'s children, so a write from either end reaches the other');
+  ok(/String\(row\.batchId \|\| ''\) === batchId/.test(postRows),
+    "with every sibling on the same batch row still included, since one batch row can carry work the projection does not draw under this post");
 
   const save = grabFunc(UI, '_prodSaveAsset');
   ok(/operation === 'batch_asset' \? \{ slot, url: value \} : \{ file_url: value \}/.test(save),
@@ -188,7 +201,7 @@ function grabFunc(source, name) {
   ok(/if \(!value && operation !== 'batch_asset'\)/.test(save),
     'an empty value is refused for the canonical deliverable and allowed for a batch folder');
   ok(/_prodInvalidateBatchAssetReads\(issue, id\)/.test(save),
-    'and a successful batch write invalidates the siblings before re-reading this row');
+    'and a successful batch write invalidates the rest of the post before re-reading this row');
 
   console.log(failures === 0
     ? '\nBatch asset write checks passed'

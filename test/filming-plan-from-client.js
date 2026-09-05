@@ -75,7 +75,7 @@ function grabFunc(source, name) {
    OUT OF THE SHIPPED SOURCE and run verbatim against fakes. If someone edits
    those lines, these assertions run the edit. */
 const snapshot = grabFunc(GATEWAY, 'assetSnapshot');
-const blockStart = snapshot.indexOf('  let filmingPlan = clean(');
+const blockStart = snapshot.indexOf('  let filmingPlan = postFilmingPlan.value;');
 const blockEnd = snapshot.indexOf('  const values: Record<string, unknown> = {');
 if (blockStart < 0 || blockEnd < 0 || blockEnd < blockStart) {
   console.error('FAIL  could not locate the filming-plan resolution block in assetSnapshot');
@@ -85,7 +85,7 @@ const RESOLUTION = snapshot.slice(blockStart, blockEnd);
 
 // Nothing TypeScript-only may appear in the block, or this stops being a real
 // execution and quietly becomes a syntax error the runner reports as a crash.
-const runResolution = new Function('clean', 'batch', 'supabase', 'clientFilmingPlanUrl',
+const runResolution = new Function('clean', 'batch', 'postFilmingPlan', 'supabase', 'clientFilmingPlanUrl',
   'return (async () => {\n' + RESOLUTION + '\nreturn { filmingPlan, filmingPlanFromClient };\n})();');
 
 const clean = v => String(v == null ? '' : v).trim();
@@ -94,6 +94,14 @@ async function resolveFilmingPlan(batchColumn, clientPlan, clientSlug) {
   const out = await runResolution(
     clean,
     { filming_doc_url: batchColumn, client_slug: clientSlug === undefined ? 'acme' : clientSlug },
+    /* Since 2026-09-05 the batch column reaches this block already resolved
+       ACROSS THE POST -- `batch.filming_doc_url` if this row's own batch has
+       one, otherwise the same column off another batch row of the same post
+       (see test/post-asset-resolution.js). The precedence asserted here is
+       unchanged and is the NEXT one down: whatever the post resolved, else the
+       client's standing plan. Feeding the post value in as the input keeps this
+       suite about that decision alone. */
+    { value: clean(batchColumn), from: clean(batchColumn) ? 'bat_x' : '' },
     { fake: true },
     async (_supabase, slug) => { calls.push(slug); return clean(clientPlan); },
   );
@@ -130,13 +138,13 @@ const CLIENT_URL = 'https://docs.google.com/document/d/client-standing-plan';
 
 /* ---- 2. The shipped function has that exact shape ----------------------- */
 
-ok(/let filmingPlan = clean\(batch\.filming_doc_url\);/.test(snapshot),
-  'the batch column is read first and cleaned');
+ok(/let filmingPlan = postFilmingPlan\.value;/.test(snapshot),
+  "the plan the POST resolved is read first -- `batch.filming_doc_url` where this row's own batch has one, else the same column off another batch row of the post");
 ok(/if \(!filmingPlan && batchClient\) \{/.test(snapshot),
   'the client lookup is reached ONLY when the batch column is empty -- one extra query per empty row, never per row');
 ok(/await clientFilmingPlanUrl\(supabase, batchClient\)/.test(snapshot),
   'and it reuses the same service-side helper the intake path uses, rather than a second query that could drift from it');
-ok(snapshot.indexOf('let filmingPlan') < snapshot.indexOf('const values'),
+ok(snapshot.indexOf('let filmingPlan = postFilmingPlan.value;') < snapshot.indexOf('const values'),
   'the resolution happens before `values` is built, so the probe and the evidence row both see the resolved URL');
 ok(/filming_plan: filmingPlan,/.test(snapshot),
   'and `values.filming_plan` carries the resolved value rather than the raw column');
@@ -144,11 +152,13 @@ ok(/filming_plan: filmingPlan,/.test(snapshot),
 /* The batch row already selected client_slug for other reasons. If that ever
    drops out of the projection the fallback silently stops firing, which would
    look exactly like the bug this fixes. */
-/* The column list became a named constant on 2026-09-01, when the child-batch
-   borrow started reading the same shape from a second query. Asserting the
+/* The column list became a named constant on 2026-09-01, when a second query
+   started reading the same shape; `updated_at` joined it on 2026-09-05 as the
+   CAS clock the browser writes the post's canonical row against. Asserting the
    constant's VALUE keeps this about the same fact -- client_slug is still
-   selected, and the borrow reads exactly the columns this fallback needs. */
-ok(/const BATCH_ASSET_COLUMNS =\s*\n?\s*"id,client_slug,team,filming_doc_url,footage_folder_url,delivery_folder_url";/.test(GATEWAY),
+   selected, and every batch read takes exactly the columns this fallback and
+   that write target need. */
+ok(/const BATCH_ASSET_COLUMNS =\s*\n?\s*"id,client_slug,team,updated_at,filming_doc_url,footage_folder_url,delivery_folder_url";/.test(GATEWAY),
   'the batch projection still carries client_slug, which the fallback needs and which no error would announce the loss of');
 ok((snapshot.match(/BATCH_ASSET_COLUMNS/g) || []).length >= 2,
   'and both batch reads use that one list, so a column added for one of them cannot go missing from the other');

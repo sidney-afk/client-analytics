@@ -15,6 +15,9 @@ existing mocked writer suites. `node qa/boot/samples-local-work.js` runs the ful
 local app with intercepted writes, real typing/debounce, client switches, fresh
 browser recovery and accessible storage retry. Recovery records are separate
 from verified read caches; unknown legacy draft bytes remain private and unassigned.
+Field-level recovery debt survives later batches until matching acknowledgement;
+existing staff identity cleanup suspends the Samples view without deleting its
+owned recovery bytes. Storage Retry reattempts incomplete per-record hydration.
 
 Samples G1 regression: `test/samples-authoritative-read.js` executes the shipped
 per-client reader, loader and cache with fictional fixtures and no external I/O.

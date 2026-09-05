@@ -182,6 +182,54 @@ async function run(source = html) {
     assert.equal(fresh.s.sxrState.posts[0].video_status, 'Approved');
     assert.ok(fresh.s.sxrState.posts[0]._saveError);
   });
+  await test('failed first field survives successful later field until its own retry acknowledgement', async () => {
+    const f = writerFixture(source); await f.load('fixture-a', [{ ...row('existing'), name: 'Server original', creative_direction: 'Server direction' }]);
+    f.type('existing', 'Unsaved first field'); const first = f.s._sxrFlushCardSave('existing');
+    f.s._sxrOnFieldInput({ dataset: { pid: 'existing', fld: 'creative_direction' }, value: 'Newer second field' });
+    f.pending.shift()(false); await first;
+    assert.deepEqual(f.writes[1].body.sample, { id: 'existing', creative_direction: 'Newer second field' });
+    f.pending.shift()(true); await f.s._sxrAwaitCardSave('existing');
+    assert.equal(work(f).length, 1, 'acknowledgement of direction cannot retire failed name');
+    const debt = JSON.parse(work(f)[0][1]); assert.deepEqual(debt.edits, { name: 'Unsaved first field' });
+    assert.ok(f.s.sxrState.posts[0]._saveError, 'remaining field debt offers retry');
+    const fresh = writerFixture(source); cloneStorage(f,fresh);
+    await fresh.load('fixture-a', [{ ...row('existing'), name: 'Server original', creative_direction: 'Newer second field', video_status: 'Approved' }]);
+    assert.equal(fresh.s.sxrState.posts[0].name, 'Unsaved first field');
+    assert.equal(fresh.s.sxrState.posts[0].creative_direction, 'Newer second field');
+    assert.equal(fresh.s.sxrState.posts[0].video_status, 'Approved');
+    const retry = fresh.s._sxrRetrySave('existing');
+    assert.deepEqual(fresh.writes[0].body.sample, { id: 'existing', name: 'Unsaved first field' });
+    fresh.pending.shift()(true); await retry; assert.equal(work(fresh).length, 0);
+  });
+  await test('original-source promoted draft without client or error marker is privately archived', async () => {
+    const oldSource = require('node:child_process').execFileSync('git', ['show', '13e187a7d0043ed110b486feb50502758a026229:index.html'], { cwd: path.join(__dirname, '..'), encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
+    const old = writerFixture(oldSource), id = old.draft('Unattributable synthetic draft'); old.s._sxrFlushCardSave(id);
+    old.s._sxrCacheWrite('fixture-a', [row('saved'), ...old.s.sxrState.posts]);
+    const raw = old.storage.get(old.key), promoted = JSON.parse(raw).posts[1];
+    assert.ok(!promoted.client && !promoted._saveError && !promoted.id.startsWith('__sxrblank__'));
+    const f = writerFixture(source); f.storage.set(f.key, raw); f.s.fetch = async () => response({},500);
+    await f.s.loadSxrCards(); assert.deepEqual(ids(f.s.sxrState.posts), ['saved']);
+    await f.load('fixture-a');
+    assert.deepEqual(JSON.parse(f.storage.get('syncview_sxr_legacy_work_v1:fixture-a')), [raw]);
+    assert.equal(work(f).length, 0, 'legacy source cannot establish a new author');
+  });
+  await test('storage retry hydrates intact records after transient per-record failure without duplicates', async () => {
+    const seed = writerFixture(source); seed.draft('First stored draft'); seed.draft('Second stored draft');
+    const fresh = writerFixture(source); cloneStorage(seed,fresh);
+    const getter = fresh.s.localStorage.getItem, firstKey = work(fresh)[0][0]; let broken = true;
+    fresh.s.localStorage.getItem = key => { if (broken && key === firstKey) throw Error('synthetic read failure'); return getter(key); };
+    await fresh.load('fixture-a');
+    assert.equal(fresh.s.sxrState.posts.length, 1, 'one unreadable record does not hide another intact record');
+    const secondId = fresh.s.sxrState.posts[0].id; fresh.type(secondId, 'Newer memory');
+    const bytes = work(fresh).map(([k,v]) => [k,v]); broken = false;
+    assert.equal(fresh.s._sxrWorkCheckpointView(), true);
+    assert.equal(fresh.s.sxrState.posts.length, 2);
+    assert.equal(fresh.s.sxrState.posts.find(p => p.id === secondId).name, 'Newer memory');
+    assert.deepEqual(work(fresh), bytes, 'hydration retry never rewrites stored debt');
+    fresh.s._sxrWorkCheckpointView(); await fresh.load('fixture-a');
+    assert.equal(fresh.s.sxrState.posts.length, 2);
+    assert.equal(fresh.s._sxrWorkBindView().storageFailed, false);
+  });
   console.log(`Samples local work: ${passed} isolated lifecycle cases passed.`);
 }
 module.exports = { writerFixture, run };

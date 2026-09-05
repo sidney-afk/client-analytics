@@ -22098,6 +22098,9 @@
         return _syncviewStaffIdentityMem;
     }
     function _syncviewStaffIdentitySave(identity) {
+        if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== _syncviewStaffIdentitySignature(identity)) {
+            try { if (typeof _sxrWorkSuspend === 'function') _sxrWorkSuspend(); } catch (e) {}
+        }
         _syncviewStaffIdentityMem = identity || null;
         _syncviewStaffIdentityLoaded = true;
         try {
@@ -22111,6 +22114,7 @@
         }
     }
     function _syncviewInvalidateStaffVerification() {
+        try { if (typeof _sxrWorkSuspend === 'function') _sxrWorkSuspend(); } catch (e) {}
         _syncviewStaffIdentityVerified = false;
         _syncviewStaffVerificationEpoch++;
     }
@@ -22363,6 +22367,7 @@
         return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
     }
     function _syncviewStaffPurgeSensitiveState() {
+        try { if (typeof _sxrWorkSuspend === 'function') _sxrWorkSuspend(); } catch (e) {}
         try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
         try { if (typeof _fpPurgeSensitiveState === 'function') _fpPurgeSensitiveState(); } catch (e) {}
@@ -61033,7 +61038,7 @@
     const _sxrWorkTab = Math.random().toString(36).slice(2);
     let _sxrWorkRevision = 0, _sxrWorkView = null;
     function _sxrWorkCurrent(owner) {
-        return !!owner && owner === _sxrWorkView && owner.slug === sxrClientSlug(sxrState.client)
+        return !!owner && !owner.suspended && owner === _sxrWorkView && owner.slug === sxrClientSlug(sxrState.client)
             && owner.principal === _writeUiPrincipalKey();
     }
     function _sxrWorkHas(post) {
@@ -61054,27 +61059,53 @@
             if (prior && prior.revision !== record.storedRevision) throw new Error('local_work_changed');
             const value = JSON.stringify({ schema: 1, slug: owner.slug, principal: owner.principal,
                 post: _prodStripEphemeralCanonicalPosts([record.post])[0], edits: record.edits,
-                phase: record.phase, isNew: record.isNew, revision: record.revision, keyId: record.keyId });
+                phase: record.phase, isNew: record.isNew, revision: record.revision, fieldRevisions: record.fieldRevisions, keyId: record.keyId });
             localStorage.setItem(key, value);
             if (localStorage.getItem(key) !== value) throw new Error('local_work_not_retained');
             record.storedRevision = record.revision;
             record.storageFailed = false;
         } catch (e) { record.storageFailed = true; }
-        owner.storageFailed = Array.from(owner.records.values()).some(r => r.storageFailed);
+        owner.storageFailed = owner.hydrationNeeded || Array.from(owner.records.values()).some(r => r.storageFailed);
         _sxrWorkNotice(owner);
         return !record.storageFailed;
     }
-    function _sxrWorkPut(owner, post, edits, phase) {
+    function _sxrWorkPut(owner, post, edits, phase, expectedFields) {
         if (!owner || !post || post.client !== owner.slug) return null;
         const bound = _sxrWorkOwners.get(post);
         if (bound && bound !== owner) return null;
         _sxrWorkOwners.set(post, owner);
         const old = owner.records.get(post.id);
-        const record = { post: Object.assign({}, post), edits: Object.assign({}, edits || {}), phase,
+        const revision = _sxrWorkTab + ':' + (++_sxrWorkRevision);
+        const debt = Object.assign({}, old && old.edits || {}), fieldRevisions = Object.assign({}, old && old.fieldRevisions || {});
+        Object.keys(edits || {}).filter(k => !k.startsWith('_writeUi')).forEach(k => {
+            if (expectedFields && fieldRevisions[k] && fieldRevisions[k] !== expectedFields[k]) return;
+            if (!(k in debt) || JSON.stringify(debt[k]) !== JSON.stringify(edits[k])) fieldRevisions[k] = revision;
+            debt[k] = edits[k];
+            if (!fieldRevisions[k]) fieldRevisions[k] = old && old.revision || revision;
+        });
+        const record = { post: Object.assign({}, post, debt), edits: debt, fieldRevisions, phase,
             isNew: !!(old && old.isNew) || _sxrIsBlankId(post.id), keyId: old ? old.keyId : post.id,
-            revision: _sxrWorkTab + ':' + (++_sxrWorkRevision), storedRevision: old && old.storedRevision };
+            revision, storedRevision: old && old.storedRevision };
         _sxrWorkStore(owner, record);
         return record.revision;
+    }
+    function _sxrWorkReceipt(owner, id, edits) {
+        const record = owner.records.get(id), fields = {};
+        if (record) Object.keys(edits || {}).forEach(k => {
+            if (record.fieldRevisions[k] && JSON.stringify(record.edits[k]) === JSON.stringify(edits[k])) fields[k] = record.fieldRevisions[k];
+        });
+        return fields;
+    }
+    function _sxrWorkAcknowledge(owner, id, fields) {
+        const record = owner.records.get(id);
+        if (!record) return;
+        const edits = Object.assign({}, record.edits), fieldRevisions = Object.assign({}, record.fieldRevisions);
+        Object.keys(fields || {}).forEach(k => {
+            if (fieldRevisions[k] === fields[k]) { delete edits[k]; delete fieldRevisions[k]; }
+        });
+        if (!Object.keys(edits).length) { _sxrWorkDone(owner, id, record.revision); return; }
+        _sxrWorkStore(owner, Object.assign({}, record, { edits, fieldRevisions, phase: 'pending',
+            revision: _sxrWorkTab + ':' + (++_sxrWorkRevision) }));
     }
     function _sxrWorkDone(owner, id, revision) {
         const record = owner.records.get(id);
@@ -61087,7 +61118,7 @@
             if (localStorage.getItem(key) !== null) throw new Error('local_work_not_removed');
             owner.records.delete(id);
             owner.failed.delete(id);
-            owner.storageFailed = Array.from(owner.records.values()).some(r => r.storageFailed);
+            owner.storageFailed = owner.hydrationNeeded || Array.from(owner.records.values()).some(r => r.storageFailed);
             _sxrWorkNotice(owner);
             return true;
         } catch (e) { record.storageFailed = true; owner.storageFailed = true; _sxrWorkNotice(owner); return false; }
@@ -61102,35 +61133,57 @@
             const phase = owner.saving[post.id] ? 'saving' : (owner.pending[post.id] ? 'pending' : record.phase);
             // Keep the revision when nothing changed, so a held save can settle it.
             const edits = owner.pending[post.id] || record.edits;
-            if (JSON.stringify(record.edits) !== JSON.stringify(edits)) {
+            if (Object.keys(edits).some(k => JSON.stringify(record.edits[k]) !== JSON.stringify(edits[k]))) {
                 _sxrWorkPut(owner, post, edits, phase);
             } else if (record.storageFailed) _sxrWorkStore(owner, record);
+            if (owner.records.get(post.id).storageFailed) ok = false;
+        }
+        const owner = _sxrWorkView;
+        if (_sxrWorkCurrent(owner)) {
+            if (owner.hydrationNeeded) _sxrWorkHydrate(owner);
+            if (_sxrWorkRestore(owner)) {
+                if (_sxrIsBusy()) _sxrSchedulePendingRender(); else _sxrRenderBody();
+            }
             if (owner.storageFailed) ok = false;
         }
         return ok;
     }
+    function _sxrWorkHydrate(owner) {
+        owner.hydrationNeeded = false;
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                try {
+                    const key = localStorage.key(i);
+                    if (!key || !key.startsWith(owner.prefix)) continue;
+                    const r = JSON.parse(localStorage.getItem(key));
+                    if (!r || r.schema !== 1 || r.slug !== owner.slug || r.principal !== owner.principal
+                        || !r.post || r.post.client !== owner.slug || typeof r.post.id !== 'string'
+                        || typeof r.keyId !== 'string' || key !== owner.prefix + encodeURIComponent(r.keyId) || typeof r.revision !== 'string') continue;
+                    if (owner.records.has(r.post.id)) continue; // newer memory is never replaced by hydration
+                    const fieldRevisions = Object.assign({}, r.fieldRevisions || {});
+                    Object.keys(r.edits || {}).forEach(k => { if (!fieldRevisions[k]) fieldRevisions[k] = r.revision; });
+                    owner.records.set(r.post.id, Object.assign({}, r, { fieldRevisions, storedRevision: r.revision }));
+                } catch (e) { owner.hydrationNeeded = true; }
+            }
+        } catch (e) { owner.hydrationNeeded = true; }
+        owner.storageFailed = owner.hydrationNeeded || Array.from(owner.records.values()).some(r => r.storageFailed);
+        _sxrWorkNotice(owner);
+    }
     function _sxrWorkBindView() {
         const slug = sxrClientSlug(sxrState.client), principal = _writeUiPrincipalKey();
-        if (_sxrWorkCurrent(_sxrWorkView)) return _sxrWorkView;
+        if (_sxrWorkCurrent(_sxrWorkView)) {
+            if (_sxrWorkView.hydrationNeeded) _sxrWorkHydrate(_sxrWorkView);
+            return _sxrWorkView;
+        }
         _sxrWorkCheckpointView();
         const prefix = SXR_WORK_PREFIX + encodeURIComponent(principal) + ':' + encodeURIComponent(slug) + ':';
         let owner = _sxrWorkContexts.get(prefix);
         if (!owner) {
-            owner = { slug, principal, prefix, records: new Map(), storageFailed: false,
+            owner = { slug, principal, prefix, records: new Map(), storageFailed: false, hydrationNeeded: !!principal,
                 pending: Object.create(null), saving: Object.create(null), timers: Object.create(null), failed: new Set(),
                 noPush: new Set(), recent: new Map(), recentFields: new Map(), conflicts: new Set() };
             _sxrWorkContexts.set(prefix, owner);
-            if (principal) try {
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    if (!key || !key.startsWith(prefix)) continue;
-                    const r = JSON.parse(localStorage.getItem(key));
-                    if (!r || r.schema !== 1 || r.slug !== slug || r.principal !== principal
-                        || !r.post || r.post.client !== slug || typeof r.post.id !== 'string'
-                        || typeof r.keyId !== 'string' || key !== prefix + encodeURIComponent(r.keyId) || typeof r.revision !== 'string') continue;
-                    owner.records.set(r.post.id, Object.assign({}, r, { storedRevision: r.revision }));
-                }
-            } catch (e) { owner.storageFailed = true; }
+            if (principal) _sxrWorkHydrate(owner);
             // First binding may follow synchronous edits made by an existing caller.
             if (!_sxrWorkView) {
                 owner.pending = _sxrPendingEdits; owner.saving = _sxrSaveInFlight; owner.timers = _sxrSaveTimers;
@@ -61139,11 +61192,35 @@
             }
         }
         _sxrWorkView = owner;
+        owner.suspended = false;
         _sxrPendingEdits = owner.pending; _sxrSaveInFlight = owner.saving; _sxrSaveTimers = owner.timers;
         _sxrFailedNewCards = owner.failed; _sxrNoLinearPush = owner.noPush;
         _sxrLocalRecentSaves = owner.recent; _sxrRecentSaveFields = owner.recentFields; _sxrConflictNotified = owner.conflicts;
         _sxrWorkNotice(owner);
         return owner;
+    }
+    function _sxrWorkSuspend() {
+        if (typeof _isClientLink !== 'undefined' && _isClientLink) return;
+        _sxrWorkCheckpointView();
+        for (const owner of _sxrWorkContexts.values()) {
+            owner.suspended = true;
+            Object.values(owner.timers).forEach(clearTimeout);
+            Object.keys(owner.timers).forEach(k => delete owner.timers[k]);
+            Object.keys(owner.pending).forEach(k => delete owner.pending[k]);
+        }
+        _sxrWorkView = null;
+        _sxrPendingEdits = Object.create(null); _sxrSaveTimers = Object.create(null); _sxrSaveInFlight = Object.create(null);
+        _sxrFailedNewCards = new Set(); _sxrNoLinearPush = new Set();
+        _sxrLocalRecentSaves = new Map(); _sxrRecentSaveFields = new Map(); _sxrConflictNotified = new Set();
+        sxrState.posts = []; sxrState.client = null; sxrState.previewId = null; sxrState.error = null; sxrState.loading = false;
+        if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); else _sxrAbortActiveLoad();
+        if (typeof _sxrPendingRenderInterval !== 'undefined') { clearInterval(_sxrPendingRenderInterval); _sxrPendingRenderInterval = null; _sxrPendingBackgroundRender = false; }
+        if (typeof _sxrPendingLinkMove !== 'undefined') _sxrPendingLinkMove = Object.create(null);
+        if (typeof _sxrCloseStatusMenu === 'function') _sxrCloseStatusMenu();
+        if (typeof _sxrResetSelection === 'function') _sxrResetSelection();
+        if (typeof closeSxrLightbox === 'function') closeSxrLightbox();
+        const view = typeof document !== 'undefined' && document.getElementById('sxrView');
+        if (view) { view.replaceChildren(); view.textContent = 'Reopen Samples after signing in.'; }
     }
     function _sxrWorkRestore(owner) {
         let restored = false;
@@ -61227,7 +61304,7 @@
         try {
             const raw = localStorage.getItem(key);
             const prior = JSON.parse(raw || '{}');
-            const legacyWork = (Array.isArray(prior.posts) ? prior.posts : []).some(p => p && (_sxrIsBlankId(p.id) || (p._saveError && !p._writeUiRetrySourceAt)));
+            const legacyWork = (Array.isArray(prior.posts) ? prior.posts : []).some(p => !p || typeof p.id !== 'string' || !p.id || p.client !== slug || _sxrIsBlankId(p.id) || (p._saveError && !p._writeUiRetrySourceAt));
             if (legacyWork) {
                 // Preserve unattributable legacy bytes privately, without
                 // assigning them to whoever happens to be signed in today.
@@ -61259,7 +61336,7 @@
                 const k = localStorage.key(i);
                 if (k && k.indexOf(SXR_CACHE_PREFIX) === 0 && k !== key) {
                     const other = JSON.parse(localStorage.getItem(k) || '{}');
-                    if ((other.posts || []).some(p => p && (_sxrIsBlankId(p.id) || p._saveError))) continue;
+                    if ((other.posts || []).some(p => !p || typeof p.id !== 'string' || !p.id || p.client !== k.slice(SXR_CACHE_PREFIX.length) || _sxrIsBlankId(p.id) || p._saveError)) continue;
                     localStorage.removeItem(k);
                 }
             }
@@ -62913,7 +62990,7 @@
         const ownedStatus = (...args) => { if (_sxrWorkCurrent(owner)) _sxrSetCardStatus(...args); };
         const ownedRender = options => { if (_sxrWorkCurrent(owner)) _sxrRenderBody(options); };
         const requirePrincipal = () => { if (owner.principal !== _writeUiPrincipalKey()) throw new Error('Save paused: return to the original signed-in account'); };
-        let workRevision = null;
+        let workRevision = null, workReceipt = {};
         let edits = _sxrPendingEdits[pid];
         if (!edits) return;
         // Leave the complete trailing batch untouched until the current owner
@@ -63009,6 +63086,7 @@
             delete post._saveError;
             ownedStatus(realId, 'saving');
             workRevision = _sxrWorkPut(owner, post, edits, 'saving');
+            workReceipt = _sxrWorkReceipt(owner, realId, edits);
             const suppressAll     = _sxrNoLinearPush.has(realId) || _sxrNoLinearPush.has(pid);
             const suppressVideo   = suppressAll || _sxrNoLinearPush.has(realId + '|video')   || _sxrNoLinearPush.has(pid + '|video');
             const suppressGraphic = suppressAll || _sxrNoLinearPush.has(realId + '|graphic') || _sxrNoLinearPush.has(pid + '|graphic');
@@ -63021,7 +63099,8 @@
                 post._writeUiRetryEdits = Object.assign({}, edits);
                 post._writeUiRetrySourceAt = writeUiSourceAt;
                 post._writeUiRetryPrincipal = owner.principal;
-                workRevision = _sxrWorkPut(owner, post, edits, 'saving');
+                workRevision = _sxrWorkPut(owner, post, edits, 'saving', workReceipt);
+                workReceipt = _sxrWorkReceipt(owner, realId, edits);
                 if (!_sxrCacheWrite(_saveSlug, ownedRows())) throw _writeUiGatewayError(507, 'repair_storage_unavailable');
             };
             try {
@@ -63117,6 +63196,7 @@
                 }
                 _sxrLastLocalWriteAt = Date.now();
                 requirePrincipal();
+                workReceipt = _sxrWorkReceipt(owner, realId, wirePost);
                 const resp = await _sxrUpsertFetchPinned(
                     _saveSlug,
                     { client: _saveSlug, sample: wirePost, comments_base_at: '' },
@@ -63159,11 +63239,15 @@
                     if (Array.isArray(_okPost._writeUiRepairRefs) && _okPost._writeUiRepairRefs.length) _okPost._writeUiPrecommittedNative = true;
                     else delete _okPost._writeUiPrecommittedNative;
                 }
-                _sxrWorkDone(owner, realId, workRevision);
+                _sxrWorkAcknowledge(owner, realId, workReceipt);
                 // A response settles only this owner's snapshot. Pending newer
                 // edits stay in the separate recovery store and out of the cache.
                 _sxrCacheWrite(_saveSlug, ownedRows(), { clearRepairIds: [realId] });
                 ownedStatus(realId, 'saved');
+                if (owner.records.has(realId) && _okPost) {
+                    _okPost._saveError = 'Local changes still need retry';
+                    ownedStatus(realId, 'error', _okPost._saveError);
+                }
                 if (bumpThumbRev && _sxrWorkCurrent(owner)) _sxrForceThumbRefresh(realId);
                 if ('thumbnail_url' in edits && _sxrWorkCurrent(owner)) {
                     const thumbPost = ownedRows().find(p => p.id === realId);
@@ -65062,7 +65146,7 @@
                 // current server row; unrelated native changes remain visible.
                 const owner = _sxrWorkOwners.get(loc), record = owner.records.get(loc.id);
                 const kept = Object.assign({}, srv);
-                Object.keys(record.edits || {}).filter(k => !k.startsWith('_writeUi')).forEach(k => { kept[k] = loc[k]; });
+                Object.keys(record.edits || {}).filter(k => !k.startsWith('_writeUi')).forEach(k => { kept[k] = record.edits[k]; });
                 kept._saveError = loc._saveError;
                 _sxrMergePostComments(kept, loc);
                 out.push(carrySourceRepair(kept, loc));

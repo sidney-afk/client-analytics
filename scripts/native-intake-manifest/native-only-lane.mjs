@@ -434,12 +434,19 @@ try {
   await flags('epoch-video-13','epoch-graphics-13'); reset(); net.linear='down'; before=await inventory();
   const chosenEditor=rootBody('video',requestId()); chosenEditor.items[0].assignee_id='33333333-3333-4333-8333-333333333331';
   const chosenResult=await post(chosenEditor);
+  // 2026-09-05 (native assignee eligibility draft): this gate CLOSED. The
+  // chosen editor is now accepted natively with zero provider requests; the
+  // full journey matrix is scripts/native-intake-manifest/assignee-lane.mjs.
+  // The original held-gate expectation (refusal via the provider, zero commit)
+  // is kept as the FAIL branch so a regression reports as the old defect.
   const chosenHeld=chosenResult.status>=400 && net.requests.some(r=>/api.linear.app/.test(r.url)) && await unchanged(before);
-  ok('chosen-editor-provider-dependency-readiness-held',chosenHeld,chosenResult);
+  const chosenClosed=chosenResult.status===201 && noProvider()
+    && (await rows("select assignee_id from public.deliverables where batch_id="+q(chosenResult.json.batch?.id)+" and team='video'"))[0]?.assignee_id==='33333333-3333-4333-8333-333333333331';
+  ok('chosen-editor-native-no-provider',chosenClosed,chosenResult);
 
   console.log(JSON.stringify({suite:'native-only-intake',passed:checks.filter(c=>c.pass).length,failed:checks.filter(c=>!c.pass).length,
     readiness:{missing_child_materialization:checks.find(c=>c.id==='missing-child-readiness-stays-red')?.pass?'FAIL':'UNPROVEN',
       missing_card_materialization:checks.find(c=>c.id==='missing-card-readiness-stays-red')?.pass?'FAIL':'UNPROVEN',
-      chosen_editor_provider_independence:chosenHeld?'FAIL':'UNPROVEN',installed_full_serving:'UNPROVEN'}}));
+      chosen_editor_provider_independence:chosenClosed?'PASS':chosenHeld?'FAIL':'UNPROVEN',installed_full_serving:'UNPROVEN'}}));
   if(checks.some(c=>!c.pass)) process.exitCode=1;
 } finally { fs.rmSync(scratch,{recursive:true,force:true}); }

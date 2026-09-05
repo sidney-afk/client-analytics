@@ -29,6 +29,9 @@ import {
   assigneeEligibility,
   batchAssetColumn,
   assigneeEligibilityPolicy,
+  assigneeLaneFor,
+  assigneeLanePolicy,
+  nativeIntakePool,
   browserCredentialTestOverride,
   canonicalLinearUserId,
   eligibleAssigneeProjection,
@@ -2512,6 +2515,19 @@ async function linearStateIdForCreate(teamId: string, team: string, status: stri
 const ASSIGNEE_ELIGIBILITY_FLAG = "production_assignee_eligibility";
 const ASSIGNEE_PROVIDER_POOL_LIMIT = 250;
 
+/*
+ * THE LANE DECIDES WHETHER THE FLAG IS EVEN READ (2026-09-05).
+ *
+ * `nativeEpoch` is the server-resolved native epoch for the team (see
+ * intakeEpochs: accepted manifest/receipt first, the native_intake_epochs flag
+ * only for new admission). Non-empty means the write is native work whose
+ * outbox receipt is terminal, so no provider mapping and no provider read can
+ * be a prerequisite; the flag below is not consulted at all, and a missing,
+ * unreadable or strict value can therefore never re-introduce a Linear call
+ * on that lane. Empty means provider work and keeps the pre-existing contract
+ * exactly: an absent flag row is the normal pre-retirement state and must not
+ * turn an otherwise valid write into a 503 -- absence means "strictest".
+ */
 async function assigneeEligibilityPolicyFor(
   supabase: SupabaseClient,
 ): Promise<{ providerMappingRequired: boolean }> {
@@ -2527,6 +2543,15 @@ async function assigneeEligibilityPolicyFor(
   } catch (_error) {
     return { providerMappingRequired: true };
   }
+}
+
+async function assigneeLanePolicyFor(
+  supabase: SupabaseClient,
+  nativeEpoch = "",
+): Promise<ReturnType<typeof assigneeLanePolicy>> {
+  if (clean(nativeEpoch)) return assigneeLanePolicy(nativeEpoch, null, "read");
+  const flag = await assigneeEligibilityPolicyFor(supabase);
+  return assigneeLanePolicy("", { provider_mapping_required: flag.providerMappingRequired }, "read");
 }
 
 async function assigneeProviderPool(): Promise<Map<string, boolean>> {
@@ -2557,8 +2582,11 @@ async function assigneeProviderPool(): Promise<Map<string, boolean>> {
 async function assigneeEligibilityContext(
   supabase: SupabaseClient,
   needsProvider: boolean,
+  nativeEpoch = "",
 ): Promise<{ providerMappingRequired: boolean; providerActiveFor: (id: string) => boolean | null }> {
-  const policy = await assigneeEligibilityPolicyFor(supabase);
+  const policy = await assigneeLanePolicyFor(supabase, nativeEpoch);
+  // A native lane returns here unconditionally: providerMappingRequired is
+  // false by construction, so assigneeProviderPool is unreachable for it.
   if (!policy.providerMappingRequired || !needsProvider) {
     return { ...policy, providerActiveFor: () => null };
   }
@@ -2588,10 +2616,12 @@ async function assertEligibleAssignee(
   supabase: SupabaseClient,
   assigneeId: string,
   team: string,
+  nativeEpoch = "",
 ): Promise<{ id: string; linearUserId: string } | null> {
+  // Null unassignment is not a candidate: no roster, policy or provider read.
   if (!assigneeId) return null;
   const member = await assigneeRosterRow(supabase, assigneeId);
-  const context = await assigneeEligibilityContext(supabase, !!member);
+  const context = await assigneeEligibilityContext(supabase, !!member, nativeEpoch);
   const verdict = assigneeEligibility(member, team, {
     providerMappingRequired: context.providerMappingRequired,
     providerActive: context.providerActiveFor(canonicalLinearUserId(member && member.linear_user_id)),
@@ -2630,6 +2660,7 @@ async function validateCreateAssignee(
 async function mappedCreateAssignees(
   supabase: SupabaseClient,
   team: string,
+  nativeEpoch = "",
 ): Promise<JsonMap[]> {
   const normalizedTeam = normalizeTeam(team);
   if (!normalizedTeam) throw new GatewayError(400, "invalid_team");
@@ -2639,23 +2670,57 @@ async function mappedCreateAssignees(
     .eq("team", normalizedTeam);
   if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
   const rows = (data || []) as JsonMap[];
-  const context = await assigneeEligibilityContext(supabase, rows.length > 0);
+  const context = await assigneeEligibilityContext(supabase, rows.length > 0, nativeEpoch);
   return eligibleAssigneeProjection(rows, normalizedTeam, {
     providerMappingRequired: context.providerMappingRequired,
     providerActiveFor: context.providerActiveFor,
   }) as unknown as JsonMap[];
 }
 
-async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Promise<string> {
-  const normalizedTeam = normalizeTeam(team);
+/*
+ * THE INTAKE POOL, PER LANE.
+ *
+ * Native lane (a non-empty server-resolved epoch): the SAME contract the
+ * explicit path enforces through assertEligibleAssignee, applied to the
+ * automatic choice -- active, exact team, exact creative role
+ * (CREATIVE_ROLE_BY_TEAM), mapping optional. The first draft of this pool
+ * admitted every active same-team role natively, so an active unmapped SMM
+ * marked as the sole graphics default was assigned (caught by the independent
+ * 2026-09-05 review; PR1302 refused it). The eligibility flag is not read here
+ * either: nothing on a native lane depends on it.
+ *
+ * Provider lane: the ORIGINAL automatic contract, unchanged from before this
+ * draft -- every active same-team row with a stored linear_user_id, no flag
+ * read, role decided by the caller exactly as it always was (video picks
+ * editors, graphics picks the single default_for_team row among mapped
+ * members). The first draft routed this filter through the eligibility flag,
+ * which under the exact retired value admitted unmapped automatic candidates
+ * the base always excluded; that widening is withdrawn. The flag's retirement
+ * value keeps its pre-existing meaning on the explicit path only.
+ *
+ * Ordering (name, then id) is the same on both lanes.
+ */
+async function intakeAssigneePool(
+  supabase: SupabaseClient,
+  team: string,
+  nativeEpoch = "",
+): Promise<JsonMap[]> {
   const { data, error } = await supabase.from("team_members")
     .select("id,name,role,team,linear_user_id,default_for_team,active")
     .eq("active", true)
-    .eq("team", normalizedTeam);
+    .eq("team", team);
   if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
-  const members = ((data || []) as JsonMap[])
-    .filter(member => clean(member.linear_user_id))
+  const rows = (data || []) as JsonMap[];
+  // nativeIntakePool is also what nativeAssigneeCatalogReadiness counts, so the
+  // dry-run and the gateway answer from one pool.
+  if (assigneeLaneFor(nativeEpoch) === "native") return nativeIntakePool(rows, team) as JsonMap[];
+  return rows.filter(member => clean(member.linear_user_id))
     .sort((left, right) => clean(left.name).localeCompare(clean(right.name)) || clean(left.id).localeCompare(clean(right.id)));
+}
+
+async function autoAssigneeForIntake(supabase: SupabaseClient, team: string, nativeEpoch = ""): Promise<string> {
+  const normalizedTeam = normalizeTeam(team);
+  const members = await intakeAssigneePool(supabase, normalizedTeam, nativeEpoch);
   if (normalizedTeam === "graphics") {
     const defaults = members.filter(member => member.default_for_team === true);
     if (defaults.length !== 1) throw new GatewayError(409, "graphics_default_assignee_unavailable");
@@ -6385,8 +6450,10 @@ async function handleIntakeCreate(
     }
     requestedByTeam[team] = requested;
   }
+  // The lane is the one resolved above for this request: an accepted native
+  // manifest/receipt keeps its epoch on replay whatever the flags say now.
   for (const team of Object.keys(requestedByTeam)) {
-    await assertEligibleAssignee(supabase, requestedByTeam[team], team);
+    await assertEligibleAssignee(supabase, requestedByTeam[team], team, nativeEpochByTeam[team]);
   }
 
   const assigneeByTeam: Record<string, string> = {};
@@ -6420,7 +6487,7 @@ async function handleIntakeCreate(
         ? requestedByTeam[team]
         : mirrorAssignees.size === 1
           ? [...mirrorAssignees][0]
-          : await autoAssigneeForIntake(supabase, team);
+          : await autoAssigneeForIntake(supabase, team, nativeEpochByTeam[team]);
   }
 
   const plannedItems: JsonMap[] = [];

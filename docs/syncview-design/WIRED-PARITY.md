@@ -862,10 +862,18 @@ Owner-feedback refinements applied on top of the read-only wired tab:
     has answered yet — bounded by a 5-minute TTL, a 1-minute retry and a
     three-failure stop, and dropped entirely on sign-out or account switch via
     `_prodSmmPurgeSensitiveState`.
--   **Keyboard and touch.** The last-sync provenance is visible muted text, not
-    a `title`: the Production tooltip layer listens for mouseover/mouseout only,
-    and this is the one signal that an assignment may be stale, so an attribute
-    would have carried it to neither a keyboard nor a phone.
+-   **Keyboard and touch. SUPERSEDED 2026-09-05 — there is no provenance line.**
+    It shipped as visible muted text (`Sheet, synced <date>`) because the
+    Production tooltip layer is mouseover-only and a `title` would have reached
+    neither a keyboard nor a phone. The owner asked for it removed, twice: the
+    roster syncs nightly, the manager's name is the answer the reader opened the
+    sub-issue for, and a second line under every card is noise on a surface he
+    uses all day. **The card now renders the name alone.**
+    The accessibility rule that shaped it still stands and is now enforced the
+    other way round: `test/prod-smm-line.js` asserts the card carries NO tooltip,
+    so the provenance cannot return as a `title` or `data-prod-tip`. If staleness
+    ever needs surfacing again, surface it where it is actionable — when the
+    nightly sync FAILS — not on every card forever.
 -   **Rollback boundary CHANGED.** Two halves — the Pages browser half and the
     `smm-weekly-reports` function half deployed by
     `deploy-onboarding-edge-functions.yml`, which attests the fingerprint rather

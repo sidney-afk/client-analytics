@@ -15,6 +15,7 @@
 const fs = require('fs');
 const path = require('path');
 const { extractFunction, stripNonCode } = require('./helpers/extract-function');
+const { stripComments } = require('./helpers/strip-comments');
 
 const ROOT = path.resolve(__dirname, '..');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -37,6 +38,13 @@ const card = extractFunction(INDEX, '_prodSmmCardHTML');
 const props = extractFunction(INDEX, '_prodProps');
 const loaderCode = stripNonCode(loader);
 const cardCode = stripNonCode(card);
+/* Markup lives in STRING LITERALS, and stripNonCode blanks those -- so a
+   negative assertion about emitted HTML must not read cardCode: neither
+   `title="` nor `data-prod-tip` can ever appear there, and the check could
+   never fail. stripComments removes prose and KEEPS the literals, which is
+   the only view that can actually see the markup. Codex on PR 1271, and the
+   same could-not-fail class as OPEN_REPAIRS 144. */
+const cardMarkup = stripComments(card, ' ');
 const dirFromCode = stripNonCode(extractFunction(INDEX, '_prodSmmDirFrom'));
 const efCode = stripNonCode(EF);
 
@@ -93,7 +101,7 @@ ok(/_prodSmmFailures >= PROD_SMM_MAX_FAILURES/.test(loaderCode),
 
 ok(!/data-prod-smm-provenance/.test(card),
   'the card carries no provenance line — the owner asked for it removed, twice; the name is the answer the reader came for and a second line of bookkeeping under every sub-issue is noise');
-ok(!/data-prod-tip|title="/.test(cardCode),
+ok(!/data-prod-tip|title="/.test(cardMarkup),
   'and it carries no tooltip either, so the provenance cannot come back as a title attribute — the Production tooltip layer is mouseover-only, which reaches neither a keyboard nor a phone (Codex on PR 1265)');
 
 /* ---- 4. It renders under Project, and only with an answer -------------- */

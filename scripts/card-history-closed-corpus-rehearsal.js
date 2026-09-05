@@ -68,7 +68,7 @@ function grant(db, role, mode) {
   const r = spawnSync(db.config.psql, [...db.args(), '-v', 'mode=' + mode, '-v', 'existing_role=' + role,
     '-v', 'confirmation=' + (mode === 'backup' ? 'HISTORY_V5_BACKUP_GRANTS_ONLY' : 'DISPOSABLE_SCRATCH_ONLY'),
     '-v', 'scratch_project_ref=abcdefghijklmnopqrst', '-f', path.join(ROOT, 'scripts/track-b-history-v5-backup-prerequisites.sql')],
-  { encoding: 'utf8', env: { ...process.env, PGOPTIONS: '' } });
+  { encoding: 'utf8', env: { ...process.env, PGPASSWORD: db.config.password ?? process.env.CARD_HISTORY_PGPASSWORD ?? '', PGOPTIONS: '' } });
   if (r.status) throw new Error('local_v5_grants_failed: ' + r.stderr);
 }
 const comment = { id: 'closed-comment', native_comment_id: 'closed-comment', idempotency_key: 'closed-add',
@@ -119,6 +119,8 @@ async function run() {
   const pins = hashes(), config = localConfig(), manifest = prerequisite();
   const from = new LocalDatabase(config), to = new LocalDatabase(config);
   const backupRole = from.name + '_backup', restoreRole = to.name + '_restore';
+  // Dedicated connections must also work on password-authenticated CI servers.
+  const rolePassword = crypto.randomBytes(24).toString('hex');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(),'history-v5-'));
   const checks = [], check = (name, fn) => { fn(); checks.push(name); };
   let complete = false;
@@ -142,13 +144,13 @@ async function run() {
     check('actual F27 intent FK adds the tenth omitted v4 incoming edge',()=>assert.equal(boundary(from,'history-v4').length,10));
     check('v5 has no incoming or outgoing catalog boundary after real dependency DDL',()=>assert.equal(from.raw(backup.corpusBoundarySql(CORPUS)).status,0));
     seed(from); const replay = seedDependencies(from);
-    from.query(`create role ${backupRole} login bypassrls; create role ${restoreRole} login bypassrls;`);
+    from.query(`create role ${backupRole} login bypassrls password ${literal(rolePassword)}; create role ${restoreRole} login bypassrls password ${literal(rolePassword)};`);
     grant(from,backupRole,'backup'); grant(to,restoreRole,'scratch');
     check('actual production preflight arguments return exact33 grants without a DO command tag',()=>{
       const args=[...backup.readOnlyPrivilegeArgs(CORPUS),'-h',config.host,'-p',config.port,'-U',backupRole,'-d',from.name];
-      const r=spawnSync(config.psql,args,{encoding:'utf8',env:{...process.env,PGOPTIONS:''}});
+      const r=spawnSync(config.psql,args,{encoding:'utf8',env:{...process.env,PGPASSWORD:rolePassword,PGOPTIONS:''}});
       assert.equal(r.status,0);assert.equal(backup.verifyReadOnlyPrivilegeOutput(r.stdout,CORPUS),true);
-      const unquiet=spawnSync(config.psql,args.filter(a=>a!=='--quiet'),{encoding:'utf8',env:{...process.env,PGOPTIONS:''}});
+      const unquiet=spawnSync(config.psql,args.filter(a=>a!=='--quiet'),{encoding:'utf8',env:{...process.env,PGPASSWORD:rolePassword,PGOPTIONS:''}});
       assert.equal(unquiet.status,0);assert.match(unquiet.stdout,/^DO\r?\n/);
       assert.throws(()=>backup.verifyReadOnlyPrivilegeOutput(unquiet.stdout,CORPUS));
     });
@@ -156,7 +158,7 @@ async function run() {
     check('all33 tables contain actual typed synthetic rows',()=>assert.ok(Object.values(original).every(r=>r.length>0)));
     const dumpPath=path.join(dir,'dump.sql'), packPath=path.join(dir,'package.snapshot');
     const dumped=spawnSync(process.env.CARD_HISTORY_PGDUMP||'pg_dump',[...backup.pgDumpArgs(dumpPath,CORPUS),'-h',config.host,'-p',config.port,'-U',backupRole,'-d',from.name],
-      {encoding:'utf8',env:{...process.env,PGOPTIONS:'-c default_transaction_read_only=on -c timezone=UTC'}});
+      {encoding:'utf8',env:{...process.env,PGPASSWORD:rolePassword,PGOPTIONS:'-c default_transaction_read_only=on -c timezone=UTC'}});
     if(dumped.status)throw Error('local_v5_dump_failed: '+dumped.stderr);
     const hmac=crypto.randomBytes(32).toString('base64');
     backup.packSnapshot(dumpPath,packPath,new Date().toISOString(),`postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres`,hmac,CORPUS);
@@ -165,7 +167,7 @@ async function run() {
       assert.equal(snap.manifest.table_count,33); assert.equal(snap.manifest.schema_version,5);
       assert.deepEqual(snap.manifest.tables.production_comment_card_links.primary_key,['source_surface','card_id','component','native_comment_id']);
     });
-    const apply = sql => {const saved=to.config;to.config={...saved,user:restoreRole};try{return to.raw(sql);}finally{to.config=saved;}};
+    const apply = sql => {const saved=to.config;to.config={...saved,user:restoreRole,password:rolePassword};try{return to.raw(sql);}finally{to.config=saved;}};
     const before=rows(to), triggers=triggerRows(to);
     check('wrong COPY order with a real nonnull F27 drill parent FK fails atomically',()=>{
       const sql=restore.restoreSql(snap.dumpBytes,CORPUS);

@@ -5,15 +5,18 @@ This is a separate continuation of preserved draft #1270 at
 `ea09c55f46de9273b7c683f2b6ad57cc816c161d`). That combined commit contains monitor
 `f68746a981d06f1c00f73279a3cc7fcd9298fcc1` and Samples
 `a3f86c96e99b0d1ff3e93d6ac9f8e2ee496f8ca5`. This continuation changes no product
-bytes, writers, authentication, authority, transport guards or earlier tests.
+bytes, writers, authentication or authority. Transport denial policy is preserved;
+the harness adds socket recovery, closed diagnostics and regression coverage.
 It does not integrate later main or modify #1269/#1270 or the coordinator's
 separate private assembly. Review the new draft's exact head/tree before use.
 
 Implemented locally: hosted read launcher, receipt observer, external-host
 sentinel command, typed relay delivery with correlated terminal confirmation,
 durable notification intent, and actual anonymous Calendar/Samples controls
-against isolated file-backed fixtures. Installed watchers, alert delivery,
-human acknowledgement and live TEST action journeys are **NOT PROVEN** here.
+against isolated file-backed fixtures. Local fixtures do not establish installed
+watchers, alert delivery, human acknowledgement or live TEST action journeys.
+Coordinator-approved drills are separate evidence; the viewing receipt below
+establishes only its explicitly stated facts.
 No schedule, secret, recipient, flag or relay has been configured by this work.
 
 A later approved read attempt exposed a monitor-process defect: peer reset on a
@@ -51,9 +54,46 @@ The existing boot fixture stubs Supabase subscription transport. Local diagnosis
 on separately pinned serving source reproduced the Calendar metadata POST using
 a synthetic linked row, and reproduced Samples' no-visible-HTTP denial using a
 subscription stub that attempts native WebSocket construction. Those controls
-expose a browser coverage gap; they do not identify the live SDK's exact behavior.
-Use the new reasons in a separately approved live read to confirm attribution.
+expose a browser coverage gap. The approved read below subsequently confirmed
+the blocked interface categories without enabling those transports.
 Historical endpoint backup code is not current hosted read-only proof.
+
+### Confirmed approved read: 2026-09-05 19:15:19 UTC
+
+The coordinator's approved read used tooling
+`dedbdfe78ebef27b379eea06799379a64bcaf3e7`, document source
+`a05e1126437bb8c36bd3f33e3701a58924a8627d` and served-document SHA256
+`27db2f4e5e40f03cf599fbd43c5d14fdae226ddef987f3b245506012bf1ee638`.
+Both lanes retained start and terminal receipts; the earlier socket crash did
+not recur. Sanitized result:
+
+| Lane | Overall result | Closed reasons |
+|---|---|---|
+| Calendar | `mutation_blocked`, non-green | `metadata_post_blocked`, `proxy_socket_error`, `proxy_tunnel_blocked`, `realtime_transport_blocked` |
+| Samples | `mutation_blocked`, non-green | `realtime_transport_blocked` |
+
+The private passive request record identifies Calendar's exact blocked
+`/webhook/linear-issue-statuses` path. This confirms the metadata/realtime
+attribution previously reproduced only in fixtures; the additional Calendar
+proxy reasons remain separately visible. The coordinator reports no business-data
+mutation in this guarded run. Private links, identities, request bodies and
+recipient details remain outside this repository.
+
+These are **monitor coverage limitations, not client business failures**.
+Expected metadata/subscription activity prevents the current strict browser
+guard from reporting healthy. The run does not prove a green viewing journey,
+realtime delivery, write persistence or installed five-minute scheduling. No
+denial was waived and no forwarding allowance was added. This record documents
+the approved run; it does not authorize another run or rebind its configuration.
+
+Smallest next option for owner adjudication: define a separately named read-only
+subset that reports exact served-byte, scoped census and explicitly selected
+view/canary evidence independently, while the full browser-continuity result
+remains blocked for unsupported metadata/realtime. Start with the bounded DOM
+view-selection proposal below and privately verified eligible canaries. Do not
+turn the existing overall result green, imply realtime coverage, or build a new
+protocol proxy. The owner must decide whether that disclosed subset satisfies
+the release gate or whether separately reviewed transport work is required.
 
 The current launcher does not yet configure a view selection. An isolated
 actual-source experiment showed that a fully approved synthetic card is absent

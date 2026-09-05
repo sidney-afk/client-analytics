@@ -4194,21 +4194,22 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   vm.runInContext(exactBetween('function _calCacheKey', 'function _calCacheRead'), cacheContext);
   vm.runInContext(exactBetween('function _calCacheRead', 'function _calCacheWrite'), cacheContext);
   vm.runInContext(exactBetween('function _calCacheWrite', '/* ============================================================'), cacheContext);
+  vm.runInContext(extract('_sxrValidateReadRows'), cacheContext);
   vm.runInContext(exactBetween('function _sxrCacheRead', 'function _sxrCacheWrite'), cacheContext);
   vm.runInContext(exactBetween('function _sxrCacheWrite', 'function _sxrIsArchivedRef'), cacheContext);
-  const repair = { id: 'repair-1', video_status: 'Approved', _writeUiRetrySourceAt: '2026-07-12T00:00:00Z', _writeUiRetryEdits: { video_status: 'Approved' } };
+  const repair = { id: 'repair-1', client: 'fixture', video_status: 'Approved', _writeUiRetrySourceAt: '2026-07-12T00:00:00Z', _writeUiRetryEdits: { video_status: 'Approved' } };
   assert(cacheContext._calCacheWrite('fixture', [repair]));
   assert(cacheContext._sxrCacheWrite('fixture', [repair]));
   liveAuthority = null;
   assert.strictEqual(cacheContext._calCacheRead('fixture'), null, 'authority outage does not paint a cache');
   assert.strictEqual(cacheContext._sxrCacheRead('fixture'), null, 'authority outage does not paint a Samples cache');
   cacheContext._calCacheWrite('fixture', [{ id: 'repair-1', video_status: 'In Progress' }]);
-  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', video_status: 'In Progress' }]);
+  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', client: 'fixture', video_status: 'In Progress' }]);
   liveAuthority = { video: 'linear', graphics: 'linear' };
   assert.strictEqual(cacheContext._calCacheRead('fixture').posts[0].video_status, 'Approved', 'Calendar network revalidation cannot erase a committed repair during an authority outage');
   assert.strictEqual(cacheContext._sxrCacheRead('fixture').posts[0].video_status, 'Approved', 'Samples network revalidation cannot erase a committed repair during an authority outage');
   cacheContext._calCacheWrite('fixture', [{ id: 'repair-1', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
-  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
+  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', client: 'fixture', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
   assert(!cacheContext._calCacheRead('fixture').posts[0]._writeUiRetrySourceAt && !cacheContext._sxrCacheRead('fixture').posts[0]._writeUiRetrySourceAt,
     'source acknowledgement explicitly clears both durable repair checkpoints');
 

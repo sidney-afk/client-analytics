@@ -60801,9 +60801,9 @@
                         <button type="button" id="sxrZoomIn" onclick="sxrZoom(1)" aria-label="Zoom in"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"/><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
                     </div>
                 </div>
-                <div class="cal-toolbar-right">
+                <div class="cal-toolbar-right" style="max-width:100%;flex-wrap:wrap">
                     <span class="cal-refreshing" id="sxrRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
-                    <span class="cal-stale-notice" id="sxrStaleNotice" hidden onclick="loadSxrCards({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
+                    <button type="button" class="cal-stale-notice" id="sxrStaleNotice" hidden onclick="loadSxrCards({skipCache:true})" style="min-height:44px;max-width:100%;white-space:normal" aria-live="polite">Incomplete or outdated — retry</button>
                     ${selectBtnHtml}
                     ${kebabHtml}
                 </div>
@@ -61041,14 +61041,16 @@
         return true;
     }
     const SXR_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // parity with CAL_CACHE_TTL_MS
-    function _sxrCacheRead(slug) {
+    function _sxrCacheRead(slug, options) {
         try {
             const authority = _writeUiAuthoritySnapshot();
             if (!authority) return null;
             const o = JSON.parse(localStorage.getItem(SXR_CACHE_PREFIX + slug) || 'null');
             if (!o || !Array.isArray(o.posts)) return null;
+            _sxrValidateReadRows(o.posts, slug);
             const hasRepair = o.posts.some(post => post && post._writeUiRetrySourceAt);
-            if (!o.at || (!hasRepair && (Date.now() - Number(o.at)) > SXR_CACHE_TTL_MS)) return null;
+            if (!Number.isFinite(Number(o.at)) || Number(o.at) <= 0) return null;
+            if (!hasRepair && !(options && options.allowStale) && (Date.now() - Number(o.at)) > SXR_CACHE_TTL_MS) return null;
             return Object.assign({}, o, { posts: _writeUiFilterCachedPosts(o.posts, authority) });
         } catch { return null; }
     }
@@ -61061,6 +61063,9 @@
         const incoming = (Array.isArray(posts) ? posts : []).filter(p => p && _sxrNormStatus(p.status) !== 'Archived');
         const key = SXR_CACHE_PREFIX + slug;
         let priorRepairs = [];
+        // A writer checkpoint is durable local work, not a verified full read.
+        // In particular it must never certify a displayed fallback snapshot.
+        const verifiedAt = options && options.authoritative ? Date.now() : 0;
         try {
             const prior = JSON.parse(localStorage.getItem(key) || '{}');
             const cleared = new Set(options && Array.isArray(options.clearRepairIds) ? options.clearRepairIds : []);
@@ -61074,7 +61079,7 @@
         // see _prodStripEphemeralCanonicalState. A stale verdict rehydrated
         // from this cache would be an authorization nobody re-checked.
         const payload = JSON.stringify({
-            schema: 2, posts: _prodStripEphemeralCanonicalPosts(live), at: Date.now()
+            schema: 2, posts: _prodStripEphemeralCanonicalPosts(live), at: Date.now(), verifiedAt
         });
         try { localStorage.setItem(key, payload); return true; } catch {}
         // Quota hit — evict the other clients' sample caches and retry once.
@@ -61155,6 +61160,54 @@
         Object.keys(m).forEach(ref => { if ((now - (m[ref] || 0)) > 24 * 60 * 60 * 1000) { delete m[ref]; changed = true; } });
         if (changed) _sxrArchivedWriteRaw(slug, m);
     }
+    function _sxrValidateReadRows(rows, slug) {
+        if (!Array.isArray(rows)) throw new Error('samples_read_shape');
+        const ids = new Set();
+        for (const row of rows) {
+            if (!row || typeof row !== 'object' || Array.isArray(row)
+                || typeof row.id !== 'string' || !row.id.trim()
+                || row.client !== slug || ids.has(row.id)) throw new Error('samples_read_shape');
+            ids.add(row.id);
+        }
+        return rows;
+    }
+    async function _sxrFetchAuthoritativePosts(baseUrl, slug, signal) {
+        // Samples needs a count receipt on every keyset page: a short/capped
+        // response alone cannot prove that the board is complete. Keep the
+        // shared Calendar/Kasper paginator and their contracts unchanged.
+        const all = [], seen = new Set();
+        let cursor = null, expected = null;
+        for (let page = 0; page < 100000; page++) {
+            let url = baseUrl + '&order=id.asc&limit=' + CAL_SUPABASE_PAGE;
+            if (cursor !== null) url += '&id=gt.' + encodeURIComponent(cursor);
+            const resp = await fetch(url, { signal, headers: {
+                apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json', Prefer: 'count=exact'
+            } });
+            if (!resp.ok) throw new Error('samples_primary_http');
+            const rows = _sxrValidateReadRows(await resp.json(), slug);
+            const range = resp.headers.get('content-range') || '';
+            if (!/^(?:\d+-\d+|\*)\/\d+$/.test(range)) throw new Error('samples_primary_count');
+            const remaining = Number(range.split('/')[1]);
+            const expectedRange = rows.length ? '0-' + (rows.length - 1) : '*';
+            if (range.split('/')[0] !== expectedRange) throw new Error('samples_primary_range');
+            if (!Number.isSafeInteger(remaining) || rows.length !== Math.min(remaining, CAL_SUPABASE_PAGE)) {
+                throw new Error('samples_primary_incomplete');
+            }
+            if (expected === null) expected = remaining;
+            if (all.length + remaining !== expected) throw new Error('samples_primary_changed');
+            for (const row of rows) {
+                // Database text collation owns ordering; JS lexical ordering
+                // need not agree. A repeated key is always an invalid page.
+                if (seen.has(row.id)) throw new Error('samples_primary_cursor');
+                seen.add(row.id);
+                cursor = row.id;
+                all.push(row);
+            }
+            if (all.length === expected) return all;
+        }
+        throw new Error('samples_primary_incomplete');
+    }
     async function _sxrFetchPosts(slug, signal) {
         // status filter: archived rows are never rendered, and long-lived test/QA
         // clients accumulate thousands of them — without the filter every load
@@ -61163,14 +61216,29 @@
         // Client-side _sxrIsArchivedRef stays as defense for the webhook fallback.
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
         try {
-            const rows = await _sxrSupabaseFetchAllRows(baseUrl, signal);
-            return { ok: true, posts: rows };
+            const rows = await _sxrFetchAuthoritativePosts(baseUrl, slug, signal);
+            return { ok: true, posts: _sxrValidateReadRows(rows, slug) };
         } catch (e) {
             if (e && e.name === 'AbortError') throw e;
-            console.warn('[Samples] Supabase read failed — falling back to sample-review-get', e);
+            // Keep response bodies, client identifiers and request URLs out of logs.
+            console.warn('[Samples] Primary read failed; checking fallback');
             const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
+            if (!resp.ok) throw new Error('samples_fallback_http');
             const j = await resp.json();
-            return { ok: true, posts: (j && (j.items || j.samples || j.posts)) || [] };
+            if (!j || j.ok !== true) throw new Error('samples_fallback_envelope');
+            const keys = ['items', 'samples', 'posts'].filter(key => Object.prototype.hasOwnProperty.call(j, key));
+            if (keys.length !== 1) throw new Error('samples_fallback_shape');
+            const rows = _sxrValidateReadRows(j[keys[0]], slug);
+            // The legacy getAll envelope has no completeness receipt. Scoped
+            // nonempty content can help a cold open, but cannot replace a
+            // prior board/cache or establish authoritative emptiness.
+            if (!rows.some(row => _sxrNormStatus(row.status) !== 'Archived')
+                || j.error || (j.errors && (!Array.isArray(j.errors) || j.errors.length))) {
+                throw new Error('samples_fallback_incomplete');
+            }
+            // A fallback is available content, never authority to remove cards
+            // or certify freshness. Only primary recovery updates the cache.
+            return { ok: true, posts: rows, authoritative: false };
         }
     }
     async function loadSxrCards(opts) {
@@ -61181,16 +61249,23 @@
         if (!sxrState.client) { _sxrRenderBody(); return; }
         const seq = ++_sxrLoadSeq;
         const slug = sxrClientSlug(sxrState.client);
-        const cached = !opts.skipCache ? _sxrCacheRead(slug) : null;
+        // Ownership is also checked on cache prime, before any asynchronous
+        // read. A previous client's rows can never count as this client's cache.
+        sxrState.posts = sxrState.posts.filter(post => post && post.client === slug);
+        const cached = !opts.skipCache ? _sxrCacheRead(slug, { allowStale: true }) : null;
         const haveCache = !!(cached && cached.posts.length > 0);
         if (haveCache && sxrState.posts.length === 0) {
             const refs = _sxrArchivedRefs(slug);
             sxrState.posts = cached.posts.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
             sxrState.loading = false; sxrState.error = null;
+            const verifiedAge = Date.now() - Number(cached.verifiedAt);
+            _sxrSetStaleNotice(!cached.verifiedAt || !Number.isFinite(verifiedAge) || verifiedAge < 0 || verifiedAge > SXR_CACHE_TTL_MS);
             _sxrRenderBody();
             setTimeout(() => { if (typeof _writeUiResumeSourceRepairs === 'function') _writeUiResumeSourceRepairs(); }, 0);
         }
-        const background = (!!opts.background && sxrState.posts.length > 0) || (sxrState.posts.length > 0 && haveCache);
+        // Manual retry must keep useful rows visible too, including skipCache.
+        const background = sxrState.posts.length > 0;
+        if (!background) _sxrSetStaleNotice(false);
         if (background) { _sxrBgLoadInFlight = true; _sxrSetRefreshing(true); }
         else { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); sxrState.loading = true; sxrState.error = null; _sxrRenderBody(); }
         const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -61205,14 +61280,29 @@
             if (seq !== _sxrLoadSeq) return;                      // a newer load superseded us
             if (sxrClientSlug(sxrState.client) !== slug) return;  // client switched mid-load
             if (result === TIMEOUT) throw new Error('timeout');
-            const rows = (result && result.posts) || [];
+            if (!result || result.ok !== true) throw new Error('samples_read_failed');
+            const rows = _sxrValidateReadRows(result.posts, slug);
+            if (result.authoritative === false) {
+                if (!sxrState.posts.length) {
+                    const refs = _sxrArchivedRefs(slug);
+                    sxrState.posts = rows.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
+                    if (!sxrState.posts.length) throw new Error('samples_fallback_empty');
+                    sxrState.loading = false; sxrState.error = null;
+                    _sxrRenderBody();
+                }
+                sxrState.loading = false; sxrState.error = null;
+                _sxrSetStaleNotice(true);
+                if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);
+                if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);
+                return;
+            }
             _sxrCleanArchiveLedger(slug, rows);
             const refs = _sxrArchivedRefs(slug);
             const fresh = rows.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
-            // Background (realtime / tab-return) reloads MERGE so an in-flight edit /
-            // comment isn't clobbered (Surface 7); a foreground load adopts the server.
+            // Merge even on a foreground request: local work may have been
+            // created or edited while that request was in flight.
             const _sxrPrevPosts = sxrState.posts;
-            const _sxrMerged = (background && typeof _sxrMergeServerRows === 'function') ? _sxrMergeServerRows(fresh) : fresh;
+            const _sxrMerged = (typeof _sxrMergeServerRows === 'function') ? _sxrMergeServerRows(fresh) : fresh;
             // Did anything the renderer paints actually change? On a background echo
             // that already matches our optimistic state (the realtime self-echo of
             // our OWN just-saved write) it didn't — so skip the full rebuild and only
@@ -61223,7 +61313,7 @@
             sxrState.posts = _sxrMerged;
             _thumbRefreshChangedCards('samples', _sxrPrevPosts, _sxrMerged);
             sxrState.loading = false; sxrState.error = null;
-            _sxrCacheWrite(slug, _sxrMerged.some(post => post && post._writeUiRetrySourceAt) ? _sxrMerged : rows);
+            _sxrCacheWrite(slug, _sxrMerged.some(post => post && post._writeUiRetrySourceAt) ? _sxrMerged : rows, { authoritative: true });
             setTimeout(() => { if (typeof _writeUiResumeSourceRepairs === 'function') _writeUiResumeSourceRepairs(); }, 0);
             _sxrSetStaleNotice(false);
             if (background && !_sxrDataChanged) {
@@ -61240,7 +61330,7 @@
             }
             // Defer the repaint while the user is mid-edit so a realtime reload can't
             // clobber their caret / unsaved field (Surface 7 deferred-render guard).
-            else if (background && typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+            else if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
                 _sxrPendingBackgroundRender = true; if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                 if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
                 // The full render is deferred while busy, but a peer's status change
@@ -61269,7 +61359,9 @@
         } catch (e) {
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
             if (seq !== _sxrLoadSeq) return;
-            if (sxrState.posts.length > 0) { _sxrSetStaleNotice(true); }   // keep what's on screen
+            if (sxrClientSlug(sxrState.client) !== slug) return;
+            sxrState.loading = false;
+            if (sxrState.posts.length > 0) { sxrState.error = null; _sxrSetStaleNotice(true); }   // keep what's on screen
             else { sxrState.loading = false; sxrState.error = e; _sxrRenderBody(); }
             // Open realtime even when the initial fetch failed, so the view goes
             // live the moment a peer's change lands — otherwise a first-load
@@ -61279,7 +61371,7 @@
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
-            if (seq === _sxrLoadSeq) { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); }
+            if (seq === _sxrLoadSeq && sxrClientSlug(sxrState.client) === slug) { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); }
         }
     }
 
@@ -62199,7 +62291,7 @@
     function _sxrIsBlankId(pid) { return typeof pid === 'string' && pid.startsWith('__sxrblank__'); }
     function _sxrBlankSample() {
         const maxOrder = sxrState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
-        return { id: _sxrNextBlankId(), order_index: maxOrder + 1, name: '', creative_direction: '', hide_creative_direction: '', asset_url: '', thumbnail_url: '', linear_issue_id: '', graphic_linear_issue_id: '', video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress', comments: [] };
+        return { id: _sxrNextBlankId(), client: sxrClientSlug(sxrState.client), order_index: maxOrder + 1, name: '', creative_direction: '', hide_creative_direction: '', asset_url: '', thumbnail_url: '', linear_issue_id: '', graphic_linear_issue_id: '', video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress', comments: [] };
     }
     /* The samples "+" now routes exactly the way the calendar's does (owner
        2026-08-19: "the samples tab behaves exactly like the calendar tab").

@@ -31,6 +31,10 @@ function expect(condition, message) {
   const server = await serve();
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  // Installed before the narrower mocks: no unexpected write may reach a backend.
+  const guardWrites = async target => target.route('**/*', route =>
+    ['GET', 'HEAD', 'OPTIONS'].includes(route.request().method()) ? route.continue() : route.abort());
+  await guardWrites(page);
   const pageErrors = [];
   const unexpectedWrites = [];
   let primaryId = '';
@@ -311,10 +315,12 @@ function expect(condition, message) {
     await page.waitForSelector('[data-prod-comments-state="empty"]', { timeout: 5000 });
 
     const clientPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await guardWrites(clientPage);
     const clientPageErrors = [];
     const clientCommentReads = [];
     const clientGatewayWrites = [];
     const clientFallbackWrites = [];
+    let samplesEmpty = false;
     const clientToken = 'synthetic-client-comment-token';
     let crosswalkVideoCard = 'client-card';
     let trackClientWrite = false;
@@ -334,7 +340,7 @@ function expect(condition, message) {
       const url = new URL(route.request().url());
       const table = url.pathname.split('/').pop();
       const flagKey = url.searchParams.get('key') || '';
-      const rows = table === 'syncview_runtime_flags' && flagKey === 'eq.prod_authority'
+      let rows = table === 'syncview_runtime_flags' && flagKey === 'eq.prod_authority'
         // 2026-08-16 authority flip: graphics is SyncView-authoritative now.
         // The video lane stays linear, so the client comment write below still
         // travels with legacy_parity.
@@ -386,9 +392,18 @@ function expect(condition, message) {
           updated_at: '2026-07-20T12:00:00Z',
         }]
         : [];
+      if (table === 'sample_reviews') {
+        const slug = (url.searchParams.get('client') || '').replace(/^eq\./, '');
+        const cursor = (url.searchParams.get('id') || '').replace(/^gt\./, '');
+        rows = samplesEmpty ? [] : rows.filter(row => row.client === slug && (!cursor || row.id > cursor));
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
+        headers: table === 'sample_reviews' ? {
+          'access-control-allow-origin': '*', 'access-control-expose-headers': 'content-range',
+          'content-range': rows.length ? `0-${rows.length - 1}/${rows.length}` : '*/0',
+        } : {},
         body: JSON.stringify(rows),
       });
     });
@@ -538,6 +553,14 @@ function expect(condition, message) {
         && sxrState.client === 'Browser Client'
         && Array.isArray(sxrState.posts)
         && sxrState.posts.some(row => row.id === 'client-card'), null, { timeout: 15000 });
+      // Exercise both cardinalities through the actual reader, not only a
+      // populated fixture. This read does not apply or cache the empty result.
+      samplesEmpty = true;
+      expect(await clientPage.evaluate(async () => {
+        const result = await _sxrFetchPosts(sxrClientSlug(sxrState.client));
+        return result.ok === true && result.posts.length === 0;
+      }), 'counted empty Samples fixture must be authoritative empty');
+      samplesEmpty = false;
       await clientPage.evaluate(() => openSxrComments('client-card'));
       await clientPage.waitForSelector('[data-cm-row="client-safe"]', { timeout: 5000 });
 

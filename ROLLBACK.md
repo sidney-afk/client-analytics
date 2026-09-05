@@ -35,6 +35,19 @@ schedule while F132 is open; if reducing duplicate cadence, remove the pager's l
 
 ## 1. Standing rules (non-negotiable)
 
+**Samples G1 candidate (2026-09-04, release held):** browser-only read correction,
+based on `13e187a7d0043ed110b486feb50502758a026229`; no new kill flag or writer change.
+Before merge, abandon/revert this PR. If later released with coordinator approval,
+revert the complete PR's browser/harness/docs commits in reverse order and verify
+the reverted Pages bytes plus client reads. The reviewed intermediate head
+`c10ebc8465b5fc95976014e21184a6c2076d8d96` is not a recommended recovery target: it
+can discard unscoped drafts. Let pending saves settle and preserve unfinished work
+before reloading retained tabs; propagation is not instant. The full revert restores
+the known false-empty defect, so keep incident evidence and the release hold.
+No cache purge, data restore, EF deployment, authority reversal, authentication change
+or frozen-writer rollback belongs to this procedure. Monitoring and client-continuity
+gates in draft #1268 remain prerequisites for release.
+
 1. **One-step behavior rollback, always.** Every cutover ships behind a server-readable runtime
    kill switch. Flip that switch first; a frontend revert is secondary because stale tabs and Pages
    propagation are not immediate. `git revert` restores repository source, not the captured deployed

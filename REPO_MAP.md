@@ -8,6 +8,11 @@ commit as any structural change.
 
 ## Top level
 
+Samples G1 regression: `test/samples-authoritative-read.js` executes the shipped
+per-client reader, loader and cache with fictional fixtures and no external I/O.
+The existing `qa/boot/client-entry-sequence.js` supplies exact-count Samples receipts
+in its fully mocked client-navigation lane.
+
 | Path | What it is |
 |---|---|
 | `index.html` | **The entire application** — a single-file SPA, served to production by GitHub Pages from `main`. Merging to `main` ships immediately. Deliberate nav mapping: visible **SyncLinear** (labelled `Linear` until 2026-08-21) = `navProd` / key `production` / `#production` (`?prod=1` alias, authority-gated native mirror); visible **Submit** = `navLinear` / key `linear` / `#linear` (submission form). The mirror's status/comment/due/assignee controls write only through `production-write` when role/team/authority gates pass (or for the bounded active-TEST override); current authority must be read back, not inferred from this map. |

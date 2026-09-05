@@ -85,11 +85,19 @@ if (blockStart < 0 || blockEnd < 0 || blockEnd < blockStart) {
   process.exit(1);
 }
 const RESOLVE = snapshot.slice(blockStart, blockEnd)
-  // The TypeScript-only annotations in the block; nothing else is changed.
+  /* The TypeScript-only annotations in the block; nothing else is changed. If
+     the block grows an annotation this list does not cover, `new Function`
+     throws a SyntaxError and this suite fails loudly -- which is the right
+     failure, because it means the lifted source is no longer being executed. */
   .replace(/ as JsonMap\[\]/g, '')
   .replace(/: JsonMap\[\]/g, '')
   .replace(/: JsonMap/g, '')
-  .replace(/\(field: string\)/g, '(field)');
+  .replace(/\(field: string\)/g, '(field)')
+  .replace(/\(resolved: \{ from: string \}\)/g, '(resolved)')
+  .replace(/new Set<string>\(\)/g, 'new Set()')
+  .replace(/: Set<string> \| null/g, '')
+  .replace(/: Record<string, \{ id: string; updated_at: string \} \| null>/g, '')
+  .replace(/exclusiveBatchIds!\./g, 'exclusiveBatchIds.');
 
 const clean = v => String(v == null ? '' : v).trim();
 const parseJson = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
@@ -99,8 +107,10 @@ const PLAN = 'https://docs.google.com/document/d/post-plan';
 const FOOTAGE = 'https://www.dropbox.com/scl/fo/footage/AAA?rlkey=k1';
 const FRAME = 'https://f.io/_frame';
 
-function runResolve({ ownBatch, deliverable, roster, siblingBatches, rosterError, siblingError }) {
+function runResolve({ ownBatch, deliverable, roster, siblingBatches, occupants,
+                     rosterError, siblingError, occupantsError }) {
   const queries = [];
+  let viewCalls = 0;
   const supabase = {
     from(table) {
       const q = { table, filters: {} };
@@ -121,9 +131,20 @@ function runResolve({ ownBatch, deliverable, roster, siblingBatches, rosterError
              dead. A fake that answers whichever table it is handed would not
              have caught that, and would not catch it again here. */
           if (table === 'production_deliverables_browser_v1') {
-            return resolve(rosterError
+            /* Two different reads hit this view: the post ROSTER first, then
+               the OCCUPANTS of the candidate batches. Answering both from one
+               fixture would let a test pass while the code asked the wrong
+               question, so they are told apart by call order the same way the
+               code issues them. */
+            viewCalls += 1;
+            if (viewCalls === 1) {
+              return resolve(rosterError
+                ? { data: null, error: new Error('x') }
+                : { data: roster, error: null });
+            }
+            return resolve(occupantsError
               ? { data: null, error: new Error('x') }
-              : { data: roster, error: null });
+              : { data: occupants || [], error: null });
           }
           if (table === 'batches') {
             return resolve(siblingError
@@ -141,7 +162,8 @@ function runResolve({ ownBatch, deliverable, roster, siblingBatches, rosterError
     const batchId = clean(batch.id || '');
     const BATCH_ASSET_COLUMNS = 'x';
 ${RESOLVE}
-    return { canonicalBatch, postFilmingPlan, postRawFootage, postDeliveryFolder, orderedBatches };
+    return { postFilmingPlan, postRawFootage, postDeliveryFolder, orderedBatches,
+             postWriteTargets, exclusiveFallbackId, exclusiveBatchIds };
   })();`;
   const fn = new Function(
     'clean', 'parseJson', 'LINEAR_UUID_SHAPE', 'POST_ROW_LOOKUP_LIMIT',
@@ -205,9 +227,14 @@ const NATIVE = { id: 'bat_native', client_slug: 'acme', filming_doc_url: PLAN, f
       && fromParent.postDeliveryFolder.value === fromChild.postDeliveryFolder.value
       && fromParent.postFilmingPlan.value === fromChild.postFilmingPlan.value,
       'EVERY SEAT OF THE POST RESOLVES THE SAME THREE VALUES -- this is the property the owner asked for, and it does not depend on the tie-break picking the "right" row, only the SAME row');
-    ok(clean(fromParent.canonicalBatch.id) === 'bat_native'
-      && clean(fromChild.canonicalBatch.id) === 'bat_native',
-      'and both seats name the same write target, so a link typed from either one lands where the other reads it -- which is what stops a NEW split being made by editing a value you were shown from elsewhere');
+    ok(fromParent.postWriteTargets.raw_footage.id === fromChild.postWriteTargets.raw_footage.id
+      && fromParent.postWriteTargets.delivery_folder.id === fromChild.postWriteTargets.delivery_folder.id,
+      'and both seats name the same write target for each slot, so a link typed from either one lands where the other reads it -- which is what stops a NEW split being made by editing a value you were shown from elsewhere');
+    ok(fromParent.postWriteTargets.raw_footage.id === 'bat_native'
+      && fromParent.postWriteTargets.delivery_folder.id === 'b1_b_mirror',
+      'THE PER-SLOT RULE: each slot is written where ITS OWN value already lives, not where the panel as a whole points -- aiming both at one row would send the Frame folder editor at a row whose column is empty, so clearing the link on screen would write a blank over a blank and the value would simply come back');
+    ok(fromParent.postWriteTargets.delivery_folder.updated_at !== undefined,
+      'and the CAS clock travels with the target, since comparing one row\'s updated_at against another row\'s fails its CAS forever');
   }
 
   {
@@ -289,6 +316,77 @@ const NATIVE = { id: 'bat_native', client_slug: 'acme', filming_doc_url: PLAN, f
     });
     ok(clean(out.orderedBatches[0].id) === 'bat_native',
       'a native bat_ row sorts ahead of every mirror and stray row -- the same tie-break the browser projection already applies to competing parent claims, so two files carry one rule');
+  }
+
+  {
+    /* A BUCKET SHARED WITH ANOTHER POST IS NEVER OFFERED AS A TARGET.
+       73 of 1,127 batch rows measured 2026-09-05 hold more than one post; one
+       holds seven. Naming one as a write target would put a link saved here on
+       posts nobody was looking at, while the editor says "shared by the whole
+       post". Raised by review on #1287 before this reached a deploy. */
+    const EMPTY_A = { id: 'bat_shared', client_slug: 'acme' };
+    const EMPTY_B = { id: 'b1_b_own', client_slug: 'acme' };
+    const out = await runResolve({
+      ownBatch: EMPTY_B, deliverable: PARENT,
+      roster: [{ batch_id: 'b1_b_own' }, { batch_id: 'bat_shared' }],
+      siblingBatches: [EMPTY_A],
+      // bat_shared also carries a row belonging to a DIFFERENT post.
+      occupants: [
+        { batch_id: 'bat_shared', raw_issue_parent_id: 'someone-else-uuid' },
+        { batch_id: 'bat_shared', raw_issue_parent_id: 'a18ced04-uuid' },
+        { batch_id: 'b1_b_own', raw_issue_parent_id: 'a18ced04-uuid' },
+      ],
+    });
+    ok(out.exclusiveFallbackId === 'b1_b_own',
+      'with every slot empty, the target is the first bucket in canonical order that belongs to this post ALONE -- the native row sorts first but carries another post, so it is passed over');
+    ok(out.postWriteTargets.raw_footage.id === 'b1_b_own',
+      'and each empty slot takes that same exclusive bucket');
+  }
+
+  {
+    const out = await runResolve({
+      ownBatch: { id: 'b1_b_own', client_slug: 'acme' }, deliverable: PARENT,
+      roster: [{ batch_id: 'b1_b_own' }, { batch_id: 'bat_shared' }],
+      siblingBatches: [{ id: 'bat_shared', client_slug: 'acme' }],
+      occupants: [
+        { batch_id: 'bat_shared', raw_issue_parent_id: 'someone-else-uuid' },
+        { batch_id: 'b1_b_own', raw_issue_parent_id: 'other-post-too' },
+      ],
+    });
+    ok(out.exclusiveFallbackId === '' && out.postWriteTargets.raw_footage === null,
+      'when NO bucket of the post is exclusive, nothing is offered at all and the browser writes the row it is already on -- exactly what shipped before any of this');
+  }
+
+  {
+    const out = await runResolve({
+      ownBatch: { id: 'b1_b_own', client_slug: 'acme' }, deliverable: PARENT,
+      roster: [{ batch_id: 'b1_b_own' }, { batch_id: 'bat_shared' }],
+      siblingBatches: [{ id: 'bat_shared', client_slug: 'acme' }],
+      occupants: [], occupantsError: true,
+    });
+    ok(out.exclusiveBatchIds === null && out.postWriteTargets.raw_footage === null,
+      'and a failed exclusivity read leaves it UNKNOWN, which offers no target rather than guessing one -- a wrong guess here writes a client link onto an unrelated post');
+  }
+
+  {
+    const out = await runResolve({
+      ownBatch: { id: 'bat_only', client_slug: 'acme' }, deliverable: PARENT,
+      roster: [{ batch_id: 'bat_only' }], siblingBatches: [],
+    });
+    ok(out.postWriteTargets.raw_footage.id === 'bat_only' && out.queries.length === 1,
+      'a post on ONE bucket names that bucket without asking about exclusivity -- there is no other row a write could reach, and the common case pays nothing');
+  }
+
+  {
+    const SHARED_WITH_VALUE = { id: 'bat_shared', client_slug: 'acme', footage_folder_url: FOOTAGE };
+    const out = await runResolve({
+      ownBatch: { id: 'b1_b_own', client_slug: 'acme' }, deliverable: PARENT,
+      roster: [{ batch_id: 'b1_b_own' }, { batch_id: 'bat_shared' }],
+      siblingBatches: [SHARED_WITH_VALUE],
+      occupants: [{ batch_id: 'bat_shared', raw_issue_parent_id: 'someone-else-uuid' }],
+    });
+    ok(out.postWriteTargets.raw_footage.id === 'bat_shared',
+      'a slot whose value ALREADY lives on a shared bucket is still written there: that row is what every seat displays and is already shared with whatever else sits in it, so editing it exposes nothing new -- refusing would make the value on screen uneditable');
   }
 
   /* ---- 2. The bounds, and what is never resolved across the post -------- */

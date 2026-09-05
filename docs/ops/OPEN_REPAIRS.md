@@ -12434,13 +12434,29 @@ consulted `preferred.origin`.
 
 ### Left open, deliberately
 
-- **A canonical row shared with other posts.** Of the 109 split posts, **41 have a
-  canonical row that also serves another post** (73 of 1,127 batch rows carry
-  more than one post). Post-level writes on those become visible to the other
-  posts on that row. This is the existing "shared by the whole batch" semantics
-  extended by one row rather than a new exposure, and the editor copy now says
-  "shared by the whole post" rather than promising batch scope — but it is a real
-  widening for a parent-seat write and is the owner's to accept or refuse.
+- ~~**A canonical row shared with other posts.**~~ **CLOSED 2026-09-05 by review
+  (#1287, Codex P1) before the closure was deployed.** Of the 109 split posts, 41
+  had a canonical row that also served another post (73 of 1,127 batch rows carry
+  more than one post; one carries seven, and 26 of the 41 share with a genuinely
+  different post rather than the graphics half of the same shoot). Offering such
+  a row as a write target would have put a link saved on one post onto posts
+  nobody was looking at, while the editor said "shared by the whole post". A
+  shared bucket is no longer offered for an EMPTY slot: the target is the first
+  bucket belonging to this post alone, and when none qualifies — or exclusivity
+  could not be determined — nothing is offered and the browser writes the row it
+  is on, which is what shipped before. A slot whose value already lives on a
+  shared bucket is still written there: that row is what every seat displays and
+  is already shared with whatever sits in it, so editing it exposes nothing new,
+  and refusing would make the value on screen uneditable.
+
+- **A second P1 from the same review, and the sharper of the two.** The write
+  target was PANEL-wide while a post's slots can sit on DIFFERENT rows — on the
+  reported post the raw footage is on the native batch and the frame folder on
+  the mirror. So the Frame folder editor would have aimed at a row whose column
+  is empty: clearing the link on screen would have written a blank over a blank
+  and the value would have reappeared, and replacing it would have left a stale
+  duplicate that resurfaces the moment the new one is cleared. It would have hit
+  the owner on the first thing he tried. The target is per slot now.
 - **Repairing the 7 drifted `origin` values.** A write on live client rows, needs
   a per-row collision pre-check against `deliverables_card_slot_unique`, and would
   move those cards from legacy to canonical comment rendering (item 147's

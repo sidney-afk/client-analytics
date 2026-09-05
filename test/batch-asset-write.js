@@ -167,6 +167,21 @@ function grabFunc(source, name) {
     && /_prodBatch\(payload\.id\)/.test(write),
     'and the browser sends the batch id and the batch clock, never the deliverable ones');
 
+  /* THE TARGET IS PER SLOT (2026-09-05). A post's slots can sit on different
+     batch rows -- on the post the owner reported, the raw footage is on the
+     native batch and the frame folder on the mirror -- so a panel-wide target
+     would aim the Frame folder editor at a row whose column is empty. Clearing
+     the link on screen would then write a blank over a blank and the value
+     would simply reappear; replacing it would leave a stale duplicate that
+     resurfaces the moment the new one is cleared. Raised by review on #1287. */
+  ok(/const writeSlot = String\(fields && fields\.slot \|\| ''\);/.test(write)
+    && /assetState\.assets\[writeSlot\]/.test(write),
+    'a batch-asset write reads the target for the SLOT being saved, not one target for the whole panel');
+  ok(/if \(target\) \{\s*\n\s*payload\.id = target;\s*\n\s*batchClock = String\(evidence\.writeBatchUpdatedAt \|\| ''\)\.trim\(\);/.test(write),
+    'and takes the CAS clock from the same slot, since comparing one row\'s updated_at against another row\'s fails its CAS forever');
+  ok(/payload\.expected_updated_at = batchClock\s*\n\s*\|\| \(batch \? String\(batch\.updated_at \|\| ''\) : ''\);/.test(write),
+    'with no target -- an older gateway, an unread panel, or a gateway with nothing safe to offer -- it writes the row it is already on, exactly what shipped before');
+
   /* A deliverable-shaped CAS against a batch row can never match, so it would
      refuse the write forever rather than occasionally. */
   ok(!/payload\.expected_updated_at = issue\.updatedRaw;[\s\S]{0,80}batch_asset/.test(write),

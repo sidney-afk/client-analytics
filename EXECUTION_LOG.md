@@ -6075,3 +6075,52 @@ the regression.
 
 `synced_at` still travels from `smm-weekly-reports`; the browser directory no
 longer carries the unused field.
+
+## 2026-09-05 — the two shared asset slots belong to the post, not to a batch row
+
+Owner report on one post: a Frame folder set on the parent appeared on none of
+its 32 sub-issues, and the raw footage the sub-issues showed appeared on no
+parent. Root cause measured live across all 6,330 browser-visible deliverables:
+`footage_folder_url` and `delivery_folder_url` are columns on one `batches` row,
+and of 1,136 posts **109 span more than one batch row** (107 with a real parent
+row, stranding 351 child rows). The reported post has its parent on a `b1_b_`
+mirror batch and all 32 children on a native `bat_` batch.
+
+The 2026-09-01 borrow could not close it: it walked only downward, and it was
+gated on the reader's own batch carrying none of the three — so the owner's own
+save switched it off and removed the one thing the borrow had been getting right.
+
+`assetSnapshot` now resolves the post from either direction, orders its batch
+rows deterministically and answers per slot; the read names a write target per
+slot so an edit lands where the value already is. Three symptoms shared this one
+cause: the two slots, and the missing sub-issue file pills.
+
+Two further defects on the same post, unrelated to each other:
+
+- **Every Dropbox share link copied out of Dropbox was unsaveable.** `st` and
+  three siblings were not on `SAFE_ASSET_QUERY_KEYS`, so `assetUrlType` answered
+  `invalid` — which also refuses the write, nulls `canonicalArtifactUrl` and
+  blocks the `smm_approval` transition. Measured over the readable proxy corpus
+  (1,674 batch rows, 10,878 URLs, 514 Dropbox occurrences, 171 distinct): 19
+  passed before, 171 after. Host-scoped to dropbox.com.
+- **A deliverable whose `origin` had drifted could never receive an artifact.**
+  `production_artifact_write` routes the card projection on `origin`, so a row
+  saying `manual` while carrying a correctly two-way-bound card raised and rolled
+  the whole write back. 7 live rows. Fixed by resolving the surface from the
+  binding, plus the producer in `scripts/b1-linear-backfill.js` that made them.
+
+**Review caught two P1s after merge and before deploy** (#1287, Codex), both in
+the write path and both real:
+
+1. The write target was panel-wide while a post's slots can sit on different
+   rows — so clearing the Frame folder on the reported post would have written a
+   blank over an already-blank column and the value would have reappeared, and
+   replacing it would have left a stale duplicate. The target is per slot now.
+2. The target could be a batch row carrying another post's work (73 of 1,127
+   buckets hold more than one post; one holds seven), which would have put a
+   link saved on one post onto posts nobody was looking at while the editor said
+   "shared by the whole post". A shared bucket is no longer offered for an empty
+   slot, and unknown exclusivity offers nothing.
+
+Both were fixed before the `production-write` closure was deployed; the fingerprint
+was re-pinned on the corrected tree.

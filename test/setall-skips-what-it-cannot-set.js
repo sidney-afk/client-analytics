@@ -128,8 +128,11 @@ ok(!/const link = comp === 'graphic' \? post\.graphic_linear_issue_id : post\.li
 /* ---- 3. The apply loop honours it --------------------------------------- */
 
 const apply = grabFunc('_sxrSetAllStatus');
-ok(/const settable = SXR_COMPONENTS\.filter\(c => _sxrSetAllSettable\(post, c\)\);/.test(apply),
-  'the samples apply path computes what it can actually set');
+ok(/const linked = SXR_COMPONENTS\.filter\(c => _sxrSetAllSettable\(post, c\)\);/.test(apply)
+  && /const settable = linked\.filter\(c => !_sxrReviewBlockReason\(post, c, status\)\);/.test(apply),
+  'the samples apply path still asks _sxrSetAllSettable FIRST -- the empty-content review gate (2026-09-05) '
+  + 'narrows it a second time, so what used to be one name is now `linked` then `settable`, but the link rule '
+  + 'is still the first question and nothing outside its answer can be iterated');
 ok(/for \(const c of settable\) \{/.test(apply) && !/for \(const c of SXR_COMPONENTS\) \{/.test(apply),
   'THE FIX ITSELF: it iterates the settable set, not every component. Iterating all of them is what '
   + 'threw in the video leg and took the graphics write down with it');

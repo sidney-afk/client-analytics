@@ -38606,7 +38606,13 @@
         const which = comp || '';
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
-        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        /* The pending bucket is created only once the move is definitely going
+           ahead. An EMPTY bucket is not harmless: _calFlushCardSave treats the
+           presence of a bucket as "this card has something to write" and, with
+           no field-level edits in it, resends the whole card from this tab's
+           snapshot -- which can overwrite a field another tab changed in the
+           meantime. Every early return below therefore has to happen before
+           the bucket exists, not after. */
         if (which) {
             const key = which + '_status';
             if (post[key] === status) return;
@@ -38616,6 +38622,7 @@
                 showNotify('Nothing to review yet', blocked);
                 return;
             }
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
             post[key] = status;
             _calPendingEdits[pid][key] = status;
             // Title is independent of the overall card status — never fold it in.
@@ -38638,12 +38645,21 @@
                 showNotify('Nothing to review yet', 'Every part of this card is still empty, so there is nothing to send for approval.');
                 return;
             }
-            post.status = status;
-            _calPendingEdits[pid].status = status;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
             for (const c of movable) {
                 post[c + '_status'] = status;
                 _calPendingEdits[pid][c + '_status'] = status;
             }
+            /* Compute the overall from what actually moved rather than
+               asserting the requested value. With nothing held back the two
+               are identical (every component is now `status`, and lower-wins
+               over three equal values returns it). With a component held back
+               they differ, and the computed one is the true one: a card whose
+               caption is still In Progress is not "in Kasper Approval", and
+               claiming it is would put the header pill and the component pills
+               in open disagreement. */
+            post.status = computeOverallStatus(post);
+            _calPendingEdits[pid].status = post.status;
             if (held.length) {
                 showNotify('Sent without ' + held.map(c => String(CAL_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
                     'Those are still empty, so they stayed where they were. Add the content and set them separately.');
@@ -38757,6 +38773,15 @@
         return '';
     }
     const CAL_COMP_LABEL = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
+    /* Where an SMM approval sends the component. Extracted because two places
+       need it and they must not drift: _calReviewApplyApprove decides the real
+       destination, and _calReviewApprove has to know the same destination
+       BEFORE it resolves the SMM's ticked change-requests -- resolving first
+       and being refused second marks tweaks done for an approval that never
+       happened. */
+    function _calSmmApproveTo(dest) {
+        return dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+    }
 
     function _calSetAllSettable(post, comp) {
         if (!post) return false;
@@ -38794,17 +38819,22 @@
             if (dontAskAgain) {
                 try { localStorage.setItem(_calSetAllSkipKey(status), '1'); } catch {}
             }
-            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
-            const edits = _calPendingEdits[pid];
+            /* Staged off to the side so the "nothing to do" return below
+               leaves no bucket behind. An empty _calPendingEdits entry is read
+               by _calFlushCardSave as a card to write and becomes a full-card
+               resend of this tab's snapshot. */
+            const staged = {};
             let changed = false;
             for (const c of settable) {
                 const key = c + '_status';
                 if (_calNormStatus(post[key] || '') === status) continue;
                 post[key] = status;
-                edits[key] = status;
+                staged[key] = status;
                 changed = true;
             }
             if (!changed) return;   // nothing to do — every settable component already at this status
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            const edits = Object.assign(_calPendingEdits[pid], staged);
             // Recompute overall from the new sub-statuses. The overall is
             // NEVER pushed to Linear (the historical bug); only the
             // per-component *_status edits in this patch will, via the
@@ -38819,6 +38849,14 @@
             post.updated_at = new Date().toISOString();
             _calRenderBody({ preserveScroll: true });
             _calFlushCardSave(pid);
+            /* heldEmpty was computed to keep the confirm honest; it has to be
+               said out loud too. "Set all" that quietly moves two of three is
+               indistinguishable from one that moved all three, and the reader
+               finds out when the third never reaches the reviewer. */
+            if (heldEmpty.length) {
+                showNotify('Set without ' + heldEmpty.map(c => String(COMP_LABELS[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
         };
         // Confirm before flipping into a "terminal" / client-visible state.
         // Other states (mid-workflow) go through silently — they're cheap
@@ -38827,9 +38865,16 @@
         try { skip = localStorage.getItem(_calSetAllSkipKey(status)) === '1'; } catch {}
         if (_CAL_SETALL_TERMINAL.has(status) && !skip) {
             const settableLabel = settable.map(c => COMP_LABELS[c]).join(', ');
-            const skippedLabel = CAL_COMPONENTS.filter(c => !settable.includes(c)).map(c => COMP_LABELS[c]).join(' and ');
+            /* Two distinct reasons a component is not in `settable`, and they
+               must not be reported as one: "not linked to Linear" was the only
+               reason before the empty-content gate existed, and telling the
+               reader an empty-but-linked component needs a link sends them to
+               fix something that is not broken. */
+            const unlinkedLabel = CAL_COMPONENTS.filter(c => !_calSetAllSettable(post, c)).map(c => COMP_LABELS[c]).join(' and ');
+            const emptyLabel = heldEmpty.map(c => COMP_LABELS[c]).join(' and ');
             const msg = `Set ${settableLabel} to "${status}".`
-                + (skippedLabel ? ` (${skippedLabel} not linked to Linear — skipped.)` : '');
+                + (unlinkedLabel ? ` (${unlinkedLabel} not linked to Linear — skipped.)` : '')
+                + (emptyLabel ? ` (${emptyLabel} still empty — skipped.)` : '');
             showConfirm(`Set all to "${status}"?`, msg, apply, status, "Don't ask me again");
         } else {
             apply(false);
@@ -43570,6 +43615,20 @@
                     openTweaks: open,
                     fromReview: true,
                     onChoose: (pickDest, ids) => {
+                        /* Refuse BEFORE anything is mutated. _calReviewApplyApprove
+                           runs the same check, but by then _calResolveTweaksDone
+                           has already marked the ticked requests done and staged
+                           them -- so a refused approve would leave the thread
+                           resolved and the status where it was, which is the one
+                           outcome nobody asked for. */
+                        if (pickDest !== 'stay') {
+                            const _blocked = _calReviewBlockReason(post, comp, _calSmmApproveTo(pickDest));
+                            if (_blocked) {
+                                showNotify('Nothing to review yet', _blocked
+                                    + ' Nothing was changed — the change requests are still open.');
+                                return;
+                            }
+                        }
                         const resolvedBefore = {
                             video_comments: post.video_comments,
                             graphic_comments: post.graphic_comments,
@@ -43625,7 +43684,7 @@
         // brand-new post) or straight to the client. Only a client approval
         // stamps the client_<comp>_approved_at sign-off timestamp.
         let approveTo = _CAL_REVIEW_CFG[mode].approveTo;
-        if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+        if (mode === 'smm') approveTo = _calSmmApproveTo(dest);
         // Routing to Kasper means this component has now appeared in Kasper
         // review — record it on the post's cross-device kasper_seen column so
         // every device (each SMM, Kasper) treats it as no-longer-brand-new.
@@ -61966,16 +62025,44 @@
         requestAnimationFrame(() => menu.classList.add('open'));
         _sxrOpenStatusMenu = { pid, key: menuKey, comp: which, el: menu, triggerEl };
     }
+    /* ── The samples twin of the calendar's review-content gate ──────────
+       Mirrored per docs/features/SAMPLES_PARITY_LOG.md: a component cannot be
+       sent for review while the thing to review is empty. Samples carry only
+       video and thumbnail (no caption, no title), so only those two rules
+       apply, and both read the SAME media fields the calendar does --
+       asset_url and thumbnail_url -- which is why the content predicate is
+       _kasperCompReviewable rather than a samples-local copy of it. A second
+       copy is exactly the drift this log exists to prevent. */
+    const SXR_REVIEW_STATUSES = new Set(['For SMM Approval', 'Kasper Approval', 'Client Approval']);
+    function _sxrStatusNeedsContent(status) {
+        return SXR_REVIEW_STATUSES.has(_sxrNormStatus(status || ''));
+    }
+    function _sxrCompHasContent(post, comp) { return _kasperCompReviewable(post, comp); }
+    function _sxrReviewBlockReason(post, comp, status) {
+        if (!_sxrStatusNeedsContent(status)) return '';
+        if (_sxrCompHasContent(post, comp)) return '';
+        if (comp === 'video') return 'Add the video URL before sending it for approval.';
+        if (comp === 'graphic') return 'Add the thumbnail URL before sending it for approval.';
+        return '';
+    }
+    const SXR_COMP_LABEL = { video: 'Video', graphic: 'Thumbnail' };
     function _sxrStatusPick(pid, status, comp) {
         if (_isClientLink) return;
         _sxrCloseStatusMenu();
         const which = comp || '';
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
-        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        /* Bucket created only once the move is going ahead -- an empty
+           _sxrPendingEdits entry is a full-card resend, same as the calendar. */
         if (which) {
             const key = which + '_status';
             if (post[key] === status) return;
+            const blocked = _sxrReviewBlockReason(post, which, status);
+            if (blocked) {
+                showNotify('Nothing to review yet', blocked);
+                return;
+            }
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
             post[key] = status;
             _sxrPendingEdits[pid][key] = status;
             post.status = computeSampleOverallStatus(post);
@@ -61983,9 +62070,20 @@
             _sxrMarkLocalStatus(pid, which);
         } else {
             if (post.status === status) return;
-            post.status = status;
-            SXR_COMPONENTS.forEach(c => { post[c + '_status'] = status; _sxrPendingEdits[pid][c + '_status'] = status; });
-            _sxrPendingEdits[pid].status = status;
+            const movable = SXR_COMPONENTS.filter(c => !_sxrReviewBlockReason(post, c, status));
+            const held = SXR_COMPONENTS.filter(c => !movable.includes(c));
+            if (!movable.length) {
+                showNotify('Nothing to review yet', 'Both parts of this sample are still empty, so there is nothing to send for approval.');
+                return;
+            }
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            movable.forEach(c => { post[c + '_status'] = status; _sxrPendingEdits[pid][c + '_status'] = status; });
+            post.status = computeSampleOverallStatus(post);
+            _sxrPendingEdits[pid].status = post.status;
+            if (held.length) {
+                showNotify('Sent without ' + held.map(c => String(SXR_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
             _sxrMarkLocalStatus(pid);
         }
         _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
@@ -62060,23 +62158,30 @@
         _sxrCloseStatusMenu();
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
-        const settable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
-        const skipped = SXR_COMPONENTS.filter(c => !settable.includes(c));
+        const linked = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
+        const settable = linked.filter(c => !_sxrReviewBlockReason(post, c, status));
+        const heldEmpty = linked.filter(c => !settable.includes(c));
+        const skipped = SXR_COMPONENTS.filter(c => !linked.includes(c));
+        if (!settable.length && heldEmpty.length) {
+            showNotify('Nothing to review yet', 'Every part you can set is still empty, so there is nothing to send for approval.');
+            return;
+        }
         if (!settable.length) {
             showNotify('Nothing to set', 'Neither component on this sample has a work item behind it, so there is nothing here to update.');
             return;
         }
         const apply = (dontAskAgain) => {
             if (dontAskAgain) { try { localStorage.setItem(_sxrSetAllSkipKey(status), '1'); } catch {} }
-            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
-            const edits = _sxrPendingEdits[pid];
+            const staged = {};
             let changed = false;
             for (const c of settable) {
                 const key = c + '_status';
                 if (_sxrNormStatus(post[key] || '') === status) continue;
-                post[key] = status; edits[key] = status; changed = true;
+                post[key] = status; staged[key] = status; changed = true;
             }
             if (!changed) return;
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            const edits = Object.assign(_sxrPendingEdits[pid], staged);
             post.status = computeSampleOverallStatus(post);
             edits.status = post.status;
             _sxrMarkLocalStatus(pid);
@@ -62084,6 +62189,10 @@
             post.updated_at = new Date().toISOString();
             _sxrRenderBody({ preserveScroll: true });
             _sxrFlushCardSave(pid);
+            if (heldEmpty.length) {
+                showNotify('Set without ' + heldEmpty.map(c => String(SXR_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
         };
         let skip = false;
         try { skip = localStorage.getItem(_sxrSetAllSkipKey(status)) === '1'; } catch {}
@@ -63160,6 +63269,11 @@
         errorActionIds: Object.create(null)
     };
     const _SXR_REVIEW_CFG = { client: { reviewStatus: 'Client Approval', approveTo: 'Approved' }, smm: { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' } };
+    /* One definition of where an SMM approval lands, so the pre-resolve guard
+       and the approve cannot disagree. Calendar twin: _calSmmApproveTo. */
+    function _sxrSmmApproveTo(dest) {
+        return dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+    }
     function _sxrReviewMode() { return (!_isClientLink && sxrState.view === 'smmreview') ? 'smm' : 'client'; }
     function _sxrReviewComponentActive(p, c, mode) { const cs = _sxrNormStatus(p[c + '_status'] || ''); if (cs === _SXR_REVIEW_CFG[mode].reviewStatus) return true; return mode !== 'smm' && cs === 'Tweaks Needed' && !_isClientLink; }
     function _sxrApprovalBadgeCount(mode) {
@@ -63571,6 +63685,16 @@
                     openTweaks: open,
                     fromReview: true,
                     onChoose: (pickDest, ids) => {
+                        /* Refuse before the tweak thread is touched -- see the
+                           calendar twin in _calReviewApprove. */
+                        if (pickDest !== 'stay') {
+                            const _blocked = _sxrReviewBlockReason(post, comp, _sxrSmmApproveTo(pickDest));
+                            if (_blocked) {
+                                showNotify('Nothing to review yet', _blocked
+                                    + ' Nothing was changed — the change requests are still open.');
+                                return;
+                            }
+                        }
                         const resolvedBefore = {
                             video_comments: post.video_comments,
                             graphic_comments: post.graphic_comments
@@ -63601,7 +63725,14 @@
         if (_isClientLink) { const cur = String(post[subKey] || '').trim().toLowerCase(); if (cur !== 'client approval' && cur !== 'tweaks needed') return; }
         const prev = Object.assign({ [subKey]: post[subKey], status: post.status, [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`], kasper_seen: post.kasper_seen }, resolvedBefore || {});
         let approveTo = _SXR_REVIEW_CFG[mode].approveTo;
-        if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+        if (mode === 'smm') approveTo = _sxrSmmApproveTo(dest);
+        /* Guarded before the kasper_seen stamp, or the sample is marked seen
+           for a review that never happened. Calendar twin: _calReviewApplyApprove. */
+        const _sxrBlocked = _sxrReviewBlockReason(post, comp, approveTo);
+        if (_sxrBlocked) {
+            showNotify('Nothing to review yet', _sxrBlocked);
+            return false;
+        }
         let kasperSeenCsv = null;
         if (approveTo === 'Kasper Approval') kasperSeenCsv = _sxrRecordKasperSeenOnPost(post, comp);
         post[subKey] = approveTo;
@@ -64582,6 +64713,11 @@
         if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') next = 'Tweaks Needed';
         else if (trigger === 'smm_resolved_last') next = (dest === 'kasper') ? 'Kasper Approval' : (dest === 'approved') ? 'Approved' : 'Client Approval';
         if (!next || post[subKey] === next) return false;
+        /* Resolving the last change-request auto-routes the component onward.
+           That is still sending it for review, so it obeys the same rule --
+           and returning false here is what the calendar twin does, so the
+           caller repaints instead of pretending the move happened. */
+        if (_sxrReviewBlockReason(post, which, next)) return false;
         post[subKey] = next;
         post.status = computeSampleOverallStatus(post);
         post.updated_at = new Date().toISOString();

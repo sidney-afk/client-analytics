@@ -153,5 +153,110 @@ ok(staleExempt.length === 0,
   'and no exemption names a function that no longer stages a status'
   + (staleExempt.length ? ' — stale: ' + staleExempt.join(', ') : ''));
 
+
+/* ---- 5. the gate runs BEFORE anything is mutated ------------------------ */
+
+/* Ordering, not presence. A gate that fires after the mutation it was meant to
+   prevent reports the refusal accurately and leaves the damage in place, which
+   is worse than no gate: the reader is told nothing happened. Both of these
+   were real -- Codex found them on #1272 -- so they are pinned by position. */
+function orderOk(fn, firstNeedle, secondNeedle) {
+  const src = stripComments(extractFunction(INDEX, fn), ' ');
+  const a = src.indexOf(firstNeedle), b = src.indexOf(secondNeedle);
+  return a >= 0 && b >= 0 && a < b;
+}
+ok(orderOk('_calStatusPick', '_calReviewBlockReason', '_calPendingEdits[pid] = {}'),
+  '_calStatusPick consults the gate BEFORE it creates the pending bucket — an empty bucket is not inert, _calFlushCardSave reads it as a card to write and resends the whole card from this tab\'s snapshot');
+ok(orderOk('_calReviewApprove', '_calReviewBlockReason', '_calResolveTweaksDone'),
+  '_calReviewApprove checks the content BEFORE it resolves the ticked change-requests — resolving first and refusing second marks tweaks done for an approval that never happened');
+ok(orderOk('_sxrStatusPick', '_sxrReviewBlockReason', '_sxrPendingEdits[pid] = {}'),
+  'and the samples twin creates its bucket after its gate too');
+ok(orderOk('_sxrReviewApprove', '_sxrReviewBlockReason', '_sxrResolveTweaksDone'),
+  'and the samples twin checks before resolving too');
+
+/* One destination function per surface, consulted by both the pre-resolve
+   guard and the approve. Two copies of that ternary is how the guard starts
+   answering a different question than the thing it guards. */
+for (const [approve, apply, helper] of [
+  ['_calReviewApprove', '_calReviewApplyApprove', '_calSmmApproveTo'],
+  ['_sxrReviewApprove', '_sxrReviewApplyApprove', '_sxrSmmApproveTo'],
+]) {
+  ok(new RegExp(helper).test(stripComments(extractFunction(INDEX, approve), ' '))
+    && new RegExp(helper).test(stripComments(extractFunction(INDEX, apply), ' ')),
+    approve + ' and ' + apply + ' agree on the destination via ' + helper + ' rather than each carrying its own copy');
+}
+
+/* ---- 6. Samples carries the same gate ----------------------------------- */
+
+/* docs/features/SAMPLES_PARITY_LOG.md: a review change made in the calendar is
+   NOT automatically made in the samples fork. Executed here rather than merely
+   logged, because a parity row is a promise and this is the proof. */
+const sxrSet = /const SXR_REVIEW_STATUSES = new Set\((\[[^\]]*\])\);/.exec(INDEX);
+if (!sxrSet) { console.log('FAIL  could not read the samples status vocabulary'); process.exit(1); }
+const sxrSandbox = [
+  'const SXR_STATUSES = ' + (/const SXR_STATUSES\s*=\s*(\[[^\]]*\]);/.exec(INDEX) || [])[1] + ';',
+  'const SXR_COMPONENTS = ' + (/const SXR_COMPONENTS = (\[[^\]]*\]);/.exec(INDEX) || [])[1] + ';',
+  'const SXR_REVIEW_STATUSES = new Set(' + sxrSet[1] + ');',
+  extractFunction(INDEX, '_sxrNormStatus'),
+  extractFunction(INDEX, '_kasperCompReviewable'),
+  extractFunction(INDEX, '_sxrCompHasContent'),
+  extractFunction(INDEX, '_sxrStatusNeedsContent'),
+  extractFunction(INDEX, '_sxrReviewBlockReason'),
+  'module.exports = { _sxrReviewBlockReason, SXR_COMPONENTS };',
+].join('\n');
+const sxrTmp = path.join(require('os').tmpdir(), 'sxr-review-needs-content-' + process.pid + '.js');
+fs.writeFileSync(sxrTmp, sxrSandbox);
+let sxrApi;
+try { sxrApi = require(sxrTmp); } finally { try { fs.unlinkSync(sxrTmp); } catch (e) {} }
+const sblock = sxrApi._sxrReviewBlockReason;
+
+ok(sxrApi.SXR_COMPONENTS.join(',') === 'video,graphic',
+  'samples carries video and thumbnail only — no caption and no title, so those two rules are the whole gate here');
+for (const st of ['For SMM Approval', 'Kasper Approval', 'Client Approval']) {
+  ok(!!sblock(empty, 'video', st) && !!sblock(empty, 'graphic', st),
+    'an empty sample component is refused for "' + st + '"');
+  ok(!sblock(full, 'video', st) && !sblock(full, 'graphic', st),
+    'and a sample that HAS its media moves freely to "' + st + '"');
+}
+for (const st of ['Tweaks Needed', 'Approved', 'In Progress']) {
+  ok(!sblock(empty, 'video', st), 'samples leaves "' + st + '" alone, same as the calendar');
+}
+ok(/_kasperCompReviewable/.test(stripNonCode(extractFunction(INDEX, '_sxrCompHasContent'))),
+  'and samples reads the SAME content definition rather than a second copy of it — asset_url and thumbnail_url are the same columns on both surfaces');
+
+/* The samples writer roster, derived exactly like the calendar's above. */
+const sxrWriterNames = new Set();
+const sre = /function (_sxr[A-Za-z0-9_]+)\s*\(/g;
+let sm;
+while ((sm = sre.exec(code))) {
+  const body = extractFunction(INDEX, sm[1]);
+  if (!body) continue;
+  const b = stripComments(body, ' ');
+  if (!/_sxrPendingEdits/.test(b)) continue;
+  if (!/_status/.test(b)) continue;
+  sxrWriterNames.add(sm[1]);
+}
+const SXR_WRITERS = ['_sxrStatusPick', '_sxrSetAllStatus', '_sxrApplyAutoStatus', '_sxrReviewApplyApprove'];
+const SXR_EXEMPT = {
+  _sxrReviewRequestTweak: "writes 'Tweaks Needed', a rejection",
+  _sxrFlushCardSave: 'the transport — it sends edits the writers above already staged and gated',
+  _sxrSyncStatusFromLinear: 'mirrors the status Linear already holds',
+};
+ok(sxrWriterNames.size >= SXR_WRITERS.length,
+  'the derived samples writer roster actually found the writers (' + sxrWriterNames.size + ' found: '
+  + [...sxrWriterNames].join(', ') + ')');
+for (const w of SXR_WRITERS) {
+  ok(sxrWriterNames.has(w), 'and the samples roster includes the known writer ' + w);
+}
+const sxrUnguarded = [...sxrWriterNames].filter(n =>
+  !/_sxrReviewBlockReason/.test(stripComments(extractFunction(INDEX, n), ' ')) && !SXR_EXEMPT[n]);
+ok(sxrUnguarded.length === 0,
+  'every samples function that stages a component status either consults the gate or is explicitly exempt'
+  + (sxrUnguarded.length ? ' — unclassified: ' + sxrUnguarded.join(', ') : ''));
+const sxrStaleExempt = Object.keys(SXR_EXEMPT).filter(n => !sxrWriterNames.has(n));
+ok(sxrStaleExempt.length === 0,
+  'and no samples exemption names a function that no longer stages a status'
+  + (sxrStaleExempt.length ? ' — stale: ' + sxrStaleExempt.join(', ') : ''));
+
 if (failures) { console.log('\n' + failures + ' check(s) failed.'); process.exit(1); }
-console.log('\ncalendar review-needs-content checks passed');
+console.log('\ncalendar + samples review-needs-content checks passed');

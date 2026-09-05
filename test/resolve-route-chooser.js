@@ -77,8 +77,18 @@ check('chooser resolves ticked, THEN runs the real approve',
 check('no open change-requests → routes directly (unchanged path)',
   /_calReviewApplyApprove\(pid, comp, dest\);/.test(approve), true);
 const apply = grabFunc('_calReviewApplyApprove');
-check('apply still routes the SMM dest (client / approved / kasper)',
-  /dest === 'client' \? 'Client Approval' : \(dest === 'approved' \? 'Approved' : 'Kasper Approval'\)/.test(apply), true);
+/* The routing ternary moved into _calSmmApproveTo when the empty-content review
+   gate landed (2026-09-05). _calReviewApprove has to know the destination BEFORE
+   it resolves the ticked change-requests -- a refused approve must not leave them
+   marked done -- and two copies of the rule is how a guard starts answering a
+   different question than the thing it guards. So the routing is pinned by
+   EXECUTING the shared helper, which is stronger than the regex it replaces, and
+   apply is pinned to asking it rather than carrying its own copy. */
+const smmDest = new Function(grabFunc('_calSmmApproveTo') + '\nreturn _calSmmApproveTo;')();
+check('apply routes the SMM dest through the shared helper', /_calSmmApproveTo\(dest\)/.test(apply), true);
+check("routes 'client' to Client Approval", smmDest('client'), 'Client Approval');
+check("routes 'approved' to Approved", smmDest('approved'), 'Approved');
+check('routes anything else to Kasper Approval', smmDest('kasper'), 'Kasper Approval');
 
 // ---- checklist only when there is a real choice (2+) ----
 console.log('\n— checklist shows only when there is a real choice (2+ open) —');

@@ -370,7 +370,16 @@ const CANDIDATES = new Map([
     // credential guard unchanged and still running first. Read-side plus one
     // additive response field; no migration, no new import, file count
     // unchanged at 5.
-    source: '1d524a813981e75dd562eda6f9a52c8f3ba8e65fa5a8cda2c8db2e950178c3a1',
+    // Amended before deploy for two review P1s on #1287, both in the write
+    // path: the write target is now named PER SLOT (a post's slots can sit on
+    // different batch rows, so a panel-wide target aimed the Frame folder
+    // editor at a row whose column is empty -- clearing the link on screen
+    // would have written a blank over a blank and the value would have come
+    // back), and a bucket carrying another post's work is never offered for an
+    // empty slot (73 of 1,127 buckets hold more than one post; one holds
+    // seven). One extra client-pinned read, asked only when the post spans
+    // more than one bucket.
+    source: '164b8bc79ec1daafc970445e97f0afdac44933398aa48c2de98432324c4f2881',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

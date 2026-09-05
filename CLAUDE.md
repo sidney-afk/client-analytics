@@ -19,13 +19,24 @@ the file itself:
 f27capture
 ```
 
-That is the whole instruction. Give them that word. It is aliased in the owner's
-`$PROFILE` (recorded in `AGENTS.md`); if the alias ever misses, the same script
-is:
+That is the whole instruction. Give them that word.
+
+**RUN IT FROM ANY DIRECTORY — there is no `cd` to work out, and the owner should
+never be left wondering where to launch PowerShell from.** The script cds into
+the repo itself and loads its own `PROJECT_REF` / `SUPABASE_ACCESS_TOKEN` from a
+sibling file in `.syncview\` (see `AGENTS.md`), and every path it uses is
+absolute. A fresh PowerShell window at the default `C:\Users\<name>` prompt is
+exactly right.
+
+It is aliased in the owner's `$PROFILE`; if the alias ever misses, this is the
+same script, and it is equally directory-independent:
 
 ```powershell
 & "$env:USERPROFILE\.syncview\f27-capture.ps1"
 ```
+
+If a session is ever asked "where do I run this from", the answer is *anywhere* —
+do not send the owner hunting for a folder.
 
 **Do NOT** hand them the raw PowerShell from
 `docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md` step by step, do NOT ask for or

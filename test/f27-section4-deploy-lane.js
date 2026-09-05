@@ -379,7 +379,7 @@ const CANDIDATES = new Map([
     // empty slot (43 of 1,567 buckets hold more than one post; one holds
     // seven). One extra client-pinned read, asked only when the post spans
     // more than one bucket.
-    source: '164b8bc79ec1daafc970445e97f0afdac44933398aa48c2de98432324c4f2881',
+    source: 'd2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

@@ -61,6 +61,42 @@ it cannot attest its own input or deployed code. Only a separately reviewed
 read receipt can upgrade a finding to `LIVE_READ`. This pass supplies no such
 population receipt. No real snapshots are committed.
 
+### Eligibility evidence for missing-work counts
+
+`workloadRoster` supplies `complete:true` plus arrays `clientNames`,
+`videoEditors`, `graphicsEditors`, and `inactiveEditors`, captured for the
+tested browser source. These are the **actual Workload name allowlists**, not
+a substitute inferred from a member's role or team. Every array must be supplied;
+an empty array is an explicit empty roster, and a missing array is unknown.
+Native records supply `workloadClientName` and, when assigned,
+`workloadAssigneeName`: the projected names the board predicates would consume.
+The ordinary `members` comparison remains a separate membership discrepancy.
+
+`workloadPlanDate` is the saved plan lookup result for the **exact projected
+board ID**, not a newly inferred migration fallback. A date proves a saved plan;
+explicit null or empty string proves no override. Omission means unknown.
+Resolve it using a complete plan snapshot and the actual `wlPlanDate` contract;
+do not invent a fallback between native and provider keys. A known due date or
+plan day makes unassigned work eligible; In Progress remains eligible without
+dates. Only an explicitly absent due date **and** absent plan prove undated Todo
+or tweak work excluded. Assigned undated work has its own visible strip.
+
+The comparator executes the extracted `wlIsAllowedClient`, `wlIsAllowedEditor`,
+and `wlApplyData` against these inputs. It reports `workloadEligibilityCounts`
+as eligible/excluded/unknown. Only proven eligible work absent from a complete,
+unambiguous Workload input increments `native_missing_from_workload`. Known
+exclusions increment `legitimate_workload_exclusion`; missing eligibility proof
+increments `workload_eligibility_unproven` and, if absent, `workload_absence_unproven`.
+A missing or incomplete Workload snapshot never proves absence, even when the
+work is eligible. Old snapshots without eligibility evidence remain accepted
+but cannot establish missing-work totals. All live population verdicts remain
+UNPROVEN regardless of the input's self-declared completeness.
+
+`eligibility-checks.js` reproduces the reviewed false-positive counts with
+synthetic fixtures and is included in the finite runner. `C29` independently
+checks real exact-key plan lookup with conflicting old/native entries and a
+clear; it implements no compatibility lookup or migration.
+
 ## Evidence boundaries
 
 - `OFFLINE_TEST`: comparator, extracted loader/bucketing/date/flag helpers, and

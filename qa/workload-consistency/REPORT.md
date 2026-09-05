@@ -3,6 +3,51 @@
 Workload is not yet proven usable without Linear. This pass adds executable,
 synthetic evidence without changing application code. Five native-independent
 product contracts remain red; live affected-record counts are **UNPROVEN**.
+These are qualified source/simulation gaps, not five measured production incidents.
+
+## Bounded eligibility correction after independent review
+
+Review of draft head `519b49097b298fe1939338db8843574649ef805e` identified a
+confirmed **P2 tooling defect**: the comparator counted every absent active
+native child as missing from Workload without proving roster/date eligibility.
+Its own C17 already showed that unassigned-undated Todo and off-team work can
+legitimately be excluded. The comparator correction changes no application or
+backend source and performs no live reads.
+
+The same 16 correction fixtures give **7 PASS / 9 FAIL on the reviewed
+comparator**, and **16 PASS / 0 FAIL after correction**. `evidence.json` →
+`eligibilityCorrection` preserves exact expected/actual counts, the baseline
+head and comparator/test hashes, and corrected helper/tool hashes and times.
+The final targeted finite runner gives **45 PASS / 0 FAIL**; the five cutover
+contracts still give **5 FAIL**, exit 1. Required map/truth checks passed; the
+full suite was not repeated, per the bounded review mandate. Earlier full-suite
+and serving evidence below remains historical and is not refreshed by this pass.
+
+| Missing-observation case | Correct classification |
+| --- | --- |
+| Assigned, correct roster/team and client, complete Workload input | One genuinely missing eligible item |
+| Unassigned Todo, both deadline and saved plan explicitly absent | One legitimate exclusion; zero missing |
+| Unassigned with a deadline, a saved plan, or In Progress status | Still eligible; do not subtract all unassigned items |
+| Name excluded by that row's actual team allowlist, or client excluded by the complete client roster | One legitimate exclusion; zero missing |
+| Missing/incomplete roster, unknown owner, projected client name, or needed plan lookup | Unknown eligibility; zero asserted missing/excluded |
+| Proven eligible, incomplete Workload input | Absence unproven; zero asserted missing |
+| Observed filtered row | A filtering discrepancy only if canonical work is eligible; legitimate exclusions stay separate |
+
+The comparator now executes the actual client/editor predicates and bucket
+function with explicit policy evidence. Member role/team discrepancies remain
+separate: those fields do not replace Workload's current name allowlists.
+The original synthetic example still has one missing eligible native-only item;
+it now supplies the roster and projected-name/plan evidence that justifies it.
+Snapshots lacking that evidence now report unknown instead of false missing totals.
+
+The five retained cutover tests mean precisely: the loader ignores native-only
+population; forced refresh needs the provider; a saved-plan identity loss is
+**conditional on changing the displayed key without compatibility**; repository
+validator source rejects native IDs through its mirror lookup; and static-roster
+membership is simulated. None is a measured live incident count. New C29 proves
+that unchanged old IDs retain their saved dates, native-key entries resolve
+independently, conflicting keys are not merged, and clearing the native key does
+not fall back to or erase the old entry. No identity migration was implemented.
 
 ## Source and serving provenance
 
@@ -51,7 +96,7 @@ numbers. They were re-found and inspected in this checkout.
   failures outside this task, not Workload product results. Shared tests were
   neither repaired nor rerun. Disposable PostgreSQL sub-lanes were skipped;
   a zero suite exit does not imply those database proofs ran.
-- **OFFLINE_TEST:** final finite runner **28/28 PASS**, exit 0. Desired native
+- **OFFLINE_TEST (initial pass):** finite runner **28/28 PASS**, exit 0. Desired native
   independence contracts **0 PASS / 5 FAIL**, exit 1. Exact timestamps, source
   hashes, and fixed expected/actual results are in `evidence.json`.
 - The existing Workload Linear helper suite logged a missing diagnostic-helper

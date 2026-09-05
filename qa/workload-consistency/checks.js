@@ -207,6 +207,18 @@ async function runChecks() {
     s.provider[0].nativeId = ''; s.provider[0].linearId = '';
     assert.equal(count(s, 'provider_only'), 0); assert.equal(count(s, 'record_identity_unproven'), 1);
   });
+  await check('C29-exact-plan-keys-conflict-and-clear-independently', () => {
+    const ctx = boardContext();
+    const legacy = issue(), native = issue({ id: 'native-1', linearId: legacy.id });
+    ctx.wlState.planByIssueId.set(legacy.id, '2026-09-08');
+    ctx.wlState.planByIssueId.set(native.id, '2026-09-09');
+    assert.equal(ctx.wlPlanDate(legacy), '2026-09-08');
+    assert.equal(ctx.wlPlanDate(native), '2026-09-09');
+    ctx.wlState.planByIssueId.delete(native.id);
+    assert.equal(ctx.wlPlanDate(native), '');
+    assert.equal(ctx.wlPlanDate(legacy), '2026-09-08');
+  });
+  results.push(...require('./eligibility-checks').runEligibilityChecks());
   return results;
 }
 module.exports = { runChecks };

@@ -2,11 +2,14 @@
 function snapshot() {
   const native = { id: 'native-1', linearId: 'provider-1', legacyIds: ['old-native-1'],
     ownerId: 'member-1', scope: 'synthetic-scope', status: 'todo',
-    dueDate: '2026-09-10', kind: 'video', team: 'video', archived: false, container: false };
+    dueDate: '2026-09-10', kind: 'video', team: 'video', archived: false, container: false,
+    workloadClientName: 'Synthetic Client', workloadAssigneeName: 'Synthetic Video', workloadPlanDate: null };
   const row = { id: 'workload-1', nativeId: native.id, linearId: native.linearId,
     scope: native.scope, ownerId: 'legacy-member-1', kind: 'video', status: 'Todo',
     dueDate: native.dueDate, dateSemantics: 'canonical_due', visible: true };
   return { schema: 'workload-consistency/v1',
+    workloadRoster: { complete: true, clientNames: ['Synthetic Client'], videoEditors: ['Synthetic Video'],
+      graphicsEditors: ['Synthetic Graphics'], inactiveEditors: ['Synthetic Inactive'] },
     coverage: Object.fromEntries(['native', 'production', 'provider', 'workload', 'calendar', 'samples', 'members', 'expected']
       .map(s => [s, { complete: true }])),
     native: [native], production: [{ ...row, id: native.id, status: native.status }],

@@ -1,7 +1,7 @@
 'use strict';
 // Pure normalized-snapshot comparison. No fetch, file writes, raw rows or IDs in
 // the public result. Input adapters must establish semantics and completeness.
-const { cardStatus, workStatus } = require('./source-harness');
+const { cardStatus, workStatus, workloadEligibility } = require('./source-harness');
 const own = (row, key) => Object.prototype.hasOwnProperty.call(row, key);
 const text = value => String(value == null ? '' : value).trim();
 const day = value => text(value).slice(0, 10);
@@ -15,6 +15,7 @@ function compare(snapshot) {
     throw new Error('INVALID_NORMALIZED_SNAPSHOT');
   }
   const counts = Object.create(null), findings = [];
+  const workloadEligibilityCounts = { eligible: 0, excluded: 0, unknown: 0 };
   // Ordinal references reveal neither identities nor hashes of enumerable IDs.
   const refs = new Map();
   const reference = row => {
@@ -119,18 +120,26 @@ function compare(snapshot) {
     if (person && Array.isArray(person.teams) && Array.isArray(person.roles)
         && (!person.teams.includes(native.team) || !person.roles.includes('creative'))) add('owner_role_or_team_mismatch', native);
     if (typeof native.archived !== 'boolean' || typeof native.container !== 'boolean') {
+      workloadEligibilityCounts.unknown++;
       add('structural_visibility_unproven', native); continue;
     }
-    if (!own(workStatus, native.status)) { add('native_status_unproven', native); continue; }
+    if (!own(workStatus, native.status)) { workloadEligibilityCounts.unknown++; add('native_status_unproven', native); continue; }
     if (native.archived || native.container || !['todo', 'in_progress', 'tweak'].includes(native.status)) {
+      workloadEligibilityCounts.excluded++;
       add('legitimate_workload_exclusion', native); continue;
     }
     if (!text(native.linearId)) add('native_only', native);
     if (!matches.production?.length) add(complete('production') && !ambiguousLinks.get(native).has('production') ? 'native_missing_from_production' : 'production_absence_unproven', native);
-    if (!matches.workload?.length) add(complete('workload') && !ambiguousLinks.get(native).has('workload') ? 'native_missing_from_workload' : 'workload_absence_unproven', native);
+    const eligibility = workloadEligibility(native, snapshot.workloadRoster).state;
+    workloadEligibilityCounts[eligibility]++;
+    if (eligibility === 'excluded') add('legitimate_workload_exclusion', native);
+    if (eligibility === 'unknown') add('workload_eligibility_unproven', native);
+    if (!matches.workload?.length && eligibility !== 'excluded') add(eligibility === 'eligible'
+      && complete('workload') && !ambiguousLinks.get(native).has('workload') ? 'native_missing_from_workload' : 'workload_absence_unproven', native);
     for (const row of matches.workload || []) {
-      if (row.visible === false) add('native_stored_but_filtered', row, 'workload');
-      else if (row.visible !== true) add('render_visibility_unproven', row, 'workload');
+      if (row.visible === false && eligibility === 'eligible') add('native_stored_but_filtered', row, 'workload');
+      else if (row.visible === true && eligibility === 'excluded') add('workload_visibility_policy_mismatch', row, 'workload');
+      else if (typeof row.visible !== 'boolean') add('render_visibility_unproven', row, 'workload');
     }
     if ((matches.workload || []).length > 1) add('duplicate_workload_binding', native);
     // Expected bindings are explicit: a deliverable need not appear in BOTH
@@ -155,6 +164,6 @@ function compare(snapshot) {
   return { schema: snapshot.schema, evidence: 'OFFLINE_TEST',
     populationVerdict: 'UNPROVEN', // Normalized input cannot attest its own origin.
     inputCounts: Object.fromEntries(surfaces.map(s => [s, snapshot[s].length])),
-    counts, findings };
+    workloadEligibilityCounts, counts, findings };
 }
 module.exports = { compare };

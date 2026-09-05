@@ -388,7 +388,7 @@ const CANDIDATES = new Map([
     // "offer the wrong row" rather than "offer nothing". Unreachable on today's
     // data (largest bucket 60 rows, largest split post's candidates 33, limit
     // 800). One comparison; no new query, no new import, file count 5.
-    source: '3c3a5a862963977317923d8ad76f5d3e809531d0117fcf0d8f45058c7c0d9e99',
+    source: '6a39a2bc8741eafc4cfdaed47aabd74d95b8dab70d8092ceccc1ac004781eab5',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

@@ -1236,8 +1236,34 @@ function deliverableRow(
     // no opinion to express about either. Omitting the keys is how the soft
     // closed builder below already behaves, and it is why archived drill rows
     // kept their file link through B1 passes while operational rows did not.
+    // ONE CARD, ONE SOURCE (2026-09-05).
+    //
+    // `origin` and `card_id` are two halves of one fact -- which card, on
+    // which surface -- and this resolved them from two different places. In
+    // the native-batch branch `card_id` fell back to `preferred.card_id` while
+    // `origin` fell back to the literal 'manual' and never consulted
+    // `preferred.origin`. So a native row with no stored origin but a matched
+    // card was written with somebody else's card id under a filing value that
+    // describes no surface at all.
+    //
+    // That row can then never receive an artifact: production_artifact_write
+    // routes the card projection on `origin`, finds no arm for 'manual', and
+    // raises artifact_card_projection_scope_invalid on EVERY attach, rolling
+    // the whole write back. Reported by the owner 2026-09-05 on one sub-issue
+    // of a 32-child post whose 31 siblings all carry origin='calendar';
+    // measured the same day, 7 live rows are in this shape estate-wide.
+    //
+    // The origin now follows the card id: when the stored card id is kept, the
+    // stored origin is kept beside it; when `preferred`'s card is adopted, so
+    // is `preferred`'s origin. 'manual' remains the answer only where there is
+    // no card to describe, which is what it means.
+    //
+    // migrations/2026-09-05-artifact-card-binding-first.sql repairs the READ
+    // side for rows already written this way. This stops new ones.
     origin: nativeBatchId
-      ? (clean(alreadyStored.origin) || 'manual')
+      ? (clean(alreadyStored.card_id)
+          ? (clean(alreadyStored.origin) || 'manual')
+          : (preferred ? preferred.origin : (clean(alreadyStored.origin) || 'manual')))
       : (preferred ? preferred.origin : 'manual'),
     card_id: nativeBatchId
       ? (clean(alreadyStored.card_id) || (preferred ? preferred.card_id : null))

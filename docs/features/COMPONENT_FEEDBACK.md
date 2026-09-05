@@ -136,12 +136,23 @@ before a guard snapshot fixes that readiness error; the actual behavior suite
 then passed **168/168**, retaining exact whole-model equality and all global
 no-write/console assertions. No runtime keyboard code was changed.
 
-Pixel `row context menu inventory` remains open. An isolated run serving the
-captured base's exact `index.html` passed the unchanged behavior suite, but the
-base pixel attempt stopped earlier at an element-detached screenshot. The pixel
-red is not established as a baseline defect; product regression versus timing or
-test infrastructure remains UNPROVEN. No assertion was weakened and no unrelated
-context-menu code was changed. No second full-house run was performed.
+The pixel `row context menu inventory` red is now classified and corrected.
+Bounded actual-menu comparisons on exact base `731e7c2` and candidate `294b359`
+reproduced the same Project-row failure: leading icon and shortcut match, but the
+shipped menu deliberately omits the reference artifact's submenu arrow because
+cross-client moving is unsupported. The old comparator combined every SVG path
+in the row and misreported that arrow difference as icon drift.
+
+The corrected comparator checks leading icons, labels and shortcuts exactly,
+keeps submenu-arrow equality for the other rows, and requires Project to remain
+disabled without an action/submenu. A real Project click must explain its refusal,
+open no picker and preserve every issue field. Fourteen offline comparator checks
+include thirteen negative corruptions; the actual full pixel suite now passes
+in **light and dark**, including global no-write and console checks. Initial
+screenshots also wait for the existing read phases to settle; no screenshot error
+is swallowed or retried. The earlier base screenshot-detachment receipt remains
+historical evidence, superseded for menu classification by the bounded comparison.
+No runtime context-menu code changed and no second full-house run was performed.
 
 The coordinator owns the separate no-loss/history and monitoring work. Correlate
 source acceptance, reader visibility, link validity and mirror state separately;

@@ -13,6 +13,8 @@ Mapped feedback: `docs/features/COMPONENT_FEEDBACK.md` owns the draft read contr
 component source projection; `test/component-feedback-read.js` executes its real
 handler; `docs/syncview-design/tests/prod-feedback-browser.js` tests the actual
 component renderer, loader and focus behavior with fictional transport.
+`test/prod-context-menu-pixel-contract.js` preserves the pixel comparator's
+icon, shortcut and explicit submenu/refusal contracts.
 
 | Path | What it is |
 |---|---|

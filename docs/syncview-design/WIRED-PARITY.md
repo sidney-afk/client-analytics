@@ -5,6 +5,9 @@ Draft source addition, 2026-09-05: the existing comment panel becomes **Feedback
 read-only Calendar/Samples notes. Incomplete sources stay explicit. This is not
 live history/zero-loss proof; contract and finite evidence are in
 `docs/features/COMPONENT_FEEDBACK.md`.
+The bounded follow-up classifies Project's absent submenu arrow as an existing
+unsupported-action contract, preserves exact icon/submenu/refusal assertions, and
+passes the actual pixel suite in light/dark. It changes tests only.
 
 Source of visual truth: `docs/syncview-design/SyncView.html`. Runtime authority and native-write
 truth come from the current source, gateway contract, and an immediate `prod_authority` readback;

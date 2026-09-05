@@ -7,9 +7,13 @@ All times are UTC unless noted.
 Isolated from captured main `731e7c248fd8c055a577e7c7f40a81236532250c`.
 Adds authorized exact-component source reads beside canonical comments, safe
 display metadata and explicit incomplete states. No migration, writer, flag,
-provider, import, live data read, deploy or merge. Finite actual-handler and
+provider, import, deploy or merge. Finite actual-handler and
 fictional browser coverage, compatibility and rollback are recorded in
 `docs/features/COMPONENT_FEEDBACK.md`; live serving/history/zero loss remain open.
+Required house verification used its existing locked read-only observation lanes.
+Its structure/readiness and Project-menu comparator failures were corrected in
+tests, preserving mutation assertions; behavior passed 168/168 and full pixel
+checks passed in light/dark. No live business mutation occurred.
 
 ## 2026-08-31 — Deploy: a card can be completed from the card
 

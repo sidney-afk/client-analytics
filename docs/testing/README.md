@@ -9,6 +9,9 @@ Mapped component feedback adds the offline actual-handler suite
 `test/component-feedback-read.js` and the fictional Chromium component suite
 `docs/syncview-design/tests/prod-feedback-browser.js` (fast Production gate).
 Scope, limits and deployment dependencies: `docs/features/COMPONENT_FEEDBACK.md`.
+`test/prod-context-menu-pixel-contract.js` executes the actual pixel comparator;
+its negative controls keep icon and submenu regressions red while respecting the
+existing unsupported Project action.
 
 | Contract | Applies to | Rule | Canonical text |
 |---|---|---|---|

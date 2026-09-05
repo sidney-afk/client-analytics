@@ -56,3 +56,6 @@ Full missing-source repair acceptance remains red while the atomicity capability
 is absent. `calendar-recovery-races.js` records seven positive safety holds
 separately from its still-failing complete-repair requirements; a withheld
 source commit is never counted as a successfully executed lifecycle race.
+`calendar-recovery-contract.js` checks the current server fingerprint-conflict
+and old-metadata holds. Compatible receipt mocks require the explicit
+`CAL_RECOVERY_COMPATIBLE_RECEIPTS=1` control; they are not current-server proof.

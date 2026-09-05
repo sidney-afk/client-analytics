@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {Store,open,panel,snap,SOURCE,OUT,body,newer,Harness,ui,ID}=require('./run');
 const {CLIENTS,clone}=require('./mock-backend');
 class SplitStore extends Store {
- constructor(outcome){super('calendar','tweak',null);this.outcome=outcome;}
+ constructor(outcome){super('calendar','tweak',null);this.outcome=outcome;this.compatibleReceipts=process.env.CAL_RECOVERY_COMPATIBLE_RECEIPTS==='1';}
  async handle(route,role,origin){
   const q=route.request(),url=new URL(q.url());let payload;try{payload=q.postDataJSON();}catch{}
   if(q.method()==='GET'&&url.pathname==='/rest/v1/calendar_posts'&&url.searchParams.has('id')){
@@ -19,6 +19,12 @@ class SplitStore extends Store {
    if(payload.operation==='comment'&&r){
     const original=this.feedbackWrites.find(w=>w.transport==='native'&&w.body.request_id===payload.request_id)?.body;
     assert.deepEqual(payload,{...original,reconcile_only:true},'readback uses byte-equivalent original fingerprint fields');
+    if(!this.compatibleReceipts){
+     // Current production-write add fingerprints include action/CAS-null keys
+     // omitted by reconcileEntityOperation. Actual stored add receipts conflict.
+     this.records.push({action:'current_receipt_fingerprint_conflict'});
+     return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({ok:false,reconcile_only:true,outcome:'conflict',error:'intent_conflict',row:this.native.find(n=>n.id===payload.id),comment:null})});
+    }
     const current=clone(this.comments.find(c=>c.native_comment_id===payload.comment.native_comment_id)),row=clone(this.native.find(n=>n.id===payload.id));
     if(this.readFault==='native-held')await new Promise(resolve=>this.pending.push(resolve));
     if(this.readFault==='native-owner')row.client_slug=CLIENTS[1].slug;
@@ -57,7 +63,7 @@ async function pending(h,b){const s=await open(h,b,'calendar');await (await pane
 async function retry(s){await recovery(s).getByRole('button',{name:'Retry card sync',exact:true}).click();await ui.until(()=>s.page.evaluate(()=>[..._reviewDraftRecords.values()].every(c=>!c.recovering)),'read/recovery settles');}
 async function guards(h,b){assert.equal(b.blocked.length,0);assert.deepEqual(h.sessions.flatMap(s=>s.errors),[]);assert.equal(b.comments.filter(c=>c.body===body).length,1,'one original native comment');}
 async function main(){
- const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',groups:[],browser:h.browser.version(),indexSha256:require('node:crypto').createHash('sha256').update(h.index).digest('hex')};
+ const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',groups:[],receiptModel:process.env.CAL_RECOVERY_COMPATIBLE_RECEIPTS==='1'?'compatible receipt control; current server dependency remains':'current add/reconcile fingerprint conflict',browser:h.browser.version(),indexSha256:require('node:crypto').createHash('sha256').update(h.index).digest('hex')};
  try{for(const outcome of (process.env.CAL_RECOVERY_OUTCOMES||'partial,lost,refused').split(',')){
   assert.ok(['partial','lost','refused'].includes(outcome));
   const b=new SplitStore(outcome);let s=await open(h,b,'calendar');

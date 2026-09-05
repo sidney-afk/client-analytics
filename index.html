@@ -43511,6 +43511,8 @@
             ? 'This earlier attempt has no complete receipt metadata. Your original text is kept; its saved state needs review.'
             : e && e.message === 'review_atomic_source_repair_unavailable'
                 ? 'Your feedback is saved, but its Calendar copy could not be repaired safely. Your original text is kept; this needs review.'
+            : e && ['review_native_conflict', 'review_source_conflict', 'review_binding_changed', 'review_receipt_mismatch'].includes(e.message)
+                ? 'Feedback could not be confirmed because the saved version, receipt or card binding differs. Your original text is kept; this needs review.'
             : 'Feedback could not be confirmed. Your text is kept; retry when the connection recovers. If this continues, the saved feedback or its card binding needs review.'; }
         finally { ctx.recovering = false; if (_reviewDraftCurrent(ctx)) _calRenderBody({ preserveScroll: true }); }
     }
@@ -43585,6 +43587,7 @@
                 body: JSON.stringify(Object.assign({}, payload, { reconcile_only: true }))
             });
             const result = await response.json(); check();
+            if (!response.ok && response.status !== 409) throw new Error('review_native_read_unavailable');
             const row = result.row, comment = result.comment;
             if (!response.ok || result.ok !== true || result.reconcile_only !== true || result.outcome !== 'committed_exact'
                 || !row || row.id !== payload.id || row.card_id !== ctx.pid || row.client_slug !== ctx.slug

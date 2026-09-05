@@ -6,7 +6,10 @@ const {SplitStore,pending,fresh,retry,guards}=require('./calendar-recovery-acces
 const {SOURCE,OUT,Harness,ui,body,ID}=require('./run');
 const {clone}=require('./mock-backend');
 async function main(){
- const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',groups:[],safetyHolds:[],indexSha256:require('node:crypto').createHash('sha256').update(h.index).digest('hex')};
+ // Isolate the atomicity requirement behind an explicitly compatible receipt
+ // control. This is NOT a claim that current server fingerprints interoperate.
+ process.env.CAL_RECOVERY_COMPATIBLE_RECEIPTS='1';
+ const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',receiptModel:'compatible-control-only; current server conflicts',groups:[],safetyHolds:[],indexSha256:require('node:crypto').createHash('sha256').update(h.index).digest('hex')};
  const run=async(name,fn)=>{try{await fn();report.groups.push({name,status:'PASS'});console.log('PASS '+name);}catch(e){report.groups.push({name,status:'FAIL',error:e.message});console.log('FAIL '+name+': '+e.message);}finally{await h.closeSessions();}};
  try{
   for(const comp of ['video','graphic'])for(const cell of [null,''])await run(comp+' verified '+(cell===null?'null':'empty-string')+' source cell',async()=>{

@@ -21,6 +21,8 @@ The bounded frontend extension and legacy-debt limits live in
 `docs/ops/CALENDAR_FEEDBACK_RECONCILIATION.md`.
 `qa/feedback-drafts/calendar-recovery-races.js` preserves nullable-cell, alias and
 native/source race acceptance controls, including unresolved failures.
+`qa/feedback-drafts/calendar-recovery-contract.js` verifies visible safe holds
+under the current server receipt-fingerprint incompatibility.
 
 First Samples release composition and held live gates:
 `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts

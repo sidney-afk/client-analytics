@@ -448,22 +448,28 @@ const receiptsMeta = { log: '', positions: [] };
        heading is the one exemption, the shape the log already uses for a
        deploy that did not happen.
 
-   Two ways a heading-only finding is softened, neither of which applies to an
+   ONE way a heading-only finding is softened, and it does not apply to an
    unreadable TABLE (a concrete record the guard is blind to is always a
-   failure):
-     - the section names run ids (run `<id>`) and every one of them has a
-       parsed receipt elsewhere in the log: the deploy is readable, it is just
-       recorded in another entry, so nothing is asked;
-     - the section's entry is dated strictly BEFORE the newest readable
-       receipt: it cannot be the newest deploy, so it cannot make the row
-       stale, and it is reported as a note rather than a failure. The log's own
-       "Deploys #9-#13 — GAP" section (2026-08-05 entry) is exactly this: four
-       of its five runs were never receipted and never will be, and failing on
-       it forever would teach people to ignore this check. A section with no
-       usable entry date cannot be placed in time and is NOT softened. */
-function unreadableDeployEntries(log, receiptPositions, receiptRuns, newestDate) {
+   failure): the section's entry is dated strictly BEFORE the newest readable
+   receipt, so it cannot be the newest deploy, cannot make the row stale, and
+   is reported as a note rather than a failure. The log's own "Deploys #9-#13 —
+   GAP" section (2026-08-05 entry) is exactly this: four of its five runs were
+   never receipted and never will be, and failing on it forever would teach
+   people to ignore this check. The entry date is the section's OWN `##`
+   heading when it is one, else the nearest `##` above it -- never the entry
+   before it, which is what a slice that stops short of the heading reads in
+   this mixed-order file (Codex, fifth round on #1306). A section with no
+   usable entry date cannot be placed in time and is NOT softened.
+
+   There is deliberately NO "readable by reference" softening. A first draft
+   let a section pass when every run id it mentioned had a receipt elsewhere;
+   Codex showed the obvious counter-example, `### Deploy #40 — supersedes run
+   <known id>`, which mentions a receipted run while recording a deploy nobody
+   can read. A mention is not an identity, and no text rule can tell "this is
+   run X" from "this comes after run X". A heading that names a deploy carries
+   its own receipt, or does not call itself a deploy. */
+function unreadableDeployEntries(log, receiptPositions, newestDate) {
     const out = [];
-    const runsKnown = receiptRuns || new Set();
     const heads = [];
     const hre = /^(#{2,4}) [^\n]*/gm;
     let m;
@@ -490,15 +496,14 @@ function unreadableDeployEntries(log, receiptPositions, receiptRuns, newestDate)
         const unreadableRows = Math.max(0, looseRows - strictRows);
         const headSaysDeploy = (namesSection4(h.text) || underSection4) && /deploy/i.test(h.text)
             && !/NOT DISPATCHED/i.test(h.text);
-        let noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
-        if (noReceiptUnder) {
-            const named = [...log.slice(h.at, treeEnd).matchAll(/[Rr]un\s+`(\d{6,})`/g)].map(x => x[1]);
-            if (named.length && named.every(id => runsKnown.has(id))) noReceiptUnder = false;
-        }
+        const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
         if (!unreadableRows && !noReceiptUnder) continue;
         const heading = h.text.replace(/^#+ /, '').slice(0, 120);
         const line = log.slice(0, h.at).split('\n').length;
-        const entryHead = log.slice(0, h.at).match(/(?:^|\n)## (\d{4}-\d{2}-\d{2})[^\n]*(?![\s\S]*\n## )/);
+        /* The section's own `##` heading when it is one, else the nearest `##`
+           above it. Slicing to h.at alone would stop short of a `##` heading and
+           read the PREVIOUS entry's date. */
+        const entryHead = lastMatch(log.slice(0, h.level === 2 ? blockEnd : h.at), /(?:^|\n)## (\d{4}-\d{2}-\d{2})/);
         const entryDate = entryHead ? validDate(entryHead[1]) : '';
         const predates = !unreadableRows && !!entryDate && !!newestDate && entryDate < newestDate;
         out.push({
@@ -518,7 +523,8 @@ function unreadableDeployEntries(log, receiptPositions, receiptRuns, newestDate)
                         + ' but holds no receipt this guard can read, in it or under it')
                 + ': quote the four slugs in the table (`production-write`, not production-write or'
                 + ' **production-write**), put the run id in the heading as run `<id>`, write "dispatched from'
-                + ' `<sha>`", and copy the lane\'s JSON attestation block. Until then the deploy it records is'
+                + ' `<sha>`", and copy the lane\'s JSON attestation block; if the section is commentary about a'
+                + ' deploy recorded elsewhere, do not call it a deploy. Until then the deploy it records is'
                 + ' invisible here, which is exactly how the Live State row went two releases stale on 2026-09-05.',
         });
     }
@@ -579,8 +585,7 @@ function main() {
             + ' so it cannot be placed in time and the newest deploy cannot be established.'
             + ' Add the run id to that entry (the attestation block carries it as github_run_id).');
     }
-    const receiptRuns = new Set(receipts.map(r => String(r.run || '')).filter(Boolean));
-    for (const u of unreadableDeployEntries(receiptsMeta.log, receiptsMeta.positions || [], receiptRuns, live ? live.date : '')) {
+    for (const u of unreadableDeployEntries(receiptsMeta.log, receiptsMeta.positions || [], live ? live.date : '')) {
         if (u.severity === 'note') notes.push(u.message);
         else failures.push(u.message);
     }

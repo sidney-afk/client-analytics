@@ -785,10 +785,25 @@ const nestedCommentary = nestedProse.replace('### Deploy #40 — RECORDED', '###
 const commentaryRun = run(fixture('nested-commentary', realLog + nestedCommentary, realRb));
 ok(commentaryRun.json && !commentaryRun.json.failures.some(f => /cannot read/.test(f)),
     'while a nested heading under the same entry that does not name a deploy is commentary, and asks for nothing');
-const crossRef = nestedProse.replace('### Deploy #40 — RECORDED', '### Deploy #39 — see the attestation above (run `33991332628`)');
-const crossRefRun = run(fixture('nested-cross-reference', realLog + crossRef, realRb));
-ok(crossRefRun.json && !crossRefRun.json.failures.some(f => /cannot read/.test(f)),
-    'and a nested deploy heading whose every named run id has a parsed receipt elsewhere in the log is readable by reference, and asks for nothing');
+const supersedes = nestedProse.replace('### Deploy #40 — RECORDED', '### Deploy #40 — supersedes run `33991332628`');
+const supersedesRun = run(fixture('nested-mention', realLog + supersedes, realRb));
+ok(supersedesRun.code === 1 && supersedesRun.json
+    && supersedesRun.json.failures.some(f => /\("Deploy #40 — supersedes run `33991332628`"\) reads as a Section 4 deploy/.test(f)),
+    'A MENTION IS NOT AN IDENTITY (Codex, fifth round): a nested deploy heading that names a receipted run it merely SUPERSEDES is still unreadable -- there is no readable-by-reference softening, because no text rule can tell "this is run X" from "this comes after run X"');
+/* Mixed ordering: the log is reverse-chronological at the top and forward
+   further down, so a new entry can legitimately be written after an older one.
+   The entry date has to come from the section's OWN heading; a slice that stops
+   short of it reads the previous entry's date and softens a brand-new deploy
+   into history. Codex reproduced exactly that with 2026-08-31 before 2026-09-06. */
+const olderAt = realLog.indexOf('\n## 2026-08-31');
+const afterOlder = realLog.indexOf('\n## ', olderAt + 1);
+ok(olderAt > 0 && afterOlder > olderAt, 'the real log has a 2026-08-31 entry followed by another entry, which the next case needs');
+const misordered = realLog.slice(0, afterOlder) + '\n' + malformed.replace('2026-09-06 — F27 Section 4 deploy, run #40', '2026-09-06 — F27 Section 4 deploy, run #41') + realLog.slice(afterOlder);
+const misorderedRun = run(fixture('misordered-new-entry', misordered, realRb));
+ok(misorderedRun.code === 1 && misorderedRun.json
+    && misorderedRun.json.failures.some(f => /\("2026-09-06 — F27 Section 4 deploy, run #41/.test(f) && /cannot read/.test(f))
+    && !misorderedRun.json.notes.some(n => /run #41/.test(n)),
+    'a brand-new unreadable `##` deploy entry written after an OLDER entry is dated by its own heading (2026-09-06) and FAILS -- it is not softened into history by the 2026-08-31 entry above it');
 
 /* ---- 9. the real repository -------------------------------------------- */
 

@@ -6346,10 +6346,14 @@ CROSSWALK_REPAIR_STRATEGY status table.
 ## 2026-09-05 — one-row crosswalk move: an approved card takes its deliverable back from its archived first draft
 
 **DB mutation, owner-applied, SQL Editor, 23:06:52Z.** One row of
-`public.deliverables` (one client, id
-`del_aba2e07e-45ed-4a03-a293-c2f17b6e2d5d`): `card_id` from
-`p_native_0913b75e49a6aea379c97b439150_1` (an archived native card) to
-`p_mqpc2n6i_7fgaf` (the approved card that links the same Linear issue).
+`public.deliverables` (one client's approved reel): `card_id` from the
+archived native card that auto-created its Linear issue to the approved card
+that links the same issue. Row identities are kept out of this public file
+(the deliverable-to-card mapping is per-row production data; see the runner's
+public-safety contract): the row is findable privately by its ledger event —
+`deliverable_events` at 23:06:52Z, `action=update`, `source=system`,
+`payload.reason=rpc_bypass_guard` — and the exact statement is in the
+owner's SQL Editor history.
 The statement was guarded on the old value, so it could touch at most that one
 row in that one state. The SQL Editor prints "Success. No rows returned" for an
 UPDATE; the move was confirmed by reading the row back with the publishable
@@ -6366,7 +6370,7 @@ a person, which is the intended path for the slots the rule hands back.
 `updated_at` (status unchanged, so `status_at` did not move). No Linear
 write, no outbox intent, no comment moved: the issue, its status, and both
 cards' links are what they were. Reversal is the same statement with the two
-ids swapped; the prior `updated_at` (2026-09-05 20:53Z, from the second
+card ids swapped (both are on the event's row); the prior `updated_at` (2026-09-05 20:53Z, from the second
 apply) is not restorable. Not exercised.
 
 **After.** The runner's classifier, re-run read-only a minute later: 1,214

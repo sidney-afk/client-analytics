@@ -10,12 +10,16 @@ const { build, gitSource, sha256, CANDIDATE, BASELINE } = require('../../scripts
 const A = 'Boot Fixture Client', B = 'Residual Fixture Client', slug = 'bootfixtureclient';
 const archivedKey = 'syncview_sxr_legacy_work_v1:' + slug;
 const archivedBytes = JSON.stringify({ schema: 1, synthetic: 'unowned legacy debt; never replay', posts: [{ id: '__sxrblank__legacy', name: 'Archived synthetic typing' }] });
-const forward = gitSource(CANDIDATE), baseline = gitSource(BASELINE), inverse = build(forward);
+// The coordinator can rehearse an exact integrated document without changing
+// the preserved component reference or any browser/assertion behavior.
+const targetSha = process.env.SAMPLES_RECOVERY_TARGET_SHA || CANDIDATE;
+assert.match(targetSha, /^[0-9a-f]{40}$/, 'full recovery target SHA required');
+const forward = gitSource(targetSha), baseline = gitSource(BASELINE), inverse = build(forward);
 const builds = { forward, recovery: inverse.recovery, baseline };
 const headers = { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'content-range' };
 const targetedActor = process.argv.includes('--same-client-actor');
 assert.ok(process.argv.slice(2).every(arg => arg === '--same-client-actor'), 'unknown rehearsal selector');
-const report = { ...inverse.manifest, scope: targetedActor ? 'same-client-actor' : 'full', status: 'INCOMPLETE', groups: [], browser: null };
+const report = { ...inverse.manifest, targetSha, scope: targetedActor ? 'same-client-actor' : 'full', status: 'INCOMPLETE', groups: [], browser: null };
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(fn) { for (let n = 0; n < 150; n++) { if (await fn()) return; await pause(20); } assert.fail('bounded synthetic receiver wait expired'); }
 function pass(name, detail = {}) { report.groups.push({ name, ...detail }); console.log('PASS ' + name); }

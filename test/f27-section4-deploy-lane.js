@@ -368,7 +368,7 @@ const CANDIDATES = new Map([
     // accepts st / subfolder_nav_tracking / e / preview on dropbox.com only --
     // 19 of 171 live Dropbox links passed before, 171 after -- with the
     // credential guard unchanged and still running first. Read-side plus one
-    // additive response field; no migration, no new import, file count
+    // additive response field in that asset release; no migration, no new import, file count
     // unchanged at 5.
     // Amended before deploy for two review P1s on #1287, both in the write
     // path: the write target is now named PER SLOT (a post's slots can sit on
@@ -379,7 +379,9 @@ const CANDIDATES = new Map([
     // empty slot (43 of 1,567 buckets hold more than one post; one holds
     // seven). One extra client-pinned read, asked only when the post spans
     // more than one bucket.
-    source: 'd2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062',
+    // Draft root expected-request manifest; additive migration must precede
+    // a separately authorized deploy. Existing five-file closure and entrypoint.
+    source: '7583b345fad9ce1e443c78508948e9ff7e908ce64c6a73d5b3b8da54b263995d',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

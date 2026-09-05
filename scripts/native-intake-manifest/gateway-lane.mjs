@@ -231,6 +231,20 @@ try {
   delete process.env.GRAPHIC_TITLE_MODEL;
   await sql("delete from public.filming_plans where client_slug='fixture-client'");
   reset();
+  const unstamped = rootBody('both', requestId()); delete unstamped.source_edited_at;
+  let unstampedWrites = 0;
+  hooks.beforeRpc = name => { if (name === 'production_deliverable_write' && ++unstampedWrites === 2) throw new Error('synthetic unstamped child two unavailable'); };
+  const unstampedFirst = await post(unstamped);
+  reset();
+  const unstampedRetry = await post(unstamped);
+  ok('omitted-source-time-remains-a-valid-explicit-retry', unstampedFirst.status >= 500 && unstampedRetry.status === 201);
+  if (!negativeControl) {
+    const clocks = await rows(`select d.created_at=m.source_edited_at and d.status_at=m.source_edited_at as original_clock
+      from public.production_intake_manifests m join public.deliverables d on d.batch_id=m.batch_id
+      where m.request_id=${q(unstamped.request_id)}`);
+    ok('omitted-source-time-retry-keeps-first-created-clock', clocks.length === 2 && clocks.every(r => r.original_clock));
+  }
+  reset();
   let body = rootBody('both', requestId());
   // Canary confidential data is invented. It must persist only in private DB
   // rows, never in this test's output or a manifest API response.

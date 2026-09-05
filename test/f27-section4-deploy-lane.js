@@ -370,7 +370,9 @@ const CANDIDATES = new Map([
     // credential guard unchanged and still running first. Read-side plus one
     // additive response field; no migration, no new import, file count
     // unchanged at 5.
-    source: '1d524a813981e75dd562eda6f9a52c8f3ba8e65fa5a8cda2c8db2e950178c3a1',
+    // Draft root expected-request manifest; additive migration must precede
+    // a separately authorized deploy. Existing five-file closure and entrypoint.
+    source: 'efd71e9cab56c38470133a4a1e40f31d385af1f8b0757dda212193d32bc8d2d2',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

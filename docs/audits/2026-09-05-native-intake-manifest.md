@@ -67,6 +67,10 @@ explicit retry, including the child outbound description. Original fingerprints
 and current F27 fences remain untouched. The manifest itself stays immutable.
 There is no automatic retry when acceptance is ambiguous: the complete original
 caller request must still be supplied and pass all existing validation.
+Omitting `source_edited_at` remains supported: the first server-assigned clock
+governs the manifest, child creation/status clocks and receipt event on replay.
+Changing an explicitly supplied timestamp conflicts; a newly defaulted server
+clock on an otherwise identical timestamp-omitted request does not.
 
 ## What this proves and leaves open
 

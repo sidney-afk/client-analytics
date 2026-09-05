@@ -94,13 +94,14 @@ begin
       or v_existing.actor_role is distinct from p_event->>'role'
       or v_existing.auth_kind is distinct from p_event->>'auth_kind'
       or v_existing.surface is distinct from p_event->>'surface'
-      or v_existing.source_edited_at is distinct from (p_event->>'ts')::timestamptz
+      or (coalesce((p_manifest->'request_intent'->>'source_timestamp_supplied')::boolean, false)
+        and v_existing.source_edited_at is distinct from (p_event->>'ts')::timestamptz)
       or v_existing.request_intent is distinct from p_manifest->'request_intent'
       or v_existing.parent_receipt is distinct from v_receipt
-      or (select jsonb_agg(jsonb_set(value, '{row}', (value->'row') - 'linear_raw' - 'brief') order by ordinality)
+      or (select jsonb_agg(jsonb_set(value, '{row}', (value->'row') - 'linear_raw' - 'brief' - 'created_at' - 'status_at') order by ordinality)
           from jsonb_array_elements(v_existing.expected_items) with ordinality)
         is distinct from
-        (select jsonb_agg(jsonb_set(value, '{row}', (value->'row') - 'linear_raw' - 'brief') order by ordinality)
+        (select jsonb_agg(jsonb_set(value, '{row}', (value->'row') - 'linear_raw' - 'brief' - 'created_at' - 'status_at') order by ordinality)
           from jsonb_array_elements(p_manifest->'expected_items') with ordinality)
     then raise exception 'idempotency_conflict'; end if;
   else
@@ -115,7 +116,8 @@ begin
   -- The deferred FK, manifest and original parent receipt commit together.
   -- Any authority, receipt, writer or trigger failure rolls the entire call back.
   v_result := public.production_batch_write(p_row, p_event);
-  return jsonb_build_object('batch', to_jsonb(v_result), 'expected_items', v_existing.expected_items);
+  return jsonb_build_object('batch', to_jsonb(v_result), 'expected_items', v_existing.expected_items,
+    'source_edited_at', v_existing.source_edited_at);
 end;
 $$;
 revoke all on function public.production_intake_root_begin(jsonb,jsonb,jsonb) from public, anon, authenticated;

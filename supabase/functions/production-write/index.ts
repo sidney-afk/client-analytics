@@ -5563,7 +5563,7 @@ async function ensureBatch(
   dedup: string,
   replay: boolean,
   rootManifest?: JsonMap,
-): Promise<{ row: JsonMap; outboxId: number; expectedItems?: JsonMap[] }> {
+): Promise<{ row: JsonMap; outboxId: number; expectedItems?: JsonMap[]; sourceEditedAt?: string }> {
   const { data, error } = await supabase.from("batches").select("*").eq("id", clean(row.id)).maybeSingle();
   if (error) throw new GatewayError(503, "batch_lookup_unavailable");
   if (data && (
@@ -5586,7 +5586,7 @@ async function ensureBatch(
   return {
     row: rootManifest ? parseJson(result.batch) : result,
     outboxId: await findOutboxId(supabase, dedup),
-    ...(rootManifest ? { expectedItems: result.expected_items as JsonMap[] } : {}),
+    ...(rootManifest ? { expectedItems: result.expected_items as JsonMap[], sourceEditedAt: clean(result.source_edited_at) } : {}),
   };
 }
 
@@ -6836,6 +6836,7 @@ async function handleIntakeCreate(
   const rootManifest: JsonMap = {
     request_id: requestId,
     request_intent: {
+      source_timestamp_supplied: !!clean(body.source_edited_at),
       batch: intakeFields(batchInput, ["name", "description", "notes", "filming_doc_url", "footage_folder_url", "delivery_folder_url", "color"]),
       items: items.map(item => intakeFields(item, ["team", "title", "brief", "videoNumber", "number", "status", "assignee_id", "due_date", "priority", "card_id", "sort_key"])),
     },
@@ -6857,9 +6858,13 @@ async function handleIntakeCreate(
   // The immutable first plan governs those fields; original receipt semantics,
   // current authorization and F27 fences stay unchanged. This is not a recovery
   // endpoint: the full original caller request was required and validated above.
-  if (!Array.isArray(batch.expectedItems) || batch.expectedItems.length !== plannedItems.length) {
+  if (!Array.isArray(batch.expectedItems) || batch.expectedItems.length !== plannedItems.length
+      || !Number.isFinite(Date.parse(clean(batch.sourceEditedAt)))) {
     throw new GatewayError(500, "intake_manifest_result_invalid");
   }
+  // An omitted timestamp is a supported request shape. Its first server clock
+  // governs later explicit retries too; do not turn that default into a gate.
+  sourceEditedAt = clean(batch.sourceEditedAt);
   for (let index = 0; index < plannedItems.length; index++) {
     const planned = plannedItems[index];
     const accepted = batch.expectedItems[index];
@@ -6870,6 +6875,9 @@ async function handleIntakeCreate(
     }
     (planned.row as JsonMap).brief = acceptedRow.brief;
     (planned.row as JsonMap).linear_raw = acceptedRow.linear_raw;
+    (planned.row as JsonMap).created_at = acceptedRow.created_at;
+    (planned.row as JsonMap).status_at = acceptedRow.status_at;
+    (planned.child_outbound as JsonMap).source_edited_at = sourceEditedAt;
     ((planned.child_outbound as JsonMap).payload as JsonMap).description = acceptedRow.brief || undefined;
   }
   // One parent, so every child depends on the same outbox row whatever team

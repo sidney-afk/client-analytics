@@ -281,7 +281,9 @@ jobs:
       # only: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      PRODUCTION_WRITE_SOURCE_SHA256: 1d524a813981e75dd562eda6f9a52c8f3ba8e65fa5a8cda2c8db2e950178c3a1
+      # Draft root manifest closure: apply the additive root-manifest migration
+      # before any separately authorized deployment. No activation in this PR.
+      PRODUCTION_WRITE_SOURCE_SHA256: efd71e9cab56c38470133a4a1e40f31d385af1f8b0757dda212193d32bc8d2d2
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

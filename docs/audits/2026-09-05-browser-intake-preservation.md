@@ -7,6 +7,33 @@ Its handoff and corrected G2b explain why a failed response can follow a committ
 batch and one child. Its 63 current checks, 13 red readiness gates, and seven
 unproven entries are not a native-independence certificate.
 
+## Name-only routing correction
+
+Independent re-review of `6c2be5a8a55a6ec2573c9ec6ad24b85b607aef4f` found that a
+legitimately restored form can carry a unique client name and an empty saved
+slug. The real `_linearResolveClientRow` resolves that name to the original
+client, but the archive guard compared only the raw optional slug. A false
+routing flag therefore dispatched once through the legacy wrapper, bypassing
+the marker. The extended browser test reproduces that failure on the reviewed
+head (exit 1, one legacy call where zero is required).
+
+For an actor with unresolved markers, Submit now resolves the canonical client
+before comparing marker scope or selecting a transport. If needed it awaits
+catalog loading and rechecks the original input element, name and slug before
+continuing. An ambiguous/unresolvable name or failed catalog read cannot prove
+the request is unrelated, so no transport is selected. No client resolution
+grants authorization. Actors without unresolved markers retain the existing
+routing behavior; the earlier F44 receipt-recovery branch remains unchanged.
+
+The Chromium fixture now uses the actual `renderLinearView` restored input,
+`_linearResolveClientRow`, routing-flag fetch/failure/prime functions, and legacy
+wrapper (with an inert F44 receiver counter). Candidate checks pass for normal
+slug and name-only forms with both false and failed flag reads, ambiguous and
+missing names, an unrelated client using the established legacy fallback,
+selection changing during asynchronous catalog loading, catalog failure, and
+existing F44 receipt priority. All requests are intercepted. The existing 23
+preservation cases stay green; no unrelated full-suite run is claimed.
+
 ## Independent-review correction
 
 The adversarial review of initial repair head

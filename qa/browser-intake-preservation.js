@@ -9,7 +9,8 @@ const { extract, html, FUNCTIONS, RECOVERY_FUNCTIONS, gatewayOk } = require('../
 const root=path.resolve(__dirname,'..');
 const functions=[...FUNCTIONS, ...RECOVERY_FUNCTIONS,
   '_submitLinearFormRoutedOnce','submitLinearForm','saveLinearForm','_linearDraftSnapshot','_linearStableJson','_linearStorageError','_linearCompareRemove','_linearIntakeItemsPerVideo',
-  '_calSubmitNativePost','_calNativePostErrorText'];
+  '_calSubmitNativePost','_calNativePostErrorText','_linearResolveClientRow',
+  'renderLinearView','renderVideoCard','loadLinearForm'];
 const script=functions.filter(n=>html.includes('function '+n+'(')).map(extract).join('\n');
 const env=`
 var NATIVE_INTAKE_PENDING_KEY='fixture-pending', LINEAR_FORM_KEY='fixture-form', LAST_LINK_KEY='fixture-link', LINEAR_RECEIPTS_KEY='fixture-receipts';
@@ -17,7 +18,8 @@ var WRITE_UI_QUEUE_DIAG_KEY='fixture-diagnostics', WRITE_UI_DIAG_IDS=[], WRITE_U
 var PROD_WRITE_EF_URL='https://gateway.fixture.invalid/write', CAL_SUPABASE_ANON_KEY='fixture', LOG_SUBMISSION_WEBHOOK='https://log.fixture.invalid/request';
 var PROD_CREATED_STATUS=${JSON.stringify(/const PROD_CREATED_STATUS = '([a-z_]+)';/.exec(html)[1])};
 var _nativeIntakeResumePromise=null, linearSubmitInFlight=null, _isIntake=false, _linearResolvedPlanUrl='', linearJustCreated=false;
-var linearClientRows=[{slug:'fixture-client',name:'Fixture Client'}], LINEAR_INTAKE_MAX_ITEMS=100;
+var LINEAR_DEFAULT_VIDEO_COUNT=1, linearVideoCount=1;
+var linearClientRows=[{slug:'fixture-client',name:'Fixture Client',display_name:'Fixture Client'}], LINEAR_INTAKE_MAX_ITEMS=100;
 var calState={client:'fixture-client',posts:[]}, notices=[], navigation=0;
 var identity={role:'admin',member:{id:'actor-a',name:'Fixture Admin'}};
 function _syncviewStaffIdentityForHeaders(){return identity;}
@@ -25,7 +27,6 @@ function _syncviewStaffRoleValue(i){return i && i.role || '';}
 async function _syncviewRequireStaffIdentity(){return identity;}
 function _syncviewEfHeaders(h){return h;}
 function _writeUiRerouteUseGatewayWhenReady(){return Promise.resolve(true);}
-function _linearResolveClientRow(){return linearClientRows[0];}
 function buildLinearTitle(){return 'Fixture batch';}
 function wlTodayISO(){return '2026-09-05';}
 function wlAddWorkingDays(){return '2026-09-12';}
@@ -53,11 +54,16 @@ async function main(){
   const browser=await chromium.launch({headless:true});
   try {
     const context=await browser.newContext(); const page=await context.newPage();
-    let mode='hold', release, gateway=[], cards=[], unexpected=[];
+    let mode='hold', release, gateway=[], cards=[], unexpected=[], flagMode='off', flagReads=0;
     await context.route('**/*',async route=>{
       const req=route.request(), url=new URL(req.url());
       if(url.hostname==='app.fixture.invalid') return route.fulfill({contentType:'text/html',body:'<!doctype html><html><body></body></html>'});
       if(url.hostname==='log.fixture.invalid') return route.fulfill({json:{ok:true}});
+      if(url.hostname==='flags.fixture.invalid') {
+        flagReads++;
+        return flagMode==='failed' ? route.fulfill({status:503,json:{error:'fixture unavailable'}})
+          : route.fulfill({json:[]});
+      }
       if(url.hostname==='gateway.fixture.invalid'){
         const payload=req.postDataJSON(); gateway.push(payload);
         if(mode==='hold') await new Promise(resolve=>{release=resolve;});
@@ -151,7 +157,7 @@ async function main(){
     async function scope(actor,slug){
       await page.evaluate(({actor,slug})=>{
         identity={role:'admin',member:{id:actor,name:'Fixture Staff'}};
-        linearClientRows=[{slug,name:slug}];
+        linearClientRows=[{slug,name:slug,display_name:slug}];
         const input=document.getElementById('linearClientSearch');input.value=slug;input.dataset.clientSlug=slug;
         _linearIntakeRefreshRecovery();
       },{actor,slug});
@@ -201,6 +207,80 @@ async function main(){
     assert.deepEqual(unexpected,[]);
     console.log('ok visible scope isolation: A uncertainty/sign-out, B succeeds, A duplicate blocked, multiple markers survive reload');
     console.log('ok visible archive failure: safe pending feedback, no dispatch/lost marker, successful verified move after storage recovers');
+
+    // Use the actual restored form, canonical resolver and flag-failure path.
+    await page.addScriptTag({content:`
+      var CAL_SUPABASE_URL='https://flags.fixture.invalid', WRITE_UI_REROUTE_FLAG_KEY='fixture-routing', CLIENT_COMMENT_GATEWAY_FLAG_KEY='fixture-comments';
+      var WRITE_UI_REROUTE_FLAG_TIMEOUT_MS=2000, _writeUiRerouteFlagGeneration=0, _writeUiRerouteFlagPromise=null, _writeUiRerouteFlagFailed=false;
+      var _writeUiRerouteClients=new Set(), _clientCommentGatewayEnabled=false;
+      window.legacyRequests=0;
+      function _submitLinearFormOnce(){window.legacyRequests++;return Promise.resolve();}
+      function _calV2Log(){}
+    `+['_calRuntimeFlagClients','_clientCommentGatewaySetFlagValue','_writeUiSetRerouteFlagValue',
+      '_writeUiFetchRerouteFlagOnce','_writeUiPrimeRerouteFlag','_writeUiRerouteUseGateway','_writeUiRerouteUseGatewayWhenReady','wlNormalizeClient','_submitLinearFormLegacy'].map(extract).join('\n')});
+    const catalog=[{slug:'fixture-client',display_name:'Fixture Client'}, {slug:'fixture-unrelated',display_name:'Fixture Unrelated'}];
+    async function restoreForm(name,slug,rows=catalog) {
+      await page.evaluate(({name,slug,rows})=>{
+        identity={role:'admin',member:{id:'actor-a',name:'Fixture Staff'}};
+        linearClientRows=rows;
+        localStorage.setItem(LINEAR_FORM_KEY,JSON.stringify({client:name,...(slug===null?{}:{clientSlug:slug})}));
+        const restored=document.createElement('div');restored.innerHTML=renderLinearView();
+        document.getElementById('linearClientSearch').replaceWith(restored.querySelector('#linearClientSearch'));
+        document.getElementById('linearStatus').textContent='';
+        _linearIntakeRefreshRecovery();
+      },{name,slug,rows});
+    }
+    for(const state of ['off','failed']) {
+      flagMode=state;
+      await page.evaluate(()=>{_writeUiRerouteFlagPromise=null;});
+      const beforeFlags=flagReads;
+      await page.evaluate(()=>_writeUiPrimeRerouteFlag());
+      assert.equal(flagReads,beforeFlags+1);
+      assert.equal(await page.evaluate(()=>_writeUiRerouteFlagFailed),state==='failed');
+      assert.equal(await page.evaluate(()=>_writeUiRerouteUseGatewayWhenReady('fixture-client')),false);
+      for(const slug of ['fixture-client',null]) {
+        await restoreForm('Fixture Client',slug);
+        assert.equal(await page.locator('#linearClientSearch').getAttribute('data-client-slug'),slug||'');
+        assert.equal(await page.evaluate(()=>_linearResolveClientRow('Fixture Client','').slug),'fixture-client');
+        const beforeLegacy=await page.evaluate(()=>window.legacyRequests), beforeNative=gateway.length;
+        await submit();
+        assert.equal(await page.evaluate(()=>window.legacyRequests),beforeLegacy,`${state}: restored ${slug?'slug':'name-only'} form cannot bypass the unresolved marker`);
+        assert.equal(gateway.length,beforeNative);
+        assert.match(await page.locator('#linearStatus').innerText(),/See its recovery notice/);
+      }
+    }
+    for(const [name,rows] of [['Missing Fixture',catalog],['Duplicate Fixture',[
+      {slug:'fixture-client',display_name:'Duplicate Fixture'},{slug:'fixture-unrelated',display_name:'Duplicate Fixture'}]]]) {
+      await restoreForm(name,null,rows);
+      const beforeLegacy=await page.evaluate(()=>window.legacyRequests), beforeNative=gateway.length;
+      await submit();
+      assert.equal(await page.evaluate(()=>window.legacyRequests),beforeLegacy);assert.equal(gateway.length,beforeNative);
+      assert.match(await page.locator('#linearStatus').innerText(),/Select one client/);
+    }
+    await restoreForm('Fixture Unrelated',null);
+    const beforeUnrelated=await page.evaluate(()=>window.legacyRequests);
+    await submit();assert.equal(await page.evaluate(()=>window.legacyRequests),beforeUnrelated+1,'unrelated canonical client retains established failed-flag legacy routing');
+    await restoreForm('Fixture Client',null,[]);
+    await page.evaluate(()=>{window.releaseCatalog=null;fetchLinearProjects=()=>new Promise(resolve=>{window.releaseCatalog=rows=>{linearClientRows=rows;resolve();};});});
+    const beforeRaceLegacy=await page.evaluate(()=>window.legacyRequests), beforeRaceNative=gateway.length;
+    await page.getByRole('button',{name:'Create deliverables'}).click();
+    await page.waitForFunction(()=>typeof window.releaseCatalog==='function');
+    await page.evaluate(rows=>{const input=document.getElementById('linearClientSearch');input.value='Fixture Unrelated';input.dataset.clientSlug='fixture-unrelated';window.releaseCatalog(rows);},catalog);
+    await page.waitForFunction(()=>!linearSubmitInFlight);
+    assert.equal(await page.evaluate(()=>window.legacyRequests),beforeRaceLegacy);assert.equal(gateway.length,beforeRaceNative);
+    assert.match(await page.locator('#linearStatus').innerText(),/client selection changed/);
+    await restoreForm('Fixture Client',null,[]);
+    await page.evaluate(()=>{fetchLinearProjects=async()=>{throw new Error('fixture catalog unavailable');};});
+    await submit();assert.equal(await page.evaluate(()=>window.legacyRequests),beforeRaceLegacy);
+    assert.match(await page.locator('#linearStatus').innerText(),/client list could not be loaded/);
+    // Existing F44 receipts keep priority and their transport, even if catalog
+    // resolution is unavailable. F44 semantics remain exercised by its suite.
+    await page.evaluate(()=>localStorage.setItem(LINEAR_RECEIPTS_KEY,'fixture-existing-receipt'));
+    await submit();assert.equal(await page.evaluate(()=>window.legacyRequests),beforeRaceLegacy+1);
+    await page.evaluate(()=>localStorage.removeItem(LINEAR_RECEIPTS_KEY));
+    assert.deepEqual(unexpected,[]);
+    console.log('ok canonical marker routing: actual restored name-only/slug forms, false/failed flags, ambiguous/unresolved names, unrelated client');
+    console.log('ok canonical selection race/catalog failure: zero dispatch; existing F44 receipt recovery retains priority');
   } finally {await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

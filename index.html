@@ -47164,15 +47164,34 @@
         // Likewise, an already-checkpointed native job remains on its recovery
         // path even if the allowlist changes while the browser is offline.
         const pendingNativeIntake = _linearIntakeRead();
-        let unresolvedNativeIntake = false;
+        let unresolvedForActor;
         try {
-            unresolvedNativeIntake = _linearIntakeUnresolvedRead().some(marker => {
-                if (marker.payload.client_slug !== selectedClientSlug) return false;
+            unresolvedForActor = _linearIntakeUnresolvedRead().filter(marker => {
                 try { _linearIntakeRequireActor(marker); return true; } catch (error) { return false; }
             });
         } catch (error) {
             if (status) status.textContent = 'Saved recovery records cannot be read. Retry when browser storage is available.';
             return;
+        }
+        let unresolvedNativeIntake = false;
+        if (unresolvedForActor.length) {
+            // Restored drafts may have a name without a saved slug. Resolve the
+            // same canonical client as native Submit before deciding whether an
+            // unresolved request permits selecting any transport for this form.
+            if (!linearClientRows.length) {
+                try { await fetchLinearProjects(); }
+                catch (error) {
+                    if (status) status.textContent = 'The client list could not be loaded. Retry before submitting.';
+                    return;
+                }
+            }
+            if (!selectionStillCurrent()) {
+                if (status) status.textContent = 'The client selection changed. Review it and submit again.';
+                return;
+            }
+            const recoveryClient = _linearResolveClientRow(clientName, selectedClientSlug);
+            if (!recoveryClient) { if (status) status.textContent = 'Select one client from the native client list.'; return; }
+            unresolvedNativeIntake = unresolvedForActor.some(marker => marker.payload.client_slug === recoveryClient.slug);
         }
         const useGateway = pendingNativeIntake || unresolvedNativeIntake
             ? true

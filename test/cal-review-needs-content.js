@@ -442,5 +442,49 @@ ok(routerCallers.length >= 3 && routerUnclassified.length === 0,
   'every caller of the auto-router is classified (' + routerCallers.join(', ') + ')'
   + (routerUnclassified.length ? ' -- unclassified: ' + routerUnclassified.join(', ') : ''));
 
+
+/* ---- 10. the samples Kasper refusal must be REACHABLE, not just present -- */
+
+/* Codex, PR 1278: the first draft of the _sxrKasperApproveComp guard wrote its
+   reason to `_sxrKasperState.errors[key]`. That state declares no `errors`
+   store and the panel renders none, so the assignment threw a TypeError and the
+   Approve button looked dead -- a guard that is present in the source and
+   impossible to observe. Section 9 could not tell: it checks that the gate is
+   CALLED. This executes the handler against the REAL state literal and asserts
+   the refusal comes out the other end. */
+const sxrKasperStateSrc = /const _sxrKasperState = (\{[^\n]*\});/.exec(INDEX);
+ok(!!sxrKasperStateSrc, 'the samples Kasper state literal is readable');
+ok(sxrKasperStateSrc && !/\berrors\b/.test(sxrKasperStateSrc[1]),
+  '_sxrKasperState declares no per-component `errors` store -- which is exactly why writing to one throws');
+ok(!/_sxrKasperState\.errors\b/.test(code),
+  'and nothing in the source writes to `_sxrKasperState.errors` any more -- the guard AND the pre-existing cached-repair refusal both threw on it');
+{
+  const calls = { notify: [], persist: 0, repaint: 0 };
+  const sandbox = [
+    'const _sxrKasperState = ' + sxrKasperStateSrc[1] + ';',
+    'const _sxrKasperFindItem = () => ({ post: EMPTY, client: "c", slug: "s" });',
+    'const showNotify = (t, b) => calls.notify.push({ t, b });',
+    'const _sxrKasperRepaint = () => { calls.repaint++; };',
+    'const _sxrKasperApplyAndPersist = () => { calls.persist++; };',
+    'const _sxrNormStatus = s => String(s || "");',
+    'const SXR_REVIEW_STATUSES = new Set(' + sxrSet[1] + ');',
+    extractFunction(INDEX, '_kasperCompReviewable'),
+    extractFunction(INDEX, '_sxrCompHasContent'),
+    extractFunction(INDEX, '_sxrStatusNeedsContent'),
+    extractFunction(INDEX, '_sxrReviewBlockReason'),
+    extractFunction(INDEX, '_sxrKasperApproveComp'),
+    'return _sxrKasperApproveComp;',
+  ].join('\n');
+  let threw = null, approve = null;
+  try { approve = new Function('calls', 'EMPTY', sandbox)(calls, { id: 'x', asset_url: '', thumbnail_url: '', video_status: 'Kasper Approval' }); }
+  catch (e) { threw = e; }
+  ok(!threw, 'the handler compiles against the real state literal' + (threw ? ' -- ' + threw.message : ''));
+  if (approve) { try { approve('x', 'video'); } catch (e) { threw = e; } }
+  ok(!threw, "approving an EMPTY sample component does not throw" + (threw ? ' -- ' + threw.message : ''));
+  ok(calls.persist === 0, 'and nothing was persisted -- the refusal happened before the write');
+  ok(calls.notify.length === 1 && /video URL/i.test(calls.notify[0].b || ''),
+    'and Kasper is TOLD, naming the video -- a refusal nobody can see is the button appearing to do nothing');
+}
+
 if (failures) { console.log('\n' + failures + ' check(s) failed.'); process.exit(1); }
 console.log('\ncalendar + samples review-needs-content checks passed');

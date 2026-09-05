@@ -67115,7 +67115,11 @@
             || ((_kasperState && _kasperState.sxrRepairs) || []).find(row => row && row.id === p.id && row.slug === it.slug);
         if (cachedRepair) {
             _sxrKasperState.saving[key] = false;
-            _sxrKasperState.errors[key] = 'A prior source repair needs receipt verification; reload before another action';
+            /* Was `_sxrKasperState.errors[key] = ...` -- a store this state has
+               never declared, so every cached-repair refusal here threw a
+               TypeError before the diagnostic or the repaint ran. Exposed by
+               the Codex finding on the guard above (PR 1278); same fix. */
+            showNotify('Reload before another action', 'A prior source repair needs receipt verification; reload before another action.');
             _writeUiQueueDiagnostic('sxr', 'cache_only_repair_blocked', { kind: 'kasper-source-repair' });
             _sxrKasperRepaint(pid);
             return;
@@ -67260,8 +67264,15 @@
         if (it0) {
             const _blocked = _sxrReviewBlockReason(it0.post, comp, 'Client Approval');
             if (_blocked) {
-                _sxrKasperState.errors[pid + '|' + comp] = _blocked;
-                _sxrKasperRepaint(pid);
+                /* showNotify, not an inline error: this surface has no
+                   per-component error store -- _sxrKasperState declares none
+                   and _sxrKasperPanelHtml renders none -- and the first draft
+                   of this guard wrote to one anyway, which threw a TypeError
+                   and made the Approve button look dead. The catch block in
+                   _sxrKasperApplyAndPersist reports its failures this same
+                   way, so the refusal now reads like every other refusal here.
+                   Found by Codex on PR 1278. */
+                showNotify('Nothing to review yet', _blocked);
                 return;
             }
         }

@@ -324,5 +324,20 @@ for (const [fn, gate] of [['_calStatusToggleMenu', '_calReviewBlockReason'], ['_
 ok(/_calReviewBlockReason/.test(stripComments(extractFunction(INDEX, '_calStatusPick'), ' ')),
   'and the handler keeps its own check — a disabled button is a courtesy, not a guard, and every other writer bypasses the menu entirely');
 
+/* THE NOTE MUST NOT BE ABLE TO HIDE WHAT IT POINTS AT. The menu is
+   position: fixed, so a menu taller than the viewport is clipped with no way to
+   scroll to the clipped part -- and the clipped part is the TOP of the list,
+   where N/A sits. Adding a multi-line note made the nine-option menu tall
+   enough to reach that on a short viewport, which would have made the sentence
+   "set it to N/A" point at an option the reader cannot reach. Codex, #1277. */
+const menuCss = /\.cal-fld-status-menu \{[\s\S]{0,900}?\}/.exec(INDEX);
+ok(menuCss && /max-height:/.test(menuCss[0]) && /overflow-y:\s*auto/.test(menuCss[0]),
+  'the status menu is capped to the viewport and scrolls — it is position:fixed, so anything taller is clipped and unreachable, starting with N/A at the top of the list');
+for (const fn of ['_calStatusToggleMenu', '_sxrStatusToggleMenu']) {
+  const src = stripComments(extractFunction(INDEX, fn), ' ');
+  ok(/top = Math\.max\(10, Math\.min\(/.test(src),
+    fn + ' floors the computed top at 10 — the inner Math.min goes negative for a menu taller than the viewport, which walks the first options off the top of the screen');
+}
+
 if (failures) { console.log('\n' + failures + ' check(s) failed.'); process.exit(1); }
 console.log('\ncalendar + samples review-needs-content checks passed');

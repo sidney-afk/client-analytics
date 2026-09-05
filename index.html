@@ -5473,7 +5473,18 @@
             pointer-events: none; color: inherit; opacity: 0.7; }
         .cal-fld-status-wrap.is-locked { opacity: 0.55; }
         /* Floating status menu — portaled to body so card overflow can't clip it. */
+        /* max-height + scroll, because this menu is position: fixed. A fixed
+           element taller than the viewport is CLIPPED and the clipped part
+           cannot be reached by scrolling the page -- and the options that get
+           clipped are the ones at the top, which is where N/A sits. So the
+           note added on 2026-09-05 pointing the reader at N/A could, on a short
+           viewport, be the thing that hid N/A. Found by Codex on PR 1277.
+           (The PR number is written without a leading hash on purpose: the CSS
+           colour guard reads a hash followed by four hex digits as a colour
+           literal and fails the file. Yes, the first attempt at this comment
+           tripped it, and so did the comment explaining that it tripped it.) */
         .cal-fld-status-menu { position: fixed; z-index: 1000; min-width: 200px; padding: 5px;
+            max-height: calc(100vh - 20px); overflow-y: auto; overscroll-behavior: contain;
             background: var(--white); border-radius: 11px; box-shadow: 0 10px 30px var(--sv-shadow-rgba-0-0-0-0_16);
             opacity: 0; pointer-events: none; transform: translateY(-4px) scale(0.98); transform-origin: top center;
             transition: opacity 0.12s ease, transform 0.12s ease; }
@@ -27948,7 +27959,12 @@
         const spaceAbove = rect.top - 10;
         let top;
         if (menuH <= spaceBelow || spaceBelow >= spaceAbove) {
-            top = Math.min(rect.bottom + gap, window.innerHeight - menuH - 10);
+            /* Math.max floor: with a menu taller than the viewport the inner
+               Math.min goes NEGATIVE and the top of the list leaves the screen.
+               The CSS cap above makes that unreachable in practice; this is the
+               second line of defence, because the cap depends on a stylesheet
+               rule and this does not. */
+            top = Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10));
         } else {
             top = Math.max(10, rect.top - menuH - gap);
         }
@@ -38621,7 +38637,12 @@
         const spaceAbove = rect.top - 10;
         let top;
         if (menuH <= spaceBelow || spaceBelow >= spaceAbove) {
-            top = Math.min(rect.bottom + gap, window.innerHeight - menuH - 10);
+            /* Math.max floor: with a menu taller than the viewport the inner
+               Math.min goes NEGATIVE and the top of the list leaves the screen.
+               The CSS cap above makes that unreachable in practice; this is the
+               second line of defence, because the cap depends on a stylesheet
+               rule and this does not. */
+            top = Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10));
         } else {
             top = Math.max(10, rect.top - menuH - gap);
         }
@@ -62252,7 +62273,7 @@
         menu.style.left = left + 'px';
         const gap = 5, spaceBelow = window.innerHeight - rect.bottom - 10, spaceAbove = rect.top - 10;
         let top;
-        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) top = Math.min(rect.bottom + gap, window.innerHeight - menuH - 10);
+        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) top = Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10));
         else top = Math.max(10, rect.top - menuH - gap);
         menu.style.top = top + 'px';
         menu.style.minWidth = Math.max(rect.width, 200) + 'px';

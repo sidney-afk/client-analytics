@@ -1,5 +1,14 @@
 'use strict';
 const http=require('node:http');
+const DENIAL_REASONS=Object.freeze(['metadata_post_blocked','realtime_transport_blocked',
+  'worker_transport_blocked','beacon_transport_blocked','keepalive_transport_blocked',
+  'realm_guard_failed','proxy_http_blocked','proxy_tunnel_blocked','proxy_socket_error','other_request_blocked']);
+function requestDenialReason(request,config) {
+  const url=new URL(request.url());
+  return request.method()==='POST'&&url.origin===new URL(config.fallbackOrigin).origin&&
+    url.pathname==='/webhook/linear-issue-statuses'&&!url.search&&!request.redirectedFrom()
+    ?'metadata_post_blocked':'other_request_blocked';
+}
 // Browser instrumentation only. This does not change product writers or access.
 function requestPolicy(request, config) {
   const url=new URL(request.url()), backend=new URL(config.backendOrigin).origin;
@@ -22,24 +31,25 @@ function installRealmGuard() {
     try {
       if(w.__continuityTransportGuard)return;
       Object.defineProperty(w,'__continuityTransportGuard',{value:true});
-      let denied=false;
+      let denied=false;const reasons=new Set();
       Object.defineProperty(w,'__continuityTransportDenied',{get:()=>denied});
-      const deny=()=>{
-        denied=true;
+      Object.defineProperty(w,'__continuityTransportDeniedReasons',{get:()=>[...reasons]});
+      const deny=reason=>{
+        denied=true;reasons.add(reason);
         // A blank child may inherit its parent's binding only after initialization.
         const notify=w.__continuityTransportBlocked || window.__continuityTransportBlocked;
-        if(notify)void notify().catch(()=>{});
+        if(notify)void notify(reason).catch(()=>{});
       };
       const replace=(target,key,value)=>Object.defineProperty(target,key,{value,writable:false,configurable:false});
-      replace(w.Navigator.prototype,'sendBeacon',function(){deny();return false;});
+      replace(w.Navigator.prototype,'sendBeacon',function(){deny('beacon_transport_blocked');return false;});
       const nativeFetch=w.fetch;
       replace(w,'fetch',function(input,init){
         const request=new w.Request(input,init);
-        if(request.keepalive){deny();return w.Promise.reject(new w.TypeError('monitor_transport_blocked'));}
+        if(request.keepalive){deny('keepalive_transport_blocked');return w.Promise.reject(new w.TypeError('monitor_transport_blocked'));}
         return nativeFetch.call(this,request);
       });
       for(const name of ['WebSocket','WebTransport','Worker','SharedWorker']) {
-        if(name in w)replace(w,name,function(){deny();throw new w.TypeError('monitor_transport_blocked');});
+        if(name in w)replace(w,name,function(){deny(name==='Worker'||name==='SharedWorker'?'worker_transport_blocked':'realtime_transport_blocked');throw new w.TypeError('monitor_transport_blocked');});
       }
       const nativeOpen=w.open;
       replace(w,'open',function(...args){const child=nativeOpen.apply(this,args);if(child)protect(child);return child;});
@@ -49,7 +59,7 @@ function installRealmGuard() {
     } catch {
       // Cross-origin realms receive the context init script before their scripts.
       // A same-origin installation error is reported and cannot yield healthy.
-      try {void window.__continuityTransportBlocked().catch(()=>{});} catch {}
+      try {void window.__continuityTransportBlocked('realm_guard_failed').catch(()=>{});} catch {}
     }
   }
   protect(window);
@@ -57,25 +67,28 @@ function installRealmGuard() {
 
 async function installTransportGuard(context,config,deps={}) {
   let code=null,closing=false;
-  const active=new Set();
-  const latch=value=>{if(!code || value==='mutation_blocked')code=value;};
-  if(deps.firewall)deps.firewall.onDenied=()=>latch('mutation_blocked');
-  await context.exposeBinding('__continuityTransportBlocked',()=>latch('mutation_blocked'));
+  const active=new Set(),reasons=new Set();
+  const latch=(value,reason)=>{if(reason)reasons.add(DENIAL_REASONS.includes(reason)?reason:'realm_guard_failed');if(!code || value==='mutation_blocked')code=value;};
+  if(deps.firewall) {
+    deps.firewall.onDenied=reason=>latch('mutation_blocked',reason);
+    for(const reason of deps.firewall.deniedReasons)latch('mutation_blocked',reason);
+  }
+  await context.exposeBinding('__continuityTransportBlocked',(_,reason)=>latch('mutation_blocked',DENIAL_REASONS.includes(reason)?reason:'realm_guard_failed'));
   await context.addInitScript(installRealmGuard);
   context.on('page',page=>{
     page.on('pageerror',()=>latch('browser_error'));
-    page.on('websocket',()=>latch('mutation_blocked'));
+    page.on('websocket',()=>latch('mutation_blocked','realtime_transport_blocked'));
   });
-  context.on('request',request=>{const violation=requestPolicy(request,config);if(violation)latch(violation);});
+  context.on('request',request=>{const violation=requestPolicy(request,config);if(violation)latch(violation,requestDenialReason(request,config));});
   context.on('response',response=>{
     if([401,403].includes(response.status()) && new URL(response.url()).origin===new URL(config.backendOrigin).origin)latch('valid_link_auth');
   });
-  await context.routeWebSocket('**/*',socket=>{latch('mutation_blocked');socket.close();});
+  await context.routeWebSocket('**/*',socket=>{latch('mutation_blocked','realtime_transport_blocked');socket.close();});
   await context.route('**/*',route=>{
     const work=(async()=>{
       try {
         const violation=requestPolicy(route.request(),config);
-        if(violation){latch(violation);await route.abort();return;}
+        if(violation){latch(violation,requestDenialReason(route.request(),config));await route.abort();return;}
         if(closing){await route.abort();return;}
         // Never continue/fallback: Playwright does not re-route automatic hops.
         // Fixture forwarding returns the same response contract, without live I/O.
@@ -90,6 +103,7 @@ async function installTransportGuard(context,config,deps={}) {
   });
   return {
     code:()=>code,
+    denialReasons:()=>[...reasons].sort(),
     async prepare(page){await page.evaluate(installRealmGuard);},
     async close(){
       closing=true;
@@ -100,7 +114,13 @@ async function installTransportGuard(context,config,deps={}) {
         await Promise.race([
           (async()=>{
             for(const page of context.pages())for(const frame of page.frames()) {
-              try {if(await frame.evaluate(()=>!!window.__continuityTransportDenied))latch('mutation_blocked');} catch {}
+              try {
+                const state=await frame.evaluate(()=>({denied:!!window.__continuityTransportDenied,reasons:window.__continuityTransportDeniedReasons}));
+                if(state.denied) {
+                  latch('mutation_blocked');
+                  for(const reason of Array.isArray(state.reasons)?state.reasons:['realm_guard_failed'])latch('mutation_blocked',reason);
+                }
+              } catch {}
             }
             await Promise.all([context.close(),deps.disposeRead?.()]);
             await Promise.allSettled([...active]);
@@ -116,11 +136,18 @@ async function installTransportGuard(context,config,deps={}) {
 async function denyProxy() {
   // Independent network boundary: this endpoint never forwards a byte. It also
   // covers inherited/isolated realms missed by Playwright's injected WS routing.
-  const sockets=new Set(),firewall={onDenied:()=>{}};
-  const server=http.createServer((_,response)=>{firewall.onDenied();response.writeHead(403);response.end();});
-  const refuse=(_,socket)=>{firewall.onDenied();socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');};
+  const sockets=new Set(),firewall={onDenied:()=>{},deniedReasons:new Set()};
+  const deny=reason=>{firewall.deniedReasons.add(reason);firewall.onDenied(reason);};
+  const server=http.createServer((_,response)=>{deny('proxy_http_blocked');response.writeHead(403);response.end();});
+  const refuse=(_,socket)=>{deny('proxy_tunnel_blocked');socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');};
   server.on('connect',refuse);server.on('upgrade',refuse);
-  server.on('connection',socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket));});
+  server.on('connection',socket=>{
+    sockets.add(socket);
+    // CONNECT/upgrade detaches Node's HTTP parser error handling. A peer reset
+    // must remain a denied transport, not become an unhandled process error.
+    socket.on('error',function onProxySocketError(){deny('proxy_socket_error');socket.destroy();});
+    socket.on('close',()=>sockets.delete(socket));
+  });
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   firewall.proxy={server:'http://127.0.0.1:'+server.address().port,bypass:'<-loopback>'};
   firewall.close=async()=>{for(const socket of sockets)socket.destroy();await new Promise(resolve=>server.close(resolve));};
@@ -151,4 +178,4 @@ async function openGuardedContext(browser,config,deps={}) {
     throw error;
   }
 }
-module.exports={requestPolicy,installRealmGuard,openGuardedContext};
+module.exports={requestPolicy,requestDenialReason,DENIAL_REASONS,installRealmGuard,openGuardedContext,denyProxy};

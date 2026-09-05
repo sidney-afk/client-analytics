@@ -77,3 +77,7 @@ jobs:
         run: node qa/client-continuity-transport.js
       - name: Exercise inactive launcher with fictional read-only transport
         run: node scripts/client-continuity-run.js --fixture
+      - name: Drive six anonymous TEST actions with isolated persisted readback
+        run: node scripts/client-continuity-test-ui.js --fixture
+      - name: Check inactive hosted operations and delivery with synthetic receipts
+        run: node test/client-continuity-operations.js

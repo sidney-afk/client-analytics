@@ -56139,7 +56139,7 @@
             if (code === 'unsupported_image_type' || code === 'image_type_mismatch' || code === 'image_bytes_unrecognized') {
                 return 'Only PNG, JPEG, WebP or GIF images can be pasted.';
             }
-            if (code === 'image_incomplete') return 'That image file is cut off or damaged. Try copying it again.';
+            if (code === 'image_incomplete' || code === 'image_undecodable') return 'That image file is cut off or damaged. Try copying it again.';
             if (code === 'image_too_large') return 'That image is over 4 MB even after resizing. Try a smaller crop.';
             if (code === 'rate_limited') return 'Too many images uploaded in the last hour. Try again a little later.';
             if (code === 'operation_forbidden') return 'Only admin and SMM accounts can add images to a description.';

@@ -13,6 +13,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const policy = require('../supabase/functions/description-image-upload/policy.mjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -65,7 +66,15 @@ function png(width, height, headerOnly, options) {
   const parts = [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr)];
   if (headerOnly) return concat(parts);
   const o = options || {};
-  if (!o.noIdat) parts.push(chunk('IDAT', new Uint8Array([0x78, 0x9c, 0x63, 0x60, 0, 0, 0, 2, 0, 1])));
+  /* Real pixel rows: one filter byte (0) plus width RGBA pixels per row,
+     deflated the way an encoder would (round four: the IDAT is inflated and
+     measured against IHDR, so a placeholder stream no longer passes). */
+  const raw = new Uint8Array(height * (1 + width * 4));
+  const idat = o.badIdat ? new Uint8Array([0x01])
+    : o.shortIdat ? new Uint8Array(zlib.deflateSync(raw.subarray(0, Math.max(1, raw.length - 4))))
+    : o.badFilter ? new Uint8Array(zlib.deflateSync((() => { const r = raw.slice(); r[0] = 9; return r; })()))
+    : new Uint8Array(zlib.deflateSync(raw));
+  if (!o.noIdat) parts.push(chunk('IDAT', idat));
   parts.push(chunk('IEND', new Uint8Array(0)));
   const out = concat(parts);
   if (o.corruptCrc) out[out.length - 1] ^= 0xff; /* flip a bit of IEND's CRC */
@@ -103,6 +112,7 @@ function webp(width, height, headerOnly) {
 }
 const SVG = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
 
+(async () => {
 /* ---- 1. The sniffers identify the four allowed shapes, and nothing else - */
 console.log('magic bytes decide the type, and the header yields real dimensions');
 ok(JSON.stringify(policy.sniffImage(png(1600, 900))) === '{"kind":"png","width":1600,"height":900}', 'PNG: IHDR width/height read big-endian');
@@ -116,25 +126,25 @@ ok(policy.sniffImage(new TextEncoder().encode('%PDF-1.7 ... ')) === null, 'a PDF
 
 /* ---- 2. THE THREE CONDITIONS, executed ---------------------------------- */
 console.log('the declared type, the bytes, and their agreement are all required');
-const good = policy.verifyImage('image/png', png(800, 600));
+const good = await policy.verifyImage('image/png', png(800, 600));
 ok(good.ok === true && good.mime === 'image/png' && good.extension === 'png' && good.width === 800,
   'a PNG labelled image/png passes with its verified mime and extension');
-ok(policy.verifyImage('image/png; charset=binary', png(8, 8)).ok === true,
+ok((await policy.verifyImage('image/png; charset=binary', png(8, 8))).ok === true,
   'a content-type with parameters is read by its media type alone');
-ok(policy.verifyImage('IMAGE/JPEG', jpeg(10, 10)).ok === true, 'the declared type is case-insensitive');
+ok((await policy.verifyImage('IMAGE/JPEG', jpeg(10, 10))).ok === true, 'the declared type is case-insensitive');
 
-const svgAsPng = policy.verifyImage('image/png', SVG);
+const svgAsPng = await policy.verifyImage('image/png', SVG);
 ok(svgAsPng.ok === false && svgAsPng.error === 'image_bytes_unrecognized' && svgAsPng.status === 415,
   'THE FINDING FROM #1225: SVG bytes labelled image/png are refused — the allowlist checks a claim, the sniffer checks the bytes');
-const svgDeclared = policy.verifyImage('image/svg+xml', SVG);
+const svgDeclared = await policy.verifyImage('image/svg+xml', SVG);
 ok(svgDeclared.ok === false && svgDeclared.error === 'unsupported_image_type',
   'and SVG declared honestly is refused by the allowlist before the bytes are looked at');
-const mismatch = policy.verifyImage('image/png', gif(10, 10));
+const mismatch = await policy.verifyImage('image/png', gif(10, 10));
 ok(mismatch.ok === false && mismatch.error === 'image_type_mismatch',
   'a real GIF labelled image/png is refused: the two must AGREE, not merely both be allowed');
-ok(policy.verifyImage('image/jpeg', webp(10, 10)).error === 'image_type_mismatch', 'same for WebP bytes under a JPEG label');
-ok(policy.verifyImage('image/png', new Uint8Array(0)).error === 'empty_image', 'an empty body is refused as empty, not as unrecognised');
-ok(policy.verifyImage('text/html', png(10, 10)).error === 'unsupported_image_type', 'a non-image label never reaches the sniffer');
+ok((await policy.verifyImage('image/jpeg', webp(10, 10))).error === 'image_type_mismatch', 'same for WebP bytes under a JPEG label');
+ok((await policy.verifyImage('image/png', new Uint8Array(0))).error === 'empty_image', 'an empty body is refused as empty, not as unrecognised');
+ok((await policy.verifyImage('text/html', png(10, 10))).error === 'unsupported_image_type', 'a non-image label never reaches the sniffer');
 
 /* ---- 3. The ceilings ---------------------------------------------------- */
 console.log('bounds fail closed');
@@ -143,40 +153,56 @@ ok(/file_size_limit[\s\S]*4194304/.test(MIGRATION) && MIGRATION.includes("'syncv
   "and the bucket's own file_size_limit is the same number, so the two refusals agree");
 const big = new Uint8Array(policy.MAX_BYTES + 1);
 big.set(png(10, 10));
-ok(policy.verifyImage('image/png', big).error === 'image_too_large', 'one byte over the ceiling is refused');
-const wide = policy.verifyImage('image/png', png(policy.MAX_DIMENSION + 1, 10));
+ok((await policy.verifyImage('image/png', big)).error === 'image_too_large', 'one byte over the ceiling is refused');
+const wide = await policy.verifyImage('image/png', png(policy.MAX_DIMENSION + 1, 10));
 ok(wide.ok === false && wide.error === 'image_too_large', 'a header claiming more pixels than the dimension ceiling is refused');
-ok(policy.verifyImage('image/png', png(0, 10)).error === 'image_dimensions_invalid', 'zero pixels is not an image');
+ok((await policy.verifyImage('image/png', png(0, 10))).error === 'image_dimensions_invalid', 'zero pixels is not an image');
 
 /* ---- 3b. A header is not a file ---------------------------------------- */
 console.log('a body that stops after its header is refused');
-ok(policy.verifyImage('image/png', png(10, 10, true)).error === 'image_incomplete',
+ok((await policy.verifyImage('image/png', png(10, 10, true))).error === 'image_incomplete',
   'THE ROUND-TWO FINDING: a 33-byte PNG signature + IHDR with no IEND is refused, not stored forever as a broken URL');
-ok(policy.verifyImage('image/gif', gif(10, 10, true)).error === 'image_incomplete', 'a GIF without its 0x3B trailer is refused');
-ok(policy.verifyImage('image/jpeg', jpeg(10, 10, true)).error === 'image_incomplete', 'a JPEG without its EOI marker is refused');
-ok(policy.verifyImage('image/webp', webp(10, 10, true)).error === 'image_incomplete', 'a WebP whose RIFF size does not match its length is refused');
+ok((await policy.verifyImage('image/gif', gif(10, 10, true))).error === 'image_incomplete', 'a GIF without its 0x3B trailer is refused');
+ok((await policy.verifyImage('image/jpeg', jpeg(10, 10, true))).error === 'image_incomplete', 'a JPEG without its EOI marker is refused');
+ok((await policy.verifyImage('image/webp', webp(10, 10, true))).error === 'image_incomplete', 'a WebP whose RIFF size does not match its length is refused');
 ok(policy.imageComplete('png', png(10, 10)) && policy.imageComplete('gif', gif(10, 10))
   && policy.imageComplete('jpeg', jpeg(10, 10)) && policy.imageComplete('webp', webp(10, 10)),
   'and each complete fixture passes the same check');
 /* Round three: a PNG is walked chunk by chunk, not matched by its last bytes. */
-ok(policy.verifyImage('image/png', png(10, 10, false, { corruptCrc: true })).error === 'image_incomplete',
+ok((await policy.verifyImage('image/png', png(10, 10, false, { corruptCrc: true }))).error === 'image_incomplete',
   'THE ROUND-THREE FINDING: a PNG whose chunk CRC does not match is refused — "IEND" at the end is not enough');
-ok(policy.verifyImage('image/png', png(10, 10, false, { noIdat: true })).error === 'image_incomplete',
+ok((await policy.verifyImage('image/png', png(10, 10, false, { noIdat: true }))).error === 'image_incomplete',
   'a PNG with IHDR and IEND but no IDAT (no pixel data at all) is refused');
-ok(policy.verifyImage('image/png', png(10, 10, false, { trailingJunk: true })).error === 'image_incomplete',
+ok((await policy.verifyImage('image/png', png(10, 10, false, { trailingJunk: true }))).error === 'image_incomplete',
   'and bytes after IEND are refused: the walk must end exactly at the end of the file');
 const suffixOnly = new Uint8Array(57);
 suffixOnly.set(png(10, 10, true));
 suffixOnly.set([0x49, 0x45, 0x4e, 0x44], 49);
-ok(policy.verifyImage('image/png', suffixOnly).error === 'image_incomplete',
+ok((await policy.verifyImage('image/png', suffixOnly)).error === 'image_incomplete',
   'the exact shape round two accepted (IHDR + zero padding + the letters IEND) is now refused');
 const noScan = jpeg(10, 10, true).slice(0, 39); /* up to and including SOF0, before the SOS marker */
 const noScanEoi = new Uint8Array(noScan.length + 2);
 noScanEoi.set(noScan); noScanEoi.set([0xff, 0xd9], noScan.length);
-ok(policy.verifyImage('image/jpeg', noScanEoi).error === 'image_incomplete',
+ok((await policy.verifyImage('image/jpeg', noScanEoi)).error === 'image_incomplete',
   'a JPEG with an EOI but no Start Of Scan carries no image data and is refused');
+/* Round four: the pixel payload is inflated and measured. */
+ok((await policy.verifyImage('image/png', png(10, 10, false, { badIdat: true }))).error === 'image_undecodable',
+  'THE ROUND-FOUR FINDING: a CRC-valid PNG whose IDAT is not a zlib stream is refused');
+ok((await policy.verifyImage('image/png', png(10, 10, false, { shortIdat: true }))).error === 'image_undecodable',
+  'a PNG whose IDAT inflates to fewer bytes than IHDR implies is refused');
+ok((await policy.verifyImage('image/png', png(10, 10, false, { badFilter: true }))).error === 'image_undecodable',
+  'a PNG whose scanline carries an undefined filter type is refused');
+ok((await policy.verifyImage('image/png', png(10, 10))).ok === true, 'and a PNG with real deflated rows passes');
+const realPng1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+ok(await policy.pngPixelsDecodable(new Uint8Array(realPng1x1)) === true, 'the real 1x1 PNG inflates to exactly its one filtered row');
+const bomb = concat([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  chunk('IHDR', (() => { const h = new Uint8Array(13); new DataView(h.buffer).setUint32(0, 1); new DataView(h.buffer).setUint32(4, 1); h.set([8, 6, 0, 0, 0], 8); return h; })()),
+  chunk('IDAT', new Uint8Array(zlib.deflateSync(new Uint8Array(1 << 20)))),
+  chunk('IEND', new Uint8Array(0))]);
+ok((await policy.verifyImage('image/png', bomb)).error === 'image_undecodable',
+  'a 1x1 IHDR over a megabyte of inflatable zeros is refused at the ceiling IHDR set, not inflated in full');
 const realPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
-const realVerdict = policy.verifyImage('image/png', new Uint8Array(realPng));
+const realVerdict = await policy.verifyImage('image/png', new Uint8Array(realPng));
 ok(realVerdict.ok === true && realVerdict.width === 1 && realVerdict.height === 1,
   'a real 1x1 PNG from an encoder passes end to end (the same bytes the nightly probe uploads)');
 ok(policy.ROLE_LIMIT_PER_HOUR > policy.RATE_LIMIT_PER_HOUR, 'the per-role ceiling sits above the per-actor one');
@@ -268,3 +294,4 @@ console.log(failures === 0
   ? '\ndescription image upload checks passed'
   : '\n' + failures + ' description image upload check(s) failed');
 process.exit(failures === 0 ? 0 : 1);
+})().catch((error) => { console.error(error); process.exit(1); });

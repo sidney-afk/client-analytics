@@ -74,10 +74,16 @@ secret. Two owner-side items after merge, both one line:
 2. The role index, if the migration was applied before it was added:
    `create index if not exists description_images_role_created_idx on public.description_images (actor_role, created_at desc);`
 
-**A PNG is walked, not suffix-matched.** Every chunk's length must fit, every
-chunk's CRC must match, the first chunk must be a 13-byte IHDR, at least one
-IDAT must carry data, and the walk must end on a zero-length IEND exactly at
-the end of the file. A JPEG must reach a Start Of Scan before its EOI.
+**A PNG is walked, not suffix-matched, and its pixels are inflated.** Every
+chunk's length must fit, every chunk's CRC must match, the first chunk must
+be a 13-byte IHDR, at least one IDAT must carry data, and the walk must end
+on a zero-length IEND exactly at the end of the file. Then the IDAT stream is
+inflated (Deno's built-in `DecompressionStream`, capped at the byte count
+IHDR implies so a crafted body cannot expand past it) and must come out at
+EXACTLY that length with a defined filter type on every scanline; anything
+else is `image_undecodable`. That is what a decoder checks before it starts
+unfiltering, without an image library. JPEG, GIF and WebP keep the
+structural checks only; a JPEG must reach a Start Of Scan before its EOI.
 
 **Sizing, because it was the second half of the ask** (*"avoid things where
 people paste something and it looks huge or horrible"*): a Retina screenshot

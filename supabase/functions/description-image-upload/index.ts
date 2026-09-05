@@ -242,7 +242,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ ok: false, error: "invalid_body" }, 400);
   }
 
-  const verdict = verifyImage(clean(req.headers.get("content-type")), bytes);
+  const verdict = await verifyImage(clean(req.headers.get("content-type")), bytes);
   if (!verdict.ok) return json({ ok: false, error: verdict.error, max_bytes: MAX_BYTES }, verdict.status);
 
   /* The path and its public URL are known before any byte is written, so the

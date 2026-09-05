@@ -12977,3 +12977,13 @@ screenshots, and the doc said forever was the honest default).
    the migration; the owner runs the one statement since the file was applied
    before it existed.
 
+**Round four (Codex on #1310): one more, taken.** [P2] The chunk walk never
+inflated the IDAT, so a CRC-valid PNG with a one-byte garbage IDAT passed.
+`pngPixelsDecodable` now inflates the stream with Deno's built-in
+`DecompressionStream`, capped at the byte count IHDR implies (so a 1x1 header
+over a megabyte of zeros is refused at the cap, not inflated in full), and
+requires exactly that length with a defined filter type on every scanline.
+Refused as `image_undecodable`. Fixtures carry real deflated rows; a garbage
+IDAT, a short IDAT, an undefined filter and the bomb are each asserted. JPEG,
+GIF and WebP stay structural, stated in the doc.
+

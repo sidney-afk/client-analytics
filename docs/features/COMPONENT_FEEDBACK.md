@@ -115,6 +115,24 @@ exclusion, keyboard retry and 360/768/1280 light/dark layouts. It does not prove
 the complete app router or full Production polish. Optional local synthetic
 screenshots use `FEEDBACK_SCREENSHOTS=1`; no public artifact upload is added.
 
+The required `npm run test:prod-polish` ran once on `120fb0d9610fda381ab8e900c487b9908268d83b`:
+8/11 suites passed; structure, wired behavior and pixel parity failed. The
+feedback-related structure failure was a stale visible-state selector, followed
+by an exact read-shape allowlist missing `include_feedback: true`. The final
+test-only correction recognizes the visible feedback notice and that exact
+optional read shape. Actual structure and smoke suites then passed; the existing
+UI-source suite exercises both real guards, including 22 refused malformed or
+write-shaped requests. Runtime code is unchanged after the independently reviewed
+`120fb0d` privacy correction.
+
+The remaining full-gate failures stay open: `keyboardStatusGuardOpens` and pixel
+`row context menu inventory`. An isolated run serving the captured base's exact
+`index.html` passed the unchanged behavior suite; the base pixel attempt stopped
+earlier at an element-detached screenshot. Thus neither remaining candidate red
+is established as a baseline defect, and product regression versus timing/test
+infrastructure remains UNPROVEN. No assertion was weakened and no unrelated
+keyboard/context-menu code was changed. No second full-house run was performed.
+
 The coordinator owns the separate no-loss/history and monitoring work. Correlate
 source acceptance, reader visibility, link validity and mirror state separately;
 never treat this view or an HTTP success as history retention, zero loss or

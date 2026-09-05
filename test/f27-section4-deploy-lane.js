@@ -379,7 +379,16 @@ const CANDIDATES = new Map([
     // empty slot (43 of 1,567 buckets hold more than one post; one holds
     // seven). One extra client-pinned read, asked only when the post spans
     // more than one bucket.
-    source: 'd2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062',
+    // Re-pinned 2026-09-05 (thirtieth release, NOT YET DEPLOYED at time of
+    // writing -- v67 carries the twenty-ninth): the exclusivity read treats a
+    // result that came back at exactly its limit as UNKNOWN. Exclusivity is
+    // decided by absence, so a truncated page could hide the row that makes a
+    // bucket shared and the bucket would be offered as a write target for
+    // another post -- the one degradation in that function that failed towards
+    // "offer the wrong row" rather than "offer nothing". Unreachable on today's
+    // data (largest bucket 60 rows, largest split post's candidates 33, limit
+    // 800). One comparison; no new query, no new import, file count 5.
+    source: '3c3a5a862963977317923d8ad76f5d3e809531d0117fcf0d8f45058c7c0d9e99',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

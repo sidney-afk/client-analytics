@@ -21,6 +21,7 @@ try {
   if (seed < 0) throw new Error('filming-plan schema seam drift');
   cluster.exec(filming.slice(0, seed));
   cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-intake-root-manifest.sql'));
+  cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-only-intake.sql'));
   for (const negative of ['1', '0']) {
   const r = spawnSync(process.execPath, ['--experimental-strip-types', path.resolve(__dirname, '../scripts/native-intake-manifest/gateway-lane.mjs')], {
     encoding: 'utf8', timeout: 180000, maxBuffer: 1024 * 1024,

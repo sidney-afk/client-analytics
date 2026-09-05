@@ -71,7 +71,7 @@ jobs:
       LINEAR_OUTBOUND_SOURCE_SHA256: 1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
-      PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
+      PRODUCTION_WRITE_ENTRYPOINT_SHA256: 6dab61076818be8423bfc0f0c8a5bcd0069d8ef761672bc9b6592bfc998d94b7
       PRODUCTION_WRITE_FILE_COUNT: '5'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
@@ -281,9 +281,10 @@ jobs:
       # only in that historical release: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      # Draft root manifest closure: apply the additive root-manifest migration
-      # before any separately authorized deployment. No activation in this PR.
-      PRODUCTION_WRITE_SOURCE_SHA256: 7583b345fad9ce1e443c78508948e9ff7e908ce64c6a73d5b3b8da54b263995d
+      # Draft native-only intake closure: apply PR1293's root manifest, then the
+      # native-only SQL before separately authorized deployment. Both epoch flags
+      # remain disabled; no activation or serving proof in this PR.
+      PRODUCTION_WRITE_SOURCE_SHA256: 3a4e3557d4bddd596de90180cf07a4bd7807219494e4df010a7e4b6cdd12f541
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

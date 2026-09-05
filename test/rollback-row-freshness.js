@@ -1407,6 +1407,46 @@ const laneWithoutDispatchRun = run(fixture('lane-without-dispatch', appended(lan
 ok(laneWithoutDispatchRun.code === 0,
     'while "without a `lane` dispatch" is the negation it looks like, and asks for nothing');
 
+/* ---- 8w. completion before follow-up plans; checks are not deployments (round twenty-three) */
+const laneDoneThenWill = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` completed successfully and will be smoke-tested',
+    'tomorrow (run `33995000000`).',
+    '',
+].join('\n');
+const laneDoneThenWillRun = run(fixture('lane-done-then-will', appended(laneDoneThenWill), realRb));
+ok(laneDoneThenWillRun.code === 1 && laneDoneThenWillRun.json
+    && laneDoneThenWillRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'PLANNING THE FOLLOW-UP IS NOT PLANNING THE DISPATCH: "completed successfully and will be smoke-tested tomorrow (run `X`)" is a completion, the completion word comes first, and it FAILS with its run id');
+const laneDryRun = [
+    '',
+    '## 2026-09-06 — Pre-deploy notes',
+    '',
+    'The `deploy-onboarding-edge-functions` dry-run passed; no deployment was performed.',
+    '',
+].join('\n');
+const laneDryRunRun = run(fixture('lane-dry-run', appended(laneDryRun), realRb));
+ok(laneDryRunRun.code === 0,
+    'A CHECK IS NOT A DEPLOYMENT: "the `lane` dry-run passed" asks for nothing, whatever the next clause says');
+const laneDryRunId = laneDryRun.replace('dry-run passed;', 'dry-run passed (run `33995000000`);');
+const laneDryRunIdRun = run(fixture('lane-dry-run-id', appended(laneDryRunId), realRb));
+ok(laneDryRunIdRun.code === 0,
+    'and a run id after "dry-run passed" is the check\'s run, not a deployment\'s: still nothing');
+const laneAfterDryRun = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch went out (run `33995000000`) after the dry-run',
+    'passed an hour earlier.',
+    '',
+].join('\n');
+const laneAfterDryRunRun = run(fixture('lane-after-dry-run', appended(laneAfterDryRun), realRb));
+ok(laneAfterDryRunRun.code === 1 && laneAfterDryRunRun.json
+    && laneAfterDryRunRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while a dispatch that went out, with its run id, is not excused by the dry-run mentioned after it, and FAILS');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

@@ -12596,3 +12596,21 @@ unattended; 7 for a person, as before.
   the auto-made row when the card is pointed elsewhere — a separate change,
   not attempted here.
 * Applying the migration and running the 100 calls is the owner's dispatch.
+
+## Pending durable card history — draft, not installed
+
+The owner's request to keep every card change for at least 30 days is tracked
+by `docs/ops/CARD_CHANGE_HISTORY.md`. This source-only slice adds a private
+atomic INSERT/UPDATE/DELETE before/after journal to Calendar cards, Samples
+cards, native batches/deliverables/comments and Workload plans. It preserves
+existing semantic events/outboxes and anonymous writer access, records actors
+only to the assurance the transport actually provides, and retains history
+when current rows are deleted. Proposed retention is 90 days/minimum 30, with
+no automatic pruning.
+
+Open completion gates: independent exact-source review; separate PR #1293
+manifest schema prerequisite for the expanded backup corpus; reviewed schema/
+private-grant installation; reserved real-client-link TEST canary; complete
+private snapshot/readback/scratch restore; actual alert delivery; and observed
+retention window. Existing 14-table backups are explicitly limited. No live
+change or history guarantee is implied by this draft or its local SQL tests.

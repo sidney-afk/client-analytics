@@ -8,6 +8,13 @@ executes these files (see `README.md` › Repository layout).
 
 ## How to read this folder
 
+- **`2026-09-05-card-change-journal.sql`** is a draft/unapplied private atomic
+  before/after INSERT/UPDATE/DELETE journal on six card owners. No writer, auth,
+  runtime flag or existing RPC is changed. Installation checks exact keys;
+  history has no cascading foreign keys, public reads or automatic pruning.
+  `docs/ops/CARD_CHANGE_HISTORY.md` owns the staged backup prerequisites,
+  separate PR #1293 manifest dependency and retained-data rollback.
+
 - **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
   point: a schema-only snapshot of the live database captured 2026-07-03. To
   rebuild from scratch, start here.

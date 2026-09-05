@@ -353,6 +353,18 @@ returns aggregate counts only. Repository variable `THUMBNAIL_REVISION_SCAN_ENAB
 
 ## Backup and capacity truth
 
+**2026-09-05 source-only addition:** `docs/ops/CARD_CHANGE_HISTORY.md` owns the
+draft private atomic INSERT/UPDATE/DELETE journal for `calendar_posts`,
+`sample_reviews`, `batches`, `deliverables`, `production_comments` and
+`workload_plan`. It is not installed by a merge and changes no frozen writer or
+anonymous access policy. It preserves complete old/new rows independently of
+best-effort activity events. The expanded private backup corpus must explicitly
+include both source cards/events, Workload, the journal and the separate PR #1293
+intake manifest prerequisite. Existing 14-table packages remain limited history;
+they cannot prove this new corpus or a 30-day guarantee. See that runbook for
+staged install, retained-data rollback and the 90-day/no-auto-prune proposal.
+The dated capacity/provider statements below are not refreshed by this draft.
+
 - The live project is on **Pro**, not Free. The 2026-07-13 readback showed seven completed daily
   physical backups spanning the included seven-day retention window; the newest completed that day.
 - PITR was **off** at the readback. That matches the approved temporary-window policy, but means PITR

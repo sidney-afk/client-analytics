@@ -52,6 +52,14 @@ jobs:
           node-version: '22'
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
+      - name: Rehearse private card history in disposable PostgreSQL
+        env:
+          CARD_HISTORY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_HISTORY_PGHOST: 127.0.0.1
+          CARD_HISTORY_PGPORT: '5432'
+          CARD_HISTORY_PGUSER: postgres
+          CARD_HISTORY_PGPASSWORD: postgres
+        run: node scripts/card-change-journal-rehearsal.js
 
   identity-exposure:
     # THIS REPOSITORY IS PUBLIC AND THE ROSTER IS IN IT. Measured 2026-09-02:

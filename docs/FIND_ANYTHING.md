@@ -36,6 +36,7 @@
 | Where does file/folder X live? | `REPO_MAP.md` |
 | Which n8n webhooks / Edge Functions does the app call? | `docs/truth/ENDPOINTS.md` |
 | Supabase tables, flags, write contracts | `docs/truth/SUPABASE.md` |
+| Private durable card changes, original values, retention and complete backup rollout | `docs/ops/CARD_CHANGE_HISTORY.md` (draft/unapplied; separate from the activity feed) |
 | n8n workflow inventory & state | `docs/truth/N8N.md` |
 | Google Sheets tabs, roster truth | `docs/truth/SHEETS.md` |
 | Linear teams/states/what syncs | `docs/truth/LINEAR.md` |

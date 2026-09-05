@@ -14,6 +14,9 @@ actual helpers through `test/helpers/review-draft-source.js`.
 `qa/feedback-drafts/` contains complete-document failure/retry/identity and real
 BFCache tests with fictional intercepted transports; its README states the
 server assumptions and local-only proof limits.
+The blocked Calendar visibility experiment and its red fresh-page prerequisite
+are recorded in `docs/ops/CALENDAR_FEEDBACK_RECOVERY_ACCESS_BLOCKER.md`;
+`qa/feedback-drafts/calendar-recovery-access.js` is its intercepted regression.
 
 First Samples release composition and held live gates:
 `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts

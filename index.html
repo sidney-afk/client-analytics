@@ -43454,9 +43454,65 @@
         });
     }
 
+    // Recovery access is separate from review/approval eligibility. Only the
+    // current owner's exact captured feedback and matching source receipt may
+    // retain a component which has already left Client Approval.
+    function _calReviewRecoveryContext(post, comp) {
+        if (!_isClientLink || _calReviewMode() !== 'client' || !post
+            || post.client !== calClientSlug(calState.client)
+            || !(calState.posts || []).includes(post)) return null;
+        const ctx = _reviewDraftContext('calendar', post, comp);
+        if (!ctx || ctx.unreadable || !_reviewDraftCurrent(ctx)) return null;
+        const attempt = ctx.value.attempt;
+        // A newer, unsent revision survives acknowledgment of the earlier one.
+        if (!attempt) return ctx.value.text.trim() ? ctx : null;
+        if (attempt.kind !== 'tweak' || !['native', 'saving'].includes(attempt.phase)
+            || !post._writeUiRetrySourceAt || post._writeUiRetryPrincipal !== ctx.principal) return null;
+        let comments;
+        try { comments = JSON.parse((post._writeUiRetryEdits || {})[comp + '_tweaks'] || 'null'); } catch (e) { return null; }
+        if (!Array.isArray(comments) || !comments.some(comment => comment.id === attempt.id
+            && String(comment.body || '').trim() === attempt.text.trim()
+            && comment.is_tweak === true && comment.role === 'client' && comment.audience === 'client')) return null;
+        const journal = _writeUiRepairJournalRead();
+        if (journal.unknown) return null;
+        const refs = _writeUiSnapshotRepairRefs(post);
+        return journal.rows.some(row => row.surface === 'calendar' && (row.lane || 'card') === 'card'
+            && row.client_slug === ctx.slug && row.post_id === ctx.pid && row.principal === ctx.principal
+            && refs.some(ref => ref.key === row.key && ref.token === row.token)
+            && (row.intents || []).some(intent => intent.component === comp
+                && intent.native_committed === true
+                && _writeUiReceiptMatchesSource(row, intent, post, { row: intent.response_row }))) ? ctx : null;
+    }
+    function _calReviewRecoveryHtml(post, comp) {
+        const ctx = _calReviewRecoveryContext(post, comp);
+        if (!ctx) return '';
+        const attempt = ctx.value.attempt;
+        const saving = !!_calSaveInFlight[post.id] || !!_calReviewState.saving[post.id + '|' + comp];
+        const retry = attempt && post._writeUiRetrySourceAt && post._writeUiRetryPrincipal === ctx.principal;
+        return `<div class="cal-review-panel" data-comp="${_calEscAttr(comp)}" data-cal-review-recovery="${_calEscAttr(comp)}">
+            <div class="cal-review-panel-err" role="status">${attempt ? 'Feedback was accepted; card sync is still pending.' : 'Your newer note is still unsent.'}</div>
+            ${attempt ? `<div class="cal-review-preview-caption" role="note" aria-label="Earlier feedback" style="white-space:pre-wrap;overflow-wrap:anywhere">${_calEsc(attempt.text)}</div>` : ''}
+            ${ctx.value.text && (!attempt || ctx.value.revision !== attempt.revision) ? `<div class="cal-review-preview-caption" role="note" aria-label="Unsent note" style="white-space:pre-wrap;overflow-wrap:anywhere">${_calEsc(ctx.value.text)}</div>` : ''}
+            ${retry ? `<button type="button" class="cal-link" style="min-height:44px" data-cal-recovery-key="${_calEscAttr(ctx.key)}" onclick="_calReviewRetryRecovery(this)" ${saving ? 'disabled' : ''}>Retry card sync</button>` : ''}
+            <div>Open this card in Sheet to read its notes.</div>
+        </div>`;
+    }
+    async function _calReviewRetryRecovery(button) {
+        const ctx = _reviewDraftRecords.get(button.dataset.calRecoveryKey);
+        if (!ctx || !_reviewDraftCurrent(ctx)) return;
+        const post = calState.posts.find(p => p.id === ctx.pid && p.client === ctx.slug);
+        if (_calReviewRecoveryContext(post, ctx.comp) !== ctx || !ctx.value.attempt
+            || !post._writeUiRetrySourceAt || post._writeUiRetryPrincipal !== ctx.principal
+            || _calSaveInFlight[ctx.pid] || _calReviewState.saving[ctx.pid + '|' + ctx.comp]) return;
+        button.disabled = true;
+        _calRetrySave(ctx.pid);
+        await _calAwaitCardSave(ctx.pid);
+        if (_reviewDraftCurrent(ctx)) _calRenderBody({ preserveScroll: true });
+    }
     function _calReviewItems() {
         const mode = _calReviewMode();
         return (calState.posts || []).filter(p => {
+            if (_calComponentsFor(p).some(c => _calReviewRecoveryContext(p, c))) return true;
             const s = _calNormStatus(p.status || '');
             // The YouTube title is excluded from the overall status, so a card can
             // read Approved/Scheduled/Posted overall while its title is still
@@ -43601,7 +43657,7 @@
         const dateStr = p.scheduled_date
             ? _calParseIso(String(p.scheduled_date).slice(0, 10)).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
             : 'Unscheduled';
-        const pendingLabel = _calReviewPendingLabel(p);
+        const pendingLabel = _calReviewPendingLabel(p) || (_calComponentsFor(p).some(c => _calReviewRecoveryContext(p, c)) ? 'Feedback follow-up pending' : '');
         // Component pills are gated by Collaborative mode — when off, only
         // finished states render here, so the pill row will usually be empty
         // for cards in the review queue. The pending label above carries
@@ -43636,12 +43692,13 @@
         const activeComps = (_reviewMode === 'smm')
             ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'smm'))
             : (_isClientLink
-                ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'client'))
+                ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'client') || _calReviewRecoveryContext(p, c))
                 : _calComponentsFor(p));
         if (!activeComps.length) {
             return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;
         }
-        const panels = activeComps.map(comp => _calReviewPanelHtml(p, comp)).join('');
+        const panels = activeComps.map(comp => _isClientLink && !_calReviewComponentActive(p, comp, 'client')
+            ? _calReviewRecoveryHtml(p, comp) : _calReviewPanelHtml(p, comp)).join('');
         const cols = activeComps.length;
         // 4 components (a YouTube card with title review on) lay out 2×2 instead
         // of a cramped 4-wide row; 1–3 keep their natural column count.

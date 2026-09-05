@@ -603,3 +603,22 @@ the pre-2026-09-05 behaviour, not a broken control.
 the same day, separately and independently of this lane. Its rollback is
 unchanged: re-apply the definition from
 `migrations/2026-08-30-artifact-video-projection.sql`.
+
+## 2026-09-05 — pending: production-write pinned at d7fc8348… (evidence reuse)
+
+Two repo pins have moved since v67 `d2914ac2…` was deployed, neither yet
+dispatched: `6a39a2bc…` (exclusivity truncation guard, #1294) and `d7fc8348…`
+(`asset_access_read` reuses a fresh ledger verdict by `(slot, url_sha256)`;
+`recheck: true` forces a probe). The next Section 4 dispatch carries both; there
+is no intermediate state to restore to.
+
+**The browser half is live first and is safe against either gateway.** It sends
+`recheck` only from the Refresh access button; an older gateway ignores the
+field and probes as it always has. A newer gateway under an older browser
+answers the same shape faster. Rolling the function back to v67 therefore leaves
+a working page with live probes, not a broken read.
+
+**The index migration is independent.** `2026-09-05-asset-evidence-by-url.sql`
+adds `production_asset_access_checks_by_url_idx`; the lookup is correct without
+it. Rollback is `drop index if exists
+public.production_asset_access_checks_by_url_idx;`.

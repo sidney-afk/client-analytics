@@ -6161,3 +6161,36 @@ the error, so the next session recognises it instead of re-diagnosing it.
 The alias `f27capture` also answered `CommandNotFoundException` in a fresh
 window that had not loaded the owner's `$PROFILE`. CLAUDE.md now leads with the
 full script path, which always resolves, and keeps the alias as the shorthand.
+
+## 2026-09-05 — the asset grid stops blinking; the gateway reuses a verdict it already holds
+
+Owner, with the post-level fix live on the reported parent: the Open link pill
+"disappears and reappears ... two or three times" on a tab return, and "99% of
+the time the asset links are not gonna change" so why wait for the probe each
+time. Two causes, both in code that already existed to solve the previous
+version of the same complaint.
+
+**The blink.** The 2026-08-31 preservation rule required `complete &&
+scopeSignature`. A tab return invalidates twice with a re-read in between; the
+re-read sets `complete` false; the second pass dropped the stamped in-flight
+state; the next render reseeded a skeleton for a link that had not moved. Three
+more places deleted cached reads outright (the delta tick, the pill cache, the
+post-wide invalidation after a batch save). All four now keep what is on screen
+and mark it stale, with the existing use-time scope gate (and a new one for
+pills) deciding whether a kept value may be drawn. `_prodEnsureAssets` also stops
+starting the read that `requestStillCurrent()` was going to refuse anyway.
+
+**The wait.** Every read probed every slot live. `heldAssetEvidence` reuses a
+verdict the evidence ledger already holds for the same `(slot, url_sha256)`
+within `ASSET_EVIDENCE_MAX_AGE_MS`, in place of the network step only; the
+approval gate is untouched. `recheck: true` from Refresh access skips the
+ledger. The executed suite caught `Number(null) === 0` in the first draft, which
+would have reused a timed-out probe as a status-0 verdict.
+
+**Parent grid.** No empty Deliverable file row on a real hierarchy parent.
+
+Browser half live on merge. Gateway half re-pins `production-write` to
+`d7fc8348…` (file count 5, entrypoint unchanged) and waits for the next Section 4
+dispatch, which also carries the exclusivity truncation guard (`6a39a2bc…`,
+#1294). Optional index migration `2026-09-05-asset-evidence-by-url.sql`. Ledger
+item 155, addendum.

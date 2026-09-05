@@ -172,8 +172,10 @@ and the card's conversation copied onto it. So the function also requires
 ~~These are the same two questions~~ The identity question is the same one
 `scripts/f42-linkage-defect-repair.js` (`classAObjections`) asks before
 planning a Class A repair, so the SQL repair and the JS planner agree about what
-"the same work item" means — and both dropped the kind question in the same
-change.
+"the same work item" means. The planner no longer treats a disagreeing kind as
+a refusal of the *repair*, only of *itself*: it patches origin and card_id and
+cannot relabel, so it hands those rows to the RPC by name
+(`kind_disagrees_use_bind_and_import`) rather than patching them half-way.
 **Consequence for the plan:** a slot that cannot prove its identity is not a
 slot this RPC will repair. Those are for a person, and the Phase 2 call list has
 to be measured with that in mind rather than assumed to cover every remaining
@@ -197,12 +199,18 @@ were revised together (OPEN_REPAIRS 156):
     is not required to match the slot either: 9 live graphic slots hold
     thumbnails tracked on the Video team, and the card's word is what the
     client sees.
-  * **the labels follow the card on bind.** A row bound into the video slot
-    becomes `kind='video'`; a graphic-slot row keeps `thumbnail`/`other`; team
-    is the slot's team, as before. This is not cosmetic:
+  * **the labels follow the card on bind, and become the slot key.** A row
+    bound into the video slot becomes `kind='video'`; one bound into the
+    graphic slot becomes `kind='thumbnail'`; team is the slot's team, as
+    before. This is not cosmetic, in both directions:
     `deliverables_card_slot_unique` keys on kind, so a video-slot row left at
-    `thumbnail` would collide with the same card's real thumbnail. Exactly 14
-    live rows relabel, all thumbnail→video, all the "Reel" rows above.
+    `thumbnail` would collide with the same card's real thumbnail; and
+    `linear-inbound`'s `maintainCardLinkage` reads exactly two values from
+    kind (thumbnail → graphic slot, anything else → video slot), so a
+    graphic-slot row left at `other` would be written into the VIDEO slot by
+    the first inbound write after a team returned to Linear authority (Codex
+    P1 on #1291). 40 live rows relabel: the 14 "Reel" rows thumbnail→video and
+    the 26 "Carousel"/"Story" rows other→thumbnail. The title is untouched.
   * **a contested slot resolves on request, and the card wins.** With
     `"evict_occupant": "card_wins"` in the binding, a row holding the slot
     that the card does *not* point at is detached (`card_id → null`) and, if
@@ -230,7 +238,7 @@ population of 107 mismatching slots, same read-only method):
 
 | Outcome | Slots |
 |---|---|
-| **Binds on its own** (identity agrees, slot free) | **82** — of which 14 relabel thumbnail→video |
+| **Binds on its own** (identity agrees, slot free) | **82** — of which 40 relabel to the slot key (14 thumbnail→video, 26 other→thumbnail) |
 | **Binds with `evict_occupant=card_wins`** — occupant is a native-born shell, 0 name the same issue | **18** — occupant statuses: Kasper approval 6, scheduled 4, canceled 3, posted 3, tweak 1, approved 1 |
 | Refused: `already_bound_elsewhere` | 5 |
 | Refused: `client_mismatch` | 1 |

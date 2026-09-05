@@ -50,11 +50,16 @@
 -- believe the card." So:
 --   * kind never refuses. Identity (above) is the proof.
 --   * on bind, the labels FOLLOW THE CARD: a row bound into the video slot is
---     kind='video'; a row bound into the graphic slot keeps 'thumbnail' or
---     'other' (a 'video' kind there becomes 'thumbnail'); team is the slot's
---     team, as it always was. `deliverables_card_slot_unique` keys on kind, so
---     a video-slot row left at kind='thumbnail' would collide with the same
---     card's real thumbnail -- normalising is what makes the bind possible.
+--     kind='video'; a row bound into the graphic slot is kind='thumbnail';
+--     team is the slot's team, as it always was. Once bound, kind IS the slot
+--     key and nothing else: `deliverables_card_slot_unique` keys on it, and
+--     linear-inbound's maintainCardLinkage reads exactly two values from it
+--     (thumbnail -> graphic slot, anything else -> video slot). A graphic-slot
+--     row left at 'other' would collide with nothing today and be written into
+--     the VIDEO slot by the first inbound write after a team returned to
+--     Linear authority (Codex P1 on #1291). A video-slot row left at
+--     'thumbnail' collides with the same card's real thumbnail. Normalising
+--     both ways is what makes the bind possible AND stable.
 --   * a Linear identifier's prefix (VID-/GRA-) is NOT required to match the
 --     slot either: 9 live graphic slots point at thumbnails tracked on the
 --     Video team, and the card's word is what the client sees.
@@ -222,13 +227,11 @@ begin
 
   -- 4b. THE LABEL FOLLOWS THE CARD. See the header: `kind` is a title regex,
   --     and the card's slot is a person's word. It never refuses; it is
-  --     normalised on bind so the slot-unique index cannot collide with the
-  --     same card's other slot. (The former kind refusal lived here.)
-  v_kind_after := case
-    when v_component = 'video' then 'video'
-    when lower(btrim(coalesce(v_kind, ''))) in ('thumbnail', 'other') then lower(btrim(v_kind))
-    else 'thumbnail'
-  end;
+  --     normalised on bind to the slot key -- the two values the unique index
+  --     and linear-inbound read -- so it can neither collide with the same
+  --     card's other slot nor be routed into the wrong one later. (The former
+  --     kind refusal lived here.)
+  v_kind_after := case when v_component = 'graphic' then 'thumbnail' else 'video' end;
 
   -- 4c. THE CARD AND THE DELIVERABLE MUST NAME THE SAME LINEAR ISSUE. This is
   --     the only check here that does not descend from the card pointer, and
@@ -244,9 +247,10 @@ begin
   end if;
 
   -- 5. THE SLOT. An occupant is any OTHER row already attached to this card in
-  --    this slot's family -- the slot's team, or the kind this row will carry
-  --    after the bind (the two keys the unique index and the workload page
-  --    respectively read) -- that is not the row the card's other slot names.
+  --    this slot's family -- the slot's team, or the slot key this row will
+  --    carry after the bind (the two keys the unique index and the workload
+  --    page respectively read) -- that is not the row the card's other slot
+  --    names.
   --    Checked here so a contested slot is REPORTED (or, on request, resolved
   --    by the ruling), rather than surfacing as a unique-violation that says
   --    nothing about which card or which occupant.
@@ -340,7 +344,7 @@ begin
   end loop;
 
   -- 6. BIND. The same four fields `_prodCrosswalkMismatchFields` compares,
-  --    plus the label rule from 4b.
+  --    plus the slot key from 4b.
   perform set_config('app.event_written', '1', true);
   update public.deliverables d
   set card_id = v_card_id,

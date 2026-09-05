@@ -130,6 +130,10 @@ insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,o
   ('del_reel_thumb','bat_acme', 'acme', 'graphics', 'thumbnail', 'RT', 'todo', 'calendar','card_reel', 'GRA-831', null, null),
   -- the 9 live graphic slots holding a thumbnail tracked on the VIDEO team.
   ('del_vidthumb',  'bat_acme', 'acme', 'video',    'thumbnail', 'VT', 'todo', 'manual',  null,        'VID-840', null, null),
+  -- the 26 live "Carousel"/"Story" rows: graphic slot, kind='other'. Bound,
+  -- the kind becomes the slot key, because linear-inbound reads any kind but
+  -- 'thumbnail' as the VIDEO slot (Codex P1 on #1291).
+  ('del_carousel',  'bat_acme', 'acme', 'graphics', 'other',     'CA', 'todo', 'manual',  null,        'GRA-860', null, null),
   -- two projections of ONE issue: the second is not an occupant that lost.
   ('del_dupe_a',    'bat_acme', 'acme', 'video', 'video', 'DA', 'todo',            'manual',   null,        'VID-870', null, null),
   ('del_dupe_b',    'bat_acme', 'acme', 'video', 'video', 'DB', 'kasper_approval', 'calendar', 'card_dupe', 'VID-870', null, 'uuid-dupe-b'),
@@ -149,6 +153,7 @@ insert into public.calendar_posts(client, id, name, video_deliverable_id, graphi
   ('acme','card_url','Card URL','del_url',null,'VID-850',null),
   ('acme','card_reel','Card Reel','del_reel','del_reel_thumb','VID-830','GRA-831'),
   ('acme','card_vidthumb','Card VidThumb',null,'del_vidthumb',null,'VID-840'),
+  ('acme','card_carousel','Card Carousel',null,'del_carousel',null,'GRA-860'),
   ('acme','card_dupe','Card Dupe','del_dupe_a',null,'VID-870',null),
   ('acme','card_posted','Card Posted','del_posted_keep',null,'VID-880',null),
   ('beta','card_ok','Beta same id','del_beta',null,'VID-600',null);
@@ -260,6 +265,13 @@ function rehearse() {
     const vt = scalar(cluster, "select card_id||'|'||team||'|'||kind from public.deliverables where id='del_vidthumb'");
     ok(vt === 'card_vidthumb|graphics|thumbnail',
       'a thumbnail tracked on the Video team binds into the graphic slot the card gives it, taking the slot\'s team (' + vt + ')');
+
+    /* a "Carousel" (kind=other) in a graphic slot: bound, its kind is the slot
+       key, so linear-inbound can never route it into the video slot. */
+    const caReceipt = scalar(cluster, bind({ source_surface: 'calendar', deliverable_id: 'del_carousel', card_id: 'card_carousel', client_slug: 'acme', component: 'graphic' }, [])).replace(/\s+/g, '');
+    const ca = scalar(cluster, "select card_id||'|'||team||'|'||kind from public.deliverables where id='del_carousel'");
+    ok(ca === 'card_carousel|graphics|thumbnail' && /"kind_before":"other"/.test(caReceipt) && /"kind":"thumbnail"/.test(caReceipt),
+      "a graphics row stamped kind='other' binds into the graphic slot and becomes kind='thumbnail' -- the slot key linear-inbound and the unique index read (" + ca + ')');
 
     /* ---- every refusal, each reachable only via its own guard ---------- */
     refuses(cluster, bind({ source_surface: 'sxr', deliverable_id: 'del_free', card_id: 'card_free', client_slug: 'acme', component: 'video' }),

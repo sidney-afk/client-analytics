@@ -68,9 +68,17 @@ ok(/d2\.id is distinct from v_card_other_slot/.test(CODE)
    the proof; the label follows the card. */
 ok(!/crosswalk_bind_kind_does_not_match_slot/.test(CODE) && !/v_expected_kind/.test(CODE),
   'kind never refuses — the former kind_does_not_match_slot guard is gone, and identity below is the one proof of "the same work item"');
-ok(/v_kind_after := case\s+when v_component = 'video' then 'video'\s+when lower\(btrim\(coalesce\(v_kind, ''\)\)\) in \('thumbnail', 'other'\) then lower\(btrim\(v_kind\)\)\s+else 'thumbnail'\s+end;/.test(CODE)
+ok(/v_kind_after := case when v_component = 'graphic' then 'thumbnail' else 'video' end;/.test(CODE)
   && /kind = v_kind_after/.test(CODE),
-  "the label follows the card: a row bound into the video slot becomes kind='video', a graphic-slot row keeps thumbnail/other — which is what stops the slot-unique index colliding with the same card's real thumbnail");
+  "the label follows the card and becomes the SLOT KEY: video slot -> kind='video', graphic slot -> kind='thumbnail' — the two values deliverables_card_slot_unique and linear-inbound's maintainCardLinkage read, so a bound row can neither collide with its card's other slot nor be routed into the wrong one by a later inbound write");
+/* Codex P1 on #1291: maintainCardLinkage (linear-inbound) reads any kind but
+   'thumbnail' as the video slot. If the RPC ever leaves a graphic-slot row at
+   'other', a team returned to Linear authority would write that row into
+   video_deliverable_id on its next webhook. */
+const INBOUND = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'linear-inbound', 'index.ts'), 'utf8');
+ok(/clean\(deliverable\.kind\) === "thumbnail" \? "graphic_deliverable_id" : "video_deliverable_id"/.test(INBOUND)
+  && !/in \('thumbnail', 'other'\) then lower\(btrim\(v_kind\)\)/.test(CODE),
+  "and that is checked against the consumer, not assumed: linear-inbound still reads kind as a two-valued slot key, and the RPC no longer preserves 'other' on a graphic-slot row");
 ok(/crosswalk_bind_linear_identity_unproven/.test(CODE)
   && /crosswalk_bind_linear_identity_disagrees/.test(CODE),
   'and both sides must name the SAME Linear issue, with either side missing treated as UNPROVEN rather than as permission');

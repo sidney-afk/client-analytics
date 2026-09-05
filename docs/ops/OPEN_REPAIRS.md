@@ -12518,15 +12518,23 @@ Kasper approval are phantom items in his queue today.
 `scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`,
 `test/f42-linkage-defect-repair.js`, `docs/ops/CROSSWALK_REPAIR_STRATEGY.md` §4b:
 
-* **kind never refuses.** Identity — both sides naming the same Linear issue —
-  is the one proof. The planner dropped the same objection so the two cannot
-  disagree. A Linear team prefix is not required to match the slot either: 9
-  live graphic slots hold thumbnails tracked on the Video team.
-* **labels follow the card on bind:** video slot → `kind='video'`; graphic slot
-  keeps `thumbnail`/`other`; team is the slot's team as before. Load-bearing,
-  not cosmetic: `deliverables_card_slot_unique` keys on kind, and a video-slot
-  row left at `thumbnail` collides with the same card's real thumbnail. The
-  rehearsal carries that exact card. 14 live rows relabel, all the "Reel" rows.
+* **kind never refuses the repair.** Identity — both sides naming the same
+  Linear issue — is the one proof. The planner (`classAObjections`) keeps a
+  kind objection but only against *itself*: it patches origin and card_id and
+  cannot relabel, so it hands those rows to the RPC by name
+  (`kind_disagrees_use_bind_and_import`) instead of patching them half-way
+  (Codex P2 on #1291). A Linear team prefix is not required to match the slot
+  either: 9 live graphic slots hold thumbnails tracked on the Video team.
+* **labels follow the card on bind and become the slot key:** video slot →
+  `kind='video'`; graphic slot → `kind='thumbnail'`; team is the slot's team
+  as before. Load-bearing in both directions: `deliverables_card_slot_unique`
+  keys on kind, so a video-slot "Reel" left at `thumbnail` collides with the
+  same card's real thumbnail; and `linear-inbound`'s `maintainCardLinkage`
+  reads any kind but `thumbnail` as the VIDEO slot, so a graphic-slot
+  "Carousel" left at `other` would be routed into the video slot by the first
+  inbound write after a team returned to Linear authority (Codex P1 on #1291).
+  The rehearsal carries both cards. 40 live rows relabel (14 thumbnail→video,
+  26 other→thumbnail); titles are untouched.
 * **`evict_occupant: 'card_wins'`** (opt-in, by name — any other value is
   refused): an occupant the card does not point at is detached; if its status
   is live it is set `canceled` natively and the cancel is queued through

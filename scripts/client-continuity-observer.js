@@ -2,6 +2,7 @@
 const fs=require('node:fs'),path=require('node:path');
 const {randomUUID}=require('node:crypto');
 const {report,assessLiveness}=require('./client-continuity-monitor');
+const {DENIAL_REASONS}=require('./client-continuity-transport');
 const LANES=['calendar','samples'];
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 function requireValue(ok){if(!ok)throw new Error('observer_input_refused');}
@@ -23,6 +24,10 @@ function receipts(directory,sha,now=Date.now()) {
     if(kind==='terminal') {
       requireValue(Number.isFinite(value.finishedAt)&&value.finishedAt>=value.startedAt&&value.finishedAt<=now);
       Object.assign(clean,report(value.lane,value.code,value.count),{finishedAt:value.finishedAt});
+      if(value.denialReasons!==undefined) {
+        requireValue(Array.isArray(value.denialReasons)&&value.denialReasons.length<=DENIAL_REASONS.length&&value.denialReasons.every(reason=>DENIAL_REASONS.includes(reason)));
+        clean.denialReasons=[...new Set(value.denialReasons)].sort();
+      }
     }
     result.push(clean);
   }

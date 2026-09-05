@@ -2,7 +2,10 @@
 
 **Unmerged draft, 2026-09-05 (native assignee eligibility):** on PR1302, assignment
 eligibility follows the server-resolved native epoch; a native lane never reads
-`production_assignee_eligibility` or the provider, a provider lane is unchanged.
+`production_assignee_eligibility` or the provider and applies the exact
+active/team/creative-role contract to automatic choices too; the provider
+explicit path keeps its flag behaviour and the provider automatic path keeps its
+original stored-mapping contract.
 Inverse is the team's native epoch CAS alone: accepted native rows keep their
 assignee and manifest/receipt provenance, new requests return to the provider
 policy. No Live State entry changes. Evidence and gates:

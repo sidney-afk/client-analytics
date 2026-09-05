@@ -9,10 +9,15 @@ Built on PR1302 `8cb5cba91bc33fb17599b8f2a38625ae07f7743d` (over PR1293
 `claude/native-assignee-eligibility-q8o1jd`; remote main recorded at
 `3d534cfa5598ef16e61c5ee7dc8072afaa9963c7` and not merged. Assignment eligibility
 and automatic selection now follow the server-resolved native epoch: a native
-lane consults neither `production_assignee_eligibility` nor Linear, a provider
-lane is byte-for-byte unchanged. Real-handler lane on disposable PostgreSQL with
-denied provider transport: 40 checks pass, 22 native journeys with zero provider
-requests, PR1302-head negative control fails as required. No merge, deploy, flag
+lane consults neither `production_assignee_eligibility` nor Linear; the explicit
+provider path keeps its pre-existing flag behaviour and the automatic provider
+path keeps its original stored-mapping contract with no flag read. Same-day
+correction after an independent handler review: the native automatic pool now
+applies the exact creative-role contract (an SMM default is never a native
+graphics default) and shares one pool with the readiness aggregate; the first
+draft's flag-routed automatic filter is withdrawn. Real-handler lane on disposable
+PostgreSQL with denied provider transport and a PR1302-head negative control;
+exact counts and run stamps in the audit note. No merge, deploy, flag
 update, live read or write, n8n change or credential use. Scope, evidence, gates
 and inverse: `docs/audits/2026-09-05-native-assignee-eligibility.md`.
 

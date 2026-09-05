@@ -133,6 +133,21 @@ function slice(from, to) {
     'an inactive default designer is ineligible, not ambiguous');
   const noEditor = policy.nativeAssigneeCatalogReadiness(roster.filter(row => row.role !== 'editor'));
   ok(!noEditor.ready && noEditor.teams.video.reasons.join() === 'no_active_creative' && noEditor.teams.graphics.ready, 'video without an active editor is not ready; graphics readiness is independent');
+  /* The two cases the independent review reproduced at the handler, at the
+     policy level: readiness and the native pool must answer from one set. */
+  const smmDefault = { id: 'g-smm', name: 'Fixture Graphics Manager', role: 'smm', team: 'graphics', active: true, default_for_team: true, linear_user_id: null };
+  const designer = { id: 'd-1', name: 'Fixture Designer', role: 'designer', team: 'graphics', active: true, default_for_team: true, linear_user_id: 'lu-d' };
+  const soleSmm = policy.nativeAssigneeCatalogReadiness([member(), smmDefault]);
+  ok(!soleSmm.teams.graphics.ready && soleSmm.teams.graphics.reasons.join() === 'no_active_creative,default_designer_ineligible'
+    && policy.nativeIntakePool([member(), smmDefault], 'graphics').length === 0,
+    'an active unmapped SMM as the sole graphics default is NOT a native default: pool empty, readiness not ready');
+  const both = policy.nativeAssigneeCatalogReadiness([member(), smmDefault, designer]);
+  const bothPool = policy.nativeIntakePool([member(), smmDefault, designer], 'graphics');
+  ok(both.teams.graphics.ready && both.teams.graphics.eligible_defaults === 1 && both.teams.graphics.defaults === 2
+    && bothPool.length === 1 && bothPool[0].id === 'd-1' && bothPool.filter(row => row.default_for_team === true).length === 1,
+    'a designer default beside an SMM default: pool holds the designer alone and readiness is ready with one eligible default');
+  ok(policy.nativeIntakePool([member({ id: 'b', name: 'B' }), member({ id: 'a', name: 'A' }), member({ id: 'c', name: 'A' })], 'video').map(row => row.id).join() === 'a,c,b',
+    'the native pool is ordered by name then id');
   ok(policy.nativeAssigneeCatalogReadiness(null).totals.rows === 0 && policy.nativeAssigneeCatalogReadiness([null, 'x', 4]).totals.rows === 0,
     'garbage input is an empty roster, not a crash');
 
@@ -156,11 +171,14 @@ function slice(from, to) {
     && /assigneeEligibilityContext\(supabase, !!member, nativeEpoch\)/.test(assertFn),
     'assertEligibleAssignee takes the lane epoch and returns for null unassignment before any roster, policy or provider read');
   const auto = slice('async function intakeAssigneePool(', 'SUBMIT-TAB THUMBNAIL TEXT');
-  ok(/nativeEpoch = ""/.test(auto) && /const policy = await assigneeLanePolicyFor\(supabase, nativeEpoch\);/.test(auto)
-    && /\.filter\(member => !policy\.providerMappingRequired \|\| clean\(member\.linear_user_id\)\)/.test(auto)
+  ok(/nativeEpoch = ""/.test(auto)
+    && /assigneeLaneFor\(nativeEpoch\) === "native"/.test(auto)
+    && /if \(assigneeLaneFor\(nativeEpoch\) === "native"\) return nativeIntakePool\(rows, team\)/.test(auto)
+    && /return rows\.filter\(member => clean\(member\.linear_user_id\)\)/.test(auto)
+    && !/assigneeLanePolicyFor|assigneeEligibilityPolicyFor|syncview_runtime_flags|ASSIGNEE_ELIGIBILITY_FLAG/.test(auto)
     && /default_for_team/.test(auto) && /graphics_default_assignee_unavailable/.test(auto) && /video_assignee_pool_unavailable/.test(auto)
     && !/assigneeProviderPool|linearRead\(/.test(auto),
-    'the automatic pool filter follows the same lane policy, keeps both readiness refusals, and never reads the provider');
+    'the automatic pool applies the exact native contract (active, team, creative role) on a native lane, the original stored-mapping filter on a provider lane, and reads neither the flag nor the provider');
   ok(/const members = await intakeAssigneePool\(supabase, normalizedTeam, nativeEpoch\);/.test(auto), 'autoAssigneeForIntake draws from that pool');
   const intake = slice('async function handleIntakeCreate(', 'const rootManifest: JsonMap = {');
   ok(/await assertEligibleAssignee\(supabase, requestedByTeam\[team\], team, nativeEpochByTeam\[team\]\)/.test(intake)

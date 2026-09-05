@@ -12533,3 +12533,19 @@ unless the picker moves to a server projection. (b) A credentialless public
 Submit may carry an explicit video `assignee_id` and is accepted on both lanes
 (authorization scope, pre-existing, not changed here). (c) SyncLinear non-null
 assignee, Production create and both pickers stay provider-dependent.
+
+**Addendum, same day, after an independent actual-handler review of `3c40c0ae`.**
+Two regressions in the first draft's AUTOMATIC selection, both corrected in the
+draft and pinned at the handler on both lanes with PR1302-head controls: (1) on
+the native lane the automatic pool admitted every active same-team role, so an
+active unmapped SMM marked as the sole graphics default was assigned where
+PR1302 refuses 409; (2) a mapped default designer beside an unmapped SMM default
+was refused 409 while readiness said ready, where PR1302 assigns the designer.
+Fix: `nativeIntakePool` in `policy.mjs` (active, exact team, exact creative role,
+mapping optional) is now the one pool behind both the native automatic choice
+and `nativeAssigneeCatalogReadiness`; the provider automatic pool is restored to
+its original contract (stored mapping required, no flag read, role by caller),
+withdrawing the first draft's flag-routed widening under the retired value. The
+dry-run's REST read now pages with exact counts and refuses truncated or
+unknown-total rosters. "Provider lane byte-for-byte unchanged" in the entry
+above was overbroad for the first draft; the precise scope is in the audit note.

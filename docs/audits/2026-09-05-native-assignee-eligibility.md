@@ -36,6 +36,13 @@ where main still carries its own production-write digests) and in the appended
 are left to the coordinator's exact integration on purpose, so this branch's evidence
 stays bound to the base it ran on. The drift is recorded here; the branch is unchanged.
 
+**Historical, superseded the same day.** The coordinator retargeted PR1309 to the
+branch `draft/native-only-intake-20260905`, verified at exact PR1302 head
+`8cb5cba91bc33fb17599b8f2a38625ae07f7743d`. Against that base the PR is mergeable
+with no conflict; the conflict list and the no-CI observation above describe the
+earlier `main` target only. Integration into `main` and closure re-pinning remain
+a separate exact-head gate; no current-main change is merged here.
+
 ## The confirmed defect
 
 Explicit VIDEO assignment on a server-admitted native intake still reached
@@ -49,6 +56,48 @@ is reached on every intake with no explicit editor (every Submit, and every
 Create Post that keeps the suggested default) and silently dropped any active
 member without a stored mapping. On a native lane that could also turn a valid
 default designer into `graphics_default_assignee_unavailable`.
+
+## Correction after the independent handler review (same day)
+
+An independent actual-handler PostgreSQL review of head `3c40c0ae` found two
+regressions in the first draft's AUTOMATIC selection, both introduced by routing
+the automatic pool through the eligibility flag policy instead of the eligibility
+contract:
+
+1. On the native lane `intakeAssigneePool` admitted every active same-team role
+   and `autoAssigneeForIntake` took the sole graphics default without requiring
+   the designer role. An active, unmapped SMM marked as the sole graphics
+   default was assigned (201, one committed deliverable); exact PR1302 refuses
+   with 409 and no commit. Both made zero provider requests.
+2. With a valid mapped default designer beside an active, unmapped SMM default,
+   the draft returned 409 `graphics_default_assignee_unavailable` while
+   `nativeAssigneeCatalogReadiness` said ready; exact PR1302 assigns the designer.
+
+The corrected shape: `policy.mjs` exports `nativeIntakePool(members, team)`, the
+explicit path's `assigneeEligibility` verdict with the provider requirement off,
+applied to a roster (active, exact team, exact creative role, mapping optional,
+name-then-id order). On a native lane the gateway's automatic choice draws from
+that pool, and `nativeAssigneeCatalogReadiness` counts creatives and eligible
+defaults from the same function, so the dry-run and the handler answer from one
+set. On the provider lane the automatic pool is the ORIGINAL contract, unchanged
+from before this draft: every active same-team row with a stored
+`linear_user_id`, no flag read, role decided by the caller as it always was
+(graphics takes the single `default_for_team` row among mapped members whatever
+its role; video takes mapped editors). The first draft's widening, under which
+the exact retired flag value admitted unmapped automatic candidates the base had
+always filtered, is withdrawn. So the accurate scope is: the explicit provider
+path keeps its pre-existing flag behaviour (strictest on absence, retired value
+drops the provider requirement); the automatic provider path never consulted the
+flag and still does not; the native lane consults neither the flag nor Linear.
+The earlier wording "provider lane byte for byte unchanged" and "disabled epochs
+change nothing" was overbroad for the first draft and is retired here.
+
+Both reviewed cases are pinned at the policy level and at the real handler on
+both lanes, with the provider-lane results as same-base controls (they hold on
+exact PR1302 head as well), plus three provider automatic contract checks: a
+mapped SMM default is still admitted on the provider lane, the retired flag still
+excludes unmapped automatic candidates there, and the automatic provider path
+makes no flag read (fault-injected read never attempted).
 
 ## Native authorities, and what is distinguished
 
@@ -83,15 +132,17 @@ the browser cannot choose or override it. On that lane the policy is
 `{ providerMappingRequired: false, providerVerificationRequired: false }` and the
 gateway does not read `production_assignee_eligibility` at all, so no flag state
 and no flag read failure can re-introduce a provider call. An empty epoch keeps
-the pre-existing contract byte for byte: absence, unreadable and malformed values
+the pre-existing EXPLICIT-path contract: absence, unreadable and malformed values
 are strictest, and only the exact `{"provider_mapping_required": false}` value
-drops the provider requirement.
+drops the provider requirement. The automatic provider path does not consult
+the flag (see the correction above).
 
 In `production-write/index.ts`: `assigneeLanePolicyFor` (returns before the flag
 read on a native lane), `assigneeEligibilityContext`, `assertEligibleAssignee`,
 `mappedCreateAssignees` and `autoAssigneeForIntake` take an optional
-`nativeEpoch`; the automatic filter follows the same lane policy instead of a
-hard-coded mapping requirement; `handleIntakeCreate` passes the epoch it already
+`nativeEpoch`; the automatic pool (`intakeAssigneePool`) is `nativeIntakePool` on
+a native lane and the original stored-mapping filter on a provider lane;
+`handleIntakeCreate` passes the epoch it already
 resolved into both the explicit and the automatic path. Null unassignment
 returns before any roster, policy or provider read, as before. The SyncLinear
 `assignee` operation, Production `create`, and the `assignee_options` and
@@ -119,15 +170,22 @@ the row active again or a coordinator-owned recovery route.
 
 ## Catalog readiness and the dry-run
 
-`nativeAssigneeCatalogReadiness(rows)` applies the gateway's own rule to the whole
-roster: video is ready with at least one active editor; graphics with exactly one
-active default designer. It reports counts only (active, unmapped, inactive,
-role-incompatible, defaults, and `provider_lane_would_refuse`) and never a name,
-id or provider identifier. `scripts/native-assignee-catalog-dryrun.js` prints
-that aggregate from an exported JSON file, a disposable loopback PostgreSQL, or
-an explicit read-only publishable-key REST read; it writes nothing and exits 2
-when a team is not ready. It was not run against the live roster in this session,
-so no live count is claimed here.
+`nativeAssigneeCatalogReadiness(rows)` applies the gateway's own native pool to the
+whole roster: video is ready with at least one eligible editor; graphics with
+exactly one eligible default designer. It reports counts only (active, unmapped,
+inactive, role-incompatible, defaults, and `provider_lane_would_refuse`) and never
+a name, id or provider identifier. `provider_lane_would_refuse` counts eligible
+creatives whose STORED `linear_user_id` is missing or malformed; it measures
+stored mappings, not live provider activity or reachability, which no dry-run can
+know. `scripts/native-assignee-catalog-dryrun.js` prints the aggregate from an
+exported JSON file, a disposable loopback PostgreSQL, or an explicit read-only
+publishable-key REST read. The REST read pages with exact counts and REFUSES to
+report anything when the server's total is unknown, the pages do not add up to
+it, the total moves between pages, or the roster exceeds the bounded page budget
+(exit 1, `unproven_roster_read`); the first draft's single `limit=1000` read
+could have reported readiness from a truncated roster. It writes nothing and
+exits 2 when a team is not ready. It was not run against the live roster in this
+session, so no live count is claimed here.
 
 ## Evidence (local, disposable PostgreSQL 16, denied provider transport)
 

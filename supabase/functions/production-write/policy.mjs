@@ -480,6 +480,22 @@ export function assigneeLanePolicy(nativeEpoch, flag, flagState = "read") {
 }
 
 /*
+ * THE NATIVE INTAKE POOL. One function, consumed by the gateway's automatic
+ * choice on a native lane AND by the readiness aggregate, so the two cannot
+ * disagree: active, exact team, exact creative role, mapping optional, ordered
+ * by name then id. It is the explicit path's assigneeEligibility verdict with
+ * the provider requirement switched off, applied to a roster instead of one
+ * candidate.
+ */
+export function nativeIntakePool(members, team) {
+  return (Array.isArray(members) ? members : [])
+    .filter(member => assigneeEligibility(member, team, { providerMappingRequired: false, providerActive: null }).eligible)
+    .sort((left, right) =>
+      clean(left.name).localeCompare(clean(right.name))
+      || clean(left.id).localeCompare(clean(right.id)));
+}
+
+/*
  * NATIVE CATALOG READINESS. The gateway refuses per request when the roster
  * cannot support an assignment (video_assignee_pool_unavailable,
  * graphics_default_assignee_unavailable); this is the same rule applied to the
@@ -515,10 +531,11 @@ export function nativeAssigneeCatalogReadiness(members) {
   for (const team of Object.keys(CREATIVE_ROLE_BY_TEAM)) {
     const role = CREATIVE_ROLE_BY_TEAM[team];
     const onTeam = rows.filter(row => normalizeTeam(row.team) === team);
-    const creatives = onTeam.filter(row => row.active === true && lower(row.role) === role);
+    // The same pool the gateway's native automatic choice draws from.
+    const creatives = nativeIntakePool(onTeam, team);
     const mapped = creatives.filter(row => canonicalLinearUserId(row.linear_user_id));
     const defaults = onTeam.filter(row => row.default_for_team === true);
-    const activeDefaults = defaults.filter(row => row.active === true && lower(row.role) === role);
+    const activeDefaults = creatives.filter(row => row.default_for_team === true);
     const reasons = [];
     if (!creatives.length) reasons.push("no_active_creative");
     if (team === "graphics") {

@@ -42,6 +42,8 @@ const ROOT = path.resolve(HERE, '..', '..');
 const FN_DIR = path.join(ROOT, 'supabase', 'functions', 'production-write');
 const INDEX_TS = path.join(FN_DIR, 'index.ts');
 const INDEX_HTML = path.join(ROOT, 'index.html');
+/* The pure policy module, for readiness readback beside the handler's own answer. */
+const policy = await import(pathToFileURL(path.join(ROOT, 'supabase', 'functions', 'production-write', 'policy.mjs')).href);
 
 /* ---------- 1. Load the real handler through the seam ---------- */
 function rewriteOnce(source, needle, replacement) {
@@ -244,10 +246,12 @@ const UNMAPPED='55555555-5555-4555-8555-555555555551';
 const RETIRED='55555555-5555-4555-8555-555555555552';
 const VIDEO_SMM='55555555-5555-4555-8555-555555555553';
 const UNKNOWN='66666666-6666-4666-8666-666666666666';
+const GRAPHICS_SMM='55555555-5555-4555-8555-555555555554';
 await sql(`insert into public.team_members(id, name, role, team, linear_user_id, default_for_team, active) values
   ('${UNMAPPED}', 'Fixture Editor Unmapped', 'editor', 'video', null, false, true),
   ('${RETIRED}', 'Fixture Editor Retired', 'editor', 'video', 'lin_user_retired', false, false),
-  ('${VIDEO_SMM}', 'Fixture Video Manager', 'smm', 'video', 'lin_user_video_smm', false, true)
+  ('${VIDEO_SMM}', 'Fixture Video Manager', 'smm', 'video', 'lin_user_video_smm', false, true),
+  ('${GRAPHICS_SMM}', 'Fixture Graphics Manager', 'smm', 'graphics', null, false, true)
   on conflict (id) do nothing`);
 const ELIGIBILITY_FLAG='production_assignee_eligibility';
 async function eligibilityFlag(value) {
@@ -276,6 +280,14 @@ async function assigneeOp(id, assigneeId) {
   /* Production writes carry CAS: the row version the browser last read. */
   return { operation:'assignee', entity:'deliverable', surface:'production', client_slug:'fixture-client', id,
     request_id: rid, source_edited_at: stamp(rid), assignee_id: assigneeId, expected_updated_at: current.updated_at };
+}
+async function graphicsDefaults(arrangement) {
+  /* arrangement: { designer: {default, mapped}, smm: {default, mapped} } */
+  await sql("update public.team_members set default_for_team="+(arrangement.designer.default?'true':'false')+", linear_user_id="+(arrangement.designer.mapped?"'lin_user_designer'":'null')+" where id="+q(DESIGNER));
+  await sql("update public.team_members set default_for_team="+(arrangement.smm.default?'true':'false')+", linear_user_id="+(arrangement.smm.mapped?"'lin_user_graphics_smm'":'null')+" where id="+q(GRAPHICS_SMM));
+}
+async function readinessNow() {
+  return policy.nativeAssigneeCatalogReadiness(await rows("select id, name, role, team, active, default_for_team, linear_user_id from public.team_members"));
 }
 const nativeJourneys=[];
 function nativeOk(label, pass, evidence) { nativeJourneys.push({label, zeroProvider: noProvider()}); ok(label, pass && noProvider(), evidence); }
@@ -358,6 +370,52 @@ try {
   nativeOk('native-both-teams-automatic-no-provider', n9b.status===201 && n9bRows.length===2 && n9bRows.every(r=>r.assignee_id) && n9bRows.find(r=>r.team==='graphics').assignee_id===DESIGNER, {status:n9b.status, error:n9b.json.error});
   await sql("update public.team_members set linear_user_id='lin_user_designer' where id="+q(DESIGNER));
 
+  /* ---- Independent review 2026-09-05: automatic graphics defaults, both lanes, same head/base controls ----
+     Case A: the SOLE graphics default is an active, unmapped SMM. Native must refuse
+     (exact creative role), exactly as PR1302 does; the provider lane refuses too
+     (no mapping). Readiness must say not ready.
+     Case B: a mapped default designer beside an active unmapped SMM default.
+     Native and provider must both assign the designer; readiness must say ready
+     with one eligible default. */
+  await graphicsDefaults({ designer: { default: false, mapped: true }, smm: { default: true, mapped: false } });
+  await flags('epoch-video-11','epoch-graphics-11'); reset(); net.linear='down'; before=await inventory();
+  const soleSmmNative=await post(rootBody('thumbnail', requestId()));
+  const soleSmmReady=await readinessNow();
+  nativeOk('native-sole-unmapped-smm-graphics-default-refused-409-zero-commit', soleSmmNative.status===409 && soleSmmNative.json.error==='graphics_default_assignee_unavailable' && await unchanged(before)
+    && soleSmmReady.teams.graphics.ready===false && soleSmmReady.teams.graphics.eligible_defaults===0, {status:soleSmmNative.status, error:soleSmmNative.json.error, readiness:soleSmmReady.teams.graphics});
+  await flags(); reset(); before=await inventory(); const soleSmmProvider=await post(rootBody('thumbnail', requestId()));
+  ok('provider-sole-unmapped-smm-graphics-default-refused-409-control', soleSmmProvider.status===409 && soleSmmProvider.json.error==='graphics_default_assignee_unavailable' && await unchanged(before), {status:soleSmmProvider.status, error:soleSmmProvider.json.error});
+  await graphicsDefaults({ designer: { default: true, mapped: true }, smm: { default: true, mapped: false } });
+  await flags('epoch-video-11','epoch-graphics-11'); reset(); net.linear='down';
+  const twoDefaultsNative=await post(rootBody('thumbnail', requestId()));
+  const twoDefaultsRows=await assignedRows(twoDefaultsNative.json.batch?.id); const twoDefaultsReady=await readinessNow();
+  nativeOk('native-designer-default-beside-smm-default-assigns-designer', twoDefaultsNative.status===201 && twoDefaultsRows.length===1 && twoDefaultsRows[0].assignee_id===DESIGNER
+    && twoDefaultsReady.teams.graphics.ready===true && twoDefaultsReady.teams.graphics.eligible_defaults===1 && twoDefaultsReady.teams.graphics.defaults===2, {status:twoDefaultsNative.status, error:twoDefaultsNative.json.error, readiness:twoDefaultsReady.teams.graphics});
+  await flags(); reset(); const twoDefaultsProvider=await post(rootBody('thumbnail', requestId()));
+  const twoDefaultsProviderRows=await assignedRows(twoDefaultsProvider.json.batch?.id);
+  ok('provider-designer-default-beside-unmapped-smm-default-assigns-designer-control', twoDefaultsProvider.status===201 && twoDefaultsProviderRows.length===1 && twoDefaultsProviderRows[0].assignee_id===DESIGNER, {status:twoDefaultsProvider.status, error:twoDefaultsProvider.json.error});
+  /* Provider automatic contract, ORIGINAL and unchanged by this draft: a mapped
+     SMM default is admitted (role was never enforced on that path), the stored
+     mapping is required whatever the eligibility flag says, and the flag is not
+     read at all. The native lane enforces the creative role instead. */
+  await graphicsDefaults({ designer: { default: false, mapped: true }, smm: { default: true, mapped: true } });
+  reset(); const mappedSmmProvider=await post(rootBody('thumbnail', requestId()));
+  const mappedSmmProviderRows=await assignedRows(mappedSmmProvider.json.batch?.id);
+  ok('provider-mapped-smm-graphics-default-admitted-original-contract', mappedSmmProvider.status===201 && mappedSmmProviderRows.length===1 && mappedSmmProviderRows[0].assignee_id===GRAPHICS_SMM, {status:mappedSmmProvider.status, error:mappedSmmProvider.json.error});
+  await flags('epoch-video-11','epoch-graphics-11'); reset(); net.linear='down'; before=await inventory();
+  const mappedSmmNative=await post(rootBody('thumbnail', requestId()));
+  nativeOk('native-mapped-smm-graphics-default-refused-exact-role', mappedSmmNative.status===409 && mappedSmmNative.json.error==='graphics_default_assignee_unavailable' && await unchanged(before), {status:mappedSmmNative.status, error:mappedSmmNative.json.error});
+  await graphicsDefaults({ designer: { default: true, mapped: true }, smm: { default: false, mapped: false } });
+  await flags(); await eligibilityFlag({provider_mapping_required:false}); reset();
+  const retiredAuto=await post(rootBody('video', requestId())); const retiredAutoAssignee=await videoAssignee(retiredAuto);
+  ok('provider-automatic-under-retired-flag-still-excludes-unmapped', retiredAuto.status===201 && retiredAutoAssignee!==UNMAPPED && [EDITOR_ONE,EDITOR_TWO].includes(retiredAutoAssignee), {status:retiredAuto.status, picked:retiredAutoAssignee});
+  await eligibilityFlag(undefined); reset(); faultEligibilityFlagRead();
+  const noFlagAuto=await post(rootBody('both', requestId())); const noFlagRows=await assignedRows(noFlagAuto.json.batch?.id);
+  ok('provider-automatic-does-not-read-the-eligibility-flag', noFlagAuto.status===201 && noFlagRows.length===2 && noFlagRows.every(r=>r.assignee_id && r.assignee_id!==UNMAPPED) && faults.attempted.length===0, {status:noFlagAuto.status, flagReads:faults.attempted.length});
+  reset();
+  // Back to the native lane the following journeys assume.
+  await flags('epoch-video-1','epoch-graphics-1'); reset(); net.linear='down';
+
   // Policy flag states never matter on the native lane, and the flag is not even read.
   for (const [label, value, unreadable] of [
     ['missing', undefined, false], ['malformed', 'garbage', false], ['strict', {provider_mapping_required:true}, false], ['unreadable', undefined, true],
@@ -436,6 +494,8 @@ try {
     readiness:{
       chosen_editor_provider_independence: ['native-chosen-mapped-editor-accepted-no-provider','native-chosen-unmapped-editor-accepted','native-policy-flag-unreadable-no-provider-no-flag-read'].every(id=>checks.find(c=>c.id===id)?.pass)?'PASS':'FAIL',
       automatic_assignment_provider_independence: ['native-automatic-video-balances-over-all-active-editors','native-graphics-unmapped-default-designer-assigned','native-public-intake-automatic-no-provider'].every(id=>checks.find(c=>c.id===id)?.pass)?'PASS':'FAIL',
+      native_automatic_exact_role_contract: ['native-sole-unmapped-smm-graphics-default-refused-409-zero-commit','native-designer-default-beside-smm-default-assigns-designer','native-mapped-smm-graphics-default-refused-exact-role'].every(id=>checks.find(c=>c.id===id)?.pass)?'PASS':'FAIL',
+      provider_automatic_original_contract: ['provider-mapped-smm-graphics-default-admitted-original-contract','provider-automatic-under-retired-flag-still-excludes-unmapped','provider-automatic-does-not-read-the-eligibility-flag'].every(id=>checks.find(c=>c.id===id)?.pass)?'PASS':'FAIL',
       null_unassign_linear_api_independence: checks.find(c=>c.id==='assignee-op-null-unassign-no-linear-api-call')?.pass?'PASS':'FAIL',
       synclinear_nonnull_assignee_op: 'PROVIDER_LANE (not in this slice)',
       unassign_drain_attempts: unassignDrainAttempts,

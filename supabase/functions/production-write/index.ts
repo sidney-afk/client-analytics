@@ -29,7 +29,9 @@ import {
   assigneeEligibility,
   batchAssetColumn,
   assigneeEligibilityPolicy,
+  assigneeLaneFor,
   assigneeLanePolicy,
+  nativeIntakePool,
   browserCredentialTestOverride,
   canonicalLinearUserId,
   eligibleAssigneeProjection,
@@ -2676,19 +2678,27 @@ async function mappedCreateAssignees(
 }
 
 /*
- * The intake pool: every active roster row on the team, ordered by name then
- * id, minus whatever the lane policy excludes.
+ * THE INTAKE POOL, PER LANE.
  *
- * THE STORED-MAPPING FILTER IS THE PROVIDER LANE'S, NOT THE ROSTER'S. It is
- * reached on every intake with no explicit editor and dropped any active
- * member without a linear_user_id. Right on provider work (linear-outbound
- * resolves the mapping on drain; a missing one is a permanently failing
- * receipt), wrong on a native lane where nothing drains and the same filter
- * could turn a valid default designer into graphics_default_assignee_unavailable.
- * So it follows the same lane policy the explicit path uses: required on
- * provider work (missing/unreadable flag = strictest), lifted on native work
- * and under the exact retired flag value. Ordering is untouched; provider
- * activity was never verified here and still is not.
+ * Native lane (a non-empty server-resolved epoch): the SAME contract the
+ * explicit path enforces through assertEligibleAssignee, applied to the
+ * automatic choice -- active, exact team, exact creative role
+ * (CREATIVE_ROLE_BY_TEAM), mapping optional. The first draft of this pool
+ * admitted every active same-team role natively, so an active unmapped SMM
+ * marked as the sole graphics default was assigned (caught by the independent
+ * 2026-09-05 review; PR1302 refused it). The eligibility flag is not read here
+ * either: nothing on a native lane depends on it.
+ *
+ * Provider lane: the ORIGINAL automatic contract, unchanged from before this
+ * draft -- every active same-team row with a stored linear_user_id, no flag
+ * read, role decided by the caller exactly as it always was (video picks
+ * editors, graphics picks the single default_for_team row among mapped
+ * members). The first draft routed this filter through the eligibility flag,
+ * which under the exact retired value admitted unmapped automatic candidates
+ * the base always excluded; that widening is withdrawn. The flag's retirement
+ * value keeps its pre-existing meaning on the explicit path only.
+ *
+ * Ordering (name, then id) is the same on both lanes.
  */
 async function intakeAssigneePool(
   supabase: SupabaseClient,
@@ -2700,9 +2710,11 @@ async function intakeAssigneePool(
     .eq("active", true)
     .eq("team", team);
   if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
-  const policy = await assigneeLanePolicyFor(supabase, nativeEpoch);
-  return ((data || []) as JsonMap[])
-    .filter(member => !policy.providerMappingRequired || clean(member.linear_user_id))
+  const rows = (data || []) as JsonMap[];
+  // nativeIntakePool is also what nativeAssigneeCatalogReadiness counts, so the
+  // dry-run and the gateway answer from one pool.
+  if (assigneeLaneFor(nativeEpoch) === "native") return nativeIntakePool(rows, team) as JsonMap[];
+  return rows.filter(member => clean(member.linear_user_id))
     .sort((left, right) => clean(left.name).localeCompare(clean(right.name)) || clean(left.id).localeCompare(clean(right.id)));
 }
 

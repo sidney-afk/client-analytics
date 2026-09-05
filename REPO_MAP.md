@@ -12,7 +12,8 @@ Native assignee eligibility draft (on PR1302): `scripts/native-intake-manifest/a
 (real-handler assignment journeys, denied provider transport, PR1302-head negative control),
 `scripts/native-intake-manifest/fault-shim.mjs` (one-read fault wrapper over the pinned shim),
 `scripts/native-assignee-catalog-dryrun.js` (roster readiness aggregate, counts only),
-`test/native-assignee-eligibility.js`, `test/native-assignee-policy.js`, and
+`test/native-assignee-eligibility.js`, `test/native-assignee-policy.js`,
+`test/native-assignee-catalog-dryrun.js` (complete-or-refuse REST paging), and
 `docs/audits/2026-09-05-native-assignee-eligibility.md`. Adds no migration, flag or RPC.
 
 Disabled native-only intake draft: `migrations/2026-09-05-native-only-intake.sql`,

@@ -126,10 +126,26 @@ const psqlRpc = async (name, args) => {
 
 try {
   await flags('epoch-video-r1', 'epoch-graphics-r1');
+  // The card writers normalize the client slug (lower-case alphanumerics). Live
+  // slugs already have that shape; the harness slug carries a hyphen, so every
+  // scenario in which the browser finishes a card uses a second synthetic
+  // client whose slug the writers leave unchanged.
+  const BC = 'fixturecard';
+  await sql(`insert into public.clients(slug, display_name, active, kind, linear_project_ids)
+    values (${q(BC)}, 'Fixture Card', true, 'client', '{"video":"proj_fixture_shared","graphics":"proj_fixture_shared"}'::jsonb) on conflict (slug) do nothing`);
+  // The writers insert their card events through EdgeRuntime.waitUntil after
+  // the row commit; the lane waits for those before reading the event tables.
+  const settle = () => Promise.all(gw.background.splice(0));
+  async function provenance(surface, client, cardId) {
+    return rows(`select kind, snapshot, source from public.production_card_provenance where surface=${q(surface)} and client=${q(client)} and card_id=${q(cardId)} order by id`);
+  }
+  const preserved = (before, after, allowed) => !!before && !!after
+    && Object.keys(after).filter(k => JSON.stringify(after[k]) !== JSON.stringify(before[k])).every(k => allowed.includes(k));
+
 
   // S1. Interrupted before ANY child, both teams. Flags disabled before
   // recovery: the manifest's accepted epoch, not the current flag, governs.
-  const s1 = await interrupted('both', 1);
+  const s1 = await interrupted('both', 1, { client_slug: BC });
   ok('S1-accepted-parent-with-zero-children', s1.response.status >= 500 && !!s1.m && (await dels(s1.m.batch_id)).length === 0
     && s1.m.expected_items.length === 2, s1.response);
   const s1state = await state(s1.body.request_id);
@@ -165,21 +181,33 @@ try {
   const s1retry = await post(s1.body);
   ok('S1-explicit-gateway-retry-after-recovery-is-replay-not-duplicate', s1retry.status === 201 && s1retry.json.items?.length === 2
     && await unchanged(s1before) && noProvider(), s1retry);
+  // Stage 2 NEVER creates the card. The missing card is held as VISIBLE debt:
+  // a durable reason, a backlog entry and a summary count, and not one write.
+  const s1cardId = s1.m.expected_items[0].row.card_id;
+  const s1held = await inventory();
   const s1c = await cards(s1.body.request_id);
-  const s1card = await card('fixture-client', s1.m.expected_items[0].row.card_id);
+  const s1backlog = (await fn('production_intake_reconcile_backlog', { p_limit: 50, p_after: null })).items.find(i => i.request_id === s1.body.request_id);
+  ok('S1-stage2-holds-missing-card-as-visible-debt-and-creates-nothing', s1c.outcome === 'unresolved' && s1c.created.length === 0 && s1c.bound.length === 0
+    && s1c.unresolved.length === 1 && s1c.unresolved[0].reason === 'card_creation_held' && s1c.unresolved[0].owner === 'operator'
+    && !(await card(BC, s1cardId)) && await unchanged(s1held) && (await state(s1.body.request_id)).owed.cards === 1
+    && !!s1backlog && s1backlog.cards_incomplete.includes(s1cardId) && (await fn('production_intake_reconcile_summary', {})).owed.cards >= 1, s1c);
+  // The card's creation stays with its original owner: the browser job, fed
+  // the gateway's replay response, creates it through the real writer, and the
+  // trigger records the created fact with the slots it was created with.
+  const s1resume = await browserResume(savedJob(s1.body, s1retry));
+  await settle();
+  const s1card = await card(BC, s1cardId);
   const video = s1dels.find(d => d.team === 'video');
   const graphic = s1dels.find(d => d.team === 'graphics');
-  ok('S1-stage2-creates-browser-shaped-card', s1c.outcome === 'materialized' && s1c.created.length === 1 && !!s1card
-    && s1card.video_deliverable_id === video.id && s1card.graphic_deliverable_id === graphic.id
-    && s1card.name === video.title && s1card.status === 'In Progress' && s1card.video_status === 'In Progress'
-    && s1card.graphic_status === 'In Progress' && s1card.caption_status === 'In Progress'
-    && s1card.linear_issue_id === '' && s1card.graphic_linear_issue_id === '' && s1card.scheduled_date === ''
-    && s1card.asset_url === '' && s1card.caption === '' && s1card.video_tweaks === '' && s1card.tweaks === ''
-    && /^-?[0-9]+$/.test(String(s1card.order_index)) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(String(s1card.updated_at)), s1card);
-  const s1ev = await rows(`select * from public.calendar_post_events where client='fixture-client' and post_id=${q(s1card?.id)}`);
-  ok('S1-card-create-event-recorded-with-original-actor', s1ev.length === 1 && s1ev[0].action === 'create' && s1ev[0].to_status === 'In Progress'
-    && s1ev[0].actor === parentReceipt.actor && s1ev[0].source === 'native-intake-reconcile' && s1ev[0].payload.request_id === s1.body.request_id, s1ev);
-  ok('S1-request-complete-by-facts', (await state(s1.body.request_id)).complete === true);
+  const s1prov = await provenance('calendar', BC, s1cardId);
+  ok('S1-browser-job-creates-the-card-through-the-real-writer-after-recovery', s1resume.ok && s1resume.sent.length === 1 && !!s1card
+    && s1card.video_deliverable_id === video.id && s1card.graphic_deliverable_id === graphic.id && s1card.status === 'In Progress'
+    && s1prov.length === 1 && s1prov[0].kind === 'created' && s1prov[0].source === null
+    && s1prov[0].snapshot.video_deliverable_id === video.id && s1prov[0].snapshot.graphic_deliverable_id === graphic.id,
+    { resume: s1resume.error, sent: s1resume.sent.length, prov: s1prov.map(p => p.kind) });
+  const s1ev = await rows(`select action from public.calendar_post_events where client=${q(BC)} and post_id=${q(s1cardId)}`);
+  ok('S1-writer-create-event-recorded-for-the-browser-created-card', s1ev.length >= 1 && s1ev.some(e => e.action === 'create'), s1ev);
+  ok('S1-request-complete-by-facts-once-the-card-exists', (await state(s1.body.request_id)).complete === true && (await cards(s1.body.request_id)).outcome === 'complete');
   // Response loss of the reconcile call itself: the facts already committed,
   // so a rerun is a no-op that changes nothing.
   const s1again = await inventory();
@@ -187,9 +215,10 @@ try {
   const s1rerunCards = await cards(s1.body.request_id);
   ok('S1-rerun-after-lost-response-is-noop', s1rerun.outcome === 'complete' && s1rerun.recovered.length === 0 && s1rerunCards.outcome === 'complete'
     && await unchanged(s1again), [s1rerun, s1rerunCards]);
+  const s1cardReasons = await reasons(s1.body.request_id, 'cards');
   ok('S1-reason-ledger-records-applied-decisions-only', (await reasons(s1.body.request_id, 'children')).length === 1
-    && (await reasons(s1.body.request_id, 'cards')).length === 1
-    && (await reasons(s1.body.request_id, 'children'))[0].payload.outcome === 'recovered');
+    && s1cardReasons.length === 1 && s1cardReasons[0].payload.outcome === 'unresolved' && s1cardReasons[0].payload.unresolved[0].reason === 'card_creation_held'
+    && (await reasons(s1.body.request_id, 'children'))[0].payload.outcome === 'recovered', s1cardReasons.map(r => r.payload.outcome));
 
   // S2. Interrupted between child one and child two: recover exactly one.
   await flags('epoch-video-r2', 'epoch-graphics-r2');
@@ -227,7 +256,7 @@ try {
   // S5. Backlog paging: three owed requests, page size one, no repeat, no skip;
   // a request completed between pages stops appearing.
   const s5 = [];
-  for (let i = 0; i < 3; i++) s5.push(await interrupted('video', 1));
+  for (let i = 0; i < 3; i++) s5.push(await interrupted('video', 1, { client_slug: BC }));
   const s5ids = s5.map(x => x.body.request_id);
   const pageAll = async () => {
     const seen = []; let after = null; let guard = 0;
@@ -241,9 +270,18 @@ try {
   const s5first = await pageAll();
   ok('S5-partial-pages-cover-every-owed-request-once', s5ids.every(id => s5first.seen.includes(id))
     && new Set(s5first.seen).size === s5first.seen.length && s5first.page.exhausted === true, s5first.seen.length);
-  await children(s5ids[1]); await cards(s5ids[1]);
+  await children(s5ids[1]);
+  const s5held = await cards(s5ids[1]);
+  const s5mid = await pageAll();
+  reset();
+  const s5retry = await post(s5[1].body);
+  const s5resume = await browserResume(savedJob(s5[1].body, s5retry));
+  await settle();
   const s5second = await pageAll();
-  ok('S5-completed-request-leaves-the-backlog', !s5second.seen.includes(s5ids[1]) && s5second.seen.includes(s5ids[0]) && s5second.seen.includes(s5ids[2]));
+  ok('S5-held-card-keeps-the-request-in-the-backlog-until-the-browser-creates-it', s5held.outcome === 'unresolved'
+    && s5held.unresolved[0].reason === 'card_creation_held' && s5mid.seen.includes(s5ids[1])
+    && s5retry.status === 201 && s5resume.ok && !s5second.seen.includes(s5ids[1]) && s5second.seen.includes(s5ids[0]) && s5second.seen.includes(s5ids[2]),
+    { held: s5held.outcome, mid: s5mid.seen.length, after: s5second.seen.length, resume: s5resume.error });
   const s5item = (await fn('production_intake_reconcile_backlog', { p_limit: 50, p_after: null })).items.find(i => i.request_id === s5ids[0]);
   ok('S5-backlog-item-carries-no-brief-or-title', !!s5item && !JSON.stringify(s5item).includes(s5[0].body.items[0].brief)
     && !('children' in s5item) && s5item.children_missing.length === 1, Object.keys(s5item || {}));
@@ -265,6 +303,31 @@ try {
     && s6after.graphic_deliverable_id === s6graphic.id && s6diff.sort().join(',') === 'graphic_deliverable_id,updated_at'
     && s6after.name === 'Human renamed card' && s6after.status === 'Kasper Approval' && s6after.caption === 'human caption', s6diff);
   ok('S6-slot-bind-writes-no-card-event', (await count(`select 1 from public.calendar_post_events where post_id=${q(s6cardId)}`)) === 0);
+  // S6b. The same empty slot, but the card was CREATED with it bound and a
+  // person cleared it afterwards: held, never re-bound. The created fact and
+  // the slots_changed fact are what the reconciler reads.
+  const s6b = await interrupted('both', 2);
+  await children(s6b.body.request_id);
+  const s6bdels = await dels(s6b.m.batch_id);
+  const s6bcard = s6b.m.expected_items[0].row.card_id;
+  await sql(`insert into public.calendar_posts(client,id,updated_at,order_index,name,status,video_deliverable_id,graphic_deliverable_id)
+    values('fixture-client',${q(s6bcard)},'2026-09-05T10:00:00.000Z','7','Cleared by a person','In Progress',${q(s6bdels.find(d => d.team === 'video').id)},${q(s6bdels.find(d => d.team === 'graphics').id)})`);
+  await sql(`update public.calendar_posts set graphic_deliverable_id=null where client='fixture-client' and id=${q(s6bcard)}`);
+  const s6brow = await card('fixture-client', s6bcard);
+  const s6bc = await cards(s6b.body.request_id);
+  ok('S6b-slot-cleared-after-creation-is-held-not-rebound', s6bc.outcome === 'unresolved' && s6bc.unresolved[0].reason === 'card_slot_cleared'
+    && s6bc.unresolved[0].owner === 'operator' && s6bc.bound.length === 0
+    && JSON.stringify(await card('fixture-client', s6bcard)) === JSON.stringify(s6brow)
+    && (await provenance('calendar', 'fixture-client', s6bcard)).map(p => p.kind).join(',') === 'created,slots_changed', s6bc);
+  // S6c. A slot the reconciler itself bound and a person cleared afterwards
+  // stays cleared: the slots_changed fact outranks empty-at-creation.
+  await sql(`update public.calendar_posts set graphic_deliverable_id=null where client='fixture-client' and id=${q(s6cardId)}`);
+  const s6crow = await card('fixture-client', s6cardId);
+  const s6cc = await cards(s6.body.request_id);
+  ok('S6c-reconciler-bound-slot-cleared-by-a-person-is-not-rebound', s6cc.outcome === 'unresolved' && s6cc.unresolved[0].reason === 'card_slot_cleared'
+    && JSON.stringify(await card('fixture-client', s6cardId)) === JSON.stringify(s6crow)
+    && JSON.stringify((await provenance('calendar', 'fixture-client', s6cardId)).filter(p => p.kind === 'slots_changed').map(p => p.source))
+       === JSON.stringify(['native-intake-reconcile:lane', null]), s6cc);
 
   // S7. Occupied slot: conflict, nothing written, reason durable.
   const s7 = await interrupted('both', 1);
@@ -281,10 +344,10 @@ try {
   ok('S7-conflict-reason-recorded', (await reasons(s7.body.request_id, 'cards')).some(p => p.payload.outcome === 'conflict'));
 
   // S8. Human edits on a completed card are untouched by a rerun.
-  await sql(`update public.calendar_posts set name='Renamed by human', status='Client Approval', caption='edited' where client='fixture-client' and id=${q(s1card.id)}`);
-  const s8before = await card('fixture-client', s1card.id);
+  await sql(`update public.calendar_posts set name='Renamed by human', status='Client Approval', caption='edited' where client=${q(BC)} and id=${q(s1card.id)}`);
+  const s8before = await card(BC, s1card.id);
   const s8c = await cards(s1.body.request_id);
-  ok('S8-rerun-never-touches-human-fields', s8c.outcome === 'complete' && JSON.stringify(await card('fixture-client', s1card.id)) === JSON.stringify(s8before));
+  ok('S8-rerun-never-touches-human-fields', s8c.outcome === 'complete' && JSON.stringify(await card(BC, s1card.id)) === JSON.stringify(s8before));
 
   // S9. Archived card: never resurrected, never re-bound.
   const s9 = await interrupted('both', 1);
@@ -297,10 +360,10 @@ try {
     && JSON.stringify(await card('fixture-client', s9cardId)) === JSON.stringify(s9row), s9c);
 
   // S10. A card that existed and was deleted is not recreated.
-  await sql(`delete from public.calendar_posts where client='fixture-client' and id=${q(s1card.id)}`);
+  await sql(`delete from public.calendar_posts where client=${q(BC)} and id=${q(s1card.id)}`);
   const s10c = await cards(s1.body.request_id);
   ok('S10-deleted-card-not-recreated', s10c.outcome === 'unresolved' && s10c.unresolved[0].reason === 'card_deleted_after_creation'
-    && !(await card('fixture-client', s1card.id)), s10c);
+    && !(await card(BC, s1card.id)) && (await provenance('calendar', BC, s1card.id)).map(p => p.kind).join(',') === 'created,deleted', s10c);
 
   // S11. Human re-carded or un-carded a deliverable: operator decision.
   const s11 = await interrupted('both', 1);
@@ -359,7 +422,7 @@ try {
   // a normal stage 2 obligation.
   await flags();
   net.linear = 'ok'; reset();
-  const s15body = rootBody('both', requestId());
+  const s15body = rootBody('both', requestId(), { client_slug: BC });
   let s15writes = 0;
   hooks.beforeRpc = name => { if (name === 'production_deliverable_write' && ++s15writes === 2) throw new Error('synthetic provider-era interruption'); };
   const s15resp = await post(s15body); reset(); net.linear = 'down';
@@ -372,9 +435,13 @@ try {
   net.linear = 'ok'; reset();
   const s15retry = await post(s15body); net.linear = 'down';
   const s15c = await cards(s15body.request_id);
-  const s15card = await card('fixture-client', s15m.expected_items[0].row.card_id);
-  ok('S15-gateway-retry-completes-provider-children-then-card-materializes', s15retry.status === 201 && s15c.outcome === 'materialized'
-    && !!s15card && s15card.video_deliverable_id && s15card.graphic_deliverable_id && s15card.linear_issue_id === '', [s15retry.status, s15c.outcome]);
+  const s15resume = await browserResume(savedJob(s15body, s15retry));
+  await settle();
+  const s15card = await card(BC, s15m.expected_items[0].row.card_id);
+  ok('S15-gateway-retry-completes-provider-children-card-held-then-browser-creates-it', s15retry.status === 201
+    && s15c.outcome === 'unresolved' && s15c.unresolved[0].reason === 'card_creation_held' && s15c.created.length === 0
+    && s15resume.ok && !!s15card && !!s15card.video_deliverable_id && !!s15card.graphic_deliverable_id
+    && (await state(s15body.request_id)).complete === true, [s15retry.status, s15c.outcome, s15resume.error]);
   await flags('epoch-video-r3', 'epoch-graphics-r3');
 
   // S16. Archived batch and inactive client are not resurrected.
@@ -389,19 +456,27 @@ try {
     && s16r2.outcome === 'unresolved' && s16r2.unresolved[0].reason === 'client_inactive' && (await dels(s16.m.batch_id)).length === 0, [s16r, s16r2]);
 
   // S17. Samples surface: the same two stages land the card in sample_reviews.
-  const s17 = await interrupted('both', 1, { surface: 'sxr' });
+  const s17 = await interrupted('both', 1, { surface: 'sxr', client_slug: BC });
   ok('S17-samples-intake-accepted-and-interrupted', s17.response.status >= 500 && !!s17.m
     && (await rows(`select purpose from public.batches where id=${q(s17.m.batch_id)}`))[0]?.purpose === 'samples', s17.response);
   const s17r = await children(s17.body.request_id);
   const s17c = await cards(s17.body.request_id);
-  const s17card = await card('fixture-client', s17.m.expected_items[0].row.card_id, 'sample_reviews');
+  reset();
+  const s17retry = await post(s17.body);
+  const s17resume = await browserResume(savedJob(s17.body, s17retry));
+  await settle();
+  const s17card = await card(BC, s17.m.expected_items[0].row.card_id, 'sample_reviews');
   const s17dels = await dels(s17.m.batch_id);
-  ok('S17-samples-children-recovered-and-sample-card-created', s17r.outcome === 'recovered' && s17r.recovered.length === 2 && s17c.outcome === 'materialized'
+  ok('S17-samples-children-recovered-card-held-then-browser-creates-the-sample-card', s17r.outcome === 'recovered' && s17r.recovered.length === 2
+    && s17c.outcome === 'unresolved' && s17c.unresolved[0].reason === 'card_creation_held' && s17retry.status === 201 && s17resume.ok
+    && s17resume.sent[0].writer === 'sample-review-upsert'
     && !!s17card && s17card.video_deliverable_id === s17dels.find(d => d.team === 'video').id
     && s17card.graphic_deliverable_id === s17dels.find(d => d.team === 'graphics').id && s17card.status === 'In Progress'
-    && s17card.creative_direction === '' && s17card.hide_creative_direction === '' && s17dels.every(d => d.origin === 'samples')
-    && (await count(`select 1 from public.sample_review_events where sample_id=${q(s17card?.id)} and action='create'`)) === 1
-    && (await count(`select 1 from public.calendar_posts where id=${q(s17card?.id)}`)) === 0, [s17r.outcome, s17c.outcome, s17card]);
+    && s17dels.every(d => d.origin === 'samples')
+    && (await count(`select 1 from public.sample_review_events where sample_id=${q(s17card?.id)} and action='create'`)) >= 1
+    && (await count(`select 1 from public.calendar_posts where id=${q(s17card?.id)}`)) === 0
+    && (await state(s17.body.request_id)).complete === true && (await cards(s17.body.request_id)).outcome === 'complete',
+    [s17r.outcome, s17c.outcome, s17retry.status, s17resume.error]);
 
   // S18. Missing terminal receipt is reported, never invented. (A deleted
   // receipt row is the only way to reach this state in the fixture.)
@@ -431,33 +506,43 @@ try {
     && dry.counts.children.planned >= 1 && typeof dry.attention.backlog_age_seconds === 'number' && dry.attention.missing_terminal_receipts === 1, dry.counts);
   const applied = await runReconcile({ rpc: psqlRpc, actor: 'runner-apply', apply: true, limit: 1, requestIds: [s20a.body.request_id] });
   ok('S20-runner-apply-respects-limit-and-completes-request', applied.processed.length === 1 && applied.processed[0].request_id === s20a.body.request_id
-    && applied.counts.children.recovered === 1 && applied.counts.children.recovered_children === 2 && applied.counts.cards.materialized === 1
-    && (await state(s20a.body.request_id)).complete === true && (await state(s20b.body.request_id)).complete === false, applied.counts);
+    && applied.counts.children.recovered === 1 && applied.counts.children.recovered_children === 2 && applied.counts.cards.unresolved === 1
+    && applied.counts.cards.created_cards === 0 && applied.processed[0].cards.unresolved[0].reason === 'card_creation_held'
+    && (await state(s20a.body.request_id)).owed.children_native === 0 && (await state(s20a.body.request_id)).owed.cards === 1
+    && (await state(s20b.body.request_id)).complete === false, applied.counts);
   const lost = { calls: 0 };
   const lossyRpc = async (name, args) => { const out = await psqlRpc(name, args); if (name === 'production_intake_reconcile_children' && ++lost.calls === 1) throw new Error('synthetic lost reconcile response'); return out; };
   let lostError = null;
   try { await runReconcile({ rpc: lossyRpc, actor: 'runner-lossy', apply: true, limit: 1, requestIds: [s20b.body.request_id] }); } catch (e) { lostError = e; }
   const s20rerun = await runReconcile({ rpc: psqlRpc, actor: 'runner-rerun', apply: true, limit: 1, requestIds: [s20b.body.request_id] });
   ok('S20-runner-response-loss-then-rerun-converges', !!lostError && s20rerun.processed[0].children.outcome === 'complete'
-    && s20rerun.processed[0].cards.outcome === 'materialized' && (await state(s20b.body.request_id)).complete === true
-    && (await dels(s20b.m.batch_id)).length === 1, s20rerun.counts);
+    && s20rerun.processed[0].cards.outcome === 'unresolved' && s20rerun.processed[0].cards.unresolved[0].reason === 'card_creation_held'
+    && (await state(s20b.body.request_id)).owed.cards === 1 && (await dels(s20b.m.batch_id)).length === 1, s20rerun.counts);
   const summary = await fn('production_intake_reconcile_summary', {});
   const independentOwed = Number(await sql(`select count(*) from public.production_intake_manifests m cross join lateral jsonb_array_elements(m.expected_items) i
     left join public.deliverables d on d.id = i->'row'->>'id' where d.id is null`));
+  const independentCards = Number(await sql(`select count(*) from (
+    select m.request_id, i->'row'->>'card_id' as cid, bool_and(coalesce(
+      case when coalesce(b.purpose, 'calendar') = 'samples'
+        then (select case when i->'row'->>'team' = 'graphics' then s.graphic_deliverable_id else s.video_deliverable_id end
+              from public.sample_reviews s where s.client = m.client_slug and s.id = i->'row'->>'card_id')
+        else (select case when i->'row'->>'team' = 'graphics' then c.graphic_deliverable_id else c.video_deliverable_id end
+              from public.calendar_posts c where c.client = m.client_slug and c.id = i->'row'->>'card_id') end = i->'row'->>'id', false)) as done
+    from public.production_intake_manifests m join public.batches b on b.id = m.batch_id
+    cross join lateral jsonb_array_elements(m.expected_items) i group by 1, 2) t where not done`));
   ok('S20-summary-counts-match-independent-sql', summary.owed.children_native + summary.owed.children_provider === independentOwed
+    && summary.owed.cards === independentCards && independentCards >= 2
     && summary.requests_owed + summary.requests_complete === summary.manifests && summary.owed.missing_terminal_receipts === 1
     && Object.keys(summary.latest_outcomes).length > 0, summary);
 
   // ------------------------------------------------------------------
-  // Review round: late original browser job vs a card the reconciler made.
+  // Correction round (review of head 48f7501). The BEFORE UPDATE guard that
+  // recognised a late browser replay from row content is gone, and so is the
+  // creation classifier. Everything below drives the ACTUAL writers and the
+  // ACTUAL extracted browser function; nothing is mocked between them and the
+  // tables.
   // ------------------------------------------------------------------
   await flags('epoch-video-b1', 'epoch-graphics-b1');
-  // The card writers normalize the client slug (lower-case alphanumerics). Live
-  // slugs already have that shape; the harness slug carries a hyphen, so these
-  // scenarios use a second synthetic client the writers leave unchanged.
-  const BC = 'fixturecard';
-  await sql(`insert into public.clients(slug, display_name, active, kind, linear_project_ids)
-    values (${q(BC)}, 'Fixture Card', true, 'client', '{"video":"proj_fixture_shared","graphics":"proj_fixture_shared"}'::jsonb) on conflict (slug) do nothing`);
   async function acceptedButUnmaterialized(mode = 'both', overrides = {}) {
     reset();
     const body = rootBody(mode, requestId(overrides.surface === 'sxr' ? 'sxr' : 'submission'), { client_slug: BC, ...overrides });
@@ -465,116 +550,174 @@ try {
     if (response.status !== 201) throw new Error('fixture intake did not commit: ' + response.status);
     return { body, response, m: await manifest(body.request_id), job: savedJob(body, response) };
   }
-  async function provenance(surface, cardId) {
-    return rows(`select kind, materialization, initial, source from public.production_card_provenance where surface=${q(surface)} and client=${q(BC)} and card_id=${q(cardId)} order by id`);
+  // A person's edit, exactly as the Calendar and Samples tabs send it: the
+  // changed keys only, through the real writer.
+  const edit = (table, id, fields) => table === 'sample_reviews'
+    ? writers.post('sample-review-upsert', { client: BC, sample: { id, ...fields }, comments_base_at: '' }, 'ui')
+    : writers.post('calendar-upsert', { client: BC, post: { id, ...fields }, comments_base_at: '' }, 'ui');
+
+  // R0. Structure, not intent: no trigger on either card table alters a write,
+  // and the row-content classifier no longer exists anywhere in the schema.
+  ok('R0-no-write-altering-trigger-or-classifier-installed',
+    (await count(`select 1 from pg_trigger where tgname like 'zy_production_card%'`)) === 0
+    && (await count(`select 1 from pg_proc where proname in ('production_card_materialization_guard', 'production_card_is_materialization')`)) === 0
+    && (await count(`select 1 from information_schema.columns where table_name='production_card_provenance' and column_name='materialization'`)) === 0
+    && (await rows(`select tgname, tgtype from pg_trigger where tgrelid in ('public.calendar_posts'::regclass, 'public.sample_reviews'::regclass) and not tgisinternal and tgname like '%provenance%'`))
+      .every(t => (Number(t.tgtype) & 2) === 0 /* AFTER, never BEFORE */));
+
+  // R1. Calendar: create through the browser job, rename through the actual
+  // writer, rename BACK to the original title through the actual writer. The
+  // 48f7501 guard kept the intermediate title here; the writer must keep the
+  // person's last word.
+  const r1 = await acceptedButUnmaterialized();
+  const r1card = r1.m.expected_items[0].row.card_id;
+  const r1create = await browserResume(r1.job); await settle();
+  const r1row = await card(BC, r1card);
+  const r1rename = await edit('calendar_posts', r1card, { name: 'Intermediate title' });
+  const r1mid = await card(BC, r1card);
+  const r1back = await edit('calendar_posts', r1card, { name: r1row.name });
+  const r1after = await card(BC, r1card);
+  ok('R1-calendar-rename-back-to-the-original-title-is-kept', r1create.ok && !!r1row && r1rename.status === 200 && r1mid.name === 'Intermediate title'
+    && r1back.status === 200 && r1after.name === r1row.name && r1after.video_deliverable_id === r1row.video_deliverable_id
+    && r1after.graphic_deliverable_id === r1row.graphic_deliverable_id
+    && (await provenance('calendar', BC, r1card)).map(p => p.kind).join(',') === 'created',
+    { create: r1create.error, statuses: [r1rename.status, r1back.status], names: [r1row && r1row.name, r1mid && r1mid.name, r1after && r1after.name] });
+
+  // R2. Samples: the same sequence through sample-review-upsert.
+  const r2 = await acceptedButUnmaterialized('both', { surface: 'sxr' });
+  const r2card = r2.m.expected_items[0].row.card_id;
+  const r2create = await browserResume(r2.job); await settle();
+  const r2row = await card(BC, r2card, 'sample_reviews');
+  const r2rename = await edit('sample_reviews', r2card, { name: 'Intermediate sample title' });
+  const r2mid = await card(BC, r2card, 'sample_reviews');
+  const r2back = await edit('sample_reviews', r2card, { name: r2row.name });
+  const r2after = await card(BC, r2card, 'sample_reviews');
+  ok('R2-samples-rename-back-to-the-original-title-is-kept', r2create.ok && !!r2row && r2rename.status === 200 && r2mid.name === 'Intermediate sample title'
+    && r2back.status === 200 && r2after.name === r2row.name && r2after.video_deliverable_id === r2row.video_deliverable_id
+    && (await provenance('samples', BC, r2card)).map(p => p.kind).join(',') === 'created',
+    { create: r2create.error, statuses: [r2rename.status, r2back.status], names: [r2row && r2row.name, r2mid && r2mid.name, r2after && r2after.name] });
+
+  // R3. A GENUINE late retry of the original browser job over its own card,
+  // after a person edited it through the writer. Observed, not introduced: the
+  // frozen writer acknowledges the replay and the person's fields are
+  // overwritten, because the writer conveys no operation identity that any
+  // layer could act on. The reconciler created nothing, bound nothing and
+  // recorded nothing for this request; it did not widen the exposure.
+  const r3 = await acceptedButUnmaterialized();
+  const r3card = r3.m.expected_items[0].row.card_id;
+  const r3first = await browserResume(r3.job); await settle();
+  const r3edit = await edit('calendar_posts', r3card, { name: 'Human title', scheduled_date: '2026-10-02', status: 'Kasper Approval' });
+  const r3human = await card(BC, r3card);
+  const r3before = await cards(r3.body.request_id);
+  r3.job.completed_card_ids = [];
+  const r3late = await browserResume(r3.job); await settle();
+  const r3after = await card(BC, r3card);
+  const r3c = await cards(r3.body.request_id);
+  const r3prov = await provenance('calendar', BC, r3card);
+  ok('R3-genuine-late-browser-retry-overwrites-through-the-frozen-writer-and-the-reconciler-wrote-nothing',
+    r3first.ok && r3edit.status === 200 && r3human.name === 'Human title' && r3human.status === 'Kasper Approval'
+    && r3late.ok && r3late.sent.length === 1 && (r3late.sent[0].payload.comments_base_at || '') === ''
+    && r3after.name !== 'Human title' && r3after.status === 'In Progress' && r3after.scheduled_date === ''
+    && r3before.outcome === 'complete' && r3before.bound.length === 0 && r3c.outcome === 'complete'
+    && r3prov.length === 1 && r3prov[0].kind === 'created' && r3prov[0].source === null
+    && (await reasons(r3.body.request_id, 'cards')).length === 0,
+    { human: [r3human.name, r3human.status], after: [r3after.name, r3after.status], rc: [r3before.outcome, r3c.outcome], prov: r3prov.map(p => p.kind) });
+
+  // R4. A copied or non-intake card in the browser's exact shape: it records a
+  // created fact and nothing else, no classification is made, its rename-back
+  // through the writer works, and it never enters the reconciler's backlog.
+  const r4id = 'p_copied_lookalike_synthetic';
+  const r4dels = await dels(r3.m.batch_id);
+  const r4create = await writers.post('calendar-upsert', { client: BC, post: {
+    id: r4id, order_index: '99', name: 'Video 1', scheduled_date: '', status: 'In Progress', video_status: 'In Progress',
+    graphic_status: 'In Progress', caption_status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '',
+    tweaks: '', video_tweaks: '', graphic_tweaks: '', caption_tweaks: '',
+    linear_issue_id: '', video_deliverable_id: r4dels.find(d => d.team === 'video').id, graphic_linear_issue_id: '', graphic_deliverable_id: '' } }, 'ui');
+  await settle();
+  const r4row = await card(BC, r4id);
+  const r4rename = await edit('calendar_posts', r4id, { name: 'Copied and renamed' });
+  const r4back = await edit('calendar_posts', r4id, { name: 'Video 1' });
+  const r4after = await card(BC, r4id);
+  const r4prov = await provenance('calendar', BC, r4id);
+  const r4backlog = (await fn('production_intake_reconcile_backlog', { p_limit: 500, p_after: null })).items;
+  ok('R4-copied-non-intake-lookalike-records-a-fact-only-and-renames-back-freely', r4create.status === 200 && !!r4row
+    && r4rename.status === 200 && r4back.status === 200 && r4after.name === 'Video 1'
+    && r4prov.length === 1 && r4prov[0].kind === 'created' && r4prov[0].source === null && !('materialization' in r4prov[0])
+    && r4backlog.every(i => !(i.cards_incomplete || []).includes(r4id)),
+    { create: r4create.status, statuses: [r4rename.status, r4back.status], name: r4after && r4after.name, prov: r4prov.map(p => p.kind) });
+
+  // R5. Concurrent identity change during the bind. The plan is computed
+  // before the locks; the reconciler locks the card, then blocks on the child
+  // a second session holds. When that session re-cards the child (R5a) or
+  // deletes it (R5b) and commits, the revalidation under the lock sees the
+  // change and the whole bind rolls back: no slot written, bounded reason.
+  const hold = (id, mutation) => runSql(`begin; select 1 from public.deliverables where id=${q(id)} for update; select pg_sleep(1.5); ${mutation}; commit;`);
+  const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+  async function bindable() {
+    const x = await interrupted('both', 2);
+    await children(x.body.request_id);
+    const d = await dels(x.m.batch_id);
+    const cid = x.m.expected_items[0].row.card_id;
+    await sql(`insert into public.calendar_posts(client,id,updated_at,order_index,name,status,video_deliverable_id)
+      values('fixture-client',${q(cid)},'2026-09-05T10:00:00.000Z','5','Awaiting its thumbnail','In Progress',${q(d.find(v => v.team === 'video').id)})`);
+    return { x, d, cid, graphic: d.find(v => v.team === 'graphics'), row: await card('fixture-client', cid) };
   }
-  const preserved = (before, after, allowed) => !!before && !!after
-    && Object.keys(after).filter(k => JSON.stringify(after[k]) !== JSON.stringify(before[k])).every(k => allowed.includes(k));
+  const r5a = await bindable();
+  const r5aHold = hold(r5a.graphic.id, `update public.deliverables set card_id='p_recarded_synthetic' where id=${q(r5a.graphic.id)}`);
+  await pause(300);
+  const r5ac = await cards(r5a.x.body.request_id);
+  const r5aHeld = await r5aHold;
+  ok('R5a-child-recarded-under-the-lock-rolls-the-bind-back', r5aHeld.status === 0 && r5ac.outcome === 'unresolved' && r5ac.bound.length === 0
+    && r5ac.unresolved[0].reason === 'reconcile_child_identity_changed'
+    && JSON.stringify(await card('fixture-client', r5a.cid)) === JSON.stringify(r5a.row)
+    && (await provenance('calendar', 'fixture-client', r5a.cid)).map(p => p.kind).join(',') === 'created'
+    && (await reasons(r5a.x.body.request_id, 'cards')).some(p => p.payload.outcome === 'unresolved' && p.payload.unresolved.some(u => u.reason === 'reconcile_child_identity_changed')),
+    { hold: r5aHeld.stderr, rc: r5ac });
+  const r5b = await bindable();
+  const r5bHold = hold(r5b.graphic.id, `delete from public.deliverables where id=${q(r5b.graphic.id)}`);
+  await pause(300);
+  const r5bc = await cards(r5b.x.body.request_id);
+  const r5bHeld = await r5bHold;
+  ok('R5b-child-deleted-under-the-lock-rolls-the-bind-back', r5bHeld.status === 0 && r5bc.outcome === 'unresolved' && r5bc.bound.length === 0
+    && r5bc.unresolved[0].reason === 'reconcile_child_identity_changed'
+    && JSON.stringify(await card('fixture-client', r5b.cid)) === JSON.stringify(r5b.row)
+    && (await dels(r5b.x.m.batch_id)).length === 1, { hold: r5bHeld.stderr, rc: r5bc });
+  // Afterwards the deleted child is an OPERATOR decision, not a silent
+  // recovery: its terminal receipt survives without its row, stage 1 reports
+  // the conflict, and stage 2 stays on children_incomplete. The lock order and
+  // the cardinality check are what kept stage 2 from binding a phantom.
+  const r5bRecover = await children(r5b.x.body.request_id);
+  const r5bAgain = await cards(r5b.x.body.request_id);
+  ok('R5b-deleted-child-is-an-operator-decision-afterwards-not-a-silent-recovery', r5bRecover.outcome === 'conflict'
+    && r5bRecover.conflicts.some(c => c.reason === 'child_receipt_without_row' && c.owner === 'operator') && r5bRecover.recovered.length === 0
+    && r5bAgain.outcome === 'unresolved' && r5bAgain.unresolved[0].reason === 'children_incomplete' && r5bAgain.bound.length === 0
+    && JSON.stringify(await card('fixture-client', r5b.cid)) === JSON.stringify(r5b.row), [r5bRecover, r5bAgain]);
 
-  // B1 NEGATIVE CONTROL. Exactly the first head's behaviour: with the guard
-  // disabled, the old tab's resume rewrites the person's rename, schedule and
-  // status, and the writer acknowledges it. This is the defect being closed.
-  const b1 = await acceptedButUnmaterialized();
-  const b1c = await cards(b1.body.request_id);
-  const b1card = b1.m.expected_items[0].row.card_id;
-  await sql(`update public.calendar_posts set name='Human title', scheduled_date='2026-10-02', status='Kasper Approval', caption='human caption' where client=${q(BC)} and id=${q(b1card)}`);
-  const b1before = await card(BC, b1card);
-  await sql('alter table public.calendar_posts disable trigger zy_production_card_materialization_guard');
-  const b1resume = await browserResume(b1.job);
-  await sql('alter table public.calendar_posts enable trigger zy_production_card_materialization_guard');
-  const b1after = await card(BC, b1card);
-  ok('B1-negative-control-old-browser-resume-overwrites-human-fields-without-guard', b1c.outcome === 'materialized' && b1resume.ok
-    && b1resume.sent.length === 1 && (b1resume.sent[0].payload.comments_base_at || '') === ''
-    && b1before.name === 'Human title' && b1after.name !== 'Human title' && b1after.status === 'In Progress'
-    && b1after.scheduled_date === '' && b1after.caption === '',
-    { before: [b1before.name, b1before.status], after: [b1after.name, b1after.status], sent: b1resume.sent.length, error: b1resume.error });
-
-  // B2 POSITIVE. Same sequence with the guard: the writer still acknowledges,
-  // the job completes, the person's fields survive, the slots stay bound.
-  const b2 = await acceptedButUnmaterialized();
-  await cards(b2.body.request_id);
-  const b2card = b2.m.expected_items[0].row.card_id;
-  await sql(`update public.calendar_posts set name='Human title', scheduled_date='2026-10-02', status='Kasper Approval', caption='human caption', order_index='42' where client=${q(BC)} and id=${q(b2card)}`);
-  const b2before = await card(BC, b2card);
-  const b2resume = await browserResume(b2.job);
-  const b2after = await card(BC, b2card);
-  ok('B2-old-browser-resume-after-reconciler-create-preserves-human-fields', b2resume.ok && b2resume.sent.length === 1
-    && b2after.name === 'Human title' && b2after.scheduled_date === '2026-10-02' && b2after.status === 'Kasper Approval'
-    && b2after.caption === 'human caption' && b2after.order_index === '42'
-    && b2after.video_deliverable_id === b2before.video_deliverable_id && b2after.graphic_deliverable_id === b2before.graphic_deliverable_id
-    && preserved(b2before, b2after, ['updated_at'])
-    && b2resume.job.completed_card_ids.includes(b2card) && bctx.__checkpoints.length >= 1, { after: [b2after.name, b2after.status, b2after.scheduled_date], sent: b2resume.sent.length });
-  ok('B2-writer-acknowledged-the-replay-so-the-job-can-finish', b2resume.ok && (await state(b2.body.request_id)).complete === true);
-
-  // B3 ARCHIVE. Archived through the real writer the way the Calendar does,
-  // then the old tab resumes: the card stays archived.
-  const b3 = await acceptedButUnmaterialized();
-  await cards(b3.body.request_id);
-  const b3card = b3.m.expected_items[0].row.card_id;
-  const b3archive = await writers.post('calendar-upsert', { client: BC, post: { id: b3card, status: 'Archived' } }, 'ui');
-  const b3archived = await card(BC, b3card);
-  const b3resume = await browserResume(b3.job);
-  const b3after = await card(BC, b3card);
-  ok('B3-archive-then-old-browser-resume-stays-archived', b3archive.status === 200 && b3archived.status === 'Archived' && b3resume.ok
-    && b3after.status === 'Archived' && preserved(b3archived, b3after, ['updated_at']), [b3archived.status, b3after.status]);
-
-  // B4 COMPETING INSERTION. The browser's request is already issued while the
-  // reconciler materializes the same card. Whoever loses the primary key gets a
-  // writer failure and retries; the end state is one card, one creation
-  // provenance row, both slots bound, and the browser job complete.
-  const b4 = await acceptedButUnmaterialized();
-  const b4card = b4.m.expected_items[0].row.card_id;
-  const [b4browser, b4rc] = await Promise.all([browserResume(b4.job), cards(b4.body.request_id)]);
-  const b4retry = b4browser.ok ? b4browser : await browserResume(b4.job);
-  const b4rows = await rows(`select * from public.calendar_posts where client=${q(BC)} and id=${q(b4card)}`);
-  const b4prov = await provenance('calendar', b4card);
-  ok('B4-competing-insertion-converges-to-one-card', b4rows.length === 1 && b4retry.ok && ['materialized', 'complete'].includes(b4rc.outcome)
-    && b4prov.filter(p => p.kind === 'created').length === 1 && (await state(b4.body.request_id)).complete === true
-    && b4rows[0].video_deliverable_id && b4rows[0].graphic_deliverable_id, { first: b4browser.ok, rc: b4rc.outcome, prov: b4prov.map(p => p.kind) });
-
-  // B5 LOST RESPONSE. The browser wrote the card, lost the acknowledgement,
-  // never recorded the card as complete, and resumes: a second identical write
-  // over its own card changes nothing but the clock.
-  const b5 = await acceptedButUnmaterialized();
-  const b5card = b5.m.expected_items[0].row.card_id;
-  const b5first = await browserResume(b5.job);
-  const b5row = await card(BC, b5card);
-  b5.job.completed_card_ids = [];
-  const b5second = await browserResume(b5.job);
-  const b5again = await card(BC, b5card);
-  ok('B5-lost-response-replay-of-own-card-is-a-noop', b5first.ok && b5second.ok && preserved(b5row, b5again, ['updated_at'])
-    && (await provenance('calendar', b5card)).filter(p => p.kind === 'created').length === 1
-    && (await cards(b5.body.request_id)).outcome === 'complete');
-  ok('B5-browser-created-card-is-recognised-as-a-materialization', (await provenance('calendar', b5card))[0].materialization === true
-    && (await provenance('calendar', b5card))[0].source === null);
-
-  // B6 SAMPLES. The same guard on sample_reviews through the samples writer.
-  const b6 = await acceptedButUnmaterialized('both', { surface: 'sxr' });
-  await cards(b6.body.request_id);
-  const b6card = b6.m.expected_items[0].row.card_id;
-  await sql(`update public.sample_reviews set name='Human sample title', status='Kasper Approval', creative_direction='direction' where client=${q(BC)} and id=${q(b6card)}`);
-  const b6before = await card(BC, b6card, 'sample_reviews');
-  const b6resume = await browserResume(b6.job);
-  const b6after = await card(BC, b6card, 'sample_reviews');
-  ok('B6-samples-old-browser-resume-preserves-human-fields', b6resume.ok && b6resume.sent[0].writer === 'sample-review-upsert'
-    && b6after.name === 'Human sample title' && b6after.status === 'Kasper Approval' && b6after.creative_direction === 'direction'
-    && preserved(b6before, b6after, ['updated_at']), [b6after.name, b6after.status]);
-
-  // B7 A GENUINE HUMAN RESET is not mistaken for a replay: the same values
-  // arriving with a different order_index... no. A human edit that changes any
-  // signature field passes straight through.
-  const b7before = await card(BC, b2card);
-  const b7edit = await writers.post('calendar-upsert', { client: BC, post: { id: b2card, name: 'Edited again', status: 'Client Approval' }, comments_base_at: '' }, 'ui');
-  const b7after = await card(BC, b2card);
-  ok('B7-ordinary-human-edits-pass-through-the-guard', b7edit.status === 200 && b7after.name === 'Edited again' && b7after.status === 'Client Approval'
-    && b7before.name !== b7after.name);
+  // R6. A failure inside the bind (any failure: here a synthetic raising
+  // trigger on the card table) rolls the card back, records no slot fact and
+  // leaves a bounded reason, never the message.
+  const r6 = await bindable();
+  await sql(`create function public.nir_synthetic_failure() returns trigger language plpgsql as $$ begin raise exception 'synthetic_failure detail (id)=(secret)'; end $$;
+    create trigger zz_nir_synthetic_failure before update on public.calendar_posts for each row execute function public.nir_synthetic_failure();`);
+  const r6c = await cards(r6.x.body.request_id);
+  await sql('drop trigger zz_nir_synthetic_failure on public.calendar_posts; drop function public.nir_synthetic_failure();');
+  ok('R6-failure-inside-the-bind-rolls-back-with-a-bounded-reason', r6c.outcome === 'unresolved' && r6c.bound.length === 0
+    && r6c.unresolved[0].reason === 'sql_error:P0001' && !JSON.stringify(r6c).includes('secret')
+    && JSON.stringify(await card('fixture-client', r6.cid)) === JSON.stringify(r6.row)
+    && (await provenance('calendar', 'fixture-client', r6.cid)).map(p => p.kind).join(',') === 'created'
+    && (await reasons(r6.x.body.request_id, 'cards')).some(p => JSON.stringify(p).includes('sql_error:P0001') && !JSON.stringify(p).includes('secret')), r6c);
+  const r6again = await cards(r6.x.body.request_id);
+  ok('R6-after-the-fault-clears-the-same-bind-completes', r6again.outcome === 'materialized' && r6again.bound.length === 1
+    && (await card('fixture-client', r6.cid)).graphic_deliverable_id === r6.graphic.id
+    && (await provenance('calendar', 'fixture-client', r6.cid)).map(p => p.kind).join(',') === 'created,slots_changed', r6again);
 
   // ------------------------------------------------------------------
-  // Review round: absent best-effort events are not proof of never created.
+  // Absent best-effort events are not proof of never created, and even proof
+  // of never created does not create.
   // ------------------------------------------------------------------
-  // P1 NEGATIVE CONTROL. Without provenance recording (triggers disabled): a
-  // card commits, its create event is lost, a person deletes it, and the
-  // first head's rule (no event row) resurrects it.
+  // P1. Without ANY provenance recording (triggers disabled): a card commits,
+  // its create event is lost, a person deletes it. The first head resurrected
+  // it. Now nothing is created under any reading of the facts.
   const p1 = await acceptedButUnmaterialized();
   const p1card = p1.m.expected_items[0].row.card_id;
   const p1dels = await dels(p1.m.batch_id);
@@ -585,11 +728,11 @@ try {
   await sql('alter table public.calendar_posts enable trigger zz_production_card_provenance');
   const p1events = await count(`select 1 from public.calendar_post_events where post_id=${q(p1card)}`);
   const p1c = await cards(p1.body.request_id);
-  ok('P1-negative-control-without-provenance-a-deleted-card-with-no-event-is-resurrected', p1events === 0 && p1c.outcome === 'materialized'
-    && !!(await card(BC, p1card)), p1c);
+  ok('P1-without-any-provenance-a-deleted-event-less-card-is-still-not-recreated', p1events === 0 && p1c.outcome === 'unresolved'
+    && p1c.unresolved[0].reason === 'card_creation_held' && p1c.created.length === 0 && !(await card(BC, p1card)), p1c);
 
-  // P2 POSITIVE. With provenance recorded inside the writer transaction the
-  // same sequence is held: created, then deleted, and no event ever existed.
+  // P2. With provenance recorded inside the writer transaction the same
+  // sequence is named for what it is: created, then deleted, no event ever.
   const p2 = await acceptedButUnmaterialized();
   const p2card = p2.m.expected_items[0].row.card_id;
   const p2dels = await dels(p2.m.batch_id);
@@ -597,32 +740,33 @@ try {
     values(${q(BC)},${q(p2card)},'2026-09-05T10:00:00.000Z','3','Video 1','','In Progress','In Progress','In Progress','In Progress',${q(p2dels.find(d => d.team === 'video').id)},${q(p2dels.find(d => d.team === 'graphics').id)})`);
   await sql(`delete from public.calendar_posts where client=${q(BC)} and id=${q(p2card)}`);
   const p2c = await cards(p2.body.request_id);
-  const p2prov = await provenance('calendar', p2card);
-  ok('P2-failed-create-event-then-committed-card-then-deletion-is-held-not-recreated',
+  const p2prov = await provenance('calendar', BC, p2card);
+  ok('P2-committed-then-deleted-event-less-card-is-held-as-deleted-not-recreated',
     (await count(`select 1 from public.calendar_post_events where post_id=${q(p2card)}`)) === 0
     && p2prov.map(p => p.kind).join(',') === 'created,deleted' && p2c.outcome === 'unresolved'
     && p2c.unresolved[0].reason === 'card_deleted_after_creation' && !(await card(BC, p2card)), p2c);
 
-  // P3 POSITIVE RECOVERY. A card that provably never existed is created, and
-  // the creation is recorded with the reconciler as its source.
+  // P3. A card that provably never existed is STILL not created: the debt is
+  // visible in the reason, the backlog and the summary until its owner (the
+  // browser job, or a person) creates it.
   const p3 = await acceptedButUnmaterialized();
   const p3card = p3.m.expected_items[0].row.card_id;
   const p3c = await cards(p3.body.request_id);
-  const p3prov = await provenance('calendar', p3card);
-  ok('P3-never-created-card-is-created-with-reconciler-provenance', p3c.outcome === 'materialized' && p3prov.length === 1
-    && p3prov[0].kind === 'created' && p3prov[0].materialization === true && p3prov[0].source === 'native-intake-reconcile:lane'
-    && p3prov[0].initial.name === 'Video 1' && p3prov[0].initial.status === 'In Progress', p3prov);
+  const p3item = (await fn('production_intake_reconcile_backlog', { p_limit: 500, p_after: null })).items.find(i => i.request_id === p3.body.request_id);
+  ok('P3-proved-never-created-card-is-held-with-visible-debt-not-created', p3c.outcome === 'unresolved' && p3c.unresolved[0].reason === 'card_creation_held'
+    && p3c.created.length === 0 && !(await card(BC, p3card)) && (await provenance('calendar', BC, p3card)).length === 0
+    && !!p3item && p3item.cards_incomplete.includes(p3card) && (await fn('production_intake_reconcile_summary', {})).owed.cards >= 1, p3c);
 
-  // P4 PRE-INSTALL. A request accepted before provenance recording existed
-  // cannot prove never-created; it is held, never recreated.
+  // P4. A request accepted before provenance recording existed cannot prove
+  // anything about its card; it is held under its own reason, never recreated.
   const p4 = await acceptedButUnmaterialized();
   await sql(`update public.production_intake_manifests set recorded_at = (select min(at) from public.production_card_provenance where kind='installed') - interval '1 day' where request_id=${q(p4.body.request_id)}`);
   const p4c = await cards(p4.body.request_id);
   ok('P4-pre-install-request-is-held-card-provenance-unavailable', p4c.outcome === 'unresolved' && p4c.unresolved[0].reason === 'card_provenance_unavailable'
     && !(await card(BC, p4.m.expected_items[0].row.card_id)), p4c);
 
-  // P5 BOUNDED REASONS. Every reason the ledger holds is an allowlisted code
-  // or a SQLSTATE class; no message text, no row values.
+  // P5. Every reason the ledger holds is an allowlisted code or a SQLSTATE
+  // class; no message text, no row values.
   const ledgerReasons = await rows(`select r->>'reason' as reason from public.deliverable_events e
     cross join lateral jsonb_array_elements(coalesce(e.payload->'unresolved','[]'::jsonb) || coalesce(e.payload->'conflicts','[]'::jsonb)) r
     where e.action='native_intake_reconcile'`);
@@ -634,7 +778,8 @@ try {
   ok('S99-zero-provider-or-drainer-requests-during-any-reconciliation', noProvider(), net.requests.slice(0, 3));
 
   console.log(JSON.stringify({ suite: 'native-intake-reconcile', passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length,
-    readiness: { missing_child_materialization: 'PASS_IN_FIXTURE', missing_card_materialization: 'PASS_IN_FIXTURE',
+    readiness: { missing_child_materialization: 'PASS_IN_FIXTURE', missing_card_materialization: 'HELD_NOT_AUTOMATED',
+      empty_since_creation_slot_bind: 'PASS_IN_FIXTURE', late_browser_replay_overwrite: 'PRE_EXISTING_UNRESOLVED',
       provider_era_child_recovery: 'NOT_IMPLEMENTED', installed_full_serving: 'UNPROVEN', chosen_editor_provider_independence: 'OUT_OF_SCOPE' } }));
   if (checks.some(c => !c.pass)) process.exitCode = 1;
 } finally {

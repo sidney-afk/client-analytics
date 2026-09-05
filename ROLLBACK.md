@@ -2,12 +2,13 @@
 
 **Unapplied draft, 2026-09-05 (reconcile):** the native intake reconciler is
 manual-only and unscheduled, so its behaviour rollback is to stop dispatching.
-Rows it recovered or cards it created are accepted work with real receipts and
+Rows it recovered and slots it bound are accepted work with real receipts and
 must be retained like any browser-materialized intake; never delete its reason
-rows, recovered children, `skipped` receipts or bound slots. Its card-table
-triggers act on every write once installed: the one-step kill for the replay
-guard is `alter table ... disable trigger zy_production_card_materialization_guard`
-on both card tables; keep the provenance recording trigger and table. Details:
+rows, recovered children, `skipped` receipts or bound slots. It creates no card.
+Its card-table triggers only RECORD facts (created, deleted, slots changed) on
+every write once installed and alter nothing; if recording itself must stop,
+`alter table ... disable trigger zz_production_card_provenance` on both card
+tables restores the exact previous write path, and the table stays. Details:
 `docs/audits/2026-09-05-native-intake-reconcile.md`. This changes no Live State entry.
 
 **Unapplied draft, 2026-09-05:** native-only intake depends on PR1293. Its behavior

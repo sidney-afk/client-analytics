@@ -7,15 +7,21 @@ observable stages over `migrations/2026-09-05-native-intake-reconcile.sql`:
    missing expected native children from the immutable root manifest through the
    unchanged `production_deliverable_write` path, with the original ids, content,
    receipt keys, fingerprints and accepted per-team epoch.
-2. `production_intake_reconcile_cards(request_id, actor, apply)` materializes
-   the Calendar or Samples card binding once every expected child exists:
-   creates the browser-shaped card row when none exists, binds only an empty
-   slot when one does, and refuses everything else with a durable reason.
+2. `production_intake_reconcile_cards(request_id, actor, apply)` binds the
+   Calendar or Samples card slots once every expected child exists, and ONLY a
+   slot the recorded facts prove has been empty since the card was created. It
+   never creates a card: a missing card is held as visible debt
+   (`card_creation_held`, in the reason ledger, the backlog and the summary)
+   because the frozen writers convey no operation identity that could tell a
+   late original browser job from a person, so a card created here would be
+   exposed to that replay. Archived, deleted, occupied, cleared, re-carded and
+   un-carded cases are refused with a durable reason.
 
 `production_intake_reconcile_state`, `_backlog` and `_summary` are read-only.
-`production_card_provenance` plus two row triggers on the card tables record
-every card creation and deletion inside the writer's transaction and keep a
-late original browser replay from overwriting human edits. `reconcile-lib.js`
+`production_card_provenance` plus one AFTER row trigger per card table record
+three facts inside the writer's transaction (card created, with the slot ids it
+was created with; card deleted; deliverable slots changed). No trigger alters,
+refuses or reorders a write. `reconcile-lib.js`
 pages the backlog and calls the stages in order; `run.js` is the REST entry
 (dry-run by default, apply needs an explicit confirmation) and prints only the
 public report: aggregates, allowlisted reason codes and, with

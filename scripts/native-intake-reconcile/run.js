@@ -5,7 +5,7 @@
  *   node scripts/native-intake-reconcile/run.js                      # public report of the backlog, write nothing
  *   node scripts/native-intake-reconcile/run.js --limit=10           # examine/plan at most 10 owed requests
  *   NATIVE_INTAKE_RECONCILE_CONFIRM=RECONCILE_NATIVE_INTAKE_APPLY \
- *   node scripts/native-intake-reconcile/run.js --apply --limit=10   # recover children and materialize cards
+ *   node scripts/native-intake-reconcile/run.js --apply --limit=10   # recover children, bind empty-since-creation slots
  *   node scripts/native-intake-reconcile/run.js --private-report=/absolute/path/outside/repo.json
  *
  * Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. Calls only the four
@@ -51,11 +51,38 @@ if (!URL || !KEY) fail('config_error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
 if (APPLY && process.env.NATIVE_INTAKE_RECONCILE_CONFIRM !== 'RECONCILE_NATIVE_INTAKE_APPLY') {
   fail('config_error: --apply requires NATIVE_INTAKE_RECONCILE_CONFIRM=RECONCILE_NATIVE_INTAKE_APPLY');
 }
+/* The private report may land ANYWHERE except inside this repository, and
+   "inside" is decided on real paths: a textual check alone let `<repo>/..private`
+   through (it merely begins with two dots) and a symlink from a temp directory
+   into the tree would have written through it. The deepest existing ancestor is
+   resolved with realpath before the check, and a path that cannot be resolved
+   or is itself a symlink is refused rather than trusted. */
+function textuallyInside(relative) {
+  return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep));
+}
+function insideRepository(target) {
+  const resolved = path.resolve(target);
+  let rootReal;
+  try { rootReal = fs.realpathSync(ROOT); } catch (_e) { return true; }
+  if (textuallyInside(path.relative(ROOT, resolved)) || textuallyInside(path.relative(rootReal, resolved))) return true;
+  let probe = resolved;
+  const tail = [];
+  while (!fs.existsSync(probe)) {
+    tail.unshift(path.basename(probe));
+    const parent = path.dirname(probe);
+    if (parent === probe) return true;
+    probe = parent;
+  }
+  let real;
+  try { real = fs.realpathSync(probe); } catch (_e) { return true; }
+  if (textuallyInside(path.relative(rootReal, path.join(real, ...tail)))) return true;
+  try { if (fs.lstatSync(resolved).isSymbolicLink()) return true; } catch (_e) { /* not present yet */ }
+  return false;
+}
 let privateReportPath = '';
 if (PRIVATE_REPORT) {
   privateReportPath = path.resolve(PRIVATE_REPORT);
-  const relative = path.relative(ROOT, privateReportPath);
-  if (!relative || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
+  if (insideRepository(privateReportPath)) {
     fail('config_error: refusing to write the private report inside the repository');
   }
 }

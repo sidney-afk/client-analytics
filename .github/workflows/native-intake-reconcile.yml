@@ -1,8 +1,9 @@
 name: Native intake reconcile (manual, dry-run by default)
 
 # Server-owned completion of ACCEPTED native intake work: recover missing
-# expected children from the immutable root manifest, then materialize the
-# Calendar/Samples card binding. Everything it does is decided inside the SQL
+# expected children from the immutable root manifest, then bind an
+# empty-since-creation Calendar/Samples card slot. A missing card is held as
+# visible debt and never created here. Everything it does is decided inside the SQL
 # functions of migrations/2026-09-05-native-intake-reconcile.sql under the
 # request lock; this workflow only pages the backlog and reports.
 #
@@ -27,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       apply:
-        description: 'Recover children and materialize cards (default: report only)'
+        description: 'Recover children and bind empty-since-creation card slots (default: report only)'
         type: boolean
         default: false
       confirm:

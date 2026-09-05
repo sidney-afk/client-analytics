@@ -12600,3 +12600,43 @@ Independent review found three release blockers in the first head, all real:
 Lane: 62 checks passed (47 first head, 15 review round). Still unproven: the
 serving v48/v49 bodies against these triggers, installed behaviour, provider-era
 child recovery, and any card created before the provenance install.
+
+### Corrected 2026-09-05, review of head `48f7501`
+
+Independent review found the second correction unsound. The BEFORE UPDATE guard
+recognised a replay by row CONTENT: an update carrying exactly the creation
+signature. A person renaming a card back to its original title carries exactly
+that signature too. Reproduced on the base head through the actual writers: on
+both Calendar and Samples the rename-back returned 200 and the card kept the
+intermediate title. The creation classifier (fresh statuses, no schedule, one
+bound slot) also matched copied and non-intake rows. Both are removed; no trigger
+on either card table alters, refuses or reorders a write any more.
+
+What the unchanged frozen writer conveys to the database is the resulting row
+values and its own clock, nothing else: no request id, no source, no base
+timestamp. No row-level rule can therefore tell a late original browser job from
+a person, and a waiting period cannot be assumed to drain old jobs. Automatic
+card CREATION by the reconciler is structurally disabled: a missing card is
+reported as `card_creation_held` (owner operator) and stays in the backlog and
+the summary as visible debt until its owner, the browser job or a person,
+creates it. Stage 1's child recovery is unchanged and separately usable. What
+remains automatic is provable from recorded facts alone: binding a slot the
+created fact shows empty and no slots_changed fact has touched since. The card
+row is locked first, then every expected deliverable, and exact identity and
+cardinality are revalidated under those locks before any write
+(`reconcile_child_identity_changed`, `card_missing_under_lock`). The previous
+audit's lock-order sentence was reversed relative to its code; both now agree.
+The private report path guard resolves real paths and refuses in-repository
+`..private` names and symlinks into the tree.
+
+Lane: 66 checks passed, including both rename-backs, a genuine late browser
+retry (observed overwriting a person's fields through the frozen writer, a
+pre-existing hazard this branch did not introduce and does not widen: the
+reconciler wrote nothing), a copied lookalike, a concurrent re-card and a
+concurrent delete during the bind, and rollback under a synthetic failure; CLI
+16, including the two path-guard cases. Remaining contract before automatic
+creation can be considered: the writer must convey an operation identity into
+the transaction (the browser already sends `x-syncview-source`; the writer drops
+it before the database), a frozen-body change and an owner decision; or the
+old-job cohort must be proved empty by refusal, never by waiting. Card
+completion is not declared and Decision A is not ready.

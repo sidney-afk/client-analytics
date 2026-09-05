@@ -18,8 +18,13 @@ assetSnapshot and the client artifact error wording in production-write, plus
 the imported policy's Dropbox query allowlist. It does not change the root
 handler or writer. Its new migration replaces production_artifact_write; root
 intake never calls that RPC and the manifest introduces no artifact dependency.
-The final candidate includes this main advance; the focused gateway proof uses
-the integrated policy source. No conclusion about installed/serving source follows.
+The final candidate includes this main advance and the final captured main
+`a05e1126437bb8c36bd3f33e3701a58924a8627d` (PR1288 per-slot asset targets and
+PR1289 measured-figure corrections). That later production-write delta is wholly
+inside assetSnapshot; root code and its import set are unchanged. Only Section 4
+pin conflicts needed manual resolution, retaining both upstream behavior and the
+new manifest closure. The proof uses integrated policy source; further main drift
+is deliberately outside this captured candidate. Installed/serving source is UNPROVEN.
 
 ## Storage and identity contract
 
@@ -126,4 +131,23 @@ Live rollback and stale-serving population behavior remain a release gate.
 
 ## Execution receipt
 
-Pending focused disposable PostgreSQL execution and exact-head CI.
+Local PostgreSQL 16.14 executed the actual gateway lane: 38 candidate checks and
+3 baseline controls passed. No SQL lane skipped. The baseline controls establish
+the original missing-manifest and lost-generated-brief behavior and preserve the
+validity of timestamp-omitted retry. Simulated transport faults intentionally log
+bounded synthetic errors; Node22 type-strip/module-mode notices are runtime
+warnings, not product failures. No real payload or credential was used.
+
+Related source/registration checks pass: repo-map-sync, truth-sync,
+ef-deploy-provenance, f27-section4-deploy-lane, intake-retry-mirror-convergence,
+intake-created-status-server-guard, submission-thumbnail-text,
+public-intake-open-submission, production-intake-append, samples-intake-lane,
+filming-plan-from-client and dropbox-share-query-keys. The final captured-main
+gateway rerun and affected asset regressions are recorded with the exact PR head
+in its review handoff. Hosted exact-head CI must also execute the new unit entry;
+pending hosted checks are not described as passed here.
+
+Production-write expected closure (five files):
+`3eeef25019b93805117bd8f7f9ff27b20c7f6e5877f48bd8ace40f7230afe0e5`.
+Only its Section 4 source pin changes; entrypoint/file count and other function
+pins are unchanged. The generated deploy-ownership manifest is unchanged.

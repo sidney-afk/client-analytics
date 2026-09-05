@@ -381,7 +381,7 @@ const CANDIDATES = new Map([
     // more than one bucket.
     // Draft root expected-request manifest; additive migration must precede
     // a separately authorized deploy. Existing five-file closure and entrypoint.
-    source: 'd2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062',
+    source: '3eeef25019b93805117bd8f7f9ff27b20c7f6e5877f48bd8ace40f7230afe0e5',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

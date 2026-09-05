@@ -24,10 +24,12 @@
  * them -- the double refresh stays gone -- and when it is not, the rows that
  * would have leaked another client's link are the ones that pay.
  *
- * The file pills ARE still cleared unconditionally, and that distinction is
- * part of the point of this file: a terminal row joining a batch legitimately
- * changes which pills that batch draws, and that cache re-asks on the next
- * render of a parent with no visible state of its own to churn.
+ * The file-pill STATUS is still cleared unconditionally, and that distinction
+ * is part of the point of this file: a terminal row joining a batch
+ * legitimately changes which pills that batch draws, and dropping the status
+ * is what makes the parent re-ask on its next render. Since 2026-09-05 the
+ * ENTRIES stay, so the pills on screen do not blink while it does;
+ * _prodBatchFileFor refuses one whose row has moved (test/prod-asset-refresh-holds.js).
  */
 const fs = require('fs');
 const path = require('path');
@@ -79,9 +81,9 @@ const tail = stripComments(grabFunc('async function _prodLoadTerminalTail('));
 ok(!/_prodInvalidateScopedReads\s*\(/.test(tail),
   'the terminal tail does NOT blanket-invalidate every scoped read — that was the second refresh');
 
-ok(/_prodState\.batchFiles\.clear\(\)/.test(tail)
-  && /_prodState\.batchFilesStatus\.clear\(\)/.test(tail),
-  'but it DOES clear the file pills, because a terminal row joining a batch changes which pills it draws');
+ok(/_prodState\.batchFilesStatus\.clear\(\)/.test(tail)
+  && !/_prodState\.batchFiles\.clear\(\)/.test(tail),
+  'but it DOES drop the file-pill status, because a terminal row joining a batch changes which pills it draws -- and keeps the entries, so the pills on screen stay up while the parent re-asks (2026-09-05)');
 ok(/_prodRender\(\)/.test(tail),
   'and it still re-renders, so the newly appended rows appear');
 
@@ -177,7 +179,7 @@ ok(_prodDeliverableLive({ id: 'x', status: 'archived' }) === false,
 /* The exact loop from the tail, lifted from source so a change there breaks
    here rather than silently diverging. */
 
-const diffSrc = tail.slice(tail.indexOf('const rescoped = [];'), tail.indexOf('_prodState.batchFiles.clear()'));
+const diffSrc = tail.slice(tail.indexOf('const rescoped = [];'), tail.indexOf('_prodState.batchFilesStatus.clear()'));
 ok(/scopeBefore\.forEach/.test(diffSrc) && /rescoped\.push\(id\)/.test(diffSrc),
   'the diff loop was located in source and is what runs below');
 

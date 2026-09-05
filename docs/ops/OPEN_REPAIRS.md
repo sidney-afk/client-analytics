@@ -12595,4 +12595,18 @@ unattended; 7 for a person, as before.
   does not stop the next one. The link action should retire (or never create)
   the auto-made row when the card is pointed elsewhere — a separate change,
   not attempted here.
-* Applying the migration and running the 100 calls is the owner's dispatch.
+* Applying the migration and running the 100 calls is the owner's dispatch
+
+### The runner (same day, later)
+
+`scripts/crosswalk-phase2-runner.js`, `.github/workflows/crosswalk-phase2-repair.yml`,
+`test/crosswalk-phase2-runner.js`. Plan/apply lane in the F42 comment-import
+shape (pinned commit on main, production Environment, confirm token
+`REPAIR_CROSSWALK_PHASE2`, plan-digest drift guard, result document
+runner-local). It forecasts each mismatching slot with the RPC's questions in
+the RPC's order, sends `evict_occupant='card_wins'` only where an occupant
+holds the slot, and carries the legacy thread in `p_comments` planned by the
+F42 import planner against the post-bind crosswalk — a thread the planner
+cannot plan cleanly holds the slot back (`thread_not_plannable`) instead of
+binding without its conversation. The owner's three steps are in
+`CROSSWALK_REPAIR_STRATEGY.md` §5..

@@ -63,6 +63,17 @@ function ok(condition, message) {
   ok(assetUrlType(PHOTOS_SUBFOLDER) === 'folder',
     'including one copied while browsing a subfolder, which also carries `subfolder_nav_tracking`');
 
+  /* The `e` / `preview` family: what Dropbox emits when you copy a link to an
+     item from INSIDE a shared folder. It carries no `st` at all, so a fix that
+     added only `st` would leave it refused -- 52 of the 171 distinct Dropbox
+     links measured live in `batches` description/name on 2026-09-05, out of a
+     corpus where only 19 passed before this change and all 171 pass after. */
+  const SHARED_FOLDER_ITEM =
+    'https://www.dropbox.com/scl/fi/iiiiiiiiiiiiiiiiiiiii/Clip.mp4?rlkey=bbbbbbbbbbbbbbbbbbbbb&dl=0&e=1&preview=Clip.mp4&subfolder_nav_tracking=1';
+  ok(assetUrlType(SHARED_FOLDER_ITEM) === 'file'
+    && assetTypeAllowed('raw_footage', SHARED_FOLDER_ITEM),
+    'a link copied from inside a shared folder -- the `e`/`preview` family, which carries no `st` at all -- is accepted too, so the fix does not stop at 70% and cost a second sealed capture and dispatch for the same bug');
+
   for (const [label, url] of [['file', RAW_FOOTAGE_FILE], ['folder', FRAME_FOLDER], ['subfolder', PHOTOS_SUBFOLDER]]) {
     ok(assetTypeAllowed('raw_footage', url) && assetTypeAllowed('delivery_folder', url)
       && assetTypeAllowed('deliverable_file', url),
@@ -82,6 +93,16 @@ function ok(condition, message) {
   ok(assetUrlType('http://www.dropbox.com/scl/fo/a/b?rlkey=k&st=x') === 'invalid',
     'and plain HTTP is still refused whatever the query carries');
 
+  /* HOST-SCOPED, deliberately. `e` and `preview` are generic names, and the
+     fail-closed default is worth keeping everywhere it is not measurably
+     wrong: `st` appears on zero non-Dropbox URLs in the estate. */
+  ok(assetUrlType('https://drive.google.com/file/d/abc/view?e=1&preview=2') === 'invalid',
+    "the Dropbox decorations are accepted on dropbox.com ONLY -- a Drive link carrying `e` or `preview` is still refused, so the generic names did not widen every provider at once");
+  ok(assetUrlType('https://www.dropbox.com/scl/fo/a/b?rlkey=k&e=1&signature=z') === 'invalid',
+    'and the credential guard runs FIRST on every key of every host, so the per-provider list can never re-admit something it rejected');
+  ok(assetUrlType('https://www.dropbox.com/scl/fo/a/b?rlkey=k&madeupkey=1') === 'invalid',
+    'an unlisted key is still refused on Dropbox too -- the list is a measured set, not an open door');
+
   /* ---- 3. The volatile parameter is not persisted as canonical ---------- */
 
   const canonical = canonicalArtifactUrl(RAW_FOOTAGE_FILE);
@@ -98,7 +119,7 @@ function ok(condition, message) {
      repeated here for the Dropbox ones, because the probe rewrites the query
      (`dl` out, `raw` in) and a rewrite that produced an unprobeable URL is
      exactly how `export`/`format` went missing in 2026-08. */
-  for (const url of [RAW_FOOTAGE_FILE, FRAME_FOLDER, PHOTOS_SUBFOLDER]) {
+  for (const url of [RAW_FOOTAGE_FILE, FRAME_FOLDER, PHOTOS_SUBFOLDER, SHARED_FOLDER_ITEM]) {
     const probe = assetProbeUrl(url);
     ok(assetUrlType(probe) !== 'invalid',
       'the probe URL built from ' + new URL(url).pathname.slice(0, 24) + '… is itself valid, so the fetch is actually attempted rather than refused at hop 0');

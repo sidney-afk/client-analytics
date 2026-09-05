@@ -49309,7 +49309,16 @@
             clientSlug = String(clientSlug || '').trim();
             if (!batchId || !clientSlug) return null;
             const generation = _prodState.projectionGeneration;
-            const current = _prodState.batchFilesStatus.get(batchId);
+            /* KEYED BY BATCH **AND SCOPE**. The read is answered per
+               (batch_id, client_slug) and the gateway refuses a mismatch with a
+               flat 403, so a key of batch id alone lets one scope's answer --
+               or one scope's refusal -- stand in for another's. Harmless while
+               this was asked once per open row; not once it is asked once per
+               batch row of a post, where two rows can legitimately declare
+               different scopes for the same batch. Same shape as
+               _prodIssueScopeSignature, for the same reason. */
+            const statusKey = batchId + '\u0000' + clientSlug;
+            const current = _prodState.batchFilesStatus.get(statusKey);
             if (current && current.generation === generation) return current;
             const staffIdentity = _syncviewStaffIdentityForHeaders();
             if (!staffIdentity) return null;
@@ -49320,7 +49329,7 @@
                is made to discover it. */
             if (!_prodState.gatewayReads || !_prodState.gatewayReads.has('batch_files_read')) return null;
             const record = { generation, status: 'loading' };
-            _prodState.batchFilesStatus.set(batchId, record);
+            _prodState.batchFilesStatus.set(statusKey, record);
             try {
                 const response = await fetch(PROD_WRITE_EF_URL, {
                     method: 'POST',
@@ -58738,7 +58747,18 @@
                         const scope = String(
                             row.authorityProject || row.storedClientSlug || ''
                         ).trim();
-                        if (scope) _prodEnsureBatchFiles(rowBatchId, scope);
+                        /* The two attribution SENTINELS are excluded for the
+                           reason _prodBatchAssetSource excludes them: a row with
+                           no attribution carries `__needs_attribution__` or
+                           `__attribution_conflict__`, and sending one as a
+                           client slug is a guaranteed 403. A request whose
+                           refusal is already known is a failed call in the
+                           console and in the audit, for an answer nobody
+                           gains. */
+                        if (!scope
+                            || scope === PROD_ATTRIBUTION_NEEDS
+                            || scope === PROD_ATTRIBUTION_CONFLICT) return;
+                        _prodEnsureBatchFiles(rowBatchId, scope);
                     });
                 }
             }

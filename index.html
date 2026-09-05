@@ -59460,7 +59460,7 @@
                        app keys them by slug. One normalizer for both sides, the
                        same one the workload uses. */
                     const key = wlNormalizeClient(c);
-                    if (key && !dir.has(key)) dir.set(key, { name: name, syncedAt: String(m.synced_at || '') });
+                    if (key && !dir.has(key)) dir.set(key, { name: name });
                 }
             }
             return dir;
@@ -59526,19 +59526,17 @@
             const hit = _prodSmmDir.get(wlNormalizeClient(project))
                 || _prodSmmDir.get(wlNormalizeClient(_prodDisplayClient(project)));
             if (!hit) return '';
-            /* The provenance is VISIBLE TEXT, not a tooltip. It is the only
-               signal that an assignment may be stale, and the Production
-               tooltip layer listens for mouseover/mouseout only -- so on a
-               keyboard or a phone a title attribute would carry it to nobody.
-               A line of muted text needs no focus, no hover and no Escape
-               behaviour to read. */
-            const provenance = hit.syncedAt
-                ? 'Sheet, synced ' + _prodFmtDateFull(hit.syncedAt)
-                : 'From the managers sheet';
+            /* NO PROVENANCE LINE. It said "Sheet, synced <date>" under the
+               name and the owner asked for it gone -- twice. It was added to
+               make staleness legible, but the roster syncs nightly and the
+               name is the answer the reader came for; a second line of
+               bookkeeping under every sub-issue is noise on the surface he
+               actually uses. If staleness ever needs surfacing again, surface
+               it where it is actionable -- when the sync FAILS -- not on every
+               card forever. */
             return '<div class="prod-side-card" data-prod-detail-card="smm"><div class="prod-side-card-head"><span>Social media manager</span></div>'
                 + '<div class="prod-side-row"><span class="prod-prop-btn" data-prod-prop="smm" aria-disabled="true">'
-                + _prodIcon('assign') + '<span>' + _calEsc(hit.name) + '</span></span></div>'
-                + '<div class="prod-side-row"><span class="muted" data-prod-smm-provenance="1">' + _calEsc(provenance) + '</span></div></div>';
+                + _prodIcon('assign') + '<span>' + _calEsc(hit.name) + '</span></span></div></div>';
         }
         function _prodProps(d, parent, assignee, file) {
             const statusHistory = _prodStatusBreakdown((_prodState.events && _prodState.events.get ? _prodState.events.get(d.id) : null) || [], d.createdRaw);

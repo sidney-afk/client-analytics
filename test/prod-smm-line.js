@@ -91,8 +91,10 @@ ok(/_prodSmmFailures >= PROD_SMM_MAX_FAILURES/.test(loaderCode),
 
 /* ---- 3e. The staleness signal must reach a keyboard and a phone -------- */
 
-ok(/data-prod-smm-provenance/.test(card) && !/data-prod-tip/.test(cardCode),
-  'the last-sync provenance is visible text rather than a title/tooltip — the Production tooltip layer listens for mouseover/mouseout only, and this is the one signal that an assignment may be stale');
+ok(!/data-prod-smm-provenance/.test(card),
+  'the card carries no provenance line — the owner asked for it removed, twice; the name is the answer the reader came for and a second line of bookkeeping under every sub-issue is noise');
+ok(!/data-prod-tip|title="/.test(cardCode),
+  'and it carries no tooltip either, so the provenance cannot come back as a title attribute — the Production tooltip layer is mouseover-only, which reaches neither a keyboard nor a phone (Codex on PR 1265)');
 
 /* ---- 4. It renders under Project, and only with an answer -------------- */
 

@@ -2,8 +2,9 @@
 --
 -- Depends on PR1293 (production_intake_manifests, production_intake_root_begin) and
 -- PR1302 (manifest.native_epochs, terminal native receipts). Install after both.
--- Additive: two reconciliation RPCs, two read-only inventory RPCs, one helper.
--- No table, column, trigger, flag, policy or frozen writer is changed. Rollback
+-- Additive: two reconciliation RPCs, two read-only inventory RPCs, helpers, and
+-- one append-only card provenance table with row triggers on the card tables.
+-- No existing table, column, trigger, flag, policy or frozen writer is changed. Rollback
 -- retains every accepted row this creates; see the audit for the release order.
 --
 -- WHAT IS RECONCILED. A root intake is accepted when production_intake_root_begin
@@ -42,6 +43,32 @@ $$;
 revoke all on function public.production_intake_reconcile_iso(timestamptz) from public, anon, authenticated;
 grant execute on function public.production_intake_reconcile_iso(timestamptz) to service_role;
 
+
+-- Reasons are CODES, never free text. The ledger rows below are readable with
+-- the anon key (deliverable_events is anon-readable by policy), the runner
+-- prints aggregates of them publicly, and PostgreSQL's own messages can carry
+-- row values. Any message that is not one of the codes this file or the writers
+-- raise collapses to its SQLSTATE class.
+create or replace function public.production_intake_reconcile_reason(p_message text, p_state text)
+returns text language plpgsql immutable as $$
+declare
+  v_code text := lower(coalesce(substring(p_message from '^[a-z_]+'), ''));
+begin
+  if v_code = any (array['card_archived', 'card_slot_occupied', 'card_deleted_after_creation',
+      'card_provenance_unavailable', 'reconcile_readback_mismatch', 'authority_unavailable',
+      'team_is_linear_authoritative', 'legacy_parity_gate_unavailable', 'legacy_parity_not_allowed',
+      'test_client_scope_required', 'idempotency_conflict', 'write_conflict', 'idempotent_result_missing',
+      'project_mapping_missing', 'team_rollback_hold', 'f27_authority_generation_stale', 'f27_drill_insert_forbidden',
+      'invalid_outbound_entity', 'invalid_outbound_operation', 'incomplete_outbound_intent', 'invalid_f27_authority_binder',
+      'production_deliverable_id_required', 'production_write_dedup_and_intent_fingerprint_required']) then
+    return v_code;
+  end if;
+  return 'sql_error:' || coalesce(nullif(p_state, ''), 'XX000');
+end;
+$$;
+revoke all on function public.production_intake_reconcile_reason(text, text) from public, anon, authenticated;
+grant execute on function public.production_intake_reconcile_reason(text, text) to service_role;
+
 -- Read-only. The complete obligation state of one accepted request, derived
 -- from the manifest and the current rows. Used by both stages, the backlog
 -- pager and the proof lane, so there is exactly one definition of "owed".
@@ -75,11 +102,14 @@ declare
   v_missing_terminal int := 0;
   v_conflicts int := 0;
   v_identity_ok boolean;
+  v_provenance jsonb;
+  v_installed timestamptz;
 begin
   select * into v_m from public.production_intake_manifests where request_id = p_request_id;
   if not found then raise exception 'intake_manifest_missing'; end if;
   select * into v_batch from public.batches where id = v_m.batch_id;
   v_purpose := coalesce(v_batch.purpose, 'calendar');
+  select min(at) into v_installed from public.production_card_provenance where kind = 'installed' and surface = v_purpose;
 
   for v_item in select value from jsonb_array_elements(v_m.expected_items) order by (value->>'item_index')::int loop
     v_row := v_item->'row';
@@ -131,6 +161,9 @@ begin
         where e.client = v_m.client_slug and e.post_id = v_card.card_id);
     end if;
     v_card_found := coalesce(v_card_found, false);
+    v_provenance := (select coalesce(jsonb_object_agg(kind, n), '{}') from (
+      select kind, count(*) as n from public.production_card_provenance p
+      where p.surface = v_purpose and p.client = v_m.client_slug and p.card_id = v_card.card_id group by kind) t);
     -- Expected slot ids come from the manifest; a slot is satisfied only when the
     -- card row names exactly that deliverable.
     v_slots := '{}';
@@ -153,7 +186,9 @@ begin
       'card_id', v_card.card_id, 'number', v_card.number, 'surface', v_purpose,
       'item_ids', v_card.item_ids, 'present', v_card_found,
       'status', case when v_card_found then v_card_status end,
-      'events_seen', v_events_seen, 'slots', v_slots, 'complete', v_card_complete);
+      'events_seen', v_events_seen, 'provenance', v_provenance,
+      'provenance_recorded_since_acceptance', v_m.recorded_at >= v_installed,
+      'slots', v_slots, 'complete', v_card_complete);
     v_card_found := null; v_card_status := null; v_card_video := null; v_card_graphic := null;
   end loop;
 
@@ -185,6 +220,155 @@ end;
 $$;
 revoke all on function public.production_intake_reconcile_record(public.production_intake_manifests, text, text, text, jsonb)
   from public, anon, authenticated, service_role;
+
+
+-- CARD PROVENANCE. Independent review of the first head found two holes in
+-- the card stage that the frozen writers cannot close from their side:
+--
+--   (a) "no calendar_post_events row" was read as "never created". The writers
+--       insert their events through EdgeRuntime.waitUntil, best effort, after the
+--       row commit; a card can commit, lose its create event, be deleted by a
+--       person, and the reconciler would have recreated it.
+--   (b) an ORIGINAL browser job that resumes after the reconciler created the
+--       card sends the complete initial row again with no comments_base_at, so
+--       the writer's scalar CAS never engages and a person's rename, schedule or
+--       archive between the two is overwritten. Old tabs and saved jobs keep
+--       doing this whatever new browser code ships.
+--
+-- Both are closed at the ONE layer every caller shares: the tables. Row
+-- triggers run inside the writer's own transaction, so they are durable, and
+-- they see the writer's effect without the writer changing. No writer body, no
+-- credential, no refusal is added; the frozen anonymous writers stay exactly as
+-- they serve.
+create table public.production_card_provenance (
+  id bigint generated always as identity primary key,
+  surface text not null check (surface in ('calendar', 'samples')),
+  client text not null,
+  card_id text not null,
+  kind text not null check (kind in ('created', 'deleted', 'installed')),
+  at timestamptz not null default clock_timestamp(),
+  materialization boolean not null default false,
+  initial jsonb,
+  snapshot jsonb,
+  source text
+);
+create index production_card_provenance_card_idx on public.production_card_provenance (surface, client, card_id, kind);
+alter table public.production_card_provenance enable row level security;
+revoke all on public.production_card_provenance from public, anon, authenticated, service_role;
+grant select on public.production_card_provenance to service_role;
+comment on table public.production_card_provenance is
+  'Append-only card creation/deletion provenance written by row triggers inside the writer transaction. The installed marker bounds what the reconciler may treat as never created. Retain on rollback.';
+-- The marker: any request accepted before this row cannot prove a card was
+-- never created, because no provenance was being recorded then.
+insert into public.production_card_provenance(surface, client, card_id, kind, source)
+values ('calendar', '', '', 'installed', 'migration'), ('samples', '', '', 'installed', 'migration');
+
+-- The exact field set the browser materialization sends and the writer
+-- persists for an existing card (scalarPayloadForExisting): everything a late
+-- replay would overwrite. Link and slot columns are handled separately.
+create or replace function public.production_card_signature(p_surface text, p_row jsonb)
+returns jsonb language sql immutable as $$
+  select case when p_surface = 'samples'
+    then jsonb_build_object('name', p_row->>'name', 'creative_direction', p_row->>'creative_direction',
+      'hide_creative_direction', p_row->>'hide_creative_direction', 'status', p_row->>'status',
+      'video_status', p_row->>'video_status', 'graphic_status', p_row->>'graphic_status',
+      'asset_url', p_row->>'asset_url', 'thumbnail_url', p_row->>'thumbnail_url')
+    else jsonb_build_object('name', p_row->>'name', 'scheduled_date', p_row->>'scheduled_date',
+      'status', p_row->>'status', 'video_status', p_row->>'video_status', 'graphic_status', p_row->>'graphic_status',
+      'caption_status', p_row->>'caption_status', 'asset_url', p_row->>'asset_url', 'thumbnail_url', p_row->>'thumbnail_url',
+      'caption', p_row->>'caption', 'cta', p_row->>'cta') end
+$$;
+revoke all on function public.production_card_signature(text, jsonb) from public, anon, authenticated;
+
+-- A native materialization is recognisable from the row alone: fresh statuses,
+-- no schedule, and at least one deliverable slot bound at creation.
+create or replace function public.production_card_is_materialization(p_surface text, p_row jsonb)
+returns boolean language sql immutable as $$
+  select coalesce(p_row->>'status', '') = 'In Progress'
+    and coalesce(p_row->>'video_status', '') = 'In Progress'
+    and coalesce(p_row->>'graphic_status', '') = 'In Progress'
+    and (nullif(p_row->>'video_deliverable_id', '') is not null or nullif(p_row->>'graphic_deliverable_id', '') is not null)
+    and (p_surface = 'samples' or coalesce(p_row->>'scheduled_date', '') = '')
+$$;
+revoke all on function public.production_card_is_materialization(text, jsonb) from public, anon, authenticated;
+
+create or replace function public.production_card_provenance_record()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_surface text := case when tg_table_name = 'sample_reviews' then 'samples' else 'calendar' end;
+  v_row jsonb;
+begin
+  if tg_op = 'INSERT' then
+    v_row := to_jsonb(new);
+    insert into public.production_card_provenance(surface, client, card_id, kind, materialization, initial, snapshot, source)
+    values (v_surface, new.client, new.id, 'created', public.production_card_is_materialization(v_surface, v_row),
+      public.production_card_signature(v_surface, v_row),
+      jsonb_build_object('video_deliverable_id', v_row->>'video_deliverable_id', 'graphic_deliverable_id', v_row->>'graphic_deliverable_id'),
+      nullif(current_setting('app.card_materialization_source', true), ''));
+    return new;
+  end if;
+  v_row := to_jsonb(old);
+  insert into public.production_card_provenance(surface, client, card_id, kind, materialization, initial, snapshot, source)
+  values (v_surface, old.client, old.id, 'deleted', false, null,
+    jsonb_build_object('status', v_row->>'status', 'video_deliverable_id', v_row->>'video_deliverable_id',
+      'graphic_deliverable_id', v_row->>'graphic_deliverable_id'),
+    nullif(current_setting('app.card_materialization_source', true), ''));
+  return old;
+end;
+$$;
+revoke all on function public.production_card_provenance_record() from public, anon, authenticated, service_role;
+create trigger zz_production_card_provenance after insert or delete on public.calendar_posts
+  for each row execute function public.production_card_provenance_record();
+create trigger zz_production_card_provenance after insert or delete on public.sample_reviews
+  for each row execute function public.production_card_provenance_record();
+
+-- THE LATE MATERIALIZATION GUARD. Engaged only when this card was CREATED as a
+-- materialization (provenance says so) and the incoming update carries exactly
+-- the initial signature that creation recorded. That is the fingerprint of the
+-- original browser job replaying its create over a card that already exists;
+-- a person editing a card sends a different name, date, status or caption and
+-- never matches all of it at once. On a match the human-owned fields keep
+-- their current values, a slot that already names a different deliverable
+-- keeps it, and the write otherwise proceeds: the caller still gets its
+-- acknowledgement, the card still gains any empty slot, nothing is refused.
+create or replace function public.production_card_materialization_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_surface text := case when tg_table_name = 'sample_reviews' then 'samples' else 'calendar' end;
+  v_initial jsonb;
+  v_new jsonb := to_jsonb(new);
+  v_old jsonb := to_jsonb(old);
+  v_key text;
+begin
+  select p.initial into v_initial from public.production_card_provenance p
+    where p.surface = v_surface and p.client = new.client and p.card_id = new.id
+      and p.kind = 'created' and p.materialization
+    order by p.at desc, p.id desc limit 1;
+  if v_initial is null then return new; end if;
+  if public.production_card_signature(v_surface, v_new) is distinct from v_initial then return new; end if;
+  if public.production_card_signature(v_surface, v_old) is not distinct from v_initial
+     and v_old->>'order_index' is not distinct from v_new->>'order_index' then return new; end if;
+  -- Recognised replay over an edited card: keep every human-owned field.
+  for v_key in select jsonb_object_keys(v_initial) union all select 'order_index' loop
+    v_new := jsonb_set(v_new, array[v_key], coalesce(v_old->v_key, 'null'::jsonb), true);
+  end loop;
+  if nullif(old.video_deliverable_id, '') is not null and new.video_deliverable_id is distinct from old.video_deliverable_id then
+    v_new := jsonb_set(v_new, '{video_deliverable_id}', to_jsonb(old.video_deliverable_id), true); end if;
+  if nullif(old.graphic_deliverable_id, '') is not null and new.graphic_deliverable_id is distinct from old.graphic_deliverable_id then
+    v_new := jsonb_set(v_new, '{graphic_deliverable_id}', to_jsonb(old.graphic_deliverable_id), true); end if;
+  if tg_table_name = 'sample_reviews' then
+    new := jsonb_populate_record(new, v_new);
+  else
+    new := jsonb_populate_record(new, v_new);
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.production_card_materialization_guard() from public, anon, authenticated, service_role;
+create trigger zy_production_card_materialization_guard before update on public.calendar_posts
+  for each row execute function public.production_card_materialization_guard();
+create trigger zy_production_card_materialization_guard before update on public.sample_reviews
+  for each row execute function public.production_card_materialization_guard();
 
 -- STAGE 1. Recover missing expected NATIVE children from the immutable manifest.
 --
@@ -349,11 +533,11 @@ begin
     v_outcome := case when jsonb_array_length(v_conflicts) > 0 then 'conflict'
       when jsonb_array_length(v_unresolved) > 0 then 'unresolved' else 'recovered' end;
   exception when others then
-    v_reason := sqlerrm;
+    v_reason := public.production_intake_reconcile_reason(sqlerrm, sqlstate);
     v_recovered := '[]';
     v_outcome := 'unresolved';
     v_unresolved := v_unresolved || jsonb_build_object('ids', v_plan, 'reason', v_reason,
-      'owner', case when v_reason ~ '(team_rollback_hold|authority_generation_stale|authority_unavailable)' then 'reconciler' else 'operator' end);
+      'owner', case when v_reason in ('team_rollback_hold', 'f27_authority_generation_stale', 'authority_unavailable') then 'reconciler' else 'operator' end);
   end;
 
   perform public.production_intake_reconcile_record(v_m, p_actor, 'children', v_outcome,
@@ -465,8 +649,17 @@ begin
       end if;
       v_plan := v_plan || jsonb_build_object('card_id', v_card->>'card_id', 'action', 'bind');
     else
-      if (v_card->>'events_seen')::boolean then
+      -- NEVER CREATED must be PROVED, not inferred from an absent best-effort
+      -- event. Proof is: provenance recording was installed before this request
+      -- was accepted, and no created/deleted provenance row exists for the card.
+      -- An event row is an additional deletion signal, never a permission.
+      if (v_card->>'events_seen')::boolean or (v_card->'provenance'->>'created') is not null
+         or (v_card->'provenance'->>'deleted') is not null then
         v_unresolved := v_unresolved || jsonb_build_object('card_id', v_card->>'card_id', 'reason', 'card_deleted_after_creation', 'owner', 'operator');
+        continue;
+      end if;
+      if not coalesce((v_card->>'provenance_recorded_since_acceptance')::boolean, false) then
+        v_unresolved := v_unresolved || jsonb_build_object('card_id', v_card->>'card_id', 'reason', 'card_provenance_unavailable', 'owner', 'operator');
         continue;
       end if;
       v_plan := v_plan || jsonb_build_object('card_id', v_card->>'card_id', 'action', 'create');
@@ -535,6 +728,10 @@ begin
         end if;
         v_bound := v_bound || (v_card->'card_id');
       else
+        if exists(select 1 from public.production_card_provenance p where p.surface = v_card->>'surface'
+            and p.client = v_m.client_slug and p.card_id = v_card->>'card_id' and p.kind in ('created', 'deleted')) then
+          raise exception 'card_deleted_after_creation'; end if;
+        perform set_config('app.card_materialization_source', 'native-intake-reconcile:' || p_actor, true);
         if v_card->>'surface' = 'samples' then
           if exists(select 1 from public.sample_review_events e where e.client = v_m.client_slug and e.sample_id = v_card->>'card_id') then
             raise exception 'card_deleted_after_creation'; end if;
@@ -595,7 +792,7 @@ begin
     v_outcome := case when jsonb_array_length(v_conflicts) > 0 then 'conflict'
       when jsonb_array_length(v_unresolved) > 0 then 'unresolved' else 'materialized' end;
   exception when others then
-    v_reason := sqlerrm;
+    v_reason := public.production_intake_reconcile_reason(sqlerrm, sqlstate);
     v_created := '[]'; v_bound := '[]';
     v_outcome := 'unresolved';
     v_unresolved := v_unresolved || jsonb_build_object('card_ids', (select coalesce(jsonb_agg(value->'card_id'), '[]') from jsonb_array_elements(v_plan)),

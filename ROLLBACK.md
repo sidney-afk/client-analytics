@@ -4,7 +4,10 @@
 manual-only and unscheduled, so its behaviour rollback is to stop dispatching.
 Rows it recovered or cards it created are accepted work with real receipts and
 must be retained like any browser-materialized intake; never delete its reason
-rows, recovered children, `skipped` receipts or bound slots. Details:
+rows, recovered children, `skipped` receipts or bound slots. Its card-table
+triggers act on every write once installed: the one-step kill for the replay
+guard is `alter table ... disable trigger zy_production_card_materialization_guard`
+on both card tables; keep the provenance recording trigger and table. Details:
 `docs/audits/2026-09-05-native-intake-reconcile.md`. This changes no Live State entry.
 
 **Unapplied draft, 2026-09-05:** native-only intake depends on PR1293. Its behavior

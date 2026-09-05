@@ -15,13 +15,52 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import vm from 'node:vm';
 import { hooks, resetHooks, runSql } from '../native-intake-manifest/supabase-shim.mjs';
 import { loadGateway, ROOT } from './load-gateway.mjs';
+import { loadWriters } from './load-writers.mjs';
 
 const require = createRequire(import.meta.url);
 const { runReconcile } = require('./reconcile-lib.js');
 const gw = await loadGateway();
 const { net, post, requestId, rootBody } = gw;
+/* The REPOSITORY sources of the two card writers, through the same seam. Their
+   write semantics are what the browser materialization exercises below; the
+   serving v48/v49 bodies are a different, un-gated deployment this lane cannot
+   see and does not claim. */
+const writers = await loadWriters();
+
+/* THE ACTUAL BROWSER MATERIALIZATION FUNCTION, extracted from index.html and
+   run against the real writers. Only its environment is substituted: no staff
+   identity (client-link mode, which returns before the staff binding), an
+   in-memory cache, a checkpoint recorder, and fetch wrappers that call the
+   loaded writer handlers directly. The payload it sends is the payload an old
+   tab or a saved job sends today. */
+const { extractFunction } = await import(pathToFileURL(path.join(ROOT, 'test', 'helpers', 'extract-function.js')).href)
+  .then(m => m.default || m);
+const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const bctx = {
+  console, _isIntake: true, __sent: [], __checkpoints: [], __calCache: null, __sxrCache: null,
+  _linearIntakeCheckpointOrSuspend: job => { bctx.__checkpoints.push(JSON.parse(JSON.stringify(job))); },
+  _calCacheRead: () => bctx.__calCache, _sxrCacheRead: () => bctx.__sxrCache,
+  _calCacheWrite: () => {}, _sxrCacheWrite: () => {},
+  _calUpsertFetch: async (slug, payload, source) => { bctx.__sent.push({ writer: 'calendar-upsert', payload, source }); return writers.post('calendar-upsert', payload, source); },
+  _sxrUpsertFetch: async (slug, payload, source) => { bctx.__sent.push({ writer: 'sample-review-upsert', payload, source }); return writers.post('sample-review-upsert', payload, source); },
+};
+vm.createContext(bctx);
+vm.runInContext([
+  'async ' + extractFunction(html, '_writeNativeSubmissionCardsToCalendar'),
+  extractFunction(html, '_linearIntakeValidateResult'),
+  extractFunction(html, '_linearIntakeRequireActor'),
+].join('\n'), bctx);
+async function browserResume(job) {
+  bctx.__sent.length = 0; bctx.__checkpoints.length = 0;
+  try { await bctx._writeNativeSubmissionCardsToCalendar(job); return { ok: true, sent: bctx.__sent.slice(), job }; }
+  catch (error) { return { ok: false, error: String(error && error.message || error), sent: bctx.__sent.slice(), job }; }
+}
+function savedJob(body, response) {
+  return { payload: body, result: response.json, completed_card_ids: [], context: {}, stage: 'materializing_cards' };
+}
 
 const checks = [];
 function ok(id, pass, evidence) {
@@ -409,6 +448,189 @@ try {
     && summary.requests_owed + summary.requests_complete === summary.manifests && summary.owed.missing_terminal_receipts === 1
     && Object.keys(summary.latest_outcomes).length > 0, summary);
 
+  // ------------------------------------------------------------------
+  // Review round: late original browser job vs a card the reconciler made.
+  // ------------------------------------------------------------------
+  await flags('epoch-video-b1', 'epoch-graphics-b1');
+  // The card writers normalize the client slug (lower-case alphanumerics). Live
+  // slugs already have that shape; the harness slug carries a hyphen, so these
+  // scenarios use a second synthetic client the writers leave unchanged.
+  const BC = 'fixturecard';
+  await sql(`insert into public.clients(slug, display_name, active, kind, linear_project_ids)
+    values (${q(BC)}, 'Fixture Card', true, 'client', '{"video":"proj_fixture_shared","graphics":"proj_fixture_shared"}'::jsonb) on conflict (slug) do nothing`);
+  async function acceptedButUnmaterialized(mode = 'both', overrides = {}) {
+    reset();
+    const body = rootBody(mode, requestId(overrides.surface === 'sxr' ? 'sxr' : 'submission'), { client_slug: BC, ...overrides });
+    const response = await post(body);
+    if (response.status !== 201) throw new Error('fixture intake did not commit: ' + response.status);
+    return { body, response, m: await manifest(body.request_id), job: savedJob(body, response) };
+  }
+  async function provenance(surface, cardId) {
+    return rows(`select kind, materialization, initial, source from public.production_card_provenance where surface=${q(surface)} and client=${q(BC)} and card_id=${q(cardId)} order by id`);
+  }
+  const preserved = (before, after, allowed) => !!before && !!after
+    && Object.keys(after).filter(k => JSON.stringify(after[k]) !== JSON.stringify(before[k])).every(k => allowed.includes(k));
+
+  // B1 NEGATIVE CONTROL. Exactly the first head's behaviour: with the guard
+  // disabled, the old tab's resume rewrites the person's rename, schedule and
+  // status, and the writer acknowledges it. This is the defect being closed.
+  const b1 = await acceptedButUnmaterialized();
+  const b1c = await cards(b1.body.request_id);
+  const b1card = b1.m.expected_items[0].row.card_id;
+  await sql(`update public.calendar_posts set name='Human title', scheduled_date='2026-10-02', status='Kasper Approval', caption='human caption' where client=${q(BC)} and id=${q(b1card)}`);
+  const b1before = await card(BC, b1card);
+  await sql('alter table public.calendar_posts disable trigger zy_production_card_materialization_guard');
+  const b1resume = await browserResume(b1.job);
+  await sql('alter table public.calendar_posts enable trigger zy_production_card_materialization_guard');
+  const b1after = await card(BC, b1card);
+  ok('B1-negative-control-old-browser-resume-overwrites-human-fields-without-guard', b1c.outcome === 'materialized' && b1resume.ok
+    && b1resume.sent.length === 1 && (b1resume.sent[0].payload.comments_base_at || '') === ''
+    && b1before.name === 'Human title' && b1after.name !== 'Human title' && b1after.status === 'In Progress'
+    && b1after.scheduled_date === '' && b1after.caption === '',
+    { before: [b1before.name, b1before.status], after: [b1after.name, b1after.status], sent: b1resume.sent.length, error: b1resume.error });
+
+  // B2 POSITIVE. Same sequence with the guard: the writer still acknowledges,
+  // the job completes, the person's fields survive, the slots stay bound.
+  const b2 = await acceptedButUnmaterialized();
+  await cards(b2.body.request_id);
+  const b2card = b2.m.expected_items[0].row.card_id;
+  await sql(`update public.calendar_posts set name='Human title', scheduled_date='2026-10-02', status='Kasper Approval', caption='human caption', order_index='42' where client=${q(BC)} and id=${q(b2card)}`);
+  const b2before = await card(BC, b2card);
+  const b2resume = await browserResume(b2.job);
+  const b2after = await card(BC, b2card);
+  ok('B2-old-browser-resume-after-reconciler-create-preserves-human-fields', b2resume.ok && b2resume.sent.length === 1
+    && b2after.name === 'Human title' && b2after.scheduled_date === '2026-10-02' && b2after.status === 'Kasper Approval'
+    && b2after.caption === 'human caption' && b2after.order_index === '42'
+    && b2after.video_deliverable_id === b2before.video_deliverable_id && b2after.graphic_deliverable_id === b2before.graphic_deliverable_id
+    && preserved(b2before, b2after, ['updated_at'])
+    && b2resume.job.completed_card_ids.includes(b2card) && bctx.__checkpoints.length >= 1, { after: [b2after.name, b2after.status, b2after.scheduled_date], sent: b2resume.sent.length });
+  ok('B2-writer-acknowledged-the-replay-so-the-job-can-finish', b2resume.ok && (await state(b2.body.request_id)).complete === true);
+
+  // B3 ARCHIVE. Archived through the real writer the way the Calendar does,
+  // then the old tab resumes: the card stays archived.
+  const b3 = await acceptedButUnmaterialized();
+  await cards(b3.body.request_id);
+  const b3card = b3.m.expected_items[0].row.card_id;
+  const b3archive = await writers.post('calendar-upsert', { client: BC, post: { id: b3card, status: 'Archived' } }, 'ui');
+  const b3archived = await card(BC, b3card);
+  const b3resume = await browserResume(b3.job);
+  const b3after = await card(BC, b3card);
+  ok('B3-archive-then-old-browser-resume-stays-archived', b3archive.status === 200 && b3archived.status === 'Archived' && b3resume.ok
+    && b3after.status === 'Archived' && preserved(b3archived, b3after, ['updated_at']), [b3archived.status, b3after.status]);
+
+  // B4 COMPETING INSERTION. The browser's request is already issued while the
+  // reconciler materializes the same card. Whoever loses the primary key gets a
+  // writer failure and retries; the end state is one card, one creation
+  // provenance row, both slots bound, and the browser job complete.
+  const b4 = await acceptedButUnmaterialized();
+  const b4card = b4.m.expected_items[0].row.card_id;
+  const [b4browser, b4rc] = await Promise.all([browserResume(b4.job), cards(b4.body.request_id)]);
+  const b4retry = b4browser.ok ? b4browser : await browserResume(b4.job);
+  const b4rows = await rows(`select * from public.calendar_posts where client=${q(BC)} and id=${q(b4card)}`);
+  const b4prov = await provenance('calendar', b4card);
+  ok('B4-competing-insertion-converges-to-one-card', b4rows.length === 1 && b4retry.ok && ['materialized', 'complete'].includes(b4rc.outcome)
+    && b4prov.filter(p => p.kind === 'created').length === 1 && (await state(b4.body.request_id)).complete === true
+    && b4rows[0].video_deliverable_id && b4rows[0].graphic_deliverable_id, { first: b4browser.ok, rc: b4rc.outcome, prov: b4prov.map(p => p.kind) });
+
+  // B5 LOST RESPONSE. The browser wrote the card, lost the acknowledgement,
+  // never recorded the card as complete, and resumes: a second identical write
+  // over its own card changes nothing but the clock.
+  const b5 = await acceptedButUnmaterialized();
+  const b5card = b5.m.expected_items[0].row.card_id;
+  const b5first = await browserResume(b5.job);
+  const b5row = await card(BC, b5card);
+  b5.job.completed_card_ids = [];
+  const b5second = await browserResume(b5.job);
+  const b5again = await card(BC, b5card);
+  ok('B5-lost-response-replay-of-own-card-is-a-noop', b5first.ok && b5second.ok && preserved(b5row, b5again, ['updated_at'])
+    && (await provenance('calendar', b5card)).filter(p => p.kind === 'created').length === 1
+    && (await cards(b5.body.request_id)).outcome === 'complete');
+  ok('B5-browser-created-card-is-recognised-as-a-materialization', (await provenance('calendar', b5card))[0].materialization === true
+    && (await provenance('calendar', b5card))[0].source === null);
+
+  // B6 SAMPLES. The same guard on sample_reviews through the samples writer.
+  const b6 = await acceptedButUnmaterialized('both', { surface: 'sxr' });
+  await cards(b6.body.request_id);
+  const b6card = b6.m.expected_items[0].row.card_id;
+  await sql(`update public.sample_reviews set name='Human sample title', status='Kasper Approval', creative_direction='direction' where client=${q(BC)} and id=${q(b6card)}`);
+  const b6before = await card(BC, b6card, 'sample_reviews');
+  const b6resume = await browserResume(b6.job);
+  const b6after = await card(BC, b6card, 'sample_reviews');
+  ok('B6-samples-old-browser-resume-preserves-human-fields', b6resume.ok && b6resume.sent[0].writer === 'sample-review-upsert'
+    && b6after.name === 'Human sample title' && b6after.status === 'Kasper Approval' && b6after.creative_direction === 'direction'
+    && preserved(b6before, b6after, ['updated_at']), [b6after.name, b6after.status]);
+
+  // B7 A GENUINE HUMAN RESET is not mistaken for a replay: the same values
+  // arriving with a different order_index... no. A human edit that changes any
+  // signature field passes straight through.
+  const b7before = await card(BC, b2card);
+  const b7edit = await writers.post('calendar-upsert', { client: BC, post: { id: b2card, name: 'Edited again', status: 'Client Approval' }, comments_base_at: '' }, 'ui');
+  const b7after = await card(BC, b2card);
+  ok('B7-ordinary-human-edits-pass-through-the-guard', b7edit.status === 200 && b7after.name === 'Edited again' && b7after.status === 'Client Approval'
+    && b7before.name !== b7after.name);
+
+  // ------------------------------------------------------------------
+  // Review round: absent best-effort events are not proof of never created.
+  // ------------------------------------------------------------------
+  // P1 NEGATIVE CONTROL. Without provenance recording (triggers disabled): a
+  // card commits, its create event is lost, a person deletes it, and the
+  // first head's rule (no event row) resurrects it.
+  const p1 = await acceptedButUnmaterialized();
+  const p1card = p1.m.expected_items[0].row.card_id;
+  const p1dels = await dels(p1.m.batch_id);
+  await sql('alter table public.calendar_posts disable trigger zz_production_card_provenance');
+  await sql(`insert into public.calendar_posts(client,id,updated_at,order_index,name,scheduled_date,status,video_status,graphic_status,caption_status,video_deliverable_id,graphic_deliverable_id)
+    values(${q(BC)},${q(p1card)},'2026-09-05T10:00:00.000Z','3','Video 1','','In Progress','In Progress','In Progress','In Progress',${q(p1dels.find(d => d.team === 'video').id)},${q(p1dels.find(d => d.team === 'graphics').id)})`);
+  await sql(`delete from public.calendar_posts where client=${q(BC)} and id=${q(p1card)}`);
+  await sql('alter table public.calendar_posts enable trigger zz_production_card_provenance');
+  const p1events = await count(`select 1 from public.calendar_post_events where post_id=${q(p1card)}`);
+  const p1c = await cards(p1.body.request_id);
+  ok('P1-negative-control-without-provenance-a-deleted-card-with-no-event-is-resurrected', p1events === 0 && p1c.outcome === 'materialized'
+    && !!(await card(BC, p1card)), p1c);
+
+  // P2 POSITIVE. With provenance recorded inside the writer transaction the
+  // same sequence is held: created, then deleted, and no event ever existed.
+  const p2 = await acceptedButUnmaterialized();
+  const p2card = p2.m.expected_items[0].row.card_id;
+  const p2dels = await dels(p2.m.batch_id);
+  await sql(`insert into public.calendar_posts(client,id,updated_at,order_index,name,scheduled_date,status,video_status,graphic_status,caption_status,video_deliverable_id,graphic_deliverable_id)
+    values(${q(BC)},${q(p2card)},'2026-09-05T10:00:00.000Z','3','Video 1','','In Progress','In Progress','In Progress','In Progress',${q(p2dels.find(d => d.team === 'video').id)},${q(p2dels.find(d => d.team === 'graphics').id)})`);
+  await sql(`delete from public.calendar_posts where client=${q(BC)} and id=${q(p2card)}`);
+  const p2c = await cards(p2.body.request_id);
+  const p2prov = await provenance('calendar', p2card);
+  ok('P2-failed-create-event-then-committed-card-then-deletion-is-held-not-recreated',
+    (await count(`select 1 from public.calendar_post_events where post_id=${q(p2card)}`)) === 0
+    && p2prov.map(p => p.kind).join(',') === 'created,deleted' && p2c.outcome === 'unresolved'
+    && p2c.unresolved[0].reason === 'card_deleted_after_creation' && !(await card(BC, p2card)), p2c);
+
+  // P3 POSITIVE RECOVERY. A card that provably never existed is created, and
+  // the creation is recorded with the reconciler as its source.
+  const p3 = await acceptedButUnmaterialized();
+  const p3card = p3.m.expected_items[0].row.card_id;
+  const p3c = await cards(p3.body.request_id);
+  const p3prov = await provenance('calendar', p3card);
+  ok('P3-never-created-card-is-created-with-reconciler-provenance', p3c.outcome === 'materialized' && p3prov.length === 1
+    && p3prov[0].kind === 'created' && p3prov[0].materialization === true && p3prov[0].source === 'native-intake-reconcile:lane'
+    && p3prov[0].initial.name === 'Video 1' && p3prov[0].initial.status === 'In Progress', p3prov);
+
+  // P4 PRE-INSTALL. A request accepted before provenance recording existed
+  // cannot prove never-created; it is held, never recreated.
+  const p4 = await acceptedButUnmaterialized();
+  await sql(`update public.production_intake_manifests set recorded_at = (select min(at) from public.production_card_provenance where kind='installed') - interval '1 day' where request_id=${q(p4.body.request_id)}`);
+  const p4c = await cards(p4.body.request_id);
+  ok('P4-pre-install-request-is-held-card-provenance-unavailable', p4c.outcome === 'unresolved' && p4c.unresolved[0].reason === 'card_provenance_unavailable'
+    && !(await card(BC, p4.m.expected_items[0].row.card_id)), p4c);
+
+  // P5 BOUNDED REASONS. Every reason the ledger holds is an allowlisted code
+  // or a SQLSTATE class; no message text, no row values.
+  const ledgerReasons = await rows(`select r->>'reason' as reason from public.deliverable_events e
+    cross join lateral jsonb_array_elements(coalesce(e.payload->'unresolved','[]'::jsonb) || coalesce(e.payload->'conflicts','[]'::jsonb)) r
+    where e.action='native_intake_reconcile'`);
+  ok('P5-ledger-reasons-are-codes-not-messages', ledgerReasons.length > 0
+    && ledgerReasons.every(r => /^[a-z0-9_]+$/.test(r.reason) || /^sql_error:[0-9A-Z]{5}$/.test(r.reason)), ledgerReasons.filter(r => !/^[a-z0-9_]+$/.test(r.reason)).slice(0, 3));
+  const p5forced = await runSql(`select public.production_intake_reconcile_reason('duplicate key value violates unique constraint "x" DETAIL: Key (id)=(secret)', '23505')`);
+  ok('P5-postgres-messages-collapse-to-their-sqlstate', p5forced.status === 0 && p5forced.stdout.trim() === 'sql_error:23505');
+
   ok('S99-zero-provider-or-drainer-requests-during-any-reconciliation', noProvider(), net.requests.slice(0, 3));
 
   console.log(JSON.stringify({ suite: 'native-intake-reconcile', passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length,
@@ -417,4 +639,5 @@ try {
   if (checks.some(c => !c.pass)) process.exitCode = 1;
 } finally {
   fs.rmSync(gw.scratch, { recursive: true, force: true });
+  for (const scratch of writers.scratches) fs.rmSync(scratch, { recursive: true, force: true });
 }

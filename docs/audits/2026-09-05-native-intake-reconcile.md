@@ -5,6 +5,15 @@ here was run against a live database, a live Edge Function or a scheduler. This
 implements a bounded part of GO_LIVE G3 (durable materialization of accepted
 actions); it is not Decision A, not a new exit plan, not an activation.
 
+**Revision note.** Independent review of the first head
+`df3d0325cac89d3fa9a0fdcb004933025b25ad27` found three release blockers: the
+runner printed identifiers to a public log, a late original browser job could
+overwrite a person's edits on a card the reconciler had created, and the card
+stage read an absent best-effort event as proof a card never existed. The
+sections marked "Corrected" below describe the follow-up head; the original
+claims they replace are quoted where they were wrong. The first head and its
+evidence are preserved in history, not rewritten.
+
 ## Exact base, head and drift
 
 - Base: PR1302 `draft/native-only-intake-20260905` at exactly
@@ -37,6 +46,10 @@ Added (all additive, service-role only):
 | `production_intake_reconcile_backlog(limit, after)` | read | Keyset page of requests with unmet obligations. |
 | `production_intake_reconcile_summary()` | read | Per-stage owed/complete/conflicted counts, backlog age, missing terminal receipts, latest recorded outcome per request and stage. |
 | `production_intake_reconcile_record(...)` | internal | Appends the reason row to `deliverable_events` (source `reconcile`, action `native_intake_reconcile`). Not callable by any role. |
+| `production_intake_reconcile_reason(message, sqlstate)` | internal | Corrected: collapses any PostgreSQL message to an allowlisted code or its SQLSTATE class before it reaches the ledger or a report. |
+| `production_card_provenance` | table (append only) | Corrected: one row per card creation and deletion, written by row triggers inside the writer's own transaction, plus an `installed` marker per surface. Service role may read; no role may write directly. |
+| `zz_production_card_provenance` | trigger, `calendar_posts` and `sample_reviews` | Corrected: AFTER INSERT/DELETE records the row's initial signature, whether it is a materialization, the slot ids, and the source when the reconciler set one. |
+| `zy_production_card_materialization_guard` | trigger, `calendar_posts` and `sample_reviews` | Corrected: BEFORE UPDATE. On a card created as a materialization, an update carrying exactly the recorded initial signature is the original browser job replaying its create; the human-owned fields keep their current values, an occupied slot keeps its occupant, the write otherwise proceeds and is acknowledged. |
 | `scripts/native-intake-reconcile/reconcile-lib.js`, `run.js` | driver | Pages the backlog, calls stage 1 then stage 2, folds a report. REST entry is dry-run by default. |
 | `.github/workflows/native-intake-reconcile.yml` | definition | `workflow_dispatch` only. No schedule. Apply requires the exact confirmation phrase. |
 
@@ -47,7 +60,29 @@ work, monitoring, comment-draft repair, assignment policy. No SyncLinear
 creation surface exists or is added; recovery here recreates only children the
 Calendar/Submit intake already accepted and recorded in a manifest.
 
-## Why no new authority table
+**Corrected, and a new release hold.** The two card-table triggers change the
+EFFECT of a write that arrives through the frozen writers, without changing the
+writers, their authentication or their acknowledgements. That is a database
+behaviour change under v48/v49 and needs its own owner review before the
+migration is applied anywhere: the writers were frozen by owner directive, and
+a trigger that rewrites a recognised replay is the closest thing to touching
+them that this branch could do. Until that review, the migration is HELD as a
+whole; the reconciler cannot ship without the guard because without it the
+first review's overwrite is real (proved as a negative control below).
+
+## Why no new authority table, and why one provenance table
+
+Corrected. The first head claimed no new table at all. The follow-up adds
+`production_card_provenance`, and the distinction matters: it is not an
+authority over completion. Completion is still a query over the manifest, the
+deliverable rows, the receipts and the card slots. The provenance table records
+one fact those rows cannot: that a card row was inserted or deleted, with the
+values it was inserted with, durably, because the recording trigger runs in the
+same transaction as the writer's insert or delete. The first head used
+`calendar_post_events` / `sample_review_events` for that fact; both writers
+insert those events through `EdgeRuntime.waitUntil` after the row commit and
+swallow failures, so an absent event proves nothing. A table written by a row
+trigger is the smallest durable record of "this card existed".
 
 The obligation is fully represented by facts that already exist: the immutable
 manifest (what was accepted: ids, content, receipt keys, fingerprints, epochs,
@@ -106,9 +141,15 @@ expected team's slot naming its deliverable. Per card:
   another deliverable is `card_slot_occupied` (conflict); otherwise only the
   empty slot(s) and `updated_at` are written. No card event is written for a
   slot bind, matching the frozen writer, which emits none for deliverable slots;
-- missing card: if any `calendar_post_events` / `sample_review_events` row exists
-  for it, the card existed and is gone (`card_deleted_after_creation`); otherwise
-  the row is created with exactly the columns and values the browser sends
+- missing card, corrected: NEVER CREATED must be proved, not inferred. Creation
+  is planned only when (a) provenance recording was installed before this
+  request was accepted (`manifest.recorded_at` on or after the `installed`
+  marker for the surface; otherwise `card_provenance_unavailable`, owner
+  operator) and (b) no `created` or `deleted` provenance row exists for the card
+  (otherwise `card_deleted_after_creation`). An events row is still treated as a
+  deletion signal, never as permission. Under the lock the provenance check is
+  repeated before the insert. Otherwise the row is created with exactly the
+  columns and values the browser sends
   through the frozen writer today (`In Progress` statuses, empty strings, null
   deliverable slots, numeric-string `order_index` = max existing or epoch
   seconds plus card number, ISO millisecond `updated_at`, name = video title,
@@ -125,12 +166,20 @@ order above respects it.
 
 ## What the proof executed (local, disposable PostgreSQL 16.13)
 
-`node test/native-intake-reconcile.js`: 47 checks, 47 passed, 0 failed, no SQL
-skip. The lane drives the REAL `production-write` handler (loader identical in
-seam to PR1302's) to produce accepted but interrupted intakes, then the real SQL
-functions and the real runner library over psql. Provider fetch was unreachable
-for the entire lane and the final check proves zero provider or drainer requests
-left the process during any reconciliation.
+`node test/native-intake-reconcile.js`: 62 checks, 62 passed, 0 failed, no SQL
+skip (47 on the first head, 15 added by the review round, two of them negative
+controls that reproduce the first head's defects with the new triggers disabled).
+The lane drives the REAL `production-write` handler (loader identical in seam to
+PR1302's) to produce accepted but interrupted intakes, then the real SQL
+functions and the real runner library over psql. For the review round it also
+runs the ACTUAL extracted browser materialization function
+(`_writeNativeSubmissionCardsToCalendar` with its real validator and actor
+guard, client-link mode) against the REPOSITORY sources of `calendar-upsert` and
+`sample-review-upsert` loaded through the same seam with a fixture staff key.
+Provider fetch was unreachable for the entire lane and the final check proves
+zero provider or drainer requests left the process during any reconciliation.
+The fixture keys both card tables on (client, id) as live does and uses a second
+synthetic client whose slug the writers' normalization leaves unchanged.
 
 | Scenario | Result |
 |---|---|
@@ -154,6 +203,21 @@ left the process during any reconciliation.
 | Deleted terminal receipt | reported as missing terminal receipt, not invented; stage 1 treats the row as complete |
 | Roles | anon and authenticated cannot call the reconciler; service role can read the summary |
 | Runner library | dry run writes nothing; apply respects the limit; response loss then rerun converges; summary counts equal an independent SQL count |
+| B1 NEGATIVE CONTROL, guard disabled: reconciler creates the card, a person renames, schedules, changes status and caption, the original job resumes with its saved result | the actual browser payload (`comments_base_at` absent) is acknowledged and the card reads `Video 1`, `In Progress`, blank date and caption: the first head's overwrite |
+| B2 same sequence, guard enabled | writer acknowledges, job records the card complete, name/date/status/caption/order_index unchanged, both slots intact, only `updated_at` moved |
+| B3 archived through the real writer, then old job resumes | stays `Archived` |
+| B4 browser request already issued while the reconciler materializes the same card | one row, one `created` provenance row, both slots bound, the losing insert retried and completed |
+| B5 browser wrote the card, lost the acknowledgement, resumes | second identical write changes only `updated_at`; one provenance row; card recognised as a materialization with no reconciler source |
+| B6 samples surface, same replay | human name, status and creative direction preserved through `sample-review-upsert` |
+| B7 ordinary human edit through the writer | passes the guard untouched |
+| P1 NEGATIVE CONTROL, provenance triggers disabled: card commits, create event lost, person deletes it | first head's rule recreates the deleted card |
+| P2 same sequence with provenance recorded | `created,deleted` rows, no event, held `card_deleted_after_creation`, nothing recreated |
+| P3 card that provably never existed | created; provenance row `created`, materialization true, source `native-intake-reconcile:<actor>` |
+| P4 request accepted before the `installed` marker | held `card_provenance_unavailable`, nothing recreated |
+| P5 ledger reasons | every recorded reason is an allowlisted code or `sql_error:<SQLSTATE>`; a PostgreSQL duplicate-key message with row values collapses to `sql_error:23505` |
+
+`node test/native-intake-reconcile-cli.js` (offline): 14 checks passed; see
+"Public output" above.
 
 Inherited suites on the same database, unchanged: `test/native-intake-manifest.js`
 41 checks plus 3 controls; `test/native-only-intake.js` 50 checks, its readiness
@@ -165,13 +229,42 @@ which is unchanged. The reconcile lane reports its own readiness rows
 child recovery, `UNPROVEN` for installed/full serving, `OUT_OF_SCOPE` for
 chosen-editor independence).
 
-Also passed locally: `repo-map-sync`, `ef-deploy-provenance`,
+Also passed locally on the follow-up head: `repo-map-sync`, `ef-deploy-provenance`,
 `f27-section4-deploy-lane`, `nightly-dispatch-input`, `write-ui-failure-messages`,
 and `scripts/repo-identity-exposure-check.js --diff=8cb5cba9` (no client slug, no
 colleague name added). `truth-sync` reports 16 failures locally on this clone
 for freshness anchors that are not ancestors of the checkout; the same failures
 exist on the untouched base and CI checks out with full depth. The full
 `node test/run-all.js` result is recorded in the PR handoff.
+
+## Public output (corrected)
+
+The first head's runner printed the entire report, including client slugs,
+request ids, row ids and raw RPC error bodies, to stdout, and per-request
+progress to stderr, inside a public Actions log. Corrected:
+
+- stdout is the PUBLIC report only: aggregate counts per stage, reason codes
+  from a fixed allowlist (anything else prints as `other`), bounded outcomes and
+  owners, the summary numbers, and, only when `NATIVE_INTAKE_RECONCILE_HASH_KEY`
+  is configured, a keyed one-way 12-hex correlation token per request so two
+  runs can be compared. Without the key there is no per-request output at all.
+- stderr carries fixed configuration messages, bounded RPC failure codes
+  (`rpc_failed:<function>:http_<status>`) and, with the key, correlation-token
+  progress lines. Response bodies never print.
+- the FULL report can be written only with `--private-report=<path>` to a file
+  outside the repository (a path inside it is refused before any call); the
+  workflow never passes that flag and uploads no artifact. The detailed durable
+  record is the reason ledger in the database, service role only.
+- reasons are bounded at the SOURCE too: `production_intake_reconcile_reason`
+  collapses every PostgreSQL message to an allowlisted code or `sql_error:<SQLSTATE>`
+  before it is written to `deliverable_events`, which is anon-readable by policy.
+
+`test/native-intake-reconcile-cli.js` runs the actual CLI as a child process
+against a local fake REST endpoint seeded with unique forbidden strings in the
+client slug, request id, nested ids and reasons, an owner, a summary key and an
+HTTP error body, then asserts none reaches stdout or stderr in dry-run, keyed,
+apply, strict, refused-path and error modes, while the private file outside the
+repository does hold them.
 
 ## Deployment and schema dependencies
 
@@ -200,14 +293,28 @@ exist on the untouched base and CI checks out with full depth. The full
   `In Progress`, named after the video, or an existing card gains its missing
   component pill. A human who already renamed, moved, archived or deleted the
   card sees no change; the reason ledger says why.
-- The browser's own materialization keeps working unchanged. If a tab finishes
-  after the reconciler, its card write is a no-op update through the frozen
-  writer; if the reconciler runs after the tab, stage 2 finds the card complete.
+- The browser's own materialization keeps working unchanged. Corrected: the
+  first head said a tab finishing after the reconciler performs "a no-op
+  update". It does not, on its own. The original job resends the complete
+  initial row with no `comments_base_at`, the writer's scalar CAS never engages,
+  and every field a person changed in between (name, schedule, status, caption)
+  was overwritten; an archived card came back to `In Progress`. This was
+  reproduced with the actual extracted browser function through the repository
+  writer source (negative control B1). With the materialization guard the same
+  replay is acknowledged, completes the job, and leaves the person's fields as
+  they were (B2, B3, B6). If the reconciler runs after the tab, stage 2 finds
+  the card complete and writes nothing.
 
 ## Rollback preserving accepted work
 
-Behaviour rollback is to stop dispatching. Nothing else is needed: with no
-schedule and no trigger, an undispatched reconciler does nothing. Rows it
+Behaviour rollback is to stop dispatching. Nothing else is needed for the
+reconciler: with no schedule and no trigger, an undispatched reconciler does
+nothing. Corrected: the two card-table triggers are the one part of this branch
+that acts on every write regardless of dispatch. Their one-step kill is
+`alter table public.calendar_posts disable trigger zy_production_card_materialization_guard`
+(and the same on `sample_reviews`), which restores the writers' exact previous
+effect; the provenance recording trigger should stay enabled, it only appends.
+Retain the provenance table on any rollback. Rows it
 created are real accepted work with real receipts and real card bindings and
 must be retained exactly like any browser-materialized intake. Do not drop the
 functions while a dispatch is in flight, do not delete `deliverable_events`
@@ -235,6 +342,21 @@ unless a defect in them is the reason to leave.
 - The backlog and summary readers scan every manifest; acceptable at current
   manifest volume, to be indexed or bounded before any scheduled use.
 - Alerting is a design, not a delivered proof (next section).
+- Corrected, old-caller boundary: the materialization guard recognises a
+  replay by the exact initial signature recorded at creation. A card created
+  BEFORE the migration has no provenance row, so a late job on such a card is
+  not guarded; and a browser build that ever changes the initial payload shape
+  would not be recognised either. Both are release holds: install the
+  provenance recording, let in-flight jobs drain, and pin the browser payload
+  shape with a test before the reconciler is dispatched against real requests.
+- Corrected, writers: the guard and the provenance triggers were exercised
+  through the REPOSITORY sources of `calendar-upsert` and `sample-review-upsert`
+  loaded in the lane with a fixture staff key. The serving v48/v49 bodies are
+  un-gated by owner directive and are not this source; their write semantics
+  against these triggers are unproven until observed on an installed copy.
+- Corrected, provenance install: any request accepted before the `installed`
+  marker can never have its card recreated by this path; it is held for an
+  operator. Pre-existing cards gain provenance only from the moment of install.
 - The chosen-editor provider dependency, assignment policy and public-intake
   policy are out of scope and unchanged.
 - No live TEST write, no drill, no dispatch was performed.

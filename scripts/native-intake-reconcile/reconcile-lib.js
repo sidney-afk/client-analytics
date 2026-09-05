@@ -14,12 +14,63 @@
  *
  * Dry-run is the default. With apply=false no function writes anything and no
  * reason event is recorded; the report is the plan.
+ *
+ * TWO REPORTS. `runReconcile` returns the FULL report: request ids, client
+ * slugs, deliverable and card ids, every reason as the SQL returned it. That
+ * report is for protected storage only (an operator's private file, never a
+ * public log or a public Actions artifact). `publicReport` derives what may be
+ * printed anywhere: aggregate counts, reason CODES from a fixed allowlist, and,
+ * only when a private hash key is configured, a keyed correlation token per
+ * request so two runs can be compared without naming the request.
  */
+const crypto = require('crypto');
 
 const STAGE_KEYS = Object.freeze({
   children: ['recovered', 'complete', 'conflict', 'unresolved', 'planned'],
   cards: ['materialized', 'complete', 'conflict', 'unresolved', 'planned'],
 });
+
+/* Every reason the SQL can return, plus the codes the reason-bounding function
+   collapses PostgreSQL messages to. Anything else prints as `other`. */
+const REASON_CODES = Object.freeze(new Set([
+  'provider_epoch_child_missing', 'child_identity_conflict', 'child_receipt_without_row',
+  'batch_missing', 'batch_not_active', 'client_inactive', 'parent_receipt_missing',
+  'parent_receipt_provenance_mismatch', 'f27_hold', 'children_incomplete',
+  'deliverable_card_cleared', 'deliverable_rebound', 'card_archived', 'card_slot_occupied',
+  'card_deleted_after_creation', 'card_provenance_unavailable', 'reconcile_readback_mismatch',
+  'authority_unavailable', 'team_is_linear_authoritative', 'legacy_parity_gate_unavailable',
+  'legacy_parity_not_allowed', 'test_client_scope_required', 'idempotency_conflict',
+  'write_conflict', 'idempotent_result_missing', 'project_mapping_missing', 'team_rollback_hold',
+  'f27_authority_generation_stale', 'f27_drill_insert_forbidden', 'invalid_outbound_entity',
+  'invalid_outbound_operation', 'incomplete_outbound_intent', 'invalid_f27_authority_binder',
+  'production_deliverable_id_required', 'production_write_dedup_and_intent_fingerprint_required',
+]));
+const OUTCOMES = Object.freeze(new Set(['recovered', 'materialized', 'complete', 'conflict', 'unresolved', 'planned', 'skipped']));
+const OWNERS = Object.freeze(new Set(['operator', 'reconciler', 'gateway-retry']));
+const SURFACES = Object.freeze(new Set(['calendar', 'samples']));
+
+function boundReason(reason) {
+  const value = String(reason == null ? '' : reason);
+  if (REASON_CODES.has(value)) return value;
+  if (/^sql_error:[0-9A-Z]{5}$/.test(value)) return value;
+  return 'other';
+}
+function boundOutcome(outcome) {
+  const value = String(outcome == null ? '' : outcome);
+  return OUTCOMES.has(value) ? value : 'other';
+}
+function boundOwner(owner) {
+  const value = String(owner == null ? '' : owner);
+  return OWNERS.has(value) ? value : 'other';
+}
+function boundSurface(surface) {
+  const value = String(surface == null ? '' : surface);
+  return SURFACES.has(value) ? value : 'other';
+}
+function count(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 
 function emptyCounts() {
   const out = {};
@@ -74,8 +125,8 @@ async function runReconcile(options) {
   while (!exhausted && processed.length < limit) {
     const page = await rpc('production_intake_reconcile_backlog', { p_limit: pageSize, p_after: after });
     pages += 1;
-    examined += Number(page.examined || 0);
-    for (const item of page.items || []) {
+    examined += count(page && page.examined);
+    for (const item of (page && page.items) || []) {
       if (processed.length >= limit) break;
       const requestId = String(item.request_id);
       if (only && !only.has(requestId)) continue;
@@ -93,9 +144,9 @@ async function runReconcile(options) {
       onEvent('cards', entry);
       processed.push(entry);
     }
-    after = page.next_after || after;
-    exhausted = page.exhausted === true;
-    if (!page.items || !page.items.length) break;
+    after = (page && page.next_after) || after;
+    exhausted = !!page && page.exhausted === true;
+    if (!page || !page.items || !page.items.length) break;
   }
   const summary = await rpc('production_intake_reconcile_summary', {});
   return {
@@ -114,10 +165,81 @@ async function runReconcile(options) {
     attention: {
       conflicted: counts.children.conflict + counts.cards.conflict,
       unresolved: counts.children.unresolved + counts.cards.unresolved,
-      backlog_age_seconds: Number(summary && summary.backlog_age_seconds || 0),
-      missing_terminal_receipts: Number(summary && summary.owed && summary.owed.missing_terminal_receipts || 0),
+      backlog_age_seconds: count(summary && summary.backlog_age_seconds),
+      missing_terminal_receipts: count(summary && summary.owed && summary.owed.missing_terminal_receipts),
     },
   };
 }
 
-module.exports = { runReconcile, cardsEligible, emptyCounts, STAGE_KEYS };
+/* Keyed, truncated, one-way. Without a key there is no per-request output at
+   all; the request id is caller-supplied text and never leaves the private
+   report. */
+function correlation(requestId, hashKey) {
+  if (!hashKey) return null;
+  return crypto.createHmac('sha256', String(hashKey)).update(String(requestId)).digest('hex').slice(0, 12);
+}
+
+function reasonCodes(result) {
+  const codes = [];
+  for (const list of [result && result.unresolved, result && result.conflicts]) {
+    if (!Array.isArray(list)) continue;
+    for (const entry of list) codes.push({ reason: boundReason(entry && entry.reason), owner: boundOwner(entry && entry.owner) });
+  }
+  if (result && result.outcome === 'skipped') codes.push({ reason: boundReason(result.reason), owner: 'reconciler' });
+  return codes;
+}
+
+function publicReport(report, options = {}) {
+  const hashKey = options && options.hashKey ? String(options.hashKey) : '';
+  const reasons = { children: {}, cards: {} };
+  const requests = [];
+  for (const entry of report.processed || []) {
+    const row = { surface: boundSurface(entry.surface) };
+    for (const stage of ['children', 'cards']) {
+      const result = entry[stage] || {};
+      row[stage] = boundOutcome(result.outcome);
+      const codes = reasonCodes(result);
+      row[stage + '_reasons'] = codes.map(c => c.reason);
+      for (const code of codes) reasons[stage][code.reason] = (reasons[stage][code.reason] || 0) + 1;
+    }
+    if (hashKey) requests.push({ correlation: correlation(entry.request_id, hashKey), ...row });
+  }
+  const summary = report.summary || {};
+  const owed = summary.owed || {};
+  const latest = {};
+  for (const [key, n] of Object.entries(summary.latest_outcomes || {})) {
+    const [stage, outcome] = String(key).split(':');
+    const label = (stage === 'children' || stage === 'cards' ? stage : 'other') + ':' + boundOutcome(outcome);
+    latest[label] = (latest[label] || 0) + count(n);
+  }
+  return {
+    dry_run: report.dry_run === true,
+    limit: count(report.limit),
+    pages: count(report.pages),
+    examined: count(report.examined),
+    exhausted: report.exhausted === true,
+    processed_count: Array.isArray(report.processed) ? report.processed.length : 0,
+    counts: report.counts,
+    reasons,
+    attention: report.attention,
+    summary: {
+      manifests: count(summary.manifests),
+      requests_complete: count(summary.requests_complete),
+      requests_owed: count(summary.requests_owed),
+      owed: {
+        children_native: count(owed.children_native), children_provider: count(owed.children_provider),
+        cards: count(owed.cards), identity_conflicts: count(owed.identity_conflicts),
+        missing_terminal_receipts: count(owed.missing_terminal_receipts),
+      },
+      backlog_age_seconds: count(summary.backlog_age_seconds),
+      latest_outcomes: latest,
+    },
+    correlated: !!hashKey,
+    ...(hashKey ? { requests } : {}),
+  };
+}
+
+module.exports = {
+  runReconcile, publicReport, boundReason, boundOutcome, boundOwner, correlation,
+  cardsEligible, emptyCounts, STAGE_KEYS, REASON_CODES,
+};

@@ -15,6 +15,13 @@ name: Native intake reconcile (manual, dry-run by default)
 # follow-up edit.
 #
 # This job never calls Linear and holds no Linear credential.
+#
+# THE LOG IS PUBLIC. The runner prints aggregate counts and allowlisted reason
+# codes only; request ids, client slugs, row ids and raw error bodies never
+# reach stdout or stderr. With NATIVE_INTAKE_RECONCILE_HASH_KEY configured the
+# log also carries keyed one-way correlation tokens so two runs can be compared.
+# No private report is written and nothing is uploaded as an Actions artifact;
+# the detailed record is the reason ledger in the database, service-role only.
 
 on:
   workflow_dispatch:
@@ -52,6 +59,7 @@ jobs:
       LIMIT: ${{ inputs.limit || '25' }}
       REQUEST_ID: ${{ inputs.request_id }}
       NATIVE_INTAKE_RECONCILE_ACTOR: github-actions:native-intake-reconcile
+      NATIVE_INTAKE_RECONCILE_HASH_KEY: ${{ secrets.NATIVE_INTAKE_RECONCILE_HASH_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

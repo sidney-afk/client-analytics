@@ -63,11 +63,19 @@ try {
   const baseline = fs.readFileSync(path.resolve(__dirname, '../migrations/live-schema-baseline-2026-07-03.sql'), 'utf8').replace(/\r\n/g, '\n');
   cluster.exec(baselineColumns(baseline, 'calendar_posts'));
   cluster.exec(baselineColumns(baseline, 'sample_reviews'));
+  // Live keys both card tables on (client, id); the F42 stub keys them on id
+  // alone. The competing-insertion and cross-client scenarios need the live key.
+  cluster.exec('alter table public.calendar_posts drop constraint calendar_posts_pkey, add primary key (client, id);');
+  cluster.exec('alter table public.sample_reviews drop constraint sample_reviews_pkey, add primary key (client, id);');
   // calendar_post_events postdates the baseline capture; its exact DDL is the
   // A1 calendar-upsert migration's table block (no publication or policy here).
   const a1 = fs.readFileSync(path.resolve(__dirname, '../migrations/2026-07-03-a1-calendar-upsert.sql'), 'utf8').replace(/\r\n/g, '\n');
   cluster.exec(baselineTable(a1, 'calendar_post_events'));
   cluster.exec(baselineTable(baseline, 'sample_review_events'));
+  // The calendar writer merges comment cells through this RPC on every existing
+  // row; the browser materialization payload names the tweak columns, so the
+  // real writer reaches it. Exact repository migration, self-contained.
+  cluster.runFile(path.resolve(__dirname, '../migrations/2026-06-18-atomic-comment-merge.sql'));
   cluster.runFile(path.resolve(__dirname, '../migrations/2026-09-05-native-intake-reconcile.sql'));
 
   const r = spawnSync(process.execPath, ['--experimental-strip-types', path.resolve(__dirname, '../scripts/native-intake-reconcile/lane.mjs')], {

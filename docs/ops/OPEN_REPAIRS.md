@@ -12567,3 +12567,36 @@ purpose: the gateway itself did not change.
 
 Contract, evidence, release order, client-visible behaviour per step, rollback
 and the smallest next action: `docs/audits/2026-09-05-native-intake-reconcile.md`.
+
+### Corrected 2026-09-05, review of head `df3d032`
+
+Independent review found three release blockers in the first head, all real:
+
+1. The runner printed the whole report, request ids and raw RPC error bodies
+   into a public Actions log. Public output is now aggregate counts, allowlisted
+   reason codes and, only with a private hash key, keyed correlation tokens; the
+   full report can be written only to a file outside the repository; reasons are
+   bounded at the SQL source before they reach the anon-readable ledger. Proved
+   by running the actual CLI against a canary-seeded fake endpoint
+   (`test/native-intake-reconcile-cli.js`).
+2. The claim that a late original browser job is "a no-op" was false. The saved
+   job resends its complete initial row with no `comments_base_at`; the writer's
+   CAS never engages, and a person's rename, schedule, status and caption, or an
+   archive, were overwritten. Reproduced with the actual extracted browser
+   function through the repository writer sources (negative control B1). Closed
+   at the table layer, where old tabs and saved jobs also land: an append-only
+   card provenance table records each creation's initial signature inside the
+   writer transaction, and a BEFORE UPDATE guard recognises an update carrying
+   exactly that signature as the replay, keeps the human-owned fields and any
+   occupied slot, and lets the write proceed and be acknowledged. No writer body,
+   credential or refusal changed. This is a database behaviour change under the
+   frozen writers and is an explicit release hold pending owner review.
+3. "No card event row" was read as "never created", but both writers insert
+   events best-effort after the row commit. Reproduced (negative control P1: a
+   committed card whose event was lost, then deleted, was recreated). Never
+   created is now proved from the provenance table and an `installed` marker;
+   requests accepted before the marker are held, not recreated.
+
+Lane: 62 checks passed (47 first head, 15 review round). Still unproven: the
+serving v48/v49 bodies against these triggers, installed behaviour, provider-era
+child recovery, and any card created before the provenance install.

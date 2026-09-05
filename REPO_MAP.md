@@ -11,9 +11,11 @@ commit as any structural change.
 Server-owned completion of accepted native intake (draft, unapplied, disabled):
 `migrations/2026-09-05-native-intake-reconcile.sql`, `scripts/native-intake-reconcile/`
 (runner library, dry-run REST entry, proof lane and gateway loader),
-`test/native-intake-reconcile.js`, `.github/workflows/native-intake-reconcile.yml`
+`test/native-intake-reconcile.js`, `test/native-intake-reconcile-cli.js` (public
+output carries no identifier), `.github/workflows/native-intake-reconcile.yml`
 (manual-only, no schedule) and `docs/audits/2026-09-05-native-intake-reconcile.md`.
-Stacked on PR1302; ledger item 156.
+Includes the card provenance table and the two card-table triggers, held for owner
+review. Stacked on PR1302; ledger item 156 and its correction.
 
 Disabled native-only intake draft: `migrations/2026-09-05-native-only-intake.sql`,
 `scripts/native-intake-manifest/native-only-lane.mjs`, `test/native-only-intake.js`,

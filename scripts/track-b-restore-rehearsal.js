@@ -15,6 +15,9 @@ const { spawnSync } = require('child_process');
 const {
   PRODUCTION_REF,
   TABLES,
+  HISTORY_TABLES,
+  manifestCorpus,
+  resolveCorpus,
   connectionProjectRef,
   postgresEnvironment,
   readSnapshotFile,
@@ -68,34 +71,51 @@ function assertScratchTarget(url = DB_URL, expectedRef = EXPECTED_REF, confirm =
   return actual;
 }
 
-function restoreSql(parsedDump) {
-  const names = TABLES.map(config => safeIdentifier(config.name));
-  const identityResets = TABLES.filter(config => config.identity).map(config => {
+function restoreSql(parsedDump, corpusName = 'legacy-v3') {
+  const corpus = resolveCorpus(corpusName);
+  const names = corpus.tables.map(config => safeIdentifier(config.name));
+  const helper = corpus.version === 4 ? 'track_b_restore_set_history_user_triggers' : 'track_b_restore_set_user_triggers';
+  // Even an empty expanded target is outside a legacy package's coverage.
+  // Refuse before changing triggers or data; never cascade into omitted tables.
+  const legacyGuard = corpus.version === 3 ? [
+    'do $coverage$ begin',
+    `if ${HISTORY_TABLES.slice(TABLES.length).map(config => `to_regclass('public.${config.name}') is not null`).join(' or ')} then`,
+    "raise exception 'Legacy Track-B package cannot restore into an expanded history schema';",
+    'end if; end $coverage$;',
+  ] : [];
+  const identityResets = corpus.tables.filter(config => config.identity).map(config => {
     const table = safeIdentifier(config.name);
     const pk = safeIdentifier(config.pk);
+    // setval is not rolled back by PostgreSQL. Never rewind a used counter if
+    // a later failure rolls restored rows back; advancing may leave harmless gaps.
+    const sequenceState = `select coalesce(s.last_value, s.start_value) from pg_catalog.pg_sequences s `
+      + `join pg_catalog.pg_namespace n on n.nspname=s.schemaname `
+      + `join pg_catalog.pg_class c on c.relnamespace=n.oid and c.relname=s.sequencename `
+      + `where c.oid=pg_get_serial_sequence('public.${table}', '${pk}')::regclass`;
     return `select setval(pg_get_serial_sequence('public.${table}', '${pk}'), `
-      + `coalesce((select max(${pk}) from public.${table}), 1), exists(select 1 from public.${table}));`;
+      + `greatest(coalesce((select max(${pk}) from public.${table}), 1), (${sequenceState})), true);`;
   });
   const preamble = [
     'begin;',
     "set local lock_timeout = '20s';",
     "set local statement_timeout = '20min';",
-    'select public.track_b_restore_set_user_triggers(false);',
-    `truncate table ${names.map(name => `public.${name}`).join(', ')} cascade;`,
+    ...legacyGuard,
+    `select public.${helper}(false);`,
+    `truncate table ${names.map(name => `public.${name}`).join(', ')} restrict;`,
   ].join('\n');
   const postamble = [
-    ...identityResets,
     'set constraints all immediate;',
-    'select public.track_b_restore_set_user_triggers(true);',
+    `select public.${helper}(true);`,
+    ...identityResets,
     'commit;',
     '',
   ].join('\n');
-  return `${preamble}\n${renderSafeCopySections(parsedDump)}${postamble}`;
+  return `${preamble}\n${renderSafeCopySections(parsedDump, corpusName)}${postamble}`;
 }
 
-function verifySql() {
+function verifySql(corpusName = 'legacy-v3') {
   const lines = [];
-  for (const config of TABLES) {
+  for (const config of resolveCorpus(corpusName).tables) {
     const name = safeIdentifier(config.name);
     lines.push(`select '${name}' || E'\\t' || count(*)::text from public.${name};`);
   }
@@ -119,7 +139,8 @@ function parseVerification(text) {
 }
 
 function verifyCounts(manifest, observed) {
-  for (const config of TABLES) {
+  const corpus = manifest.schema_version == null ? resolveCorpus() : manifestCorpus(manifest);
+  for (const config of corpus.tables) {
     const expected = Number(manifest.tables[config.name].rows);
     if (observed[config.name] !== expected) {
       throw new Error(`Restore row-count mismatch for ${config.name}: expected ${expected}, observed ${observed[config.name]}`);
@@ -161,11 +182,12 @@ async function main() {
   try {
     const snapshot = readSnapshotFile(packagePath);
     const manifest = snapshot.manifest;
+    const corpus = manifestCorpus(manifest);
     if (clean(manifest.source_project_ref) !== PRODUCTION_REF) {
       throw new Error('Restore rehearsal package is not a production Track-B snapshot');
     }
-    fs.writeFileSync(restoreFile, restoreSql(snapshot.dumpBytes), { mode: 0o600 });
-    fs.writeFileSync(verifyFile, verifySql(), { mode: 0o600 });
+    fs.writeFileSync(restoreFile, restoreSql(snapshot.dumpBytes, corpus.name), { mode: 0o600 });
+    fs.writeFileSync(verifyFile, verifySql(corpus.name), { mode: 0o600 });
     runPsql(restoreFile, false);
     const observed = parseVerification(runPsql(verifyFile, true));
     verifyCounts(manifest, observed);
@@ -175,11 +197,13 @@ async function main() {
       target_project_ref: targetRef,
       source_snapshot_sha256: manifest.snapshot.sha256,
       elapsed_seconds: elapsedSeconds,
-      tables: Object.fromEntries(TABLES.map(item => [item.name, observed[item.name]])),
+      corpus: corpus.name,
+      coverage: corpus.version === 3 ? 'limited_legacy_only' : 'history_21_tables',
+      tables: Object.fromEntries(corpus.tables.map(item => [item.name, observed[item.name]])),
       integrity_checks: Object.fromEntries(Object.entries(observed).filter(([key]) => key.startsWith('orphan_'))),
     }));
     if (process.env.GITHUB_STEP_SUMMARY) {
-      fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Track-B restore rehearsal\n\n- Target: scratch project \`${targetRef}\`\n- Result: verified\n- Snapshot SHA-256: \`${manifest.snapshot.sha256}\`\n- Elapsed: ${elapsedSeconds}s\n- Tables: ${TABLES.length}\n`);
+      fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Track-B restore rehearsal\n\n- Target: scratch project \`${targetRef}\`\n- Result: verified\n- Snapshot SHA-256: \`${manifest.snapshot.sha256}\`\n- Elapsed: ${elapsedSeconds}s\n- Corpus: ${corpus.name}\n- Tables: ${corpus.tables.length}\n`);
     }
   } finally {
     try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (_) {}

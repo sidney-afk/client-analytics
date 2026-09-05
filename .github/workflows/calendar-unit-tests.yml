@@ -52,6 +52,38 @@ jobs:
           node-version: '22'
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
+      - name: Install PostgreSQL snapshot client for history proof
+        shell: bash
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Rehearse private card history in disposable PostgreSQL
+        env:
+          CARD_HISTORY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_HISTORY_PGHOST: 127.0.0.1
+          CARD_HISTORY_PGPORT: '5432'
+          CARD_HISTORY_PGUSER: postgres
+          CARD_HISTORY_PGPASSWORD: postgres
+        run: node scripts/card-change-journal-rehearsal.js
+      - name: Read pinned unmerged manifest prerequisite for local history backup proof
+        shell: bash
+        run: |
+          git fetch --no-tags origin 5418ab5618595d9469f0527bd94623e9229a637e
+          git show 5418ab5618595d9469f0527bd94623e9229a637e:migrations/2026-09-05-native-intake-root-manifest.sql > "$RUNNER_TEMP/card-history-manifest.sql"
+      - name: Prove full private history corpus in disposable PostgreSQL
+        env:
+          CARD_HISTORY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_HISTORY_PGHOST: 127.0.0.1
+          CARD_HISTORY_PGPORT: '5432'
+          CARD_HISTORY_PGUSER: postgres
+          CARD_HISTORY_PGPASSWORD: postgres
+          CARD_HISTORY_MANIFEST_SQL: ${{ runner.temp }}/card-history-manifest.sql
+        run: node scripts/card-history-backup-rehearsal.js
 
   identity-exposure:
     # THIS REPOSITORY IS PUBLIC AND THE ROSTER IS IN IT. Measured 2026-09-02:

@@ -12665,7 +12665,7 @@ unattended; 7 for a person, as before.
   does not stop the next one. The link action should retire (or never create)
   the auto-made row when the card is pointed elsewhere — a separate change,
   not attempted here.
-* Applying the migration and running the 100 calls is the owner's dispatch
+* Applying the migration and running the 100 calls is the owner's dispatch.
 
 ### The runner (same day, later)
 
@@ -12680,3 +12680,27 @@ F42 import planner against the post-bind crosswalk — a thread the planner
 cannot plan cleanly holds the slot back (`thread_not_plannable`) instead of
 binding without its conversation. The owner's three steps are in
 `CROSSWALK_REPAIR_STRATEGY.md` §5..
+
+## Pending durable card history — draft, not installed
+
+The owner's request to keep every card change for at least 30 days is tracked
+by `docs/ops/CARD_CHANGE_HISTORY.md`. This source-only slice adds a private
+atomic INSERT/UPDATE/DELETE before/after journal to Calendar cards, Samples
+cards, native batches/deliverables/comments and Workload plans. It preserves
+existing semantic events/outboxes and anonymous writer access, records actors
+only to the assurance the transport actually provides, and retains history
+when current rows are deleted. Proposed retention is 90 days/minimum 30, with
+no automatic pruning.
+
+Open completion gates: independent exact-source review; separate PR #1293
+manifest schema prerequisite for the expanded backup corpus; reviewed schema/
+private-grant installation; reserved real-client-link TEST canary; complete
+private snapshot/readback/scratch restore; actual alert delivery; and observed
+retention window. Existing 14-table backups are explicitly limited. No live
+change or history guarantee is implied by this draft or its local SQL tests.
+The pre-install comment-failure continuity gate is currently **FAIL**, not merely
+unproven: the separate finite browser proof at `287c16cd` found refused-note/
+tweak drafts lost immediately or on reopening, including newer typing. The
+accepted Samples-note subset remains conserved. Install must wait for the
+separate failure-preservation repairs and passing failure/reopen tests because
+a journal insertion failure intentionally rejects the corresponding save.

@@ -5,6 +5,13 @@ on:
     - cron: '23 */6 * * *'
   workflow_dispatch:
     inputs:
+      backup_corpus:
+        description: 'Use configured schedule coverage, or a manually approved history-v4 prerequisite proof'
+        type: choice
+        options:
+          - configured
+          - history-v4
+        default: configured
       restore_rehearsal:
         description: 'Destructively restore the new backup into the configured scratch project'
         type: boolean
@@ -22,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
+      TRACK_B_BACKUP_CORPUS: ${{ inputs.backup_corpus == 'history-v4' && 'history-v4' || vars.TRACK_B_BACKUP_CORPUS || 'legacy-v3' }}
       TRACK_B_BACKUP_DATABASE_URL: ${{ secrets.TRACK_B_BACKUP_DATABASE_URL }}
       TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
       TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
@@ -81,6 +89,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
+      TRACK_B_BACKUP_CORPUS: ${{ inputs.backup_corpus == 'history-v4' && 'history-v4' || vars.TRACK_B_BACKUP_CORPUS || 'legacy-v3' }}
       TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}
       TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
       TRACK_B_BACKUP_DRIVE_FOLDER_ID: ${{ vars.TRACK_B_BACKUP_DRIVE_FOLDER_ID }}

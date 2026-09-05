@@ -37,6 +37,26 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 ## Backend & data
 
+The draft private card-history slice is mapped in
+`docs/ops/CARD_CHANGE_HISTORY.md`: additive
+`migrations/2026-09-05-card-change-journal.sql`, real local-only
+`scripts/card-change-journal-rehearsal.js`, and its target-boundary test
+`test/card-change-journal.js`. `scripts/card-change-journal-rollback.sql` is the
+future owner-operated capture-disable transaction that retains history. The SQL
+rehearsal also runs against the existing
+disposable PostgreSQL service in `calendar-unit-tests.yml`; it reaches no live
+backend. Existing `scripts/track-b-backup.js` and
+`scripts/track-b-restore-rehearsal.js` own versioned private package coverage and
+remain separate from any production writer deployment.
+`test/track-b-backup-corpus.js` gates legacy-versus-history package coverage;
+`scripts/track-b-history-backup-prerequisites.sql` prepares the separately
+reviewed private backup grants and scratch-only restore helper after all
+expanded-corpus schema prerequisites exist.
+`scripts/card-history-backup-rehearsal.js` proves the actual 21-table private
+dump/package/restore against disposable PostgreSQL. Its PR #1293 manifest
+prerequisite is fetched at an immutable commit and hash-checked for this local
+proof only; it does not install production schema or deploy the gateway.
+
 | Path | What it is |
 |---|---|
 | `supabase/` | Standard Supabase CLI layout: `supabase/config.toml` + `supabase/functions/` (Edge Functions). B4 outbound lives in `supabase/functions/linear-outbound/`, `supabase/functions/deliverable-write/`, `supabase/functions/batch-write/`, and shared write/auth code under `supabase/functions/_shared/`; `supabase/functions/_shared/linear-create-id.mjs` owns F203's deterministic Linear create UUIDs. `supabase/functions/linear-inbound/` owns strict echo suppression and carries F27's sole new per-function frozen Deno lock/config; `.github/workflows/deploy-f27-linear-inbound.yml` is its dispatch-only exact-SHA P.3 deploy/captured-v39 restore lane and has no push trigger. `.github/workflows/deploy-f27-section4-closures.yml` is the separate dispatch-only, exact-SHA, strictly serial F27 §4 deploy/source-exact restore lane for only `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`; it does not replace the P.3 lane or the onboarding lane. `supabase/functions/workload-plan/index.ts` is Workload's deliberate-manual sidecar gateway. Candidate source separates the staff-authenticated global plan projection (Admin/SMM/Creative) from the unchanged Admin/SMM-only writer; the read widening is not live until this exact function source is manually deployed. Other scoped deploys are path-triggered by `.github/workflows/deploy-onboarding-edge-functions.yml`, `.github/workflows/deploy-thumbnail-edge-functions.yml`, and `.github/workflows/deploy-pto-edge-functions.yml` — do not move. |

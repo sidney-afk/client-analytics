@@ -118,12 +118,13 @@ ok(/from the '\s*\+\s*\(asset\.source === 'samples_card' \? 'samples card' : 'co
 
 const ensure = grab(UI, '_prodEnsureAssets');
 /* The vocabulary gained a fourth member on 2026-09-01 -- `client_plan`, the
-   filming plan resolved from the client when the batch carries no copy. What
-   this assertion is about is unchanged and is the reason it is written as a
-   list plus a fallback rather than as "contains the three I know": the set is
-   CLOSED, so a value this deploy has never heard of renders nothing instead of
-   arbitrary server text on the page. */
-ok(/\['deliverable','calendar_card','samples_card','client_plan'\]\s*\.includes\(String\(asset\.source \|\| ''\)\)/.test(ensure),
+   filming plan resolved from the client when the batch carries no copy -- and a
+   fifth on 2026-09-05: `post`, a shared folder link the post holds on a batch
+   row other than this one's. What this assertion is about is unchanged and is
+   the reason it is written as a list plus a fallback rather than as "contains
+   the three I know": the set is CLOSED, so a value this deploy has never heard
+   of renders nothing instead of arbitrary server text on the page. */
+ok(/\['deliverable','calendar_card','samples_card','client_plan','post'\]\s*\.includes\(String\(asset\.source \|\| ''\)\)/.test(ensure),
   'the browser accepts a closed vocabulary for the source, so a surprising value renders nothing rather than server text');
 ok(/\?\s*String\(asset\.source\)\s*:\s*''/.test(ensure),
   'and an unrecognized source falls back to no source at all, rather than to the raw string');
@@ -197,10 +198,35 @@ ok(/gatewayReads: null,/.test(UI),
   'the unknown state is null rather than an empty set, so "not asked yet" is not confused with "answered nothing"');
 ok(/if \(current && current\.generation === generation\) return current;/.test(ensureFiles),
   'the pill links are asked for once per batch per projection generation, not once per render');
+/* Keyed by batch AND scope since 2026-09-05. The read is answered per
+   (batch_id, client_slug) and the gateway refuses a mismatch with a flat 403,
+   so a key of batch id alone lets one scope's answer -- or one scope's refusal
+   -- stand in for another's. Harmless while this was asked once per open row;
+   not once it is asked once per batch row of a post. */
+ok(/const statusKey = batchId \+ '\\u0000' \+ clientSlug;/.test(ensureFiles),
+  '...and keyed by the SCOPE as well as the batch, so two rows declaring different scopes for one batch cannot inherit each other\'s answer or refusal');
 ok(/if \(generation !== _prodState\.projectionGeneration\) return null;/.test(ensureFiles),
   'and a response that lands after a projection swap is dropped rather than painted');
 ok(/if \(!staffIdentity\) return null;/.test(ensureFiles),
   'without staff sign-in it asks for nothing at all');
+
+/* THE PILLS FOLLOW THE POST, NOT THE OPEN ROW'S BATCH (2026-09-05).
+   batch_files_read answers `deliverables where batch_id = <one id>`, and the
+   render loop asked only for the open parent's own batch. On a post whose
+   children sit on another batch row -- 109 of 1,136 measured live -- the
+   response carried the parent alone, _prodBatchFileFor found no entry for any
+   sub-issue, and every pill was omitted. The owner reported this as pills that
+   had stopped appearing; they had never appeared for these posts, and did for
+   the other 1,027. The common case still makes exactly one request. */
+const renderLoop = UI.slice(UI.indexOf('The file pills on the sub-issue list'));
+ok(/_prodPostRows\(openIssue\)\.forEach\(row => \{/.test(renderLoop.slice(0, 2400)),
+  'the pill links are asked for across every batch row the POST occupies, so a sub-issue on a different batch row than its parent still gets one');
+ok(/if \(!rowBatchId \|\| asked\.has\(rowBatchId\)\) return;/.test(renderLoop.slice(0, 2400)),
+  'each distinct batch row is asked for once, so a post that sits on one row -- the overwhelming majority -- pays exactly what it paid before');
+ok(/row\.authorityProject \|\| row\.storedClientSlug/.test(renderLoop.slice(0, 2400)),
+  "and each request declares the scope of the row that NAMES that batch, since the gateway pins on client_slug and answers a mismatch with a flat 403");
+ok(/scope === PROD_ATTRIBUTION_NEEDS[\s\S]{0,80}scope === PROD_ATTRIBUTION_CONFLICT/.test(renderLoop.slice(0, 3600)),
+  'and a row carrying an attribution SENTINEL is skipped rather than asked about -- that slug is a guaranteed 403, and a request whose refusal is already known is a failed call for an answer nobody gains');
 
 const invalidate = grab(UI, '_prodInvalidateScopedReads');
 ok(/_prodState\.batchFiles\.clear\(\);/.test(invalidate)

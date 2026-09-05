@@ -240,9 +240,20 @@ const LABEL_PAGE_SIZE = 100;
 const MAX_LABEL_PAGES = 50;
 const ASSET_PROBE_TIMEOUT_MS = 8_000;
 const MAX_ASSET_REDIRECTS = 3;
-// Enough children to find one carrying the post's links; a post is tens of
-// rows, not thousands, and an unbounded read here would scale with the batch.
-const CHILD_BATCH_LOOKUP_LIMIT = 50;
+/* Enough rows to hold a whole post: the parent and every sub-issue. A post is
+   tens of rows, not thousands -- the owner's largest measured 2026-09-05 is 33
+   (one parent, 32 sub-issues) -- and an unbounded read here would scale with
+   the client. The roster query is ORDERED, so a post that ever exceeded this
+   truncates to the SAME rows from every seat: an incomplete answer that is at
+   least a CONSISTENT one, rather than two panels disagreeing for a new reason. */
+const POST_ROW_LOOKUP_LIMIT = 200;
+/* Byte-identical to the character class the browser view applies to
+   `raw_issue_parent_id` and the other Linear ids it derives
+   (2026-08-23-attribution-slug-guard-widening.sql:92-94). The post key is read
+   out of `linear_raw` in JS rather than queried as a column, so this guard is
+   what keeps the two derivations from drifting; test/post-asset-resolution.js
+   pins them against each other. */
+const LINEAR_UUID_SHAPE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
 const ASSET_EVIDENCE_MAX_AGE_MS = 5 * 60 * 1_000;
 const INTAKE_FILMING_PLAN_MISSING_MARKER =
   "[SyncView] FILMING PLAN MISSING - submission accepted; SMM follow-up required.";
@@ -3814,10 +3825,7 @@ async function assetSnapshot(
   deliverable: JsonMap,
 ): Promise<JsonMap> {
   const BATCH_ASSET_COLUMNS =
-    "id,client_slug,team,filming_doc_url,footage_folder_url,delivery_folder_url";
-  const batchCarriesAssets = (row: JsonMap) =>
-    !!(clean(row.filming_doc_url) || clean(row.footage_folder_url)
-      || clean(row.delivery_folder_url));
+    "id,client_slug,team,updated_at,filming_doc_url,footage_folder_url,delivery_folder_url";
   let batch: JsonMap = {};
   const batchId = clean(deliverable.batch_id);
   if (batchId) {
@@ -3826,81 +3834,134 @@ async function assetSnapshot(
     if (error) throw new GatewayError(503, "asset_context_unavailable");
     batch = parseJson(data);
   }
-  /* A PARENT AND ITS CHILDREN CAN SIT ON DIFFERENT BATCH ROWS (2026-09-01).
-     Owner report: a post parent showed all four slots `Missing` while its very
-     first sub-issue showed the filming plan as `Available` -- "that's weird".
-     It was, and the cause is in the data, not the panel. The parent is a
-     B1-backfilled row (`b1_d_...`) hanging off the B1 mirror batch
-     (`b1_b_...`), while its children are native rows (`del_...`) on the native
-     batch (`bat_...`) that actually carries the folder links. Measured the same
-     day across the live projection: 5,729 of 6,230 live deliverables sit on a
-     `b1_b_` batch, so this is the estate's normal shape, not an edge case.
+  /* THE POST OWNS THE THREE SHARED SLOTS. A BATCH ROW ONLY STORES THEM (2026-09-05).
 
-     The three POST-LEVEL slots belong to the post, and the children's batch is
-     the post's batch, so the parent answers from it when its own row carries
-     nothing. This is the same borrow the browser already performs for
-     SYNTHETIC batch parents (`_prodBatchAssetSource`) -- that helper requires
-     `syntheticBatchParent === true` and so never fires for a real parent
-     deliverable like this one, which is why the gap survived it. Doing it here
-     instead of there fixes every reader of the asset read at once.
+     Owner, 2026-09-05: "if someone uploads the frame folder from anywhere, sub
+     issue or parent issue, it should appear everywhere, and same for the raw
+     footage."
 
-     Strictly a READ, and strictly the post-level three: `deliverable_file` is
-     per-row and is never borrowed. Scoped to the same client and reached only
-     when this row's own batch carries nothing, so it costs one extra query on
-     exactly the rows that are currently blank. */
-  const parentLinearUuid = clean(deliverable.linear_issue_uuid);
+     It did not, because `filming_doc_url`, `footage_folder_url` and
+     `delivery_folder_url` are columns on ONE `batches` row, and the rows of one
+     post routinely sit on more than one of them. Measured live 2026-09-05
+     across all 6,330 browser-visible deliverables: of 1,136 posts (a parent
+     uuid carrying at least one child), 109 span more than one batch row, and
+     107 of those have a real parent deliverable row. On the post the owner
+     reported, the parent is a B1 row on the mirror batch `b1_b_...` while all
+     32 sub-issues are native rows on `bat_...` -- so the Frame folder he saved
+     from the parent landed on a row no child reads, and the Raw footage on the
+     children's row is not on a row the parent reads.
+
+     THE 2026-09-01 BORROW AIMED AT HALF OF THIS AND COULD NOT CLOSE IT, for two
+     independent reasons, both load-bearing here:
+       - It ran only DOWNWARD. Its key was `raw_issue_parent_id = THIS row's
+         linear_issue_uuid`, i.e. "rows whose parent is me", so a sub-issue
+         never reached the parent's batch under any condition.
+       - It was ALL-OR-NOTHING, gated on the reader's own batch carrying NONE of
+         the three. So the owner's own Frame-folder save flipped that gate and
+         took the children's Raw footage off the parent with it -- the one thing
+         the borrow had been getting right.
+
+     So the read resolves the POST. Every row of a post maps to one key: the
+     parent's Linear uuid, which a child carries at `linear_raw -> issue ->
+     parent -> id` and a parent carries as its own `linear_issue_uuid`. That is
+     the same pair the browser view derives `raw_issue_parent_id` from
+     (2026-08-23-attribution-slug-guard-widening.sql:92-94) and the same pair the
+     browser already draws the sub-issue tree with, so nothing new is being
+     asserted about the data.
+
+     THE ORDER IS DETERMINISTIC, AND THAT IS THE WHOLE CORRECTNESS ARGUMENT.
+     Correctness does not need the tie-break to pick the "right" row -- only
+     every seat to pick the SAME row. Native (`bat_`) first, then id ascending:
+     the rule already codified for competing parent claims in index.html's
+     projection, so two people reading two files find one rule rather than two.
+     Today's `.find()` over an unordered `.in()` result had no such guarantee and
+     could silently drop one row's links when children straddled two batches.
+
+     RESOLUTION IS PER SLOT, not per row. A post whose raw footage sits on one
+     batch row and whose frame folder sits on another shows BOTH from every
+     seat, which is exactly the shape the owner has.
+
+     THE READER'S OWN BATCH IS ALWAYS A CANDIDATE, and is the whole answer when
+     the post cannot be resolved -- no uuid, a roster read that failed, a row
+     with neither parent nor children. A resolution that fails must never turn a
+     link the row already displayed into `Missing`; it degrades to exactly what
+     this row answered before any of this existed.
+
+     STILL STRICTLY A READ, and strictly the three POST-level slots.
+     `deliverable_file` is per-row and is never resolved across the post. */
   const deliverableClient = clean(deliverable.client_slug) || clean(batch.client_slug);
-  if (!batchCarriesAssets(batch) && parentLinearUuid && deliverableClient) {
+  const ownUuid = clean(deliverable.linear_issue_uuid);
+  /* Read off the row's own `linear_raw` rather than queried back out of the
+     view. handleAssetAccessRead already loaded the row with `select("*")`, and
+     the view's `raw_issue_parent_id` is exactly this JSON path under exactly
+     LINEAR_UUID_SHAPE -- so resolving the post key costs no query at all. The
+     guard is what stops the JS and SQL derivations drifting, which is the scar
+     autoAssigneeForIntake and the B1 lane were each cut by; the JSON path and
+     the class are pinned against the migration by test/post-asset-resolution.js
+     so there is no third. */
+  const rawParentUuid = clean(
+    parseJson(parseJson(parseJson(deliverable.linear_raw).issue).parent).id,
+  );
+  const postUuid = LINEAR_UUID_SHAPE.test(rawParentUuid)
+    ? rawParentUuid
+    : LINEAR_UUID_SHAPE.test(ownUuid)
+    ? ownUuid
+    : "";
+  let postBatches: JsonMap[] = clean(batch.id) ? [batch] : [];
+  if (postUuid && deliverableClient) {
     /* THE VIEW, NOT THE TABLE. `raw_issue_parent_id` is derived by
-       production_deliverables_browser_v1 from linear_raw and does not exist on
-       `deliverables`. This file already carries the scar: autoAssigneeForIntake
-       says the first version of that read asked the table, PostgREST answered
-       42703, and because a failed read there degrades by design the correction
-       silently never applied -- found only on 2026-08-27 when the same wrong
-       column killed the B1 lane, which does not degrade. Review caught this
-       borrow making the identical mistake a third time, and it would have been
-       invisible for the same reason: the swallow below turns 42703 into "this
-       parent has no children". test/deliverables-view-only-columns.js now fails
-       any base-table query naming a view-derived column, so there is no fourth.
-       Reading the view is also the more correct answer: it is the same
-       projection the sub-issue rows are drawn from, so the parent borrows from
-       exactly the set the reader can already see. */
-    const { data: kids, error: kidsError } = await supabase
+       production_deliverables_browser_v1 and does not exist on `deliverables`;
+       asking the table answers 42703, and because a failed read here degrades
+       by design that would be invisible. test/deliverables-view-only-columns.js
+       fails any base-table query naming a view-derived column.
+       Both legs of the `.or()` carry the SAME guarded uuid, and the client pin
+       sits OUTSIDE the group as a top-level filter, so it is ANDed with it and
+       no row of another client can be reached through the group. */
+    const { data: roster, error: rosterError } = await supabase
       .from("production_deliverables_browser_v1")
       .select("batch_id")
-      .eq("raw_issue_parent_id", parentLinearUuid)
+      .or(`linear_issue_uuid.eq.${postUuid},raw_issue_parent_id.eq.${postUuid}`)
       .eq("client_slug", deliverableClient)
       .not("batch_id", "is", null)
-      .limit(CHILD_BATCH_LOOKUP_LIMIT);
-    // A failed borrow must not 503 a read the row's OWN batch already answered.
-    // The blank it falls back to is exactly what this row showed before.
-    if (!kidsError) {
-      const childBatchIds = [...new Set(((kids || []) as JsonMap[])
+      .order("id", { ascending: true })
+      .limit(POST_ROW_LOOKUP_LIMIT);
+    // A failed roster read must not 503 a question this row's own batch already
+    // answered. The fallback is exactly what this row showed before.
+    if (!rosterError) {
+      const siblingBatchIds = [...new Set(((roster || []) as JsonMap[])
         .map(row => clean(row.batch_id)).filter(Boolean))]
         .filter(id => id !== batchId);
-      if (childBatchIds.length) {
-        const { data: childBatches, error: childError } = await supabase.from("batches")
+      if (siblingBatchIds.length) {
+        const { data: siblingBatches, error: siblingError } = await supabase.from("batches")
           .select(BATCH_ASSET_COLUMNS)
-          .in("id", childBatchIds)
+          .in("id", siblingBatchIds)
           .eq("client_slug", deliverableClient);
-        if (!childError) {
-          const borrowed = ((childBatches || []) as JsonMap[]).find(batchCarriesAssets);
-          if (borrowed) {
-            // ONLY the three post-level links, never the child batch's identity.
-            // Nothing downstream reads id or team off this object, and copying
-            // them would leave the response describing a different row than the
-            // one that was asked about.
-            batch = {
-              client_slug: deliverableClient,
-              filming_doc_url: borrowed.filming_doc_url,
-              footage_folder_url: borrowed.footage_folder_url,
-              delivery_folder_url: borrowed.delivery_folder_url,
-            };
-          }
+        if (!siblingError) {
+          postBatches = postBatches.concat((siblingBatches || []) as JsonMap[]);
         }
       }
     }
   }
+  const orderedBatches = [...postBatches].sort((a, b) => {
+    const aNative = /^bat_/.test(clean(a.id)) ? 0 : 1;
+    const bNative = /^bat_/.test(clean(b.id)) ? 0 : 1;
+    return aNative - bNative || clean(a.id).localeCompare(clean(b.id));
+  });
+  /* Where a NEW value for a post-level slot should be written, so that every
+     row of the post reads it back. Announced to the browser beside the values;
+     a page that does not read it keeps writing its own batch row, which is
+     exactly today's behaviour. */
+  const canonicalBatch: JsonMap = orderedBatches[0] || batch;
+  const postValue = (field: string) => {
+    for (const row of orderedBatches) {
+      const value = clean(row[field]);
+      if (value) return { value, from: clean(row.id) };
+    }
+    return { value: "", from: "" };
+  };
+  const postFilmingPlan = postValue("filming_doc_url");
+  const postRawFootage = postValue("footage_folder_url");
+  const postDeliveryFolder = postValue("delivery_folder_url");
   // The canonical file if the deliverable has one; otherwise the link on the
   // card bound to it, which for the team that pastes it IS this file. See
   // boundCardArtifact for why the binding is required.
@@ -3941,7 +4002,7 @@ async function assetSnapshot(
      and is a write besides. `source` reports which one answered, the same way
      `deliverable_file` already reports a bound card -- a derived value says so
      rather than passing as the row's own. */
-  let filmingPlan = clean(batch.filming_doc_url);
+  let filmingPlan = postFilmingPlan.value;
   // Only the DERIVED case is reported. Adding a "batch" source to the ordinary
   // case would relabel every row in the estate to say what it has always meant.
   let filmingPlanFromClient = false;
@@ -3955,9 +4016,20 @@ async function assetSnapshot(
   }
   const values: Record<string, unknown> = {
     filming_plan: filmingPlan,
-    raw_footage: batch.footage_folder_url,
-    delivery_folder: batch.delivery_folder_url,
+    raw_footage: postRawFootage.value,
+    delivery_folder: postDeliveryFolder.value,
     deliverable_file: deliverableFile,
+  };
+  /* A value the POST holds on some other batch row than this one's. Reported
+     for the same reason a bound card and a client filming plan are: a row must
+     say when it is showing something it does not itself store, rather than
+     passing a derived value off as its own. `filming_plan` keeps reporting
+     `client_plan` where that fired, because "the client's plan" is the more
+     specific and more useful of the two answers. */
+  const postSourced: Record<string, boolean> = {
+    filming_plan: !!postFilmingPlan.from && postFilmingPlan.from !== batchId,
+    raw_footage: !!postRawFootage.from && postRawFootage.from !== batchId,
+    delivery_folder: !!postDeliveryFolder.from && postDeliveryFolder.from !== batchId,
   };
   const deliverableId = clean(deliverable.id);
   const assets = await Promise.all(ASSET_SLOTS.map(async slot => {
@@ -3974,10 +4046,23 @@ async function assetSnapshot(
       ...(slot.key === "filming_plan" && filmingPlanFromClient
         ? { source: "client_plan" }
         : {}),
+      ...(slot.key !== "deliverable_file" && postSourced[slot.key]
+        && !(slot.key === "filming_plan" && filmingPlanFromClient)
+        ? { source: "post" }
+        : {}),
     };
   }));
   return {
     checked_at: new Date().toISOString(),
+    /* WHERE A POST-LEVEL WRITE SHOULD LAND. The browser aims `batch_asset` at
+       this row and CASes against this clock, so a link typed from any seat of
+       the post lands on the one row every seat resolves first -- which is what
+       stops a new split being created the moment someone edits a value they
+       were shown from elsewhere. A page that predates this field keeps writing
+       its own batch row, i.e. exactly today's behaviour, so the deploy order
+       between the page and this function does not matter. */
+    post_batch_id: clean(canonicalBatch.id) || null,
+    post_batch_updated_at: clean(canonicalBatch.updated_at) || null,
     assets,
   };
 }

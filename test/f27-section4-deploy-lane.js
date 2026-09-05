@@ -355,7 +355,22 @@ const CANDIDATES = new Map([
     // deliberately non-enumerating 403 comment_forbidden and gains only the
     // tie-break. One shared resolveCommentByRef replaces three copies. No
     // migration, no new import: file count unchanged at 5.
-    source: 'cc44bf938fd666595061972c27721fbf10d17cb11b184e417f59478b0add5370',
+    // Re-pinned 2026-09-05 (twenty-ninth release): the two post-level asset
+    // slots resolve across the POST rather than off one batch row, and the
+    // Dropbox share decorations are accepted. The 2026-09-01 borrow this
+    // replaces walked only downward and switched itself off as soon as the
+    // reader's own batch carried any one of the three, so a frame folder saved
+    // on a parent reached no sub-issue and the save itself blanked the parent's
+    // raw footage. 109 of 1,136 posts measured span more than one batch row.
+    // assetSnapshot now resolves the post from either direction, orders its
+    // batch rows deterministically and answers per slot, and names the row a
+    // post-level write should land on so the browser can aim at it. policy.mjs
+    // accepts st / subfolder_nav_tracking / e / preview on dropbox.com only --
+    // 19 of 171 live Dropbox links passed before, 171 after -- with the
+    // credential guard unchanged and still running first. Read-side plus one
+    // additive response field; no migration, no new import, file count
+    // unchanged at 5.
+    source: '1d524a813981e75dd562eda6f9a52c8f3ba8e65fa5a8cda2c8db2e950178c3a1',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

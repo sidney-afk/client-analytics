@@ -12315,3 +12315,139 @@ a return value its callers were written to ignore.
 
 The prefix-free roster, the router-caller check and both Kasper guards are in
 `test/cal-review-needs-content.js`, all mutation-proven.
+## 155. [2026-09-05, FIXED — four defects, one root cause behind three of them; one owner decision left open] Post-level assets, sub-issue file pills, Dropbox share links, and a drifted `origin`
+
+Owner report, in his words: "I put the frame folder [on the parent], but if I go
+to a sub-issue, it doesn't appear. But on the sub-issues, I can see the raw
+footage, but it doesn't appear on the parent … the way it should behave is if
+someone uploads the frame folder from anywhere, sub-issue or parent issue, it
+should appear everywhere, and same for the raw footage."
+
+### The root cause, and the two further symptoms it turned out to own
+
+`footage_folder_url` and `delivery_folder_url` are columns on ONE `batches` row,
+and the rows of one post routinely sit on more than one. **Measured live across
+all 6,330 browser-visible deliverables: of 1,136 posts (a parent uuid carrying at
+least one child), 109 span more than one batch row; 107 of those have a real
+parent deliverable row, stranding 351 child rows. 28 posts have children that
+disagree among themselves.** On the reported post the parent is a `b1_d_` row on
+the mirror batch `b1_b_…` while all 32 sub-issues are native `del_` rows on
+`bat_…`, so the read and the write were addressing two different rows.
+
+The natural experiment is on the owner's own screen: of the four asset slots, the
+only one that AGREED between parent and sub-issue is the filming plan — the one
+slot not read off the batch row (it falls back to the client's plan). The
+deliverable file is per-row and correctly differed. Exactly the two batch-stored
+slots were wrong, in exactly the two directions reported.
+
+The 2026-09-01 borrow (item 36's fix) aimed at half of this and could not close
+it, for two independent reasons, both load-bearing:
+
+- it walked only DOWNWARD — its key is "rows whose parent is me" — so a sub-issue
+  never reached the parent's batch under any condition;
+- it was ALL-OR-NOTHING, gated on the reader's own batch carrying none of the
+  three. **So the owner's own Frame-folder save is what switched it off and took
+  the children's Raw footage off the parent with it.** The one thing the borrow
+  had been getting right was undone by using the feature it was written for.
+
+The same split owns two symptoms nobody had connected to it:
+
+- **the sub-issue file pills.** `batch_files_read` answers `deliverables where
+  batch_id = <one id>`, and the render loop asked for the open parent's own batch
+  only. On a split post the response carries the parent row alone and every pill
+  is omitted. They had never appeared for these 109 posts; they do for the other
+  1,027, which is why it read as a regression.
+- **`_prodBatchAssetSource`**, the browser's synthetic-parent borrow, skips any
+  child whose batch differs — the same blind spot, still there, now moot for the
+  slots this entry covers.
+
+### Fixed
+
+- **Read**: `assetSnapshot` resolves the POST from either direction (a child's
+  `linear_raw -> issue -> parent -> id`, a parent's own `linear_issue_uuid`, under
+  the character class the browser view applies), collects every batch row the
+  post's rows name, orders them deterministically — native `bat_` first, then id
+  ascending, the tie-break already codified for competing parent claims — and
+  answers PER SLOT from the first row carrying a value. Correctness does not need
+  the tie-break to pick the right row, only every seat to pick the same row. A
+  post on one batch row (1,027 of 1,136) makes no extra query; a failed
+  resolution degrades to exactly what the row showed before, never to `Missing`.
+- **Write**: the read names the row a post-level write should land on and the
+  browser aims `batch_asset` at it with the matching CAS clock. Without this a
+  read-only fix manufactures new splits as its normal mode of operation: a value
+  you were shown from elsewhere, edited, forks a second copy onto whichever row
+  you happened to open. A page or gateway predating the field falls back to the
+  open row's own batch — today's behaviour — so deploy order does not matter.
+- **Pills**: asked for once per distinct batch row of the post, each under the
+  scope of the row that names that batch, skipping the two attribution sentinels.
+  Browser-only, so this half ships on merge without waiting for the deploy.
+- **Cache**: invalidation follows the post rather than the batch id, which was
+  dropping precisely the rows that did not need it. The pill cache is keyed by
+  batch AND scope, which mattered only once it is asked more than once.
+
+### Dropbox: filed as cosmetic, was a total dead end
+
+The red `Invalid` on a working Dropbox link was not cosmetic. `assetUrlType` runs
+the query-key check in the same boolean as protocol/host/pathname, BEFORE any
+per-host shape branch, so an unlisted key makes the URL `invalid` — and `invalid`
+also refuses `handleBatchAssetWrite` (400), makes `canonicalArtifactUrl` return
+null (both attach paths), and fails `assertGraphicsApprovalArtifact`, which blocks
+the `smm_approval` transition outright. The 2026-09-01 ruling that widened
+`assetTypeAllowed` to accept a Dropbox FILE was aimed at this same complaint and
+could never reach it: the refusal is decided a step earlier.
+
+**Measured over the readable proxy corpus** (the typed asset columns are revoked
+from the publishable key, 42501, so `batches` description/name is where the team
+demonstrably pastes the same links): all 1,674 batch rows carry 10,878 URLs, 514
+Dropbox occurrences, **171 distinct**. Running the real module over those 171:
+
+| allowlist | passing |
+|---|---|
+| today | 19 (11.1%) |
+| `+ st` | 110 (64.3%) |
+| `+ subfolder_nav_tracking` | 119 (69.6%) |
+| `+ e` | 141 (82.5%) |
+| `+ preview` | **171 (100.0%)** |
+
+`st` alone leaves 61 refused, and the family it misses — 65 occurrences — is what
+Dropbox emits when you copy a link to an item from INSIDE a shared folder. These
+reach production only through the Section 4 lane, so a partial list buys a second
+sealed capture and a second dispatch for the same bug. Scoped to `dropbox.com`
+because `e` and `preview` are generic names; `CREDENTIAL_QUERY_KEY` still runs
+first on every key of every host.
+
+### The drifted `origin`
+
+One sub-issue of the same post refused every deliverable-file attach while its 31
+siblings accepted one. It carries `origin='manual'` and a real `p_` card id whose
+card binds it back correctly in both directions; only the filing column
+disagrees. `production_artifact_write` routes on `origin`, so it raised
+`artifact_card_projection_scope_invalid` and rolled the whole attach back —
+"the deliverable was not changed" is literal. **7 live rows are in this shape.**
+
+Fixed by resolving the surface from the two-way binding when `origin` names none;
+rows whose origin already names a surface are untouched, so the only behaviour
+that changes belongs to rows that currently always fail. The producer is fixed
+too: `scripts/b1-linear-backfill.js` adopted `preferred.card_id` onto a
+native-batch row while `origin` fell back to the literal `'manual'` and never
+consulted `preferred.origin`.
+
+### Left open, deliberately
+
+- **A canonical row shared with other posts.** Of the 109 split posts, **41 have a
+  canonical row that also serves another post** (73 of 1,127 batch rows carry
+  more than one post). Post-level writes on those become visible to the other
+  posts on that row. This is the existing "shared by the whole batch" semantics
+  extended by one row rather than a new exposure, and the editor copy now says
+  "shared by the whole post" rather than promising batch scope — but it is a real
+  widening for a parent-seat write and is the owner's to accept or refuse.
+- **Repairing the 7 drifted `origin` values.** A write on live client rows, needs
+  a per-row collision pre-check against `deliverables_card_slot_unique`, and would
+  move those cards from legacy to canonical comment rendering (item 147's
+  hazard). The read now works around the drift, so this is optional and is not
+  assumed.
+- **Unvalidated intake writes.** `intake_create` and `_shared/b4-write.ts` write
+  `footage_folder_url` / `delivery_folder_url` / `file_url` with no URL policy at
+  all, which is how the reported row acquired a value the product itself would
+  have refused. Not touched here; it is why an `Invalid` pill can exist on a value
+  no seat could have typed.

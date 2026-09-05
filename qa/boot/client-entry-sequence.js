@@ -4607,7 +4607,7 @@ async function main() {
 }
 
 module.exports = { installBootObserver, installSyntheticNetwork, startStreamServer, openCase, streamedNavigation, waitForCalendarSettled,
-  waitForReviewSettled, runClientTabScenario, runLegacySamplesScenario };
+  waitForReviewSettled, runClientTabScenario, runLegacySamplesScenario, assertHealthyHarness };
 
 if (require.main === module) main().catch(error => {
   console.error(error && error.stack || error);

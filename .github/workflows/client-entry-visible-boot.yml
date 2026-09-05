@@ -67,6 +67,8 @@ jobs:
         run: npx playwright install chromium
       - name: Drive streamed first paint, reload, and BFCache once
         run: npm run test:boot
+      - name: Preserve Samples local work in the fully intercepted app
+        run: node qa/boot/samples-local-work.js
       - name: Prove repaired source and original false-empty detection offline
         run: node test/client-continuity-monitor.js --strict-source
       - name: Observe anonymous continuity with entirely intercepted fixtures

@@ -408,6 +408,8 @@ function backgroundHarness(options = {}) {
     '_wlOnNativeDueReceiptStorage',
     '_wlV2CheckWatermark',
     '_wlOnVisibilityChange',
+    '_syncviewStaffIdentitySignature',
+    '_syncviewStaffIdentityLoad',
     '_syncviewStaffIdentitySave',
     'initWorkloadView',
   ]) vm.runInContext(extract(name), context);
@@ -1615,7 +1617,7 @@ async function run() {
   // A warm internal route switch paints synchronously from memory. It neither
   // re-enters the foreground loader nor calls the n8n-backed issue helper.
   {
-    const paints = [];
+    const paints = [], diagnosticWarnings = [];
     let cacheReads = 0, foregroundLoads = 0, watermarkChecks = 0;
     const warmContext = {
       wlState: {
@@ -1652,15 +1654,22 @@ async function run() {
       wlScheduleNativeDueReceiptRetry: () => false,
       _wlV2CheckWatermark: () => { watermarkChecks++; },
       wlLoadSnapshot: () => { foregroundLoads++; throw new Error('warm entry loaded'); },
-      Array, Date, console,
+      Array, Date, URLSearchParams, location: { search: '' },
+      console: { ...console, warn: (...args) => diagnosticWarnings.push(args) },
     };
     warmContext.globalThis = warmContext;
     vm.createContext(warmContext);
+    vm.runInContext(extract('_wlNativeDiffEnabled'), warmContext);
+    warmContext.location.search = '?wlnative=1';
+    assert.strictEqual(warmContext._wlNativeDiffEnabled(), true, 'actual diagnostic flag helper is present');
+    warmContext.location.search = '';
+    assert.strictEqual(warmContext._wlNativeDiffEnabled(), false, 'warm fixture leaves the optional diagnostic inactive');
     vm.runInContext(extract('initWorkloadView'), warmContext);
     const pending = warmContext.initWorkloadView();
     assert.strictEqual(paints.length, 1, 'warm Workload paints synchronously before yielding');
     assert.deepStrictEqual(paints[0], { loading: false, refreshing: false, planStatus: 'ready' });
     await pending;
+    assert.deepStrictEqual(diagnosticWarnings, [], 'missing helpers cannot masquerade as a successful warm mount');
     assert.strictEqual(cacheReads, 0, 'warm entry does not consult the persisted issue cache');
     assert.strictEqual(foregroundLoads, 0, 'warm entry never reaches the n8n-capable foreground loader');
     assert.strictEqual(watermarkChecks, 1, 'warm entry schedules only the cheap watermark check');

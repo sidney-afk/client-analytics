@@ -87,10 +87,12 @@ async function pendingMetadataCase(surface) {
     _sxrPendingEdits: { card: bucket },
     _sxrSaveInFlight: { card: Promise.resolve() },
     _sxrAwaitCardSave: async () => 'waiting',
-    sxrState: { client: 'fixture', posts: [{ id: 'card' }] },
+    sxrState: { client: 'fixture', posts: [{ id: 'card', client: 'fixture' }] },
+    sxrClientSlug: () => 'fixture', _writeUiPrincipalKey: () => 'staff:fixture:smm',
     Object, Array, Promise
   };
   vm.createContext(ctx);
+  if (!isCalendar) require('./helpers/samples-work-context')(source, ctx);
   vm.runInContext(extract('_writeUiSourceEditsOnly'), ctx);
   vm.runInContext(isCalendar
     ? extractUntil('_calFlushCardSave', '_calRetrySave')
@@ -107,6 +109,7 @@ async function cacheOnlyRetryBlockedCase(surface) {
   const pending = { caption: 'newer edit' };
   const post = {
     id: 'card',
+    client: 'fixture',
     _writeUiRetrySourceAt: '2026-07-12T00:00:00Z',
     _writeUiRetryPrincipal: 'staff:fixture:smm',
     _writeUiRetryEdits: { video_status: 'Tweaks Needed' },
@@ -133,6 +136,7 @@ async function cacheOnlyRetryBlockedCase(surface) {
     _sxrUpsertFetch: async () => { sourceWrites++; }
   };
   vm.createContext(ctx);
+  if (!isCalendar) require('./helpers/samples-work-context')(source, ctx);
   vm.runInContext(extract('_writeUiSourceEditsOnly'), ctx);
   vm.runInContext(isCalendar
     ? extractUntil('_calFlushCardSave', '_calRetrySave')

@@ -1,25 +1,26 @@
 # Combined Samples repair and viewing monitor ? inactive
 
-This draft combines the exact Samples candidate **6f0ac283d12a7d5c02fe3066c70e12eeead29bc3**
-(PR #1269, commits c10ebc84 and 6f0ac283) with monitoring preparation
-**d920c1ae94ec7f823e36a030ef12531256e6997f** and the runnable integration in PR #1270.
-The local merge is **d6e6c980efbe621e6eef4051ab53ffe423aa82d1**. Original remote-main
+This draft combines the exact reviewed Samples candidate
+**a3f86c96e99b0d1ff3e93d6ac9f8e2ee496f8ca5** (PR #1269) with the reviewed
+monitoring transport candidate **f68746a981d06f1c00f73279a3cc7fcd9298fcc1**.
+Prior component/merge history and its original test evidence remain in PR #1270.
+Original remote-main
 baseline: **13e187a7d0043ed110b486feb50502758a026229**. The PR description records the
 final tested head/tree and results. Neither PR is merged into main by this work.
 
 The product index.html bytes remain identical to the exact Samples head. There
-is **no additional product hook**, authentication change or writer change. Its
+is **no additional integration product hook**, authentication change or writer change. Its
 client-owned drafts, non-authoritative fallback, verified-cache distinction and
 frozen open-writer contract remain intact. Imported Production comment fixture
 and writer durability test corrections belong to that same exact candidate.
 
 Independent review of monitoring head be39f797 reproduced transport escapes and
-late verdict omissions. The follow-up transport guard addresses those findings;
-its exact new head/tree and targeted results are in PR #1270. The same review
-also found residual Samples durable-draft, asynchronous cache-owner and mixed
-legacy-cache defects. Those product repairs remain with the Samples owner and
-are **not fixed or newly integrated here**. Release remains blocked pending the
-coordinator's confirmation of an independently reviewed replacement Samples head.
+late verdict omissions; f68746a9 addresses those findings. The coordinator also
+confirmed independent clearance of Samples durable-draft, asynchronous cache-owner
+and mixed legacy-cache corrections at a3f86c96, and authorized this local/draft
+integration. Its Samples changes and tests are incorporated exactly, with the
+monitor's source-boundary assertions and the union of both boot harness exports.
+The combined candidate still needs integration review and release approval.
 
 ## What runs, and what remains inactive
 
@@ -120,6 +121,8 @@ From the combined checkout:
 node test/client-continuity-monitor.js --strict-source
 node test/client-continuity-view.js
 node test/samples-authoritative-read.js
+node test/samples-local-work.js
+node qa/boot/samples-local-work.js
 node qa/client-continuity.js
 node qa/client-continuity-transport.js
 node scripts/client-continuity-run.js --fixture
@@ -145,7 +148,8 @@ combined candidate, not merely because all calls threw.
 The existing [Client entry visible boot workflow](https://github.com/sidney-afk/client-analytics/actions/workflows/client-entry-visible-boot.yml)
 keeps its complete boot coverage and adds continuity, strict-source and fixture
 launcher steps plus the independent loopback transport receiver suite, with full
-git history and no secrets or schedule. Existing unit CI
+git history and no secrets or schedule. It also runs the imported eight-case
+full-app Samples local-work suite. Existing unit CI
 auto-discovers the unit suites. Publishing the draft triggers normal offline PR
 checks; no production workflow is manually dispatched.
 

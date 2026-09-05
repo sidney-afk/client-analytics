@@ -34,6 +34,8 @@ function setup(source = html) {
       setItem: (k, v) => { storage.set(k, v); effects.cacheWrites++; },
       removeItem: k => storage.delete(k), key: i => [...storage.keys()][i], get length() { return storage.size; } },
     _writeUiAuthoritySnapshot: () => ({}), _writeUiFilterCachedPosts: p => p,
+    _writeUiPrincipalKey: () => 'fixture-principal', document: { getElementById: () => null },
+    _sxrNoLinearPush: new Set(), _sxrLocalRecentSaves: new Map(), _sxrRecentSaveFields: new Map(), _sxrConflictNotified: new Set(),
     _prodStripEphemeralCanonicalPosts: p => p.map(x => { const r = { ...x }; delete r._canonicalRead; return r; }),
     _sxrNormStatus: x => x || 'In Progress', _sxrArchivedReadRaw: () => ({}), _sxrArchivedRefs: () => new Set(),
     _sxrRenderBody: () => effects.renders.push({ loading: s.sxrState.loading, error: !!s.sxrState.error, ids: s.sxrState.posts.map(p => p.id) }),

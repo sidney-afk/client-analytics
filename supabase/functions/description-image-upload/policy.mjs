@@ -6,6 +6,9 @@
 //
 // @ts-check
 
+/** @typedef {"png" | "jpeg" | "webp" | "gif"} ImageKind */
+/** @typedef {{ kind: ImageKind, width: number, height: number }} Sniffed */
+
 export const BUCKET = "syncview-description-images";
 /* 4 MiB. A 1600px screenshot re-encoded by the browser is well under 1 MiB;
    the ceiling is for the GIF that passes through untouched and the odd very
@@ -21,6 +24,7 @@ export const MAX_DIMENSION = 8000;
 export const RATE_LIMIT_PER_HOUR = 120;
 /* Declared content type -> the kind its bytes must prove. SVG is absent on
    purpose: it is a script container, not a picture. */
+/** @type {Readonly<Record<string, ImageKind>>} */
 export const ALLOWED_TYPES = Object.freeze({
   "image/png": "png",
   "image/jpeg": "jpeg",
@@ -28,7 +32,9 @@ export const ALLOWED_TYPES = Object.freeze({
   "image/gif": "gif",
 });
 /* The extension comes from the VERIFIED kind, never from a caller's filename. */
+/** @type {Readonly<Record<ImageKind, string>>} */
 export const EXTENSION = Object.freeze({ png: "png", jpeg: "jpg", webp: "webp", gif: "gif" });
+/** @type {Readonly<Record<ImageKind, string>>} */
 export const CANONICAL_MIME = Object.freeze({
   png: "image/png",
   jpeg: "image/jpeg",
@@ -36,24 +42,30 @@ export const CANONICAL_MIME = Object.freeze({
   gif: "image/gif",
 });
 
+/** @param {Uint8Array} b @param {number} at */
 function be32(b, at) {
   return ((b[at] << 24) >>> 0) + (b[at + 1] << 16) + (b[at + 2] << 8) + b[at + 3];
 }
+/** @param {Uint8Array} b @param {number} at */
 function be16(b, at) {
   return (b[at] << 8) + b[at + 1];
 }
+/** @param {Uint8Array} b @param {number} at */
 function le16(b, at) {
   return b[at] + (b[at + 1] << 8);
 }
+/** @param {Uint8Array} b @param {number} at */
 function le24(b, at) {
   return b[at] + (b[at + 1] << 8) + (b[at + 2] << 16);
 }
+/** @param {Uint8Array} b @param {number} at @param {number} length */
 function ascii(b, at, length) {
   let out = "";
   for (let i = 0; i < length && at + i < b.length; i++) out += String.fromCharCode(b[at + i]);
   return out;
 }
 
+/** @param {Uint8Array} b @returns {Sniffed | null} */
 function sniffPng(b) {
   const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
   if (b.length < 24) return null;
@@ -62,6 +74,7 @@ function sniffPng(b) {
   return { kind: "png", width: be32(b, 16), height: be32(b, 20) };
 }
 
+/** @param {Uint8Array} b @returns {Sniffed | null} */
 function sniffGif(b) {
   if (b.length < 10) return null;
   const head = ascii(b, 0, 6);
@@ -69,6 +82,7 @@ function sniffGif(b) {
   return { kind: "gif", width: le16(b, 6), height: le16(b, 8) };
 }
 
+/** @param {Uint8Array} b @returns {Sniffed | null} */
 function sniffJpeg(b) {
   if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8 || b[2] !== 0xff) return null;
   /* Walk the marker segments to the first SOFn frame header, which carries
@@ -93,6 +107,7 @@ function sniffJpeg(b) {
   return null;
 }
 
+/** @param {Uint8Array} b @returns {Sniffed | null} */
 function sniffWebp(b) {
   if (b.length < 30) return null;
   if (ascii(b, 0, 4) !== "RIFF" || ascii(b, 8, 4) !== "WEBP") return null;
@@ -111,21 +126,25 @@ function sniffWebp(b) {
   return null;
 }
 
-/* The bytes decide. Returns the ONE kind the header proves plus its pixel
-   dimensions, or null. Each sniffer is exact about its own signature, so a
-   file cannot satisfy two, and anything with no recognised signature (SVG,
-   HTML, a PDF, a renamed executable) is null.
-   @param {Uint8Array} bytes
-   @returns {{kind: "png"|"jpeg"|"webp"|"gif", width: number, height: number} | null} */
+/**
+ * The bytes decide. Returns the ONE kind the header proves plus its pixel
+ * dimensions, or null. Each sniffer is exact about its own signature, so a
+ * file cannot satisfy two, and anything with no recognised signature (SVG,
+ * HTML, a PDF, a renamed executable) is null.
+ * @param {Uint8Array} bytes
+ * @returns {Sniffed | null}
+ */
 export function sniffImage(bytes) {
   return sniffPng(bytes) || sniffJpeg(bytes) || sniffGif(bytes) || sniffWebp(bytes);
 }
 
-/* The whole verdict in one place, so the function and the test agree on it.
-   @param {string} declared content type as the browser labelled the bytes
-   @param {Uint8Array} bytes
-   @returns {{ok: true, kind: "png"|"jpeg"|"webp"|"gif", mime: string, extension: string, width: number, height: number}
-     | {ok: false, error: string, status: number}} */
+/**
+ * The whole verdict in one place, so the function and the test agree on it.
+ * @param {string} declared content type as the browser labelled the bytes
+ * @param {Uint8Array} bytes
+ * @returns {{ ok: true, kind: ImageKind, mime: string, extension: string, width: number, height: number }
+ *   | { ok: false, error: string, status: number }}
+ */
 export function verifyImage(declared, bytes) {
   const declaredKind = ALLOWED_TYPES[String(declared || "").split(";")[0].trim().toLowerCase()];
   if (!declaredKind) return { ok: false, error: "unsupported_image_type", status: 415 };

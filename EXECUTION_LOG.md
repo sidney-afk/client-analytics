@@ -2,6 +2,15 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Built: paste an image into a SyncLinear description (awaits migration + first deploy)
+
+Owner: *"let's do it."* The storage decision in `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`
+is made — public bucket, UUID paths, keep forever — and the paste half is code:
+`migrations/2026-09-05-description-images.sql`, `supabase/functions/description-image-upload/`,
+`.github/workflows/deploy-description-image-upload.yml`, the editor handlers in `index.html`.
+Not a Section 4 closure, so no capture; the lane auto-runs on merge. Owner applies the
+migration in the SQL Editor. OPEN_REPAIRS 157.
+
 ## 2026-08-31 — Deploy: a card can be completed from the card
 
 **Section 4 forward from `5a3365f2`, run `33434655418`, PASS.** `production-write`

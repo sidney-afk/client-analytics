@@ -12788,3 +12788,72 @@ name, the SQLSTATE and the bounded message on every refusal. Re-applying the
 migration (SQL Editor, `create or replace`) and re-dispatching plan → apply at
 https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
 finishes the 11. Logged in `EXECUTION_LOG.md` (2026-09-05, Crosswalk Phase 2).
+
+## 157. [2026-09-05, BUILT — live once the owner applies one migration and the deploy lane runs] Pasting an image into a description, the other half
+
+**What.** Owner, 2026-09-05: *"paste an image on the description of parent
+issues or sub-issues on SyncLinear … someone could just ctrl V paste an image
+… and size it up in a smart way … avoid things where people paste something
+and it looks huge or horrible."* And then: *"if you think this is a good plan
+… let's do it."* Item 109 / `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md` had
+scoped this and stopped on the storage decision. The decision is made
+(**public bucket, unguessable path, keep forever**) and the whole of its §3
+is now code.
+
+**Why B, restated in one line.** `description` is mirrored to Linear
+verbatim, so what the description stores has to be a plain https URL Linear
+renders itself; a private bucket's signed URL would reach Linear as dead
+text. Public means "anyone holding the exact URL can fetch it", which is the
+property every Drive and Frame.io link in the same field already has, and no
+client-facing surface renders these descriptions (traced in the doc).
+
+**What was built.**
+- `migrations/2026-09-05-description-images.sql` — bucket
+  `syncview-description-images` (public, 4 MiB, png/jpeg/webp/gif) and a
+  service-role-only `description_images` ledger.
+- `supabase/functions/description-image-upload/` — raw bytes in, one URL out.
+  Binds to ONE active admin/SMM roster actor exactly as `production-write`
+  does; checks the declared type AGAINST the magic bytes (the #1225 finding:
+  an allowlist on a browser label validates a claim, SVG under `image/png`
+  satisfies it); 4 MiB and 8000px ceilings; hourly per-actor limit counted
+  off the ledger and refused when the ledger cannot be read; UUID object
+  name with the extension of the VERIFIED type; ledger row after the object,
+  object removed if the row is refused. `policy.mjs` holds the pure part so
+  the unit suite feeds it the exact bytes.
+- `.github/workflows/deploy-description-image-upload.yml` — path-triggered
+  on main, dispatchable. Not a Section 4 closure, so no sealed capture.
+- `index.html` — `paste` and `drop` on the description textarea. Plain text
+  is never intercepted. A placeholder line lands at the caret at once, the
+  bytes are downscaled to 1600px on the long edge (PNG stays PNG, GIF passes
+  through) and posted, the placeholder is swapped in place for
+  `![alt](https://…)` or removed on failure with a toast that says why. Save
+  refuses a draft still carrying a placeholder, so "Uploading image 1…" can
+  never reach Linear as literal text. Rendered images get a 360px height cap
+  and click-to-open.
+
+**Sizing, the owner's second sentence.** Two levers, one of which reaches
+Linear. Linear renders the mirrored image at natural size, so the only thing
+that controls how big it appears THERE is the pixel count of the uploaded
+file: hence the browser-side downscale. The height cap is SyncView's own.
+
+**Proof.** `test/description-image-upload.js` (43 assertions: sniffers on
+real headers, SVG-as-PNG refused, mismatch refused, ceilings, handler order,
+migration/config/lane shape) and `test/prod-description-image-paste.js`
+(editor helpers executed out of `index.html`: intercept rule, placeholder
+placement and swap with caret preserved, failure cleanup, save guard,
+display cap). `deno check` could not run in the authoring sandbox (no deno);
+the baseline records it as clean (0), so the type ratchet lane on the PR is the
+first real typecheck and any error it finds is a hard failure, which is the
+right direction for a new target.
+
+**Left to the owner.** Apply the migration in the SQL Editor, then let the
+lane run (it runs on merge). Until the function is deployed the browser
+answers a paste with "Image upload is not available yet on this backend"
+and leaves the description untouched.
+
+**Not done, and named.** Images pasted inside Linear itself come here as
+`uploads.linear.app` signed URLs and render broken in SyncView; that is the
+reverse direction and a separate proxy. Retention is forever; an image whose
+description later drops it stays in the bucket (negligible cost for
+screenshots, and the doc said forever was the honest default).
+

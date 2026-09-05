@@ -1,4 +1,59 @@
-# Pasting an image into a description — scope
+# Pasting an image into a description — scope, decision, and what shipped
+
+> **Decided and built, 2026-09-05.** Owner: *"if you think this is a good plan
+> … then let's do it."* **Option B** (public bucket, unguessable path), images
+> kept **forever**. Everything in §3 is now code; the sections below this box
+> are the reasoning that led there and are kept as the record. What is left
+> is owner-side: apply one migration, let one deploy lane run. See §0.
+
+## 0. What shipped, and the two steps that make it live
+
+**Code (this repository):**
+
+| Piece | Where |
+|---|---|
+| Bucket `syncview-description-images` (public, 4 MiB, png/jpeg/webp/gif) + `description_images` ledger (service-role only) | `migrations/2026-09-05-description-images.sql` |
+| Edge Function `description-image-upload` — verified admin/SMM actor, three-condition byte check, ceilings, hourly per-actor rate limit, UUID naming, ledger row (object removed if the row is refused) | `supabase/functions/description-image-upload/index.ts` + `policy.mjs` |
+| Deploy lane, path-triggered on main, dispatchable by hand | `.github/workflows/deploy-description-image-upload.yml` |
+| Paste + drop handler on the description editor, browser-side downscale to 1600px long edge, placeholder swap, save guard, 360px display cap with click-to-open | `index.html` (`_prodDescriptionPaste` and siblings) |
+| Proof | `test/description-image-upload.js` (policy bytes + handler shape), `test/prod-description-image-paste.js` (editor behaviour, executed) |
+
+**To make it live, in this order:**
+
+1. **Apply the migration** in the Supabase SQL Editor:
+   `migrations/2026-09-05-description-images.sql`. It is idempotent. It creates
+   the bucket and the ledger; nothing else in the estate changes.
+2. **Deploy the function.** Merging to `main` triggers
+   `.github/workflows/deploy-description-image-upload.yml` automatically. If
+   the merge landed before the migration was applied, nothing breaks: the
+   function answers `503` (`rate_limit_unavailable`, because the ledger it
+   counts does not exist yet) and the browser removes its placeholder and
+   says the image could not be uploaded. Re-run the lane by hand if needed:
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-description-image-upload.yml
+3. Open any SyncLinear issue, Edit the description, Ctrl+V a screenshot.
+
+**Until step 2 runs**, a paste gets the toast *"Image upload is not available
+yet on this backend"* (the browser maps the 404 to that sentence) and the
+description is left exactly as it was. Nothing else on the page changes.
+
+**Sizing, because it was the second half of the ask** (*"avoid things where
+people paste something and it looks huge or horrible"*): a Retina screenshot
+is 2x, so pasted raw it renders enormous, and Linear draws the mirrored
+markdown image at natural size where no CSS of ours reaches. So the BROWSER
+downscales to 1600px on the long edge before upload — the one lever that
+sizes the picture on both surfaces — never upscales, keeps PNG as PNG (text
+stays crisp, transparency survives) and passes a GIF through untouched. In
+the SyncView panel a 360px height cap with `object-fit: contain` and a
+zoom-in cursor keeps a tall capture from swallowing the layout; a click opens
+the full image in a new tab.
+
+**Not covered, on purpose:** images pasted INSIDE Linear arrive here as
+`uploads.linear.app` signed URLs that need Linear's own auth, so they render
+broken in SyncView. That is a proxy problem in the other direction and is
+not touched by this change.
+
+---
+
 
 **Why this file exists.** Owner, 2026-08-31: *"could you look into pasting
 images in the description? … same way it does in linear. So just a simple
@@ -9,8 +64,8 @@ render — before it, `![alt](url)` matched the *link* rule, so a description
 carrying a screenshot drew a stray `!` in front of a blue link to a PNG. Any
 image already reachable by URL now renders inline.
 
-**The other half — actually pasting bytes — is blocked on one decision**, and
-that PR said so rather than guessing:
+**The other half — actually pasting bytes — was blocked on one decision** (now
+made, §0), and that PR said so rather than guessing:
 
 > *"A paste handler needs somewhere to put the bytes, and that is a storage
 > decision plus a deploy… whether description images follow [the private

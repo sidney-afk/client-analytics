@@ -96,6 +96,69 @@ test('inaccessible mapped object is distinct from the original client path', asy
   assert.equal(r.references[0].client_accessibility, 'unproven');
   assert.equal(r.references[0].mapped_copy_accessibility, 'supplied_failure');
 });
+test('mapped retrieval with different bytes contradicts retrieval but preserves stored-copy evidence', async () => {
+  const f = makeFixture(); f.mappings = [mapping()];
+  f.observations = [{ ...observation(), url: mapping().target_url, result: 'retrieved',
+    content_sha256: hash('different asset bytes'), rendered_correct: true }];
+  const row = (await run(f)).references[0];
+  assert.equal(row.classification, 'independently_stored');
+  assert.equal(row.storage_independence, 'supplied_mapping_and_readback');
+  assert.equal(row.mapped_copy_accessibility, 'contradictory_content_observation');
+});
+test('mapped retrieval requires verified matching storage bytes, not a visual assertion or unverified rendition', async () => {
+  for (const mode of ['matching', 'no_readback', 'invalid_readback', 'missing_content', 'unverified_rendition']) {
+    const f = makeFixture(); f.mappings = [mapping()];
+    const o = { ...observation(), url: mapping().target_url, result: 'retrieved',
+      content_sha256: mapping().storage.readback_sha256, rendered_correct: true };
+    if (mode === 'no_readback') delete f.mappings[0].storage;
+    if (mode === 'invalid_readback') f.mappings[0].storage.readback_sha256 = hash('wrong');
+    if (mode === 'missing_content') delete o.content_sha256;
+    if (mode === 'unverified_rendition') { o.content_sha256 = hash('rendition'); o.rendition_verified = true; }
+    f.observations = [o];
+    assert.equal((await run(f)).references[0].mapped_copy_accessibility,
+      mode === 'matching' ? 'supplied_retrieval_and_render_observation'
+        : mode === 'unverified_rendition' ? 'contradictory_content_observation' : 'unproven', mode);
+  }
+});
+test('one matching mapped receipt cannot hide a contradictory mapped receipt', async () => {
+  const f = makeFixture(); f.mappings = [mapping()];
+  const good = { ...observation(), url: mapping().target_url, result: 'retrieved',
+    content_sha256: mapping().storage.readback_sha256, rendered_correct: true };
+  const bad = { ...good, content_sha256: hash('wrong bytes'), evidence_sha256: hash('bad receipt') };
+  for (const observations of [[good, bad], [bad, good]]) {
+    f.observations = observations;
+    assert.equal((await run(f)).references[0].mapped_copy_accessibility, 'contradictory_content_observation');
+  }
+});
+test('mapped success, failure and conflict retain separate paired provenance without original observations', async () => {
+  const f = makeFixture(); f.mappings = [mapping()];
+  const success = { ...observation(), url: mapping().target_url, result: 'retrieved',
+    content_sha256: mapping().storage.readback_sha256, rendered_correct: true, evidence_sha256: hash('mapped success') };
+  const failure = { ...observation(), url: mapping().target_url, observed_at: '2026-09-04T23:00:00.000Z', evidence_sha256: hash('mapped failure') };
+  for (const observations of [[success], [failure], [success, failure]]) {
+    f.observations = observations;
+    const row = (await run(f)).references[0];
+    assert.deepEqual(row.observed_at, []); assert.deepEqual(row.observation_receipt_hashes, []);
+    assert.deepEqual(row.mapped_observations, observations.slice().sort((a, b) => a.observed_at.localeCompare(b.observed_at)).map(o => ({
+      observed_at: o.observed_at, evidence_sha256: o.evidence_sha256, result: o.result,
+      content_sha256: o.content_sha256 || null,
+      content_binding: o.result === 'failure' ? 'not_applicable' : 'matches_stored_bytes',
+      rendered_correct: o.rendered_correct === true,
+    })));
+    assert.equal(row.mapped_copy_accessibility, observations.length === 2 ? 'conflicting_observations'
+      : observations[0].result === 'failure' ? 'supplied_failure' : 'supplied_retrieval_and_render_observation');
+  }
+});
+test('mapped provenance redacts arbitrary fields and records contradictory byte evidence', async () => {
+  const f = makeFixture(); f.mappings = [mapping()];
+  f.observations = [{ ...observation(), url: mapping().target_url, result: 'retrieved', content_sha256: hash('wrong'),
+    rendered_correct: true, body: 'SECRET-BODY', reason: 'SECRET-REASON', token: 'SECRET-TOKEN' }];
+  const row = (await run(f)).references[0];
+  assert.equal(row.mapped_observations[0].content_binding, 'mismatched_stored_bytes');
+  assert.equal(row.mapped_observations[0].evidence_sha256, f.observations[0].evidence_sha256);
+  assert.equal(row.mapped_observations[0].content_sha256, hash('wrong'));
+  assert.doesNotMatch(JSON.stringify(row), /SECRET-|https:\/\//);
+});
 test('signed URL semantics are never inferred; supplied expired observation counts', async () => {
   const f = makeFixture(); const signed = f.data.sample_reviews[0].asset_url;
   assert.equal((await run(f)).counts.inaccessible, 0);

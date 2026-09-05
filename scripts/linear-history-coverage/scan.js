@@ -272,6 +272,26 @@ async function scan(input, { key = crypto.randomBytes(32) } = {}) {
     const obs = ambiguousLocation ? [] : observations.filter(o => validObservation(o, ref, capturedAt));
     const mappedObs = ambiguousLocation || matching.length !== 1 ? [] : observations.filter(o =>
       validObservation(o, { ...ref, value: matching[0].target_url }, capturedAt));
+    // A visual assertion cannot bind a different file to the rescued object.
+    // Until an independent rendition contract exists, only exact stored bytes
+    // support a positive mapped retrieval. Keep every receipt paired with its
+    // timestamp and outcome so failure/conflict evidence remains auditable.
+    const mappedProvenance = mappedObs.map(o => ({
+      observed_at: new Date(o.observed_at).toISOString(),
+      evidence_sha256: o.evidence_sha256,
+      result: o.result,
+      content_sha256: hex(o.content_sha256) ? o.content_sha256 : null,
+      content_binding: o.result === 'failure' ? 'not_applicable'
+        : !independent || !hex(o.content_sha256) ? 'unproven'
+        : o.content_sha256 === matching[0].storage.readback_sha256
+          ? 'matches_stored_bytes' : 'mismatched_stored_bytes',
+      rendered_correct: o.rendered_correct === true,
+    })).sort((a, b) => a.observed_at.localeCompare(b.observed_at) || a.evidence_sha256.localeCompare(b.evidence_sha256));
+    const mappedAccessibility = new Set(mappedObs.map(o => o.result)).size > 1 ? 'conflicting_observations'
+      : mappedProvenance.some(o => o.content_binding === 'mismatched_stored_bytes') ? 'contradictory_content_observation'
+      : mappedObs.some(o => o.result === 'failure') ? 'supplied_failure'
+      : mappedProvenance.some(o => o.content_binding === 'matches_stored_bytes' && o.rendered_correct)
+        ? 'supplied_retrieval_and_render_observation' : 'unproven';
     const observationConflict = new Set(obs.map(o => o.result)).size > 1;
     const failure = !observationConflict && obs.some(o => o.result === 'failure');
     const retrieval = !observationConflict && obs.some(o => o.result === 'retrieved' && hex(o.content_sha256) && o.rendered_correct === true);
@@ -283,10 +303,8 @@ async function scan(input, { key = crypto.randomBytes(32) } = {}) {
       classification: state, storage_independence: independent ? 'supplied_mapping_and_readback' : 'unproven',
       client_accessibility: observationConflict ? 'conflicting_observations' : failure ? 'supplied_failure'
         : retrieval ? 'supplied_retrieval_and_render_observation' : 'unproven',
-      mapped_copy_accessibility: new Set(mappedObs.map(o => o.result)).size > 1 ? 'conflicting_observations'
-        : mappedObs.some(o => o.result === 'failure') ? 'supplied_failure'
-        : mappedObs.some(o => o.result === 'retrieved' && hex(o.content_sha256) && o.rendered_correct === true)
-          ? 'supplied_retrieval_and_render_observation' : 'unproven',
+      mapped_copy_accessibility: mappedAccessibility,
+      mapped_observations: mappedProvenance,
       observed_at: obs.map(o => new Date(o.observed_at).toISOString()).sort(),
       observation_receipt_hashes: obs.map(o => o.evidence_sha256),
       storage_observed_at: independent ? new Date(matching[0].storage.observed_at).toISOString() : null,

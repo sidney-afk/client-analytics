@@ -94,6 +94,23 @@ prove that a reader adopted that mapping. Staff observations cannot establish
 client access; conflicting observations remain conflicting. See `test.js` for
 fictional mapping and observation examples.
 
+A positive **mapped-copy** retrieval also requires the observed `content_sha256`
+to equal the source/readback hash of the mapping's verified storage evidence.
+A syntactically valid different hash yields `contradictory_content_observation`,
+even if `rendered_correct` is true or another receipt matches. Without verified
+storage or an observed content hash, mapped retrieval remains `unproven`.
+Renditions with different bytes are not supported by this evidence contract;
+an unverified rendition flag cannot bypass the byte match. Storage independence
+can retain its supplied proof while mapped retrieval contradicts it.
+
+`mapped_observations` retains separately auditable records for accepted mapped
+success, failure and conflicting observations: paired `observed_at` timestamp,
+`evidence_sha256`, `result`, optional `content_sha256`, `content_binding` and the
+supplied `rendered_correct` boolean. The records sort by timestamp and receipt
+hash without separating those pairs. These records contain no URL, locator,
+body, arbitrary failure text or attachment name. The existing `observed_at` and
+`observation_receipt_hashes` fields still refer only to the original URL.
+
 ## Output and interpretation
 
 | Classification | Evidence required / meaning |

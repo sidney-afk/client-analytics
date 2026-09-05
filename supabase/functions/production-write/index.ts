@@ -6924,7 +6924,7 @@ async function handleIntakeCreate(
   // endpoint: the full original caller request was required and validated above.
   if (!Array.isArray(batch.expectedItems) || batch.expectedItems.length !== plannedItems.length
       || !Number.isFinite(Date.parse(clean(batch.sourceEditedAt)))) {
-    throw new GatewayError(500, "intake_manifest_result_invalid");
+    throw new GatewayError(500, "idempotent_result_missing");
   }
   // An omitted timestamp is a supported request shape. Its first server clock
   // governs later explicit retries too; do not turn that default into a gate.
@@ -6935,7 +6935,7 @@ async function handleIntakeCreate(
     const acceptedRow = parseJson(accepted.row);
     if (clean(acceptedRow.id) !== clean((planned.row as JsonMap).id)
         || clean(accepted.child_fingerprint) !== clean(planned.child_fingerprint)) {
-      throw new GatewayError(500, "intake_manifest_result_invalid");
+      throw new GatewayError(500, "idempotent_result_missing");
     }
     (planned.row as JsonMap).brief = acceptedRow.brief;
     (planned.row as JsonMap).linear_raw = acceptedRow.linear_raw;

@@ -403,6 +403,25 @@ try {
 
   reset();
   let dropped = false;
+  for (const variant of ['missing-items', 'mismatched-identity']) {
+    reset();
+    const malformedBody = rootBody('both', requestId());
+    hooks.afterRpc = (name, args, result) => {
+      if (name === 'production_intake_root_begin') {
+        const malformed = structuredClone(result);
+        if (variant === 'missing-items') malformed.data.expected_items = [];
+        else malformed.data.expected_items[1].row.id = 'del_synthetic_wrong_identity';
+        return malformed;
+      }
+      return result;
+    };
+    const malformedResponse = await post(malformedBody);
+    const malformedManifest = (await manifests(malformedBody.request_id))[0];
+    ok('malformed-result-' + variant + '-uses-existing-readback-contract', malformedResponse.status === 500
+      && malformedResponse.json.error === 'idempotent_result_missing' && malformedManifest?.expected_items.length === 2
+      && await count('select 1 from public.deliverables where batch_id=' + q(malformedManifest?.batch_id)) === 0);
+  }
+  reset();
   const lost = rootBody('video', requestId());
   hooks.afterRpc = (name, args, result) => {
     if (!dropped && name === 'production_intake_root_begin') { dropped = true; throw new Error('synthetic response loss after parent commit'); }

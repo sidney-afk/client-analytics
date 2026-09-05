@@ -12189,15 +12189,17 @@ cards on the 42 active roster clients, **772 live cards** — the answer is:
 | **TOTAL** | **11** |
 
 **Zero at Kasper Approval**, which is the specific complaint the gate was built
-for. The two `bayavoce` cards that prompted it were set back to In Progress by
-the owner at 00:42Z on 2026-09-05 and are clean.
+for. The two sample-reel cards that prompted it were set back to In Progress by
+the owner at 00:42Z on 2026-09-05 and are clean. (Client not named: this repo is
+public and `test/repo-identity-exposure.js` counts a SLUG as an exposure, not
+just a display name — it caught this entry's first draft.)
 
 Of the 11, **7 are one client's captions at Client Approval** on podcast episode
 cards, where an empty caption may be correct rather than stranded. That is a
 judgement call for the owner, not a repair, and it is why this entry reports
 rather than fixes. **No repair is proposed and none was executed** — every one of
-these is on a real client, and the standing rule is that only `sidneylaruel` is
-mutated unless the owner names another.
+these is on a real client, and the standing rule is that nothing outside the
+disposable test client is mutated unless the owner names another.
 
 ---
 

@@ -1278,6 +1278,28 @@ ok(laneLeadInRun.code === 1 && laneLeadInRun.json
     && laneLeadInRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
     'while a colon-terminated lead-in that opens the item ("Dispatched the same day:") governs every clause it introduces, so the bare lane clause after it FAILS');
 
+/* ---- 8r. a lane dispatch is dated by its own section (round nineteen) ------- */
+const laneNestedDated = [
+    '### 2026-09-06 — companion release',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch completed successfully (run `33995000000`); the',
+    'Track-B step carried `production-write` v69.',
+    '',
+].join('\n');
+const laneNestedDatedRun = run(fixture('lane-nested-dated', insertInto(laneNestedDated), realRb));
+ok(laneNestedDatedRun.code === 1 && laneNestedDatedRun.json
+    && laneNestedDatedRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A LANE DISPATCH IS DATED BY ITS OWN SECTION: a "### 2026-09-06 — companion release" inside the 2026-08-05 container is a 2026-09-06 record, at or after the newest receipt, and FAILS');
+const laneNestedNewerRun = laneNestedDated.replace('### 2026-09-06 — companion release', '### Companion release');
+const laneNestedNewerRunRun = run(fixture('lane-nested-newer-run', insertInto(laneNestedNewerRun), realRb));
+ok(laneNestedNewerRunRun.code === 1 && laneNestedNewerRunRun.json
+    && laneNestedNewerRunRun.json.failures.some(f => /the 2026-08-05 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f) && /its run id is newer than the receipt's/.test(f)),
+    'and an UNDATED subsection there, which inherits the container\'s 2026-08-05, still FAILS when the dispatch\'s run id is newer than the receipt\'s: newer by construction, whatever heading it sits under');
+const laneNestedOlderRun = laneNestedNewerRun.replace('33995000000', '33980000000');
+const laneNestedOlderRunRun = run(fixture('lane-nested-older-run', insertInto(laneNestedOlderRun), realRb));
+ok(laneNestedOlderRunRun.code === 0,
+    'while the same undated subsection with a run id OLDER than the receipt\'s is a dispatch the §4 deploy already superseded, and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

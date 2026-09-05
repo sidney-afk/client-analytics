@@ -394,32 +394,85 @@ function otherOwningLanes() {
      completed-dispatch word in its paragraph, and not a forward-looking one.
      "inert until a `deploy-onboarding-edge-functions` dispatch carries the
      merged closure" is a plan, and the log already says it that way. */
-function laneDispatchesSince(log, sinceDate, exemptAt) {
+function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {
     const lanes = otherOwningLanes();
     if (!lanes.length) return [];
-    const out = [];
-    const heads = [];
-    const hre = /^## (\d{4}-\d{2}-\d{2})/gm;
-    let m;
-    while ((m = hre.exec(log))) heads.push({ at: m.index, date: validDate(m[1]) });
+    const heads = headingsOf(log);
     const exempt = ownBlock(log, exemptAt);
-    for (let i = 0; i < heads.length; i++) {
-        const h = heads[i];
-        if (!h.date || (sinceDate && h.date < sinceDate)) continue;
-        const to = i + 1 < heads.length ? heads[i + 1].at : log.length;
-        for (const lane of lanes) {
-            const refs = ['`' + lane.base + '`', '`' + lane.file + '`'].concat(lane.name ? ['"' + lane.name + '"'] : []);
-            let hit = false;
-            for (const ref of refs) {
-                for (let k = log.indexOf(ref, h.at); k >= 0 && k < to && !hit; k = log.indexOf(ref, k + ref.length)) {
-                    if (exempt && k >= exempt.from && k < exempt.to) continue;
-                    if (recordsADispatch(log, k, ref.length)) hit = true;
-                }
+    const found = [];
+    const seen = new Set();
+    for (const lane of lanes) {
+        const refs = ['`' + lane.base + '`', '`' + lane.file + '`'].concat(lane.name ? ['"' + lane.name + '"'] : []);
+        for (const ref of refs) {
+            for (let k = log.indexOf(ref); k >= 0; k = log.indexOf(ref, k + ref.length)) {
+                if (exempt && k >= exempt.from && k < exempt.to) continue;
+                const ev = recordsADispatch(log, k, ref.length);
+                if (!ev) continue;
+                /* The record is dated by the section that holds it, at any
+                   heading level, its own heading first and then its actual
+                   ancestors: the 2026-08-05 container holds dated `###`
+                   deploys through 2026-08-19, and a "### 2026-09-06 —
+                   companion release" written inside it is a 2026-09-06 record,
+                   not a 2026-08-05 one (Codex, nineteenth round on #1306). A
+                   run id after the reference that is newer than the §4
+                   receipt's makes the dispatch newer by construction, whatever
+                   heading it sits under. */
+                const date = dateAt(heads, k);
+                const newerRun = !!(ev.run && /^\d+$/.test(String(sinceRun || '')) && Number(ev.run) > Number(sinceRun));
+                if (!newerRun && (!date || (sinceDate && date < sinceDate))) continue;
+                const section = sectionAt(heads, k);
+                const key = lane.base + '|' + (section ? section.at : -1);
+                if (seen.has(key)) continue;
+                seen.add(key);
+                found.push({
+                    at: k, date, run: ev.run, newerRun, line: lineAt(log, section ? section.at : k),
+                    lane: lane.base, name: lane.name, slugs: lane.slugs,
+                });
             }
-            if (hit) out.push({ date: h.date, lane: lane.base, name: lane.name, slugs: lane.slugs });
         }
     }
+    found.sort((a, b) => a.at - b.at);
+    return found;
+}
+
+/* Every heading of level 2 to 6, with the date its text carries, if any. */
+function headingsOf(log) {
+    const out = [];
+    const re = /^(#{2,6}) ([^\n]*)/gm;
+    let m;
+    while ((m = re.exec(log))) {
+        out.push({ at: m.index, level: m[1].length, text: m[2], date: validDate((m[2].match(/\b(\d{4}-\d{2}-\d{2})\b/) || [])[1] || '') });
+    }
     return out;
+}
+
+/* The heading whose section holds position k: the nearest heading above it. */
+function sectionAt(heads, k) {
+    let best = null;
+    for (const h of heads) {
+        if (h.at > k) break;
+        best = h;
+    }
+    return best;
+}
+
+/* The date of the section holding k: its own heading's, else the nearest
+   dated ACTUAL ancestor's, the chain rule proseContext applies to receipts;
+   a closed sibling's date is never borrowed. */
+function dateAt(heads, k) {
+    let ceiling = Infinity;
+    for (let i = heads.length - 1; i >= 0; i--) {
+        if (heads[i].at > k || heads[i].level >= ceiling) continue;
+        ceiling = heads[i].level;
+        if (heads[i].date) return heads[i].date;
+    }
+    return '';
+}
+
+function lineAt(log, at) {
+    let n = 1;
+    for (let i = 0; i < at && i < log.length; i++) if (log.charCodeAt(i) === 10) n++;
+    return n;
 }
 
 /* The block a position belongs to: from the nearest heading at or above it, at
@@ -497,7 +550,9 @@ function referenceScope(log, k, len) {
     return { from: lines[first].from, to: lines[last].to };
 }
 
-/* Does the lane reference at k record a dispatch that happened? Judged on the
+/* Does the lane reference at k record a dispatch that happened? Returns the
+   evidence ({ run } with the run id that follows the reference, or '' when the
+   proof is a completed-dispatch word), or null. Judged on the
    CLAUSE that names the lane, inside its list item or paragraph (see
    referenceScope): the text between sentence separators (. ; ! ?) around the
    reference. One item can carry two verdicts about two different things,
@@ -525,12 +580,13 @@ function recordsADispatch(log, k, len) {
         else if (m.index >= rel + len) { cEnd = m.index; break; }
     }
     const clause = span.slice(cStart, cEnd);
-    if (/\bNOT DISPATCHED\b/i.test(clause)) return false;
-    if (/\brun\s+`?#?\d{6,}/i.test(span.slice(rel + len, cEnd))) return true;
-    if (DISPATCH_AHEAD.test(clause)) return false;
-    if (DISPATCH_DONE.test(clause)) return true;
+    if (/\bNOT DISPATCHED\b/i.test(clause)) return null;
+    const rm = span.slice(rel + len, cEnd).match(/\brun\s+`?#?(\d{6,})/i);
+    if (rm) return { run: rm[1] };
+    if (DISPATCH_AHEAD.test(clause)) return null;
+    if (DISPATCH_DONE.test(clause)) return { run: '' };
     const lead = cStart > 0 ? span.match(/^[^.;!?]*?:\**(?=\s)/) : null;
-    return !!lead && DISPATCH_DONE.test(lead[0]) && !DISPATCH_AHEAD.test(lead[0]) && !/\bNOT DISPATCHED\b/i.test(lead[0]);
+    return lead && DISPATCH_DONE.test(lead[0]) && !DISPATCH_AHEAD.test(lead[0]) && !/\bNOT DISPATCHED\b/i.test(lead[0]) ? { run: '' } : null;
 }
 
 /* THE CONCISE PROSE SHAPE, which produced no receipt at all. EXECUTION_LOG.md
@@ -923,10 +979,13 @@ function main() {
        newest §4 receipt while another lane has shipped since is agreement about
        the wrong deploy. */
     if (live) {
-        for (const d of laneDispatchesSince(receiptsMeta.log, live.date || '', live.at)) {
-            failures.push('the ' + d.date + ' entry records a `' + d.lane + '` dispatch'
+        for (const d of laneDispatchesSince(receiptsMeta.log, live.date || '', live.at, live.run || '')) {
+            failures.push((d.date ? 'the ' + d.date + ' entry' : 'the undated section at line ' + d.line)
+                + ' records a `' + d.lane + '` dispatch' + (d.run ? ' (run ' + d.run + ')' : '')
                 + (d.name ? ' ("' + d.name + '")' : '') + ', at or after the newest §4 receipt (run '
-                + (live.run || '?') + ', ' + (live.date || 'undated') + '). That lane deploys '
+                + (live.run || '?') + ', ' + (live.date || 'undated') + ')'
+                + (d.newerRun ? '; its run id is newer than the receipt\'s, whatever heading it sits under' : '')
+                + '. That lane deploys '
                 + d.slugs.join(' and ') + ', and it does not emit the ' + SCHEMA
                 + ' receipt this guard reads — so the live versions may have moved where this check'
                 + ' cannot see it, which is the exact way this row went stale on 2026-08-27.'

@@ -437,14 +437,33 @@ const receiptsMeta = { log: '', positions: [] };
        heading of any level) that the strict table parser did not read -- a
        slug without backticks, a bold cell -- is a deploy record this guard is
        blind to, whatever the heading says and whatever else the block holds;
-     - a heading that names Section 4 and a deploy must have at least one
-       parsed receipt somewhere in its SUBTREE (down to the next heading of the
-       same or a higher level), so a container heading over readable
-       subsections passes while a deploy heading with nothing readable under it
-       does not. "NOT DISPATCHED" in the heading is the one exemption, the
-       shape the log already uses for a deploy that did not happen. */
-function unreadableDeployEntries(log, receiptPositions) {
+     - a heading that names a deploy, and names Section 4 itself OR sits under
+       an ancestor heading that does, must have at least one parsed receipt
+       somewhere in its SUBTREE (down to the next heading of the same or a
+       higher level). So a container heading over readable subsections passes,
+       a deploy heading with nothing readable under it does not, and -- Codex's
+       third finding on #1306 -- a `### Deploy #40` written under a Section 4
+       container with only prose beneath it is judged on its own rather than
+       riding on a sibling's receipt through the parent. "NOT DISPATCHED" in the
+       heading is the one exemption, the shape the log already uses for a
+       deploy that did not happen.
+
+   Two ways a heading-only finding is softened, neither of which applies to an
+   unreadable TABLE (a concrete record the guard is blind to is always a
+   failure):
+     - the section names run ids (run `<id>`) and every one of them has a
+       parsed receipt elsewhere in the log: the deploy is readable, it is just
+       recorded in another entry, so nothing is asked;
+     - the section's entry is dated strictly BEFORE the newest readable
+       receipt: it cannot be the newest deploy, so it cannot make the row
+       stale, and it is reported as a note rather than a failure. The log's own
+       "Deploys #9-#13 — GAP" section (2026-08-05 entry) is exactly this: four
+       of its five runs were never receipted and never will be, and failing on
+       it forever would teach people to ignore this check. A section with no
+       usable entry date cannot be placed in time and is NOT softened. */
+function unreadableDeployEntries(log, receiptPositions, receiptRuns, newestDate) {
     const out = [];
+    const runsKnown = receiptRuns || new Set();
     const heads = [];
     const hre = /^(#{2,4}) [^\n]*/gm;
     let m;
@@ -452,8 +471,13 @@ function unreadableDeployEntries(log, receiptPositions) {
     const strict = /^\|\s*`([a-z-]+)`\s*\|[^|]*\|\s*`[0-9a-f]{64}`\s*\|/gm;
     const loose = /^\|\s*\**`?(?:batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|]*\|\s*`?[0-9a-f]{64}`?\s*\|/gm;
     const within = (from, to) => receiptPositions.some(at => at >= from && at < to);
+    const namesSection4 = text => /(Section 4|§4)/i.test(text);
+    const ancestors = [];
     for (let i = 0; i < heads.length; i++) {
         const h = heads[i];
+        while (ancestors.length && ancestors[ancestors.length - 1].level >= h.level) ancestors.pop();
+        const underSection4 = ancestors.some(a => namesSection4(a.text));
+        ancestors.push(h);
         const blockEnd = i + 1 < heads.length ? heads[i + 1].at : log.length;
         let treeEnd = log.length;
         for (let j = i + 1; j < heads.length; j++) {
@@ -464,20 +488,34 @@ function unreadableDeployEntries(log, receiptPositions) {
             .filter(row => SLUGS.some(slug => row.indexOf('`' + slug + '`') >= 0)).length;
         const looseRows = (block.match(loose) || []).length;
         const unreadableRows = Math.max(0, looseRows - strictRows);
-        const headSaysDeploy = /(Section 4|§4)/i.test(h.text) && /deploy/i.test(h.text)
+        const headSaysDeploy = (namesSection4(h.text) || underSection4) && /deploy/i.test(h.text)
             && !/NOT DISPATCHED/i.test(h.text);
-        const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
+        let noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
+        if (noReceiptUnder) {
+            const named = [...log.slice(h.at, treeEnd).matchAll(/[Rr]un\s+`(\d{6,})`/g)].map(x => x[1]);
+            if (named.length && named.every(id => runsKnown.has(id))) noReceiptUnder = false;
+        }
         if (!unreadableRows && !noReceiptUnder) continue;
         const heading = h.text.replace(/^#+ /, '').slice(0, 120);
         const line = log.slice(0, h.at).split('\n').length;
+        const entryHead = log.slice(0, h.at).match(/(?:^|\n)## (\d{4}-\d{2}-\d{2})[^\n]*(?![\s\S]*\n## )/);
+        const entryDate = entryHead ? validDate(entryHead[1]) : '';
+        const predates = !unreadableRows && !!entryDate && !!newestDate && entryDate < newestDate;
         out.push({
             line,
             heading,
             tableRows: unreadableRows,
-            message: 'the EXECUTION_LOG.md section at line ' + line + ' ("' + heading + '") '
+            severity: predates ? 'note' : 'failure',
+            message: (predates
+                ? 'an unreadable Section 4 deploy section at line ' + line + ' ("' + heading + '") predates the newest'
+                    + ' readable receipt (' + entryDate + ' < ' + newestDate + '), so it cannot be the newest deploy and is'
+                    + ' left as history; it is still invisible to this guard. '
+                : '')
+                +  'the EXECUTION_LOG.md section at line ' + line + ' ("' + heading + '") '
                 + (unreadableRows
                     ? 'carries ' + unreadableRows + ' versions-table row(s) this guard cannot read'
-                    : 'reads as a Section 4 deploy but holds no receipt this guard can read, in it or under it')
+                    : 'reads as a Section 4 deploy' + (namesSection4(h.text) ? '' : ' (under a Section 4 heading)')
+                        + ' but holds no receipt this guard can read, in it or under it')
                 + ': quote the four slugs in the table (`production-write`, not production-write or'
                 + ' **production-write**), put the run id in the heading as run `<id>`, write "dispatched from'
                 + ' `<sha>`", and copy the lane\'s JSON attestation block. Until then the deploy it records is'
@@ -541,8 +579,10 @@ function main() {
             + ' so it cannot be placed in time and the newest deploy cannot be established.'
             + ' Add the run id to that entry (the attestation block carries it as github_run_id).');
     }
-    for (const u of unreadableDeployEntries(receiptsMeta.log, receiptsMeta.positions || [])) {
-        failures.push(u.message);
+    const receiptRuns = new Set(receipts.map(r => String(r.run || '')).filter(Boolean));
+    for (const u of unreadableDeployEntries(receiptsMeta.log, receiptsMeta.positions || [], receiptRuns, live ? live.date : '')) {
+        if (u.severity === 'note') notes.push(u.message);
+        else failures.push(u.message);
     }
     /* Second signal, because one is a single point of failure: the entry dates
        must agree with the run-id order about which deploy is newest. */

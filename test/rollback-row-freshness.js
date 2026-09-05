@@ -765,10 +765,37 @@ ok(containerRun.json && !containerRun.json.failures.some(f => /cannot read/.test
     && containerRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v70/.test(f)),
     'a container heading that names Section 4 deploys over two READABLE subsections is not flagged -- the receipts under it count for it -- and the guard moves on to the row, which is stale');
 
+/* ---- 8d. a nested deploy heading needs its OWN receipt (Codex, third round) -- */
+/* A `### Deploy #40` under a Section 4 container, with only prose beneath it,
+   does not repeat "Section 4" in its own heading; judged on its own text alone
+   it looked like commentary, and the container passed on its sibling's receipt.
+   Section 4 context is inherited from ancestor headings now. */
+const nestedProse = [
+    '',
+    '### Deploy #40 — RECORDED',
+    '',
+    'Deployed v69 by hand after the row above; the attestation will follow.',
+    '',
+].join('\n');
+const nestedRun = run(fixture('nested-deploy-heading', realLog + nestedProse, realRb));
+ok(nestedRun.code === 1 && nestedRun.json
+    && nestedRun.json.failures.some(f => /section at line \d+ \("Deploy #40 — RECORDED"\) reads as a Section 4 deploy \(under a Section 4 heading\) but holds no receipt/.test(f)),
+    'THE NESTED RIDE-ALONG: a ### heading that names a deploy under a Section 4 entry, with only prose beneath it, is required to carry its own receipt and is named when it does not');
+const nestedCommentary = nestedProse.replace('### Deploy #40 — RECORDED', '### What the first attempt taught');
+const commentaryRun = run(fixture('nested-commentary', realLog + nestedCommentary, realRb));
+ok(commentaryRun.json && !commentaryRun.json.failures.some(f => /cannot read/.test(f)),
+    'while a nested heading under the same entry that does not name a deploy is commentary, and asks for nothing');
+const crossRef = nestedProse.replace('### Deploy #40 — RECORDED', '### Deploy #39 — see the attestation above (run `33991332628`)');
+const crossRefRun = run(fixture('nested-cross-reference', realLog + crossRef, realRb));
+ok(crossRefRun.json && !crossRefRun.json.failures.some(f => /cannot read/.test(f)),
+    'and a nested deploy heading whose every named run id has a parsed receipt elsewhere in the log is readable by reference, and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);
 ok(real.code === 0, 'and the repository as it stands right now is consistent');
+ok(real.json && real.json.notes.some(n => /Deploys #9-#13 — GAP/.test(n) && /predates the newest readable receipt/.test(n)),
+    'the historical "Deploys #9-#13 — GAP" section, whose four un-receipted runs can never be read, is a NOTE rather than a failure because its entry predates the newest receipt -- an old gap cannot make the row stale, and a guard that failed on it forever would be ignored');
 ok(real.json && !real.json.failures.some(f => /cannot read/.test(f)),
     'and every Section 4 deploy entry in the real log is one the guard can read, today included');
 

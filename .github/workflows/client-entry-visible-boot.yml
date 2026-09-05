@@ -7,6 +7,9 @@ on:
       - 'package.json'
       - 'qa/boot/**'
       - 'qa/client-continuity*.js'
+      - 'qa/samples-initial-read.js'
+      - 'scripts/samples-*.js'
+      - 'test/samples-initial-read.js'
       - 'scripts/client-continuity*.js'
       - 'test/helpers/client-continuity-source.js'
       - 'test/samples-authoritative-read.js'
@@ -21,6 +24,9 @@ on:
       - 'package.json'
       - 'qa/boot/**'
       - 'qa/client-continuity*.js'
+      - 'qa/samples-initial-read.js'
+      - 'scripts/samples-*.js'
+      - 'test/samples-initial-read.js'
       - 'scripts/client-continuity*.js'
       - 'test/helpers/client-continuity-source.js'
       - 'test/samples-authoritative-read.js'
@@ -81,3 +87,7 @@ jobs:
         run: node scripts/client-continuity-test-ui.js --fixture
       - name: Check inactive hosted operations and delivery with synthetic receipts
         run: node test/client-continuity-operations.js
+      - name: Verify separate initial-read contract and real SDK faults offline
+        run: |
+          node test/samples-initial-read.js
+          node scripts/samples-initial-read-run.js --fixture

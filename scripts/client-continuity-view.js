@@ -80,7 +80,7 @@ function visibleState(lane) {
 }
 function observeRequests(page,config) {
   const backend=new URL(config.backendOrigin).origin, fallback=new URL(config.fallbackOrigin).origin;
-  const state={epoch:0,pending:0,rows:[],primary:false,failed:false,auth:false,scopeMismatch:false,errors:0,lastAt:Date.now()};
+  const state={epoch:0,pending:0,rows:[],primary:false,complete:false,principal:false,failed:false,auth:false,scopeMismatch:false,errors:0,lastAt:Date.now()};
   const epochs=new WeakMap();
   const kind=request=>{
     const u=new URL(request.url());
@@ -88,6 +88,7 @@ function observeRequests(page,config) {
     if(u.origin===backend && u.pathname===`/rest/v1/${TABLES[config.lane]}`) return 'primary';
     if(u.origin===fallback && u.pathname===`/webhook/${config.lane==='samples'?'sample-review-get':'calendar-get'}`) return 'fallback';
     if(u.origin===backend && u.pathname==='/functions/v1/client-token-verify') return 'verify';
+    if(config.initialRead&&u.href==='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2')return 'sdk';
     return '';
   };
   page.on('request',request=>{
@@ -96,7 +97,7 @@ function observeRequests(page,config) {
       const u=new URL(request.url());
       if(u.searchParams.get('client')!==`eq.${config.scope}`) state.scopeMismatch=true;
       const continuation=u.searchParams.has('id') || u.searchParams.getAll('or').some(v=>v.includes('id.gt.'));
-      if(!continuation) {state.epoch++;state.rows=[];state.primary=false;state.failed=false;}
+      if(!continuation) {state.epoch++;state.rows=[];state.primary=false;state.complete=false;state.expected=undefined;state.failed=false;}
     }
     epochs.set(request,state.epoch);state.pending++;state.lastAt=Date.now();
   });
@@ -105,24 +106,42 @@ function observeRequests(page,config) {
     try {
       if([401,403].includes(response.status())) state.auth=true;
       if(k==='document') {state.pageDigest=createHash('sha256').update(await response.body()).digest('hex');return;}
-      if(k==='verify') return;
+      if(k==='sdk'){state.sdkDigest=createHash('sha256').update(await response.body()).digest('hex');return;}
+      if(k==='verify') {
+        if(config.initialRead) {
+          const body=request.postDataJSON(),value=await response.json(),link=new URL(config.shareLink);
+          state.principal=response.ok()&&body.client===link.searchParams.get('c')&&body.slug===config.scope&&body.token===link.searchParams.get('t')&&body.strict===true&&
+            ['samples','sample-reviews'].includes(body.view)&&value.ok===true&&value.valid===true&&value.allowed===true&&value.active===true&&value.strict===true&&
+            value.protocol==='syncview-client-entry-v1'&&value.slug===config.scope&&value.display_name===link.searchParams.get('c')&&value.view===body.view;
+          if(!state.principal)state.auth=true;
+        }
+        return;
+      }
       const epoch=epochs.get(request);
-      if(!response.ok()) {if(epoch===state.epoch)state.failed=true;return;}
+      if(!response.ok()) {state.everFailed=true;if(epoch===state.epoch)state.failed=true;return;}
       if(k==='primary') {
         const rows=await response.json();snapshot(rows,config.scope);
-        if(epoch===state.epoch){state.rows.push(...rows);state.primary=true;}
+        if(epoch===state.epoch){
+          if(config.initialRead) {
+            const range=(await response.allHeaders())['content-range']||'',match=/^(?:\*|0-(\d+))\/(\d+)$/.exec(range);
+            if(!match||(!rows.length?range!=='*/0':Number(match[1])+1!==rows.length))throw Error('primary_incomplete');
+            const remaining=Number(match[2]);if(state.expected===undefined)state.expected=remaining;
+            if(state.rows.length+remaining!==state.expected||rows.length>remaining)throw Error('primary_incomplete');
+          }
+          state.rows.push(...rows);state.primary=true;state.complete=state.rows.length===state.expected;
+        }
       }
       // A legacy fallback never certifies completeness/freshness.
-    } catch {state.failed=true;}
+    } catch(error) {if(error?.message==='census_scope')state.scopeMismatch=true;state.failed=true;state.everFailed=true;}
     finally {state.pending--;state.lastAt=Date.now();}
   });
-  page.on('requestfailed',request=>{if(kind(request)){state.pending--;state.failed=true;state.lastAt=Date.now();}});
+  page.on('requestfailed',request=>{if(kind(request)){state.pending--;state.failed=true;state.everFailed=true;state.lastAt=Date.now();}});
   page.on('pageerror',()=>state.errors++);
   return state;
 }
-async function captureView(browser,config,deps={}) {
+async function captureDetails(browser,config,deps={}) {
   const endpoints=validateConfig(config), census=()=>readCensus(config,deps.fetchImpl);
-  let context,guard,reads;
+  let context,guard,reads,proof={stableDom:false,authoritativeEmpty:false,canaryCount:0};
   const observe=async()=>{
   try {
     let before;try{before=await census();}catch{}
@@ -141,7 +160,7 @@ async function captureView(browser,config,deps={}) {
     }while(Date.now()<deadline);
     if(reads.auth)return report(config.lane,'valid_link_auth');
     if(config.expectedPageSha256 && reads.pageDigest!==config.expectedPageSha256)return report(config.lane,'release_mismatch');
-    if(guard.code())return report(config.lane,guard.code());
+    if(guard.code()&&!config.initialRead)return report(config.lane,guard.code());
     if(reads.errors)return report(config.lane,'browser_error');
     if(reads.scopeMismatch)return report(config.lane,'scope_mismatch');
     if(!dom.settled || reads.pending!==0)return report(config.lane,'read_failed');
@@ -154,7 +173,9 @@ async function captureView(browser,config,deps={}) {
     let after,received;try{after=await census();received=snapshot(reads.rows,config.scope);}catch{return report(config.lane,'inconclusive');}
     if(!before || epoch!==reads.epoch || reads.pending || before.digest!==after.digest || received.digest!==after.digest)return report(config.lane,'inconclusive');
     if(new URL(page.url()).searchParams.get('c')!==endpoints.link.searchParams.get('c'))return report(config.lane,'scope_mismatch');
-    dom=await page.evaluate(visibleState,config.lane);
+    const firstDom=dom;dom=await page.evaluate(visibleState,config.lane);
+    proof.stableDom=JSON.stringify(canonical(firstDom))===JSON.stringify(canonical(dom));
+    proof.authoritativeEmpty=after.count===0;proof.canaryCount=config.requiredVisibleIds.length;
     if(epoch!==reads.epoch || reads.pending || reads.failed)return report(config.lane,'inconclusive');
     if(!dom.settled)return report(config.lane,'inconclusive');
     if(dom.display==='error')return report(config.lane,'render_failed');
@@ -163,6 +184,7 @@ async function captureView(browser,config,deps={}) {
     if(after.count>0 && !config.requiredVisibleIds.length)return report(config.lane,'inconclusive');
     if(config.requiredVisibleIds.some(id=>!after.ids.includes(id)))return report(config.lane,'inconclusive');
     if(config.requiredVisibleIds.some(id=>!after.titles[id]))return report(config.lane,'inconclusive');
+    if(config.initialRead&&config.requiredVisibleIds.some(id=>after.titles[id]!==config.requiredVisibleTitles?.[id]))return report(config.lane,'inconclusive');
     if(dom.ids.some(id=>!after.ids.includes(id)))return report(config.lane,'inconclusive');
     if(config.requiredVisibleIds.some(id=>!dom.ids.includes(id)) || (after.count===0 && dom.display!=='empty'))return report(config.lane,'render_failed');
     if(config.requiredVisibleIds.some(id=>dom.titles[id]!==after.titles[id].trim()))return report(config.lane,'render_failed');
@@ -179,7 +201,19 @@ async function captureView(browser,config,deps={}) {
   }
   // The result is constructed only after all final reads and bounded teardown.
   // A late denial outranks an earlier apparent success, including blank popups.
-  return {...(guard?.code()?report(config.lane,guard.code()):result),denialReasons:guard?guard.denialReasons():[]};
+  const safety=guard?guard.safety():{version:1,setupComplete:false,teardownComplete:false,outcomes:['setup_failed']};
+  if(reads?.scopeMismatch)safety.outcomes.push('scope_mismatch');
+  if(reads?.auth)safety.outcomes.push('valid_link_auth');
+  if(reads?.failed||(config.initialRead&&reads?.everFailed))safety.outcomes.push('read_failed');
+  safety.outcomes=[...new Set(safety.outcomes)].sort();
+  return {full:guard?.code()?report(config.lane,guard.code()):result,read:result,
+    proof:{...proof,principalVerified:reads?.principal===true,primaryComplete:reads?.complete===true,
+      sdkMatched:!!config.expectedSdkSha256&&reads?.sdkDigest===config.expectedSdkSha256},
+    denialReasons:guard?guard.denialReasons():[],safety};
+}
+async function captureView(browser,config,deps={}) {
+  const detail=await captureDetails(browser,config,deps);
+  return {...detail.full,denialReasons:detail.denialReasons,safety:detail.safety};
 }
 async function viewingJourney(browser,config,deps) {
   let result;
@@ -190,4 +224,4 @@ async function viewingJourney(browser,config,deps) {
   }
   return result;
 }
-module.exports={readCensus,snapshot,visibleState,observeRequests,captureView,viewingJourney,validateConfig};
+module.exports={readCensus,snapshot,visibleState,observeRequests,captureDetails,captureView,viewingJourney,validateConfig};

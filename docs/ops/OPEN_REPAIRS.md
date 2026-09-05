@@ -12114,10 +12114,60 @@ whole class for the planner, so the RPC refusing it is consistency with the
 existing rule, not a new restriction invented here. **The owner decision is
 whether `kind='other'` on a graphics row counts as a thumbnail.** Answering it
 moves the repairable set from 42 to 68 of 107.
+## 151. A Production deep link waited for the whole board before it could show one row
+
+**Owner report 2026-09-05**, following the calendar card's "Open the SyncView
+Production video sub-issue in a new tab" link (the graphic twin behaves the
+same): *"it always takes a lot of time to load. way too much time."*
+
+The link opens `?prod=1&d=<id>` in a fresh tab, so nothing is warm. In
+`_prodLoadData`, phase one awaited the whole live projection (thousands of
+rows, paged in sequence over a keyset walk) plus every batch, and only THEN
+called the one-row catch-up read `_prodFetchDeepLinkRow`. The comment beside
+that call promised it ran "in parallel"; it was parallel with the terminal
+tail and serial with the wait that actually hurt. The reader asked for one row
+and it was the last thing to arrive.
+
+**Fix (this PR).** `_prodDeepLinkFastPaint` starts the one-row read the moment
+`_prodLoadData` does, beside phase one. When the row lands it reads, in one
+more round trip and all in parallel, the row's batch by id, its parent by
+`linear_issue_uuid` (so a sub-issue renders as one, with its crumb, rather
+than as a parent with an empty sub-issues section), and awaits the clients and
+members reads phase one already started, off the same promises, so nothing is
+requested twice. It merges into whatever the snapshot holds and marks the pane
+`loaded`, so the detail paints while phase one is still downloading.
+`_prodCarryDeepLinkRows` then keeps the painted row across phase one's
+wholesale replacement of the deliverable set, so a finished row (excluded by
+`PROD_LIVE_FILTER`) does not drop back to a skeleton for the second it takes
+the catch-up read to put it back, and that catch-up read no longer fires at
+all for a row that is already there.
+
+What it deliberately does not do, because each would reopen an item on this
+ledger: it never consumes the deep link (108, five rounds; the authoritative
+pass after phase one is still the one place that happens), never writes the
+cache (a one-row snapshot painted over the next boot would be the stale
+first paint of 2026-08-24 again), and never publishes absence (an empty read
+here means NOT YET; the tail decides). A read that lands after phase one is
+discarded by the same generation check the catch-up read uses; a failed read
+leaves the old path exactly as it was. `refreshing` stays true throughout, so
+the auto-refresh cannot start a second load underneath.
+
+Pinned in `test/prod-deep-link-fast-paint.js`: read starts before phase one
+resolves; detail renderable once row + batch + parent + two small tables land;
+carry across phase one with exactly one copy and no duplicate read; link not
+consumed and cache not written by the paint; late read discarded; failed read
+harmless; no read without a link or when the snapshot has the row.
+
+**Still on the clock for this link, not touched here:** the tab is a fresh
+load of a ~5 MB `index.html`, and `init()` starts `fetchEssentials()` (the
+calendar's metrics and clients) beside the Production reads on every
+`?prod=1` boot, competing for the same connection. Neither is this row's
+wait, and both are larger changes than a perf report earns without a
+measurement first.
 
 ---
 
-## 151. [2026-09-05, MEASURED — the gate is forward-only, and there are 11 rows behind it] What "sent for review with nothing to review" actually costs today
+## 152. [2026-09-05, MEASURED — the gate is forward-only, and there are 11 rows behind it] What "sent for review with nothing to review" actually costs today
 
 The review-content gate (#1272) stops a component moving to For SMM / Kasper /
 Client Approval while the thing being reviewed is empty. It is **forward-only**:
@@ -12151,7 +12201,7 @@ mutated unless the owner names another.
 
 ---
 
-## 152. [2026-09-05, FIXED — browser-only, live on merge] The gate said "no" to two callers that were never listening
+## 153. [2026-09-05, FIXED — browser-only, live on merge] The gate said "no" to two callers that were never listening
 
 Owner, 2026-09-05, on the gate shipped in #1272: *"just make sure we didn't
 cause a problem ... can you explain the rule and just make sure it doesn't break

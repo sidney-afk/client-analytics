@@ -149,7 +149,11 @@ check('preview preserves safe project/batch descriptions while invalidating scop
   /function _prodPreserveProjectedFields\(incoming, previous, key, fields\)/.test(prodBlock)
   && /mergedClients = _prodPreserveProjectedFields\(clients, _prodState\.clients, 'slug', \['board_desc', 'desc'\]\)/.test(prodBlock)
   && /mergedBatches = _prodPreserveProjectedFields\(batches, _prodState\.batches, 'id', \['description', 'desc'\]\)/.test(prodBlock)
-  && /const mergedDeliverables = deliverables/.test(prodBlock)
+  /* Deliverables are never field-preserved across a refresh (that is the
+     property here); the only thing the fresh set gains is a deep-linked row
+     the boot-time fast paint read a moment earlier, see _prodCarryDeepLinkRows. */
+  && /const mergedDeliverables = _prodCarryDeepLinkRows\(deliverables\)/.test(prodBlock)
+  && !/_prodPreserveProjectedFields\(deliverables/.test(prodBlock)
   && /_prodInvalidateScopedReads\(\)/.test(prodBlock)
   && /_prodState\.adapter = _prodAdapter\(\{ clients: mergedClients, members, batches: mergedBatches, deliverables: mergedDeliverables \}\)/.test(prodBlock));
 check('preview distinguishes pending descriptions from authoritative empty values',

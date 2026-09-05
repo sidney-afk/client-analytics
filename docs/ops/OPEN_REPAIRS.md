@@ -12987,3 +12987,22 @@ Refused as `image_undecodable`. Fixtures carry real deflated rows; a garbage
 IDAT, a short IDAT, an undefined filter and the bomb are each asserted. JPEG,
 GIF and WebP stay structural, stated in the doc.
 
+**Round five (Codex on #1310): three more, all taken.**
+1. **[P1] The inflate cap was the header's own number.** Right: an 8000x8000
+   16-bit RGBA IHDR made it half a gigabyte, and the round-four inflater
+   retained every output chunk. `pngPixelsDecodable` now refuses any IHDR
+   implying more than a fixed `MAX_DECODED_BYTES` (48 MiB, well above the
+   11 MiB the 1600px browser path can produce) BEFORE inflating, and consumes
+   the inflated stream as it arrives, checking row boundaries on the fly and
+   keeping nothing.
+2. **[P2] Indexed colour accepted without its palette.** Right. The chunk walk
+   now requires PLTE before IDAT for colour type 3 (with a length the bit
+   depth allows), forbids it for greyscale, and refuses a second IHDR.
+3. **[P2] GIF, JPEG and WebP were trailer checks.** Right, and a GIF89a header
+   plus 0x3B with no image block passed. Each is now walked: GIF blocks and
+   sub-blocks to a trailer that is the last byte, with at least one image;
+   JPEG segments through SOF and SOS, entropy data with only legal 0xFF
+   escapes, EOI as the last two bytes; WebP RIFF chunks tiling the file with
+   exactly one image chunk carrying its start code or signature. A real 1x1
+   GIF and a real 1x1 PNG pass; the refusals are asserted one by one.
+

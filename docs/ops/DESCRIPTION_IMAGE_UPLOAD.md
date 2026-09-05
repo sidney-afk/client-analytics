@@ -74,16 +74,24 @@ secret. Two owner-side items after merge, both one line:
 2. The role index, if the migration was applied before it was added:
    `create index if not exists description_images_role_created_idx on public.description_images (actor_role, created_at desc);`
 
-**A PNG is walked, not suffix-matched, and its pixels are inflated.** Every
-chunk's length must fit, every chunk's CRC must match, the first chunk must
-be a 13-byte IHDR, at least one IDAT must carry data, and the walk must end
-on a zero-length IEND exactly at the end of the file. Then the IDAT stream is
-inflated (Deno's built-in `DecompressionStream`, capped at the byte count
-IHDR implies so a crafted body cannot expand past it) and must come out at
-EXACTLY that length with a defined filter type on every scanline; anything
-else is `image_undecodable`. That is what a decoder checks before it starts
-unfiltering, without an image library. JPEG, GIF and WebP keep the
-structural checks only; a JPEG must reach a Start Of Scan before its EOI.
+**Every format is walked block by block; a PNG's pixels are inflated as a
+stream.** PNG: every chunk's length must fit and its CRC match, IHDR first
+with length 13, PLTE before IDAT and required for indexed colour (forbidden
+for greyscale), at least one IDAT with data, IEND exactly at the end of the
+file; then the IDAT stream is inflated through the runtime's built-in
+`DecompressionStream` and CONSUMED as it arrives (nothing decoded is kept),
+must reach exactly the byte count IHDR implies with a defined filter type on
+every scanline, and an IHDR implying more than a fixed 48 MiB of rows is
+refused as too large before anything is inflated, so the ceiling is never
+the header's own number. GIF: screen descriptor, global colour table, then
+extension blocks and image descriptors with their sub-blocks, at least one
+image, the trailer as the last byte. JPEG: a frame header and a Start Of
+Scan, entropy-coded data where 0xFF is followed only by a stuffed zero, a
+restart marker or a real segment, at least one entropy byte, EOI as the
+last two bytes. WebP: the RIFF size states the file's length, the chunks
+tile the payload exactly, and exactly one image chunk (a VP8 key frame with
+its start code, or a VP8L stream, directly or inside VP8X) is present. None
+of this decodes pixels; it is what a decoder checks before it starts.
 
 **Sizing, because it was the second half of the ask** (*"avoid things where
 people paste something and it looks huge or horrible"*): a Retina screenshot

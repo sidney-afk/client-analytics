@@ -81,31 +81,44 @@ function png(width, height, headerOnly, options) {
   if (o.trailingJunk) return concat([out, new Uint8Array([0, 0, 0])]);
   return out;
 }
+/* A real 1x1 GIF (header, screen descriptor, 2-colour global table, a
+   graphic-control extension, an image descriptor with one LZW sub-block,
+   trailer). `headerOnly` is header + screen descriptor and nothing else;
+   round five: a header + 0x3B with no image block is no longer a GIF. */
+const REAL_GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
 function gif(width, height, headerOnly) {
-  const b = new Uint8Array(headerOnly ? 13 : 14);
-  b.set([71, 73, 70, 56, 57, 97]);
+  const b = new Uint8Array(headerOnly ? 13 : REAL_GIF.length);
+  b.set(headerOnly ? REAL_GIF.subarray(0, 13) : REAL_GIF);
   new DataView(b.buffer).setUint16(6, width, true);
   new DataView(b.buffer).setUint16(8, height, true);
-  if (!headerOnly) b[13] = 0x3b;
   return b;
 }
-function jpeg(width, height, headerOnly) {
-  /* SOI, APP0 (JFIF, 16 bytes), then SOF0 carrying the dimensions, SOS, EOI. */
+function jpeg(width, height, headerOnly, options) {
+  /* SOI, APP0 (JFIF, 16 bytes), SOF0 carrying the dimensions, SOS (8 bytes),
+     a few entropy-coded bytes (with one stuffed FF 00), EOI. Huffman data
+     is not decoded by the policy, so these bytes only need the shape. */
+  const o = options || {};
+  const entropy = o.strayMarker ? [0x12, 0xff, 0xc4, 0x34] : o.noEntropy ? [] : [0x12, 0x34, 0xff, 0x00, 0x56];
   const b = new Uint8Array([
     0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0,
     0xff, 0xc0, 0, 17, 8, 0, 0, 0, 0, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, 0xff, 0xda,
-    0, 8, 1, 1, 0, 0, 0x3f, 0, 0xff, 0xd9,
+    0, 8, 1, 1, 0, 0, 0x3f, 0, ...entropy, 0xff, 0xd9,
   ]);
   new DataView(b.buffer).setUint16(25, height);
   new DataView(b.buffer).setUint16(27, width);
   return headerOnly ? b.slice(0, 41) : b;
 }
-function webp(width, height, headerOnly) {
+function webp(width, height, headerOnly, options) {
+  /* RIFF, size, WEBP, then one "VP8 " chunk of 20 bytes: a key-frame tag
+     (bit 0 clear), the 9d 01 2a start code, width, height, and padding. */
+  const o = options || {};
   const b = new Uint8Array(40);
   b.set([82, 73, 70, 70], 0);
   new DataView(b.buffer).setUint32(4, headerOnly ? 4000 : 32, true); /* RIFF size = total - 8 */
   b.set([87, 69, 66, 80], 8);
   b.set([86, 80, 56, 32], 12);
+  new DataView(b.buffer).setUint32(16, o.badChunkSize ? 100 : 20, true);
+  b.set(o.noStartCode ? [0x10, 0x02, 0x00, 0, 0, 0] : [0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a], 20);
   new DataView(b.buffer).setUint16(26, width, true);
   new DataView(b.buffer).setUint16(28, height, true);
   return b;
@@ -194,13 +207,49 @@ ok((await policy.verifyImage('image/png', png(10, 10, false, { badFilter: true }
   'a PNG whose scanline carries an undefined filter type is refused');
 ok((await policy.verifyImage('image/png', png(10, 10))).ok === true, 'and a PNG with real deflated rows passes');
 const realPng1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
-ok(await policy.pngPixelsDecodable(new Uint8Array(realPng1x1)) === true, 'the real 1x1 PNG inflates to exactly its one filtered row');
+ok(await policy.pngPixelsDecodable(new Uint8Array(realPng1x1)) === 'ok', 'the real 1x1 PNG inflates to exactly its one filtered row');
 const bomb = concat([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
   chunk('IHDR', (() => { const h = new Uint8Array(13); new DataView(h.buffer).setUint32(0, 1); new DataView(h.buffer).setUint32(4, 1); h.set([8, 6, 0, 0, 0], 8); return h; })()),
   chunk('IDAT', new Uint8Array(zlib.deflateSync(new Uint8Array(1 << 20)))),
   chunk('IEND', new Uint8Array(0))]);
 ok((await policy.verifyImage('image/png', bomb)).error === 'image_undecodable',
-  'a 1x1 IHDR over a megabyte of inflatable zeros is refused at the ceiling IHDR set, not inflated in full');
+  'a 1x1 IHDR over a megabyte of inflatable zeros is refused the moment the stream passes the five bytes IHDR allows');
+/* Round five: the inflate ceiling is a fixed number, never the header's. */
+const hugeHeader = (() => { const h = new Uint8Array(13); new DataView(h.buffer).setUint32(0, 8000); new DataView(h.buffer).setUint32(4, 8000); h.set([16, 6, 0, 0, 0], 8); return h; })();
+const hugeHeaderPng = concat([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', hugeHeader),
+  chunk('IDAT', new Uint8Array(zlib.deflateSync(new Uint8Array(16)))), chunk('IEND', new Uint8Array(0))]);
+ok((await policy.verifyImage('image/png', hugeHeaderPng)).error === 'image_too_large',
+  'THE ROUND-FIVE FINDING: an 8000x8000 16-bit RGBA header (512 MB of rows) is refused as too large BEFORE anything is inflated');
+ok(policy.MAX_DECODED_BYTES <= 64 * 1024 * 1024 && policy.MAX_DECODED_BYTES >= 11 * 1024 * 1024,
+  'the decoded ceiling is a fixed runtime-safe number, above anything the 1600px browser path produces');
+ok(!/parts\.push\(value\)/.test(fs.readFileSync(path.join(ROOT, 'supabase/functions/description-image-upload/policy.mjs'), 'utf8')),
+  'and the decoded payload is consumed as a stream, never retained');
+/* Round five: indexed colour needs its palette; greyscale must not carry one. */
+const indexedHeader = (() => { const h = new Uint8Array(13); new DataView(h.buffer).setUint32(0, 1); new DataView(h.buffer).setUint32(4, 1); h.set([8, 3, 0, 0, 0], 8); return h; })();
+const indexedRows = new Uint8Array(zlib.deflateSync(new Uint8Array([0, 0])));
+const sig = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const indexedNoPlte = concat([sig, chunk('IHDR', indexedHeader), chunk('IDAT', indexedRows), chunk('IEND', new Uint8Array(0))]);
+ok((await policy.verifyImage('image/png', indexedNoPlte)).error === 'image_incomplete',
+  'an indexed-colour PNG with no PLTE is refused as structurally incomplete: browsers cannot decode it');
+const indexedWithPlte = concat([sig, chunk('IHDR', indexedHeader), chunk('PLTE', new Uint8Array([0, 0, 0])), chunk('IDAT', indexedRows), chunk('IEND', new Uint8Array(0))]);
+ok((await policy.verifyImage('image/png', indexedWithPlte)).ok === true, 'and the same file with its palette passes');
+const greyHeader = (() => { const h = new Uint8Array(13); new DataView(h.buffer).setUint32(0, 1); new DataView(h.buffer).setUint32(4, 1); h.set([8, 0, 0, 0, 0], 8); return h; })();
+const greyWithPlte = concat([sig, chunk('IHDR', greyHeader), chunk('PLTE', new Uint8Array([0, 0, 0])), chunk('IDAT', indexedRows), chunk('IEND', new Uint8Array(0))]);
+ok((await policy.verifyImage('image/png', greyWithPlte)).error === 'image_incomplete', 'a greyscale PNG carrying a PLTE is refused, as the spec forbids it');
+/* Round five: GIF, JPEG and WebP are walked block by block, not trailer-matched. */
+const gifNoImage = new Uint8Array(14); gifNoImage.set(gif(1, 1, true)); gifNoImage[13] = 0x3b;
+ok((await policy.verifyImage('image/gif', gifNoImage)).error === 'image_incomplete',
+  'THE ROUND-FIVE FINDING: GIF89a + screen descriptor + 0x3B with no image block is refused');
+ok((await policy.verifyImage('image/gif', gif(1, 1))).ok === true, 'a real 1x1 GIF (global table, extension, image block, trailer) passes');
+ok((await policy.verifyImage('image/jpeg', jpeg(10, 10, false, { noEntropy: true }))).error === 'image_incomplete', 'a JPEG with SOS but no entropy-coded bytes is refused');
+ok((await policy.verifyImage('image/jpeg', jpeg(10, 10, false, { strayMarker: true }))).error === 'image_incomplete', 'a JPEG whose scan data carries a stray marker before its segment is refused');
+const jpegTrailingJunk = concat([jpeg(10, 10), new Uint8Array([1, 2])]);
+ok((await policy.verifyImage('image/jpeg', jpegTrailingJunk)).error === 'image_incomplete', 'a JPEG with bytes after EOI is refused: EOI must be the last two bytes');
+ok((await policy.verifyImage('image/webp', webp(10, 10, false, { badChunkSize: true }))).error === 'image_incomplete', 'a WebP whose VP8 chunk size overruns the file is refused');
+ok((await policy.verifyImage('image/webp', webp(10, 10, false, { noStartCode: true }))).error === 'image_incomplete', 'a WebP VP8 chunk without the key-frame start code is refused');
+const vp8xNoImage = (() => { const b = new Uint8Array(30); b.set([82, 73, 70, 70], 0); new DataView(b.buffer).setUint32(4, 22, true); b.set([87, 69, 66, 80], 8); b.set([86, 80, 56, 88], 12); new DataView(b.buffer).setUint32(16, 10, true); b.set([0, 0, 0, 0, 9, 0, 0, 9, 0, 0], 20); return b; })();
+ok(policy.sniffImage(vp8xNoImage) !== null && (await policy.verifyImage('image/webp', vp8xNoImage)).error === 'image_incomplete',
+  'a VP8X container with no image chunk inside is refused');
 const realPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 const realVerdict = await policy.verifyImage('image/png', new Uint8Array(realPng));
 ok(realVerdict.ok === true && realVerdict.width === 1 && realVerdict.height === 1,

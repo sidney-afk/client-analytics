@@ -133,32 +133,23 @@ function sniffWebp(b) {
   return null;
 }
 
-/**
- * A header is not a file. The sniffers above read only the leading bytes, so
- * a 24-byte PNG signature plus IHDR would pass them with no pixel data behind
- * it and be stored forever as a URL that renders broken. Each format has a
- * mandatory closing structure that a truncated body cannot have: PNG ends in
- * an IEND chunk, GIF in a 0x3B trailer, JPEG in an EOI marker, and a WebP's
- * RIFF header states the file's own length. Cheap, exact, and enough to
- * refuse every header-only body; a full decode is not attempted in the Edge
- * runtime. Raised by Codex on #1310, round two.
- * @param {ImageKind} kind
- * @param {Uint8Array} b
- * @returns {boolean}
- */
-export function imageComplete(kind, b) {
-  const n = b.length;
-  if (kind === "png") return pngChunks(b) !== null;
-  if (kind === "gif") return n >= 14 && b[n - 1] === 0x3b;
-  if (kind === "jpeg") return jpegReachesScan(b) && b[n - 2] === 0xff && b[n - 1] === 0xd9;
-  if (kind === "webp") {
-    const riffSize = b[4] + (b[5] << 8) + (b[6] << 16) + (b[7] << 24);
-    /* RIFF size excludes its own 8-byte header; an odd chunk may carry one
-       pad byte, so the file is either exactly that or one byte longer. */
-    return riffSize > 12 && (n === riffSize + 8 || n === riffSize + 9);
-  }
-  return false;
-}
+/* ------------------------------------------------------------------------
+   Whole-file structure, per format (Codex on #1310, rounds three to five).
+   A header is not a file, and a trailer is not a structure. Each format
+   below is walked block by block: sizes must fit, mandatory blocks must be
+   present in the order the format requires, and the walk must end exactly
+   at the end of the file. PNG additionally has its pixel stream inflated
+   and measured. None of this is a full decode; it is what a decoder checks
+   before it starts, done without an image library and without retaining
+   the decoded payload.
+   ------------------------------------------------------------------------ */
+
+/* The most decoded bytes the PNG check will inflate. Well above anything the
+   browser sends (it downscales to 1600px on the long edge, so under 11 MiB
+   of RGBA rows) and well below what an Edge worker can hold; an IHDR that
+   implies more is refused outright as too large, so a highly compressible
+   body cannot use its own header as the ceiling. Codex on #1310, round five. */
+export const MAX_DECODED_BYTES = 48 * 1024 * 1024;
 
 /** @type {Uint32Array | null} */
 let crcTable = null;
@@ -178,13 +169,18 @@ function crc32(b, from, to) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+/** @param {number} colorType @returns {number} channels, or 0 for an undefined type */
+function pngChannels(colorType) {
+  return colorType === 0 ? 1 : colorType === 2 ? 3 : colorType === 3 ? 1 : colorType === 4 ? 2 : colorType === 6 ? 4 : 0;
+}
+
 /**
- * The PNG chunk walk. Not a suffix check (Codex on #1310, round three): every
- * chunk's declared length must fit, every chunk's CRC must match its type
- * and data, the first chunk must be a 13-byte IHDR, at least one IDAT must
- * carry data, and the walk must end on a zero-length IEND exactly at the end
- * of the file. Returns the header fields and the concatenated IDAT stream
- * for pngPixelsDecodable, or null.
+ * The PNG chunk walk: every chunk's declared length must fit, every CRC must
+ * match its type and data, IHDR must come first with length 13, PLTE must
+ * precede IDAT and is REQUIRED for an indexed image (colour type 3) and
+ * forbidden for greyscale (0 and 4), at least one IDAT must carry data, and
+ * the walk must end on a zero-length IEND exactly at the end of the file.
+ * Returns the header and the concatenated IDAT stream, or null.
  * @param {Uint8Array} b
  * @returns {{ width: number, height: number, bitDepth: number, colorType: number, interlace: number, idat: Uint8Array } | null}
  */
@@ -195,6 +191,8 @@ function pngChunks(b) {
   /** @type {Uint8Array[]} */
   const idat = [];
   let idatBytes = 0;
+  let sawPlte = false;
+  let sawIdat = false;
   let header = null;
   while (at + 12 <= n) {
     const length = be32(b, at);
@@ -202,6 +200,7 @@ function pngChunks(b) {
     const end = at + 12 + length;
     if (end > n) return null;
     if (first && (type !== "IHDR" || length !== 13)) return null;
+    if (!first && type === "IHDR") return null;
     if (crc32(b, at + 4, at + 8 + length) !== be32(b, at + 8 + length)) return null;
     if (first) {
       header = {
@@ -214,7 +213,19 @@ function pngChunks(b) {
       if (b[at + 18] !== 0 || b[at + 19] !== 0) return null; /* compression, filter: only 0 exists */
     }
     first = false;
-    if (type === "IDAT") { idat.push(b.subarray(at + 8, at + 8 + length)); idatBytes += length; }
+    if (type === "PLTE") {
+      if (!header || sawPlte || sawIdat) return null;
+      if (header.colorType === 0 || header.colorType === 4) return null;
+      if (length === 0 || length % 3 !== 0 || length / 3 > 256) return null;
+      if (header.colorType === 3 && length / 3 > (1 << header.bitDepth)) return null;
+      sawPlte = true;
+    }
+    if (type === "IDAT") {
+      if (!header || (header.colorType === 3 && !sawPlte)) return null;
+      sawIdat = true;
+      idat.push(b.subarray(at + 8, at + 8 + length));
+      idatBytes += length;
+    }
     if (type === "IEND") {
       if (!(length === 0 && end === n && idatBytes > 0) || !header) return null;
       const stream = new Uint8Array(idatBytes);
@@ -227,132 +238,244 @@ function pngChunks(b) {
   return null;
 }
 
-/** @param {number} colorType @returns {number} channels, or 0 for an undefined type */
-function pngChannels(colorType) {
-  return colorType === 0 ? 1 : colorType === 2 ? 3 : colorType === 3 ? 1 : colorType === 4 ? 2 : colorType === 6 ? 4 : 0;
-}
-
-/** The byte length the filtered scanlines MUST inflate to, from IHDR alone:
- * one filter byte plus the packed pixels per row, summed over the seven
- * Adam7 passes when interlaced. Zero for an IHDR that names no legal layout.
- * @param {{ width: number, height: number, bitDepth: number, colorType: number, interlace: number }} h */
-function pngExpectedRawLength(h) {
+/** The filtered scanline lengths IHDR implies, in file order (Adam7 passes
+ * when interlaced), or null for an IHDR that names no legal layout.
+ * @param {{ width: number, height: number, bitDepth: number, colorType: number, interlace: number }} h
+ * @returns {number[] | null} */
+function pngRowLengths(h) {
   const channels = pngChannels(h.colorType);
   const depthOk = [1, 2, 4, 8, 16].includes(h.bitDepth)
     && !((h.colorType === 2 || h.colorType === 4 || h.colorType === 6) && h.bitDepth < 8)
     && !(h.colorType === 3 && h.bitDepth === 16);
-  if (!channels || !depthOk || h.width <= 0 || h.height <= 0) return 0;
+  if (!channels || !depthOk || h.width <= 0 || h.height <= 0) return null;
   const bitsPerPixel = channels * h.bitDepth;
-  /** @param {number} w @param {number} hgt */
-  const rows = (w, hgt) => hgt * (1 + Math.ceil((w * bitsPerPixel) / 8));
-  if (h.interlace === 0) return rows(h.width, h.height);
-  if (h.interlace !== 1) return 0;
+  /** @param {number} w */
+  const rowBytes = (w) => 1 + Math.ceil((w * bitsPerPixel) / 8);
+  /** @type {number[]} */
+  const rows = [];
+  if (h.interlace === 0) {
+    const row = rowBytes(h.width);
+    for (let y = 0; y < h.height; y++) rows.push(row);
+    return rows;
+  }
+  if (h.interlace !== 1) return null;
   const passes = [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2, 4], [1, 0, 2, 2], [0, 1, 1, 2]];
-  let total = 0;
   for (const [x0, y0, dx, dy] of passes) {
     const w = Math.ceil(Math.max(0, h.width - x0) / dx);
     const hgt = Math.ceil(Math.max(0, h.height - y0) / dy);
-    if (w > 0 && hgt > 0) total += rows(w, hgt);
+    if (w > 0 && hgt > 0) { const row = rowBytes(w); for (let y = 0; y < hgt; y++) rows.push(row); }
   }
-  return total;
+  return rows;
 }
 
 /**
- * Inflate a zlib stream with a hard ceiling on the output, so a crafted body
- * cannot expand past what IHDR promised. Returns null on any error or on
- * output beyond `limit`.
- * @param {Uint8Array} bytes @param {number} limit
- * @returns {Promise<Uint8Array | null>} */
-async function inflateBounded(bytes, limit) {
-  try {
-    const inflater = new DecompressionStream("deflate");
-    const writer = inflater.writable.getWriter();
-    /* Written and read concurrently; a corrupt stream rejects the write,
-       which the read loop below surfaces as an error of its own. */
-    /* A copy on a plain ArrayBuffer: the writer's BufferSource type does not
-       admit a view over a SharedArrayBuffer, and `bytes` may be either. */
-    const owned = new Uint8Array(bytes.byteLength);
-    owned.set(bytes);
-    writer.write(owned).then(() => writer.close()).catch(() => {});
-    const reader = inflater.readable.getReader();
-    /** @type {Uint8Array[]} */
-    const parts = [];
-    let total = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        total += value.byteLength;
-        if (total > limit) { try { await reader.cancel(); } catch (_error) { /* already failing */ } return null; }
-        parts.push(value);
-      }
-    }
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const part of parts) { out.set(part, offset); offset += part.byteLength; }
-    return out;
-  } catch (_error) {
-    return null;
-  }
-}
-
-/**
- * The pixel payload, decoded (Codex on #1310, round four): the IDAT stream
- * must inflate cleanly to EXACTLY the byte length IHDR implies, and every
- * scanline's filter byte must be one of the five defined. A CRC-valid PNG
- * whose IDAT is not a zlib stream, or inflates to the wrong size, is refused.
- * That is the whole of what a decoder checks before it starts unfiltering,
- * done here without an image library.
+ * The pixel payload, decoded as a STREAM (Codex on #1310, rounds four and
+ * five): the IDAT bytes are inflated through the runtime's built-in
+ * DecompressionStream and consumed as they arrive; nothing decoded is
+ * retained. The output must reach EXACTLY the byte count IHDR implies, with
+ * a defined filter type (0..4) at the start of every scanline, and any
+ * byte past that count ends the check as a failure. An IHDR implying more
+ * than MAX_DECODED_BYTES is refused before anything is inflated, so the cap
+ * is a fixed runtime-safe number rather than whatever the header says.
  * @param {Uint8Array} b
- * @returns {Promise<boolean>}
+ * @returns {Promise<"ok" | "undecodable" | "too_large">}
  */
 export async function pngPixelsDecodable(b) {
   const chunks = pngChunks(b);
-  if (!chunks) return false;
-  const expected = pngExpectedRawLength(chunks);
-  if (!expected) return false;
-  const raw = await inflateBounded(chunks.idat, expected);
-  if (!raw || raw.length !== expected) return false;
-  /* Walk the filter bytes: one per scanline, at the row starts IHDR implies. */
-  const channels = pngChannels(chunks.colorType);
-  const bitsPerPixel = channels * chunks.bitDepth;
-  const rowLengths = [];
-  if (chunks.interlace === 0) {
-    const row = 1 + Math.ceil((chunks.width * bitsPerPixel) / 8);
-    for (let y = 0; y < chunks.height; y++) rowLengths.push(row);
-  } else {
-    const passes = [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2, 4], [1, 0, 2, 2], [0, 1, 1, 2]];
-    for (const [x0, y0, dx, dy] of passes) {
-      const w = Math.ceil(Math.max(0, chunks.width - x0) / dx);
-      const hgt = Math.ceil(Math.max(0, chunks.height - y0) / dy);
-      if (w > 0 && hgt > 0) for (let y = 0; y < hgt; y++) rowLengths.push(1 + Math.ceil((w * bitsPerPixel) / 8));
+  if (!chunks) return "undecodable";
+  const rows = pngRowLengths(chunks);
+  if (!rows) return "undecodable";
+  let expected = 0;
+  for (const row of rows) expected += row;
+  if (expected > MAX_DECODED_BYTES) return "too_large";
+  try {
+    const inflater = new DecompressionStream("deflate");
+    const writer = inflater.writable.getWriter();
+    /* A copy on a plain ArrayBuffer: the writer's BufferSource type does not
+       admit a view over a SharedArrayBuffer, and `bytes` may be either. */
+    const owned = new Uint8Array(chunks.idat.byteLength);
+    owned.set(chunks.idat);
+    writer.write(owned).then(() => writer.close()).catch(() => {});
+    const reader = inflater.readable.getReader();
+    let produced = 0;      /* bytes seen so far */
+    let rowIndex = 0;      /* which scanline the next byte belongs to */
+    let rowRemaining = rows[0]; /* bytes left in that scanline */
+    let ok = true;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      if (produced + value.byteLength > expected) { ok = false; try { await reader.cancel(); } catch (_error) { /* failing anyway */ } break; }
+      for (let i = 0; i < value.byteLength; i++) {
+        if (rowRemaining === rows[rowIndex] && value[i] > 4) { ok = false; break; }
+        rowRemaining -= 1;
+        if (rowRemaining === 0) { rowIndex += 1; rowRemaining = rowIndex < rows.length ? rows[rowIndex] : 0; }
+      }
+      if (!ok) { try { await reader.cancel(); } catch (_error) { /* failing anyway */ } break; }
+      produced += value.byteLength;
     }
+    return ok && produced === expected ? "ok" : "undecodable";
+  } catch (_error) {
+    return "undecodable";
   }
-  let at = 0;
-  for (const length of rowLengths) {
-    if (raw[at] > 4) return false;
-    at += length;
-  }
-  return at === raw.length;
 }
 
-/** A JPEG that never reaches a Start Of Scan carries no image data, whatever
- * its last two bytes say. Walks the same marker segments the sniffer does.
- * @param {Uint8Array} b
- * @returns {boolean} */
-function jpegReachesScan(b) {
+/**
+ * GIF block structure: header, logical screen descriptor, the global colour
+ * table its flag announces, then a sequence of extension blocks (label plus
+ * data sub-blocks) and image descriptors (with local colour table, LZW
+ * minimum code size and data sub-blocks), ending on the 0x3B trailer as the
+ * LAST byte. At least one image descriptor with at least one data sub-block
+ * is required. LZW itself is not decoded.
+ * @param {Uint8Array} b @returns {boolean}
+ */
+function gifBlocksValid(b) {
+  const n = b.length;
+  if (n < 14) return false;
+  let at = 6;
+  const packed = b[at + 4];
+  at += 7;
+  if (packed & 0x80) at += 3 * (1 << ((packed & 0x07) + 1));
+  /** @param {number} from @returns {number} position after the 0-length terminator, or -1 */
+  const subBlocks = (from) => {
+    let p = from;
+    for (;;) {
+      if (p >= n) return -1;
+      const size = b[p];
+      p += 1;
+      if (size === 0) return p;
+      p += size;
+    }
+  };
+  let images = 0;
+  while (at < n) {
+    const tag = b[at];
+    if (tag === 0x3b) return at === n - 1 && images > 0;
+    if (tag === 0x21) {
+      if (at + 2 > n) return false;
+      at = subBlocks(at + 2);
+      if (at < 0) return false;
+      continue;
+    }
+    if (tag === 0x2c) {
+      if (at + 10 > n) return false;
+      const w = le16(b, at + 5);
+      const h = le16(b, at + 7);
+      const local = b[at + 9];
+      at += 10;
+      if (w === 0 || h === 0) return false;
+      if (local & 0x80) at += 3 * (1 << ((local & 0x07) + 1));
+      if (at + 2 > n) return false;
+      const minCode = b[at];
+      if (minCode < 2 || minCode > 8) return false;
+      if (b[at + 1] === 0) return false; /* no data sub-block at all */
+      at = subBlocks(at + 1);
+      if (at < 0) return false;
+      images += 1;
+      continue;
+    }
+    return false;
+  }
+  return false;
+}
+
+/**
+ * JPEG segment structure: the marker walk must find a frame header (SOFn)
+ * and a Start Of Scan; after SOS the entropy-coded data is walked byte by
+ * byte, where an 0xFF may only be followed by a stuffed 0x00, a restart
+ * marker, a further segment (progressive scans), or the EOI; and the EOI
+ * must be the LAST two bytes. At least one entropy-coded byte is required.
+ * Huffman decoding is not attempted.
+ * @param {Uint8Array} b @returns {boolean}
+ */
+function jpegSegmentsValid(b) {
+  const n = b.length;
   let at = 2;
-  while (at + 4 <= b.length) {
+  let sawFrame = false;
+  let sawScan = false;
+  let entropyBytes = 0;
+  while (at + 2 <= n) {
     if (b[at] !== 0xff) return false;
     const marker = b[at + 1];
     if (marker === 0xff) { at += 1; continue; }
+    if (marker === 0xd9) return at === n - 2 && sawFrame && sawScan && entropyBytes > 0;
     if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { at += 2; continue; }
-    if (marker === 0xda) return true;
-    if (marker === 0xd9) return false;
+    if (at + 4 > n) return false;
     const length = be16(b, at + 2);
-    if (length < 2) return false;
+    if (length < 2 || at + 2 + length > n) return false;
+    const isFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+    if (isFrame) sawFrame = true;
     at += 2 + length;
+    if (marker === 0xda) {
+      if (!sawFrame) return false;
+      sawScan = true;
+      /* Entropy-coded data until the next real marker. */
+      while (at < n) {
+        if (b[at] !== 0xff) { entropyBytes += 1; at += 1; continue; }
+        if (at + 1 >= n) return false;
+        const next = b[at + 1];
+        if (next === 0x00 || (next >= 0xd0 && next <= 0xd7)) { entropyBytes += 1; at += 2; continue; }
+        if (next === 0xff) { at += 1; continue; }
+        break; /* a marker: back to the segment walk */
+      }
+    }
   }
+  return false;
+}
+
+/**
+ * WebP RIFF structure: the RIFF size must state the file's own length, the
+ * chunks after "WEBP" must tile the payload exactly (each fourcc + LE32 size
+ * + data, padded to even), and exactly one image chunk must be present: a
+ * "VP8 " key frame with its start code, or a "VP8L" stream with its
+ * signature, directly or inside a "VP8X" container.
+ * @param {Uint8Array} b @returns {boolean}
+ */
+function webpChunksValid(b) {
+  const n = b.length;
+  if (n < 20) return false;
+  const riffSize = b[4] + (b[5] << 8) + (b[6] << 16) + (b[7] << 24);
+  if (riffSize + 8 !== n) return false;
+  let at = 12;
+  let image = 0;
+  let extended = false;
+  while (at + 8 <= n) {
+    const fourcc = ascii(b, at, 4);
+    const size = b[at + 4] + (b[at + 5] << 8) + (b[at + 6] << 16) + (b[at + 7] << 24);
+    const dataAt = at + 8;
+    if (dataAt + size > n) return false;
+    if (fourcc === "VP8 ") {
+      /* frame tag (3) then the key-frame start code 9d 01 2a */
+      if (size < 10 || b[dataAt + 3] !== 0x9d || b[dataAt + 4] !== 0x01 || b[dataAt + 5] !== 0x2a) return false;
+      if (b[dataAt] & 0x01) return false; /* bit 0 set = interframe, never a still */
+      image += 1;
+    } else if (fourcc === "VP8L") {
+      if (size < 5 || b[dataAt] !== 0x2f) return false;
+      image += 1;
+    } else if (fourcc === "VP8X") {
+      if (at !== 12 || size !== 10) return false;
+      extended = true;
+    } else if (!extended && at === 12) {
+      return false; /* the first chunk must be an image or the extended header */
+    }
+    at = dataAt + size + (size & 1);
+  }
+  return at === n && image === 1;
+}
+
+/**
+ * The whole-file structure check, per format, run after the sniffers agree
+ * with the declared type. PNG's pixel stream is checked separately and
+ * asynchronously by pngPixelsDecodable.
+ * @param {ImageKind} kind
+ * @param {Uint8Array} b
+ * @returns {boolean}
+ */
+export function imageComplete(kind, b) {
+  if (kind === "png") return pngChunks(b) !== null;
+  if (kind === "gif") return gifBlocksValid(b);
+  if (kind === "jpeg") return jpegSegmentsValid(b);
+  if (kind === "webp") return webpChunksValid(b);
   return false;
 }
 
@@ -392,8 +515,10 @@ export async function verifyImage(declared, bytes) {
   if (!imageComplete(sniffed.kind, bytes)) return { ok: false, error: "image_incomplete", status: 415 };
   /* PNG is the one format whose pixel payload can be checked here without
      an image library: inflate it and measure it against IHDR. */
-  if (sniffed.kind === "png" && !(await pngPixelsDecodable(bytes))) {
-    return { ok: false, error: "image_undecodable", status: 415 };
+  if (sniffed.kind === "png") {
+    const pixels = await pngPixelsDecodable(bytes);
+    if (pixels === "too_large") return { ok: false, error: "image_too_large", status: 413 };
+    if (pixels !== "ok") return { ok: false, error: "image_undecodable", status: 415 };
   }
   return {
     ok: true,

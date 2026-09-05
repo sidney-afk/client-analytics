@@ -1,0 +1,49 @@
+name: Continuity drill
+# Dormant package: neither merge nor private enablement is performed by this PR.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: client-continuity-delivery-drill
+  cancel-in-progress: false
+jobs:
+  run:
+    if: vars.CLIENT_CONTINUITY_DRILL_ENABLED == 'true' && vars.CLIENT_CONTINUITY_RELEASE_SHA != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CONTINUITY_OPERATIONS_JSON: ${{ secrets.CONTINUITY_OPERATIONS_JSON }}
+      SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      CONTINUITY_N8N_ORIGIN: ${{ secrets.CONTINUITY_N8N_ORIGIN }}
+      CONTINUITY_BOT_TOKEN: ${{ secrets.CONTINUITY_BOT_TOKEN }}
+      CONTINUITY_OWNER_DM: ${{ secrets.CONTINUITY_OWNER_DM }}
+      CONTINUITY_BOT_USER: ${{ secrets.CONTINUITY_BOT_USER }}
+      CONTINUITY_OWNER_USER: ${{ secrets.CONTINUITY_OWNER_USER }}
+      CONTINUITY_SLACK_TEAM: ${{ secrets.CONTINUITY_SLACK_TEAM }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ vars.CLIENT_CONTINUITY_RELEASE_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run only the approved operation
+        shell: bash
+        run: |
+          export CONTINUITY_PUBLIC_OUTPUT="$RUNNER_TEMP/continuity-public"
+          export CONTINUITY_ACTIVATION=OWNER_APPROVED_CONTINUITY_DRILL
+          mkdir -p "$CONTINUITY_PUBLIC_OUTPUT"
+          node scripts/client-continuity-hosted.js drill
+      - name: Preserve aggregate receipts only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuity-drill
+          path: ${{ runner.temp }}/continuity-public/*.json
+          retention-days: 7
+          if-no-files-found: error

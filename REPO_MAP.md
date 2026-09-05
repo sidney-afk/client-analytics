@@ -8,6 +8,33 @@ commit as any structural change.
 
 ## Top level
 
+First Samples release composition and held live gates:
+`docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts
+`SAMPLES_RECOVERY_TARGET_SHA` and records the exact integrated document tested.
+
+Samples recovery prerequisite: `scripts/samples-recovery-build.js` creates a
+guarded, offline reader inverse without changing the checkout. The operating
+constraints and pinned receipts live in `docs/ops/SAMPLES_RECOVERY_REHEARSAL.md`.
+`test/samples-recovery-build.js` checks drift refusals and unverified read behavior;
+`qa/boot/samples-recovery-rehearsal.js` exercises actual forward/recovery/forward
+documents with intercepted writes, owned receipt conservation and negative controls.
+
+Samples local-work correction: `test/samples-local-work.js` exercises held saves,
+reload recovery, client/actor ownership, storage failures and legacy mixed caches.
+`test/helpers/samples-work-context.js` loads the shipped recovery helpers for the
+existing mocked writer suites. `node qa/boot/samples-local-work.js` runs the full
+local app with intercepted writes, real typing/debounce, client switches, fresh
+browser recovery and accessible storage retry. Recovery records are separate
+from verified read caches; unknown legacy draft bytes remain private and unassigned.
+Field-level recovery debt survives later batches until matching acknowledgement;
+existing staff identity cleanup suspends the Samples view without deleting its
+owned recovery bytes. Storage Retry reattempts incomplete per-record hydration.
+
+Samples G1 regression: `test/samples-authoritative-read.js` executes the shipped
+per-client reader, loader and cache with fictional fixtures and no external I/O.
+The existing `qa/boot/client-entry-sequence.js` supplies exact-count Samples receipts
+in its fully mocked client-navigation lane.
+
 | Path | What it is |
 |---|---|
 | `index.html` | **The entire application** — a single-file SPA, served to production by GitHub Pages from `main`. Merging to `main` ships immediately. Deliberate nav mapping: visible **SyncLinear** (labelled `Linear` until 2026-08-21) = `navProd` / key `production` / `#production` (`?prod=1` alias, authority-gated native mirror); visible **Submit** = `navLinear` / key `linear` / `#linear` (submission form). The mirror's status/comment/due/assignee controls write only through `production-write` when role/team/authority gates pass (or for the bounded active-TEST override); current authority must be read back, not inferred from this map. |
@@ -61,6 +88,32 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/syncview-design/` | The **locked design kit** for the visible **Linear** mirror (internally the `production` surface): `docs/syncview-design/SyncView.html` (behavior source of truth), `docs/syncview-design/linear-design-tokens.md` (visual build spec), `docs/syncview-design/WIRED-PARITY.md` (parity contract), wired test gates in `docs/syncview-design/tests/`, raw probe measurements in `docs/syncview-design/probe-data/`, prototype-era suites in `docs/syncview-design/tests/design-machine-originals/`. |
 
 ## Test & automation entry points
+
+Inactive first-Samples-repair monitoring preparation:
+`scripts/client-continuity-monitor.js` (read truth, relay/fallback and liveness),
+`scripts/client-continuity-view.js` (request/DOM observer and private scoped census),
+`scripts/client-continuity-transport.js` (context transport denial and bounded safety finalization),
+`scripts/client-continuity-run.js` (inactive manual launcher and private receipts),
+`docs/ops/client-continuity.config.example.json` (inactive secret-reference template),
+`scripts/client-continuity-actions.js` (gated TEST persistence runner),
+`test/client-continuity-monitor.js` (offline fixtures and actual reader checks),
+`qa/client-continuity.js` and `qa/client-continuity-fixtures.js` (intercepted boot harness reuse),
+`qa/client-continuity-transport.js` (independent loopback transport escape regressions),
+`test/client-continuity-view.js` and `test/helpers/client-continuity-source.js` (census/launcher/source coverage), and
+`docs/ops/CLIENT_CONTINUITY_PREPARATION.md` (activation/recovery requirements).
+
+Inactive hosted continuation: `scripts/client-continuity-hosted.js` (view,
+receipt observer, bounded drill and independent-host sentinel commands),
+`scripts/client-continuity-observer.js` (receipt validation and durable alert intent),
+`scripts/client-continuity-delivery.js` (existing relay terminal confirmation and optional direct bot readback),
+`scripts/client-continuity-test-ui.js` and `qa/client-continuity-test-ui.js`
+(actual anonymous controls against isolated persisted fixtures; live automation unavailable),
+`test/client-continuity-operations.js` (synthetic operation/delivery/state boundaries),
+`docs/ops/client-continuity-operations.example.json` (inactive private reference template),
+`docs/ops/CLIENT_CONTINUITY_OPERATIONS.md` (finite activation/disable handoff), and
+`.github/workflows/client-continuity-hosted-view.yml`,
+`.github/workflows/client-continuity-hosted-observer.yml`,
+`.github/workflows/client-continuity-hosted-delivery-drill.yml` (dormant hosted package).
 
 | Command / trigger | What runs | Notes |
 |---|---|---|

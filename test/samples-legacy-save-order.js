@@ -76,6 +76,7 @@ async function runCase({ gateway, saveOk }) {
   const issue = 'https://linear.app/acme/issue/VID-1/sample';
   const post = {
     id: pid,
+    client: 'fixtureclient',
     linear_issue_id: issue,
     video_status: 'In Progress',
     graphic_status: 'Backlog',
@@ -159,6 +160,7 @@ async function runCase({ gateway, saveOk }) {
   };
 
   vm.createContext(context);
+  require('./helpers/samples-work-context')(source, context);
   vm.runInContext(extract('_writeUiComponentHasWorkItem'), context);
   vm.runInContext(extract('_sxrPushStatusToLinear'), context);
   vm.runInContext(extract('_writeUiApplyOverallStatus'), context);

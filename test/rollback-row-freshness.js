@@ -1052,6 +1052,37 @@ ok(nestedReadableRun.json && nestedReadableRun.json.live && nestedReadableRun.js
     && nestedReadableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
     'A READABLE NESTED DEPLOY IS DATED BY ITS OWN HEADING: inserted into the 2026-08-05 container it becomes the newest receipt on 2026-09-06 with no chronology complaint, and the row is what fails');
 
+/* ---- 8l. truncated attestations; deeper headings (round thirteen) ------------ */
+const shortAttestation = [
+    '',
+    'Later the same evening `production-write` 68 → **69** shipped; attestation:',
+    '',
+    '```json',
+    JSON.stringify({
+        schema: 'syncview_f27_section4_deployed_versions_v1',
+        deploy_commit: '3d534cfa5598ef16e61c5ee7dc8072afaa9963c7',
+        github_run_id: '33991332628',
+        functions: [
+            { slug: 'batch-write', active_version: '35', source_closure_sha256: H.bw, verify_jwt: false },
+            { slug: 'deliverable-write', active_version: '35', source_closure_sha256: H.dw, verify_jwt: false },
+            { slug: 'linear-outbound', active_version: '47', source_closure_sha256: H.lo47, verify_jwt: false },
+        ],
+    }, null, 2),
+    '```',
+    '',
+].join('\n');
+const shortRun = run(fixture('short-attestation', realLog + shortAttestation, realRb));
+ok(shortRun.code === 1 && shortRun.json
+    && shortRun.json.failures.some(f => /an attestation block at character \d+ .*\(run 33991332628\) names 3 of the four functions and omits production-write/.test(f))
+    && shortRun.json.failures.some(f => /two receipts claim run 33991332628 but disagree on production-write: the attestation block says v68, an attestation block .* does not name it/.test(f)),
+    'A TRUNCATED ATTESTATION IS CAUGHT TWICE: a three-function block under the v68 run is named for the function it omits, and its keyset disagreement with the complete block is a conflict');
+const deepHeading = nestedReadable.replace('### 2026-09-06 — Deploy #40, run `34000000000`', '##### 2026-09-06 — Deploy #40, run `34000000000`');
+const deepRun = run(fixture('deep-heading', insertInto(deepHeading), realRb));
+ok(deepRun.json && deepRun.json.live && deepRun.json.live.run === '34000000000'
+    && !deepRun.json.failures.some(f => /not the newest by\s+date|chronology signals disagree|carries no receipt/.test(f))
+    && deepRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'and a receipt under a level-five heading is dated by that heading, so it is the newest on 2026-09-06 with no chronology complaint and the row is what fails');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

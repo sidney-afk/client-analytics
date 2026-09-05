@@ -76,6 +76,18 @@ function receiptsFromJson(log) {
                 closure: String(f.source_closure_sha256 || '').trim().toLowerCase(),
             };
         }
+        /* The §4 lane attests all four functions, always. A block naming fewer
+           is truncated or hand-written, and the dangerous kind: under an old
+           entry's run id it folds into that run's complete receipt and the
+           function it omitted -- the one that changed -- is never compared
+           (Codex, thirteenth round on #1306). */
+        const named = SLUGS.filter(slug => fns[slug]);
+        if (named.length < SLUGS.length) {
+            receiptsMeta.incompleteAttestations.push({
+                at: m.index, run: String(obj.github_run_id || '').trim(), named: named.length,
+                missing: SLUGS.filter(slug => !fns[slug]),
+            });
+        }
         out.push({
             at: m.index, source: 'attestation block',
             run: String(obj.github_run_id || '').trim(),
@@ -150,7 +162,7 @@ function receiptsFromTables(log) {
    is the last-resort fallback for a receipt with no anchor above it at all. */
 function deployAnchors(log) {
     const out = [];
-    const heading = /^#{2,4} [^\n]*?\brun `(\d{6,})`/gm;
+    const heading = /^#{2,6} [^\n]*?\brun `(\d{6,})`/gm;
     const prose = /\*\*Section 4 forward from `[0-9a-f]{7,40}`, run `(\d{6,})`/g;
     let m;
     while ((m = heading.exec(log))) out.push({ at: m.index, run: m[1] });
@@ -215,7 +227,7 @@ function proseContext(log, at, anchors) {
        2026-08-05 one; dating it by the parent made the newest deploy by run id
        disagree with the date order and fail chronology (Codex, twelfth round on
        #1306). Same rule the unreadable-section sweep already applies. */
-    const heads = [...chunk.matchAll(/(?:^|\n)#{2,4} ([^\n]*)/g)];
+    const heads = [...chunk.matchAll(/(?:^|\n)#{2,6} ([^\n]*)/g)];
     let date = '';
     for (let i = heads.length - 1; i >= 0 && !date; i--) {
         const d = heads[i][1].match(/\b(\d{4}-\d{2}-\d{2})\b/);
@@ -430,6 +442,23 @@ function executionLogReceipts() {
            version, and vanishes into the fold (Codex, twelfth round on #1306).
            So a disagreement on any function's version or closure is recorded
            and reported, whichever shape survives. */
+        /* And they must name the SAME functions when both are structured
+           shapes (an attestation block or a table). The concise-prose receipt
+           legitimately names only what moved ("the other three were
+           byte-identical redeploys"), so it is exempt from the keyset rule and
+           held only to agreement on what it does name. */
+        const structured = x => x.source === 'attestation block' || x.source === 'summary table';
+        if (structured(prev) && structured(r)) {
+            for (const slug of SLUGS) {
+                if (!!prev.fns[slug] !== !!r.fns[slug]) {
+                    receiptsMeta.conflicts.push({
+                        run: r.run, slug, at: r.at,
+                        kept: { source: prev.source, version: prev.fns[slug] ? prev.fns[slug].version : '(absent)' },
+                        other: { source: r.source, version: r.fns[slug] ? r.fns[slug].version : '(absent)' },
+                    });
+                }
+            }
+        }
         for (const slug of SLUGS) {
             const a = prev.fns[slug], b = r.fns[slug];
             if (!a || !b) continue;
@@ -456,7 +485,7 @@ function executionLogReceipts() {
 /* The log text, kept so main() can run the other-lane sweep without re-reading
    and re-parsing the file; and the position of every receipt it parsed, so the
    unreadable-entry sweep below can tell an entry with a receipt from one without. */
-const receiptsMeta = { log: '', positions: [], parsedRows: new Set(), conflicts: [] };
+const receiptsMeta = { log: '', positions: [], parsedRows: new Set(), conflicts: [], incompleteAttestations: [] };
 
 /* A DEPLOY ENTRY THIS GUARD CANNOT READ IS A DEPLOY THIS GUARD CANNOT SEE.
    Codex P1 on #1306. On 2026-09-05 two forward deploys were logged with the
@@ -560,7 +589,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
         return { rejected, truncated };
     };
     const heads = [];
-    const hre = /^(#{2,4}) [^\n]*/gm;
+    const hre = /^(#{2,6}) [^\n]*/gm;
     let m;
     while ((m = hre.exec(log))) heads.push({ at: m.index, level: m[1].length, text: m[0] });
     const within = (from, to) => receiptPositions.some(at => at >= from && at < to);
@@ -691,9 +720,17 @@ function main() {
             + ' so it cannot be placed in time and the newest deploy cannot be established.'
             + ' Add the run id to that entry (the attestation block carries it as github_run_id).');
     }
+    for (const i of (receiptsMeta.incompleteAttestations || [])) {
+        failures.push('an attestation block at character ' + i.at + ' of EXECUTION_LOG.md (run ' + (i.run || '?') + ') names '
+            + i.named + ' of the four functions and omits ' + i.missing.join(', ') + '. The §4 lane attests all four, always;'
+            + ' a block naming fewer is truncated or hand-written, and under another entry\'s run id it would fold into that'
+            + ' run\'s receipt with the omitted function never compared. Copy the lane\'s full attestation.');
+    }
+    const says = v => (v === '(absent)' ? 'does not name it' : 'says v' + v);
+    const an = s => (/^[aeiou]/i.test(s) ? 'an ' : 'a ') + s;
     for (const c of (receiptsMeta.conflicts || [])) {
-        failures.push('two receipts claim run ' + c.run + ' but disagree on ' + c.slug + ': the ' + c.kept.source + ' says v'
-            + c.kept.version + ', a ' + c.other.source + ' at character ' + c.at + ' of EXECUTION_LOG.md says v' + c.other.version
+        failures.push('two receipts claim run ' + c.run + ' but disagree on ' + c.slug + ': the ' + c.kept.source + ' '
+            + says(c.kept.version) + ', ' + an(c.other.source) + ' at character ' + c.at + ' of EXECUTION_LOG.md ' + says(c.other.version)
             + '. A receipt that inherited an older entry\'s run id is a new deploy recorded without its own identity;'
             + ' give it its own heading with run `<id>` and "dispatched from `<sha>`".');
     }

@@ -1,6 +1,19 @@
 # The card ↔ deliverable crosswalk: what is actually broken, and the order to fix it
 
-**Status: PROPOSAL. Nothing here has been executed. No migration is written.**
+**Status (2026-09-05): PARTLY EXECUTED. Phase 1 ran; Phase 2's migration is
+WRITTEN but NOT APPLIED.** Source availability and live execution are two
+different things and this line separates them deliberately:
+
+| | State |
+|---|---|
+| Phase 1 (90 cards with no legacy thread) | **RAN 2026-09-04.** 172 mismatching slots → 112; 60 repaired. Owner-executed SQL. |
+| Phase 2's combined RPC | **WRITTEN**, `migrations/2026-09-05-crosswalk-bind-and-import.sql`, rehearsed against a disposable PostgreSQL 16 (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). **NOT APPLIED to the live database, and no card has been repaired through it.** |
+| Phase 2 (the remaining slots) | **NOT STARTED.** Needs the migration applied and a per-card call list measured fresh. |
+| Phase 3 (verify) | Not started. |
+
+~~**Status: PROPOSAL. Nothing here has been executed. No migration is written.**~~
+*(Superseded 2026-09-05. Kept because the sentence was quoted as evidence the
+operation did not exist; it now exists in source only.)*
 
 **Revision 2, 2026-09-04.** Revision 1 was reviewed and four of its claims were
 wrong. They are corrected below and the wrong ones are kept, struck, because one
@@ -139,6 +152,30 @@ in one transaction**. That is a schema change with an owner decision behind it,
 and naming it here is the point of this revision: without it there is no legal
 order, and revision 1's plan would have stalled at its second step.
 
+**That RPC is now written** (2026-09-05):
+`public.production_comment_card_bind_and_import(p_binding, p_comments, p_event)`
+in `migrations/2026-09-05-crosswalk-bind-and-import.sql`, service-role only.
+**Written is not applied** — nothing in the live database has this function yet.
+
+It refuses more than the first draft did, and the two additions are worth
+naming here because they change what Phase 2 can finish on its own. Binding on
+the card's own pointer is not enough authority: a STALE pointer that happens to
+name an unbound row of the same client would have that unrelated row rewritten
+and the card's conversation copied onto it. So the function also requires
+
+  * the deliverable's `kind` to be the kind the card slot implies — `team` is
+    too coarse, because `team='video'` covers `kind='video'` and `kind='other'`;
+  * the card and the deliverable to name **the same Linear issue**, with either
+    side missing treated as unproven rather than as permission.
+
+These are the same two questions `scripts/f42-linkage-defect-repair.js`
+(`classAObjections`) already asks before planning a Class A repair, so the SQL
+repair and the JS planner now agree about what "the same work item" means.
+**Consequence for the plan:** a slot that cannot prove its identity is not a
+slot this RPC will repair. Those are for a person, and the Phase 2 call list has
+to be measured with that in mind rather than assumed to cover every remaining
+slot.
+
 ---
 
 ## 5. The order
@@ -151,8 +188,11 @@ Nothing keys on a bare id.
 for their slots. There is no thread to strand, so the projection hazard cannot
 fire, and it proves the mechanics on rows that cannot misdisplay.
 
-**Phase 2 — the 63 cards with threads, through the new combined RPC.** Blocked
-on that RPC existing. Binding plus import, one transaction, per card.
+**Phase 2 — the cards with threads, through the combined RPC.** ~~Blocked on
+that RPC existing.~~ The RPC is written (see §4); Phase 2 is now blocked on it
+being **applied** to the live database, and on a per-card call list measured
+fresh — the counts moved when Phase 1 ran, so the 63 above is stale and must be
+re-measured rather than reused. Binding plus import, one transaction, per card.
 
 **Phase 3 — verify against the predicate.** `_prodCrosswalkMismatchFields` must
 return empty for all 1,271 slots. Item 99's lesson: do not relax a readback to a

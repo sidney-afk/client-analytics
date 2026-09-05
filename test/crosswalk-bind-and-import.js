@@ -53,6 +53,51 @@ ok(/crosswalk_bind_slot_occupied/.test(CODE),
 ok(/d2\.kind is not distinct from v_kind/.test(CODE),
   'and the occupancy probe keys on KIND, matching deliverables_card_slot_unique(client_slug, origin, card_id, kind)');
 
+/* ---- 2b. the card pointer is not authority on its own ------------------- */
+
+/* Codex, #1273: with only the checks above, a card whose deliverable pointer is
+   STALE but happens to name an unbound row of the same client would have that
+   unrelated row rewritten and the card's conversation copied onto it. The two
+   checks below are the ones scripts/f42-linkage-defect-repair.js already
+   applies for the planner, and they are the only ones here that do not descend
+   from the card pointer -- which is the entire point of them. */
+ok(/v_expected_kind := case when v_component = 'graphic' then 'thumbnail' else 'video' end;/.test(CODE)
+  && /crosswalk_bind_kind_does_not_match_slot/.test(CODE),
+  'the row must be the KIND the card slot implies — team is too coarse to prove it (team=video covers kind=video AND kind=other), so a team-only bind can address the wrong artifact and still look linked');
+ok(/crosswalk_bind_linear_identity_unproven/.test(CODE)
+  && /crosswalk_bind_linear_identity_disagrees/.test(CODE),
+  'and both sides must name the SAME Linear issue, with either side missing treated as UNPROVEN rather than as permission');
+ok(CODE.indexOf('crosswalk_bind_linear_identity_unproven') < CODE.indexOf('update public.deliverables'),
+  'both are checked BEFORE the update — a guard that runs after the row is rewritten reports the refusal accurately and leaves the damage');
+/* The identifier parse is transcribed from linearIdentifier() in the planner.
+   If the two ever disagree about what "the same issue" means, the SQL repair
+   and the JS planner are repairing different things. */
+const PLANNER = fs.readFileSync(path.join(ROOT, 'scripts', 'f42-linkage-defect-repair.js'), 'utf8');
+ok(PLANNER.includes('[A-Za-z][A-Za-z0-9]*-') && CODE.includes('[A-Za-z][A-Za-z0-9]*-'),
+  'and the SQL reads an issue identifier in the same shape the planner does — letters, a dash, digits — so "the same issue" means the same thing in the repair and in the runner that plans it');
+ok(CODE.includes("'/issue/([A-Za-z]") && CODE.includes("'^([A-Za-z]"),
+  'accepting BOTH shapes live rows carry: a full issue URL and a bare identifier. Refusing the URL shape would look like a clean run over a third of the work rather than a refusal');
+
+/* ---- 2c. the card row is locked before it is trusted -------------------- */
+
+/* Without this, staff relinking the card between the read and the commit leaves
+   the function binding into a deliverable the card no longer points at; the
+   nested import validates only the deliverable side and cannot notice. */
+const cardSelect = CODE.slice(CODE.indexOf('from public.calendar_posts c'));
+ok(/^[\s\S]{0,200}?for update/.test(cardSelect),
+  'the card is selected FOR UPDATE, so its slot cannot change under the bind');
+ok(CODE.indexOf('from public.calendar_posts c') < CODE.indexOf('from public.deliverables d\n'),
+  'and the card is locked before the deliverable, so the two locks are always taken in the same order');
+
+/* ---- 2d. the receipt counts inserts, not attempts ----------------------- */
+
+/* production_comment_card_import returns the existing row on an idempotent
+   retry and is otherwise indistinguishable from an insert, so counting the loop
+   would let a runner certify more copied comments than were created. */
+ok(/'processed', v_processed/.test(CODE) && /'already_linked', v_already/.test(CODE)
+  && /v_already := v_already \+ 1;/.test(CODE),
+  'the receipt separates processed / imported / already_linked rather than reporting the loop count as "imported"');
+
 /* ---- 3. bind BEFORE import, in one transaction -------------------------- */
 
 ok(CODE.indexOf('update public.deliverables') < CODE.indexOf('production_comment_card_import'),

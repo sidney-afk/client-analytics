@@ -60,6 +60,10 @@ alter table public.calendar_posts add column if not exists video_deliverable_id 
 alter table public.calendar_posts add column if not exists graphic_deliverable_id text;
 alter table public.calendar_posts add column if not exists video_tweaks text;
 alter table public.calendar_posts add column if not exists graphic_tweaks text;
+-- The bind now reads the card's Linear identity, so the stub needs the two
+-- columns the live table carries (live-schema-baseline-2026-07-03.sql:38-39).
+alter table public.calendar_posts add column if not exists linear_issue_id text;
+alter table public.calendar_posts add column if not exists graphic_linear_issue_id text;
 update public.calendar_posts set client = coalesce(client, 'legacy');
 alter table public.calendar_posts alter column client set not null;
 alter table public.calendar_posts drop constraint if exists calendar_posts_pkey;
@@ -82,22 +86,42 @@ values ('bat_acme','acme','Acme batch','active','calendar','{}'::jsonb, now()),
 -- SQL pass could fix 60 of them) and are wrong only in origin, card_id or
 -- team. A row whose client differs is a broken card reference, and refusing it
 -- is the point of the guard, not a gap in the fixture.
-insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,origin,card_id) values
-  ('del_ok',      'bat_acme', 'acme',   'video',    'video',     'V',  'todo', 'manual',  null),
-  ('del_gra',     'bat_acme', 'acme',   'video',    'thumbnail', 'T',  'todo', 'manual',  null),
-  ('del_free',    'bat_acme', 'acme', 'video',    'video',     'F',  'todo', 'manual',  null),
-  ('del_want',    'bat_acme', 'acme', 'video',    'video',     'W',  'todo', 'manual',  null),
-  ('del_holder',  'bat_acme', 'acme', 'video',    'video',     'H',  'todo', 'calendar','card_taken'),
-  ('del_other',   'bat_beta', 'beta', 'video',    'video',     'O',  'todo', 'manual',  null),
-  ('del_beta',    'bat_beta', 'beta', 'video',    'video',     'Z',  'todo', 'manual',  null),
-  ('del_bound',   'bat_acme', 'acme', 'video',    'video',     'B',  'todo', 'calendar','card_elsewhere');
+-- The Linear identity columns are populated because the bind now REQUIRES the
+-- card and the deliverable to name the same issue (Codex P1 on #1273: the card
+-- pointer alone is not independent authority). A row with no identity, or a
+-- disagreeing one, is a refusal -- so the fixture carries one of each.
+insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,origin,card_id,linear_identifier,linear_issue_url) values
+  ('del_ok',       'bat_acme', 'acme', 'video', 'video',     'V',  'todo', 'manual',  null,             'VID-100', null),
+  ('del_gra',      'bat_acme', 'acme', 'video', 'thumbnail', 'T',  'todo', 'manual',  null,             'GRA-200', null),
+  ('del_free',     'bat_acme', 'acme', 'video', 'video',     'F',  'todo', 'manual',  null,             'VID-300', null),
+  ('del_want',     'bat_acme', 'acme', 'video', 'video',     'W',  'todo', 'manual',  null,             'VID-400', null),
+  ('del_holder',   'bat_acme', 'acme', 'video', 'video',     'H',  'todo', 'calendar','card_taken',     'VID-410', null),
+  ('del_other',    'bat_beta', 'beta', 'video', 'video',     'O',  'todo', 'manual',  null,             'VID-500', null),
+  ('del_beta',     'bat_beta', 'beta', 'video', 'video',     'Z',  'todo', 'manual',  null,             'VID-600', null),
+  ('del_bound',    'bat_acme', 'acme', 'video', 'video',     'B',  'todo', 'calendar','card_elsewhere', 'VID-700', null),
+  -- team is video but kind is other: the exact pair team alone cannot separate.
+  ('del_wrongkind','bat_acme', 'acme', 'video', 'other',     'K',  'todo', 'manual',  null,             'VID-800', null),
+  -- identity provable on the card side only, and on neither column here.
+  ('del_delblind', 'bat_acme', 'acme', 'video', 'video',     'N',  'todo', 'manual',  null,             null,      null),
+  -- identity provable on the deliverable side only.
+  ('del_cardblind','bat_acme', 'acme', 'video', 'video',     'C',  'todo', 'manual',  null,             'VID-820', null),
+  -- both sides provable, and they disagree.
+  ('del_mismatch', 'bat_acme', 'acme', 'video', 'video',     'M',  'todo', 'manual',  null,             'VID-999', null),
+  -- identity carried as a full issue URL rather than a bare identifier, which
+  -- is the shape the live rows actually hold.
+  ('del_url',      'bat_acme', 'acme', 'video', 'video',     'U',  'todo', 'manual',  null,             null,      'https://linear.app/synchro/issue/VID-850/some-title');
 
-insert into public.calendar_posts(client, id, name, video_deliverable_id, graphic_deliverable_id) values
-  ('acme','card_ok','Card OK','del_ok','del_gra'),
-  ('acme','card_free','Card Free','del_free',null),
-  ('acme','card_taken','Card Taken','del_want',null),
-  ('acme','card_nolink','Card No Link',null,null),
-  ('beta','card_ok','Beta same id','del_beta',null);
+insert into public.calendar_posts(client, id, name, video_deliverable_id, graphic_deliverable_id, linear_issue_id, graphic_linear_issue_id) values
+  ('acme','card_ok','Card OK','del_ok','del_gra','https://linear.app/synchro/issue/VID-100/a','GRA-200'),
+  ('acme','card_free','Card Free','del_free',null,'VID-300',null),
+  ('acme','card_taken','Card Taken','del_want',null,'VID-400',null),
+  ('acme','card_nolink','Card No Link',null,null,'VID-050',null),
+  ('acme','card_wrongkind','Card Wrong Kind','del_wrongkind',null,'VID-800',null),
+  ('acme','card_delblind','Card Del Blind','del_delblind',null,'VID-810',null),
+  ('acme','card_cardblind','Card Card Blind','del_cardblind',null,null,null),
+  ('acme','card_mismatch','Card Mismatch','del_mismatch',null,'VID-901',null),
+  ('acme','card_url','Card URL','del_url',null,'VID-850',null),
+  ('beta','card_ok','Beta same id','del_beta',null,'VID-600',null);
 `;
 
 const bind = (b, comments) =>
@@ -143,6 +167,15 @@ function rehearse() {
     const links = scalar(cluster,
       "select count(*) from public.production_comment_card_links where card_id='card_ok' and component='video'");
     ok(links === '1', 'and the legacy comment was imported once (' + links + ')');
+    const receipt = scalar(cluster, bind(
+      { source_surface: 'calendar', deliverable_id: 'del_ok', card_id: 'card_ok', client_slug: 'acme', component: 'video' },
+      [{ native_comment_id: 'n1', source_fingerprint: 'fp1', body: 'hello',
+         author_key: 'smm:acme', author_name: 'SMM', role: 'smm', audience: 'internal',
+         created_at: '2026-08-01T10:00:00Z' }]
+    )).replace(/\s+/g, '');
+    ok(/"processed":1/.test(receipt) && /"imported":0/.test(receipt) && /"already_linked":1/.test(receipt),
+      'and a REPEAT of that call reports 0 imported / 1 already_linked rather than counting the loop -- '
+      + 'a runner certifying "N comments copied" from this receipt is certifying inserts, not attempts');
 
     /* THE LEGACY THREAD IS UNTOUCHED. This is the property the owner asked
        about: the repair copies, so the original stays where clients read it. */
@@ -187,8 +220,26 @@ function rehearse() {
        the function called with a binding no card produced -- but asserting it
        here would need the schema bent out of shape to reach it, and a test that
        fakes its own precondition proves less than saying so. */
+    refuses(cluster, bind({ source_surface: 'calendar', deliverable_id: 'del_wrongkind', card_id: 'card_wrongkind', client_slug: 'acme', component: 'video' }),
+      'crosswalk_bind_kind_does_not_match_slot',
+      "a row on the right TEAM but the wrong kind (team='video' covers kind='other' too)");
+    refuses(cluster, bind({ source_surface: 'calendar', deliverable_id: 'del_delblind', card_id: 'card_delblind', client_slug: 'acme', component: 'video' }),
+      'crosswalk_bind_linear_identity_unproven', 'a deliverable that names no Linear issue');
+    refuses(cluster, bind({ source_surface: 'calendar', deliverable_id: 'del_cardblind', card_id: 'card_cardblind', client_slug: 'acme', component: 'video' }),
+      'crosswalk_bind_linear_identity_unproven', 'a card that names no Linear issue');
+    refuses(cluster, bind({ source_surface: 'calendar', deliverable_id: 'del_mismatch', card_id: 'card_mismatch', client_slug: 'acme', component: 'video' }),
+      'crosswalk_bind_linear_identity_disagrees', 'a card and a deliverable naming DIFFERENT Linear issues');
     refuses(cluster, bind({ source_surface: 'calendar', deliverable_id: 'del_want', card_id: 'card_taken', client_slug: 'acme', component: 'video' }),
       'crosswalk_bind_slot_occupied', 'a card slot another deliverable already holds');
+
+    /* The identity check must read a full issue URL exactly as it reads a bare
+       identifier -- live rows carry both shapes, and a repair that silently
+       refused every URL row would look like a clean run over a third of the
+       work. */
+    cluster.exec(bind({ source_surface: 'calendar', deliverable_id: 'del_url', card_id: 'card_url', client_slug: 'acme', component: 'video' }, []));
+    const urlBound = scalar(cluster, "select coalesce(card_id,'<null>') from public.deliverables where id='del_url'");
+    ok(urlBound === 'card_url',
+      'a deliverable whose identity is a full issue URL binds against a bare card identifier (' + urlBound + ')');
 
     /* cross-client: beta's card genuinely points at acme's deliverable */
     cluster.exec("update public.calendar_posts set video_deliverable_id='del_free' where client='beta' and id='card_ok';");
@@ -201,8 +252,17 @@ function rehearse() {
       'crosswalk_bind_already_bound_elsewhere', 'a deliverable already bound to a different card');
 
     /* ---- the refusals changed nothing --------------------------------- */
+    /* Named as PAIRS, not as a set of ids with a set of cards: `del_bound`
+       legitimately carries a card_id from the fixture, so "any of these rows is
+       bound" would report a false failure, and loosening it to "origin is
+       calendar" would stop noticing the thing it is here to notice. Each pair
+       below is exactly one refused bind. */
     const untouched = scalar(cluster,
-      "select count(*) from public.deliverables where id in ('del_free','del_want','del_other','del_bound') and origin='calendar' and card_id in ('card_free','card_taken','card_ok')");
+      "select count(*) from public.deliverables where (id, coalesce(card_id,'')) in "
+      + "(('del_free','card_free'),('del_want','card_taken'),('del_other','card_free'),"
+      + "('del_bound','card_free'),('del_wrongkind','card_wrongkind'),"
+      + "('del_delblind','card_delblind'),('del_cardblind','card_cardblind'),"
+      + "('del_mismatch','card_mismatch'))");
     ok(untouched === '0',
       'every refusal left the deliverable exactly as it was (' + untouched + ' changed)');
     const stillOne = scalar(cluster, "select count(*) from public.production_comment_card_links");

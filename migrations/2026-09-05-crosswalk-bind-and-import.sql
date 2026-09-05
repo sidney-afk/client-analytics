@@ -33,8 +33,43 @@
 --     `deliverables_card_slot_unique` keys on (client_slug, origin, card_id,
 --     kind); 11 slots are contested today, and a blind bind fails the whole
 --     statement on the constraint rather than reporting which.
+--   * THE CARD POINTER IS NOT SUFFICIENT AUTHORITY ON ITS OWN. A stale pointer
+--     that happens to name an unbound deliverable of the same client would,
+--     with only the checks above, rewrite that unrelated row and copy the
+--     card's conversation onto it. `scripts/f42-linkage-defect-repair.js`
+--     (classAObjections) already refuses that class for the planner, and this
+--     function now asks the same two independent questions:
+--       - `kind` must be the kind the card slot implies. `team` is too coarse:
+--         team='video' covers kind='video' AND kind='other', so a bind keyed on
+--         team alone can address the wrong artifact and the crosswalk will
+--         still call it linked.
+--       - The card and the deliverable must name the SAME Linear issue. Either
+--         side missing is UNPROVEN, not permission -- a refusal, not a pass.
+--     These narrow what the repair can do on its own, deliberately: a slot that
+--     cannot prove its identity is a slot for a person, not for a runner.
 --
 -- Service-role only, like every other function in this family.
+
+-- The Linear issue identifier (e.g. VID-123) a value names, from a full issue
+-- URL or a bare identifier. '' when nothing parseable is present, which every
+-- caller must read as UNPROVEN. Transcribed from linearIdentifier() in
+-- scripts/f42-linkage-defect-repair.js so the SQL repair and the JS planner
+-- cannot disagree about what counts as the same issue.
+create or replace function public.crosswalk_linear_identifier(p_value text)
+returns text
+language sql
+immutable
+set search_path = public
+as $ident$
+  select coalesce(
+    upper((regexp_match(coalesce(p_value, ''), '/issue/([A-Za-z][A-Za-z0-9]*-[0-9]+)'))[1]),
+    upper((regexp_match(btrim(coalesce(p_value, '')), '^([A-Za-z][A-Za-z0-9]*-[0-9]+)$'))[1]),
+    ''
+  );
+$ident$;
+
+revoke all on function public.crosswalk_linear_identifier(text)
+  from public, anon, authenticated;
 
 create or replace function public.production_comment_card_bind_and_import(
   p_binding jsonb,
@@ -53,13 +88,20 @@ declare
   v_client_slug text := nullif(btrim(v_binding->>'client_slug'), '');
   v_component text := lower(nullif(btrim(v_binding->>'component'), ''));
   v_expected_team text;
+  v_expected_kind text;
   v_card_slot text;
+  v_card_link text;
+  v_card_ident text;
   v_kind text;
+  v_del_ident text;
   v_current_client text;
   v_current_card text;
   v_occupant text;
   v_comment jsonb;
+  v_native_id text;
+  v_processed int := 0;
   v_imported int := 0;
+  v_already int := 0;
   v_bound boolean := false;
 begin
   -- 1. IDENTITY. Calendar only: the samples surface has its own origin and is
@@ -72,16 +114,26 @@ begin
     raise exception 'crosswalk_bind_invalid_identity';
   end if;
   v_expected_team := case when v_component = 'graphic' then 'graphics' else 'video' end;
+  -- team is NOT kind: team='video' covers kind='video' and kind='other'.
+  v_expected_kind := case when v_component = 'graphic' then 'thumbnail' else 'video' end;
 
   -- 2. THE CARD MUST POINT AT THIS DELIVERABLE. `calendar_posts` is keyed on
   --    (client, id) -- the bare id is reused across clients by design -- so the
   --    lookup carries both. Reading the slot the component names is what makes
   --    the bind safe: this function never invents a link, it only records the
   --    one the card already asserts.
-  select case when v_component = 'graphic' then c.graphic_deliverable_id else c.video_deliverable_id end
-    into v_card_slot
+  --    FOR UPDATE, and this is not belt-and-braces: without it, staff relinking
+  --    the card between this read and the commit leaves the function binding and
+  --    importing into a deliverable the card no longer points at. The nested
+  --    import validates only the deliverable side, so it cannot notice. Cards
+  --    are locked BEFORE deliverables here and everywhere, so the two locks are
+  --    always taken in the same order.
+  select case when v_component = 'graphic' then c.graphic_deliverable_id else c.video_deliverable_id end,
+         case when v_component = 'graphic' then c.graphic_linear_issue_id else c.linear_issue_id end
+    into v_card_slot, v_card_link
   from public.calendar_posts c
-  where c.client = v_client_slug and c.id = v_card_id;
+  where c.client = v_client_slug and c.id = v_card_id
+  for update;
   if not found then
     raise exception 'crosswalk_bind_card_missing';
   end if;
@@ -90,8 +142,13 @@ begin
   end if;
 
   -- 3. THE DELIVERABLE MUST EXIST, and must not be another client's.
-  select d.client_slug, d.card_id, d.kind
-    into v_current_client, v_current_card, v_kind
+  select d.client_slug, d.card_id, d.kind,
+         case
+           when public.crosswalk_linear_identifier(d.linear_identifier) <> ''
+             then public.crosswalk_linear_identifier(d.linear_identifier)
+           else public.crosswalk_linear_identifier(d.linear_issue_url)
+         end
+    into v_current_client, v_current_card, v_kind, v_del_ident
   from public.deliverables d
   where d.id = v_deliverable_id
   for update;
@@ -110,6 +167,26 @@ begin
      and btrim(v_current_card) <> ''
      and btrim(v_current_card) is distinct from v_card_id then
     raise exception 'crosswalk_bind_already_bound_elsewhere';
+  end if;
+
+  -- 4b. THE ROW MUST BE THE RIGHT KIND FOR THIS SLOT. See the header: `team`
+  --     alone cannot prove it, and a bind onto the wrong kind produces a link
+  --     the crosswalk accepts while it addresses the wrong artifact.
+  if lower(btrim(coalesce(v_kind, ''))) is distinct from v_expected_kind then
+    raise exception 'crosswalk_bind_kind_does_not_match_slot';
+  end if;
+
+  -- 4c. THE CARD AND THE DELIVERABLE MUST NAME THE SAME LINEAR ISSUE. This is
+  --     the only check here that does not descend from the card pointer, and
+  --     that is the whole reason it exists: it is what makes a stale pointer
+  --     naming an innocent unbound row a refusal rather than a rewrite.
+  --     Missing on either side is unproven, and unproven is a refusal.
+  v_card_ident := public.crosswalk_linear_identifier(v_card_link);
+  if v_card_ident = '' or v_del_ident = '' then
+    raise exception 'crosswalk_bind_linear_identity_unproven';
+  end if;
+  if v_card_ident is distinct from v_del_ident then
+    raise exception 'crosswalk_bind_linear_identity_disagrees';
   end if;
 
   -- 5. THE SLOT MUST BE FREE. Checked here so a contested slot is REPORTED,
@@ -140,6 +217,25 @@ begin
   --    and a populated canonical thread never exists for a reader.
   for v_comment in select * from jsonb_array_elements(coalesce(p_comments, '[]'::jsonb))
   loop
+    v_processed := v_processed + 1;
+    /* production_comment_card_import returns the EXISTING production_comments
+       row when the link is already there -- an idempotent retry, or the same
+       identity twice in one payload -- and is otherwise indistinguishable from
+       an insert. Counting the loop and calling it `imported` would let a repair
+       runner certify more copied comments than were created, so the link is
+       looked up first and the two outcomes are reported separately. */
+    v_native_id := nullif(btrim(v_comment->>'native_comment_id'), '');
+    if exists (
+      select 1 from public.production_comment_card_links l
+      where l.source_surface = 'calendar'
+        and l.card_id = v_card_id
+        and l.component = v_component
+        and l.native_comment_id = v_native_id
+    ) then
+      v_already := v_already + 1;
+    else
+      v_imported := v_imported + 1;
+    end if;
     perform public.production_comment_card_import(
       jsonb_build_object(
         'source_surface', 'calendar',
@@ -154,7 +250,6 @@ begin
       v_comment - 'native_comment_id' - 'source_fingerprint',
       coalesce(p_event, '{}'::jsonb)
     );
-    v_imported := v_imported + 1;
   end loop;
 
   return jsonb_build_object(
@@ -164,7 +259,12 @@ begin
     'client_slug', v_client_slug,
     'component', v_component,
     'team', v_expected_team,
-    'imported', v_imported
+    'linear_identifier', v_card_ident,
+    -- processed = entries seen; imported = links this call created;
+    -- already_linked = entries a previous call had already copied.
+    'processed', v_processed,
+    'imported', v_imported,
+    'already_linked', v_already
   );
 end;
 $fn$;

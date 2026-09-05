@@ -13,7 +13,9 @@
  *     one `batches` row, stranding 141 rows off the bucket resolved first;
  *   - on the reported post the parent is a B1 row on the mirror batch
  *     `b1_b_...` and all 32 sub-issues are native rows on `bat_...`;
- *   - 41 of the 109 have a canonical row that also serves another post.
+ *   - 8 of those 44 have a first-ordered bucket that also carries another
+ *     post, and 5 have no bucket of their own at all (43 of 1,567 buckets
+ *     hold more than one post; one holds ten).
  * So the parent and its children were reading and writing two different rows.
  *
  * WHY THE 2026-09-01 BORROW DID NOT COVER IT, and why this file replaces

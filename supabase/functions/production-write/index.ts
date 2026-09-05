@@ -3843,9 +3843,9 @@ async function assetSnapshot(
      It did not, because `filming_doc_url`, `footage_folder_url` and
      `delivery_folder_url` are columns on ONE `batches` row, and the rows of one
      post routinely sit on more than one of them. Measured live 2026-09-05
-     across all 6,330 browser-visible deliverables: of 1,136 posts (a parent
-     uuid carrying at least one child), 109 span more than one batch row, and
-     107 of those have a real parent deliverable row. On the post the owner
+     across all 6,332 browser-visible deliverables: of 1,138 posts (a key
+     carrying at least one child), 44 span more than one batch row, stranding
+     141 rows off the bucket their post resolves first. On the post the owner
      reported, the parent is a B1 row on the mirror batch `b1_b_...` while all
      32 sub-issues are native rows on `bat_...` -- so the Frame folder he saved
      from the parent landed on a row no child reads, and the Raw footage on the
@@ -3962,12 +3962,12 @@ async function assetSnapshot(
   const postRawFootage = postValue("footage_folder_url");
   const postDeliveryFolder = postValue("delivery_folder_url");
   /* WHICH CANDIDATE BATCHES CARRY WORK FOR OTHER POSTS TOO.
-     A `batches` row is a bucket, and 73 of the 1,127 buckets measured
-     2026-09-05 hold more than one post: one holds seven. Naming such a row as
+     A `batches` row is a bucket, and 43 of the 1,567 buckets measured
+     2026-09-05 hold more than one post: one holds ten. Naming such a row as
      a write target would let a link saved on THIS post appear on posts nobody
      was looking at -- while the editor says "shared by the whole post". So a
      bucket is only offered as a target when every row in it belongs to this
-     post. Asked only when the post spans more than one bucket (109 of 1,136),
+     post. Asked only when the post spans more than one bucket (44 of 1,138),
      and a failed read leaves exclusivity UNKNOWN, which offers no target at
      all rather than guessing one. */
   let exclusiveBatchIds: Set<string> | null = null;

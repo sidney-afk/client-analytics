@@ -361,7 +361,7 @@ const CANDIDATES = new Map([
     // replaces walked only downward and switched itself off as soon as the
     // reader's own batch carried any one of the three, so a frame folder saved
     // on a parent reached no sub-issue and the save itself blanked the parent's
-    // raw footage. 109 of 1,136 posts measured span more than one batch row.
+    // raw footage. 44 of 1,138 posts measured span more than one batch row.
     // assetSnapshot now resolves the post from either direction, orders its
     // batch rows deterministically and answers per slot, and names the row a
     // post-level write should land on so the browser can aim at it. policy.mjs
@@ -376,10 +376,10 @@ const CANDIDATES = new Map([
     // editor at a row whose column is empty -- clearing the link on screen
     // would have written a blank over a blank and the value would have come
     // back), and a bucket carrying another post's work is never offered for an
-    // empty slot (73 of 1,127 buckets hold more than one post; one holds
+    // empty slot (43 of 1,567 buckets hold more than one post; one holds
     // seven). One extra client-pinned read, asked only when the post spans
     // more than one bucket.
-    source: '164b8bc79ec1daafc970445e97f0afdac44933398aa48c2de98432324c4f2881',
+    source: 'd2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

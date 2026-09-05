@@ -213,7 +213,7 @@ ok(/if \(!staffIdentity\) return null;/.test(ensureFiles),
 /* THE PILLS FOLLOW THE POST, NOT THE OPEN ROW'S BATCH (2026-09-05).
    batch_files_read answers `deliverables where batch_id = <one id>`, and the
    render loop asked only for the open parent's own batch. On a post whose
-   children sit on another batch row -- 109 of 1,136 measured live -- the
+   children sit on another batch row -- 44 of 1,138 measured live -- the
    response carried the parent alone, _prodBatchFileFor found no entry for any
    sub-issue, and every pill was omitted. The owner reported this as pills that
    had stopped appearing; they had never appeared for these posts, and did for

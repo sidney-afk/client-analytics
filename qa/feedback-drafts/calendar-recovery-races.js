@@ -6,7 +6,7 @@ const {SplitStore,pending,fresh,retry,guards}=require('./calendar-recovery-acces
 const {SOURCE,OUT,Harness,ui,body,ID}=require('./run');
 const {clone}=require('./mock-backend');
 async function main(){
- const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',groups:[]};
+ const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',groups:[],safetyHolds:[],indexSha256:require('node:crypto').createHash('sha256').update(h.index).digest('hex')};
  const run=async(name,fn)=>{try{await fn();report.groups.push({name,status:'PASS'});console.log('PASS '+name);}catch(e){report.groups.push({name,status:'FAIL',error:e.message});console.log('FAIL '+name+': '+e.message);}finally{await h.closeSessions();}};
  try{
   for(const comp of ['video','graphic'])for(const cell of [null,''])await run(comp+' verified '+(cell===null?'null':'empty-string')+' source cell',async()=>{
@@ -19,7 +19,14 @@ async function main(){
    const storage=await s.context.storageState();await s.context.close();s=await h.session(b,'client',{storageState:storage});await h.open(s);await s.page.waitForLoadState('networkidle');
    const panel=s.page.locator(`[data-cal-review-recovery="${comp}"]`);if(!await panel.isVisible())await s.page.locator(`[data-cal-review-pid="${ID}"] .kcard-expand-btn`).click();
    b.outcome='healthy';await panel.getByRole('button',{name:'Retry card sync',exact:true}).click();await ui.until(()=>s.page.evaluate(()=>[..._reviewDraftRecords.values()].every(c=>!c.recovering)),'recovery completes');
-   assert.ok(JSON.parse(b.rows[0][comp+'_tweaks']).some(c=>c.body===body),'valid empty cell accepts original only after complete scoped read');await guards(h,b);
+   const held=await s.page.evaluate(comp=>[..._reviewDraftRecords.values()].find(c=>c.comp===comp)?.recoveryFailure,comp);
+   if(held==='review_atomic_source_repair_unavailable'){
+    assert.ok(b.records.some(r=>r.action==='reconcile_only'),'valid nullable cell reaches exact native proof');
+    assert.equal(b.feedbackWrites.filter(w=>w.transport==='source'&&w.outcome==='accepted').length,0,'capability hold sends no source write');
+    assert.ok((await panel.innerText()).includes(body));report.safetyHolds.push({comp,cell,passed:true});
+   }
+   await guards(h,b);
+   assert.ok(JSON.parse(b.rows[0][comp+'_tweaks']||'[]').some(c=>c.body===body),'complete repair acceptance still requires restoring original into valid empty source');
   });
   for(const alias of ['legacy-only','malformed','nonarray'])await run('video alias '+alias+' is preserved/refused',async()=>{
    const b=new SplitStore('partial');let s=await pending(h,b);s=await fresh(h,b,s);
@@ -28,11 +35,18 @@ async function main(){
   });
   for(const action of ['edit','delete','resolve'])await run('native '+action+' after read before source commit',async()=>{
    const b=new SplitStore('partial');let s=await pending(h,b);s=await fresh(h,b,s);b.outcome='healthy';
-   b.onSourceCommit=()=>{const c=b.comments.find(c=>c.body===body);c.version++;c.updated_at=b.stamp();if(action==='edit'){c.body='Fictional newer native revision';c.edited_at=c.updated_at;}else c[action==='delete'?'deleted_at':'resolved_at']=c.updated_at;};
+   let raced=false;
+   b.onSourceCommit=()=>{raced=true;const c=b.comments.find(c=>c.body===body);c.version++;c.updated_at=b.stamp();if(action==='edit'){c.body='Fictional newer native revision';c.edited_at=c.updated_at;}else c[action==='delete'?'deleted_at':'resolved_at']=c.updated_at;};
    await retry(s);
    const rows=JSON.parse(b.rows[0].video_tweaks||'[]');const stale=rows.find(c=>c.body===body&&!c.deleted&&!c.done);
    fs.writeFileSync(path.join(OUT,'native-'+action+'-race-private.json'),JSON.stringify({source:rows,native:b.comments,writes:b.feedbackWrites,contexts:await s.page.evaluate(()=>[..._reviewDraftRecords.values()])},null,2));
    assert.equal(b.comments.length,1,'no duplicate native submission');assert.equal(b.blocked.length,0);assert.deepEqual(h.sessions.flatMap(s=>s.errors),[]);
+   if(!raced){
+    assert.equal(await s.page.evaluate(()=>[..._reviewDraftRecords.values()].find(c=>c.value.attempt)?.recoveryFailure),'review_atomic_source_repair_unavailable');
+    assert.equal(b.feedbackWrites.filter(w=>w.transport==='source'&&w.outcome==='accepted').length,0);
+    assert.equal(!!stale,false);report.safetyHolds.push({action,passed:true});
+   }
+   assert.equal(raced,true,'complete repair acceptance must actually reach the raced source commit');
    assert.equal(!!stale,false,'native lifecycle race must not insert stale/unresolved source feedback');
   });
   report.status=report.groups.every(g=>g.status==='PASS')?'PASS':'FAIL';

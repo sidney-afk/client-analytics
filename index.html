@@ -27298,7 +27298,7 @@
             body: JSON.stringify(payload)
         });
     }
-    function _calUpsertFetchPinned(clientOrSlug, payload, source, transport, signal) {
+    function _calUpsertFetchPinned(clientOrSlug, payload, source, transport) {
         if (transport !== 'supabase' && transport !== 'webhook') {
             return _calUpsertFetch(clientOrSlug, payload, source);
         }
@@ -27306,7 +27306,6 @@
         return fetch(url, {
             method: 'POST',
             headers: _calUpsertHeaders(source, url),
-            signal,
             body: JSON.stringify(payload)
         });
     }
@@ -43510,6 +43509,8 @@
         try { await _calReviewReconcileFeedback(ctx); ctx.recoveryError = ''; }
         catch (e) { ctx.recoveryFailure = String(e && e.message || 'unknown'); ctx.recoveryError = e && e.message === 'review_receipt_metadata_missing'
             ? 'This earlier attempt has no complete receipt metadata. Your original text is kept; its saved state needs review.'
+            : e && e.message === 'review_atomic_source_repair_unavailable'
+                ? 'Your feedback is saved, but its Calendar copy could not be repaired safely. Your original text is kept; this needs review.'
             : 'Feedback could not be confirmed. Your text is kept; retry when the connection recovers. If this continues, the saved feedback or its card binding needs review.'; }
         finally { ctx.recovering = false; if (_reviewDraftCurrent(ctx)) _calRenderBody({ preserveScroll: true }); }
     }
@@ -43598,22 +43599,14 @@
             return comment;
         };
         try {
-            let source = await readSource();
-            const native = await readNative();
+            const source = await readSource();
+            await readNative();
             if (!source.found) {
-                const original = _writeUiCanonicalSourceComment(native, { id: attempt.id, created_at: attempt.createdAt, updated_at: attempt.createdAt });
-                const patch = { id: ctx.pid, [field]: JSON.stringify([original]) };
-                if (ctx.comp === 'video') patch.tweaks = patch[field];
-                // Existing routing and atomic comment-cell merge, with no
-                // stale status, whole-card snapshot, or unrelated repair refs.
-                check();
-                const response = await _calUpsertFetchPinned(ctx.slug, { client: ctx.slug, post: patch, comments_base_at: '' }, 'ui', 'supabase', timeout.signal);
-                const result = await response.json(); check();
-                if (!response.ok || result.ok !== true) throw new Error('review_source_save_failed');
-                source = await readSource();
-                if (!source.found) throw new Error('review_source_unconfirmed');
-                const confirmed = await readNative();
-                if (confirmed.updated_at !== native.updated_at || confirmed.id !== native.id) throw new Error('review_native_changed');
+                // The frozen source RPC cannot atomically check native version
+                // or lifecycle. A native deletion after readback could otherwise
+                // be resurrected here before the second read notices it. Keep
+                // the owned debt until that exact server capability exists.
+                throw new Error('review_atomic_source_repair_unavailable');
             }
             const latest = check();
             _calSetCommentsFor(latest, ctx.comp, _calMergeCommentLists(_calCommentsFor(latest, ctx.comp), source.comments));

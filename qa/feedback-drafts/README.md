@@ -52,3 +52,7 @@ Calendar's bounded exact-receipt recovery and its old-attempt limitations are
 documented in `docs/ops/CALENDAR_FEEDBACK_RECONCILIATION.md`. Its separate
 16-group runner uses only intercepted source/native receivers, preserves
 negative-control failures, and never dispatches a production or TEST workflow.
+Full missing-source repair acceptance remains red while the atomicity capability
+is absent. `calendar-recovery-races.js` records seven positive safety holds
+separately from its still-failing complete-repair requirements; a withheld
+source commit is never counted as a successfully executed lifecycle race.

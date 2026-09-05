@@ -5,6 +5,23 @@ below pass, but the added native edit/delete/resolve-before-source-commit contro
 all fail on the experimental copy path. The second read only detects the race
 after stale source content has been inserted. This is not release-ready.
 
+**Current held behavior supersedes the experimental insertion described below.**
+The unsafe source-insertion path is preserved only in local experimental commit
+`9f584374231dac4f52b19fa688a72f13c2ac06c9` and has been removed from this candidate.
+Current Retry performs read-only confirmation: an already-exact source copy can
+retire its owned attempt; a missing copy remains visible and held after native
+proof. Normal commenting and approvals remain available through their existing
+paths. No new source-copy write is dispatched by this recovery function.
+
+The missing server capability is an atomic expected-native-comment
+identity/version/lifecycle check **with** source insertion. The frozen
+`calendar_merge_comments(p_client,p_id,p_video,p_graphic,p_caption,p_title,p_base)`
+merges only current Calendar cells by ID/timestamp; it never checks
+`production_comments`. Its source tombstone protection cannot protect a native
+edit, delete or resolve that has not yet reached the source. The existing
+`production-write` reconcile-only read cannot supply that transaction. No
+server/auth/reader widening is attempted here.
+
 This extends the stopped local experiment `f51ba369a7a4f0be47e13e97307136e607c452e7`,
 based on preserved draft #1304 at `78e6b3eaf35e254daa23dd69b2d8f9ee54974434`.
 The original draft and separate consumption recovery remain unchanged. Nothing
@@ -39,15 +56,16 @@ edited, wrong-owner or rebound reads keep the user's text and pending warning.
 
 - If the source already contains the exact original comment, readback retires
   only that owned attempt. It performs no additional write.
-- If the exact native receipt is proven and source lacks the comment, Retry
-  sends only that original comment through the existing pinned Calendar source
-  writer and atomic comment-cell merge. It sends no status or whole-card
-  snapshot. It then rereads source and native before retiring the attempt.
-- A lost response during this repair remains pending. A later exact readback
-  can confirm the committed copy without resending it.
+- If native acceptance is proven but source lacks the comment, current Retry
+  holds the original text and reports that its Calendar copy needs review.
+  The experimental comment-only insertion plus second read was insufficient
+  against a native lifecycle race and is no longer executable in this candidate.
+- An already committed source copy can be confirmed without resending it,
+  including after its original save response was lost.
 
-Concurrent source comments are conserved by the existing atomic server merge;
-current source status is untouched by this patch. Newer local typing keeps its
+The experiment's non-racing controls conserved concurrent source comments and
+status, but that does not close the cross-store race. Current held Retry makes
+no source changes. Newer local typing keeps its
 own revision and remains visible after the earlier attempt is acknowledged.
 Existing status/source journal records are not cleared by comment confirmation.
 Their normal replay is held for this exact card while its owned feedback remains
@@ -66,9 +84,10 @@ complete, scoped `calendar_posts` row. Legacy source routing, incomplete rows,
 unbound/rebound native cards, modified comments, and missing original metadata
 remain unresolved. No routing flag is changed to make verification possible.
 The server's cross-store native/source concurrency remains its existing
-contract: this browser adds before/after readback, not a transaction spanning
-both stores. A native edit racing the source write is reported as unconfirmed;
-this is not a claim of cross-store atomicity or installed repair frequency.
+contract: browser readback cannot create a transaction spanning both stores.
+The experimental post-write warning was insufficient; current missing-source
+insertion is held. This is not a claim of cross-store atomicity or installed
+repair frequency, nor a proof about every pre-existing writer/repair entrypoint.
 
 **G6 / recovery accounting:** old 78e-shaped attempts have no complete original
 receipt fingerprint after their other metadata disappears. They remain visible
@@ -79,8 +98,8 @@ Decision A; widening a server reader or authentication is not part of this work.
 
 Frozen `calendar-upsert` / `sample-review-upsert` Edge Functions are byte-identical.
 No Edge Function, n8n, migration, flag, authentication, team authority, native
-gateway request contract or Samples writer is changed. The browser's existing
-pinned source transport accepts an optional abort signal for this bounded retry.
+gateway request contract or Samples writer is changed. The existing pinned
+source transport is unchanged in the held candidate.
 
 ## Local proof
 
@@ -100,12 +119,29 @@ recorded; no assertion was removed to claim recovery. The committed-source case
 explicitly requires zero additional writes. Successful comment confirmation
 also requires unrelated journal bytes to remain unchanged.
 
+The 16 non-racing groups passed before the experimental source insertion was
+held. They do **not** establish race closure. The default complete-repair suite
+now remains red at the missing-source repair requirement; selecting `lost,refused`
+with `CAL_RECOVERY_OUTCOMES` verifies only those explicitly named read-only or
+existing-writer outcomes. `calendar-recovery-races.js` separately records seven
+safe holds (four verified null/empty video/graphic cells and three withheld
+native lifecycle race setups). Its full repair acceptance stays red rather
+than passing vacuously because no source commit occurred. Divergent legacy
+video alias content is preserved and held; malformed/nonarray cells and
+incomplete entire reads are not treated as empty.
+
 The receiver models exact reconciliation fingerprints and current comment
 readback, plus the frozen EF's atomic comment-cell merge. These are declared
 local fixture contracts, not deployed RPC, auth, or live journey evidence.
 Reports and synthetic screenshots stay under ignored `.codex-tmp/` and are not
 public attachments. Existing 18 feedback-failure, 15 behavior and three real
-BFCache groups also pass locally. Full unit results are recorded in the handoff.
+BFCache groups passed during the extension. Exact final-head reruns and unit
+results are recorded in the handoff. The work-in-progress full unit invocation
+was diagnostic, not an immutable-head certification: it exposed two known
+Windows failures, a dirty-tree guard and an extracted staff fixture missing its
+`_isClientLink:false` global. The fixture was corrected without changing its
+assertions; the clean-tree guard is rerun after the local commit. Neither known
+Windows failure is waived or silently made green.
 
 ## Recovery and release hold
 

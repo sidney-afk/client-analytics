@@ -1,5 +1,8 @@
 # Calendar recovery access: blocked local experiment
 
+Historical f51 boundary. The later frontend reconciliation experiment and its
+current atomicity hold are recorded in `CALENDAR_FEEDBACK_RECONCILIATION.md`.
+
 This is an incomplete, unpushed experiment from preserved draft #1304 head
 `78e6b3eaf35e254daa23dd69b2d8f9ee54974434`. It is not a release candidate.
 The preserved PR and the separate consumption-recovery branch are untouched.

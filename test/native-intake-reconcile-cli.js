@@ -149,6 +149,22 @@ function leaks(text) { return forbidden.filter(word => String(text || '').includ
     ok(inside.status === 1 && /refusing to write the private report inside the repository/.test(inside.stderr)
       && !fs.existsSync(path.resolve(__dirname, '../artifacts/should-not-exist.json')),
       'a private report path inside the repository is refused before any call');
+    // A path that only LOOKS outside: `<repo>/..private...` begins with two dots
+    // yet lives in the tree. And a symlink from a temp directory into the tree
+    // resolves inside it. Both are refused before any call is made.
+    const dotted = await runCli(port, ['--private-report=' + path.join(path.resolve(__dirname, '..'), '..private-report.json')], {});
+    ok(dotted.status === 1 && /refusing to write the private report inside the repository/.test(dotted.stderr)
+      && !fs.existsSync(path.join(path.resolve(__dirname, '..'), '..private-report.json')),
+      'an in-repository path that starts with two dots is refused');
+    const linkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nir-link-'));
+    // The link targets a directory that EXISTS in the tree, so only real-path
+    // resolution can tell the write would land inside it.
+    fs.symlinkSync(path.resolve(__dirname), path.join(linkDir, 'into-repo'));
+    const viaLink = await runCli(port, ['--private-report=' + path.join(linkDir, 'into-repo', 'escaped.json')], {});
+    ok(viaLink.status === 1 && /refusing to write the private report inside the repository/.test(viaLink.stderr)
+      && !fs.existsSync(path.resolve(__dirname, 'escaped.json')),
+      'a symlink from outside that resolves into the repository is refused');
+    fs.rmSync(linkDir, { recursive: true, force: true });
     const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nir-private-'));
     const outsidePath = path.join(outsideDir, 'report.json');
     const outside = await runCli(port, ['--private-report=' + outsidePath], {});

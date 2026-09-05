@@ -4,8 +4,11 @@
 `migrations/2026-09-05-native-intake-reconcile.sql` adds service-role-only
 functions that complete ACCEPTED native intake work from the immutable manifest:
 recover missing native children through the unchanged deliverable writer, then
-create or bind the Calendar/Samples card. Read-only backlog and summary readers
-included. No table, trigger, flag or frozen writer changes; no scheduler. Scope,
+bind an empty-since-creation Calendar/Samples card slot; a missing card is held
+as visible debt, never created here. Adds one append-only card provenance table
+and one fact-recording AFTER trigger per card table that alters no write.
+Read-only backlog and summary readers included. No flag or frozen writer
+changes; no scheduler. Scope,
 proof, release order and rollback: `docs/audits/2026-09-05-native-intake-reconcile.md`.
 
 **2026-09-05 draft-only native intake addition:**

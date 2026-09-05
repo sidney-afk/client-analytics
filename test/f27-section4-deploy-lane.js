@@ -381,8 +381,8 @@ const CANDIDATES = new Map([
     // more than one bucket.
     // Draft native assignee eligibility over PR1302: both additive migrations precede
     // a separately authorized deploy. Existing five-file closure and entrypoint.
-    source: 'a46100398d4733a0b299651c61a41b67c3f575aad90e90788ad1d7e0e46283e2',
-    entrypoint: '4dd31a0442dbe299d0fd228bb5a76fd00a029449f5d0dfef84e9f58d6dbd2a44',
+    source: '267df5b88c7aabfbfbf8f3cd61363c590e48b71e31f1068e03553b5f7ad98374',
+    entrypoint: '244b9ecd7357461a3391123524b4fd3cc81fd3c5b18545c320fcc174fdd3188c',
     files: 5,
   }],
 ]);

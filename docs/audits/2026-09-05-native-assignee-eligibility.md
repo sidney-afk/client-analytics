@@ -198,9 +198,9 @@ moved onto a server projection of the intake pool.
   lane. New requests return to the provider policy. No row, receipt, manifest or
   flag needs rewriting, and none may be.
 
-Expected `production-write` closure at the code commit `02dcdfed4472dc2a96aaba961b110d97c70fbbfe`:
-source `a46100398d4733a0b299651c61a41b67c3f575aad90e90788ad1d7e0e46283e2`, entrypoint
-`4dd31a0442dbe299d0fd228bb5a76fd00a029449f5d0dfef84e9f58d6dbd2a44`, five files;
+Expected `production-write` closure at the code commit `2ccbe00626bccea572597143eaf5abfaa5d326cc`:
+source `267df5b88c7aabfbfbf8f3cd61363c590e48b71e31f1068e03553b5f7ad98374`, entrypoint
+`244b9ecd7357461a3391123524b4fd3cc81fd3c5b18545c320fcc174fdd3188c`, five files;
 regenerated with `node scripts/ef-fingerprint.js <sha> --slugs=production-write --expected-only`
 and pinned in the Section 4 workflow and its lane test. The generated deployment
 ownership manifest is unchanged.

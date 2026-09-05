@@ -106,7 +106,9 @@ require('node:child_process').spawnSync=(exe,args)=>{
  const sql=args[args.indexOf('-c')+1];assert.match(sql,/from public.team_members/);
  const fields=/from \\(select ([\\s\\S]+) from public.team_members\\)/.exec(sql)[1];
  const includeId=/^id, role,/.test(fields);
- const result=rows.map(({id,linear_user_id,...r})=>({...r,...(includeId?{id}:{}),mapped:!!linear_user_id}));
+ const result=/as mapped$/.test(fields)
+  ?rows.map(({id,linear_user_id,...r})=>({...r,...(includeId?{id}:{}),mapped:!!linear_user_id}))
+  :rows.map(r=>Object.fromEntries(fields.split(', ').map(k=>[k,r[k]])));
  return {status:0,stdout:JSON.stringify(result),stderr:''};
 };
 `);
@@ -129,6 +131,20 @@ require('node:child_process').spawnSync=(exe,args)=>{
     for (const fault of ['range', 'missing-id']) {
       const r = cli('--rest', fault);
       ok(r.status === 1 && !r.result && /unproven_roster_read/.test(r.stderr), 'actual REST CLI refuses ' + fault + ' without a readiness report');
+    }
+    for (const [label, mapping, refused] of [
+      ['valid', 'lin_fixture_valid', 0], ['missing', null, 1],
+      ['malformed', 'invalid id', 1], ['whitespace', '   ', 1],
+    ]) {
+      roster.forEach(member => { member.linear_user_id = mapping; });
+      fs.writeFileSync(fixture, JSON.stringify(roster));
+      const results = ['--file', '--rest', '--pg'].map(mode => cli(mode));
+      ok(results.every(r => r.status === 0 && r.result && r.result.ready === true),
+        label + ' mapping preserves native readiness through all three actual CLI readers');
+      ok(results.every(r => r.result && ['video', 'graphics'].every(team => r.result.teams[team].provider_lane_would_refuse === refused)),
+        label + ' mapping counts match across file, REST and PostgreSQL CLI readers');
+      ok(results.every(r => r.result && !/lin_fixture_valid|invalid id|fixture-editor|fixture-designer|"(?:id|linear_user_id)"\s*:/.test(JSON.stringify(r.result))),
+        label + ' mapping remains private in all three CLI reports');
     }
     roster[1].active = false;
     fs.writeFileSync(fixture, JSON.stringify(roster));

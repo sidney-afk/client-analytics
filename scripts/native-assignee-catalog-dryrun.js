@@ -122,10 +122,12 @@ async function readRows() {
       '-h', host, '-p', process.env.NIR_PGPORT || process.env.PGPORT || '5432',
       '-U', process.env.NIR_PGUSER || process.env.PGUSER || 'postgres',
       '-d', process.env.NIR_PGDATABASE || process.env.PGDATABASE || 'postgres',
-      '-c', "select coalesce(json_agg(t), '[]'::json) from (select id, role, team, active, default_for_team, (linear_user_id is not null and linear_user_id <> '') as mapped from public.team_members) t;"],
+      '-c', "select coalesce(json_agg(t), '[]'::json) from (select id, role, team, active, default_for_team, linear_user_id from public.team_members) t;"],
     { encoding: 'utf8' });
     if (r.status !== 0) throw new Error('psql read failed: ' + (r.stderr || '').trim().slice(0, 200));
-    const rows = JSON.parse(r.stdout.trim() || '[]').map(row => ({ ...row, linear_user_id: row.mapped ? 'mapped' : null }));
+    // Preserve the input for the shared policy's validity check; raw mapping
+    // values stay private and only aggregate counts reach the report.
+    const rows = JSON.parse(r.stdout.trim() || '[]');
     return { source: 'disposable-postgres', rows };
   }
   if (flag('--rest')) {

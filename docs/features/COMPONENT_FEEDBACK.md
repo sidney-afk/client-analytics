@@ -125,13 +125,23 @@ UI-source suite exercises both real guards, including 22 refused malformed or
 write-shaped requests. Runtime code is unchanged after the independently reviewed
 `120fb0d` privacy correction.
 
-The remaining full-gate failures stay open: `keyboardStatusGuardOpens` and pixel
-`row context menu inventory`. An isolated run serving the captured base's exact
-`index.html` passed the unchanged behavior suite; the base pixel attempt stopped
-earlier at an element-detached screenshot. Thus neither remaining candidate red
-is established as a baseline defect, and product regression versus timing/test
-infrastructure remains UNPROVEN. No assertion was weakened and no unrelated
-keyboard/context-menu code was changed. No second full-house run was performed.
+The behavior red reproduced at `5510ce0`: `keyboardStatusGuardOpens` correctly
+showed the sign-in refusal with no picker, while the whole-model snapshot changed.
+Private aggregate diagnostics identified population and project-projection
+replacement, not a status/assignee/due mutation. The existing loader paints its
+first projection before its terminal tail adds ancestors, replaces synthesized
+parents and resolves project keys. The reset predicate had ignored both
+`refreshing` and `terminalTailPending`. Requiring those existing reads to settle
+before a guard snapshot fixes that readiness error; the actual behavior suite
+then passed **168/168**, retaining exact whole-model equality and all global
+no-write/console assertions. No runtime keyboard code was changed.
+
+Pixel `row context menu inventory` remains open. An isolated run serving the
+captured base's exact `index.html` passed the unchanged behavior suite, but the
+base pixel attempt stopped earlier at an element-detached screenshot. The pixel
+red is not established as a baseline defect; product regression versus timing or
+test infrastructure remains UNPROVEN. No assertion was weakened and no unrelated
+context-menu code was changed. No second full-house run was performed.
 
 The coordinator owns the separate no-loss/history and monitoring work. Correlate
 source acceptance, reader visibility, link validity and mirror state separately;

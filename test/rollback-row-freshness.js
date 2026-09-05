@@ -937,10 +937,33 @@ ok(unknownVersionRun.code === 1 && unknownVersionRun.json
     && unknownVersionRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
     'ACCEPTED, NOT LOOKALIKE: a group whose one strict-looking row the parser actually rejected (version "unknown") is wholly unreadable and named -- the detector defers to the parser by position');
 
+/* ---- 8i. one accepted row does not excuse three rejected ones (round ten) --- */
+/* A second table in the v68 entry with one parser-accepted production-write
+   row and three abbreviated rows: the accepted row inherits the entry's run id,
+   folds into that run's JSON receipt at deduplication, and disappears, so
+   "some row accepted" excused a table nobody could read. Every row has to be
+   accepted; the rejected ones are counted. */
+const mixedGroup = [
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `production-write` | 69 | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '| batch-write | 35 | `86f9f187...` | verify_jwt=false |',
+    '| deliverable-write | 35 | `78df060b...` | verify_jwt=false |',
+    '| linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
+    '',
+].join('\n');
+const mixedRun = run(fixture('mixed-group', realLog + mixedGroup, realRb));
+ok(mixedRun.code === 1 && mixedRun.json
+    && mixedRun.json.failures.some(f => /\("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /carries 3 versions-table row\(s\) this guard cannot read/.test(f)),
+    'ONE ACCEPTED ROW EXCUSES NOTHING: a second table under the v68 entry with one parsed row and three abbreviated ones is named for its three unreadable rows');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);
 ok(real.code === 0, 'and the repository as it stands right now is consistent');
+ok(real.json && real.json.notes.some(n => /Deploy: batch folder links, after two blockers on one call stack/.test(n) && /1 versions-table row\(s\)/.test(n) && /before the newest readable receipt/.test(n)),
+    'the 2026-08-31 entry, whose table abbreviates one closure beside three full ones (its receipt is the concise prose), is a NOTE for that one row rather than a failure, because it predates the newest receipt');
 ok(real.json && real.json.notes.some(n => /Deploys #9-#13 — GAP/.test(n) && /before the newest readable receipt/.test(n)),
     'the historical "Deploys #9-#13 — GAP" section, whose four un-receipted runs can never be read, is a NOTE rather than a failure because its entry predates the newest receipt -- an old gap cannot make the row stale, and a guard that failed on it forever would be ignored');
 ok(real.json && !real.json.failures.some(f => UNREADABLE.test(f)),

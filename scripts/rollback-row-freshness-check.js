@@ -449,11 +449,10 @@ const receiptsMeta = { log: '', positions: [], parsedRows: new Set() };
        heading is the one exemption, the shape the log already uses for a
        deploy that did not happen.
 
-   ONE way a heading-only finding is softened, and it does not apply to an
-   unreadable TABLE (a concrete record the guard is blind to is always a
-   failure): the section's entry is dated strictly BEFORE the newest readable
-   receipt, so it cannot be the newest deploy, cannot make the row stale, and
-   is reported as a note rather than a failure. The log's own "Deploys #9-#13 —
+   ONE way a finding is softened, table or heading alike: the section is dated
+   strictly BEFORE the newest readable receipt, so it cannot be the newest
+   deploy, cannot make the row stale, and is reported as a note rather than a
+   failure. The log's own "Deploys #9-#13 —
    GAP" section (2026-08-05 entry) is exactly this: four of its five runs were
    never receipted and never will be, and failing on it forever would teach
    people to ignore this check. The entry date is the section's OWN `##`
@@ -487,16 +486,21 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
        lookalike required the closure but not the numeric version the parser
        requires, so a row with a quoted slug, a full closure and a version of
        "unknown" made its whole group look readable while the parser had
-       rejected every row (Codex, ninth round on #1306). A group with at least
-       one accepted row is a table it read (the 2026-08-31 entry abbreviates one
-       closure beside three full ones, and its receipt is the concise prose). */
+       rejected every row (Codex, ninth round on #1306). EVERY row of a group
+       has to have been accepted: a group with one accepted row and three the
+       parser rejected is three rows of a deploy this guard cannot read, and the
+       accepted row is no defence -- it inherits the entry's run id, folds into
+       that run's existing receipt at deduplication, and vanishes (Codex, tenth
+       round). Only the rejected rows are counted. The 2026-08-31 entry
+       abbreviates one closure beside three full ones; it predates the newest
+       receipt, so it is a note, as the GAP section is. */
     const candidateRow = /^\|\s*\**`?(?:batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
     const unreadableTableRows = (block, blockStart) => {
         let total = 0;
         let group = [];
         let offset = 0;
         const flush = () => {
-            if (group.length && !group.some(at => receiptsMeta.parsedRows.has(at))) total += group.length;
+            total += group.filter(at => !receiptsMeta.parsedRows.has(at)).length;
             group = [];
         };
         for (const line of block.split('\n')) {
@@ -552,7 +556,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
         const entryDate = validDate((h.text.match(/\b(\d{4}-\d{2}-\d{2})\b/) || [])[1] || '');
         const ownRun = (h.text.match(/[Rr]un\s+`?(\d{6,})`?/) || [])[1] || '';
         const runNewer = !!(ownRun && newestRun && Number(ownRun) >= Number(newestRun));
-        const predates = !unreadableRows && !runNewer && !!entryDate && !!newestDate && entryDate < newestDate;
+        const predates = !runNewer && !!entryDate && !!newestDate && entryDate < newestDate;
         out.push({
             line,
             heading,

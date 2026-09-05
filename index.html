@@ -3007,6 +3007,13 @@
         .prod-comment-state-action, .prod-comment-more { min-height: 27px; margin-top: 8px; padding: 0 10px; border: 1px solid var(--prod-border-soft); border-radius: 7px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 12px; cursor: pointer; }
         .prod-comment-state-action:hover, .prod-comment-more:hover { background: var(--prod-hover); }
         .prod-comment-state-action:disabled, .prod-comment-more:disabled { cursor: default; opacity: .6; }
+        .prod-feedback-status { margin: 12px 0; color: var(--prod-faint); font-size: 12px; line-height: 1.5; }
+        .prod-feedback-status.is-error { color: var(--prod-strong); }
+        .prod-feedback-source { border-top: 1px solid var(--prod-border-soft); margin-top: 12px; padding-top: 12px; }
+        .prod-feedback-heading { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--prod-strong); }
+        .prod-feedback-context { margin-top: 6px; font-size: 12px; color: var(--prod-muted); overflow-wrap: anywhere; }
+        .prod-feedback-status .prod-comment-state-action { min-height: 44px; }
+        .prod-feedback-status .prod-comment-state-action:focus-visible { outline: 2px solid var(--prod-strong); outline-offset: 2px; }
         .prod-comment-loading { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px; margin-bottom: 12px; }
         .prod-comment-loading-copy { display: flex; flex-direction: column; gap: 7px; padding-top: 2px; }
         .prod-composer { margin-top: 12px; display: flex; align-items: flex-start; gap: 10px; }
@@ -54501,7 +54508,7 @@
                 body,
                 created_at: createdAt,
                 updated_at: updatedAt,
-                row_updated_at: String(row.updated_at || '').trim(),
+                row_updated_at: String(row.row_updated_at || row.updated_at || '').trim(),
                 version: Number.isInteger(Number(row.version)) ? Number(row.version) : 1,
                 attachments,
                 component: String(row.component || '').trim(),
@@ -54510,6 +54517,12 @@
                 can_edit: _prodCommentTruthy(row.can_edit),
                 can_delete: _prodCommentTruthy(row.can_delete),
                 can_resolve: _prodCommentTruthy(row.can_resolve),
+                source_only: row.source_only === true,
+                source_surface: ['calendar', 'sxr'].includes(row.source_surface) ? row.source_surface : '',
+                source_audience: ['client', 'internal'].includes(row.source_audience) ? row.source_audience : '',
+                parent_unavailable: row.parent_unavailable === true,
+                feedback_origin: ['native', 'linear', 'legacy', 'bridge'].includes(row.feedback_origin) ? row.feedback_origin : '',
+                tweak_known: typeof row.is_tweak === 'boolean' && row.tweak_known !== false,
                 edited: !deleted && (!!String(row.edited_at || '').trim() || _prodCommentTruthy(row.edited)
                     || (Number.isFinite(createdMs) && Number.isFinite(updatedMs) && updatedMs > createdMs + 1000)),
                 deleted,
@@ -54560,8 +54573,15 @@
             const c = _prodCommentNormalize(comment);
             if (c.hidden) return '';
             const time = _prodCommentTime(c);
-            const pills = (c.audience === 'client' ? '<span class="prod-comment-pill">Client-visible</span>' : '<span class="prod-comment-pill">Internal</span>')
-                + (c.done ? '<span class="prod-comment-pill">Resolved</span>' : '');
+            const sourceLabel = c.source_only ? (c.source_surface === 'sxr' ? 'Samples' : 'Calendar') + ' source'
+                : ({ native: 'Native comment', linear: 'Linear import', legacy: 'Imported feedback', bridge: 'Linked feedback' }[c.feedback_origin] || 'Origin unverified');
+            const audienceLabel = c.source_only ? (c.source_audience === 'client' ? 'Card: client-visible' : c.source_audience === 'internal' ? 'Card: internal' : 'Visibility not recorded')
+                : c.audience === 'client' ? 'Client-visible' : 'Internal';
+            const pills = '<span class="prod-comment-pill">' + _calEsc(audienceLabel) + '</span>'
+                + '<span class="prod-comment-pill">' + _calEsc(sourceLabel) + '</span>'
+                + (['video', 'graphic'].includes(c.component) ? '<span class="prod-comment-pill">' + (c.component === 'video' ? 'Video' : 'Graphics') + '</span>' : '')
+                + (c.tweak_known && c.is_tweak ? '<span class="prod-comment-pill">Tweak' + (c.round > 0 ? ' · Round ' + _calEsc(String(c.round)) : '') + '</span>' : '')
+                + (c.done ? '<span class="prod-comment-pill">Resolved</span>' : c.tweak_known && c.is_tweak ? '<span class="prod-comment-pill">Open</span>' : '');
             const edited = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
             const body = c.deleted ? 'Comment deleted.' : _prodLinkify(c.body);
             const attachments = c.deleted || !c.attachments.length ? '' : '<div class="prod-comment-assets">'
@@ -54569,7 +54589,7 @@
                     + (asset.url ? '<a href="' + _calEscAttr(asset.url) + '" target="_blank" rel="noopener noreferrer">' + _calEsc(_prodFileLinkLabel(asset.url)) + '</a>' : '<span class="prod-asset-value">No usable link</span>')
                     + '<span class="prod-asset-state" data-state="' + _calEscAttr(asset.state) + '">' + _calEsc(_prodAssetStateLabel(asset.state)) + '</span></div>').join('') + '</div>';
             const issueId = String(_prodState.openId || '');
-            const actions = c.deleted ? '' : '<div class="prod-comment-actions">'
+            const actions = c.deleted || c.source_only ? '' : '<div class="prod-comment-actions">'
                 + (!c.done ? '<button class="prod-comment-action" type="button" onclick="_prodCommentBegin(' + _jsAttrArg(issueId) + ',\'add\',' + _jsAttrArg(c.id) + ')">Reply</button>' : '')
                 + (c.can_edit ? '<button class="prod-comment-action" type="button" onclick="_prodCommentBegin(' + _jsAttrArg(issueId) + ',\'edit\',' + _jsAttrArg(c.id) + ')">Edit</button>' : '')
                 + (c.can_resolve && !c.parent_id ? '<button class="prod-comment-action" type="button" onclick="_prodCommentLifecycle(' + _jsAttrArg(issueId) + ',' + _jsAttrArg(c.id) + ',' + _jsAttrArg(c.done ? 'unresolve' : 'resolve') + ')">' + (c.done ? 'Reopen' : 'Resolve') + '</button>' : '')
@@ -54579,7 +54599,11 @@
                 + _prodAvatar(null, 18)
                 + '<div class="prod-comment-main"><div class="prod-comment-meta"><span class="prod-comment-author">' + _calEsc(c.author) + '</span>'
                 + '<span aria-hidden="true">·</span><time' + (time.raw ? ' datetime="' + _calEscAttr(time.raw) + '" title="' + _calEscAttr(time.raw) + '"' : '') + '>' + _calEsc(time.text) + '</time>'
-                + edited + pills + '</div><div class="prod-comment-body">' + body + '</div>' + attachments + actions + '</div></div>';
+                + edited + pills + '</div><div class="prod-comment-body">' + body + '</div>' + attachments
+                + (c.done && c.resolved_at ? '<div class="prod-feedback-context">Resolved ' + _calEsc(c.resolved_at) + (c.resolved_by_name ? ' by ' + _calEsc(c.resolved_by_name) : '') + '</div>' : '')
+                + (c.source_only ? '<div class="prod-feedback-context">Read-only here; manage on the original ' + (c.source_surface === 'sxr' ? 'Samples' : 'Calendar') + ' card.'
+                    + (c.parent_unavailable ? ' Original reply parent is unavailable.' : '') + '</div>' : '')
+                + actions + '</div></div>';
         }
         function _prodCommentLoadingHTML() {
             return Array.from({ length: 2 }, () => '<div class="prod-comment-loading" role="status" aria-label="Loading comments"><span class="prod-skeleton" style="width:18px;height:18px;border-radius:50%;"></span><span class="prod-comment-loading-copy"><span class="prod-skeleton" style="height:11px;width:110px;"></span><span class="prod-skeleton" style="height:12px;width:min(360px,82%);"></span></span></div>').join('');
@@ -54727,6 +54751,46 @@
                 component
             });
         }
+        function _prodFeedbackState(value, previous) {
+            const statuses = ['complete', 'unmapped', 'source_unavailable', 'source_incomplete', 'source_limit', 'source_changed', 'link_changed'];
+            if (!value || value.version !== 1 || !statuses.includes(value.status) || !Array.isArray(value.rows)) {
+                return { status: 'unavailable', complete: false, rows: previous && previous.rows || [], retained: !!(previous && previous.rows && previous.rows.length), scope: previous && previous.scope || null };
+            }
+            const sameScope = !!(previous && previous.scope && value.scope)
+                && JSON.stringify(previous.scope) === JSON.stringify(value.scope);
+            const retained = (value.status === 'source_unavailable' || value.retain_previous === true && ['source_incomplete', 'source_limit'].includes(value.status))
+                && sameScope && previous.rows && previous.rows.length;
+            const incoming = value.rows.filter(row => row && row.source_only === true);
+            return { ...value, complete: value.status === 'complete' && value.complete === true,
+                rows: retained ? [...new Map([...previous.rows, ...incoming].map(row => [String(row.id), row])).values()] : incoming, retained: !!retained };
+        }
+        function _prodFeedbackHTML(feedback, canonicalRows, id, incompleteCanonical) {
+            if (!feedback) return '';
+            const labels = {
+                complete: 'Feedback from the linked card was checked. Earlier versions and resolution history are not included.',
+                unmapped: 'This issue has no verified Calendar or Samples card link. Other feedback may be missing.',
+                source_unavailable: 'Feedback from the linked card could not load. SyncLinear comments remain available.',
+                source_incomplete: 'Some feedback could not be read. The visible notes are not a complete record.',
+                source_limit: 'Some feedback could not be loaded because this record is too large. The view is incomplete.',
+                source_changed: 'Feedback changed while it was loading. Refresh to check it again.',
+                link_changed: 'The original card link has changed. Its notes are withheld until the link is verified.',
+                unavailable: 'Feedback from the original card is unavailable. The view is incomplete.'
+            };
+            const visibleCanonical = new Map((canonicalRows || []).map(row => [String(row.id), row]));
+            const sourceRows = (feedback.rows || []).filter(row => {
+                const canonical = row.covered_by && visibleCanonical.get(String(row.covered_by));
+                return !canonical || !Number.isInteger(row.covered_version) || !row.covered_updated_at
+                    || Number(canonical.version) !== row.covered_version
+                    || String(canonical.row_updated_at || canonical.updated_at || '') !== String(row.covered_updated_at);
+            });
+            const incomplete = !feedback.complete || incompleteCanonical;
+            const message = (labels[feedback.status] || labels.unavailable)
+                + (feedback.retained ? ' Previously loaded card notes are shown and may be out of date.' : '')
+                + (incompleteCanonical ? ' Some SyncLinear comments may still be missing.' : '');
+            return '<div class="prod-feedback-status' + (incomplete ? ' is-error' : '') + '" role="status" data-prod-feedback-state="' + _calEscAttr(incomplete ? 'incomplete' : 'complete') + '">'
+                + _calEsc(message) + (incomplete ? ' <button class="prod-comment-state-action" data-prod-feedback-refresh="' + _calEscAttr(id) + '" type="button" onclick="_prodComments.refresh(' + _jsAttrArg(id) + ')">Refresh feedback</button>' : '') + '</div>'
+                + (sourceRows.length ? '<div class="prod-feedback-source"><div class="prod-feedback-heading">From the original card</div>' + sourceRows.map(_prodCommentHTML).join('') + '</div>' : '');
+        }
         const _prodComments = (() => {
             const states = new Map();
             let generation = 0;
@@ -54807,6 +54871,7 @@
                     return stateFor(id);
                 }
                 const requestGeneration = generation;
+                const requestIdentity = JSON.stringify(_syncviewStaffIdentityForHeaders() || null);
                 const token = (previous && previous.token || 0) + 1;
                 const refreshing = !append && !!options.refresh && !!current && current.status === 'ready';
                 if (append) states.set(id, { ...current, token, loadingMore: true, moreError: '' });
@@ -54843,6 +54908,8 @@
                         before: cursor || null
                     };
                     if (clientSurface) Object.assign(requestBody, clientSurface);
+                    const includeFeedback = !_isClientLink && !clientSurface && options.canonicalOnly !== true;
+                    if (includeFeedback) requestBody.include_feedback = true;
                     const response = await fetch(PROD_COMMENTS_EF_URL, {
                         method: 'POST',
                         headers: authHeaders(),
@@ -54852,6 +54919,7 @@
                     });
                     const json = await response.json().catch(() => ({}));
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
+                    if (requestIdentity !== JSON.stringify(_syncviewStaffIdentityForHeaders() || null)) { clear(id); return; }
                     if (response.status === 401 || response.status === 403) {
                         states.set(id, {
                             status: response.status === 401 ? 'signin' : 'forbidden',
@@ -54886,6 +54954,10 @@
                     states.set(id, {
                         status: 'ready',
                         items: _prodCommentMerge(priorItems, page),
+                        feedback: includeFeedback ? _prodFeedbackState(json.feedback, current && current.feedback)
+                            : !clientSurface && !_isClientLink ? previous && previous.feedback || _prodFeedbackState(null, null) : null,
+                        pageIncomplete: !Array.isArray(json.comments) && !Array.isArray(json.items)
+                            || (json.has_more === true || json.hasMore === true) && !nextCursor,
                         cursor: preserveDeepCursor ? current.cursor : nextCursor,
                         hasMore: preserveDeepCursor ? current.hasMore : !!nextCursor && (json.has_more !== false && json.hasMore !== false),
                         loadingMore: false,
@@ -54902,6 +54974,7 @@
                     });
                 } catch (e) {
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
+                    if (requestIdentity !== JSON.stringify(_syncviewStaffIdentityForHeaders() || null)) { clear(id); return; }
                     // A timeout is not the same event as a refusal, and saying so
                     // is the difference between "try again" and "something is
                     // broken". Both land on the same Retry control.
@@ -54956,6 +55029,7 @@
                     force: true,
                     refresh: true,
                     replace: options.replace === true,
+                    canonicalOnly: true,
                     clientSurface: options.clientSurface || null
                 });
                 for (let page = 1; page < 20; page++) {
@@ -54963,6 +55037,7 @@
                     if (!state || state.status !== 'ready' || !state.hasMore || !state.cursor) break;
                     await load(id, {
                         append: true,
+                        canonicalOnly: true,
                         clientSurface: state.clientSurface || options.clientSurface || null
                     });
                 }
@@ -54984,14 +55059,15 @@
                 if (state.status === 'signin') return '<div class="prod-comment-state" data-prod-comments-state="signin">Sign in with your staff account to view comments.<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.signIn(' + _jsAttrArg(id) + ')">Sign in to view comments</button></div>';
                 if (state.status === 'forbidden') return '<div class="prod-comment-state is-error" data-prod-comments-state="forbidden">This comment thread is not available to your exact team or client scope.</div>';
                 if (state.status === 'error') return '<div class="prod-comment-state is-error" data-prod-comments-state="error">' + (state.timedOut ? 'Comments took too long to load.' : 'Comments could not load.') + '<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.retry(' + _jsAttrArg(id) + ')">Retry</button></div>';
-                if (!state.items.length) return '<div class="prod-comment-state" data-prod-comments-state="empty">No comments yet.</div>';
+                const feedback = _prodFeedbackHTML(state.feedback, state.items, id, !!(state.hasMore || state.pageIncomplete || state.moreError || state.refreshError));
+                if (!state.items.length && !feedback) return '<div class="prod-comment-state" data-prod-comments-state="empty">No comments yet.</div>';
                 const rows = state.items.map(_prodCommentHTML).join('');
                 const refreshError = state.refreshError ? '<div class="prod-comment-state is-error">' + _calEsc(state.refreshError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.refresh(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
                 const more = state.hasMore
                     ? '<button class="prod-comment-more" type="button" data-prod-comments-more="1" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')"' + (state.loadingMore ? ' disabled' : '') + '>' + (state.loadingMore ? 'Loading older comments…' : 'Load older comments') + '</button>'
                     : '';
                 const moreError = state.moreError ? '<div class="prod-comment-state is-error">' + _calEsc(state.moreError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
-                return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more;
+                return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more + feedback;
             }
             return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical };
         })();
@@ -60045,7 +60121,7 @@
                     ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: !batchAssetSource }
                     : parentSlots ? { slots: parentSlots } : undefined)
                 + subSection
-                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
+                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Feedback &amp; tweaks</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>'
                 + _prodSelectionBar();
         }

@@ -41,7 +41,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `onboarding-full` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `production-archive` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | - |
-| `production-comments` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-comments/policy.mjs` |
+| `production-comments` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/staff-role-auth.ts` | `production-comments/feedback.mjs`<br>`production-comments/policy.mjs` |
 | `production-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml)<br>[deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | workflow_dispatch only (pinned SHA guard)<br>workflow_dispatch only (pinned SHA guard) | `_shared/linear-create-id.mjs`<br>`_shared/staff-role-auth.ts` | `production-write/policy.mjs`<br>`production-write/selected-label-pages.mjs` |
 | `pto` | [deploy-pto](../../.github/workflows/deploy-pto-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `pto/policy.js` |
 | `quiz-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |

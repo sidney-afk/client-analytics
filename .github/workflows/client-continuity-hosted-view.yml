@@ -1,0 +1,56 @@
+name: Continuity view
+# Dormant package: neither merge nor private enablement is performed by this PR.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: client-continuity-view
+  cancel-in-progress: false
+jobs:
+  run:
+    if: vars.CLIENT_CONTINUITY_VIEW_ENABLED == 'true' && vars.CLIENT_CONTINUITY_RELEASE_SHA != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CONTINUITY_OPERATIONS_JSON: ${{ secrets.CONTINUITY_OPERATIONS_JSON }}
+      CONTINUITY_PRIVATE_VIEW_JSON: ${{ secrets.CONTINUITY_PRIVATE_VIEW_JSON }}
+      CONTINUITY_BACKEND_ORIGIN: ${{ secrets.CONTINUITY_BACKEND_ORIGIN }}
+      CONTINUITY_READER_FALLBACK_ORIGIN: ${{ secrets.CONTINUITY_READER_FALLBACK_ORIGIN }}
+      CONTINUITY_CENSUS_READ_KEY: ${{ secrets.CONTINUITY_CENSUS_READ_KEY }}
+      CONTINUITY_READ_ORIGINS_JSON: ${{ secrets.CONTINUITY_READ_ORIGINS_JSON }}
+      CONTINUITY_CALENDAR_LINK: ${{ secrets.CONTINUITY_CALENDAR_LINK }}
+      CONTINUITY_CALENDAR_SCOPE: ${{ secrets.CONTINUITY_CALENDAR_SCOPE }}
+      CONTINUITY_CALENDAR_CANARIES_JSON: ${{ secrets.CONTINUITY_CALENDAR_CANARIES_JSON }}
+      CONTINUITY_SAMPLES_LINK: ${{ secrets.CONTINUITY_SAMPLES_LINK }}
+      CONTINUITY_SAMPLES_SCOPE: ${{ secrets.CONTINUITY_SAMPLES_SCOPE }}
+      CONTINUITY_SAMPLES_CANARIES_JSON: ${{ secrets.CONTINUITY_SAMPLES_CANARIES_JSON }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ vars.CLIENT_CONTINUITY_RELEASE_SHA }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock
+      - run: npx playwright install --with-deps chromium
+      - name: Run only the approved operation
+        shell: bash
+        run: |
+          export CONTINUITY_PUBLIC_OUTPUT="$RUNNER_TEMP/continuity-public"
+          export CONTINUITY_ACTIVATION=OWNER_APPROVED_CONTINUITY_VIEW
+          mkdir -p "$CONTINUITY_PUBLIC_OUTPUT"
+          node scripts/client-continuity-hosted.js view
+      - name: Preserve aggregate receipts only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: continuity-receipts
+          path: ${{ runner.temp }}/continuity-public/*.json
+          retention-days: 7
+          if-no-files-found: error

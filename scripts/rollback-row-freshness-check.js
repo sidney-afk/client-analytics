@@ -497,20 +497,40 @@ function referenceScope(log, k, len) {
     return { from: lines[first].from, to: lines[last].to };
 }
 
-/* Does the lane reference at k record a dispatch that happened? Judged on its
-   own scope (see referenceScope). A run id is proof and outranks everything.
-   Otherwise the scope needs a completed-dispatch word, and the reference must
-   not be the object of a forward-looking one ("until a", "a future", "pending
-   the") in the sixty characters before it. "NOT DISPATCHED" in the scope is
-   the log's own way of saying it did not happen. */
+/* Does the lane reference at k record a dispatch that happened? Judged on the
+   CLAUSE that names the lane, inside its list item or paragraph (see
+   referenceScope): the text between sentence separators (. ; ! ?) around the
+   reference. One item can carry two verdicts about two different things,
+   "`lane` completed successfully (run `X`)." and then "Follow-up smoke probe:
+   NOT DISPATCHED." (Codex, eighteenth round on #1306), so a negation counts
+   only in the lane's own clause. In that clause: NOT DISPATCHED means it did
+   not happen; a run id AFTER the reference is how a completed dispatch is
+   identified ("dispatch (run `X`)") and is proof; a run id before it is some
+   other run ("After run `X`, the next `lane` dispatch will carry ...", same
+   round) and proves nothing; a forward-looking word (until, next, will,
+   planned ...) makes it a plan. Otherwise it takes a completed-dispatch word,
+   in the clause or in a colon-terminated lead-in that opens the item and
+   governs every clause it introduces ("**Companions merged/dispatched the
+   same day:** ...; `lane` dispatch (...)"). */
+const DISPATCH_DONE = /\b(dispatched|went out|deployed|redeployed|shipped|ran|passed|PASS|green|succeeded|success|successful|successfully|completed|went live|goes live|is live|now live)\b/i;
+const DISPATCH_AHEAD = /\b(until|pending|awaiting|await|next|future|upcoming|planned|planning|will|would|not yet|owed|instead of|rather than|without|to be dispatched)\b/i;
 function recordsADispatch(log, k, len) {
     const scope = referenceScope(log, k, len);
     const span = log.slice(scope.from, scope.to);
-    if (/\bNOT DISPATCHED\b/i.test(span)) return false;
-    if (/\brun\s+`?#?\d{6,}/i.test(span)) return true;
-    const lead = log.slice(Math.max(scope.from, k - 60), k);
-    if (/\b(until|pending|awaiting|await|next|future|upcoming|planned|planning|will|would|not yet|owed|instead of|rather than|without)\b[^`"]*$/i.test(lead)) return false;
-    return /\b(dispatched|went out|deployed|redeployed|shipped|ran|passed|PASS|green|succeeded|success|successful|successfully|completed|went live|goes live|is live|now live)\b/i.test(span);
+    const rel = k - scope.from;
+    const sep = /[.;!?](?=\s|$)/g;
+    let cStart = 0, cEnd = span.length, m;
+    while ((m = sep.exec(span))) {
+        if (m.index < rel) cStart = m.index + 1;
+        else if (m.index >= rel + len) { cEnd = m.index; break; }
+    }
+    const clause = span.slice(cStart, cEnd);
+    if (/\bNOT DISPATCHED\b/i.test(clause)) return false;
+    if (/\brun\s+`?#?\d{6,}/i.test(span.slice(rel + len, cEnd))) return true;
+    if (DISPATCH_AHEAD.test(clause)) return false;
+    if (DISPATCH_DONE.test(clause)) return true;
+    const lead = cStart > 0 ? span.match(/^[^.;!?]*?:\**(?=\s)/) : null;
+    return !!lead && DISPATCH_DONE.test(lead[0]) && !DISPATCH_AHEAD.test(lead[0]) && !/\bNOT DISPATCHED\b/i.test(lead[0]);
 }
 
 /* THE CONCISE PROSE SHAPE, which produced no receipt at all. EXECUTION_LOG.md

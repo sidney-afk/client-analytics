@@ -1228,6 +1228,56 @@ const laneItemThenParagraphRun = run(fixture('lane-item-then-paragraph', appende
 ok(laneItemThenParagraphRun.code === 0,
     'while a column-zero paragraph after the list is not part of the item: its "completed successfully" is about another dispatch, and the lane item asks for nothing');
 
+/* ---- 8q. the verdict belongs to the lane's own clause (round eighteen) ------- */
+const laneRunThenProbe = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- `deploy-onboarding-edge-functions` completed successfully (run `33995000000`),',
+    '  carrying `production-write` v69 and `linear-outbound` v48.',
+    '',
+    '  Follow-up smoke probe: NOT DISPATCHED (runner busy); it runs Monday.',
+    '',
+].join('\n');
+const laneRunThenProbeRun = run(fixture('lane-run-then-probe', appended(laneRunThenProbe), realRb));
+ok(laneRunThenProbeRun.code === 1 && laneRunThenProbeRun.json
+    && laneRunThenProbeRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'THE VERDICT BELONGS TO THE LANE\'S OWN CLAUSE: a completed onboarding dispatch with its run id is not silenced by a NOT DISPATCHED about a smoke probe in the same item\'s next paragraph, and FAILS');
+const lanePlanAfterRun = [
+    '',
+    '## 2026-09-06 — Planning',
+    '',
+    'After run `33991332628`, the next `deploy-onboarding-edge-functions` dispatch will',
+    'carry the merged closure.',
+    '',
+].join('\n');
+const lanePlanAfterRunRun = run(fixture('lane-plan-after-run', appended(lanePlanAfterRun), realRb));
+ok(lanePlanAfterRunRun.code === 0,
+    'A RUN ID BEFORE THE REFERENCE IS SOME OTHER RUN: "After run `X`, the next `lane` dispatch will carry ..." is a plan and asks for nothing');
+const laneShippedThenPlanned = [
+    '',
+    '## 2026-09-06 — Notes',
+    '',
+    'Run `33991332628` shipped v68; a `deploy-onboarding-edge-functions` dispatch is planned',
+    'for Monday.',
+    '',
+].join('\n');
+const laneShippedThenPlannedRun = run(fixture('lane-shipped-then-planned', appended(laneShippedThenPlanned), realRb));
+ok(laneShippedThenPlannedRun.code === 0,
+    'and "shipped" in the clause before the semicolon is about the §4 run, not the planned lane dispatch after it, which asks for nothing');
+const laneLeadIn = [
+    '',
+    '## 2026-09-06 — Cutover companions',
+    '',
+    '- **Dispatched the same day:** cutover PR #1173; `deploy-onboarding-edge-functions`',
+    '  (archive comment ordering EF); the B1 full-window run.',
+    '',
+].join('\n');
+const laneLeadInRun = run(fixture('lane-lead-in', appended(laneLeadIn), realRb));
+ok(laneLeadInRun.code === 1 && laneLeadInRun.json
+    && laneLeadInRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'while a colon-terminated lead-in that opens the item ("Dispatched the same day:") governs every clause it introduces, so the bare lane clause after it FAILS');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

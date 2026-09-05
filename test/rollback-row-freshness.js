@@ -1110,6 +1110,55 @@ ok(deeperRun.json && deeperRun.json.live && deeperRun.json.live.run === '3400000
     && deeperRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
     'but it DOES inherit from its actual ancestors: the same receipt under an undated "#### Versions" subheading takes the date, run id and commit of the "### 2026-09-06 — Deploy #40" above it, and the row is what fails');
 
+/* ---- 8n. lane dispatches: no slug needed, own block only, plans are not dispatches (round fifteen) */
+const conciseLane = [
+    '',
+    '## 2026-09-06 — Cutover companions',
+    '',
+    '- **Companions merged/dispatched the same day:** cutover PR #1173 (B1',
+    '  stray-catcher standing mode); `deploy-onboarding-edge-functions` dispatch',
+    '  (archive comment ordering EF goes live; fresh §4 rollback capture owed per',
+    '  FLIP_BUG_LEDGER §2-G5).',
+    '',
+].join('\n');
+const conciseLaneRun = run(fixture('lane-concise', appended(conciseLane), realRb));
+ok(conciseLaneRun.code === 1 && conciseLaneRun.json
+    && conciseLaneRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'A LANE DISPATCH NEED NOT REPEAT A SLUG: the log\'s own concise companion form, naming the onboarding lane and none of the four functions, records a dispatch at or after the newest receipt and FAILS');
+const laneFollowUp = [
+    '',
+    '### Follow-up, 21:40Z',
+    '',
+    'The `deploy-onboarding-edge-functions` lane was then dispatched (run `33995000000`)',
+    'and carried `production-write` v69; the Track-B step redeployed `linear-outbound` too.',
+    '',
+].join('\n');
+const laneFollowUpRun = run(fixture('lane-followup', appended(laneFollowUp), realRb));
+ok(laneFollowUpRun.code === 1 && laneFollowUpRun.json
+    && laneFollowUpRun.json.failures.some(f => /the 2026-09-05 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'THE EXEMPTION IS THE RECEIPT\'S OWN BLOCK: a follow-up subsection under the v68 entry recording an onboarding dispatch is not excused by sharing the entry with the receipt, and FAILS');
+const laneOwnBlock = [
+    '',
+    'For the record, `deploy-onboarding-edge-functions` had been dispatched earlier in the',
+    'day (run `33980000000`) for the archive comment ordering EF; this Section 4 deploy is the',
+    'newer one and supersedes it for `production-write`.',
+    '',
+].join('\n');
+const laneOwnBlockRun = run(fixture('lane-own-block', appended(laneOwnBlock), realRb));
+ok(laneOwnBlockRun.code === 0,
+    'while the same words in the receipt\'s OWN block, before any subheading, are the receipt\'s own narrative and are exempt');
+const lanePlan = [
+    '',
+    '## 2026-09-06 — Gateway follow-up merged',
+    '',
+    'The gateway half is inert until a `deploy-onboarding-edge-functions` dispatch',
+    'carries the merged closure; until then live behavior is exactly the attested v68 state.',
+    '',
+].join('\n');
+const lanePlanRun = run(fixture('lane-planned', appended(lanePlan), realRb));
+ok(lanePlanRun.code === 0,
+    'A PLAN IS NOT A DISPATCH: "inert until a `deploy-onboarding-edge-functions` dispatch carries the merged closure", the wording the log already uses, records nothing that happened and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

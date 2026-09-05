@@ -380,7 +380,20 @@ function otherOwningLanes() {
    filename in backticks, or its workflow name in quotes — not merely alluded to
    in prose ("not the onboarding one" is a sentence about a lane, not a record
    of running it). Narrow because a rollback guard that cries wolf gets skimmed,
-   which is the failure this repository documents most often. */
+   which is the failure this repository documents most often.
+
+   Three refinements, Codex's fifteenth round on #1306:
+   - the entry need not repeat a slug. The lane roster already says which of
+     the four a lane moves, and the log's own concise companion form
+     ("`deploy-onboarding-edge-functions` dispatch (archive comment ordering EF
+     goes live)") names none of them;
+   - the exemption for the receipt this guard compares against covers that
+     receipt's OWN block only, its heading to the next heading of any level,
+     not a follow-up written later in the same `##` entry;
+   - the reference has to record a dispatch that HAPPENED: a run id or a
+     completed-dispatch word in its paragraph, and not a forward-looking one.
+     "inert until a `deploy-onboarding-edge-functions` dispatch carries the
+     merged closure" is a plan, and the log already says it that way. */
 function laneDispatchesSince(log, sinceDate, exemptAt) {
     const lanes = otherOwningLanes();
     if (!lanes.length) return [];
@@ -389,21 +402,56 @@ function laneDispatchesSince(log, sinceDate, exemptAt) {
     const hre = /^## (\d{4}-\d{2}-\d{2})/gm;
     let m;
     while ((m = hre.exec(log))) heads.push({ at: m.index, date: validDate(m[1]) });
+    const exempt = ownBlock(log, exemptAt);
     for (let i = 0; i < heads.length; i++) {
         const h = heads[i];
         if (!h.date || (sinceDate && h.date < sinceDate)) continue;
         const to = i + 1 < heads.length ? heads[i + 1].at : log.length;
-        if (exemptAt >= h.at && exemptAt < to) continue;   // the receipt we compare against
-        const body = log.slice(h.at, to);
-        if (!SLUGS.some(sl => body.indexOf(sl) >= 0)) continue;
         for (const lane of lanes) {
-            const named = body.indexOf('`' + lane.base + '`') >= 0
-                || body.indexOf('`' + lane.file + '`') >= 0
-                || (lane.name && body.indexOf('"' + lane.name + '"') >= 0);
-            if (named) out.push({ date: h.date, lane: lane.base, name: lane.name, slugs: lane.slugs });
+            const refs = ['`' + lane.base + '`', '`' + lane.file + '`'].concat(lane.name ? ['"' + lane.name + '"'] : []);
+            let hit = false;
+            for (const ref of refs) {
+                for (let k = log.indexOf(ref, h.at); k >= 0 && k < to && !hit; k = log.indexOf(ref, k + ref.length)) {
+                    if (exempt && k >= exempt.from && k < exempt.to) continue;
+                    if (recordsADispatch(log, k, ref.length)) hit = true;
+                }
+            }
+            if (hit) out.push({ date: h.date, lane: lane.base, name: lane.name, slugs: lane.slugs });
         }
     }
     return out;
+}
+
+/* The block a position belongs to: from the nearest heading at or above it, at
+   any level, to the next heading of any level after it. */
+function ownBlock(log, at) {
+    if (typeof at !== 'number' || !(at >= 0)) return null;
+    const hre = /^#{2,6} /gm;
+    let from = 0, to = log.length, m;
+    while ((m = hre.exec(log))) {
+        if (m.index <= at) from = m.index;
+        else { to = m.index; break; }
+    }
+    return { from, to };
+}
+
+/* Does the lane reference at k record a dispatch that happened? Judged on its
+   own paragraph. A run id is proof and outranks everything. Otherwise the
+   paragraph needs a completed-dispatch word, and the reference must not be
+   the object of a forward-looking one ("until a", "a future", "pending the")
+   in the sixty characters before it. "NOT DISPATCHED" anywhere in the
+   paragraph is the log's own way of saying it did not happen. */
+function recordsADispatch(log, k, len) {
+    const pStart = Math.max(0, log.lastIndexOf('\n\n', k) + 2, k - 800);
+    let pEnd = log.indexOf('\n\n', k + len);
+    if (pEnd < 0 || pEnd > k + len + 800) pEnd = Math.min(log.length, k + len + 800);
+    const para = log.slice(pStart, pEnd);
+    if (/\bNOT DISPATCHED\b/i.test(para)) return false;
+    const runId = /\brun\s+`?#?\d{6,}/i.test(para);
+    if (runId) return true;
+    const lead = log.slice(Math.max(pStart, k - 60), k);
+    if (/\b(until|pending|awaiting|await|next|future|upcoming|planned|planning|will|would|not yet|owed|instead of|rather than|without)\b[^`"]*$/i.test(lead)) return false;
+    return /\b(dispatched|went out|deployed|redeployed|shipped|ran|passed|PASS|green|succeeded|success|successful|completed|went live|goes live|is live|now live)\b/.test(para);
 }
 
 /* THE CONCISE PROSE SHAPE, which produced no receipt at all. EXECUTION_LOG.md

@@ -1332,6 +1332,56 @@ const laneSameDayOlderRun = run(fixture('lane-same-day-older', appended(laneSame
 ok(laneSameDayOlderRun.code === 0,
     'RUN IDS OUTRANK THE DAY: a separately headed companion dispatch on the receipt\'s own date with an OLDER run id is one the §4 deploy superseded, and asks for nothing');
 
+/* ---- 8t. a plan can name the run it expects (round twenty-one) ------------- */
+const laneWillRun = [
+    '',
+    '## 2026-09-06 — Approval pending',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch will run `33995000000` after approval.',
+    '',
+].join('\n');
+const laneWillRunRun = run(fixture('lane-will-run', appended(laneWillRun), realRb));
+ok(laneWillRunRun.code === 0,
+    'A PLAN CAN NAME THE RUN IT EXPECTS: "the `lane` dispatch will run `X` after approval" is a plan, the forward word sits before the run id, and it asks for nothing');
+const laneRanThenWill = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch went out (run `33995000000`), which will',
+    'need a fresh §4 capture before Monday.',
+    '',
+].join('\n');
+const laneRanThenWillRun = run(fixture('lane-ran-then-will', appended(laneRanThenWill), realRb));
+ok(laneRanThenWillRun.code === 1 && laneRanThenWillRun.json
+    && laneRanThenWillRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while a forward word AFTER the run id ("went out (run `X`), which will need a fresh capture") changes nothing: the dispatch happened, and it FAILS');
+
+/* ---- 8u. a broken attestation paste is a candidate (round twenty-one) -------- */
+const brokenJson = [
+    '```json',
+    '{',
+    '  "schema": "syncview_f27_section4_deployed_versions_v1",',
+    '  "deploy_commit": "0123456789abcdef0123456789abcdef01234567",',
+    '  "github_run_id": "34000000000",',
+    '  "functions": [',
+    '    { "slug": "batch-write", "active_version": "35",',
+];
+const brokenClosed = ['', '## 2026-09-06 — production-write 68 → 69 shipped', ''].concat(brokenJson, ['```', '']).join('\n');
+const brokenClosedRun = run(fixture('broken-attestation-closed', appended(brokenClosed), realRb));
+ok(brokenClosedRun.code === 1 && brokenClosedRun.json
+    && brokenClosedRun.json.failures.some(f => /section at line \d+ \("2026-09-06 — production-write 68 → 69 shipped"\)/.test(f) && /carries 1 attestation block\(s\) this guard cannot read/.test(f)),
+    'A BROKEN ATTESTATION PASTE IS A CANDIDATE: a generic heading followed only by a truncated JSON block that names the schema is named for that block, and FAILS');
+const brokenOpen = ['', '## 2026-09-06 — production-write 68 → 69 shipped', ''].concat(brokenJson, ['']).join('\n');
+const brokenOpenRun = run(fixture('broken-attestation-open', appended(brokenOpen), realRb));
+ok(brokenOpenRun.code === 1 && brokenOpenRun.json
+    && brokenOpenRun.json.failures.some(f => /"2026-09-06 — production-write 68 → 69 shipped"/.test(f) && /carries 1 attestation block\(s\) this guard cannot read/.test(f)),
+    'and so is one whose closing fence is missing altogether');
+const brokenMid = ['### 2026-09-06 — companion release', ''].concat(brokenJson, ['```', '']).join('\n');
+const brokenMidRun = run(fixture('broken-attestation-mid-file', insertInto(brokenMid), realRb));
+ok(brokenMidRun.code === 1 && brokenMidRun.json && brokenMidRun.json.receipts === 19
+    && brokenMidRun.json.failures.some(f => /"2026-09-06 — companion release"/.test(f) && /carries 1 attestation block\(s\) this guard cannot read/.test(f)),
+    'and a broken paste in the MIDDLE of the log (inside the 2026-08-05 container) is named without swallowing the attestation blocks that follow it: every one of the 19 real receipts is still read');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

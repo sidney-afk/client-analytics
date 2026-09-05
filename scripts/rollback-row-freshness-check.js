@@ -48,6 +48,10 @@ const ROOT = rootArg ? path.resolve(rootArg.slice('--root='.length)) : path.reso
 const REPO = path.resolve(__dirname, '..');
 const SLUGS = ['production-write', 'linear-outbound', 'deliverable-write', 'batch-write'];
 const SCHEMA = 'syncview_f27_section4_deployed_versions_v1';
+/* The JSON key line that marks a receipt block. The bare token also appears
+   in prose ("`syncview_f27_section4_deployed_versions_v1` JSON block"), which
+   is a sentence about the schema, not a receipt. */
+const SCHEMA_LINE = new RegExp('"schema"\\s*:\\s*"' + SCHEMA + '"');
 
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
@@ -59,15 +63,43 @@ const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
    and refusing to read those would make this check blind exactly when the
    record is already thinner than it should be. So: read the JSON when it is
    there, fall back to the table, and SAY which one was used. */
+/* Fenced code blocks, line by line. A block that reaches a heading before its
+   closing fence is truncated and ends there, so a broken paste cannot swallow
+   the next entry's block the way a lazy regex did. */
+function fencedBlocks(log) {
+    const out = [];
+    let pos = 0, open = null;
+    for (const line of log.split('\n')) {
+        const fence = /^\s*```/.test(line);
+        if (open) {
+            if (fence) { out.push({ from: open.at, to: pos + line.length, content: log.slice(open.contentStart, pos) }); open = null; }
+            else if (/^#{1,6} /.test(line)) { out.push({ from: open.at, to: pos, content: log.slice(open.contentStart, pos) }); open = null; }
+        } else if (fence) {
+            open = { at: pos, contentStart: pos + line.length + 1 };
+        }
+        pos += line.length + 1;
+    }
+    if (open) out.push({ from: open.at, to: log.length, content: log.slice(open.contentStart) });
+    return out;
+}
+
 function receiptsFromJson(log) {
     const out = [];
-    const re = new RegExp('```json\\s*(\\{[\\s\\S]*?\\})\\s*```', 'g');
-    let m;
-    while ((m = re.exec(log))) {
-        if (m[1].indexOf(SCHEMA) < 0) continue;
-        let obj;
-        try { obj = JSON.parse(m[1]); } catch (e) { continue; }
-        if (!obj || obj.schema !== SCHEMA || !Array.isArray(obj.functions)) continue;
+    for (const b of fencedBlocks(log)) {
+        if (!SCHEMA_LINE.test(b.content)) continue;
+        let obj = null;
+        try { obj = JSON.parse(b.content.trim()); } catch (e) { obj = null; }
+        if (!obj || obj.schema !== SCHEMA || !Array.isArray(obj.functions)) {
+            /* A block that carries the schema line but does not parse, or is
+               not the lane's shape, is a broken paste of a receipt. Under a
+               generic heading it used to be invisible: no receipt, no table
+               row, nothing for the sweep to count (Codex, twenty-first round on
+               #1306). The sweep counts it like an unreadable table row. */
+            receiptsMeta.unreadableAttestations.push({ at: b.from });
+            continue;
+        }
+        receiptsMeta.parsedJson.push({ from: b.from, to: b.to });
+        const m = { index: b.from };
         const fns = {};
         for (const f of obj.functions) {
             if (!f || !f.slug) continue;
@@ -597,8 +629,14 @@ function recordsADispatch(log, k, len) {
     }
     const clause = span.slice(cStart, cEnd);
     if (/\bNOT DISPATCHED\b/i.test(clause)) return null;
-    const rm = span.slice(rel + len, cEnd).match(/\brun\s+`?#?(\d{6,})/i);
-    if (rm) return { run: rm[1] };
+    const after = span.slice(rel + len, cEnd);
+    const rm = after.match(/\brun\s+`?#?(\d{6,})/i);
+    /* A plan can name the run it expects ("will run `X` after approval", "the
+       next `lane` dispatch (run `X`)"): a forward-looking word anywhere before
+       that run id in the clause makes it a plan (Codex, twenty-first round on
+       #1306). One after the run id does not ("went out (run `X`), which will
+       need a fresh capture"). */
+    if (rm) return DISPATCH_AHEAD.test(span.slice(cStart, rel) + ' ' + after.slice(0, rm.index)) ? null : { run: rm[1] };
     if (DISPATCH_AHEAD.test(clause)) return null;
     if (DISPATCH_DONE.test(clause)) return { run: '' };
     const lead = cStart > 0 ? span.match(/^[^.;!?]*?:\**(?=\s)/) : null;
@@ -715,7 +753,7 @@ function executionLogReceipts() {
 /* The log text, kept so main() can run the other-lane sweep without re-reading
    and re-parsing the file; and the position of every receipt it parsed, so the
    unreadable-entry sweep below can tell an entry with a receipt from one without. */
-const receiptsMeta = { log: '', positions: [], parsedRows: new Set(), conflicts: [], incompleteAttestations: [] };
+const receiptsMeta = { log: '', positions: [], parsedRows: new Set(), parsedJson: [], unreadableAttestations: [], conflicts: [], incompleteAttestations: [] };
 
 /* A DEPLOY ENTRY THIS GUARD CANNOT READ IS A DEPLOY THIS GUARD CANNOT SEE.
    Codex P1 on #1306. On 2026-09-05 two forward deploys were logged with the
@@ -823,7 +861,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
     let m;
     while ((m = hre.exec(log))) heads.push({ at: m.index, level: m[1].length, text: m[0] });
     const within = (from, to) => receiptPositions.some(at => at >= from && at < to);
-    const namesSection4 = text => /(Section 4|§4)/i.test(text);
+    const namesSection4 = text => /(Section 4|§4)/i.test(text) || SCHEMA_LINE.test(text);
     const ancestors = [];
     for (let i = 0; i < heads.length; i++) {
         const h = heads[i];
@@ -838,6 +876,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
         const tables = unreadableTableRows(block, h.at);
         const unreadableRows = tables.rejected;
         const truncatedTables = tables.truncated;
+        const attestations = (receiptsMeta.unreadableAttestations || []).filter(u => u.at >= h.at && u.at < blockEnd).length;
         /* Section 4 may be named in the heading, in an ancestor heading, or --
            the concise-prose layout the top of this log uses -- only in the body
            ("**Section 4 forward from `<sha>`, run `<id>`**" under a generic
@@ -856,7 +895,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
         const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text)))
             && !/NOT DISPATCHED/i.test(h.text);
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
-        if (!unreadableRows && !truncatedTables && !noReceiptUnder) continue;
+        if (!unreadableRows && !truncatedTables && !attestations && !noReceiptUnder) continue;
         const heading = h.text.replace(/^#+ /, '').slice(0, 120);
         const line = log.slice(0, h.at).split('\n').length;
         /* Dated by ITS OWN heading only, at any level; and a run id in the
@@ -870,6 +909,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
             line,
             heading,
             tableRows: unreadableRows,
+            attestations,
             severity: predates ? 'note' : 'failure',
             message: (predates
                 ? 'an unreadable Section 4 deploy section at line ' + line + ' ("' + heading + '") is dated by its own heading'
@@ -883,6 +923,9 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
                     ? 'carries ' + truncatedTables + ' versions table(s) that do not name all four functions once each -- a'
                         + ' truncated record, which the §4 lane never produces, and one whose parsed rows would otherwise inherit'
                         + ' this entry\'s run id and fold silently into its receipt'
+                    : attestations
+                    ? 'carries ' + attestations + ' attestation block(s) this guard cannot read (the fenced JSON names the ' + SCHEMA
+                        + ' schema but does not parse, or is not the lane\'s shape with a functions array): a broken paste of a receipt'
                     : 'reads as a Section 4 deploy' + (namesSection4(h.text) ? ''
                         : underSection4 ? ' (under a Section 4 heading)' : ' (Section 4 named in its body)')
                         + ' but holds no receipt this guard can read, in it or under it')

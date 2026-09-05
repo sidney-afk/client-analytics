@@ -197,7 +197,10 @@ function grabFunc(source, name) {
      the shared row is still covered, because it is also a row of this post. */
   const invalidate = grabFunc(UI, '_prodInvalidateBatchAssetReads');
   ok(/const rows = _prodPostRows\(issue\);/.test(invalidate),
-    'after a batch write, the cached reads of every row of the POST are dropped -- the parent and every sub-issue, whatever batch row each of them names');
+    'after a batch write, the cached reads of every row of the POST are marked stale -- the parent and every sub-issue, whatever batch row each of them names');
+  ok(!/_prodState\.assets\.delete\(/.test(invalidate)
+    && /state\.assets\[writtenSlot\] = Object\.assign\(\{\}, state\.assets\[writtenSlot\], \{[\s\S]{0,80}url: writtenUrl,[\s\S]{0,40}state: 'checking'/.test(invalidate),
+    'stale, not gone (2026-09-05): the written value is put into each cached slot as `checking` and the state goes idle, so the next open shows the new link at once instead of a skeleton and re-reads underneath');
   ok(/String\(row\.id\) === keep\) return;/.test(invalidate),
     'except the row that was just written, whose caller re-reads it immediately');
   ok(/if \(!state \|\| state\.editing \|\| state\.saving\) return;/.test(invalidate),
@@ -215,8 +218,8 @@ function grabFunc(source, name) {
     'the save sends the slot and url for a batch asset, and file_url for the canonical deliverable');
   ok(/if \(!value && operation !== 'batch_asset'\)/.test(save),
     'an empty value is refused for the canonical deliverable and allowed for a batch folder');
-  ok(/_prodInvalidateBatchAssetReads\(issue, id\)/.test(save),
-    'and a successful batch write invalidates the rest of the post before re-reading this row');
+  ok(/_prodInvalidateBatchAssetReads\(issue, id, slot, value\)/.test(save),
+    'and a successful batch write invalidates the rest of the post -- carrying the slot and value it just wrote -- before re-reading this row');
 
   console.log(failures === 0
     ? '\nBatch asset write checks passed'

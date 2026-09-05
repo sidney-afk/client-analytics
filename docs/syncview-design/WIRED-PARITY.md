@@ -923,3 +923,57 @@ issue, it should appear everywhere, and same for the raw footage."
     `deploy-f27-section4-closures.yml`. Safe in either order: a browser ahead of
     the gateway reads no write target and writes the row it is on, which is the
     behavior that shipped before. `ROLLBACK.md` carries the row.
+
+## The asset grid holds across a refresh; verdicts are reused by URL (2026-09-05)
+
+Owner, with the post-level change live: "whenever it refreshes the link the
+open link button disappears and reappears ... two or three times ... do we
+really need to refresh access every single time? ... 99% of the time the asset
+links are not gonna change."
+
+-   **Candidate behavior.** Revalidate-in-place (2026-08-31) preserved a cached
+    asset read only while `state.complete && state.scopeSignature`. A tab return
+    invalidates TWICE (synchronously from `_prodRefresh`, then from
+    `_prodLoadData` after the projection swap) with a render, and so a re-read,
+    in between; the re-read sets `complete` false, the second pass dropped the
+    stamped state, and the next render reseeded a skeleton for a link that had
+    not moved. The delta tick deleted a changed row's read outright, the pill
+    cache was cleared outright, and a `batch_asset` save deleted every other
+    row of the post. Same shape four times: discard what is on screen, fetch it
+    back identical.
+-   **Wired behavior.** What is STAMPED stays: `preservable =
+    !!state.scopeSignature`, because the stamp is the one thing the use-time
+    gate in `_prodAssetState` needs and `complete` only says whether the LATEST
+    read landed. The delta tick marks stale. A batch save writes the just-saved
+    value into each sibling's cached slot as `checking` and marks it stale, so
+    the next open shows the new link at once and re-reads underneath. Pill
+    entries survive with a `batchId`/`scope` stamp and `_prodBatchFileFor(id,
+    row)` refuses one whose row left that batch or changed scope; only the
+    per-generation status is dropped, which is what makes a parent re-ask, and
+    a successful re-ask EVICTS every entry it answered for earlier that the
+    batch no longer names, so a cleared file takes its pill down (Codex P1 on
+    #1305: the read omits a cleared deliverable, and upserting alone would have
+    left the old pill up for the session).
+    `_prodEnsureAssets` does not START a read for a stamped row while
+    `_prodState.refreshing` is true: `requestStillCurrent()` would refuse it on
+    landing (token bump, generation change), and the render after the swap
+    starts the one that counts. First paints and the Refresh access button are
+    never deferred.
+-   **The wait is the probe, and the ledger already had the answer.** Every
+    `asset_access_read` probed every slot live. `heldAssetEvidence` now asks
+    `production_asset_access_checks` by `(slot, url_sha256)` across every
+    deliverable, newest first, and a verdict within `ASSET_EVIDENCE_MAX_AGE_MS`
+    (the approval gate's own window) replaces the network step only. The
+    checks that depend on the clock or the slot still run first; a status-less
+    `unavailable` (a probe that threw) is never reused; the reading row's ledger
+    entry is still written with the ORIGINAL `checked_at`; the approval gate
+    still probes live. Refresh access sends `recheck: true`.
+-   **Parent grid.** A real hierarchy parent draws the three post-level slots
+    and the Deliverable file row only when a value exists on it (owner: "there
+    is no deliverable file for that").
+-   **Rollback boundary UNCHANGED in shape.** Browser half on Pages, gateway half
+    by `deploy-f27-section4-closures.yml`, safe in either order: a browser
+    sending `recheck` to an older gateway is ignored and probed as before; a
+    newer gateway under the older browser simply answers faster. The index
+    migration is optional and independent. `ROLLBACK.md` carries the row.
+-   **Suites.** `test/prod-asset-refresh-holds.js`, `test/asset-evidence-reuse.js`.

@@ -388,7 +388,14 @@ const CANDIDATES = new Map([
     // "offer the wrong row" rather than "offer nothing". Unreachable on today's
     // data (largest bucket 60 rows, largest split post's candidates 33, limit
     // 800). One comparison; no new query, no new import, file count 5.
-    source: '6a39a2bc8741eafc4cfdaed47aabd74d95b8dab70d8092ceccc1ac004781eab5',
+    // Re-pinned 2026-09-05 (thirty-first release, NOT YET DEPLOYED at time of
+    // writing -- v67 still carries the twenty-ninth, so the next dispatch takes
+    // the thirtieth and this together): asset_access_read reuses a verdict the
+    // evidence ledger already holds for the same (slot, url_sha256) within
+    // ASSET_EVIDENCE_MAX_AGE_MS in place of the live probe, and `recheck: true`
+    // from the Refresh access button skips the ledger. One new read on
+    // production_asset_access_checks per slot; no new import, file count 5.
+    source: 'd7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

@@ -460,3 +460,35 @@ Two facts belong in a foundation audit rather than only in a changelog:
   both lookups require the card to name the deliverable back, in the slot for
   its team, under its own client. A card that no surface binds back to is still
   refused, and no row is written at install time.
+
+## Addendum, 2026-09-05 (later) — the refresh hold and the reused verdict, and what they do not widen
+
+- **No new grant, no new write surface, no new read.** The asset grid's
+  refresh behaviour changed only in what the browser KEEPS on screen between
+  two answers of the same authorized `asset_access_read`; nothing is read from
+  a new place, and the typed asset columns stay revoked from the browser key.
+- **What is kept is what the use-time gate can refuse.** A cached asset read
+  survives an invalidation on its scope stamp alone, and `_prodAssetState`
+  still refuses a stamped value whose row has moved to another client or team.
+  Sub-issue file pills survive with a batch-row and scope stamp,
+  `_prodBatchFileFor(id, row)` refuses one whose row left that batch or changed
+  scope, and a successful `batch_files_read` evicts every entry it answered for
+  earlier that the batch no longer names, so a cleared file takes its pill down
+  on the next re-ask (Codex P1 on #1305).
+- **The reused verdict is read-side only.** `heldAssetEvidence` consults
+  `production_asset_access_checks`, a table the service role already reads and
+  writes, by `(slot, url_sha256)`; it replaces only the network step of a probe,
+  after the shape, slot and clock checks have run, and only within
+  `ASSET_EVIDENCE_MAX_AGE_MS`, the window the approval gate already trusts. A
+  status-less `unavailable` (a probe that threw) is never reused. The ledger
+  row for the reading deliverable is still written, with the original
+  `checked_at`, so a copy cannot outlive the window. The approval gate
+  (`assertGraphicsApprovalArtifact`) is untouched and still probes live before
+  it asserts resolvability.
+- **`recheck` cannot be used to reach anything.** The handler honours only a
+  literal `true`, it only turns the ledger lookup off (more work, not less
+  checking), and the read it belongs to is still scoped, authenticated and
+  refused with the same flat 403 as before.
+- **The parent grid hides a row, it does not gain one.** A real hierarchy
+  parent draws the Deliverable file row only when a value exists on it; the
+  attach control that the empty row carried is simply not rendered there.

@@ -84,6 +84,15 @@ jobs:
           CARD_HISTORY_PGPASSWORD: postgres
           CARD_HISTORY_MANIFEST_SQL: ${{ runner.temp }}/card-history-manifest.sql
         run: node scripts/card-history-backup-rehearsal.js
+      - name: Prove closed history corpus against real dependency DDL locally
+        env:
+          CARD_HISTORY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_HISTORY_PGHOST: 127.0.0.1
+          CARD_HISTORY_PGPORT: '5432'
+          CARD_HISTORY_PGUSER: postgres
+          CARD_HISTORY_PGPASSWORD: postgres
+          CARD_HISTORY_MANIFEST_SQL: ${{ runner.temp }}/card-history-manifest.sql
+        run: node scripts/card-history-closed-corpus-rehearsal.js
 
   identity-exposure:
     # THIS REPOSITORY IS PUBLIC AND THE ROSTER IS IN IT. Measured 2026-09-02:

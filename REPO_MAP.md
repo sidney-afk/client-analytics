@@ -56,6 +56,13 @@ expanded-corpus schema prerequisites exist.
 dump/package/restore against disposable PostgreSQL. Its PR #1293 manifest
 prerequisite is fetched at an immutable commit and hash-checked for this local
 proof only; it does not install production schema or deploy the gateway.
+The corrective `history-v5` format adds actual FK closure and replay evidence;
+`scripts/card-history-closed-corpus-rehearsal.js` proves its 33-table data restore
+against source-derived dependency DDL, including the gated F27 relation shapes.
+`test/track-b-backup-closed-corpus.js` preserves v3/v4 compatibility and gates v5.
+`scripts/track-b-history-v5-backup-prerequisites.sql` is its distinct manual
+private-grant/scratch helper artifact. Full schema reconstruction remains blocked;
+`docs/audits/2026-09-05-card-history-restore-correction.md` records proof limits.
 
 | Path | What it is |
 |---|---|

@@ -157,6 +157,28 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
       hook = (table, n) => { if (table === 'calendar_posts' && n === 2) db.calendar_posts[0].video_tweaks = 'changed'; };
       const r = await call(); assert.equal(r.body.feedback.status, 'source_changed'); assert.equal(r.body.feedback.retain_previous, undefined);
     });
+    await check('hidden stable identity suppresses stale alias in either direction without suppressing unrelated IDs', async () => {
+      for (const reversed of [false, true]) {
+        reset([note('retired', { hidden: true, body: 'ALIAS HIDDEN CANARY' }), note('unrelated')]);
+        db.calendar_posts[0].tweaks = JSON.stringify([note('retired', { body: 'ALIAS HIDDEN CANARY' }), note('other')]);
+        if (reversed) [db.calendar_posts[0].video_tweaks, db.calendar_posts[0].tweaks] = [db.calendar_posts[0].tweaks, db.calendar_posts[0].video_tweaks];
+        const r = await call(); assert(!JSON.stringify(r.body).includes('ALIAS HIDDEN CANARY'));
+        assert.equal(r.body.feedback.rows.length, 2); assert.equal(r.body.feedback.retain_previous, false);
+      }
+    });
+    await check('deleted stable identity suppresses stale alias body but retains tombstone and replies', async () => {
+      reset([note('retired', { deleted: true, body: 'ALIAS DELETED CANARY' }), note('reply', { parent_id: 'retired' })]);
+      db.calendar_posts[0].tweaks = JSON.stringify([note('retired', { body: 'ALIAS DELETED CANARY' }), note('unrelated')]);
+      const r = await call(); assert(!JSON.stringify(r.body).includes('ALIAS DELETED CANARY'));
+      assert.equal(r.body.feedback.rows.filter(row => row.deleted).length, 1);
+      assert.equal(r.body.feedback.rows.length, 3); assert.equal(r.body.feedback.retain_previous, false);
+    });
+    await check('suppression beyond projected row cap still suppresses an earlier alias', async () => {
+      reset([note('retired', { body: 'LATE HIDDEN CANARY' })]);
+      db.calendar_posts[0].tweaks = JSON.stringify([...Array.from({ length: 500 }, (_, i) => note('other-' + i)), note('retired', { hidden: true })]);
+      const r = await call(); assert(!JSON.stringify(r.body).includes('LATE HIDDEN CANARY'));
+      assert.equal(r.body.feedback.complete, false); assert.equal(r.body.feedback.retain_previous, false);
+    });
     await check('size refusal marks incomplete and permits only an already-scoped stale snapshot', async () => {
       db.calendar_posts[0].video_tweaks = 'x'.repeat(1024 * 1024);
       const r = await call(); assert.equal(r.body.feedback.status, 'source_limit'); assert.equal(r.body.feedback.retain_previous, true);

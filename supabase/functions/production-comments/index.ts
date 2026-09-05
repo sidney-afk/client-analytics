@@ -386,7 +386,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const { data: latest, error: latestError } = await supabase.from("deliverables")
         .select("id,client_slug,team,origin,card_id").eq("id", deliverableId).maybeSingle();
       if (latestError) throw new Error("target_recheck_failed");
-      if (!latest || ["id", "client_slug", "team", "origin", "card_id"].some(
+      if (!latest || (["id", "client_slug", "team", "origin", "card_id"] as const).some(
         key => clean(latest[key]) !== clean(target[key]),
       )) return json({ ok: false, error: "forbidden" }, 403);
     }

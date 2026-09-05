@@ -100,12 +100,30 @@ export async function readLegacyFeedback(supabase, target, principal) {
     let sourcePartial = false, suppressionObserved = false;
     const rows = [];
     const aliases = new Map();
+    const parsedFields = new Map(), hiddenIds = new Set(), deletedIds = new Set();
+    // Suppression belongs to the stable comment identity across BOTH video
+    // aliases, not to whichever row is encountered first. Inspect the whole
+    // bounded payload before emitting a body, including beyond the row cap.
     for (const field of fields) {
       const value = card[field];
       if (value == null || value === '') continue;
       let values;
       try { values = typeof value === 'string' ? JSON.parse(value) : value; } catch { complete = false; sourcePartial = true; continue; }
       if (!Array.isArray(values)) { complete = false; sourcePartial = true; continue; }
+      parsedFields.set(field, values);
+      for (const raw of values) if (object(raw)) {
+        const id = clean(raw.id || raw.comment_id || raw.native_comment_id);
+        if (truthy(raw.hidden) || clean(raw.component) && clean(raw.component) !== scope.component) {
+          suppressionObserved = true; complete = false;
+          if (id) hiddenIds.add(id);
+        }
+        if (truthy(raw.deleted) || truthy(raw.is_deleted) || clean(raw.deleted_at)) {
+          suppressionObserved = true;
+          if (id) deletedIds.add(id);
+        }
+      }
+    }
+    for (const [field, values] of parsedFields) {
       const occurrences = new Map();
       for (const [index, raw] of values.entries()) {
         if (rows.length >= FEEDBACK_LIMIT) {
@@ -115,6 +133,13 @@ export async function readLegacyFeedback(supabase, target, principal) {
           continue;
         }
         if (!object(raw)) { complete = false; sourcePartial = true; continue; }
+        const sourceId = clean(raw.id || raw.comment_id || raw.native_comment_id);
+        if (sourceId && hiddenIds.has(sourceId)) { complete = false; continue; }
+        if (sourceId && deletedIds.has(sourceId)
+            && !(truthy(raw.deleted) || truthy(raw.is_deleted) || clean(raw.deleted_at))) {
+          // Retain the actual tombstone, never an older unsuppressed alias.
+          complete = false; continue;
+        }
         // Hidden source content includes deliberate cross-client suppression.
         // Do not resurrect it, even in a staff projection.
         if (truthy(raw.hidden)) { complete = false; suppressionObserved = true; continue; }

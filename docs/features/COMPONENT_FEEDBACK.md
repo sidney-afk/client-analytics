@@ -90,9 +90,16 @@ part of rollback. A browser-only revert hides the new view, not its stored notes
 
 ## Finite proof
 
-Local result: 23 actual-handler checks, 13 Chromium scenarios, and 15 focused
+Local result: 26 actual-handler checks, 13 Chromium scenarios, and 15 focused
 existing compatibility/registration suites passed. These are synthetic/local
 results, separate from hosted checks and live serving proof.
+
+Independent review corrected cross-alias suppression: a hidden or deleted stable
+identity is collected across both video fields before any body is emitted,
+including suppression beyond the projected row cap. Stale aliases cannot revive
+it; unrelated identities retain their multiplicity and actual tombstones/replies
+remain visible. Hosted type checking also required a literal key tuple for the
+five-field target recheck; no baseline type allowance was changed.
 
 `node test/component-feedback-read.js` executes the actual request handler,
 staff auth, policy and projection against finite mocked Supabase tables. It is

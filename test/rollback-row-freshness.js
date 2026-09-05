@@ -1159,6 +1159,43 @@ const lanePlanRun = run(fixture('lane-planned', appended(lanePlan), realRb));
 ok(lanePlanRun.code === 0,
     'A PLAN IS NOT A DISPATCH: "inert until a `deploy-onboarding-edge-functions` dispatch carries the merged closure", the wording the log already uses, records nothing that happened and asks for nothing');
 
+/* ---- 8o. a lane reference is judged by its own list item (round sixteen) ---- */
+const laneAdjacent = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch completed successfully; it carried',
+    '  `production-write` and `linear-outbound` in its Track-B step.',
+    '- Follow-up smoke probe: NOT DISPATCHED (the runner was busy).',
+    '',
+].join('\n');
+const laneAdjacentRun = run(fixture('lane-adjacent-bullets', appended(laneAdjacent), realRb));
+ok(laneAdjacentRun.code === 1 && laneAdjacentRun.json
+    && laneAdjacentRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'A LANE REFERENCE IS JUDGED BY ITS OWN LIST ITEM: a completed onboarding dispatch is not silenced by the NEXT bullet saying NOT DISPATCHED about something else, and FAILS');
+const laneAdjacentInverse = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- Cutover PR #1173 merged and deployed; the B1 dispatch completed successfully.',
+    '- `deploy-onboarding-edge-functions` dispatch: NOT DISPATCHED, deferred to Monday.',
+    '',
+].join('\n');
+const laneAdjacentInverseRun = run(fixture('lane-adjacent-inverse', appended(laneAdjacentInverse), realRb));
+ok(laneAdjacentInverseRun.code === 0,
+    'and the other way round: a NOT DISPATCHED lane item does not borrow "completed successfully" from the bullet above it, and asks for nothing');
+const laneHeldProse = [
+    '',
+    '## 2026-09-06 — Held',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch was prepared, then NOT DISPATCHED;',
+    'the merged closure stays inert until Monday.',
+    '',
+].join('\n');
+const laneHeldProseRun = run(fixture('lane-held-prose', appended(laneHeldProse), realRb));
+ok(laneHeldProseRun.code === 0,
+    'while outside a list the paragraph is still the scope, and a NOT DISPATCHED paragraph asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

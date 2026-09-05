@@ -435,23 +435,48 @@ function ownBlock(log, at) {
     return { from, to };
 }
 
-/* Does the lane reference at k record a dispatch that happened? Judged on its
-   own paragraph. A run id is proof and outranks everything. Otherwise the
-   paragraph needs a completed-dispatch word, and the reference must not be
-   the object of a forward-looking one ("until a", "a future", "pending the")
-   in the sixty characters before it. "NOT DISPATCHED" anywhere in the
-   paragraph is the log's own way of saying it did not happen. */
-function recordsADispatch(log, k, len) {
+/* The text a lane reference is judged by: its own Markdown list item when it
+   sits in a list (the item's first line to the line before the next bullet at
+   any indentation), else its blank-line paragraph. Two bullets written back to
+   back without a blank line are two records, not one: "`lane` dispatch
+   completed successfully" followed by "Follow-up smoke probe: NOT DISPATCHED"
+   used to read as one paragraph, and the second bullet's verdict silenced the
+   first (Codex, sixteenth round on #1306). */
+function referenceScope(log, k, len) {
     const pStart = Math.max(0, log.lastIndexOf('\n\n', k) + 2, k - 800);
     let pEnd = log.indexOf('\n\n', k + len);
     if (pEnd < 0 || pEnd > k + len + 800) pEnd = Math.min(log.length, k + len + 800);
-    const para = log.slice(pStart, pEnd);
-    if (/\bNOT DISPATCHED\b/i.test(para)) return false;
-    const runId = /\brun\s+`?#?\d{6,}/i.test(para);
-    if (runId) return true;
-    const lead = log.slice(Math.max(pStart, k - 60), k);
+    const bullet = /^[ \t]*(?:[-*+]|\d+[.)])\s/;
+    const lines = [];
+    let pos = pStart;
+    for (const text of log.slice(pStart, pEnd).split('\n')) {
+        lines.push({ from: pos, to: pos + text.length, text });
+        pos += text.length + 1;
+    }
+    const idx = lines.findIndex(l => k >= l.from && k <= l.to);
+    if (idx < 0) return { from: pStart, to: pEnd };
+    let first = idx;
+    while (first >= 0 && !bullet.test(lines[first].text)) first--;
+    if (first < 0) return { from: pStart, to: pEnd };
+    let next = idx + 1;
+    while (next < lines.length && !bullet.test(lines[next].text)) next++;
+    return { from: lines[first].from, to: lines[next - 1].to };
+}
+
+/* Does the lane reference at k record a dispatch that happened? Judged on its
+   own scope (see referenceScope). A run id is proof and outranks everything.
+   Otherwise the scope needs a completed-dispatch word, and the reference must
+   not be the object of a forward-looking one ("until a", "a future", "pending
+   the") in the sixty characters before it. "NOT DISPATCHED" in the scope is
+   the log's own way of saying it did not happen. */
+function recordsADispatch(log, k, len) {
+    const scope = referenceScope(log, k, len);
+    const span = log.slice(scope.from, scope.to);
+    if (/\bNOT DISPATCHED\b/i.test(span)) return false;
+    if (/\brun\s+`?#?\d{6,}/i.test(span)) return true;
+    const lead = log.slice(Math.max(scope.from, k - 60), k);
     if (/\b(until|pending|awaiting|await|next|future|upcoming|planned|planning|will|would|not yet|owed|instead of|rather than|without)\b[^`"]*$/i.test(lead)) return false;
-    return /\b(dispatched|went out|deployed|redeployed|shipped|ran|passed|PASS|green|succeeded|success|successful|completed|went live|goes live|is live|now live)\b/.test(para);
+    return /\b(dispatched|went out|deployed|redeployed|shipped|ran|passed|PASS|green|succeeded|success|successful|completed|went live|goes live|is live|now live)\b/.test(span);
 }
 
 /* THE CONCISE PROSE SHAPE, which produced no receipt at all. EXECUTION_LOG.md

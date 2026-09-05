@@ -482,8 +482,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate) {
     for (let i = 0; i < heads.length; i++) {
         const h = heads[i];
         while (ancestors.length && ancestors[ancestors.length - 1].level >= h.level) ancestors.pop();
-        const underSection4 = ancestors.some(a => namesSection4(a.text));
-        ancestors.push(h);
+        const underSection4 = ancestors.some(a => a.section4);
         const blockEnd = i + 1 < heads.length ? heads[i + 1].at : log.length;
         let treeEnd = log.length;
         for (let j = i + 1; j < heads.length; j++) {
@@ -502,6 +501,12 @@ function unreadableDeployEntries(log, receiptPositions, newestDate) {
            that claims a Section 4 forward is deploy-shaped whatever its heading
            says. */
         const bodyClaimsForward = /Section 4 forward/i.test(block);
+        /* What descendants inherit: Section 4 named in this heading OR in its
+           own block body. Codex, seventh round on #1306: a generic "Deploys"
+           container that named Section 4 only in its body passed that context
+           to nobody, so an unreceipted `### Deploy #40` under it rode on a
+           readable sibling again. */
+        ancestors.push({ level: h.level, text: h.text, section4: namesSection4(h.text) || namesSection4(block) });
         const sectionFourHere = namesSection4(h.text) || underSection4 || namesSection4(block);
         const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text)))
             && !/NOT DISPATCHED/i.test(h.text);

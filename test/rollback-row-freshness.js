@@ -836,6 +836,40 @@ const unrelatedRun = run(fixture('unrelated-deploy-heading', realLog + unrelated
 ok(unrelatedRun.json && !unrelatedRun.json.failures.some(f => UNREADABLE.test(f)),
     'while a "Deploy" heading whose body never names Section 4 is some other lane\'s business and asks for nothing');
 
+/* ---- 8f. body-defined Section 4 context reaches the children (round seven) -- */
+/* A generic "Deploys" container that names F27 Section 4 only in its body, over
+   a readable ### Deploy #39 and an unreceipted ### Deploy #40. The context has
+   to travel down from the body, not only from heading text, or #40 rides on
+   #39's receipt through the parent. */
+const bodyContext = [
+    '',
+    '## 2026-09-06 — Deploys: two in one evening',
+    '',
+    'Both through the F27 Section 4 lane, dispatched by the owner.',
+    '',
+    '### Deploy #39, run `33999999901`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+    '### Deploy #40 — RECORDED',
+    '',
+    'Deployed v70 an hour later; the attestation will follow.',
+    '',
+].join('\n');
+const bodyContextRun = run(fixture('body-context-children', realLog + bodyContext, realRb));
+ok(bodyContextRun.code === 1 && bodyContextRun.json
+    && bodyContextRun.json.failures.some(f => /\("Deploy #40 — RECORDED"\) reads as a Section 4 deploy \(under a Section 4 heading\)/.test(f) && UNREADABLE.test(f)),
+    'THE BODY CONTEXT TRAVELS DOWN: under a generic "Deploys" container that names Section 4 only in its body, an unreceipted ### Deploy #40 is named even though a readable ### Deploy #39 sits beside it');
+ok(bodyContextRun.json && !bodyContextRun.json.failures.some(f => /\("Deploy #39, run `33999999901`"\)/.test(f) && UNREADABLE.test(f)),
+    'and the readable ### Deploy #39 beside it is not');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

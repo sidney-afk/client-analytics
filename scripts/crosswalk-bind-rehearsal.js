@@ -37,8 +37,60 @@ const CHAIN = [
   '2026-08-19-samples-batch-write-purpose.sql',
   '2026-08-26-production-intake-append-v7.sql',
   '2026-07-23-production-comment-thread-lifecycle.sql',
+  // F27's write-authorization fence: the team fences table (generation 0 per
+  // team) and track_b_f27_write_authorization(), which the RPC's cancel path
+  // now calls to mint the binder. Standalone and idempotent by design.
+  '2026-07-28-f27-write-authorization-only.sql',
 ];
 const SUBJECT = '2026-09-05-crosswalk-bind-and-import.sql';
+const F27_MIGRATION = '2026-07-20-f27-team-rollback.sql';
+
+/* THE F27 OUTBOX CLOSURE, VERBATIM. Live has had it since 2026-08-02: the
+   rollback tables and outbox columns, the F27 mirror_outbox_enqueue that reads
+   the reserved payload binder, and the BEFORE INSERT hold guard that refuses a
+   pending intent whose authority_generation is not the team's fence. The full
+   migration cannot be applied here (its pre-install gates check the live
+   boundary), so exactly these blocks are cut from it by anchor -- and the cut
+   asserts the tokens it depends on, so drift in the migration fails this
+   rehearsal loudly instead of quietly rehearsing a different guard. The first
+   live apply lost 11 of 100 slots to this guard because the chain above
+   predates F27; this is what makes that class visible before a dispatch. */
+function f27OutboxClosure() {
+  const text = fs.readFileSync(path.join(MIGRATIONS, F27_MIGRATION), 'utf8');
+  const cut = (start, end, label, from = 0) => {
+    const a = text.indexOf(start, from);
+    if (a < 0) throw new Error('f27 closure: cannot find the start of ' + label);
+    const b = text.indexOf(end, a + start.length);
+    if (b < 0) throw new Error('f27 closure: cannot find the end of ' + label);
+    return { sql: text.slice(a, b + end.length), at: b };
+  };
+  const tables = cut('create table if not exists public.track_b_team_rollbacks (',
+    '\n-- Keep the public enqueue signature stable.', 'the rollback tables and outbox columns');
+  const enqueue = cut('create or replace function public.mirror_outbox_enqueue(', '\n$fn$;', 'the F27 enqueue', tables.at);
+  const guard = cut('create or replace function public.track_b_f27_hold_guard()', '\n$fn$;', 'the hold guard', enqueue.at);
+  const tablesSql = tables.sql.replace('\n-- Keep the public enqueue signature stable.', '');
+  if (!/_f27_authority_generation/.test(enqueue.sql) || !/authority_generation, legacy_parity/.test(enqueue.sql)) {
+    throw new Error('f27 closure: the enqueue cut does not read the binder');
+  }
+  if (!/f27_authority_generation_stale/.test(guard.sql) || !/team_is_linear_authoritative/.test(guard.sql)) {
+    throw new Error('f27 closure: the hold guard cut does not carry its refusals');
+  }
+  if (!/add column if not exists authority_generation/.test(tablesSql)) {
+    throw new Error('f27 closure: the tables cut does not add authority_generation');
+  }
+  return [
+    tablesSql,
+    enqueue.sql,
+    guard.sql,
+    // The trigger DDL as the migration installs it (inside its DO block).
+    `drop trigger if exists track_b_f27_hold_guard on public.mirror_outbox;
+create trigger track_b_f27_hold_guard
+  before insert or update of status, team, authority_generation,
+    legacy_parity, test_only, f27_drill_rollback_id
+  on public.mirror_outbox
+  for each row execute function public.track_b_f27_hold_guard();`,
+  ].join('\n\n');
+}
 
 function have(bin) {
   if (fs.existsSync('/usr/lib/postgresql/16/bin/' + bin)) return true;
@@ -139,7 +191,10 @@ insert into public.deliverables(id,batch_id,client_slug,team,kind,title,status,o
   ('del_dupe_b',    'bat_acme', 'acme', 'video', 'video', 'DB', 'kasper_approval', 'calendar', 'card_dupe', 'VID-870', null, 'uuid-dupe-b'),
   -- a terminal occupant: detached, its status left alone, nothing sent.
   ('del_posted_keep','bat_acme','acme', 'video', 'video', 'PK', 'posted', 'manual',   null,          'VID-880', null, null),
-  ('del_posted_occ', 'bat_acme','acme', 'video', 'video', 'PO', 'posted', 'calendar', 'card_posted', 'VID-881', null, 'uuid-posted-occ');
+  ('del_posted_occ', 'bat_acme','acme', 'video', 'video', 'PO', 'posted', 'calendar', 'card_posted', 'VID-881', null, 'uuid-posted-occ'),
+  -- a live occupant on a team Linear owns: detached only, never cancelled natively.
+  ('del_lin_keep',   'bat_acme','acme', 'video', 'video', 'LK', 'todo',            'manual',   null,       'VID-890', null, null),
+  ('del_lin_occ',    'bat_acme','acme', 'video', 'video', 'LO', 'kasper_approval', 'calendar', 'card_lin', 'VID-891', null, 'uuid-lin-occ');
 
 insert into public.calendar_posts(client, id, name, video_deliverable_id, graphic_deliverable_id, linear_issue_id, graphic_linear_issue_id) values
   ('acme','card_ok','Card OK','del_ok','del_gra','https://linear.app/synchro/issue/VID-100/a','GRA-200'),
@@ -156,6 +211,7 @@ insert into public.calendar_posts(client, id, name, video_deliverable_id, graphi
   ('acme','card_carousel','Card Carousel',null,'del_carousel',null,'GRA-860'),
   ('acme','card_dupe','Card Dupe','del_dupe_a',null,'VID-870',null),
   ('acme','card_posted','Card Posted','del_posted_keep',null,'VID-880',null),
+  ('acme','card_lin','Card Linear','del_lin_keep',null,'VID-890',null),
   ('beta','card_ok','Beta same id','del_beta',null,'VID-600',null);
 `;
 
@@ -181,6 +237,13 @@ function rehearse() {
     cluster.exec(FOUNDATION_SQL);
     for (const file of CHAIN) cluster.runFile(path.join(MIGRATIONS, file));
     ok(true, 'prerequisite chain applied (' + CHAIN.length + ' migrations)');
+    cluster.exec(f27OutboxClosure());
+    cluster.exec(`
+insert into public.syncview_runtime_flags(key, value, updated_by) values
+  ('prod_authority', '{"video":"syncview","graphics":"syncview"}'::jsonb, 'rehearsal'),
+  ('linear_legacy_parity_enabled', '{"enabled":true}'::jsonb, 'rehearsal')
+on conflict (key) do update set value = excluded.value;`);
+    ok(true, 'the F27 outbox closure (enqueue binder + hold guard) is installed verbatim from ' + F27_MIGRATION);
 
     cluster.exec('alter database ' + cluster.db + ' set check_function_bodies = on;');
     cluster.runFile(path.join(MIGRATIONS, SUBJECT));
@@ -307,6 +370,12 @@ function rehearse() {
     const dupeHeld = scalar(cluster, "select coalesce(card_id,'<null>')||'|'||status from public.deliverables where id='del_dupe_b'");
     ok(dupeHeld === 'card_dupe|kasper_approval', 'and that same-issue occupant is left exactly where it was (' + dupeHeld + ')');
 
+    /* ---- the F27 fence is real here: no binder, no intent ----------------- */
+    refuses(cluster,
+      "select public.mirror_outbox_enqueue('deliverable','del_holder','status','{\"status\":\"canceled\"}'::jsonb,'probe:no-binder',now(),'acme','video');",
+      'f27_authority_generation_stale:video',
+      'an outbound intent enqueued WITHOUT the F27 binder is refused by the hold guard -- the exact refusal the first live apply hit on 11 slots');
+
     /* ---- the ruling: the card wins -------------------------------------- */
     const evictReceipt = scalar(cluster, bind({ source_surface: 'calendar', deliverable_id: 'del_want', card_id: 'card_taken', client_slug: 'acme', component: 'video', evict_occupant: 'card_wins' }, [])).replace(/\s+/g, '');
     const want = scalar(cluster, "select card_id||'|'||origin||'|'||kind from public.deliverables where id='del_want'");
@@ -318,9 +387,12 @@ function rehearse() {
     ok(evictEvent === 'kasper_approval>canceled|canceled|VID-400|VID-410',
       'the eviction is written to deliverable_events with both issues named (' + evictEvent + ')');
     const outbox = scalar(cluster,
-      "select operation||'|'||(payload->>'status')||'|'||status||'|'||dedup_key from public.mirror_outbox where entity='deliverable' and entity_id='del_holder'");
-    ok(outbox === 'status|canceled|pending|crosswalk-evict:del_holder:canceled',
-      'and the cancel is queued for the outbound lane, never sent to Linear directly (' + outbox + ')');
+      "select operation||'|'||(payload->>'status')||'|'||status||'|'||dedup_key||'|'||authority_generation||'|'||coalesce(payload->>'_f27_authority_generation','<stripped>') from public.mirror_outbox where entity='deliverable' and entity_id='del_holder'");
+    ok(outbox === 'status|canceled|pending|crosswalk-evict:del_holder:canceled|0|<stripped>',
+      'and the cancel is queued for the outbound lane carrying the F27 fence generation, the binder key stripped from the stored payload, never sent to Linear directly (' + outbox + ')');
+    const evictAuth = scalar(cluster,
+      "select (payload->>'authority')||'|'||(payload->>'authority_generation') from public.deliverable_events where deliverable_id='del_holder' and action='crosswalk_occupant_evicted'");
+    ok(evictAuth === 'syncview|0', 'and the eviction event records the authority it was minted under (' + evictAuth + ')');
     ok(/"evicted":\[\{"mode":"canceled","status_before":"kasper_approval","deliverable_id":"del_holder","linear_identifier":"VID-410"\}\]/.test(evictReceipt)
       || (/"deliverable_id":"del_holder"/.test(evictReceipt) && /"mode":"canceled"/.test(evictReceipt) && /"status_before":"kasper_approval"/.test(evictReceipt)),
       'and the receipt lists the eviction with its prior status');
@@ -333,6 +405,20 @@ function rehearse() {
     const postedOutbox = scalar(cluster, "select count(*) from public.mirror_outbox where entity_id='del_posted_occ'");
     ok(postedKeep === 'card_posted|posted' && postedOcc === '<null>|posted' && postedMode === 'detached' && postedOutbox === '0',
       'a terminal (posted) occupant is detached, its status left alone, recorded as mode=detached, and nothing is queued for Linear (' + postedOcc + '/' + postedMode + '/' + postedOutbox + ')');
+
+    /* a live occupant on a team Linear owns: the card still wins the slot, but
+       the shell is only detached -- a native cancel could not reach Linear and
+       the fence would refuse the intent. */
+    cluster.exec("update public.syncview_runtime_flags set value = '{\"video\":\"linear\",\"graphics\":\"syncview\"}'::jsonb where key = 'prod_authority';");
+    const linReceipt = scalar(cluster, bind({ source_surface: 'calendar', deliverable_id: 'del_lin_keep', card_id: 'card_lin', client_slug: 'acme', component: 'video', evict_occupant: 'card_wins' }, [])).replace(/\s+/g, '');
+    cluster.exec("update public.syncview_runtime_flags set value = '{\"video\":\"syncview\",\"graphics\":\"syncview\"}'::jsonb where key = 'prod_authority';");
+    const linKeep = scalar(cluster, "select card_id||'|'||status from public.deliverables where id='del_lin_keep'");
+    const linOcc = scalar(cluster, "select coalesce(card_id,'<null>')||'|'||status from public.deliverables where id='del_lin_occ'");
+    const linMode = scalar(cluster, "select payload->>'mode' from public.deliverable_events where deliverable_id='del_lin_occ' and action='crosswalk_occupant_evicted'");
+    const linOutbox = scalar(cluster, "select count(*) from public.mirror_outbox where entity_id='del_lin_occ'");
+    ok(linKeep === 'card_lin|todo' && linOcc === '<null>|kasper_approval' && linMode === 'detached_authority_linear' && linOutbox === '0'
+      && /"mode":"detached_authority_linear"/.test(linReceipt),
+      'under Linear authority the card still wins, but the live shell is detached only -- status untouched, nothing queued, mode named in the event and the receipt (' + linOcc + '/' + linMode + '/' + linOutbox + ')');
 
     /* The identity check must read a full issue URL exactly as it reads a bare
        identifier -- live rows carry both shapes, and a repair that silently

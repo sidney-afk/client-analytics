@@ -6162,6 +6162,50 @@ The alias `f27capture` also answered `CommandNotFoundException` in a fresh
 window that had not loaded the owner's `$PROFILE`. CLAUDE.md now leads with the
 full script path, which always resolves, and keeps the alias as the shorthand.
 
+## 2026-09-05 — Crosswalk Phase 2: migration applied, first apply 89 of 100, 11 refused by the F27 fence
+
+**DB migration, owner-applied, SQL Editor, ~18:25Z:**
+`migrations/2026-09-05-crosswalk-bind-and-import.sql` as merged in #1291
+(`287c16cd`). Creates `public.crosswalk_linear_identifier(text)` and
+`public.production_comment_card_bind_and_import(jsonb, jsonb, jsonb)`
+(`create or replace`, service-role only, no table/column/flag/data change).
+"Success. No rows returned."
+
+**Lane dispatches** (`crosswalk-phase2-repair.yml`, production Environment,
+run id `crosswalk-phase2-2026-09-05`, commit `a6b8c3a2` after the export
+ordering fix #1298; a first plan dispatch from `731e7c24` died in 21 s on
+`export_read_clients_400`, wrote nothing):
+
+| run | mode | result |
+|---|---|---|
+| `33987343682` | plan | PLANNED — 1,214 slots, 1,107 clean, 107 mismatching; 100 calls (18 with eviction; 64 with a thread, 132 comments); 7 skipped for a person |
+| `33987430593` | apply | **PARTIAL** — 89 bound, 7 occupants detached, 97 comments imported, 23 already linked; **11 refused** |
+
+**The 11 refusals** were every call whose eviction took the *cancel* branch (6
+occupants at Kasper approval, 4 scheduled, 1 tweak): the live F27 outbox fence
+(`track_b_f27_hold_guard`, installed 2026-08-02) raised
+`f27_authority_generation_stale:video` because the intent carried no
+`_f27_authority_generation`. Each refused call rolled back whole; those 11
+slots are unchanged and still bindable. The 7 detach-only evictions and all 89
+binds committed: `deliverable_events` holds 89 `crosswalk_bound` and 7
+`crosswalk_occupant_evicted` (`mode=detached`) rows for the run; no outbox
+intent was queued. Nothing reached Linear.
+
+**What changed on live, and how it reverts.** 89 deliverable rows now carry the
+card they always pointed at (`origin=calendar`, `card_id`, `client_slug`,
+`team`, `kind` = slot key); 7 shell rows had `card_id` cleared; 97 legacy
+comments were COPIED into the canonical store with links. The legacy threads
+were not touched. Reversal, per the migration header: drop the canonical rows
+and links written under the run id, and clear the five binding fields on the
+89 rows (the `crosswalk_bound` events carry `kind_before`). Not exercised.
+
+**Fix:** #1301 — the RPC mints the binder via
+`track_b_f27_write_authorization`, asserts authority, detaches only under
+Linear authority; the rehearsal carries the F27 fence verbatim. **Pending:**
+owner re-applies the same migration file (Epoch 2) and re-dispatches plan →
+apply. Expected: 11 calls, 11 cancels queued for the outbound drain, 0 refused,
+7 slots left for a person. OPEN_REPAIRS 156; CROSSWALK_REPAIR_STRATEGY §5.
+
 ## 2026-09-05 — the asset grid stops blinking; the gateway reuses a verdict it already holds
 
 Owner, with the post-level fix live on the reported parent: the Open link pill

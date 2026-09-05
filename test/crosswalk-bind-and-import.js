@@ -98,6 +98,13 @@ ok(/in \('approved', 'posted', 'canceled', 'duplicate'\) then 'detached'\s+else 
 ok(/'crosswalk_occupant_evicted'/.test(CODE) && /mirror_outbox_enqueue\(/.test(CODE) && /p_operation := 'status'/.test(CODE)
   && !/linear\.app|graphql|net\.http/i.test(CODE),
   'each eviction is written to deliverable_events and the cancel is handed to the OUTBOUND lane as a status intent — never a direct Linear call from SQL');
+ok(/v_auth := public\.track_b_f27_write_authorization\(v_occ_team\)/.test(CODE)
+  && /'_f27_authority_generation', \(v_auth->>'generation'\)::bigint/.test(CODE)
+  && /perform public\.production_assert_authority\(v_client_slug, v_occ_team, false, false\)/.test(CODE),
+  "a cancel intent carries the F27 authority binder minted by track_b_f27_write_authorization and asserts authority the way the gateway does — the first live apply lost 11 of 100 slots to f27_authority_generation_stale without it");
+ok(/<> 'syncview' then\s+[\s\S]{0,200}v_occ_mode := 'detached_authority_linear'/.test(CODE)
+  && CODE.indexOf("v_occ_mode := 'detached_authority_linear'") < CODE.indexOf('update public.deliverables'),
+  "and when the occupant's team is Linear-authoritative the shell is detached only, decided before any write — a native cancel could not reach Linear");
 ok(/set_config\('app\.event_written', '1', true\)/.test(CODE) && /set_config\('app\.event_written', v_prev_flag, true\)/.test(CODE)
   && /'crosswalk_bound'/.test(CODE),
   'the ledger guard is bypassed only around writes that record a richer event of their own, and restored to what the caller had');

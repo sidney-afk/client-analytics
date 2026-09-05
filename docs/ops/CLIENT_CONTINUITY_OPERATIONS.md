@@ -27,6 +27,45 @@ escapes and closed sockets. This is harness recovery evidence, not website
 failure or live viewing success. Keep missing/blocked receipts non-green and
 rerun only under the coordinator's read approval. Canary eligibility is unchanged.
 
+### Closed denial diagnostics
+
+Viewing results and terminal receipts now include a bounded `denialReasons` array.
+It contains only these enums: `metadata_post_blocked`, `realtime_transport_blocked`,
+`worker_transport_blocked`, `beacon_transport_blocked`, `keepalive_transport_blocked`,
+`realm_guard_failed`, `proxy_http_blocked`, `proxy_tunnel_blocked`,
+`proxy_socket_error`, `other_request_blocked`. No URLs, bodies, credentials,
+recipients or stacks are emitted. Unknown page-supplied reasons become
+`realm_guard_failed`; receipt ingestion refuses unknown values. Denials are
+deduplicated and retained through teardown, including proxy denials during setup.
+
+Every existing denial remains non-green. The metadata label identifies only a
+non-redirected POST to the exact configured fallback origin's
+`/webhook/linear-issue-statuses` path without a query; it does **not** certify the
+current server's behavior or authorize forwarding it. All other POSTs remain
+blocked. Realtime/worker/beacon/proxy labels establish a monitor coverage limit,
+not a website outage or a successful live journey. Proxy tunnel denial alone
+cannot identify the underlying browser API. Do not allow WebSockets, arbitrary
+provider writes or receiver escapes to make these reports green.
+
+The existing boot fixture stubs Supabase subscription transport. Local diagnosis
+on separately pinned serving source reproduced the Calendar metadata POST using
+a synthetic linked row, and reproduced Samples' no-visible-HTTP denial using a
+subscription stub that attempts native WebSocket construction. Those controls
+expose a browser coverage gap; they do not identify the live SDK's exact behavior.
+Use the new reasons in a separately approved live read to confirm attribution.
+Historical endpoint backup code is not current hosted read-only proof.
+
+The current launcher does not yet configure a view selection. An isolated
+actual-source experiment showed that a fully approved synthetic card is absent
+from Review but visible, with matching census ID/title, after the real read-only
+`[data-cal-view="organizer"]` Sheet button is clicked. A future separately reviewed
+`view:review|organizer` option should click that visible control, verify active
+view and persist the choice before judging configured canaries; it must not call
+product render functions or set health globals. The owner must select actual
+eligible IDs privately for that exact view/filter. No such option or guessed IDs
+are added in this diagnostic change. Nonempty census plus empty configured IDs
+remains inconclusive, and empty Review is not authoritative whole-client emptiness.
+
 ## Read readiness and TEST action readiness are separate
 
 The viewing command reuses the approved request/DOM observer and refusing

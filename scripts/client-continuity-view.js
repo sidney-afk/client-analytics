@@ -179,7 +179,7 @@ async function captureView(browser,config,deps={}) {
   }
   // The result is constructed only after all final reads and bounded teardown.
   // A late denial outranks an earlier apparent success, including blank popups.
-  return guard?.code()?report(config.lane,guard.code()):result;
+  return {...(guard?.code()?report(config.lane,guard.code()):result),denialReasons:guard?guard.denialReasons():[]};
 }
 async function viewingJourney(browser,config,deps) {
   let result;

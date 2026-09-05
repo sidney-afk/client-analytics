@@ -8,7 +8,7 @@ const {chromium}=require('playwright');
 const H=require('./boot/client-entry-sequence');
 const {fixture}=require('./client-continuity-fixtures');
 const {captureView}=require('../scripts/client-continuity-view');
-const {openGuardedContext,denyProxy}=require('../scripts/client-continuity-transport');
+const {openGuardedContext,denyProxy,DENIAL_REASONS}=require('../scripts/client-continuity-transport');
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function socketResetChild(mode,control) {
   let deliveries=0,denied=0,closed=false,proxyServer;
@@ -91,6 +91,9 @@ async function attempt(page,mode,origin) {
     if(mode==='keepalive')return fetch(origin+'/business',post).then(()=>true,()=>false);
     if(mode==='request_keepalive')return fetch(new Request(origin+'/business',post)).then(()=>true,()=>false);
     if(mode==='post')return fetch(origin+'/business',{method:'POST',body:'synthetic'}).then(()=>true,()=>false);
+    if(mode==='metadata_post')return fetch(origin+'/webhook/linear-issue-statuses',{method:'POST',body:JSON.stringify({issues:['SYN-101']})}).then(()=>true,()=>false);
+    if(mode==='worker'){try{new Worker(origin+'/synthetic-worker');return true;}catch{return false;}}
+    if(mode==='untrusted_reason'){await window.__continuityTransportBlocked('https://fixture.invalid/private-token');return false;}
     if(mode==='reader')return fetch(origin+'/reader').then(r=>r.ok,()=>false);
     if(mode==='redirect')return fetch(origin+'/redirect').then(()=>true,()=>false);
     if(mode==='websocket')return new Promise(resolve=>{
@@ -116,7 +119,7 @@ async function main() {
     assert.equal(sink.receipt.http,4);assert.equal(sink.receipt.upgrades,1);assert.ok(sink.receipt.frames>0);
     await control.close();passed++;
     for(const mode of ['blank_beacon','blank_keepalive','blank_request_keepalive','beacon','keepalive','request_keepalive',
-      'popup_beacon','iframe_beacon','websocket','late_post','late_beacon','late_auth','late_pageerror','redirect','reader','teardown_beacon']) {
+      'popup_beacon','iframe_beacon','websocket','worker','untrusted_reason','metadata_post','late_post','late_beacon','late_auth','late_pageerror','redirect','reader','teardown_beacon']) {
       stage=mode;const f=fixture(browser,server,'samples');
       // The sink is allowed for POST cases: method denial, not a missing origin,
       // must prevent delivery. Redirect targets and WS remain unapproved.
@@ -129,7 +132,7 @@ async function main() {
         currentPage=page;
         if(mode.startsWith('blank_'))await attempt(page,mode.slice(6),sink.origin);
         await navigate(page,url);
-        if(!mode.startsWith('blank_')&&!mode.startsWith('late_')&&!mode.startsWith('teardown_'))await attempt(page,mode,['redirect','reader'].includes(mode)?reader.origin:sink.origin);
+        if(!mode.startsWith('blank_')&&!mode.startsWith('late_')&&!mode.startsWith('teardown_'))await attempt(page,mode,mode==='metadata_post'?f.config.fallbackOrigin:['redirect','reader'].includes(mode)?reader.origin:sink.origin);
       };
       f.deps.fetchImpl=async(url,init)=>{
         if(++census===2 && mode==='late_post')await attempt(currentPage,'post',sink.origin);
@@ -150,6 +153,12 @@ async function main() {
       const report=await captureView(browser,f.config,f.deps);await sleep(75);
       assert.deepEqual(sink.receipt,before);
       assert.equal(report.code,mode==='reader'?'healthy':mode==='redirect'?'unexpected_request':mode==='late_auth'?'valid_link_auth':mode==='late_pageerror'?'browser_error':'mutation_blocked');
+      assert.ok(report.denialReasons.every(reason=>DENIAL_REASONS.includes(reason)));
+      const reason=mode.includes('beacon')?'beacon_transport_blocked':mode.includes('keepalive')?'keepalive_transport_blocked':
+        mode==='websocket'?'realtime_transport_blocked':mode==='worker'?'worker_transport_blocked':mode==='untrusted_reason'?'realm_guard_failed':
+          mode==='metadata_post'?'metadata_post_blocked':mode==='late_post'?'other_request_blocked':null;
+      if(reason)assert.ok(report.denialReasons.includes(reason));
+      if(mode==='reader')assert.deepEqual(report.denialReasons,[]);
       if(['reader','redirect'].includes(mode))assert.equal(reader.receipt.http,reads+1);
       passed++;
     }
@@ -172,6 +181,7 @@ async function main() {
       await cdp.send('Runtime.evaluate',{contextId:world.executionContextId,expression:`(${inject.toString()})(${JSON.stringify(mode)},${JSON.stringify(sink.origin)})`});
       await sleep(150);await guard.close();
       assert.equal(guard.code(),'mutation_blocked');assert.deepEqual(sink.receipt,before);passed++;
+      assert.ok(guard.denialReasons().some(reason=>reason.startsWith('proxy_')||reason==='realtime_transport_blocked'));
     }
     stage='bounded_teardown';
     const f=fixture(browser,server,'samples'),{context,guard}=await openGuardedContext(browser,f.config);

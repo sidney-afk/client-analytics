@@ -116,7 +116,7 @@ async function main(args=process.argv.slice(2),env=process.env) {
         if(!browser)browser=await chromium.launch({headless:true});
         result=await viewingJourney(browser,lane);
       }catch{result=report(lane.lane,'read_failed');}
-      const terminal={...start,finishedAt:Date.now(),code:result.code,count:result.count};
+      const terminal={...start,finishedAt:Date.now(),code:result.code,count:result.count,denialReasons:result.denialReasons||[]};
       persist(output,`${lane.lane}-${runId}.terminal.json`,terminal);results.push(result);
     }
     return {version:1,fixture:false,releaseSha:config.releaseSha,...pageSource,results};

@@ -4,6 +4,7 @@ const {randomUUID}=require('node:crypto');
 const D=require('../scripts/client-continuity-delivery'),O=require('../scripts/client-continuity-observer');
 const H=require('../scripts/client-continuity-hosted'),U=require('../scripts/client-continuity-test-ui');
 const {report}=require('../scripts/client-continuity-monitor');
+const {requestDenialReason,requestPolicy}=require('../scripts/client-continuity-transport');
 const sha='a'.repeat(40),id=randomUUID(),now=1000000;
 let passed=0;function eq(a,b){assert.deepEqual(a,b);passed++;}
 async function rejects(fn){await assert.rejects(fn);passed++;}
@@ -15,6 +16,17 @@ function execution(status,run=id,type='client_continuity_DRILL') {
   return {id:'fictional',status,data:{resultData:{runData:{'Receive Edge Alert':[{data:{main:[[{json:{body:{type,details:{run_id:run}}}}]]}}]}}}};
 }
 async function main(){
+  const readConfig={backendOrigin:'https://backend.invalid',fallbackOrigin:'https://fallback.invalid',shareLink:'https://fixture.invalid/'};
+  for(const [url,method,redirected,expected] of [
+    ['https://fallback.invalid/webhook/linear-issue-statuses','POST',false,'metadata_post_blocked'],
+    ['https://other.invalid/webhook/linear-issue-statuses','POST',false,'other_request_blocked'],
+    ['https://fallback.invalid/webhook/linear-issue-statuses?secret=synthetic','POST',false,'other_request_blocked'],
+    ['https://fallback.invalid/webhook/linear-issue-statuses','POST',true,'other_request_blocked'],
+    ['https://fallback.invalid/webhook/linear-add-comment','POST',false,'other_request_blocked'],
+  ]) {
+    const request={url:()=>url,method:()=>method,redirectedFrom:()=>redirected};
+    eq(requestDenialReason(request,readConfig),expected);eq(requestPolicy(request,readConfig),'mutation_blocked');
+  }
   let requests=0,posts=0,polls=0,sleeps=0;
   const fake=async(url,init)=>{
     requests++;eq(init.redirect,'error');
@@ -63,6 +75,12 @@ async function main(){
     fs.writeFileSync(path.join(temp,`samples-${id}.start.json`),JSON.stringify({...bound,pageBlobSha:undefined}));
     assert.throws(()=>O.receipts(temp,sha,now));passed++;
     fs.writeFileSync(path.join(temp,`samples-${id}.start.json`),JSON.stringify(start));
+    const terminalFile=path.join(temp,`samples-${id}.terminal.json`);
+    fs.writeFileSync(terminalFile,JSON.stringify({...end,denialReasons:['realtime_transport_blocked']}));
+    eq(O.receipts(temp,sha,now).find(r=>'finishedAt' in r).denialReasons,['realtime_transport_blocked']);
+    fs.writeFileSync(terminalFile,JSON.stringify({...end,denialReasons:['https://fixture.invalid/private']}));
+    assert.throws(()=>O.receipts(temp,sha,now));passed++;
+    fs.unlinkSync(terminalFile);
     assert.throws(()=>O.receipts(temp,'b'.repeat(40),now));passed++;
     assert.throws(()=>O.receipts(temp,sha,1));passed++;
     let persisted=[],sent=[];

@@ -5473,7 +5473,18 @@
             pointer-events: none; color: inherit; opacity: 0.7; }
         .cal-fld-status-wrap.is-locked { opacity: 0.55; }
         /* Floating status menu — portaled to body so card overflow can't clip it. */
+        /* max-height + scroll, because this menu is position: fixed. A fixed
+           element taller than the viewport is CLIPPED and the clipped part
+           cannot be reached by scrolling the page -- and the options that get
+           clipped are the ones at the top, which is where N/A sits. So the
+           note added on 2026-09-05 pointing the reader at N/A could, on a short
+           viewport, be the thing that hid N/A. Found by Codex on PR 1277.
+           (The PR number is written without a leading hash on purpose: the CSS
+           colour guard reads a hash followed by four hex digits as a colour
+           literal and fails the file. Yes, the first attempt at this comment
+           tripped it, and so did the comment explaining that it tripped it.) */
         .cal-fld-status-menu { position: fixed; z-index: 1000; min-width: 200px; padding: 5px;
+            max-height: calc(100vh - 20px); overflow-y: auto; overscroll-behavior: contain;
             background: var(--white); border-radius: 11px; box-shadow: 0 10px 30px var(--sv-shadow-rgba-0-0-0-0_16);
             opacity: 0; pointer-events: none; transform: translateY(-4px) scale(0.98); transform-origin: top center;
             transition: opacity 0.12s ease, transform 0.12s ease; }
@@ -5486,6 +5497,14 @@
             font-family: inherit; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.045em;
             text-transform: uppercase; text-align: left; cursor: pointer; margin: 2px 0; transition: filter 0.1s; }
         .cal-fld-status-item:hover { filter: brightness(0.94); }
+        /* A status this component cannot be moved to yet. Kept VISIBLE and in
+           place rather than removed from the list: a menu whose options move
+           around between openings is harder to use than one where the
+           unavailable option is plainly there and plainly greyed. */
+        .cal-fld-status-item[disabled] { opacity: 0.38; cursor: not-allowed; }
+        .cal-fld-status-item[disabled]:hover { filter: none; }
+        .cal-fld-status-note { padding: 7px 11px 8px; font-size: 0.68rem; line-height: 1.35;
+            color: var(--text-secondary); border-top: 1px solid var(--border); }
         .cal-fld-status-item.active { box-shadow: inset 0 0 0 1.5px currentColor; }
         .cal-fld-status-item.cal-fld-status-n-a               { background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
         .cal-fld-status-item.cal-fld-status-in-progress       { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
@@ -27940,7 +27959,12 @@
         const spaceAbove = rect.top - 10;
         let top;
         if (menuH <= spaceBelow || spaceBelow >= spaceAbove) {
-            top = Math.min(rect.bottom + gap, window.innerHeight - menuH - 10);
+            /* Math.max floor: with a menu taller than the viewport the inner
+               Math.min goes NEGATIVE and the top of the list leaves the screen.
+               The CSS cap above makes that unreachable in practice; this is the
+               second line of defence, because the cap depends on a stylesheet
+               rule and this does not. */
+            top = Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10));
         } else {
             top = Math.max(10, rect.top - menuH - gap);
         }
@@ -32659,7 +32683,21 @@
         // Resolve retry can adopt an already-resolved row, but can never route
         // through a toggle and accidentally reopen it.
         if (destination && destination !== 'stay') {
-            if (surface === 'calendar') _calApplyAutoStatus(post.id, 'smm_resolved_last', component, destination);
+            /* The auto-router refuses an EMPTY component and its return is
+               ignored here, so without this the retry would resolve the comment
+               and silently not move the status. This is a replay of an action
+               that passed the gate when it was made -- but the journal is
+               durable, the content can have been cleared since, and entries
+               written before the gate existed replay through here too. The
+               resolve itself is honoured (it is the recorded action, and the
+               gateway may already hold it); the ROUTE is refused out loud. */
+            const _blocked = surface === 'calendar'
+                ? _calReviewBlockReason(post, component, _calAutoResolveDestStatus(destination))
+                : _sxrReviewBlockReason(post, component, _sxrAutoResolveDestStatus(destination));
+            if (_blocked) {
+                showNotify('Change request resolved, but not sent on', _blocked
+                    + ' The change request was marked done; the status stayed where it was.');
+            } else if (surface === 'calendar') _calApplyAutoStatus(post.id, 'smm_resolved_last', component, destination);
             else _sxrApplyAutoStatus(post.id, 'smm_resolved_last', component, destination);
         }
         await _writeUiPersistCanonicalCommentProjection(surface, post, component);
@@ -38573,7 +38611,29 @@
             : (post.status || 'In Progress');
         const menu = document.createElement('div');
         menu.className = 'cal-fld-status-menu';
-        menu.innerHTML = (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}${s === currentStatus ? ' active' : ''}" onclick="_calStatusPick('${_calEscAttr(pid)}','${_calEscAttr(s)}','${_calEscAttr(which)}')">${_calEsc(_calStatusLabel(s))}</button>`).join('');
+        /* A status this component cannot be sent to is DISABLED here rather
+           than refused after the click. The gate has to stay in _calStatusPick
+           regardless -- it is the handler, and Set all, the auto-router and the
+           approve paths all reach the same rule without going through this menu
+           -- but being told "no" after choosing is the worse half of a correct
+           refusal, and the owner asked for the cosmetic half (2026-09-05).
+           The note names the escape hatch: N/A is never gated, and N/A is
+           excluded from CAL_PRIORITY, so a lane that will never have content
+           stops holding the whole card's status down. */
+        const _menuBlocked = {};
+        if (which) {
+            for (const s of (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES)) {
+                const reason = _calReviewBlockReason(post, which, s);
+                if (reason) _menuBlocked[s] = reason;
+            }
+        }
+        menu.innerHTML = (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => {
+            const blocked = _menuBlocked[s];
+            return `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}${s === currentStatus ? ' active' : ''}"${blocked ? ` disabled title="${_calEscAttr(blocked)}"` : ''} onclick="_calStatusPick('${_calEscAttr(pid)}','${_calEscAttr(s)}','${_calEscAttr(which)}')">${_calEsc(_calStatusLabel(s))}</button>`;
+        }).join('')
+            + (Object.keys(_menuBlocked).length
+                ? `<div class="cal-fld-status-note">${_calEsc(_calMenuBlockedNote(which))}</div>`
+                : '');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();
         const menuW = Math.max(menu.offsetWidth, 200);
@@ -38591,7 +38651,12 @@
         const spaceAbove = rect.top - 10;
         let top;
         if (menuH <= spaceBelow || spaceBelow >= spaceAbove) {
-            top = Math.min(rect.bottom + gap, window.innerHeight - menuH - 10);
+            /* Math.max floor: with a menu taller than the viewport the inner
+               Math.min goes NEGATIVE and the top of the list leaves the screen.
+               The CSS cap above makes that unreachable in practice; this is the
+               second line of defence, because the cap depends on a stylesheet
+               rule and this does not. */
+            top = Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10));
         } else {
             top = Math.max(10, rect.top - menuH - gap);
         }
@@ -38606,10 +38671,23 @@
         const which = comp || '';
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
-        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        /* The pending bucket is created only once the move is definitely going
+           ahead. An EMPTY bucket is not harmless: _calFlushCardSave treats the
+           presence of a bucket as "this card has something to write" and, with
+           no field-level edits in it, resends the whole card from this tab's
+           snapshot -- which can overwrite a field another tab changed in the
+           meantime. Every early return below therefore has to happen before
+           the bucket exists, not after. */
         if (which) {
             const key = which + '_status';
             if (post[key] === status) return;
+            /* Refuse to send an empty component for review. */
+            const blocked = _calReviewBlockReason(post, which, status);
+            if (blocked) {
+                showNotify('Nothing to review yet', blocked);
+                return;
+            }
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
             post[key] = status;
             _calPendingEdits[pid][key] = status;
             // Title is independent of the overall card status — never fold it in.
@@ -38622,14 +38700,35 @@
             if (post.status === status) return;
             // Main status dropdown is a bulk override — set every sub-status
             // so the lower-wins overall computation lands on the chosen value.
-            post.status = status;
-            post.video_status = status;
-            post.graphic_status = status;
-            post.caption_status = status;
-            _calPendingEdits[pid].status = status;
-            _calPendingEdits[pid].video_status = status;
-            _calPendingEdits[pid].graphic_status = status;
-            _calPendingEdits[pid].caption_status = status;
+            /* ...except a component with nothing in it, which is skipped rather
+               than failing the whole action: sending two of three for review is
+               what the reader asked for, and refusing all three because one
+               caption is blank would be the more annoying answer. */
+            const movable = CAL_COMPONENTS.filter(c => !_calReviewBlockReason(post, c, status));
+            const held = CAL_COMPONENTS.filter(c => !movable.includes(c));
+            if (!movable.length) {
+                showNotify('Nothing to review yet', 'Every part of this card is still empty, so there is nothing to send for approval.');
+                return;
+            }
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            for (const c of movable) {
+                post[c + '_status'] = status;
+                _calPendingEdits[pid][c + '_status'] = status;
+            }
+            /* Compute the overall from what actually moved rather than
+               asserting the requested value. With nothing held back the two
+               are identical (every component is now `status`, and lower-wins
+               over three equal values returns it). With a component held back
+               they differ, and the computed one is the true one: a card whose
+               caption is still In Progress is not "in Kasper Approval", and
+               claiming it is would put the header pill and the component pills
+               in open disagreement. */
+            post.status = computeOverallStatus(post);
+            _calPendingEdits[pid].status = post.status;
+            if (held.length) {
+                showNotify('Sent without ' + held.map(c => String(CAL_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
             _calMarkLocalStatus(pid);
         }
         // If any sub regressed below Client Approval, the matching
@@ -38694,6 +38793,95 @@
        live (0 samples and 0 live calendar cards carry a deliverable id with no
        url), which is exactly why it had to be fixed before it stopped being
        latent: post-flip, native-only IS the shape new work arrives in. */
+    /* ONE RULE FOR "DOES THIS COMPONENT HAVE THE THING IT IS ASKING TO BE
+       REVIEWED", and every surface that needs the answer asks HERE.
+
+       It already existed three times over: Kasper's queue asked it to decide
+       what he can act on (_kasperCompReviewable), the calendar asked a narrower
+       version of it to draw the "No video linked" warning (_calSmmMediaGap),
+       and nothing asked it before letting the status move. That last gap is why
+       cards keep arriving in Kasper's stranded notice: a status can be sent for
+       review while the thing to review is empty, so the SMM believes it is with
+       him and he opens a card with nothing on it.
+
+       Owner, 2026-09-05: "if the caption is empty or there is no thumbnail URL
+       or no video URL then it shouldn't go to Kasper Approval."
+
+       A component is reviewable when its OWN content is present -- video needs
+       a file, thumbnail needs an image, caption needs either caption body. */
+    function _calCompHasContent(post, comp) {
+        /* Delegates to Kasper's definition rather than copying it, so what he
+           can review and what may be sent to him cannot drift apart. The
+           direction matters: his is the one six suites compile in isolation,
+           so it stays dependency-free and this side does the reaching. */
+        return _kasperCompReviewable(post, comp);
+    }
+    /* The statuses that mean "somebody is being asked to look at this". Only
+       these are gated. Tweaks Needed is a REJECTION -- the content may well be
+       missing, that is often the point -- and the terminal three are left alone
+       deliberately: blocking Approved/Scheduled/Posted would break bulk edits on
+       legacy cards that were completed before the calendar carried media at all,
+       which is a real workflow, not a hypothetical. */
+    const CAL_REVIEW_STATUSES = new Set(['For SMM Approval', 'Kasper Approval', 'Client Approval']);
+    function _calStatusNeedsContent(status) {
+        return CAL_REVIEW_STATUSES.has(_calNormStatus(status || ''));
+    }
+    /* '' when the move is allowed, otherwise the reason, phrased the way the
+       existing media warning phrases it so the two agree. */
+    function _calReviewBlockReason(post, comp, status) {
+        if (!_calStatusNeedsContent(status)) return '';
+        if (_calCompHasContent(post, comp)) return '';
+        if (comp === 'video') return 'Add the video URL before sending it for approval.';
+        if (comp === 'graphic') return 'Add the thumbnail URL before sending it for approval.';
+        if (comp === 'caption') return 'Write the caption before sending it for approval.';
+        if (comp === 'title') return 'Write the title before sending it for approval.';
+        return '';
+    }
+    const CAL_COMP_LABEL = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
+    /* What the greyed-out review statuses mean, and the way out. N/A is named
+       because that is the answer for a lane this post will never have -- and
+       N/A is deliberately absent from CAL_PRIORITY, so marking it stops the
+       empty lane holding the card's overall status down.
+
+       But ONLY where N/A is actually on the menu. CAL_TITLE_STATUSES has no
+       N/A, so offering it on a title would be the same dead instruction this
+       repo keeps finding: a fix the reader is told to apply through a control
+       that isn't there. Derived from the list rather than hardcoded, so adding
+       or removing N/A from either vocabulary keeps the sentence honest. */
+    function _calMenuBlockedNote(comp) {
+        const what = comp === 'video' ? 'a video'
+            : comp === 'graphic' ? 'a thumbnail'
+            : comp === 'caption' ? 'a caption'
+            : comp === 'title' ? 'a title'
+            : 'anything';
+        const menu = comp === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES;
+        return 'The review statuses need ' + what + ' first.'
+            + (menu.indexOf('N/A') >= 0 ? ' If this post will never have one, set it to N/A.' : '');
+    }
+    /* Where an SMM approval sends the component. Extracted because two places
+       need it and they must not drift: _calReviewApplyApprove decides the real
+       destination, and _calReviewApprove has to know the same destination
+       BEFORE it resolves the SMM's ticked change-requests -- resolving first
+       and being refused second marks tweaks done for an approval that never
+       happened. */
+    function _calSmmApproveTo(dest) {
+        return dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+    }
+    /* Where the RESOLVE CHOOSER's auto-route lands. Note the default differs
+       from _calSmmApproveTo above -- there, an unrecognised dest means Kasper;
+       here it means the client. That is not a bug to tidy: the chooser's three
+       buttons are Kasper / client / Approved and its recommendation logic
+       already picked one, whereas an approve-onward with no dest is the
+       brand-new-post case that goes to Kasper. Two rules, so two functions,
+       each named for the path it serves. Extracted for the same reason
+       _calSmmApproveTo was: the guard in _calResolveLastTweak has to know where
+       the route is going BEFORE it resolves anything. */
+    function _calAutoResolveDestStatus(dest) {
+        return (dest === 'kasper') ? 'Kasper Approval'
+             : (dest === 'approved') ? 'Approved'
+             : 'Client Approval';
+    }
+
     function _calSetAllSettable(post, comp) {
         if (!post) return false;
         if (comp === 'caption') return true;
@@ -38708,7 +38896,17 @@
         _calCloseStatusMenu();
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
-        const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c));
+        /* Same rule as the pill: a component with no content is not settable to
+           a review status. Filtered here rather than inside apply() so the
+           confirm dialog counts what will actually move. */
+        const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c)
+            && !_calReviewBlockReason(post, c, status));
+        const heldEmpty = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c)
+            && _calReviewBlockReason(post, c, status));
+        if (!settable.length && heldEmpty.length) {
+            showNotify('Nothing to review yet', 'Every part you can set is still empty, so there is nothing to send for approval.');
+            return;
+        }
         if (!settable.length) {
             // Was "link the Linear sub-issues first" -- the same dead-control
             // instruction the locked pill carried, in a third place the sweep
@@ -38720,17 +38918,22 @@
             if (dontAskAgain) {
                 try { localStorage.setItem(_calSetAllSkipKey(status), '1'); } catch {}
             }
-            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
-            const edits = _calPendingEdits[pid];
+            /* Staged off to the side so the "nothing to do" return below
+               leaves no bucket behind. An empty _calPendingEdits entry is read
+               by _calFlushCardSave as a card to write and becomes a full-card
+               resend of this tab's snapshot. */
+            const staged = {};
             let changed = false;
             for (const c of settable) {
                 const key = c + '_status';
                 if (_calNormStatus(post[key] || '') === status) continue;
                 post[key] = status;
-                edits[key] = status;
+                staged[key] = status;
                 changed = true;
             }
             if (!changed) return;   // nothing to do — every settable component already at this status
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            const edits = Object.assign(_calPendingEdits[pid], staged);
             // Recompute overall from the new sub-statuses. The overall is
             // NEVER pushed to Linear (the historical bug); only the
             // per-component *_status edits in this patch will, via the
@@ -38745,6 +38948,14 @@
             post.updated_at = new Date().toISOString();
             _calRenderBody({ preserveScroll: true });
             _calFlushCardSave(pid);
+            /* heldEmpty was computed to keep the confirm honest; it has to be
+               said out loud too. "Set all" that quietly moves two of three is
+               indistinguishable from one that moved all three, and the reader
+               finds out when the third never reaches the reviewer. */
+            if (heldEmpty.length) {
+                showNotify('Set without ' + heldEmpty.map(c => String(COMP_LABELS[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
         };
         // Confirm before flipping into a "terminal" / client-visible state.
         // Other states (mid-workflow) go through silently — they're cheap
@@ -38753,9 +38964,16 @@
         try { skip = localStorage.getItem(_calSetAllSkipKey(status)) === '1'; } catch {}
         if (_CAL_SETALL_TERMINAL.has(status) && !skip) {
             const settableLabel = settable.map(c => COMP_LABELS[c]).join(', ');
-            const skippedLabel = CAL_COMPONENTS.filter(c => !settable.includes(c)).map(c => COMP_LABELS[c]).join(' and ');
+            /* Two distinct reasons a component is not in `settable`, and they
+               must not be reported as one: "not linked to Linear" was the only
+               reason before the empty-content gate existed, and telling the
+               reader an empty-but-linked component needs a link sends them to
+               fix something that is not broken. */
+            const unlinkedLabel = CAL_COMPONENTS.filter(c => !_calSetAllSettable(post, c)).map(c => COMP_LABELS[c]).join(' and ');
+            const emptyLabel = heldEmpty.map(c => COMP_LABELS[c]).join(' and ');
             const msg = `Set ${settableLabel} to "${status}".`
-                + (skippedLabel ? ` (${skippedLabel} not linked to Linear — skipped.)` : '');
+                + (unlinkedLabel ? ` (${unlinkedLabel} not linked to Linear — skipped.)` : '')
+                + (emptyLabel ? ` (${emptyLabel} still empty — skipped.)` : '');
             showConfirm(`Set all to "${status}"?`, msg, apply, status, "Don't ask me again");
         } else {
             apply(false);
@@ -43496,6 +43714,20 @@
                     openTweaks: open,
                     fromReview: true,
                     onChoose: (pickDest, ids) => {
+                        /* Refuse BEFORE anything is mutated. _calReviewApplyApprove
+                           runs the same check, but by then _calResolveTweaksDone
+                           has already marked the ticked requests done and staged
+                           them -- so a refused approve would leave the thread
+                           resolved and the status where it was, which is the one
+                           outcome nobody asked for. */
+                        if (pickDest !== 'stay') {
+                            const _blocked = _calReviewBlockReason(post, comp, _calSmmApproveTo(pickDest));
+                            if (_blocked) {
+                                showNotify('Nothing to review yet', _blocked
+                                    + ' Nothing was changed — the change requests are still open.');
+                                return;
+                            }
+                        }
                         const resolvedBefore = {
                             video_comments: post.video_comments,
                             graphic_comments: post.graphic_comments,
@@ -43551,10 +43783,19 @@
         // brand-new post) or straight to the client. Only a client approval
         // stamps the client_<comp>_approved_at sign-off timestamp.
         let approveTo = _CAL_REVIEW_CFG[mode].approveTo;
-        if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+        if (mode === 'smm') approveTo = _calSmmApproveTo(dest);
         // Routing to Kasper means this component has now appeared in Kasper
         // review — record it on the post's cross-device kasper_seen column so
         // every device (each SMM, Kasper) treats it as no-longer-brand-new.
+        /* Approving a component ONTO someone else is still sending it for
+           review, so it obeys the same rule. Guarded before the kasper_seen
+           stamp, or the card would be marked seen for a review that never
+           happened. */
+        const _reviewBlocked = _calReviewBlockReason(post, comp, approveTo);
+        if (_reviewBlocked) {
+            showNotify('Nothing to review yet', _reviewBlocked);
+            return false;
+        }
         let _kasperSeenCsv = null;
         if (approveTo === 'Kasper Approval') _kasperSeenCsv = _calRecordKasperSeenOnPost(post, comp);
         post[subKey] = approveTo;
@@ -44613,6 +44854,11 @@
      * unlinked-graphic clause in _kasperUndecidedComps is the same shape and
      * the precedent for it, and that function's comment records why the finish
      * gate and the fresh-ask test must read one set and not two. */
+    /* THE canonical answer to "does this component have the thing it is asking
+       to be reviewed". Deliberately self-contained: six suites compile this
+       function in isolation, so a dependency here breaks them all. The
+       calendar's status gate delegates TO this rather than the other way round
+       (_calCompHasContent). */
     function _kasperCompReviewable(post, comp) {
         if (comp === 'video') return String((post && post.asset_url) || '').trim() !== '';
         if (comp === 'graphic') return String((post && post.thumbnail_url) || '').trim() !== '';
@@ -45573,6 +45819,21 @@
             openTweaks: root ? [root] : [],
             fromReview: false,
             onChoose: async (destPick, ids) => {
+                /* Refuse BEFORE anything is resolved. _calApplyAutoStatus below
+                   now returns false for an empty component, and its callers
+                   ignore the return -- so without this the thread would close,
+                   the status would silently stay put, and the SMM would be told
+                   nothing. Same shape as the Review-tab path in
+                   _calReviewApprove, found the same way: by asking what the gate
+                   does to every caller rather than the one it was written for. */
+                if (destPick !== 'stay') {
+                    const _blocked = _calReviewBlockReason(post, comp, _calAutoResolveDestStatus(destPick));
+                    if (_blocked) {
+                        showNotify('Nothing to review yet', _blocked
+                            + ' Nothing was changed — the change request is still open.');
+                        return;
+                    }
+                }
                 // Resolve only on a pick (closing never reaches here), THEN flip
                 // the sub-status — unless the SMM chose "don't change the status"
                 // (dest 'stay'), in which case it's a plain mark-done, no routing.
@@ -45617,14 +45878,16 @@
         if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') {
             next = 'Tweaks Needed';
         } else if (trigger === 'smm_resolved_last') {
-            // The SMM's explicit pick from the resolve chooser: Kasper re-review,
-            // the client, or straight to Approved (skips both re-reviews).
-            const target = (dest === 'kasper') ? 'Kasper Approval'
-                         : (dest === 'approved') ? 'Approved'
-                         : 'Client Approval';
+            const target = _calAutoResolveDestStatus(dest);
             if (post[subKey] !== target) next = target;
         }
         if (!next) return false;
+        /* An AUTOMATIC route must not send an empty component for review. This
+           is the path that moves a card along on its own, so it is the one most
+           likely to strand a card without anybody choosing to -- and returning
+           false leaves the component exactly where it was, which is the correct
+           outcome: there is nothing to review. */
+        if (_calReviewBlockReason(post, which, next)) return false;
         // Only the component the comment belongs to flips status. Overall
         // card status is recomputed from all three sub-statuses (lower-wins).
         post[subKey] = next;
@@ -57477,6 +57740,130 @@
            -- it only adds a row the board was going to load anyway. If it fails
            or the id is already present, the tail covers it as before, so this
            can only make the wait shorter and never make the answer wrong. */
+        /* The one-row filter, shared by the boot-time fast paint and the
+           post-phase-one catch-up so the two cannot drift apart.
+
+           THREE columns, not two. Review on PR 1242 caught the third: the
+           adapter reads `displayId: d.identifier || d.linear_identifier ||
+           d.id`, so a link copied off a row whose `identifier` is null carries
+           the LINEAR identifier and matched nothing here -- the one case this
+           shortcut exists for, silently falling back to the four-thousand-row
+           wait it was written to skip. Returns '' for an id the filter grammar
+           cannot carry safely, and the callers then leave it to the tail. */
+        function _prodDeepLinkRowQuery(wanted) {
+            /* \x22 and \x27 are the two quote characters; spelled as escapes so
+               the comment-and-quote scanner the source tests use to slice this
+               function out does not read a regex as the start of a string. */
+            const safe = String(wanted || '').replace(/[(),\x22\x27]/g, '');
+            if (!safe || safe !== wanted) return '';
+            const cols = ['id', 'identifier', 'linear_identifier'];
+            return 'or=(' + cols.map(c => c + '.eq.' + encodeURIComponent(safe)).join(',') + ')';
+        }
+        /* The boot-time fast paint. See the call site in _prodLoadData for why
+           it exists; this is what it does and what it refuses to do.
+
+           It reads the linked row beside phase one, then -- in one more round
+           trip, all in parallel -- the row's batch (the crumb and the asset
+           source read it), its parent (a sub-issue's crumb names it, and a
+           row whose parent is unresolved renders as a parent itself, with an
+           empty sub-issues section it does not own), and the two small tables
+           phase one was already fetching, awaited off the SAME promises so
+           nothing is requested twice. Everything is merged into whatever the
+           snapshot already holds, never replacing it, and the pane is marked
+           `loaded` so `_prodBody` stops showing the skeleton. `refreshing`
+           stays true because phase one is still running, which is also what
+           keeps the auto-refresh from starting a second load on top of it.
+
+           Three things it will not do. It never consumes the deep link --
+           `_prodApplyDeepLinkFallback(true)` after phase one is still the one
+           place that happens, so the consumed-exactly-once contract in
+           test/production-deep-link-survives-cache.js is unchanged. It never
+           writes the cache: a one-row snapshot painted over a later boot would
+           be the stale-first-paint bug all over again. And it never publishes
+           absence: an empty read here means "not yet", and the tail decides. */
+        let _prodDeepLinkFastRows = null;
+        async function _prodDeepLinkFastPaint(reads) {
+            const link = _prodState.deepLink;
+            const wanted = link && link.kind === 'issue' ? String(link.id || '').trim() : '';
+            if (!wanted) return false;
+            if (_prodIssue(wanted)) return false;              // the snapshot already shows it
+            if (_prodDeepLinkFastRows && _prodDeepLinkFastRows.id === wanted) return false;
+            const query = _prodDeepLinkRowQuery(wanted);
+            if (!query) return false;
+            const generation = _prodState.projectionGeneration;
+            const record = { id: wanted, generation, rows: null };
+            _prodDeepLinkFastRows = record;
+            const settled = () => generation !== _prodState.projectionGeneration || _prodDeepLinkFastRows !== record;
+            try {
+                const rows = await _prodLoadDeliverableProjection(query);
+                if (settled()) return false;
+                if (!Array.isArray(rows) || !rows.length) return false;
+                const safeIds = list => Array.from(new Set(list.map(v => String(v || '').trim())
+                    .filter(v => v && !/[(),\x22\x27]/.test(v))));   // quotes as escapes, see _prodDeepLinkRowQuery
+                const batchIds = safeIds(rows.map(row => row && row.batch_id));
+                const parentIds = safeIds(rows.map(row => row && row.raw_issue_parent_id));
+                const inList = ids => 'in.(' + ids.map(encodeURIComponent).join(',') + ')';
+                const [clients, members, batches, parents] = await Promise.all([
+                    reads.clients,
+                    reads.members,
+                    batchIds.length
+                        ? _prodRestRows('batches', PROD_BATCH_SELECT, 'id=' + inList(batchIds), 1000, 1).catch(() => [])
+                        : [],
+                    parentIds.length
+                        ? _prodLoadDeliverableProjection('linear_issue_uuid=' + inList(parentIds)).catch(() => [])
+                        : []
+                ]);
+                if (settled()) return false;
+                const seenRows = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
+                const added = [];
+                rows.concat(Array.isArray(parents) ? parents : []).forEach(row => {
+                    const id = String(row && row.id || '');
+                    if (!row || !id || seenRows.has(id)) return;
+                    seenRows.add(id);
+                    added.push(row);
+                });
+                if (!added.length) return false;
+                const seenBatches = new Set((_prodState.batches || []).map(b => String(b && b.id || '')));
+                const newBatches = (Array.isArray(batches) ? batches : []).filter(b => b && b.id && !seenBatches.has(String(b.id)));
+                _prodState.clients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
+                _prodState.members = members;
+                _prodState.batches = (_prodState.batches || []).concat(newBatches);
+                _prodState.deliverables = (_prodState.deliverables || []).concat(added);
+                _prodState.adapter = _prodAdapter({
+                    clients: _prodState.clients,
+                    members: _prodState.members,
+                    batches: _prodState.batches,
+                    deliverables: _prodState.deliverables
+                });
+                _prodState.loaded = true;
+                _prodState.loading = false;
+                _prodState.cachePartial = true;                // the board is not here yet
+                record.rows = added;
+                if (document.getElementById('prodRoot')) _prodRender();
+                return true;
+            } catch (e) {
+                // Silent by design: phase one and the tail cover it as before.
+                return false;
+            } finally {
+                if (_prodDeepLinkFastRows === record && record.rows === null) _prodDeepLinkFastRows = null;
+            }
+        }
+        /* Phase one replaces the deliverable set wholesale. A row the fast
+           paint put on screen that phase one does not carry -- a finished one,
+           excluded by PROD_LIVE_FILTER -- would vanish at that moment and the
+           pane would drop back to a skeleton until the post-phase-one read put
+           it back: the flash this whole path exists to remove. Rows are only
+           carried within the generation that read them, so a stale paint can
+           never outlive the read that supersedes it. */
+        function _prodCarryDeepLinkRows(fresh) {
+            const carried = _prodDeepLinkFastRows;
+            _prodDeepLinkFastRows = null;
+            const list = Array.isArray(fresh) ? fresh : [];
+            if (!carried || carried.generation !== _prodState.projectionGeneration || !Array.isArray(carried.rows)) return list;
+            const seen = new Set(list.map(row => String(row && row.id || '')));
+            const keep = carried.rows.filter(row => row && !seen.has(String(row.id || '')));
+            return keep.length ? list.concat(keep) : list;
+        }
         let _prodDeepLinkFetchInFlight = '';
         async function _prodFetchDeepLinkRow() {
             const wanted = String(_prodState.openId || (_prodState.deepLink && _prodState.deepLink.id) || '').trim();
@@ -57489,17 +57876,9 @@
                    LINEAR IDENTIFIER while the row is keyed by its canonical id --
                    the same two-names-for-one-row split OPEN_REPAIRS recorded when
                    a shared link hung the comment thread. */
-                const safe = wanted.replace(/[(),"']/g, '');
-                if (!safe || safe !== wanted) return false;
-                /* THREE columns, not two. Review on PR 1242 caught the third:
-                   the adapter reads `displayId: d.identifier || d.linear_identifier
-                   || d.id`, so a link copied off a row whose `identifier` is null
-                   carries the LINEAR identifier and matched nothing here -- the
-                   one case this shortcut exists for, silently falling back to the
-                   four-thousand-row wait it was written to skip. */
-                const cols = ['id', 'identifier', 'linear_identifier'];
-                const rows = await _prodLoadDeliverableProjection(
-                    'or=(' + cols.map(c => c + '.eq.' + encodeURIComponent(safe)).join(',') + ')');
+                const query = _prodDeepLinkRowQuery(wanted);
+                if (!query) return false;
+                const rows = await _prodLoadDeliverableProjection(query);
                 if (generation !== _prodState.projectionGeneration) return false;
                 if (!Array.isArray(rows) || !rows.length) return false;
                 const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
@@ -57706,9 +58085,36 @@
                     _prodState.authorityReadAt = Date.now();
                     if (document.getElementById('prodRoot')) _prodRender();
                 }).catch(() => {});
+                const clientsRead = _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10);
+                const membersRead = _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10);
+                /* A DEEP LINK IS PAINTED FROM ITS OWN READ, not from the board's.
+
+                   Owner report 2026-09-05: following the calendar card's
+                   "Open the SyncView Production video sub-issue" link "always
+                   takes a lot of time to load. way too much time". The link
+                   opens a fresh tab, so there is no warm state: the pane waited
+                   here, on the whole live projection (thousands of rows, paged
+                   in sequence) plus every batch, before the one row it was
+                   asked for could be looked up at all. The one-row read below
+                   (`_prodFetchDeepLinkRow`) only ever ran AFTER this await, so
+                   the comment promising it "in parallel" was true of the tail
+                   and false of the wait that actually hurt.
+
+                   This starts the one-row read now, beside phase one rather
+                   than behind it, and paints the detail the moment that row,
+                   its batch, its parent, and the two small tables have landed.
+                   Phase one keeps running underneath and takes over when it
+                   arrives; a row it does not carry (a finished one) is carried
+                   across by `_prodCarryDeepLinkRows` so the pane never flashes
+                   back to a skeleton. It cannot make the answer wrong: the row
+                   is the same row from the same projection, a read that lands
+                   late is discarded by the generation check exactly as the
+                   post-phase-one read is, and a failure leaves the old path
+                   untouched. Not awaited on purpose. */
+                _prodDeepLinkFastPaint({ clients: clientsRead, members: membersRead });
                 const [clients, members, batches, deliverables, authority] = await Promise.all([
-                    _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
-                    _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
+                    clientsRead,
+                    membersRead,
                     /* PAGED BY PRIMARY KEY, like the deliverable projection beside
                        it, and for the same two reasons in the same order.
 
@@ -57747,7 +58153,7 @@
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
                 const mergedBatches = _prodPreserveProjectedFields(batches, _prodState.batches, 'id', ['description', 'desc']);
-                const mergedDeliverables = deliverables;
+                const mergedDeliverables = _prodCarryDeepLinkRows(deliverables);
                 _prodState.projectionGeneration++;
                 _prodInvalidateScopedReads();
                 _prodState.clients = mergedClients;
@@ -59594,7 +60000,7 @@
                        app keys them by slug. One normalizer for both sides, the
                        same one the workload uses. */
                     const key = wlNormalizeClient(c);
-                    if (key && !dir.has(key)) dir.set(key, { name: name, syncedAt: String(m.synced_at || '') });
+                    if (key && !dir.has(key)) dir.set(key, { name: name });
                 }
             }
             return dir;
@@ -59660,19 +60066,17 @@
             const hit = _prodSmmDir.get(wlNormalizeClient(project))
                 || _prodSmmDir.get(wlNormalizeClient(_prodDisplayClient(project)));
             if (!hit) return '';
-            /* The provenance is VISIBLE TEXT, not a tooltip. It is the only
-               signal that an assignment may be stale, and the Production
-               tooltip layer listens for mouseover/mouseout only -- so on a
-               keyboard or a phone a title attribute would carry it to nobody.
-               A line of muted text needs no focus, no hover and no Escape
-               behaviour to read. */
-            const provenance = hit.syncedAt
-                ? 'Sheet, synced ' + _prodFmtDateFull(hit.syncedAt)
-                : 'From the managers sheet';
+            /* NO PROVENANCE LINE. It said "Sheet, synced <date>" under the
+               name and the owner asked for it gone -- twice. It was added to
+               make staleness legible, but the roster syncs nightly and the
+               name is the answer the reader came for; a second line of
+               bookkeeping under every sub-issue is noise on the surface he
+               actually uses. If staleness ever needs surfacing again, surface
+               it where it is actionable -- when the sync FAILS -- not on every
+               card forever. */
             return '<div class="prod-side-card" data-prod-detail-card="smm"><div class="prod-side-card-head"><span>Social media manager</span></div>'
                 + '<div class="prod-side-row"><span class="prod-prop-btn" data-prod-prop="smm" aria-disabled="true">'
-                + _prodIcon('assign') + '<span>' + _calEsc(hit.name) + '</span></span></div>'
-                + '<div class="prod-side-row"><span class="muted" data-prod-smm-provenance="1">' + _calEsc(provenance) + '</span></div></div>';
+                + _prodIcon('assign') + '<span>' + _calEsc(hit.name) + '</span></span></div></div>';
         }
         function _prodProps(d, parent, assignee, file) {
             const statusHistory = _prodStatusBreakdown((_prodState.events && _prodState.events.get ? _prodState.events.get(d.id) : null) || [], d.createdRaw);
@@ -61992,7 +62396,23 @@
         const currentStatus = which ? (post[which + '_status'] || 'In Progress') : (post.status || 'In Progress');
         const menu = document.createElement('div');
         menu.className = 'cal-fld-status-menu';
-        menu.innerHTML = SXR_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}${s === currentStatus ? ' active' : ''}" onclick="_sxrStatusPick('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}','${_sxrEscAttr(which)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`).join('');
+        /* Same treatment as the calendar twin. NOTE the divergence: SXR_STATUSES
+           has no 'N/A', so the note cannot offer it -- samples carry exactly two
+           components and both are expected to exist. */
+        const _sxrMenuBlocked = {};
+        if (which) {
+            for (const s of SXR_STATUSES) {
+                const reason = _sxrReviewBlockReason(post, which, s);
+                if (reason) _sxrMenuBlocked[s] = reason;
+            }
+        }
+        menu.innerHTML = SXR_STATUSES.map(s => {
+            const blocked = _sxrMenuBlocked[s];
+            return `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}${s === currentStatus ? ' active' : ''}"${blocked ? ` disabled title="${_sxrEscAttr(blocked)}"` : ''} onclick="_sxrStatusPick('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}','${_sxrEscAttr(which)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`;
+        }).join('')
+            + (Object.keys(_sxrMenuBlocked).length
+                ? `<div class="cal-fld-status-note">${_sxrEsc('The review statuses need ' + (which === 'graphic' ? 'a thumbnail' : 'a video') + ' first.')}</div>`
+                : '');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();
         const menuW = Math.max(menu.offsetWidth, 200), menuH = menu.offsetHeight;
@@ -62001,23 +62421,51 @@
         menu.style.left = left + 'px';
         const gap = 5, spaceBelow = window.innerHeight - rect.bottom - 10, spaceAbove = rect.top - 10;
         let top;
-        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) top = Math.min(rect.bottom + gap, window.innerHeight - menuH - 10);
+        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) top = Math.max(10, Math.min(rect.bottom + gap, window.innerHeight - menuH - 10));
         else top = Math.max(10, rect.top - menuH - gap);
         menu.style.top = top + 'px';
         menu.style.minWidth = Math.max(rect.width, 200) + 'px';
         requestAnimationFrame(() => menu.classList.add('open'));
         _sxrOpenStatusMenu = { pid, key: menuKey, comp: which, el: menu, triggerEl };
     }
+    /* ── The samples twin of the calendar's review-content gate ──────────
+       Mirrored per docs/features/SAMPLES_PARITY_LOG.md: a component cannot be
+       sent for review while the thing to review is empty. Samples carry only
+       video and thumbnail (no caption, no title), so only those two rules
+       apply, and both read the SAME media fields the calendar does --
+       asset_url and thumbnail_url -- which is why the content predicate is
+       _kasperCompReviewable rather than a samples-local copy of it. A second
+       copy is exactly the drift this log exists to prevent. */
+    const SXR_REVIEW_STATUSES = new Set(['For SMM Approval', 'Kasper Approval', 'Client Approval']);
+    function _sxrStatusNeedsContent(status) {
+        return SXR_REVIEW_STATUSES.has(_sxrNormStatus(status || ''));
+    }
+    function _sxrCompHasContent(post, comp) { return _kasperCompReviewable(post, comp); }
+    function _sxrReviewBlockReason(post, comp, status) {
+        if (!_sxrStatusNeedsContent(status)) return '';
+        if (_sxrCompHasContent(post, comp)) return '';
+        if (comp === 'video') return 'Add the video URL before sending it for approval.';
+        if (comp === 'graphic') return 'Add the thumbnail URL before sending it for approval.';
+        return '';
+    }
+    const SXR_COMP_LABEL = { video: 'Video', graphic: 'Thumbnail' };
     function _sxrStatusPick(pid, status, comp) {
         if (_isClientLink) return;
         _sxrCloseStatusMenu();
         const which = comp || '';
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
-        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        /* Bucket created only once the move is going ahead -- an empty
+           _sxrPendingEdits entry is a full-card resend, same as the calendar. */
         if (which) {
             const key = which + '_status';
             if (post[key] === status) return;
+            const blocked = _sxrReviewBlockReason(post, which, status);
+            if (blocked) {
+                showNotify('Nothing to review yet', blocked);
+                return;
+            }
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
             post[key] = status;
             _sxrPendingEdits[pid][key] = status;
             post.status = computeSampleOverallStatus(post);
@@ -62025,9 +62473,20 @@
             _sxrMarkLocalStatus(pid, which);
         } else {
             if (post.status === status) return;
-            post.status = status;
-            SXR_COMPONENTS.forEach(c => { post[c + '_status'] = status; _sxrPendingEdits[pid][c + '_status'] = status; });
-            _sxrPendingEdits[pid].status = status;
+            const movable = SXR_COMPONENTS.filter(c => !_sxrReviewBlockReason(post, c, status));
+            const held = SXR_COMPONENTS.filter(c => !movable.includes(c));
+            if (!movable.length) {
+                showNotify('Nothing to review yet', 'Both parts of this sample are still empty, so there is nothing to send for approval.');
+                return;
+            }
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            movable.forEach(c => { post[c + '_status'] = status; _sxrPendingEdits[pid][c + '_status'] = status; });
+            post.status = computeSampleOverallStatus(post);
+            _sxrPendingEdits[pid].status = post.status;
+            if (held.length) {
+                showNotify('Sent without ' + held.map(c => String(SXR_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
             _sxrMarkLocalStatus(pid);
         }
         _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
@@ -62102,23 +62561,30 @@
         _sxrCloseStatusMenu();
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
-        const settable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
-        const skipped = SXR_COMPONENTS.filter(c => !settable.includes(c));
+        const linked = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(post, c));
+        const settable = linked.filter(c => !_sxrReviewBlockReason(post, c, status));
+        const heldEmpty = linked.filter(c => !settable.includes(c));
+        const skipped = SXR_COMPONENTS.filter(c => !linked.includes(c));
+        if (!settable.length && heldEmpty.length) {
+            showNotify('Nothing to review yet', 'Every part you can set is still empty, so there is nothing to send for approval.');
+            return;
+        }
         if (!settable.length) {
             showNotify('Nothing to set', 'Neither component on this sample has a work item behind it, so there is nothing here to update.');
             return;
         }
         const apply = (dontAskAgain) => {
             if (dontAskAgain) { try { localStorage.setItem(_sxrSetAllSkipKey(status), '1'); } catch {} }
-            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
-            const edits = _sxrPendingEdits[pid];
+            const staged = {};
             let changed = false;
             for (const c of settable) {
                 const key = c + '_status';
                 if (_sxrNormStatus(post[key] || '') === status) continue;
-                post[key] = status; edits[key] = status; changed = true;
+                post[key] = status; staged[key] = status; changed = true;
             }
             if (!changed) return;
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            const edits = Object.assign(_sxrPendingEdits[pid], staged);
             post.status = computeSampleOverallStatus(post);
             edits.status = post.status;
             _sxrMarkLocalStatus(pid);
@@ -62126,6 +62592,10 @@
             post.updated_at = new Date().toISOString();
             _sxrRenderBody({ preserveScroll: true });
             _sxrFlushCardSave(pid);
+            if (heldEmpty.length) {
+                showNotify('Set without ' + heldEmpty.map(c => String(SXR_COMP_LABEL[c] || c).toLowerCase()).join(' and '),
+                    'Those are still empty, so they stayed where they were. Add the content and set them separately.');
+            }
         };
         let skip = false;
         try { skip = localStorage.getItem(_sxrSetAllSkipKey(status)) === '1'; } catch {}
@@ -63202,6 +63672,19 @@
         errorActionIds: Object.create(null)
     };
     const _SXR_REVIEW_CFG = { client: { reviewStatus: 'Client Approval', approveTo: 'Approved' }, smm: { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' } };
+    /* One definition of where an SMM approval lands, so the pre-resolve guard
+       and the approve cannot disagree. Calendar twin: _calSmmApproveTo. */
+    function _sxrSmmApproveTo(dest) {
+        return dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+    }
+    /* The resolve chooser's auto-route destination. Default differs from the
+       approve-onward above for the same reason as the calendar twin
+       (_calAutoResolveDestStatus). */
+    function _sxrAutoResolveDestStatus(dest) {
+        return (dest === 'kasper') ? 'Kasper Approval'
+             : (dest === 'approved') ? 'Approved'
+             : 'Client Approval';
+    }
     function _sxrReviewMode() { return (!_isClientLink && sxrState.view === 'smmreview') ? 'smm' : 'client'; }
     function _sxrReviewComponentActive(p, c, mode) { const cs = _sxrNormStatus(p[c + '_status'] || ''); if (cs === _SXR_REVIEW_CFG[mode].reviewStatus) return true; return mode !== 'smm' && cs === 'Tweaks Needed' && !_isClientLink; }
     function _sxrApprovalBadgeCount(mode) {
@@ -63570,6 +64053,16 @@
             openTweaks: root ? [root] : [],
             fromReview: false,
             onChoose: async (destPick, ids) => {
+                /* Refuse before resolving — see the calendar twin in
+                   _calResolveLastTweak. */
+                if (destPick !== 'stay') {
+                    const _blocked = _sxrReviewBlockReason(post, comp, _sxrAutoResolveDestStatus(destPick));
+                    if (_blocked) {
+                        showNotify('Nothing to review yet', _blocked
+                            + ' Nothing was changed — the change request is still open.');
+                        return;
+                    }
+                }
                 const chosen = (ids && ids.length) ? ids : [rootId];
                 const canonicalGate = _prodCanonicalCommentGate(post, comp);
                 if (canonicalGate.linked) {
@@ -63613,6 +64106,16 @@
                     openTweaks: open,
                     fromReview: true,
                     onChoose: (pickDest, ids) => {
+                        /* Refuse before the tweak thread is touched -- see the
+                           calendar twin in _calReviewApprove. */
+                        if (pickDest !== 'stay') {
+                            const _blocked = _sxrReviewBlockReason(post, comp, _sxrSmmApproveTo(pickDest));
+                            if (_blocked) {
+                                showNotify('Nothing to review yet', _blocked
+                                    + ' Nothing was changed — the change requests are still open.');
+                                return;
+                            }
+                        }
                         const resolvedBefore = {
                             video_comments: post.video_comments,
                             graphic_comments: post.graphic_comments
@@ -63643,7 +64146,14 @@
         if (_isClientLink) { const cur = String(post[subKey] || '').trim().toLowerCase(); if (cur !== 'client approval' && cur !== 'tweaks needed') return; }
         const prev = Object.assign({ [subKey]: post[subKey], status: post.status, [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`], kasper_seen: post.kasper_seen }, resolvedBefore || {});
         let approveTo = _SXR_REVIEW_CFG[mode].approveTo;
-        if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+        if (mode === 'smm') approveTo = _sxrSmmApproveTo(dest);
+        /* Guarded before the kasper_seen stamp, or the sample is marked seen
+           for a review that never happened. Calendar twin: _calReviewApplyApprove. */
+        const _sxrBlocked = _sxrReviewBlockReason(post, comp, approveTo);
+        if (_sxrBlocked) {
+            showNotify('Nothing to review yet', _sxrBlocked);
+            return false;
+        }
         let kasperSeenCsv = null;
         if (approveTo === 'Kasper Approval') kasperSeenCsv = _sxrRecordKasperSeenOnPost(post, comp);
         post[subKey] = approveTo;
@@ -64622,8 +65132,13 @@
         const subKey = which + '_status';
         let next = null;
         if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') next = 'Tweaks Needed';
-        else if (trigger === 'smm_resolved_last') next = (dest === 'kasper') ? 'Kasper Approval' : (dest === 'approved') ? 'Approved' : 'Client Approval';
+        else if (trigger === 'smm_resolved_last') next = _sxrAutoResolveDestStatus(dest);
         if (!next || post[subKey] === next) return false;
+        /* Resolving the last change-request auto-routes the component onward.
+           That is still sending it for review, so it obeys the same rule --
+           and returning false here is what the calendar twin does, so the
+           caller repaints instead of pretending the move happened. */
+        if (_sxrReviewBlockReason(post, which, next)) return false;
         post[subKey] = next;
         post.status = computeSampleOverallStatus(post);
         post.updated_at = new Date().toISOString();
@@ -66734,7 +67249,11 @@
             || ((_kasperState && _kasperState.sxrRepairs) || []).find(row => row && row.id === p.id && row.slug === it.slug);
         if (cachedRepair) {
             _sxrKasperState.saving[key] = false;
-            _sxrKasperState.errors[key] = 'A prior source repair needs receipt verification; reload before another action';
+            /* Was `_sxrKasperState.errors[key] = ...` -- a store this state has
+               never declared, so every cached-repair refusal here threw a
+               TypeError before the diagnostic or the repaint ran. Exposed by
+               the Codex finding on the guard above (PR 1278); same fix. */
+            showNotify('Reload before another action', 'A prior source repair needs receipt verification; reload before another action.');
             _writeUiQueueDiagnostic('sxr', 'cache_only_repair_blocked', { kind: 'kasper-source-repair' });
             _sxrKasperRepaint(pid);
             return;
@@ -66875,6 +67394,22 @@
     }
     function _sxrKasperApproveComp(pid, comp) {
         const it0 = _sxrKasperFindItem(pid);
+        /* Handler-level guard, mirroring _kasperApproveComp. */
+        if (it0) {
+            const _blocked = _sxrReviewBlockReason(it0.post, comp, 'Client Approval');
+            if (_blocked) {
+                /* showNotify, not an inline error: this surface has no
+                   per-component error store -- _sxrKasperState declares none
+                   and _sxrKasperPanelHtml renders none -- and the first draft
+                   of this guard wrote to one anyway, which threw a TypeError
+                   and made the Approve button look dead. The catch block in
+                   _sxrKasperApplyAndPersist reports its failures this same
+                   way, so the refusal now reads like every other refusal here.
+                   Found by Codex on PR 1278. */
+                showNotify('Nothing to review yet', _blocked);
+                return;
+            }
+        }
         const prevStatus = it0 ? String(it0.post[comp + '_status'] || 'Kasper Approval') : 'Kasper Approval';
         _sxrKasperApplyAndPersist(pid, comp,
             (p) => {
@@ -74415,6 +74950,17 @@
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._touchedComps) item._touchedComps = new Set();
         if (item._saving[comp]) return;
+        /* The Approve button is already disabled for a component he cannot
+           review, but a button is a courtesy and this is the handler: a panel
+           rendered before the video URL was cleared still carries a live
+           onclick. Same rule as every other writer that targets a review
+           status, asked here rather than trusted to the render. */
+        const _blocked = _calReviewBlockReason(item.post, comp, 'Client Approval');
+        if (_blocked) {
+            item._errors[comp] = _blocked;
+            _kasperRepaintCard(pid);
+            return;
+        }
         _kasperInvalidateInFlightLoad();
         item._touchedComps.add(comp);
         const subKey = comp + '_status';

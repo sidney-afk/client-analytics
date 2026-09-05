@@ -54,8 +54,17 @@ check('backdrop click just dismisses the chooser', /if\(event\.target===this\)_c
 // ---- status mapping: Approve → Approved ----
 console.log('\n— status mapping: Approve → Approved —');
 const autoStatus = grabFunc('_calApplyAutoStatus');
-check('smm_resolved_last maps dest "approved" → Approved', /dest === 'approved'\) \? 'Approved'/.test(autoStatus), true);
-check('still maps "kasper" → Kasper Approval', /dest === 'kasper'\) \? 'Kasper Approval'/.test(autoStatus), true);
+/* The mapping moved into _calAutoResolveDestStatus on 2026-09-05, because
+   _calResolveLastTweak has to know where the route is going BEFORE it resolves
+   the change-request -- the auto-router now returns false for an empty
+   component and its callers ignore the return, so resolving first would close
+   the thread and move nothing. Executed here rather than regexed, which is
+   stronger than the two checks it replaces. */
+const autoDest = new Function(grabFunc('_calAutoResolveDestStatus') + '\nreturn _calAutoResolveDestStatus;')();
+check('the router asks the shared helper', /_calAutoResolveDestStatus\(dest\)/.test(autoStatus), true);
+check('smm_resolved_last maps dest "approved" → Approved', autoDest('approved'), 'Approved');
+check('still maps "kasper" → Kasper Approval', autoDest('kasper'), 'Kasper Approval');
+check('and "client" → Client Approval', autoDest('client'), 'Client Approval');
 
 // ---- selective resolver ----
 console.log('\n— selective resolver only touches the ticked change-requests —');
@@ -77,8 +86,24 @@ check('chooser resolves ticked, THEN runs the real approve',
 check('no open change-requests → routes directly (unchanged path)',
   /_calReviewApplyApprove\(pid, comp, dest\);/.test(approve), true);
 const apply = grabFunc('_calReviewApplyApprove');
-check('apply still routes the SMM dest (client / approved / kasper)',
-  /dest === 'client' \? 'Client Approval' : \(dest === 'approved' \? 'Approved' : 'Kasper Approval'\)/.test(apply), true);
+/* The routing ternary moved into _calSmmApproveTo when the empty-content review
+   gate landed (2026-09-05). _calReviewApprove has to know the destination BEFORE
+   it resolves the ticked change-requests -- a refused approve must not leave them
+   marked done -- and two copies of the rule is how a guard starts answering a
+   different question than the thing it guards. So the routing is pinned by
+   EXECUTING the shared helper, which is stronger than the regex it replaces, and
+   apply is pinned to asking it rather than carrying its own copy. */
+const smmDest = new Function(grabFunc('_calSmmApproveTo') + '\nreturn _calSmmApproveTo;')();
+check('apply routes the SMM dest through the shared helper', /_calSmmApproveTo\(dest\)/.test(apply), true);
+check("routes 'client' to Client Approval", smmDest('client'), 'Client Approval');
+check("routes 'approved' to Approved", smmDest('approved'), 'Approved');
+check('routes anything else to Kasper Approval', smmDest('kasper'), 'Kasper Approval');
+/* And the chooser's route is NOT this rule. On an unrecognised destination the
+   chooser goes to the CLIENT and the approve-onward goes to Kasper, which is why
+   they are two functions: one shared helper would make each guard protect the
+   wrong move. Asserted so a later "tidy-up" that merges them fails here. */
+check('the two destination rules genuinely differ on an unrecognised dest',
+  autoDest('') === 'Client Approval' && smmDest('') === 'Kasper Approval', true);
 
 // ---- checklist only when there is a real choice (2+) ----
 console.log('\n— checklist shows only when there is a real choice (2+ open) —');

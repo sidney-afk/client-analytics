@@ -154,7 +154,8 @@ function makeApp(opts, source) {
     setTimeout: fn => fn(),
     document: { getElementById: () => null },
     // Observability for the assertions.
-    spy: { lifecycle: [], autoStatus: [], watchSave: 0, chooser: 0 },
+    spy: { lifecycle: [], autoStatus: [], watchSave: 0, chooser: 0, notify: [] },
+    showNotify: (title, body) => { env.spy.notify.push({ title, body }); },
     _calRenderCommentsModal() {},
     _sxrRenderCommentsModal() {},
     _calCaptureModalDrafts() {},
@@ -246,6 +247,21 @@ function makeApp(opts, source) {
     extractFunction('_calMsgIsTweak', source),
     extractFunction('_calFindCompForCommentId', source),
     extractFunction('_calResolveTweaksDone', source),
+    /* _calResolveLastTweak now refuses to route an EMPTY component onward
+       before it resolves anything (2026-09-05 review gate). That guard calls
+       the real predicate chain, so the chain has to be in the sandbox with it
+       — stubbing it would leave this suite executing a function that is not
+       the one that ships, which is the exact trap that broke six suites when
+       the gate first landed. */
+    'const CAL_STATUSES = ' + (/const CAL_STATUSES\s*=\s*(\[[^\]]*\]);/.exec(source) || [])[1] + ';',
+    'const CAL_REVIEW_STATUSES = new Set('
+      + (/const CAL_REVIEW_STATUSES = new Set\((\[[^\]]*\])\);/.exec(source) || [])[1] + ');',
+    extractFunction('_calNormStatus', source),
+    extractFunction('_kasperCompReviewable', source),
+    extractFunction('_calCompHasContent', source),
+    extractFunction('_calStatusNeedsContent', source),
+    extractFunction('_calReviewBlockReason', source),
+    extractFunction('_calAutoResolveDestStatus', source),
     extractFunction('_calResolveLastTweak', source),
     extractFunction('_calToggleCommentDone', source),
   ].join('\n'), env);
@@ -261,6 +277,7 @@ function uncovered(source, extra) {
   }, extra || {}), source);
   app.calState.posts = [{
     id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      asset_url: 'https://frame.io/acme/v1.mp4',
     status: 'Tweaks Needed', video_status: 'Tweaks Needed',
     video_comments: legacy.slice(), video_tweaks: JSON.stringify(legacy),
     comments: legacy.slice(), tweaks: JSON.stringify(legacy),
@@ -277,6 +294,7 @@ function covered(source, extra) {
   }, extra || {}), source);
   app.calState.posts = [{
     id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      asset_url: 'https://frame.io/acme/v1.mp4',
     status: 'Tweaks Needed', video_status: 'Tweaks Needed',
     video_comments: legacy.slice(), video_tweaks: JSON.stringify(legacy),
     comments: legacy.slice(), tweaks: JSON.stringify(legacy),
@@ -383,6 +401,7 @@ function covered(source, extra) {
     }, SHIPPED);
     app.calState.posts = [{
       id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      asset_url: 'https://frame.io/acme/v1.mp4',
       status: 'Tweaks Needed', video_status: 'Tweaks Needed',
       video_comments: legacy.slice(), video_tweaks: JSON.stringify(legacy),
       comments: legacy.slice(), tweaks: JSON.stringify(legacy),
@@ -405,6 +424,7 @@ function covered(source, extra) {
     }, REVERTED);
     pre.calState.posts = [{
       id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      asset_url: 'https://frame.io/acme/v1.mp4',
       status: 'Tweaks Needed', video_status: 'Tweaks Needed',
       video_comments: preLegacy.slice(), video_tweaks: JSON.stringify(preLegacy),
       comments: preLegacy.slice(), tweaks: JSON.stringify(preLegacy),
@@ -413,6 +433,40 @@ function covered(source, extra) {
     await pre._calToggleCommentDone(preLegacy[0].id);
     ok(pre.spy.lifecycle.length === 1 && pre.spy.autoStatus.length === 0,
       '(d) TEETH: reverted, the refused write returns early and the card is left unroutable');
+  }
+
+  // ── (d2) WHY the fixtures above carry an asset_url ────────────────────────
+  {
+    /* Every card in this suite gained `asset_url` on 2026-09-05, because
+       _calResolveLastTweak now refuses to route an EMPTY component onward. That
+       is a fixture change made to keep this suite testing its own subject — the
+       canonical coverage hold — and a fixture change that makes a red suite go
+       green has to say why, or it is indistinguishable from hiding the
+       regression. So the same flow is run once WITHOUT a video, and the refusal
+       is asserted directly. */
+    const legacy = [legacyRow('Only note')];
+    const app = makeApp({
+      deliverables: [DELIVERABLE],
+      threads: { 'dlv-1': { items: [canonicalRow('Different note')] } },
+      role: 'smm',
+    }, SHIPPED);
+    app.calState.posts = [{
+      id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      status: 'Tweaks Needed', video_status: 'Tweaks Needed',
+      video_comments: legacy.slice(), video_tweaks: JSON.stringify(legacy),
+      comments: legacy.slice(), tweaks: JSON.stringify(legacy),
+    }];
+    await app._prodProjectCanonicalCardComments('calendar', 'card-1');
+    await app._calToggleCommentDone(legacy[0].id);
+
+    ok(app.spy.chooser === 1, '(d2) the chooser still opens on a card with no video');
+    const row = app._calCommentsFor(app.calState.posts[0], 'video')[0];
+    ok(row && row.done !== true,
+      '(d2) but the change-request is NOT marked done — refusing after resolving would close the thread and move nothing');
+    ok(app.spy.autoStatus.length === 0,
+      '(d2) and the router never ran, so nothing was half-applied');
+    ok(app.spy.notify.length === 1 && /video URL/i.test(app.spy.notify[0].body || ''),
+      '(d2) and the SMM is TOLD why, naming the video — a silent no-op is what this guard exists to prevent');
   }
 
   // ── the parse-shrink obligation, pinned by ORDER ──────────────────────────
@@ -442,6 +496,7 @@ function covered(source, extra) {
     }, SHIPPED);
     app.calState.posts = [{
       id: 'card-1', client: 'acme-co', video_deliverable_id: 'dlv-1',
+      asset_url: 'https://frame.io/acme/v1.mp4',
       video_comments: parsed.slice(),
       // Three rows stored, one parsed: the other two are unread, not absent.
       video_tweaks: JSON.stringify([parsed[0], legacyRow('Unread A'), legacyRow('Unread B')]),

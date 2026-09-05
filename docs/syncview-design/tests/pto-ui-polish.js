@@ -874,6 +874,22 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
         && active.hasAttribute('data-pto-decision-note');
     }), 'Review request moves focus to that request\'s decision note, not to the irreversible Approve');
     await calendarCard.locator('.pto-calendar-nav button[aria-label="Next month"]').click();
+    /* WAIT FOR THE PRODUCT'S OWN FOCUS RESTORE BEFORE TOUCHING FOCUS BELOW.
+       _ptoCalShiftMonth repaints the card and then, inside a
+       requestAnimationFrame, focuses the month-nav button so a keyboard user
+       keeps their place across a month change (index.html, _ptoCalRepaint).
+       That is correct behaviour and it is asserted here rather than merely
+       waited for. It is ALSO the thief in the intermittent red below: a frame
+       callback normally runs in ~16 ms, but on a loaded CI runner it can be
+       deferred past the point where the walk has already taken focus to a day
+       cell -- and then hands it back to the nav button. Sequencing the two
+       removes the race instead of racing it harder. */
+    const navFocusRestored = await page.waitForFunction(
+      () => !!(document.activeElement && document.activeElement.closest
+        && document.activeElement.closest('.pto-calendar-nav')),
+      null, { timeout: 5000 }).then(() => true).catch(() => false);
+    assert(navFocusRestored,
+      'a month change hands focus back to the calendar nav, so a keyboard user does not land back at the top of the page');
     const mayNames = await calendarCard.locator('[data-pto-cal-day="2030-05-20"] .pto-cal-event').allTextContents();
     assert(await calendarCard.locator('.pto-calendar-title').textContent() === 'May 2030'
       && mayNames.length === 1 && mayNames[0] === FUTURE_MEMBER_NAME
@@ -1000,6 +1016,41 @@ async function assertDesktopExplainer(page, selector, outsideSelector, label) {
      * per-attempt trace below records, for every attempt, whether activeElement
      * changed at all and what held it afterwards. A trace of ten identical
      * "never moved" rows says (b); ten "landed then lost" rows says (a). */
+    /* 2026-09-05 -- THE TRACE FIRED AND IT IS NEITHER (a) NOR (b). IT IS ORDER.
+     *
+     * PR run 658 (#1272, a commit touching only the content-calendar review
+     * gate and its tests -- nothing PTO) failed with:
+     *
+     *   {"active":"button","activeDay":null,"startAttached":true,
+     *    "startTabIndex":-1,"tabStops":1,"tabStopDay":"2030-05-01",
+     *    "monthTitle":"May 2030","dayCells":31,"activeLabel":"Next month",
+     *    "activeInNav":true}
+     *
+     * and -- this is the part that answers it -- **no `focusAttempts=` at all**.
+     * The loop appends only on a miss and returns on the first confirmed
+     * landing, so an empty trace means attempt 1 LANDED: activeElement really
+     * did carry data-pto-cal-day="2030-05-20", confirmed, within 500 ms.
+     * Focus was taken afterwards, by something that ran later still.
+     *
+     * `activeLabel: "Next month"` names it. index.html's _ptoCalShiftMonth
+     * repaints the card and schedules, in a requestAnimationFrame,
+     * `target.focus()` on the month-nav button (_ptoCalRepaint). A frame
+     * callback normally runs in ~16 ms, long before this block -- which is why
+     * 26 local runs, including twelve six-at-a-time on four cores, were green.
+     * On a loaded CI runner it can be deferred arbitrarily, and when it lands
+     * after the walk has taken focus, it hands focus straight back.
+     *
+     * So (a) was the right family -- something takes focus -- but the thief is
+     * not a trap or a re-firing restore, and no amount of re-taking wins,
+     * because the steal happens after the last re-take. The PRODUCT is correct:
+     * restoring focus to the nav is what keeps a keyboard user in place across
+     * a month change. The HARNESS was racing it.
+     *
+     * The fix is at the click, ~120 lines above, and it is a sequencing one:
+     * wait for that restore to land -- and ASSERT it, since it is real
+     * behaviour worth pinning -- before taking focus to a day cell. The loop
+     * below is kept: it costs nothing on a green run and it is what produced
+     * the empty trace that settled this. */
     const focusAttempts = [];
     const focusStartDay = async () => {
       for (let attempt = 0; attempt < 10; attempt++) {

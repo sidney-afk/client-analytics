@@ -11955,7 +11955,367 @@ for doing the exit before any large backfill, and for scoping this repair to the
 the structural change until after the Linear exit, when the write paths that
 would have to change are the ones that will survive.**
 
-## 148. [2026-09-05, FIXED — four defects, one root cause behind three of them; one owner decision left open] Post-level assets, sub-issue file pills, Dropbox share links, and a drifted `origin`
+---
+
+## 148. [2026-09-05, SOURCE WRITTEN, NOT APPLIED — updates item 147's state] The Phase 2 RPC exists in source, and it refuses two things item 147 did not think to refuse
+
+Item 147 §4 named the blocker: `production_comment_card_import` validates the
+crosswalk *before* it copies, so it refuses precisely while the crosswalk is
+broken — and repairing the binding first opens the split-thread window instead.
+No legal order exists without a combined operation.
+
+**That operation is now written**, and this entry exists so the ledger does not
+imply more than that:
+
+* `migrations/2026-09-05-crosswalk-bind-and-import.sql` —
+  `public.production_comment_card_bind_and_import(jsonb, jsonb, jsonb)`,
+  `security definer`, service-role only, bind and import in one transaction.
+* `scripts/crosswalk-bind-rehearsal.js` executes it against a disposable
+  PostgreSQL 16: the happy path, idempotency, and every reachable refusal by its
+  own error code.
+* `test/crosswalk-bind-and-import.js` holds the source guards and invokes the
+  rehearsal; it SKIPS where the server binaries are absent, which is an
+  environment fact, and CI's unit lane pins postgres:16.
+
+**NOT APPLIED. No live row has been repaired through it.** Written and applied
+are different states and item 147's phase table now separates them
+(`docs/ops/CROSSWALK_REPAIR_STRATEGY.md`, status block).
+
+### The card pointer is not authority on its own
+
+The first draft bound on the strength of the card's own `*_deliverable_id`
+slot, plus client, existing-binding and slot-occupancy checks. Codex found the
+hole on #1273 and it is the same class as the cross-client row item 147 §2
+records: **a STALE card pointer that happens to name an unbound deliverable of
+the same client** would have that unrelated row rewritten and the card's
+conversation copied onto it. Every check in that draft descended from the
+pointer, so none of them could notice the pointer was wrong.
+
+Two independent questions were added, both already asked by
+`scripts/f42-linkage-defect-repair.js` (`classAObjections`) before it plans a
+Class A repair:
+
+* **`kind` must be the kind the card slot implies.** `team` cannot prove it:
+  `team='video'` covers `kind='video'` AND `kind='other'`. Proven by mutation —
+  with the guard removed, the rehearsal's wrong-kind bind SUCCEEDS.
+* **Both sides must name the same Linear issue.** Either side missing is
+  UNPROVEN, which is a refusal and not a pass. Both the full-URL and the bare
+  identifier shape are accepted, because live rows carry both and refusing the
+  URL shape would read as a clean run over a third of the work.
+
+**This narrows what Phase 2 can finish unattended, on purpose.** A slot that
+cannot prove its identity is a slot for a person. The Phase 2 call list must be
+measured with that in mind rather than assumed to cover every remaining slot —
+and measured fresh, since Phase 1's 60 repairs moved the counts.
+
+Two smaller repairs from the same review: the card row is now selected `FOR
+UPDATE` (staff relinking between the read and the commit would otherwise bind
+into a deliverable the card no longer points at, and the nested import validates
+only the deliverable side so it cannot notice); and the receipt reports
+`processed` / `imported` / `already_linked` separately, because
+`production_comment_card_import` returns the existing row on an idempotent retry
+and counting the loop would let a runner certify more copied comments than were
+created.
+
+---
+
+## 149. [2026-09-05, HEALTH-CHECK RECORD — no repair owed] The video `outbound_diff_count` rose 51 → 138, and the reason is the owner's own backlog SQL
+
+`PRE_FLIP_HEALTH_CHECK.md` item 1 gates on **unexplained GROWTH** per team and
+asks that the repairs which DO explain a rise be recorded *in the same run that
+reports it*, "or the next run cannot tell an explained rise from a new one".
+This is that record.
+
+**What the 01:03Z run reported.** `linear_deliverables_reconcile_v2`, video:
+`outbound_diff_count` 51 → 138 (+87), `diff_rows` 48 → 123 (+75), between the
+00:03Z and 01:03Z summaries. Graphics unchanged at 99/82 across the same window.
+
+**What caused it.** 123 video deliverables carry an `updated_at` after
+2026-09-05T00:00Z — the same number the reconciler reports as `diff_rows` — and
+**87 of them were written in one batch at 00:32Z**, all `origin='manual'`, all
+landing on `status='backlog'`. That is the 87-row "unattributed → backlog" SQL
+from the 2026-09-04 session, executed by the owner. The native rows moved;
+Linear was not told, because for a SyncView-authoritative team the reconciler is
+deliberately detect-only. Each such row is therefore counted as a divergence
+until something reconciles it, and nothing will — that is the designed
+behaviour, not a defect. The remaining 36 rows in the window are ordinary
+same-day traffic across 10 clients.
+
+**Consequence for the next run.** Treat a video `outbound_diff_count` at or near
+**138** as the new explained baseline, not as growth. A rise ABOVE it still
+needs an explanation. Graphics baseline is unchanged at 99.
+
+Measured with the browser publishable key against
+`production_deliverables_browser_v1` (`deliverables` itself returns 42501 to
+that key, which is why the view is the read).
+
+Everything else in the 2026-09-05 01:03Z watch was clean: webhooks 2/2/0;
+`prod_authority {"video":"syncview","graphics":"syncview"}`;
+`write_ui_reroute_clients` 43 members under `owner-enrollment-wave-3-full-roster`
+and EQUAL to all three `*_ef_clients` rosters (43 each); zero
+error/fail/reject/conflict/stale rows in `calendar_post_events` (331) or
+`sample_review_events` (24) in 12h; all three reconciler workflows green; F40
+graphics 125 audited / **0 unprovable**; inbound proven live by five
+`mirror_out_echo_dropped` rows, the freshest 01:19Z. Wave-1 soak day 28
+complete (day 29 in progress); wave-2 day 24 complete.
+
+---
+
+## 150. [2026-09-05, MEASURED — one owner decision unblocks the largest block] The Phase 2 call list: 42 of 107 the RPC can repair on its own, and 40 more are one classification question
+
+Item 148 says the Phase 2 call list has to be measured rather than assumed,
+because item 147's counts moved when Phase 1 ran. Measured 2026-09-05 01:48
+UTC, read-only, with the browser publishable key over `calendar_posts` and
+`production_deliverables_browser_v1`. Full table in
+`docs/ops/CROSSWALK_REPAIR_STRATEGY.md` §5.
+
+**1,214 client-calendar slots name a deliverable; 107 mismatch.** Running each
+through every guard the RPC enforces, in order:
+
+* **42 REPAIRABLE unattended** — 22 with no legacy thread to carry, 20 needing
+  the combined bind-and-import.
+* **40 refused on `kind`**, and this is the block worth the owner's attention.
+* **25 need a person** — 18 contested slots, 5 already bound elsewhere, 1
+  cross-client reference (the one item 147 §2 records), 1 with no provable
+  Linear identity on either side.
+
+### The identity guard costs one slot, and that is the point
+
+The Linear-identity requirement added after the #1273 review refuses exactly
+**one** of the 107. It was never going to exclude much work — its value is that
+it makes the other refusals trustworthy, because without it a stale pointer
+aimed at an innocent unbound row is indistinguishable from a real repair.
+Cheap insurance, and worth saying plainly so nobody later reads it as the thing
+holding Phase 2 up. It is not.
+
+### The 40 kind refusals are ONE question, not forty investigations
+
+In **all 40**, the card and the deliverable name the SAME Linear issue. These
+are not stale pointers; they are rows whose `kind` disagrees with the slot
+holding them. The live vocabulary is what makes it a judgement call rather than
+a defect:
+
+| team / kind | rows |
+|---|---|
+| video / video | 3,747 |
+| graphics / thumbnail | 2,326 |
+| **graphics / other** | **173** |
+| **video / thumbnail** | **81** |
+| graphics / video | 3 |
+
+* **26** are a graphic slot pointing at a `graphics/other` row. If `other` is a
+  mis-classified thumbnail, fixing the kind lets all 26 repair normally.
+* **14** are a VIDEO slot pointing at a `kind='thumbnail'` row. That is the more
+  suspicious half — same issue, wrong artifact class — and should be looked at
+  as a group rather than waved through.
+
+`scripts/f42-linkage-defect-repair.js` (`classAObjections`) already refuses this
+whole class for the planner, so the RPC refusing it is consistency with the
+existing rule, not a new restriction invented here. **The owner decision is
+whether `kind='other'` on a graphics row counts as a thumbnail.** Answering it
+moves the repairable set from 42 to 68 of 107.
+## 151. A Production deep link waited for the whole board before it could show one row
+
+**Owner report 2026-09-05**, following the calendar card's "Open the SyncView
+Production video sub-issue in a new tab" link (the graphic twin behaves the
+same): *"it always takes a lot of time to load. way too much time."*
+
+The link opens `?prod=1&d=<id>` in a fresh tab, so nothing is warm. In
+`_prodLoadData`, phase one awaited the whole live projection (thousands of
+rows, paged in sequence over a keyset walk) plus every batch, and only THEN
+called the one-row catch-up read `_prodFetchDeepLinkRow`. The comment beside
+that call promised it ran "in parallel"; it was parallel with the terminal
+tail and serial with the wait that actually hurt. The reader asked for one row
+and it was the last thing to arrive.
+
+**Fix (this PR).** `_prodDeepLinkFastPaint` starts the one-row read the moment
+`_prodLoadData` does, beside phase one. When the row lands it reads, in one
+more round trip and all in parallel, the row's batch by id, its parent by
+`linear_issue_uuid` (so a sub-issue renders as one, with its crumb, rather
+than as a parent with an empty sub-issues section), and awaits the clients and
+members reads phase one already started, off the same promises, so nothing is
+requested twice. It merges into whatever the snapshot holds and marks the pane
+`loaded`, so the detail paints while phase one is still downloading.
+`_prodCarryDeepLinkRows` then keeps the painted row across phase one's
+wholesale replacement of the deliverable set, so a finished row (excluded by
+`PROD_LIVE_FILTER`) does not drop back to a skeleton for the second it takes
+the catch-up read to put it back, and that catch-up read no longer fires at
+all for a row that is already there.
+
+What it deliberately does not do, because each would reopen an item on this
+ledger: it never consumes the deep link (108, five rounds; the authoritative
+pass after phase one is still the one place that happens), never writes the
+cache (a one-row snapshot painted over the next boot would be the stale
+first paint of 2026-08-24 again), and never publishes absence (an empty read
+here means NOT YET; the tail decides). A read that lands after phase one is
+discarded by the same generation check the catch-up read uses; a failed read
+leaves the old path exactly as it was. `refreshing` stays true throughout, so
+the auto-refresh cannot start a second load underneath.
+
+Pinned in `test/prod-deep-link-fast-paint.js`: read starts before phase one
+resolves; detail renderable once row + batch + parent + two small tables land;
+carry across phase one with exactly one copy and no duplicate read; link not
+consumed and cache not written by the paint; late read discarded; failed read
+harmless; no read without a link or when the snapshot has the row.
+
+**Still on the clock for this link, not touched here:** the tab is a fresh
+load of a ~5 MB `index.html`, and `init()` starts `fetchEssentials()` (the
+calendar's metrics and clients) beside the Production reads on every
+`?prod=1` boot, competing for the same connection. Neither is this row's
+wait, and both are larger changes than a perf report earns without a
+measurement first.
+
+---
+
+## 152. [2026-09-05, MEASURED — the gate is forward-only, and there are 11 rows behind it] What "sent for review with nothing to review" actually costs today
+
+The review-content gate (#1272) stops a component moving to For SMM / Kasper /
+Client Approval while the thing being reviewed is empty. It is **forward-only**:
+it refuses new moves and repairs nothing that already happened. So the fair
+question is what is already behind it, measured read-only 2026-09-05 with the
+browser publishable key.
+
+**A raw scan says 3,042 stranded component-slots across 9,937 calendar_posts.
+That number is misleading and should not be quoted.** It counts archived cards
+and off-roster clients. Scoped to what anyone actually opens — non-archived
+cards on the 42 active roster clients, **772 live cards** — the answer is:
+
+| Status / component | Slots |
+|---|---|
+| Client Approval / caption | 8 |
+| Client Approval / graphic | 1 |
+| For SMM Approval / video | 2 |
+| **Kasper Approval / anything** | **0** |
+| **TOTAL** | **11** |
+
+**Zero at Kasper Approval**, which is the specific complaint the gate was built
+for. The two sample-reel cards that prompted it were set back to In Progress by
+the owner at 00:42Z on 2026-09-05 and are clean. (Client not named: this repo is
+public and `test/repo-identity-exposure.js` counts a SLUG as an exposure, not
+just a display name — it caught this entry's first draft.)
+
+Of the 11, **7 are one client's captions at Client Approval** on podcast episode
+cards, where an empty caption may be correct rather than stranded. That is a
+judgement call for the owner, not a repair, and it is why this entry reports
+rather than fixes. **No repair is proposed and none was executed** — every one of
+these is on a real client, and the standing rule is that nothing outside the
+disposable test client is mutated unless the owner names another.
+
+---
+
+## 153. [2026-09-05, FIXED — browser-only, live on merge] The gate said "no" to two callers that were never listening
+
+Owner, 2026-09-05, on the gate shipped in #1272: *"just make sure we didn't
+cause a problem ... can you explain the rule and just make sure it doesn't break
+anything?"* Asked properly, it had — in two places, and the same way twice.
+
+### The rule, stated once
+
+A component may not be moved INTO `For SMM Approval`, `Kasper Approval` or
+`Client Approval` while the thing being reviewed is empty: video needs
+`asset_url`, thumbnail needs `thumbnail_url`, caption needs `caption` or
+`caption_alt`, title needs `name`. Every other status is untouched —
+`Tweaks Needed` is a rejection, and `In Progress` / `Approved` / `Scheduled` /
+`Posted` / `N/A` are left alone so bulk edits on legacy cards keep working.
+`N/A` is the escape hatch and is deliberately absent from `CAL_PRIORITY`, so a
+lane marked not-applicable stops holding the card's overall status down.
+
+### What broke
+
+`_calApplyAutoStatus` returns **false** for an empty component. Its callers
+ignore the return value — which was fine when it only ever returned false for
+"nothing to do", and is not fine now that it means "refused".
+
+`_calResolveLastTweak` (the Notes "resolve last change-request and route it
+onward" path) resolved the thread FIRST and called the router second. On a
+stranded component the thread closed, the status did not move, and **nobody was
+told**. That is worse than the stranding it replaced: the SMM picked a
+destination, watched the request disappear, and the card stayed put. Same defect
+in the samples twin `_sxrResolveLastTweak`.
+
+This is the identical shape Codex found in `_calReviewApprove` on #1272 — found
+there by review, found here by asking what the gate does to *every* caller
+rather than the one it was written for.
+
+**Fixed by refusing before mutating**, with the reason said out loud: *"Nothing
+was changed — the change request is still open."*
+
+The destination rule needed extracting to do it, and the extraction surfaced a
+trap: the chooser's auto-route and the approve-onward disagree on an
+unrecognised destination — the chooser defaults to **Client Approval**, the
+approve to **Kasper Approval**. Two rules, so `_calAutoResolveDestStatus` and
+`_calSmmApproveTo` are two functions; sharing one would have made each guard
+protect the wrong move. The test executes both and asserts they differ.
+
+### And the cosmetic half the owner asked for
+
+A correct refusal delivered after the click is the worse half of a correct
+refusal. The per-component status menu now renders an unreachable review status
+**disabled**, with the reason on hover, plus a note naming the way out: *"The
+review statuses need a thumbnail first. If this post will never have one, set it
+to N/A."*
+
+The note offers N/A **only where the menu carries it**, derived from the status
+list rather than hardcoded: `CAL_TITLE_STATUSES` has no N/A, and telling a
+reader to use a control that is not there is the dead-instruction class the
+2026-08 sweep kept finding. Samples get the same treatment minus the N/A clause,
+because `SXR_STATUSES` has none either.
+
+**The handler keeps its own check.** A disabled button is a courtesy: Set all,
+the auto-router and both approve paths all reach the rule without ever passing
+through this menu.
+
+---
+
+## 154. [2026-09-05, SWEPT — three more closed, three gaps named and left open on purpose] Every writer of a component status, under any prefix, against the review gate
+
+Owner, after item 153: *"make sure that you have discovered all the possible
+things it would break."* Items 152–153 found two callers by reading. This entry
+is the machine answer: every function in `index.html` that assigns a component
+status on a post, **with no prefix restriction**, classified against the gate.
+The restriction to `_cal*` / `_sxr*` in the earlier rosters is exactly how the
+three below were missed twice.
+
+**31 writers found.** 10 gated, 21 exempt with a stated reason each, 0
+unclassified — and the test that derives the list fails the moment a 32nd
+appears under any name. Plus every caller of the auto-router, whose refusal is
+a return value its callers were written to ignore.
+
+### Closed in this pass
+
+* **Kasper's own approve handlers** — `_kasperApproveComp` and
+  `_sxrKasperApproveComp` move a component to Client Approval, a review status,
+  with no content check. His Approve button is already disabled for a component
+  he cannot review, but a button is a courtesy and these are the handlers: a
+  panel rendered before the video URL was cleared still carries a live
+  `onclick`. Both now refuse at the handler with the reason shown inline.
+* **The journal retry** — `_writeUiRetryCardCommentResolve` replays a refused
+  comment-resolve from the durable write-UI journal and then routes the
+  component onward, ignoring the router's return. Two ways the replay can meet
+  an empty component: the content was cleared after the entry was written, or
+  the entry predates the gate. The resolve is still honoured (it is the recorded
+  action, and the gateway may already hold it); the **route** is refused out
+  loud — *"Change request resolved, but not sent on"* — instead of silently.
+
+### Left open, deliberately, and worth knowing
+
+1. **Linear inbound is a mirror.** `_calReconcileLinearStatuses`,
+   `_calSyncStatusFromLinear` and the samples twin write the status Linear
+   already holds. The gate is browser-side. **A Linear-side move of an empty
+   component to "For Kasper approval" still lands on the card unchallenged.**
+   Gating a mirror would make the card disagree with Linear rather than stop a
+   person; the fix, if one is wanted, is server-side in `linear-inbound`, and
+   the Linear exit removes the path entirely.
+2. **Journal entries written before the gate.** `_writeUiApplyJournalEdits`
+   replays edits that were gated when staged. Entries journaled before
+   2026-09-05 were not. A finite, shrinking population; not worth a guard that
+   would also refuse legitimate replays.
+3. **Kasper's undo** restores the status a component held moments before. The
+   state it restores existed. Gating a revert would strand the undo.
+
+The prefix-free roster, the router-caller check and both Kasper guards are in
+`test/cal-review-needs-content.js`, all mutation-proven.
+## 155. [2026-09-05, FIXED — four defects, one root cause behind three of them; one owner decision left open] Post-level assets, sub-issue file pills, Dropbox share links, and a drifted `origin`
 
 Owner report, in his words: "I put the frame folder [on the parent], but if I go
 to a sub-issue, it doesn't appear. But on the sub-issues, I can see the raw

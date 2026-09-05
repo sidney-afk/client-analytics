@@ -6046,3 +6046,32 @@ The provenance is visible muted text, not a `title`. It is the only signal that
 an assignment may be stale, and the Production tooltip layer listens for
 mouseover/mouseout only — as an attribute it would reach neither a keyboard nor
 a phone. OPEN_REPAIRS 146.
+
+## Social media manager card — the provenance line removed
+
+Reverses the third property recorded in the entry above. That entry says the
+last-sync provenance is visible muted text rather than a `title`, and as written
+it would have future Production work keep a line the owner does not want.
+
+He asked for it gone twice. It was my call to add it and the wrong one for this
+surface: the roster syncs nightly, the manager's name is the answer the reader
+opened the sub-issue for, and a second line of bookkeeping under every card is
+noise on a surface he uses all day. The card now renders the name alone.
+
+**The accessibility reasoning that shaped it still stands**, and is now enforced
+in the opposite direction: `test/prod-smm-line.js` asserts the card carries no
+tooltip at all, so the provenance cannot come back as a `title` or
+`data-prod-tip` — which would be worse than the visible line, because the
+Production tooltip layer listens for mouseover/mouseout only and reaches neither
+a keyboard nor a phone.
+
+That guard was itself broken when first written, and Codex caught it: it read
+`stripNonCode(card)`, which blanks every string literal — and the markup IS
+string literals, so neither attribute could ever appear and the assertion could
+not fail. It now reads a comments-stripped view that keeps the literals, and the
+fix is proven by mutation: re-adding `data-prod-tip` to the card makes it fail.
+Same could-not-fail class as OPEN_REPAIRS 144, in the very check meant to prevent
+the regression.
+
+`synced_at` still travels from `smm-weekly-reports`; the browser directory no
+longer carries the unused field.

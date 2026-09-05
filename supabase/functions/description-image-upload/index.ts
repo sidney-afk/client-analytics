@@ -23,7 +23,7 @@
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { matchingRoleForKey, type StaffRoleKey } from "../_shared/staff-role-auth.ts";
-import { BUCKET, MAX_BYTES, RATE_LIMIT_PER_HOUR, verifyImage } from "./policy.mjs";
+import { BUCKET, MAX_BYTES, RATE_LIMIT_PER_HOUR, ROLE_LIMIT_PER_HOUR, verifyImage } from "./policy.mjs";
 
 /* The server-side kill switch. Reverting Pages cannot reach a cached tab or
    a direct authenticated caller, so containment has to live where the write
@@ -181,18 +181,28 @@ async function reserveLedgerRow(
   if (error || !data) throw new UploadError(503, "ledger_write_failed");
   const id = clean((data as { id: unknown }).id);
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count, error: countError } = await supabase
-    .from("description_images")
-    .select("id", { count: "exact", head: true })
-    .eq("actor_key", String(row.actor_key))
-    .gte("created_at", since);
+  /* Two counts, both including this row. The per-actor one is the everyday
+     bound. The per-ROLE one is the bound a stolen key cannot dodge: the actor
+     header is caller-chosen, the role secret is not, and `actor_role` is the
+     role that secret resolved to (admin or smm here), so it is server-derived
+     rather than claimed. Codex on #1310, round two. */
+  const [actorCount, roleCount] = await Promise.all([
+    supabase.from("description_images")
+      .select("id", { count: "exact", head: true })
+      .eq("actor_key", String(row.actor_key))
+      .gte("created_at", since),
+    supabase.from("description_images")
+      .select("id", { count: "exact", head: true })
+      .eq("actor_role", String(row.actor_role))
+      .gte("created_at", since),
+  ]);
   /* The ledger IS the limiter. If it cannot be read the write cannot be
      bounded, so the reservation is withdrawn and the write does not happen. */
-  if (countError) {
+  if (actorCount.error || roleCount.error) {
     await supabase.from("description_images").delete().eq("id", id);
     throw new UploadError(503, "rate_limit_unavailable");
   }
-  if ((count || 0) > RATE_LIMIT_PER_HOUR) {
+  if ((actorCount.count || 0) > RATE_LIMIT_PER_HOUR || (roleCount.count || 0) > ROLE_LIMIT_PER_HOUR) {
     await supabase.from("description_images").delete().eq("id", id);
     throw new UploadError(429, "rate_limited");
   }

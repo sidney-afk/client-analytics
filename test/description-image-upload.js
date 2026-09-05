@@ -28,33 +28,44 @@ function ok(condition, message) {
 }
 
 /* ---- Byte fixtures: real headers, no pixel data ------------------------ */
-function png(width, height) {
-  const b = new Uint8Array(33);
+/* Each fixture is a header PLUS the closing structure a real file must have:
+   PNG's IEND, GIF's 0x3B trailer, JPEG's EOI, a WebP RIFF size that states
+   the file's own length. `headerOnly` strips that back off to prove the
+   truncation check (Codex on #1310, round two). */
+function png(width, height, headerOnly) {
+  const b = new Uint8Array(headerOnly ? 33 : 57);
   b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
   new DataView(b.buffer).setUint32(16, width);
   new DataView(b.buffer).setUint32(20, height);
+  if (!headerOnly) {
+    b.set([0, 0, 0, 0, 0x49, 0x44, 0x41, 0x54, 0, 0, 0, 0], 33); /* empty IDAT */
+    b.set([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82], 45); /* IEND */
+  }
   return b;
 }
-function gif(width, height) {
-  const b = new Uint8Array(14);
+function gif(width, height, headerOnly) {
+  const b = new Uint8Array(headerOnly ? 13 : 14);
   b.set([71, 73, 70, 56, 57, 97]);
   new DataView(b.buffer).setUint16(6, width, true);
   new DataView(b.buffer).setUint16(8, height, true);
+  if (!headerOnly) b[13] = 0x3b;
   return b;
 }
-function jpeg(width, height) {
-  /* SOI, APP0 (JFIF, 16 bytes), then SOF0 carrying the dimensions. */
+function jpeg(width, height, headerOnly) {
+  /* SOI, APP0 (JFIF, 16 bytes), then SOF0 carrying the dimensions, SOS, EOI. */
   const b = new Uint8Array([
     0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0,
     0xff, 0xc0, 0, 17, 8, 0, 0, 0, 0, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, 0xff, 0xda,
+    0, 8, 1, 1, 0, 0, 0x3f, 0, 0xff, 0xd9,
   ]);
   new DataView(b.buffer).setUint16(25, height);
   new DataView(b.buffer).setUint16(27, width);
-  return b;
+  return headerOnly ? b.slice(0, 41) : b;
 }
-function webp(width, height) {
+function webp(width, height, headerOnly) {
   const b = new Uint8Array(40);
   b.set([82, 73, 70, 70], 0);
+  new DataView(b.buffer).setUint32(4, headerOnly ? 4000 : 32, true); /* RIFF size = total - 8 */
   b.set([87, 69, 66, 80], 8);
   b.set([86, 80, 56, 32], 12);
   new DataView(b.buffer).setUint16(26, width, true);
@@ -107,6 +118,22 @@ ok(policy.verifyImage('image/png', big).error === 'image_too_large', 'one byte o
 const wide = policy.verifyImage('image/png', png(policy.MAX_DIMENSION + 1, 10));
 ok(wide.ok === false && wide.error === 'image_too_large', 'a header claiming more pixels than the dimension ceiling is refused');
 ok(policy.verifyImage('image/png', png(0, 10)).error === 'image_dimensions_invalid', 'zero pixels is not an image');
+
+/* ---- 3b. A header is not a file ---------------------------------------- */
+console.log('a body that stops after its header is refused');
+ok(policy.verifyImage('image/png', png(10, 10, true)).error === 'image_incomplete',
+  'THE ROUND-TWO FINDING: a 33-byte PNG signature + IHDR with no IEND is refused, not stored forever as a broken URL');
+ok(policy.verifyImage('image/gif', gif(10, 10, true)).error === 'image_incomplete', 'a GIF without its 0x3B trailer is refused');
+ok(policy.verifyImage('image/jpeg', jpeg(10, 10, true)).error === 'image_incomplete', 'a JPEG without its EOI marker is refused');
+ok(policy.verifyImage('image/webp', webp(10, 10, true)).error === 'image_incomplete', 'a WebP whose RIFF size does not match its length is refused');
+ok(policy.imageComplete('png', png(10, 10)) && policy.imageComplete('gif', gif(10, 10))
+  && policy.imageComplete('jpeg', jpeg(10, 10)) && policy.imageComplete('webp', webp(10, 10)),
+  'and each complete fixture passes the same check');
+const realPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+const realVerdict = policy.verifyImage('image/png', new Uint8Array(realPng));
+ok(realVerdict.ok === true && realVerdict.width === 1 && realVerdict.height === 1,
+  'a real 1x1 PNG from an encoder passes end to end (the same bytes the nightly probe uploads)');
+ok(policy.ROLE_LIMIT_PER_HOUR > policy.RATE_LIMIT_PER_HOUR, 'the per-role ceiling sits above the per-actor one');
 ok(Object.keys(policy.ALLOWED_TYPES).sort().join(',') === 'image/gif,image/jpeg,image/png,image/webp',
   'the allowlist is exactly png, jpeg, webp, gif — no svg, no bmp, no tiff');
 ok(Object.values(policy.EXTENSION).every(ext => /^[a-z]+$/.test(ext)),
@@ -134,10 +161,18 @@ ok(HANDLER.indexOf('await reserveLedgerRow(') < HANDLER.indexOf('.upload('),
 const reserve = HANDLER.slice(HANDLER.indexOf('async function reserveLedgerRow('), HANDLER.indexOf('Deno.serve('));
 ok(reserve.indexOf('.insert(row)') < reserve.indexOf('count: "exact"'),
   'and inside the reservation the INSERT precedes the COUNT, so the count includes the caller\'s own row');
-ok(/\(count \|\| 0\) > RATE_LIMIT_PER_HOUR/.test(reserve) && /\.delete\(\)\.eq\("id", id\)[\s\S]*?throw new UploadError\(429, "rate_limited"\)/.test(reserve),
-  'a count above the ceiling withdraws the reservation and answers 429 — concurrent uploads at the boundary cannot exceed the bound');
-ok(/if \(countError\) \{[\s\S]*?\.delete\(\)\.eq\("id", id\)[\s\S]*?rate_limit_unavailable/.test(reserve),
+ok(/\(actorCount\.count \|\| 0\) > RATE_LIMIT_PER_HOUR \|\| \(roleCount\.count \|\| 0\) > ROLE_LIMIT_PER_HOUR/.test(reserve)
+  && /\.delete\(\)\.eq\("id", id\)[\s\S]*?throw new UploadError\(429, "rate_limited"\)/.test(reserve),
+  'a count above EITHER ceiling withdraws the reservation and answers 429 — concurrent uploads at the boundary cannot exceed the bound');
+ok(/\.eq\("actor_role", String\(row\.actor_role\)\)/.test(reserve),
+  'THE ROUND-TWO FINDING: the second ceiling is keyed to actor_role, which the ROLE SECRET resolved, not to the caller-chosen actor header');
+ok(/if \(actorCount\.error \|\| roleCount\.error\) \{[\s\S]*?\.delete\(\)\.eq\("id", id\)[\s\S]*?rate_limit_unavailable/.test(reserve),
   'an unreadable ledger withdraws the reservation and refuses: the write cannot be bounded, so it does not happen');
+const PROBE = fs.readFileSync(path.join(ROOT, 'qa/probes/p96_description_image_upload.js'), 'utf8');
+const MANIFEST = fs.readFileSync(path.join(ROOT, 'qa/probes/nightly-manifest.txt'), 'utf8');
+ok(/^p96_description_image_upload\.js$/m.test(MANIFEST), 'the nightly manifest runs the live-function probe');
+ok(/functions\/v1\/description-image-upload/.test(PROBE) && /roster_actor_required/.test(PROBE) && /image_bytes_unrecognized|image_type_mismatch/.test(PROBE),
+  'and the probe exercises the deployed function: CORS, flag, key, actor binding, and the byte check, against the real backend');
 ok(/if \(uploadError\) \{[\s\S]*?\.delete\(\)\.eq\("id", ledgerId\)/.test(HANDLER),
   'a failed storage write withdraws the reservation, so it neither counts against the actor nor points at nothing');
 /* Codex on #1310: a server-side kill switch, because a Pages revert cannot

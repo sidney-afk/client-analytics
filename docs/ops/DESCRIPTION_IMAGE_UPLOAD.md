@@ -49,7 +49,23 @@ upload is switched off right now."*
 **Rate limit is a reservation, not a look.** The ledger row is inserted
 BEFORE the object and the count that decides the limit includes the caller's
 own row, so ten screenshots dropped at once at the ceiling all withdraw
-rather than all pass. A failed storage write withdraws the row too.
+rather than all pass. A failed storage write withdraws the row too. Two
+ceilings on that row: 120/hour per actor, and 600/hour per ROLE KEY. The
+second exists because the actor header is caller-chosen and the role secret
+is shared, so a stolen key could name each active member in turn; the role
+that secret resolved to is the one thing the caller cannot forge.
+
+**A header is not a file.** After the magic bytes agree with the label, the
+body must also carry its format's closing structure (PNG `IEND`, GIF `0x3B`,
+JPEG `FFD9`, a WebP RIFF length matching the file), so a signature-plus-IHDR
+stub is refused as `image_incomplete` instead of stored forever as a URL that
+renders broken.
+
+**The robots know it exists.** `qa/probes/p96_description_image_upload.js`
+runs nightly against the deployed function: the browser's preflight, the
+refusal order (flag, key, roster), and, when the nightly also holds
+`SYNCVIEW_STAFF_ACTOR`, a real 1x1 PNG round trip through the public URL plus
+the three byte refusals. It retains one 68-byte object per full run.
 
 **Sizing, because it was the second half of the ask** (*"avoid things where
 people paste something and it looks huge or horrible"*): a Retina screenshot

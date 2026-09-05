@@ -22,6 +22,13 @@ export const MAX_DIMENSION = 8000;
    with a dozen screenshots is normal -- so the number is roomy, and the point
    is that a stolen key cannot fill the bucket, not that a busy SMM is slowed. */
 export const RATE_LIMIT_PER_HOUR = 120;
+/* Per ROLE KEY, per rolling hour, across every actor that key can name. The
+   actor header is caller-chosen and the key is shared per role, so a stolen
+   key could name each active member in turn and get a fresh per-actor
+   allowance for each. This ceiling is keyed to the one thing the caller
+   cannot forge: which role secret authenticated the request. The named
+   actor stays as audit metadata. Raised by Codex on #1310, round two. */
+export const ROLE_LIMIT_PER_HOUR = 600;
 /* Declared content type -> the kind its bytes must prove. SVG is absent on
    purpose: it is a script container, not a picture. */
 /** @type {Readonly<Record<string, ImageKind>>} */
@@ -127,6 +134,36 @@ function sniffWebp(b) {
 }
 
 /**
+ * A header is not a file. The sniffers above read only the leading bytes, so
+ * a 24-byte PNG signature plus IHDR would pass them with no pixel data behind
+ * it and be stored forever as a URL that renders broken. Each format has a
+ * mandatory closing structure that a truncated body cannot have: PNG ends in
+ * an IEND chunk, GIF in a 0x3B trailer, JPEG in an EOI marker, and a WebP's
+ * RIFF header states the file's own length. Cheap, exact, and enough to
+ * refuse every header-only body; a full decode is not attempted in the Edge
+ * runtime. Raised by Codex on #1310, round two.
+ * @param {ImageKind} kind
+ * @param {Uint8Array} b
+ * @returns {boolean}
+ */
+export function imageComplete(kind, b) {
+  const n = b.length;
+  if (kind === "png") {
+    /* signature 8 + IHDR 25 + at least one IDAT 12 + IEND 12 */
+    return n >= 57 && ascii(b, n - 8, 4) === "IEND";
+  }
+  if (kind === "gif") return n >= 14 && b[n - 1] === 0x3b;
+  if (kind === "jpeg") return n >= 4 && b[n - 2] === 0xff && b[n - 1] === 0xd9;
+  if (kind === "webp") {
+    const riffSize = b[4] + (b[5] << 8) + (b[6] << 16) + (b[7] << 24);
+    /* RIFF size excludes its own 8-byte header; an odd chunk may carry one
+       pad byte, so the file is either exactly that or one byte longer. */
+    return riffSize > 12 && (n === riffSize + 8 || n === riffSize + 9);
+  }
+  return false;
+}
+
+/**
  * The bytes decide. Returns the ONE kind the header proves plus its pixel
  * dimensions, or null. Each sniffer is exact about its own signature, so a
  * file cannot satisfy two, and anything with no recognised signature (SVG,
@@ -159,6 +196,7 @@ export function verifyImage(declared, bytes) {
   if (sniffed.width > MAX_DIMENSION || sniffed.height > MAX_DIMENSION) {
     return { ok: false, error: "image_too_large", status: 413 };
   }
+  if (!imageComplete(sniffed.kind, bytes)) return { ok: false, error: "image_incomplete", status: 415 };
   return {
     ok: true,
     kind: sniffed.kind,

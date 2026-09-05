@@ -12936,3 +12936,26 @@ screenshots, and the doc said forever was the honest default).
    opens it through the same delegated opener as the click. Still no handler
    attribute on the element, which the alt text must never be able to forge.
 
+**Amended again before merge (Codex on #1310, round two): three more, all taken.**
+1. **[P1] The per-actor limit was keyed to a forgeable name.** Right:
+   `x-syncview-actor` is caller-chosen and the role key is shared, so a stolen
+   key could name each active same-role member in turn and collect a fresh
+   120/hour for each. The reservation now counts a second ceiling, 600/hour,
+   keyed to `actor_role`, which is the role the SECRET resolved to and not a
+   claim. The named actor stays as audit metadata.
+2. **[P2] The sniffers stopped at the header.** Right: 24 bytes of PNG
+   signature plus IHDR passed, and a direct caller (or the browser's honest
+   pass-through when it cannot decode) would have stored it forever as a URL
+   that renders broken. `imageComplete` now requires each format's closing
+   structure (IEND, GIF trailer, EOI, RIFF length) before the verdict; refused
+   as `image_incomplete`, which the browser maps to "That image file is cut
+   off or damaged."
+3. **[P1] Nothing under `qa/` touched the new writer.** Right, and AGENTS.md
+   says the robots are part of the product. `qa/probes/p96_description_image_upload.js`
+   is in the nightly manifest: the browser's preflight, the refusal order
+   (flag, key, roster) with the key alone, and, with `SYNCVIEW_STAFF_ACTOR`
+   set in the nightly's secrets, a real 1x1 PNG round trip through the public
+   URL plus the three byte refusals. One 68-byte object is retained per full
+   run, stated in the probe rather than cleaned up through a delete path that
+   does not exist.
+

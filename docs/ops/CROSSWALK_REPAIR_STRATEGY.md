@@ -270,11 +270,16 @@ After applying it re-exports and reports what is left.
 **Forecast, read-only, 2026-09-05 evening, publishable key, after the migration
 was applied:** 1,214 slots, 1,107 clean, 107 mismatching → **100 calls** (18
 with an eviction, 18 occupants: Kasper approval 6, scheduled 4, canceled 3,
-posted 3, tweak 1, approved 1), **64 of the 100 carry a legacy thread — 133
+posted 3, tweak 1, approved 1), **64 of the 100 carry a legacy thread — 132
 comments ride along**, 0 deferred, 0 held back; 7 skipped
 (already_bound_elsewhere 5, client_mismatch 1, linear_identity_unproven 1);
 relabels other→thumbnail 26, thumbnail→video 14. The same 100 / 18 / 7 the
-ruling measured, now produced by the runner itself.
+ruling measured, now produced by the runner itself. The first forecast said 133
+comments: 13 card ids are shared by two or more clients on live
+(`calendar_posts` is keyed on (client, id)), and the runner's first version
+keyed its import lookup on card id alone, so one client's comment was
+attributed to another client's call — Codex P1 on #1296. The planner now runs
+one client at a time; the comment count is what each card actually holds.
 
 **The three owner steps, in order:** (1) apply
 `migrations/2026-09-05-crosswalk-bind-and-import.sql` in the SQL Editor;

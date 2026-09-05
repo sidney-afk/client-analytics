@@ -7470,6 +7470,10 @@
             .header-nav::-webkit-scrollbar { display: none; }
             .header-nav-btn { flex-shrink: 0; }
             .main { padding: 18px 14px 80px; }
+            /* Keep Calendar toolbar controls in the page; cards scroll inside their strip. */
+            #calView .cal-toolbar-mid { flex: 0 1 auto; min-width: 0; max-width: 100%; flex-wrap: wrap; }
+            #calView .cal-view-toggle { max-width: 100%; flex-wrap: wrap; }
+            #calView .cal-organize + .cal-client-links .dropdown-menu { left: auto; right: 0; }
             .search-bar-pill { width: calc(100vw - 48px); }
             /* Full-screen notes modal; dvh tracks the on-screen keyboard so
                the composer stays visible while typing (falls back to the

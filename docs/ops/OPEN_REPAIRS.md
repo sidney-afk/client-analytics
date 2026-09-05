@@ -12850,30 +12850,31 @@ open" list above are the whole of what is left.
 
 The owner looked at each of the 7 slots the runner refuses for a person, with
 both sides named (the card, the issue it links, and the card that holds the
-deliverable), and ruled. Row identities stay out of this public file on
-purpose — `calendar_posts` is anonymously readable, so a card id here would
-resolve to a client's production row; the exact slot list is what the runner's
-plan summary names by reason on every run, and the mapping used tonight is
-held privately (session record):
+deliverable), and ruled every one. This public file keeps only the aggregate:
+the per-row topology would let a reader re-run the classifier against the
+anonymously readable tables and pick out each row, so the per-row rulings live
+in the session record, and the runner's plan summary is the live list, by
+reason, on every run.
 
-| # | client | slot | reason | what it is | ruling |
-|---|---|---|---|---|---|
-| 1 | A | video, on an archived card | already_bound_elsewhere | duplicate card of a posted one; the posted card holds the deliverable and links the same issue | leave |
-| 2 | B | video, on a live card | already_bound_elsewhere | two reels cut from one January filming day, tracked in January as one Linear issue per day, no sub-issues; both cards correctly link that issue; the row remembers the first card | leave |
-| 3 | B | graphic, on an archived card | linear_identity_unproven | row already bound to this card; only its origin stamp disagrees; the card's graphic slot carries no Linear link; unstarted thumbnail on an archived card | leave |
-| 4 | C | video, on an archived card | client_mismatch | an archived card pointing at another client's issue (the item 147 §2 case) | leave; never bind |
-| 5, 6 | D | video and graphic, on an archived card | already_bound_elsewhere | duplicate card of an approved one; the approved card holds both deliverables and links the same issues | leave |
-| 7 | D | video, on an approved card | already_bound_elsewhere | the issue was auto-created by SyncView Mirror from a native card that is now archived and still held the deliverable; the approved card is the real post | **move the deliverable to the approved card** (owner ruling: an archived card never wins) |
+| | count |
+|---|---|
+| ruled "leave" | 6 |
+| ruled "move" (one guarded row update by the owner) | 1 |
+| by reason: already_bound_elsewhere / client_mismatch / linear_identity_unproven | 5 / 1 / 1 |
 
-Slot 7 was moved by the owner in the SQL Editor, late that evening, as a single
-guarded row update (`EXECUTION_LOG.md`, 2026-09-05, "one-row crosswalk
-move"). The ledger guard wrote its bare `update` event. Re-read with the
-runner's own classifier minutes later: the approved card's slot is clean; the
-archived native card now shows as `already_bound_elsewhere` for the same
-deliverable — the same "archived loser" shape as rows 1, 5 and 6 — so the
-count stays 7 but every one of the 7 is now a ruled "leave". The unused
-auto-made thumbnail on that archived card (a Todo Graphics issue) can be
-retired whenever the owner likes — **through SyncView's native status path,
+What the "leave" rulings are, in kind and without pointing at rows: archived
+duplicate cards whose live twin already holds the deliverable and links the
+same issue; a pair of live cards that correctly share one Linear issue because
+that client's work was tracked as one issue per filming day at the time; an
+unstarted thumbnail on an archived card with no Linear link to prove identity;
+and an archived card pointing at another client's issue (the item 147 §2 case),
+which is never bound. The "move" is the owner's standing ruling — an archived
+card never wins — applied by hand to one row (`EXECUTION_LOG.md`, 2026-09-05,
+"one-row crosswalk move"); the ledger guard wrote its bare `update` event.
+Re-read with the runner's own classifier minutes later: still 7 mismatching, 0
+bindable, the same three reasons — and every one of the 7 now carries a ruling.
+An unused auto-made thumbnail that came with the moved row's archived card can
+be retired whenever the owner likes — **through SyncView's native status path,
 not by editing Linear**: Graphics is SyncView-authoritative, so `linear-inbound`
 treats a manual Linear status edit as detect-only and reconciliation would put
 it back; a native cancel goes out through the outbox with the F27 binder like

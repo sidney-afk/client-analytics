@@ -6371,10 +6371,9 @@ write, no outbox intent, no comment moved: the issue, its status, and both
 cards' links are what they were. Reversal is the same statement with the two
 card ids swapped. The old card id is **not** on the ledger event (the guard
 records only op and reason, and the row keeps only the new value); it survives
-in the owner's SQL Editor history, in the session record, and — durably, in the
-data itself — as the archived native card whose video slot still names this
-deliverable, which the runner's plan lists as `already_bound_elsewhere` for
-exactly this reason. The prior `updated_at` (from the second apply) is not
+in the owner's SQL Editor history and in the session record (the archived
+card's own slot pointer also still names the deliverable, but this file does
+not describe how to find it). The prior `updated_at` (from the second apply) is not
 restorable. Not exercised.
 
 **After.** The runner's classifier, re-run read-only minutes later: 1,214

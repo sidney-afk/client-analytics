@@ -24,6 +24,18 @@ manifest or mirror change, and not authority to enable any native epoch.
   Section 4 closure pins. That merge is not performed here so the tested base
   stays the one the evidence below was produced on.
 
+**Addendum, later the same day.** After the draft PR opened, remote `main` had moved
+again to `ab6366136c03239965c97b050ab5cf7c9763a228` (eight commits, all documentation:
+`EXECUTION_LOG.md`, `docs/ops/CROSSWALK_REPAIR_STRATEGY.md`, `docs/ops/OPEN_REPAIRS.md`;
+no source, migration or workflow change). A merge simulation of that main into this head
+auto-merges `production-write/index.ts`, `EXECUTION_LOG.md`, `REPO_MAP.md` and
+`ROLLBACK.md`, and conflicts only in the two Section 4 pin carriers
+(`.github/workflows/deploy-f27-section4-closures.yml`, `test/f27-section4-deploy-lane.js`,
+where main still carries its own production-write digests) and in the appended
+`OPEN_REPAIRS.md` ledger tail. Those are the integration conflicts predicted above; they
+are left to the coordinator's exact integration on purpose, so this branch's evidence
+stays bound to the base it ran on. The drift is recorded here; the branch is unchanged.
+
 ## The confirmed defect
 
 Explicit VIDEO assignment on a server-admitted native intake still reached

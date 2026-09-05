@@ -1,0 +1,19 @@
+Continue in the existing native-completion Claude session.
+
+Repository: sidney-afk/client-analytics. This is an isolated implementation/review task under the coordinator's existing Linear-exit program, not a new exit audit. Read current AGENTS.md completely, including the frozen anonymous-client-writer directive, then the owning truth/runbook documents and deployment manifest. Work from the exact base below in your own checkout/branch; record main drift without integrating unrelated changes.
+
+No production or TEST data access/mutations, merges, deployments, migrations applied to a real service, flag changes, n8n edits/execution, provider calls, credentials/billing changes, alerts, or scheduled check-in loops. Local disposable databases and fully intercepted synthetic browser tests are allowed. Never expose client identities, secrets or sensitive records. Preserve historical commits and failed receipts. Frozen calendar-upsert/sample-review-upsert and anonymous access must remain unchanged. SyncLinear must never create subissues.
+
+Deliver a clean separately stacked draft PR, exact head/base, meaningful baseline-fails/candidate-passes tests, client-visible behavior, rollback, and explicit unproved serving/live gates. Do not broaden scope or weaken tests to get green. Stop at a finite handoff; the coordinator owns integration and release.
+
+Base: PR1308 at 48f75012a3826d27ef087556eca90b941709d3c1. Preserve that draft; create a separately reviewable correction branch.
+
+Independent review closed the public CLI disclosure and exercised post-install deletion-provenance cases (62 SQL/gateway checks and14 CLI checks pass). It found a real regression in production_card_materialization_guard: create a card through the reconciler, rename it through the actual writer, then deliberately rename it back to its original title. On BOTH Calendar and Samples, the writer returns200 but retains the intermediate title. The trigger compares resulting field values to the initial creation signature and mistakes a legitimate human action for an old retry. Its creation classifier can also include matching non-intake/copied rows. Do not substitute another content heuristic. The migration activates these table triggers immediately; an unscheduled runner is not an activation guard.
+
+Your task is to make the native-completion approach safe at this boundary. First identify a trustworthy operation/receipt distinction covering old in-flight and saved browser jobs, normal human resets, and non-intake cards. State what the unchanged frozen writer can actually convey. Do not assume a waiting period drains all old jobs. If no distinction can safely cover a cohort, structurally disable automatic Stage2 for that cohort and retain its visible debt; keep Stage1's safe missing-child recovery separately usable. A documented hold alone is insufficient.
+
+Implement the smallest sound change you can prove. Also revalidate exact expected child identity/cardinality under mutation locks before any card change; the existing final check only examines surviving children. Correct the audit's reversed lock-order claim. Preserve original IDs, immutable manifests, epochs, actor attribution, idempotency, F27 fences and deleted/archived/occupied-card protections.
+
+Use actual writer/gateway/SQL tests: both human rename-back cases, genuine late browser retry, copied/non-intake lookalike, simultaneous child deletion/relink, and rollback under failure. Preserve the four passing media/archive/occupied-slot controls. Optional private export must remain unavailable until its path guard rejects in-repository '..private' paths and symlink escapes.
+
+If the required protocol cannot be completed safely in this session, publish only a structurally disabled safe preparatory change and a precise remaining contract. Do not declare card completion or Decision A ready.

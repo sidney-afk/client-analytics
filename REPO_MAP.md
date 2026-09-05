@@ -65,6 +65,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 `docs/independence/GO_LIVE_CHECKLIST.md` owns the current G0–G10 Linear retirement sequence; its older flip material is preserved as nonoperative history. `docs/audits/2026-09-04-linear-exit-evidence.md` holds the sealed independent surface/source ledger, `docs/audits/2026-09-04-linear-exit-measurements.json` holds sanitized live/source proof, and `docs/audits/2026-09-04-linear-exit-adjudication.md` judges all prior plans/reviews. These are analysis only: no release, flag, writer, n8n, billing or data change is authorized by their existence.
 
+The September 5 execution checkpoint is `docs/audits/2026-09-05-linear-exit-execution-evidence.md`. Exact GitHub states are retained in `docs/audits/2026-09-05-linear-exit-github-checkpoint.md` and `docs/audits/2026-09-05-linear-exit-github-checkpoint.json`; the independent held-completion review is `docs/audits/2026-09-05-native-completion-independent-review.md` with `docs/audits/2026-09-05-native-completion-independent-review.json`. The bounded, launch-unconfirmed handoffs are `docs/independence/LINEAR_EXIT_HANDOFF_NATIVE_COMPLETION_2026-09-05.md`, `docs/independence/LINEAR_EXIT_HANDOFF_FEEDBACK_RECOVERY_2026-09-05.md` and `docs/independence/LINEAR_EXIT_HANDOFF_SCHEMA_RESTORE_2026-09-05.md`. These are evidence and assignments under the same checklist, not alternative exit plans or release authorization.
+
 ## Test & automation entry points
 
 | Command / trigger | What runs | Notes |

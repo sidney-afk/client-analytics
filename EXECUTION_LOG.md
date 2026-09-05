@@ -6046,3 +6046,8 @@ The provenance is visible muted text, not a `title`. It is the only signal that
 an assignment may be stale, and the Production tooltip layer listens for
 mouseover/mouseout only — as an attribute it would reach neither a keyboard nor
 a phone. OPEN_REPAIRS 146.
+
+
+## 2026-09-05 - Publish the Linear-exit execution evidence and bounded handoffs
+
+Documentation only under draft PR1268. GO_LIVE_CHECKLIST remains the single G0-G10 sequence and Decision A remains NOT READY. Publish the 23:15 UTC exact-head GitHub inventory, the independent PR1308 review (two real human-reset failures retained), and the three previously delivered Claude assignment texts. Update assignment69 and history1311aab to their completed independent review/current-head CI; distinguish the published fingerprint7e branch with 238 local handler groups from absent hosted/SQL/full-recovery proof. Preserve the sealed September4 evidence and historical failed receipts. Private operator packets, raw sensitive records and credentials remain outside GitHub. No application, workflow, SQL, deployment, data, flag, alert or billing change. Validation and publication status are recorded with the resulting PR head; the snapshot does not pre-claim checks on its own later documentation commit.

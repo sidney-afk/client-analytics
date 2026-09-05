@@ -1,0 +1,188 @@
+{
+  "snapshot_started_utc": "2026-09-05T23:15:26.732Z",
+  "captured_at_utc": "2026-09-05T23:15:28.119Z",
+  "authority": "Public GitHub REST; exact head check-runs (latest, per_page100) and combined commit statuses",
+  "entries": [
+    {
+      "number": 1268,
+      "type": "pull_request",
+      "head_sha": "1cc9664c079642e576e2cfe1d0a4a73a7c75fe1c",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "check_runs": {
+        "total": 3,
+        "complete": true,
+        "counts": {
+          "success": 3
+        },
+        "non_success": []
+      },
+      "commit_statuses": {
+        "total": 0,
+        "complete": true,
+        "combined_state": "pending",
+        "counts": {},
+        "non_success": []
+      }
+    },
+    {
+      "number": 1295,
+      "type": "pull_request",
+      "head_sha": "56fad300638094e268d2f10dabaf0ffc5661ec6d",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "check_runs": {
+        "total": 8,
+        "complete": true,
+        "counts": {
+          "success": 6,
+          "skipped": 2
+        },
+        "non_success": [
+          {
+            "name": "production-polish-interaction",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "production-polish-heavy",
+            "status": "completed",
+            "conclusion": "skipped"
+          }
+        ]
+      },
+      "commit_statuses": {
+        "total": 0,
+        "complete": true,
+        "combined_state": "pending",
+        "counts": {},
+        "non_success": []
+      }
+    },
+    {
+      "number": 1303,
+      "type": "pull_request",
+      "head_sha": "92d261c45ab9bacef38829c0fc7c9597e344ca61",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "check_runs": {
+        "total": 4,
+        "complete": true,
+        "counts": {
+          "success": 4
+        },
+        "non_success": []
+      },
+      "commit_statuses": {
+        "total": 0,
+        "complete": true,
+        "combined_state": "pending",
+        "counts": {},
+        "non_success": []
+      }
+    },
+    {
+      "number": 1308,
+      "type": "pull_request",
+      "head_sha": "48f75012a3826d27ef087556eca90b941709d3c1",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "check_runs": {
+        "total": 3,
+        "complete": true,
+        "counts": {
+          "success": 3
+        },
+        "non_success": []
+      },
+      "commit_statuses": {
+        "total": 0,
+        "complete": true,
+        "combined_state": "pending",
+        "counts": {},
+        "non_success": []
+      }
+    },
+    {
+      "number": 1309,
+      "type": "pull_request",
+      "head_sha": "69ae5d338486bd8084e6bbdbe65be1c44f63dbe1",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "check_runs": {
+        "total": 4,
+        "complete": true,
+        "counts": {
+          "success": 4
+        },
+        "non_success": []
+      },
+      "commit_statuses": {
+        "total": 0,
+        "complete": true,
+        "combined_state": "pending",
+        "counts": {},
+        "non_success": []
+      }
+    },
+    {
+      "number": 1311,
+      "type": "pull_request",
+      "head_sha": "aab2acd23112f7bdff849a9c0b68306d41bbf62c",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "check_runs": {
+        "total": 3,
+        "complete": true,
+        "counts": {
+          "success": 3
+        },
+        "non_success": []
+      },
+      "commit_statuses": {
+        "total": 0,
+        "complete": true,
+        "combined_state": "pending",
+        "counts": {},
+        "non_success": []
+      }
+    },
+    {
+      "type": "branch",
+      "branch": "fix/calendar-comment-receipt-fingerprint-20260905",
+      "head_sha": "7e5a743cce8a1552bc822e0e560896451f983cdf",
+      "state": "published",
+      "draft": null,
+      "merged": null,
+      "check_runs": {
+        "total": 0,
+        "complete": true,
+        "counts": {},
+        "non_success": []
+      },
+      "commit_statuses": {
+        "total": 0,
+        "complete": true,
+        "combined_state": "pending",
+        "counts": {},
+        "non_success": []
+      }
+    }
+  ],
+  "errors": [],
+  "proof_limits": [
+    "No main or live-product refresh.",
+    "No local tests rerun.",
+    "Zero check runs is no hosted proof, not a passing check.",
+    "Skipped checks are separate from success.",
+    "All returned check/status pages must be complete to call this an exhaustive snapshot.",
+    "Check results establish only their named CI scope; no deployment, serving, database installation, owner activation or full client journey is implied.",
+    "Branch-only record does not establish PR creation or merge state."
+  ]
+}

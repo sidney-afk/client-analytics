@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "review": "native-completion-independent-correction-review",
+  "review_date": "2026-09-05",
+  "pull_request": 1308,
+  "head": "48f75012a3826d27ef087556eca90b941709d3c1",
+  "correction_parent": "df3d0325cac89d3fa9a0fdcb004933025b25ad27",
+  "stacked_prerequisite": {
+    "pull_request": 1302,
+    "head": "8cb5cba91bc33fb17599b8f2a38625ae07f7743d"
+  },
+  "verdict": "CHANGES_REQUIRED_BEFORE_RELEASE",
+  "all_three_original_blockers_closed": false,
+  "review_scope": "exact-source review and previously executed synthetic local PostgreSQL, actual repository writers, browser functions and CLI child processes",
+  "serving_evidence": false,
+  "live_actions": false,
+  "new_test_execution_for_publication": false,
+  "executed_evidence": {
+    "postgresql_version": "16.14",
+    "owned_disposable_server_stopped": true,
+    "original_sql_gateway_writer_lane": { "passed": 62, "failed": 0, "sql_skipped": false },
+    "actual_cli": { "passed": 14, "failed": 0 },
+    "additional_independent_cases": {
+      "passed": 4,
+      "failed": 2,
+      "cases": [
+        { "case": "human_title_reset", "surface": "calendar", "result": "FAIL", "http_status": 200, "requested_title_persisted": false },
+        { "case": "human_title_reset", "surface": "samples", "result": "FAIL", "http_status": 200, "requested_title_persisted": false },
+        { "case": "media_archive_title_preservation", "surface": "calendar", "result": "PASS" },
+        { "case": "media_archive_title_preservation", "surface": "samples", "result": "PASS" },
+        { "case": "occupied_slot_preservation", "surface": "calendar", "result": "PASS" },
+        { "case": "occupied_slot_preservation", "surface": "samples", "result": "PASS" }
+      ]
+    },
+    "warnings_retained": ["experimental_module_warnings", "inherited_fixture_projection_read_diagnostics"]
+  },
+  "blocker_adjudication": [
+    { "blocker": "public_cli_identifiers", "status": "CLOSED_IN_EXERCISED_CLI_PATHS", "source": "scripts/native-intake-reconcile/run.js", "symbol": "publicReport", "lines": [112, 113] },
+    { "blocker": "missing_create_event_deleted_card_resurrection", "status": "CLOSED_FOR_EXERCISED_POST_INSTALL_PROVENANCE", "source": "migrations/2026-09-05-native-intake-reconcile.sql", "symbol": "production_card_provenance_record", "lines": [295, 320, 323], "historical_recovery": "HELD_AS_CARD_PROVENANCE_UNAVAILABLE" },
+    { "blocker": "late_browser_replay_versus_human_changes", "status": "NOT_RELEASE_CLOSED", "priority": "P2", "source": "migrations/2026-09-05-native-intake-reconcile.sql", "symbol": "production_card_materialization_guard", "lines": [334, 343, 348, 352, 353], "reason": "The creation signature cannot distinguish an old replay from a legitimate human reset producing equal values." }
+  ],
+  "remaining_findings": [
+    { "finding": "child_set_identity_and_cardinality_under_locks", "priority": "P2", "status": "OPEN_UNPROVED", "source": "migrations/2026-09-05-native-intake-reconcile.sql", "symbol": "production_intake_reconcile_cards", "lines": [563, 689, 690, 784, 787], "fresh_race_test": false },
+    { "finding": "incorrect_documented_lock_order", "status": "SOURCE_CONFIRMED", "source": "docs/audits/2026-09-05-native-intake-reconcile.md", "lines": [162, 163], "actual_order": "deliverables_before_card_rows", "sql_lines": [689, 690, 702, 706] },
+    { "finding": "private_export_path_containment", "status": "SOURCE_ONLY_NOT_EXECUTED", "source": "scripts/native-intake-reconcile/run.js", "symbol": "privateReportPath", "lines": [57, 58], "reason": "Prefix-only parent-path check and unresolved symlink ancestors do not establish an outside-repository destination." },
+    { "finding": "materialization_classification_without_operation_receipt", "status": "SOURCE_SCOPE_ONLY", "source": "migrations/2026-09-05-native-intake-reconcile.sql", "symbol": "production_card_is_materialization", "lines": [285, 292], "copy_ui_journey_tested": false }
+  ],
+  "activation": {
+    "migration_installs_active_card_update_triggers_immediately": true,
+    "trigger_source": "migrations/2026-09-05-native-intake-reconcile.sql",
+    "trigger_lines": [368, 371],
+    "unscheduled_runner_is_activation_guard": false,
+    "migration_application": "HOLD",
+    "automatic_stage2": "HOLD",
+    "stage1_independent_value": "PRESERVED_WITHOUT_SPLIT_OR_DEPLOYMENT_AUTHORIZATION"
+  },
+  "source_sha256": {
+    "migrations/2026-09-05-native-intake-reconcile.sql": "01fb224218b15fb4b92872fff73c6c11c66b4c93a60c2e46c38b3a5a7579b712",
+    "scripts/native-intake-reconcile/run.js": "260b2b849b4d20493e44b2fc5f12890440e9c2ee52d4aa2d0d63e24751457ccb",
+    "scripts/native-intake-reconcile/reconcile-lib.js": "b97b6ba9fb153b373ca45c24d92ed4630f0cf2e8022fef191d84a252422a8f8f",
+    "scripts/native-intake-reconcile/lane.mjs": "d2aff0cf02d57bd0659e604e3e2b574c2006e8d58f25423bbcc120f6f2a355f4",
+    "test/native-intake-reconcile-cli.js": "f2352f0ce220e8e58640b4b0b0eb3b97dfbc1c835a155a6740a44ae806428eca"
+  },
+  "retained_evidence_sha256": {
+    "sql_gateway_writer_and_independent_cases": "d14faa241779e2b4d10c013c7c77eda3f81cd71d3242fa8bb55724e26a04abe1",
+    "actual_cli_child_processes": "e0475186c112b7dd911a9ae21c498f5bf67c36d3db0a61b2ed0adf7aea24fdd2",
+    "augmented_lane": "7bb7e3cfb4020968ffb1cc3a0b066fd5a4b459fe1c5b9bef8b4340318a632d5d",
+    "augmentation_builder": "3dae9643e64a368de3fcd26d3cb91a963020d0a421e8baf03ef912e9df4189ba",
+    "owned_database_launcher": "6f34dc13113a012470ed0af4f9ad7cd03687a43147d34d509e11ac83b17c3796"
+  },
+  "unproven": [
+    "full_installed_schema_constraints_triggers_and_realtime",
+    "serving_writer_parity",
+    "old_job_population_and_retirement",
+    "child_set_concurrency_proof",
+    "safe_private_export_destination_containment",
+    "deployment",
+    "operational_scheduling",
+    "provider_era_child_recovery"
+  ]
+}

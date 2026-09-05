@@ -48,7 +48,7 @@ function clientSlug(value) {
   return normalized.replace(/[^a-z0-9&]+/g, '');
 }
 
-async function runCase({ reroute = [], legacy, native = [], nativeError = null, pendingSlug = '' }) {
+async function runCase({ reroute = [], legacy, native = [], nativeError = null, pendingSlug = '', archivedActors = [], archiveError = null }) {
   const events = [];
   const context = {
     LINEAR_PROJECTS_WEBHOOK: 'https://legacy.invalid/webhook/linear-projects',
@@ -69,6 +69,11 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
     },
     _calV2Log: () => {},
     _linearIntakeRead: () => pendingSlug ? { payload: { client_slug: pendingSlug } } : null,
+    _linearIntakeUnresolvedRead: () => {
+      if (archiveError) throw archiveError;
+      return archivedActors.map(actor => ({ actor }));
+    },
+    _linearIntakeRequireActor: marker => { if (marker.actor !== 'current') throw new Error('foreign actor'); },
     calClientSlug: clientSlug,
     document: { getElementById: () => null },
     renderLinearSearchResults: () => {},
@@ -198,6 +203,20 @@ async function runCase({ reroute = [], legacy, native = [], nativeError = null, 
   assert.deepStrictEqual(Array.from(pending.context.linearClientRows).map(row => row.slug), ['pendingclient'],
     'a de-enrolled pending job must retain its native client row for recovery');
   assert(pending.events.includes('native'));
+
+  const recoveryRows = [{ slug: 'archivedclient', display_name: 'Archived Native Name', active: true }];
+  for (const archivedActors of [['current'], ['foreign']]) {
+    const archived = await runCase({ legacy: ['Legacy Name'], native: recoveryRows, archivedActors });
+    assert.strictEqual(archived.events.includes('native'), archivedActors[0] === 'current',
+      'only an authorized archive may trigger the recovery catalog read');
+    assert.deepStrictEqual(Array.from(archived.context.linearProjects), ['Legacy Name'],
+      'archive recovery never enrolls a dropdown name');
+  }
+  const unreadableArchive = await runCase({
+    legacy: ['Legacy Name'], native: recoveryRows, reroute: ['archivedclient'],
+    archiveError: new Error('fixture archive storage unavailable'),
+  });
+  assert(unreadableArchive.events.includes('native'), 'an enrolled roster read does not depend on archive storage');
 
   console.log('Linear project source gate checks passed');
 })().catch(error => { console.error(error); process.exit(1); });

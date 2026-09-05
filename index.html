@@ -13825,10 +13825,15 @@
         try {
             if (typeof _writeUiPrimeRerouteFlag === 'function') await _writeUiPrimeRerouteFlag();
             const pendingNativeClientSlug = _linearPendingNativeClientSlug();
+            const hasArchivedRecovery = !_writeUiRerouteClients.size && !pendingNativeClientSlug
+                && _linearIntakeUnresolvedRead().some(marker => {
+                    try { _linearIntakeRequireActor(marker); return true; } catch (error) { return false; }
+                });
             // The visible native source is cohort-only. A de-enrolled client may
             // still need its registry row to resume an already-checkpointed native
-            // intake, but that recovery exception never changes dropdown names.
-            if (_writeUiRerouteClients.size || pendingNativeClientSlug) {
+            // intake or identify its archived scope. Neither recovery exception
+            // changes dropdown names or enrolls another client.
+            if (_writeUiRerouteClients.size || pendingNativeClientSlug || hasArchivedRecovery) {
                 const url = CAL_SUPABASE_URL + '/rest/v1/clients?select=slug,display_name,kind,active&active=eq.true&order=display_name.asc';
                 const resp = await fetch(url, { headers: {
                     apikey: CAL_SUPABASE_ANON_KEY,
@@ -47155,6 +47160,19 @@
         const status = document.getElementById('linearStatus');
         const clientName = input?.value?.trim() || '';
         const selectedClientSlug = String(input?.dataset.clientSlug || '').trim();
+        // Scope decisions belong to the initiating actor. A catalog/flag/auth
+        // wait must not carry those decisions into another signed-in account.
+        const actorBinding = () => {
+            const actor = _syncviewStaffIdentityForHeaders();
+            return JSON.stringify([typeof _isIntake !== 'undefined' && _isIntake,
+                String(actor && actor.member && actor.member.id || ''), _syncviewStaffRoleValue(actor)]);
+        };
+        const initiatingActor = actorBinding();
+        const actorStillCurrent = () => {
+            if (actorBinding() === initiatingActor) return true;
+            if (status) status.textContent = 'The signed-in account changed. Review this submission and retry.';
+            return false;
+        };
         const selectionStillCurrent = () => {
             const current = document.getElementById('linearClientSearch');
             return current === input
@@ -47181,10 +47199,12 @@
             if (!linearClientRows.length) {
                 try { await fetchLinearProjects(); }
                 catch (error) {
+                    if (!actorStillCurrent()) return;
                     if (status) status.textContent = 'The client list could not be loaded. Retry before submitting.';
                     return;
                 }
             }
+            if (!actorStillCurrent()) return;
             if (!selectionStillCurrent()) {
                 if (status) status.textContent = 'The client selection changed. Review it and submit again.';
                 return;
@@ -47196,6 +47216,7 @@
         const useGateway = pendingNativeIntake || unresolvedNativeIntake
             ? true
             : await _writeUiRerouteUseGatewayWhenReady(selectedClientSlug || clientName);
+        if (!actorStillCurrent()) return;
         if (!selectionStillCurrent()) {
             if (status) status.textContent = 'The client selection changed. Review it and submit again.';
             return;
@@ -47204,6 +47225,7 @@
             return _submitLinearFormLegacy(mode);
         }
         if (!linearClientRows.length) await fetchLinearProjects();
+        if (!actorStillCurrent()) return;
         if (!selectionStillCurrent()) {
             if (status) status.textContent = 'The client selection changed. Review it and submit again.';
             return;
@@ -47234,6 +47256,7 @@
             try { identity = await _syncviewRequireStaffIdentity('intake'); }
             catch (error) { status.textContent = (error && error.message) || 'Admin or SMM sign-in required.'; return; }
         }
+        if (!actorStillCurrent()) return;
         if (!selectionStillCurrent()) {
             if (status) status.textContent = 'The client selection changed. Review it and submit again.';
             return;
@@ -47311,6 +47334,11 @@
             return;
         }
 
+        if (!actorStillCurrent()) return;
+        if (!selectionStillCurrent()) {
+            if (status) status.textContent = 'The client selection changed. Review it and submit again.';
+            return;
+        }
         const buttons = ['linearSubmitBtnVideo', 'linearSubmitBtnThumbnail', 'linearSubmitBtnBoth']
             .map(id => document.getElementById(id)).filter(Boolean);
         const buttonHtml = buttons.map(button => button.innerHTML);

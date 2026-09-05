@@ -434,6 +434,8 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     localStorage: { getItem: () => null },
     _linearIntakeRead: () => null,
     _linearIntakeUnresolvedRead: () => [],
+    _syncviewStaffIdentityForHeaders: () => ({ role: 'admin', member: { id: 'fixture-actor' } }),
+    _syncviewStaffRoleValue: identity => identity.role,
     _writeUiRerouteUseGatewayWhenReady: () => submitRoute,
     _submitLinearFormLegacy: () => submitRaceCalls.push('legacy'),
     linearClientRows: [{ slug: 'sidneylaruel' }],

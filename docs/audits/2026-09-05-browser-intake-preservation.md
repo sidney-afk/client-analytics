@@ -7,6 +7,47 @@ Its handoff and corrected G2b explain why a failed response can follow a committ
 batch and one child. Its 63 current checks, 13 red readiness gates, and seven
 unproven entries are not a native-independence certificate.
 
+## Composed catalog and actor correction
+
+Re-review of `a9c5102df55889cc59d1a2bffbf7ac9198026992` found two composed defects:
+the actual catalog loader skipped the native roster for archive-only recovery
+when routing was off/failed, and Submit retained an earlier actor's scope decision
+across asynchronous reads. The browser fixture now composes the real catalog
+loader, project-source rebuild, canonical resolver, restored form, routing-flag
+reader and Submit handler. HTTP responses are intercepted and held to exercise
+the waits; neither the loader nor the routing decision is replaced.
+
+Against that exact reviewed source, the extended fixture exits 1: an unrelated
+cold-catalog submission is refused (no `/rest/v1/clients` read), and changing an
+unmarked actor B to protected actor A during a false/failed flag read dispatches
+one legacy request where zero is required. Catalog-race cases on that baseline
+also expose the missing roster read, so they do not independently prove an
+actor race through that missing response. The flag-wait cases prove the actor
+bypass independently. Different-selection baseline cases already stop dispatch
+but report only a selection change.
+
+The loader now reads the roster for an archived marker belonging to the current
+actor, without changing cohort enrollment or the legacy dropdown names. Foreign
+markers do not trigger that read. Existing cohort/pending reads do not depend on
+archive storage. Submit captures actor ID, role and public-intake mode, rechecks
+them after catalog/flag/auth waits and before dispatch, and visibly stops when
+they change. Existing F44 receipt recovery keeps its earlier priority.
+
+Candidate results: all **18 composed browser cases pass**, covering cold
+archive-only protected/unrelated clients, real catalog failure, actor C-to-A
+changes during catalog reads, unmarked B-to-A changes during flag reads, same
+and different selections, false and failed flags, unchanged-actor success, and
+selection-only changes. F44 priority, hidden foreign markers, immutable payloads,
+scrubbed archives, retry budgets and visible recovery remain covered by the
+existing fixture and **23/23** preservation checks. Public-intake, native-intake
+UI, routing/source tests and **69** durability checks pass; repository-map
+**277/277** and truth-sync **527/527** pass. No unrelated full suite was rerun.
+
+Proof logs are local ignored artifacts under `.codex-tmp/`:
+`composed-browser-baseline.log`, `composed-browser-candidate.log`, and the
+`composed-<test-name>.log` targeted logs. These are local intercepted checks,
+not evidence of deployment, server-owned recovery or safe rollback.
+
 ## Name-only routing correction
 
 Independent re-review of `6c2be5a8a55a6ec2573c9ec6ad24b85b607aef4f` found that a

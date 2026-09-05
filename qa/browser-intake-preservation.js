@@ -55,14 +55,30 @@ async function main(){
   try {
     const context=await browser.newContext(); const page=await context.newPage();
     let mode='hold', release, gateway=[], cards=[], unexpected=[], flagMode='off', flagReads=0;
+    let holdFlag=false, releaseFlag, holdCatalog=false, releaseCatalog, catalogFailure=false;
+    const catalogReads=[];
+    const catalog=[{slug:'fixture-client',display_name:'Fixture Client'}, {slug:'fixture-unrelated',display_name:'Fixture Unrelated'}];
+    const legacyProjects=['Fixture Client','Fixture Unrelated'];
     await context.route('**/*',async route=>{
       const req=route.request(), url=new URL(req.url());
       if(url.hostname==='app.fixture.invalid') return route.fulfill({contentType:'text/html',body:'<!doctype html><html><body></body></html>'});
       if(url.hostname==='log.fixture.invalid') return route.fulfill({json:{ok:true}});
-      if(url.hostname==='flags.fixture.invalid') {
+      if(url.hostname==='catalog.fixture.invalid') {
+        catalogReads.push(url.pathname);
+        assert.equal(url.pathname,'/projects');
+        return route.fulfill({json:legacyProjects});
+      }
+      if(url.hostname==='flags.fixture.invalid' && url.pathname==='/rest/v1/syncview_runtime_flags') {
         flagReads++;
+        if(holdFlag) await new Promise(resolve=>{releaseFlag=resolve;});
         return flagMode==='failed' ? route.fulfill({status:503,json:{error:'fixture unavailable'}})
           : route.fulfill({json:[]});
+      }
+      if(url.hostname==='flags.fixture.invalid' && url.pathname==='/rest/v1/clients') {
+        catalogReads.push(url.pathname);
+        if(holdCatalog) await new Promise(resolve=>{releaseCatalog=resolve;});
+        return catalogFailure ? route.fulfill({status:503,json:{error:'fixture unavailable'}})
+          : route.fulfill({json:[...catalog,{slug:'fixture-unenrolled',display_name:'Native Only Unenrolled'}]});
       }
       if(url.hostname==='gateway.fixture.invalid'){
         const payload=req.postDataJSON(); gateway.push(payload);
@@ -218,7 +234,6 @@ async function main(){
       function _calV2Log(){}
     `+['_calRuntimeFlagClients','_clientCommentGatewaySetFlagValue','_writeUiSetRerouteFlagValue',
       '_writeUiFetchRerouteFlagOnce','_writeUiPrimeRerouteFlag','_writeUiRerouteUseGateway','_writeUiRerouteUseGatewayWhenReady','wlNormalizeClient','_submitLinearFormLegacy'].map(extract).join('\n')});
-    const catalog=[{slug:'fixture-client',display_name:'Fixture Client'}, {slug:'fixture-unrelated',display_name:'Fixture Unrelated'}];
     async function restoreForm(name,slug,rows=catalog) {
       await page.evaluate(({name,slug,rows})=>{
         identity={role:'admin',member:{id:'actor-a',name:'Fixture Staff'}};
@@ -260,27 +275,115 @@ async function main(){
     await restoreForm('Fixture Unrelated',null);
     const beforeUnrelated=await page.evaluate(()=>window.legacyRequests);
     await submit();assert.equal(await page.evaluate(()=>window.legacyRequests),beforeUnrelated+1,'unrelated canonical client retains established failed-flag legacy routing');
-    await restoreForm('Fixture Client',null,[]);
-    await page.evaluate(()=>{window.releaseCatalog=null;fetchLinearProjects=()=>new Promise(resolve=>{window.releaseCatalog=rows=>{linearClientRows=rows;resolve();};});});
-    const beforeRaceLegacy=await page.evaluate(()=>window.legacyRequests), beforeRaceNative=gateway.length;
-    await page.getByRole('button',{name:'Create deliverables'}).click();
-    await page.waitForFunction(()=>typeof window.releaseCatalog==='function');
-    await page.evaluate(rows=>{const input=document.getElementById('linearClientSearch');input.value='Fixture Unrelated';input.dataset.clientSlug='fixture-unrelated';window.releaseCatalog(rows);},catalog);
-    await page.waitForFunction(()=>!linearSubmitInFlight);
-    assert.equal(await page.evaluate(()=>window.legacyRequests),beforeRaceLegacy);assert.equal(gateway.length,beforeRaceNative);
-    assert.match(await page.locator('#linearStatus').innerText(),/client selection changed/);
-    await restoreForm('Fixture Client',null,[]);
-    await page.evaluate(()=>{fetchLinearProjects=async()=>{throw new Error('fixture catalog unavailable');};});
-    await submit();assert.equal(await page.evaluate(()=>window.legacyRequests),beforeRaceLegacy);
-    assert.match(await page.locator('#linearStatus').innerText(),/client list could not be loaded/);
+    // Compose the actual loader, dropdown source, flag reader, resolver and
+    // handler. Delay intercepted HTTP responses, never replace the loader.
+    await page.addScriptTag({content:`
+      var LINEAR_PROJECTS_WEBHOOK='https://catalog.fixture.invalid/projects';
+      var linearProjectsLoadGeneration=0, linearProjectsLoading=false, linearProjectsLoaded=false;
+      var linearLegacyProjects=[], linearProjects=[];
+    `+['_linearPendingNativeClientSlug','_linearRebuildProjectSource','_linearRenderProjectSource',
+      'renderLinearSearchResults','fetchLinearProjects'].map(extract).join('\n')});
+    const composedFailures=[];
+    async function checkCase(name,run) {
+      try {await run();console.log('ok composed '+name);}
+      catch(error) {composedFailures.push(name+': '+error.message);console.error('FAIL composed '+name+': '+error.message);}
+    }
+    async function prepare(actor,name,state,{cold=true,failedCatalog=false}={}) {
+      holdFlag=false;releaseFlag=null;holdCatalog=false;releaseCatalog=null;catalogFailure=failedCatalog;flagMode=state;
+      await restoreForm(name,null,cold?[]:catalog);
+      await page.evaluate(actor=>{
+        identity={role:'admin',member:{id:actor,name:'Fixture Staff'}};
+        _writeUiRerouteFlagPromise=null;_writeUiRerouteFlagFailed=false;_writeUiRerouteClients=new Set();
+        linearLegacyProjects=[];linearProjects=[];linearProjectsLoaded=false;linearProjectsLoading=false;
+        _linearIntakeRefreshRecovery();
+      },actor);
+      assert.equal(await page.evaluate(()=>_linearIntakeRead()),null,'only archived markers, no active pending job');
+      return {legacy:await page.evaluate(()=>window.legacyRequests),native:gateway.length,reads:catalogReads.length};
+    }
+    async function noDispatch(before,message) {
+      assert.equal(await page.evaluate(()=>window.legacyRequests),before.legacy,'zero legacy dispatch');
+      assert.equal(gateway.length,before.native,'zero native dispatch');
+      assert.match(await page.locator('#linearStatus').innerText(),message);
+    }
+    async function releaseAfterChange(kind,{actor,selection=false}={}) {
+      await page.getByRole('button',{name:'Create deliverables'}).click();
+      // A baseline loader can skip /clients entirely. Await the real request or
+      // completion so that a regression produces an assertion, not a hung test.
+      const deadline=Date.now()+5000;
+      while(!(kind==='catalog'?releaseCatalog:releaseFlag)) {
+        if(!await page.evaluate(()=>!!linearSubmitInFlight) || Date.now()>deadline) break;
+        await new Promise(resolve=>setTimeout(resolve,10));
+      }
+      const releaseResponse=kind==='catalog'?releaseCatalog:releaseFlag;
+      assert.equal(typeof releaseResponse,'function',kind+' HTTP response must be reached');
+      await page.evaluate(({actor,selection})=>{
+        if(actor) identity={role:'admin',member:{id:actor,name:'Fixture Staff'}};
+        if(selection){const input=document.getElementById('linearClientSearch');input.value='Fixture Unrelated';input.dataset.clientSlug='fixture-unrelated';}
+      },{actor,selection});
+      releaseResponse();await page.waitForFunction(()=>!linearSubmitInFlight);
+    }
+    for(const state of ['off','failed']) {
+      await checkCase('cold archive-only unrelated client / '+state,async()=>{
+        const before=await prepare('actor-a','Fixture Unrelated',state);
+        await submit();
+        assert.equal(await page.evaluate(()=>window.legacyRequests),before.legacy+1,'unrelated cold client retains legacy fallback');
+        assert.equal(gateway.length,before.native);
+        assert.deepEqual(catalogReads.slice(before.reads),['/projects','/rest/v1/clients']);
+        assert.deepEqual(await page.evaluate(()=>linearProjects),legacyProjects,'archive read cannot enroll dropdown names');
+        assert.equal(await page.evaluate(()=>_writeUiRerouteClients.size),0);
+        assert.equal(await page.evaluate(()=>_writeUiRerouteFlagFailed),state==='failed');
+      });
+      await checkCase('cold archive-only protected client / '+state,async()=>{
+        const before=await prepare('actor-a','Fixture Client',state);
+        await submit();await noDispatch(before,/See its recovery notice/);
+      });
+      await checkCase('real catalog failure / '+state,async()=>{
+        const before=await prepare('actor-a','Fixture Client',state,{failedCatalog:true});
+        await submit();await noDispatch(before,/Select one client/);
+        assert.deepEqual(catalogReads.slice(before.reads),['/projects','/rest/v1/clients']);
+        assert.deepEqual(await page.evaluate(()=>linearProjects),legacyProjects);
+      });
+      for(const selection of [false,true]) {
+        await checkCase('actor C -> A during catalog / '+state+' / selection '+selection,async()=>{
+          const before=await prepare('actor-c','Fixture Client',state);
+          holdCatalog=true;
+          await releaseAfterChange('catalog',{actor:'actor-a',selection});
+          await noDispatch(before,/signed-in account changed/);
+        });
+        await checkCase('unmarked actor B -> A during flag / '+state+' / selection '+selection,async()=>{
+          const before=await prepare('actor-b','Fixture Client',state);
+          holdFlag=true;
+          await releaseAfterChange('flag',{actor:'actor-a',selection});
+          await noDispatch(before,/signed-in account changed/);
+        });
+      }
+      await checkCase('unchanged unmarked actor / '+state,async()=>{
+        const before=await prepare('actor-b','Fixture Unrelated',state);
+        await submit();assert.equal(await page.evaluate(()=>window.legacyRequests),before.legacy+1);
+        assert.equal(gateway.length,before.native);
+      });
+    }
+    await checkCase('actor changes during failing catalog',async()=>{
+      const before=await prepare('actor-c','Fixture Client','failed',{failedCatalog:true});
+      holdCatalog=true;await releaseAfterChange('catalog',{actor:'actor-a'});
+      await noDispatch(before,/signed-in account changed/);
+    });
+    await checkCase('unchanged actor, changed selection during real catalog',async()=>{
+      const before=await prepare('actor-a','Fixture Client','off');
+      holdCatalog=true;await releaseAfterChange('catalog',{selection:true});
+      await noDispatch(before,/client selection changed/);
+    });
     // Existing F44 receipts keep priority and their transport, even if catalog
     // resolution is unavailable. F44 semantics remain exercised by its suite.
+    const beforeF44=await prepare('actor-a','Fixture Client','failed',{failedCatalog:true});
     await page.evaluate(()=>localStorage.setItem(LINEAR_RECEIPTS_KEY,'fixture-existing-receipt'));
-    await submit();assert.equal(await page.evaluate(()=>window.legacyRequests),beforeRaceLegacy+1);
+    await submit();assert.equal(await page.evaluate(()=>window.legacyRequests),beforeF44.legacy+1);
+    assert.equal(gateway.length,beforeF44.native);assert.equal(catalogReads.length,beforeF44.reads);
     await page.evaluate(()=>localStorage.removeItem(LINEAR_RECEIPTS_KEY));
     assert.deepEqual(unexpected,[]);
     console.log('ok canonical marker routing: actual restored name-only/slug forms, false/failed flags, ambiguous/unresolved names, unrelated client');
-    console.log('ok canonical selection race/catalog failure: zero dispatch; existing F44 receipt recovery retains priority');
+    console.log('ok existing F44 receipt recovery retains priority without catalog access');
+    assert.deepEqual(composedFailures,[],'all actual loader/flag/actor composition cases must pass');
   } finally {await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

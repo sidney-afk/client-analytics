@@ -67,7 +67,7 @@ begin
       or nullif(v_item->'row'->>'id', '') is null
       or v_item->'row'->>'batch_id' is distinct from p_row->>'id'
       or v_item->'row'->>'client_slug' is distinct from p_row->>'client_slug'
-      or v_item->'row'->>'team' not in ('video', 'graphics')
+      or coalesce(v_item->'row'->>'team', '') not in ('video', 'graphics')
       or v_item->>'child_dedup' is distinct from
         'write-ui:create:deliverable:' || (v_item->'row'->>'id') || ':' || v_request
       or nullif(v_item->>'child_fingerprint', '') is null

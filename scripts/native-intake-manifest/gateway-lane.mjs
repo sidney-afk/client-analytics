@@ -377,6 +377,10 @@ try {
     result = await rpcSql(rootArgs, role);
     ok(role + '-cannot-call-private-writer', result.status !== 0 && /permission denied/.test(result.stderr));
   }
+  const invalidTeam = structuredClone(rootArgs);
+  delete invalidTeam.p_manifest.expected_items[1].row.team;
+  result = await rpcSql(invalidTeam);
+  ok('missing-expected-team-refused-before-manifest-replay', result.status !== 0 && /invalid_intake_manifest/.test(result.stderr));
   result = await runSql("set role service_role; update public.production_intake_manifests set request_intent='{}';");
   ok('service-role-cannot-overwrite-manifest', result.status !== 0 && /permission denied/.test(result.stderr));
   result = await runSql('set role service_role; delete from public.production_intake_manifests;');

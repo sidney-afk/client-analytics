@@ -131,7 +131,7 @@ Live rollback and stale-serving population behavior remain a release gate.
 
 ## Execution receipt
 
-Local PostgreSQL 16.14 executed the actual gateway lane: 38 candidate checks and
+Local PostgreSQL 16.14 executed the corrected actual gateway lane: 41 candidate checks and
 3 baseline controls passed. No SQL lane skipped. The baseline controls establish
 the original missing-manifest and lost-generated-brief behavior and preserve the
 validity of timestamp-omitted retry. Simulated transport faults intentionally log
@@ -142,12 +142,26 @@ Related source/registration checks pass: repo-map-sync, truth-sync,
 ef-deploy-provenance, f27-section4-deploy-lane, intake-retry-mirror-convergence,
 intake-created-status-server-guard, submission-thumbnail-text,
 public-intake-open-submission, production-intake-append, samples-intake-lane,
-filming-plan-from-client and dropbox-share-query-keys. The final captured-main
-gateway rerun and affected asset regressions are recorded with the exact PR head
+filming-plan-from-client, dropbox-share-query-keys, post-asset-resolution,
+batch-asset-write, deliverable-file-two-way and write-ui-failure-messages.
+The final captured-main gateway rerun and affected asset regressions are recorded with the exact PR head
 in its review handoff. Hosted exact-head CI must also execute the new unit entry;
 pending hosted checks are not described as passed here.
 
 Production-write expected closure (five files):
-`3eeef25019b93805117bd8f7f9ff27b20c7f6e5877f48bd8ace40f7230afe0e5`.
+`7583b345fad9ce1e443c78508948e9ff7e908ce64c6a73d5b3b8da54b263995d`.
 Only its Section 4 source pin changes; entrypoint/file count and other function
 pins are unchanged. The generated deploy-ownership manifest is unchanged.
+
+Hosted first-head unit job `101352189938` executed all 38 manifest checks and 3
+controls successfully, then failed only the existing write-ui-failure-messages
+registration: a new internal result error lacked browser guidance. The correction
+uses the established `idempotent_result_missing` contract for missing/malformed
+manifest results, with two additional actual-handler cases proving that accepted
+parent/manifest evidence remains intact and no children dispatch on bad readback.
+No browser code or existing guidance is changed. The corrected exact-head result
+is reported in the PR handoff; the first-head unit failure remains historical.
+The correction also rejects an absent expected team at the SQL boundary and
+makes the loopback fixture guard follow the shared Cluster's exact environment
+precedence, including F42_REHEARSAL_SOCKET. A higher-priority host override cannot
+bypass the local-only fixture contract.

@@ -283,7 +283,7 @@ jobs:
       # commit, which test/write-ui-failure-messages.js requires.
       # Draft root manifest closure: apply the additive root-manifest migration
       # before any separately authorized deployment. No activation in this PR.
-      PRODUCTION_WRITE_SOURCE_SHA256: 3eeef25019b93805117bd8f7f9ff27b20c7f6e5877f48bd8ace40f7230afe0e5
+      PRODUCTION_WRITE_SOURCE_SHA256: 7583b345fad9ce1e443c78508948e9ff7e908ce64c6a73d5b3b8da54b263995d
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

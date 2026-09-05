@@ -9,7 +9,7 @@ if (process.env.F63_REQUIRE_POSTGRES !== '1' && process.env.INTAKE_MANIFEST_REQU
   console.log('SKIP native intake manifest: disposable PostgreSQL not explicitly required');
   process.exit(0);
 }
-const host = process.env.F42_REHEARSAL_PGHOST || process.env.PGHOST || '';
+const host = process.env.F42_REHEARSAL_SOCKET || process.env.F42_REHEARSAL_PGHOST || process.env.PGHOST || '';
 if (!['localhost', '127.0.0.1', '::1'].includes(host)) throw new Error('manifest proof requires disposable loopback PostgreSQL');
 let cluster;
 try {

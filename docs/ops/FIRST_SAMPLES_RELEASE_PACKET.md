@@ -64,7 +64,8 @@ recovery HTML, patch and manifest together; never apply an inverse to unmatched
 serving bytes. The private integration receipts also record exact component
 equality, commands, failures and the preserved historical pair.
 
-This local branch has not been pushed or used to update #1295. Root review and
+At this local proof checkpoint, this branch had not been pushed or used to
+update #1295. Root review and
 an explicitly requested named review of the final commit must precede any
 publication decision. Earlier review and green #1295 CI belong to `e665ba77`,
 not this new merge. Applicable hosted checks on the eventual published head,

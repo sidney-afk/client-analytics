@@ -12881,8 +12881,9 @@ and preserves the new tree's assets, owned work, receipts and cache.
 **Not closed by this record.** Review of the new final commit, applicable hosted
 checks, exact serving/writer pre-state, approved populated TEST journeys with
 persistence/readback, and operational monitoring/independent recovery proof
-remain release gates. Previous CI belongs to `e665ba77`; this local merge has
-not been pushed, deployed or exercised against production. Do not use an older
+remain release gates. Previous CI belongs to `e665ba77`; at this local proof
+checkpoint, the merge had not been pushed, deployed or exercised against
+production. Do not use an older
 whole HTML document as rollback: it cannot display the new owned debt. Do not
 infer a live fix, full comment history or zero-loss guarantee from the offline
 checks. Close this entry only with the reviewed release, serving and bounded

@@ -1,0 +1,81 @@
+name: Native intake reconcile (manual, dry-run by default)
+
+# Server-owned completion of ACCEPTED native intake work: recover missing
+# expected children from the immutable root manifest, then materialize the
+# Calendar/Samples card binding. Everything it does is decided inside the SQL
+# functions of migrations/2026-09-05-native-intake-reconcile.sql under the
+# request lock; this workflow only pages the backlog and reports.
+#
+# DISABLED BY CONSTRUCTION UNTIL AUTHORIZED. There is deliberately NO schedule
+# trigger: the migration is unapplied and no release window has authorized the
+# reconciler. Merging this file installs nothing and runs nothing. A dispatch
+# with apply=false is a read-only report against whatever is installed; a
+# dispatch with apply=true is refused unless `confirm` carries the exact phrase.
+# Adding a schedule is an owner decision recorded in the release audit, never a
+# follow-up edit.
+#
+# This job never calls Linear and holds no Linear credential.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Recover children and materialize cards (default: report only)'
+        type: boolean
+        default: false
+      confirm:
+        description: 'Type RECONCILE_NATIVE_INTAKE_APPLY to allow apply=true'
+        default: ''
+      limit:
+        description: 'Maximum owed requests to process in this run'
+        default: '25'
+      request_id:
+        description: 'Optional comma-separated request ids to restrict the run'
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-intake-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      APPLY: ${{ inputs.apply == true && 'true' || 'false' }}
+      CONFIRM: ${{ inputs.confirm }}
+      LIMIT: ${{ inputs.limit || '25' }}
+      REQUEST_ID: ${{ inputs.request_id }}
+      NATIVE_INTAKE_RECONCILE_ACTOR: github-actions:native-intake-reconcile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require the service role and, for apply, the exact confirmation
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY is not configured; refusing to report a green reconcile."
+            exit 1
+          fi
+          if [ "$APPLY" = "true" ] && [ "$CONFIRM" != "RECONCILE_NATIVE_INTAKE_APPLY" ]; then
+            echo "::error::apply=true requires confirm=RECONCILE_NATIVE_INTAKE_APPLY"
+            exit 1
+          fi
+      - name: Reconcile
+        shell: bash
+        run: |
+          ARGS="--limit=$LIMIT"
+          if [ -n "$REQUEST_ID" ]; then ARGS="$ARGS --request-id=$REQUEST_ID"; fi
+          if [ "$APPLY" = "true" ]; then
+            NATIVE_INTAKE_RECONCILE_CONFIRM=RECONCILE_NATIVE_INTAKE_APPLY \
+              node scripts/native-intake-reconcile/run.js $ARGS --apply --strict
+          else
+            node scripts/native-intake-reconcile/run.js $ARGS
+          fi

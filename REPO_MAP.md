@@ -8,6 +8,13 @@ commit as any structural change.
 
 ## Top level
 
+Server-owned completion of accepted native intake (draft, unapplied, disabled):
+`migrations/2026-09-05-native-intake-reconcile.sql`, `scripts/native-intake-reconcile/`
+(runner library, dry-run REST entry, proof lane and gateway loader),
+`test/native-intake-reconcile.js`, `.github/workflows/native-intake-reconcile.yml`
+(manual-only, no schedule) and `docs/audits/2026-09-05-native-intake-reconcile.md`.
+Stacked on PR1302; ledger item 156.
+
 Disabled native-only intake draft: `migrations/2026-09-05-native-only-intake.sql`,
 `scripts/native-intake-manifest/native-only-lane.mjs`, `test/native-only-intake.js`,
 and `docs/audits/2026-09-05-native-only-intake.md`. Retains PR1293's harness and manifest contracts.

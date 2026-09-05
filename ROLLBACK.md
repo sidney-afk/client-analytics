@@ -1,5 +1,12 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Unapplied draft, 2026-09-05 (reconcile):** the native intake reconciler is
+manual-only and unscheduled, so its behaviour rollback is to stop dispatching.
+Rows it recovered or cards it created are accepted work with real receipts and
+must be retained like any browser-materialized intake; never delete its reason
+rows, recovered children, `skipped` receipts or bound slots. Details:
+`docs/audits/2026-09-05-native-intake-reconcile.md`. This changes no Live State entry.
+
 **Unapplied draft, 2026-09-05:** native-only intake depends on PR1293. Its behavior
 rollback disables new native admission while retaining the epoch-aware gateway,
 manifest epochs and terminal receipts for accepted work. Do not drop/truncate

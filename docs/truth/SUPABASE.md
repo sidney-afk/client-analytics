@@ -1,5 +1,13 @@
 # Supabase — current truth
 
+**2026-09-05 draft-only reconcile addition (stacked on PR1302, unapplied):**
+`migrations/2026-09-05-native-intake-reconcile.sql` adds service-role-only
+functions that complete ACCEPTED native intake work from the immutable manifest:
+recover missing native children through the unchanged deliverable writer, then
+create or bind the Calendar/Samples card. Read-only backlog and summary readers
+included. No table, trigger, flag or frozen writer changes; no scheduler. Scope,
+proof, release order and rollback: `docs/audits/2026-09-05-native-intake-reconcile.md`.
+
 **2026-09-05 draft-only native intake addition:**
 `migrations/2026-09-05-native-only-intake.sql` depends on PR1293 and adds a disabled
 per-team intake flag, immutable manifest epoch provenance and terminal native

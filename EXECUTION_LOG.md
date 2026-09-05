@@ -2,6 +2,16 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05, draft server-owned native intake completion, no live action
+
+Built on PR1302 `8cb5cba91bc33fb17599b8f2a38625ae07f7743d` in an isolated branch;
+remote main recorded at `3d534cfa5598ef16e61c5ee7dc8072afaa9963c7`, not merged in.
+Adds the additive reconcile migration (two stages, two readers), a dry-run runner,
+a manual-only workflow definition and a 47-check proof on disposable PostgreSQL
+with the real gateway. No merge, deploy, migration apply, flag update, live data
+mutation, dispatch or n8n change occurred. Scope, evidence and limits:
+`docs/audits/2026-09-05-native-intake-reconcile.md`. Not Decision A.
+
 ## 2026-09-05 — Draft disabled native-only intake, no live action
 
 Built on PR1293 `5418ab5618595d9469f0527bd94623e9229a637e` in an isolated worktree.

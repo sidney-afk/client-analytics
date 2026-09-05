@@ -50,8 +50,9 @@ ok(/crosswalk_bind_already_bound_elsewhere/.test(CODE),
   'an existing binding is never re-pointed; filling a blank is a repair, moving one is a decision');
 ok(/crosswalk_bind_slot_occupied/.test(CODE),
   'a contested card slot is reported rather than surfacing as a unique-violation that names neither card nor occupant');
-ok(/d2\.kind is not distinct from v_kind/.test(CODE),
-  'and the occupancy probe keys on KIND, matching deliverables_card_slot_unique(client_slug, origin, card_id, kind)');
+ok(/d2\.id is distinct from v_card_other_slot/.test(CODE)
+  && /lower\(btrim\(coalesce\(d2\.team, ''\)\)\) = v_expected_team\s+or lower\(btrim\(coalesce\(d2\.kind, ''\)\)\) = v_kind_after/.test(CODE),
+  'and the occupancy probe keys on the SLOT FAMILY -- the slot\'s team or the kind the row will carry after the bind -- and never counts the row the card\'s OTHER slot points at (9 live graphic slots hold Video-team rows)');
 
 /* ---- 2b. the card pointer is not authority on its own ------------------- */
 
@@ -61,14 +62,45 @@ ok(/d2\.kind is not distinct from v_kind/.test(CODE),
    checks below are the ones scripts/f42-linkage-defect-repair.js already
    applies for the planner, and they are the only ones here that do not descend
    from the card pointer -- which is the entire point of them. */
-ok(/v_expected_kind := case when v_component = 'graphic' then 'thumbnail' else 'video' end;/.test(CODE)
-  && /crosswalk_bind_kind_does_not_match_slot/.test(CODE),
-  'the row must be the KIND the card slot implies — team is too coarse to prove it (team=video covers kind=video AND kind=other), so a team-only bind can address the wrong artifact and still look linked');
+/* Owner ruling 2026-09-05 (OPEN_REPAIRS 156): kind is a regex over the issue
+   title and its parent's title, not a fact about the artifact. It refused 40 of
+   107 live slots in which both sides named the SAME Linear issue. Identity is
+   the proof; the label follows the card. */
+ok(!/crosswalk_bind_kind_does_not_match_slot/.test(CODE) && !/v_expected_kind/.test(CODE),
+  'kind never refuses — the former kind_does_not_match_slot guard is gone, and identity below is the one proof of "the same work item"');
+ok(/v_kind_after := case when v_component = 'graphic' then 'thumbnail' else 'video' end;/.test(CODE)
+  && /kind = v_kind_after/.test(CODE),
+  "the label follows the card and becomes the SLOT KEY: video slot -> kind='video', graphic slot -> kind='thumbnail' — the two values deliverables_card_slot_unique and linear-inbound's maintainCardLinkage read, so a bound row can neither collide with its card's other slot nor be routed into the wrong one by a later inbound write");
+/* Codex P1 on #1291: maintainCardLinkage (linear-inbound) reads any kind but
+   'thumbnail' as the video slot. If the RPC ever leaves a graphic-slot row at
+   'other', a team returned to Linear authority would write that row into
+   video_deliverable_id on its next webhook. */
+const INBOUND = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'linear-inbound', 'index.ts'), 'utf8');
+ok(/clean\(deliverable\.kind\) === "thumbnail" \? "graphic_deliverable_id" : "video_deliverable_id"/.test(INBOUND)
+  && !/in \('thumbnail', 'other'\) then lower\(btrim\(v_kind\)\)/.test(CODE),
+  "and that is checked against the consumer, not assumed: linear-inbound still reads kind as a two-valued slot key, and the RPC no longer preserves 'other' on a graphic-slot row");
 ok(/crosswalk_bind_linear_identity_unproven/.test(CODE)
   && /crosswalk_bind_linear_identity_disagrees/.test(CODE),
   'and both sides must name the SAME Linear issue, with either side missing treated as UNPROVEN rather than as permission');
 ok(CODE.indexOf('crosswalk_bind_linear_identity_unproven') < CODE.indexOf('update public.deliverables'),
   'both are checked BEFORE the update — a guard that runs after the row is rewritten reports the refusal accurately and leaves the damage');
+
+/* ---- 2b'. the slot: who loses it, and only on request ------------------- */
+
+ok(/v_evict not in \('off', 'card_wins'\)/.test(CODE) && /crosswalk_bind_invalid_evict_mode/.test(CODE)
+  && /if v_evict <> 'card_wins' then\s+raise exception 'crosswalk_bind_slot_occupied'/.test(CODE),
+  "eviction is opt-in by NAME (evict_occupant='card_wins'); without it a contested slot is still the slot_occupied refusal, and any other value is refused rather than read as consent");
+ok(/crosswalk_bind_occupant_same_issue/.test(CODE)
+  && CODE.indexOf('crosswalk_bind_occupant_same_issue') < CODE.indexOf('update public.deliverables'),
+  'an occupant naming the SAME issue as the card is a second projection of one issue, refused before anything is written — evicting it would cancel the issue the card keeps');
+ok(/in \('approved', 'posted', 'canceled', 'duplicate'\) then 'detached'\s+else 'canceled'/.test(CODE),
+  'a terminal occupant is only detached; a live one is canceled natively so it leaves every queue');
+ok(/'crosswalk_occupant_evicted'/.test(CODE) && /mirror_outbox_enqueue\(/.test(CODE) && /p_operation := 'status'/.test(CODE)
+  && !/linear\.app|graphql|net\.http/i.test(CODE),
+  'each eviction is written to deliverable_events and the cancel is handed to the OUTBOUND lane as a status intent — never a direct Linear call from SQL');
+ok(/set_config\('app\.event_written', '1', true\)/.test(CODE) && /set_config\('app\.event_written', v_prev_flag, true\)/.test(CODE)
+  && /'crosswalk_bound'/.test(CODE),
+  'the ledger guard is bypassed only around writes that record a richer event of their own, and restored to what the caller had');
 /* The identifier parse is transcribed from linearIdentifier() in the planner.
    If the two ever disagree about what "the same issue" means, the SQL repair
    and the JS planner are repairing different things. */

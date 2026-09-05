@@ -12570,3 +12570,113 @@ same one the Linear exit would make cheap.
 because #1294 was held open for its review after #1288 merged six seconds after
 opening. The self-review that produced the truncation guard also produced its
 overclaim; a second reader found it in four minutes.
+
+## 156. [2026-09-05, RULED AND WRITTEN, NOT APPLIED — updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
+
+Item 148's RPC required a deliverable's `kind` to match the card slot ("team is
+too coarse: team='video' covers kind='video' and kind='other'"). Measured
+against the live call list it refused **40 of 107** mismatching slots — and in
+all 40 the card and the row named the **same Linear issue**. They were not
+stale pointers; they were rows whose label disagreed with the slot holding them.
+
+### What `kind` actually is
+
+`classifyKind()` in `scripts/b1-linear-backfill.js` is a regex over the issue's
+title **and its parent's title**. On the Graphics team, *banner / carousel /
+story / slides / quote / flyer …* → `other`, else `thumbnail`. On the Video team,
+*thumb* anywhere → `thumbnail`. So the 26 graphic-slot refusals are rows titled
+"Carousel 02", "Story", "Webinar next Monday (story)" — the name the designer
+gave the issue, nothing to do with the Drive folder — and the 14 video-slot
+refusals are "Reel 1–6" / "Video 1–8" on one client whose **batch parents** are
+titled "… 6 Reels and Thumbnails" and "… Videos and Thumbnails". Every child of
+those batches was stamped `thumbnail`, videos included. Nothing about them is
+wrong except the stamp.
+
+The owner's ruling, verbatim: *"if it's from the video team it's a video, if
+it's a graphic it's a graphic sub-issue … I would probably just believe the
+card."* And on the contested slots: *"I would believe more the cards than the
+duplicates."*
+
+### The 18 contested slots, and why the card wins there too
+
+Item 148's RPC refused `slot_occupied` on 18 slots. All 18 have the same shape:
+a native card (`p_native_…`) whose creation auto-made a "Video N" issue
+(`del_…`, created by SyncView Mirror), which a person then **re-pointed by
+hand** to the older batch issue ("Reel N", `b1_d_…`). The auto-made row still
+held the slot. Seven of the 18 occupants sat in statuses that looked like live
+work (six at Kasper approval, one at Tweak). All seven were read in Linear:
+**every one is an empty shell** — no description, no attachment, no assignee
+lifecycle, its status stamped from the card at the moment it was created and
+never moved again. The real cycle (Todo → In Progress → SMM → Kasper → Tweak →
+Client → Posted, editor assigned) is on the issue the card points at, in all
+seven. Two shells had been **canceled by hand and resurrected by the sync**
+(VID-13620, VID-13624): the shell stayed attached to the card and kept receiving
+the card's status, so cancelling in Linear alone did not stick. The six at
+Kasper approval are phantom items in his queue today.
+
+### What changed in source (all in one PR, migration still NOT applied)
+
+`migrations/2026-09-05-crosswalk-bind-and-import.sql`,
+`scripts/f42-linkage-defect-repair.js` (`classAObjections`),
+`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`,
+`test/f42-linkage-defect-repair.js`, `docs/ops/CROSSWALK_REPAIR_STRATEGY.md` §4b:
+
+* **kind never refuses the repair.** Identity — both sides naming the same
+  Linear issue — is the one proof. The planner (`classAObjections`) keeps a
+  kind objection but only against *itself*: it patches origin and card_id and
+  cannot relabel, so it hands those rows to the RPC by name
+  (`kind_disagrees_use_bind_and_import`) instead of patching them half-way
+  (Codex P2 on #1291). A Linear team prefix is not required to match the slot
+  either: 9 live graphic slots hold thumbnails tracked on the Video team.
+* **labels follow the card on bind and become the slot key:** video slot →
+  `kind='video'`; graphic slot → `kind='thumbnail'`; team is the slot's team
+  as before. Load-bearing in both directions: `deliverables_card_slot_unique`
+  keys on kind, so a video-slot "Reel" left at `thumbnail` collides with the
+  same card's real thumbnail; and `linear-inbound`'s `maintainCardLinkage`
+  reads any kind but `thumbnail` as the VIDEO slot, so a graphic-slot
+  "Carousel" left at `other` would be routed into the video slot by the first
+  inbound write after a team returned to Linear authority (Codex P1 on #1291).
+  The rehearsal carries both cards. 40 live rows relabel (14 thumbnail→video,
+  26 other→thumbnail); titles are untouched.
+* **`evict_occupant: 'card_wins'`** (opt-in, by name — any other value is
+  refused): an occupant the card does not point at is detached; if its status
+  is live it is set `canceled` natively and the cancel is queued through
+  `mirror_outbox_enqueue` (operation `status`) for the ordinary outbound lane —
+  never a direct Linear call from SQL; a terminal occupant is only detached.
+  Each eviction is a `crosswalk_occupant_evicted` event naming both issues and
+  is in the receipt. Without the flag `slot_occupied` is still a refusal. An
+  occupant naming the **same** issue as the card is refused
+  (`occupant_same_issue`) with or without the flag — that is two projections of
+  one issue. The row the card's other slot points at is never an occupant.
+* The bind now writes its own `crosswalk_bound` event (with `kind_before`) and
+  bypasses the ledger guard only around writes that record a richer event,
+  restoring whatever the caller had set.
+
+Re-measured under the ruling, same 107 slots: **82 bind on their own, 18 bind
+with eviction (0 same-issue, all 18 occupants native-born), 5
+already-bound-elsewhere, 1 client mismatch, 1 identity unproven.** 100 of 107
+unattended; 7 for a person, as before.
+
+### Still open
+
+* **The mechanism that makes shells.** Creating a card natively creates a
+  Linear issue; linking that card to an existing issue afterwards leaves the
+  auto-made one attached and alive. Item 156 cleans up the 18 that exist; it
+  does not stop the next one. The link action should retire (or never create)
+  the auto-made row when the card is pointed elsewhere — a separate change,
+  not attempted here.
+* Applying the migration and running the 100 calls is the owner's dispatch
+
+### The runner (same day, later)
+
+`scripts/crosswalk-phase2-runner.js`, `.github/workflows/crosswalk-phase2-repair.yml`,
+`test/crosswalk-phase2-runner.js`. Plan/apply lane in the F42 comment-import
+shape (pinned commit on main, production Environment, confirm token
+`REPAIR_CROSSWALK_PHASE2`, plan-digest drift guard, result document
+runner-local). It forecasts each mismatching slot with the RPC's questions in
+the RPC's order, sends `evict_occupant='card_wins'` only where an occupant
+holds the slot, and carries the legacy thread in `p_comments` planned by the
+F42 import planner against the post-bind crosswalk — a thread the planner
+cannot plan cleanly holds the slot back (`thread_not_plannable`) instead of
+binding without its conversation. The owner's three steps are in
+`CROSSWALK_REPAIR_STRATEGY.md` §5..

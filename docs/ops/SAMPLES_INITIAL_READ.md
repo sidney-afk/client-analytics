@@ -49,9 +49,10 @@ owner-approved persisted-write drills remain separate requirements.
 ## Local proof (no backend or recipient I/O)
 
 Install the pinned development dependencies and Chromium in the isolated
-checkout, then run:
+checkout. Install the SDK fixture separately, then run:
 
 ```text
+npm install --prefix qa/samples-initial-sdk --no-package-lock --ignore-scripts
 node test/samples-initial-read.js
 node scripts/samples-initial-read-run.js --fixture
 node qa/client-continuity-transport.js
@@ -66,6 +67,8 @@ realm/channel/POST, blocked metadata, failed-read empty success, wrong scope,
 orphan counts, concurrent census, stale title and warning cases are asserted.
 No incidental fixture exception is accepted as a positive defect assertion.
 The independent loopback transport suite checks receiver escapes separately.
+The SDK fixture has its own manifest: the root package and F27 closure remain
+byte-identical to6383, and unrelated PTO reviewed evidence is not restamped.
 
 The fixture's npm SDK version is **not authority for the current CDN**. Before
 any approved live read, privately acquire/approve the exact script bytes actually

@@ -16,7 +16,6 @@
     "test:pto-lifecycle": "node qa/pto-lifecycle/run.js",
     "test:pto-live-drill": "node qa/pto-lifecycle/live-drill.js",
     "test:boot": "node qa/boot/client-entry-sequence.js",
-    "test:samples-initial": "node test/samples-initial-read.js && node scripts/samples-initial-read-run.js --fixture",
     "test:prod-layout": "node docs/syncview-design/tests/prod-layout-polish.js",
     "test:prod-scroll": "node docs/syncview-design/tests/prod-list-scroll-containment.js",
     "test:prod-review": "node docs/syncview-design/tests/prod-review-packet.js",
@@ -29,7 +28,6 @@
   "devDependencies": {
     "@argos-ci/cli": "6.1.4",
     "@axe-core/playwright": "4.12.1",
-    "@supabase/supabase-js": "2.115.0",
     "playwright": "1.56.1"
   }
 }

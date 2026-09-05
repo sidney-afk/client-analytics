@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {chromium}=require('playwright');
 const H=require('./boot/client-entry-sequence'),{fixture,fixtureRow}=require('./client-continuity-fixtures');
 const {captureInitialRead}=require('../scripts/samples-initial-read');
-const sdk=fs.readFileSync(path.join(__dirname,'../node_modules/@supabase/supabase-js/dist/umd/supabase.js'));
+const sdk=fs.readFileSync(path.join(__dirname,'samples-initial-sdk/node_modules/@supabase/supabase-js/dist/umd/supabase.js'));
 const sdkHash=createHash('sha256').update(sdk).digest('hex');
 function initialFixture(browser,server,scenario='healthy') {
   const f=fixture(browser,server,'samples',['empty','concurrent','stale_dom'].includes(scenario)?scenario:'healthy');

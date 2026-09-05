@@ -95,6 +95,7 @@ Separate disabled initial Samples read: `scripts/samples-read-subscriptions.js`
 (exact real-SDK read-subscription attribution), `scripts/samples-initial-read.js`
 (post-teardown initial-only contract), `scripts/samples-initial-read-run.js`
 (private manual launcher, separate receipts/observer/recovery),
+`qa/samples-initial-sdk/package.json` (isolated fixture-only SDK dependency),
 `qa/samples-initial-read.js` and `test/samples-initial-read.js` (real-SDK intercepted
 faults and contract isolation), `docs/ops/SAMPLES_INITIAL_READ.md` and
 `docs/ops/samples-initial-read.example.json` (held activation and private references).

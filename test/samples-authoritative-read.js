@@ -13,7 +13,8 @@ const response = (body, status = 200, count = Array.isArray(body) ? body.length 
   headers: { get: () => count === null ? null : `${Array.isArray(body) && body.length ? '0-' + (body.length - 1) : '*'}/${count}` },
   json: async () => { if (body === 'invalid-json') throw new SyntaxError('synthetic'); return body; },
 });
-function setup() {
+function setup(source = html) {
+  const slice = (a, b) => source.slice(source.indexOf(a), source.indexOf(b, source.indexOf(a)));
   const storage = new Map(), effects = { renders: [], stale: false, subscriptions: [], cacheWrites: 0 };
   const timers = new Map(); let timerId = 0, blankId = 0;
   const s = {
@@ -29,6 +30,8 @@ function setup() {
       setItem: (k, v) => { storage.set(k, v); effects.cacheWrites++; },
       removeItem: k => storage.delete(k), key: i => [...storage.keys()][i], get length() { return storage.size; } },
     _writeUiAuthoritySnapshot: () => ({}), _writeUiFilterCachedPosts: p => p,
+    _writeUiPrincipalKey: () => 'fixture-principal', document: { getElementById: () => null },
+    _sxrNoLinearPush: new Set(), _sxrLocalRecentSaves: new Map(), _sxrRecentSaveFields: new Map(), _sxrConflictNotified: new Set(),
     _prodStripEphemeralCanonicalPosts: p => p.map(x => { const r = { ...x }; delete r._canonicalRead; return r; }),
     _sxrNormStatus: x => x || 'In Progress', _sxrArchivedReadRaw: () => ({}), _sxrArchivedRefs: () => new Set(),
     _sxrRenderBody: () => effects.renders.push({ loading: s.sxrState.loading, error: !!s.sxrState.error, ids: s.sxrState.posts.map(p => p.id) }),
@@ -46,7 +49,7 @@ function setup() {
   vm.createContext(s);
   vm.runInContext(slice('    const SXR_LOAD_TIMEOUT_MS =', '    /* ============================================================\n       --- SURFACE 2:'), s);
   for (const name of ['_sxrBlankSample', '_sxrIsBlankId', '_sxrOnFieldInput', '_sxrMergeServerRows']) {
-    vm.runInContext(extractFunction(html, name), s);
+    vm.runInContext(extractFunction(source, name), s);
   }
   return { s, storage, effects, timers, key: 'syncview_sxr_cache_v2_fixture-a' };
 }
@@ -58,7 +61,8 @@ async function rejectsFallback(body, status = 200) {
   s.fetch = async url => url.includes('/fallback') ? response(body, status) : response({}, 500);
   await assert.rejects(s._sxrFetchPosts('fixture-a'));
 }
-(async () => {
+module.exports = { setup, row, response };
+if (require.main === module) (async () => {
   for (const status of [401, 403, 429, 500]) await test('reject fallback HTTP ' + status, () => rejectsFallback({ ok: true, posts: [row()], complete: true, total: 1 }, status));
   const invalid = [
     null, 'invalid-json', {}, { ok: false }, { ok: 'true', posts: [row()] },

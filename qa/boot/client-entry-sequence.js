@@ -4606,7 +4606,8 @@ async function main() {
   }
 }
 
-main().catch(error => {
+module.exports = { startStreamServer, openCase, streamedNavigation, assertHealthyHarness };
+if (require.main === module) main().catch(error => {
   console.error(error && error.stack || error);
   process.exitCode = 1;
 });

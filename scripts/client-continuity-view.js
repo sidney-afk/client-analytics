@@ -1,6 +1,7 @@
 'use strict';
 const { createHash } = require('node:crypto');
 const { report } = require('./client-continuity-monitor');
+const { openGuardedContext } = require('./client-continuity-transport');
 const TABLES = { calendar: 'calendar_posts', samples: 'sample_reviews' };
 function fail(code) { throw new Error(code); }
 function canonical(value) {
@@ -121,23 +122,14 @@ function observeRequests(page,config) {
 }
 async function captureView(browser,config,deps={}) {
   const endpoints=validateConfig(config), census=()=>readCensus(config,deps.fetchImpl);
-  let context,blocked=0,unexpected=0;
+  let context,guard,reads;
+  const observe=async()=>{
   try {
     let before;try{before=await census();}catch{}
-    context=await (deps.createContext?deps.createContext():browser.newContext({serviceWorkers:'block'}));
+    ({context,guard}=await openGuardedContext(browser,config,deps));
     const page=await context.newPage();page.setDefaultTimeout(10000);
-    const reads=observeRequests(page,config);
-    const allowedOrigins=new Set([endpoints.link.origin,endpoints.backend.origin,endpoints.fallback.origin,...(config.readOrigins||[])]);
-    await context.route('**/*',async route=>{
-      const r=route.request(),u=new URL(r.url());
-      const verify=u.origin===endpoints.backend.origin && u.pathname==='/functions/v1/client-token-verify' && !u.search;
-      if(!['GET','HEAD','OPTIONS'].includes(r.method()) && !(r.method()==='POST'&&verify&&!r.redirectedFrom())){blocked++;return route.abort();}
-      if(!allowedOrigins.has(u.origin)){unexpected++;return route.abort();}
-      if(u.origin===endpoints.backend.origin && !verify && !/^\/rest\/v1\/[a-z][a-z0-9_]*$/.test(u.pathname)){blocked++;return route.abort();}
-      // Some n8n GETs mutate: permit only these named read interfaces.
-      if(u.origin===endpoints.fallback.origin && !['/webhook/calendar-get','/webhook/sample-review-get','/webhook/templates-get','/webhook/caption-prompts-get'].includes(u.pathname)){blocked++;return route.abort();}
-      await route.fallback();
-    });
+    reads=observeRequests(page,config);
+    await guard.prepare(page);
     if(deps.navigate) await deps.navigate(page,endpoints.link.href);
     else await page.goto(endpoints.link.href,{waitUntil:'domcontentloaded',timeout:25000});
     let dom;const deadline=Date.now()+15000;
@@ -149,8 +141,7 @@ async function captureView(browser,config,deps={}) {
     }while(Date.now()<deadline);
     if(reads.auth)return report(config.lane,'valid_link_auth');
     if(config.expectedPageSha256 && reads.pageDigest!==config.expectedPageSha256)return report(config.lane,'release_mismatch');
-    if(blocked)return report(config.lane,'mutation_blocked');
-    if(unexpected)return report(config.lane,'unexpected_request');
+    if(guard.code())return report(config.lane,guard.code());
     if(reads.errors)return report(config.lane,'browser_error');
     if(reads.scopeMismatch)return report(config.lane,'scope_mismatch');
     if(!dom.settled || reads.pending!==0)return report(config.lane,'read_failed');
@@ -164,6 +155,7 @@ async function captureView(browser,config,deps={}) {
     if(!before || epoch!==reads.epoch || reads.pending || before.digest!==after.digest || received.digest!==after.digest)return report(config.lane,'inconclusive');
     if(new URL(page.url()).searchParams.get('c')!==endpoints.link.searchParams.get('c'))return report(config.lane,'scope_mismatch');
     dom=await page.evaluate(visibleState,config.lane);
+    if(epoch!==reads.epoch || reads.pending || reads.failed)return report(config.lane,'inconclusive');
     if(!dom.settled)return report(config.lane,'inconclusive');
     if(dom.display==='error')return report(config.lane,'render_failed');
     // Census covers all unarchived rows; rendering is filtered. Explicit private
@@ -177,7 +169,17 @@ async function captureView(browser,config,deps={}) {
     if(dom.warningVisible)return report(config.lane,'stale_overdue');
     return report(config.lane,'healthy',dom.ids.length);
   }catch{return report(config.lane,'read_failed');}
-  finally {if(context)await context.close().catch(()=>{});}
+  };
+  const result=await observe();
+  if(guard)await guard.close();
+  else if(context) {
+    let timer;
+    await Promise.race([context.close().catch(()=>{}),new Promise(resolve=>{timer=setTimeout(resolve,3000);})]);
+    clearTimeout(timer);
+  }
+  // The result is constructed only after all final reads and bounded teardown.
+  // A late denial outranks an earlier apparent success, including blank popups.
+  return guard?.code()?report(config.lane,guard.code()):result;
 }
 async function viewingJourney(browser,config,deps) {
   let result;

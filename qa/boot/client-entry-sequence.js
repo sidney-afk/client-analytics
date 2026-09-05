@@ -4606,7 +4606,7 @@ async function main() {
   }
 }
 
-module.exports = { startStreamServer, openCase, streamedNavigation, waitForCalendarSettled,
+module.exports = { installBootObserver, installSyntheticNetwork, startStreamServer, openCase, streamedNavigation, waitForCalendarSettled,
   waitForReviewSettled, runClientTabScenario, runLegacySamplesScenario };
 
 if (require.main === module) main().catch(error => {

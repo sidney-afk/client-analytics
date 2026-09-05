@@ -13,6 +13,14 @@ client-owned drafts, non-authoritative fallback, verified-cache distinction and
 frozen open-writer contract remain intact. Imported Production comment fixture
 and writer durability test corrections belong to that same exact candidate.
 
+Independent review of monitoring head be39f797 reproduced transport escapes and
+late verdict omissions. The follow-up transport guard addresses those findings;
+its exact new head/tree and targeted results are in PR #1270. The same review
+also found residual Samples durable-draft, asynchronous cache-owner and mixed
+legacy-cache defects. Those product repairs remain with the Samples owner and
+are **not fixed or newly integrated here**. Release remains blocked pending the
+coordinator's confirmation of an independently reviewed replacement Samples head.
+
 ## What runs, and what remains inactive
 
 - scripts/client-continuity-view.js observes actual document/REST responses and
@@ -36,6 +44,36 @@ runtime GET interfaces on allowed origins still need owner review before live
 activation; an origin allowlist is not a general proof that every GET is pure.
 The browser receives no census credential or staff identity. All fixtures intercept
 requests; no fixture is allowed to fall through to a live backend.
+
+The Chromium context now has a dedicated loopback **refusing proxy**: it never
+forwards HTTP, CONNECT or WebSocket traffic, and disables Chromium's implicit
+loopback bypass. This is an independent network barrier for native transports
+that evade browser routing or run in an initial/inherited blank realm. An
+approved request is forwarded by a separate anonymous Node request client only
+after method/origin/interface checks, with zero redirect follows and zero
+transport retries; every 3xx response is refused before browser delivery.
+Never replace this with route.continue/fallback or inherit the browser proxy in
+the Node reader. No proxy credentials, certificate changes or external service
+are required. The local refusing listener is per run and closed at teardown.
+
+Context init scripts and synchronous blank popup/iframe guards deny Beacon,
+keepalive (including Request objects), WebSocket, WebTransport and worker
+constructors before use. Service workers stay blocked. WebSocket routing closes
+without connecting; it is itself injected instrumentation, so the refusing
+proxy is still required. Receiver tests bypass injected guards in isolated
+native realms to prove that the proxy prevents actual delivery. A denial, late
+authorization failure or page error remains latched through the final census,
+DOM read and teardown. Teardown has a three-second deadline; timeout stays red,
+disposes the Node reader and closes the refusing proxy. The outer launcher's
+120-second process deadline remains the final worker bound.
+
+This forwarding path buffers responses, including the document, before browser
+delivery. It does not prove streamed first-paint timing; the unchanged existing
+boot suite retains that coverage. The proxy is a barrier for this Chromium
+context, not an operating-system sandbox for hostile local code or an approved
+GET interface that itself mutates state. Preserve exact release binding and
+privately review the allowed readers before any later activation. Blocking an
+unsupported transport may make a journey red; do not relax it to obtain green.
 
 The serving document SHA-256 is compared with the approved checkout's index bytes.
 The observer collects the exact scoped primary reader rows. An independent Node
@@ -83,13 +121,14 @@ node test/client-continuity-monitor.js --strict-source
 node test/client-continuity-view.js
 node test/samples-authoritative-read.js
 node qa/client-continuity.js
+node qa/client-continuity-transport.js
 node scripts/client-continuity-run.js --fixture
 npm run test:boot
 node test/run-all.js
 npm run test:prod-polish
 ~~~
 
-The first six continuity/boot commands are fully intercepted or isolated, without
+The continuity/boot commands are fully intercepted or isolated, without
 credentials/backend writes. The existing Production aggregate also includes its
 established live-read/zero-mutation lanes; keep all raw output and optional visual
 artifacts private. Use PROD_POLISH_PUBLIC_SUMMARY for its aggregate fixed-code
@@ -105,7 +144,8 @@ combined candidate, not merely because all calls threw.
 
 The existing [Client entry visible boot workflow](https://github.com/sidney-afk/client-analytics/actions/workflows/client-entry-visible-boot.yml)
 keeps its complete boot coverage and adds continuity, strict-source and fixture
-launcher steps with full git history and no secrets or schedule. Existing unit CI
+launcher steps plus the independent loopback transport receiver suite, with full
+git history and no secrets or schedule. Existing unit CI
 auto-discovers the unit suites. Publishing the draft triggers normal offline PR
 checks; no production workflow is manually dispatched.
 

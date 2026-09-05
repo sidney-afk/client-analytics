@@ -29,7 +29,7 @@ function resolveConfig(file,env,activation,kind='view') {
   requireValue(activation===(kind==='view'?ACTIVATION:'OWNER_APPROVED_DELIVERY_DRILL'),'activation_required');
   const head=execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim();
   requireValue(/^[a-f0-9]{40}$/.test(config.releaseSha)&&config.releaseSha===head,'release_mismatch');
-  execFileSync('git',['diff','--quiet','HEAD','--','index.html','scripts/client-continuity-run.js','scripts/client-continuity-view.js','scripts/client-continuity-monitor.js'],{cwd:ROOT});
+  execFileSync('git',['diff','--quiet','HEAD','--','index.html','scripts/client-continuity-run.js','scripts/client-continuity-view.js','scripts/client-continuity-transport.js','scripts/client-continuity-monitor.js'],{cwd:ROOT});
   const output=privatePath(secret(env,config.outputDirectoryEnv));
   requireValue(fs.statSync(output).isDirectory(),'private_path_required');
   if(kind==='delivery')return {config,output,lanes:[]};

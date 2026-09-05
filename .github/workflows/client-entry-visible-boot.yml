@@ -71,5 +71,7 @@ jobs:
         run: node test/client-continuity-monitor.js --strict-source
       - name: Observe anonymous continuity with entirely intercepted fixtures
         run: node qa/client-continuity.js
+      - name: Refuse transport escapes with independent loopback receivers
+        run: node qa/client-continuity-transport.js
       - name: Exercise inactive launcher with fictional read-only transport
         run: node scripts/client-continuity-run.js --fixture

@@ -35,6 +35,11 @@ no design-kit suite may send a live mutation.
 First Samples repair preparation: `node test/client-continuity-monitor.js`
 tests detection, isolated persisted TEST actions, relay fallback and liveness;
 `node qa/client-continuity.js` reuses the intercepted boot harness.
+`node qa/client-continuity-transport.js` uses independent loopback receivers to
+prove Beacon/keepalive, popup/blank-realm, WebSocket and redirect refusal before
+delivery, including native isolated-world bypasses and late/teardown verdicts.
+Negative controls must demonstrate receiver delivery without the guard; allowed
+read controls must stay healthy. No live endpoint or alert recipient is used.
 `node test/client-continuity-monitor.js --strict-source` must also pass on the
 combined repaired product before release. It exercises repaired dependencies and
 also proves detection against the recorded original source; incidental exceptions

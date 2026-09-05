@@ -66,6 +66,10 @@ node test/samples-recovery-build.js
 node qa/boot/samples-recovery-rehearsal.js
 ```
 
+The independent-review correction can be run alone with
+`node qa/boot/samples-recovery-rehearsal.js --same-client-actor`. Its report labels
+the targeted scope explicitly; it does not claim the full rehearsal ran.
+
 For a separately reviewed exact combined checkout, the optional arguments are
 its local path and full target SHA. This produces a scoped inverse of that
 target, not an older whole document:
@@ -96,7 +100,9 @@ All identities, keys, links and content in the fixture are fictional.
 Coverage: untouched blank; typed-before-debounce; held create/update;
 failed create; accepted-but-error-response create; positively acknowledged
 create with newer name/direction debt and an independently changed asset;
-refresh; different client and different actor; late success/failure from a save
+refresh; different client and different actor; same-client actor replacement
+(server-only view, no private-debt Retry/claim/replay, exact original-actor restoration);
+late success/failure from a save
 started in recovery; stored unowned legacy archive; verified/nonempty/empty/
 failed reads; and the two real baseline negative controls.
 
@@ -154,8 +160,15 @@ The private `.codex-tmp/samples-recovery-report.json` contains final status,
 browser version, passed groups and synthetic owned-receipt digests. A partial
 run remains `INCOMPLETE`, not green. No raw private runtime content is published.
 
-Local results: 12 full-browser groups; 8 isolated recovery read cases plus exact
+Local results at artifact head `cd52801688e660b0a57baeebb45df2214b219c77`:
+12 full-browser groups; 8 isolated recovery read cases plus exact
 inverse and 3 drift refusals; existing reader 48/48 and local-work 18/18; repository
 map 273/273; whitespace check clean. No blanket suite was rerun for this artifact
 addition; no application checkout bytes changed. Hosted checks and release
 evidence are separate from these local receipts.
+
+Independent review identified that the original actor assertion also switched
+clients, so it did not isolate same-client ownership. The correction adds that
+explicit real-browser case and reruns only `--same-client-actor`: PASS. The full
+selector now contains 13 groups; all 13 were not rerun together for this narrow
+correction. Application and generated recovery HTML hashes remain unchanged.

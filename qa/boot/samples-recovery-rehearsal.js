@@ -13,7 +13,9 @@ const archivedBytes = JSON.stringify({ schema: 1, synthetic: 'unowned legacy deb
 const forward = gitSource(CANDIDATE), baseline = gitSource(BASELINE), inverse = build(forward);
 const builds = { forward, recovery: inverse.recovery, baseline };
 const headers = { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'content-range' };
-const report = { ...inverse.manifest, status: 'INCOMPLETE', groups: [], browser: null };
+const targetedActor = process.argv.includes('--same-client-actor');
+assert.ok(process.argv.slice(2).every(arg => arg === '--same-client-actor'), 'unknown rehearsal selector');
+const report = { ...inverse.manifest, scope: targetedActor ? 'same-client-actor' : 'full', status: 'INCOMPLETE', groups: [], browser: null };
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(fn) { for (let n = 0; n < 150; n++) { if (await fn()) return; await pause(20); } assert.fail('bounded synthetic receiver wait expired'); }
 function pass(name, detail = {}) { report.groups.push({ name, ...detail }); console.log('PASS ' + name); }
@@ -103,6 +105,41 @@ async function main() {
   }
   try {
     const row = { id: 'synthetic-existing', client: slug, name: 'Verified synthetic card', creative_direction: 'Original direction', status: 'In Progress' };
+    const actor = await create([row]);
+    try {
+      const input = actor.page.locator('#sxrView .cal-fld-name').first();
+      await input.fill('Private same-client actor-one debt'); await input.blur();
+      await until(() => actor.state.held.length === 1);
+      await actor.settle(actor.state.held.shift(), false, false);
+      await actor.page.waitForFunction(() => !Object.keys(_sxrSaveInFlight).length);
+      await actor.navigate('recovery');
+      assert.equal(await actor.page.locator('#sxrView .cal-fld-name').first().inputValue(), 'Private same-client actor-one debt');
+      const conserved = await actor.debt(), writes = actor.state.writes.length;
+      await actor.page.evaluate(() => {
+        _syncviewStaffIdentitySave({ key: 'synthetic-other-key', member: { id: 'synthetic-staff-2', name: 'Synthetic Other' }, role: 'smm' });
+        _syncviewStaffIdentityVerified = true; mountSxrView(); return loadSxrCards({ skipCache: true });
+      });
+      assert.equal(await actor.page.evaluate(() => sxrState.client), A, 'client is unchanged during actor replacement');
+      assert.equal(await actor.page.evaluate(() => _sxrWorkView.principal), 'staff:synthetic-staff-2:smm');
+      assert.equal(await actor.page.locator('#sxrView .cal-fld-name').first().inputValue(), row.name, 'other actor sees server content, never private debt');
+      assert.equal(await actor.page.evaluate(() => _sxrWorkView.records.size), 0, 'same-client actor cannot claim prior actor records');
+      assert.equal(await actor.page.locator('[data-saving="synthetic-existing"]').isVisible(), false, 'no private-debt Retry offered to other actor');
+      await actor.page.evaluate(() => loadSxrCards({ skipCache: true }));
+      assert.equal(await actor.page.locator('#sxrView .cal-fld-name').first().inputValue(), row.name);
+      assert.equal(actor.state.writes.length, writes, 'same-client actor switch and refresh never replay prior debt');
+      assert.deepEqual(await actor.debt(), conserved, 'same-client other actor leaves exact owned bytes intact');
+      await actor.page.evaluate(() => {
+        _syncviewStaffIdentitySave({ key: 'synthetic-test-key', member: { id: 'synthetic-staff-1', name: 'Synthetic Operator' }, role: 'smm' });
+        _syncviewStaffIdentityVerified = true; mountSxrView(); return loadSxrCards({ skipCache: true });
+      });
+      assert.equal(await actor.page.evaluate(() => sxrState.client), A);
+      assert.equal(await actor.page.locator('#sxrView .cal-fld-name').first().inputValue(), 'Private same-client actor-one debt');
+      assert.equal(await actor.page.locator('[data-saving="synthetic-existing"]').isVisible(), true);
+      assert.deepEqual(await actor.debt(), conserved, 'matching actor restores exact private debt');
+      assert.equal(actor.state.writes.length, writes);
+      pass('same-client actor replacement: server-only view, no claim/replay, exact debt restored to original actor');
+    } finally { actor.check(); await actor.context.close(); }
+    if (targetedActor) { report.status = 'PASS'; return; }
     const negative = await create([row]);
     try {
       await negative.navigate('baseline');

@@ -12645,6 +12645,15 @@ Pin: `PRODUCTION_WRITE_SOURCE_SHA256` re-pinned with this change. Live is still
 `d2914ac2…` (v67, deployed from `a05e1126`); the repo had already moved to
 `6a39a2bc…` (the exclusivity truncation guard). The next dispatch carries both.
 
+**Closed out, same day.** Deployed as `production-write` v68 (closure
+`d7fc8348…`) from `3d534cfa…`, run 33991332628, green on the first attempt with
+the capture, the Drive upload and the dispatch in the order CLAUDE.md now
+states; the truncation guard from #1294 shipped with it. Codex found one real
+hole in review (a cleared file's pill would have stayed up for the session once
+entries survived a refresh) and it was fixed before merge. The owner applied the
+optional index before dispatching. The five-minute window decision above stays
+open.
+
 ## 156. [2026-09-05, RULED AND WRITTEN, NOT APPLIED — updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
 
 Item 148's RPC required a deliverable's `kind` to match the card slot ("team is

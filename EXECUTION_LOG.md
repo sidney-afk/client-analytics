@@ -6247,3 +6247,28 @@ Browser half live on merge. Gateway half re-pins `production-write` to
 dispatch, which also carries the exclusivity truncation guard (`6a39a2bc…`,
 #1294). Optional index migration `2026-09-05-asset-evidence-by-url.sql`. Ledger
 item 155, addendum.
+
+## 2026-09-05 — F27 Section 4 deploy, run 33991332628: production-write 67 → 68
+
+Deployed from commit `3d534cfa5598ef16e61c5ee7dc8072afaa9963c7`.
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| batch-write | 35 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | verify_jwt=false |
+| deliverable-write | 35 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | verify_jwt=false |
+| linear-outbound | 47 | `1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39` | verify_jwt=false |
+| **production-write** | **68** | `d7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a` | verify_jwt=false |
+
+Only `production-write` moved; the other three redeployed at their existing
+closures. Sealed prior four captured at `fc9f12f7…` (546,849 bytes), prior
+`production-write` v67 / `d2914ac2…`. Forward deployment PASS, strict serial
+provider readbacks PASS, final four-function source/entrypoint/JWT/version/
+provider comparison PASS. Green on the first attempt: the capture, the Drive
+upload and the dispatch ran in the order CLAUDE.md now states, from the script
+path rather than the alias.
+
+This deploy carries two changes: the ledger-verdict reuse in `asset_access_read`
+(#1305) and the exclusivity truncation guard (#1294, `6a39a2bc…`, which had not
+shipped on its own). The owner applied
+`migrations/2026-09-05-asset-evidence-by-url.sql` before dispatching
+("Success. No rows returned").

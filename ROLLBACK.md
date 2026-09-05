@@ -629,3 +629,28 @@ reads for it, so nothing new for the harness to be told about.
 adds `production_asset_access_checks_by_url_idx`; the lookup is correct without
 it. Rollback is `drop index if exists
 public.production_asset_access_checks_by_url_idx;`.
+
+## 2026-09-05 — deployed: production-write v68
+
+`production-write` moved 67 → 68 (closure `d2914ac2…` → `d7fc8348…`) from commit
+`3d534cfa5598ef16e61c5ee7dc8072afaa9963c7`, carrying the ledger-verdict reuse in
+`asset_access_read` (#1305) and the exclusivity truncation guard (#1294).
+`batch-write` (35), `deliverable-write` (35) and `linear-outbound` (47)
+redeployed unchanged at their existing closures. The "pending" row above is
+closed by this one.
+
+**Restore path:** the sealed prior four are in the `SyncView Backups/` Shared
+Drive root as `fc9f12f78373f94b36fd6aac104fca4b373a5d61cbb1d2ad640fc787f123ddbe`
+(546,849 bytes), sealing `production-write` v67 / `d2914ac2…`. Restore is the
+same lane with `operation = restore-captured-prior-four` and its own
+confirmation from the F27 runbook, never a re-dispatch of the forward operation.
+
+**The browser half was already live** (merged as `3d534cf`, Pages) and is safe
+against either gateway: it sends `recheck` only from Refresh access, and v67
+ignores the field and probes as it always did. Rolling back to v67 therefore
+restores live probes on every read, not a broken control.
+
+**The index** `production_asset_access_checks_by_url_idx` was applied by the
+owner the same day, before the dispatch. Its rollback is unchanged
+(`drop index if exists public.production_asset_access_checks_by_url_idx;`) and
+it is independent of the function version.

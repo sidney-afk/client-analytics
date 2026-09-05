@@ -1,5 +1,14 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**2026-09-05 source-only comment receipt candidate:** the shared add fingerprint
+repair in `qa/comment-receipt-fingerprint/README.md` has not been deployed.
+Local rollback reverts its gateway/helper changes, restoring the old false
+receipt conflict; it neither removes accepted comments nor rewrites their
+fingerprints. A later serving rollback must use its reviewed captured closure
+through the existing manual lane. Do not restore a whole historical frontend or
+re-gate the frozen anonymous writers for this change. Complete Calendar
+source-copy/status recovery is separate and remains held.
+
 For the first Samples continuity release, use the paired draft-preserving reader
 inverse in `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` and
 `docs/ops/SAMPLES_RECOVERY_REHEARSAL.md`. Historical whole-document revert notes

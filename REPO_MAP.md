@@ -8,6 +8,12 @@ commit as any structural change.
 
 ## Top level
 
+Comment add receipt reconstruction: `qa/comment-receipt-fingerprint/README.md`
+documents the source-only repair and limits; `run.mjs` in that folder loads the
+complete gateway handler with synthetic RPC-shaped persistence.
+`test/comment-receipt-fingerprint.js` runs the baseline/candidate exact-receipt,
+unchanged accepted-hash and changed-request refusal matrix offline.
+
 Review composer preservation: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md` owns the
 schema/authority/recovery limits. `test/review-draft-ownership.js` executes the
 actual helpers through `test/helpers/review-draft-source.js`.

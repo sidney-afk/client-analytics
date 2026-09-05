@@ -40,6 +40,7 @@ import {
   clientCommentTargetAllowed,
   clientOperationAllowed,
   clientScopeAllowed,
+  commentAddFingerprint,
   commentLifecycleCapabilities,
   commentLifecycleAllowed,
   componentFillTitle,
@@ -2002,6 +2003,11 @@ async function reconcileEntityOperation(
     expectedOperationPayload = { url: fileUrl };
   } else {
     const commentInput = parseJson(body.comment);
+    // This reader reconstructs add receipts only. Never certify a lifecycle
+    // request by silently treating its action/CAS as the earlier add.
+    if (normalizeCommentAction(commentInput.action || "add") !== "add") {
+      throw new GatewayError(400, "reconcile_operation_unsupported");
+    }
     const commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
     if (!commentBody || commentBody.length > MAX_COMMENT_BODY) {
       throw new GatewayError(400, "invalid_comment_body");
@@ -2060,7 +2066,7 @@ async function reconcileEntityOperation(
     if (round != null && (!Number.isInteger(round) || round < 0)) {
       throw new GatewayError(400, "invalid_comment_round");
     }
-    fingerprint = await intentFingerprint({
+    fingerprint = await commentAddFingerprint({
       operation, entity, id,
       ...(suppliedNativeId ? {} : { requestId, surface, legacyParity: historicalLegacyParity }),
       actorKey: principal.actorKey,
@@ -5180,7 +5186,7 @@ async function handleEntityOperation(
     if (round != null && (!Number.isInteger(round) || round < 0)) {
       throw new GatewayError(400, "invalid_comment_round");
     }
-    const fingerprint = await intentFingerprint({
+    const fingerprint = await (action === "add" ? commentAddFingerprint : intentFingerprint)({
       operation, action, entity, id,
       ...(suppliedNativeId ? {} : { requestId, surface, legacyParity }),
       actorKey: principal.actorKey,

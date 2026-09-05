@@ -2,6 +2,21 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Comment add receipt fingerprint; local source candidate
+
+On base `ce63c74d0333138f862cef5637bb7532fe059b74`, accepted comment adds include
+an action and null lifecycle CAS values that receipt reconstruction omitted.
+Shared `commentAddFingerprint` preserves the accepted bytes and lets exact
+receipts read back. The complete-handler offline matrix passes 238 assertion
+groups across Calendar/Samples VIDEO/GRAPHIC note/tweak and staff compatibility
+cases, preserving baseline false-conflict controls and changed-request refusal.
+Non-add readback explicitly refuses the unsupported operation rather than
+mistaking a lifecycle request for an earlier add; lifecycle writers are unchanged.
+Persistence is an explicit synthetic RPC-shaped seam, not SQL or serving proof.
+See `qa/comment-receipt-fingerprint/README.md`. No frontend, frozen writer,
+schema, flag, deployment pin or source-copy/status recovery changes; no live
+calls, writes or deployment. Complete Calendar recovery remains unproven.
+
 ## 2026-09-04 — Samples G1 reader candidate; draft, release held
 
 **Targeted review correction:** #1269 was verified draft/unmerged at reviewed head

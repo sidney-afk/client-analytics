@@ -13037,3 +13037,12 @@ redrawn to PNG or JPEG, so raw WebP reaches the function only from a bound
 admin/SMM caller using the key directly, never from the paste path. Stated
 in the doc; JPEG, GIF and WebP remain structural checks server-side.
 
+**Round nine (Codex on #1310): three more, all browser-side, taken.** [P2]
+The round-eight redraw flattened an animated WebP to one frame; it is now
+detected from the VP8X flags byte and refused with its own sentence, since
+the server cannot accept it raw. [P2] A GIF passed through with no decode
+at all; it is now decoded by the browser as a gate (first frame) and, on
+success, the original bytes travel untouched. [P2] Typing during an upload
+re-enabled Save through the draft-input path; both paths now respect the
+upload state.
+

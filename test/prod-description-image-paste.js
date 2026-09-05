@@ -118,8 +118,17 @@ ok(f.width === 1 && f.height === 1, 'nonsense dimensions clamp to a pixel rather
 ok(ctx.outType('image/png') === 'image/png', 'PNG stays PNG — text and flat colour stay crisp, transparency survives');
 ok(ctx.outType('image/webp') === 'image/jpeg' && ctx.outType('image/jpeg') === 'image/jpeg', 'anything else redrawn goes out as JPEG');
 const prepare = grabFunc('async function _prodDescriptionPrepareImage(');
-ok(/if \(type === 'image\/gif'\) return passThrough\(\);[\s\S]*createImageBitmap/.test(prepare),
-  'a GIF passes through untouched BEFORE any decode — redrawing it on a canvas would drop its frames');
+/* Codex on #1310, round nine: a GIF is decoded as a gate, then travels untouched. */
+ok(/createImageBitmap\(file\)[\s\S]*if \(type === 'image\/gif'\) \{\s*if \(!bitmap\) throw fail\('image_undecodable'\);[\s\S]*?return passThrough\(\);/.test(prepare),
+  'a GIF is DECODED first as a gate and then passes through untouched — never redrawn, since that would drop its frames');
+ok(/animated_webp_unsupported/.test(prepare) && /_prodDescriptionWebpAnimated\(file\)/.test(prepare),
+  'an animated WebP is refused outright rather than silently flattened to one frame');
+const webpProbe = grabFunc('async function _prodDescriptionWebpAnimated(');
+ok(/'VP8X'/.test(webpProbe) && /head\[20\] & 0x02/.test(webpProbe), 'detected from the VP8X flags byte, no decode');
+ok(/Animated WebP is not supported/.test(grabFunc('function _prodDescriptionImageErrorText(')), 'and told in words');
+const draftInput = grabFunc('function _prodDescriptionDraftInput(');
+ok(/save\.disabled = value\.length > 100000 \|\| state\.uploading > 0/.test(draftInput),
+  'typing during an upload cannot re-enable Save: the draft path respects the upload state too');
 /* Codex on #1310, round eight: the server checks structure, not pixels, so
    the browser must never ship bytes it could not decode itself. */
 ok(/if \(!bitmap\) throw fail\('image_undecodable'\)/.test(prepare),

@@ -12264,3 +12264,54 @@ because `SXR_STATUSES` has none either.
 **The handler keeps its own check.** A disabled button is a courtesy: Set all,
 the auto-router and both approve paths all reach the rule without ever passing
 through this menu.
+
+---
+
+## 154. [2026-09-05, SWEPT — three more closed, three gaps named and left open on purpose] Every writer of a component status, under any prefix, against the review gate
+
+Owner, after item 153: *"make sure that you have discovered all the possible
+things it would break."* Items 152–153 found two callers by reading. This entry
+is the machine answer: every function in `index.html` that assigns a component
+status on a post, **with no prefix restriction**, classified against the gate.
+The restriction to `_cal*` / `_sxr*` in the earlier rosters is exactly how the
+three below were missed twice.
+
+**31 writers found.** 10 gated, 21 exempt with a stated reason each, 0
+unclassified — and the test that derives the list fails the moment a 32nd
+appears under any name. Plus every caller of the auto-router, whose refusal is
+a return value its callers were written to ignore.
+
+### Closed in this pass
+
+* **Kasper's own approve handlers** — `_kasperApproveComp` and
+  `_sxrKasperApproveComp` move a component to Client Approval, a review status,
+  with no content check. His Approve button is already disabled for a component
+  he cannot review, but a button is a courtesy and these are the handlers: a
+  panel rendered before the video URL was cleared still carries a live
+  `onclick`. Both now refuse at the handler with the reason shown inline.
+* **The journal retry** — `_writeUiRetryCardCommentResolve` replays a refused
+  comment-resolve from the durable write-UI journal and then routes the
+  component onward, ignoring the router's return. Two ways the replay can meet
+  an empty component: the content was cleared after the entry was written, or
+  the entry predates the gate. The resolve is still honoured (it is the recorded
+  action, and the gateway may already hold it); the **route** is refused out
+  loud — *"Change request resolved, but not sent on"* — instead of silently.
+
+### Left open, deliberately, and worth knowing
+
+1. **Linear inbound is a mirror.** `_calReconcileLinearStatuses`,
+   `_calSyncStatusFromLinear` and the samples twin write the status Linear
+   already holds. The gate is browser-side. **A Linear-side move of an empty
+   component to "For Kasper approval" still lands on the card unchallenged.**
+   Gating a mirror would make the card disagree with Linear rather than stop a
+   person; the fix, if one is wanted, is server-side in `linear-inbound`, and
+   the Linear exit removes the path entirely.
+2. **Journal entries written before the gate.** `_writeUiApplyJournalEdits`
+   replays edits that were gated when staged. Entries journaled before
+   2026-09-05 were not. A finite, shrinking population; not worth a guard that
+   would also refuse legitimate replays.
+3. **Kasper's undo** restores the status a component held moments before. The
+   state it restores existed. Gating a revert would strand the undo.
+
+The prefix-free roster, the router-caller check and both Kasper guards are in
+`test/cal-review-needs-content.js`, all mutation-proven.

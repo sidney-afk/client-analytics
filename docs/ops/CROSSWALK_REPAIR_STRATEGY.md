@@ -8,7 +8,7 @@ different things and this line separates them deliberately:
 |---|---|
 | Phase 1 (90 cards with no legacy thread) | **RAN 2026-09-04.** 172 mismatching slots → 112; 60 repaired. Owner-executed SQL. |
 | Phase 2's combined RPC | **WRITTEN**, `migrations/2026-09-05-crosswalk-bind-and-import.sql`, rehearsed against a disposable PostgreSQL 16 (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). **REVISED 2026-09-05 evening under the owner's label ruling (§4b): kind never refuses, labels follow the card, contested slots resolve on request.** **NOT APPLIED to the live database, and no card has been repaired through it.** |
-| Phase 2 (the remaining slots) | **NOT STARTED.** Needs the migration applied. The call list is measured fresh by the lane at dispatch time (`crosswalk-phase2-repair.yml`, plan then apply — §5). |
+| Phase 2 (the remaining slots) | **RAN 2026-09-05, 89 of 100.** Migration applied by the owner; lane dispatched plan then apply. 89 bound, 7 shells detached, 97 comments imported. **11 refused** by the live F27 outbox fence (the cancel intent carried no authority binder — OPEN_REPAIRS 156, "First live apply"); fixed in source, migration re-apply + one more plan/apply pending. |
 | Phase 3 (verify) | Not started. |
 
 ~~**Status: PROPOSAL. Nothing here has been executed. No migration is written.**~~
@@ -274,7 +274,11 @@ posted 3, tweak 1, approved 1), **64 of the 100 carry a legacy thread — 132
 comments ride along**, 0 deferred, 0 held back; 7 skipped
 (already_bound_elsewhere 5, client_mismatch 1, linear_identity_unproven 1);
 relabels other→thumbnail 26, thumbnail→video 14. The same 100 / 18 / 7 the
-ruling measured, now produced by the runner itself. The first forecast said 133
+ruling measured, now produced by the runner itself. **The live plan run said
+the same to the digit; the live apply landed 89 and was refused on the 11
+cancel-evictions by the F27 outbox fence** — the RPC enqueued without the
+authority binder. Fixed (OPEN_REPAIRS 156, "First live apply"); the rehearsal
+now carries the F27 closure and reproduces both the refusal and the pass. The first forecast said 133
 comments: 13 card ids are shared by two or more clients on live
 (`calendar_posts` is keyed on (client, id)), and the runner's first version
 keyed its import lookup on card id alone, so one client's comment was

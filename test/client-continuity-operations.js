@@ -56,6 +56,13 @@ async function main(){
   try {
     fs.writeFileSync(path.join(temp,`samples-${id}.start.json`),JSON.stringify({...start,privateContent:'must drop'}));
     eq(O.receipts(temp,sha,now),[start]);
+    const bound={...start,pageSourceSha:'b'.repeat(40),pageBlobSha:'c'.repeat(40),pageSha256:'d'.repeat(64)};
+    fs.writeFileSync(path.join(temp,`samples-${id}.start.json`),JSON.stringify(bound));
+    eq(O.receipts(temp,sha,now),[bound]);
+    assert.throws(()=>O.evaluate([bound,{...end,pageSourceSha:'e'.repeat(40),pageBlobSha:bound.pageBlobSha,pageSha256:bound.pageSha256}],1,now));passed++;
+    fs.writeFileSync(path.join(temp,`samples-${id}.start.json`),JSON.stringify({...bound,pageBlobSha:undefined}));
+    assert.throws(()=>O.receipts(temp,sha,now));passed++;
+    fs.writeFileSync(path.join(temp,`samples-${id}.start.json`),JSON.stringify(start));
     assert.throws(()=>O.receipts(temp,'b'.repeat(40),now));passed++;
     assert.throws(()=>O.receipts(temp,sha,1));passed++;
     let persisted=[],sent=[];

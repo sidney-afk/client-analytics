@@ -16,6 +16,10 @@ function receipts(directory,sha,now=Date.now()) {
     const kind=name.endsWith('.terminal.json')?'terminal':'start';
     requireValue(name===`${value.lane}-${value.runId}.${kind}.json`);
     const clean={version:1,releaseSha:sha,lane:value.lane,runId:value.runId,startedAt:value.startedAt};
+    if(['pageSourceSha','pageBlobSha','pageSha256'].some(key=>key in value)) {
+      requireValue(/^[a-f0-9]{40}$/.test(value.pageSourceSha)&&/^[a-f0-9]{40}$/.test(value.pageBlobSha)&&/^[a-f0-9]{64}$/.test(value.pageSha256));
+      Object.assign(clean,{pageSourceSha:value.pageSourceSha,pageBlobSha:value.pageBlobSha,pageSha256:value.pageSha256});
+    }
     if(kind==='terminal') {
       requireValue(Number.isFinite(value.finishedAt)&&value.finishedAt>=value.startedAt&&value.finishedAt<=now);
       Object.assign(clean,report(value.lane,value.code,value.count),{finishedAt:value.finishedAt});
@@ -29,7 +33,7 @@ function evaluate(records,activatedAt,now=Date.now()) {
   return LANES.map(lane=>{
     const items=records.filter(r=>r.lane===lane),starts=items.filter(r=>!('finishedAt' in r)),ends=items.filter(r=>'finishedAt' in r);
     const ids=new Set();for(const r of starts){requireValue(!ids.has(r.runId));ids.add(r.runId);}
-    const endIds=new Set();for(const end of ends){requireValue(!endIds.has(end.runId)&&starts.some(s=>s.runId===end.runId&&s.startedAt===end.startedAt));endIds.add(end.runId);}
+    const endIds=new Set();for(const end of ends){requireValue(!endIds.has(end.runId)&&starts.some(s=>s.runId===end.runId&&s.startedAt===end.startedAt&&['pageSourceSha','pageBlobSha','pageSha256'].every(k=>s[k]===end[k])));endIds.add(end.runId);}
     const orphan=starts.find(s=>now-s.startedAt>=120000&&!ends.some(e=>e.runId===s.runId));
     if(orphan)return report(lane,'terminal_missing');
     const terminal=ends.sort((a,b)=>b.finishedAt-a.finishedAt)[0];

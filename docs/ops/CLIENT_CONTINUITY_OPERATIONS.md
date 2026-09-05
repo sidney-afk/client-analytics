@@ -56,8 +56,31 @@ Start from [the operations template](client-continuity-operations.example.json)
 and [the viewing template](client-continuity.config.example.json). No token,
 private link, client identity, recipient or content belongs in Git or PR output.
 
-After exact-head approval, bind `releaseSha` to the clean checkout and bind the
-viewing `pageSha256` to approved deployed index bytes. The unchanged index in this
+After exact-head approval, bind `releaseSha` to the clean executable checkout.
+The optional viewing `pageSourceSha` separately pins the **full 40-character local
+commit ID** containing the approved target `index.html`; `pageSha256` must match
+that immutable blob before any network access. A branch/tag, abbreviated ID, URL,
+missing commit, tree/blob in place of a commit, missing/non-regular document, or
+hash mismatch is refused. Git replacement refs are ignored. The launcher never
+fetches or guesses a target. Omitting `pageSourceSha` preserves the original strict
+current-HEAD/current-file behavior.
+
+This permits reviewed monitoring code to observe a separately approved current
+document before the Samples repair is released. The owner supplies the exact
+current source commit and expected byte hash privately; source presence is not
+deployment evidence. Actual served bytes must still match `pageSha256` through
+the existing guarded observer. After a later release, explicitly approve/rebind
+`pageSourceSha` and `pageSha256`, then require a fresh successful viewing receipt;
+do not treat a receipt for the old target as proof of the new target. No writer,
+auth, census, request policy or browser transport changes with this binding.
+
+New start/terminal receipts and the viewing result record `releaseSha`,
+`pageSourceSha`, `pageBlobSha` and `pageSha256`. Receipt ingestion preserves these
+safe public revisions/hashes and refuses partially populated provenance or
+start/terminal mismatches. Old receipts with no document fields remain readable
+for historical compatibility; they do not prove a separately pinned target.
+
+The unchanged index in this
 candidate has SHA256
 `8d91a1f00144f92483f6607f256e26991d368a3fbb7814c61e1c0e0bfb010380`;
 this is **not** a claim that those bytes are currently served. A deployment-byte

@@ -12704,3 +12704,15 @@ tweak drafts lost immediately or on reopening, including newer typing. The
 accepted Samples-note subset remains conserved. Install must wait for the
 separate failure-preservation repairs and passing failure/reopen tests because
 a journal insertion failure intentionally rejects the corresponding save.
+
+**Restore review correction, draft/unapplied:** preserved PR #1299 `85018bf8`
+proved only a minimal 21-table fixture. An independent migration-shaped catalog
+reproduced 9 incoming FKs from 8 omitted tables, plus the F27 intent edge.
+New explicit `history-v5` data coverage includes all 33 known closed-corpus
+relations and retains comment/intake dedup evidence; old packages remain readable
+and limited. Raw legacy14 TRUNCATE also refused those FK dependencies before the
+new legacy guard, so narrowing that guard is not a full-schema legacy fix.
+The matching authenticated schema artifact and empty-target reconstruction are
+still a RELEASE BLOCKER. See `TRACK_B_BACKUP.md` and the dated restore correction
+audit. Default schedule, journal SQL, frozen writers and live configuration stay
+unchanged by source preparation.

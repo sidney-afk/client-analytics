@@ -7,6 +7,15 @@ request to retain every card change for at least 30 days. Source base:
 No database migration, grant, writer deployment, flag, backup setting or live
 test was performed. Merging these files does not install database capture.
 
+**Restore correction checkpoint (source only):** the preserved PR #1299 head
+`85018bf83ab49527c79ca86d521c6a08a31e3277` had a limited 21-table backup proof.
+Actual migration-shaped foreign keys block that corpus on a normal expanded
+schema. The new explicit 33-table `history-v5` preparation preserves dependent
+records, comment crosswalk/replay receipts, intake receipts and F27 recovery
+state. Its matching authenticated schema artifact and empty-target reconstruction
+remain a **RELEASE BLOCKER**. See [TRACK_B_BACKUP.md](TRACK_B_BACKUP.md) for the
+single current backup rollout. The atomic journal and its six owners are unchanged.
+
 **Current installation blocker: comment failure continuity is FAIL.** The
 independent bounded 27-case synthetic browser proof at base `287c16cd` found
 that refused Calendar/Samples plain notes recover in memory but are lost on
@@ -134,7 +143,10 @@ link is replaced or re-gated.
    uninstalled dependency at this draft's base; existence in a local checkout
    is not deployment proof. Do not silently omit it or copy/reimplement it here.
    Its production-write deployment is a separate release decision. Reconstruct
-   the matching scratch schema and exact restore helper before testing the
+   the matching scratch schema from the separately authenticated schema artifact
+   and tested reconstruction recipe; those artifacts are presently missing.
+   Filename-order migration replay does not clear that release blocker. Prove
+   the exact restore helper before testing the
    expanded package. No client surface changes in this preparation.
 4. **Install database capture in a reviewed quiet window.** Apply the exact new
    journal migration once in its transaction **only after the presently failing

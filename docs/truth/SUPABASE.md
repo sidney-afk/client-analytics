@@ -368,6 +368,15 @@ comment-refusal/reopen conservation proof; the separate browser repairs must
 pass before mandatory capture can expose users to an additional save refusal.
 The dated capacity/provider statements below are not refreshed by this draft.
 
+**Restore correction, still unapplied:** the prior 21-table corpus omits actual
+incoming FK dependencies. Explicit `history-v5` preparation covers 33 relations,
+including comment crosswalk/mutation receipts, intake recovery payloads and F27
+rollback/generation state. Legacy v3/v4 packages retain their limited meanings.
+`TRACK_B_BACKUP.md` holds activation on a missing authenticated schema artifact
+and actual empty-target reconstruction proof; local dependency-shaped tests do
+not clear that gate or establish installed/live coverage. No writer/capture SQL
+or anonymous policy changed in this correction.
+
 - The live project is on **Pro**, not Free. The 2026-07-13 readback showed seven completed daily
   physical backups spanning the included seven-day retention window; the newest completed that day.
 - PITR was **off** at the readback. That matches the approved temporary-window policy, but means PITR

@@ -154,7 +154,7 @@ async function run() {
     to.query('create table public.synthetic_excluded_reference(id text primary key, batch_id text references public.batches(id));');
     const externalFk = apply(restore.restoreSql(snapshot.dumpBytes, 'history-v4'));
     check('even empty omitted incoming-FK table refuses restore with unchanged data and triggers', () => {
-      assert.notEqual(externalFk.status, 0); assert.match(externalFk.stderr, /foreign key constraint/);
+      assert.notEqual(externalFk.status, 0); assert.match(externalFk.stderr, /omitted incoming foreign key/);
       assert.deepEqual(fullRows(to), before); assert.deepEqual(triggerRows(to), beforeTriggers);
     });
     to.query('drop table public.synthetic_excluded_reference;');
@@ -214,4 +214,4 @@ async function run() {
   }
 }
 if (require.main === module) run().catch(error => { console.error(error.stack); process.exitCode = 1; });
-module.exports = { prerequisite, run };
+module.exports = { prerequisite, prepare, seed, triggerRows, run };

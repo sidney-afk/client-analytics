@@ -4,6 +4,68 @@ This bounded G0/G1 packet belongs to the canonical Linear-exit plan (#1268).
 Decision A remains NOT READY. The candidate contains Samples continuity and
 inactive monitoring/recovery tools. Native manifest repair #1293 stays separate.
 
+## September 5 current-main integration: local candidate only
+
+The isolated merge `bce37c6ab3e8211351b588bb7740facb60ef5f53` has exactly two
+parents: reviewed first-Samples head
+`51fae03cda4335f883aaf854b11026251f1c8f4d` and captured remote main
+`5b9c0720e98f81324948bf2de932520226bc9832`. The merge was conflict-free. The
+original release checkout and historical heads are preserved. This preparation
+does not push or update #1295, merge to main, deploy, apply a migration, or run a
+live client action. Drafts #1304, #1297, #1299, #1303 and #1302 are not added.
+
+Relative to the reviewed first release, the entire HTML differs only in one
+inherited asset-fallback comment; executable browser bytes are identical. All
+Samples, monitoring and recovery helpers and assertions are retained verbatim.
+Every Edge Function source file equals captured main, including its inherited
+production-write change. Captured main also contributes crosswalk repair and
+deployment-lane source. These are inherited source, not evidence that this
+integration deployed a gateway or applied a migration. Frozen anonymous writer
+source and client authorization are unchanged by the integration.
+
+The new exact artifact pair, built from the merge above, is:
+
+| Artifact | SHA256 |
+|---|---|
+| Forward HTML | `f60303eb472890187c5c273aa802a43f4c0bcd56973ef3e8de24b03f8a1a8d47` |
+| Compatible recovery HTML | `3063d5426aa44ce574ecb7582e9f456cd24c45c936c967aa9acf1cd01f350c63` |
+| Forward `_sxrFetchPosts` | `674d6303683703e9336188f08eb2102fbfeb8b98e2f50cf1873cf153d9b0709d` |
+| Recovery `_sxrFetchPosts` | `392c29beadbb25cb66229fa07a6c81f114c722b82a3072104d90fc267188f9c2` |
+
+The paired inverse changes only that reader and restores the forward document
+byte-for-byte. It retains owned work, save/cache compatibility and client
+authorization; it is not a whole old-document revert.
+
+Exact-source local proof: 8 actual-browser owned-work groups, 13
+forward/recovery/forward groups and 24 boot groups passed in Chromium
+141.0.7390.37. The strict monitor suite passed 146 assertions. The full unit run
+reported 407 of 408 suites passing. Its sole failure,
+`test/asset-access-any-team.js`, is the same Windows
+`ERR_UNSUPPORTED_ESM_URL_SCHEME` reproduced on preserved `51fae03c`; the test
+file is identical across that head, captured main and this merge. The failure
+remains recorded. Optional PostgreSQL, bash and type-signature execution lanes
+were skipped under their existing local prerequisites, and Node emitted
+experimental/module warnings. This is not a fully green hosted run or proof of
+those skipped lanes. Repository-map 313, truth 527 and system-map 17 assertions
+also passed after updating this packet. No production database proof is claimed.
+
+Separately, the coordinator's static public-document read at
+2026-09-05T20:28:29Z matched captured main's HTML, SHA256
+`03b1a904c56fe8c0b5299d531bbe80db3c90056b2cacccdf17e280be9e27e826`.
+It did not match the forward candidate above and did not exercise a share-link
+journey, a writer, or an Edge Function serving closure. The earlier `a05e1126`
+observation below remains historical evidence.
+
+Release remains held for independent review of the final exact integration,
+applicable hosted checks, refreshed serving/writer pre-state, the approved
+populated TEST journey and persistence/readback, and operational watcher and
+alert/fallback proof specified in the ordered gates below. The separately
+identified comment refusal/reopen defects and their repair are not closed by
+these Samples tests. During this local preparation clients continue to receive
+the existing deployed document; none of the candidate bytes or synthetic writes
+reach production. The historical composition, artifacts and receipts below are
+retained as the earlier packet, not substituted for this new artifact pair.
+
 ## Exact composition
 
 | Component | Immutable source |

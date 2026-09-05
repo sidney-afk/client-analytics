@@ -664,10 +664,60 @@ ok(lanes.some(l => l.base === 'deploy-onboarding-edge-functions'),
 ok(!lanes.some(l => l.base.indexOf('section4') >= 0),
     'while the §4 lane itself is excluded, because its receipts are exactly what this guard reads');
 
+/* ---- 8b. a deploy entry the guard cannot read is NAMED, not skipped ------ */
+/* Codex P1 on #1306. The two 2026-09-05 deploys were logged with unquoted slugs,
+   no run id in the heading and no attestation block; none of the three receipt
+   parsers saw them, so the guard compared against the 2026-09-02 receipt and the
+   Live State row sat two releases stale with this check green. The fixtures
+   below append exactly that shape to the REAL files. */
+const realLog = fs.readFileSync(path.join(ROOT, 'EXECUTION_LOG.md'), 'utf8');
+const realRb = fs.readFileSync(path.join(ROOT, 'ROLLBACK.md'), 'utf8');
+const malformed = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run #40: production-write 68 → 69',
+    '',
+    'Deployed from commit `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| deliverable-write | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| linear-outbound | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| **production-write** | **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const unread = run(fixture('unreadable-entry', realLog + malformed, realRb));
+ok(unread.code === 1 && unread.json
+    && unread.json.failures.some(f => /line \d+ \("2026-09-06 — F27 Section 4 deploy, run #40/.test(f) && /no receipt this guard can read/.test(f)),
+    'THE SHAPE THAT BLINDED THE GUARD: a Section 4 deploy entry with unquoted slugs, no run id and no attestation is named as unreadable, by line and heading, instead of being silently skipped');
+ok(unread.json && unread.json.live && unread.json.live.run === '33991332628',
+    'and the verdict still shows the last receipt it COULD read, so the writer sees both what it saw and what it could not');
+const headless = malformed.replace(
+    '## 2026-09-06 — F27 Section 4 deploy, run #40: production-write 68 → 69',
+    '## 2026-09-06 — production-write 68 → 69 shipped');
+const headlessRun = run(fixture('unreadable-table', realLog + headless, realRb));
+ok(headlessRun.code === 1 && headlessRun.json
+    && headlessRun.json.failures.some(f => /4-row versions table/.test(f) && /no receipt this guard can read/.test(f)),
+    'a four-function versions table the guard cannot read is caught even when the heading never says Section 4');
+const readable = malformed
+    .replace('run #40', 'run `33999999999`')
+    .replace('Deployed from commit', 'Dispatched from')
+    .replace('| batch-write |', '| `batch-write` |')
+    .replace('| deliverable-write |', '| `deliverable-write` |')
+    .replace('| linear-outbound |', '| `linear-outbound` |')
+    .replace('| **production-write** | **69** |', '| `production-write` | 68 → **69** |');
+const readableRun = run(fixture('readable-entry', realLog + readable, realRb));
+ok(readableRun.code === 1 && readableRun.json
+    && !readableRun.json.failures.some(f => /no receipt this guard can read/.test(f))
+    && readableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'the same entry in the parsed shape is READ: the unreadable finding goes away and the stale-row finding takes its place, which is the one the row is then fixed for');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);
 ok(real.code === 0, 'and the repository as it stands right now is consistent');
+ok(real.json && !real.json.failures.some(f => /no receipt this guard can read/.test(f)),
+    'and every Section 4 deploy entry in the real log is one the guard can read, today included');
 
 fs.rmSync(tmp, { recursive: true, force: true });
 

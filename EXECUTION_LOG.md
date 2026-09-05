@@ -6334,5 +6334,7 @@ named `production-write` v66 and bundle `3010578b…` (v65) as the one-step
 restore. Restoring by that row after this deploy would have stepped back three
 releases. Both entries now carry the run id, the quoted slugs, the arrow-shaped
 version cell and the sealed bundle line, this one carries the JSON attestation,
-and `test/rollback-row-freshness-live.js` runs the guard against the real files
-in the unit lane so a stale row is red rather than silent.
+and the guard itself now refuses a Section 4 deploy entry it cannot read, naming
+the line and what to fix (Codex P1 on #1306, second round; the guard's own suite
+already ran it against the real files, so a stale row is red rather than silent
+from here on).

@@ -12662,10 +12662,12 @@ because neither deploy entry was written in a shape it parses (slugs unquoted in
 the table, no run id in the heading, no attestation block), so it kept comparing
 the row against the 2026-09-02 receipt. A restore by that row would have stepped
 back three releases. Fixed in the same PR: both entries rewritten in the parsed
-shape, the row moved to v68 / `fc9f12f7…` (captures v67), and
-`test/rollback-row-freshness-live.js` now runs the guard against the real files
-in the unit lane, proven red against the old row before it was proven green
-against the new one.
+shape, the row moved to v68 / `fc9f12f7…` (captures v67), and the guard itself
+now refuses a Section 4 deploy entry it cannot read (Codex's second round: a
+real-file run alone would have stayed green on the next malformed entry, and the
+guard's suite already ran one). Three fixtures prove it: the exact shape that
+blinded it is named by line, a table without the heading is still caught, and
+the same entry in the parsed shape is read and fails for the row instead.
 
 ## 156. [2026-09-05, RULED AND WRITTEN, NOT APPLIED — updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
 

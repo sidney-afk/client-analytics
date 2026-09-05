@@ -285,6 +285,18 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Samples (SXR + legacy)
 
+- G1 bounded reader repair (candidate, local proof only): per-client Samples requires
+  exact-count, scoped keyset pages before replacing cards/cache. A scoped nonempty
+  fallback preserves existing content/cache; on a cold open it may display available
+  rows with incomplete/outdated feedback and retry, without caching or claiming
+  authoritative recovery. Empty, failed or malformed fallback cannot establish
+  emptiness. Only complete primary recovery clears that warning and stamps cache
+  verification time. Recent verified cache refreshes quietly; expired/unverified
+  cache remains warned. Drafts carry their originating client and the existing
+  merge retains blank/pending/saving/failed-new cards, including mid-refresh typing.
+  Calendar v2/shared pagination, the cross-client Kasper queue, and all writers are
+  unchanged. `test/samples-authoritative-read.js` holds isolated regression coverage;
+  coordinator PR #1268 G1 monitoring/client-continuity release gates remain held.
 - Logic map: `docs/audits/2026-07-05-logic-samples.md`.
 - SXR rejects pushing Scheduled/Posted to Linear (unlike calendar).
 - `_sxrReassertLinearStatus()` is **defined but never called** (dead drift-protection). Samples

@@ -170,7 +170,7 @@ assert(source.includes("const CAL_LINEAR_META_LS_KEY = 'syncview_calLinearMeta_v
 assert(source.includes("const CAL_CACHE_KEY_PREFIX = 'syncview_calCache_v2:'"));
 assert(source.includes("const SXR_CACHE_PREFIX = 'syncview_sxr_cache_v2_'"));
 assert(source.includes('_writeUiFilterCachedPosts(parsed.posts, authority)'));
-assert(source.includes('_writeUiFilterCachedPosts(o.posts, authority)'));
+assert(between('function _sxrCacheRead', 'function _sxrCacheWrite').includes('_writeUiFilterCachedPosts(posts, authority)'), 'salvaged Samples cache rows still pass the native-authority filter');
 assert(source.includes('if (!authority) return null;'), 'cache reads must fail closed without live authority');
 
 assert(source.includes("await _calPushStatusToLinear(post.linear_issue_id"));

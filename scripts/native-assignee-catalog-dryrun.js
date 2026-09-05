@@ -54,28 +54,49 @@ const REST_PAGE = 500;
 const REST_MAX_PAGES = 20;
 
 /* Complete-or-refuse paging over PostgREST. Every page asks for the exact
-   total (Prefer: count=exact) and the total must be the same on every page,
-   the rows must add up to it, and it must fit the page budget; otherwise the
-   read is unproven and the caller must not report readiness. Exported for the
-   offline test, which drives it with a fake fetch. */
+   total (Prefer: count=exact); exact intervals, body lengths and unique member
+   identities must cover that same total within the page budget; otherwise the
+   read is unproven and the caller must not report readiness. This checks page
+   coverage, not a transactional snapshot of concurrent roster edits. Exported
+   for the offline test, which drives it with a fake fetch. */
 async function readRestComplete(base, key, fetchImpl) {
   const rows = [];
+  const seen = new Set();
   let total = null;
   for (let page = 0; page < REST_MAX_PAGES; page++) {
     const from = page * REST_PAGE;
     const to = from + REST_PAGE - 1;
-    // Only the columns the rule reads; no name, email or slack id leaves the table.
-    const response = await fetchImpl(base + '/rest/v1/team_members?select=role,team,active,default_for_team,linear_user_id&order=id.asc', {
+    // Member id is needed for eligibility and distinct coverage, but is never
+    // emitted by the aggregate report. No name, email or slack id is read.
+    const response = await fetchImpl(base + '/rest/v1/team_members?select=id,role,team,active,default_for_team,linear_user_id&order=id.asc', {
       headers: { apikey: key, Authorization: 'Bearer ' + key, Accept: 'application/json', Range: from + '-' + to, 'Range-Unit': 'items', Prefer: 'count=exact' },
     });
     if (!(response.status === 200 || response.status === 206)) throw new Error('team_members read failed: HTTP ' + response.status);
     const match = /^(?:items )?(?:(\d+)-(\d+)|\*)\/(\d+|\*)$/.exec(String(response.headers.get('content-range') || '').trim());
     if (!match || match[3] === '*') throw new Error('unproven_roster_read: server did not report an exact total');
     const reported = Number(match[3]);
+    if (!Number.isSafeInteger(reported) || reported < 0) throw new Error('unproven_roster_read: invalid exact total');
+    if (reported > REST_PAGE * REST_MAX_PAGES) throw new Error('unproven_roster_read: roster exceeds the bounded page budget');
     if (total !== null && reported !== total) throw new Error('unproven_roster_read: total changed between pages');
     total = reported;
     const pageRows = await response.json();
     if (!Array.isArray(pageRows)) throw new Error('unproven_roster_read: page was not an array');
+    if (total === 0) {
+      if (from !== 0 || match[1] !== undefined || pageRows.length !== 0) throw new Error('unproven_roster_read: invalid empty range');
+      return rows;
+    }
+    const rangeStart = Number(match[1]);
+    const rangeEnd = Number(match[2]);
+    if (!Number.isSafeInteger(rangeStart) || !Number.isSafeInteger(rangeEnd)
+        || rangeStart !== from || rangeEnd !== Math.min(to, total - 1)
+        || pageRows.length !== rangeEnd - rangeStart + 1) {
+      throw new Error('unproven_roster_read: page range or body length does not match the requested coverage');
+    }
+    for (const row of pageRows) {
+      const id = row && typeof row.id === 'string' ? row.id : '';
+      if (!id || id !== id.trim() || seen.has(id)) throw new Error('unproven_roster_read: missing or repeated member identity');
+      seen.add(id);
+    }
     rows.push(...pageRows);
     if (rows.length >= total) break;
     if (!pageRows.length) throw new Error('unproven_roster_read: empty page before the total was reached');
@@ -101,7 +122,7 @@ async function readRows() {
       '-h', host, '-p', process.env.NIR_PGPORT || process.env.PGPORT || '5432',
       '-U', process.env.NIR_PGUSER || process.env.PGUSER || 'postgres',
       '-d', process.env.NIR_PGDATABASE || process.env.PGDATABASE || 'postgres',
-      '-c', "select coalesce(json_agg(t), '[]'::json) from (select role, team, active, default_for_team, (linear_user_id is not null and linear_user_id <> '') as mapped from public.team_members) t;"],
+      '-c', "select coalesce(json_agg(t), '[]'::json) from (select id, role, team, active, default_for_team, (linear_user_id is not null and linear_user_id <> '') as mapped from public.team_members) t;"],
     { encoding: 'utf8' });
     if (r.status !== 0) throw new Error('psql read failed: ' + (r.stderr || '').trim().slice(0, 200));
     const rows = JSON.parse(r.stdout.trim() || '[]').map(row => ({ ...row, linear_user_id: row.mapped ? 'mapped' : null }));

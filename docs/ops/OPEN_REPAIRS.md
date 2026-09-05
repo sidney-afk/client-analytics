@@ -12846,7 +12846,7 @@ is either clean or one of the 7 named for a person, and the runner's plan
 summary lists those 7 by reason on every run. Item 147's residue and the "Still
 open" list above are the whole of what is left.
 
-### The seven, ruled (same day, 23:07 UTC) — six "leave", one one-row move; the repair set is closed
+### The seven, ruled (same day, late evening UTC) — six "leave", one one-row move; the repair set is closed
 
 The owner looked at each of the 7 slots the runner refuses for a person, with
 both sides named (the card, the issue it links, and the card that holds the
@@ -12854,8 +12854,7 @@ deliverable), and ruled. Row identities stay out of this public file on
 purpose — `calendar_posts` is anonymously readable, so a card id here would
 resolve to a client's production row; the exact slot list is what the runner's
 plan summary names by reason on every run, and the mapping used tonight is
-held privately (session record, and the `crosswalk_bound` /
-`crosswalk_occupant_evicted` events by timestamp):
+held privately (session record):
 
 | # | client | slot | reason | what it is | ruling |
 |---|---|---|---|---|---|
@@ -12866,10 +12865,10 @@ held privately (session record, and the `crosswalk_bound` /
 | 5, 6 | D | video and graphic, on an archived card | already_bound_elsewhere | duplicate card of an approved one; the approved card holds both deliverables and links the same issues | leave |
 | 7 | D | video, on an approved card | already_bound_elsewhere | the issue was auto-created by SyncView Mirror from a native card that is now archived and still held the deliverable; the approved card is the real post | **move the deliverable to the approved card** (owner ruling: an archived card never wins) |
 
-Slot 7 was moved by the owner in the SQL Editor at 23:06:52Z as a single
+Slot 7 was moved by the owner in the SQL Editor, late that evening, as a single
 guarded row update (`EXECUTION_LOG.md`, 2026-09-05, "one-row crosswalk
 move"). The ledger guard wrote its bare `update` event. Re-read with the
-runner's own classifier a minute later: the approved card's slot is clean; the
+runner's own classifier minutes later: the approved card's slot is clean; the
 archived native card now shows as `already_bound_elsewhere` for the same
 deliverable — the same "archived loser" shape as rows 1, 5 and 6 — so the
 count stays 7 but every one of the 7 is now a ruled "leave". The unused

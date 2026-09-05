@@ -6369,10 +6369,15 @@ a person, which is the intended path for the slots the rule hands back.
 `updated_at` (status unchanged, so `status_at` did not move). No Linear
 write, no outbox intent, no comment moved: the issue, its status, and both
 cards' links are what they were. Reversal is the same statement with the two
-card ids swapped (both are on the event's row); the prior `updated_at` (2026-09-05 20:53Z, from the second
-apply) is not restorable. Not exercised.
+card ids swapped. The old card id is **not** on the ledger event (the guard
+records only op and reason, and the row keeps only the new value); it survives
+in the owner's SQL Editor history, in the session record, and — durably, in the
+data itself — as the archived native card whose video slot still names this
+deliverable, which the runner's plan lists as `already_bound_elsewhere` for
+exactly this reason. The prior `updated_at` (from the second apply) is not
+restorable. Not exercised.
 
-**After.** The runner's classifier, re-run read-only a minute later: 1,214
+**After.** The runner's classifier, re-run read-only minutes later: 1,214
 slots, 1,207 clean, 7 mismatching, 0 bindable — the approved card's slot is
 now clean and the archived native card is the one refused. All 7 carry a
 recorded ruling (OPEN_REPAIRS 156). Phase 3 (b) closed; (c) open.

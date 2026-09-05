@@ -6294,6 +6294,16 @@ the 11 cancels. The check against Linear itself — the 11 occupant issues in a
 canceled state, nothing else in the VID team touched by the drain — is
 recorded in the addendum below once it ran.
 
+**Linear delivery — addendum, 21:02Z.** The drain ran at 21:00:35Z (run
+`33991760541`, workflow_dispatch, 48 s, success). Read from Linear at
+21:02Z: exactly 11 issues in the VID team updated in the preceding 15
+minutes, all `Canceled`, `canceledAt` 21:00:46Z → 21:01:14Z in outbox order,
+and the 11 identifiers are the 11 `occupant_linear_identifier` values the
+`crosswalk_occupant_evicted` events carry — nothing else in the team was
+touched. Delivered in one pass, no retries. For the 01:00Z pre-flip health
+check: 11 outbound deliveries at 21:00Z, 100 `crosswalk_bound` and 18
+`crosswalk_occupant_evicted` events on the day, are this repair, not drift.
+
 **Totals for the day:** 100 of the 100 slots the ruling identified are bound;
 18 occupants evicted (7 detached, 11 canceled); 109 legacy comments copied
 into canonical threads. 7 slots remain, all for a person, named by reason in

@@ -1,5 +1,10 @@
 # Kasper roster readiness regression
 
+**Current corrected proof:** 11/11 browser cases, 23/23 visible boot groups and
+10/10 targeted offline suites pass at `1e5f226e5ed042a7c6a27459ee80a74d6c7f1c93`.
+The earlier candidate below was rejected by independent review; use the Metrics
+correction receipts at the end for current assessment.
+
 This bounded **ISOLATED_BROWSER** follow-up reuses PR #1282's unchanged fictional
 fixture, local server and fail-closed network guard. It does not copy its backend
 or change its baseline ledger. Check out that draft separately at
@@ -140,3 +145,47 @@ failure reaches the client retry screen; other general client data loading uses
 through its own branch before that general essentials load. No Samples behavior
 was changed. Metrics network rejection semantics are unchanged and are not claimed
 newly available; these additional browser cases specifically exercise HTTP 503.
+
+
+### Corrected exact-source receipt
+
+Tested implementation: `1e5f226e5ed042a7c6a27459ee80a74d6c7f1c93`.
+The subsequent evidence-only commit changes this README. Source was clean and
+unchanged throughout the following runs. **11/11 browser cases pass**, including
+all nine original timing cases and both added Metrics-only HTTP 503 cases.
+**23/23 existing visible boot groups** and **10/10 targeted offline suites** pass.
+No broad suite was repeated for this correction.
+
+| Metrics-only HTTP 503 result | Original main a4925097 | Rejected cfea54c3 | Corrected 1e5f226e |
+| --- | --- | --- | --- |
+| Anonymous Calendar eligible cards / retry screen | 1 / 0 | 0 / 1 | 1 / 0 |
+| Direct Kasper eligible cards | NOT_TESTED | 0 | 1 |
+
+The added cases each record one Metrics 503, a healthy Clients Info response,
+zero accepted fixture effects, and zero unexpected HTTP/websocket/page errors.
+Calendar also corroborates the verifier request and the rendered review card.
+True roster network/HTTP failures still fail readiness and remain visibly
+retryable. The unlisted fictional client remains filtered in the full matrix.
+
+Browser matrix: **2026-09-05T08:27:36.025Z to 2026-09-05T08:27:43.044Z**.
+Source tracked-byte SHA-256:
+`ea3f202491f0e98acb2453d9336abce63ecaa58c09c08106a78c8e58a05d682a`.
+Application/observed loopback-document SHA-256:
+`9cd0c0e82f81c4c656342eb04b19ca0d8e76cd85879db7c64522c8bec97d4ad3`.
+
+- Original-main Metrics case: `2026-09-05T08-25-59-332Z-kftVCA/summary.json`;
+  SHA-256 `2c8a155576b07673b6b8d2964543319731bf23d112f4ddbb36b5ea676a3e4090`.
+- Rejected-candidate Metrics cases: `2026-09-05T08-25-03-017Z-VKpolp/summary.json`;
+  SHA-256 `e2e0a1c628821800928a5e414f4b442482242eae91a785ccad9e64a206583dd2`.
+- Corrected 11-case matrix: `2026-09-05T08-27-35-411Z-m5nTic/summary.json`;
+  SHA-256 `d4b797c7f8df4808b3da78ca7fd46a6d8afb01dc2841c151070f7e4ec6127401`.
+- Corrected visible boot: `checks/metrics-boot-summary.json`;
+  SHA-256 `0bd5b77453512aec3e2ef341d05f1fa1a3ce94ac111152fc669cf6388cd77260`.
+- Corrected targeted offline checks: `checks/metrics-targeted-summary.json`;
+  SHA-256 `540e51d5b86b2c5c229d9c9291b9f5d247c7c9db37d2356ccef7e99d97cdd6f9`.
+
+All receipt paths above are relative to ignored `.codex-tmp/kasper-roster/`.
+Public evidence contains counts and hashes; detailed errors and screenshots stay
+private. PR #1282 and its other two findings remain unchanged. This corrected
+head is ready for independent correction review, with deployment/live persistence
+still unproven.

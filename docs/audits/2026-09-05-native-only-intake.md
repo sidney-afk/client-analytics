@@ -3,6 +3,14 @@
 Status: unapplied, undeployed, disabled by default. This is a bounded F32 intake
 slice, not Decision A, B5 activation, full Linear retirement, or live server proof.
 
+**Chosen-editor intake is still provider-dependent.** Explicit VIDEO assignment
+uses the unchanged eligibility policy; missing, unreadable or strict
+`production_assignee_eligibility` can require Linear and refuse the request when
+Linear is unavailable. The actual-handler degraded chosen-editor control keeps
+this readiness gate red with zero partial native commit. The automatic-assignment
+native cases do not establish universally provider-free intake. Assignment policy
+and rollout remain outside this slice.
+
 ## Exact dependency and drift boundary
 
 The branch starts at independently reviewed PR1293
@@ -17,6 +25,15 @@ Its eleven newer files concern crosswalk bind/import repair, its runner, tests,
 workflow and documentation. They do not change production-write or this intake
 SQL chain. No main reset, merge or unrelated repair is included. Later main
 advances belong to a future exact integration review.
+
+The coordinator later named main `244de82a83a446d17b1a6b05e3b6c0828b631151` for a
+read-only drift assessment. Its production-write change is confined to
+assetSnapshot's full-page exclusivity inference; the intake/epoch/append/fill
+code and policy import are unchanged. An existing graphics SMM-approval row on
+intake retry still traverses the artifact precheck, so future integration must
+rerun post-asset-resolution, asset and intake regressions and recompute the
+Section 4 closure pins. Neither branch's source pin is serving evidence. That
+main advance is not merged into this exact-PR1293 draft.
 
 ## Acceptance and replay contract
 
@@ -150,7 +167,7 @@ functions, their trigger and rollback table. This is the write fence subset,
 not the complete F27 installer/recovery system or installed production state.
 
 The original manifest regression suite passed 41 checks plus 3 baseline controls.
-The expanded native suite passed 46 checks, covering root, append/fill, native
+The expanded native suite passed 50 checks, covering root, append/fill, native
 and provider histories, mixed teams/authority, provider unreachability, unreadable
 and malformed flags, lost responses, concurrent identical/conflicting requests,
 epoch flip between read/commit and admission/replay, stable manifests, terminal
@@ -163,4 +180,29 @@ failures still present; a missing-card fill remains refused. No scheduled
 materializer, assignment rollout, cosmetic removal, event-sourcing program,
 Calendar/Samples linkage repair, n8n edit, credential or billing action is part
 of this slice. Installed/full serving prerequisites remain HELD/UNPROVEN.
-Full-suite and hosted exact-head results are recorded in the PR handoff.
+The explicit readiness report remains FAIL for missing-child materialization,
+missing-card materialization and chosen-editor provider independence, and
+UNPROVEN for installed/full serving.
+
+The full local required-PostgreSQL run executed all 403 suites: 400 passed and
+three failed. Two were runner configuration failures because PGDATABASE had not
+been explicitly set to `postgres`: f63-flip-runbook-sql-gate and
+linear-deliverables-reconcile-bounded-postgres both passed targeted reruns with
+that required setting. The remaining asset-access-any-team failure is the
+Windows `ERR_UNSUPPORTED_ESM_URL_SCHEME` import error, independently reproduced
+on exact base `5418ab56`; it is unchanged and remains red. This is not a claim
+that one full local invocation passed. Some unrelated opt-in/server-binary lanes
+still report their own SKIP; the native/manifest PostgreSQL lanes did not skip.
+
+Focused gateway, append, intake convergence/status, Samples, public intake,
+thumbnail text, post-asset-resolution, error guidance, deploy provenance,
+Section 4 pins, truth-sync and repo-map checks pass. Node 22 type-strip/module
+warnings and deliberately injected synthetic transport errors remain in the
+private local logs; they are not hidden as clean runtime output.
+
+Expected production-write closure:
+`3a4e3557d4bddd596de90180cf07a4bd7807219494e4df010a7e4b6cdd12f541`;
+entrypoint SHA256:
+`6dab61076818be8423bfc0f0c8a5bcd0069d8ef761672bc9b6592bfc998d94b7`.
+Five closure files; generated deployment-ownership manifest unchanged.
+Hosted exact-head results are recorded in the PR handoff.

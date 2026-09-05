@@ -379,7 +379,7 @@ const CANDIDATES = new Map([
     // empty slot (43 of 1,567 buckets hold more than one post; one holds
     // seven). One extra client-pinned read, asked only when the post spans
     // more than one bucket.
-    // Draft root expected-request manifest; additive migration must precede
+    // Draft native-only intake over PR1293: both additive migrations precede
     // a separately authorized deploy. Existing five-file closure and entrypoint.
     source: '3a4e3557d4bddd596de90180cf07a4bd7807219494e4df010a7e4b6cdd12f541',
     entrypoint: '6dab61076818be8423bfc0f0c8a5bcd0069d8ef761672bc9b6592bfc998d94b7',

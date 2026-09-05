@@ -281,8 +281,9 @@ jobs:
       # only in that historical release: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      # Draft root manifest closure: apply the additive root-manifest migration
-      # before any separately authorized deployment. No activation in this PR.
+      # Draft native-only intake closure: apply PR1293's root manifest, then the
+      # native-only SQL before separately authorized deployment. Both epoch flags
+      # remain disabled; no activation or serving proof in this PR.
       PRODUCTION_WRITE_SOURCE_SHA256: 3a4e3557d4bddd596de90180cf07a4bd7807219494e4df010a7e4b6cdd12f541
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}

@@ -428,6 +428,18 @@ try {
   await flags(); reset(); net.linear='down'; const staleRecovery=await post(staleBody);
   ok('epoch-aware-retry-recovers-stale-serving-refusal',staleRecovery.status===201 && noProvider());
 
-  console.log(JSON.stringify({suite:'native-only-intake',passed:checks.filter(c=>c.pass).length,failed:checks.filter(c=>!c.pass).length}));
+  // Independent review found the deliberate assignment-policy scope limit:
+  // an explicitly chosen editor still needs strict provider eligibility. This
+  // records a held readiness case; it does not relax that policy to pass intake.
+  await flags('epoch-video-13','epoch-graphics-13'); reset(); net.linear='down'; before=await inventory();
+  const chosenEditor=rootBody('video',requestId()); chosenEditor.items[0].assignee_id='33333333-3333-4333-8333-333333333331';
+  const chosenResult=await post(chosenEditor);
+  const chosenHeld=chosenResult.status>=400 && net.requests.some(r=>/api.linear.app/.test(r.url)) && await unchanged(before);
+  ok('chosen-editor-provider-dependency-readiness-held',chosenHeld,chosenResult);
+
+  console.log(JSON.stringify({suite:'native-only-intake',passed:checks.filter(c=>c.pass).length,failed:checks.filter(c=>!c.pass).length,
+    readiness:{missing_child_materialization:checks.find(c=>c.id==='missing-child-readiness-stays-red')?.pass?'FAIL':'UNPROVEN',
+      missing_card_materialization:checks.find(c=>c.id==='missing-card-readiness-stays-red')?.pass?'FAIL':'UNPROVEN',
+      chosen_editor_provider_independence:chosenHeld?'FAIL':'UNPROVEN',installed_full_serving:'UNPROVEN'}}));
   if(checks.some(c=>!c.pass)) process.exitCode=1;
 } finally { fs.rmSync(scratch,{recursive:true,force:true}); }

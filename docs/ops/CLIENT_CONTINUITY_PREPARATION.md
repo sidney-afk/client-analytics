@@ -187,6 +187,12 @@ saved by the launcher. Never print its environment or unfiltered exception objec
 
 ## Activation, cadence and independent observation
 
+The operations continuation supports an optional separately approved full local
+`pageSourceSha` for the target document, while `releaseSha` pins the clean tooling
+checkout. See [document binding](CLIENT_CONTINUITY_OPERATIONS.md#private-inputs-and-manual-launch)
+for immutable blob/hash validation, default current-HEAD behavior, receipt
+provenance and explicit rebind after release. The served byte check stays strict.
+
 Activation remains owner-gated: approve exact combined release, passing affected
 checks, deployed-byte readback, private baseline/restore evidence, scoped census
 visibility, visible canary eligibility, allowed interfaces and incident ownership.

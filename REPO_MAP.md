@@ -91,6 +91,19 @@ Inactive first-Samples-repair monitoring preparation:
 `test/client-continuity-view.js` and `test/helpers/client-continuity-source.js` (census/launcher/source coverage), and
 `docs/ops/CLIENT_CONTINUITY_PREPARATION.md` (activation/recovery requirements).
 
+Inactive hosted continuation: `scripts/client-continuity-hosted.js` (view,
+receipt observer, bounded drill and independent-host sentinel commands),
+`scripts/client-continuity-observer.js` (receipt validation and durable alert intent),
+`scripts/client-continuity-delivery.js` (existing relay terminal confirmation and optional direct bot readback),
+`scripts/client-continuity-test-ui.js` and `qa/client-continuity-test-ui.js`
+(actual anonymous controls against isolated persisted fixtures; live automation unavailable),
+`test/client-continuity-operations.js` (synthetic operation/delivery/state boundaries),
+`docs/ops/client-continuity-operations.example.json` (inactive private reference template),
+`docs/ops/CLIENT_CONTINUITY_OPERATIONS.md` (finite activation/disable handoff), and
+`.github/workflows/client-continuity-hosted-view.yml`,
+`.github/workflows/client-continuity-hosted-observer.yml`,
+`.github/workflows/client-continuity-hosted-delivery-drill.yml` (dormant hosted package).
+
 | Command / trigger | What runs | Notes |
 |---|---|---|
 | `npm test` | `test/run-all.js` → every `test/*.js` (dependency-free; normally offline, with F63 using only an explicitly required disposable PostgreSQL 16 service) | Runs on every push (`calendar-unit-tests.yml`). It never targets a live backend. Run before every commit. |

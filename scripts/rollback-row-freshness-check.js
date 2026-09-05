@@ -494,7 +494,16 @@ function unreadableDeployEntries(log, receiptPositions, newestDate) {
             .filter(row => SLUGS.some(slug => row.indexOf('`' + slug + '`') >= 0)).length;
         const looseRows = (block.match(loose) || []).length;
         const unreadableRows = Math.max(0, looseRows - strictRows);
-        const headSaysDeploy = (namesSection4(h.text) || underSection4) && /deploy/i.test(h.text)
+        /* Section 4 may be named in the heading, in an ancestor heading, or --
+           the concise-prose layout the top of this log uses -- only in the body
+           ("**Section 4 forward from `<sha>`, run `<id>`**" under a generic
+           "Deploy" heading). Codex, sixth round on #1306: a malformed entry in
+           that layout named Section 4 nowhere a heading-only rule looked. A body
+           that claims a Section 4 forward is deploy-shaped whatever its heading
+           says. */
+        const bodyClaimsForward = /Section 4 forward/i.test(block);
+        const sectionFourHere = namesSection4(h.text) || underSection4 || namesSection4(block);
+        const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text)))
             && !/NOT DISPATCHED/i.test(h.text);
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
         if (!unreadableRows && !noReceiptUnder) continue;

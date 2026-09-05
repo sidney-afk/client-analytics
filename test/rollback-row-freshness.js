@@ -805,6 +805,31 @@ ok(misorderedRun.code === 1 && misorderedRun.json
     && !misorderedRun.json.notes.some(n => /run #41/.test(n)),
     'a brand-new unreadable `##` deploy entry written after an OLDER entry is dated by its own heading (2026-09-06) and FAILS -- it is not softened into history by the 2026-08-31 entry above it');
 
+/* ---- 8e. the concise-prose layout (Codex, sixth round) ------------------- */
+/* The top of this log records deploys under generic "Deploy: ..." headings and
+   names Section 4 only in the body: "**Section 4 forward from `<sha>`, run
+   `<id>`, PASS.**". A heading-only rule never saw such an entry, so one written
+   with an unparseable run id vanished. Section 4 in the BODY now counts. */
+const concise = [
+    '',
+    '## 2026-09-06 — Deploy: the reuse window widened',
+    '',
+    '**Section 4 forward from `0123456789abcdef`, run #40, PASS.** `production-write`',
+    '68 → **69**, closure `' + 'e'.repeat(64) + '`. The other',
+    'three were byte-identical redeploys.',
+    '',
+].join('\n');
+const conciseRun = run(fixture('concise-unreadable', realLog + concise, realRb));
+ok(conciseRun.code === 1 && conciseRun.json
+    && conciseRun.json.failures.some(f => /\("2026-09-06 — Deploy: the reuse window widened"\) reads as a Section 4 deploy/.test(f) && /cannot read/.test(f)),
+    'THE CONCISE LAYOUT: a generic "Deploy" heading whose body claims a Section 4 forward with an unparseable run id is named as unreadable, because Section 4 in the body counts');
+const unrelated = concise
+    .replace('## 2026-09-06 — Deploy: the reuse window widened', '## 2026-09-06 — Deploy notes for the website')
+    .replace(/\*\*Section 4 forward[^\n]*\n[^\n]*\n[^\n]*\n/, 'Pages redeployed the site from main; nothing about the four functions.\n');
+const unrelatedRun = run(fixture('unrelated-deploy-heading', realLog + unrelated, realRb));
+ok(unrelatedRun.json && !unrelatedRun.json.failures.some(f => /cannot read/.test(f)),
+    'while a "Deploy" heading whose body never names Section 4 is some other lane\'s business and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

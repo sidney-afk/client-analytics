@@ -160,7 +160,7 @@ ok(/if \(!cardUrl\) continue;/.test(filesRead)
   'a child with no file and no bound card contributes no entry, so the pill is absent rather than dead');
 
 const row = grab(UI, '_prodSubIssueRowHTML');
-ok(/const kFile = _prodBatchFileFor\(k\.id\);/.test(row) && /kFile\s*\n?\s*\?/.test(row),
+ok(/const kFile = _prodBatchFileFor\(k\.id, k\);/.test(row) && /kFile\s*\n?\s*\?/.test(row),
   'the row renders a pill only when that sub-issue actually has a file');
 ok(/onclick="event\.stopPropagation\(\);"/.test(row),
   'and the pill does not also open the sub-issue, which the row click already does');
@@ -229,9 +229,13 @@ ok(/scope === PROD_ATTRIBUTION_NEEDS[\s\S]{0,80}scope === PROD_ATTRIBUTION_CONFL
   'and a row carrying an attribution SENTINEL is skipped rather than asked about -- that slug is a guaranteed 403, and a request whose refusal is already known is a failed call for an answer nobody gains');
 
 const invalidate = grab(UI, '_prodInvalidateScopedReads');
-ok(/_prodState\.batchFiles\.clear\(\);/.test(invalidate)
-  && /_prodState\.batchFilesStatus\.clear\(\);/.test(invalidate),
-  'a projection swap clears the pill cache, so a pill cannot point at a file for a row that moved or left');
+ok(/_prodState\.batchFilesStatus\.clear\(\);/.test(invalidate)
+  && !/_prodState\.batchFiles\.clear\(\);/.test(invalidate),
+  'a projection swap drops the pill STATUS so the parent re-asks, and keeps the entries so the pills stay up while it does (2026-09-05)');
+const pillFor = grab(UI, '_prodBatchFileFor');
+ok(/String\(live\.batchId \|\| ''\)\.trim\(\) !== entry\.batchId\) return null;/.test(pillFor)
+  && /scope !== entry\.scope\) return null;/.test(pillFor),
+  'and a kept pill is refused at USE time for a row that left its batch or changed scope, which is what makes keeping it safe');
 
 /* The pill glyph must stay out of the locked artifact icon set. */
 ok(/const PROD_FILE_LINK_ICON = /.test(UI)

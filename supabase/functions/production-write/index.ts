@@ -496,7 +496,11 @@ function providerEvidenceState(
   return "unavailable";
 }
 
-async function probeAssetUrl(slot: string, value: unknown): Promise<JsonMap> {
+async function probeAssetUrl(
+  slot: string,
+  value: unknown,
+  held?: JsonMap | null,
+): Promise<JsonMap> {
   const raw = clean(value);
   const checkedAt = new Date().toISOString();
   if (!raw) {
@@ -520,6 +524,40 @@ async function probeAssetUrl(slot: string, value: unknown): Promise<JsonMap> {
       url_type: urlType,
       checked_at: checkedAt,
       guidance: assetGuidance("permission_denied"),
+    };
+  }
+  /*
+   * A VERDICT THIS GATEWAY ALREADY HOLDS FOR THIS EXACT URL (2026-09-05).
+   *
+   * Every read used to probe every slot live -- up to ASSET_PROBE_TIMEOUT_MS
+   * per URL, redirects included -- so opening a sub-issue seconds after its
+   * parent paid four provider round trips to learn what the parent's read had
+   * just recorded. Owner: "99% of the time the asset links are not gonna
+   * change ... it's weird to always have to wait for the asset to load."
+   *
+   * The caller looks the ledger up by (slot, url_sha256) and passes a fresh
+   * row here. The checks ABOVE still run first, because they are the ones that
+   * depend on the clock (a signed URL that was live at the recorded probe may
+   * have expired since) or on the slot (one URL can be a valid folder for one
+   * slot and invalid for another). Only the part that needed the network is
+   * reused. `checked_at` is the ORIGINAL probe's, deliberately: stamping it
+   * forward under a new clock would let one verdict live forever, and the
+   * approval gate re-probes on its own regardless (assertGraphicsApprovalArtifact).
+   */
+  if (held) {
+    const heldState = clean(held.state);
+    const heldStatus = held.http_status == null ? NaN : Number(held.http_status);
+    const heldCode = clean(held.result_code);
+    const failurePrefix = `asset_${heldState}_`;
+    return {
+      slot,
+      state: heldState,
+      url_type: urlType,
+      checked_at: clean(held.checked_at),
+      ...(Number.isInteger(heldStatus) && heldStatus >= 100 && heldStatus <= 599 ? { http_status: heldStatus } : {}),
+      ...(heldCode.startsWith(failurePrefix) ? { failure: heldCode.slice(failurePrefix.length) } : {}),
+      guidance: heldState === "available" ? null : assetGuidance(heldState),
+      reused: true,
     };
   }
   try {
@@ -623,6 +661,60 @@ async function recordAssetEvidence(
     .maybeSingle();
   if (error || !data) throw new GatewayError(503, "asset_evidence_unavailable");
   return data as JsonMap;
+}
+
+/*
+ * States a recorded probe may stand in for. `missing` and `invalid` are decided
+ * before the network and never reach the lookup. `unavailable` is reusable only
+ * WITH an http_status: one without is a probe that threw (timeout, network,
+ * redirect refusal), which is the transient case and the one a re-ask exists
+ * for.
+ */
+const REUSABLE_ASSET_STATES = new Set(["available", "permission_denied", "expired", "unavailable"]);
+
+async function heldAssetEvidence(
+  supabase: SupabaseClient,
+  slot: string,
+  value: unknown,
+): Promise<JsonMap | null> {
+  const raw = clean(value);
+  if (!raw) return null;
+  const urlHash = await sha256Hex(raw);
+  /*
+   * Any deliverable's row will do. The probe is an unauthenticated fetch of
+   * the URL itself, so its verdict does not depend on which row names it, and
+   * a post's parent and every sub-issue name the same two folders -- which is
+   * exactly the sequence a person opens them in. Newest first, because the
+   * ledger is keyed per deliverable and several rows can hold the same URL.
+   *
+   * Fails OPEN to a live probe, on purpose: an unreadable ledger costs one
+   * network round trip, never a wrong answer, and recordAssetEvidence still
+   * fails closed on the write that follows.
+   */
+  const { data, error } = await supabase.from("production_asset_access_checks")
+    .select("state,http_status,result_code,checked_at,checker,url_sha256")
+    .eq("slot", slot)
+    .eq("url_sha256", urlHash)
+    .eq("checker", "production-write")
+    .order("checked_at", { ascending: false })
+    .limit(1);
+  if (error || !Array.isArray(data) || !data.length) return null;
+  const row = data[0] as JsonMap;
+  const state = clean(row.state);
+  if (!REUSABLE_ASSET_STATES.has(state)) return null;
+  if (clean(row.url_sha256) !== urlHash) return null;
+  // `Number(null)` is 0, which isInteger accepts: the null has to be named.
+  const httpStatus = row.http_status == null ? NaN : Number(row.http_status);
+  if (state === "unavailable" && !(Number.isInteger(httpStatus) && httpStatus >= 100 && httpStatus <= 599)) {
+    return null;
+  }
+  const checkedAt = Date.parse(clean(row.checked_at));
+  if (!Number.isFinite(checkedAt)
+      || Date.now() - checkedAt > ASSET_EVIDENCE_MAX_AGE_MS
+      || checkedAt > Date.now() + 30_000) {
+    return null;
+  }
+  return row;
 }
 
 async function requireFreshAssetEvidence(
@@ -3823,6 +3915,7 @@ async function boundCardArtifact(
 async function assetSnapshot(
   supabase: SupabaseClient,
   deliverable: JsonMap,
+  recheck = false,
 ): Promise<JsonMap> {
   const BATCH_ASSET_COLUMNS =
     "id,client_slug,team,updated_at,filming_doc_url,footage_folder_url,delivery_folder_url";
@@ -4131,8 +4224,14 @@ async function assetSnapshot(
     delivery_folder: !!postDeliveryFolder.from && postDeliveryFolder.from !== batchId,
   };
   const deliverableId = clean(deliverable.id);
+  /* Refresh access is the one caller that wants the network. It is the button
+     a person presses AFTER fixing sharing on a folder, and a verdict held from
+     before the fix is precisely what they are pressing it to get past. Every
+     other read takes a fresh recorded verdict for the same URL over a probe;
+     see heldAssetEvidence for what counts as fresh and reusable. */
   const assets = await Promise.all(ASSET_SLOTS.map(async slot => {
-    const evidence = await probeAssetUrl(slot.key, values[slot.key]);
+    const held = recheck ? null : await heldAssetEvidence(supabase, slot.key, values[slot.key]);
+    const evidence = await probeAssetUrl(slot.key, values[slot.key], held);
     await recordAssetEvidence(supabase, deliverableId, slot.key, values[slot.key], evidence);
     // Typed asset columns are not browser-readable. Return the exact value only
     // inside this already-authorized, no-store response.
@@ -4319,7 +4418,7 @@ async function handleAssetAccessRead(
      * detection costs nothing extra, and a page older than this deploy simply
      * ignores a field it does not read. */
     capabilities: ASSET_READ_CAPABILITIES,
-    ...(await assetSnapshot(supabase, existing)),
+    ...(await assetSnapshot(supabase, existing, body.recheck === true)),
   });
 }
 

@@ -12571,6 +12571,80 @@ because #1294 was held open for its review after #1288 merged six seconds after
 opening. The self-review that produced the truncation guard also produced its
 overclaim; a second reader found it in four minutes.
 
+### Addendum, same day, later: the grid still blinked, and the wait was the probe
+
+Owner, with the fix above live on VID-13513: "whenever it refreshes the link the
+open link button disappears and reappears ... two or three times ... do we
+really need to refresh access every single time? ... 99% of the time the asset
+links are not gonna change ... it's weird to always have to wait for the asset
+to load." Two different things, and a third small ruling.
+
+**The blink (browser; live on merge).** The 2026-08-31 revalidate-in-place rule
+preserved a cached asset read only when `state.complete && state.scopeSignature`.
+A tab return runs `_prodInvalidateScopedReads` TWICE: once from `_prodRefresh`,
+synchronously, to quarantine held responses; once from `_prodLoadData` after
+the projection swap. Any render between the two starts a re-read, which sets
+`complete` false while it is in flight, so the second pass met a stamped,
+incomplete state, dropped it, and the next render reseeded a skeleton for a link
+that had not moved. The same shape sat in three more places: the delta tick's
+`_prodInvalidateScopedReadsFor` deleted a changed row's read outright; the pill
+cache (`batchFiles`) was cleared outright on every invalidation and in the
+terminal tail; and a `batch_asset` write deleted every other row of the post.
+
+Now: what is STAMPED stays (`preservable = !!state.scopeSignature`; `complete`
+only says whether the latest read landed), the delta tick marks stale instead
+of deleting, a batch write writes the new value into each sibling's cached slot
+as `checking` and marks it stale, and pill entries survive with a `batchId` and
+`scope` stamp that `_prodBatchFileFor(id, row)` refuses at use time when the row
+moved. One more: `_prodEnsureAssets` no longer STARTS a read for a stamped row
+while `_prodState.refreshing` is true, because that read is refused on landing
+by `requestStillCurrent()` anyway (token bump plus generation change); the
+render after the swap starts the one that counts. First paints and the Refresh
+access button are never deferred. `test/prod-asset-refresh-holds.js` executes
+the double invalidation against the lifted functions.
+
+**The wait (gateway; needs a Section 4 dispatch).** Every `asset_access_read`
+probed every slot live, up to `ASSET_PROBE_TIMEOUT_MS` per URL with redirects,
+so opening a sub-issue seconds after its parent paid four provider round trips
+to learn what the parent's read had just recorded in
+`production_asset_access_checks`. `heldAssetEvidence` now asks that ledger
+first, by `(slot, url_sha256)` across every deliverable, newest first, and a
+verdict within `ASSET_EVIDENCE_MAX_AGE_MS` (five minutes, the same window the
+approval gate already trusts) is reused in place of the network step. The
+checks that depend on the clock or the slot (`invalid`, signed-URL `expired`,
+unsigned Linear upload) still run first; an `unavailable` WITHOUT an
+`http_status` is a probe that threw and is never reused; the ledger row for the
+reading deliverable is still written, carrying the ORIGINAL `checked_at` so a
+copy cannot outlive the window; the approval gate
+(`assertGraphicsApprovalArtifact`) is untouched and still probes live. The
+Refresh access button sends `recheck: true`, which skips the ledger; an older
+gateway ignores the field. `test/asset-evidence-reuse.js` executes both
+functions with a fake ledger and a fetch that counts calls. It caught one bug
+before it shipped: `Number(null)` is `0` and `Number.isInteger(0)` is true, so
+the first draft would have reused a timed-out probe as a status-0 verdict.
+
+`migrations/2026-09-05-asset-evidence-by-url.sql` adds an index on
+`(slot, url_sha256, checked_at desc)`; the table's key and its one index both
+lead with `deliverable_id`. Optional: the lookup is correct without it.
+
+**The parent grid.** Owner: "I don't think we need a deliverable file row on the
+parent issue asset grid because there is no deliverable file for that." A real
+hierarchy parent now draws the three post-level slots and shows the Deliverable
+file row only when a value actually exists on it (the Linear parent is imported
+as a deliverable row and could carry one from before this rule), never as an
+empty prompt to attach one in the wrong place.
+
+**What this does not decide.** The reuse window is five minutes because that is
+the window the approval gate already accepts. A longer read-side window would be
+safe for approvals (the gate probes on its own) and would cost only this: a
+folder unshared inside the window keeps showing green until Refresh access or
+the window lapses. Whether that trade is worth making is the owner's call; the
+constant is `ASSET_EVIDENCE_MAX_AGE_MS`.
+
+Pin: `PRODUCTION_WRITE_SOURCE_SHA256` re-pinned with this change. Live is still
+`d2914ac2…` (v67, deployed from `a05e1126`); the repo had already moved to
+`6a39a2bc…` (the exclusivity truncation guard). The next dispatch carries both.
+
 ## 156. [2026-09-05, RULED AND WRITTEN, NOT APPLIED — updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
 
 Item 148's RPC required a deliverable's `kind` to match the card slot ("team is

@@ -8,6 +8,10 @@ commit as any structural change.
 
 ## Top level
 
+Disabled native-only intake draft: `migrations/2026-09-05-native-only-intake.sql`,
+`scripts/native-intake-manifest/native-only-lane.mjs`, `test/native-only-intake.js`,
+and `docs/audits/2026-09-05-native-only-intake.md`. Retains PR1293's harness and manifest contracts.
+
 Root expected-request manifest draft: `migrations/2026-09-05-native-intake-root-manifest.sql`,
 `scripts/native-intake-manifest/` (pinned bootstrap/shim, actual gateway proof),
 `test/native-intake-manifest.js`, and `docs/audits/2026-09-05-native-intake-manifest.md`.

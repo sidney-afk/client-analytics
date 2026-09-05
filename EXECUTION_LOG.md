@@ -2,6 +2,17 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Draft disabled native-only intake, no live action
+
+Built on PR1293 `5418ab5618595d9469f0527bd94623e9229a637e` in an isolated worktree.
+The additive native epoch/terminal receipt contract removes provider reads for
+explicit native intake and adds native-parent append/fill compatibility. Original
+manifest and real PostgreSQL/F27 write-fence tests are retained. No merge, deploy,
+flag update, live data mutation or n8n change occurred. Exact scope, mixed-lane
+limits, evidence and retained-data rollback are in
+`docs/audits/2026-09-05-native-only-intake.md`. Full serving and materialization
+readiness remain held; this is not Decision A or B5 activation.
+
 ## 2026-08-31 — Deploy: a card can be completed from the card
 
 **Section 4 forward from `5a3365f2`, run `33434655418`, PASS.** `production-write`

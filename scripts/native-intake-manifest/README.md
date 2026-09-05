@@ -1,5 +1,10 @@
 # Root manifest proof
 
+The dependent disabled-native slice adds `node test/native-only-intake.js` using
+the same loopback configuration and exact handler/SQL transport. It runs the
+repository F27 enqueue/hold write-fence subset too; the full installer and live
+serving state remain unproven. See `docs/audits/2026-09-05-native-only-intake.md`.
+
 Run `node test/native-intake-manifest.js` with
 `INTAKE_MANIFEST_REQUIRE_POSTGRES=1` and an explicitly disposable PostgreSQL 16
 on `PGHOST=127.0.0.1` / `PGPORT` / `PGUSER` (or F42_REHEARSAL equivalents).

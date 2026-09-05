@@ -1,5 +1,12 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Unapplied draft, 2026-09-05:** native-only intake depends on PR1293. Its behavior
+rollback disables new native admission while retaining the epoch-aware gateway,
+manifest epochs and terminal receipts for accepted work. Do not drop/truncate
+accepted evidence, strip markers or requeue native receipts. Full release order,
+old-serving limitations and retained-data rollback:
+`docs/audits/2026-09-05-native-only-intake.md`. This changes no Live State entry.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is

@@ -340,8 +340,17 @@ try {
   before=await inventory(); const staleFill=await post(fillRaceBody);
   ok('f27-fill-stale-generation-not-hidden-by-terminal-status',staleFill.status>=400 && await unchanged(before));
   reset(); net.linear='down';
+  const fillSqlResults=[];
+  let fillArrivals=0, releaseFill;
+  const fillBarrier=new Promise(resolve=>{releaseFill=resolve;});
+  hooks.beforeRpc=async name=>{if(name==='production_component_fill') {if(++fillArrivals===2) releaseFill(); await fillBarrier;}};
+  hooks.afterRpc=(name,args,result)=>{if(name==='production_component_fill') fillSqlResults.push(result.data); return result;};
   const fillRace=await Promise.all([post(fillRaceBody),post(fillRaceBody)]);
-  ok('concurrent-identical-fill-real-lock',fillRace.every(x=>x.status===200) && fillRace.some(x=>x.json.replay===true) && noProvider(),fillRace.map(x=>x.status));
+  ok('concurrent-identical-fill-real-lock',fillRace.every(x=>x.status===200)
+    && fillSqlResults.filter(x=>x.replay===true).length===1 && noProvider()
+    && new Set(fillRace.map(x=>x.json.item?.id)).size===1
+    && await count('select 1 from public.mirror_outbox where entity_id='+q(fillRace[0].json.item?.id))===1,
+    fillRace.map(x=>x.status));
   reset(); const appendRaceBody=appendBody(fillRace[0].json.batch,'video');
   const appendSqlResults=[];
   let appendArrivals=0, releaseAppend;
@@ -400,6 +409,24 @@ try {
   ok('old-unmanifested-partial-root-remains-provider',legacyRetry.status===201 && (await receipts(legacyRetry.json.batch?.id)).every(r=>r.status==='pending' && !r.payload._native_intake_epoch),legacyRetry);
   const promoteProvider=await runSql("update public.mirror_outbox set payload=payload || '{\"_native_intake_epoch\":\"forged-native\"}' where id="+oldReceipts[0].id);
   ok('existing-provider-receipt-cannot-be-converted-to-native',promoteProvider.status!==0);
+
+  reset(); before=await inventory();
+  hooks.beforeRpc=async name=>{if(name==='production_intake_root_begin') await sql("delete from public.track_b_f27_team_fences where team='graphics'");};
+  const missingFence=await post(rootBody('both',requestId()));
+  ok('missing-second-team-fence-zero-partial-root',missingFence.status>=400 && await unchanged(before));
+  await sql("insert into public.track_b_f27_team_fences(team,generation,updated_by) values('graphics',0,'fixture')");
+
+  // Simulate a pre-epoch serving closure attempting a missing accepted child.
+  // Exact old payload shape must refuse, rather than mint provider work.
+  reset(); const staleBody=rootBody('both',requestId()); let staleArgs;
+  hooks.beforeRpc=(name,args)=>{if(name==='production_deliverable_write') {staleArgs=structuredClone(args); throw new Error('synthetic stale closure boundary');}};
+  await post(staleBody); before=await inventory();
+  delete staleArgs.p_event.outbound.payload._native_intake_epoch;
+  delete staleArgs.p_event.outbound.payload._native_intake_request;
+  const staleChild=await runSql('set role service_role; select to_json(public.production_deliverable_write('+j(staleArgs.p_row)+','+j(staleArgs.p_event)+'));');
+  ok('stale-serving-child-cannot-reinterpret-native-acceptance',staleChild.status!==0 && await unchanged(before));
+  await flags(); reset(); net.linear='down'; const staleRecovery=await post(staleBody);
+  ok('epoch-aware-retry-recovers-stale-serving-refusal',staleRecovery.status===201 && noProvider());
 
   console.log(JSON.stringify({suite:'native-only-intake',passed:checks.filter(c=>c.pass).length,failed:checks.filter(c=>!c.pass).length}));
   if(checks.some(c=>!c.pass)) process.exitCode=1;

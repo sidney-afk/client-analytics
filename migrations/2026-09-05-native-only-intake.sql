@@ -146,7 +146,7 @@ declare
   v_receipt jsonb;
   v_result public.batches;
   v_epochs jsonb := '{}'; v_flags jsonb; v_team text; v_generation bigint;
-  v_expected_epoch text; v_has_history boolean;
+  v_expected_epoch text; v_has_history boolean; v_provider_history boolean; v_held boolean;
 begin
   -- Service-only caller is the already-authenticated gateway. Keep the existing
   -- database authority check BEFORE creating or consulting confidential evidence.
@@ -194,14 +194,16 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('root-intake-manifest:' || v_request, 0));
   select * into v_existing from public.production_intake_manifests where request_id = v_request;
   v_has_history := found;
-  if not v_has_history then v_flags := public.production_native_intake_epochs(); end if;
+  v_provider_history := exists(select 1 from public.mirror_outbox
+    where entity='batch' and entity_id=p_row->>'id' and operation='create');
+  if not v_has_history and not v_provider_history then v_flags := public.production_native_intake_epochs(); end if;
   for v_team in select distinct value->'row'->>'team' from jsonb_array_elements(p_manifest->'expected_items') loop
     v_expected_epoch := coalesce(p_manifest->'native_epochs'->>v_team,'');
     v_epochs := v_epochs || jsonb_build_object(v_team,v_expected_epoch);
     if v_has_history then
       if v_expected_epoch is distinct from coalesce(v_existing.native_epochs->>v_team,'') then
         raise exception 'idempotency_conflict'; end if;
-    elsif exists(select 1 from public.mirror_outbox where entity='batch' and entity_id=p_row->>'id' and operation='create') then
+    elsif v_provider_history then
       if v_expected_epoch <> '' then raise exception 'idempotency_conflict'; end if;
     elsif v_expected_epoch is distinct from v_flags->>v_team then
       raise exception 'authority_unavailable';
@@ -214,14 +216,14 @@ begin
         and (select value->>v_team from public.syncview_runtime_flags where key='prod_authority')='linear');
     select generation into v_generation from public.track_b_f27_team_fences where team=v_team for share;
     if (p_manifest ? 'authority_generations' or v_expected_epoch <> '') and
-      v_generation is distinct from (p_manifest->'authority_generations'->>v_team)::bigint then
+      (v_generation is null or nullif(p_manifest->'authority_generations'->>v_team,'') is null
+        or v_generation is distinct from (p_manifest->'authority_generations'->>v_team)::bigint) then
       raise exception 'authority_unavailable'; end if;
     if to_regclass('public.track_b_team_rollbacks') is not null then
       execute 'select exists(select 1 from public.track_b_team_rollbacks where team=$1 and state=''open'')'
-        into v_has_history using v_team;
-      if v_has_history then raise exception 'authority_unavailable'; end if;
+        into v_held using v_team;
+      if v_held then raise exception 'authority_unavailable'; end if;
     end if;
-    v_has_history := v_existing.request_id is not null;
   end loop;
   if v_existing.request_id is not null then
     -- First accepted plan stays immutable, including generated content and

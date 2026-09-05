@@ -1,5 +1,14 @@
 # Supabase — current truth
 
+**2026-09-05 draft-only native intake addition:**
+`migrations/2026-09-05-native-only-intake.sql` depends on PR1293 and adds a disabled
+per-team intake flag, immutable manifest epoch provenance and terminal native
+outbox receipts, with append/fill native-parent compatibility. It is unapplied
+and is not a production-state update or full retired epoch. Scope, service/SQL
+roles, release order and retained-data rollback:
+`docs/audits/2026-09-05-native-only-intake.md`. Installed/full serving and
+materialization prerequisites remain held.
+
 > Last verified: 2026-08-24 @ c7f088a + scoped kasper_ad_performance v2 and v3 additions (see
 > callouts below) + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
 > (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to

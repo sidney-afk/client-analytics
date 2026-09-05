@@ -1085,8 +1085,10 @@ function extractFunction(name) {
   'mixed intake creates one nullable-team batch whose single primary-team parent every child depends on');
   ok(/const appendParentTeam = teamList\.includes\("video"\) \? "video" : teamList\[0\];/.test(edge)
     && /const ownsDistinctParent = ownIds\.length === 1 && !sharedParentIds\.includes\(ownIds\[0\]\);/.test(edge)
-    && /parentRouteByTeam\[team\] = ownsDistinctParent/.test(edge),
-  'an append hangs under the same single parent, except on a legacy batch that already owns a distinct one for that team');
+    && /parentRouteByTeam\[team\] = nativeEpochByTeam\[team\]/.test(edge)
+    && /: ownsDistinctParent \|\| !!nativeEpochByTeam\[appendParentTeam\][\s\S]{0,70}\? await parentRouteForAppend/.test(edge)
+    && /: sharedAppendRoute;/.test(edge),
+  'provider append retains the single or distinct legacy parent; a native epoch uses its native batch and cannot supply a provider parent');
   ok(/post-linkage version/.test(edge)
     && /currentItemsById/.test(edge)
     && /items: currentResponseItems/.test(edge),

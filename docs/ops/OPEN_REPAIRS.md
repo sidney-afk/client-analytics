@@ -12058,3 +12058,59 @@ error/fail/reject/conflict/stale rows in `calendar_post_events` (331) or
 graphics 125 audited / **0 unprovable**; inbound proven live by five
 `mirror_out_echo_dropped` rows, the freshest 01:19Z. Wave-1 soak day 28
 complete (day 29 in progress); wave-2 day 24 complete.
+
+---
+
+## 150. [2026-09-05, MEASURED — one owner decision unblocks the largest block] The Phase 2 call list: 42 of 107 the RPC can repair on its own, and 40 more are one classification question
+
+Item 148 says the Phase 2 call list has to be measured rather than assumed,
+because item 147's counts moved when Phase 1 ran. Measured 2026-09-05 01:48
+UTC, read-only, with the browser publishable key over `calendar_posts` and
+`production_deliverables_browser_v1`. Full table in
+`docs/ops/CROSSWALK_REPAIR_STRATEGY.md` §5.
+
+**1,214 client-calendar slots name a deliverable; 107 mismatch.** Running each
+through every guard the RPC enforces, in order:
+
+* **42 REPAIRABLE unattended** — 22 with no legacy thread to carry, 20 needing
+  the combined bind-and-import.
+* **40 refused on `kind`**, and this is the block worth the owner's attention.
+* **25 need a person** — 18 contested slots, 5 already bound elsewhere, 1
+  cross-client reference (the one item 147 §2 records), 1 with no provable
+  Linear identity on either side.
+
+### The identity guard costs one slot, and that is the point
+
+The Linear-identity requirement added after the #1273 review refuses exactly
+**one** of the 107. It was never going to exclude much work — its value is that
+it makes the other refusals trustworthy, because without it a stale pointer
+aimed at an innocent unbound row is indistinguishable from a real repair.
+Cheap insurance, and worth saying plainly so nobody later reads it as the thing
+holding Phase 2 up. It is not.
+
+### The 40 kind refusals are ONE question, not forty investigations
+
+In **all 40**, the card and the deliverable name the SAME Linear issue. These
+are not stale pointers; they are rows whose `kind` disagrees with the slot
+holding them. The live vocabulary is what makes it a judgement call rather than
+a defect:
+
+| team / kind | rows |
+|---|---|
+| video / video | 3,747 |
+| graphics / thumbnail | 2,326 |
+| **graphics / other** | **173** |
+| **video / thumbnail** | **81** |
+| graphics / video | 3 |
+
+* **26** are a graphic slot pointing at a `graphics/other` row. If `other` is a
+  mis-classified thumbnail, fixing the kind lets all 26 repair normally.
+* **14** are a VIDEO slot pointing at a `kind='thumbnail'` row. That is the more
+  suspicious half — same issue, wrong artifact class — and should be looked at
+  as a group rather than waved through.
+
+`scripts/f42-linkage-defect-repair.js` (`classAObjections`) already refuses this
+whole class for the planner, so the RPC refusing it is consistency with the
+existing rule, not a new restriction invented here. **The owner decision is
+whether `kind='other'` on a graphics row counts as a thumbnail.** Answering it
+moves the repairable set from 42 to 68 of 107.

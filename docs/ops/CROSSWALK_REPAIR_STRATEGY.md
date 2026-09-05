@@ -190,9 +190,51 @@ fire, and it proves the mechanics on rows that cannot misdisplay.
 
 **Phase 2 — the cards with threads, through the combined RPC.** ~~Blocked on
 that RPC existing.~~ The RPC is written (see §4); Phase 2 is now blocked on it
-being **applied** to the live database, and on a per-card call list measured
-fresh — the counts moved when Phase 1 ran, so the 63 above is stale and must be
-re-measured rather than reused. Binding plus import, one transaction, per card.
+being **applied** to the live database. The call list has been measured fresh
+(below) rather than reused: Phase 1's 60 repairs moved the counts, so the "63
+cards" above is stale. Binding plus import, one transaction, per card.
+
+### The Phase 2 call list, measured 2026-09-05 01:48 UTC
+
+Read-only, with the browser publishable key, over `calendar_posts` and
+`production_deliverables_browser_v1` (`deliverables` itself returns 42501 to
+that key). Population: 42 active client slugs, 9,937 calendar posts, **1,214
+client-calendar slots that name a deliverable**, of which **107 mismatch** on
+`_prodCrosswalkMismatchFields`. Each is then run through every guard the RPC
+enforces, in the order it enforces them:
+
+| Outcome | Slots |
+|---|---|
+| **REPAIRABLE** — no legacy thread to carry | 22 |
+| **REPAIRABLE** — has a legacy thread, needs the combined call | 20 |
+| Refused: `kind_does_not_match_slot`, deliverable `kind='other'`, Linear identity AGREES | 26 |
+| Refused: `kind_does_not_match_slot`, video slot naming a `kind='thumbnail'` row, Linear identity AGREES | 14 |
+| Refused: `slot_occupied` | 18 |
+| Refused: `already_bound_elsewhere` | 5 |
+| Refused: `client_mismatch` | 1 |
+| Refused: `linear_identity_unproven` | 1 |
+
+**42 of 107 the RPC can repair unattended.** The identity requirement added on
+2026-09-05 costs exactly one slot (`linear_identity_unproven`), so it is close
+to free — the guard's value is that it makes the other refusals trustworthy,
+not that it excludes work.
+
+**The 40 kind refusals are one owner decision, not forty investigations, and
+they are the largest single block.** In all 40 the card and the deliverable
+name the SAME Linear issue, so these are not stale pointers aimed at innocent
+rows — they are rows whose `kind` disagrees with the slot holding them. The
+live vocabulary explains why: `graphics/thumbnail` is the normal shape (2,326
+rows) but **173 graphics rows carry `kind='other'` and 81 video-team rows carry
+`kind='thumbnail'`**. So the question is whether `other` is a mis-classified
+thumbnail (fix the kind, then these 26 repair normally) or a genuinely
+different artifact (leave them). The 14 video-slot rows pointing at a
+`thumbnail` row are the more suspicious half and should be looked at as a group.
+`scripts/f42-linkage-defect-repair.js` already refuses this whole class for the
+planner, so the RPC refusing it is consistency, not a new restriction.
+
+**The other 25 need a person for substantive reasons** — a contested slot, a
+deliverable already bound elsewhere, a cross-client reference (the one item 147
+§2 records), and one slot where neither side names an issue.
 
 **Phase 3 — verify against the predicate.** `_prodCrosswalkMismatchFields` must
 return empty for all 1,271 slots. Item 99's lesson: do not relax a readback to a

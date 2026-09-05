@@ -8,6 +8,10 @@ commit as any structural change.
 
 ## Top level
 
+First Samples release composition and held live gates:
+`docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts
+`SAMPLES_RECOVERY_TARGET_SHA` and records the exact integrated document tested.
+
 Samples recovery prerequisite: `scripts/samples-recovery-build.js` creates a
 guarded, offline reader inverse without changing the checkout. The operating
 constraints and pinned receipts live in `docs/ops/SAMPLES_RECOVERY_REHEARSAL.md`.

@@ -1,5 +1,11 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+For the first Samples continuity release, use the paired draft-preserving reader
+inverse in `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` and
+`docs/ops/SAMPLES_RECOVERY_REHEARSAL.md`. Historical whole-document revert notes
+are not its operational inverse: the old document cannot display new owned debt.
+Preserve ownership, save receipts, field debt and cache throughout recovery.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is

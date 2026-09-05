@@ -286,12 +286,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 ## Samples (SXR + legacy)
 
 - G1 bounded reader repair (candidate, local proof only): per-client Samples requires
-  exact-count, scoped keyset pages before replacing cards/cache. Failed, malformed,
-  partial, uncounted and empty fallback reads preserve last-good content with an
-  accessible stale/retry button, or show a load error without usable content.
-  Only complete primary reads establish emptiness. The retained fallback envelope
-  has no completeness receipt; it cannot certify a replacement snapshot. Cached
-  rows are client-checked, including expired cache used only as visibly stale content.
+  exact-count, scoped keyset pages before replacing cards/cache. A scoped nonempty
+  fallback preserves existing content/cache; on a cold open it may display available
+  rows with incomplete/outdated feedback and retry, without caching or claiming
+  authoritative recovery. Empty, failed or malformed fallback cannot establish
+  emptiness. Only complete primary recovery clears that warning and stamps cache
+  verification time. Recent verified cache refreshes quietly; expired/unverified
+  cache remains warned. Drafts carry their originating client and the existing
+  merge retains blank/pending/saving/failed-new cards, including mid-refresh typing.
   Calendar v2/shared pagination, the cross-client Kasper queue, and all writers are
   unchanged. `test/samples-authoritative-read.js` holds isolated regression coverage;
   coordinator PR #1268 G1 monitoring/client-continuity release gates remain held.

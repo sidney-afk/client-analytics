@@ -3195,10 +3195,14 @@ async function runSamplesReadFailureChecks(run) {
   await page.evaluate(() => {
     const interceptedFetch = window.fetch;
     window.__samplesReadFailure = true;
+    window.__samplesFallbackRows = JSON.parse(JSON.stringify(sxrState.posts));
     window.fetch = (input, init) => {
       const url = String(input && input.url || input);
       if (window.__samplesReadFailure && (/\/rest\/v1\/sample_reviews\?/.test(url) || /\/sample-review-get\?/.test(url))) {
-        return Promise.resolve(new Response(JSON.stringify({ ok: false }), {
+        const payload = window.__samplesReadFallback && /\/sample-review-get\?/.test(url)
+          ? { ok: true, items: window.__samplesFallbackRows }
+          : { ok: false };
+        return Promise.resolve(new Response(JSON.stringify(payload), {
           status: 200, headers: { 'content-type': 'application/json' },
         }));
       }
@@ -3231,6 +3235,27 @@ async function runSamplesReadFailureChecks(run) {
   await page.locator('#sxrStaleNotice').click();
   await page.locator('#sxrStaleNotice').waitFor({ state: 'hidden' });
   await waitForReviewSettled(page);
+  await page.evaluate(async () => {
+    window.__samplesReadFailure = true;
+    window.__samplesReadFallback = true;
+    window.__samplesCacheBeforeFallback = localStorage.getItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client));
+    await loadSxrCards({ skipCache: true });
+  });
+  assert.equal(await page.evaluate(() => localStorage.getItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client)) === window.__samplesCacheBeforeFallback), true);
+  await page.locator('#sxrStaleNotice').waitFor({ state: 'visible' });
+  await page.evaluate(async () => {
+    sxrState.posts = [];
+    localStorage.removeItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client));
+    await loadSxrCards({ skipCache: true });
+  });
+  await waitForReviewSettled(page);
+  await page.locator('#sxrStaleNotice').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#sxrStaleNotice').innerText(), /Incomplete or outdated/);
+  assert.equal(await page.evaluate(() => localStorage.getItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client))), null);
+  await page.locator('#sxrStaleNotice').click();
+  await page.waitForFunction(() => !_sxrBgLoadInFlight);
+  await page.locator('#sxrStaleNotice').waitFor({ state: 'visible' });
+  await page.evaluate(() => { window.__samplesReadFallback = false; });
   await page.evaluate(async () => {
     window.__samplesReadFailure = true;
     sxrState.posts = [];

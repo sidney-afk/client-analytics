@@ -4,6 +4,30 @@ All times are UTC unless noted.
 
 ## 2026-09-04 — Samples G1 reader candidate; draft, release held
 
+**Targeted review correction:** #1269 was verified draft/unmerged at reviewed head
+`c10ebc8465b5fc95976014e21184a6c2076d8d96`. Draft creation now stamps the originating
+client; refresh merges retain unfinished work and defer paint while typing even
+when a draft is created during a foreground read. The coordinator's fallback
+decision supersedes the initial fail-closed fallback design below: valid scoped
+nonempty fallback may appear on a cold open with incomplete/outdated feedback,
+but never replaces existing content/cache or clears its warning. Only primary
+recovery stamps cache verification; recently verified caches refresh quietly.
+The Production comments fixture's missing-count timeout was reproduced, then its
+scoped empty/nonempty receipts and CORS exposure were corrected. Unexpected writes
+are blocked before network I/O; the intercepted comments writer assertions remain.
+Local regression also executes actual draft promotion, held save and HTTP failure,
+followed by refresh and client switch. No backend/writer-route/auth change.
+Validation: 48 isolated Samples cases, the affected Production comments browser
+suite (including counted empty and nonempty Samples), and 24 mocked boot groups
+pass. The 397-suite run passes 395; only the same two baseline Windows environment
+failures remain. Comments writes are intercepted and unexpected writes blocked;
+the staff portion may observe live read-only lists. No live persistence or release
+proof is claimed. Monitoring and client-continuity release gates remain held.
+Local writer cache checkpoints do not inherit a full-read verification stamp;
+only an authoritative primary snapshot may certify a cache as recently verified.
+
+**Initial implementation evidence (superseded fallback design):**
+
 Isolated worktree from remote main `13e187a7d0043ed110b486feb50502758a026229`.
 Analysis draft #1268 remained at `c1aa4d934d1a1532632842295cddaf0b176c1b73`;
 its operative G1 and Samples evidence were read, and `index.html` had no drift.

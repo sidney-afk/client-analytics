@@ -117,6 +117,42 @@ async function main(){let passed=0;const eq=(a,b)=>{assert.deepEqual(a,b);passed
     const release=R.acquireLock(temp),lock=path.join(temp,'samples-initial.lock');
     fs.unlinkSync(lock);const releaseOther=R.acquireLock(temp),other=fs.readFileSync(lock,'utf8');
     assert.throws(release);passed++;eq(fs.readFileSync(lock,'utf8'),other);releaseOther();eq(fs.existsSync(lock),false);
+    // Future persistent-host crash: use the real lock owner in a child. No
+    // browser, network, scheduler or live configuration is involved. Killing
+    // that exact child proves why human quiescence/quarantine is required.
+    const crash=fs.mkdtempSync(path.join(temp,'crash-'));
+    const orphan={...start,runId:randomUUID()};
+    const orphanName=`samples-initial-${orphan.runId}.start.json`;
+    const childSource=`const R=require(${JSON.stringify(require.resolve('../scripts/samples-initial-read-run'))});
+      const {persist}=require(${JSON.stringify(require.resolve('../scripts/client-continuity-run'))});
+      R.acquireLock(${JSON.stringify(crash)});persist(${JSON.stringify(crash)},${JSON.stringify(orphanName)},${JSON.stringify(orphan)});
+      process.send('locked');setInterval(()=>{},1000);`;
+    const child=require('node:child_process').spawn(process.execPath,['-e',childSource],{stdio:['ignore','ignore','pipe','ipc'],windowsHide:true});
+    const exited=new Promise(resolve=>child.once('exit',(code,signal)=>resolve({code,signal})));
+    let childError='';child.stderr.on('data',v=>{childError+=v;});
+    try {
+      await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>reject(Error('synthetic_lock_child_timeout')),5000);
+        child.once('message',message=>{clearTimeout(timer);message==='locked'?resolve():reject(Error('synthetic_lock_child_protocol'));});
+        child.once('error',error=>{clearTimeout(timer);reject(error);});
+        child.once('exit',()=>{clearTimeout(timer);reject(Error('synthetic_lock_child_early_exit'));});
+      });
+      const crashLock=path.join(crash,'samples-initial.lock'),token=fs.readFileSync(crashLock,'utf8');
+      assert.throws(()=>R.acquireLock(crash),{code:'EEXIST'});passed++;
+      child.kill('SIGKILL');await exited;eq(childError,'');
+      eq(fs.readFileSync(crashLock,'utf8'),token);
+      assert.throws(()=>R.acquireLock(crash),{code:'EEXIST'});passed++;
+      const records=R.records(crash,pins,now);
+      eq(R.evaluate(records,now-2000,now+120000).code,'terminal_missing');
+      // Admissions are stopped and the exact sole child is confirmed exited.
+      // Preserve the lock by renaming it, never deleting the run evidence.
+      const quarantine=path.join(crash,'samples-initial.lock.quarantine-'+randomUUID());
+      eq(fs.lstatSync(crashLock).isFile(),true);eq(fs.readFileSync(crashLock,'utf8'),token);eq(fs.existsSync(quarantine),false);
+      fs.renameSync(crashLock,quarantine);
+      const releaseNew=R.acquireLock(crash);releaseNew();
+      eq(fs.readFileSync(quarantine,'utf8'),token);eq(fs.existsSync(path.join(crash,orphanName)),true);
+      eq(R.evaluate(R.records(crash,pins,now),now-2000,now+120000).code,'terminal_missing');
+    }finally{if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await exited;}}
   }finally{fs.rmSync(temp,{recursive:true,force:true});}
   console.log(JSON.stringify({suite:'samples_initial_read',passed,live:false}));
 }

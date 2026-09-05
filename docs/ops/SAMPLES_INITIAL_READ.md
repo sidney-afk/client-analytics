@@ -120,7 +120,11 @@ node scripts/samples-initial-read-run.js observe --config <absolute-private-conf
 terminal after full cleanup. A killed/expired worker leaves no success terminal.
 A separate owned lock prevents overlap through terminal persistence and is
 released only by that owner. Never replace a live runner's lock. A stale lock
-requires human review of the process and orphan receipt before removal. A 120-second process deadline and
+requires the [manual lock-quarantine procedure](CLIENT_CONTINUITY_OPERATIONS.md#manual-recovery-of-a-crashed-workers-lock):
+all admissions stopped, exact worker/descendant exit proven independently of
+PID/age alone, and unchanged lock bytes preserved beside the orphan receipts.
+The observer stays red for the orphan; quarantine is not health recovery.
+A 120-second process deadline and
 bounded browser/context/proxy cleanup apply. No data cleanup/writes occur.
 Logs must remain aggregate-only: no traces, screenshots, HAR, console bodies or
 private environment dumps in public CI/PRs.

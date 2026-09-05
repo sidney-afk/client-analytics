@@ -39,6 +39,13 @@ function evaluate(records,activatedAt,now=Date.now()) {
     const items=records.filter(r=>r.lane===lane),starts=items.filter(r=>!('finishedAt' in r)),ends=items.filter(r=>'finishedAt' in r);
     const ids=new Set();for(const r of starts){requireValue(!ids.has(r.runId));ids.add(r.runId);}
     const endIds=new Set();for(const end of ends){requireValue(!endIds.has(end.runId)&&starts.some(s=>s.runId===end.runId&&s.startedAt===end.startedAt&&['pageSourceSha','pageBlobSha','pageSha256'].every(k=>s[k]===end[k])));endIds.add(end.runId);}
+    // The browser latch cannot emit success with a containment denial. Check
+    // that invariant independently rather than trusting its reported code.
+    // Contradictory evidence is an integration failure, not a client outage;
+    // preserve genuine non-green classifications and historical absent arrays.
+    // This observer reads only full-continuity receipts. The initial-read
+    // contract validates its separate safety evidence in its own namespace.
+    if(ends.some(end=>['healthy','recovered'].includes(end.code)&&end.denialReasons?.length))return report(lane,'integration_missing');
     const orphan=starts.find(s=>now-s.startedAt>=120000&&!ends.some(e=>e.runId===s.runId));
     if(orphan)return report(lane,'terminal_missing');
     const terminal=ends.sort((a,b)=>b.finishedAt-a.finishedAt)[0];

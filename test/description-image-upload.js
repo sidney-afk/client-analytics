@@ -32,16 +32,45 @@ function ok(condition, message) {
    PNG's IEND, GIF's 0x3B trailer, JPEG's EOI, a WebP RIFF size that states
    the file's own length. `headerOnly` strips that back off to prove the
    truncation check (Codex on #1310, round two). */
-function png(width, height, headerOnly) {
-  const b = new Uint8Array(headerOnly ? 33 : 57);
-  b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
-  new DataView(b.buffer).setUint32(16, width);
-  new DataView(b.buffer).setUint32(20, height);
-  if (!headerOnly) {
-    b.set([0, 0, 0, 0, 0x49, 0x44, 0x41, 0x54, 0, 0, 0, 0], 33); /* empty IDAT */
-    b.set([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82], 45); /* IEND */
+/* A real chunk writer with real CRCs, because the policy now verifies them
+   (Codex on #1310, round three: the earlier fixture had zeroed CRCs and an
+   empty IDAT and was asserted as accepted). */
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let k = 0; k < 8; k++) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
   }
-  return b;
+  return (crc ^ 0xffffffff) >>> 0;
+}
+function chunk(type, data) {
+  const out = new Uint8Array(12 + data.length);
+  new DataView(out.buffer).setUint32(0, data.length);
+  out.set([...type].map(c => c.charCodeAt(0)), 4);
+  out.set(data, 8);
+  new DataView(out.buffer).setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+  return out;
+}
+function concat(parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+}
+function png(width, height, headerOnly, options) {
+  const ihdr = new Uint8Array(13);
+  new DataView(ihdr.buffer).setUint32(0, width);
+  new DataView(ihdr.buffer).setUint32(4, height);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const parts = [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr)];
+  if (headerOnly) return concat(parts);
+  const o = options || {};
+  if (!o.noIdat) parts.push(chunk('IDAT', new Uint8Array([0x78, 0x9c, 0x63, 0x60, 0, 0, 0, 2, 0, 1])));
+  parts.push(chunk('IEND', new Uint8Array(0)));
+  const out = concat(parts);
+  if (o.corruptCrc) out[out.length - 1] ^= 0xff; /* flip a bit of IEND's CRC */
+  if (o.trailingJunk) return concat([out, new Uint8Array([0, 0, 0])]);
+  return out;
 }
 function gif(width, height, headerOnly) {
   const b = new Uint8Array(headerOnly ? 13 : 14);
@@ -129,6 +158,23 @@ ok(policy.verifyImage('image/webp', webp(10, 10, true)).error === 'image_incompl
 ok(policy.imageComplete('png', png(10, 10)) && policy.imageComplete('gif', gif(10, 10))
   && policy.imageComplete('jpeg', jpeg(10, 10)) && policy.imageComplete('webp', webp(10, 10)),
   'and each complete fixture passes the same check');
+/* Round three: a PNG is walked chunk by chunk, not matched by its last bytes. */
+ok(policy.verifyImage('image/png', png(10, 10, false, { corruptCrc: true })).error === 'image_incomplete',
+  'THE ROUND-THREE FINDING: a PNG whose chunk CRC does not match is refused — "IEND" at the end is not enough');
+ok(policy.verifyImage('image/png', png(10, 10, false, { noIdat: true })).error === 'image_incomplete',
+  'a PNG with IHDR and IEND but no IDAT (no pixel data at all) is refused');
+ok(policy.verifyImage('image/png', png(10, 10, false, { trailingJunk: true })).error === 'image_incomplete',
+  'and bytes after IEND are refused: the walk must end exactly at the end of the file');
+const suffixOnly = new Uint8Array(57);
+suffixOnly.set(png(10, 10, true));
+suffixOnly.set([0x49, 0x45, 0x4e, 0x44], 49);
+ok(policy.verifyImage('image/png', suffixOnly).error === 'image_incomplete',
+  'the exact shape round two accepted (IHDR + zero padding + the letters IEND) is now refused');
+const noScan = jpeg(10, 10, true).slice(0, 39); /* up to and including SOF0, before the SOS marker */
+const noScanEoi = new Uint8Array(noScan.length + 2);
+noScanEoi.set(noScan); noScanEoi.set([0xff, 0xd9], noScan.length);
+ok(policy.verifyImage('image/jpeg', noScanEoi).error === 'image_incomplete',
+  'a JPEG with an EOI but no Start Of Scan carries no image data and is refused');
 const realPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 const realVerdict = policy.verifyImage('image/png', new Uint8Array(realPng));
 ok(realVerdict.ok === true && realVerdict.width === 1 && realVerdict.height === 1,
@@ -173,6 +219,13 @@ const MANIFEST = fs.readFileSync(path.join(ROOT, 'qa/probes/nightly-manifest.txt
 ok(/^p96_description_image_upload\.js$/m.test(MANIFEST), 'the nightly manifest runs the live-function probe');
 ok(/functions\/v1\/description-image-upload/.test(PROBE) && /roster_actor_required/.test(PROBE) && /image_bytes_unrecognized|image_type_mismatch/.test(PROBE),
   'and the probe exercises the deployed function: CORS, flag, key, actor binding, and the byte check, against the real backend');
+ok(/if \(!STAFF_ACTOR\) \{\s*ok\(false,/.test(PROBE),
+  'ROUND THREE: the probe FAILS without SYNCVIEW_STAFF_ACTOR rather than skipping the only real round trip');
+const NIGHTLY = fs.readFileSync(path.join(ROOT, '.github/workflows/calendar-e2e-nightly.yml'), 'utf8');
+ok(/SYNCVIEW_STAFF_ACTOR: \$\{\{ secrets\.SYNCVIEW_STAFF_ACTOR \}\}/.test(NIGHTLY),
+  'and the nightly workflow wires that secret into the probe job');
+ok(/description_images_role_created_idx[\s\S]*\(actor_role, created_at desc\)/.test(MIGRATION),
+  'the per-role count has a matching (actor_role, created_at) index, since rows are kept forever');
 ok(/if \(uploadError\) \{[\s\S]*?\.delete\(\)\.eq\("id", ledgerId\)/.test(HANDLER),
   'a failed storage write withdraws the reservation, so it neither counts against the actor nor points at nothing');
 /* Codex on #1310: a server-side kill switch, because a Pages revert cannot

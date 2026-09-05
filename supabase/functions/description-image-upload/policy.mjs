@@ -148,17 +148,82 @@ function sniffWebp(b) {
  */
 export function imageComplete(kind, b) {
   const n = b.length;
-  if (kind === "png") {
-    /* signature 8 + IHDR 25 + at least one IDAT 12 + IEND 12 */
-    return n >= 57 && ascii(b, n - 8, 4) === "IEND";
-  }
+  if (kind === "png") return pngChunksValid(b);
   if (kind === "gif") return n >= 14 && b[n - 1] === 0x3b;
-  if (kind === "jpeg") return n >= 4 && b[n - 2] === 0xff && b[n - 1] === 0xd9;
+  if (kind === "jpeg") return jpegReachesScan(b) && b[n - 2] === 0xff && b[n - 1] === 0xd9;
   if (kind === "webp") {
     const riffSize = b[4] + (b[5] << 8) + (b[6] << 16) + (b[7] << 24);
     /* RIFF size excludes its own 8-byte header; an odd chunk may carry one
        pad byte, so the file is either exactly that or one byte longer. */
     return riffSize > 12 && (n === riffSize + 8 || n === riffSize + 9);
+  }
+  return false;
+}
+
+/** @type {Uint32Array | null} */
+let crcTable = null;
+/** CRC-32 as PNG defines it (ISO 3309), over the chunk type and data.
+ * @param {Uint8Array} b @param {number} from @param {number} to */
+function crc32(b, from, to) {
+  if (!crcTable) {
+    crcTable = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      crcTable[i] = c >>> 0;
+    }
+  }
+  let crc = 0xffffffff;
+  for (let i = from; i < to; i++) crc = crcTable[(crc ^ b[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * The PNG chunk walk. Not a suffix check (Codex on #1310, round three): every
+ * chunk's declared length must fit, every chunk's CRC must match its type
+ * and data, the first chunk must be a 13-byte IHDR, at least one IDAT must
+ * carry data, and the walk must end on a zero-length IEND exactly at the end
+ * of the file. A body that satisfies this is a structurally sound PNG; pixel
+ * decoding is still not attempted in the Edge runtime.
+ * @param {Uint8Array} b
+ * @returns {boolean}
+ */
+function pngChunksValid(b) {
+  const n = b.length;
+  let at = 8;
+  let first = true;
+  let idatBytes = 0;
+  while (at + 12 <= n) {
+    const length = be32(b, at);
+    const type = ascii(b, at + 4, 4);
+    const end = at + 12 + length;
+    if (end > n) return false;
+    if (first && (type !== "IHDR" || length !== 13)) return false;
+    first = false;
+    if (crc32(b, at + 4, at + 8 + length) !== be32(b, at + 8 + length)) return false;
+    if (type === "IDAT") idatBytes += length;
+    if (type === "IEND") return length === 0 && end === n && idatBytes > 0;
+    at = end;
+  }
+  return false;
+}
+
+/** A JPEG that never reaches a Start Of Scan carries no image data, whatever
+ * its last two bytes say. Walks the same marker segments the sniffer does.
+ * @param {Uint8Array} b
+ * @returns {boolean} */
+function jpegReachesScan(b) {
+  let at = 2;
+  while (at + 4 <= b.length) {
+    if (b[at] !== 0xff) return false;
+    const marker = b[at + 1];
+    if (marker === 0xff) { at += 1; continue; }
+    if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { at += 2; continue; }
+    if (marker === 0xda) return true;
+    if (marker === 0xd9) return false;
+    const length = be16(b, at + 2);
+    if (length < 2) return false;
+    at += 2 + length;
   }
   return false;
 }

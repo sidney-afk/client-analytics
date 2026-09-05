@@ -16,8 +16,11 @@
 //     - key, no actor, an SVG labelled PNG -> STILL 403, never 415: the actor
 //       gate stands in front of the byte check, so an unbound caller cannot
 //       even probe the sniffer.
-//   Full journey (also needs SYNCVIEW_STAFF_ACTOR: an ACTIVE admin/SMM roster
-//   name the key's role resolves; never committed, only ever in the secret):
+//   Full journey (needs SYNCVIEW_STAFF_ACTOR: an ACTIVE admin/SMM roster name
+//   the key's role resolves; never committed, only ever in the secret). The
+//   probe FAILS when the actor is absent rather than skipping: a probe that
+//   is green every night without touching the writer is the exact gap this
+//   file exists to close (Codex on #1310, round three).
 //     - a real 1x1 PNG uploads, answers an https URL, and the URL serves the
 //       SAME bytes back (bucket public, object written, ledger row accepted);
 //     - the same bytes labelled image/gif -> 415 image_type_mismatch;
@@ -96,7 +99,7 @@ async function post(bytes, contentType, headers) {
     'an unbound caller cannot reach the byte check: SVG-as-PNG is still 403, never 415', svgNoActor.status + ' ' + svgNoActor.json.error);
 
   if (!STAFF_ACTOR) {
-    console.log('  (SYNCVIEW_STAFF_ACTOR not set: the bound-actor journey is skipped; the contract above is what this run proves)');
+    ok(false, 'SYNCVIEW_STAFF_ACTOR is required: without a bound actor the writer itself is never exercised (add the secret to the nightly)');
   } else {
     const bound = { 'X-Syncview-Key': STAFF_KEY, 'X-Syncview-Actor': STAFF_ACTOR, 'X-Syncview-Image-Client': TEST_CLIENT, 'X-Syncview-Image-Issue': 'p96-probe' };
 

@@ -12959,3 +12959,21 @@ screenshots, and the doc said forever was the honest default).
    run, stated in the probe rather than cleaned up through a delete path that
    does not exist.
 
+**Round three (Codex on #1310): three more, all taken.**
+1. **[P1] The probe could stay green without ever touching the writer.** Right:
+   the nightly supplied only `SYNCVIEW_STAFF_KEY`, so the bound-actor journey
+   was skipped every night. The workflow now wires `SYNCVIEW_STAFF_ACTOR`
+   from secrets and the probe FAILS when it is absent. The nightly is red on
+   p96 until the owner adds the secret; that is the honest state, not a gap.
+2. **[P2] The PNG check matched a suffix.** Right, and the round-two fixture
+   proved it by passing with zeroed CRCs and an empty IDAT. `pngChunksValid`
+   now walks every chunk, verifies each CRC-32 against type and data, requires
+   IHDR first with length 13, at least one IDAT with data, and IEND exactly at
+   the end of the file. A JPEG must reach a Start Of Scan before its EOI. The
+   test fixtures write real CRCs and the refusals are asserted one by one.
+3. **[P2] The per-role count had no index.** Right: rows are kept forever, so
+   the count would scan a little more each day.
+   `description_images_role_created_idx (actor_role, created_at desc)` is in
+   the migration; the owner runs the one statement since the file was applied
+   before it existed.
+

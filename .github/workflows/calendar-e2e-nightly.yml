@@ -36,6 +36,10 @@ jobs:
           # Each probe resolves the current TEST token in its own Node process,
           # keeps it local, and strips this issuer credential from Chromium.
           SYNCVIEW_STAFF_KEY: ${{ secrets.SYNCVIEW_STAFF_KEY }}
+          # An ACTIVE admin/SMM roster name the staff key's role resolves to.
+          # p96_description_image_upload binds the live writer to it and FAILS
+          # without it; nothing else reads it. Never committed, secret only.
+          SYNCVIEW_STAFF_ACTOR: ${{ secrets.SYNCVIEW_STAFF_ACTOR }}
           SYNCVIEW_NIGHTLY_PROBES: ${{ github.event.inputs.probes || '' }}
         run: node qa/run-probes.js
       # A red nightly must PAGE, not just email (owner directive 2026-07-17 —

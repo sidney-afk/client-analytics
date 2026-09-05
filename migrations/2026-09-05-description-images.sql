@@ -52,6 +52,12 @@ create table if not exists public.description_images (
 create index if not exists description_images_actor_created_idx
   on public.description_images (actor_key, created_at desc);
 
+-- The per-ROLE ceiling (Codex on #1310, round three) counts by actor_role
+-- over the same hour; rows are retained forever, so without this the count
+-- would scan the whole table a little more each day.
+create index if not exists description_images_role_created_idx
+  on public.description_images (actor_role, created_at desc);
+
 -- Service-role only. The browser reads the image through its public URL and
 -- the description text, never through this table.
 revoke all on table public.description_images from anon;

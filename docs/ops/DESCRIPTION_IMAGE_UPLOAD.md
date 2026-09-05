@@ -63,9 +63,21 @@ renders broken.
 
 **The robots know it exists.** `qa/probes/p96_description_image_upload.js`
 runs nightly against the deployed function: the browser's preflight, the
-refusal order (flag, key, roster), and, when the nightly also holds
-`SYNCVIEW_STAFF_ACTOR`, a real 1x1 PNG round trip through the public URL plus
-the three byte refusals. It retains one 68-byte object per full run.
+refusal order (flag, key, roster), a real 1x1 PNG round trip through the
+public URL, and the three byte refusals. It retains one 68-byte object per
+run. It REQUIRES the `SYNCVIEW_STAFF_ACTOR` repository secret (an active
+admin/SMM roster name the staff key's role resolves to) and fails without it
+rather than skipping, so the nightly is red on p96 until the owner adds that
+secret. Two owner-side items after merge, both one line:
+
+1. `SYNCVIEW_STAFF_ACTOR` in repo Settings → Secrets and variables → Actions.
+2. The role index, if the migration was applied before it was added:
+   `create index if not exists description_images_role_created_idx on public.description_images (actor_role, created_at desc);`
+
+**A PNG is walked, not suffix-matched.** Every chunk's length must fit, every
+chunk's CRC must match, the first chunk must be a 13-byte IHDR, at least one
+IDAT must carry data, and the walk must end on a zero-length IEND exactly at
+the end of the file. A JPEG must reach a Start Of Scan before its EOI.
 
 **Sizing, because it was the second half of the ask** (*"avoid things where
 people paste something and it looks huge or horrible"*): a Retina screenshot

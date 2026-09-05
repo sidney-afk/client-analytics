@@ -57383,6 +57383,130 @@
            -- it only adds a row the board was going to load anyway. If it fails
            or the id is already present, the tail covers it as before, so this
            can only make the wait shorter and never make the answer wrong. */
+        /* The one-row filter, shared by the boot-time fast paint and the
+           post-phase-one catch-up so the two cannot drift apart.
+
+           THREE columns, not two. Review on PR 1242 caught the third: the
+           adapter reads `displayId: d.identifier || d.linear_identifier ||
+           d.id`, so a link copied off a row whose `identifier` is null carries
+           the LINEAR identifier and matched nothing here -- the one case this
+           shortcut exists for, silently falling back to the four-thousand-row
+           wait it was written to skip. Returns '' for an id the filter grammar
+           cannot carry safely, and the callers then leave it to the tail. */
+        function _prodDeepLinkRowQuery(wanted) {
+            /* \x22 and \x27 are the two quote characters; spelled as escapes so
+               the comment-and-quote scanner the source tests use to slice this
+               function out does not read a regex as the start of a string. */
+            const safe = String(wanted || '').replace(/[(),\x22\x27]/g, '');
+            if (!safe || safe !== wanted) return '';
+            const cols = ['id', 'identifier', 'linear_identifier'];
+            return 'or=(' + cols.map(c => c + '.eq.' + encodeURIComponent(safe)).join(',') + ')';
+        }
+        /* The boot-time fast paint. See the call site in _prodLoadData for why
+           it exists; this is what it does and what it refuses to do.
+
+           It reads the linked row beside phase one, then -- in one more round
+           trip, all in parallel -- the row's batch (the crumb and the asset
+           source read it), its parent (a sub-issue's crumb names it, and a
+           row whose parent is unresolved renders as a parent itself, with an
+           empty sub-issues section it does not own), and the two small tables
+           phase one was already fetching, awaited off the SAME promises so
+           nothing is requested twice. Everything is merged into whatever the
+           snapshot already holds, never replacing it, and the pane is marked
+           `loaded` so `_prodBody` stops showing the skeleton. `refreshing`
+           stays true because phase one is still running, which is also what
+           keeps the auto-refresh from starting a second load on top of it.
+
+           Three things it will not do. It never consumes the deep link --
+           `_prodApplyDeepLinkFallback(true)` after phase one is still the one
+           place that happens, so the consumed-exactly-once contract in
+           test/production-deep-link-survives-cache.js is unchanged. It never
+           writes the cache: a one-row snapshot painted over a later boot would
+           be the stale-first-paint bug all over again. And it never publishes
+           absence: an empty read here means "not yet", and the tail decides. */
+        let _prodDeepLinkFastRows = null;
+        async function _prodDeepLinkFastPaint(reads) {
+            const link = _prodState.deepLink;
+            const wanted = link && link.kind === 'issue' ? String(link.id || '').trim() : '';
+            if (!wanted) return false;
+            if (_prodIssue(wanted)) return false;              // the snapshot already shows it
+            if (_prodDeepLinkFastRows && _prodDeepLinkFastRows.id === wanted) return false;
+            const query = _prodDeepLinkRowQuery(wanted);
+            if (!query) return false;
+            const generation = _prodState.projectionGeneration;
+            const record = { id: wanted, generation, rows: null };
+            _prodDeepLinkFastRows = record;
+            const settled = () => generation !== _prodState.projectionGeneration || _prodDeepLinkFastRows !== record;
+            try {
+                const rows = await _prodLoadDeliverableProjection(query);
+                if (settled()) return false;
+                if (!Array.isArray(rows) || !rows.length) return false;
+                const safeIds = list => Array.from(new Set(list.map(v => String(v || '').trim())
+                    .filter(v => v && !/[(),\x22\x27]/.test(v))));   // quotes as escapes, see _prodDeepLinkRowQuery
+                const batchIds = safeIds(rows.map(row => row && row.batch_id));
+                const parentIds = safeIds(rows.map(row => row && row.raw_issue_parent_id));
+                const inList = ids => 'in.(' + ids.map(encodeURIComponent).join(',') + ')';
+                const [clients, members, batches, parents] = await Promise.all([
+                    reads.clients,
+                    reads.members,
+                    batchIds.length
+                        ? _prodRestRows('batches', PROD_BATCH_SELECT, 'id=' + inList(batchIds), 1000, 1).catch(() => [])
+                        : [],
+                    parentIds.length
+                        ? _prodLoadDeliverableProjection('linear_issue_uuid=' + inList(parentIds)).catch(() => [])
+                        : []
+                ]);
+                if (settled()) return false;
+                const seenRows = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
+                const added = [];
+                rows.concat(Array.isArray(parents) ? parents : []).forEach(row => {
+                    const id = String(row && row.id || '');
+                    if (!row || !id || seenRows.has(id)) return;
+                    seenRows.add(id);
+                    added.push(row);
+                });
+                if (!added.length) return false;
+                const seenBatches = new Set((_prodState.batches || []).map(b => String(b && b.id || '')));
+                const newBatches = (Array.isArray(batches) ? batches : []).filter(b => b && b.id && !seenBatches.has(String(b.id)));
+                _prodState.clients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
+                _prodState.members = members;
+                _prodState.batches = (_prodState.batches || []).concat(newBatches);
+                _prodState.deliverables = (_prodState.deliverables || []).concat(added);
+                _prodState.adapter = _prodAdapter({
+                    clients: _prodState.clients,
+                    members: _prodState.members,
+                    batches: _prodState.batches,
+                    deliverables: _prodState.deliverables
+                });
+                _prodState.loaded = true;
+                _prodState.loading = false;
+                _prodState.cachePartial = true;                // the board is not here yet
+                record.rows = added;
+                if (document.getElementById('prodRoot')) _prodRender();
+                return true;
+            } catch (e) {
+                // Silent by design: phase one and the tail cover it as before.
+                return false;
+            } finally {
+                if (_prodDeepLinkFastRows === record && record.rows === null) _prodDeepLinkFastRows = null;
+            }
+        }
+        /* Phase one replaces the deliverable set wholesale. A row the fast
+           paint put on screen that phase one does not carry -- a finished one,
+           excluded by PROD_LIVE_FILTER -- would vanish at that moment and the
+           pane would drop back to a skeleton until the post-phase-one read put
+           it back: the flash this whole path exists to remove. Rows are only
+           carried within the generation that read them, so a stale paint can
+           never outlive the read that supersedes it. */
+        function _prodCarryDeepLinkRows(fresh) {
+            const carried = _prodDeepLinkFastRows;
+            _prodDeepLinkFastRows = null;
+            const list = Array.isArray(fresh) ? fresh : [];
+            if (!carried || carried.generation !== _prodState.projectionGeneration || !Array.isArray(carried.rows)) return list;
+            const seen = new Set(list.map(row => String(row && row.id || '')));
+            const keep = carried.rows.filter(row => row && !seen.has(String(row.id || '')));
+            return keep.length ? list.concat(keep) : list;
+        }
         let _prodDeepLinkFetchInFlight = '';
         async function _prodFetchDeepLinkRow() {
             const wanted = String(_prodState.openId || (_prodState.deepLink && _prodState.deepLink.id) || '').trim();
@@ -57395,17 +57519,9 @@
                    LINEAR IDENTIFIER while the row is keyed by its canonical id --
                    the same two-names-for-one-row split OPEN_REPAIRS recorded when
                    a shared link hung the comment thread. */
-                const safe = wanted.replace(/[(),"']/g, '');
-                if (!safe || safe !== wanted) return false;
-                /* THREE columns, not two. Review on PR 1242 caught the third:
-                   the adapter reads `displayId: d.identifier || d.linear_identifier
-                   || d.id`, so a link copied off a row whose `identifier` is null
-                   carries the LINEAR identifier and matched nothing here -- the
-                   one case this shortcut exists for, silently falling back to the
-                   four-thousand-row wait it was written to skip. */
-                const cols = ['id', 'identifier', 'linear_identifier'];
-                const rows = await _prodLoadDeliverableProjection(
-                    'or=(' + cols.map(c => c + '.eq.' + encodeURIComponent(safe)).join(',') + ')');
+                const query = _prodDeepLinkRowQuery(wanted);
+                if (!query) return false;
+                const rows = await _prodLoadDeliverableProjection(query);
                 if (generation !== _prodState.projectionGeneration) return false;
                 if (!Array.isArray(rows) || !rows.length) return false;
                 const seen = new Set((_prodState.deliverables || []).map(row => String(row && row.id || '')));
@@ -57612,9 +57728,36 @@
                     _prodState.authorityReadAt = Date.now();
                     if (document.getElementById('prodRoot')) _prodRender();
                 }).catch(() => {});
+                const clientsRead = _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10);
+                const membersRead = _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10);
+                /* A DEEP LINK IS PAINTED FROM ITS OWN READ, not from the board's.
+
+                   Owner report 2026-09-05: following the calendar card's
+                   "Open the SyncView Production video sub-issue" link "always
+                   takes a lot of time to load. way too much time". The link
+                   opens a fresh tab, so there is no warm state: the pane waited
+                   here, on the whole live projection (thousands of rows, paged
+                   in sequence) plus every batch, before the one row it was
+                   asked for could be looked up at all. The one-row read below
+                   (`_prodFetchDeepLinkRow`) only ever ran AFTER this await, so
+                   the comment promising it "in parallel" was true of the tail
+                   and false of the wait that actually hurt.
+
+                   This starts the one-row read now, beside phase one rather
+                   than behind it, and paints the detail the moment that row,
+                   its batch, its parent, and the two small tables have landed.
+                   Phase one keeps running underneath and takes over when it
+                   arrives; a row it does not carry (a finished one) is carried
+                   across by `_prodCarryDeepLinkRows` so the pane never flashes
+                   back to a skeleton. It cannot make the answer wrong: the row
+                   is the same row from the same projection, a read that lands
+                   late is discarded by the generation check exactly as the
+                   post-phase-one read is, and a failure leaves the old path
+                   untouched. Not awaited on purpose. */
+                _prodDeepLinkFastPaint({ clients: clientsRead, members: membersRead });
                 const [clients, members, batches, deliverables, authority] = await Promise.all([
-                    _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,linear_project_ids,updated_at', 'order=display_name.asc', 1000, 10),
-                    _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
+                    clientsRead,
+                    membersRead,
                     /* PAGED BY PRIMARY KEY, like the deliverable projection beside
                        it, and for the same two reasons in the same order.
 
@@ -57653,7 +57796,7 @@
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
                 const mergedBatches = _prodPreserveProjectedFields(batches, _prodState.batches, 'id', ['description', 'desc']);
-                const mergedDeliverables = deliverables;
+                const mergedDeliverables = _prodCarryDeepLinkRows(deliverables);
                 _prodState.projectionGeneration++;
                 _prodInvalidateScopedReads();
                 _prodState.clients = mergedClients;

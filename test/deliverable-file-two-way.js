@@ -225,7 +225,7 @@ ok(/if \(!rowBatchId \|\| asked\.has\(rowBatchId\)\) return;/.test(renderLoop.sl
   'each distinct batch row is asked for once, so a post that sits on one row -- the overwhelming majority -- pays exactly what it paid before');
 ok(/row\.authorityProject \|\| row\.storedClientSlug/.test(renderLoop.slice(0, 2400)),
   "and each request declares the scope of the row that NAMES that batch, since the gateway pins on client_slug and answers a mismatch with a flat 403");
-ok(/scope === PROD_ATTRIBUTION_NEEDS[\s\S]{0,80}scope === PROD_ATTRIBUTION_CONFLICT/.test(renderLoop.slice(0, 2600)),
+ok(/scope === PROD_ATTRIBUTION_NEEDS[\s\S]{0,80}scope === PROD_ATTRIBUTION_CONFLICT/.test(renderLoop.slice(0, 3600)),
   'and a row carrying an attribution SENTINEL is skipped rather than asked about -- that slug is a guaranteed 403, and a request whose refusal is already known is a failed call for an answer nobody gains');
 
 const invalidate = grab(UI, '_prodInvalidateScopedReads');

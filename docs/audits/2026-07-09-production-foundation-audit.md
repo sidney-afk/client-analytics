@@ -432,3 +432,31 @@ Two facts belong in a foundation audit rather than only in a changelog:
   The cache is bounded (5-minute TTL, 1-minute retry, three-failure stop) and is
   cleared on sign-out or account switch by `_prodSmmPurgeSensitiveState`, so
   Admin/SMM-only data does not outlive the identity that fetched it.
+
+## Addendum, 2026-09-05 — the post-level asset read, and what it does not widen
+
+- **No new grant, no new write surface.** The three post-level slots are still
+  read through the already-authorized `asset_access_read`, still under the
+  service role, and the typed asset columns remain revoked from the browser key
+  (f34/f53). What changed is which rows that one authorized read consults: the
+  batch rows of the post rather than the single row the deliverable names.
+- **Every added query is client-pinned, twice.** The post roster and the batch
+  read each carry `.eq("client_slug", …)`, and the roster's `.or()` group holds
+  only the post uuid — the client filter sits outside it as a top-level filter,
+  so it is ANDed with the group and no other client's row is reachable through
+  it. The uuid is guarded by the same character class the browser view applies.
+- **The write is not widened, and is narrowed in one place.** `batch_asset`
+  still authenticates the caller-declared scope before resolving any id, still
+  asserts staff authority over every team the target batch serves, and still
+  CASes against that batch's own clock. The read now names the target, and it
+  refuses to name a batch that carries another post's work when the slot is
+  empty — so a post-level write cannot newly reach a post the reader was not
+  looking at. Exclusivity that cannot be determined offers no target at all.
+- **The filming plan stays unwritable** at all four layers it was unwritable at:
+  absent from `BATCH_ASSET_SLOTS`, no `write` key in `PROD_ASSET_SPECS`, refused
+  inside `production_batch_asset_write`, and no control rendered for it.
+- **`production_artifact_write` gains no reach.** The binding-first surface
+  resolution runs only where the previous definition raised unconditionally, and
+  both lookups require the card to name the deliverable back, in the slot for
+  its team, under its own client. A card that no surface binds back to is still
+  refused, and no row is written at install time.

@@ -12885,6 +12885,8 @@ holds the row. That is deliberate — a person decided each of these — and the
 owner's rulings about which card wins are recorded here, not encoded, until a
 case shows they need to be.
 
-This closes Phase 3 (b) in `CROSSWALK_REPAIR_STRATEGY.md` §5: every
-remaining mismatch has a recorded ruling. (c), the browser-side readback, is
-still open.
+This closes Phase 3 (b) in `CROSSWALK_REPAIR_STRATEGY.md` §5 for the slot
+set of this evening: every remaining mismatch has a ruling, counted here and
+recorded per row in the owner's private session (the `Claude-Session` trailer
+on PR #1312's commits). A slot that appears later is unruled until a person
+rules on it. (c), the browser-side readback, is still open.

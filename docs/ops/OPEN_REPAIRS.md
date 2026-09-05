@@ -12500,3 +12500,36 @@ three-level tree resolves as two posts, and a link on the middle row's bucket is
 not shared with its children's bucket unless they happen to coincide. Not
 regressed by this change (nothing shared across levels before either), not
 reported by anyone, and not fixed here.
+
+### Closed out 2026-09-05, after the deploy
+
+`production-write` reached v67 (closure `d2914ac2…`) on run #37 and the
+binding-first migration was applied, so all four defects in this item are live.
+Three things were fixed afterwards, none of them behavioural on the surfaces the
+owner reported:
+
+- **A fail-open in the exclusivity read, found in self-review rather than by a
+  reviewer.** #1288 merged six seconds after it opened, so the Codex pass that
+  had caught its two P1s never ran on the fix for them. Reading the diff myself:
+  exclusivity is decided by ABSENCE — a bucket is exclusive when no foreign row
+  was seen — so an occupants read truncated at its limit could hide the row that
+  makes a bucket shared, and that bucket would then be offered as a write target
+  for a post it does not belong to. Every other degradation in that function
+  fails towards "offer nothing"; this one failed towards "offer the wrong row".
+  A result that comes back at exactly the limit is now UNKNOWN. Measured before
+  fixing and worth recording because it says how much headroom there was: the
+  largest bucket holds 60 rows, the largest split post's candidate buckets hold
+  33 between them, and the limit is 800 — so it was unreachable, and the fix is
+  one comparison rather than a debugging session the day a post grows.
+- **CLAUDE.md had the capture sequence backwards**, which failed run #37's first
+  attempt in 21 seconds with `OBJECT_MISSING`. The lane FETCHES the sealed
+  bundle out of Drive during the run; it does not receive it. Upload now comes
+  before dispatch, as a numbered sequence, with the error named.
+- **CLAUDE.md led with the alias**, which answered `CommandNotFoundException` in
+  a window that had not loaded the owner's `$PROFILE`, and named a bundle
+  directory (`C:\F27-Bundles\`) that is not where the script writes. Both
+  corrected against the real receipt.
+
+**Merging inside a review window is itself the lesson.** The review that found
+the two P1s took four minutes; the fix was merged in six seconds. Nothing caught
+the fail-open except a second read of my own diff, which is not a control.

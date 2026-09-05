@@ -369,6 +369,48 @@ const NATIVE = { id: 'bat_native', client_slug: 'acme', filming_doc_url: PLAN, f
   }
 
   {
+    /* A TRUNCATED answer is the one degradation that would fail the UNSAFE way.
+       Exclusivity is decided by ABSENCE, so a page cut off at the limit could
+       hide the foreign row that makes a bucket shared, and the bucket would be
+       offered as a target for a post it does not belong to. Not reachable on
+       today's data -- largest bucket 60 rows, largest split post's candidates
+       33 between them, limit 800 -- which is why one comparison now beats a
+       debugging session the day a post grows. */
+    // The same shape as the 799 case below, one row longer: the foreign row is
+    // present here too, so the ONLY difference between the two is the count.
+    const full = [
+      ...Array.from({ length: 799 }, () => (
+        { batch_id: 'b1_b_own', raw_issue_parent_id: 'a18ced04-uuid' })),
+      { batch_id: 'bat_shared', raw_issue_parent_id: 'someone-else-uuid' },
+    ];
+    const out = await runResolve({
+      ownBatch: { id: 'b1_b_own', client_slug: 'acme' }, deliverable: PARENT,
+      roster: [{ batch_id: 'b1_b_own' }, { batch_id: 'bat_shared' }],
+      siblingBatches: [{ id: 'bat_shared', client_slug: 'acme' }],
+      occupants: full,
+    });
+    ok(out.exclusiveBatchIds === null && out.postWriteTargets.raw_footage === null,
+      'an occupants read that came back FULL is treated as unknown too -- every row it returned says "mine", but the row that would have said otherwise may simply not have fitted');
+  }
+
+  {
+    const out = await runResolve({
+      ownBatch: { id: 'b1_b_own', client_slug: 'acme' }, deliverable: PARENT,
+      roster: [{ batch_id: 'b1_b_own' }, { batch_id: 'bat_shared' }],
+      siblingBatches: [{ id: 'bat_shared', client_slug: 'acme' }],
+      // 798 of this post's own rows plus the ONE foreign row that makes
+      // bat_shared shared -- 799 in total, one short of the limit.
+      occupants: [
+        ...Array.from({ length: 798 }, () => (
+          { batch_id: 'b1_b_own', raw_issue_parent_id: 'a18ced04-uuid' })),
+        { batch_id: 'bat_shared', raw_issue_parent_id: 'someone-else-uuid' },
+      ],
+    });
+    ok(out.exclusiveBatchIds !== null && out.postWriteTargets.raw_footage.id === 'b1_b_own',
+      'while one row short of the limit is a complete answer and is trusted, so the guard is a truncation check rather than a size limit on real posts');
+  }
+
+  {
     const out = await runResolve({
       ownBatch: { id: 'bat_only', client_slug: 'acme' }, deliverable: PARENT,
       roster: [{ batch_id: 'bat_only' }], siblingBatches: [],

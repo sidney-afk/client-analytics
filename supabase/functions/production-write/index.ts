@@ -3973,15 +3973,30 @@ async function assetSnapshot(
   let exclusiveBatchIds: Set<string> | null = null;
   if (orderedBatches.length > 1 && postUuid && deliverableClient) {
     const candidateIds = orderedBatches.map(row => clean(row.id)).filter(Boolean);
+    const occupantLimit = POST_ROW_LOOKUP_LIMIT * 4;
     const { data: occupants, error: occupantsError } = await supabase
       .from("production_deliverables_browser_v1")
       .select("batch_id,linear_issue_uuid,raw_issue_parent_id")
       .in("batch_id", candidateIds)
       .eq("client_slug", deliverableClient)
-      .limit(POST_ROW_LOOKUP_LIMIT * 4);
-    if (!occupantsError) {
+      .limit(occupantLimit);
+    const occupantRows = (occupants || []) as JsonMap[];
+    /* A TRUNCATED ANSWER IS NOT AN ANSWER, and this is the one place where
+       being wrong is unsafe rather than merely unhelpful. Exclusivity is
+       decided by ABSENCE -- a bucket is exclusive when no foreign row was
+       seen -- so a result cut off at the limit could hide the very row that
+       makes a bucket shared, and the bucket would then be offered as a write
+       target for a post it does not belong to. Every other degradation here
+       fails towards "offer nothing"; this one would fail towards "offer the
+       wrong row", so a full page is treated as UNKNOWN.
+       Not reachable on today's data -- measured 2026-09-05, the largest bucket
+       holds 60 rows and the largest split post's candidate buckets hold 33
+       between them, against a limit of 800 -- which is exactly why it is worth
+       one comparison now rather than a debugging session the day a post grows.
+       Raised in self-review after the #1288 fix merged without one. */
+    if (!occupantsError && occupantRows.length < occupantLimit) {
       const shared = new Set<string>();
-      for (const row of ((occupants || []) as JsonMap[])) {
+      for (const row of occupantRows) {
         // The same post key the roster is built from: a child names its parent,
         // a parent names itself. Anything else in the bucket is another post.
         const key = clean(row.raw_issue_parent_id) || clean(row.linear_issue_uuid);

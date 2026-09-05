@@ -71,7 +71,7 @@ jobs:
       LINEAR_OUTBOUND_SOURCE_SHA256: 1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
-      PRODUCTION_WRITE_ENTRYPOINT_SHA256: 244b9ecd7357461a3391123524b4fd3cc81fd3c5b18545c320fcc174fdd3188c
+      PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7d0e028ff017efbdacd12e832721964c394714299e88a06066c29e855ffde5c7
       PRODUCTION_WRITE_FILE_COUNT: '5'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
@@ -284,7 +284,7 @@ jobs:
       # Draft native assignee eligibility closure over PR1302: the same two
       # additive migrations precede a separately authorized deployment. Both
       # epoch flags remain disabled; no activation or serving proof in this PR.
-      PRODUCTION_WRITE_SOURCE_SHA256: 267df5b88c7aabfbfbf8f3cd61363c590e48b71e31f1068e03553b5f7ad98374
+      PRODUCTION_WRITE_SOURCE_SHA256: 4b39313659ac267b588c116dbaba42ca4c106596d448a7eef88d19850ddce0bf
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

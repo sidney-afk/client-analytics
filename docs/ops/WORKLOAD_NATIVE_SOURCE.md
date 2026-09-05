@@ -1,5 +1,11 @@
 # Workload needs a native source — scope
 
+**Scoped evidence addendum, 2026-09-05:** [Task 3 executable comparison and
+handoff](../../qa/workload-consistency/REPORT.md) tests current source at
+`706359752e861969e6c68898daa26e29a2eb6edb`. Native population, refresh,
+plan identity/validation, and static-roster contracts remain red offline.
+No application change, migration, deployment, or live population proof is implied.
+
 **Why this file exists.** Owner, 2026-09-01: *"we have to think about leaving
 linear soon, like in a week we'll remove anything regarding linear."* That is not
 reachable today, and the reason is one sentence: **the Workload board is the only

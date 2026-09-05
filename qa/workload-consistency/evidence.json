@@ -1,0 +1,501 @@
+{
+  "schema": "workload-consistency-evidence/v1",
+  "sourceMain": "706359752e861969e6c68898daa26e29a2eb6edb",
+  "fetchedAt": "2026-09-05T06:37:08.4338823Z",
+  "servingCapture": {
+    "evidence": "LIVE_READ",
+    "surface": "public_static_html_only",
+    "completedAt": "2026-09-05T06:39:08.4139873Z",
+    "sha256": "8f64f648d4b92ac2147bd9ecf3c3f0747f4081331df275b8c10ff25e0f10c53a",
+    "matchesTestedIndex": true,
+    "deployedEdgeRevision": "UNPROVEN"
+  },
+  "existingOffline": {
+    "evidence": "OFFLINE_TEST",
+    "command": "node test/run-all.js (npm test entrypoint)",
+    "head": "706359752e861969e6c68898daa26e29a2eb6edb",
+    "stagedTree": "b8f7ab3eb304f8ed23fae0eb17ba57181d910127",
+    "startedAt": "2026-09-05T06:51:15.169Z",
+    "finishedAt": "2026-09-05T06:55:10.859Z",
+    "exitCode": 1,
+    "totalSuites": 399,
+    "failedSuites": [
+      "test/asset-access-any-team.js",
+      "test/assurance-ledger-staleness.js"
+    ],
+    "workloadSuites": [
+      {
+        "file": "test/workload-capacity-placement.js",
+        "sourceSha256": "73fd4de0239f67f37be5cd21c15400fcc392e1cad9ff2d3bce8cc4d3299be9a0",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-duplicate-not-active.js",
+        "sourceSha256": "c0f5751f949a09a6336f6516411b7219a6ba5befafbda1a117646b79b9094e01",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-excluded-reported.js",
+        "sourceSha256": "2a36965f1c45ac84c879953fefbe6df022e14da3c5438c32ebb58cda576347c0",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-linear-browser.js",
+        "sourceSha256": "c2e72ad3e3b679a2a15892f15d42f373bd174baf397508fbf41f251e8241953f",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-linear-policy.js",
+        "sourceSha256": "bcaee57f6d5f2cb5e497178ab55d758de169b1903e75f20b13020cdeb9508fab",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-linear-source.js",
+        "sourceSha256": "1a08402903d52c65a2f2846d860ca3ecf370b4ad4f14c6a273982b2ec0194f68",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-native-source-diff.js",
+        "sourceSha256": "7ea5f8822cde0ec9916843cb20823216cac1eb313b7af3006e0af0c859ad5774",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-native-view-contract.js",
+        "sourceSha256": "e299c6ec3a1fac0ee7b2d4903c69788aeb68585087049bbbd328eea58370cd85",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-native-visibility.js",
+        "sourceSha256": "0dd5d6482d396ea99bfae642e684518abbc8c69e1ce246243e77c31672d9f734",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-overdue-ruling.js",
+        "sourceSha256": "04568afa39b821cca4efb6c9e60e2a44ffb6dbf8a80bb48c63631dbc3fe97a2d",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-plan-failclosed.js",
+        "sourceSha256": "5afbdb6b615b7fd537fac5bcb4addea38b9a126bf7e3869808ab5358e9865575",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-plan-source.js",
+        "sourceSha256": "3bcf5313c7c13bcc56d2f027e5f4ba8c31660ae01257a0d49493259f494a5dec",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-syncview-links.js",
+        "sourceSha256": "0dfc9e220c03c08f037c0430d4ceba06545aa6ce9a4e89aa335545e2142bc85b",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-today-formatter-hoisted.js",
+        "sourceSha256": "804ecb0557ad67aae06f32048c815c9a7b93e6f64461a813800b7a1d9c7649d5",
+        "verdict": "PASS"
+      },
+      {
+        "file": "test/workload-tweak-exclusive-bucket.js",
+        "sourceSha256": "493515b491e3f9f03093f2897ce4d47a5bf0e38f782edd44d750676c4695fe53",
+        "verdict": "PASS"
+      }
+    ],
+    "rawLogSha256": "9dd265d9835c358361671249789cfc438aa3fd0ab77d18bebd8c64c1422516af",
+    "failureClasses": [
+      {
+        "suite": "test/asset-access-any-team.js",
+        "class": "WINDOWS_ESM_ABSOLUTE_PATH"
+      },
+      {
+        "suite": "test/assurance-ledger-staleness.js",
+        "class": "HARDCODED_TMP_DIRECTORY_UNAVAILABLE"
+      }
+    ],
+    "disposableDatabaseProof": "NOT_TESTED"
+  },
+  "finite": {
+    "evidence": "OFFLINE_TEST",
+    "provenance": {
+      "testedAt": "2026-09-05T06:55:40.788Z",
+      "head": "706359752e861969e6c68898daa26e29a2eb6edb",
+      "trackedTreeDirty": true,
+      "toolFilesTracked": true,
+      "files": {
+        "index.html": "8f64f648d4b92ac2147bd9ecf3c3f0747f4081331df275b8c10ff25e0f10c53a",
+        "supabase/functions/workload-plan/index.ts": "854f1a4b6c45987dbba65c2c38566ac10e571d23933f91ece2c7c784e56e250d",
+        "supabase/functions/linear-outbound/mapping.mjs": "dad75fc2c545628108a9a6e84cd5c55922455ab144b302a47410efc843ca45ef",
+        "migrations/2026-09-02-workload-native-view.sql": "f777ef057aad113a502b7f2be51d16bef81d0b9a7c09c0294d73f2dbb278427f",
+        "test/helpers/extract-function.js": "364805d91956b24d9177d061f15f1c68c47b6e971f03f7427f375855f3e2607a",
+        "qa/workload-consistency/checks.js": "e005f819f8da2b3e8937fd6ea134306eb62e467c7237c51435f069dcf965b6ed",
+        "qa/workload-consistency/compare.js": "0d3680213a2d735dc8352c612de7be1a55bf13c7cfaf6cdf1e8fd393e4986cc3",
+        "qa/workload-consistency/contracts.js": "7dcd5997d3eea6605025ef99c571a427a63df67dd7563f90496beeccadd74a53",
+        "qa/workload-consistency/fixtures.js": "2756d459ac7a92f0a767f1ad9651ec513f60badeb6e5b163164816a7440ddf0e",
+        "qa/workload-consistency/run.js": "ce964edeb4f16527b56c7d689cea10a81604d699acd3aa46ecf5f77f9bec8f37",
+        "qa/workload-consistency/source-harness.js": "a6367113cdf125b9ab20d6a27dc98a7fee4827e7463e78115fbcb9bbcb748f02"
+      },
+      "sourceSetSha256": "9b65ff854bec5cdaaa2a429a119f61b9e0f61e6b55a6fe8139e2175c58817043",
+      "servingRevision": "UNPROVEN",
+      "deployedEdgeRevision": "UNPROVEN"
+    },
+    "results": [
+      {
+        "id": "C01-owner-native-legacy-alias",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C02-owner-mismatch",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C03-active-role-and-team",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C04-ambiguous-owner-does-not-last-win",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C05-status-drift-versus-card-vocabulary",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C06-canonical-due-versus-publish-date",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C07-native-only-never-disappears-from-denominator",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C08-provider-only-versus-genuinely-absent",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C09-native-filtered-versus-missing",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C10-archive-root-terminal-exclusions",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C11-duplicates-and-conflicting-identities",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C12-card-scope-kind-binding-and-missing",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C13-samples-only-binding-no-calendar-requirement",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C14-missing-fields-and-completeness-stay-unproven",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C15-public-output-cannot-echo-input-values",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C16-actual-bucketing-video-graphics-root-parked",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C17-actual-bucketing-unassigned-and-off-team",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C18-plan-lookup-old-new-native-and-due-semantics",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C19-loader-cold-cached-forced-empty-failed",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C20-native-diagnostic-not-a-render-switch",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C21-authority-healthy-http-failure-malformed-missing",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C22-flag-read-failure-stops-metadata-fallback",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C23-native-only-structural-child-enters-actual-buckets-if-supplied",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C24-production-projection-is-separate-from-native-store",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C25-seeded-discrepancy-counts-exact",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C26-work-status-aliases-and-duplicate-native-ids",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C27-unknown-membership-status-and-structure-are-not-exclusions",
+        "verdict": "PASS"
+      },
+      {
+        "id": "C28-ambiguous-links-cannot-establish-absence",
+        "verdict": "PASS"
+      }
+    ],
+    "syntheticComparison": {
+      "schema": "workload-consistency/v1",
+      "evidence": "OFFLINE_TEST",
+      "populationVerdict": "UNPROVEN",
+      "inputCounts": {
+        "native": 2,
+        "production": 2,
+        "provider": 2,
+        "workload": 1,
+        "calendar": 1,
+        "samples": 0
+      },
+      "counts": {
+        "provider_only": 1,
+        "owner_mismatch": 1,
+        "status_mismatch": 1,
+        "canonical_due_mismatch": 1,
+        "intentional_date_semantics": 1,
+        "native_stored_but_filtered": 1,
+        "native_only": 1,
+        "native_missing_from_workload": 1,
+        "card_binding_gap": 1
+      },
+      "findings": [
+        {
+          "code": "provider_only",
+          "ref": "r0001",
+          "surface": "provider"
+        },
+        {
+          "code": "owner_mismatch",
+          "ref": "r0002",
+          "surface": "workload"
+        },
+        {
+          "code": "status_mismatch",
+          "ref": "r0002",
+          "surface": "workload"
+        },
+        {
+          "code": "canonical_due_mismatch",
+          "ref": "r0002",
+          "surface": "workload"
+        },
+        {
+          "code": "intentional_date_semantics",
+          "ref": "r0003",
+          "surface": "calendar"
+        },
+        {
+          "code": "native_stored_but_filtered",
+          "ref": "r0002",
+          "surface": "workload"
+        },
+        {
+          "code": "native_only",
+          "ref": "r0004"
+        },
+        {
+          "code": "native_missing_from_workload",
+          "ref": "r0004"
+        },
+        {
+          "code": "card_binding_gap",
+          "ref": "r0003",
+          "surface": "calendar"
+        }
+      ]
+    },
+    "counts": {
+      "PASS": 28
+    }
+  },
+  "productContracts": {
+    "evidence": "OFFLINE_TEST",
+    "provenance": {
+      "testedAt": "2026-09-05T06:55:41.081Z",
+      "head": "706359752e861969e6c68898daa26e29a2eb6edb",
+      "trackedTreeDirty": true,
+      "toolFilesTracked": true,
+      "files": {
+        "index.html": "8f64f648d4b92ac2147bd9ecf3c3f0747f4081331df275b8c10ff25e0f10c53a",
+        "supabase/functions/workload-plan/index.ts": "854f1a4b6c45987dbba65c2c38566ac10e571d23933f91ece2c7c784e56e250d",
+        "supabase/functions/linear-outbound/mapping.mjs": "dad75fc2c545628108a9a6e84cd5c55922455ab144b302a47410efc843ca45ef",
+        "migrations/2026-09-02-workload-native-view.sql": "f777ef057aad113a502b7f2be51d16bef81d0b9a7c09c0294d73f2dbb278427f",
+        "test/helpers/extract-function.js": "364805d91956b24d9177d061f15f1c68c47b6e971f03f7427f375855f3e2607a",
+        "qa/workload-consistency/checks.js": "e005f819f8da2b3e8937fd6ea134306eb62e467c7237c51435f069dcf965b6ed",
+        "qa/workload-consistency/compare.js": "0d3680213a2d735dc8352c612de7be1a55bf13c7cfaf6cdf1e8fd393e4986cc3",
+        "qa/workload-consistency/contracts.js": "7dcd5997d3eea6605025ef99c571a427a63df67dd7563f90496beeccadd74a53",
+        "qa/workload-consistency/fixtures.js": "2756d459ac7a92f0a767f1ad9651ec513f60badeb6e5b163164816a7440ddf0e",
+        "qa/workload-consistency/run.js": "ce964edeb4f16527b56c7d689cea10a81604d699acd3aa46ecf5f77f9bec8f37",
+        "qa/workload-consistency/source-harness.js": "a6367113cdf125b9ab20d6a27dc98a7fee4827e7463e78115fbcb9bbcb748f02"
+      },
+      "sourceSetSha256": "9b65ff854bec5cdaaa2a429a119f61b9e0f61e6b55a6fe8139e2175c58817043",
+      "servingRevision": "UNPROVEN",
+      "deployedEdgeRevision": "UNPROVEN"
+    },
+    "results": [
+      {
+        "id": "WLC01-native-only-default-load",
+        "expected": "native_record_in_board_input",
+        "actual": "native_record_absent_from_board_input",
+        "verdict": "FAIL",
+        "evidence": "OFFLINE_TEST"
+      },
+      {
+        "id": "WLC02-forced-refresh-with-provider-unavailable",
+        "expected": "native_refresh_succeeds",
+        "actual": "refresh_fails_on_provider",
+        "verdict": "FAIL",
+        "evidence": "OFFLINE_TEST"
+      },
+      {
+        "id": "WLC03-saved-plan-identity-migration",
+        "expected": "saved_plan_preserved",
+        "actual": "saved_plan_not_found",
+        "verdict": "FAIL",
+        "evidence": "OFFLINE_TEST"
+      },
+      {
+        "id": "WLC04-native-plan-target-validation",
+        "expected": "native_target_accepted",
+        "actual": "native_target_rejected_by_mirror_lookup",
+        "verdict": "FAIL",
+        "evidence": "OFFLINE_TEST"
+      },
+      {
+        "id": "WLC05-current-member-outside-static-name-roster",
+        "expected": "active_member_work_visible",
+        "actual": "excluded_by_static_name_roster",
+        "verdict": "FAIL",
+        "evidence": "OFFLINE_TEST"
+      }
+    ],
+    "counts": {
+      "FAIL": 5
+    }
+  },
+  "livePopulation": "UNPROVEN",
+  "isolatedBrowser": "NOT_TESTED",
+  "liveWriteDrill": "UNAVAILABLE",
+  "normalizedSyntheticCli": {
+    "evidence": "OFFLINE_TEST",
+    "provenance": {
+      "testedAt": "2026-09-05T06:57:22.199Z",
+      "head": "706359752e861969e6c68898daa26e29a2eb6edb",
+      "trackedTreeDirty": true,
+      "toolFilesTracked": true,
+      "files": {
+        "index.html": "8f64f648d4b92ac2147bd9ecf3c3f0747f4081331df275b8c10ff25e0f10c53a",
+        "supabase/functions/workload-plan/index.ts": "854f1a4b6c45987dbba65c2c38566ac10e571d23933f91ece2c7c784e56e250d",
+        "supabase/functions/linear-outbound/mapping.mjs": "dad75fc2c545628108a9a6e84cd5c55922455ab144b302a47410efc843ca45ef",
+        "migrations/2026-09-02-workload-native-view.sql": "f777ef057aad113a502b7f2be51d16bef81d0b9a7c09c0294d73f2dbb278427f",
+        "test/helpers/extract-function.js": "364805d91956b24d9177d061f15f1c68c47b6e971f03f7427f375855f3e2607a",
+        "qa/workload-consistency/checks.js": "e005f819f8da2b3e8937fd6ea134306eb62e467c7237c51435f069dcf965b6ed",
+        "qa/workload-consistency/compare.js": "0d3680213a2d735dc8352c612de7be1a55bf13c7cfaf6cdf1e8fd393e4986cc3",
+        "qa/workload-consistency/contracts.js": "7dcd5997d3eea6605025ef99c571a427a63df67dd7563f90496beeccadd74a53",
+        "qa/workload-consistency/fixtures.js": "2756d459ac7a92f0a767f1ad9651ec513f60badeb6e5b163164816a7440ddf0e",
+        "qa/workload-consistency/run.js": "ce964edeb4f16527b56c7d689cea10a81604d699acd3aa46ecf5f77f9bec8f37",
+        "qa/workload-consistency/source-harness.js": "a6367113cdf125b9ab20d6a27dc98a7fee4827e7463e78115fbcb9bbcb748f02"
+      },
+      "sourceSetSha256": "9b65ff854bec5cdaaa2a429a119f61b9e0f61e6b55a6fe8139e2175c58817043",
+      "servingRevision": "UNPROVEN",
+      "deployedEdgeRevision": "UNPROVEN"
+    },
+    "inputSha256": "2924d567dbaed13afab8873de1e3699bebec379fbf47682b63d3cdcbb6d676e2",
+    "comparison": {
+      "schema": "workload-consistency/v1",
+      "evidence": "OFFLINE_TEST",
+      "populationVerdict": "UNPROVEN",
+      "inputCounts": {
+        "native": 2,
+        "production": 2,
+        "provider": 2,
+        "workload": 1,
+        "calendar": 1,
+        "samples": 0
+      },
+      "counts": {
+        "provider_only": 1,
+        "owner_mismatch": 1,
+        "status_mismatch": 1,
+        "canonical_due_mismatch": 1,
+        "intentional_date_semantics": 1,
+        "native_stored_but_filtered": 1,
+        "native_only": 1,
+        "native_missing_from_workload": 1,
+        "card_binding_gap": 1
+      },
+      "findings": [
+        {
+          "code": "provider_only",
+          "ref": "r0001",
+          "surface": "provider"
+        },
+        {
+          "code": "owner_mismatch",
+          "ref": "r0002",
+          "surface": "workload"
+        },
+        {
+          "code": "status_mismatch",
+          "ref": "r0002",
+          "surface": "workload"
+        },
+        {
+          "code": "canonical_due_mismatch",
+          "ref": "r0002",
+          "surface": "workload"
+        },
+        {
+          "code": "intentional_date_semantics",
+          "ref": "r0003",
+          "surface": "calendar"
+        },
+        {
+          "code": "native_stored_but_filtered",
+          "ref": "r0002",
+          "surface": "workload"
+        },
+        {
+          "code": "native_only",
+          "ref": "r0004"
+        },
+        {
+          "code": "native_missing_from_workload",
+          "ref": "r0004"
+        },
+        {
+          "code": "card_binding_gap",
+          "ref": "r0003",
+          "surface": "calendar"
+        }
+      ]
+    }
+  },
+  "cliSafety": {
+    "evidence": "OFFLINE_TEST",
+    "testedAt": "2026-09-05T06:58:08.887Z",
+    "sourceSetSha256": "9b65ff854bec5cdaaa2a429a119f61b9e0f61e6b55a6fe8139e2175c58817043",
+    "internalInputRefused": true,
+    "malformedInputRedacted": true,
+    "exitCodes": [
+      2,
+      2
+    ]
+  }
+}

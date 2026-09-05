@@ -157,3 +157,11 @@ still owner-gated, and it is the half that matters most.
 - **Stop decision:** stopped after 4 of 6 cycles — every remaining top-scored gap requires either a TEST-client drill (excluded by the read-only mandate) or an owner decision (O-1…O-8). Two consecutive dry cycles were unreachable: cycles 3–4 produced findings.
 - **Refuted/discarded this run:** 2 candidate signals — the 07-15 nightly carnage (environmental: the client-writer incident window, not a distinct defect) and the local `prod-readonly-smoke` timeout (sandbox browser egress, not an app failure; the same smoke is green in CI 07-16). Live-browser lanes remain CI/owner-machine provers for this sandbox.
 - **Recommended next run:** 2026-07-24 (T0 window) or immediately after the owner answers O-5/O-7 — with TEST drills allowed, so the F141 reorder repro, the `?c=` client-link probe (O-3), and a real browser share (O-2) can close.
+
+
+### Scoped Kasper reader candidate (2026-09-05)
+
+`qa/kasper-roster/README.md` records isolated baseline/candidate roster-readiness
+proof. This does not refresh any live proof date, tier state or unrelated surface.
+Readers, caches and visible timing are tested with intercepted fictional rows;
+server writers, authentication and deployment remain unproven.

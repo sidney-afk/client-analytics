@@ -536,3 +536,12 @@ returns 401.
 **If the browser half ships before the function half**, the endpoint returns
 managers without `source_clients`, the directory is empty, and the card does not
 render. No error, no console noise, no partial state.
+
+
+### Kasper roster readiness candidate (2026-09-05)
+
+Browser-only, draft/unmerged reader correction. If adopted, reverting its reviewed
+commit restores the prior Kasper load timing and removes its HTTP-readiness guard;
+that also restores the known cold-roster omission. No data, flag, Edge Function,
+credential, writer or authentication rollback is involved. Evidence and tested
+source are in `qa/kasper-roster/README.md`; deployment is unproven.

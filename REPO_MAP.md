@@ -62,6 +62,11 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 ## Test & automation entry points
 
+`qa/kasper-roster/` reuses the separately pinned PR #1282 browser fixture for
+isolated cold-entry, roster/Calendar timing, cache, error and overlapping-read
+checks. See its README for the local-only command; `test/kasper-roster-readiness.js`
+executes the actual reader's readiness, request-owner and mutation guards offline.
+
 | Command / trigger | What runs | Notes |
 |---|---|---|
 | `npm test` | `test/run-all.js` → every `test/*.js` (dependency-free; normally offline, with F63 using only an explicitly required disposable PostgreSQL 16 service) | Runs on every push (`calendar-unit-tests.yml`). It never targets a live backend. Run before every commit. |

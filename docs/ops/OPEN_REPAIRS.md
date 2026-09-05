@@ -12315,3 +12315,36 @@ a return value its callers were written to ignore.
 
 The prefix-free roster, the router-caller check and both Kasper guards are in
 `test/cal-review-needs-content.js`, all mutation-proven.
+
+
+## 155. [2026-09-05, ISOLATED CANDIDATE] Cold Kasper entry snapshots the roster before it is ready
+
+Confirmed on main `a4925097aad2be1d8b4710e56da1220a19c850c5` with PR #1282's
+unchanged actual-document fixture: Calendar-primed Kasper sees one eligible
+fictional card; reload and fresh direct entry show zero. The reader snapshots
+`WL_CLIENT_NAMES` before Clients Info merges its sheet-only client. A later
+essentials completion does not rerun that queue, and the event-only background
+refresh cannot be relied on to rescue it. Cached content can therefore be erased
+by an apparently successful read. No live incidence was measured here.
+
+The candidate waits for the existing essentials promise before taking that
+scoped snapshot. HTTP failure cannot certify readiness; revisiting Review retries
+a failed roster read. Existing generation checks remain, with separate load
+ownership so old completion/error cleanup cannot dismiss a newer refresh. The
+allowed roster still filters raw Calendar rows; arbitrary slugs are never added.
+
+`qa/kasper-roster/README.md` records baseline/candidate timing evidence, supported
+reproduction, exact source/serving hashes and limits. `test/kasper-roster-readiness.js`
+executes the actual reader with deferred IO. Reopen-status semantics and the
+client-note Production projection remain separate unproven/contract questions
+from PR #1282. This is draft, unmerged browser code, with no deployment or writer
+change; rollback is a code revert as described in `ROLLBACK.md`.
+
+
+**Independent correction review (2026-09-05):** the first candidate's shared
+HTTP check rejected a Metrics-only 503, blocking verified anonymous Calendar
+entry despite healthy Clients Info and Calendar. The corrected check rejects
+failed Clients Info only and restores Metrics' prior degraded HTTP behavior.
+Two actual-document regression cases now cover Metrics-only failure separately
+for anonymous Calendar and Kasper. The earlier 9/9 timing result omitted this
+condition; updated source-bound receipts are in `qa/kasper-roster/README.md`.

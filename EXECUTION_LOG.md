@@ -6075,3 +6075,19 @@ the regression.
 
 `synced_at` still travels from `smm-weekly-reports`; the browser directory no
 longer carries the unused field.
+
+
+## 2026-09-05 - Kasper roster readiness candidate
+
+Reproduced cold-entry roster loss against current main with PR #1282's unchanged
+fixture; added a reader-readiness wait and request-owner cleanup guard. The
+isolated timing matrix and exact-source receipts are in `qa/kasper-roster/README.md`.
+No deployed/live-writer claim; no live changes.
+
+
+### 2026-09-05 - Kasper candidate Metrics HTTP correction
+
+Independent review caught a shared-boot regression: the new roster-readiness
+HTTP guard also rejected Metrics. Scoped it to Clients Info only and added
+separate intercepted anonymous-Calendar/Kasper Metrics-only 503 checks. Existing
+roster-failure and generation assertions remain; no live changes.

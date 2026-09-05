@@ -6,7 +6,8 @@ const { relayPayload, postAlert, confirmRelayDelivery } = require('./monitoring-
 const CODES = Object.freeze(['healthy', 'valid_link_auth', 'read_failed', 'false_empty',
   'stale_unwarned', 'stale_overdue', 'count_unproven', 'integration_missing',
   'monitor_missing', 'terminal_missing', 'alert_undelivered', 'ack_overdue',
-  'action_unpersisted', 'action_failed', 'cleanup_failed', 'recovered']);
+  'action_unpersisted', 'action_failed', 'cleanup_failed', 'recovered',
+  'inconclusive', 'render_failed', 'browser_error', 'mutation_blocked', 'unexpected_request', 'scope_mismatch', 'release_mismatch']);
 const LANES = ['calendar', 'samples', 'actions', 'observer'];
 function check(value, code = 'integration_missing') { if (!value) throw new Error(code); }
 function age(now, at) { return Number.isFinite(at) && at <= now ? now - at : Infinity; }

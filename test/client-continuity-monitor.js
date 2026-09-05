@@ -3,10 +3,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const vm = require('node:vm');
+
 const M = require('../scripts/client-continuity-monitor');
 const { runApprovedActions } = require('../scripts/client-continuity-actions');
-const { captureView } = require('../scripts/client-continuity-view');
+const { sourceChecks } = require('./helpers/client-continuity-source');
 let passed = 0;
 function eq(actual, expected) { assert.deepEqual(actual, expected); passed++; }
 const now = 1000000;
@@ -14,21 +14,7 @@ const healthy = { version: 1, correlated: true, settled: true, outcome: 'success
   renderedCount: 2, warningVisible: false, retryVisible: false, verifiedAt: now,
   complete: true, authorityMatched: true, authoritativeCount: 2 };
 
-// Execute actual source readers with intercepted dependencies, following the
-// established calendar-get-empty-200 source harness. No repaired product copy.
-function sourceReader(lane, primary, response) {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  const name = lane === 'samples' ? '_sxrFetchPosts' : '_calV2FetchPosts';
-  const start = html.indexOf(`    async function ${name}(`);
-  assert.ok(start >= 0);
-  const end = html.indexOf('\n    }', start) + 6;
-  const context = vm.createContext({ CAL_SUPABASE_URL: 'https://fixture.invalid', SXR_TABLE: 'sample_reviews',
-    SXR_GET_URL: 'https://fixture.invalid/samples', CALENDAR_GET_URL: 'https://fixture.invalid/calendar',
-    _sxrSupabaseFetchAllRows: primary, _calSupabaseFetchAllRows: primary,
-    fetch: async () => response, console: { warn() {} }, Date });
-  return vm.runInContext(`${html.slice(start, end)}; ${name}`, context);
-}
-
+let stage='detectors';
 async function main() {
   for (const lane of ['calendar', 'samples']) {
     eq(M.assessRead(lane, healthy, now).code, 'healthy');
@@ -50,37 +36,11 @@ async function main() {
     eq((await M.viewingCheck(lane, async () => { calls++; throw new Error('private'); })).code, 'read_failed'); eq(calls, 2);
     calls = 0;
     eq((await M.viewingCheck(lane, async () => { calls++; return { validLink: true, authStatus: 401 }; })).code, 'valid_link_auth'); eq(calls, 1);
-    const reader = sourceReader(lane, async () => [], null);
-    eq((await reader('syntheticfixture')).posts.length, 0);
-    const goodFallback = sourceReader(lane, async () => { throw new Error('synthetic'); },
-      { ok: true, json: async () => ({ ok: true, posts: [{ id: 'synthetic' }] }) });
-    eq((await goodFallback('syntheticfixture')).posts.length, 1);
   }
-  // Current main is defective. These assertions prove the detector catches it;
-  // strict mode is the coordinator's red/green gate for the repaired source.
-  let sourceDefects = 0;
-  const bad = [{ status: 401, body: {} }, { status: 403, body: {} }, { status: 429, body: {} },
-    { status: 500, body: {} }, { status: 200, body: { ok: false } },
-    { status: 200, body: {} }, { status: 200, body: { ok: true, posts: [] } }];
-  for (const lane of ['calendar', 'samples']) {
-    for (const fixture of bad) {
-      const fn = sourceReader(lane, async () => { throw new Error('synthetic read failure'); },
-        { ok: fixture.status === 200, status: fixture.status, json: async () => fixture.body });
-      let swallowed = false;
-      try { const value = await fn('syntheticfixture'); swallowed = value.ok && value.posts.length === 0; } catch {}
-      if (swallowed) {
-        sourceDefects++;
-        eq(M.assessRead(lane, { ...healthy, outcome: 'failure', display: 'empty', renderedCount: 0 }, now).code, 'false_empty');
-      } else passed++;
-      if (lane === 'calendar') eq(swallowed, false);
-    }
-    for (const kind of ['malformed', 'timeout']) {
-      const fn = sourceReader(lane, async () => { throw new Error('synthetic'); }, {
-        ok: true, json: async () => { const e = new Error(kind); if (kind === 'timeout') e.name = 'AbortError'; throw e; },
-      });
-      await assert.rejects(fn('syntheticfixture')); passed++;
-    }
-  }
+  stage='actual_source';
+  const sourceResult = await sourceChecks();
+  passed += sourceResult.passed;
+  stage='liveness_and_routing';
   const terminal = { startedAt: now - 1000, finishedAt: now, code: 'healthy' };
   const state = { lane: 'calendar', enabled: true, activatedAt: 1, terminal, lastStartedAt: terminal.startedAt };
   eq(M.assessLiveness(state, now).code, 'healthy');
@@ -121,33 +81,7 @@ async function main() {
   eq(delivery.primaryDelivered, true); eq(delivery.acknowledged, false); eq(fallbackCalls, 0);
   eq(acceptedPayload.issue_identifier, 'calendar_recovered');
 
-  // Prepared viewing adapter: fail closed without the product hook/census, fresh
-  // context isolation and mutation refusal independent of product guard state.
-  let routes, closed = 0, hookMissing = false, responseListener;
-  const snapshot = { ...healthy, verifiedAt: Date.now(), snapshot: 'a'.repeat(32) };
-  const browser = { async newContext(options) {
-    eq(options.serviceWorkers, 'block');
-    return { async route(_, fn) { routes = fn; }, async close() { closed++; }, async newPage() {
-      return { setDefaultTimeout() {}, on(_, fn) { responseListener = fn; }, async goto() {},
-        async waitForFunction() { if (hookMissing) throw new Error('no hook'); }, async evaluate() { return snapshot; } };
-    } };
-  } };
-  const viewConfig = { lane: 'calendar', enabled: true, activation: 'OWNER_APPROVED_VIEW_CHECKS',
-    shareLink: 'https://fixture.invalid/?c=synthetic&t=synthetic', verifierUrl: 'https://fixture.invalid/verify' };
-  const census = async () => ({ snapshot: snapshot.snapshot, count: 2, complete: true });
-  eq((await captureView(browser, viewConfig, census)).code, 'healthy');
-  let aborted = 0, continued = 0;
-  for (const [method, url, redirect] of [['POST', 'https://fixture.invalid/writer', false], ['DELETE', 'https://fixture.invalid/row', false], ['POST', viewConfig.verifierUrl, true], ['POST', viewConfig.verifierUrl, false]]) {
-    await routes({ request: () => ({ method: () => method, url: () => url, redirectedFrom: () => redirect }), abort: () => aborted++, continue: () => continued++ });
-  }
-  eq(aborted, 3); eq(continued, 1);
-  eq((await captureView(browser, viewConfig, async () => ({ count: 2, complete: true, snapshot: 'b'.repeat(32) }))).code, 'count_unproven');
-  hookMissing = true;
-  eq((await captureView(browser, viewConfig, census)).code, 'integration_missing'); eq(closed, 3);
-  await assert.rejects(captureView(browser, { ...viewConfig, enabled: false }, census)); passed++;
-  await assert.rejects(captureView(browser, { ...viewConfig, shareLink: 'private-value' }, census), { message: 'private_view_config_required' }); passed++;
-  await assert.rejects(M.routeAlert(M.report('samples', 'false_empty'), { ...config, fallbackUrl: 'private-value' }, fallbackFetch), { message: 'private_route_config_required' }); passed++;
-
+  stage='test_actions';
   // Disk-backed isolated fixture: independent readback reopens the persisted
   // store, atomic scope-version and ownership fences protect an unrelated row.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'continuity-'));
@@ -203,7 +137,7 @@ async function main() {
     r = await runApprovedActions(approved, { ...adapter, readScope: async () => ({ ...initial.scope, version: undefined }) }, () => now);
     eq(r.code, 'action_failed'); eq(writes, noVersionWrites);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-  console.log(JSON.stringify({ suite: 'client_continuity_monitor', passed, sourceDefects, live: false }));
-  if (process.argv.includes('--strict-source')) assert.equal(sourceDefects, 0, 'coordinator Samples repair required');
+  console.log(JSON.stringify({ suite: 'client_continuity_monitor', passed, originalDefectsDetected: sourceResult.originalDefectsDetected, repairedSource: true, live: false }));
+
 }
-main().catch(() => { console.error('client_continuity_monitor_failed'); process.exitCode = 1; });
+main().catch(error => { console.error(JSON.stringify({suite:'client_continuity_monitor',stage,code:error.name==='AssertionError'?'assertion_failed':'fixture_failed'})); process.exitCode = 1; });

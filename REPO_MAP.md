@@ -69,10 +69,13 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 Inactive first-Samples-repair monitoring preparation:
 `scripts/client-continuity-monitor.js` (read truth, relay/fallback and liveness),
-`scripts/client-continuity-view.js` (gated anonymous read adapter),
+`scripts/client-continuity-view.js` (request/DOM observer and private scoped census),
+`scripts/client-continuity-run.js` (inactive manual launcher and private receipts),
+`docs/ops/client-continuity.config.example.json` (inactive secret-reference template),
 `scripts/client-continuity-actions.js` (gated TEST persistence runner),
 `test/client-continuity-monitor.js` (offline fixtures and actual reader checks),
-`qa/client-continuity.js` (existing intercepted boot harness reuse), and
+`qa/client-continuity.js` and `qa/client-continuity-fixtures.js` (intercepted boot harness reuse),
+`test/client-continuity-view.js` and `test/helpers/client-continuity-source.js` (census/launcher/source coverage), and
 `docs/ops/CLIENT_CONTINUITY_PREPARATION.md` (activation/recovery requirements).
 
 | Command / trigger | What runs | Notes |

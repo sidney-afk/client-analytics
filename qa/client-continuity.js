@@ -5,16 +5,35 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const H = require('./boot/client-entry-sequence');
 const { assessRead } = require('../scripts/client-continuity-monitor');
+const { captureView, viewingJourney } = require('../scripts/client-continuity-view');
+const { fixture } = require('./client-continuity-fixtures');
 
+let stage='startup';
 async function main() {
   const server = await H.startStreamServer();
   const browser = await chromium.launch({ headless: true });
   let passed = 0;
   try {
+    for (const lane of ['calendar','samples']) {
+      for (const scenario of ['healthy','empty','failure','auth','concurrent','stale_dom']) {
+        stage=lane+'_'+scenario;
+        const {config,deps}=fixture(browser,server,lane,scenario);
+        const result=await captureView(browser,config,deps);
+        const expected={healthy:'healthy',empty:'healthy',failure:'read_failed',auth:'valid_link_auth',concurrent:'inconclusive',stale_dom:'render_failed'}[scenario];
+        assert.equal(result.code,expected,`${lane}_${scenario}: ${result.code}`);
+        passed++;
+      }
+      stage=lane+'_recovery';
+      const recover=fixture(browser,server,lane,'transient');
+      assert.equal((await viewingJourney(browser,recover.config,recover.deps)).code,'healthy');
+      assert.equal(recover.contextCount(),2);passed++;
+    }
+    stage='existing_boot';
     await H.runClientTabScenario(browser, server, 'calendar'); passed++;
     await H.runLegacySamplesScenario(browser, server); passed++;
     // Real Samples renderer, retained content and cold failure. The network is
     // wholly intercepted; the detector receives observations, not copied UI code.
+    stage='retained_and_cold_failure';
     for (const cached of [true, false]) {
       const run = await H.openCase(browser, server);
       try {
@@ -43,6 +62,7 @@ async function main() {
         passed++;
       } finally { await run.context.close(); }
     }
+    stage='valid_link_authorization';
     for (const lane of ['calendar', 'samples']) {
       for (const status of [401, 403]) {
         const run = await H.openCase(browser, server, { network: { verifierPlan: [{ status }] } });
@@ -64,5 +84,5 @@ async function main() {
     console.log(JSON.stringify({ suite: 'client_continuity_browser', passed, live: false }));
   } finally { await browser.close(); await server.close(); }
 }
-if (require.main === module) main().catch(() => { console.error('client_continuity_browser_failed'); process.exitCode = 1; });
+if (require.main === module) main().catch(error => { console.error(JSON.stringify({suite:'client_continuity_browser',stage,code:error.name==='AssertionError'?'assertion_failed':'fixture_failed'})); process.exitCode = 1; });
 module.exports = { main };

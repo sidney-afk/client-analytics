@@ -36,8 +36,10 @@ First Samples repair preparation: `node test/client-continuity-monitor.js`
 tests detection, isolated persisted TEST actions, relay fallback and liveness;
 `node qa/client-continuity.js` reuses the intercepted boot harness.
 `node test/client-continuity-monitor.js --strict-source` must also pass on the
-coordinator's repaired product before release; ordinary detector tests may pass
-while identifying current product defects. See
+combined repaired product before release. It exercises repaired dependencies and
+also proves detection against the recorded original source; incidental exceptions
+never establish a passing defect check. The existing boot CI adds this suite,
+real-browser continuity and the fixture launcher without live credentials. See
 [`../ops/CLIENT_CONTINUITY_PREPARATION.md`](../ops/CLIENT_CONTINUITY_PREPARATION.md)
 for the inactive/manual-only posture and integration prerequisites.
 

@@ -6,6 +6,10 @@ on:
       - 'index.html'
       - 'package.json'
       - 'qa/boot/**'
+      - 'qa/client-continuity*.js'
+      - 'scripts/client-continuity*.js'
+      - 'test/helpers/client-continuity-source.js'
+      - 'test/samples-authoritative-read.js'
       - 'supabase/functions/client-token-verify/index.ts'
       - 'test/client-entry-preflight.js'
       - '.github/workflows/client-entry-visible-boot.yml'
@@ -16,6 +20,10 @@ on:
       - 'index.html'
       - 'package.json'
       - 'qa/boot/**'
+      - 'qa/client-continuity*.js'
+      - 'scripts/client-continuity*.js'
+      - 'test/helpers/client-continuity-source.js'
+      - 'test/samples-authoritative-read.js'
       - 'supabase/functions/client-token-verify/index.ts'
       - 'test/client-entry-preflight.js'
       - '.github/workflows/client-entry-visible-boot.yml'
@@ -25,6 +33,9 @@ concurrency:
   group: client-entry-visible-boot-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   visible-boot:
     name: Streamed visible boot (one attempt)
@@ -32,6 +43,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -54,3 +67,9 @@ jobs:
         run: npx playwright install chromium
       - name: Drive streamed first paint, reload, and BFCache once
         run: npm run test:boot
+      - name: Prove repaired source and original false-empty detection offline
+        run: node test/client-continuity-monitor.js --strict-source
+      - name: Observe anonymous continuity with entirely intercepted fixtures
+        run: node qa/client-continuity.js
+      - name: Exercise inactive launcher with fictional read-only transport
+        run: node scripts/client-continuity-run.js --fixture

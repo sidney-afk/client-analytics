@@ -618,6 +618,13 @@ field and probes as it always has. A newer gateway under an older browser
 answers the same shape faster. Rolling the function back to v67 therefore leaves
 a working page with live probes, not a broken read.
 
+**There is no runtime switch for the reuse short of redeploying v67.** Per row,
+the Refresh access button forces a live probe (`recheck: true`), and the window
+a held verdict can be reused for is bounded by `ASSET_EVIDENCE_MAX_AGE_MS`
+(five minutes), after which the next read probes again on its own. Disabling it
+for everyone is the v67 restore above; there is deliberately no flag the page
+reads for it, so nothing new for the harness to be told about.
+
 **The index migration is independent.** `2026-09-05-asset-evidence-by-url.sql`
 adds `production_asset_access_checks_by_url_idx`; the lookup is correct without
 it. Rollback is `drop index if exists

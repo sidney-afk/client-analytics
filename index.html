@@ -49632,10 +49632,12 @@
                     record.status = 'error';
                     return record;
                 }
+                const kept = new Set();
                 json.files.forEach(file => {
                     const id = String(file && file.id || '');
                     const url = String(file && file.url || '').trim();
                     if (!id || !url) return;
+                    kept.add(id);
                     _prodState.batchFiles.set(id, {
                         url,
                         source: ['deliverable','calendar_card','samples_card'].includes(String(file.source || ''))
@@ -49647,6 +49649,22 @@
                         batchId,
                         scope: clientSlug
                     });
+                });
+                /* EVICT what this batch no longer names (Codex P1 on #1305).
+                   Entries survive a refresh now, so this read is the only
+                   thing that can take a pill DOWN -- and batch_files_read
+                   deliberately omits a deliverable whose file was cleared.
+                   Upserting the returned rows alone left the cleared file's
+                   pill up for the rest of the session, pointing at a link the
+                   row no longer holds. So every entry this batch and scope
+                   answered for earlier, and which this answer does not name,
+                   goes. Entries answered for another batch are not this
+                   read's to judge; a row that moved batches is caught here
+                   too, because its old batch stops naming it. */
+                _prodState.batchFiles.forEach((entry, id) => {
+                    if (entry && entry.batchId === batchId && entry.scope === clientSlug && !kept.has(id)) {
+                        _prodState.batchFiles.delete(id);
+                    }
                 });
                 record.status = 'ready';
                 _prodRefreshAssetSurfaces();

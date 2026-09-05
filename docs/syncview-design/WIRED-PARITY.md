@@ -949,7 +949,11 @@ links are not gonna change."
     the next open shows the new link at once and re-reads underneath. Pill
     entries survive with a `batchId`/`scope` stamp and `_prodBatchFileFor(id,
     row)` refuses one whose row left that batch or changed scope; only the
-    per-generation status is dropped, which is what makes a parent re-ask.
+    per-generation status is dropped, which is what makes a parent re-ask, and
+    a successful re-ask EVICTS every entry it answered for earlier that the
+    batch no longer names, so a cleared file takes its pill down (Codex P1 on
+    #1305: the read omits a cleared deliverable, and upserting alone would have
+    left the old pill up for the session).
     `_prodEnsureAssets` does not START a read for a stamped row while
     `_prodState.refreshing` is true: `requestStillCurrent()` would refuse it on
     landing (token bump, generation change), and the render after the swap

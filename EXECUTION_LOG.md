@@ -6233,6 +6233,15 @@ would have reused a timed-out probe as a status-0 verdict.
 
 **Parent grid.** No empty Deliverable file row on a real hierarchy parent.
 
+**Codex P1 on #1305, fixed before merge.** Keeping pill entries across a
+refresh meant the re-ask was the only thing that could take one down, and
+`batch_files_read` omits a deliverable whose file was cleared, so the cleared
+file's pill would have stayed up for the session. A successful re-ask now
+evicts every entry it answered for earlier that the batch no longer names;
+the clear-then-reload journey is executed in `test/prod-asset-refresh-holds.js`.
+No E2E probe exercises the pills or the asset read, so the harness had nothing
+to be told.
+
 Browser half live on merge. Gateway half re-pins `production-write` to
 `d7fc8348…` (file count 5, entrypoint unchanged) and waits for the next Section 4
 dispatch, which also carries the exclusivity truncation guard (`6a39a2bc…`,

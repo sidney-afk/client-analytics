@@ -112,6 +112,9 @@ ok(/_prodEnsureAssets\(id, true, \{ recheck: true \}\)/.test(grabFunc('function 
 const ensureFiles = stripComments(grabFunc('async function _prodEnsureBatchFiles('));
 ok(/batchId,\s*scope: clientSlug/.test(ensureFiles),
   'each pill entry is stamped with the batch row and scope it was answered for');
+ok(/const kept = new Set\(\);/.test(ensureFiles)
+  && /entry\.batchId === batchId && entry\.scope === clientSlug && !kept\.has\(id\)/.test(ensureFiles),
+  'and a successful re-ask EVICTS every entry it answered for earlier that the batch no longer names (Codex P1 on #1305: a cleared file must take its pill down)');
 const pillFor = stripComments(grabFunc('function _prodBatchFileFor('));
 ok(/function _prodBatchFileFor\(id, row\)/.test(pillFor)
   && /String\(live\.batchId \|\| ''\)\.trim\(\) !== entry\.batchId\) return null;/.test(pillFor)
@@ -158,6 +161,8 @@ vm.runInContext([
   grabFunc('function _prodPostRows('),
   grabFunc('function _prodBatchFileFor('),
   grabFunc('async function _prodEnsureAssets('),
+  grabFunc('async function _prodEnsureBatchFiles('),
+  'this.ensureBatchFiles = _prodEnsureBatchFiles;',
   'this.assetState = _prodAssetState; this.invalidate = _prodInvalidateScopedReads;',
   'this.invalidateFor = _prodInvalidateScopedReadsFor; this.invalidateBatch = _prodInvalidateBatchAssetReads;',
   'this.pillFor = _prodBatchFileFor; this.ensureAssets = _prodEnsureAssets;',
@@ -297,6 +302,40 @@ ok(!!ctx.pillFor('c1', Object.assign({}, rows.c1, { authorityProject: '__needs_a
   ok(threw && /reached the network path/.test(threw.message),
     'and a forced read (Refresh access) is never deferred');
   S.refreshing = false;
+
+  /* ---- 8. Executed: a cleared file takes its pill down ------------------- */
+  /* Codex P1 on #1305. batch_files_read omits a deliverable whose file was
+     cleared, and once entries survive a refresh the re-ask is the only thing
+     that can remove one. The journey: two pills up for bat_1, the first file
+     is cleared, the parent re-asks, and the answer names only the second. */
+  ctx._syncviewStaffIdentityForHeaders = () => ({ staff: true });
+  ctx._syncviewEfHeaders = headers => headers;
+  ctx._prodRefreshAssetSurfaces = () => {};
+  ctx.PROD_WRITE_EF_URL = 'https://gateway.test/production-write';
+  ctx.CAL_SUPABASE_ANON_KEY = 'anon';
+  S.gatewayReads = new Set(['batch_files_read']);
+  S.batchFiles.clear(); S.batchFilesStatus.clear();
+  S.batchFiles.set('c1', { url: 'https://drive.google.com/file/d/c1', source: '', batchId: 'bat_1', scope: 'client-a' });
+  S.batchFiles.set('c2', { url: 'https://drive.google.com/file/d/c2', source: '', batchId: 'bat_1', scope: 'client-a' });
+  S.batchFiles.set('z9', { url: 'https://drive.google.com/file/d/z9', source: '', batchId: 'bat_9', scope: 'client-a' });
+  const requests = [];
+  ctx.fetch = async (url, init) => {
+    requests.push(JSON.parse(init.body));
+    return { ok: true, json: async () => ({ ok: true, batch_id: 'bat_1', files: [
+      { id: 'c2', url: 'https://drive.google.com/file/d/c2-v2', source: 'deliverable' },
+    ] }) };
+  };
+  const reasked = await ctx.ensureBatchFiles('bat_1', 'client-a');
+  ok(reasked && reasked.status === 'ready' && requests.length === 1 && requests[0].action === 'batch_files_read',
+    'the parent re-asks the batch once');
+  ok(!S.batchFiles.has('c1'),
+    'THE P1: a file the batch no longer names is EVICTED, so the cleared file\'s pill comes down on the next re-ask instead of pointing at a link the row no longer holds');
+  ok(S.batchFiles.get('c2') && S.batchFiles.get('c2').url.endsWith('c2-v2') && S.batchFiles.get('c2').source === 'deliverable',
+    'a file the batch still names is refreshed in place');
+  ok(S.batchFiles.has('z9'), 'and another batch\'s entries are not this read\'s to judge');
+  ok(ctx.pillFor('c1', { id: 'c1', batchId: 'bat_1', authorityProject: 'client-a' }) === null
+    && !!ctx.pillFor('c2', { id: 'c2', batchId: 'bat_1', authorityProject: 'client-a' }),
+    'so the parent draws no pill for the cleared row and still draws one for the other');
 
   console.log(failures === 0
     ? '\nasset refresh holds: all checks passed'

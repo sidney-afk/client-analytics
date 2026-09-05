@@ -32683,7 +32683,21 @@
         // Resolve retry can adopt an already-resolved row, but can never route
         // through a toggle and accidentally reopen it.
         if (destination && destination !== 'stay') {
-            if (surface === 'calendar') _calApplyAutoStatus(post.id, 'smm_resolved_last', component, destination);
+            /* The auto-router refuses an EMPTY component and its return is
+               ignored here, so without this the retry would resolve the comment
+               and silently not move the status. This is a replay of an action
+               that passed the gate when it was made -- but the journal is
+               durable, the content can have been cleared since, and entries
+               written before the gate existed replay through here too. The
+               resolve itself is honoured (it is the recorded action, and the
+               gateway may already hold it); the ROUTE is refused out loud. */
+            const _blocked = surface === 'calendar'
+                ? _calReviewBlockReason(post, component, _calAutoResolveDestStatus(destination))
+                : _sxrReviewBlockReason(post, component, _sxrAutoResolveDestStatus(destination));
+            if (_blocked) {
+                showNotify('Change request resolved, but not sent on', _blocked
+                    + ' The change request was marked done; the status stayed where it was.');
+            } else if (surface === 'calendar') _calApplyAutoStatus(post.id, 'smm_resolved_last', component, destination);
             else _sxrApplyAutoStatus(post.id, 'smm_resolved_last', component, destination);
         }
         await _writeUiPersistCanonicalCommentProjection(surface, post, component);
@@ -67101,7 +67115,11 @@
             || ((_kasperState && _kasperState.sxrRepairs) || []).find(row => row && row.id === p.id && row.slug === it.slug);
         if (cachedRepair) {
             _sxrKasperState.saving[key] = false;
-            _sxrKasperState.errors[key] = 'A prior source repair needs receipt verification; reload before another action';
+            /* Was `_sxrKasperState.errors[key] = ...` -- a store this state has
+               never declared, so every cached-repair refusal here threw a
+               TypeError before the diagnostic or the repaint ran. Exposed by
+               the Codex finding on the guard above (PR 1278); same fix. */
+            showNotify('Reload before another action', 'A prior source repair needs receipt verification; reload before another action.');
             _writeUiQueueDiagnostic('sxr', 'cache_only_repair_blocked', { kind: 'kasper-source-repair' });
             _sxrKasperRepaint(pid);
             return;
@@ -67242,6 +67260,22 @@
     }
     function _sxrKasperApproveComp(pid, comp) {
         const it0 = _sxrKasperFindItem(pid);
+        /* Handler-level guard, mirroring _kasperApproveComp. */
+        if (it0) {
+            const _blocked = _sxrReviewBlockReason(it0.post, comp, 'Client Approval');
+            if (_blocked) {
+                /* showNotify, not an inline error: this surface has no
+                   per-component error store -- _sxrKasperState declares none
+                   and _sxrKasperPanelHtml renders none -- and the first draft
+                   of this guard wrote to one anyway, which threw a TypeError
+                   and made the Approve button look dead. The catch block in
+                   _sxrKasperApplyAndPersist reports its failures this same
+                   way, so the refusal now reads like every other refusal here.
+                   Found by Codex on PR 1278. */
+                showNotify('Nothing to review yet', _blocked);
+                return;
+            }
+        }
         const prevStatus = it0 ? String(it0.post[comp + '_status'] || 'Kasper Approval') : 'Kasper Approval';
         _sxrKasperApplyAndPersist(pid, comp,
             (p) => {
@@ -74782,6 +74816,17 @@
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._touchedComps) item._touchedComps = new Set();
         if (item._saving[comp]) return;
+        /* The Approve button is already disabled for a component he cannot
+           review, but a button is a courtesy and this is the handler: a panel
+           rendered before the video URL was cleared still carries a live
+           onclick. Same rule as every other writer that targets a review
+           status, asked here rather than trusted to the render. */
+        const _blocked = _calReviewBlockReason(item.post, comp, 'Client Approval');
+        if (_blocked) {
+            item._errors[comp] = _blocked;
+            _kasperRepaintCard(pid);
+            return;
+        }
         _kasperInvalidateInFlightLoad();
         item._touchedComps.add(comp);
         const subKey = comp + '_status';

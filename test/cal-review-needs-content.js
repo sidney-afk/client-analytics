@@ -339,5 +339,152 @@ for (const fn of ['_calStatusToggleMenu', '_sxrStatusToggleMenu']) {
     fn + ' floors the computed top at 10 — the inner Math.min goes negative for a menu taller than the viewport, which walks the first options off the top of the screen');
 }
 
+
+/* ---- 9. EVERY writer, any prefix -- the sweep the owner asked for ------- */
+
+/* Owner, 2026-09-05: "make sure that you have discovered all the possible
+   things it would break". Sections 4 and 6 derive rosters restricted to _cal*
+   and _sxr*. That restriction is how Kasper's own approve handlers and the
+   write-UI journal replay were missed on the first two passes: they write
+   component statuses and carry no such prefix. This roster has NO prefix. Any
+   function in index.html that assigns a component status on a post is in it,
+   and has to be either a gated writer or an explicit exemption with a reason.
+   A writer added under a new prefix fails here rather than being absorbed. */
+const allWriters = new Set();
+const anyFn = /function ([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
+let am;
+while ((am = anyFn.exec(code))) {
+  const body = extractFunction(INDEX, am[1]);
+  if (!body) continue;
+  const b = stripComments(body, ' ');
+  const writes =
+    /\b(post|p|item\.post|current|card|row)\[(subKey|key|which \+ '_status'|c \+ '_status'|comp \+ '_status')\]\s*=[^=]/.test(b)
+    || /\.(video|graphic|caption|title)_status\s*=[^=]/.test(b)
+    || /\[subKey\]: /.test(b)
+    || (/(video|graphic|caption|title)_status:\s*/.test(b) && /_calPendingEdits|_sxrPendingEdits|Object\.assign/.test(b));
+  if (writes) allWriters.add(am[1]);
+}
+const GATED = {
+  _calStatusPick: '_calReviewBlockReason', _calSetAllStatus: '_calReviewBlockReason',
+  _calApplyAutoStatus: '_calReviewBlockReason', _calReviewApplyApprove: '_calReviewBlockReason',
+  _kasperApproveComp: '_calReviewBlockReason',
+  _sxrStatusPick: '_sxrReviewBlockReason', _sxrSetAllStatus: '_sxrReviewBlockReason',
+  _sxrApplyAutoStatus: '_sxrReviewBlockReason', _sxrReviewApplyApprove: '_sxrReviewBlockReason',
+  _sxrKasperApproveComp: '_sxrReviewBlockReason',
+};
+/* Each exemption names WHY the write can never put an empty component into a
+   review status. "It is a mirror" and "it is a rejection" are the two honest
+   reasons; "it was gated upstream" is the third and the one to read hardest. */
+const ALL_EXEMPT = {
+  _calClientApprove: "writes Approved to every component -- an outcome, never a review request",
+  _calFlushCardSave: 'the transport; sends what the gated writers staged',
+  _sxrFlushCardSave: 'the samples transport',
+  _calMigratePostShape: 'load-time shape normalisation of a row already stored',
+  _sxrMigrateShape: 'load-time shape normalisation, samples',
+  _prodCacheUnpackRows: 'unpacks a cached snapshot; decides nothing',
+  _calReconcileLinearStatuses: 'mirrors the status Linear already holds -- KNOWN GAP, deliberate: the gate is browser-side and a Linear-side move to a review status lands here unchallenged',
+  _calSyncStatusFromLinear: 'mirrors the status Linear already holds, same gap',
+  _sxrSyncStatusFromLinear: 'mirrors the status Linear already holds, samples',
+  _calReviewRequestTweak: "writes Tweaks Needed, a rejection",
+  _sxrReviewRequestTweak: "writes Tweaks Needed, a rejection",
+  _kasperRequestTweakComp: "writes Tweaks Needed, a rejection",
+  _sxrKasperRequestTweakComp: "writes Tweaks Needed, a rejection",
+  _sxrKasperApproveAfterTweaksComp: "writes Tweaks Needed -- the pre-clear goes to the editor first, not to a review",
+  _calSaveSettings: "the settings pseudo-row; every status it writes is ''",
+  _calTogglePostPlatform: "clears title_status to '' when YouTube is removed; clearing is not sending",
+  _sxrKasperUndoApprove: 'restores the status a component held moments ago -- gating a revert would strand an undo; the state it restores existed',
+  _writeNativeSubmissionCardsToCalendar: 'creates every card at In Progress',
+  _writeUiAdoptReplayStatus: "adopts the gateway's CURRENT native row into the card shadow -- authoritative state, not a person's choice",
+  _writeUiApplyJournalEdits: 'replays edits that were gated when they were staged -- KNOWN GAP for entries journaled before the gate existed, a finite historical population',
+  _writeUiLegacyReconcileCommittedTweak: 'restores gate.intended_status recorded by a gated path after the gateway confirmed it',
+};
+ok(allWriters.size >= Object.keys(GATED).length + Object.keys(ALL_EXEMPT).length - 2,
+  'the prefix-free roster actually found the writers (' + allWriters.size + ')');
+for (const [fn, gate] of Object.entries(GATED)) {
+  ok(allWriters.has(fn), 'the prefix-free roster includes the gated writer ' + fn);
+  ok(new RegExp(gate).test(stripComments(extractFunction(INDEX, fn) || '', ' ')),
+    fn + ' consults ' + gate + ' -- ' + (/kasper/i.test(fn) ? "Kasper's approve targets Client Approval, a review status; his button is disabled for an empty component but a button is a courtesy and this is the handler" : 'a gated writer'));
+}
+const unclassified = [...allWriters].filter(n => !GATED[n] && !ALL_EXEMPT[n]);
+ok(unclassified.length === 0,
+  'every function on EITHER surface, under ANY prefix, that writes a component status is gated or explicitly exempt'
+  + (unclassified.length ? ' -- unclassified: ' + unclassified.join(', ') : ''));
+const staleAll = Object.keys(ALL_EXEMPT).filter(n => !allWriters.has(n));
+ok(staleAll.length === 0,
+  'and no exemption names a function that no longer writes a status'
+  + (staleAll.length ? ' -- stale: ' + staleAll.join(', ') : ''));
+
+/* Every CALLER of the auto-router with a routing trigger must consult the gate
+   BEFORE it, because the router's refusal is a return value its callers were
+   written to ignore. 'client_added' routes to Tweaks Needed and is exempt by
+   its trigger. The retry path is the one the first two passes missed: it
+   replays a resolve from a durable journal, whose content can have been
+   cleared since it was written. */
+const ROUTER_CALLERS = {
+  _calResolveLastTweak: ['_calReviewBlockReason', '_calResolveTweaksDone'],
+  _sxrResolveLastTweak: ['_sxrReviewBlockReason', '_sxrResolveTweaksDone'],
+  _writeUiRetryCardCommentResolve: ['ReviewBlockReason', 'ApplyAutoStatus'],
+};
+for (const [fn, [gate, mutate]] of Object.entries(ROUTER_CALLERS)) {
+  ok(orderOk(fn, gate, mutate),
+    fn + ' consults the gate before ' + mutate + ' -- the router refuses an empty component by RETURN VALUE and this caller ignores it');
+}
+const routerCallers = [];
+const rc = /function ([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
+let rm;
+while ((rm = rc.exec(code))) {
+  const b = stripComments(extractFunction(INDEX, rm[1]) || '', ' ');
+  if (/_(cal|sxr)ApplyAutoStatus\(/.test(b) && !/function _(cal|sxr)ApplyAutoStatus/.test(b)) routerCallers.push(rm[1]);
+}
+const ROUTER_EXEMPT = { _calAppendComment: "trigger is 'client_added' -> Tweaks Needed", _sxrAppendComment: "trigger is 'client_added' -> Tweaks Needed" };
+const routerUnclassified = routerCallers.filter(n => !ROUTER_CALLERS[n] && !ROUTER_EXEMPT[n]);
+ok(routerCallers.length >= 3 && routerUnclassified.length === 0,
+  'every caller of the auto-router is classified (' + routerCallers.join(', ') + ')'
+  + (routerUnclassified.length ? ' -- unclassified: ' + routerUnclassified.join(', ') : ''));
+
+
+/* ---- 10. the samples Kasper refusal must be REACHABLE, not just present -- */
+
+/* Codex, PR 1278: the first draft of the _sxrKasperApproveComp guard wrote its
+   reason to `_sxrKasperState.errors[key]`. That state declares no `errors`
+   store and the panel renders none, so the assignment threw a TypeError and the
+   Approve button looked dead -- a guard that is present in the source and
+   impossible to observe. Section 9 could not tell: it checks that the gate is
+   CALLED. This executes the handler against the REAL state literal and asserts
+   the refusal comes out the other end. */
+const sxrKasperStateSrc = /const _sxrKasperState = (\{[^\n]*\});/.exec(INDEX);
+ok(!!sxrKasperStateSrc, 'the samples Kasper state literal is readable');
+ok(sxrKasperStateSrc && !/\berrors\b/.test(sxrKasperStateSrc[1]),
+  '_sxrKasperState declares no per-component `errors` store -- which is exactly why writing to one throws');
+ok(!/_sxrKasperState\.errors\b/.test(code),
+  'and nothing in the source writes to `_sxrKasperState.errors` any more -- the guard AND the pre-existing cached-repair refusal both threw on it');
+{
+  const calls = { notify: [], persist: 0, repaint: 0 };
+  const sandbox = [
+    'const _sxrKasperState = ' + sxrKasperStateSrc[1] + ';',
+    'const _sxrKasperFindItem = () => ({ post: EMPTY, client: "c", slug: "s" });',
+    'const showNotify = (t, b) => calls.notify.push({ t, b });',
+    'const _sxrKasperRepaint = () => { calls.repaint++; };',
+    'const _sxrKasperApplyAndPersist = () => { calls.persist++; };',
+    'const _sxrNormStatus = s => String(s || "");',
+    'const SXR_REVIEW_STATUSES = new Set(' + sxrSet[1] + ');',
+    extractFunction(INDEX, '_kasperCompReviewable'),
+    extractFunction(INDEX, '_sxrCompHasContent'),
+    extractFunction(INDEX, '_sxrStatusNeedsContent'),
+    extractFunction(INDEX, '_sxrReviewBlockReason'),
+    extractFunction(INDEX, '_sxrKasperApproveComp'),
+    'return _sxrKasperApproveComp;',
+  ].join('\n');
+  let threw = null, approve = null;
+  try { approve = new Function('calls', 'EMPTY', sandbox)(calls, { id: 'x', asset_url: '', thumbnail_url: '', video_status: 'Kasper Approval' }); }
+  catch (e) { threw = e; }
+  ok(!threw, 'the handler compiles against the real state literal' + (threw ? ' -- ' + threw.message : ''));
+  if (approve) { try { approve('x', 'video'); } catch (e) { threw = e; } }
+  ok(!threw, "approving an EMPTY sample component does not throw" + (threw ? ' -- ' + threw.message : ''));
+  ok(calls.persist === 0, 'and nothing was persisted -- the refusal happened before the write');
+  ok(calls.notify.length === 1 && /video URL/i.test(calls.notify[0].b || ''),
+    'and Kasper is TOLD, naming the video -- a refusal nobody can see is the button appearing to do nothing');
+}
+
 if (failures) { console.log('\n' + failures + ' check(s) failed.'); process.exit(1); }
 console.log('\ncalendar + samples review-needs-content checks passed');

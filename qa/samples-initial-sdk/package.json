@@ -4,7 +4,6 @@
   "private": true,
   "description": "Isolated pinned real browser SDK for intercepted Samples initial-read tests only.",
   "dependencies": {
-    "@supabase/supabase-js": "2.115.0",
-    "client-analytics": "file:../.."
+    "@supabase/supabase-js": "2.115.0"
   }
 }

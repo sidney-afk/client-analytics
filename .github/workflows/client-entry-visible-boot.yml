@@ -62,7 +62,8 @@ jobs:
       - name: Install browser test dependencies
         run: npm install --no-package-lock
       - name: Install isolated pinned Samples SDK fixture
-        run: npm install --prefix qa/samples-initial-sdk --no-package-lock --ignore-scripts
+        working-directory: qa/samples-initial-sdk
+        run: npm install --no-package-lock --ignore-scripts
       - name: Cache Playwright Chromium
         id: playwright-cache
         uses: actions/cache@v4

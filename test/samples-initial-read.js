@@ -7,6 +7,9 @@ const positive=()=>({full:{code:'mutation_blocked',ok:false},read:{code:'healthy
   proof:{stableDom:true,authoritativeEmpty:false,canaryCount:1,principalVerified:true,primaryComplete:true,sdkMatched:true},
   safety:{version:1,setupComplete:true,teardownComplete:true,outcomes:['mutation_blocked'],subscriptions:{known:4,unknown:0,matched:4,unmatched:0,realtimeDenied:4,realmRealtimeEvents:4,labels:['samples_rows','routing_flags','sample_flags','settings_flags']}},denialReasons:['realtime_transport_blocked']});
 async function main(){let passed=0;const eq=(a,b)=>{assert.deepEqual(a,b);passed++;};
+  const sdkManifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../qa/samples-initial-sdk/package.json'),'utf8'));
+  eq(Object.keys(sdkManifest).sort(),['dependencies','description','name','private','version']);
+  eq(sdkManifest.dependencies,{'@supabase/supabase-js':'2.115.0'});eq(sdkManifest.private,true);
   eq(I.assess(positive()).code,'initial_read_verified');
   const mutations=[
     d=>d.safety.outcomes.push('valid_link_auth'),d=>d.safety.outcomes.push('browser_error'),d=>d.safety.outcomes.push('read_failed'),

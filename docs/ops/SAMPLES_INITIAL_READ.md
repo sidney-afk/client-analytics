@@ -52,7 +52,9 @@ Install the pinned development dependencies and Chromium in the isolated
 checkout. Install the SDK fixture separately, then run:
 
 ```text
-npm install --prefix qa/samples-initial-sdk --no-package-lock --ignore-scripts
+cd qa/samples-initial-sdk
+npm install --no-package-lock --ignore-scripts
+cd ../..
 node test/samples-initial-read.js
 node scripts/samples-initial-read-run.js --fixture
 node qa/client-continuity-transport.js

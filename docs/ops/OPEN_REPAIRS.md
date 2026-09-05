@@ -13006,3 +13006,10 @@ GIF and WebP stay structural, stated in the doc.
    exactly one image chunk carrying its start code or signature. A real 1x1
    GIF and a real 1x1 PNG pass; the refusals are asserted one by one.
 
+**Round six (Codex on #1310): two more, taken.** [P1] A GIF image descriptor
+could claim 65535x65535 under a 1x1 logical screen; each frame must now fit
+the screen the header advertised (offset plus size) and the dimension
+ceiling. [P2] An animated WebP was refused because its image chunks live
+inside ANMF frames; the walker now descends into each frame, requires exactly
+one image chunk per frame, and accepts the container. Both are fixtures.
+

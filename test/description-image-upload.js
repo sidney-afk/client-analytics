@@ -247,6 +247,23 @@ const jpegTrailingJunk = concat([jpeg(10, 10), new Uint8Array([1, 2])]);
 ok((await policy.verifyImage('image/jpeg', jpegTrailingJunk)).error === 'image_incomplete', 'a JPEG with bytes after EOI is refused: EOI must be the last two bytes');
 ok((await policy.verifyImage('image/webp', webp(10, 10, false, { badChunkSize: true }))).error === 'image_incomplete', 'a WebP whose VP8 chunk size overruns the file is refused');
 ok((await policy.verifyImage('image/webp', webp(10, 10, false, { noStartCode: true }))).error === 'image_incomplete', 'a WebP VP8 chunk without the key-frame start code is refused');
+/* Round six: a GIF frame must fit the screen its header advertised. */
+const gifHugeFrame = gif(1, 1);
+new DataView(gifHugeFrame.buffer).setUint16(gifHugeFrame.length - 14 + 5 - 4, 65535, true); /* image descriptor width */
+new DataView(gifHugeFrame.buffer).setUint16(gifHugeFrame.length - 14 + 7 - 4, 65535, true); /* image descriptor height */
+ok((await policy.verifyImage('image/gif', gifHugeFrame)).error === 'image_incomplete',
+  'THE ROUND-SIX FINDING: a 1x1 GIF whose image descriptor claims 65535x65535 is refused; every frame must fit the logical screen');
+const gifOffsetFrame = gif(1, 1);
+new DataView(gifOffsetFrame.buffer).setUint16(gifOffsetFrame.length - 14 + 1 - 4, 1, true); /* image descriptor left = 1 on a 1-wide screen */
+ok((await policy.verifyImage('image/gif', gifOffsetFrame)).error === 'image_incomplete', 'a frame whose offset pushes it past the screen edge is refused');
+/* Round six: an animated WebP keeps its image chunks inside ANMF frames. */
+const vp8Payload = (() => { const p = new Uint8Array(20); p.set([0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a, 1, 0, 1, 0], 0); return p; })();
+const riffChunk = (fourcc, data) => { const c = new Uint8Array(8 + data.length + (data.length & 1)); c.set([...fourcc].map(ch => ch.charCodeAt(0)), 0); new DataView(c.buffer).setUint32(4, data.length, true); c.set(data, 8); return c; };
+const anmf = concat([new Uint8Array(16), riffChunk('VP8 ', vp8Payload)]);
+const animatedBody = concat([riffChunk('VP8X', new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0, 0, 0])), riffChunk('ANIM', new Uint8Array(6)), riffChunk('ANMF', anmf), riffChunk('ANMF', anmf)]);
+const animatedWebp = (() => { const out = new Uint8Array(12 + animatedBody.length); out.set([82, 73, 70, 70], 0); new DataView(out.buffer).setUint32(4, out.length - 8, true); out.set([87, 69, 66, 80], 8); out.set(animatedBody, 12); return out; })();
+ok((await policy.verifyImage('image/webp', animatedWebp)).ok === true,
+  'THE ROUND-SIX FINDING: a VP8X animation whose image chunks live inside ANMF frames passes');
 const vp8xNoImage = (() => { const b = new Uint8Array(30); b.set([82, 73, 70, 70], 0); new DataView(b.buffer).setUint32(4, 22, true); b.set([87, 69, 66, 80], 8); b.set([86, 80, 56, 88], 12); new DataView(b.buffer).setUint32(16, 10, true); b.set([0, 0, 0, 0, 9, 0, 0, 9, 0, 0], 20); return b; })();
 ok(policy.sniffImage(vp8xNoImage) !== null && (await policy.verifyImage('image/webp', vp8xNoImage)).error === 'image_incomplete',
   'a VP8X container with no image chunk inside is refused');

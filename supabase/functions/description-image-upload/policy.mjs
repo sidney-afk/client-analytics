@@ -333,6 +333,8 @@ function gifBlocksValid(b) {
   const n = b.length;
   if (n < 14) return false;
   let at = 6;
+  const screenW = le16(b, 6);
+  const screenH = le16(b, 8);
   const packed = b[at + 4];
   at += 7;
   if (packed & 0x80) at += 3 * (1 << ((packed & 0x07) + 1));
@@ -359,11 +361,17 @@ function gifBlocksValid(b) {
     }
     if (tag === 0x2c) {
       if (at + 10 > n) return false;
+      const left = le16(b, at + 1);
+      const top = le16(b, at + 3);
       const w = le16(b, at + 5);
       const h = le16(b, at + 7);
       const local = b[at + 9];
       at += 10;
-      if (w === 0 || h === 0) return false;
+      /* Every frame must fit the logical screen the header advertised, so
+         the dimension ceiling checked on that header binds each frame too.
+         Codex on #1310, round six. */
+      if (w === 0 || h === 0 || left + w > screenW || top + h > screenH) return false;
+      if (w > MAX_DIMENSION || h > MAX_DIMENSION) return false;
       if (local & 0x80) at += 3 * (1 << ((local & 0x07) + 1));
       if (at + 2 > n) return false;
       const minCode = b[at];
@@ -423,12 +431,28 @@ function jpegSegmentsValid(b) {
   return false;
 }
 
+/** One image chunk's payload check: a "VP8 " key frame with its start code,
+ * or a "VP8L" stream with its signature. Returns 1 for an image chunk, 0 for
+ * any other chunk, -1 for an image chunk that is malformed.
+ * @param {Uint8Array} b @param {string} fourcc @param {number} dataAt @param {number} size */
+function webpImageChunk(b, fourcc, dataAt, size) {
+  if (fourcc === "VP8 ") {
+    /* frame tag (3) then the key-frame start code 9d 01 2a */
+    if (size < 10 || b[dataAt + 3] !== 0x9d || b[dataAt + 4] !== 0x01 || b[dataAt + 5] !== 0x2a) return -1;
+    if (b[dataAt] & 0x01) return -1; /* bit 0 set = interframe, never a still */
+    return 1;
+  }
+  if (fourcc === "VP8L") return size >= 5 && b[dataAt] === 0x2f ? 1 : -1;
+  return 0;
+}
+
 /**
  * WebP RIFF structure: the RIFF size must state the file's own length, the
  * chunks after "WEBP" must tile the payload exactly (each fourcc + LE32 size
- * + data, padded to even), and exactly one image chunk must be present: a
- * "VP8 " key frame with its start code, or a "VP8L" stream with its
- * signature, directly or inside a "VP8X" container.
+ * + data, padded to even), and at least one image chunk must be present:
+ * directly (a still), or inside the ANMF frames of a VP8X animation, where
+ * each frame carries exactly one (Codex on #1310, round six). A still may
+ * carry only one.
  * @param {Uint8Array} b @returns {boolean}
  */
 function webpChunksValid(b) {
@@ -437,30 +461,47 @@ function webpChunksValid(b) {
   const riffSize = b[4] + (b[5] << 8) + (b[6] << 16) + (b[7] << 24);
   if (riffSize + 8 !== n) return false;
   let at = 12;
-  let image = 0;
+  let stills = 0;
+  let frames = 0;
   let extended = false;
   while (at + 8 <= n) {
     const fourcc = ascii(b, at, 4);
     const size = b[at + 4] + (b[at + 5] << 8) + (b[at + 6] << 16) + (b[at + 7] << 24);
     const dataAt = at + 8;
     if (dataAt + size > n) return false;
-    if (fourcc === "VP8 ") {
-      /* frame tag (3) then the key-frame start code 9d 01 2a */
-      if (size < 10 || b[dataAt + 3] !== 0x9d || b[dataAt + 4] !== 0x01 || b[dataAt + 5] !== 0x2a) return false;
-      if (b[dataAt] & 0x01) return false; /* bit 0 set = interframe, never a still */
-      image += 1;
-    } else if (fourcc === "VP8L") {
-      if (size < 5 || b[dataAt] !== 0x2f) return false;
-      image += 1;
-    } else if (fourcc === "VP8X") {
+    const image = webpImageChunk(b, fourcc, dataAt, size);
+    if (image < 0) return false;
+    if (image > 0) stills += 1;
+    if (fourcc === "VP8X") {
       if (at !== 12 || size !== 10) return false;
       extended = true;
-    } else if (!extended && at === 12) {
+    } else if (fourcc === "ANMF") {
+      /* 16 bytes of frame header, then the frame's own chunks, which must
+         tile the payload and include exactly one image chunk. */
+      if (!extended || size < 16) return false;
+      let inner = dataAt + 16;
+      const innerEnd = dataAt + size;
+      let frameImages = 0;
+      while (inner + 8 <= innerEnd) {
+        const subFourcc = ascii(b, inner, 4);
+        const subSize = b[inner + 4] + (b[inner + 5] << 8) + (b[inner + 6] << 16) + (b[inner + 7] << 24);
+        const subDataAt = inner + 8;
+        if (subDataAt + subSize > innerEnd) return false;
+        const subImage = webpImageChunk(b, subFourcc, subDataAt, subSize);
+        if (subImage < 0) return false;
+        frameImages += subImage;
+        inner = subDataAt + subSize + (subSize & 1);
+      }
+      if (inner !== innerEnd || frameImages !== 1) return false;
+      frames += 1;
+    } else if (!extended && at === 12 && image === 0) {
       return false; /* the first chunk must be an image or the extended header */
     }
     at = dataAt + size + (size & 1);
   }
-  return at === n && image === 1;
+  if (at !== n) return false;
+  if (frames > 0) return stills === 0;
+  return stills === 1;
 }
 
 /**

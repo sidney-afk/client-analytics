@@ -12711,4 +12711,6 @@ the 2026-07-28 write-authorization migration to its chain, so it reproduces the
 live refusal for an intent without the binder and proves the fixed path passes
 with generation 0 carried and the key stripped. The runner now keeps the raise
 name, the SQLSTATE and the bounded message on every refusal. Re-applying the
-migration and re-dispatching plan → apply finishes the 11.
+migration (SQL Editor, `create or replace`) and re-dispatching plan → apply at
+https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
+finishes the 11. Logged in `EXECUTION_LOG.md` (2026-09-05, Crosswalk Phase 2).

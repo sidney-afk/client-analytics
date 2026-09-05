@@ -1,13 +1,17 @@
 # The card ↔ deliverable crosswalk: what is actually broken, and the order to fix it
 
-**Status (2026-09-05): PARTLY EXECUTED. Phase 1 ran; Phase 2's migration is
-WRITTEN but NOT APPLIED.** Source availability and live execution are two
-different things and this line separates them deliberately:
+**Status (2026-09-05 evening): PARTLY EXECUTED, TWO EPOCHS OF THE RPC.** Phase 1
+ran. Phase 2's migration was **APPLIED live by the owner on 2026-09-05 (first
+version, #1291)** and the lane ran once: **89 of 100 slots repaired**, the 11
+cancel-evictions refused by the F27 outbox fence. The **fixed version (#1301)
+is in source and NOT YET RE-APPLIED**; until it is, the live function is the
+first version. Source availability and live execution are two different things
+and this block separates them deliberately:
 
 | | State |
 |---|---|
 | Phase 1 (90 cards with no legacy thread) | **RAN 2026-09-04.** 172 mismatching slots → 112; 60 repaired. Owner-executed SQL. |
-| Phase 2's combined RPC | **WRITTEN**, `migrations/2026-09-05-crosswalk-bind-and-import.sql`, rehearsed against a disposable PostgreSQL 16 (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). **REVISED 2026-09-05 evening under the owner's label ruling (§4b): kind never refuses, labels follow the card, contested slots resolve on request.** **NOT APPLIED to the live database, and no card has been repaired through it.** |
+| Phase 2's combined RPC | **Epoch 1 — APPLIED LIVE 2026-09-05 (#1291, owner, SQL Editor)**: kind never refuses, labels follow the card, contested slots resolve on request (§4b); 89 cards repaired through it. Its cancel-eviction path enqueued without the F27 authority binder and was refused on 11 slots. **Epoch 2 — WRITTEN, NOT YET RE-APPLIED (#1301)**: same function, cancel path mints the binder via `track_b_f27_write_authorization`, detaches only under Linear authority; rehearsed against the F27 outbox fence installed verbatim (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). Re-applying is the same `create or replace` SQL Editor step. |
 | Phase 2 (the remaining slots) | **RAN 2026-09-05, 89 of 100.** Migration applied by the owner; lane dispatched plan then apply. 89 bound, 7 shells detached, 97 comments imported. **11 refused** by the live F27 outbox fence (the cancel intent carried no authority binder — OPEN_REPAIRS 156, "First live apply"); fixed in source, migration re-apply + one more plan/apply pending. |
 | Phase 3 (verify) | Not started. |
 
@@ -288,8 +292,11 @@ one client at a time; the comment count is what each card actually holds.
 **The three owner steps, in order:** (1) apply
 `migrations/2026-09-05-crosswalk-bind-and-import.sql` in the SQL Editor;
 (2) dispatch the lane in `plan` mode and read the counts; (3) dispatch it in
-`apply` mode with the plan digest and the confirm token. Expected after step 3:
-7 mismatching slots remain, all named by reason, none bindable.
+`apply` mode with the plan digest and the confirm token. The lane:
+https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
+(Run workflow → commit SHA on main, mode, run id, digest, confirm, cap).
+Expected after step 3: 7 mismatching slots remain, all named by reason, none
+bindable.
 
 ---
 

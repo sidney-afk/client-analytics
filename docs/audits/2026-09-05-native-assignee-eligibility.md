@@ -152,6 +152,22 @@ provider-era assignment across all of the above. Negative control against PR1302
 head: the native chosen-editor journeys fail with `assignee_provider_unavailable`
 and the entry asserts that failure.
 
+PR1302's own lane (`native-only-lane.mjs`) recorded this defect as a held readiness
+gate, `chosen-editor-provider-dependency-readiness-held`, which expected the provider
+refusal. That one check is replaced by `chosen-editor-native-no-provider` (201, zero
+provider requests, the chosen editor on the row) and its readiness key now reports
+PASS; the old expectation is retained as the FAIL branch so a regression reads as the
+original defect. Every other PR1302 check is untouched: 50 pass, missing-child and
+missing-card materialization stay FAIL there as before.
+
+Full `npm test` on the final head with the disposable database required: 403 of 405
+suites pass. The two red suites are `test/truth-sync.js`, whose 16 freshness-commit
+failures are identical on the pristine PR1302 head in this shallow clone (the stamped
+commits are not present locally) and are an environment classification, not a
+regression; and, before the gate update above, `test/native-only-intake.js`, which
+now passes. One suite reports its documented SKIP (artifact projection PostgreSQL
+proof).
+
 Offline: `test/native-assignee-policy.js` pins the lane policy matrix, native
 verdicts, readiness aggregate and the gateway wiring. `test/production-write-gateway.js`
 keeps every prior assertion; one source pin was updated to the new call

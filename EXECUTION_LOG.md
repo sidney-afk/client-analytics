@@ -6075,3 +6075,12 @@ the regression.
 
 `synced_at` still travels from `smm-weekly-reports`; the browser directory no
 longer carries the unused field.
+
+
+## 2026-09-05 - Isolated card lifecycle lane
+
+Added the bounded synthetic browser matrix and scoped coverage ledger under
+`qa/card-lifecycle/`; local-source and serving hashes accompany each run.
+Evidence is ISOLATED_BROWSER only; no live writer, deployment or unrelated
+assurance-row freshness is certified. Final receipts and retained failures are
+listed in `qa/card-lifecycle/coverage.md`.

@@ -62,6 +62,11 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 ## Test & automation entry points
 
+`qa/card-lifecycle/` owns the standalone, fully intercepted card lifecycle browser
+lane and its concise coverage ledger. `node qa/card-lifecycle/run.js` runs fictional
+Calendar/SMM/Kasper/client/Production interactions against a pinned local source;
+it has no live lane. See `qa/card-lifecycle/README.md` and `qa/card-lifecycle/coverage.md`.
+
 | Command / trigger | What runs | Notes |
 |---|---|---|
 | `npm test` | `test/run-all.js` → every `test/*.js` (dependency-free; normally offline, with F63 using only an explicitly required disposable PostgreSQL 16 service) | Runs on every push (`calendar-unit-tests.yml`). It never targets a live backend. Run before every commit. |

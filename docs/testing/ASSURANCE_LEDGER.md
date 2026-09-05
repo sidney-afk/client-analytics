@@ -70,6 +70,12 @@ still owner-gated, and it is the half that matters most.
 
 ## Rules (deterministic)
 
+Scoped card-lifecycle addition (2026-09-05, **ISOLATED_BROWSER**):
+[the executable matrix and coverage ledger](../../qa/card-lifecycle/coverage.md)
+cover fictional Calendar/client, staff/Kasper review and Production interactions.
+This is local-source proof only and **does not refresh any live proof date or
+surface state below**. No live drill, deployment, monitoring or writer change.
+
 - **Freshness** vs the tier window (T0 7d, T1 14d, T2 30d, T3 quarterly/on-change):
   `FRESH` = age ≤ ½ window · `NEAR` = ½ window < age ≤ window · `EXPIRED` = age > window
   **or** a promised half of the surface has never been positively proven.

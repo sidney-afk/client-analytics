@@ -32,6 +32,13 @@ no design-kit suite may send a live mutation.
 
 ## Suites and gates
 
+The standalone **ISOLATED_BROWSER** card regression lane is
+`node qa/card-lifecycle/run.js --source /absolute/local/candidate`.
+It covers the finite [card lifecycle matrix](../../qa/card-lifecycle/README.md),
+uses fictional rows with all external traffic intercepted, and has no live lane.
+Its [coverage ledger](../../qa/card-lifecycle/coverage.md) separates browser
+behavior from the server/RPC assumptions and preserves red contract checks.
+
 | Command | What it runs | When |
 |---|---|---|
 | `npm test` | Every `test/*.js`, auto-discovered. Most are offline pure-logic suites; CI also requires `test/f63-flip-runbook-sql-gate.js` to execute every actionable runbook fence against its disposable PostgreSQL 16 flag store. | Every push (CI) and before every commit |

@@ -20,6 +20,11 @@
 
 ## Layout
 
+`card-lifecycle/` is another fully isolated lane: `node qa/card-lifecycle/run.js`.
+It drives visible Calendar/SMM/Kasper/client/Production controls, intercepts all
+external traffic, and records source/serving hashes. Its [coverage ledger](card-lifecycle/coverage.md)
+keeps failing product-contract assertions and names unsupported/untested actions.
+
 | Path | What it is |
 |---|---|
 | `master.js` | Unified orchestrator — one summary/exit code for its registered lanes (`npm run test:master` = fast profile; `npm run test:master:full` = every master-registered lane). PTO remains a separate feature-scoped command. |

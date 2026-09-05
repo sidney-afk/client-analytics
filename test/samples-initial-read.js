@@ -31,6 +31,9 @@ async function main(){let passed=0;const eq=(a,b)=>{assert.deepEqual(a,b);passed
   const now=Date.now(),sha='a'.repeat(40),pins={releaseSha:sha,pageSourceSha:'b'.repeat(40),pageBlobSha:'c'.repeat(40),pageSha256:'d'.repeat(64),expectedSdkSha256:'e'.repeat(64),approvalId:randomUUID(),approvalExpiresAt:now+60000};
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'samples-initial-unit-'));
   try {
+    // Importing units never loads the optional SDK. Missing fixture setup is an
+    // explicit red setup code, with no local path or incidental exception leak.
+    assert.throws(()=>require('../qa/samples-initial-read').loadSdk(path.join(temp,'missing-sdk')),{message:'samples_initial_sdk_setup_required'});passed++;
     const start={version:1,contract:I.CONTRACT,lane:'samples_initial_read',runId:randomUUID(),...pins,startedAt:now-1000};
     const name=kind=>path.join(temp,`samples-initial-${start.runId}.${kind}.json`);
     fs.writeFileSync(name('start'),JSON.stringify(start));fs.writeFileSync(name('terminal'),JSON.stringify({...start,finishedAt:now,result:p}));

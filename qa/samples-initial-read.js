@@ -3,9 +3,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {chromium}=require('playwright');
 const H=require('./boot/client-entry-sequence'),{fixture,fixtureRow}=require('./client-continuity-fixtures');
 const {captureInitialRead}=require('../scripts/samples-initial-read');
-const sdk=fs.readFileSync(path.join(__dirname,'samples-initial-sdk/node_modules/@supabase/supabase-js/dist/umd/supabase.js'));
-const sdkHash=createHash('sha256').update(sdk).digest('hex');
+function loadSdk(file=path.join(__dirname,'samples-initial-sdk/node_modules/@supabase/supabase-js/dist/umd/supabase.js')) {
+  try{return fs.readFileSync(file);}catch{throw Error('samples_initial_sdk_setup_required');}
+}
+const hashSdk=sdk=>createHash('sha256').update(sdk).digest('hex');
 function initialFixture(browser,server,scenario='healthy') {
+  const sdk=loadSdk(),sdkHash=hashSdk(sdk);
   const f=fixture(browser,server,'samples',['empty','concurrent','stale_dom'].includes(scenario)?scenario:'healthy');
   f.config.initialRead=true;f.config.expectedSdkSha256=sdkHash;
   f.config.requiredVisibleTitles=Object.fromEntries(f.config.requiredVisibleIds.map(id=>[id,fixtureRow('samples').name]));
@@ -83,5 +86,5 @@ async function run(){
     return {version:1,passed,live:false};
   }finally{await browser.close();await server.close();}
 }
-if(require.main===module)run().then(r=>console.log(JSON.stringify(r))).catch(()=>{console.error('samples_initial_read_fixture_failed');process.exitCode=1;});
-module.exports={run,initialFixture,sdkHash};
+if(require.main===module)run().then(r=>console.log(JSON.stringify(r))).catch(e=>{console.error(e.message==='samples_initial_sdk_setup_required'?e.message:'samples_initial_read_fixture_failed');process.exitCode=1;});
+module.exports={run,initialFixture,loadSdk,get sdkHash(){return hashSdk(loadSdk());}};

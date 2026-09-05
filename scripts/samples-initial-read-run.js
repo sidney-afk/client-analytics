@@ -140,5 +140,5 @@ async function main(args=process.argv.slice(2),env=process.env,deps={}) {
   }finally{clearTimeout(deadline);releaseLock();}
 }
 if(require.main===module)main().then(r=>{console.log(JSON.stringify(r));process.exitCode=r.live===false||r.ok&&!r.pendingDelivery?0:1;})
-  .catch(()=>{console.error(JSON.stringify({version:1,contract:I.CONTRACT,code:'initial_operation_refused_or_failed'}));process.exitCode=2;});
+  .catch(e=>{console.error(JSON.stringify({version:1,contract:I.CONTRACT,code:e.message==='samples_initial_sdk_setup_required'?e.message:'initial_operation_refused_or_failed'}));process.exitCode=2;});
 module.exports={main,config,records,evaluate,observe,validateState,acquireLock,ACTIVATION};

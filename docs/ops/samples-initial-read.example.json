@@ -26,7 +26,7 @@
     "ownerApproved": false,
     "ownerDesignatedTestScope": false,
     "approvedAt": 0,
-    "expiresAt": 0
+    "expiresAt": null
   },
   "delivery": {
     "contract": "samples_initial_card_list_v1",

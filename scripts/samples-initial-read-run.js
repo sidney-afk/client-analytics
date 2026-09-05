@@ -20,8 +20,8 @@ function config(file,env,activation,mode,now=Date.now()) {
   check(c.censusAuthorityConfirmed===true&&c.censusReadOnlyRoleConfirmed===true&&
     UUID.test(c.canary?.approvalId)&&c.canary.ownerApproved===true&&c.canary.ownerDesignatedTestScope===true&&
     Number.isFinite(c.canary.approvedAt)&&c.canary.approvedAt<=now&&c.canary.approvedAt>0&&
-    Number.isFinite(c.canary.expiresAt)&&c.canary.expiresAt>now&&c.canary.expiresAt-c.canary.approvedAt<=86400000);
-  const pins={releaseSha:head,...pageSource,expectedSdkSha256:c.expectedSdkSha256,approvalId:c.canary.approvalId,approvalExpiresAt:c.canary.expiresAt};
+    (c.canary.expiresAt==null||(Number.isFinite(c.canary.expiresAt)&&c.canary.expiresAt>now)));
+  const pins={releaseSha:head,...pageSource,expectedSdkSha256:c.expectedSdkSha256,approvalId:c.canary.approvalId,approvalExpiresAt:c.canary.expiresAt??null};
   if(mode!=='view')return {c,pins,output};
   const spec=c.samples,ids=JSON.parse(D.reference(env,spec.requiredVisibleIdsEnv)),titles=JSON.parse(D.reference(env,spec.requiredVisibleTitlesEnv));
   check(Array.isArray(ids)&&ids.length>0&&ids.length<=10&&new Set(ids).size===ids.length&&ids.every(id=>typeof id==='string'&&id&&typeof titles[id]==='string'&&titles[id].trim())&&Object.keys(titles).length===ids.length);
@@ -41,10 +41,10 @@ function records(directory,pins,now=Date.now()) {
     const v=JSON.parse(fs.readFileSync(file,'utf8')),terminal=name.endsWith('.terminal.json');
     check(v.version===1&&v.contract===I.CONTRACT&&v.lane==='samples_initial_read'&&UUID.test(v.runId)&&
       name===`samples-initial-${v.runId}.${terminal?'terminal':'start'}.json`&&Object.keys(pins).every(k=>v[k]===pins[k])&&
-      Number.isFinite(v.startedAt)&&v.startedAt>0&&v.startedAt<=now&&v.startedAt<pins.approvalExpiresAt);
+      Number.isFinite(v.startedAt)&&v.startedAt>0&&v.startedAt<=now&&(pins.approvalExpiresAt===null||v.startedAt<pins.approvalExpiresAt));
     const safe={version:1,contract:I.CONTRACT,lane:'samples_initial_read',runId:v.runId,...pins,startedAt:v.startedAt};
     if(terminal) {
-      check(Number.isFinite(v.finishedAt)&&v.finishedAt>=v.startedAt&&v.finishedAt<=now&&v.finishedAt<pins.approvalExpiresAt);
+      check(Number.isFinite(v.finishedAt)&&v.finishedAt>=v.startedAt&&v.finishedAt<=now&&(pins.approvalExpiresAt===null||v.finishedAt<pins.approvalExpiresAt));
       Object.assign(safe,{finishedAt:v.finishedAt,result:I.validateReceipt(v.result)});
     }
     result.push(safe);
@@ -80,26 +80,39 @@ async function observe(result,previous,{pins,save,send,deliveryEnabled=false,now
   }
   await save(state);return {state,pendingDelivery:e?.status==='attempted'};
 }
-async function main(args=process.argv.slice(2),env=process.env) {
+function acquireLock(directory) {
+  const file=path.join(directory,'samples-initial.lock'),token=randomUUID(),fd=fs.openSync(file,'wx',0o600);
+  try{fs.writeFileSync(fd,token);fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+  // Cooperative lock ownership: never remove a file replaced by another owner.
+  // Manual replacement while a runner is alive is prohibited by the runbook.
+  const identity=fs.statSync(file);
+  return ()=>{
+    if(!fs.existsSync(file))return;
+    const current=fs.lstatSync(file);
+    check(current.isFile()&&current.dev===identity.dev&&current.ino===identity.ino&&fs.readFileSync(file,'utf8')===token);
+    fs.unlinkSync(file);
+  };
+}
+async function main(args=process.argv.slice(2),env=process.env,deps={}) {
   if(args.length===1&&args[0]==='--fixture')return require('../qa/samples-initial-read').run();
   const option=name=>args[args.indexOf(name)+1],mode=args[0];
   check(args.length===5&&args[1]==='--config'&&args[3]==='--activate');
   const {c,pins,output,lane}=config(option('--config'),env,option('--activate'),mode);
-  const lock=path.join(output,'samples-initial.lock');fs.closeSync(fs.openSync(lock,'wx',0o600));
+  const releaseLock=acquireLock(output),write=deps.persist||persist;
   const deadline=setTimeout(()=>process.exit(2),120000);
   try {
     if(mode==='view') {
       const start={version:1,contract:I.CONTRACT,lane:'samples_initial_read',runId:randomUUID(),...pins,startedAt:Date.now()};
-      persist(output,`samples-initial-${start.runId}.start.json`,start);
+      write(output,`samples-initial-${start.runId}.start.json`,start);
       let browser,result;
-      try {browser=await require('playwright').chromium.launch({headless:true});result=await I.captureInitialRead(browser,lane);}
+      try {browser=await (deps.launch||(()=>require('playwright').chromium.launch({headless:true})))();result=await (deps.capture||I.captureInitialRead)(browser,lane);}
       catch{result=I.assess({safety:{version:1,setupComplete:false,teardownComplete:false,outcomes:['setup_failed']},proof:{stableDom:false,authoritativeEmpty:false,canaryCount:0,principalVerified:false,primaryComplete:false,sdkMatched:false}});}
       let closeTimer;
-      try{if(browser)await Promise.race([browser.close(),new Promise((_,reject)=>{closeTimer=setTimeout(()=>reject(Error('cleanup_timeout')),3000);})]);fs.unlinkSync(lock);}
+      try{if(browser)await Promise.race([browser.close(),new Promise((_,reject)=>{closeTimer=setTimeout(()=>reject(Error('cleanup_timeout')),3000);})]);}
       catch{result.safety.teardownComplete=false;result.safety.outcomes.push('teardown_failed');result=I.assess({...result.evidence,safety:result.safety,denialReasons:result.denialReasons});}
       finally{clearTimeout(closeTimer);}
-      check(Date.now()<pins.approvalExpiresAt);
-      persist(output,`samples-initial-${start.runId}.terminal.json`,{...start,finishedAt:Date.now(),result:I.validateReceipt(result)});
+      check(pins.approvalExpiresAt===null||Date.now()<pins.approvalExpiresAt);
+      write(output,`samples-initial-${start.runId}.terminal.json`,{...start,finishedAt:Date.now(),result:I.validateReceipt(result)});
       return result;
     }
     const statePath=path.join(output,'samples-initial-observer-state.json');
@@ -124,8 +137,8 @@ async function main(args=process.argv.slice(2),env=process.env) {
     const previous=fs.existsSync(statePath)?JSON.parse(fs.readFileSync(statePath,'utf8')):undefined;
     const observed=await observe(result,previous,{pins,save,send,deliveryEnabled:c.delivery?.enabled===true});
     return {...result,pendingDelivery:observed.pendingDelivery};
-  }finally{clearTimeout(deadline);if(fs.existsSync(lock))fs.unlinkSync(lock);}
+  }finally{clearTimeout(deadline);releaseLock();}
 }
 if(require.main===module)main().then(r=>{console.log(JSON.stringify(r));process.exitCode=r.live===false||r.ok&&!r.pendingDelivery?0:1;})
   .catch(()=>{console.error(JSON.stringify({version:1,contract:I.CONTRACT,code:'initial_operation_refused_or_failed'}));process.exitCode=2;});
-module.exports={main,config,records,evaluate,observe,validateState,ACTIVATION};
+module.exports={main,config,records,evaluate,observe,validateState,acquireLock,ACTIVATION};

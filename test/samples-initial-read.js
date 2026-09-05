@@ -12,6 +12,7 @@ async function main(){let passed=0;const eq=(a,b)=>{assert.deepEqual(a,b);passed
     d=>d.safety.outcomes.push('valid_link_auth'),d=>d.safety.outcomes.push('browser_error'),d=>d.safety.outcomes.push('read_failed'),
     d=>d.safety.outcomes.push('scope_mismatch'),d=>d.safety.outcomes.push('untracked_failure'),d=>d.safety.outcomes.push('teardown_failed'),
     d=>d.safety.outcomes.push('teardown_observation_failed'),d=>d.safety.outcomes.push('unknown'),
+    d=>d.safety.outcomes=[],d=>delete d.full.ok,d=>d.full.ok=null,
     d=>d.safety.setupComplete=false,d=>d.safety.teardownComplete=false,d=>d.safety.subscriptions.unknown++,
     d=>d.safety.subscriptions.unmatched++,d=>d.safety.subscriptions.realmRealtimeEvents++,d=>d.safety.subscriptions.realtimeDenied++,
     d=>d.safety.subscriptions.labels=['routing_flags'],d=>d.safety.subscriptions.labels.push('unknown'),d=>d.denialReasons.push('metadata_post_blocked'),
@@ -24,6 +25,9 @@ async function main(){let passed=0;const eq=(a,b)=>{assert.deepEqual(a,b);passed
   const p=I.assess(positive());eq(I.validateReceipt(p).code,'initial_read_verified');
   for(const patch of [{count:0},{code:'recovered'},{contract:'client_continuity'},{safety:undefined},{evidence:undefined},{fullContinuity:{code:'healthy',ok:true}}]){assert.throws(()=>I.validateReceipt({...p,...patch}));passed++;}
   const privateExtra=clone(p);privateExtra.safety.secret='synthetic-private';assert.throws(()=>I.validateReceipt(privateExtra));passed++;
+  for(const mutate of [v=>delete v.evidence.full.ok,v=>v.evidence.full.ok=null,v=>v.safety.outcomes=[]]) {
+    const value=clone(p);mutate(value);assert.throws(()=>I.validateReceipt(value));passed++;
+  }
   const now=Date.now(),sha='a'.repeat(40),pins={releaseSha:sha,pageSourceSha:'b'.repeat(40),pageBlobSha:'c'.repeat(40),pageSha256:'d'.repeat(64),expectedSdkSha256:'e'.repeat(64),approvalId:randomUUID(),approvalExpiresAt:now+60000};
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),'samples-initial-unit-'));
   try {
@@ -85,13 +89,26 @@ async function main(){let passed=0;const eq=(a,b)=>{assert.deepEqual(a,b);passed
     const file=path.join(temp,'config.json'),write=v=>fs.writeFileSync(file,JSON.stringify(v));write(c);
     eq(R.config(file,refs,R.ACTIVATION,'view',now).lane.requiredVisibleIds,['synthetic-card']);
     for(const patch of [{viewEnabled:false},{censusAuthorityConfirmed:false},{censusReadOnlyRoleConfirmed:false},{releaseSha:'f'.repeat(40)},
-      {expectedSdkSha256:'bad'},{canary:{...c.canary,expiresAt:now}},{canary:{...c.canary,expiresAt:now+86400001}},
+      {expectedSdkSha256:'bad'},{canary:{...c.canary,expiresAt:now}},
       {canary:{...c.canary,ownerDesignatedTestScope:false}},{canary:{...c.canary,ownerApproved:false}},{canary:{...c.canary,approvalId:'bad'}}]) {
       write({...c,...patch});assert.throws(()=>R.config(file,refs,R.ACTIVATION,'view',now));passed++;
     }
     write(c);assert.throws(()=>R.config(file,{...refs,SAMPLES_INITIAL_CANARY_IDS_JSON:'[]'},R.ACTIVATION,'view',now));passed++;
     assert.throws(()=>R.config(file,{...refs,SAMPLES_INITIAL_CANARY_TITLES_JSON:'{}'},R.ACTIVATION,'view',now));passed++;
     assert.throws(()=>R.config(file,refs,'not-approved','view',now));passed++;
+    write({...c,canary:{...c.canary,expiresAt:now+86400001}});eq(R.config(file,refs,R.ACTIVATION,'view',now).pins.approvalExpiresAt,now+86400001);
+    write({...c,canary:{...c.canary,expiresAt:null}});eq(R.config(file,refs,R.ACTIVATION,'view',now).pins.approvalExpiresAt,null);
+    // Actual launcher, synthetic capture: lock spans browser close AND terminal
+    // persistence. A competing owner cannot acquire at either boundary.
+    const persist=require('../scripts/client-continuity-run').persist;
+    const assertExclusive=()=>{assert.throws(()=>R.acquireLock(temp),{code:'EEXIST'});passed++;};
+    const completed=await R.main(['view','--config',file,'--activate',R.ACTIVATION],refs,{
+      launch:async()=>({close:async()=>assertExclusive()}),capture:async()=>p,
+      persist:(directory,name,value)=>{assertExclusive();persist(directory,name,value);assertExclusive();}});
+    eq(completed.code,'initial_read_verified');eq(fs.existsSync(path.join(temp,'samples-initial.lock')),false);
+    const release=R.acquireLock(temp),lock=path.join(temp,'samples-initial.lock');
+    fs.unlinkSync(lock);const releaseOther=R.acquireLock(temp),other=fs.readFileSync(lock,'utf8');
+    assert.throws(release);passed++;eq(fs.readFileSync(lock,'utf8'),other);releaseOther();eq(fs.existsSync(lock),false);
   }finally{fs.rmSync(temp,{recursive:true,force:true});}
   console.log(JSON.stringify({suite:'samples_initial_read',passed,live:false}));
 }

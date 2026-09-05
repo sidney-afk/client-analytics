@@ -86,10 +86,14 @@ binding. Never share that directory with old full-continuity receipts.
 Use an exact clean tooling HEAD as `releaseSha`; an available immutable local
 Git commit as `pageSourceSha`; independently approved document and actual SDK
 SHA256s; and UTC epoch milliseconds for `activatedAt` and canary approval dates.
-Canary approval expires within 24 hours and is checked before I/O and before
-terminal publication. A changed scope, link, title, row, document or SDK needs a
-fresh approval UUID/config/output directory. Do not extend stale approval to
-keep a job green. Preserve the previous directory for incident analysis.
+The approved canary reservation and continuing read authorization persist; no
+arbitrary daily reapproval is required for nonmutating viewing. `canary.expiresAt`
+is null unless the actual reservation/authority supplies an expiry. A supplied
+expiry is checked before I/O and terminal publication; never extend it to keep
+a job green. Each run still verifies current principal/scope, exact canary/title
+and authoritative snapshots. A changed scope, link, title, row, document or SDK
+needs an explicitly approved binding/config/output directory. Preserve the
+previous directory for incident analysis.
 
 Supply the example's named environment references through the approved private
 secret store. Read origins are an explicit JSON array of origins. Canary IDs
@@ -109,8 +113,9 @@ node scripts/samples-initial-read-run.js observe --config <absolute-private-conf
 
 `view` persists `samples-initial-UUID.start.json` before launching and a validated
 terminal after full cleanup. A killed/expired worker leaves no success terminal.
-A separate lock prevents overlap; a stale lock requires human review of the
-process and orphan receipt before removal. A 120-second process deadline and
+A separate owned lock prevents overlap through terminal persistence and is
+released only by that owner. Never replace a live runner's lock. A stale lock
+requires human review of the process and orphan receipt before removal. A 120-second process deadline and
 bounded browser/context/proxy cleanup apply. No data cleanup/writes occur.
 Logs must remain aggregate-only: no traces, screenshots, HAR, console bodies or
 private environment dumps in public CI/PRs.
@@ -175,7 +180,7 @@ This initial-read command does not enable or substitute for that job.
 For a red run, keep its start/terminal and alert intent. Diagnose with approved
 private reads; never change writers/flags/credentials or seed data as automatic
 recovery. Restore the approved source/config or let the responsible product
-owner repair the fault. After renewed approval and a fresh exact canary, a new
+owner repair the fault. Under the continuing approved read scope and a freshly verified exact canary, a new
 complete run may produce initial-read recovery. It does not clear full-journey
 `mutation_blocked` or prove a client action. Release remains gated on the
 separate full journey and required live drills.

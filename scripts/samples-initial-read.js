@@ -22,7 +22,7 @@ function assess(detail) {
     const attribution=sub&&['known','unknown','matched','unmatched','realtimeDenied','realmRealtimeEvents'].every(k=>Number.isSafeInteger(sub[k])&&sub[k]>=0)&&
       sub.known>0&&sub.unknown===0&&sub.matched>0&&sub.unmatched===0&&sub.matched===sub.realtimeDenied&&sub.matched===sub.realmRealtimeEvents&&
       Array.isArray(sub.labels)&&sub.labels.includes('samples_rows')&&sub.labels.every(l=>LABELS.includes(l));
-    if(!attribution||!Array.isArray(reasons)||reasons.length!==1||reasons[0]!=='realtime_transport_blocked'||full?.code!=='mutation_blocked'||full.ok!==false)code='safety_failed';
+    if(!s.outcomes.includes('mutation_blocked')||!attribution||!Array.isArray(reasons)||reasons.length!==1||reasons[0]!=='realtime_transport_blocked'||full?.code!=='mutation_blocked'||full.ok!==false)code='safety_failed';
     else if(p?.principalVerified!==true)code='auth_failed';
     else if(p.primaryComplete!==true)code='read_failed';
     else if(p.sdkMatched!==true)code='integration_missing';
@@ -55,6 +55,7 @@ function validateReceipt(value) {
     ['stableDom','authoritativeEmpty','principalVerified','primaryComplete','sdkMatched'].every(k=>typeof p[k]==='boolean')&&Number.isSafeInteger(p.canaryCount)&&p.canaryCount>=0);
   require('./client-continuity-monitor').report('samples',value.evidence?.read?.code,value.evidence?.read?.count);
   require('./client-continuity-monitor').report('samples',value.evidence?.full?.code);
+  check(typeof value.evidence?.full?.ok==='boolean');
   check(Array.isArray(value.denialReasons)&&value.denialReasons.every(r=>DENIAL_REASONS.includes(r)));
   const safe=assess({proof:p,read:{code:value.evidence.read.code,count:value.evidence.read.count},full:{code:value.evidence.full.code,ok:value.evidence.full.ok===true},safety:s,denialReasons:value.denialReasons});
   check(value.code===safe.code&&value.ok===safe.ok&&value.count===safe.count&&

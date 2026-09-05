@@ -201,6 +201,13 @@ function pngChunks(b) {
     if (end > n) return null;
     if (first && (type !== "IHDR" || length !== 13)) return null;
     if (!first && type === "IHDR") return null;
+    /* Chunk types are four ASCII letters; an uppercase first letter marks a
+       CRITICAL chunk, and the only critical chunks that exist are the four
+       named here. A conforming decoder must reject any other critical chunk,
+       so this does too (Codex on #1310, round seven). Ancillary chunks
+       (lowercase first letter: tEXt, pHYs, gAMA…) pass through. */
+    if (!/^[A-Za-z]{4}$/.test(type)) return null;
+    if (type[0] === type[0].toUpperCase() && !["IHDR", "PLTE", "IDAT", "IEND"].includes(type)) return null;
     if (crc32(b, at + 4, at + 8 + length) !== be32(b, at + 8 + length)) return null;
     if (first) {
       header = {
@@ -432,18 +439,33 @@ function jpegSegmentsValid(b) {
 }
 
 /** One image chunk's payload check: a "VP8 " key frame with its start code,
- * or a "VP8L" stream with its signature. Returns 1 for an image chunk, 0 for
- * any other chunk, -1 for an image chunk that is malformed.
- * @param {Uint8Array} b @param {string} fourcc @param {number} dataAt @param {number} size */
-function webpImageChunk(b, fourcc, dataAt, size) {
+ * or a "VP8L" stream with its signature. Returns the bitstream's own
+ * dimensions for an image chunk, null for any other chunk, and false for an
+ * image chunk that is malformed or larger than `maxW` x `maxH` (the canvas
+ * or frame it must fit) or the dimension ceiling. Codex on #1310, round
+ * seven: a nested bitstream's dimensions are read, never assumed.
+ * @param {Uint8Array} b @param {string} fourcc @param {number} dataAt @param {number} size
+ * @param {number} maxW @param {number} maxH
+ * @returns {{ w: number, h: number } | null | false} */
+function webpImageChunk(b, fourcc, dataAt, size, maxW, maxH) {
+  let w = 0;
+  let h = 0;
   if (fourcc === "VP8 ") {
-    /* frame tag (3) then the key-frame start code 9d 01 2a */
-    if (size < 10 || b[dataAt + 3] !== 0x9d || b[dataAt + 4] !== 0x01 || b[dataAt + 5] !== 0x2a) return -1;
-    if (b[dataAt] & 0x01) return -1; /* bit 0 set = interframe, never a still */
-    return 1;
+    /* frame tag (3) then the key-frame start code 9d 01 2a, then LE14 width and height */
+    if (size < 10 || b[dataAt + 3] !== 0x9d || b[dataAt + 4] !== 0x01 || b[dataAt + 5] !== 0x2a) return false;
+    if (b[dataAt] & 0x01) return false; /* bit 0 set = interframe, never a still */
+    w = le16(b, dataAt + 6) & 0x3fff;
+    h = le16(b, dataAt + 8) & 0x3fff;
+  } else if (fourcc === "VP8L") {
+    if (size < 5 || b[dataAt] !== 0x2f) return false;
+    const bits = b[dataAt + 1] + (b[dataAt + 2] << 8) + (b[dataAt + 3] << 16) + (b[dataAt + 4] << 24);
+    w = (bits & 0x3fff) + 1;
+    h = ((bits >>> 14) & 0x3fff) + 1;
+  } else {
+    return null;
   }
-  if (fourcc === "VP8L") return size >= 5 && b[dataAt] === 0x2f ? 1 : -1;
-  return 0;
+  if (w <= 0 || h <= 0 || w > maxW || h > maxH || w > MAX_DIMENSION || h > MAX_DIMENSION) return false;
+  return { w, h };
 }
 
 /**
@@ -464,21 +486,38 @@ function webpChunksValid(b) {
   let stills = 0;
   let frames = 0;
   let extended = false;
+  /* The canvas every image and frame must fit: the VP8X header's when there
+     is one, else the ceiling (a plain still IS the canvas). */
+  let canvasW = MAX_DIMENSION;
+  let canvasH = MAX_DIMENSION;
   while (at + 8 <= n) {
     const fourcc = ascii(b, at, 4);
     const size = b[at + 4] + (b[at + 5] << 8) + (b[at + 6] << 16) + (b[at + 7] << 24);
     const dataAt = at + 8;
     if (dataAt + size > n) return false;
-    const image = webpImageChunk(b, fourcc, dataAt, size);
-    if (image < 0) return false;
-    if (image > 0) stills += 1;
     if (fourcc === "VP8X") {
       if (at !== 12 || size !== 10) return false;
       extended = true;
-    } else if (fourcc === "ANMF") {
-      /* 16 bytes of frame header, then the frame's own chunks, which must
-         tile the payload and include exactly one image chunk. */
+      canvasW = le24(b, dataAt + 4) + 1;
+      canvasH = le24(b, dataAt + 7) + 1;
+      if (canvasW > MAX_DIMENSION || canvasH > MAX_DIMENSION) return false;
+      at = dataAt + size + (size & 1);
+      continue;
+    }
+    const image = webpImageChunk(b, fourcc, dataAt, size, canvasW, canvasH);
+    if (image === false) return false;
+    if (image) stills += 1;
+    if (fourcc === "ANMF") {
+      /* 16 bytes of frame header: X/2 and Y/2 as 24-bit, width-1 and
+         height-1 as 24-bit, duration, flags. The frame must fit the canvas,
+         and its bitstream must fit the frame. Then the frame's own chunks
+         must tile the payload with exactly one image chunk. */
       if (!extended || size < 16) return false;
+      const frameX = le24(b, dataAt) * 2;
+      const frameY = le24(b, dataAt + 3) * 2;
+      const frameW = le24(b, dataAt + 6) + 1;
+      const frameH = le24(b, dataAt + 9) + 1;
+      if (frameX + frameW > canvasW || frameY + frameH > canvasH) return false;
       let inner = dataAt + 16;
       const innerEnd = dataAt + size;
       let frameImages = 0;
@@ -487,14 +526,14 @@ function webpChunksValid(b) {
         const subSize = b[inner + 4] + (b[inner + 5] << 8) + (b[inner + 6] << 16) + (b[inner + 7] << 24);
         const subDataAt = inner + 8;
         if (subDataAt + subSize > innerEnd) return false;
-        const subImage = webpImageChunk(b, subFourcc, subDataAt, subSize);
-        if (subImage < 0) return false;
-        frameImages += subImage;
+        const subImage = webpImageChunk(b, subFourcc, subDataAt, subSize, frameW, frameH);
+        if (subImage === false) return false;
+        if (subImage) frameImages += 1;
         inner = subDataAt + subSize + (subSize & 1);
       }
       if (inner !== innerEnd || frameImages !== 1) return false;
       frames += 1;
-    } else if (!extended && at === 12 && image === 0) {
+    } else if (!extended && at === 12 && !image) {
       return false; /* the first chunk must be an image or the extended header */
     }
     at = dataAt + size + (size & 1);

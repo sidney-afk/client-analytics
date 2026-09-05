@@ -13013,3 +13013,12 @@ ceiling. [P2] An animated WebP was refused because its image chunks live
 inside ANMF frames; the walker now descends into each frame, requires exactly
 one image chunk per frame, and accepts the container. Both are fixtures.
 
+**Round seven (Codex on #1310): two more, taken.** [P1] A frame nested in an
+animated WebP could carry a 16383x16383 bitstream under a 1x1 canvas; the
+walker now reads each VP8/VP8L bitstream's own dimensions, requires them to
+fit the frame (and a still to fit the canvas) and the ceiling, and requires
+every ANMF rectangle to sit inside the VP8X canvas. [P2] An unknown CRITICAL
+PNG chunk (uppercase first letter, not one of the four that exist) passed
+with a valid CRC; it is now refused, while ancillary chunks pass. Both are
+fixtures.
+

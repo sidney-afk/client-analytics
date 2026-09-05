@@ -264,6 +264,23 @@ const animatedBody = concat([riffChunk('VP8X', new Uint8Array([2, 0, 0, 0, 0, 0,
 const animatedWebp = (() => { const out = new Uint8Array(12 + animatedBody.length); out.set([82, 73, 70, 70], 0); new DataView(out.buffer).setUint32(4, out.length - 8, true); out.set([87, 69, 66, 80], 8); out.set(animatedBody, 12); return out; })();
 ok((await policy.verifyImage('image/webp', animatedWebp)).ok === true,
   'THE ROUND-SIX FINDING: a VP8X animation whose image chunks live inside ANMF frames passes');
+/* Round seven: a nested frame's bitstream must fit its frame and the canvas. */
+const hugeVp8 = (() => { const p = new Uint8Array(20); p.set([0x10, 0x02, 0x00, 0x9d, 0x01, 0x2a], 0); new DataView(p.buffer).setUint16(6, 16383, true); new DataView(p.buffer).setUint16(8, 16383, true); return p; })();
+const hugeFrameBody = concat([riffChunk('VP8X', new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0, 0, 0])), riffChunk('ANIM', new Uint8Array(6)), riffChunk('ANMF', concat([new Uint8Array(16), riffChunk('VP8 ', hugeVp8)]))]);
+const hugeFrameWebp = (() => { const out = new Uint8Array(12 + hugeFrameBody.length); out.set([82, 73, 70, 70], 0); new DataView(out.buffer).setUint32(4, out.length - 8, true); out.set([87, 69, 66, 80], 8); out.set(hugeFrameBody, 12); return out; })();
+ok((await policy.verifyImage('image/webp', hugeFrameWebp)).error === 'image_incomplete',
+  'THE ROUND-SEVEN FINDING: a 1x1 VP8X canvas whose ANMF frame carries a 16383x16383 VP8 bitstream is refused');
+const offCanvasBody = concat([riffChunk('VP8X', new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0, 0, 0])), riffChunk('ANIM', new Uint8Array(6)), riffChunk('ANMF', concat([new Uint8Array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), riffChunk('VP8 ', vp8Payload)]))]);
+const offCanvasWebp = (() => { const out = new Uint8Array(12 + offCanvasBody.length); out.set([82, 73, 70, 70], 0); new DataView(out.buffer).setUint32(4, out.length - 8, true); out.set([87, 69, 66, 80], 8); out.set(offCanvasBody, 12); return out; })();
+ok((await policy.verifyImage('image/webp', offCanvasWebp)).error === 'image_incomplete', 'a frame placed past the canvas edge is refused');
+ok((await policy.verifyImage('image/webp', webp(10, 10))).ok === true, 'a plain 10x10 VP8 still, whose bitstream states 10x10, still passes');
+/* Round seven: unknown CRITICAL PNG chunks are refused; ancillary ones pass. */
+const okPngParts = [sig, chunk('IHDR', (() => { const h = new Uint8Array(13); new DataView(h.buffer).setUint32(0, 1); new DataView(h.buffer).setUint32(4, 1); h.set([8, 6, 0, 0, 0], 8); return h; })()), chunk('IDAT', new Uint8Array(zlib.deflateSync(new Uint8Array(5)))), chunk('IEND', new Uint8Array(0))];
+const unknownCritical = concat([okPngParts[0], okPngParts[1], chunk('ABCD', new Uint8Array(0)), okPngParts[2], okPngParts[3]]);
+ok((await policy.verifyImage('image/png', unknownCritical)).error === 'image_incomplete',
+  'THE ROUND-SEVEN FINDING: a CRC-valid unknown critical chunk (ABCD) between IHDR and IDAT is refused, as a conforming decoder must');
+const ancillary = concat([okPngParts[0], okPngParts[1], chunk('tEXt', new Uint8Array([0x61, 0, 0x62])), okPngParts[2], okPngParts[3]]);
+ok((await policy.verifyImage('image/png', ancillary)).ok === true, 'an ancillary chunk (tEXt) between IHDR and IDAT passes');
 const vp8xNoImage = (() => { const b = new Uint8Array(30); b.set([82, 73, 70, 70], 0); new DataView(b.buffer).setUint32(4, 22, true); b.set([87, 69, 66, 80], 8); b.set([86, 80, 56, 88], 12); new DataView(b.buffer).setUint32(16, 10, true); b.set([0, 0, 0, 0, 9, 0, 0, 9, 0, 0], 20); return b; })();
 ok(policy.sniffImage(vp8xNoImage) !== null && (await policy.verifyImage('image/webp', vp8xNoImage)).error === 'image_incomplete',
   'a VP8X container with no image chunk inside is refused');

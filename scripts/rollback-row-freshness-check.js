@@ -456,10 +456,15 @@ const receiptsMeta = { log: '', positions: [] };
    GAP" section (2026-08-05 entry) is exactly this: four of its five runs were
    never receipted and never will be, and failing on it forever would teach
    people to ignore this check. The entry date is the section's OWN `##`
-   heading when it is one, else the nearest `##` above it -- never the entry
-   before it, which is what a slice that stops short of the heading reads in
-   this mixed-order file (Codex, fifth round on #1306). A section with no
-   usable entry date cannot be placed in time and is NOT softened.
+   heading, whatever its level: a `##` heading dates itself, and a nested
+   heading is dated by a date in ITS OWN text ("### Deploys #9-#13 — GAP,
+   recorded retroactively 2026-08-18"), never by the `##` above it -- the
+   2026-08-05 container holds subsections dated through 2026-08-19, so the
+   parent's date says nothing about a child's (Codex, eighth round on #1306).
+   A heading that names a run id at or past the newest receipt's is newer by
+   construction (GitHub run ids increase) and is never softened. A section
+   with no usable date of its own cannot be placed in time and is NOT
+   softened.
 
    There is deliberately NO "readable by reference" softening. A first draft
    let a section pass when every run id it mentioned had a receipt elsewhere;
@@ -468,14 +473,36 @@ const receiptsMeta = { log: '', positions: [] };
    can read. A mention is not an identity, and no text rule can tell "this is
    run X" from "this comes after run X". A heading that names a deploy carries
    its own receipt, or does not call itself a deploy. */
-function unreadableDeployEntries(log, receiptPositions, newestDate) {
+function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
     const out = [];
+    /* A candidate versions-table row is any row whose first cell is one of the
+       four slugs, quoted or not, bold or not, with at least two more cells. It
+       is NOT required to carry a 64-hex closure: an abbreviated closure
+       (`c7c6edce...`) is itself a reason the strict parser cannot read the row
+       (Codex, eighth round). Rows are grouped by adjacency; a group in which no
+       row parses strictly is a table this guard is blind to. A group with at
+       least one strict row is a table it read (the 2026-08-31 entry abbreviates
+       one closure beside three full ones, and its receipt is the concise prose). */
+    const candidateRow = /^\|\s*\**`?(?:batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
+    const strictRow = /^\|\s*`(?:batch-write|deliverable-write|linear-outbound|production-write)`\s*\|[^|]*\|\s*`[0-9a-f]{64}`\s*\|/;
+    const unreadableTableRows = block => {
+        let total = 0;
+        let group = [];
+        const flush = () => {
+            if (group.length && !group.some(row => strictRow.test(row))) total += group.length;
+            group = [];
+        };
+        for (const line of block.split('\n')) {
+            if (candidateRow.test(line)) group.push(line);
+            else flush();
+        }
+        flush();
+        return total;
+    };
     const heads = [];
     const hre = /^(#{2,4}) [^\n]*/gm;
     let m;
     while ((m = hre.exec(log))) heads.push({ at: m.index, level: m[1].length, text: m[0] });
-    const strict = /^\|\s*`([a-z-]+)`\s*\|[^|]*\|\s*`[0-9a-f]{64}`\s*\|/gm;
-    const loose = /^\|\s*\**`?(?:batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|]*\|\s*`?[0-9a-f]{64}`?\s*\|/gm;
     const within = (from, to) => receiptPositions.some(at => at >= from && at < to);
     const namesSection4 = text => /(Section 4|§4)/i.test(text);
     const ancestors = [];
@@ -489,10 +516,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate) {
             if (heads[j].level <= h.level) { treeEnd = heads[j].at; break; }
         }
         const block = log.slice(h.at, blockEnd);
-        const strictRows = (block.match(strict) || [])
-            .filter(row => SLUGS.some(slug => row.indexOf('`' + slug + '`') >= 0)).length;
-        const looseRows = (block.match(loose) || []).length;
-        const unreadableRows = Math.max(0, looseRows - strictRows);
+        const unreadableRows = unreadableTableRows(block);
         /* Section 4 may be named in the heading, in an ancestor heading, or --
            the concise-prose layout the top of this log uses -- only in the body
            ("**Section 4 forward from `<sha>`, run `<id>`**" under a generic
@@ -514,20 +538,21 @@ function unreadableDeployEntries(log, receiptPositions, newestDate) {
         if (!unreadableRows && !noReceiptUnder) continue;
         const heading = h.text.replace(/^#+ /, '').slice(0, 120);
         const line = log.slice(0, h.at).split('\n').length;
-        /* The section's own `##` heading when it is one, else the nearest `##`
-           above it. Slicing to h.at alone would stop short of a `##` heading and
-           read the PREVIOUS entry's date. */
-        const entryHead = lastMatch(log.slice(0, h.level === 2 ? blockEnd : h.at), /(?:^|\n)## (\d{4}-\d{2}-\d{2})/);
-        const entryDate = entryHead ? validDate(entryHead[1]) : '';
-        const predates = !unreadableRows && !!entryDate && !!newestDate && entryDate < newestDate;
+        /* Dated by ITS OWN heading only, at any level; and a run id in the
+           heading at or past the newest receipt's makes it newer whatever any
+           date says. */
+        const entryDate = validDate((h.text.match(/\b(\d{4}-\d{2}-\d{2})\b/) || [])[1] || '');
+        const ownRun = (h.text.match(/[Rr]un\s+`?(\d{6,})`?/) || [])[1] || '';
+        const runNewer = !!(ownRun && newestRun && Number(ownRun) >= Number(newestRun));
+        const predates = !unreadableRows && !runNewer && !!entryDate && !!newestDate && entryDate < newestDate;
         out.push({
             line,
             heading,
             tableRows: unreadableRows,
             severity: predates ? 'note' : 'failure',
             message: (predates
-                ? 'an unreadable Section 4 deploy section at line ' + line + ' ("' + heading + '") predates the newest'
-                    + ' readable receipt (' + entryDate + ' < ' + newestDate + '), so it cannot be the newest deploy and is'
+                ? 'an unreadable Section 4 deploy section at line ' + line + ' ("' + heading + '") is dated by its own heading'
+                    + ' before the newest readable receipt (' + entryDate + ' < ' + newestDate + '), so it cannot be the newest deploy and is'
                     + ' left as history; it is still invisible to this guard. '
                 : '')
                 +  'the EXECUTION_LOG.md section at line ' + line + ' ("' + heading + '") '
@@ -600,7 +625,7 @@ function main() {
             + ' so it cannot be placed in time and the newest deploy cannot be established.'
             + ' Add the run id to that entry (the attestation block carries it as github_run_id).');
     }
-    for (const u of unreadableDeployEntries(receiptsMeta.log, receiptsMeta.positions || [], live ? live.date : '')) {
+    for (const u of unreadableDeployEntries(receiptsMeta.log, receiptsMeta.positions || [], live ? live.date : '', live ? live.run : '')) {
         if (u.severity === 'note') notes.push(u.message);
         else failures.push(u.message);
     }

@@ -870,11 +870,56 @@ ok(bodyContextRun.code === 1 && bodyContextRun.json
 ok(bodyContextRun.json && !bodyContextRun.json.failures.some(f => /\("Deploy #39, run `33999999901`"\)/.test(f) && UNREADABLE.test(f)),
     'and the readable ### Deploy #39 beside it is not');
 
+/* ---- 8g. nested sections are dated by themselves; abbreviated closures ----- */
+/* Codex, eighth round. The real 2026-08-05 container holds deploy subsections
+   dated through 2026-08-19, so an unreadable "### Deploy #40 (run `34000000000`,
+   2026-09-06)" written inside it took the container's date and was softened
+   into history. A nested section is dated by its own heading only, and a run
+   id at or past the newest receipt's is newer by construction. Separately, the
+   candidate-row detector required a 64-hex closure, so a table whose closures
+   were abbreviated was invisible to it. */
+const containerAt = realLog.indexOf('\n## 2026-08-05 — F27 Section 4 four-function deploy');
+const afterContainer = realLog.indexOf('\n## ', containerAt + 1);
+ok(containerAt > 0 && afterContainer > containerAt, 'the real log has the 2026-08-05 container the next cases write into');
+const insertInto = text => realLog.slice(0, afterContainer) + '\n' + text + realLog.slice(afterContainer);
+const nestedDated = ['### Deploy #40 — RECORDED (run `34000000000`, 2026-09-06)', '', 'Deployed v69 by hand; the attestation will follow.', ''].join('\n');
+const nestedDatedRun = run(fixture('nested-own-date', insertInto(nestedDated), realRb));
+ok(nestedDatedRun.code === 1 && nestedDatedRun.json
+    && nestedDatedRun.json.failures.some(f => /\("Deploy #40 — RECORDED \(run `34000000000`, 2026-09-06\)"\)/.test(f) && UNREADABLE.test(f))
+    && !nestedDatedRun.json.notes.some(n => /Deploy #40/.test(n)),
+    'A NESTED SECTION IS DATED BY ITSELF: an unreadable dated ### deploy inside the 2026-08-05 container FAILS on its own 2026-09-06, not softened by the container\'s date');
+const nestedRunOnly = ['### Deploy #41 — RECORDED (run `34000000001`)', '', 'Deployed later the same night.', ''].join('\n');
+const nestedRunOnlyRun = run(fixture('nested-newer-run', insertInto(nestedRunOnly), realRb));
+ok(nestedRunOnlyRun.code === 1 && nestedRunOnlyRun.json
+    && nestedRunOnlyRun.json.failures.some(f => /\("Deploy #41 — RECORDED \(run `34000000001`\)"\)/.test(f) && UNREADABLE.test(f)),
+    'and one with no date of its own but a run id past the newest receipt\'s is newer by construction and FAILS');
+const nestedUndated = ['### Deploy #42 — RECORDED', '', 'Deployed; details to follow.', ''].join('\n');
+const nestedUndatedRun = run(fixture('nested-undated', insertInto(nestedUndated), realRb));
+ok(nestedUndatedRun.code === 1 && nestedUndatedRun.json
+    && nestedUndatedRun.json.failures.some(f => /\("Deploy #42 — RECORDED"\)/.test(f) && UNREADABLE.test(f)),
+    'and one with neither a date nor a run id of its own cannot be placed in time and FAILS -- the container\'s date is not inherited');
+const abbreviated = [
+    '',
+    '## 2026-09-06 — production-write 68 → 69 shipped',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | `86f9f187...` | verify_jwt=false |',
+    '| deliverable-write | 35 | `78df060b...` | verify_jwt=false |',
+    '| linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
+    '| **production-write** | **69** | `eeeeeeee...` | verify_jwt=false |',
+    '',
+].join('\n');
+const abbreviatedRun = run(fixture('abbreviated-closures', realLog + abbreviated, realRb));
+ok(abbreviatedRun.code === 1 && abbreviatedRun.json
+    && abbreviatedRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'ABBREVIATED CLOSURES: a four-function table whose closures are shortened is still a table, and one the guard cannot read, so it is named -- a 64-hex closure is not a precondition for being counted');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);
 ok(real.code === 0, 'and the repository as it stands right now is consistent');
-ok(real.json && real.json.notes.some(n => /Deploys #9-#13 — GAP/.test(n) && /predates the newest readable receipt/.test(n)),
+ok(real.json && real.json.notes.some(n => /Deploys #9-#13 — GAP/.test(n) && /before the newest readable receipt/.test(n)),
     'the historical "Deploys #9-#13 — GAP" section, whose four un-receipted runs can never be read, is a NOTE rather than a failure because its entry predates the newest receipt -- an old gap cannot make the row stale, and a guard that failed on it forever would be ignored');
 ok(real.json && !real.json.failures.some(f => UNREADABLE.test(f)),
     'and every Section 4 deploy entry in the real log is one the guard can read, today included');

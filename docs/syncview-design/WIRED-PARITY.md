@@ -1,5 +1,11 @@
 # Wired Production Parity Ledger
 
+Draft source addition, 2026-09-05: the existing comment panel becomes **Feedback
+& tweaks**, preserving canonical rows and adding authorized exact-component
+read-only Calendar/Samples notes. Incomplete sources stay explicit. This is not
+live history/zero-loss proof; contract and finite evidence are in
+`docs/features/COMPONENT_FEEDBACK.md`.
+
 Source of visual truth: `docs/syncview-design/SyncView.html`. Runtime authority and native-write
 truth come from the current source, gateway contract, and an immediate `prod_authority` readback;
 the static artifact cannot authorize a write. Current status values:

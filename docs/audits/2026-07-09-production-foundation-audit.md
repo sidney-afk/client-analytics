@@ -1,5 +1,9 @@
 # Production tab foundation audit - 2026-07-09
 
+Later bounded source addendum (2026-09-05): the draft mapped-feedback reader/UI
+contract is documented in `docs/features/COMPONENT_FEEDBACK.md`. It adds no writer
+authority or live proof and does not revise this audit's historical findings.
+
 ## Goal
 
 Make the `?prod=1` Production tab behave like a finished, polished read-only product surface.

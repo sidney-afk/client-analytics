@@ -2,6 +2,15 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Draft mapped component feedback reader
+
+Isolated from captured main `731e7c248fd8c055a577e7c7f40a81236532250c`.
+Adds authorized exact-component source reads beside canonical comments, safe
+display metadata and explicit incomplete states. No migration, writer, flag,
+provider, import, live data read, deploy or merge. Finite actual-handler and
+fictional browser coverage, compatibility and rollback are recorded in
+`docs/features/COMPONENT_FEEDBACK.md`; live serving/history/zero loss remain open.
+
 ## 2026-08-31 — Deploy: a card can be completed from the card
 
 **Section 4 forward from `5a3365f2`, run `33434655418`, PASS.** `production-write`

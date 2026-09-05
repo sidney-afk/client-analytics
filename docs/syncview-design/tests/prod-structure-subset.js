@@ -818,7 +818,7 @@ async function assertNoWriteRequests(requests) {
     }
     await expectCount(page, '[data-prod-detail-card="properties"]', 1, 'Properties detail card');
     await expectCount(page, '[data-prod-detail-card="project"]', 1, 'Project detail card');
-    if (!(await text(page, '.prod-activity')).includes('Comments')) throw new Error('Comments section missing');
+    if (!(await text(page, '.prod-activity')).includes('Feedback & tweaks')) throw new Error('Feedback section missing');
     await page.waitForSelector('.prod-activity [data-prod-comments-state], .prod-activity .prod-comment-loading', { timeout: 10000 });
     const commentRowsAreBodyFirst = await page.evaluate(() => {
       const row = document.querySelector('.prod-comment');

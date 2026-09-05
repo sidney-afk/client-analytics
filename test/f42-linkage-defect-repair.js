@@ -192,8 +192,9 @@ function snapshot(cards, deliverables) {
     [deliverable({ kind: 'other' })],
   ), { runId: 'test-kind' });
   ok(planWrongKind.writes.length === 0
-    && planWrongKind.skipped.some(row => (row.objections || []).includes('kind_does_not_match_the_card_slot')),
-  'R15: Class A refuses when the deliverable kind does not match the card slot (team alone is too coarse)');
+    && planWrongKind.skipped.some(row => (row.objections || []).includes('kind_disagrees_use_bind_and_import'))
+    && !planWrongKind.skipped.some(row => (row.objections || []).includes('kind_does_not_match_the_card_slot')),
+  "R15 (revised 2026-09-05, owner ruling): a title-guessed kind is not a refusal of the REPAIR — identity is the proof — but this direct PATCH runner cannot relabel, so the row is handed to production_comment_card_bind_and_import by name rather than patched half-way");
 
   const planNoLinear = repair.planLinkageRepair(snapshot(
     { calendar: [card({ video_deliverable_id: 'dlv-1', linear_issue_id: '' })] },

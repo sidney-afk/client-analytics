@@ -1,0 +1,156 @@
+name: Crosswalk Phase 2 repair
+
+# The card ↔ deliverable crosswalk repair as a guarded button-press, never an
+# improvised local run. Manual-only (workflow_dispatch), pinned to an exact
+# 40-character commit already on main, split into two dispatches:
+#
+#   mode: plan   — export live cards/deliverables, classify every mismatching
+#                  slot with the RPC's own questions, plan the legacy-thread
+#                  imports that ride along, and print counts + the plan digest
+#                  for owner review. Never writes.
+#   mode: apply  — re-export, re-plan, and call
+#                  production_comment_card_bind_and_import per slot ONLY when
+#                  the operator typed the exact confirm token AND the re-derived
+#                  plan digest still matches the reviewed one (live-data drift
+#                  guard); then re-export and report what is left.
+#
+# Requires migrations/2026-09-05-crosswalk-bind-and-import.sql to be applied
+# to the live database first (owner action, SQL Editor). Without it every call
+# is refused as an unknown function and nothing is written.
+#
+# Uses the repo's existing SUPABASE_SERVICE_ROLE_KEY Actions secret, held in the
+# `production` GitHub Environment (restricted to main) so a branch copy of this
+# workflow cannot reach it. The result document carries card ids, client slugs
+# and Linear identifiers: it is written to a runner-local file and NEVER
+# uploaded or teed; only renderSummaryMarkdown's counts and reason enums reach
+# the public run log. OPEN_REPAIRS 147/148/156; CROSSWALK_REPAIR_STRATEGY §5.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact 40-character commit SHA from main to run from
+        required: true
+        type: string
+      mode:
+        description: plan (review) or apply (live repair)
+        required: true
+        type: choice
+        options: [plan, apply]
+        default: plan
+      run_id:
+        description: Owner-approved run id (goes into every event and receipt)
+        required: true
+        type: string
+      expected_plan_digest:
+        description: apply — the plan digest from the reviewed plan run (drift guard)
+        required: false
+        type: string
+      confirm:
+        description: apply — type REPAIR_CROSSWALK_PHASE2 to authorize the live repair
+        required: false
+        type: string
+      cap:
+        description: Abort the apply if the plan holds more calls than this
+        required: false
+        type: string
+        default: '120'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crosswalk-phase2-repair
+  cancel-in-progress: false
+
+jobs:
+  crosswalk-phase2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The production Environment gates SUPABASE_SERVICE_ROLE_KEY: restrict its
+    # deployment branches to main and store the key in the environment (not at
+    # repo level) so no branch copy of this workflow can obtain it.
+    environment: production
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RUN_COMMIT: ${{ inputs.commit_sha }}
+      RUN_MODE: ${{ inputs.mode }}
+      RUN_ID: ${{ inputs.run_id }}
+      EXPECTED_PLAN_DIGEST: ${{ inputs.expected_plan_digest }}
+      RUN_CAP: ${{ inputs.cap }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+      - name: Verify pinned commit is exactly on main
+        shell: bash
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$RUN_COMMIT" ]; then
+            echo "::error::Checked out $actual instead of requested $RUN_COMMIT"
+            exit 1
+          fi
+          if ! [[ "$RUN_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::The repair requires an exact 40-character commit SHA"
+            exit 1
+          fi
+          git fetch origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$RUN_COMMIT" origin/main; then
+            echo "::error::The repair commit is not on origin/main"
+            exit 1
+          fi
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY secret is not set."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Plan (review only, no writes)
+        if: inputs.mode == 'plan'
+        shell: bash
+        run: |
+          set -o pipefail
+          # Redirect (never tee) the full result to a runner-local file: its
+          # per-slot rows carry card ids, client slugs and Linear identifiers
+          # that must not reach the public log.
+          plan_exit=0
+          node scripts/crosswalk-phase2-runner.js --mode plan --run-id "$RUN_ID" \
+            --output plan-result.json > /dev/null || plan_exit=$?
+          if [ ! -s plan-result.json ]; then
+            echo "::error::planner produced no result document (exit $plan_exit); see the step log"
+            exit 1
+          fi
+          node -e "process.stdout.write(require('./scripts/crosswalk-phase2-runner.js').renderSummaryMarkdown(require('./plan-result.json')))" \
+            >> "$GITHUB_STEP_SUMMARY"
+          exit "$plan_exit"
+      - name: Apply (live repair, owner-confirmed + digest-pinned)
+        if: inputs.mode == 'apply'
+        env:
+          CROSSWALK_CONFIRM_PHASE2_REPAIR: ${{ inputs.confirm }}
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ -z "$EXPECTED_PLAN_DIGEST" ]; then
+            echo "::error::apply requires expected_plan_digest from the reviewed plan run"
+            exit 1
+          fi
+          # Redirect (never tee): the APPLY result carries per-slot receipts.
+          # A PARTIAL apply (some calls refused by the RPC) exits 2; tolerate it
+          # here so the public-safe summary still renders, then fail the step.
+          apply_exit=0
+          node scripts/crosswalk-phase2-runner.js --mode apply --run-id "$RUN_ID" \
+            --expect-plan-digest "$EXPECTED_PLAN_DIGEST" --cap "$RUN_CAP" \
+            --output apply-result.json > /dev/null || apply_exit=$?
+          if [ ! -s apply-result.json ]; then
+            echo "::error::apply produced no result document (exit $apply_exit); see the step log"
+            exit 1
+          fi
+          node -e "process.stdout.write(require('./scripts/crosswalk-phase2-runner.js').renderSummaryMarkdown(require('./apply-result.json')))" \
+            >> "$GITHUB_STEP_SUMMARY"
+          if [ "$apply_exit" -ne 0 ]; then
+            echo "::error::apply finished PARTIAL (exit $apply_exit) — see the refusal breakdown in the run summary"
+            exit "$apply_exit"
+          fi

@@ -1,14 +1,18 @@
 # The card ↔ deliverable crosswalk: what is actually broken, and the order to fix it
 
-**Status (2026-09-05): PARTLY EXECUTED. Phase 1 ran; Phase 2's migration is
-WRITTEN but NOT APPLIED.** Source availability and live execution are two
-different things and this line separates them deliberately:
+**Status (2026-09-05 evening): PARTLY EXECUTED, TWO EPOCHS OF THE RPC.** Phase 1
+ran. Phase 2's migration was **APPLIED live by the owner on 2026-09-05 (first
+version, #1291)** and the lane ran once: **89 of 100 slots repaired**, the 11
+cancel-evictions refused by the F27 outbox fence. The **fixed version (#1301)
+is in source and NOT YET RE-APPLIED**; until it is, the live function is the
+first version. Source availability and live execution are two different things
+and this block separates them deliberately:
 
 | | State |
 |---|---|
 | Phase 1 (90 cards with no legacy thread) | **RAN 2026-09-04.** 172 mismatching slots → 112; 60 repaired. Owner-executed SQL. |
-| Phase 2's combined RPC | **WRITTEN**, `migrations/2026-09-05-crosswalk-bind-and-import.sql`, rehearsed against a disposable PostgreSQL 16 (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). **NOT APPLIED to the live database, and no card has been repaired through it.** |
-| Phase 2 (the remaining slots) | **NOT STARTED.** Needs the migration applied and a per-card call list measured fresh. |
+| Phase 2's combined RPC | **Epoch 1 — APPLIED LIVE 2026-09-05 (#1291, owner, SQL Editor)**: kind never refuses, labels follow the card, contested slots resolve on request (§4b); 89 cards repaired through it. Its cancel-eviction path enqueued without the F27 authority binder and was refused on 11 slots. **Epoch 2 — WRITTEN, NOT YET RE-APPLIED (#1301)**: same function, cancel path mints the binder via `track_b_f27_write_authorization`, detaches only under Linear authority; rehearsed against the F27 outbox fence installed verbatim (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). Re-applying is the same `create or replace` SQL Editor step. |
+| Phase 2 (the remaining slots) | **RAN 2026-09-05, 89 of 100.** Migration applied by the owner; lane dispatched plan then apply. 89 bound, 7 shells detached, 97 comments imported. **11 refused** by the live F27 outbox fence (the cancel intent carried no authority binder — OPEN_REPAIRS 156, "First live apply"); fixed in source, migration re-apply + one more plan/apply pending. |
 | Phase 3 (verify) | Not started. |
 
 ~~**Status: PROPOSAL. Nothing here has been executed. No migration is written.**~~
@@ -163,18 +167,136 @@ the card's own pointer is not enough authority: a STALE pointer that happens to
 name an unbound row of the same client would have that unrelated row rewritten
 and the card's conversation copied onto it. So the function also requires
 
-  * the deliverable's `kind` to be the kind the card slot implies — `team` is
-    too coarse, because `team='video'` covers `kind='video'` and `kind='other'`;
+  * ~~the deliverable's `kind` to be the kind the card slot implies — `team` is
+    too coarse, because `team='video'` covers `kind='video'` and `kind='other'`;~~
+    **withdrawn 2026-09-05 evening, see §4b;**
   * the card and the deliverable to name **the same Linear issue**, with either
     side missing treated as unproven rather than as permission.
 
-These are the same two questions `scripts/f42-linkage-defect-repair.js`
-(`classAObjections`) already asks before planning a Class A repair, so the SQL
-repair and the JS planner now agree about what "the same work item" means.
+~~These are the same two questions~~ The identity question is the same one
+`scripts/f42-linkage-defect-repair.js` (`classAObjections`) asks before
+planning a Class A repair, so the SQL repair and the JS planner agree about what
+"the same work item" means. The planner no longer treats a disagreeing kind as
+a refusal of the *repair*, only of *itself*: it patches origin and card_id and
+cannot relabel, so it hands those rows to the RPC by name
+(`kind_disagrees_use_bind_and_import`) rather than patching them half-way.
 **Consequence for the plan:** a slot that cannot prove its identity is not a
 slot this RPC will repair. Those are for a person, and the Phase 2 call list has
 to be measured with that in mind rather than assumed to cover every remaining
 slot.
+
+### 4b. The label ruling (2026-09-05 evening) — kind never refuses, the card wins
+
+The first measurement of the call list (§5) found the kind guard refusing **40
+of 107** slots in which the card and the row named the **same** Linear issue —
+26 graphics rows titled "Carousel"/"Story"/"Webinar … story" (`kind='other'`)
+sitting in graphic slots, and 14 "Reel N"/"Video N" rows on one client stamped
+`kind='thumbnail'` because their *batch parent* was titled "… Reels and
+Thumbnails". `kind` is `classifyKind()` in `b1-linear-backfill.js`: a regex
+over the issue's title and its parent's title. It is a guess about the artifact,
+not a fact about it, and the owner's ruling was the obvious one: *"I would
+believe the card."* The RPC, the planner, the rehearsal and the source guards
+were revised together (OPEN_REPAIRS 156):
+
+  * **kind never refuses.** Identity — both sides naming the same Linear issue —
+    is the one proof of "the same work item". A Linear identifier's team prefix
+    is not required to match the slot either: 9 live graphic slots hold
+    thumbnails tracked on the Video team, and the card's word is what the
+    client sees.
+  * **the labels follow the card on bind, and become the slot key.** A row
+    bound into the video slot becomes `kind='video'`; one bound into the
+    graphic slot becomes `kind='thumbnail'`; team is the slot's team, as
+    before. This is not cosmetic, in both directions:
+    `deliverables_card_slot_unique` keys on kind, so a video-slot row left at
+    `thumbnail` would collide with the same card's real thumbnail; and
+    `linear-inbound`'s `maintainCardLinkage` reads exactly two values from
+    kind (thumbnail → graphic slot, anything else → video slot), so a
+    graphic-slot row left at `other` would be written into the VIDEO slot by
+    the first inbound write after a team returned to Linear authority (Codex
+    P1 on #1291). 40 live rows relabel: the 14 "Reel" rows thumbnail→video and
+    the 26 "Carousel"/"Story" rows other→thumbnail. The title is untouched.
+  * **a contested slot resolves on request, and the card wins.** With
+    `"evict_occupant": "card_wins"` in the binding, a row holding the slot
+    that the card does *not* point at is detached (`card_id → null`) and, if
+    still in a live status, set `canceled` natively with the cancel queued
+    for the outbound lane; a terminal occupant is only detached. Each eviction
+    is a `crosswalk_occupant_evicted` event and is returned in the receipt.
+    Without the flag, `slot_occupied` is still a refusal. An occupant naming
+    the **same** issue as the card is never evicted (`occupant_same_issue`):
+    that is two projections of one issue, and cancelling it would cancel the
+    issue the card keeps. The row the card's *other* slot points at is never
+    an occupant.
+
+  Why the card wins, measured rather than assumed: all 18 live occupants are
+  native-born rows ("Video N", created by SyncView Mirror when the card was
+  created natively) on cards a person then re-pointed by hand at the older
+  batch issue. Every one inspected in Linear — the seven whose status looked
+  like live work — was an empty shell: no description, no attachment, no
+  lifecycle of its own, its status stamped from the card at birth and never
+  moved since. Two had been canceled by hand and were **resurrected by the
+  sync** because the shell stayed attached to the card. Detaching is therefore
+  the half that makes the cancel stick.
+
+**The call list under the ruling** (re-measured 2026-09-05 17:50 UTC, same
+population of 107 mismatching slots, same read-only method):
+
+| Outcome | Slots |
+|---|---|
+| **Binds on its own** (identity agrees, slot free) | **82** — of which 40 relabel to the slot key (14 thumbnail→video, 26 other→thumbnail) |
+| **Binds with `evict_occupant=card_wins`** — occupant is a native-born shell, 0 name the same issue | **18** — occupant statuses: Kasper approval 6, scheduled 4, canceled 3, posted 3, tweak 1, approved 1 |
+| Refused: `already_bound_elsewhere` | 5 |
+| Refused: `client_mismatch` | 1 |
+| Refused: `linear_identity_unproven` | 1 |
+
+**100 of 107 the RPC can repair unattended; 7 need a person**, unchanged from
+the first measurement's "other 25" minus the 18 contested slots the ruling
+decides. The 6 shells at Kasper approval are phantom items in his queue today
+and leave it the moment the migration is applied and the 18 calls run.
+
+### The execution lane (written 2026-09-05 evening)
+
+`scripts/crosswalk-phase2-runner.js` + `.github/workflows/crosswalk-phase2-repair.yml`
+(`test/crosswalk-phase2-runner.js`). The same shape as the F42 comment-import
+lane: manual-only, pinned to a commit on `main`, the service key from the
+`production` Environment, `plan` then `apply`, a confirm token
+(`REPAIR_CROSSWALK_PHASE2`) and a plan-digest drift guard between them, the
+result document runner-local and never uploaded. The runner exports live cards
+and deliverables, forecasts every mismatching slot with the RPC's own questions
+in the RPC's order (so the plan predicts the refusals rather than discovering
+them), sends `evict_occupant='card_wins'` only on slots an occupant holds,
+and carries each card's legacy thread in `p_comments` — planned by the F42
+import planner against a snapshot in which the planned rows are already in
+their post-bind state, so bind and import are one transaction or nothing. A
+slot whose thread the planner cannot plan cleanly waits
+(`thread_not_plannable`) rather than being bound without its conversation.
+After applying it re-exports and reports what is left.
+
+**Forecast, read-only, 2026-09-05 evening, publishable key, after the migration
+was applied:** 1,214 slots, 1,107 clean, 107 mismatching → **100 calls** (18
+with an eviction, 18 occupants: Kasper approval 6, scheduled 4, canceled 3,
+posted 3, tweak 1, approved 1), **64 of the 100 carry a legacy thread — 132
+comments ride along**, 0 deferred, 0 held back; 7 skipped
+(already_bound_elsewhere 5, client_mismatch 1, linear_identity_unproven 1);
+relabels other→thumbnail 26, thumbnail→video 14. The same 100 / 18 / 7 the
+ruling measured, now produced by the runner itself. **The live plan run said
+the same to the digit; the live apply landed 89 and was refused on the 11
+cancel-evictions by the F27 outbox fence** — the RPC enqueued without the
+authority binder. Fixed (OPEN_REPAIRS 156, "First live apply"); the rehearsal
+now carries the F27 closure and reproduces both the refusal and the pass. The first forecast said 133
+comments: 13 card ids are shared by two or more clients on live
+(`calendar_posts` is keyed on (client, id)), and the runner's first version
+keyed its import lookup on card id alone, so one client's comment was
+attributed to another client's call — Codex P1 on #1296. The planner now runs
+one client at a time; the comment count is what each card actually holds.
+
+**The three owner steps, in order:** (1) apply
+`migrations/2026-09-05-crosswalk-bind-and-import.sql` in the SQL Editor;
+(2) dispatch the lane in `plan` mode and read the counts; (3) dispatch it in
+`apply` mode with the plan digest and the confirm token. The lane:
+https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
+(Run workflow → commit SHA on main, mode, run id, digest, confirm, cap).
+Expected after step 3: 7 mismatching slots remain, all named by reason, none
+bindable.
 
 ---
 

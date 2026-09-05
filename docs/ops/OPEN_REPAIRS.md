@@ -12500,3 +12500,217 @@ three-level tree resolves as two posts, and a link on the middle row's bucket is
 not shared with its children's bucket unless they happen to coincide. Not
 regressed by this change (nothing shared across levels before either), not
 reported by anyone, and not fixed here.
+
+### Closed out 2026-09-05, after the deploy
+
+`production-write` reached v67 (closure `d2914ac2…`) on run #37 and the
+binding-first migration was applied, so all four defects in this item are live.
+Three things were fixed afterwards, none of them behavioural on the surfaces the
+owner reported:
+
+- **A fail-open in the exclusivity read, found in self-review rather than by a
+  reviewer.** #1288 merged six seconds after it opened, so the Codex pass that
+  had caught its two P1s never ran on the fix for them. Reading the diff myself:
+  exclusivity is decided by ABSENCE — a bucket is exclusive when no foreign row
+  was seen — so an occupants read truncated at its limit could hide the row that
+  makes a bucket shared, and that bucket would then be offered as a write target
+  for a post it does not belong to. Every other degradation in that function
+  fails towards "offer nothing"; this one failed towards "offer the wrong row".
+  A result that comes back at exactly the limit is now UNKNOWN. Measured before
+  fixing and worth recording because it says how much headroom there was: the
+  largest bucket holds 60 rows, the largest split post's candidate buckets hold
+  33 between them, and the limit is 800 — so it was unreachable, and the fix is
+  one comparison rather than a debugging session the day a post grows.
+- **CLAUDE.md had the capture sequence backwards**, which failed run #37's first
+  attempt in 21 seconds with `OBJECT_MISSING`. The lane FETCHES the sealed
+  bundle out of Drive during the run; it does not receive it. Upload now comes
+  before dispatch, as a numbered sequence, with the error named.
+- **CLAUDE.md led with the alias**, which answered `CommandNotFoundException` in
+  a window that had not loaded the owner's `$PROFILE`, and named a bundle
+  directory (`C:\F27-Bundles\`) that is not where the script writes. Both
+  corrected against the real receipt.
+
+**Merging inside a review window is itself the lesson.** The review that found
+the two P1s took four minutes; the fix was merged in six seconds. Nothing caught
+the fail-open except a second read of my own diff, which is not a control.
+
+### Residual, recorded rather than left implied (2026-09-05, Codex #1294 P2)
+
+The truncation guard above stops `assetSnapshot` **asserting** an exclusivity it
+has not established. It does **not** make the write fail closed end to end, and
+the first version of its comment implied that it did. Codex caught the overclaim
+on #1294 and the correction is its finding.
+
+When exclusivity is unknown the gateway names no target, and the browser then
+writes the row the reader is already on. If that row's bucket is shared with
+another post, the write reaches that post. Three things bound it:
+
+- **It is the status quo, not a new exposure.** Every `batch_asset` write went to
+  the reader's own bucket before 2026-09-05. The change narrowed that for the
+  cases it can prove and left the rest where it found them.
+- **A refusal is the wrong remedy here.** AGENTS.md carries a standing owner
+  directive (2026-08-27, "I prefer things to be not strict than strict"): the
+  browser must not encode a guess about state it cannot see as a refusal. A
+  refusal would be a dead end on a save that has always worked. There is also no
+  server-side proof to fail closed on — the bucket the browser names is one the
+  reader genuinely occupies, which is a legitimate target under the rule that has
+  always allowed it.
+- **The one real cost is a pessimisation, not an exposure.** A response that is
+  exactly full AND complete is discarded, so a genuinely known exclusive
+  alternate is passed over. Unreachable on today's data: largest bucket 60 rows,
+  largest split post's candidate buckets 33 between them, limit 800.
+
+**If the owner wants it closed properly**, the honest fix is not a browser
+refusal but removing the ambiguity: give a post a bucket it owns, so "which row
+does a post-level write belong on" stops being a question answered by inference.
+That is the structural change deferred at the top of this item, and it is the
+same one the Linear exit would make cheap.
+
+**And the process point, which is the more useful finding.** This was caught only
+because #1294 was held open for its review after #1288 merged six seconds after
+opening. The self-review that produced the truncation guard also produced its
+overclaim; a second reader found it in four minutes.
+
+## 156. [2026-09-05, RULED AND WRITTEN, NOT APPLIED — updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
+
+Item 148's RPC required a deliverable's `kind` to match the card slot ("team is
+too coarse: team='video' covers kind='video' and kind='other'"). Measured
+against the live call list it refused **40 of 107** mismatching slots — and in
+all 40 the card and the row named the **same Linear issue**. They were not
+stale pointers; they were rows whose label disagreed with the slot holding them.
+
+### What `kind` actually is
+
+`classifyKind()` in `scripts/b1-linear-backfill.js` is a regex over the issue's
+title **and its parent's title**. On the Graphics team, *banner / carousel /
+story / slides / quote / flyer …* → `other`, else `thumbnail`. On the Video team,
+*thumb* anywhere → `thumbnail`. So the 26 graphic-slot refusals are rows titled
+"Carousel 02", "Story", "Webinar next Monday (story)" — the name the designer
+gave the issue, nothing to do with the Drive folder — and the 14 video-slot
+refusals are "Reel 1–6" / "Video 1–8" on one client whose **batch parents** are
+titled "… 6 Reels and Thumbnails" and "… Videos and Thumbnails". Every child of
+those batches was stamped `thumbnail`, videos included. Nothing about them is
+wrong except the stamp.
+
+The owner's ruling, verbatim: *"if it's from the video team it's a video, if
+it's a graphic it's a graphic sub-issue … I would probably just believe the
+card."* And on the contested slots: *"I would believe more the cards than the
+duplicates."*
+
+### The 18 contested slots, and why the card wins there too
+
+Item 148's RPC refused `slot_occupied` on 18 slots. All 18 have the same shape:
+a native card (`p_native_…`) whose creation auto-made a "Video N" issue
+(`del_…`, created by SyncView Mirror), which a person then **re-pointed by
+hand** to the older batch issue ("Reel N", `b1_d_…`). The auto-made row still
+held the slot. Seven of the 18 occupants sat in statuses that looked like live
+work (six at Kasper approval, one at Tweak). All seven were read in Linear:
+**every one is an empty shell** — no description, no attachment, no assignee
+lifecycle, its status stamped from the card at the moment it was created and
+never moved again. The real cycle (Todo → In Progress → SMM → Kasper → Tweak →
+Client → Posted, editor assigned) is on the issue the card points at, in all
+seven. Two shells had been **canceled by hand and resurrected by the sync**
+(VID-13620, VID-13624): the shell stayed attached to the card and kept receiving
+the card's status, so cancelling in Linear alone did not stick. The six at
+Kasper approval are phantom items in his queue today.
+
+### What changed in source (all in one PR, migration still NOT applied)
+
+`migrations/2026-09-05-crosswalk-bind-and-import.sql`,
+`scripts/f42-linkage-defect-repair.js` (`classAObjections`),
+`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`,
+`test/f42-linkage-defect-repair.js`, `docs/ops/CROSSWALK_REPAIR_STRATEGY.md` §4b:
+
+* **kind never refuses the repair.** Identity — both sides naming the same
+  Linear issue — is the one proof. The planner (`classAObjections`) keeps a
+  kind objection but only against *itself*: it patches origin and card_id and
+  cannot relabel, so it hands those rows to the RPC by name
+  (`kind_disagrees_use_bind_and_import`) instead of patching them half-way
+  (Codex P2 on #1291). A Linear team prefix is not required to match the slot
+  either: 9 live graphic slots hold thumbnails tracked on the Video team.
+* **labels follow the card on bind and become the slot key:** video slot →
+  `kind='video'`; graphic slot → `kind='thumbnail'`; team is the slot's team
+  as before. Load-bearing in both directions: `deliverables_card_slot_unique`
+  keys on kind, so a video-slot "Reel" left at `thumbnail` collides with the
+  same card's real thumbnail; and `linear-inbound`'s `maintainCardLinkage`
+  reads any kind but `thumbnail` as the VIDEO slot, so a graphic-slot
+  "Carousel" left at `other` would be routed into the video slot by the first
+  inbound write after a team returned to Linear authority (Codex P1 on #1291).
+  The rehearsal carries both cards. 40 live rows relabel (14 thumbnail→video,
+  26 other→thumbnail); titles are untouched.
+* **`evict_occupant: 'card_wins'`** (opt-in, by name — any other value is
+  refused): an occupant the card does not point at is detached; if its status
+  is live it is set `canceled` natively and the cancel is queued through
+  `mirror_outbox_enqueue` (operation `status`) for the ordinary outbound lane —
+  never a direct Linear call from SQL; a terminal occupant is only detached.
+  Each eviction is a `crosswalk_occupant_evicted` event naming both issues and
+  is in the receipt. Without the flag `slot_occupied` is still a refusal. An
+  occupant naming the **same** issue as the card is refused
+  (`occupant_same_issue`) with or without the flag — that is two projections of
+  one issue. The row the card's other slot points at is never an occupant.
+* The bind now writes its own `crosswalk_bound` event (with `kind_before`) and
+  bypasses the ledger guard only around writes that record a richer event,
+  restoring whatever the caller had set.
+
+Re-measured under the ruling, same 107 slots: **82 bind on their own, 18 bind
+with eviction (0 same-issue, all 18 occupants native-born), 5
+already-bound-elsewhere, 1 client mismatch, 1 identity unproven.** 100 of 107
+unattended; 7 for a person, as before.
+
+### Still open
+
+* **The mechanism that makes shells.** Creating a card natively creates a
+  Linear issue; linking that card to an existing issue afterwards leaves the
+  auto-made one attached and alive. Item 156 cleans up the 18 that exist; it
+  does not stop the next one. The link action should retire (or never create)
+  the auto-made row when the card is pointed elsewhere — a separate change,
+  not attempted here.
+* Applying the migration and running the 100 calls is the owner's dispatch
+
+### The runner (same day, later)
+
+`scripts/crosswalk-phase2-runner.js`, `.github/workflows/crosswalk-phase2-repair.yml`,
+`test/crosswalk-phase2-runner.js`. Plan/apply lane in the F42 comment-import
+shape (pinned commit on main, production Environment, confirm token
+`REPAIR_CROSSWALK_PHASE2`, plan-digest drift guard, result document
+runner-local). It forecasts each mismatching slot with the RPC's questions in
+the RPC's order, sends `evict_occupant='card_wins'` only where an occupant
+holds the slot, and carries the legacy thread in `p_comments` planned by the
+F42 import planner against the post-bind crosswalk — a thread the planner
+cannot plan cleanly holds the slot back (`thread_not_plannable`) instead of
+binding without its conversation. The owner's three steps are in
+`CROSSWALK_REPAIR_STRATEGY.md` §5..
+### First live apply (same day, 19:3x UTC) — 89 of 100, and the 11 that were refused
+
+The owner applied the migration, ran `plan` (the forecast to the number), then
+`apply`. Result: **89 slots bound, 7 occupants detached, 97 comments imported,
+23 already linked, 11 refused** — precisely the 11 evictions whose occupant was
+still live (6 Kasper approval, 4 scheduled, 1 tweak), i.e. every call that took
+the *cancel* branch. Nothing was half-written: each refused call rolled back
+whole, and the 11 slots are still bindable.
+
+The refusal was `f27_authority_generation_stale:video` from
+`track_b_f27_hold_guard` — the F27 outbox fence installed live on 2026-08-02.
+The F27 `mirror_outbox_enqueue` reads the team's authority generation from the
+reserved payload key `_f27_authority_generation` and stores -1 when it is
+absent; the BEFORE INSERT guard then refuses any pending intent whose
+generation is not the team fence. The RPC's cancel branch enqueued without the
+binder, and the rehearsal chain (eight migrations, none of them F27) could not
+see it. The runner's receipt made it worse by keeping only the SQLSTATE
+("P0001 11") and dropping the message.
+
+Fixed, all in one PR: the RPC mints the binder exactly as the gateway does
+(`track_b_f27_write_authorization(team)` → `generation`), asserts authority
+with `production_assert_authority` before enqueueing, and — if the occupant's
+team is not SyncView-authoritative — detaches only
+(`detached_authority_linear`) instead of cancelling natively a status Linear
+owns. The rehearsal now installs the F27 outbox closure **verbatim from the
+migration by anchor** (rollback tables, outbox columns, the F27 enqueue, the
+hold guard and its trigger; the cut asserts the tokens it depends on) and adds
+the 2026-07-28 write-authorization migration to its chain, so it reproduces the
+live refusal for an intent without the binder and proves the fixed path passes
+with generation 0 carried and the key stripped. The runner now keeps the raise
+name, the SQLSTATE and the bounded message on every refusal. Re-applying the
+migration (SQL Editor, `create or replace`) and re-dispatching plan → apply at
+https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
+finishes the 11. Logged in `EXECUTION_LOG.md` (2026-09-05, Crosswalk Phase 2).

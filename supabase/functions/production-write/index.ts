@@ -5477,7 +5477,8 @@ async function ensureBatch(
   event: JsonMap,
   dedup: string,
   replay: boolean,
-): Promise<{ row: JsonMap; outboxId: number }> {
+  rootManifest?: JsonMap,
+): Promise<{ row: JsonMap; outboxId: number; expectedItems?: JsonMap[] }> {
   const { data, error } = await supabase.from("batches").select("*").eq("id", clean(row.id)).maybeSingle();
   if (error) throw new GatewayError(503, "batch_lookup_unavailable");
   if (data && (
@@ -5491,8 +5492,17 @@ async function ensureBatch(
     || clean(data.color) !== clean(row.color)
   )) throw new GatewayError(409, "intake_id_conflict");
   if (replay && !data) throw new GatewayError(500, "idempotent_result_missing");
-  const written = replay ? data : await rpc(supabase, "production_batch_write", { p_row: data || row, p_event: event });
-  return { row: parseJson(written), outboxId: await findOutboxId(supabase, dedup) };
+  // Check root intent even on receipt replay; the wrapper calls the original
+  // writer, preserving parent identity, authority checks and receipt keys.
+  const written = rootManifest
+    ? await rpc(supabase, "production_intake_root_begin", { p_row: data || row, p_event: event, p_manifest: rootManifest })
+    : replay ? data : await rpc(supabase, "production_batch_write", { p_row: data || row, p_event: event });
+  const result = parseJson(written);
+  return {
+    row: rootManifest ? parseJson(result.batch) : result,
+    outboxId: await findOutboxId(supabase, dedup),
+    ...(rootManifest ? { expectedItems: result.expected_items as JsonMap[] } : {}),
+  };
 }
 
 /* The planning-loop twin of ensureDeliverable's identity check. A row found
@@ -6732,13 +6742,51 @@ async function handleIntakeCreate(
   // Every item, mapping, assignee, existing deterministic row, and dedup
   // fingerprint is validated above before the first native RPC commits.
   const firstParent = parentPlans[0];
+  // Private first-accepted intent, never returned to the browser. Whitelist
+  // caller-owned fields so credentials and unrelated properties are excluded.
+  // Resolved rows preserve content for a LATER reconstruction design only.
+  const intakeFields = (input: JsonMap, keys: string[]): JsonMap => Object.fromEntries(
+    keys.filter(key => Object.prototype.hasOwnProperty.call(input, key)).map(key => [key, input[key]]),
+  );
+  const rootManifest: JsonMap = {
+    request_id: requestId,
+    request_intent: {
+      batch: intakeFields(batchInput, ["name", "description", "notes", "filming_doc_url", "footage_folder_url", "delivery_folder_url", "color"]),
+      items: items.map(item => intakeFields(item, ["team", "title", "brief", "videoNumber", "number", "status", "assignee_id", "due_date", "priority", "card_id", "sort_key"])),
+    },
+    expected_items: plannedItems.map(item => ({
+      item_index: item.item_index, video_number: item.video_number,
+      source_brief: item.source_brief, row: item.row,
+      child_dedup: item.child_dedup, child_fingerprint: item.child_fingerprint,
+    })),
+  };
   const batch = await ensureBatch(
     supabase,
     batchRow,
     firstParent.event as JsonMap,
     clean(firstParent.dedup),
     firstParent.replay === true,
+    rootManifest,
   );
+  // An explicit identical resend may regenerate a different brief/attribution.
+  // The immutable first plan governs those fields; original receipt semantics,
+  // current authorization and F27 fences stay unchanged. This is not a recovery
+  // endpoint: the full original caller request was required and validated above.
+  if (!Array.isArray(batch.expectedItems) || batch.expectedItems.length !== plannedItems.length) {
+    throw new GatewayError(500, "intake_manifest_result_invalid");
+  }
+  for (let index = 0; index < plannedItems.length; index++) {
+    const planned = plannedItems[index];
+    const accepted = batch.expectedItems[index];
+    const acceptedRow = parseJson(accepted.row);
+    if (clean(acceptedRow.id) !== clean((planned.row as JsonMap).id)
+        || clean(accepted.child_fingerprint) !== clean(planned.child_fingerprint)) {
+      throw new GatewayError(500, "intake_manifest_result_invalid");
+    }
+    (planned.row as JsonMap).brief = acceptedRow.brief;
+    (planned.row as JsonMap).linear_raw = acceptedRow.linear_raw;
+    ((planned.child_outbound as JsonMap).payload as JsonMap).description = acceptedRow.brief || undefined;
+  }
   // One parent, so every child depends on the same outbox row whatever team
   // it belongs to. The map is kept rather than collapsed to a scalar because
   // the append path still routes per team through linear_parent_ids, and a

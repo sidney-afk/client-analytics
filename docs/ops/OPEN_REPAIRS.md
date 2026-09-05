@@ -12500,3 +12500,103 @@ three-level tree resolves as two posts, and a link on the middle row's bucket is
 not shared with its children's bucket unless they happen to coincide. Not
 regressed by this change (nothing shared across levels before either), not
 reported by anyone, and not fixed here.
+
+## 156. [2026-09-05, IMPLEMENTATION DRAFT, unapplied, disabled] Accepted native intake work is completed by the server, not by the browser that happened to submit it
+
+Owner-directed continuation of item 155's neighbour on the same day, the
+native-intake reliability evidence (PR1274, head `7d2812ac`), through the root
+manifest (PR1293, `5418ab56`) and the disabled native intake epochs (PR1302,
+`8cb5cba9`). Those two drafts left both materialization gates red: a root intake
+interrupted after its parent commit owed children that only the original
+browser payload could recreate, and every accepted intake owed a Calendar or
+Samples card that only the submitting tab ever wrote.
+
+### What this adds
+
+One additive migration, `migrations/2026-09-05-native-intake-reconcile.sql`, on top
+of PR1302, with two independently observable stages and two read-only readers:
+
+1. `production_intake_reconcile_children` recreates missing expected NATIVE
+   children from the immutable manifest through the unchanged
+   `production_deliverable_write`, with the original ids, brief, card plan, dedup
+   keys, fingerprints, accepted per-team epoch, original actor and role, and the
+   parent receipt as `depends_on_id`. The F27 fence and hold triggers, the native
+   receipt guard and authority run exactly as they do for the gateway. All or
+   nothing per request; readback of the facts, not of the RPC result.
+2. `production_intake_reconcile_cards` creates the missing card in the exact
+   browser shape the frozen writers receive today, or binds only an empty slot on
+   an existing card, and refuses archived, deleted, occupied, re-carded and
+   un-carded cases with a durable reason and an owner.
+
+Completion is a query over existing facts (manifest, deliverable rows, receipts,
+card slots). No new authority table. Reasons go to `deliverable_events` as
+`source='reconcile'` rows and are never read to decide completeness.
+
+`scripts/native-intake-reconcile/` holds the runner library (backlog paging,
+stage order, report) and a dry-run-by-default REST entry;
+`.github/workflows/native-intake-reconcile.yml` is manual-only with no schedule
+and refuses apply without an exact confirmation phrase. Nothing is installed,
+scheduled or dispatched.
+
+### What the proof showed
+
+`test/native-intake-reconcile.js`: 47 checks passed against the real gateway and
+real SQL on disposable PostgreSQL 16, provider unreachable throughout, zero
+provider or drainer requests. Interruption before the first and before the
+second child, response loss, two concurrent reconcilers, a reconciler racing the
+explicit gateway retry, epoch change after acceptance, partial backlog pages,
+existing card with an empty slot, occupied slot, human edits, archived and
+deleted cards, re-carded and un-carded deliverables, identity conflicts, open
+F27 hold and fence bump, Linear authority, provider-era request, archived batch,
+inactive client, samples surface, missing terminal receipt, roles, and the
+runner library including response loss. The inherited PR1293 and PR1302 suites
+are unchanged (41 plus 3, and 50), and their gateway readiness rows stay red on
+purpose: the gateway itself did not change.
+
+### Left open, on purpose
+
+- Provider-era children are reported, never recreated; the explicit gateway
+  retry owns them.
+- Pre-manifest requests are invisible here.
+- Installed and full serving are unproven; nothing touched a live database.
+- The card shape is proven against the frozen writers' repository source, not
+  their serving bodies; live-only constraints or triggers on the card tables are
+  not in the fixture.
+- Alerting is designed (owed counts, backlog age, conflicts, missing terminal
+  receipts, dead-man heartbeat), not delivered.
+
+Contract, evidence, release order, client-visible behaviour per step, rollback
+and the smallest next action: `docs/audits/2026-09-05-native-intake-reconcile.md`.
+
+### Corrected 2026-09-05, review of head `df3d032`
+
+Independent review found three release blockers in the first head, all real:
+
+1. The runner printed the whole report, request ids and raw RPC error bodies
+   into a public Actions log. Public output is now aggregate counts, allowlisted
+   reason codes and, only with a private hash key, keyed correlation tokens; the
+   full report can be written only to a file outside the repository; reasons are
+   bounded at the SQL source before they reach the anon-readable ledger. Proved
+   by running the actual CLI against a canary-seeded fake endpoint
+   (`test/native-intake-reconcile-cli.js`).
+2. The claim that a late original browser job is "a no-op" was false. The saved
+   job resends its complete initial row with no `comments_base_at`; the writer's
+   CAS never engages, and a person's rename, schedule, status and caption, or an
+   archive, were overwritten. Reproduced with the actual extracted browser
+   function through the repository writer sources (negative control B1). Closed
+   at the table layer, where old tabs and saved jobs also land: an append-only
+   card provenance table records each creation's initial signature inside the
+   writer transaction, and a BEFORE UPDATE guard recognises an update carrying
+   exactly that signature as the replay, keeps the human-owned fields and any
+   occupied slot, and lets the write proceed and be acknowledged. No writer body,
+   credential or refusal changed. This is a database behaviour change under the
+   frozen writers and is an explicit release hold pending owner review.
+3. "No card event row" was read as "never created", but both writers insert
+   events best-effort after the row commit. Reproduced (negative control P1: a
+   committed card whose event was lost, then deleted, was recreated). Never
+   created is now proved from the provenance table and an `installed` marker;
+   requests accepted before the marker are held, not recreated.
+
+Lane: 62 checks passed (47 first head, 15 review round). Still unproven: the
+serving v48/v49 bodies against these triggers, installed behaviour, provider-era
+child recovery, and any card created before the provenance install.

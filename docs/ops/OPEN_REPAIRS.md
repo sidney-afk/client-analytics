@@ -11977,8 +11977,11 @@ imply more than that:
   rehearsal; it SKIPS where the server binaries are absent, which is an
   environment fact, and CI's unit lane pins postgres:16.
 
-**NOT APPLIED. No live row has been repaired through it.** Written and applied
-are different states and item 147's phase table now separates them
+~~**NOT APPLIED. No live row has been repaired through it.**~~ *(Superseded
+later the same day: applied live by the owner twice and run to completion —
+100 slots repaired through it, 7 left for a person; item 156, "First live
+apply" and "Second live apply".)* Written and applied are different states
+and item 147's phase table separates them
 (`docs/ops/CROSSWALK_REPAIR_STRATEGY.md`, status block).
 
 ### The card pointer is not authority on its own
@@ -12748,10 +12751,11 @@ unattended; 7 for a person, as before.
   `crosswalk_bound` or `crosswalk_occupant_evicted`. So neither the 100 kept
   rows nor the 18 occupants can be restored to their exact pre-apply state from
   the ledger alone; the canonical comment rows and links can. Found by Codex on
-  #1307, twice. The fix is an Epoch 3 of the function that stores the five
-  binding fields plus `updated_at` and `status_at` as they were, in both
-  events — source-only until the owner applies it, and not needed for the 7
-  slots that remain (none is bindable). Both EXECUTION_LOG entries for
+  #1307, twice. The fix would be an Epoch 3 of the function that stores the
+  five binding fields plus `updated_at` and `status_at` as they were, in both
+  events — **planned, not written**: no migration, rehearsal case or test for
+  it exists yet, and it is not needed for the 7 slots that remain (none is
+  bindable). When written it is source-only until the owner applies it. Both EXECUTION_LOG entries for
   2026-09-05 say what is and is not recoverable.
 * ~~Applying the migration and running the 100 calls is the owner's dispatch~~
   — done 2026-09-05, twice (Epoch 1 at 19:3x, 89 of 100; Epoch 2 at 20:53, the

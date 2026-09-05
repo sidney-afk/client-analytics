@@ -616,7 +616,11 @@ function referenceScope(log, k, len) {
    governs every clause it introduces ("**Companions merged/dispatched the
    same day:** ...; `lane` dispatch (...)"). */
 const DISPATCH_DONE = /\b(dispatched|went out|deployed|redeployed|shipped|ran|passed|PASS|green|succeeded|success|successful|successfully|completed|went live|goes live|is live|now live)\b/i;
-const DISPATCH_AHEAD = /\b(until|pending|awaiting|await|next|future|upcoming|planned|planning|will|would|not yet|owed|instead of|rather than|without|to be dispatched)\b/i;
+/* Forward-looking or negating words. Tested against the clause with the lane
+   reference replaced by LANE, so "without a LANE dispatch" is caught while
+   "completed without errors" is not (Codex, twenty-second round on #1306:
+   a bare "without" read a completed run as a plan). */
+const DISPATCH_AHEAD = /\b(until|pending|awaiting|await|next|future|upcoming|planned|planning|will|would|not yet|owed|instead of|rather than|to be dispatched|without (?:a |the |any |ever )?(?:LANE )?(?:dispatch|dispatching|run|running))\b/i;
 function recordsADispatch(log, k, len) {
     const scope = referenceScope(log, k, len);
     const span = log.slice(scope.from, scope.to);
@@ -629,6 +633,7 @@ function recordsADispatch(log, k, len) {
     }
     const clause = span.slice(cStart, cEnd);
     if (/\bNOT DISPATCHED\b/i.test(clause)) return null;
+    const before = span.slice(cStart, rel);
     const after = span.slice(rel + len, cEnd);
     const rm = after.match(/\brun\s+`?#?(\d{6,})/i);
     /* A plan can name the run it expects ("will run `X` after approval", "the
@@ -636,8 +641,8 @@ function recordsADispatch(log, k, len) {
        that run id in the clause makes it a plan (Codex, twenty-first round on
        #1306). One after the run id does not ("went out (run `X`), which will
        need a fresh capture"). */
-    if (rm) return DISPATCH_AHEAD.test(span.slice(cStart, rel) + ' ' + after.slice(0, rm.index)) ? null : { run: rm[1] };
-    if (DISPATCH_AHEAD.test(clause)) return null;
+    if (rm) return DISPATCH_AHEAD.test(before + ' LANE ' + after.slice(0, rm.index)) ? null : { run: rm[1] };
+    if (DISPATCH_AHEAD.test(before + ' LANE ' + after)) return null;
     if (DISPATCH_DONE.test(clause)) return { run: '' };
     const lead = cStart > 0 ? span.match(/^[^.;!?]*?:\**(?=\s)/) : null;
     return lead && DISPATCH_DONE.test(lead[0]) && !DISPATCH_AHEAD.test(lead[0]) && !/\bNOT DISPATCHED\b/i.test(lead[0]) ? { run: '' } : null;

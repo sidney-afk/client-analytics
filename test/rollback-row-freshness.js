@@ -1382,6 +1382,31 @@ ok(brokenMidRun.code === 1 && brokenMidRun.json && brokenMidRun.json.receipts ==
     && brokenMidRun.json.failures.some(f => /"2026-09-06 — companion release"/.test(f) && /carries 1 attestation block\(s\) this guard cannot read/.test(f)),
     'and a broken paste in the MIDDLE of the log (inside the 2026-08-05 container) is named without swallowing the attestation blocks that follow it: every one of the 19 real receipts is still read');
 
+/* ---- 8v. "without errors" is not "without a dispatch" (round twenty-two) ---- */
+const laneWithoutErrors = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` completed without errors (run `33995000000`), carrying',
+    '`production-write` v69.',
+    '',
+].join('\n');
+const laneWithoutErrorsRun = run(fixture('lane-without-errors', appended(laneWithoutErrors), realRb));
+ok(laneWithoutErrorsRun.code === 1 && laneWithoutErrorsRun.json
+    && laneWithoutErrorsRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    '"WITHOUT ERRORS" IS A COMPLETION, NOT A PLAN: a companion run recorded as completed without errors, with its run id, FAILS');
+const laneWithoutDispatch = [
+    '',
+    '## 2026-09-06 — Quiet day',
+    '',
+    'The day closed without a `deploy-onboarding-edge-functions` dispatch; the merged closure',
+    'stays inert until Monday.',
+    '',
+].join('\n');
+const laneWithoutDispatchRun = run(fixture('lane-without-dispatch', appended(laneWithoutDispatch), realRb));
+ok(laneWithoutDispatchRun.code === 0,
+    'while "without a `lane` dispatch" is the negation it looks like, and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

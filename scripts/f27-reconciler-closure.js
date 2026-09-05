@@ -107,7 +107,9 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   '.github/workflows/linear-deliverables-reconcile.yml':
     'f68282ca573ffce07ec53698b19498bfd6d6d84cdfcaf0f0c9a271bad9946681',
   'package.json':
-    '3f0e7d8dd25a3954ab2107764f025613180568fde8ecbeb1d60080a7af7d8c62',
+    // 2026-09-05: reviewed initial Samples fixture script and pinned SDK dev
+    // dependency only. Closure membership and CommonJS runtime unchanged.
+    '04d2b03623e9d4c1531849e7213e0f2c5633097fbfa6162485b0c32ca2573b77',
   // Re-pinned 2026-08-17: the linkage backfill's authority guard was split so
   // that filling a card's NULL deliverable slot is allowed under SyncView
   // authority (it only resolves a link the card already carries) while archive

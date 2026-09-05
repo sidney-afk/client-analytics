@@ -1,5 +1,13 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Unmerged draft, 2026-09-05 (native assignee eligibility):** on PR1302, assignment
+eligibility follows the server-resolved native epoch; a native lane never reads
+`production_assignee_eligibility` or the provider, a provider lane is unchanged.
+Inverse is the team's native epoch CAS alone: accepted native rows keep their
+assignee and manifest/receipt provenance, new requests return to the provider
+policy. No Live State entry changes. Evidence and gates:
+`docs/audits/2026-09-05-native-assignee-eligibility.md`.
+
 **Unapplied draft, 2026-09-05:** native-only intake depends on PR1293. Its behavior
 rollback disables new native admission while retaining the epoch-aware gateway,
 manifest epochs and terminal receipts for accepted work. Do not drop/truncate

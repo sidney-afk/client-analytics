@@ -1,5 +1,12 @@
 # Root manifest proof
 
+The native assignee slice adds `node test/native-assignee-eligibility.js`
+(same opt-in and loopback rules) driving `assignee-lane.mjs`: the real handler's
+explicit/automatic assignment journeys on both lanes with the provider transport
+denied, a `fault-shim.mjs` wrapper so one flag read can fail at the handler, and
+a second fresh-database run against the exact PR1302 head as a negative control.
+See `docs/audits/2026-09-05-native-assignee-eligibility.md`.
+
 The dependent disabled-native slice adds `node test/native-only-intake.js` using
 the same loopback configuration and exact handler/SQL transport. It runs the
 repository F27 enqueue/hold write-fence subset too; the full installer and live

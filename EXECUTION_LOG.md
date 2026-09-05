@@ -2,6 +2,20 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Draft native assignee eligibility on PR1302, no live action
+
+Built on PR1302 `8cb5cba91bc33fb17599b8f2a38625ae07f7743d` (over PR1293
+`5418ab5618595d9469f0527bd94623e9229a637e`) in the isolated branch
+`claude/native-assignee-eligibility-q8o1jd`; remote main recorded at
+`3d534cfa5598ef16e61c5ee7dc8072afaa9963c7` and not merged. Assignment eligibility
+and automatic selection now follow the server-resolved native epoch: a native
+lane consults neither `production_assignee_eligibility` nor Linear, a provider
+lane is byte-for-byte unchanged. Real-handler lane on disposable PostgreSQL with
+denied provider transport: 40 checks pass, 22 native journeys with zero provider
+requests, PR1302-head negative control fails as required. No merge, deploy, flag
+update, live read or write, n8n change or credential use. Scope, evidence, gates
+and inverse: `docs/audits/2026-09-05-native-assignee-eligibility.md`.
+
 ## 2026-09-05 — Draft disabled native-only intake, no live action
 
 Built on PR1293 `5418ab5618595d9469f0527bd94623e9229a637e` in an isolated worktree.

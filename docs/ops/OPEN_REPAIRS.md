@@ -12500,3 +12500,36 @@ three-level tree resolves as two posts, and a link on the middle row's bucket is
 not shared with its children's bucket unless they happen to coincide. Not
 regressed by this change (nothing shared across levels before either), not
 reported by anyone, and not fixed here.
+
+## 157. [2026-09-05, DRAFT — unmerged, disabled by default, on PR1302] Explicit and automatic assignment still asked Linear on a native-admitted intake
+
+Numbered against current main (156 is its last item); this branch is based on
+PR1302, so check for a duplicate header at integration.
+
+**Symptom.** With a team admitted natively (PR1302's `native_intake_epochs`), a
+Submit or Create Post that named an editor still ran
+`assertEligibleAssignee -> assigneeEligibilityContext -> assigneeProviderPool`,
+because `production_assignee_eligibility` missing, unreadable or strict meant
+"provider mapping required", which meant one Linear `users` read. Linear down
+refused the request (zero partial commit, correct) for work that would never
+drain to Linear. The automatic path had a second, silent provider-era rule:
+`autoAssigneeForIntake` dropped any active member without a stored
+`linear_user_id`, on every intake with no explicit editor.
+
+**Fix (draft).** `assigneeLanePolicy` in `policy.mjs`: the server-resolved native
+epoch decides the lane; a native lane never reads the flag or the provider and
+keeps active/role/team checks; a provider lane is unchanged, strictest on
+absence. The automatic filter follows the same policy. `nativeAssigneeCatalogReadiness`
+plus `scripts/native-assignee-catalog-dryrun.js` report roster readiness as
+counts. Real-handler lane with denied provider transport and a PR1302-head
+negative control: `test/native-assignee-eligibility.js`. Full note:
+`docs/audits/2026-09-05-native-assignee-eligibility.md`.
+
+**Left open on purpose.** (a) The Create Post dialog still filters its editor
+pool to mapped editors in the browser; on a native lane with an unmapped freest
+editor its suggestion and the server default can differ, so a native epoch must
+not be enabled while the dry-run's `provider_lane_would_refuse` is non-zero
+unless the picker moves to a server projection. (b) A credentialless public
+Submit may carry an explicit video `assignee_id` and is accepted on both lanes
+(authorization scope, pre-existing, not changed here). (c) SyncLinear non-null
+assignee, Production create and both pickers stay provider-dependent.

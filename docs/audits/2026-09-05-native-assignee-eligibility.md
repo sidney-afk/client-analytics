@@ -1,3 +1,39 @@
+### Validation record (exact runs, UTC)
+
+Every run below is local, on a disposable loopback PostgreSQL 16 with
+`INTAKE_MANIFEST_REQUIRE_POSTGRES=1` and `F63_REQUIRE_POSTGRES=1`, in a shallow
+clone. Hosted CI had produced zero check runs and zero commit statuses on
+`3c40c0ae` at review time (first because the PR then targeted `main` with a
+conflict, then because the retarget itself starts no workflow); the runs after
+the correction are the first pushes against the new base, and their hosted
+result is reported in the PR, not here.
+
+- Full `npm test`, started 2026-09-05 ~21:23Z, finished 21:27:53Z, tree of
+  `4294f80` (first draft, before the PR1302 gate update): 403 of 405 pass.
+  Failed: `test/native-only-intake.js` (PR1302's held gate
+  `chosen-editor-provider-dependency-readiness-held` expected the provider
+  refusal that this draft removes) and `test/truth-sync.js` (16 freshness-commit
+  checks; identical failure set on the pristine PR1302 head in this shallow
+  clone, where the stamped commits are absent). Skipped: the artifact projection
+  PostgreSQL proof, by its own documented opt-in. That run was NOT green and is
+  not reported as green.
+- Focused `test/native-only-intake.js`, 21:29:04Z, tree of `77c6ad5` (gate
+  replaced by `chosen-editor-native-no-provider`): 50 pass, exit 0, readiness key
+  PASS. The two materialization keys stay FAIL there as before.
+- Corrected assignee lane, `test/native-assignee-eligibility.js`, 22:18:30Z to
+  22:19:27Z, tree of `63ea7e0`: positive 48 pass / 0 fail / 25 native journeys;
+  negative control against exact PR1302 head 22 pass / 26 fail, asserted.
+- Full `npm test` on the re-pinned head `271c2e6`: started 22:20:11Z, finished
+  22:24:59Z, exit 1: 405 of 406 suites pass. Failed: `test/truth-sync.js` only,
+  the same 16 freshness-commit checks with a failure set identical to the
+  pristine PR1302 head in this shallow clone (environment, not regression).
+  Skipped: the artifact projection PostgreSQL proof, by its documented opt-in.
+  `test/native-only-intake.js` 50 pass; `test/native-assignee-eligibility.js`
+  48 pass / 25 native journeys with the negative control asserted;
+  `test/native-assignee-catalog-dryrun.js` and `test/native-assignee-policy.js`
+  pass. The commit carrying this paragraph is documentation only; the closure
+  and every test file are those of `271c2e6`.
+
 # Native assignee eligibility and selection (draft, disabled by default)
 
 Status: draft source and local proof only. Unmerged, undeployed, no flag moved,
@@ -199,49 +235,41 @@ in the native journeys. The run is repeated as a negative control against the
 exact PR1302 head handler on a fresh database, which must fail its native
 chosen-editor journeys; that is what proves the lane observes the handler.
 
-Positive lane: 40 checks pass, 0 fail, 22 native journeys with zero provider
-requests each (refusals included). Covered: provider-lane baseline (project read
+Positive lane at the corrected head: 48 checks pass, 0 fail, 25 native journeys with
+zero provider requests each (refusals included). The original 40 checks and the
+22 native journeys are all retained; the eight additions are the reviewed cases
+and the provider contract controls. Covered: provider-lane baseline (project read
 refused first when Linear is fully down; chosen editor refused at the pool with
 zero commit when only the pool is unreachable; accepted with the pool read when
 Linear is up; unmapped refused 409; automatic excludes unmapped; unreadable flag
-stays strictest; retired flag drops the pool read; unmapped graphics default
-refused 409), native lane (mapped and unmapped chosen editor accepted with
-terminal receipts; inactive, wrong-role, wrong-team and unknown refused 403 with
-zero commit; graphics override and two-editor requests still refused 400;
-automatic video balances over every active editor and picks the unmapped freest
-one; unmapped default designer assigned; both teams automatic; flag missing,
-malformed, strict and unreadable with the flag never read; public intake
-automatic), concurrency (two distinct requests naming one editor; one identical
-pair yields one durable row), replay across epoch disable, strict flag and new
-epoch with an immutable manifest, lost response after the child commit recovered
-under a disabled epoch with the original assignee, replay after member
-deactivation refused with rows retained, the SyncLinear `assignee` operation
-(non-null refused while Linear is down; null unassign succeeds with zero Linear
-API calls; retired flag reassigns without a pool read), and preservation of every
-provider-era assignment across all of the above. Negative control against PR1302
-head: the native chosen-editor journeys fail with `assignee_provider_unavailable`
-and the entry asserts that failure.
-
-PR1302's own lane (`native-only-lane.mjs`) recorded this defect as a held readiness
-gate, `chosen-editor-provider-dependency-readiness-held`, which expected the provider
-refusal. That one check is replaced by `chosen-editor-native-no-provider` (201, zero
-provider requests, the chosen editor on the row) and its readiness key now reports
-PASS; the old expectation is retained as the FAIL branch so a regression reads as the
-original defect. Every other PR1302 check is untouched: 50 pass, missing-child and
-missing-card materialization stay FAIL there as before.
-
-Full `npm test` on the final head with the disposable database required: 403 of 405
-suites pass. The two red suites are `test/truth-sync.js`, whose 16 freshness-commit
-failures are identical on the pristine PR1302 head in this shallow clone (the stamped
-commits are not present locally) and are an environment classification, not a
-regression; and, before the gate update above, `test/native-only-intake.js`, which
-now passes. One suite reports its documented SKIP (artifact projection PostgreSQL
-proof).
-
-Offline: `test/native-assignee-policy.js` pins the lane policy matrix, native
-verdicts, readiness aggregate and the gateway wiring. `test/production-write-gateway.js`
-keeps every prior assertion; one source pin was updated to the new call
-signature (`assertEligibleAssignee(..., team, nativeEpochByTeam[team])`).
+stays strictest; retired flag drops the pool read on the EXPLICIT path; unmapped
+graphics default refused 409), native lane (mapped and unmapped chosen editor
+accepted with terminal receipts; inactive, wrong-role, wrong-team and unknown
+refused 403 with zero commit; graphics override and two-editor requests still
+refused 400; automatic video balances over every eligible editor and picks the
+unmapped freest one; unmapped default designer assigned; both teams automatic;
+flag missing, malformed, strict and unreadable with the flag never read; public
+intake automatic), the two reviewed graphics-default cases on both lanes (sole
+active unmapped SMM default: native 409 with zero commit and readiness not ready,
+provider 409 control; designer default beside an unmapped SMM default: native
+assigns the designer with readiness ready and one eligible default, provider
+assigns the designer control; a MAPPED SMM default: provider lane admits it, the
+original contract, native lane refuses it by exact role), the provider automatic
+contract (retired flag still excludes unmapped automatic candidates; no flag read
+is attempted on the automatic provider path), concurrency (two distinct requests
+naming one editor; one identical pair yields one durable row), replay across
+epoch disable, strict flag and new epoch with an immutable manifest, lost
+response after the child commit recovered under a disabled epoch with the
+original assignee, replay after member deactivation refused with rows retained,
+the SyncLinear `assignee` operation (non-null refused while Linear is down; null
+unassign succeeds with zero Linear API calls; retired flag reassigns without a
+pool read), and preservation of every provider-era assignment across all of the
+above. Negative control against exact PR1302 head on a fresh database: 22 pass,
+26 fail; the native chosen-editor, native automatic and exact-role journeys fail
+there (the old handler admits a mapped SMM default natively and refuses the
+unmapped chosen editor through the provider), while the provider automatic
+contract checks PASS on both heads, which is what makes them base controls. The
+entry asserts the negative outcome.
 
 Two observations recorded, not changed, because they are authorization scope
 outside this slice: a credentialless public Submit may carry an explicit
@@ -251,9 +279,10 @@ operation remains provider-dependent by design until its own native lane exists.
 
 ## What staff and clients would see
 
-Nothing changes while both native epochs stay disabled: every assignment path is
-on the provider lane and behaves exactly as today, including the strictest
-reading of a missing flag. If a team's native epoch is later enabled through its
+While both native epochs stay disabled every assignment path is on the provider
+lane: explicit choices behave as today, including the strictest reading of a
+missing flag and the pre-existing retired-flag relaxation, and automatic choices
+keep the original stored-mapping contract with no flag read at all. If a team's native epoch is later enabled through its
 own gated process, Submit and Create Post on that team assign without any Linear
 call: an explicitly chosen active editor is accepted whether or not they carry a
 Linear mapping, the automatic pick balances over every active editor, and an
@@ -295,5 +324,11 @@ ownership manifest is unchanged.
 
 SyncLinear `assignee` (non-null), Production `create`, `assignee_options`,
 `create_options`, and the browser's Create Post editor pool read. Component fill
-assigns nothing. Labels, cards, manifests, materialization, mirror retirement,
+assigns nothing. This draft does not claim assignment independence. The next
+small required slice is an intake-aligned native picker projection: a protected
+gateway read that returns the same `nativeIntakePool` ranking the automatic
+path uses, so the Create Post dialog stops filtering by stored mapping in the
+browser and names the person the server will actually assign. Reassignment of
+existing work (the SyncLinear `assignee` operation) needs its own authoritative
+lane and receipt design and is not covered by an intake epoch. Labels, cards, manifests, materialization, mirror retirement,
 sub-issues and Workload are other owners' work and untouched.

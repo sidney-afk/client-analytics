@@ -61099,6 +61099,9 @@
     function _sxrWorkAcknowledge(owner, id, fields) {
         const record = owner.records.get(id);
         if (!record) return;
+        // A positive source acknowledgement establishes creation independently
+        // of newer field debt. Subsequent saves must use the field-patch path.
+        record.isNew = false;
         const edits = Object.assign({}, record.edits), fieldRevisions = Object.assign({}, record.fieldRevisions);
         Object.keys(fields || {}).forEach(k => {
             if (fieldRevisions[k] === fields[k]) { delete edits[k]; delete fieldRevisions[k]; }

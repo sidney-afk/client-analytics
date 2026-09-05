@@ -69,6 +69,33 @@ async function main() {
       assert.deepEqual(fields.pageErrors, []);
       console.log('PASS full-browser failed first field survives successful distinct field and fresh-context recovery');
     } finally { await fields.context.close(); }
+    const creation = await create();
+    try {
+      await creation.page.locator('button[onclick="addSxrBlankCard()"]').first().click();
+      await creation.page.locator('#sxrView .cal-fld-name').first().fill('Original created name');
+      for (let i=0; i<100 && !creation.held.length; i++) await creation.page.waitForTimeout(20);
+      assert.equal(creation.held.length, 1);
+      await creation.page.locator('#sxrView [data-fld="creative_direction"]').first().fill('Trailing direction');
+      await creation.page.locator('#sxrView .cal-fld-name').first().fill('Newer trailing name');
+      const first = creation.held.shift(), peerAsset = 'https://synthetic.invalid/peer-asset.mp4';
+      const receiver = { ...first.body.sample, asset_url: peerAsset };
+      await first.route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: true, sample: first.body.sample }) });
+      for (let i=0; i<100 && !creation.held.length; i++) await creation.page.waitForTimeout(20);
+      assert.equal(creation.held.length, 1);
+      const trailing = creation.held.shift();
+      assert.deepEqual(trailing.body.sample, { id: receiver.id, name: 'Newer trailing name', creative_direction: 'Trailing direction' });
+      const remaining = await creation.page.evaluate(() => Array.from(_sxrWorkView.records.values(), r => ({ isNew: r.isNew, edits: r.edits })));
+      assert.equal(remaining[0].isNew, false);
+      assert.deepEqual(remaining[0].edits, { name: 'Newer trailing name', creative_direction: 'Trailing direction' });
+      Object.assign(receiver, trailing.body.sample);
+      assert.equal(receiver.asset_url, peerAsset, 'trailing source patch preserves the peer-updated untouched asset');
+      await trailing.route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ ok: true, sample: receiver }) });
+      await creation.page.waitForFunction(() => !Object.keys(_sxrSaveInFlight).length);
+      assert.equal(await creation.page.evaluate(() => _sxrWorkView.records.size), 0);
+      assert.deepEqual(creation.pageErrors, []);
+      assert.equal(creation.network.unmocked.filter(r => r.method !== 'GET').length, 0);
+      console.log('PASS full-browser acknowledged creation uses a trailing field patch and preserves a peer asset');
+    } finally { await creation.context.close(); }
     for (const success of [false, true]) {
       const run = await create(); const { page } = run;
       try {

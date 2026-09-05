@@ -230,6 +230,38 @@ async function run(source = html) {
     assert.equal(fresh.s.sxrState.posts.length, 2);
     assert.equal(fresh.s._sxrWorkBindView().storageFailed, false);
   });
+  await test('acknowledged creation retains newer field debt but trailing patch preserves a peer asset', async () => {
+    const f = writerFixture(source), id = f.draft('Created name');
+    const creation = f.s._sxrFlushCardSave(id), server = { ...f.writes[0].body.sample };
+    f.type(server.id, 'Newer name');
+    f.s._sxrOnFieldInput({ dataset: { pid: server.id, fld: 'creative_direction' }, value: 'New direction' });
+    server.asset_url = 'https://synthetic.invalid/peer-asset.mp4';
+    f.pending.shift()(true); await creation;
+    const debt = JSON.parse(work(f)[0][1]);
+    assert.equal(debt.isNew, false, 'positive creation ack transitions metadata even with trailing debt');
+    assert.deepEqual(debt.edits, { name: 'Newer name', creative_direction: 'New direction' });
+    assert.deepEqual(f.writes[1].body.sample, { id: server.id, name: 'Newer name', creative_direction: 'New direction' });
+    Object.assign(server, f.writes[1].body.sample);
+    assert.equal(server.asset_url, 'https://synthetic.invalid/peer-asset.mp4');
+    f.pending.shift()(true); await f.s._sxrAwaitCardSave(server.id);
+    assert.equal(work(f).length, 0);
+  });
+  for (const ambiguous of [false, true]) await test((ambiguous ? 'lost-response' : 'failed') + ' creation still requires whole-card retry', async () => {
+    const f = writerFixture(source), id = f.draft('Retained creation');
+    const normalWriter = f.s._sxrUpsertFetchPinned;
+    if (ambiguous) f.s._sxrUpsertFetchPinned = async () => { throw new Error('synthetic lost response'); };
+    const creation = f.s._sxrFlushCardSave(id);
+    if (!ambiguous) f.pending.shift()(false);
+    await creation;
+    assert.equal(JSON.parse(work(f)[0][1]).isNew, true, 'failed or ambiguous response cannot establish creation');
+    f.s._sxrUpsertFetchPinned = normalWriter;
+    const retry = f.s._sxrRetrySave('fixture-new-1');
+    const body = f.writes.at(-1).body.sample;
+    assert.equal(body.client, 'fixture-a'); assert.equal(body.name, 'Retained creation');
+    assert.ok(Object.hasOwn(body, 'asset_url'), 'unacknowledged creation retains the whole-row retry contract');
+    f.pending.shift()(true); await retry;
+    assert.equal(work(f).length, 0);
+  });
   console.log(`Samples local work: ${passed} isolated lifecycle cases passed.`);
 }
 module.exports = { writerFixture, run };

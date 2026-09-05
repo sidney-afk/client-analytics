@@ -408,6 +408,8 @@ function backgroundHarness(options = {}) {
     '_wlOnNativeDueReceiptStorage',
     '_wlV2CheckWatermark',
     '_wlOnVisibilityChange',
+    '_syncviewStaffIdentitySignature',
+    '_syncviewStaffIdentityLoad',
     '_syncviewStaffIdentitySave',
     'initWorkloadView',
   ]) vm.runInContext(extract(name), context);

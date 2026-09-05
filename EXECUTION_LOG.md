@@ -6080,10 +6080,10 @@ longer carries the unused field.
 
 Owner report on one post: a Frame folder set on the parent appeared on none of
 its 32 sub-issues, and the raw footage the sub-issues showed appeared on no
-parent. Root cause measured live across all 6,330 browser-visible deliverables:
+parent. Root cause measured live across all 6,332 browser-visible deliverables:
 `footage_folder_url` and `delivery_folder_url` are columns on one `batches` row,
-and of 1,136 posts **109 span more than one batch row** (107 with a real parent
-row, stranding 351 child rows). The reported post has its parent on a `b1_b_`
+and of 1,138 posts **44 span more than one batch row**, stranding 141 rows off
+the bucket the post resolves first. The reported post has its parent on a `b1_b_`
 mirror batch and all 32 children on a native `bat_` batch.
 
 The 2026-09-01 borrow could not close it: it walked only downward, and it was
@@ -6116,8 +6116,8 @@ the write path and both real:
    rows — so clearing the Frame folder on the reported post would have written a
    blank over an already-blank column and the value would have reappeared, and
    replacing it would have left a stale duplicate. The target is per slot now.
-2. The target could be a batch row carrying another post's work (73 of 1,127
-   buckets hold more than one post; one holds seven), which would have put a
+2. The target could be a batch row carrying another post's work (43 of 1,567
+   buckets hold more than one post; one holds ten), which would have put a
    link saved on one post onto posts nobody was looking at while the editor said
    "shared by the whole post". A shared bucket is no longer offered for an empty
    slot, and unknown exclusivity offers nothing.

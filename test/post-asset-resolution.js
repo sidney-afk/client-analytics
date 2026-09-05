@@ -8,9 +8,9 @@
  * frame folder from anywhere, sub-issue or parent issue, it should appear
  * everywhere, and same for the raw footage."
  *
- * MEASURED LIVE THAT DAY, over all 6,330 browser-visible deliverables:
- *   - of 1,136 posts (a parent uuid carrying at least one child), 109 span more
- *     than one `batches` row; 107 of those have a real parent deliverable row;
+ * MEASURED LIVE THAT DAY, over all 6,332 browser-visible deliverables:
+ *   - of 1,138 posts (a key carrying at least one child), 44 span more than
+ *     one `batches` row, stranding 141 rows off the bucket resolved first;
  *   - on the reported post the parent is a B1 row on the mirror batch
  *     `b1_b_...` and all 32 sub-issues are native rows on `bat_...`;
  *   - 41 of the 109 have a canonical row that also serves another post.
@@ -261,7 +261,7 @@ const NATIVE = { id: 'bat_native', client_slug: 'acme', filming_doc_url: PLAN, f
       deliverable: PARENT, roster: [{ batch_id: 'b1_b_only' }], siblingBatches: [],
     });
     ok(out.queries.length === 1 && out.postRawFootage.value === FOOTAGE,
-      'a post that sits on ONE batch row -- 1,027 of the 1,136 measured -- reads its own row and makes no second query, so the common case pays nothing');
+      'a post that sits on ONE batch row -- 1,094 of the 1,138 measured -- reads its own row and makes no second query, so the common case pays nothing');
   }
 
   {
@@ -320,8 +320,8 @@ const NATIVE = { id: 'bat_native', client_slug: 'acme', filming_doc_url: PLAN, f
 
   {
     /* A BUCKET SHARED WITH ANOTHER POST IS NEVER OFFERED AS A TARGET.
-       73 of 1,127 batch rows measured 2026-09-05 hold more than one post; one
-       holds seven. Naming one as a write target would put a link saved here on
+       43 of 1,567 batch rows measured 2026-09-05 hold more than one post; one
+       holds ten. Naming one as a write target would put a link saved here on
        posts nobody was looking at, while the editor says "shared by the whole
        post". Raised by review on #1287 before this reached a deploy. */
     const EMPTY_A = { id: 'bat_shared', client_slug: 'acme' };

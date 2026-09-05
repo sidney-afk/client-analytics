@@ -887,8 +887,8 @@ issue, it should appear everywhere, and same for the raw footage."
 
 -   **Candidate behavior.** Both slots are stored as columns on a `batches` row,
     and the rows of one post routinely sit on more than one. Measured across all
-    6,330 browser-visible deliverables: of 1,136 posts, **109 span more than one
-    batch row**, 107 with a real parent row, stranding 351 child rows. So the
+    6,332 browser-visible deliverables: of 1,138 posts, **44 span more than one
+    batch row**, stranding 141 rows off the bucket the post resolves first. So the
     panel was truthful about the row it read and useless about the post. The
     natural experiment is on the owner's own screen: of four slots the only one
     that AGREED between parent and sub-issue was the filming plan, the one slot
@@ -902,7 +902,7 @@ issue, it should appear everywhere, and same for the raw footage."
     batch rows native-`bat_`-first then id ascending — the tie-break the
     projection already applies to competing parent claims — and answers **per
     slot**. Correctness does not need the tie-break to pick the right row, only
-    every seat to pick the same row. A post on one batch row (1,027 of 1,136)
+    every seat to pick the same row. A post on one batch row (1,094 of 1,138)
     makes no extra query; a failed resolution degrades to what the row showed
     before, never to `Missing`. A value held on another row of the post renders
     a **"from the post"** origin chip, the same way a bound card and a client
@@ -910,7 +910,7 @@ issue, it should appear everywhere, and same for the raw footage."
 -   **The write moved with the read, per slot.** A slot is written where its
     value already lives; an empty slot takes the first bucket belonging to this
     post alone; when none qualifies the browser writes the row it is on. **73 of
-    1,127 buckets hold more than one post** (one holds seven), so a shared bucket
+    1,567 buckets hold more than one post** (one holds ten), so a shared bucket
     is never offered as the target for an empty slot — the editor promises post
     scope and must not quietly reach another post. A read-only fix was rejected:
     it manufactures new splits as its normal mode of operation.

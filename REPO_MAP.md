@@ -8,6 +8,13 @@ commit as any structural change.
 
 ## Top level
 
+Samples recovery prerequisite: `scripts/samples-recovery-build.js` creates a
+guarded, offline reader inverse without changing the checkout. The operating
+constraints and pinned receipts live in `docs/ops/SAMPLES_RECOVERY_REHEARSAL.md`.
+`test/samples-recovery-build.js` checks drift refusals and unverified read behavior;
+`qa/boot/samples-recovery-rehearsal.js` exercises actual forward/recovery/forward
+documents with intercepted writes, owned receipt conservation and negative controls.
+
 Samples local-work correction: `test/samples-local-work.js` exercises held saves,
 reload recovery, client/actor ownership, storage failures and legacy mixed caches.
 `test/helpers/samples-work-context.js` loads the shipped recovery helpers for the

@@ -29,6 +29,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawnSync } = require('child_process');
 const {
   STAMP_MAX_AGE_DAYS,
@@ -134,11 +135,14 @@ ok(undatedReport.ok === false && undatedReport.reason === 'unjudgeable_rows',
 
 // --- 6. the exit code the workflow actually depends on -------------------------
 function runGate(markdown, asOf) {
-  const file = path.join(fs.mkdtempSync('/tmp/ledger-gate-'), 'LEDGER.md');
-  fs.writeFileSync(file, markdown);
-  const result = spawnSync(process.execPath, [SCRIPT, '--gate', '--ledger=' + file, '--as-of=' + asOf], { encoding: 'utf8' });
-  fs.rmSync(path.dirname(file), { recursive: true, force: true });
-  return result;
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ledger-gate-'));
+  const file = path.join(directory, 'LEDGER.md');
+  try {
+    fs.writeFileSync(file, markdown);
+    return spawnSync(process.execPath, [SCRIPT, '--gate', '--ledger=' + file, '--as-of=' + asOf], { encoding: 'utf8' });
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 }
 const greenRun = runGate(REAL, '2026-08-23');
 ok(greenRun.status === 0, 'the CLI gate exits 0 on the real ledger today');

@@ -12315,3 +12315,81 @@ a return value its callers were written to ignore.
 
 The prefix-free roster, the router-caller check and both Kasper guards are in
 `test/cal-review-needs-content.js`, all mutation-proven.
+
+## 155. [2026-09-05, EVIDENCE PACKAGE SHIPPED, no product change] Native intake without Linear: the three paths are provider-gated in front of every native write, and the only record of a card still owed is the browser that owed it
+
+Executable proof in `scripts/native-intake-reliability/` (unit entry
+`test/native-intake-reliability.js`, recorded run
+`docs/audits/2026-09-05-native-intake-reliability-results.json`), handoff in
+`docs/audits/2026-09-05-native-intake-reliability-handoff.md`. The REAL
+`production-write` handler, the REAL append/fill/replay RPCs and the REAL
+browser job machinery ran against a disposable PostgreSQL 16 with faults
+injected at each boundary. 62 current-behaviour checks green, 14 readiness
+checks red on purpose (strict mode: `NATIVE_INTAKE_READINESS_STRICT=1`).
+
+**What holds today.** One native result per request identity under a lost
+response, a gateway crash mid-request, two identical submissions held to the
+same commit instant, and two database sessions racing (replay, never a
+second row). A changed intent or actor on the same identity is refused. The
+browser checkpoints the native ids before the first card write, resumes only
+the remaining cards, and suspends a response that lands after an actor switch
+into a recovery copy the original actor finishes.
+
+**What does not.** Root intake, append and fill all read Linear
+(`projectForIntake`) before their first native write and refuse 503 when it is
+unreachable. Every native intake enqueues pending provider intents, and with
+outbound live the request itself calls the drainer. A native batch the drain
+never recorded cannot take a mixed append, and a terminal batch-create intent
+blocks even a video-only append. Card materialization is owned by the
+submitting browser alone: after storage loss nothing recovers it, and after
+four failed retries the browser deletes the only copy with a notice. Six page
+loads of a provider 503 delete an unsubmitted draft. Auto-assignment needs a
+provider user id on the roster. A provider-refused public submission still
+spends one of the twelve hourly slots.
+
+**The handoff maps each to its smallest change** (F1..F9 in the document):
+flag-gated removal of the provider read; terminal-at-insert provider intents
+(the outbox row stays, it is the idempotency receipt); an append RPC v8 that
+accepts a native parent the way the fill RPC already does; a scheduled
+materializer that derives owed cards from `deliverables` (no new table); the
+browser strike rule excluding `_unavailable` outages; the roster filter and
+eligibility flag; the public-intake log moved after validation. Rollout order,
+acceptance checks and recovery are stated per change.
+
+- Done when: the readiness ids in the results file are green under strict mode
+  and this entry links the PRs that cleared them.
+
+### Corrected 2026-09-05, review of head `3ac16e6`
+
+Two scenarios in the first head did not exercise what their labels claimed,
+and the handoff over-reached in four places. Both are fixed in the same draft
+PR; nothing above this subsection is rewritten.
+
+- **G2b** injected its fault AFTER the second child had committed, so "partial
+  commit" was asserting two children. It now interrupts before the second
+  child RPC: the batch and exactly one child are durable, the caller is told
+  the request failed, and the exact retry converges. At that boundary the
+  server holds the batch, one child and two intents, and nothing that names
+  the missing item: the batch intent carries a fingerprint, and the root path
+  writes no item-count event. A half-committed root intake is therefore
+  indistinguishable from a complete one-item intake (new red readiness check).
+- **The provider-denied fill** posted a root intake. It now builds a real
+  half-complete card, denies the provider and calls the fill: 503 after
+  exactly one provider request, no component, no intent, card link untouched.
+- **Readiness checks** were audited: the name-based schema search and the two
+  hardcoded `false` checks are gone. Every readiness id is now a behavioural
+  assertion (status, row count, request count), and requirements this package
+  cannot exercise are a separate `unproven` list that is never counted as a
+  pass: parity lane, inbound, scheduled and legacy workers, the assignee
+  override path, the 429 branch, recovery after browser loss. Counts: 63
+  current green, 13 readiness red, 7 unproven; strict mode verified exit 1.
+- **Handoff narrowed.** Terminal rows in the normal outbox lane prove nothing
+  about the parity lane, inbound cutoff or old workers (one drainer lane reads
+  `skipped` rows). The orphan-card join proves discoverability only; "no new
+  ledger needed" is withdrawn until reconstruction, incomplete child creation,
+  card ordering, concurrent edits and non-resurrection are shown. Browser
+  recovery records must not be deleted on error suffixes or retry counts while
+  a partial server commit is possible. The eligibility flag and the
+  public-intake rate accounting are owner policy decisions, not readiness
+  changes; role/team checks and repeated-rejection protection stay. No wording
+  instructs any scheduled writer to merge or activate.

@@ -664,6 +664,12 @@ ok(lanes.some(l => l.base === 'deploy-onboarding-edge-functions'),
 ok(!lanes.some(l => l.base.indexOf('section4') >= 0),
     'while the §4 lane itself is excluded, because its receipts are exactly what this guard reads');
 
+/* Both phrasings the unreadable-entry sweep uses: a table it could not parse
+   ("cannot read") and a deploy heading with nothing readable under it ("no
+   receipt this guard can read"). A negative that matched only one would pass
+   vacuously on the other. */
+const UNREADABLE = /no receipt this guard can read|this guard cannot read/;
+
 /* ---- 8b. a deploy entry the guard cannot read is NAMED, not skipped ------ */
 /* Codex P1 on #1306. The two 2026-09-05 deploys were logged with unquoted slugs,
    no run id in the heading and no attestation block; none of the three receipt
@@ -708,7 +714,7 @@ const readable = malformed
     .replace('| **production-write** | **69** |', '| `production-write` | 68 → **69** |');
 const readableRun = run(fixture('readable-entry', realLog + readable, realRb));
 ok(readableRun.code === 1 && readableRun.json
-    && !readableRun.json.failures.some(f => /cannot read/.test(f))
+    && !readableRun.json.failures.some(f => UNREADABLE.test(f))
     && readableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
     'the same entry in the parsed shape is READ: the unreadable finding goes away and the stale-row finding takes its place, which is the one the row is then fixed for');
 
@@ -761,7 +767,7 @@ const container = [
     '',
 ].join('\n');
 const containerRun = run(fixture('container-heading', realLog + container, realRb));
-ok(containerRun.json && !containerRun.json.failures.some(f => /cannot read/.test(f))
+ok(containerRun.json && !containerRun.json.failures.some(f => UNREADABLE.test(f))
     && containerRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v70/.test(f)),
     'a container heading that names Section 4 deploys over two READABLE subsections is not flagged -- the receipts under it count for it -- and the guard moves on to the row, which is stale');
 
@@ -783,7 +789,7 @@ ok(nestedRun.code === 1 && nestedRun.json
     'THE NESTED RIDE-ALONG: a ### heading that names a deploy under a Section 4 entry, with only prose beneath it, is required to carry its own receipt and is named when it does not');
 const nestedCommentary = nestedProse.replace('### Deploy #40 — RECORDED', '### What the first attempt taught');
 const commentaryRun = run(fixture('nested-commentary', realLog + nestedCommentary, realRb));
-ok(commentaryRun.json && !commentaryRun.json.failures.some(f => /cannot read/.test(f)),
+ok(commentaryRun.json && !commentaryRun.json.failures.some(f => UNREADABLE.test(f)),
     'while a nested heading under the same entry that does not name a deploy is commentary, and asks for nothing');
 const supersedes = nestedProse.replace('### Deploy #40 — RECORDED', '### Deploy #40 — supersedes run `33991332628`');
 const supersedesRun = run(fixture('nested-mention', realLog + supersedes, realRb));
@@ -801,7 +807,7 @@ ok(olderAt > 0 && afterOlder > olderAt, 'the real log has a 2026-08-31 entry fol
 const misordered = realLog.slice(0, afterOlder) + '\n' + malformed.replace('2026-09-06 — F27 Section 4 deploy, run #40', '2026-09-06 — F27 Section 4 deploy, run #41') + realLog.slice(afterOlder);
 const misorderedRun = run(fixture('misordered-new-entry', misordered, realRb));
 ok(misorderedRun.code === 1 && misorderedRun.json
-    && misorderedRun.json.failures.some(f => /\("2026-09-06 — F27 Section 4 deploy, run #41/.test(f) && /cannot read/.test(f))
+    && misorderedRun.json.failures.some(f => /\("2026-09-06 — F27 Section 4 deploy, run #41/.test(f) && UNREADABLE.test(f))
     && !misorderedRun.json.notes.some(n => /run #41/.test(n)),
     'a brand-new unreadable `##` deploy entry written after an OLDER entry is dated by its own heading (2026-09-06) and FAILS -- it is not softened into history by the 2026-08-31 entry above it');
 
@@ -810,7 +816,7 @@ ok(misorderedRun.code === 1 && misorderedRun.json
    names Section 4 only in the body: "**Section 4 forward from `<sha>`, run
    `<id>`, PASS.**". A heading-only rule never saw such an entry, so one written
    with an unparseable run id vanished. Section 4 in the BODY now counts. */
-const concise = [
+const conciseEntry = [
     '',
     '## 2026-09-06 — Deploy: the reuse window widened',
     '',
@@ -819,15 +825,15 @@ const concise = [
     'three were byte-identical redeploys.',
     '',
 ].join('\n');
-const conciseRun = run(fixture('concise-unreadable', realLog + concise, realRb));
+const conciseRun = run(fixture('concise-unreadable', realLog + conciseEntry, realRb));
 ok(conciseRun.code === 1 && conciseRun.json
-    && conciseRun.json.failures.some(f => /\("2026-09-06 — Deploy: the reuse window widened"\) reads as a Section 4 deploy/.test(f) && /cannot read/.test(f)),
+    && conciseRun.json.failures.some(f => /\("2026-09-06 — Deploy: the reuse window widened"\) reads as a Section 4 deploy \(Section 4 named in its body\)/.test(f) && UNREADABLE.test(f)),
     'THE CONCISE LAYOUT: a generic "Deploy" heading whose body claims a Section 4 forward with an unparseable run id is named as unreadable, because Section 4 in the body counts');
-const unrelated = concise
+const unrelated = conciseEntry
     .replace('## 2026-09-06 — Deploy: the reuse window widened', '## 2026-09-06 — Deploy notes for the website')
     .replace(/\*\*Section 4 forward[^\n]*\n[^\n]*\n[^\n]*\n/, 'Pages redeployed the site from main; nothing about the four functions.\n');
 const unrelatedRun = run(fixture('unrelated-deploy-heading', realLog + unrelated, realRb));
-ok(unrelatedRun.json && !unrelatedRun.json.failures.some(f => /cannot read/.test(f)),
+ok(unrelatedRun.json && !unrelatedRun.json.failures.some(f => UNREADABLE.test(f)),
     'while a "Deploy" heading whose body never names Section 4 is some other lane\'s business and asks for nothing');
 
 /* ---- 9. the real repository -------------------------------------------- */
@@ -836,7 +842,7 @@ const real = run(ROOT);
 ok(real.code === 0, 'and the repository as it stands right now is consistent');
 ok(real.json && real.json.notes.some(n => /Deploys #9-#13 — GAP/.test(n) && /predates the newest readable receipt/.test(n)),
     'the historical "Deploys #9-#13 — GAP" section, whose four un-receipted runs can never be read, is a NOTE rather than a failure because its entry predates the newest receipt -- an old gap cannot make the row stale, and a guard that failed on it forever would be ignored');
-ok(real.json && !real.json.failures.some(f => /cannot read/.test(f)),
+ok(real.json && !real.json.failures.some(f => UNREADABLE.test(f)),
     'and every Section 4 deploy entry in the real log is one the guard can read, today included');
 
 fs.rmSync(tmp, { recursive: true, force: true });

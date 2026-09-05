@@ -528,7 +528,8 @@ function unreadableDeployEntries(log, receiptPositions, newestDate) {
                 +  'the EXECUTION_LOG.md section at line ' + line + ' ("' + heading + '") '
                 + (unreadableRows
                     ? 'carries ' + unreadableRows + ' versions-table row(s) this guard cannot read'
-                    : 'reads as a Section 4 deploy' + (namesSection4(h.text) ? '' : ' (under a Section 4 heading)')
+                    : 'reads as a Section 4 deploy' + (namesSection4(h.text) ? ''
+                        : underSection4 ? ' (under a Section 4 heading)' : ' (Section 4 named in its body)')
                         + ' but holds no receipt this guard can read, in it or under it')
                 + ': quote the four slugs in the table (`production-write`, not production-write or'
                 + ' **production-write**), put the run id in the heading as run `<id>`, write "dispatched from'

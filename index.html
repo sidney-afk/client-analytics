@@ -40854,6 +40854,7 @@
                         <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta">"${_calEsc(_linearIntakeBatchTitle(state.clientName, state.surface))}" · adds this post to it</span></span>
                     </label>${prevBatchHtml}
                 </div>
+                <div data-native-intake-recovery="${_calEsc(state.clientSlug)}">${_linearIntakeRecoveryHtml(state.clientSlug)}</div>
                 <div class="cal-native-batch-error" id="calNativePostError" hidden></div>
             </div>
             <div class="cal-import-foot">
@@ -40883,8 +40884,8 @@
         if (code === 'intake_assignee_override_not_allowed') return 'Choosing a different editor is not live on this workspace yet. Leave the suggested editor selected to create the post now, or reassign it in Production afterwards.';
         if (code === 'intake_assignee_override_conflict') return 'This post asked for two different editors at once. Reopen Create Post and choose one.';
         if (code === 'assignee_not_eligible' || code === 'assignee_ineligible') return 'That editor cannot take this work right now. Choose someone else.';
-        if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake before starting a different one.';
-        if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Reload the page and try again; it stops retrying on its own.';
+        if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake with Retry saved request before starting a different one.';
+        if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Use Retry saved request to recover it; automatic retries are limited.';
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
         if (code === 'legacy_parity_disabled' || code === 'team_is_linear_authoritative') return 'Native Create Post is still locked for this team. No post was created.';
@@ -41177,13 +41178,16 @@
                 : savedWhat + ' in the selected batch.');
         } catch (error) {
             console.warn('[SyncView] Calendar native Create Post failed:', error);
-            const saved = _linearIntakeRead();
-            if (Number(error && error.status) >= 400 && Number(error && error.status) < 500 && !(saved && saved.result)) {
-                _linearIntakeRemoveIfCurrent(pending && pending.payload && pending.payload.request_id);
-            }
+            // A 4xx can follow an earlier partial commit; preserve the exact request.
             overlay.dataset.busy = '0';
             if (button) { button.disabled = false; button.textContent = 'Create post'; }
-            if (errorBox) { errorBox.hidden = false; errorBox.textContent = _calNativePostErrorText(error); }
+            if (errorBox) {
+                const saved = _linearIntakeRead();
+                errorBox.hidden = false;
+                errorBox.textContent = saved && saved.dispatch_started !== false
+                    ? _linearIntakeRecoveryText(saved) + ' Use Retry saved request when ready. If recovery keeps failing, ask staff to check this request.'
+                    : _calNativePostErrorText(error);
+            }
         }
     }
 
@@ -46108,6 +46112,7 @@
                     <button class="linear-submit-btn secondary" id="linearSubmitBtnVideo" onclick="submitLinearForm('video')">Video issue only</button>
                     <button class="linear-submit-btn secondary" id="linearSubmitBtnThumbnail" onclick="submitLinearForm('thumbnail')">Thumbnail issue only</button>
                 </div>
+                <div data-native-intake-recovery="">${_linearIntakeRecoveryHtml()}</div>
                 <div class="linear-status" id="linearStatus"></div>
             </div>
         </div>`;
@@ -46222,7 +46227,8 @@
         try {
             const requestId = _linearIntakeJobId(job);
             if (!requestId) return false;
-            const current = _linearIntakeRead();
+            // An unreadable existing record is not an empty slot.
+            const current = JSON.parse(localStorage.getItem(NATIVE_INTAKE_PENDING_KEY) || 'null');
             if (current && _linearIntakeJobId(current) !== requestId) return false;
             if (!current && !(options && options.allowCreate === true)) return false;
             const payload = JSON.stringify(job);
@@ -46246,7 +46252,7 @@
                 if (typeof _kasperCalCachePrune === 'function') _kasperCalCachePrune('');
                 localStorage.setItem(NATIVE_INTAKE_PENDING_KEY, payload);
             }
-            return _linearIntakeJobId(_linearIntakeRead()) === requestId;
+            return localStorage.getItem(NATIVE_INTAKE_PENDING_KEY) === payload;
         } catch (e) { return false; }
     }
     function _linearIntakeRemoveIfCurrent(requestId) {
@@ -46289,7 +46295,10 @@
         // `typeof` rather than a bare read: this runs from job-resume paths, and
         // an uninitialised flag must resolve to "not the client link" so the
         // strict staff binding below still applies. Fails CLOSED, never open.
-        if (typeof _isIntake !== 'undefined' && _isIntake) return null;
+        if (typeof _isIntake !== 'undefined' && _isIntake) {
+            if (job && job.context && job.context.initiating_actor_id) throw _linearIntakeActorError(403, 'native_intake_actor_mismatch');
+            return null;
+        }
         const context = job && job.context || {};
         const actorId = String(context.initiating_actor_id || '');
         if (!actorId) throw _linearIntakeActorError(403, 'native_intake_actor_unbound');
@@ -46307,10 +46316,12 @@
     function _linearIntakeRecoveryCopy(job) {
         const payload = job && job.payload || {};
         const result = job && job.result || {};
+        const accepted = result.native_committed === true;
         return {
             version: 3,
             signature: 'recovery:' + String(payload.request_id || ''),
             recovery_only: true,
+            requires_original_payload: !accepted,
             suspended: true,
             payload: {
                 operation: 'intake_create', surface: String(payload.surface || 'submission'),
@@ -46333,7 +46344,7 @@
                 materialization_source: String(job && job.context && job.context.materialization_source || ''),
                 batch_choice: String(job && job.context && job.context.batch_choice || '')
             },
-            result: {
+            result: accepted ? {
                 ok: true, native_committed: true,
                 batch: result.batch && result.batch.id ? { id: result.batch.id } : null,
                 items: (Array.isArray(result.items) ? result.items : []).map(item => ({
@@ -46343,10 +46354,12 @@
                     title: String(item.title || ''), video_number: Number(item.video_number || 0)
                 })),
                 mirror_pending: result.mirror_pending === true
-            },
+            } : null,
             completed_card_ids: Array.isArray(job && job.completed_card_ids) ? job.completed_card_ids.slice() : [],
             stage: String(job && job.stage || 'materializing_cards'),
-            telemetry_sent: job && job.telemetry_sent === true
+            telemetry_sent: job && job.telemetry_sent === true,
+            automatic_attempts: Number(job && job.automatic_attempts || 0),
+            dispatch_started: true
         };
     }
     function _linearIntakePersistRecovery(job) {
@@ -46370,17 +46383,19 @@
             if (!job) return;
             try {
                 if (job.result && job.result.native_committed === true) _linearIntakePersistRecovery(job);
-                else _linearIntakeRemoveIfCurrent(_linearIntakeJobId(job));
+                // Only a current-version job explicitly never sent is a draft.
+                // Older jobs and lost responses may contain partially accepted work.
+                else if (job.dispatch_started === false) _linearIntakeRemoveIfCurrent(_linearIntakeJobId(job));
+                else _linearIntakePersistRecovery(job);
             } catch (e) {
-                // Fail closed if the browser cannot write a scrubbed recovery:
-                // do not leave the sensitive uncommitted/full payload behind.
+                // The existing privacy purge still takes precedence if a scrubbed
+                // marker cannot be saved. Server recovery is required at this boundary.
                 _linearIntakeRemoveIfCurrent(_linearIntakeJobId(job));
+                try { showNotify('Recovery needs staff attention', 'Sign-out could not retain a safe recovery marker. Some work may already be saved; do not create it again without checking.'); } catch (ignored) {}
             }
         };
         if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
-            // Current-version creation is disabled without Web Locks, so there
-            // cannot be a concurrent current-version job. Remove any older
-            // sensitive payload rather than retaining it after sign-out.
+            // Preserve the existing sensitive-data purge when no lock is available.
             try { localStorage.removeItem(NATIVE_INTAKE_PENDING_KEY); } catch (e) {}
             return Promise.resolve();
         }
@@ -46395,16 +46410,15 @@
                 // A recovery copy blocks under its own code: it is not an
                 // intake the user can go back and finish, so the generic
                 // pending-conflict copy sends them looking for a dialog that
-                // does not exist. It clears itself after repeated failures.
+                // does not exist. The recovery control retries the saved job.
                 const code = saved.recovery_only === true
                     ? 'native_intake_recovery_pending' : 'native_intake_pending_conflict';
                 const error = new Error(code);
                 error.code = code;
                 throw error;
             }
-            if (!saved.context || !saved.context.initiating_actor_id) {
-                saved.context = Object.assign({}, saved.context || {}, context || {});
-            }
+            // Reusing an identity must also reuse its original context and draft
+            // snapshot, including anonymous submissions. Never adopt new edits.
             _linearIntakeRequireActor(saved);
             saved.version = 3;
             saved.context = saved.context || context || {};
@@ -46418,7 +46432,8 @@
         const payload = makePayload(requestId, sourceEditedAt);
         const pending = {
             version: 3, signature, payload, context: context || {}, result: null,
-            completed_card_ids: [], stage: 'request_pending', telemetry_sent: false
+            completed_card_ids: [], stage: 'request_pending', telemetry_sent: false,
+            dispatch_started: false, automatic_attempts: 0
         };
         if (!_linearIntakeWrite(pending, { allowCreate: true })) throw new Error('native_intake_storage_unavailable');
         return pending;
@@ -47208,12 +47223,14 @@
                 clientSlug: client.slug,
                 clientName,
                 mode,
+                draftSnapshot: _linearDraftSnapshot(clientName),
                 videos: videos.map(video => ({ number: video.number })),
                 ..._linearIntakeActorContext(identity)
             }));
         } catch (error) {
-            status.textContent = error && error.code === 'native_intake_pending_conflict'
-                ? 'Finish the previously saved submission before starting a different one.'
+            _linearIntakeRefreshRecovery();
+            status.textContent = error && (error.code === 'native_intake_pending_conflict' || error.code === 'native_intake_recovery_pending')
+                ? 'Use Retry saved request to finish the previous submission. Your new edits are kept separately.'
                 : 'This submission could not be saved safely in this browser.';
             return;
         }
@@ -47232,10 +47249,23 @@
         try {
             const result = await _resumeNativeIntakeJob('submit', pending);
             nativeResult = result;
-            localStorage.removeItem(LINEAR_FORM_KEY);
-            localStorage.removeItem(LAST_LINK_KEY);
-            linearJustCreated = true;
-            navTo('linear');
+            const snapshot = pending.context && pending.context.draftSnapshot;
+            let unchanged = false;
+            try {
+                // Check the live form as well: a newer oninput save may have
+                // failed while storage still contains the submitted snapshot.
+                unchanged = selectionStillCurrent() && snapshot
+                    && _linearStableJson(saveLinearForm()) === _linearStableJson(JSON.parse(snapshot.form_raw))
+                    && localStorage.getItem(LINEAR_FORM_KEY) === snapshot.form_raw;
+            } catch (error) { /* Keep the visible edits if storage is unavailable. */ }
+            if (unchanged) {
+                _linearCompareRemove(LINEAR_FORM_KEY, snapshot.form_raw);
+                _linearCompareRemove(LAST_LINK_KEY, snapshot.last_link_raw);
+                linearJustCreated = true;
+                navTo('linear');
+            } else {
+                status.textContent = 'Saved request completed. Your newer form edits are still here.';
+            }
             if (result.mirror_pending === true) showNotify('Production created', 'Native work is saved; its Linear mirror is still draining.');
             if (result.filming_plan_missing === true) {
                 showNotify('Filming plan needs attention', 'Production work was created and visibly marked for SMM follow-up. Add or repair the protected filming-plan mapping.');
@@ -47461,10 +47491,14 @@
 
     async function _runNativeIntakeJob(job) {
         _linearIntakeRequireActor(job);
+        if (job.requires_original_payload === true) throw _linearIntakeActorError(409, 'native_intake_staff_recovery_required');
         // Before the gateway, so a refusal still leaves the owner the work.
         _linearIntakeLogSubmissionRequest(job);
         let result = job.result;
         if (!result) {
+            // Persist uncertainty BEFORE sending, including a lost/partial response.
+            job.dispatch_started = true;
+            _linearIntakeCheckpointOrSuspend(job);
             const response = await fetch(PROD_WRITE_EF_URL, {
                 method: 'POST', cache: 'no-store',
                 headers: _syncviewEfHeaders({
@@ -47501,93 +47535,64 @@
         return result;
     }
 
-    /* Discard a resumed job the server has terminally refused.
-     *
-     * A saved intake whose payload the gateway permanently rejects used to be
-     * re-POSTed on every page load, forever: the boot resume swallowed the
-     * error and left the job armed, and no surface offered a discard. One SMM
-     * carried an eleven-day-old refused job that 409ed on every boot and
-     * blocked every other Create Post with the pending-conflict error.
-     *
-     * Scope is deliberately narrow:
-     *  - resumes only -- on a live click the user is present to retry or fix;
-     *  - HTTP 4xx only, and never 401/403, because signing back in can make
-     *    an auth-refused job succeed;
-     *  - never when anything committed -- a job with a native result is real
-     *    work mid-materialization and must keep resuming;
-     *  - two strikes, persisted on the job, so one transiently wrong 409
-     *    (a paused team, a mid-deploy stance) does not delete anything.
-     * The discard is announced, not silent. (No apostrophes in this comment:
-     * the test slicers track quotes, not comments.)
-     */
+    /* No error response proves that nothing committed. The budget limits
+       automatic traffic, never the lifetime of the only recovery record. */
     function _linearIntakeDiscardTerminallyRefused(reason, requestId, error) {
-        // Background reasons whose resumes count terminal-refusal strikes.
-        // Live clicks ('submit', 'calendar-create-post') are deliberately
-        // absent: the user is present to retry. 2026-08-18: the original
-        // check demanded the literal 'resume', but a fresh page load defers
-        // its pageshow resume (identity not yet verified) and the run that
-        // actually reaches the server comes from 'staff-verified' -- so no
-        // strike ever counted and a dead job could block Create Post
-        // forever. Every background lifecycle reason now counts.
-        const strikeReasons = ['resume', 'startup', 'focus', 'visible', 'online', 'staff-verified', 'client-verified'];
-        if (strikeReasons.indexOf(String(reason || '')) < 0) return false;
-        const saved = _linearIntakeRead();
-        if (!saved || _linearIntakeJobId(saved) !== String(requestId || '')) return false;
-        // A recovery copy is what sign-out leaves behind for a job whose native
-        // write already committed: the batch and its deliverables are safe on
-        // the server and the only work left is the calendar card upsert, which
-        // is idempotent and re-derivable from the deliverable rows. Sign-out
-        // rewrites the job with a 'recovery:' signature that can never match a
-        // fresh post, so a recovery copy that cannot finish blocks every later
-        // Create Post with the pending-conflict error, refuses to discard
-        // because it committed, and survives the next sign-out by being
-        // rewritten again. Nothing on the page could clear it. Recovery copies
-        // therefore get a bounded life too: every resume failure counts, with
-        // or without an HTTP status, because a card write rejected by the
-        // network carries no status and would otherwise never strike.
-        const recoveryOnly = saved.recovery_only === true;
-        const status = Number(error && error.status);
-        if (status === 401 || status === 403) return false;
-        // 2026-08-18: a 500 was treated as always transient and never counted.
-        // But an append whose database function was never installed returns
-        // 500 on every single attempt, forever, and that job then blocks every
-        // later Create Post with the pending-conflict error -- the exact wedge
-        // an SMM hit today. A server error now counts too, with two guards so
-        // a real outage cannot spend the allowance: only a fresh page load
-        // counts it (a refocused tab does not), and the budget is far larger
-        // than the one a 4xx refusal gets.
-        const serverError = status >= 500;
-        const bootReasons = ['resume', 'startup', 'staff-verified', 'client-verified'];
-        if (serverError && bootReasons.indexOf(String(reason || '')) < 0) return false;
-        if (!recoveryOnly) {
-            if (!((status >= 400 && status < 500) || serverError)) return false;
-            if (saved.result && saved.result.native_committed === true) return false;
+        // Kept as a compatibility hook for callers; deletion is never inferred.
+        return false;
+    }
+
+    function _linearIntakeRecoveryText(job) {
+        if (job && job.requires_original_payload === true) {
+            return 'Acceptance is unconfirmed. Request details were cleared at sign-out. Staff recovery is needed; do not create this work again without checking.';
         }
-        // Recovery copies are held longer than refused payloads: their debt is
-        // a real card, so a passing outage must not spend both strikes. A
-        // server error is held longest of all -- the payload is the only copy
-        // of what the user typed, so it is discarded only once the failure has
-        // survived six separate page loads.
-        const limit = recoveryOnly ? 4 : (serverError ? 6 : 2);
-        const refusals = Number(saved.resume_refusals || 0) + 1;
-        if (refusals < limit) {
-            saved.resume_refusals = refusals;
-            _linearIntakeWrite(saved);
-            return false;
+        if (job && job.result && job.result.native_committed === true) {
+            return 'Production work is saved; Calendar cards still need recovery.';
         }
-        _linearIntakeRemoveIfCurrent(requestId);
-        const client = String(saved.payload && saved.payload.client_slug || 'a client');
+        if (job && job.dispatch_started === false) return 'A saved draft has not been sent yet.';
+        return 'Acceptance is unconfirmed. Some work may already be saved. Recover the original request before creating it again.';
+    }
+
+    function _linearIntakeRecoveryHtml(clientSlug) {
+        const job = _linearIntakeRead();
+        if (!job) return '';
+        const slug = String(job.payload.client_slug || '');
+        if (clientSlug && slug !== String(clientSlug)) return '';
+        try { _linearIntakeRequireActor(job); } catch (e) { return ''; }
+        const paused = Number(job.automatic_attempts || job.resume_refusals || 0) >= 3;
+        return '<div role="status" class="linear-status">'
+            + _calEsc(_linearIntakeRecoveryText(job)) + ' Client: ' + _calEsc(slug)
+            + (job.requires_original_payload === true ? '' : paused ? ' Automatic retries are paused.' : ' Automatic retries are limited to three attempts.')
+            + ' New edits stay separate from this saved request.</div>'
+            + (job.requires_original_payload === true ? '' : '<button type="button" class="cal-import-btn-ghost" style="min-height:44px" onclick="_linearIntakeRetrySaved(this)"'
+            + ' data-request-id="' + _calEsc(_linearIntakeJobId(job)) + '">Retry saved request</button>');
+    }
+
+    function _linearIntakeRefreshRecovery() {
+        if (typeof document === 'undefined') return;
+        document.querySelectorAll('[data-native-intake-recovery]').forEach(el => {
+            el.innerHTML = _linearIntakeRecoveryHtml(el.dataset.nativeIntakeRecovery);
+        });
+    }
+
+    async function _linearIntakeRetrySaved(button) {
+        const job = _linearIntakeRead();
+        if (!job || _linearIntakeJobId(job) !== button.dataset.requestId) return;
+        const container = button.closest('[data-native-intake-recovery]');
+        button.disabled = true;
+        button.textContent = 'Recovering…';
         try {
-            if (recoveryOnly) showNotify('A finished post stopped retrying',
-                'The post already created for "' + client + '" could not write its calendar card after '
-                + String(limit) + ' tries (' + String(error && error.code || error && error.message || 'error')
-                + '). The post itself is safe in Production; add its calendar card by hand if it is missing.');
-            else showNotify('A saved post was discarded',
-                'A post saved in this browser for "' + client + '" failed ' + String(limit)
-                + ' times (' + String(error && error.code || 'error')
-                + ') and is not going to succeed. It has been discarded; create it again when ready.');
-        } catch (e) {}
-        return true;
+            const result = await _resumeNativeIntakeJob('manual-recovery', job);
+            if (result) showNotify('Recovery complete', 'The saved request and its Calendar cards are complete. Your current form edits are unchanged.');
+        } catch (error) {
+            const saved = _linearIntakeRead();
+            const current = saved && _linearIntakeJobId(saved) === _linearIntakeJobId(job) ? saved : job;
+            showNotify('Recovery pending', _linearIntakeRecoveryText(current) + ' Retry later. Keep this browser’s saved data.');
+        } finally {
+            _linearIntakeRefreshRecovery();
+            const retry = container && container.querySelector('button');
+            if (retry) retry.focus();
+        }
     }
 
     let _nativeIntakeResumePromise = null;
@@ -47601,6 +47606,15 @@
             if (!current || _linearIntakeJobId(current) !== requestId) {
                 throw _linearIntakeActorError(409, 'native_intake_job_replaced');
             }
+            _linearIntakeRequireActor(current);
+            const manual = ['submit', 'calendar-create-post', 'samples-create-post', 'manual-recovery'].includes(String(reason));
+            if (!manual) {
+                const attempts = Math.max(0, Number(current.automatic_attempts || current.resume_refusals || 0));
+                if (!Number.isFinite(attempts) || attempts >= 3) throw _linearIntakeActorError(409, 'native_intake_recovery_paused');
+                current.automatic_attempts = attempts + 1;
+                // Spend the budget under the cross-tab lock BEFORE external traffic.
+                if (!_linearIntakeWrite(current)) throw new Error('native_intake_checkpoint_failed');
+            }
             return _runNativeIntakeJob(current);
         };
         _nativeIntakeResumePromise = _linearIntakeWithLock(runCurrent)
@@ -47609,7 +47623,7 @@
                 _linearIntakeDiscardTerminallyRefused(reason, requestId, error);
                 throw error;
             })
-            .finally(() => { _nativeIntakeResumePromise = null; });
+            .finally(() => { _nativeIntakeResumePromise = null; _linearIntakeRefreshRecovery(); });
         return _nativeIntakeResumePromise;
     }
 

@@ -555,6 +555,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Linear sync surface
 
+- Browser intake preservation candidate (2026-09-05): errors/retry exhaustion
+  retain the immutable request; three automatic attempts then visible manual
+  recovery. A missing success response means unknown acceptance. Explicit sign-out
+  retains only a scrubbed unknown marker when acceptance was not confirmed;
+  exact recovery after that privacy purge or storage loss still requires a server
+  owner. This branch makes no live/release claim. Proof and rollback limitations:
+  `docs/audits/2026-09-05-browser-intake-preservation.md`.
+
 - Every consistency surface (status/assignee/due/name/comments), outboxes, flags:
   `docs/audits/2026-07-05-logic-sync.md`; current sync reality: `docs/truth/LINEAR.md`.
 - The password-bypassed `?intake=1` page and both live intake webhooks likewise carry no caller

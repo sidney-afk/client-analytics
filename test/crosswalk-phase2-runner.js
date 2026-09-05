@@ -230,6 +230,32 @@ ok(runner.planRepair(moved, { runId: 'unit' }).digest !== plan.digest,
     'the summary renders the counts and reason enums');
   ok(!/c_plain|d_shell|VID-500|acme|beta-root/.test(md), 'and no card id, deliverable id, Linear identifier or client slug');
 
+  /* ---- 6b. the export reads each table on its own key, and pages ------------- */
+  const urls = [];
+  const fakeFetch = async (url) => {
+    urls.push(url);
+    const u = new URL(url);
+    const table = u.pathname.split('/').pop();
+    const offset = Number(u.searchParams.get('offset'));
+    const rows = table === 'clients' ? [{ slug: 'a', active: true }, { slug: 'b', active: true }, { slug: 'c', active: false }]
+      : table === 'calendar_posts' ? [{ id: 'p1', client: 'a' }, { id: 'p1', client: 'b' }, { id: 'p2', client: 'a' }]
+        : [{ id: 'd1' }, { id: 'd2' }, { id: 'd3' }];
+    return { ok: true, status: 200, json: async () => rows.slice(offset, offset + 2) };
+  };
+  const live2 = await runner.exportLive({ url: 'https://x.test', serviceKey: 'k', pageSize: 2 }, { fetch: fakeFetch, now: () => '2026-09-05T19:00:00Z' });
+  ok(live2.clients.length === 3 && live2.cards.length === 3 && live2.deliverables.length === 3 && live2.exported_at === '2026-09-05T19:00:00Z',
+    'exportLive pages every table to the end (page size 2 → two pages each)');
+  const orderOf = table => (urls.find(u => u.includes('/rest/v1/' + table + '?')) || '').match(/order=([^&]+)/)[1];
+  ok(orderOf('clients') === 'slug.asc' && orderOf('calendar_posts') === 'client.asc,id.asc' && orderOf('deliverables') === 'id.asc',
+    "each table is paged on its OWN key: clients by slug (it has no id column — the first live plan run died on order=id.asc), cards by (client, id) because the bare id repeats across clients, deliverables by id");
+  ok(/select=slug%2Cactive/.test(urls.find(u => u.includes('/clients?'))) && /select=\*/.test(urls.find(u => u.includes('/calendar_posts?')))
+    && urls.find(u => u.includes('/deliverables?')).includes(encodeURIComponent(runner.DELIVERABLE_SELECT)),
+    'and selects exactly the columns the planner reads');
+  let readFail = '';
+  try { await runner.fetchAllRows({ url: 'https://x.test', serviceKey: 'k' }, 'clients', 'slug', async () => ({ ok: false, status: 400, json: async () => ({ message: 'no such column' }) })); }
+  catch (e) { readFail = e.message; }
+  ok(readFail === 'export_read_clients_400', 'a refused read names the table and the status');
+
   /* ---- 7. the lane ----------------------------------------------------------- */
   const LANE = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'crosswalk-phase2-repair.yml'), 'utf8');
   ok(/environment: production/.test(LANE) && /SUPABASE_SERVICE_ROLE_KEY: \$\{\{ secrets\.SUPABASE_SERVICE_ROLE_KEY \}\}/.test(LANE),

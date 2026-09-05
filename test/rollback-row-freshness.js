@@ -997,6 +997,61 @@ ok(indentedReadableRun.json && !indentedReadableRun.json.failures.some(f => UNRE
     && indentedReadableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
     'and a well-formed table indented by two spaces is READ by the strict parser, so the entry becomes the newest receipt and the row is what fails');
 
+/* ---- 8k. parsed rows that fold away; nested receipts dated by themselves --- */
+/* Codex, twelfth round. (1) A second, syntactically valid one-row v69 table
+   appended to the v68 entry: every row parses, the row inherits the entry's run
+   id and folds into that run's attestation at deduplication. Two guards now:
+   a candidate group must name all four functions once each, and two receipts
+   for one run must agree. (2) A READABLE nested deploy dated by its own heading
+   inside the 2026-08-05 container was dated by the container, so the newest
+   deploy by run id failed chronology instead of comparing against the row. */
+const oneRowValid = [
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `production-write` | 69 | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const oneRowRun = run(fixture('one-row-valid', realLog + oneRowValid, realRb));
+ok(oneRowRun.code === 1 && oneRowRun.json
+    && oneRowRun.json.failures.some(f => /\("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /1 versions table\(s\) that do not name all four functions/.test(f))
+    && oneRowRun.json.failures.some(f => /two receipts claim run 33991332628 but disagree on production-write: the attestation block says v68, a summary table .* says v69/.test(f)),
+    'A PARSED ROW THAT FOLDS AWAY IS CAUGHT TWICE: a valid one-row v69 table under the v68 entry is a truncated table, and its inherited run id disagrees with the surviving attestation');
+const fullValidNoHeading = [
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 69 | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const fullNoHeadingRun = run(fixture('full-valid-no-heading', realLog + fullValidNoHeading, realRb));
+ok(fullNoHeadingRun.code === 1 && fullNoHeadingRun.json
+    && fullNoHeadingRun.json.failures.some(f => /two receipts claim run 33991332628 but disagree on production-write/.test(f)),
+    'and a COMPLETE valid table appended under the v68 entry without its own heading is still caught, by the disagreement alone -- the table is well-formed, its identity is borrowed');
+const nestedReadable = [
+    '### 2026-09-06 — Deploy #40, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+    'sealed_bundle_sha256 = `' + 'f'.repeat(64) + '`, sealed_bundle_byte_length = `1`.',
+    '',
+].join('\n');
+const nestedReadableRun = run(fixture('nested-readable-dated', insertInto(nestedReadable), realRb));
+ok(nestedReadableRun.json && nestedReadableRun.json.live && nestedReadableRun.json.live.run === '34000000000'
+    && !nestedReadableRun.json.failures.some(f => /not the newest by\s+date|chronology signals disagree|carries no receipt/.test(f))
+    && nestedReadableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'A READABLE NESTED DEPLOY IS DATED BY ITS OWN HEADING: inserted into the 2026-08-05 container it becomes the newest receipt on 2026-09-06 with no chronology complaint, and the row is what fails');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

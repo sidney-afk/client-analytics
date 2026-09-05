@@ -208,11 +208,23 @@ function proseContext(log, at, anchors) {
     const anchor = anchors ? enclosingAnchor(log, at, anchors) : null;
     const run = anchor ? null : lastMatch(chunk, /[Rr]un\s+`(\d{6,})`/);
     const commit = lastMatch(chunk, /from\s+`([0-9a-f]{7,40})`/);
-    const date = chunk.match(/^\n?## (\d{4}-\d{2}-\d{2})/);
+    /* The NEAREST dated heading above the receipt, at any level 2-4, and the
+       `##` entry heading only as the last resort. The 2026-08-05 container
+       holds `###` deploys dated through 2026-08-19, so a receipt written under
+       "### 2026-09-06 — Deploy #40" inside it is a 2026-09-06 receipt, not a
+       2026-08-05 one; dating it by the parent made the newest deploy by run id
+       disagree with the date order and fail chronology (Codex, twelfth round on
+       #1306). Same rule the unreadable-section sweep already applies. */
+    const heads = [...chunk.matchAll(/(?:^|\n)#{2,4} ([^\n]*)/g)];
+    let date = '';
+    for (let i = heads.length - 1; i >= 0 && !date; i--) {
+        const d = heads[i][1].match(/\b(\d{4}-\d{2}-\d{2})\b/);
+        if (d) date = validDate(d[1]);
+    }
     return {
         run: anchor ? anchor.run : (run ? run[1] : ''),
         commit: commit ? commit[1].toLowerCase() : '',
-        date: date ? validDate(date[1]) : '',
+        date,
     };
 }
 
@@ -405,10 +417,30 @@ function executionLogReceipts() {
     // Group by deployment identity, preferring the richer shape within a group.
     const byRun = new Map();
     const unidentified = [];
+    receiptsMeta.conflicts = [];
     for (const r of all) {
         if (!r.run) { unidentified.push(r); continue; }
         const prev = byRun.get(r.run);
         if (!prev) { byRun.set(r.run, r); continue; }
+        /* TWO RECEIPTS FOR ONE RUN MUST AGREE. The fold below keeps the richer
+           shape and drops the other, which is right when both describe the same
+           deploy (a table beside its own attestation). It is exactly wrong when
+           a NEW deploy was written under an old entry without its own run id: it
+           inherits that entry's run, disagrees with the surviving receipt on a
+           version, and vanishes into the fold (Codex, twelfth round on #1306).
+           So a disagreement on any function's version or closure is recorded
+           and reported, whichever shape survives. */
+        for (const slug of SLUGS) {
+            const a = prev.fns[slug], b = r.fns[slug];
+            if (!a || !b) continue;
+            if (a.version !== b.version || (a.closure && b.closure && a.closure !== b.closure)) {
+                receiptsMeta.conflicts.push({
+                    run: r.run, slug, at: r.at,
+                    kept: { source: prev.source, version: a.version },
+                    other: { source: r.source, version: b.version },
+                });
+            }
+        }
         const rank = x => x.source === 'attestation block' ? 3 : x.source === 'summary table' ? 2 : 1;
         if (rank(r) > rank(prev)) byRun.set(r.run, r);
         else if (prev.source === r.source) prev.siblings = (prev.siblings || []).concat([r]);
@@ -424,7 +456,7 @@ function executionLogReceipts() {
 /* The log text, kept so main() can run the other-lane sweep without re-reading
    and re-parsing the file; and the position of every receipt it parsed, so the
    unreadable-entry sweep below can tell an entry with a receipt from one without. */
-const receiptsMeta = { log: '', positions: [], parsedRows: new Set() };
+const receiptsMeta = { log: '', positions: [], parsedRows: new Set(), conflicts: [] };
 
 /* A DEPLOY ENTRY THIS GUARD CANNOT READ IS A DEPLOY THIS GUARD CANNOT SEE.
    Codex P1 on #1306. On 2026-09-05 two forward deploys were logged with the
@@ -498,22 +530,34 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
        round). Only the rejected rows are counted. The 2026-08-31 entry
        abbreviates one closure beside three full ones; it predates the newest
        receipt, so it is a note, as the GAP section is. */
-    const candidateRow = /^[ \t]*\|\s*\**`?(?:batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
+    const candidateRow = /^[ \t]*\|\s*\**`?(batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
+    /* A group must also name all four functions, once each. The §4 lane
+       deploys the four as one serial set, so a table naming one or two of them
+       is a truncated record -- and a truncated record whose rows all PARSE is
+       the dangerous kind: it inherits the entry's run id, folds into that run's
+       receipt, and disappears (Codex, twelfth round). Measured on the real log:
+       17 groups, every one naming all four exactly once. */
     const unreadableTableRows = (block, blockStart) => {
-        let total = 0;
+        let rejected = 0;
+        let truncated = 0;
         let group = [];
         let offset = 0;
         const flush = () => {
-            total += group.filter(at => !receiptsMeta.parsedRows.has(at)).length;
+            if (group.length) {
+                rejected += group.filter(g => !receiptsMeta.parsedRows.has(g.at)).length;
+                const distinct = new Set(group.map(g => g.slug));
+                if (distinct.size < SLUGS.length || distinct.size !== group.length) truncated += 1;
+            }
             group = [];
         };
         for (const line of block.split('\n')) {
-            if (candidateRow.test(line)) group.push(blockStart + offset);
+            const m = line.match(candidateRow);
+            if (m) group.push({ at: blockStart + offset, slug: m[1] });
             else flush();
             offset += line.length + 1;
         }
         flush();
-        return total;
+        return { rejected, truncated };
     };
     const heads = [];
     const hre = /^(#{2,4}) [^\n]*/gm;
@@ -532,7 +576,9 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
             if (heads[j].level <= h.level) { treeEnd = heads[j].at; break; }
         }
         const block = log.slice(h.at, blockEnd);
-        const unreadableRows = unreadableTableRows(block, h.at);
+        const tables = unreadableTableRows(block, h.at);
+        const unreadableRows = tables.rejected;
+        const truncatedTables = tables.truncated;
         /* Section 4 may be named in the heading, in an ancestor heading, or --
            the concise-prose layout the top of this log uses -- only in the body
            ("**Section 4 forward from `<sha>`, run `<id>`**" under a generic
@@ -551,7 +597,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
         const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text)))
             && !/NOT DISPATCHED/i.test(h.text);
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
-        if (!unreadableRows && !noReceiptUnder) continue;
+        if (!unreadableRows && !truncatedTables && !noReceiptUnder) continue;
         const heading = h.text.replace(/^#+ /, '').slice(0, 120);
         const line = log.slice(0, h.at).split('\n').length;
         /* Dated by ITS OWN heading only, at any level; and a run id in the
@@ -560,7 +606,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
         const entryDate = validDate((h.text.match(/\b(\d{4}-\d{2}-\d{2})\b/) || [])[1] || '');
         const ownRun = (h.text.match(/[Rr]un\s+`?(\d{6,})`?/) || [])[1] || '';
         const runNewer = !!(ownRun && newestRun && Number(ownRun) >= Number(newestRun));
-        const predates = !runNewer && !!entryDate && !!newestDate && entryDate < newestDate;
+        const predates = !runNewer && !truncatedTables && !!entryDate && !!newestDate && entryDate < newestDate;
         out.push({
             line,
             heading,
@@ -574,6 +620,10 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
                 +  'the EXECUTION_LOG.md section at line ' + line + ' ("' + heading + '") '
                 + (unreadableRows
                     ? 'carries ' + unreadableRows + ' versions-table row(s) this guard cannot read'
+                    : truncatedTables
+                    ? 'carries ' + truncatedTables + ' versions table(s) that do not name all four functions once each -- a'
+                        + ' truncated record, which the §4 lane never produces, and one whose parsed rows would otherwise inherit'
+                        + ' this entry\'s run id and fold silently into its receipt'
                     : 'reads as a Section 4 deploy' + (namesSection4(h.text) ? ''
                         : underSection4 ? ' (under a Section 4 heading)' : ' (Section 4 named in its body)')
                         + ' but holds no receipt this guard can read, in it or under it')
@@ -640,6 +690,12 @@ function main() {
         failures.push('a deploy receipt at character ' + r.at + ' of EXECUTION_LOG.md carries no run id,'
             + ' so it cannot be placed in time and the newest deploy cannot be established.'
             + ' Add the run id to that entry (the attestation block carries it as github_run_id).');
+    }
+    for (const c of (receiptsMeta.conflicts || [])) {
+        failures.push('two receipts claim run ' + c.run + ' but disagree on ' + c.slug + ': the ' + c.kept.source + ' says v'
+            + c.kept.version + ', a ' + c.other.source + ' at character ' + c.at + ' of EXECUTION_LOG.md says v' + c.other.version
+            + '. A receipt that inherited an older entry\'s run id is a new deploy recorded without its own identity;'
+            + ' give it its own heading with run `<id>` and "dispatched from `<sha>`".');
     }
     for (const u of unreadableDeployEntries(receiptsMeta.log, receiptsMeta.positions || [], live ? live.date : '', live ? live.run : '')) {
         if (u.severity === 'note') notes.push(u.message);

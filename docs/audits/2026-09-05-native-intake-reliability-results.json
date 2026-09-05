@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-05T01:33:18.409Z",
-  "source_sha": "3bbc9620d7dc05037b4bf40afe51ffb2215e8d4f",
+  "generated_at": "2026-09-05T06:15:53.026Z",
+  "source_sha": "30a8f726ef9778a08212f442bf2d184052114f49",
   "node": "v22.22.2",
   "lanes": {
     "sql": "executed",
@@ -257,7 +257,7 @@
       "id": "R2-zero-provider-intents",
       "lane": "gateway",
       "kind": "readiness",
-      "label": "a native intake leaves ZERO pending provider intents (T5: no new provider intents in either outbox)",
+      "label": "a native intake leaves ZERO pending provider intents in the normal lane of mirror_outbox (the only lane this package exercises; parity lane, inbound and scheduled workers are unproven here)",
       "pass": false,
       "evidence": {
         "pending_intents": 3
@@ -347,31 +347,80 @@
       }
     },
     {
-      "id": "G2b-partial-commit-converges",
+      "id": "G2b-partial-commit-one-child",
       "lane": "gateway",
       "kind": "current",
-      "label": "a gateway crash after the batch and first child committed leaves a partial native state, and the exact retry converges to one batch + two children",
+      "label": "a gateway interruption before the second child RPC leaves the batch and EXACTLY ONE child durable (video), and the caller is told the request failed",
       "pass": true,
       "evidence": {
         "first_status": 500,
         "first_error": "write_failed",
-        "rows_after_crash": 2,
-        "retry_status": 201,
-        "rows_after_retry": 2
+        "batch_status": "active",
+        "rows": [
+          {
+            "id": "del_46f60857-0d6f-4320-b102-f93fa25a768f",
+            "team": "video",
+            "title": "Video 1",
+            "card_id": "p_native_0000000040008000000000000006_1"
+          }
+        ]
       }
     },
     {
-      "id": "G2b-partial-state-visible-to-caller",
+      "id": "G2b-partial-boundary-durable-inventory",
       "lane": "gateway",
       "kind": "current",
-      "label": "the crashed request reported failure although the batch and a child were already durable (caller cannot tell partial from nothing)",
+      "label": "at that boundary the server durably holds the batch, one child and two outbox intents (batch + child); nothing server-side names the second item: the batch intent carries only a fingerprint and the root path writes no item-count event, so a browser that lost its job cannot be reconstructed from the server",
       "pass": true,
       "evidence": {
-        "first_response": {
-          "ok": false,
-          "error": "write_failed"
-        },
-        "durable_rows": 2
+        "outbox": [
+          {
+            "entity": "batch",
+            "operation": "create",
+            "status": "pending",
+            "payload_names_items": false,
+            "has_fingerprint": true
+          },
+          {
+            "entity": "deliverable",
+            "operation": "create",
+            "status": "pending",
+            "payload_names_items": false,
+            "has_fingerprint": true
+          }
+        ],
+        "events": [
+          {
+            "action": "create",
+            "n": 2
+          }
+        ],
+        "append_events": 0
+      }
+    },
+    {
+      "id": "R3-partial-root-intake-detectable",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "a half-committed root intake is distinguishable server-side from a complete one-item intake (an item inventory or count is recorded with the accepted request)",
+      "pass": false,
+      "evidence": {
+        "batch_payload_names_items": false,
+        "item_count_events": 0
+      }
+    },
+    {
+      "id": "G2b-partial-commit-converges",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "the exact retry (same request id, same payload, from the same browser) converges the partial state to one batch + two children with no duplicate",
+      "pass": true,
+      "evidence": {
+        "retry_status": 201,
+        "rows_after_retry": [
+          "graphics",
+          "video"
+        ]
       }
     },
     {
@@ -543,10 +592,10 @@
       }
     },
     {
-      "id": "R8-public-outage-allowance",
+      "id": "P8-public-outage-allowance",
       "lane": "gateway",
-      "kind": "readiness",
-      "label": "a provider-refused public submission does not consume the client allowance",
+      "kind": "unproven",
+      "label": "whether a provider-refused public attempt should consume the hourly allowance is an owner policy decision (the allowance also protects against repeated rejected attempts); not asserted as a readiness requirement. Observed: it consumes one slot",
       "pass": false,
       "evidence": {
         "log_before": 1,
@@ -612,21 +661,46 @@
       "id": "G8-fill-provider-down",
       "lane": "gateway",
       "kind": "current",
-      "label": "a fresh fill with the provider unreachable is refused 503 before any native write",
+      "label": "a fill on a real half-complete card with the provider unreachable is refused 503 project_mapping_validation_unavailable after exactly one provider request, with no new component, no new outbox intent and the card link untouched",
       "pass": true,
       "evidence": {
         "status": 503,
-        "error": "project_mapping_validation_unavailable"
+        "error": "project_mapping_validation_unavailable",
+        "linear_requests": 1,
+        "drainer_requests": 0,
+        "components_before": 1,
+        "components_after": 1,
+        "card_before": {
+          "video_deliverable_id": "del_57b0001d-2ff0-41d7-bdad-b920cbdb3d7c",
+          "graphic_deliverable_id": null
+        },
+        "card_after": {
+          "video_deliverable_id": "del_57b0001d-2ff0-41d7-bdad-b920cbdb3d7c",
+          "graphic_deliverable_id": null
+        }
       }
     },
     {
       "id": "R1-fill-without-provider",
       "lane": "gateway",
       "kind": "readiness",
-      "label": "component fill succeeds with the provider unreachable",
+      "label": "the same fill, provider unreachable, commits the missing component (200, native_committed) with zero provider requests",
       "pass": false,
       "evidence": {
-        "status": 503
+        "status": 503,
+        "error": "project_mapping_validation_unavailable",
+        "linear_requests": 1
+      }
+    },
+    {
+      "id": "R9-server-side-refusal-receipt",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "a refused fill leaves at least one server-side row referencing its request id (deliverable_events, mirror_outbox or public_intake_log)",
+      "pass": false,
+      "evidence": {
+        "request_id_suffix": "00000000000016_1",
+        "rows_referencing_request": 0
       }
     },
     {
@@ -644,7 +718,7 @@
       "id": "G9-orphan-components-detectable",
       "lane": "gateway",
       "kind": "current",
-      "label": "components whose card was never written are DETECTABLE server-side by joining deliverables.card_id against the card table (recovery is derivable)",
+      "label": "components whose card was never written are DISCOVERABLE server-side by joining deliverables.card_id against the card table (discoverability only: the join names the card id, title, sort key and deliverable ids, not the order, statuses or any later edits a card would carry)",
       "pass": true,
       "evidence": {
         "orphan_components": 10,
@@ -673,16 +747,14 @@
       }
     },
     {
-      "id": "R3-server-card-pending-state",
+      "id": "R3-server-materializes-orphan-card",
       "lane": "gateway",
       "kind": "readiness",
-      "label": "the server records a card-materialization pending state per accepted intake (G3 durable ledger)",
+      "label": "a card owed by an accepted intake is written by some server-side component without the submitting browser (observed within this run)",
       "pass": false,
       "evidence": {
-        "matching_columns": [],
-        "tables": [
-          "public_intake_log"
-        ]
+        "orphan_cards": 10,
+        "cards_written_server_side": 0
       }
     },
     {
@@ -728,6 +800,56 @@
       "evidence": {
         "status": 409,
         "error": "project_mapping_missing"
+      }
+    },
+    {
+      "id": "U2-parity-lane-suppression",
+      "lane": "gateway",
+      "kind": "unproven",
+      "label": "zero new provider intents in the parity lane (legacy_parity=true rows): no scenario here runs a Linear-authoritative team, so the parity enqueue path was not exercised",
+      "pass": false,
+      "evidence": {
+        "exercised": false
+      }
+    },
+    {
+      "id": "U2-inbound-cutoff",
+      "lane": "gateway",
+      "kind": "unproven",
+      "label": "inbound provider events (linear-inbound) are cut off or harmless under a native epoch: the inbound lane is not run here",
+      "pass": false,
+      "evidence": {
+        "exercised": false
+      }
+    },
+    {
+      "id": "U2-scheduled-worker-safety",
+      "lane": "gateway",
+      "kind": "unproven",
+      "label": "the scheduled drainer and older browser bundles select no terminal-at-insert row: linear-outbound and legacy browser queues are not run here",
+      "pass": false,
+      "evidence": {
+        "exercised": false
+      }
+    },
+    {
+      "id": "U6-assignee-override-path",
+      "lane": "gateway",
+      "kind": "unproven",
+      "label": "an explicit assignee_id override with the provider pool (assertEligibleAssignee, production_assignee_eligibility flag) is not exercised; role/team eligibility checks on that path are unverified here",
+      "pass": false,
+      "evidence": {
+        "exercised": false
+      }
+    },
+    {
+      "id": "U7-public-rate-limit-429",
+      "lane": "gateway",
+      "kind": "unproven",
+      "label": "the public-intake 429 branch (12 per client per hour, 60 total) is not exercised",
+      "pass": false,
+      "evidence": {
+        "exercised": false
       }
     },
     {
@@ -800,13 +922,13 @@
       }
     },
     {
-      "id": "R3-browser-loss-recoverable",
+      "id": "U3-browser-loss-recovery",
       "lane": "browser",
-      "kind": "readiness",
-      "label": "after browser storage loss the pending card materialization is recovered by something other than that browser",
+      "kind": "unproven",
+      "label": "recovery of the owed cards after browser storage loss cannot be exercised in this lane: there is no server-side component to run; the gateway lane observes whether any card gets written server-side (R3-server-materializes-orphan-card)",
       "pass": false,
       "evidence": {
-        "note": "no server-side worker or record exists; see gateway R3"
+        "exercised": false
       }
     },
     {
@@ -1021,16 +1143,6 @@
       }
     },
     {
-      "id": "R9-server-side-refusal-receipt",
-      "lane": "browser",
-      "kind": "readiness",
-      "label": "a refused intake/fill leaves a server-side receipt naming the request and card",
-      "pass": false,
-      "evidence": {
-        "note": "browser ring only"
-      }
-    },
-    {
       "id": "B11-anonymous-intake-resumes",
       "lane": "browser",
       "kind": "current",
@@ -1043,12 +1155,12 @@
   ],
   "gateway_inventory": {
     "durable": {
-      "batches": 7,
-      "deliverables": 15,
+      "batches": 8,
+      "deliverables": 16,
       "outbox_by_status": [
         {
           "status": "pending",
-          "n": 22
+          "n": 24
         }
       ],
       "events_by_action": [
@@ -1062,7 +1174,7 @@
         },
         {
           "action": "create",
-          "n": 22
+          "n": 24
         },
         {
           "action": "intake_append",
@@ -1070,17 +1182,18 @@
         }
       ],
       "public_intake_log": 2,
-      "cards": 2
+      "cards": 3
     }
   },
   "summary": {
     "current": {
-      "pass": 62,
+      "pass": 63,
       "fail": 0
     },
     "readiness": {
       "pass": 0,
-      "fail": 14
-    }
+      "fail": 13
+    },
+    "unproven": 7
   }
 }

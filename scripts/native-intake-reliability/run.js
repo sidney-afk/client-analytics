@@ -8,11 +8,13 @@
  *   gateway  the real production-write handler through the test seam
  *   browser  the real index.html intake job machinery in a vm context
  *
- * Every check is CURRENT (what the code does today; must pass) or READINESS
- * (what the Linear-exit gates G2/G3 require; expected red until the mapped
- * change ships). The unit suite fails on a red CURRENT check always, and on a
- * red READINESS check only under NATIVE_INTAKE_READINESS_STRICT=1, so known
- * defects stay visibly red without turning the suite red.
+ * Every check is CURRENT (what the code does today; must pass), READINESS
+ * (what the Linear-exit gates G2/G3 require, asserted BEHAVIOURALLY against
+ * the same code paths; expected red until the mapped change ships), or
+ * UNPROVEN (a requirement this package cannot exercise, listed so it is never
+ * mistaken for a pass). The unit suite fails on a red CURRENT check always,
+ * and on a red READINESS check only under NATIVE_INTAKE_READINESS_STRICT=1,
+ * so known defects stay visibly red without turning the suite red.
  *
  *   node scripts/native-intake-reliability/run.js               run and print
  *   node scripts/native-intake-reliability/run.js --write-results
@@ -84,6 +86,7 @@ async function run(options = {}) {
   report.summary = {
     current: { pass: by('current').filter(c => c.pass).length, fail: by('current').filter(c => !c.pass).length },
     readiness: { pass: by('readiness').filter(c => c.pass).length, fail: by('readiness').filter(c => !c.pass).length },
+    unproven: by('unproven').length,
   };
   if (options.writeResults) {
     fs.writeFileSync(RESULTS, JSON.stringify(report, null, 2) + '\n');
@@ -97,6 +100,7 @@ function printSummary(report) {
   for (const lane of Object.keys(report.lanes)) console.log('  lane ' + lane.padEnd(8) + ' ' + report.lanes[lane]);
   console.log('  current   ' + report.summary.current.pass + ' pass / ' + report.summary.current.fail + ' fail');
   console.log('  readiness ' + report.summary.readiness.pass + ' pass / ' + report.summary.readiness.fail + ' fail (expected red until the mapped changes ship)');
+  console.log('  unproven  ' + report.summary.unproven + ' requirement(s) this package cannot exercise (listed, never counted as pass)');
   const failedCurrent = report.checks.filter(c => c.kind === 'current' && !c.pass);
   if (failedCurrent.length) {
     console.log('\nCURRENT-BEHAVIOR FAILURES:');

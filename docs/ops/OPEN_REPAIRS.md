@@ -12207,3 +12207,38 @@ acceptance checks and recovery are stated per change.
 
 - Done when: the readiness ids in the results file are green under strict mode
   and this entry links the PRs that cleared them.
+
+### Corrected 2026-09-05, review of head `3ac16e6`
+
+Two scenarios in the first head did not exercise what their labels claimed,
+and the handoff over-reached in four places. Both are fixed in the same draft
+PR; nothing above this subsection is rewritten.
+
+- **G2b** injected its fault AFTER the second child had committed, so "partial
+  commit" was asserting two children. It now interrupts before the second
+  child RPC: the batch and exactly one child are durable, the caller is told
+  the request failed, and the exact retry converges. At that boundary the
+  server holds the batch, one child and two intents, and nothing that names
+  the missing item: the batch intent carries a fingerprint, and the root path
+  writes no item-count event. A half-committed root intake is therefore
+  indistinguishable from a complete one-item intake (new red readiness check).
+- **The provider-denied fill** posted a root intake. It now builds a real
+  half-complete card, denies the provider and calls the fill: 503 after
+  exactly one provider request, no component, no intent, card link untouched.
+- **Readiness checks** were audited: the name-based schema search and the two
+  hardcoded `false` checks are gone. Every readiness id is now a behavioural
+  assertion (status, row count, request count), and requirements this package
+  cannot exercise are a separate `unproven` list that is never counted as a
+  pass: parity lane, inbound, scheduled and legacy workers, the assignee
+  override path, the 429 branch, recovery after browser loss. Counts: 63
+  current green, 13 readiness red, 7 unproven; strict mode verified exit 1.
+- **Handoff narrowed.** Terminal rows in the normal outbox lane prove nothing
+  about the parity lane, inbound cutoff or old workers (one drainer lane reads
+  `skipped` rows). The orphan-card join proves discoverability only; "no new
+  ledger needed" is withdrawn until reconstruction, incomplete child creation,
+  card ordering, concurrent edits and non-resurrection are shown. Browser
+  recovery records must not be deleted on error suffixes or retry counts while
+  a partial server commit is possible. The eligibility flag and the
+  public-intake rate accounting are owner policy decisions, not readiness
+  changes; role/team checks and repeated-rejection protection stay. No wording
+  instructs any scheduled writer to merge or activate.

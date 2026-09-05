@@ -213,7 +213,7 @@ const inventory = {};
     { status: r.status, items: dels.length, linear_reads: linearCalls(), outbox_rows: outbox.length, outbox_status: outbox.map(o => o.status) });
   check('G0-provider-read-before-write', 'current', 'that intake performed a provider project read before its first native write',
     linearCalls() >= 1, { linear_reads: linearCalls(), requests: net.requests.map(r => r.url) });
-  check('R2-zero-provider-intents', 'readiness', 'a native intake leaves ZERO pending provider intents (T5: no new provider intents in either outbox)',
+  check('R2-zero-provider-intents', 'readiness', 'a native intake leaves ZERO pending provider intents in the normal lane of mirror_outbox (the only lane this package exercises; parity lane, inbound and scheduled workers are unproven here)',
     outbox.filter(o => o.status === 'pending').length === 0, { pending_intents: outbox.filter(o => o.status === 'pending').length });
   inventory.baseline = { request_id: rid, batch_id: r.json.batch && r.json.batch.id, card_id: dels[0] && dels[0].card_id, response: r.json };
 }
@@ -281,31 +281,48 @@ const inventory = {};
       events_delta: (await count(`select 1 from public.deliverable_events where client_slug='fixture-client'`)) - eventsBefore });
 }
 
-/* G2b : the gateway dies between the batch commit and the second child. */
+/* G2b : the gateway is interrupted BEFORE the second child commits. The
+   root path writes the batch and each child in separate transactions (one
+   RPC each), so this is a boundary the live gateway can genuinely die at. */
 {
   resetNet('ok');
   const rid = requestId();
   let writes = 0;
-  hooks.afterRpc = (name, args, result) => {
-    if (name === 'production_deliverable_write') {
-      writes += 1;
-      if (writes === 2) throw new Error('injected: gateway lost after second child committed');
-    }
-    return result;
+  hooks.beforeRpc = async name => {
+    if (name !== 'production_deliverable_write') return;
+    writes += 1;
+    if (writes === 2) throw new Error('injected: gateway lost before the second child committed');
   };
   const first = await post(rootBody('both', rid));
-  const bat = await rows(`select id from public.batches where name like '%${rid.slice(-4)}'`);
-  const partial = await count(`select 1 from public.deliverables where batch_id='${bat[0] && bat[0].id}'`);
   resetHooks();
+  const bat = await rows(`select id, status from public.batches where name like '%${rid.slice(-4)}'`);
+  const batchId = bat[0] && bat[0].id;
+  const partialRows = await rows(`select id, team, title, card_id from public.deliverables where batch_id='${batchId}' order by team`);
+  const partialOutbox = await rows(`select entity, operation, status, (payload ? 'items') as payload_names_items, (payload ? '_intent_fingerprint') as has_fingerprint from public.mirror_outbox where entity_id='${batchId}' or batch_id='${batchId}' order by id`);
+  const partialEvents = await rows(`select action, count(*)::int as n from public.deliverable_events where batch_id='${batchId}' group by action order by action`);
+  const appendStyleEvents = await count(`select 1 from public.deliverable_events where batch_id='${batchId}' and action='intake_append'`);
+  check('G2b-partial-commit-one-child', 'current', 'a gateway interruption before the second child RPC leaves the batch and EXACTLY ONE child durable (video), and the caller is told the request failed',
+    first.status >= 500 && first.json.native_committed !== true && bat.length === 1 && partialRows.length === 1 && partialRows[0].team === 'video',
+    { first_status: first.status, first_error: first.json.error, batch_status: bat[0] && bat[0].status, rows: partialRows });
+  /* What survives if the browser that made the request is now gone: the
+     durable inventory names the batch, one child and their two intents. No
+     server-side row carries the requested item set (the batch intent stores
+     a fingerprint of it, not the items), and no event records an item count
+     on the root path, so the missing thumbnail is not recoverable from the
+     server and the half-committed batch is indistinguishable from a
+     complete one-item intake. */
+  const namesItems = partialOutbox.some(o => o.payload_names_items === true);
+  check('G2b-partial-boundary-durable-inventory', 'current', 'at that boundary the server durably holds the batch, one child and two outbox intents (batch + child); nothing server-side names the second item: the batch intent carries only a fingerprint and the root path writes no item-count event, so a browser that lost its job cannot be reconstructed from the server',
+    partialOutbox.length === 2 && !namesItems && partialOutbox.every(o => o.has_fingerprint === true) && appendStyleEvents === 0,
+    { outbox: partialOutbox, events: partialEvents, append_events: appendStyleEvents });
+  check('R3-partial-root-intake-detectable', 'readiness', 'a half-committed root intake is distinguishable server-side from a complete one-item intake (an item inventory or count is recorded with the accepted request)',
+    namesItems || appendStyleEvents > 0, { batch_payload_names_items: namesItems, item_count_events: appendStyleEvents });
   net.requests.length = 0;
   const retry = await post(rootBody('both', rid));
-  const converged = await count(`select 1 from public.deliverables where batch_id='${bat[0] && bat[0].id}'`);
-  check('G2b-partial-commit-converges', 'current', 'a gateway crash after the batch and first child committed leaves a partial native state, and the exact retry converges to one batch + two children',
-    first.status >= 500 && partial === 2 && retry.status === 201 && converged === 2
-      && (retry.json.items || []).length === 2,
-    { first_status: first.status, first_error: first.json.error, rows_after_crash: partial, retry_status: retry.status, rows_after_retry: converged });
-  check('G2b-partial-state-visible-to-caller', 'current', 'the crashed request reported failure although the batch and a child were already durable (caller cannot tell partial from nothing)',
-    first.json.native_committed !== true && partial === 2, { first_response: first.json, durable_rows: partial });
+  const converged = await rows(`select id, team from public.deliverables where batch_id='${batchId}' order by team`);
+  check('G2b-partial-commit-converges', 'current', 'the exact retry (same request id, same payload, from the same browser) converges the partial state to one batch + two children with no duplicate',
+    retry.status === 201 && converged.length === 2 && (retry.json.items || []).length === 2 && (await count(`select 1 from public.batches where name like '%${rid.slice(-4)}'`)) === 1,
+    { retry_status: retry.status, rows_after_retry: converged.map(r => r.team) });
 }
 
 /* G3 : same request id, different intent: refused, never a second row. */
@@ -426,8 +443,8 @@ const inventory = {};
   const logAfter = await count(`select 1 from public.public_intake_log where client_slug='fixture-client'`);
   check('G7-public-outage-burns-allowance', 'current', 'a public submission refused by the provider outage still consumed one hourly rate-limit slot (logged before validation)',
     r2.status === 503 && logAfter === logBefore + 1, { status: r2.status, log_before: logBefore, log_after: logAfter });
-  check('R8-public-outage-allowance', 'readiness', 'a provider-refused public submission does not consume the client allowance',
-    logAfter === logBefore, { log_before: logBefore, log_after: logAfter });
+  check('P8-public-outage-allowance', 'unproven', 'whether a provider-refused public attempt should consume the hourly allowance is an owner policy decision (the allowance also protects against repeated rejected attempts); not asserted as a readiness requirement. Observed: it consumes one slot',
+    false, { log_before: logBefore, log_after: logAfter });
   inventory.public_batch_id = r.json.batch && r.json.batch.id;
 }
 
@@ -455,12 +472,42 @@ const inventory = {};
   const other = await post(fillBody(cardId, 'graphics', sibling.id), SMM);
   check('G8-fill-other-actor', 'current', 'the same fill by another actor is refused 409 idempotency_conflict; the browser repair arm then links the existing component',
     other.status === 409 && other.json.error === 'idempotency_conflict', { status: other.status, error: other.json.error });
-  resetNet('down');
+  /* A REAL missing-component fixture for the provider-denied fill: a fresh
+     video-only intake (provider up), its card written, and only then the
+     provider denied and the fill attempted. */
+  resetNet('ok');
   const solo2 = await post(rootBody('video', requestId()));
-  check('G8-fill-provider-down', 'current', 'a fresh fill with the provider unreachable is refused 503 before any native write',
-    solo2.status === 503, { status: solo2.status, error: solo2.json.error });
-  check('R1-fill-without-provider', 'readiness', 'component fill succeeds with the provider unreachable', solo2.status === 200, { status: solo2.status });
-  inventory.fill = { card_id: cardId, sibling_id: sibling.id };
+  const sibling2 = (solo2.json.items || [])[0];
+  if (!sibling2) throw new Error('missing-component fixture did not commit: ' + JSON.stringify(solo2.json));
+  await sql(`insert into public.calendar_posts (client, id, status, video_deliverable_id) values ('fixture-client', '${sibling2.card_id}', 'In Progress', '${sibling2.id}') on conflict do nothing`);
+  const componentsBefore = await count(`select 1 from public.deliverables where card_id='${sibling2.card_id}'`);
+  const outboxBefore = await count(`select 1 from public.mirror_outbox where client_slug='fixture-client'`);
+  const cardBefore = (await rows(`select video_deliverable_id, graphic_deliverable_id from public.calendar_posts where client='fixture-client' and id='${sibling2.card_id}'`))[0];
+  resetNet('down');
+  const deniedFill = await post(fillBody(sibling2.card_id, 'graphics', sibling2.id));
+  const componentsAfter = await count(`select 1 from public.deliverables where card_id='${sibling2.card_id}'`);
+  const cardAfter = (await rows(`select video_deliverable_id, graphic_deliverable_id from public.calendar_posts where client='fixture-client' and id='${sibling2.card_id}'`))[0];
+  check('G8-fill-provider-down', 'current', 'a fill on a real half-complete card with the provider unreachable is refused 503 project_mapping_validation_unavailable after exactly one provider request, with no new component, no new outbox intent and the card link untouched',
+    deniedFill.status === 503 && deniedFill.json.error === 'project_mapping_validation_unavailable'
+      && linearCalls() === 1 && drainerCalls() === 0
+      && componentsAfter === componentsBefore && componentsBefore === 1
+      && (await count(`select 1 from public.mirror_outbox where client_slug='fixture-client'`)) === outboxBefore
+      && JSON.stringify(cardAfter) === JSON.stringify(cardBefore),
+    { status: deniedFill.status, error: deniedFill.json.error, linear_requests: linearCalls(), drainer_requests: drainerCalls(),
+      components_before: componentsBefore, components_after: componentsAfter, card_before: cardBefore, card_after: cardAfter });
+  check('R1-fill-without-provider', 'readiness', 'the same fill, provider unreachable, commits the missing component (200, native_committed) with zero provider requests',
+    deniedFill.status === 200 && deniedFill.json.native_committed === true && linearCalls() === 0,
+    { status: deniedFill.status, error: deniedFill.json.error, linear_requests: linearCalls() });
+  /* R9, behaviourally: does ANY server-side row now reference the refused request? */
+  const refusedId = fillBody(sibling2.card_id, 'graphics', sibling2.id).request_id;
+  const refusalTraces = await count(`select 1 from (
+      select payload::text as t from public.deliverable_events
+      union all select dedup_key from public.mirror_outbox
+      union all select request_id from public.public_intake_log
+    ) x where x.t like '%${refusedId}%'`);
+  check('R9-server-side-refusal-receipt', 'readiness', 'a refused fill leaves at least one server-side row referencing its request id (deliverable_events, mirror_outbox or public_intake_log)',
+    refusalTraces > 0, { request_id_suffix: refusedId.slice(-16), rows_referencing_request: refusalTraces });
+  inventory.fill = { card_id: cardId, sibling_id: sibling.id, denied_card_id: sibling2.card_id };
 
   /* Per-team provider projects (4 of the 36 active clients measured 2026-08-18):
      the fill validates the sibling's dependency against the FILL team's project. */
@@ -480,13 +527,16 @@ const inventory = {};
     where d.client_slug='fixture-client' and d.card_id is not null and d.origin='calendar'
       and not exists (select 1 from public.calendar_posts c where c.client='fixture-client' and c.id = d.card_id)
     order by d.id`);
-  const stateColumns = await rows(`select table_name, column_name from information_schema.columns
-    where table_schema='public' and (column_name ilike '%materializ%' or column_name ilike '%card_state%' or column_name ilike '%card_pending%')`);
-  const stateTables = await rows(`select table_name from information_schema.tables where table_schema='public' and (table_name ilike '%intake%' or table_name ilike '%materializ%' or table_name ilike '%receipt%')`);
-  check('G9-orphan-components-detectable', 'current', 'components whose card was never written are DETECTABLE server-side by joining deliverables.card_id against the card table (recovery is derivable)',
+  check('G9-orphan-components-detectable', 'current', 'components whose card was never written are DISCOVERABLE server-side by joining deliverables.card_id against the card table (discoverability only: the join names the card id, title, sort key and deliverable ids, not the order, statuses or any later edits a card would carry)',
     orphans.length >= 1, { orphan_components: orphans.length, sample: orphans.slice(0, 4) });
-  check('R3-server-card-pending-state', 'readiness', 'the server records a card-materialization pending state per accepted intake (G3 durable ledger)',
-    stateColumns.length > 0, { matching_columns: stateColumns, tables: stateTables.map(t => t.table_name) });
+  /* Behavioural: has anything server-side materialized one of those cards
+     during this run? The orphan set was created many requests ago; if a
+     server component owned card creation, at least one card row would exist
+     by now. Refusal by the one server path that reads cards (G8-fill-requires-card)
+     is the same fact from the other side. */
+  const materializedByServer = await count(`select 1 from public.calendar_posts c where c.client='fixture-client' and c.id = any(array['${orphans.map(o => o.card_id).join("','")}'])`);
+  check('R3-server-materializes-orphan-card', 'readiness', 'a card owed by an accepted intake is written by some server-side component without the submitting browser (observed within this run)',
+    orphans.length >= 1 && materializedByServer === orphans.length, { orphan_cards: orphans.length, cards_written_server_side: materializedByServer });
 }
 
 /* G10 : outbound live: the gateway itself attempts provider egress after a native intake. */
@@ -519,6 +569,13 @@ const inventory = {};
   check('G12-unmapped-client', 'current', 'a client with no per-team provider project mapping is refused 409 project_mapping_missing (native catalog absent)',
     r.status === 409 && r.json.error === 'project_mapping_missing', { status: r.status, error: r.json.error });
 }
+
+/* Requirements this package cannot prove or refute, stated as such. */
+check('U2-parity-lane-suppression', 'unproven', 'zero new provider intents in the parity lane (legacy_parity=true rows): no scenario here runs a Linear-authoritative team, so the parity enqueue path was not exercised', false, { exercised: false });
+check('U2-inbound-cutoff', 'unproven', 'inbound provider events (linear-inbound) are cut off or harmless under a native epoch: the inbound lane is not run here', false, { exercised: false });
+check('U2-scheduled-worker-safety', 'unproven', 'the scheduled drainer and older browser bundles select no terminal-at-insert row: linear-outbound and legacy browser queues are not run here', false, { exercised: false });
+check('U6-assignee-override-path', 'unproven', 'an explicit assignee_id override with the provider pool (assertEligibleAssignee, production_assignee_eligibility flag) is not exercised; role/team eligibility checks on that path are unverified here', false, { exercised: false });
+check('U7-public-rate-limit-429', 'unproven', 'the public-intake 429 branch (12 per client per hour, 60 total) is not exercised', false, { exercised: false });
 
 /* Durable inventory after all of the above, for the handoff. */
 inventory.durable = {

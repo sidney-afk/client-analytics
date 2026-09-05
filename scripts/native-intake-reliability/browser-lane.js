@@ -210,8 +210,8 @@ async function run() {
       committed && committed.result && committed.result.native_committed === true && after.ok && after.value === null
         && w.cardWrites.length === 1 && w.notifications.length === 0 && w.store.size === 0,
       { had_native_result: !!(committed && committed.result), resume_value: after.value, card_writes: w.cardWrites.length, notifications: w.notifications.length });
-    check('R3-browser-loss-recoverable', 'readiness', 'after browser storage loss the pending card materialization is recovered by something other than that browser',
-      false, { note: 'no server-side worker or record exists; see gateway R3' });
+    check('U3-browser-loss-recovery', 'unproven', 'recovery of the owed cards after browser storage loss cannot be exercised in this lane: there is no server-side component to run; the gateway lane observes whether any card gets written server-side (R3-server-materializes-orphan-card)',
+      false, { exercised: false });
   }
 
   /* B4 : recovery fails repeatedly. */
@@ -343,7 +343,6 @@ async function run() {
     const ring = w.diagnostics();
     check('B10-refusal-ring-local-and-capped', 'current', 'write refusals are recorded only in a 50-row localStorage ring in the refusing browser (OPEN_REPAIRS 101); nothing is sent anywhere',
       ring.length === 50 && ring[0].card === 'card-5' && w.gatewayPosts.length === 0 && w.logPosts.length === 0, { rows: ring.length, oldest: ring[0] && ring[0].card });
-    check('R9-server-side-refusal-receipt', 'readiness', 'a refused intake/fill leaves a server-side receipt naming the request and card', false, { note: 'browser ring only' });
   }
 
   /* B11 : the anonymous client link resumes without a staff identity. */

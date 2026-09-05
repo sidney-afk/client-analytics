@@ -1,12 +1,15 @@
 # The card ↔ deliverable crosswalk: what is actually broken, and the order to fix it
 
-**Status (2026-09-05 evening): PARTLY EXECUTED, TWO EPOCHS OF THE RPC.** Phase 1
-ran. Phase 2's migration was **APPLIED live by the owner on 2026-09-05 (first
-version, #1291)** and the lane ran once: **89 of 100 slots repaired**, the 11
-cancel-evictions refused by the F27 outbox fence. The **fixed version (#1301)
-is in source and NOT YET RE-APPLIED**; until it is, the live function is the
-first version. Source availability and live execution are two different things
-and this block separates them deliberately:
+**Status (2026-09-05, 21:00Z): EXECUTED — 100 of 100, TWO EPOCHS OF THE RPC,
+BOTH APPLIED LIVE.** Phase 1 ran on 2026-09-04. Phase 2's migration was applied
+live by the owner twice on 2026-09-05: the first version (#1291, ~18:25Z), through
+which the lane repaired **89 of 100** slots and was refused on the 11
+cancel-evictions by the F27 outbox fence; then the fixed version (#1301,
+~20:1xZ), through which the lane repaired **the remaining 11, 0 refused**
+(20:53Z), and the 11 native cancels reached Linear at 21:01Z. **The live
+function is the fixed version.** 7 slots remain, all for a person. Source
+availability and live execution are two different things and this block
+separates them deliberately:
 
 | | State |
 |---|---|
@@ -17,7 +20,8 @@ and this block separates them deliberately:
 
 ~~**Status: PROPOSAL. Nothing here has been executed. No migration is written.**~~
 *(Superseded 2026-09-05. Kept because the sentence was quoted as evidence the
-operation did not exist; it now exists in source only.)*
+operation did not exist; it has since been written, applied live twice, and
+run to completion — see the table above.)*
 
 **Revision 2, 2026-09-04.** Revision 1 was reviewed and four of its claims were
 wrong. They are corrected below and the wrong ones are kept, struck, because one

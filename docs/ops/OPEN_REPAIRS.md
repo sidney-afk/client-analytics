@@ -12739,6 +12739,15 @@ unattended; 7 for a person, as before.
   does not stop the next one. The link action should retire (or never create)
   the auto-made row when the card is pointed elsewhere — a separate change,
   not attempted here.
+* **The `crosswalk_bound` event records only `kind_before`.** The RPC
+  overwrites five fields (`card_id`, `client_slug`, `origin`, `team`,
+  `kind`) and the event keeps the prior value of one, so the 100 kept rows
+  cannot be restored to their pre-apply state from the ledger alone (the
+  occupants can; the canonical rows can). Found by Codex on #1307. The fix is
+  an Epoch 3 of the function that stores all five before-values in the event
+  payload — source-only until the owner applies it, and not needed for the 7
+  slots that remain (none is bindable). Both EXECUTION_LOG entries for
+  2026-09-05 say what is and is not recoverable.
 * Applying the migration and running the 100 calls is the owner's dispatch
 
 ### The runner (same day, later)
@@ -12813,9 +12822,13 @@ hold their card (`origin=calendar`, kind `video`); all 11 occupants have
 SyncView Mirror created and that were verified empty in Linear earlier in the
 day, so no editor's work was closed. The 11 native cancels reach Linear through
 the outbound drain (`linear-outbound-drain.yml`, every 10 minutes); the outbox
-is not readable with the publishable key (42501), so delivery is confirmed
-against Linear itself — recorded in `EXECUTION_LOG.md` (2026-09-05, Crosswalk
-Phase 2, second apply).
+is not readable with the publishable key (42501), so delivery was confirmed
+against Linear itself: the drain ran at 21:00:35Z (run `33991760541`) and at
+21:02Z exactly 11 issues in the VID team had changed in the preceding 15
+minutes, all `Canceled` (21:00:46Z → 21:01:14Z, in outbox order), and they are
+the 11 `occupant_linear_identifier` values the eviction events carry. Nothing
+else in the team moved. Details in `EXECUTION_LOG.md` (2026-09-05, Crosswalk
+Phase 2, second apply, addendum).
 
 That closes the repair set the rule can close: every slot the runner examines
 is either clean or one of the 7 named for a person, and the runner's plan

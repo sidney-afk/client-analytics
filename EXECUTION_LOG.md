@@ -6282,11 +6282,26 @@ Mirror, verified empty in Linear earlier today) are `canceled` with `card_id`
 cleared; 12 legacy comments were COPIED into the canonical store with links;
 11 outbox intents (`crosswalk-evict:<id>:canceled`, generation 0) cancel the
 same issues in Linear through the outbound drain. The legacy threads were not
-touched. Reversal, per the migration header: drop the canonical rows and links
-written under the run id; clear the five binding fields on the 11 kept rows
-(`crosswalk_bound` events carry `kind_before`); restore `card_id` and the
-prior status on the 11 occupants (`crosswalk_occupant_evicted` events carry
-`from_status`); un-cancel the 11 issues in Linear by hand. Not exercised.
+touched. **Reversal — what the ledger can and cannot restore** (this corrects
+the recipe in the 19:3x entry above, which has the same gap): the canonical
+rows and links are fully reversible (drop what was written under the run id;
+the legacy threads are intact). The 11 occupants are fully reversible (the
+`crosswalk_occupant_evicted` event carries `from_status`, and the `card_id`
+they held is the event's `card_id`); the 11 Linear cancels are reversed by
+hand in Linear. **The 100 kept rows are not fully reversible from the ledger:**
+the RPC overwrites `card_id`, `client_slug`, `origin`, `team` and `kind`,
+and the `crosswalk_bound` event records only `kind_before`. Of the other four,
+`team` is re-derivable from the Linear identifier's prefix and `client_slug`
+from the row's batch; the prior `origin` and the prior `card_id` (null or the
+same card — the RPC refuses any other) are recorded nowhere this repo can read.
+The runner's pre-apply export held the exact before-images, but the result
+document is runner-local and gone with the runner. A complete before-image
+exists only in a database backup taken before 19:31Z, which this repo cannot
+verify exists. Not exercised; a reversal here would be undoing the ruling, not
+repairing data — the cards still name these deliverables, so the binding is
+re-derivable from the card at any time, which is what Phase 3's readback
+checks. Follow-up recorded in OPEN_REPAIRS 156 "Still open": the event should
+carry the five before-values.
 
 **Linear delivery.** At commit time the outbound drain had last run at 20:45Z,
 before the apply (20:53Z); the next scheduled run (every 10 minutes) carries

@@ -14,6 +14,7 @@ inactive monitoring/recovery tools. Native manifest repair #1293 stays separate.
 | Operations #1292 | `22ea853919268c1f076c0668a020bb5c9e1c9a92` |
 | Separately pinned monitored document | `5b9e0191c17c2199ab94c3d6adc2b10ee34a3014` |
 | Refused proxy reset recovery | `637e15c14b8278f3bbb7a5ab659efcfe8d0eaf46` |
+| Closed denial diagnostics and actual-run handoff | `6383bd915bc0403d1b26140adda3cafe0d5f6749` |
 | Recovery #1290 | `2bcca5b156a9313b41ea096b7e70cd1043963639` |
 | Integrated browser-tested source | `a8390d0342477058c4dcb39062e878f6a5848afd` |
 
@@ -56,6 +57,17 @@ observer then reported missing terminal receipts. After the correction, both
 lanes terminated and retained `mutation_blocked`. Their read coverage remains
 HELD while background traffic is classified. This is not evidence of a failed
 website save or a successful live viewing journey. No business writes occurred.
+
+The diagnostic extension through `6383bd91` was independently reviewed and
+composed at `cd9bfe57cb1ef86b6910a072d3c5f944e7e1594e`. Viewer 57, operations
+87 and transport 30 assertions passed, with zero synthetic receiver escapes.
+All denials remain in force. At 19:15:19Z, actual read-only TEST runs on the same
+document pin identified blocked metadata POST, realtime and proxy activity for
+Calendar, and blocked realtime for Samples. Both starts and terminals were
+retained; neither whole viewing journey passed. The private empty Samples census
+cannot establish positive card rendering. A separately defined initial-Samples
+read subset would need independent safety outcomes through teardown and an
+approved eligible nonempty canary; these are pending, not waived release gates.
 
 The owner-approved primary alert drill delivered exactly two labelled DRILL
 DMs, failure and recovery, at 2026-09-05T18:36:02Z. Separate Slack reads matched

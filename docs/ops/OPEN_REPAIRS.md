@@ -12680,3 +12680,37 @@ F42 import planner against the post-bind crosswalk — a thread the planner
 cannot plan cleanly holds the slot back (`thread_not_plannable`) instead of
 binding without its conversation. The owner's three steps are in
 `CROSSWALK_REPAIR_STRATEGY.md` §5..
+### First live apply (same day, 19:3x UTC) — 89 of 100, and the 11 that were refused
+
+The owner applied the migration, ran `plan` (the forecast to the number), then
+`apply`. Result: **89 slots bound, 7 occupants detached, 97 comments imported,
+23 already linked, 11 refused** — precisely the 11 evictions whose occupant was
+still live (6 Kasper approval, 4 scheduled, 1 tweak), i.e. every call that took
+the *cancel* branch. Nothing was half-written: each refused call rolled back
+whole, and the 11 slots are still bindable.
+
+The refusal was `f27_authority_generation_stale:video` from
+`track_b_f27_hold_guard` — the F27 outbox fence installed live on 2026-08-02.
+The F27 `mirror_outbox_enqueue` reads the team's authority generation from the
+reserved payload key `_f27_authority_generation` and stores -1 when it is
+absent; the BEFORE INSERT guard then refuses any pending intent whose
+generation is not the team fence. The RPC's cancel branch enqueued without the
+binder, and the rehearsal chain (eight migrations, none of them F27) could not
+see it. The runner's receipt made it worse by keeping only the SQLSTATE
+("P0001 11") and dropping the message.
+
+Fixed, all in one PR: the RPC mints the binder exactly as the gateway does
+(`track_b_f27_write_authorization(team)` → `generation`), asserts authority
+with `production_assert_authority` before enqueueing, and — if the occupant's
+team is not SyncView-authoritative — detaches only
+(`detached_authority_linear`) instead of cancelling natively a status Linear
+owns. The rehearsal now installs the F27 outbox closure **verbatim from the
+migration by anchor** (rollback tables, outbox columns, the F27 enqueue, the
+hold guard and its trigger; the cut asserts the tokens it depends on) and adds
+the 2026-07-28 write-authorization migration to its chain, so it reproduces the
+live refusal for an intent without the binder and proves the fixed path passes
+with generation 0 carried and the key stripped. The runner now keeps the raise
+name, the SQLSTATE and the bounded message on every refusal. Re-applying the
+migration (SQL Editor, `create or replace`) and re-dispatching plan → apply at
+https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
+finishes the 11. Logged in `EXECUTION_LOG.md` (2026-09-05, Crosswalk Phase 2).

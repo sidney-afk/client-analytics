@@ -6,6 +6,20 @@ inverse in `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` and
 are not its operational inverse: the old document cannot display new owned debt.
 Preserve ownership, save receipts, field debt and cache throughout recovery.
 
+**Pinned ab636 local integration, not released (2026-09-05):** merge
+`dd702412f7a36a46f610ea05ecad8ac06469ba73` pairs forward HTML
+`aa2be6645b440cd2a9487692112b5f0d23f4c236ad37e990087a80cb1365815f` with recovery
+HTML `717b52d9a40b589429a43f90cd81859be08bd8620eab162093ea2f977ef0de02`.
+Only this pair preserves that tree's inherited asset changes as well as the
+Samples debt schema and save receipts. The `e665ba77` pair remains preserved for
+its own document; do not mix either pair or use the historical whole-PR revert
+directions below for this integrated release. Before release, abandoning the
+isolated local branch changes no serving state. After any separately approved
+release, use only the exact paired reader inverse under the packet's owner and
+serving checks. No gateway, migration, writer, flag or data rollback belongs to
+this reader-only inverse. The inherited optional asset lookup index is not
+applied by this work.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is

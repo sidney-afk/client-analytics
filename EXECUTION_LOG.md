@@ -2,6 +2,23 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Samples integration of pinned ab636 main; local only
+
+Created an isolated validation branch from #1295
+`e665ba77f95d832029c7b0c028c3011b249ea3a0` and merged only captured main
+`ab6366136c03239965c97b050ab5cf7c9763a228`, without conflicts, as
+`dd702412f7a36a46f610ea05ecad8ac06469ba73`. All 308 named Samples functions,
+monitor/recovery helpers and frozen writers retain the reviewed release bytes;
+all Edge sources/migrations retain the captured main bytes. The inherited main
+delta is asset display/access reuse, its tests, optional lookup index and docs.
+The original release and its recovery pair remain preserved. The packet records
+the new paired hashes, exact-source focused checks and still-open release gates.
+No push or #1295 update is authorized by this checkpoint. Named review of the
+final commit must finish before advancing; prior review and CI are historical.
+No production read or write, merge to main, deployment, migration, workflow
+dispatch, flag change or alert delivery was performed. This is local source and
+synthetic proof only; `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` owns the receipts.
+
 ## 2026-09-04 — Samples G1 reader candidate; draft, release held
 
 **Targeted review correction:** #1269 was verified draft/unmerged at reviewed head

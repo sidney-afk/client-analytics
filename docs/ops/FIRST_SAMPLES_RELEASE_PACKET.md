@@ -4,7 +4,77 @@ This bounded G0/G1 packet belongs to the canonical Linear-exit plan (#1268).
 Decision A remains NOT READY. The candidate contains Samples continuity and
 inactive monitoring/recovery tools. Native manifest repair #1293 stays separate.
 
-## September 5 current-main integration: local candidate only
+## September 5 pinned ab636 integration: local review candidate only
+
+This is the current local integration record. The earlier integration below is
+historical evidence and its recovery pair belongs only to its own forward HTML.
+The isolated merge `dd702412f7a36a46f610ea05ecad8ac06469ba73` has exactly two
+parents: independently reviewed #1295 head
+`e665ba77f95d832029c7b0c028c3011b249ea3a0` and the single captured main checkpoint
+`ab6366136c03239965c97b050ab5cf7c9763a228`. It merged without conflicts. Later
+main movement is outside this finite checkpoint. Original #1295 checkouts,
+commits, evidence and compatible recovery bytes remain preserved.
+
+All 308 named Samples functions, Samples/recovery/monitor harness paths and
+frozen anonymous writer sources are byte-identical to `e665ba77`. The 19
+inherited main files add Production asset retention and use-time scope checks,
+gateway verdict reuse with explicit recheck, an optional asset-evidence lookup
+index, affected tests, the F27 source pin and documentation. Every Edge source
+and migration equals pinned main. The six changed asset helpers checked against
+main are also identical. No local implementation change or conflict resolution
+was needed. This records inherited source compatibility, not serving, schema
+installation or provider-access proof. No additional separate draft is added.
+
+| Artifact built from this merge | SHA256 |
+|---|---|
+| Forward HTML | `aa2be6645b440cd2a9487692112b5f0d23f4c236ad37e990087a80cb1365815f` |
+| Compatible recovery HTML | `717b52d9a40b589429a43f90cd81859be08bd8620eab162093ea2f977ef0de02` |
+| Forward `_sxrFetchPosts` | `674d6303683703e9336188f08eb2102fbfeb8b98e2f50cf1873cf153d9b0709d` |
+| Recovery `_sxrFetchPosts` | `392c29beadbb25cb66229fa07a6c81f114c722b82a3072104d90fc267188f9c2` |
+
+The guarded builder reproduces the historical `e665ba77` pair exactly, then
+builds the pair above from this merge. Recovery changes only `_sxrFetchPosts`;
+it retains the inherited assets and all owned work/receipts/cache/auth code.
+Its patch applies and reverses byte-for-byte. Neither the old recovery HTML nor
+a whole-document revert is the inverse for this new forward document.
+
+Focused offline checks pass on this merge: Samples reader 48, owned work 18,
+recovery builder patch/inverse and three drift refusals plus eight read cases;
+strict monitoring 146 (seven original defects detected), monitor view 57 and
+operations 87. Seven inherited asset/refresh/source suites, F27 Section 4 and
+team rollback, Edge provenance and generated deployment manifest all pass.
+Repository map 316, truth 527 and system map 17 pass. These are 20 focused
+commands, not a new full unit run. Source checks and synthetic fixtures do not
+execute the deployed gateway or apply the optional index. The previous
+407/408 Windows result remains historical, including its uncorrected
+`asset-access-any-team` ESM-path failure; it is not counted as a new pass.
+
+The full-document owned-work browser suite passes eight groups, the exact
+merge's forward/recovery/forward rehearsal passes 13 groups, and boot passes
+24 groups. Continuity browser passes 22 cases; transport passes 30 with zero
+receiver escapes. These use fictional content and intercepted writes in
+Chromium 141.0.7390.37. No assertion, fixture or production source changed to
+obtain these passes.
+
+Reproduce the exact pair with
+`node scripts/samples-recovery-build.js NEW_OUTPUT_DIRECTORY EXACT_CHECKOUT dd702412f7a36a46f610ea05ecad8ac06469ba73`.
+Set `SAMPLES_RECOVERY_TARGET_SHA` to that same SHA for
+`node qa/boot/samples-recovery-rehearsal.js`. Retain the resulting forward HTML,
+recovery HTML, patch and manifest together; never apply an inverse to unmatched
+serving bytes. The private integration receipts also record exact component
+equality, commands, failures and the preserved historical pair.
+
+This local branch has not been pushed or used to update #1295. Root review and
+an explicitly requested named review of the final commit must precede any
+publication decision. Earlier review and green #1295 CI belong to `e665ba77`,
+not this new merge. Applicable hosted checks on the eventual published head,
+serving/writer pre-state, approved populated TEST persistence/readback and the
+operational monitoring/recovery gates below remain held. No full live
+Production-polish run, live journey, writer, dispatch, migration, flag change,
+alert, merge to main or deployment was performed for this checkpoint. Decision
+A remains NOT READY. Repair ownership is recorded in `OPEN_REPAIRS.md` item 157.
+
+## Earlier September 5 current-main integration (historical)
 
 The isolated merge `bce37c6ab3e8211351b588bb7740facb60ef5f53` has exactly two
 parents: reviewed first-Samples head

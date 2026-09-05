@@ -16,6 +16,7 @@ const {
   PRODUCTION_REF,
   TABLES,
   HISTORY_TABLES,
+  corpusBoundarySql,
   manifestCorpus,
   resolveCorpus,
   connectionProjectRef,
@@ -74,12 +75,14 @@ function assertScratchTarget(url = DB_URL, expectedRef = EXPECTED_REF, confirm =
 function restoreSql(parsedDump, corpusName = 'legacy-v3') {
   const corpus = resolveCorpus(corpusName);
   const names = corpus.tables.map(config => safeIdentifier(config.name));
-  const helper = corpus.version === 4 ? 'track_b_restore_set_history_user_triggers' : 'track_b_restore_set_user_triggers';
-  // Even an empty expanded target is outside a legacy package's coverage.
-  // Refuse before changing triggers or data; never cascade into omitted tables.
+  const helper = corpus.version === 5 ? 'track_b_restore_set_history_v5_user_triggers'
+    : corpus.version === 4 ? 'track_b_restore_set_history_user_triggers' : 'track_b_restore_set_user_triggers';
+  // Baseline Calendar/Samples existence alone does not establish a journal
+  // dependency. Still reject retained journal/manifest state outside v3, and
+  // reject actual FK dependencies for EVERY version before touching any data.
   const legacyGuard = corpus.version === 3 ? [
     'do $coverage$ begin',
-    `if ${HISTORY_TABLES.slice(TABLES.length).map(config => `to_regclass('public.${config.name}') is not null`).join(' or ')} then`,
+    "if to_regclass('public.card_change_journal') is not null or to_regclass('public.production_intake_manifests') is not null then",
     "raise exception 'Legacy Track-B package cannot restore into an expanded history schema';",
     'end if; end $coverage$;',
   ] : [];
@@ -100,6 +103,7 @@ function restoreSql(parsedDump, corpusName = 'legacy-v3') {
     "set local lock_timeout = '20s';",
     "set local statement_timeout = '20min';",
     ...legacyGuard,
+    corpusBoundarySql(corpusName),
     `select public.${helper}(false);`,
     `truncate table ${names.map(name => `public.${name}`).join(', ')} restrict;`,
   ].join('\n');
@@ -198,7 +202,7 @@ async function main() {
       source_snapshot_sha256: manifest.snapshot.sha256,
       elapsed_seconds: elapsedSeconds,
       corpus: corpus.name,
-      coverage: corpus.version === 3 ? 'limited_legacy_only' : 'history_21_tables',
+      coverage: corpus.version === 3 ? 'limited_legacy_only' : `data_only_${corpus.tables.length}_tables_schema_restore_unproven`,
       tables: Object.fromEntries(corpus.tables.map(item => [item.name, observed[item.name]])),
       integrity_checks: Object.fromEntries(Object.entries(observed).filter(([key]) => key.startsWith('orphan_'))),
     }));

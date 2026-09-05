@@ -2,6 +2,17 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Draft correction: history restore corpus
+
+Separate local branch from preserved PR #1299 `85018bf8`; review source
+`af929858` and one captured remote-main pin `ab636613` are recorded in
+`docs/audits/2026-09-05-card-history-restore-correction.md`. Actual dependency
+DDL proves the 21-table corpus omits incoming FK and comment/intake replay
+state. New explicit v5 preparation covers 33 relations while old packages and
+the default v3 schedule retain their meaning. No live action occurred.
+The authenticated schema artifact and empty-target reconstruction remain a
+release blocker. Journal/rollback SQL, writers, website and auth are unchanged.
+
 ## 2026-09-05 — Draft preparation: private committed card history
 
 Source-only work from `287c16cd1c46da18c9d6e302e9a8d7c66c746e50`; remote main

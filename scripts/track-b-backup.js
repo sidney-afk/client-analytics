@@ -56,7 +56,8 @@ const TABLES = Object.freeze([
   { name: 'linear_archive', pk: 'linear_uuid' },
 ]);
 
-// v3 remains the scheduled default until the owner installs and proves v4.
+// v3 remains the scheduled default. Each expanded version is explicit opt-in;
+// a data package alone never certifies schema reconstruction or recoverability.
 const HISTORY_TABLES = Object.freeze([...TABLES,
   { name: 'calendar_posts', pk: ['client', 'id'] },
   { name: 'sample_reviews', pk: ['client', 'id'] },
@@ -66,10 +67,30 @@ const HISTORY_TABLES = Object.freeze([...TABLES,
   { name: 'card_change_journal', pk: 'id', identity: true },
   { name: 'production_intake_manifests', pk: 'request_id' },
 ]);
+// Preserve v4's authenticated meaning. v5 closes its known FK boundary and
+// retains comment/intake replay evidence plus the corresponding F27 generation.
+const CLOSED_HISTORY_TABLES = Object.freeze([...HISTORY_TABLES.flatMap(table =>
+  // F27 drill outbox rows hold a non-deferrable FK to this parent. COPY must
+  // materialize it first; preserve the original v3/v4 order independently.
+  table.name === 'mirror_outbox' ? [{ name: 'track_b_team_rollbacks', pk: 'id' }, table] : [table]),
+  { name: 'pto_members', pk: 'member_id' },
+  { name: 'pto_requests', pk: 'id' },
+  { name: 'pto_adjustments', pk: 'id' },
+  { name: 'linear_project_ids_shape_migration_20260728', pk: 'slug' },
+  { name: 'production_asset_access_checks', pk: ['deliverable_id', 'slot', 'url_sha256'] },
+  { name: 'linear_archive_asset_refs', pk: 'ref_id' },
+  { name: 'production_comment_card_links', pk: ['source_surface', 'card_id', 'component', 'native_comment_id'] },
+  { name: 'production_comment_mutation_receipts', pk: 'dedup_key' },
+  { name: 'track_b_team_rollback_intents', pk: ['rollback_id', 'outbox_id'] },
+  { name: 'track_b_f27_team_fences', pk: 'team' },
+  { name: 'linear_intake_receipts', pk: 'receipt_key' },
+]);
 const CORPORA = Object.freeze({
   'legacy-v3': Object.freeze({ name: 'legacy-v3', version: 3, magic: PACKAGE_MAGIC, tables: TABLES }),
   'history-v4': Object.freeze({ name: 'history-v4', version: 4,
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V4\n', 'utf8'), tables: HISTORY_TABLES }),
+  'history-v5': Object.freeze({ name: 'history-v5', version: 5,
+    magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V5\n', 'utf8'), tables: CLOSED_HISTORY_TABLES }),
 });
 
 function resolveCorpus(name = 'legacy-v3') {
@@ -83,9 +104,10 @@ function configuredCorpus() {
 
 function manifestCorpus(manifest) {
   const name = manifest && manifest.schema_version === 3 ? 'legacy-v3'
-    : manifest && manifest.schema_version === 4 ? 'history-v4' : '';
+    : manifest && manifest.schema_version === 4 ? 'history-v4'
+      : manifest && manifest.schema_version === 5 ? 'history-v5' : '';
   const corpus = resolveCorpus(name);
-  if ((corpus.version === 4 || manifest.corpus != null) && manifest.corpus !== corpus.name) {
+  if ((corpus.version >= 4 || manifest.corpus != null) && manifest.corpus !== corpus.name) {
     throw new Error('Track-B snapshot corpus does not match its schema version');
   }
   return corpus;
@@ -255,8 +277,26 @@ function runPostgresTool(command, args, capture = false, stage = 'PostgreSQL bac
   return result.stdout || '';
 }
 
+function corpusBoundarySql(corpusName) {
+  const corpus = resolveCorpus(corpusName);
+  const relations = corpus.tables.map(config => `'public.${config.name}'::regclass`).join(',');
+  // No row values, client identifiers, constraint names or dynamic SQL reach
+  // diagnostics. RESTRICT remains the ultimate restore race guard.
+  return `do $corpus_boundary$ declare covered oid[] := array[${relations}]::oid[]; begin
+if exists(select 1 from pg_catalog.pg_constraint where contype='f'
+  and confrelid=any(covered) and not conrelid=any(covered)) then
+  raise exception 'Track-B corpus has an omitted incoming foreign key';
+end if;
+if exists(select 1 from pg_catalog.pg_constraint where contype='f'
+  and conrelid=any(covered) and not confrelid=any(covered)) then
+  raise exception 'Track-B corpus has an omitted referenced relation';
+end if;
+end $corpus_boundary$;\n`;
+}
+
 function readOnlyPrivilegeSql(corpusName = 'legacy-v3') {
-  return resolveCorpus(corpusName).tables.map(config => {
+  const boundary = resolveCorpus(corpusName).version >= 5 ? corpusBoundarySql(corpusName) : '';
+  return boundary + resolveCorpus(corpusName).tables.map(config => {
     const relation = `public.${config.name}`;
     return `select '${config.name}', has_table_privilege(current_user, '${relation}', 'SELECT'), `
       + `has_table_privilege(current_user, '${relation}', 'INSERT'), `
@@ -289,12 +329,17 @@ function verifyReadOnlyPrivilegeOutput(text, corpusName = 'legacy-v3') {
   return true;
 }
 
+function readOnlyPrivilegeArgs(corpusName = 'legacy-v3') {
+  // DO emits a command tag even with --tuples-only. Keep the fixed privilege
+  // result protocol free of that tag without suppressing errors/exit status.
+  return ['--no-psqlrc', '--quiet', '--tuples-only', '--no-align', '--field-separator=|',
+    '--set=ON_ERROR_STOP=1', '--command', readOnlyPrivilegeSql(corpusName),
+  ];
+}
+
 function assertReadOnlySource(corpusName = 'legacy-v3') {
   assertProductionSource();
-  const output = runPostgresTool('psql', [
-    '--no-psqlrc', '--tuples-only', '--no-align', '--field-separator=|',
-    '--set=ON_ERROR_STOP=1', '--command', readOnlyPrivilegeSql(corpusName),
-  ], true, 'Backup privilege preflight');
+  const output = runPostgresTool('psql', readOnlyPrivilegeArgs(corpusName), true, 'Backup privilege preflight');
   return verifyReadOnlyPrivilegeOutput(output, corpusName);
 }
 
@@ -440,7 +485,7 @@ function buildManifest(dumpBytes, generatedAt = new Date().toISOString(), source
   return {
     format: 'syncview-track-b-postgresql-snapshot',
     schema_version: corpus.version,
-    ...(corpus.version === 4 ? { corpus: corpus.name } : {}),
+    ...(corpus.version >= 4 ? { corpus: corpus.name } : {}),
     table_count: corpus.tables.length,
     generated_at: generatedAt,
     completed_at: new Date().toISOString(),
@@ -1202,6 +1247,9 @@ if (require.main === module) {
 module.exports = {
   CORPORA,
   HISTORY_TABLES,
+  CLOSED_HISTORY_TABLES,
+  corpusBoundarySql,
+  readOnlyPrivilegeArgs,
   configuredCorpus,
   manifestCorpus,
   resolveCorpus,

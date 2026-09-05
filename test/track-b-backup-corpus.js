@@ -80,7 +80,9 @@ async function run() {
       assert.equal(snapshot.manifest.corpus, undefined);
       assert.equal(snapshot.manifest.tables.card_change_journal, undefined);
       const sql = restore.restoreSql(snapshot.dumpBytes);
-      for (const table of backup.HISTORY_TABLES.slice(14)) assert.ok(sql.includes(`to_regclass('public.${table.name}') is not null`));
+      for (const name of ['card_change_journal','production_intake_manifests']) assert.ok(sql.includes(`to_regclass('public.${name}') is not null`));
+      assert.ok(!sql.includes("to_regclass('public.calendar_posts') is not null"));
+      assert.match(sql, /omitted incoming foreign key/);
       assert.ok(sql.indexOf('Legacy Track-B package') < sql.indexOf('track_b_restore_set_user_triggers(false)'));
     });
     check('history requires ordered composite key metadata and its own helper', () => {

@@ -11955,6 +11955,165 @@ for doing the exit before any large backfill, and for scoping this repair to the
 the structural change until after the Linear exit, when the write paths that
 would have to change are the ones that will survive.**
 
+---
+
+## 148. [2026-09-05, SOURCE WRITTEN, NOT APPLIED — updates item 147's state] The Phase 2 RPC exists in source, and it refuses two things item 147 did not think to refuse
+
+Item 147 §4 named the blocker: `production_comment_card_import` validates the
+crosswalk *before* it copies, so it refuses precisely while the crosswalk is
+broken — and repairing the binding first opens the split-thread window instead.
+No legal order exists without a combined operation.
+
+**That operation is now written**, and this entry exists so the ledger does not
+imply more than that:
+
+* `migrations/2026-09-05-crosswalk-bind-and-import.sql` —
+  `public.production_comment_card_bind_and_import(jsonb, jsonb, jsonb)`,
+  `security definer`, service-role only, bind and import in one transaction.
+* `scripts/crosswalk-bind-rehearsal.js` executes it against a disposable
+  PostgreSQL 16: the happy path, idempotency, and every reachable refusal by its
+  own error code.
+* `test/crosswalk-bind-and-import.js` holds the source guards and invokes the
+  rehearsal; it SKIPS where the server binaries are absent, which is an
+  environment fact, and CI's unit lane pins postgres:16.
+
+**NOT APPLIED. No live row has been repaired through it.** Written and applied
+are different states and item 147's phase table now separates them
+(`docs/ops/CROSSWALK_REPAIR_STRATEGY.md`, status block).
+
+### The card pointer is not authority on its own
+
+The first draft bound on the strength of the card's own `*_deliverable_id`
+slot, plus client, existing-binding and slot-occupancy checks. Codex found the
+hole on #1273 and it is the same class as the cross-client row item 147 §2
+records: **a STALE card pointer that happens to name an unbound deliverable of
+the same client** would have that unrelated row rewritten and the card's
+conversation copied onto it. Every check in that draft descended from the
+pointer, so none of them could notice the pointer was wrong.
+
+Two independent questions were added, both already asked by
+`scripts/f42-linkage-defect-repair.js` (`classAObjections`) before it plans a
+Class A repair:
+
+* **`kind` must be the kind the card slot implies.** `team` cannot prove it:
+  `team='video'` covers `kind='video'` AND `kind='other'`. Proven by mutation —
+  with the guard removed, the rehearsal's wrong-kind bind SUCCEEDS.
+* **Both sides must name the same Linear issue.** Either side missing is
+  UNPROVEN, which is a refusal and not a pass. Both the full-URL and the bare
+  identifier shape are accepted, because live rows carry both and refusing the
+  URL shape would read as a clean run over a third of the work.
+
+**This narrows what Phase 2 can finish unattended, on purpose.** A slot that
+cannot prove its identity is a slot for a person. The Phase 2 call list must be
+measured with that in mind rather than assumed to cover every remaining slot —
+and measured fresh, since Phase 1's 60 repairs moved the counts.
+
+Two smaller repairs from the same review: the card row is now selected `FOR
+UPDATE` (staff relinking between the read and the commit would otherwise bind
+into a deliverable the card no longer points at, and the nested import validates
+only the deliverable side so it cannot notice); and the receipt reports
+`processed` / `imported` / `already_linked` separately, because
+`production_comment_card_import` returns the existing row on an idempotent retry
+and counting the loop would let a runner certify more copied comments than were
+created.
+
+---
+
+## 149. [2026-09-05, HEALTH-CHECK RECORD — no repair owed] The video `outbound_diff_count` rose 51 → 138, and the reason is the owner's own backlog SQL
+
+`PRE_FLIP_HEALTH_CHECK.md` item 1 gates on **unexplained GROWTH** per team and
+asks that the repairs which DO explain a rise be recorded *in the same run that
+reports it*, "or the next run cannot tell an explained rise from a new one".
+This is that record.
+
+**What the 01:03Z run reported.** `linear_deliverables_reconcile_v2`, video:
+`outbound_diff_count` 51 → 138 (+87), `diff_rows` 48 → 123 (+75), between the
+00:03Z and 01:03Z summaries. Graphics unchanged at 99/82 across the same window.
+
+**What caused it.** 123 video deliverables carry an `updated_at` after
+2026-09-05T00:00Z — the same number the reconciler reports as `diff_rows` — and
+**87 of them were written in one batch at 00:32Z**, all `origin='manual'`, all
+landing on `status='backlog'`. That is the 87-row "unattributed → backlog" SQL
+from the 2026-09-04 session, executed by the owner. The native rows moved;
+Linear was not told, because for a SyncView-authoritative team the reconciler is
+deliberately detect-only. Each such row is therefore counted as a divergence
+until something reconciles it, and nothing will — that is the designed
+behaviour, not a defect. The remaining 36 rows in the window are ordinary
+same-day traffic across 10 clients.
+
+**Consequence for the next run.** Treat a video `outbound_diff_count` at or near
+**138** as the new explained baseline, not as growth. A rise ABOVE it still
+needs an explanation. Graphics baseline is unchanged at 99.
+
+Measured with the browser publishable key against
+`production_deliverables_browser_v1` (`deliverables` itself returns 42501 to
+that key, which is why the view is the read).
+
+Everything else in the 2026-09-05 01:03Z watch was clean: webhooks 2/2/0;
+`prod_authority {"video":"syncview","graphics":"syncview"}`;
+`write_ui_reroute_clients` 43 members under `owner-enrollment-wave-3-full-roster`
+and EQUAL to all three `*_ef_clients` rosters (43 each); zero
+error/fail/reject/conflict/stale rows in `calendar_post_events` (331) or
+`sample_review_events` (24) in 12h; all three reconciler workflows green; F40
+graphics 125 audited / **0 unprovable**; inbound proven live by five
+`mirror_out_echo_dropped` rows, the freshest 01:19Z. Wave-1 soak day 28
+complete (day 29 in progress); wave-2 day 24 complete.
+
+---
+
+## 150. [2026-09-05, MEASURED — one owner decision unblocks the largest block] The Phase 2 call list: 42 of 107 the RPC can repair on its own, and 40 more are one classification question
+
+Item 148 says the Phase 2 call list has to be measured rather than assumed,
+because item 147's counts moved when Phase 1 ran. Measured 2026-09-05 01:48
+UTC, read-only, with the browser publishable key over `calendar_posts` and
+`production_deliverables_browser_v1`. Full table in
+`docs/ops/CROSSWALK_REPAIR_STRATEGY.md` §5.
+
+**1,214 client-calendar slots name a deliverable; 107 mismatch.** Running each
+through every guard the RPC enforces, in order:
+
+* **42 REPAIRABLE unattended** — 22 with no legacy thread to carry, 20 needing
+  the combined bind-and-import.
+* **40 refused on `kind`**, and this is the block worth the owner's attention.
+* **25 need a person** — 18 contested slots, 5 already bound elsewhere, 1
+  cross-client reference (the one item 147 §2 records), 1 with no provable
+  Linear identity on either side.
+
+### The identity guard costs one slot, and that is the point
+
+The Linear-identity requirement added after the #1273 review refuses exactly
+**one** of the 107. It was never going to exclude much work — its value is that
+it makes the other refusals trustworthy, because without it a stale pointer
+aimed at an innocent unbound row is indistinguishable from a real repair.
+Cheap insurance, and worth saying plainly so nobody later reads it as the thing
+holding Phase 2 up. It is not.
+
+### The 40 kind refusals are ONE question, not forty investigations
+
+In **all 40**, the card and the deliverable name the SAME Linear issue. These
+are not stale pointers; they are rows whose `kind` disagrees with the slot
+holding them. The live vocabulary is what makes it a judgement call rather than
+a defect:
+
+| team / kind | rows |
+|---|---|
+| video / video | 3,747 |
+| graphics / thumbnail | 2,326 |
+| **graphics / other** | **173** |
+| **video / thumbnail** | **81** |
+| graphics / video | 3 |
+
+* **26** are a graphic slot pointing at a `graphics/other` row. If `other` is a
+  mis-classified thumbnail, fixing the kind lets all 26 repair normally.
+* **14** are a VIDEO slot pointing at a `kind='thumbnail'` row. That is the more
+  suspicious half — same issue, wrong artifact class — and should be looked at
+  as a group rather than waved through.
+
+`scripts/f42-linkage-defect-repair.js` (`classAObjections`) already refuses this
+whole class for the planner, so the RPC refusing it is consistency with the
+existing rule, not a new restriction invented here. **The owner decision is
+whether `kind='other'` on a graphics row counts as a thumbnail.** Answering it
+moves the repairable set from 42 to 68 of 107.
 ## 148. A Production deep link waited for the whole board before it could show one row
 
 **Owner report 2026-09-05**, following the calendar card's "Open the SyncView

@@ -958,6 +958,45 @@ ok(mixedRun.code === 1 && mixedRun.json
     && mixedRun.json.failures.some(f => /\("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /carries 3 versions-table row\(s\) this guard cannot read/.test(f)),
     'ONE ACCEPTED ROW EXCUSES NOTHING: a second table under the v68 entry with one parsed row and three abbreviated ones is named for its three unreadable rows');
 
+/* ---- 8j. indented tables (round eleven) ------------------------------------ */
+/* Markdown tables inside list content are routinely indented by a space or
+   more. Both the strict parser and the candidate-row sweep required the pipe
+   in column 1, so an indented table was invisible to both. */
+const indentedMalformed = [
+    '',
+    '## 2026-09-06 — production-write 68 → 69 shipped',
+    '',
+    ' | function | active version | source closure SHA-256 | JWT |',
+    ' |---|---|---|---|',
+    ' | batch-write | 35 | `86f9f187...` | verify_jwt=false |',
+    ' | deliverable-write | 35 | `78df060b...` | verify_jwt=false |',
+    ' | linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
+    ' | **production-write** | **69** | `eeeeeeee...` | verify_jwt=false |',
+    '',
+].join('\n');
+const indentedMalformedRun = run(fixture('indented-malformed', realLog + indentedMalformed, realRb));
+ok(indentedMalformedRun.code === 1 && indentedMalformedRun.json
+    && indentedMalformedRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'INDENTATION HIDES NOTHING: a malformed four-function table indented by one space is still counted, four rows, under a heading with no Section 4 signal of its own');
+const indentedReadable = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `33999999903`: production-write 68 → 69',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '  | function | active version | source closure SHA-256 | JWT |',
+    '  |---|---|---|---|',
+    '  | `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '  | `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '  | `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '  | `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const indentedReadableRun = run(fixture('indented-readable', realLog + indentedReadable, realRb));
+ok(indentedReadableRun.json && !indentedReadableRun.json.failures.some(f => UNREADABLE.test(f))
+    && indentedReadableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'and a well-formed table indented by two spaces is READ by the strict parser, so the entry becomes the newest receipt and the row is what fails');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

@@ -91,7 +91,11 @@ function receiptsFromJson(log) {
    first would report the version this deploy replaced as the one that is live,
    which is the precise error this whole check exists to catch. */
 function receiptsFromTables(log) {
-    const rowRe = /^\|\s*`([a-z-]+)`\s*\|([^|]*)\|\s*`([0-9a-f]{64})`\s*\|/gm;
+    /* Leading indentation is allowed: Markdown tables inside list content are
+       routinely indented, and a parser that required the pipe in column 1 was
+       blind to them (Codex, eleventh round on #1306). `m.index` stays the line
+       start, which is what the unreadable-row sweep compares against. */
+    const rowRe = /^[ \t]*\|\s*`([a-z-]+)`\s*\|([^|]*)\|\s*`([0-9a-f]{64})`\s*\|/gm;
     const rows = [];
     let m;
     while ((m = rowRe.exec(log))) {
@@ -494,7 +498,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
        round). Only the rejected rows are counted. The 2026-08-31 entry
        abbreviates one closure beside three full ones; it predates the newest
        receipt, so it is a note, as the GAP section is. */
-    const candidateRow = /^\|\s*\**`?(?:batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
+    const candidateRow = /^[ \t]*\|\s*\**`?(?:batch-write|deliverable-write|linear-outbound|production-write)`?\**\s*\|[^|\n]*\|[^|\n]*\|/;
     const unreadableTableRows = (block, blockStart) => {
         let total = 0;
         let group = [];

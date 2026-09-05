@@ -655,6 +655,11 @@ reported by `scripts/calendar-native-link-gap-check.js`.
   pointing at inactive members and 7 cross-team, and zero unmapped — the strict role default
   excludes nobody who is currently eligible, because every admin/SMM roster row carries no team.
   Candidate source only; not merged and dark behind team authority.
+  **2026-09-05 draft (unmerged, on PR1302):** eligibility is lane-aware. The server-resolved
+  native intake epoch makes a request native; on that lane the flag is not read and no provider
+  call is made, while active membership, exact per-team role and team stay required and a
+  missing `linear_user_id` is an optional identifier. Provider lanes keep the contract above.
+  `docs/audits/2026-09-05-native-assignee-eligibility.md`.
 - F95: operational data loaded at mount and on focus/visibility/pageshow return; the repeating timer
   refreshed only authority, so a continuously foreground Production tab could remain stale
   indefinitely with no last-success age, degraded state, or Refresh control. Slice 5 candidate

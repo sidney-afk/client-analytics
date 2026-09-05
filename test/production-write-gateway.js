@@ -1068,7 +1068,7 @@ function extractFunction(name) {
     && /default_for_team/.test(edge)
     && /intake_assignee_override_not_allowed/.test(edge)
     && /normalizeTeam\(item\.team\) !== "video"/.test(edge)
-    && /await assertEligibleAssignee\(supabase, requestedByTeam\[team\], team\)/.test(edge),
+    && /await assertEligibleAssignee\(supabase, requestedByTeam\[team\], team, nativeEpochByTeam\[team\]\)/.test(edge),
   'intake balances on OPEN video work and accepts a validated video editor override, graphics refused');
   // ONE PARENT PER CARD (owner ruling 2026-08-18). The batch row is still
   // nullable-team for a mixed card, but it mints a single Linear parent owned

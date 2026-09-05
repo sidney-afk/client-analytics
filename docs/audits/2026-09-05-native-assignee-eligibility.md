@@ -198,6 +198,13 @@ moved onto a server projection of the intake pool.
   lane. New requests return to the provider policy. No row, receipt, manifest or
   flag needs rewriting, and none may be.
 
+Expected `production-write` closure at the code commit `02dcdfed4472dc2a96aaba961b110d97c70fbbfe`:
+source `a46100398d4733a0b299651c61a41b67c3f575aad90e90788ad1d7e0e46283e2`, entrypoint
+`4dd31a0442dbe299d0fd228bb5a76fd00a029449f5d0dfef84e9f58d6dbd2a44`, five files;
+regenerated with `node scripts/ef-fingerprint.js <sha> --slugs=production-write --expected-only`
+and pinned in the Section 4 workflow and its lane test. The generated deployment
+ownership manifest is unchanged.
+
 ## Remaining provider-dependent paths
 
 SyncLinear `assignee` (non-null), Production `create`, `assignee_options`,

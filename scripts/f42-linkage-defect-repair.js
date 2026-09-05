@@ -180,11 +180,16 @@ function classAObjections(deliverable, surface, card, component, byCardSlot) {
   if (lower(deliverable.team) !== teamForComponent(component)) objections.push('team_disagrees');
   if (clean(deliverable.card_id)) objections.push('deliverable_already_claims_a_card');
   if (!['manual', ''].includes(lower(deliverable.origin))) objections.push('origin_is_not_manual');
-  // `team` alone is too coarse to prove this deliverable belongs in THIS slot:
-  // team='video' covers both kind='video' and kind='other'. The card slot
-  // implies an exact kind, and stamping a card_id onto the wrong kind would
-  // create a link the crosswalk accepts but that addresses the wrong artifact.
-  if (lower(deliverable.kind) !== kindForComponent(component)) objections.push('kind_does_not_match_the_card_slot');
+  // Kind is NOT a refusal of the repair, only of THIS runner (owner ruling
+  // 2026-09-05, OPEN_REPAIRS 156). `kind` is a regex over the issue title and
+  // its parent's title, and it refused 40 live slots in which the card and the
+  // row named the SAME Linear issue. The repair for those is to bind AND
+  // relabel the row to its slot key, with the collision probe run on the
+  // post-write kind and the card's other slot excluded -- which
+  // production_comment_card_bind_and_import does and this direct PATCH runner
+  // (origin + card_id only) does not. So the row is handed to the RPC by name
+  // rather than patched half-way (Codex P2 on #1291).
+  if (lower(deliverable.kind) !== kindForComponent(component)) objections.push('kind_disagrees_use_bind_and_import');
   // The card and the deliverable must be talking about the SAME Linear issue.
   // Without this, a card is stamped onto whatever unclaimed deliverable happens
   // to sit in its client+team space. Both sides must name an issue, and the two

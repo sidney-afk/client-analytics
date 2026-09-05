@@ -21,11 +21,16 @@ async function main(){
       const navigate=async(target,step)=>{
         document=target;
         const url=surface==='kasper'?h.url('admin'):surface==='samples'?h.url('client').replace('v=calendar','v=sample-reviews&sxr=1'):h.url('client');
-        const u=new URL(url);u.searchParams.set('fixture_recovery',step);
-        const response=await s.page.goto(u.href,{waitUntil:'domcontentloaded'});
+        // Preserve the verified link exactly. Client-entry correctly refuses
+        // arbitrary parameters; a same-origin fixture page forces a new document.
+        await s.page.goto(h.origin+'/__feedback-away');
+        const response=await s.page.goto(url,{waitUntil:'domcontentloaded'});
         assert.equal(sha256(await response.body()),sha256(target),'exact recovery document served');
         if(surface==='kasper'){await ui.card(s.page).waitFor();await s.page.locator('#navKasper').click();}
-        await panel(s,surface);
+        await panel(s,surface).catch(async error=>{
+          report.diagnostic={surface,fault,step,blocked:b.blocked,errors:s.errors,records:b.records,
+            page:await s.page.evaluate(()=>({text:document.body.innerText.slice(-2500),cal:{client:calState.client,posts:calState.posts},sxr:{client:sxrState.client,posts:sxrState.posts,error:sxrState.error}}))};throw error;
+        });
       };
       await navigate(inverse.recovery,'inverse');b.release();b.feedbackFault='reject';
       for(const target of ['recovery','forward']){

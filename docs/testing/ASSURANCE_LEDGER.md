@@ -26,7 +26,9 @@
 
 Review feedback draft addendum (2026-09-05, source-only draft):
 `qa/feedback-drafts/` passes 18 visible conservation cells, 15 behavior groups
-and 3 real BFCache groups against the integrated Samples-based repair; the
+and 3 real BFCache groups against the integrated Samples-based repair; 9
+additional forward/recovery/forward feedback groups preserve captured and newer
+revisions. The existing 8 local-work/13 recovery Samples groups also pass. The
 isolated actual-helper suite passes 13 groups. Refusal, ambiguous acceptance,
 same-ID edited-body retry and actual identity storage-event late outcomes are
 covered with fictional intercepted receivers. This does not refresh any live

@@ -31,7 +31,9 @@ async function main() {
       b.feedbackFault = null;
       const fresh = await open(h,b,surface,storageState); const before = b.feedbackWrites.length;
       assert.equal((await snap(fresh,surface)).originalVisible,true);
-      await fresh.page.getByRole('button',{name:surface==='samples'?'Retry note save':'Retry earlier feedback',exact:true}).click();
+      await fresh.page.keyboard.press('Tab');
+      await ui.tabTo(fresh.page,'[data-review-draft-retry]');
+      await fresh.page.keyboard.press('Enter');
       await ui.until(async()=>b.feedbackWrites.length>before && !(await snap(fresh,surface)).saving,'explicit existing-writer retry settles');
       assert.deepEqual(commentIds(b.feedbackWrites),firstIds,'ambiguous retry keeps exactly the original comment identity');
       const rows = JSON.parse(b.rows[0].video_tweaks);

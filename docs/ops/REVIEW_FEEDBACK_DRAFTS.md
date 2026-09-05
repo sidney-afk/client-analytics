@@ -70,6 +70,12 @@ with `SAMPLES_RECOVERY_TARGET_SHA=FULL_HEAD_SHA`. This changes only the Samples
 read strategy; it preserves the composer bridge, exact draft storage, existing
 queue and explicit recovery controls. The builder does not publish or deploy.
 
+Pinned artifact for the independently reviewed runtime:
+forward HTML SHA-256 `9b0aa7cd3703b8956850eeddfd92f12fb008f65e5959a07a9ebffa5af44a1f88`;
+recovery HTML SHA-256 `bb61876f85816ef6ce61c23def571c0731e9fd628982392b7e7bdc411d244711`.
+Only `_sxrFetchPosts` differs. The patch reverses byte-for-byte to the forward
+document. New runtime bytes require a new manifest and rehearsal.
+
 Removing the feedback ownership implementation itself is **not yet a proven
 inverse**. Such removal requires an independently reviewed schema-compatible
 bridge or verified per-owner reconciliation of every outstanding revision.
@@ -79,7 +85,13 @@ successfully stored. No automatic reconciliation or live operator action is
 authorized by this document.
 
 Local synthetic evidence covers 13 isolated ownership groups, 18 browser failure
-cells, 15 browser behavior groups and 3 real BFCache groups. Existing applicable
+cells, 15 browser behavior groups, 3 real BFCache groups and 9 additional
+forward/recovery/forward feedback groups (pending, refused, ambiguous and newer
+revisions on all three surfaces). The existing 8 Samples local-work and 13
+Samples recovery browser groups pass. The two independent review findings were
+retested closed on runtime commit `4dcb50bb1a0d0e29aa1efd2db9b8d2d3ae49c977`,
+with index SHA-256 `9b0aa7cd3703b8956850eeddfd92f12fb008f65e5959a07a9ebffa5af44a1f88`.
+Existing applicable
 suite results are recorded in the PR. These results do not prove installed
 native idempotency, live comment delivery, production release, monitoring
 integration, 30-day history or client continuity. Exact-head independent review,

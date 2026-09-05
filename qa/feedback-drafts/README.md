@@ -10,6 +10,7 @@ node test/review-draft-ownership.js
 node qa/feedback-drafts/run.js
 node qa/feedback-drafts/behavior.js
 node qa/feedback-drafts/bfcache.js
+node qa/feedback-drafts/recovery.js
 ```
 
 `run.js` loads the complete current document and executes real composer inputs,
@@ -32,6 +33,14 @@ script is byte-identical. Remote DNS is refused, workers blocked, and escaping
 requests fail. Each surface must return without an HTML refetch, retain exact
 owned storage and visible text, and issue zero writes. Synthetic event dispatch
 cannot satisfy this test.
+
+`recovery.js` exercises nine forward/recovery/forward groups with pending,
+refused and ambiguously accepted notes plus newer unsent revisions. It serves
+the exact generated Samples inverse while retaining the composer compatibility
+bridge, verifies both bodies remain visible and owned, and forbids submitting
+the newer unsent text during navigation. Client links remain byte-for-byte
+unchanged; adding an arbitrary query parameter is correctly refused by the
+existing capability parser and is not a valid recovery fixture.
 
 Reports/screenshots remain under ignored `.codex-tmp/`. They are private local
 diagnostics, never attachments for a public PR. `FEEDBACK_SOURCE` can select a

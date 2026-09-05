@@ -87,6 +87,9 @@ class Harness {
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.origin === this.origin) {
+        if (this.documentOverride && url.pathname === '/__feedback-away') {
+          return route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Fixture away</title>' });
+        }
         if (this.documentOverride && ['/', '/index.html'].includes(url.pathname)) {
           return route.fulfill({ status: 200, contentType: 'text/html', body: this.documentOverride() });
         }

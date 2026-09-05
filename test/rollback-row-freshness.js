@@ -1196,6 +1196,38 @@ const laneHeldProseRun = run(fixture('lane-held-prose', appended(laneHeldProse),
 ok(laneHeldProseRun.code === 0,
     'while outside a list the paragraph is still the scope, and a NOT DISPATCHED paragraph asks for nothing');
 
+/* ---- 8p. a list item spans its continuation paragraphs (round seventeen) ---- */
+const laneTwoParagraphs = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch:',
+    '',
+    '  Completed successfully at 20:31Z; the Track-B step carried `production-write`',
+    '  and `linear-outbound`.',
+    '',
+].join('\n');
+const laneTwoParagraphsRun = run(fixture('lane-two-paragraphs', appended(laneTwoParagraphs), realRb));
+ok(laneTwoParagraphsRun.code === 1 && laneTwoParagraphsRun.json
+    && laneTwoParagraphsRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AN ITEM SPANS ITS CONTINUATION PARAGRAPHS: a bullet naming the lane whose indented second paragraph says "Completed successfully" is one item, and FAILS');
+const laneTwoParagraphsHeld = laneTwoParagraphs.replace('Completed successfully at 20:31Z; the Track-B step carried `production-write`', 'NOT DISPATCHED; the runner was busy, deferred to Monday for `production-write`');
+const laneTwoParagraphsHeldRun = run(fixture('lane-two-paragraphs-held', appended(laneTwoParagraphsHeld), realRb));
+ok(laneTwoParagraphsHeldRun.code === 0,
+    'and the same shape whose second paragraph says NOT DISPATCHED asks for nothing');
+const laneItemThenParagraph = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch: prepared, credentials checked.',
+    '',
+    'The B1 stray-catcher dispatch completed successfully the same evening.',
+    '',
+].join('\n');
+const laneItemThenParagraphRun = run(fixture('lane-item-then-paragraph', appended(laneItemThenParagraph), realRb));
+ok(laneItemThenParagraphRun.code === 0,
+    'while a column-zero paragraph after the list is not part of the item: its "completed successfully" is about another dispatch, and the lane item asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

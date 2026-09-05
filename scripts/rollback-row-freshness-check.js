@@ -436,31 +436,65 @@ function ownBlock(log, at) {
 }
 
 /* The text a lane reference is judged by: its own Markdown list item when it
-   sits in a list (the item's first line to the line before the next bullet at
-   any indentation), else its blank-line paragraph. Two bullets written back to
+   sits in a list, else its blank-line paragraph. Two bullets written back to
    back without a blank line are two records, not one: "`lane` dispatch
    completed successfully" followed by "Follow-up smoke probe: NOT DISPATCHED"
    used to read as one paragraph, and the second bullet's verdict silenced the
-   first (Codex, sixteenth round on #1306). */
+   first (Codex, sixteenth round on #1306). And one item can span several
+   paragraphs: a bullet line "`lane` dispatch:" followed by a blank line and an
+   INDENTED paragraph "Completed successfully" is one item, so the item runs
+   from its bullet line to the line before the next bullet at any indentation,
+   across blank lines as long as the paragraph after the blank is indented
+   (Codex, seventeenth round). A paragraph at column zero after a blank line
+   is the end of the list, not part of the item. */
 function referenceScope(log, k, len) {
-    const pStart = Math.max(0, log.lastIndexOf('\n\n', k) + 2, k - 800);
-    let pEnd = log.indexOf('\n\n', k + len);
-    if (pEnd < 0 || pEnd > k + len + 800) pEnd = Math.min(log.length, k + len + 800);
-    const bullet = /^[ \t]*(?:[-*+]|\d+[.)])\s/;
+    const wStart = k - 3000 <= 0 ? 0 : log.lastIndexOf('\n', k - 3000) + 1;
+    let wEnd = log.indexOf('\n', k + len + 3000);
+    if (wEnd < 0) wEnd = log.length;
     const lines = [];
-    let pos = pStart;
-    for (const text of log.slice(pStart, pEnd).split('\n')) {
+    let pos = wStart;
+    for (const text of log.slice(wStart, wEnd).split('\n')) {
         lines.push({ from: pos, to: pos + text.length, text });
         pos += text.length + 1;
     }
     const idx = lines.findIndex(l => k >= l.from && k <= l.to);
-    if (idx < 0) return { from: pStart, to: pEnd };
-    let first = idx;
-    while (first >= 0 && !bullet.test(lines[first].text)) first--;
-    if (first < 0) return { from: pStart, to: pEnd };
-    let next = idx + 1;
-    while (next < lines.length && !bullet.test(lines[next].text)) next++;
-    return { from: lines[first].from, to: lines[next - 1].to };
+    const isBullet = t => /^[ \t]*(?:[-*+]|\d+[.)])\s/.test(t);
+    const isBlank = t => /^\s*$/.test(t);
+    const isIndented = t => /^[ \t]+\S/.test(t);
+    const paragraph = () => {
+        let a = idx, b = idx;
+        while (a > 0 && !isBlank(lines[a - 1].text)) a--;
+        while (b + 1 < lines.length && !isBlank(lines[b + 1].text)) b++;
+        return { from: lines[a].from, to: lines[b].to };
+    };
+    if (idx < 0) return { from: Math.max(0, k - 800), to: Math.min(log.length, k + len + 800) };
+    /* Backwards to the item's bullet line. Crossing a blank line is allowed
+       only when the paragraph being left starts indented, i.e. is a
+       continuation paragraph of an item rather than a paragraph after the list. */
+    let first = -1;
+    for (let j = idx; j >= 0; j--) {
+        const t = lines[j].text;
+        if (isBullet(t)) { first = j; break; }
+        if (isBlank(t)) {
+            if (j + 1 > idx || !isIndented(lines[j + 1].text)) break;
+        }
+    }
+    if (first < 0) return paragraph();
+    /* Forwards to the line before the next bullet. At a blank line, the item
+       continues only if the next non-blank line is indented and not a bullet. */
+    let last = idx;
+    for (let j = idx + 1; j < lines.length; j++) {
+        const t = lines[j].text;
+        if (isBullet(t)) break;
+        if (isBlank(t)) {
+            let n = j + 1;
+            while (n < lines.length && isBlank(lines[n].text)) n++;
+            if (n >= lines.length || isBullet(lines[n].text) || !isIndented(lines[n].text)) break;
+            continue;
+        }
+        last = j;
+    }
+    return { from: lines[first].from, to: lines[last].to };
 }
 
 /* Does the lane reference at k record a dispatch that happened? Judged on its
@@ -476,7 +510,7 @@ function recordsADispatch(log, k, len) {
     if (/\brun\s+`?#?\d{6,}/i.test(span)) return true;
     const lead = log.slice(Math.max(scope.from, k - 60), k);
     if (/\b(until|pending|awaiting|await|next|future|upcoming|planned|planning|will|would|not yet|owed|instead of|rather than|without)\b[^`"]*$/i.test(lead)) return false;
-    return /\b(dispatched|went out|deployed|redeployed|shipped|ran|passed|PASS|green|succeeded|success|successful|completed|went live|goes live|is live|now live)\b/.test(span);
+    return /\b(dispatched|went out|deployed|redeployed|shipped|ran|passed|PASS|green|succeeded|success|successful|successfully|completed|went live|goes live|is live|now live)\b/i.test(span);
 }
 
 /* THE CONCISE PROSE SHAPE, which produced no receipt at all. EXECUTION_LOG.md

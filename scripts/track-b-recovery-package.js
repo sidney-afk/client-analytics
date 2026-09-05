@@ -67,7 +67,7 @@ function recoveryName(generatedAt) {
 // ---------------------------------------------------------------------------
 function splitSqlStatements(text) {
   const out = [];
-  let i = 0; let start = 0; let line = 1; let startLine = 1; let atLineStart = true;
+  let i = 0; let start = 0; let line = 1; let startLine = 1; let atLineStart = true; let sawToken = false;
   const n = text.length;
   const push = (end, kind) => {
     const body = text.slice(start, end).trim();
@@ -79,23 +79,23 @@ function splitSqlStatements(text) {
       const eol = text.indexOf('\n', i);
       start = i; startLine = line;
       push(eol === -1 ? n : eol, 'meta');
-      i = eol === -1 ? n : eol + 1; line += 1; start = i; startLine = line; atLineStart = true;
+      i = eol === -1 ? n : eol + 1; line += 1; start = i; startLine = line; atLineStart = true; sawToken = false;
       continue;
     }
     if (ch === '\n') { line += 1; atLineStart = true; i += 1; continue; }
     if (ch === ' ' || ch === '\t' || ch === '\r') { i += 1; continue; }
-    if (text.startsWith('--', i)) { const eol = text.indexOf('\n', i); i = eol === -1 ? n : eol; if (text.slice(start, i).trim().startsWith('--') || text.slice(start, i).trim() === '') { start = i; startLine = line; } continue; }
+    if (text.startsWith('--', i)) { const eol = text.indexOf('\n', i); i = eol === -1 ? n : eol; if (!sawToken) { start = i; startLine = line; } continue; }
     if (text.startsWith('/*', i)) {
       let depth = 1; i += 2;
       while (i < n && depth > 0) {
         if (text.startsWith('/*', i)) { depth += 1; i += 2; } else if (text.startsWith('*/', i)) { depth -= 1; i += 2; } else { if (text[i] === '\n') line += 1; i += 1; }
       }
       if (depth > 0) throw new Error('Unterminated block comment in SQL section');
-      if (text.slice(start, i).replace(/\/\*[\s\S]*?\*\//g, '').trim() === '') { start = i; startLine = line; }
+      if (!sawToken) { start = i; startLine = line; }
       continue;
     }
     atLineStart = false;
-    if (text.slice(start, i).trim() === '') { start = i; startLine = line; }
+    if (!sawToken) { start = i; startLine = line; sawToken = true; }
     if (ch === "'") {
       const escaped = /[eE]$/.test(text.slice(Math.max(0, i - 1), i)) && !/[a-zA-Z0-9_]/.test(text[i - 2] || '');
       i += 1;
@@ -117,7 +117,7 @@ function splitSqlStatements(text) {
         i = close + tag[0].length; continue;
       }
     }
-    if (ch === ';') { push(i, 'statement'); i += 1; start = i; startLine = line; continue; }
+    if (ch === ';') { push(i, 'statement'); i += 1; start = i; startLine = line; sawToken = false; continue; }
     i += 1;
   }
   if (text.slice(start).trim()) throw new Error('SQL section ends inside an unterminated statement');

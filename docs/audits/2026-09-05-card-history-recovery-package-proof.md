@@ -38,7 +38,7 @@ and the same accepted comment-edit replay statement; its assertions are unchange
 ## Local proof (PostgreSQL 16.13, SCRAM-authenticated, disposable)
 
 Rehearsal result: **16 checks PASS**. Package SHA-256 of the proof run:
-`2051cb34ac7f840e1a3667802019858957b35e8f4e9977f7ab06903cdc9722f6` (synthetic
+`f7c5ece9ea8911dde45bf7ef2904437116f5fc924faedc6a473131e031f5a7e7` (synthetic
 data; the file was deleted with the databases).
 
 | Check | Evidence |
@@ -73,7 +73,7 @@ Source hashes bound by the proof run:
 
 | Path | SHA-256 |
 |---|---|
-| `scripts/track-b-recovery-package.js` | `520d5f56d21d7a7e455cf61c5b3f3ab4f5780e2066663a14ebdd825ab382a9b8` |
+| `scripts/track-b-recovery-package.js` | `7e06c99cbd1567a2652733af6b5025891d2c090c1366ab6ad747f7d67f859453` |
 | `scripts/track-b-recovery-reconstruct.js` | `30a559719cd3a8d47fa223f7bba12cbb8546fadfcc603d4015da6568a1942754` |
 | `scripts/track-b-recovery-prerequisites.sql` | `7c61f3ab52280149c26554a820eb6128f73ee7a514c2ca35882ea41a8660f477` |
 | `scripts/track-b-recovery-rehearsal.js` | `f1bda150b125a9b85151f68c6c0374e35436c098481d67c32074a586ae9862d7` |

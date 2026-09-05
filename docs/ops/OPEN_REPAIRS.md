@@ -12845,3 +12845,37 @@ That closes the repair set the rule can close: every slot the runner examines
 is either clean or one of the 7 named for a person, and the runner's plan
 summary lists those 7 by reason on every run. Item 147's residue and the "Still
 open" list above are the whole of what is left.
+
+### The seven, ruled (same day, 23:07 UTC) — six "leave", one one-row move; the repair set is closed
+
+The owner looked at each of the 7 slots the runner refuses for a person, with
+both sides named (the card, the issue it links, and the card that holds the
+deliverable), and ruled:
+
+| # | client | card (slot) | reason | what it is | ruling |
+|---|---|---|---|---|---|
+| 1 | A | `p_mpu3g5v3_a2455` (video), archived | already_bound_elsewhere | duplicate card of a posted one; the posted card holds the deliverable and links the same issue | leave |
+| 2 | B | `p_mq9k84p1_8fc0o` (video) | already_bound_elsewhere | two reels cut from one January filming day, tracked in January as one Linear issue per day, no sub-issues; both cards correctly link that issue; the row remembers the first card | leave |
+| 3 | B | `p_ms4s8jyd_ijwh6` (graphic), archived | linear_identity_unproven | row already bound to this card; only its origin stamp disagrees; the card's graphic slot carries no Linear link; unstarted thumbnail on an archived card | leave |
+| 4 | C | `p_mpljosj5_nucvo` (video), archived | client_mismatch | an archived card pointing at another client's issue (the item 147 §2 case) | leave; never bind |
+| 5, 6 | D | `p_mq9his87_f49jm` (video, graphic), archived | already_bound_elsewhere | duplicate card of an approved one; the approved card holds both deliverables and links the same issues | leave |
+| 7 | D | `p_mqpc2n6i_7fgaf` (video), approved | already_bound_elsewhere | the issue was auto-created by SyncView Mirror from a native card that is now archived and still held the deliverable; the approved card is the real post | **move the deliverable to the approved card** (owner ruling: an archived card never wins) |
+
+Slot 7 was moved by the owner in the SQL Editor at 23:06:52Z as a single
+guarded row update (`EXECUTION_LOG.md`, 2026-09-05, "one-row crosswalk
+move"). The ledger guard wrote its bare `update` event. Re-read with the
+runner's own classifier a minute later: the approved card's slot is clean; the
+archived native card now shows as `already_bound_elsewhere` for the same
+deliverable — the same "archived loser" shape as rows 1, 5 and 6 — so the
+count stays 7 but every one of the 7 is now a ruled "leave". The unused
+auto-made thumbnail on that archived card (a Todo Graphics issue) is the
+owner's to cancel in Linear whenever they like.
+
+The RPC refuses `already_bound_elsewhere` without asking whether the holding
+card is archived. That is deliberate — a person decided each of these — and the
+rule that "an archived card never wins" is recorded here, not encoded, until
+a case shows it needs to be.
+
+This closes Phase 3 (b) in `CROSSWALK_REPAIR_STRATEGY.md` §5: every
+remaining mismatch has a recorded ruling. (c), the browser-side readback, is
+still open.

@@ -6342,3 +6342,34 @@ check: 11 outbound deliveries at 21:00Z, 100 `crosswalk_bound` and 18
 into canonical threads. 7 slots remain, all for a person, named by reason in
 every plan summary. OPEN_REPAIRS 156 ("Second live apply");
 CROSSWALK_REPAIR_STRATEGY status table.
+
+## 2026-09-05 — one-row crosswalk move: an approved card takes its deliverable back from its archived first draft
+
+**DB mutation, owner-applied, SQL Editor, 23:06:52Z.** One row of
+`public.deliverables` (one client, id
+`del_aba2e07e-45ed-4a03-a293-c2f17b6e2d5d`): `card_id` from
+`p_native_0913b75e49a6aea379c97b439150_1` (an archived native card) to
+`p_mqpc2n6i_7fgaf` (the approved card that links the same Linear issue).
+The statement was guarded on the old value, so it could touch at most that one
+row in that one state. The SQL Editor prints "Success. No rows returned" for an
+UPDATE; the move was confirmed by reading the row back with the publishable
+key (`card_id`, `updated_at` 23:06:52Z) and the ledger guard's bare `update`
+event (`source=system`, `reason=rpc_bypass_guard`) on the row at the same
+second.
+
+**Why by hand.** The bind RPC refuses `already_bound_elsewhere` whether or
+not the holding card is archived (OPEN_REPAIRS 156, "The seven, ruled"). The
+owner's ruling — an archived card never wins — was applied to this one row by
+a person, which is the intended path for the slots the rule hands back.
+
+**What changed, and reversal.** Only `card_id` and, via the touch trigger,
+`updated_at` (status unchanged, so `status_at` did not move). No Linear
+write, no outbox intent, no comment moved: the issue, its status, and both
+cards' links are what they were. Reversal is the same statement with the two
+ids swapped; the prior `updated_at` (2026-09-05 20:53Z, from the second
+apply) is not restorable. Not exercised.
+
+**After.** The runner's classifier, re-run read-only a minute later: 1,214
+slots, 1,207 clean, 7 mismatching, 0 bindable — the approved card's slot is
+now clean and the archived native card is the one refused. All 7 carry a
+recorded ruling (OPEN_REPAIRS 156). Phase 3 (b) closed; (c) open.

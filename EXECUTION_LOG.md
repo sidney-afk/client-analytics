@@ -8,8 +8,10 @@ Owner: *"let's do it."* The storage decision in `docs/ops/DESCRIPTION_IMAGE_UPLO
 is made — public bucket, UUID paths, keep forever — and the paste half is code:
 `migrations/2026-09-05-description-images.sql`, `supabase/functions/description-image-upload/`,
 `.github/workflows/deploy-description-image-upload.yml`, the editor handlers in `index.html`.
-Not a Section 4 closure, so no capture; the lane auto-runs on merge. Owner applies the
-migration in the SQL Editor. OPEN_REPAIRS 157.
+Not a Section 4 closure, so no capture; the lane auto-runs on merge. Owner applied the
+migration in the SQL Editor the same day. Codex review added a fail-closed runtime flag
+(`description_image_upload_enabled`, one-statement kill in `ROLLBACK.md`), a reserve-then-count
+rate limit, and keyboard activation for the full-size view. OPEN_REPAIRS 157.
 
 ## 2026-08-31 — Deploy: a card can be completed from the card
 

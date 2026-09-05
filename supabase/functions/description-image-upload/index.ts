@@ -25,6 +25,13 @@ import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { matchingRoleForKey, type StaffRoleKey } from "../_shared/staff-role-auth.ts";
 import { BUCKET, MAX_BYTES, RATE_LIMIT_PER_HOUR, verifyImage } from "./policy.mjs";
 
+/* The server-side kill switch. Reverting Pages cannot reach a cached tab or
+   a direct authenticated caller, so containment has to live where the write
+   does. Fails CLOSED: a missing row, an unreadable row or a malformed value
+   all refuse, exactly like quiz_intake_enabled. ROLLBACK.md carries the one
+   UPDATE that flips it. */
+export const UPLOAD_FLAG = "description_image_upload_enabled";
+
 type JsonMap = Record<string, unknown>;
 type Member = {
   id: string;
@@ -140,17 +147,56 @@ async function authorize(supabase: SupabaseClient, req: Request): Promise<Princi
   };
 }
 
-async function underRateLimit(supabase: SupabaseClient, principal: Principal): Promise<boolean> {
+async function uploadEnabled(supabase: SupabaseClient): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from("syncview_runtime_flags")
+      .select("value")
+      .eq("key", UPLOAD_FLAG)
+      .maybeSingle();
+    if (error || !data) return false;
+    const value = (data as { value: unknown }).value;
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    return !!parsed && (parsed as Record<string, unknown>).enabled === true;
+  } catch (_error) {
+    return false;
+  }
+}
+
+/* RESERVE, THEN COUNT. The ledger row is written BEFORE the object, and the
+   count that decides the rate limit includes the caller's own row. Two
+   requests racing at the ceiling therefore both see a total above it and
+   both withdraw; a count taken before the insert would let every concurrent
+   request through on the same stale number -- which is exactly what a
+   dropped folder of ten screenshots does, since the browser starts every
+   file without awaiting. Raised by Codex on #1310. Over-refusal at the
+   boundary is the accepted cost; the bound itself cannot be exceeded. */
+async function reserveLedgerRow(
+  supabase: SupabaseClient,
+  row: Record<string, unknown>,
+): Promise<string> {
+  const { data, error } = await supabase.from("description_images")
+    .insert(row)
+    .select("id")
+    .single();
+  if (error || !data) throw new UploadError(503, "ledger_write_failed");
+  const id = clean((data as { id: unknown }).id);
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count, error } = await supabase
+  const { count, error: countError } = await supabase
     .from("description_images")
     .select("id", { count: "exact", head: true })
-    .eq("actor_key", principal.actorKey)
+    .eq("actor_key", String(row.actor_key))
     .gte("created_at", since);
   /* The ledger IS the limiter. If it cannot be read the write cannot be
-     bounded, so it does not happen. */
-  if (error) throw new UploadError(503, "rate_limit_unavailable");
-  return (count || 0) < RATE_LIMIT_PER_HOUR;
+     bounded, so the reservation is withdrawn and the write does not happen. */
+  if (countError) {
+    await supabase.from("description_images").delete().eq("id", id);
+    throw new UploadError(503, "rate_limit_unavailable");
+  }
+  if ((count || 0) > RATE_LIMIT_PER_HOUR) {
+    await supabase.from("description_images").delete().eq("id", id);
+    throw new UploadError(429, "rate_limited");
+  }
+  return id;
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -161,6 +207,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const serviceKey = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
   if (!url || !serviceKey) return json({ ok: false, error: "service_unavailable" }, 503);
   const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
+
+  if (!(await uploadEnabled(supabase))) return json({ ok: false, error: "upload_disabled" }, 503);
 
   let principal: Principal;
   try {
@@ -187,48 +235,48 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const verdict = verifyImage(clean(req.headers.get("content-type")), bytes);
   if (!verdict.ok) return json({ ok: false, error: verdict.error, max_bytes: MAX_BYTES }, verdict.status);
 
+  /* The path and its public URL are known before any byte is written, so the
+     ledger row can be reserved first and the object created second. No row,
+     no object: an object the ledger does not know about is one the rate
+     limit cannot count and the audit trail cannot explain. */
+  const storagePath = `${crypto.randomUUID()}.${verdict.extension}`;
+  const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
+  const publicUrl = clean(publicData && publicData.publicUrl);
+  if (!publicUrl.startsWith("https://")) return json({ ok: false, error: "public_url_unavailable" }, 503);
+
+  let ledgerId: string;
   try {
-    if (!(await underRateLimit(supabase, principal))) {
-      return json({ ok: false, error: "rate_limited", per_hour: RATE_LIMIT_PER_HOUR }, 429);
-    }
+    ledgerId = await reserveLedgerRow(supabase, {
+      storage_path: storagePath,
+      public_url: publicUrl,
+      mime_type: verdict.mime,
+      byte_length: bytes.byteLength,
+      width: verdict.width,
+      height: verdict.height,
+      actor_key: principal.actorKey,
+      actor_name: principal.actorName,
+      actor_role: principal.actorRole,
+      client_slug: attributionHeader(req, "x-syncview-image-client"),
+      deliverable_id: attributionHeader(req, "x-syncview-image-issue"),
+    });
   } catch (error) {
-    if (error instanceof UploadError) return json({ ok: false, error: error.code }, error.status);
-    return json({ ok: false, error: "rate_limit_unavailable" }, 503);
+    if (error instanceof UploadError) {
+      return json({ ok: false, error: error.code, per_hour: RATE_LIMIT_PER_HOUR }, error.status);
+    }
+    return json({ ok: false, error: "ledger_write_failed" }, 503);
   }
 
-  const storagePath = `${crypto.randomUUID()}.${verdict.extension}`;
   const { error: uploadError } = await supabase.storage.from(BUCKET).upload(storagePath, bytes, {
     contentType: verdict.mime,
     cacheControl: "31536000",
     upsert: false,
   });
-  if (uploadError) return json({ ok: false, error: "storage_write_failed" }, 503);
-
-  const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
-  const publicUrl = clean(publicData && publicData.publicUrl);
-  if (!publicUrl.startsWith("https://")) {
-    await supabase.storage.from(BUCKET).remove([storagePath]);
-    return json({ ok: false, error: "public_url_unavailable" }, 503);
-  }
-
-  const { error: ledgerError } = await supabase.from("description_images").insert({
-    storage_path: storagePath,
-    public_url: publicUrl,
-    mime_type: verdict.mime,
-    byte_length: bytes.byteLength,
-    width: verdict.width,
-    height: verdict.height,
-    actor_key: principal.actorKey,
-    actor_name: principal.actorName,
-    actor_role: principal.actorRole,
-    client_slug: attributionHeader(req, "x-syncview-image-client"),
-    deliverable_id: attributionHeader(req, "x-syncview-image-issue"),
-  });
-  if (ledgerError) {
-    /* No row, no object. An object the ledger does not know about is one the
-       rate limit cannot count and the audit trail cannot explain. */
-    await supabase.storage.from(BUCKET).remove([storagePath]);
-    return json({ ok: false, error: "ledger_write_failed" }, 503);
+  if (uploadError) {
+    /* The reservation is withdrawn with the object it was for, so a failed
+       write neither counts against the actor nor leaves a row pointing at
+       nothing. */
+    await supabase.from("description_images").delete().eq("id", ledgerId);
+    return json({ ok: false, error: "storage_write_failed" }, 503);
   }
 
   return json({

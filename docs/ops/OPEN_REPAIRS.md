@@ -12857,3 +12857,25 @@ reverse direction and a separate proxy. Retention is forever; an image whose
 description later drops it stays in the bucket (negligible cost for
 screenshots, and the doc said forever was the honest default).
 
+**Amended before merge (Codex on #1310): three findings, all taken.**
+1. **[P1] No server-side kill switch, no ROLLBACK row.** Right: a Pages revert
+   cannot reach a cached tab or a direct authenticated caller. The function now
+   reads `description_image_upload_enabled` from `syncview_runtime_flags`
+   BEFORE authenticating anyone and fails closed on a missing, unreadable or
+   malformed row (the `quiz_intake_enabled` shape). The migration seeds it
+   enabled; `ROLLBACK.md`'s Live State table carries the one UPDATE that flips
+   it. The browser maps `upload_disabled` to "Image upload is switched off
+   right now."
+2. **[P1] The rate limit was a look, not a reservation.** Right, and the
+   browser makes the race ordinary: `_prodDescriptionInsertImages` starts every
+   dropped file without awaiting, so ten screenshots at 119 rows all observed
+   119. Now the ledger row is inserted BEFORE the object and the deciding count
+   includes the caller's own row, so concurrent requests at the ceiling all see
+   a total above it and all withdraw; a failed storage write withdraws the row
+   too. Over-refusal at the boundary is the accepted cost; the bound holds
+   without a new database function, so the applied migration did not change.
+3. **[P2] Click-to-open was mouse-only.** Right. The rendered image now carries
+   `tabindex="0" role="link"` with a visible focus ring, and Enter or Space
+   opens it through the same delegated opener as the click. Still no handler
+   attribute on the element, which the alt text must never be able to forge.
+

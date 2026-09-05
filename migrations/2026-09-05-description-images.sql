@@ -56,3 +56,16 @@ create index if not exists description_images_actor_created_idx
 -- the description text, never through this table.
 revoke all on table public.description_images from anon;
 revoke all on table public.description_images from authenticated;
+
+-- The server-side kill switch (Codex on #1310). description-image-upload
+-- reads this row before it authenticates anyone and FAILS CLOSED on a
+-- missing, unreadable or malformed value, so a revert of Pages is never the
+-- only containment: cached tabs and direct callers hit this first.
+-- Inserted ENABLED because the owner ratified the feature on 2026-09-05.
+-- To switch uploads off in one statement (see ROLLBACK.md):
+--   update public.syncview_runtime_flags
+--     set value = '{"enabled": false}'::jsonb, updated_by = 'owner-kill'
+--     where key = 'description_image_upload_enabled';
+insert into public.syncview_runtime_flags (key, value, updated_by)
+values ('description_image_upload_enabled', '{"enabled": true}'::jsonb, 'migration-description-images')
+on conflict (key) do nothing;

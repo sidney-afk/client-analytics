@@ -22,7 +22,11 @@
 
 1. **Apply the migration** in the Supabase SQL Editor:
    `migrations/2026-09-05-description-images.sql`. It is idempotent. It creates
-   the bucket and the ledger; nothing else in the estate changes.
+   the bucket, the ledger, and the `description_image_upload_enabled` flag row
+   (seeded ENABLED). Applied 2026-09-05; the flag row was added to the file
+   after Codex review on #1310, so if the earlier version was the one run,
+   the `insert into public.syncview_runtime_flags …` statement at its end is
+   the one line still owed.
 2. **Deploy the function.** Merging to `main` triggers
    `.github/workflows/deploy-description-image-upload.yml` automatically. If
    the merge landed before the migration was applied, nothing breaks: the
@@ -35,6 +39,17 @@
 **Until step 2 runs**, a paste gets the toast *"Image upload is not available
 yet on this backend"* (the browser maps the 404 to that sentence) and the
 description is left exactly as it was. Nothing else on the page changes.
+
+**Kill switch.** The function reads `description_image_upload_enabled` before
+it authenticates anyone and fails closed on a missing or malformed row. One
+statement switches uploads off for every caller, cached tabs included, with
+no deploy (`ROLLBACK.md`, Live State table). The browser answers *"Image
+upload is switched off right now."*
+
+**Rate limit is a reservation, not a look.** The ledger row is inserted
+BEFORE the object and the count that decides the limit includes the caller's
+own row, so ten screenshots dropped at once at the ceiling all withdraw
+rather than all pass. A failed storage write withdraws the row too.
 
 **Sizing, because it was the second half of the ask** (*"avoid things where
 people paste something and it looks huge or horrible"*): a Retina screenshot

@@ -126,11 +126,34 @@ ok(HANDLER.includes('verifyImage(') && HANDLER.indexOf('verifyImage(') < HANDLER
 ok(HANDLER.includes('crypto.randomUUID()') && !/req\.headers\.get\("x-syncview-image-name"\)/.test(HANDLER),
   'the object is named with a fresh UUID; no caller-supplied filename is read');
 ok(HANDLER.includes('${verdict.extension}'), 'and its extension is the VERIFIED one');
-ok(HANDLER.indexOf('.insert({') > HANDLER.indexOf('.upload(')
-  && /if \(ledgerError\) \{[\s\S]*?\.remove\(\[storagePath\]\)/.test(HANDLER),
-  'a ledger row is written after the object, and a refused row removes the object — no orphan the rate limit cannot count');
-ok(HANDLER.includes('rate_limited') && HANDLER.includes('from("description_images")') && HANDLER.includes('rate_limit_unavailable'),
-  'the rate limit counts the ledger and refuses to write when it cannot read it');
+/* Codex on #1310: reserve, THEN count. The row goes in before the object and
+   the count that decides the limit includes the caller's own row, so two
+   requests racing at the ceiling both see a total above it and both withdraw. */
+ok(HANDLER.indexOf('await reserveLedgerRow(') < HANDLER.indexOf('.upload('),
+  'the ledger row is RESERVED before the object is written — no object the ledger cannot count');
+const reserve = HANDLER.slice(HANDLER.indexOf('async function reserveLedgerRow('), HANDLER.indexOf('Deno.serve('));
+ok(reserve.indexOf('.insert(row)') < reserve.indexOf('count: "exact"'),
+  'and inside the reservation the INSERT precedes the COUNT, so the count includes the caller\'s own row');
+ok(/\(count \|\| 0\) > RATE_LIMIT_PER_HOUR/.test(reserve) && /\.delete\(\)\.eq\("id", id\)[\s\S]*?throw new UploadError\(429, "rate_limited"\)/.test(reserve),
+  'a count above the ceiling withdraws the reservation and answers 429 — concurrent uploads at the boundary cannot exceed the bound');
+ok(/if \(countError\) \{[\s\S]*?\.delete\(\)\.eq\("id", id\)[\s\S]*?rate_limit_unavailable/.test(reserve),
+  'an unreadable ledger withdraws the reservation and refuses: the write cannot be bounded, so it does not happen');
+ok(/if \(uploadError\) \{[\s\S]*?\.delete\(\)\.eq\("id", ledgerId\)/.test(HANDLER),
+  'a failed storage write withdraws the reservation, so it neither counts against the actor nor points at nothing');
+/* Codex on #1310: a server-side kill switch, because a Pages revert cannot
+   reach a cached tab or a direct authenticated caller. */
+ok(HANDLER.includes('UPLOAD_FLAG = "description_image_upload_enabled"') && HANDLER.includes('from("syncview_runtime_flags")'),
+  'the function reads a runtime flag of its own');
+ok(HANDLER.indexOf('await uploadEnabled(supabase)') < HANDLER.indexOf('await authorize('),
+  'and reads it BEFORE authenticating anyone, so a kill contains every caller at once');
+const flagFn = HANDLER.slice(HANDLER.indexOf('async function uploadEnabled('), HANDLER.indexOf('async function reserveLedgerRow('));
+ok(/if \(error \|\| !data\) return false/.test(flagFn) && /\.enabled === true/.test(flagFn) && /catch \(_error\) \{\s*return false/.test(flagFn),
+  'and it FAILS CLOSED: a missing row, a read error, or a malformed value all refuse');
+ok(/insert into public\.syncview_runtime_flags[\s\S]*'description_image_upload_enabled', '\{"enabled": true\}'/.test(MIGRATION),
+  'the migration seeds the flag row enabled, since the owner ratified the feature');
+const ROLLBACK = fs.readFileSync(path.join(ROOT, 'ROLLBACK.md'), 'utf8');
+ok(/SyncLinear description images[^\n]*description_image_upload_enabled/.test(ROLLBACK),
+  'and ROLLBACK.md carries the one UPDATE that flips it, in the Live State table');
 ok(!/["'`]data:/.test(HANDLER),
   'no data: URL anywhere in the handler — the bytes go to Storage or nowhere');
 ok(HANDLER.includes('publicUrl.startsWith("https://")'), 'the URL handed back is https, which is the only scheme #1204 renders');

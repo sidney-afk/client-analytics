@@ -218,9 +218,17 @@ ok(/\.prod-desc-image \{[^}]*max-height: 360px/.test(INDEX), 'a tall screenshot 
 ok(/\.prod-desc-image \{[^}]*width: auto[^}]*height: auto/.test(INDEX) || /\.prod-desc-image \{[^}]*height: auto[^}]*width: auto/.test(INDEX),
   'with both dimensions auto so the aspect ratio holds under the cap');
 ok(/\.prod-desc-image \{[^}]*cursor: zoom-in/.test(INDEX), 'and a zoom-in cursor that says it can be opened');
-const opener = INDEX.slice(INDEX.indexOf("document.addEventListener('click', function (event) {"), INDEX.indexOf("window.open(src, '_blank', 'noopener,noreferrer')") + 60);
-ok(/closest\('img\.prod-desc-image'\)/.test(opener) && /\/\^https:\\\/\\\/\/\.test\(src\)/.test(opener),
+const opener = grabFunc('function _prodDescriptionImageOpen(');
+ok(/closest\('img\.prod-desc-image'\)/.test(opener) && /\/\^https:\\\/\\\/\/\.test\(src\)/.test(opener) && /window\.open\(src, '_blank', 'noopener,noreferrer'\)/.test(opener),
   'a click on a description image opens it in a new tab — https only, delegated so no handler attribute sits on the img');
+ok(/document\.addEventListener\('click', _prodDescriptionImageOpen\)/.test(INDEX), 'the opener is wired to click');
+/* Codex on #1310: an unfocusable <img> with a click listener is mouse-only. */
+const tag = grabFunc('function _prodLinkifyInline(');
+ok(/tabindex="0" role="link"/.test(tag), 'the rendered image is focusable with link semantics');
+const keyOpener = INDEX.slice(INDEX.indexOf("document.addEventListener('keydown', function (event) {", INDEX.indexOf('_prodDescriptionImageOpen)')), INDEX.indexOf('_prodDescriptionImageOpen(event);') + 40);
+ok(/event\.key !== 'Enter' && event\.key !== ' '/.test(keyOpener) && /_prodDescriptionImageOpen\(event\)/.test(keyOpener),
+  'and Enter or Space on the focused image opens it, through the same opener as the click');
+ok(/\.prod-desc-image:focus-visible \{[^}]*outline/.test(INDEX), 'with a visible focus ring');
 
 /* ---- 7. Error copy ------------------------------------------------------ */
 console.log('a refusal says why');

@@ -1,0 +1,1086 @@
+{
+  "generated_at": "2026-09-05T01:33:18.409Z",
+  "source_sha": "3bbc9620d7dc05037b4bf40afe51ffb2215e8d4f",
+  "node": "v22.22.2",
+  "lanes": {
+    "sql": "executed",
+    "gateway": "executed",
+    "browser": "executed"
+  },
+  "checks": [
+    {
+      "id": "S0-batch-intent-row",
+      "lane": "sql",
+      "kind": "current",
+      "label": "creating a native batch through production_batch_write enqueues its batch-create provider intent in the same transaction (mirror_outbox is the idempotency ledger AND the provider queue)",
+      "pass": true,
+      "evidence": {
+        "outbox_id": 1
+      }
+    },
+    {
+      "id": "S1-db-race-same-identity",
+      "lane": "sql",
+      "kind": "current",
+      "label": "two database sessions appending the same request identity, the second arriving while the first still holds its transaction, commit ONE row: the second blocks on the batch lock and returns replay=true",
+      "pass": true,
+      "evidence": {
+        "first_status": 0,
+        "second_status": 0,
+        "second_replay": true,
+        "rows": 1,
+        "second_error": ""
+      }
+    },
+    {
+      "id": "S2-same-dedup-different-intent",
+      "lane": "sql",
+      "kind": "current",
+      "label": "the same dedup key with a different intent fingerprint raises idempotency_conflict inside the RPC (no gateway needed to enforce it)",
+      "pass": true,
+      "evidence": {
+        "error": "idempotency_conflict"
+      }
+    },
+    {
+      "id": "S2-same-dedup-different-actor",
+      "lane": "sql",
+      "kind": "current",
+      "label": "the same dedup key replayed by a different actor raises idempotency_conflict (actor and role are part of the durable identity)",
+      "pass": true,
+      "evidence": {
+        "error": "idempotency_conflict"
+      }
+    },
+    {
+      "id": "S2-nothing-written",
+      "lane": "sql",
+      "kind": "current",
+      "label": "neither refusal left a row behind",
+      "pass": true,
+      "evidence": {
+        "rows": 1
+      }
+    },
+    {
+      "id": "S3-stale-cas",
+      "lane": "sql",
+      "kind": "current",
+      "label": "an append carrying a stale batch cursor raises write_conflict and writes nothing",
+      "pass": true,
+      "evidence": {
+        "error": "write_conflict"
+      }
+    },
+    {
+      "id": "S4-project-id-required",
+      "lane": "sql",
+      "kind": "current",
+      "label": "production_intake_append refuses a row whose outbound payload carries no provider project_id (invalid_intake_append_payload): the SQL contract itself embeds the provider catalog",
+      "pass": true,
+      "evidence": {
+        "error": "invalid_intake_append_payload"
+      }
+    },
+    {
+      "id": "S4-parent-route-required",
+      "lane": "sql",
+      "kind": "current",
+      "label": "a row with neither a provider parent issue id nor a batch-create dependency is refused (invalid_intake_append_route): every append must name a provider parent or a provider intent",
+      "pass": true,
+      "evidence": {
+        "error": "invalid_intake_append_route"
+      }
+    },
+    {
+      "id": "R4-native-parent-identity",
+      "lane": "sql",
+      "kind": "readiness",
+      "label": "the append contract accepts a native parent identity (the batch itself) with no provider project or parent issue",
+      "pass": false,
+      "evidence": {
+        "without_project": "invalid_intake_append_payload",
+        "without_route": "invalid_intake_append_route"
+      }
+    },
+    {
+      "id": "S5-terminal-dependency-skipped",
+      "lane": "sql",
+      "kind": "current",
+      "label": "with the batch-create intent skipped, an append is refused batch_parent_mapping_missing although batch and children are native",
+      "pass": true,
+      "evidence": {
+        "error": "batch_parent_mapping_missing"
+      }
+    },
+    {
+      "id": "S5-terminal-dependency-stale",
+      "lane": "sql",
+      "kind": "current",
+      "label": "with the batch-create intent stale, an append is refused batch_parent_mapping_missing although batch and children are native",
+      "pass": true,
+      "evidence": {
+        "error": "batch_parent_mapping_missing"
+      }
+    },
+    {
+      "id": "S6-authority-missing",
+      "lane": "sql",
+      "kind": "current",
+      "label": "with the prod_authority flag row absent the RPC raises authority_unavailable and writes nothing (fail closed)",
+      "pass": true,
+      "evidence": {
+        "error": "authority_unavailable"
+      }
+    },
+    {
+      "id": "S7-fill-db-race",
+      "lane": "sql",
+      "kind": "current",
+      "label": "two sessions filling the same card component concurrently commit exactly one component; the second returns replay=true",
+      "pass": true,
+      "evidence": {
+        "first_status": 0,
+        "second_status": 0,
+        "components": 1,
+        "second_error": ""
+      }
+    },
+    {
+      "id": "S8-durable-inventory",
+      "lane": "sql",
+      "kind": "current",
+      "label": "an accepted append leaves: deliverables rows, one pending mirror_outbox intent per row carrying dedup_key + intent fingerprint (the only idempotency receipt), and deliverable_events audit rows; the card table is written by a SEPARATE browser request and the fill did not link the card back",
+      "pass": true,
+      "evidence": {
+        "deliverables": [
+          {
+            "id": "del_sql_fill_1",
+            "team": "graphics",
+            "card_id": "p_native_sqlrace0001_1",
+            "status": "todo",
+            "created_by": null
+          },
+          {
+            "id": "del_sqlrace0001_video0",
+            "team": "video",
+            "card_id": "p_native_sqlrace0001_1",
+            "status": "todo",
+            "created_by": "member:fixture"
+          }
+        ],
+        "outbox": [
+          {
+            "entity": "batch",
+            "operation": "create",
+            "status": "pending",
+            "dedup_prefix": "write-ui:create:batch:bat_sql_",
+            "has_fingerprint": true,
+            "depends_on_id": null
+          },
+          {
+            "entity": "deliverable",
+            "operation": "create",
+            "status": "pending",
+            "dedup_prefix": "write-ui:create:deliverable:de",
+            "has_fingerprint": true,
+            "depends_on_id": 1
+          },
+          {
+            "entity": "deliverable",
+            "operation": "create",
+            "status": "pending",
+            "dedup_prefix": "write-ui:create:deliverable:de",
+            "has_fingerprint": true,
+            "depends_on_id": 1
+          }
+        ],
+        "events": [
+          {
+            "action": "component_fill",
+            "source": "ui",
+            "n": 1
+          },
+          {
+            "action": "create",
+            "source": "ui",
+            "n": 3
+          },
+          {
+            "action": "intake_append",
+            "source": "ui",
+            "n": 1
+          }
+        ],
+        "cards": [
+          {
+            "id": "p_native_sqlrace0001_1",
+            "video_deliverable_id": "del_sqlrace0001_video0",
+            "graphic_deliverable_id": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "G0-root-create",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "staff root intake commits natively (batch + video + thumbnail) when the provider validates",
+      "pass": true,
+      "evidence": {
+        "status": 201,
+        "items": 2,
+        "linear_reads": 2,
+        "outbox_rows": 3,
+        "outbox_status": [
+          "pending",
+          "pending",
+          "pending"
+        ]
+      }
+    },
+    {
+      "id": "G0-provider-read-before-write",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "that intake performed a provider project read before its first native write",
+      "pass": true,
+      "evidence": {
+        "linear_reads": 2,
+        "requests": [
+          "https://api.linear.app/graphql",
+          "https://api.linear.app/graphql"
+        ]
+      }
+    },
+    {
+      "id": "R2-zero-provider-intents",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "a native intake leaves ZERO pending provider intents (T5: no new provider intents in either outbox)",
+      "pass": false,
+      "evidence": {
+        "pending_intents": 3
+      }
+    },
+    {
+      "id": "G1-root-provider-down",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "root intake with the provider unreachable refuses 503 project_mapping_validation_unavailable and writes nothing",
+      "pass": true,
+      "evidence": {
+        "status": 503,
+        "error": "project_mapping_validation_unavailable",
+        "rows_before": 4,
+        "rows_after": 4
+      }
+    },
+    {
+      "id": "R1-root-without-provider",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "root intake succeeds with the provider unreachable (G2: no provider read before native write)",
+      "pass": false,
+      "evidence": {
+        "status": 503,
+        "error": "project_mapping_validation_unavailable"
+      }
+    },
+    {
+      "id": "G1-root-provider-error-body",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a provider 200 carrying an errors array is also a 503 refusal (fail closed, nothing written)",
+      "pass": true,
+      "evidence": {
+        "status": 503,
+        "error": "project_mapping_validation_unavailable"
+      }
+    },
+    {
+      "id": "G1-root-provider-key-absent",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "with no provider read key configured the refusal is immediate: 503 and zero provider requests",
+      "pass": true,
+      "evidence": {
+        "status": 503,
+        "error": "project_mapping_validation_unavailable",
+        "linear_reads": 0
+      }
+    },
+    {
+      "id": "G1-append-provider-down",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "append with the provider unreachable refuses 503 before any native write, although its parent route is local",
+      "pass": true,
+      "evidence": {
+        "status": 503,
+        "error": "project_mapping_validation_unavailable"
+      }
+    },
+    {
+      "id": "R1-append-without-provider",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "append succeeds with the provider unreachable",
+      "pass": false,
+      "evidence": {
+        "status": 503,
+        "error": "project_mapping_validation_unavailable"
+      }
+    },
+    {
+      "id": "G2-root-replay",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "resending the exact root request after a lost response returns the same native ids and creates nothing new",
+      "pass": true,
+      "evidence": {
+        "status": 201,
+        "rows_before": 2,
+        "rows_after": 2,
+        "same_ids": true,
+        "events_delta": 0
+      }
+    },
+    {
+      "id": "G2b-partial-commit-converges",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a gateway crash after the batch and first child committed leaves a partial native state, and the exact retry converges to one batch + two children",
+      "pass": true,
+      "evidence": {
+        "first_status": 500,
+        "first_error": "write_failed",
+        "rows_after_crash": 2,
+        "retry_status": 201,
+        "rows_after_retry": 2
+      }
+    },
+    {
+      "id": "G2b-partial-state-visible-to-caller",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "the crashed request reported failure although the batch and a child were already durable (caller cannot tell partial from nothing)",
+      "pass": true,
+      "evidence": {
+        "first_response": {
+          "ok": false,
+          "error": "write_failed"
+        },
+        "durable_rows": 2
+      }
+    },
+    {
+      "id": "G3-same-id-different-intent",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "the same request id carrying a different intent is refused (no silent overwrite, no duplicate)",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "intake_id_conflict"
+      }
+    },
+    {
+      "id": "G4-same-id-different-actor",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a retry of the same request id by a different staff actor is refused 409 idempotency_conflict, not duplicated and not adopted",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "idempotency_conflict"
+      }
+    },
+    {
+      "id": "G5-concurrent-identical",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "two simultaneous identical root submissions held to the same commit instant produce exactly one batch and one row per item",
+      "pass": true,
+      "evidence": {
+        "statuses": [
+          201,
+          201
+        ],
+        "batches": 1,
+        "items": 2,
+        "outbox_rows": 3,
+        "both_reached_rpc": true
+      }
+    },
+    {
+      "id": "G6-append-video-commits",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a video-only append to the undrained native batch commits Video 2 through production_intake_append, routed by the local batch-create dependency (no recorded parent map needed)",
+      "pass": true,
+      "evidence": {
+        "status": 201,
+        "titles": [
+          "Thumbnail 1",
+          "Video 1",
+          "Video 2"
+        ],
+        "linear_reads": 1
+      }
+    },
+    {
+      "id": "G6-append-provider-read",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "that append still performed a provider project read even though its parent route resolved locally",
+      "pass": true,
+      "evidence": {
+        "linear_reads": 1
+      }
+    },
+    {
+      "id": "G6-append-replay",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "resending the exact append after a lost response replays 200 with the same rows and no new row",
+      "pass": true,
+      "evidence": {
+        "status": 200,
+        "items": 1
+      }
+    },
+    {
+      "id": "G6-append-stale-cursor",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a NEW append carrying the pre-commit batch cursor is refused 409 write_conflict",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "write_conflict"
+      }
+    },
+    {
+      "id": "G6-append-mixed-undrained",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a Video+Thumbnail append to the native batch is refused 409 batch_parent_mapping_missing because linear_parent_ids is empty until the provider drain records the parent (the browser picker hides such batches for both-mode)",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "batch_parent_mapping_missing"
+      }
+    },
+    {
+      "id": "R6-mixed-append-without-drain",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "a mixed append to a native batch works without a provider-drained parent map",
+      "pass": false,
+      "evidence": {
+        "status": 409,
+        "error": "batch_parent_mapping_missing"
+      }
+    },
+    {
+      "id": "G6-append-mixed-after-drain",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "once the drain has recorded the shared parent issue, the same mixed append commits, and it performs a provider read of that parent issue first",
+      "pass": true,
+      "evidence": {
+        "status": 201,
+        "parent_issue_reads": 1,
+        "linear_reads": 3
+      }
+    },
+    {
+      "id": "G6-append-terminal-parent-intent",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "once the batch-create provider intent is terminal (skipped) and no parent is recorded, even a video-only append is refused 409 batch_parent_mapping_missing although the batch and its children are native",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "batch_parent_mapping_missing"
+      }
+    },
+    {
+      "id": "R6-append-after-provider-cutoff",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "append to a native batch whose provider intent is terminal succeeds (post-cutoff appends)",
+      "pass": false,
+      "evidence": {
+        "status": 409,
+        "error": "batch_parent_mapping_missing"
+      }
+    },
+    {
+      "id": "G7-public-intake-preserved",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a credential-less submission-surface intake is admitted under the public flag and stamped created_by=public-intake",
+      "pass": true,
+      "evidence": {
+        "status": 201,
+        "created_by": [
+          "public-intake"
+        ]
+      }
+    },
+    {
+      "id": "G7-public-outage-burns-allowance",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a public submission refused by the provider outage still consumed one hourly rate-limit slot (logged before validation)",
+      "pass": true,
+      "evidence": {
+        "status": 503,
+        "log_before": 1,
+        "log_after": 2
+      }
+    },
+    {
+      "id": "R8-public-outage-allowance",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "a provider-refused public submission does not consume the client allowance",
+      "pass": false,
+      "evidence": {
+        "log_before": 1,
+        "log_after": 2
+      }
+    },
+    {
+      "id": "G8-fill-requires-card",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a fill for a native video whose calendar card was never materialized is refused 409 component_fill_card_missing (materialization is a prerequisite, not a consequence)",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "component_fill_card_missing"
+      }
+    },
+    {
+      "id": "G8-fill-commits",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "with the card present the fill commits one graphics component attached to the card",
+      "pass": true,
+      "evidence": {
+        "status": 200,
+        "components": 2,
+        "linear_reads": 1
+      }
+    },
+    {
+      "id": "G8-fill-provider-read",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "the fill performed a provider project read before its native write",
+      "pass": true,
+      "evidence": {
+        "linear_reads": 1
+      }
+    },
+    {
+      "id": "G8-fill-replay",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "the same fill resent after a lost response replays (replay=true) and leaves exactly one component",
+      "pass": true,
+      "evidence": {
+        "status": 200,
+        "replay": true
+      }
+    },
+    {
+      "id": "G8-fill-other-actor",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "the same fill by another actor is refused 409 idempotency_conflict; the browser repair arm then links the existing component",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "idempotency_conflict"
+      }
+    },
+    {
+      "id": "G8-fill-provider-down",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a fresh fill with the provider unreachable is refused 503 before any native write",
+      "pass": true,
+      "evidence": {
+        "status": 503,
+        "error": "project_mapping_validation_unavailable"
+      }
+    },
+    {
+      "id": "R1-fill-without-provider",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "component fill succeeds with the provider unreachable",
+      "pass": false,
+      "evidence": {
+        "status": 503
+      }
+    },
+    {
+      "id": "G8-fill-split-projects",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "for a client whose teams map to different provider projects, filling the graphics half of a video-only batch is refused 409 batch_parent_mapping_missing by the gateway route lookup (dependency payload.project_id is compared against the fill team, not the sibling team)",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "batch_parent_mapping_missing"
+      }
+    },
+    {
+      "id": "G9-orphan-components-detectable",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "components whose card was never written are DETECTABLE server-side by joining deliverables.card_id against the card table (recovery is derivable)",
+      "pass": true,
+      "evidence": {
+        "orphan_components": 10,
+        "sample": [
+          {
+            "id": "del_087d1d68-076d-48a3-b325-b05d5aca654a",
+            "card_id": "p_native_0000000040008000000000000001_1",
+            "team": "video"
+          },
+          {
+            "id": "del_10378daa-eaca-407f-9f99-44dfb8df1af7",
+            "card_id": "p_native_0000000040008000000000000007_1",
+            "team": "graphics"
+          },
+          {
+            "id": "del_28dd1caa-90ed-487b-b0d1-81a475e0d9f1",
+            "card_id": "p_native_0000000040008000000000000011_1",
+            "team": "graphics"
+          },
+          {
+            "id": "del_3c0f538b-6353-4e5e-874b-180f9896e72d",
+            "card_id": "p_native_0000000040008000000000000013_1",
+            "team": "video"
+          }
+        ]
+      }
+    },
+    {
+      "id": "R3-server-card-pending-state",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "the server records a card-materialization pending state per accepted intake (G3 durable ledger)",
+      "pass": false,
+      "evidence": {
+        "matching_columns": [],
+        "tables": [
+          "public_intake_log"
+        ]
+      }
+    },
+    {
+      "id": "G10-live-drain-egress",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "with linear_outbound_enabled=live a native intake schedules a drainer call (provider-intent egress from the gateway request itself)",
+      "pass": true,
+      "evidence": {
+        "status": 201,
+        "drainer_calls": 2,
+        "mirror_pending": true
+      }
+    },
+    {
+      "id": "G11-roster-needs-provider-id",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "with no provider user id on any video editor, a video intake is refused 409 video_assignee_pool_unavailable (auto-assignee filters on linear_user_id)",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "video_assignee_pool_unavailable"
+      }
+    },
+    {
+      "id": "R7-native-assignee-catalog",
+      "lane": "gateway",
+      "kind": "readiness",
+      "label": "auto-assignment works for roster members with no provider user id",
+      "pass": false,
+      "evidence": {
+        "status": 409,
+        "error": "video_assignee_pool_unavailable"
+      }
+    },
+    {
+      "id": "G12-unmapped-client",
+      "lane": "gateway",
+      "kind": "current",
+      "label": "a client with no per-team provider project mapping is refused 409 project_mapping_missing (native catalog absent)",
+      "pass": true,
+      "evidence": {
+        "status": 409,
+        "error": "project_mapping_missing"
+      }
+    },
+    {
+      "id": "B1-lost-response-keeps-request",
+      "lane": "browser",
+      "kind": "current",
+      "label": "a lost gateway response leaves the job in localStorage at stage request_pending with its request id, and the request-log beacon fired before the gateway call",
+      "pass": true,
+      "evidence": {
+        "stage": "request_pending",
+        "request_id": "submission:00000000-0000-4000-8000-000000000001",
+        "log_posts": 1
+      }
+    },
+    {
+      "id": "B1-retry-identical-request",
+      "lane": "browser",
+      "kind": "current",
+      "label": "the retry re-sends a byte-identical gateway request (same request_id and source_edited_at), then materializes both cards and clears the job",
+      "pass": true,
+      "evidence": {
+        "posts": 2,
+        "identical": true,
+        "card_writes": 2,
+        "job_after": null
+      }
+    },
+    {
+      "id": "B2-native-checkpoint-before-cards",
+      "lane": "browser",
+      "kind": "current",
+      "label": "when the second card write fails, the job is checkpointed with the native result, stage materializing_cards and the first card marked complete",
+      "pass": true,
+      "evidence": {
+        "stage": "materializing_cards",
+        "completed": [
+          "p_native_0000000040008000000000000001_1"
+        ],
+        "error": {
+          "message": "calendar_card_write_failed"
+        }
+      }
+    },
+    {
+      "id": "B2-resume-writes-only-remaining-card",
+      "lane": "browser",
+      "kind": "current",
+      "label": "a background resume writes only the remaining card, sends no second gateway request, and clears the job",
+      "pass": true,
+      "evidence": {
+        "gateway_posts": 1,
+        "card_writes": [
+          "p_native_0000000040008000000000000001_1",
+          "p_native_0000000040008000000000000001_2",
+          "p_native_0000000040008000000000000001_2"
+        ]
+      }
+    },
+    {
+      "id": "B3-storage-loss-forgets-accepted-work",
+      "lane": "browser",
+      "kind": "current",
+      "label": "after localStorage is cleared, the accepted-but-unmaterialized submission is gone from the browser: resume finds nothing, writes nothing, notifies nothing",
+      "pass": true,
+      "evidence": {
+        "had_native_result": true,
+        "resume_value": null,
+        "card_writes": 1,
+        "notifications": 0
+      }
+    },
+    {
+      "id": "R3-browser-loss-recoverable",
+      "lane": "browser",
+      "kind": "readiness",
+      "label": "after browser storage loss the pending card materialization is recovered by something other than that browser",
+      "pass": false,
+      "evidence": {
+        "note": "no server-side worker or record exists; see gateway R3"
+      }
+    },
+    {
+      "id": "B4-recovery-copy-discarded-after-4",
+      "lane": "browser",
+      "kind": "current",
+      "label": "a recovery copy (native work committed, card write failing with no HTTP status) is removed after four background failures with a notice; the native rows stay on the server with no card",
+      "pass": true,
+      "evidence": {
+        "recovery_only": true,
+        "outcomes": [
+          {
+            "attempt": 1,
+            "present": true,
+            "refusals": 1
+          },
+          {
+            "attempt": 2,
+            "present": true,
+            "refusals": 2
+          },
+          {
+            "attempt": 3,
+            "present": true,
+            "refusals": 3
+          },
+          {
+            "attempt": 4,
+            "present": false,
+            "refusals": null
+          }
+        ],
+        "notifications": [
+          "A finished post stopped retrying"
+        ]
+      }
+    },
+    {
+      "id": "R5-no-silent-discard-of-accepted-work",
+      "lane": "browser",
+      "kind": "readiness",
+      "label": "accepted native work whose card cannot be written is never dropped from the only place that remembers it (durable pending state survives repeated failure)",
+      "pass": false,
+      "evidence": {
+        "discarded_after": 4
+      }
+    },
+    {
+      "id": "B4-uncommitted-discarded-after-6-provider-503s",
+      "lane": "browser",
+      "kind": "current",
+      "label": "an UNCOMMITTED submission refused 503 project_mapping_validation_unavailable on six page loads is discarded with its payload; the only copies left are the fire-and-forget request-log beacons",
+      "pass": true,
+      "evidence": {
+        "outcomes": [
+          {
+            "attempt": 1,
+            "present": true
+          },
+          {
+            "attempt": 2,
+            "present": true
+          },
+          {
+            "attempt": 3,
+            "present": true
+          },
+          {
+            "attempt": 4,
+            "present": true
+          },
+          {
+            "attempt": 5,
+            "present": true
+          },
+          {
+            "attempt": 6,
+            "present": false
+          }
+        ],
+        "log_posts": 6,
+        "notifications": [
+          "A saved post was discarded"
+        ]
+      }
+    },
+    {
+      "id": "R5-provider-outage-does-not-discard-draft",
+      "lane": "browser",
+      "kind": "readiness",
+      "label": "a provider outage that outlasts six page loads does not delete the typed submission from the browser",
+      "pass": false,
+      "evidence": {
+        "discarded_after": 6
+      }
+    },
+    {
+      "id": "B4-live-click-never-strikes",
+      "lane": "browser",
+      "kind": "current",
+      "label": "a refusal on a live click never counts toward discard: eight 409s on Submit leave the job in place",
+      "pass": true,
+      "evidence": {
+        "present": true
+      }
+    },
+    {
+      "id": "B5-actor-switch-suspends-uncommitted",
+      "lane": "browser",
+      "kind": "current",
+      "label": "a saved submission started by actor A is not sent by actor B (native_intake_actor_mismatch), stays saved, and blocks B from starting a different submission (native_intake_pending_conflict)",
+      "pass": true,
+      "evidence": {
+        "error": {
+          "code": "native_intake_actor_mismatch",
+          "status": 403,
+          "message": "native_intake_actor_mismatch"
+        },
+        "blocked_code": "native_intake_pending_conflict",
+        "gateway_posts": 0
+      }
+    },
+    {
+      "id": "B5-delayed-response-after-actor-switch",
+      "lane": "browser",
+      "kind": "current",
+      "label": "a gateway response that lands after the signed-in actor changed is checkpointed as a scrubbed recovery copy carrying the native ids (no card is written under the wrong actor, nothing is re-sent)",
+      "pass": true,
+      "evidence": {
+        "error": {
+          "code": "native_intake_actor_mismatch",
+          "status": 403,
+          "message": "native_intake_actor_mismatch"
+        },
+        "recovery_only": true,
+        "card_writes": 0,
+        "scrubbed_item_keys": [
+          "team",
+          "videoNumber",
+          "card_id"
+        ]
+      }
+    },
+    {
+      "id": "B5-original-actor-finishes",
+      "lane": "browser",
+      "kind": "current",
+      "label": "when the original actor returns, the recovery copy materializes both cards from the stored native result without a second gateway request",
+      "pass": true,
+      "evidence": {
+        "card_writes": 2,
+        "gateway_posts": 1
+      }
+    },
+    {
+      "id": "B6-materializes-to-job-client",
+      "lane": "browser",
+      "kind": "current",
+      "label": "cards are written to the client named in the job, not the client now open in the calendar, and the open view is not mutated",
+      "pass": true,
+      "evidence": {
+        "slugs": [
+          "fixture-client",
+          "fixture-client"
+        ],
+        "view_posts": 0
+      }
+    },
+    {
+      "id": "B7-same-intent-one-request",
+      "lane": "browser",
+      "kind": "current",
+      "label": "the same intent submitted twice reuses one request id, a different intent is refused while one is pending, and two concurrent resumes share one in-flight gateway request",
+      "pass": true,
+      "evidence": {
+        "same_request_id": true,
+        "conflict": "native_intake_pending_conflict",
+        "gateway_posts": 1
+      }
+    },
+    {
+      "id": "B8-quota-refuses-before-send",
+      "lane": "browser",
+      "kind": "current",
+      "label": "when the job cannot be stored, the submission is refused (native_intake_storage_unavailable) before any gateway request",
+      "pass": true,
+      "evidence": {
+        "code": "native_intake_storage_unavailable",
+        "gateway_posts": 0
+      }
+    },
+    {
+      "id": "B9-signout-drops-uncommitted-draft",
+      "lane": "browser",
+      "kind": "current",
+      "label": "sign-out removes an uncommitted (never accepted) submission from the browser without a notice: it is an unsubmitted draft, and it is silently gone",
+      "pass": true,
+      "evidence": {
+        "job": null,
+        "notifications": 0
+      }
+    },
+    {
+      "id": "B10-refusal-ring-local-and-capped",
+      "lane": "browser",
+      "kind": "current",
+      "label": "write refusals are recorded only in a 50-row localStorage ring in the refusing browser (OPEN_REPAIRS 101); nothing is sent anywhere",
+      "pass": true,
+      "evidence": {
+        "rows": 50,
+        "oldest": "card-5"
+      }
+    },
+    {
+      "id": "R9-server-side-refusal-receipt",
+      "lane": "browser",
+      "kind": "readiness",
+      "label": "a refused intake/fill leaves a server-side receipt naming the request and card",
+      "pass": false,
+      "evidence": {
+        "note": "browser ring only"
+      }
+    },
+    {
+      "id": "B11-anonymous-intake-resumes",
+      "lane": "browser",
+      "kind": "current",
+      "label": "on the client link (no staff identity) a saved submission still resumes and materializes: the actor guard yields to the server gate for public intake",
+      "pass": true,
+      "evidence": {
+        "card_writes": 2
+      }
+    }
+  ],
+  "gateway_inventory": {
+    "durable": {
+      "batches": 7,
+      "deliverables": 15,
+      "outbox_by_status": [
+        {
+          "status": "pending",
+          "n": 22
+        }
+      ],
+      "events_by_action": [
+        {
+          "action": "batch_change",
+          "n": 2
+        },
+        {
+          "action": "component_fill",
+          "n": 2
+        },
+        {
+          "action": "create",
+          "n": 22
+        },
+        {
+          "action": "intake_append",
+          "n": 3
+        }
+      ],
+      "public_intake_log": 2,
+      "cards": 2
+    }
+  },
+  "summary": {
+    "current": {
+      "pass": 62,
+      "fail": 0
+    },
+    "readiness": {
+      "pass": 0,
+      "fail": 14
+    }
+  }
+}

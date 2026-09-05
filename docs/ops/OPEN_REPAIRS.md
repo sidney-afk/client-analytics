@@ -11954,3 +11954,46 @@ for doing the exit before any large backfill, and for scoping this repair to the
 **Recommendation: the guard now regardless; the 137 in the phased order; defer
 the structural change until after the Linear exit, when the write paths that
 would have to change are the ones that will survive.**
+
+## 148. [2026-09-05, EVIDENCE PACKAGE SHIPPED, no product change] Native intake without Linear: the three paths are provider-gated in front of every native write, and the only record of a card still owed is the browser that owed it
+
+Executable proof in `scripts/native-intake-reliability/` (unit entry
+`test/native-intake-reliability.js`, recorded run
+`docs/audits/2026-09-05-native-intake-reliability-results.json`), handoff in
+`docs/audits/2026-09-05-native-intake-reliability-handoff.md`. The REAL
+`production-write` handler, the REAL append/fill/replay RPCs and the REAL
+browser job machinery ran against a disposable PostgreSQL 16 with faults
+injected at each boundary. 62 current-behaviour checks green, 14 readiness
+checks red on purpose (strict mode: `NATIVE_INTAKE_READINESS_STRICT=1`).
+
+**What holds today.** One native result per request identity under a lost
+response, a gateway crash mid-request, two identical submissions held to the
+same commit instant, and two database sessions racing (replay, never a
+second row). A changed intent or actor on the same identity is refused. The
+browser checkpoints the native ids before the first card write, resumes only
+the remaining cards, and suspends a response that lands after an actor switch
+into a recovery copy the original actor finishes.
+
+**What does not.** Root intake, append and fill all read Linear
+(`projectForIntake`) before their first native write and refuse 503 when it is
+unreachable. Every native intake enqueues pending provider intents, and with
+outbound live the request itself calls the drainer. A native batch the drain
+never recorded cannot take a mixed append, and a terminal batch-create intent
+blocks even a video-only append. Card materialization is owned by the
+submitting browser alone: after storage loss nothing recovers it, and after
+four failed retries the browser deletes the only copy with a notice. Six page
+loads of a provider 503 delete an unsubmitted draft. Auto-assignment needs a
+provider user id on the roster. A provider-refused public submission still
+spends one of the twelve hourly slots.
+
+**The handoff maps each to its smallest change** (F1..F9 in the document):
+flag-gated removal of the provider read; terminal-at-insert provider intents
+(the outbox row stays, it is the idempotency receipt); an append RPC v8 that
+accepts a native parent the way the fill RPC already does; a scheduled
+materializer that derives owed cards from `deliverables` (no new table); the
+browser strike rule excluding `_unavailable` outages; the roster filter and
+eligibility flag; the public-intake log moved after validation. Rollout order,
+acceptance checks and recovery are stated per change.
+
+- Done when: the readiness ids in the results file are green under strict mode
+  and this entry links the PRs that cleared them.

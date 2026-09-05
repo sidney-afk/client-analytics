@@ -6338,3 +6338,98 @@ and the guard itself now refuses a Section 4 deploy entry it cannot read, naming
 the line and what to fix (Codex P1 on #1306, second round; the guard's own suite
 already ran it against the real files, so a stale row is red rather than silent
 from here on).
+
+## 2026-09-05 — Crosswalk Phase 2, second apply: 11 of 11, 0 refused; 7 slots remain for a person
+
+**DB migration, owner-applied, SQL Editor, ~20:1xZ:** the same file,
+`migrations/2026-09-05-crosswalk-bind-and-import.sql` as merged in #1301
+(`5b9c0720`, "Epoch 2"): `create or replace` of
+`public.production_comment_card_bind_and_import(jsonb, jsonb, jsonb)` — the
+cancel branch now mints the F27 authority binder and asserts authority before
+enqueueing. No table/column/flag/data change. "Success. No rows returned."
+
+**Lane dispatches** (`crosswalk-phase2-repair.yml`, production Environment,
+run id `crosswalk-phase2-2026-09-05-b`, commit `5b9c0720`):
+
+| run | mode | result |
+|---|---|---|
+| `33991070302` | plan | PLANNED — 1,214 slots, 1,196 clean, 18 mismatching; 11 calls (11 with eviction, 11 occupants; 4 with a thread, 12 comments, 0 deferred); relabels none; 7 skipped for a person; digest `b4130071…2677254` |
+| `33991397920` | apply | **APPLIED** — 11 bound, 11 occupants evicted (`canceled` 11), 12 comments imported, 0 already linked, **0 refused**; after: 7 mismatching, 0 bindable (already_bound_elsewhere 5, client_mismatch 1, linear_identity_unproven 1) |
+
+**Read-back, publishable key, 20:55Z, read-only.** `deliverable_events` for
+the day: `crosswalk_bound` 100 (19Z: 89, 20Z: 11; 47 video / 53 thumbnail;
+14 clients; 100 distinct deliverables), `crosswalk_occupant_evicted` 18
+(`detached` 7, `canceled` 11). The 11 `canceled` rows (20:53:09–20:53:10Z)
+carry `authority=syncview`, `authority_generation=0`; `from_status`
+kasper_approval 6, scheduled 4, tweak 1. The 11 kept deliverables: `card_id`
+set, `origin=calendar`, `kind=video`, statuses posted 5, client_approval 3,
+approved 2, smm_approval 1. The 11 occupants: `card_id` null,
+`status=canceled`. `mirror_outbox` is not readable with the publishable key
+(42501); delivery is verified against Linear below.
+
+**What changed on live, and how it reverts.** 11 more deliverable rows carry
+the card they always pointed at; 11 duplicate shell rows (created by SyncView
+Mirror, verified empty in Linear earlier today) are `canceled` with `card_id`
+cleared; 12 legacy comments were COPIED into the canonical store with links;
+11 outbox intents (`crosswalk-evict:<id>:canceled`, generation 0) cancel the
+same issues in Linear through the outbound drain. The legacy threads were not
+touched. **Reversal — what the ledger can and cannot restore** (this corrects
+the recipe in the 19:3x entry above, which has the same gap): the canonical
+rows and links are fully reversible (drop what was written under the run id;
+the legacy threads are intact). The 11 occupants are reversible in binding
+and status (the `crosswalk_occupant_evicted` event carries `from_status`, and
+the `card_id` they held is the event's `card_id`) but **not in their
+timestamps**: `track_b_deliverable_touch_timestamps` stamps `updated_at` on
+every row the RPC updates and `status_at` on the rows whose status changed
+(the 11 cancels), and neither prior value is recorded anywhere. **The 11
+Linear cancels are not reversed by hand in Linear.** Video is
+SyncView-authoritative (`prod_authority`), so a Linear-side edit is a foreign
+mutation the authoritative reconciler may overwrite, and restoring the row's
+status directly in the database enqueues no inverse outbound intent. The
+reversal is the forward path run backwards: a native status write of each
+occupant back to its `from_status` through a path that enqueues the outbound
+intent with the F27 binder (`track_b_f27_write_authorization('video')` →
+`mirror_outbox_enqueue` with `_f27_authority_generation`, exactly as the RPC's
+cancel branch does), delivered to Linear by the drain. If a person must edit
+Linear instead, hold the reconcilers first (the reconciler lanes are
+manual-dispatch and cron; disable the cron or wait for a quiet window) and
+restore the database rows in the same window, or flip Video's authority to
+Linear for the duration. Not written as a script; not exercised. **The 100
+kept rows are not fully
+reversible from the ledger** (their `updated_at` moved too):
+the RPC overwrites `card_id`, `client_slug`, `origin`, `team` and `kind`,
+and the `crosswalk_bound` event records only `kind_before`. Of the other four,
+`team` is re-derivable from the Linear identifier's prefix and `client_slug`
+from the row's batch; the prior `origin` and the prior `card_id` (null or the
+same card — the RPC refuses any other) are recorded nowhere this repo can read.
+The runner's pre-apply export held the exact before-images, but the result
+document is runner-local and gone with the runner. A complete before-image
+exists only in a database backup taken before 19:31Z, which this repo cannot
+verify exists. Not exercised; a reversal here would be undoing the ruling, not
+repairing data — the cards still name these deliverables, so the binding is
+re-derivable from the card at any time, which is what Phase 3's readback
+checks. Follow-up recorded in OPEN_REPAIRS 156 "Still open": the events should
+carry the before-values — the five binding fields, and `updated_at` and
+`status_at` — for every row the RPC updates.
+
+**Linear delivery.** At commit time the outbound drain had last run at 20:45Z,
+before the apply (20:53Z); the next scheduled run (every 10 minutes) carries
+the 11 cancels. The check against Linear itself — the 11 occupant issues in a
+canceled state, nothing else in the VID team touched by the drain — is
+recorded in the addendum below once it ran.
+
+**Linear delivery — addendum, 21:02Z.** The drain ran at 21:00:35Z (run
+`33991760541`, workflow_dispatch, 48 s, success). Read from Linear at
+21:02Z: exactly 11 issues in the VID team updated in the preceding 15
+minutes, all `Canceled`, `canceledAt` 21:00:46Z → 21:01:14Z in outbox order,
+and the 11 identifiers are the 11 `occupant_linear_identifier` values the
+`crosswalk_occupant_evicted` events carry — nothing else in the team was
+touched. Delivered in one pass, no retries. For the 01:00Z pre-flip health
+check: 11 outbound deliveries at 21:00Z, 100 `crosswalk_bound` and 18
+`crosswalk_occupant_evicted` events on the day, are this repair, not drift.
+
+**Totals for the day:** 100 of the 100 slots the ruling identified are bound;
+18 occupants evicted (7 detached, 11 canceled); 109 legacy comments copied
+into canonical threads. 7 slots remain, all for a person, named by reason in
+every plan summary. OPEN_REPAIRS 156 ("Second live apply");
+CROSSWALK_REPAIR_STRATEGY status table.

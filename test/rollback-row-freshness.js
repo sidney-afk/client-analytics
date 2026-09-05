@@ -678,6 +678,17 @@ const UNREADABLE = /no receipt this guard can read|this guard cannot read/;
    below append exactly that shape to the REAL files. */
 const realLog = fs.readFileSync(path.join(ROOT, 'EXECUTION_LOG.md'), 'utf8');
 const realRb = fs.readFileSync(path.join(ROOT, 'ROLLBACK.md'), 'utf8');
+/* WHERE FIXTURE TEXT LANDS in the real log. Text that opens its own `##`
+   entry is appended after the last entry. Text that is a subsection or a
+   bare block is written INSIDE the v68 deploy entry, immediately before
+   whatever entry follows it, because the cases below say "under the v68
+   entry" and main keeps gaining entries after it: the 2026-09-05 crosswalk
+   apply landed there mid-review and moved every end-of-file fixture under a
+   heading that is not a deploy. */
+const v68At = realLog.indexOf('\n## 2026-09-05 — F27 Section 4 deploy, run `33991332628`');
+ok(v68At > 0, 'the real log has the v68 deploy entry the next cases write under');
+const afterV68 = (() => { const n = realLog.indexOf('\n## ', v68At + 1); return n < 0 ? realLog.length : n; })();
+const appended = text => (/^\s*## /.test(text) ? realLog + text : realLog.slice(0, afterV68) + '\n' + text + realLog.slice(afterV68));
 const malformed = [
     '',
     '## 2026-09-06 — F27 Section 4 deploy, run #40: production-write 68 → 69',
@@ -692,7 +703,7 @@ const malformed = [
     '| **production-write** | **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
     '',
 ].join('\n');
-const unread = run(fixture('unreadable-entry', realLog + malformed, realRb));
+const unread = run(fixture('unreadable-entry', appended(malformed), realRb));
 ok(unread.code === 1 && unread.json
     && unread.json.failures.some(f => /section at line \d+ \("2026-09-06 — F27 Section 4 deploy, run #40/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
     'THE SHAPE THAT BLINDED THE GUARD: a Section 4 deploy entry with unquoted slugs, no run id and no attestation is named as unreadable, by line and heading, instead of being silently skipped');
@@ -701,7 +712,7 @@ ok(unread.json && unread.json.live && unread.json.live.run === '33991332628',
 const headless = malformed.replace(
     '## 2026-09-06 — F27 Section 4 deploy, run #40: production-write 68 → 69',
     '## 2026-09-06 — production-write 68 → 69 shipped');
-const headlessRun = run(fixture('unreadable-table', realLog + headless, realRb));
+const headlessRun = run(fixture('unreadable-table', appended(headless), realRb));
 ok(headlessRun.code === 1 && headlessRun.json
     && headlessRun.json.failures.some(f => /section at line \d+ \("2026-09-06 — production-write 68 → 69 shipped/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
     'a four-function versions table the guard cannot read is caught even when the heading never says Section 4');
@@ -712,7 +723,7 @@ const readable = malformed
     .replace('| deliverable-write |', '| `deliverable-write` |')
     .replace('| linear-outbound |', '| `linear-outbound` |')
     .replace('| **production-write** | **69** |', '| `production-write` | 68 → **69** |');
-const readableRun = run(fixture('readable-entry', realLog + readable, realRb));
+const readableRun = run(fixture('readable-entry', appended(readable), realRb));
 ok(readableRun.code === 1 && readableRun.json
     && !readableRun.json.failures.some(f => UNREADABLE.test(f))
     && readableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
@@ -728,12 +739,12 @@ ok(readableRun.code === 1 && readableRun.json
 const subsection = malformed.replace(
     '## 2026-09-06 — F27 Section 4 deploy, run #40: production-write 68 → 69',
     '### Later the same day, deploy #40: production-write 68 → 69');
-const subRun = run(fixture('unreadable-subsection', realLog + subsection, realRb));
+const subRun = run(fixture('unreadable-subsection', appended(subsection), realRb));
 ok(subRun.code === 1 && subRun.json
     && subRun.json.failures.some(f => /section at line \d+ \("Later the same day, deploy #40/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
     'THE RIDE-ALONG: a malformed deploy written as a ### subsection under an entry that already holds a readable receipt is named on its own, by its own heading');
 const sameBlock = malformed.split('\n').filter(l => !/^## /.test(l) && !/^Deployed from commit/.test(l)).join('\n');
-const sameBlockRun = run(fixture('unreadable-same-block', realLog + sameBlock, realRb));
+const sameBlockRun = run(fixture('unreadable-same-block', appended(sameBlock), realRb));
 ok(sameBlockRun.code === 1 && sameBlockRun.json
     && sameBlockRun.json.failures.some(f => /section at line \d+ \("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
     'and a malformed table appended to the readable entry with no heading at all is caught in the same block, because unreadable rows are counted against parsed rows rather than excused by a neighbour');
@@ -766,7 +777,7 @@ const container = [
     '| `production-write` | 69 → **70** | `' + 'f'.repeat(64) + '` | verify_jwt=false |',
     '',
 ].join('\n');
-const containerRun = run(fixture('container-heading', realLog + container, realRb));
+const containerRun = run(fixture('container-heading', appended(container), realRb));
 ok(containerRun.json && !containerRun.json.failures.some(f => UNREADABLE.test(f))
     && containerRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v70/.test(f)),
     'a container heading that names Section 4 deploys over two READABLE subsections is not flagged -- the receipts under it count for it -- and the guard moves on to the row, which is stale');
@@ -783,16 +794,16 @@ const nestedProse = [
     'Deployed v69 by hand after the row above; the attestation will follow.',
     '',
 ].join('\n');
-const nestedRun = run(fixture('nested-deploy-heading', realLog + nestedProse, realRb));
+const nestedRun = run(fixture('nested-deploy-heading', appended(nestedProse), realRb));
 ok(nestedRun.code === 1 && nestedRun.json
     && nestedRun.json.failures.some(f => /section at line \d+ \("Deploy #40 — RECORDED"\) reads as a Section 4 deploy \(under a Section 4 heading\) but holds no receipt/.test(f)),
     'THE NESTED RIDE-ALONG: a ### heading that names a deploy under a Section 4 entry, with only prose beneath it, is required to carry its own receipt and is named when it does not');
 const nestedCommentary = nestedProse.replace('### Deploy #40 — RECORDED', '### What the first attempt taught');
-const commentaryRun = run(fixture('nested-commentary', realLog + nestedCommentary, realRb));
+const commentaryRun = run(fixture('nested-commentary', appended(nestedCommentary), realRb));
 ok(commentaryRun.json && !commentaryRun.json.failures.some(f => UNREADABLE.test(f)),
     'while a nested heading under the same entry that does not name a deploy is commentary, and asks for nothing');
 const supersedes = nestedProse.replace('### Deploy #40 — RECORDED', '### Deploy #40 — supersedes run `33991332628`');
-const supersedesRun = run(fixture('nested-mention', realLog + supersedes, realRb));
+const supersedesRun = run(fixture('nested-mention', appended(supersedes), realRb));
 ok(supersedesRun.code === 1 && supersedesRun.json
     && supersedesRun.json.failures.some(f => /\("Deploy #40 — supersedes run `33991332628`"\) reads as a Section 4 deploy/.test(f)),
     'A MENTION IS NOT AN IDENTITY (Codex, fifth round): a nested deploy heading that names a receipted run it merely SUPERSEDES is still unreadable -- there is no readable-by-reference softening, because no text rule can tell "this is run X" from "this comes after run X"');
@@ -825,14 +836,14 @@ const conciseEntry = [
     'three were byte-identical redeploys.',
     '',
 ].join('\n');
-const conciseRun = run(fixture('concise-unreadable', realLog + conciseEntry, realRb));
+const conciseRun = run(fixture('concise-unreadable', appended(conciseEntry), realRb));
 ok(conciseRun.code === 1 && conciseRun.json
     && conciseRun.json.failures.some(f => /\("2026-09-06 — Deploy: the reuse window widened"\) reads as a Section 4 deploy \(Section 4 named in its body\)/.test(f) && UNREADABLE.test(f)),
     'THE CONCISE LAYOUT: a generic "Deploy" heading whose body claims a Section 4 forward with an unparseable run id is named as unreadable, because Section 4 in the body counts');
 const unrelated = conciseEntry
     .replace('## 2026-09-06 — Deploy: the reuse window widened', '## 2026-09-06 — Deploy notes for the website')
     .replace(/\*\*Section 4 forward[^\n]*\n[^\n]*\n[^\n]*\n/, 'Pages redeployed the site from main; nothing about the four functions.\n');
-const unrelatedRun = run(fixture('unrelated-deploy-heading', realLog + unrelated, realRb));
+const unrelatedRun = run(fixture('unrelated-deploy-heading', appended(unrelated), realRb));
 ok(unrelatedRun.json && !unrelatedRun.json.failures.some(f => UNREADABLE.test(f)),
     'while a "Deploy" heading whose body never names Section 4 is some other lane\'s business and asks for nothing');
 
@@ -863,7 +874,7 @@ const bodyContext = [
     'Deployed v70 an hour later; the attestation will follow.',
     '',
 ].join('\n');
-const bodyContextRun = run(fixture('body-context-children', realLog + bodyContext, realRb));
+const bodyContextRun = run(fixture('body-context-children', appended(bodyContext), realRb));
 ok(bodyContextRun.code === 1 && bodyContextRun.json
     && bodyContextRun.json.failures.some(f => /\("Deploy #40 — RECORDED"\) reads as a Section 4 deploy \(under a Section 4 heading\)/.test(f) && UNREADABLE.test(f)),
     'THE BODY CONTEXT TRAVELS DOWN: under a generic "Deploys" container that names Section 4 only in its body, an unreceipted ### Deploy #40 is named even though a readable ### Deploy #39 sits beside it');
@@ -910,7 +921,7 @@ const abbreviated = [
     '| **production-write** | **69** | `eeeeeeee...` | verify_jwt=false |',
     '',
 ].join('\n');
-const abbreviatedRun = run(fixture('abbreviated-closures', realLog + abbreviated, realRb));
+const abbreviatedRun = run(fixture('abbreviated-closures', appended(abbreviated), realRb));
 ok(abbreviatedRun.code === 1 && abbreviatedRun.json
     && abbreviatedRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
     'ABBREVIATED CLOSURES: a four-function table whose closures are shortened is still a table, and one the guard cannot read, so it is named -- a 64-hex closure is not a precondition for being counted');
@@ -932,7 +943,7 @@ const unknownVersion = [
     '| linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
     '',
 ].join('\n');
-const unknownVersionRun = run(fixture('unknown-version-row', realLog + unknownVersion, realRb));
+const unknownVersionRun = run(fixture('unknown-version-row', appended(unknownVersion), realRb));
 ok(unknownVersionRun.code === 1 && unknownVersionRun.json
     && unknownVersionRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
     'ACCEPTED, NOT LOOKALIKE: a group whose one strict-looking row the parser actually rejected (version "unknown") is wholly unreadable and named -- the detector defers to the parser by position');
@@ -953,7 +964,7 @@ const mixedGroup = [
     '| linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
     '',
 ].join('\n');
-const mixedRun = run(fixture('mixed-group', realLog + mixedGroup, realRb));
+const mixedRun = run(fixture('mixed-group', appended(mixedGroup), realRb));
 ok(mixedRun.code === 1 && mixedRun.json
     && mixedRun.json.failures.some(f => /\("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /carries 3 versions-table row\(s\) this guard cannot read/.test(f)),
     'ONE ACCEPTED ROW EXCUSES NOTHING: a second table under the v68 entry with one parsed row and three abbreviated ones is named for its three unreadable rows');
@@ -974,7 +985,7 @@ const indentedMalformed = [
     ' | **production-write** | **69** | `eeeeeeee...` | verify_jwt=false |',
     '',
 ].join('\n');
-const indentedMalformedRun = run(fixture('indented-malformed', realLog + indentedMalformed, realRb));
+const indentedMalformedRun = run(fixture('indented-malformed', appended(indentedMalformed), realRb));
 ok(indentedMalformedRun.code === 1 && indentedMalformedRun.json
     && indentedMalformedRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
     'INDENTATION HIDES NOTHING: a malformed four-function table indented by one space is still counted, four rows, under a heading with no Section 4 signal of its own');
@@ -992,7 +1003,7 @@ const indentedReadable = [
     '  | `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
     '',
 ].join('\n');
-const indentedReadableRun = run(fixture('indented-readable', realLog + indentedReadable, realRb));
+const indentedReadableRun = run(fixture('indented-readable', appended(indentedReadable), realRb));
 ok(indentedReadableRun.json && !indentedReadableRun.json.failures.some(f => UNREADABLE.test(f))
     && indentedReadableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
     'and a well-formed table indented by two spaces is READ by the strict parser, so the entry becomes the newest receipt and the row is what fails');
@@ -1012,7 +1023,7 @@ const oneRowValid = [
     '| `production-write` | 69 | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
     '',
 ].join('\n');
-const oneRowRun = run(fixture('one-row-valid', realLog + oneRowValid, realRb));
+const oneRowRun = run(fixture('one-row-valid', appended(oneRowValid), realRb));
 ok(oneRowRun.code === 1 && oneRowRun.json
     && oneRowRun.json.failures.some(f => /\("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /1 versions table\(s\) that do not name all four functions/.test(f))
     && oneRowRun.json.failures.some(f => /two receipts claim run 33991332628 but disagree on production-write: the attestation block says v68, a summary table .* says v69/.test(f)),
@@ -1027,7 +1038,7 @@ const fullValidNoHeading = [
     '| `production-write` | 69 | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
     '',
 ].join('\n');
-const fullNoHeadingRun = run(fixture('full-valid-no-heading', realLog + fullValidNoHeading, realRb));
+const fullNoHeadingRun = run(fixture('full-valid-no-heading', appended(fullValidNoHeading), realRb));
 ok(fullNoHeadingRun.code === 1 && fullNoHeadingRun.json
     && fullNoHeadingRun.json.failures.some(f => /two receipts claim run 33991332628 but disagree on production-write/.test(f)),
     'and a COMPLETE valid table appended under the v68 entry without its own heading is still caught, by the disagreement alone -- the table is well-formed, its identity is borrowed');
@@ -1071,7 +1082,7 @@ const shortAttestation = [
     '```',
     '',
 ].join('\n');
-const shortRun = run(fixture('short-attestation', realLog + shortAttestation, realRb));
+const shortRun = run(fixture('short-attestation', appended(shortAttestation), realRb));
 ok(shortRun.code === 1 && shortRun.json
     && shortRun.json.failures.some(f => /an attestation block at character \d+ .*\(run 33991332628\) names 3 of the four functions and omits production-write/.test(f))
     && shortRun.json.failures.some(f => /two receipts claim run 33991332628 but disagree on production-write: the attestation block says v68, an attestation block .* does not name it/.test(f)),

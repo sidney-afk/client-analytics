@@ -11957,7 +11957,7 @@ would have to change are the ones that will survive.**
 
 ---
 
-## 148. [2026-09-05, SOURCE WRITTEN, NOT APPLIED — updates item 147's state] The Phase 2 RPC exists in source, and it refuses two things item 147 did not think to refuse
+## 148. [2026-09-05, SOURCE WRITTEN; APPLIED LIVE AND RUN LATER THE SAME DAY, see item 156 — updates item 147's state] The Phase 2 RPC exists in source, and it refuses two things item 147 did not think to refuse
 
 Item 147 §4 named the blocker: `production_comment_card_import` validates the
 crosswalk *before* it copies, so it refuses precisely while the crosswalk is
@@ -11977,8 +11977,11 @@ imply more than that:
   rehearsal; it SKIPS where the server binaries are absent, which is an
   environment fact, and CI's unit lane pins postgres:16.
 
-**NOT APPLIED. No live row has been repaired through it.** Written and applied
-are different states and item 147's phase table now separates them
+~~**NOT APPLIED. No live row has been repaired through it.**~~ *(Superseded
+later the same day: applied live by the owner twice and run to completion —
+100 slots repaired through it, 7 left for a person; item 156, "First live
+apply" and "Second live apply".)* Written and applied are different states
+and item 147's phase table separates them
 (`docs/ops/CROSSWALK_REPAIR_STRATEGY.md`, status block).
 
 ### The card pointer is not authority on its own
@@ -12669,7 +12672,7 @@ guard's suite already ran one). Three fixtures prove it: the exact shape that
 blinded it is named by line, a table without the heading is still caught, and
 the same entry in the parsed shape is read and fails for the row instead.
 
-## 156. [2026-09-05, RULED AND WRITTEN, NOT APPLIED — updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
+## 156. [2026-09-05, RULED, WRITTEN, APPLIED LIVE TWICE AND RUN — 100 of 100, 7 for a person; updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
 
 Item 148's RPC required a deliverable's `kind` to match the card slot ("team is
 too coarse: team='video' covers kind='video' and kind='other'"). Measured
@@ -12712,7 +12715,7 @@ seven. Two shells had been **canceled by hand and resurrected by the sync**
 the card's status, so cancelling in Linear alone did not stick. The six at
 Kasper approval are phantom items in his queue today.
 
-### What changed in source (all in one PR, migration still NOT applied)
+### What changed in source (all in one PR; ~~migration still NOT applied~~ applied live later the same day — "First live apply" and "Second live apply" below)
 
 `migrations/2026-09-05-crosswalk-bind-and-import.sql`,
 `scripts/f42-linkage-defect-repair.js` (`classAObjections`),
@@ -12763,7 +12766,24 @@ unattended; 7 for a person, as before.
   does not stop the next one. The link action should retire (or never create)
   the auto-made row when the card is pointed elsewhere — a separate change,
   not attempted here.
-* Applying the migration and running the 100 calls is the owner's dispatch
+* **The RPC's events do not carry a before-image.** `crosswalk_bound`
+  records only `kind_before` while the RPC overwrites five fields
+  (`card_id`, `client_slug`, `origin`, `team`, `kind`); and on every row it
+  updates — kept and evicted alike — the touch trigger
+  `track_b_deliverable_touch_timestamps` moves `updated_at`, and `status_at`
+  on the 11 it canceled, with neither prior value recorded in
+  `crosswalk_bound` or `crosswalk_occupant_evicted`. So neither the 100 kept
+  rows nor the 18 occupants can be restored to their exact pre-apply state from
+  the ledger alone; the canonical comment rows and links can. Found by Codex on
+  #1307, twice. The fix would be an Epoch 3 of the function that stores the
+  five binding fields plus `updated_at` and `status_at` as they were, in both
+  events — **planned, not written**: no migration, rehearsal case or test for
+  it exists yet, and it is not needed for the 7 slots that remain (none is
+  bindable). When written it is source-only until the owner applies it. Both EXECUTION_LOG entries for
+  2026-09-05 say what is and is not recoverable.
+* ~~Applying the migration and running the 100 calls is the owner's dispatch~~
+  — done 2026-09-05, twice (Epoch 1 at 19:3x, 89 of 100; Epoch 2 at 20:53, the
+  remaining 11). See "Second live apply" below.
 
 ### The runner (same day, later)
 
@@ -12812,3 +12832,40 @@ name, the SQLSTATE and the bounded message on every refusal. Re-applying the
 migration (SQL Editor, `create or replace`) and re-dispatching plan → apply at
 https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
 finishes the 11. Logged in `EXECUTION_LOG.md` (2026-09-05, Crosswalk Phase 2).
+
+### Second live apply (same day, 20:53 UTC) — 11 of 11, 0 refused; the rule has done everything it can
+
+The owner re-applied the same migration file (Epoch 2, as merged in #1301,
+`5b9c0720`), dispatched `plan` under run id `crosswalk-phase2-2026-09-05-b`
+— 1,214 slots, 1,196 clean, 18 mismatching → **11 calls, every one with an
+eviction**, 4 carrying a legacy thread (12 comments), 7 skipped for a person:
+the exact residue the first apply left — then `apply` against that plan's
+digest. Result: **11 bound, 11 occupants evicted, all `canceled`, 12 comments
+imported, 0 already linked, 0 refused.** After: 7 mismatching slots remain, 0
+bindable (already_bound_elsewhere 5, client_mismatch 1,
+linear_identity_unproven 1).
+
+Read back minutes later with the publishable key: `deliverable_events` holds
+100 `crosswalk_bound` rows for the day (89 + 11; 47 video slots, 53 graphic;
+14 clients; 100 distinct deliverables) and 18 `crosswalk_occupant_evicted` (7
+`detached` from the first apply, 11 `canceled` from this one). The 11 cancels
+carry `authority=syncview` and `authority_generation=0` — the binder the first
+apply lacked; the occupants' statuses before eviction were Kasper approval 6,
+scheduled 4, tweak 1, the same 11 the fence refused at 19:3x. All 11 kept rows
+hold their card (`origin=calendar`, kind `video`); all 11 occupants have
+`card_id` null and `status=canceled`. The occupants are the duplicate shells
+SyncView Mirror created and that were verified empty in Linear earlier in the
+day, so no editor's work was closed. The 11 native cancels reach Linear through
+the outbound drain (`linear-outbound-drain.yml`, every 10 minutes); the outbox
+is not readable with the publishable key (42501), so delivery was confirmed
+against Linear itself: the drain ran at 21:00:35Z (run `33991760541`) and at
+21:02Z exactly 11 issues in the VID team had changed in the preceding 15
+minutes, all `Canceled` (21:00:46Z → 21:01:14Z, in outbox order), and they are
+the 11 `occupant_linear_identifier` values the eviction events carry. Nothing
+else in the team moved. Details in `EXECUTION_LOG.md` (2026-09-05, Crosswalk
+Phase 2, second apply, addendum).
+
+That closes the repair set the rule can close: every slot the runner examines
+is either clean or one of the 7 named for a person, and the runner's plan
+summary lists those 7 by reason on every run. Item 147's residue and the "Still
+open" list above are the whole of what is left.

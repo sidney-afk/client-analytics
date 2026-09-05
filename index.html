@@ -5486,6 +5486,14 @@
             font-family: inherit; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.045em;
             text-transform: uppercase; text-align: left; cursor: pointer; margin: 2px 0; transition: filter 0.1s; }
         .cal-fld-status-item:hover { filter: brightness(0.94); }
+        /* A status this component cannot be moved to yet. Kept VISIBLE and in
+           place rather than removed from the list: a menu whose options move
+           around between openings is harder to use than one where the
+           unavailable option is plainly there and plainly greyed. */
+        .cal-fld-status-item[disabled] { opacity: 0.38; cursor: not-allowed; }
+        .cal-fld-status-item[disabled]:hover { filter: none; }
+        .cal-fld-status-note { padding: 7px 11px 8px; font-size: 0.68rem; line-height: 1.35;
+            color: var(--text-secondary); border-top: 1px solid var(--border); }
         .cal-fld-status-item.active { box-shadow: inset 0 0 0 1.5px currentColor; }
         .cal-fld-status-item.cal-fld-status-n-a               { background: var(--cal-status-n-a-bg); color: var(--cal-status-n-a-fg); }
         .cal-fld-status-item.cal-fld-status-in-progress       { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
@@ -38573,7 +38581,29 @@
             : (post.status || 'In Progress');
         const menu = document.createElement('div');
         menu.className = 'cal-fld-status-menu';
-        menu.innerHTML = (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}${s === currentStatus ? ' active' : ''}" onclick="_calStatusPick('${_calEscAttr(pid)}','${_calEscAttr(s)}','${_calEscAttr(which)}')">${_calEsc(_calStatusLabel(s))}</button>`).join('');
+        /* A status this component cannot be sent to is DISABLED here rather
+           than refused after the click. The gate has to stay in _calStatusPick
+           regardless -- it is the handler, and Set all, the auto-router and the
+           approve paths all reach the same rule without going through this menu
+           -- but being told "no" after choosing is the worse half of a correct
+           refusal, and the owner asked for the cosmetic half (2026-09-05).
+           The note names the escape hatch: N/A is never gated, and N/A is
+           excluded from CAL_PRIORITY, so a lane that will never have content
+           stops holding the whole card's status down. */
+        const _menuBlocked = {};
+        if (which) {
+            for (const s of (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES)) {
+                const reason = _calReviewBlockReason(post, which, s);
+                if (reason) _menuBlocked[s] = reason;
+            }
+        }
+        menu.innerHTML = (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => {
+            const blocked = _menuBlocked[s];
+            return `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}${s === currentStatus ? ' active' : ''}"${blocked ? ` disabled title="${_calEscAttr(blocked)}"` : ''} onclick="_calStatusPick('${_calEscAttr(pid)}','${_calEscAttr(s)}','${_calEscAttr(which)}')">${_calEsc(_calStatusLabel(s))}</button>`;
+        }).join('')
+            + (Object.keys(_menuBlocked).length
+                ? `<div class="cal-fld-status-note">${_calEsc(_calMenuBlockedNote(which))}</div>`
+                : '');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();
         const menuW = Math.max(menu.offsetWidth, 200);
@@ -38773,6 +38803,26 @@
         return '';
     }
     const CAL_COMP_LABEL = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
+    /* What the greyed-out review statuses mean, and the way out. N/A is named
+       because that is the answer for a lane this post will never have -- and
+       N/A is deliberately absent from CAL_PRIORITY, so marking it stops the
+       empty lane holding the card's overall status down.
+
+       But ONLY where N/A is actually on the menu. CAL_TITLE_STATUSES has no
+       N/A, so offering it on a title would be the same dead instruction this
+       repo keeps finding: a fix the reader is told to apply through a control
+       that isn't there. Derived from the list rather than hardcoded, so adding
+       or removing N/A from either vocabulary keeps the sentence honest. */
+    function _calMenuBlockedNote(comp) {
+        const what = comp === 'video' ? 'a video'
+            : comp === 'graphic' ? 'a thumbnail'
+            : comp === 'caption' ? 'a caption'
+            : comp === 'title' ? 'a title'
+            : 'anything';
+        const menu = comp === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES;
+        return 'The review statuses need ' + what + ' first.'
+            + (menu.indexOf('N/A') >= 0 ? ' If this post will never have one, set it to N/A.' : '');
+    }
     /* Where an SMM approval sends the component. Extracted because two places
        need it and they must not drift: _calReviewApplyApprove decides the real
        destination, and _calReviewApprove has to know the same destination
@@ -38781,6 +38831,20 @@
        happened. */
     function _calSmmApproveTo(dest) {
         return dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+    }
+    /* Where the RESOLVE CHOOSER's auto-route lands. Note the default differs
+       from _calSmmApproveTo above -- there, an unrecognised dest means Kasper;
+       here it means the client. That is not a bug to tidy: the chooser's three
+       buttons are Kasper / client / Approved and its recommendation logic
+       already picked one, whereas an approve-onward with no dest is the
+       brand-new-post case that goes to Kasper. Two rules, so two functions,
+       each named for the path it serves. Extracted for the same reason
+       _calSmmApproveTo was: the guard in _calResolveLastTweak has to know where
+       the route is going BEFORE it resolves anything. */
+    function _calAutoResolveDestStatus(dest) {
+        return (dest === 'kasper') ? 'Kasper Approval'
+             : (dest === 'approved') ? 'Approved'
+             : 'Client Approval';
     }
 
     function _calSetAllSettable(post, comp) {
@@ -45720,6 +45784,21 @@
             openTweaks: root ? [root] : [],
             fromReview: false,
             onChoose: async (destPick, ids) => {
+                /* Refuse BEFORE anything is resolved. _calApplyAutoStatus below
+                   now returns false for an empty component, and its callers
+                   ignore the return -- so without this the thread would close,
+                   the status would silently stay put, and the SMM would be told
+                   nothing. Same shape as the Review-tab path in
+                   _calReviewApprove, found the same way: by asking what the gate
+                   does to every caller rather than the one it was written for. */
+                if (destPick !== 'stay') {
+                    const _blocked = _calReviewBlockReason(post, comp, _calAutoResolveDestStatus(destPick));
+                    if (_blocked) {
+                        showNotify('Nothing to review yet', _blocked
+                            + ' Nothing was changed — the change request is still open.');
+                        return;
+                    }
+                }
                 // Resolve only on a pick (closing never reaches here), THEN flip
                 // the sub-status — unless the SMM chose "don't change the status"
                 // (dest 'stay'), in which case it's a plain mark-done, no routing.
@@ -45764,11 +45843,7 @@
         if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') {
             next = 'Tweaks Needed';
         } else if (trigger === 'smm_resolved_last') {
-            // The SMM's explicit pick from the resolve chooser: Kasper re-review,
-            // the client, or straight to Approved (skips both re-reviews).
-            const target = (dest === 'kasper') ? 'Kasper Approval'
-                         : (dest === 'approved') ? 'Approved'
-                         : 'Client Approval';
+            const target = _calAutoResolveDestStatus(dest);
             if (post[subKey] !== target) next = target;
         }
         if (!next) return false;
@@ -62009,7 +62084,23 @@
         const currentStatus = which ? (post[which + '_status'] || 'In Progress') : (post.status || 'In Progress');
         const menu = document.createElement('div');
         menu.className = 'cal-fld-status-menu';
-        menu.innerHTML = SXR_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}${s === currentStatus ? ' active' : ''}" onclick="_sxrStatusPick('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}','${_sxrEscAttr(which)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`).join('');
+        /* Same treatment as the calendar twin. NOTE the divergence: SXR_STATUSES
+           has no 'N/A', so the note cannot offer it -- samples carry exactly two
+           components and both are expected to exist. */
+        const _sxrMenuBlocked = {};
+        if (which) {
+            for (const s of SXR_STATUSES) {
+                const reason = _sxrReviewBlockReason(post, which, s);
+                if (reason) _sxrMenuBlocked[s] = reason;
+            }
+        }
+        menu.innerHTML = SXR_STATUSES.map(s => {
+            const blocked = _sxrMenuBlocked[s];
+            return `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(s)}${s === currentStatus ? ' active' : ''}"${blocked ? ` disabled title="${_sxrEscAttr(blocked)}"` : ''} onclick="_sxrStatusPick('${_sxrEscAttr(pid)}','${_sxrEscAttr(s)}','${_sxrEscAttr(which)}')">${_sxrEsc(_sxrStatusLabel(s))}</button>`;
+        }).join('')
+            + (Object.keys(_sxrMenuBlocked).length
+                ? `<div class="cal-fld-status-note">${_sxrEsc('The review statuses need ' + (which === 'graphic' ? 'a thumbnail' : 'a video') + ' first.')}</div>`
+                : '');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();
         const menuW = Math.max(menu.offsetWidth, 200), menuH = menu.offsetHeight;
@@ -63274,6 +63365,14 @@
     function _sxrSmmApproveTo(dest) {
         return dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
     }
+    /* The resolve chooser's auto-route destination. Default differs from the
+       approve-onward above for the same reason as the calendar twin
+       (_calAutoResolveDestStatus). */
+    function _sxrAutoResolveDestStatus(dest) {
+        return (dest === 'kasper') ? 'Kasper Approval'
+             : (dest === 'approved') ? 'Approved'
+             : 'Client Approval';
+    }
     function _sxrReviewMode() { return (!_isClientLink && sxrState.view === 'smmreview') ? 'smm' : 'client'; }
     function _sxrReviewComponentActive(p, c, mode) { const cs = _sxrNormStatus(p[c + '_status'] || ''); if (cs === _SXR_REVIEW_CFG[mode].reviewStatus) return true; return mode !== 'smm' && cs === 'Tweaks Needed' && !_isClientLink; }
     function _sxrApprovalBadgeCount(mode) {
@@ -63642,6 +63741,16 @@
             openTweaks: root ? [root] : [],
             fromReview: false,
             onChoose: async (destPick, ids) => {
+                /* Refuse before resolving — see the calendar twin in
+                   _calResolveLastTweak. */
+                if (destPick !== 'stay') {
+                    const _blocked = _sxrReviewBlockReason(post, comp, _sxrAutoResolveDestStatus(destPick));
+                    if (_blocked) {
+                        showNotify('Nothing to review yet', _blocked
+                            + ' Nothing was changed — the change request is still open.');
+                        return;
+                    }
+                }
                 const chosen = (ids && ids.length) ? ids : [rootId];
                 const canonicalGate = _prodCanonicalCommentGate(post, comp);
                 if (canonicalGate.linked) {
@@ -64711,7 +64820,7 @@
         const subKey = which + '_status';
         let next = null;
         if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') next = 'Tweaks Needed';
-        else if (trigger === 'smm_resolved_last') next = (dest === 'kasper') ? 'Kasper Approval' : (dest === 'approved') ? 'Approved' : 'Client Approval';
+        else if (trigger === 'smm_resolved_last') next = _sxrAutoResolveDestStatus(dest);
         if (!next || post[subKey] === next) return false;
         /* Resolving the last change-request auto-routes the component onward.
            That is still sending it for review, so it obeys the same rule --

@@ -12114,3 +12114,101 @@ whole class for the planner, so the RPC refusing it is consistency with the
 existing rule, not a new restriction invented here. **The owner decision is
 whether `kind='other'` on a graphics row counts as a thumbnail.** Answering it
 moves the repairable set from 42 to 68 of 107.
+
+---
+
+## 151. [2026-09-05, MEASURED — the gate is forward-only, and there are 11 rows behind it] What "sent for review with nothing to review" actually costs today
+
+The review-content gate (#1272) stops a component moving to For SMM / Kasper /
+Client Approval while the thing being reviewed is empty. It is **forward-only**:
+it refuses new moves and repairs nothing that already happened. So the fair
+question is what is already behind it, measured read-only 2026-09-05 with the
+browser publishable key.
+
+**A raw scan says 3,042 stranded component-slots across 9,937 calendar_posts.
+That number is misleading and should not be quoted.** It counts archived cards
+and off-roster clients. Scoped to what anyone actually opens — non-archived
+cards on the 42 active roster clients, **772 live cards** — the answer is:
+
+| Status / component | Slots |
+|---|---|
+| Client Approval / caption | 8 |
+| Client Approval / graphic | 1 |
+| For SMM Approval / video | 2 |
+| **Kasper Approval / anything** | **0** |
+| **TOTAL** | **11** |
+
+**Zero at Kasper Approval**, which is the specific complaint the gate was built
+for. The two `bayavoce` cards that prompted it were set back to In Progress by
+the owner at 00:42Z on 2026-09-05 and are clean.
+
+Of the 11, **7 are one client's captions at Client Approval** on podcast episode
+cards, where an empty caption may be correct rather than stranded. That is a
+judgement call for the owner, not a repair, and it is why this entry reports
+rather than fixes. **No repair is proposed and none was executed** — every one of
+these is on a real client, and the standing rule is that only `sidneylaruel` is
+mutated unless the owner names another.
+
+---
+
+## 152. [2026-09-05, FIXED — browser-only, live on merge] The gate said "no" to two callers that were never listening
+
+Owner, 2026-09-05, on the gate shipped in #1272: *"just make sure we didn't
+cause a problem ... can you explain the rule and just make sure it doesn't break
+anything?"* Asked properly, it had — in two places, and the same way twice.
+
+### The rule, stated once
+
+A component may not be moved INTO `For SMM Approval`, `Kasper Approval` or
+`Client Approval` while the thing being reviewed is empty: video needs
+`asset_url`, thumbnail needs `thumbnail_url`, caption needs `caption` or
+`caption_alt`, title needs `name`. Every other status is untouched —
+`Tweaks Needed` is a rejection, and `In Progress` / `Approved` / `Scheduled` /
+`Posted` / `N/A` are left alone so bulk edits on legacy cards keep working.
+`N/A` is the escape hatch and is deliberately absent from `CAL_PRIORITY`, so a
+lane marked not-applicable stops holding the card's overall status down.
+
+### What broke
+
+`_calApplyAutoStatus` returns **false** for an empty component. Its callers
+ignore the return value — which was fine when it only ever returned false for
+"nothing to do", and is not fine now that it means "refused".
+
+`_calResolveLastTweak` (the Notes "resolve last change-request and route it
+onward" path) resolved the thread FIRST and called the router second. On a
+stranded component the thread closed, the status did not move, and **nobody was
+told**. That is worse than the stranding it replaced: the SMM picked a
+destination, watched the request disappear, and the card stayed put. Same defect
+in the samples twin `_sxrResolveLastTweak`.
+
+This is the identical shape Codex found in `_calReviewApprove` on #1272 — found
+there by review, found here by asking what the gate does to *every* caller
+rather than the one it was written for.
+
+**Fixed by refusing before mutating**, with the reason said out loud: *"Nothing
+was changed — the change request is still open."*
+
+The destination rule needed extracting to do it, and the extraction surfaced a
+trap: the chooser's auto-route and the approve-onward disagree on an
+unrecognised destination — the chooser defaults to **Client Approval**, the
+approve to **Kasper Approval**. Two rules, so `_calAutoResolveDestStatus` and
+`_calSmmApproveTo` are two functions; sharing one would have made each guard
+protect the wrong move. The test executes both and asserts they differ.
+
+### And the cosmetic half the owner asked for
+
+A correct refusal delivered after the click is the worse half of a correct
+refusal. The per-component status menu now renders an unreachable review status
+**disabled**, with the reason on hover, plus a note naming the way out: *"The
+review statuses need a thumbnail first. If this post will never have one, set it
+to N/A."*
+
+The note offers N/A **only where the menu carries it**, derived from the status
+list rather than hardcoded: `CAL_TITLE_STATUSES` has no N/A, and telling a
+reader to use a control that is not there is the dead-instruction class the
+2026-08 sweep kept finding. Samples get the same treatment minus the N/A clause,
+because `SXR_STATUSES` has none either.
+
+**The handler keeps its own check.** A disabled button is a courtesy: Set all,
+the auto-router and both approve paths all reach the rule without ever passing
+through this menu.

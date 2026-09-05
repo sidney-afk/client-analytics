@@ -12339,3 +12339,12 @@ executes the actual reader with deferred IO. Reopen-status semantics and the
 client-note Production projection remain separate unproven/contract questions
 from PR #1282. This is draft, unmerged browser code, with no deployment or writer
 change; rollback is a code revert as described in `ROLLBACK.md`.
+
+
+**Independent correction review (2026-09-05):** the first candidate's shared
+HTTP check rejected a Metrics-only 503, blocking verified anonymous Calendar
+entry despite healthy Clients Info and Calendar. The corrected check rejects
+failed Clients Info only and restores Metrics' prior degraded HTTP behavior.
+Two actual-document regression cases now cover Metrics-only failure separately
+for anonymous Calendar and Kasper. The earlier 9/9 timing result omitted this
+condition; updated source-bound receipts are in `qa/kasper-roster/README.md`.

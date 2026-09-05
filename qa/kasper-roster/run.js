@@ -23,13 +23,17 @@ class TimingBackend extends Backend {
   constructor() {
     super('video', 'Kasper Approval', false);
     this.rows.push({ ...clone(this.rows[0]), id: 'fixture-unlisted', client: 'fictionalunlisted', name: 'Fictional unlisted card' });
-    this.rosterRequests = 0; this.rosterResponses = 0; this.calendarRequests = 0;
+    this.rosterRequests = 0; this.rosterResponses = 0; this.calendarRequests = 0; this.metricsFailures = 0;
     this.calendarGates = []; this.rosterGate = null; this.holdCalendar = false;
   }
   holdRoster() { this.rosterGate = deferred(); return this.rosterGate; }
   release() { super.release(); this.rosterGate?.release(); this.calendarGates.forEach(g => g.release()); }
   async handle(route, session, origin) {
     const req = route.request(), u = new URL(req.url());
+    if (this.metricsFault && req.method() === 'GET' && u.hostname === 'docs.google.com' && u.searchParams.get('sheet') === 'Metrics') {
+      this.metricsFailures++;
+      return route.fulfill({ status: 503, contentType: 'text/plain', body: 'Fictional metrics unavailable' });
+    }
     const roster = req.method() === 'GET' && u.hostname === 'docs.google.com' && u.searchParams.get('sheet') === 'Clients Info';
     if (roster) {
       this.rosterRequests++;
@@ -65,6 +69,27 @@ async function refreshing(p, expected) {
 async function direct(h, b) { const s = await h.session(b, 'admin'); await h.open(s, 'kasper'); await s.page.locator('#kasperReviewBody').waitFor(); return s; }
 async function ready(h, b) { const s = await ui.reviewer(h, b, 'video'); await card(s.page).waitFor(); await settled(s.page); return s; }
 const cases = {
+  'metrics-http-client-calendar': async (h, b, observe) => {
+    b.metricsFault = true;
+    b.rows[0].status = b.rows[0].video_status = 'Client Approval'; b.native[0].status = 'client_approval';
+    const s = await h.session(b, 'client'); await h.open(s);
+    await s.page.waitForFunction(() => document.querySelector('.cal-review-wrap') || document.querySelector('[data-client-entry-state="retry"]'));
+    observe.client_calendar = await s.page.locator('.cal-review-wrap').count();
+    observe.eligible_cards = await s.page.locator('.cal-review-card').count();
+    observe.retry_screen = await s.page.locator('[data-client-entry-state="retry"]').count();
+    observe.verifier_requests = b.records.filter(r => r.action === 'client-token-verify').length;
+    assert.equal(b.metricsFailures, 1, 'only Metrics HTTP read fails');
+    assert.equal(b.rosterResponses, 1, 'Clients Info remains healthy');
+    assert.equal(observe.verifier_requests, 1, 'real entry verifier transport was exercised');
+    assert.equal(observe.retry_screen, 0, 'analytics failure must not turn a verified Calendar link into a retry screen');
+    assert.equal(observe.eligible_cards, 1, 'anonymous client still sees the eligible review card');
+  },
+  'metrics-http-kasper': async (h, b, observe) => {
+    b.metricsFault = true; const s = await direct(h, b); await settled(s.page);
+    observe.eligible_cards = await card(s.page).count();
+    assert.equal(b.metricsFailures, 1); assert.equal(b.rosterResponses, 1);
+    assert.equal(observe.eligible_cards, 1, 'healthy roster still admits the eligible Kasper card when Metrics returns 503');
+  },
   'calendar-fast': async (h, b, observe) => {
     const roster = b.holdRoster(), s = await direct(h, b);
     await ui.until(() => b.rosterRequests > 0, 'roster requested');
@@ -166,7 +191,7 @@ async function main() {
         const p = h.sessions.at(-1)?.page; if (p && !p.isClosed()) await h.shot(p, id).catch(() => {});
       } finally {
         b.release();
-        cell.observations = { ...cell.observations, roster_requests: b.rosterRequests, calendar_requests: b.calendarRequests,
+        cell.observations = { ...cell.observations, roster_requests: b.rosterRequests, calendar_requests: b.calendarRequests, metrics_http_failures: b.metricsFailures,
           unexpected_http: b.blocked.length, unexpected_sockets: h.sessions.flatMap(s => s.sockets).length,
           page_errors: h.sessions.flatMap(s => s.errors).length, accepted_fixture_effects: b.records.filter(r => r.outcome === 'accepted').length };
         const privateData = JSON.stringify({ records: b.records, blocked: b.blocked, console_errors: h.sessions.flatMap(s => s.consoleErrors) });

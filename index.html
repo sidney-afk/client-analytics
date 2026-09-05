@@ -9388,7 +9388,9 @@
     async function fetchEssentials(clientEntryRun){
         const requestOpts=clientEntryRun?{signal:clientEntryRun.signal}:undefined;
         const [mr,cr]=await Promise.all([fetch(METRICS_URL,requestOpts),fetch(CLIENTS_URL,requestOpts)]);
-        if(!mr.ok||!cr.ok)throw new Error('Client list could not load. Refresh to try again.');
+        // Metrics keeps its existing degraded HTTP behavior. Only Clients Info
+        // determines whether the roster is ready for Calendar and Kasper reads.
+        if(!cr.ok)throw new Error('Client list could not load. Refresh to try again.');
         const metricsText=await mr.text(), clientsText=await cr.text();
         if(clientEntryRun&&!_syncviewClientEntryRunCurrent(clientEntryRun))throw _syncviewStaleClientEntryError();
         const publicClientRows = _applyEssentialTexts(metricsText, clientsText);

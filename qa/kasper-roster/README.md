@@ -19,6 +19,8 @@ only synthetic counts, failure classes and hashes. No live runner is imported.
 
 | Cell | Visible contract |
 | --- | --- |
+| metrics-http-client-calendar | Metrics alone returns HTTP 503: healthy token/roster/Calendar still show the anonymous client's review card, with no retry screen |
+| metrics-http-kasper | Metrics alone returns HTTP 503: a healthy roster still supplies the eligible Kasper queue |
 | calendar-fast | Direct Kasper entry: Calendar could reply before held roster; show eligible card once roster arrives |
 | roster-first | Direct entry: roster completes while Calendar reply is held; same eligible queue |
 | cached-reload | Keep the real cached card visible while reload waits for roster, then retain it after validation |
@@ -41,7 +43,7 @@ server/RPC evidence. Live writers, authentication and deployed revision remain
 **UNPROVEN**. No writer, auth, Samples or intake code is part of this change.
 
 
-## Pinned baseline and candidate receipts
+## Original candidate receipts (superseded by the Metrics correction below)
 
 Remote main was fetched and observed at **2026-09-05T07:49:20.0698546Z**:
 `a4925097aad2be1d8b4710e56da1220a19c850c5`. The old reviewer line references
@@ -115,3 +117,26 @@ approved card. Rollback is a revert of the implementation commit, restoring the
 prior timing and known omission. No data rollback or writer/auth change is involved.
 Next gate: review and run against the coordinator's assembled local candidate;
 any deployment/live verification is a separate authorized step.
+
+
+## Metrics-only HTTP failure correction
+
+Independent review found the original candidate's `!mr.ok || !cr.ok` check also
+rejected Metrics outages. With only Metrics returning HTTP 503 and healthy token,
+Clients Info and Calendar responses, original main showed one anonymous review
+card while `cfea54c37efe1ede9363921a1d32b112cbe98398` showed the client retry screen.
+The same bad guard blocked Kasper despite a healthy roster. The original 9/9
+receipt did not cover this condition and is superseded as a release assessment.
+
+The HTTP readiness check now tests **Clients Info only**. Metrics retains its
+pre-PR degraded HTTP behavior; failed Clients Info still fails readiness, reports
+the existing queue error, and is retryable. No writer or authorization changes.
+The finite matrix now includes the exact Metrics-only case for anonymous Calendar
+and for Kasper; the offline reader test varies the two HTTP statuses independently.
+
+SOURCE_ONLY entry-path check: verified Calendar awaits `fetchEssentials` and its
+failure reaches the client retry screen; other general client data loading uses
+`fetchAll` with the same reader. The verified Samples-specific entry returns
+through its own branch before that general essentials load. No Samples behavior
+was changed. Metrics network rejection semantics are unchanged and are not claimed
+newly available; these additional browser cases specifically exercise HTTP 503.

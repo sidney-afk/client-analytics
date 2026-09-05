@@ -88,15 +88,22 @@ async function main() {
     assert.equal(f.c._kasperState.items.length, 0, 'mutation during Calendar read invalidates response');
     assert.equal(f.c._kasperState.loading, false);
   }
-  {
+  for (const [metricsOk, rosterOk] of [[false, true], [true, false], [false, false]]) {
     let applied = 0;
     const c = vm.createContext({ Promise, Error, METRICS_URL: 'fixture-metrics', CLIENTS_URL: 'fixture-roster',
-      fetch: async () => ({ ok: false, text: async () => 'failure body' }),
+      fetch: async url => ({ ok: url === 'fixture-metrics' ? metricsOk : rosterOk, text: async () => 'fictional response' }),
       _applyEssentialTexts: () => { applied++; }, _analyticsCacheWrite: () => {},
+      _syncviewClientEntryRunCurrent: () => true,
     });
     vm.runInContext(asyncFunction('fetchEssentials'), c);
-    await assert.rejects(c.fetchEssentials(), /Client list could not load/);
-    assert.equal(applied, 0, 'HTTP failure must not merge an empty roster');
+    const load = c.fetchEssentials({ signal: {} });
+    if (rosterOk) {
+      await load;
+      assert.equal(applied, 1, 'Metrics HTTP failure must not reject the healthy client roster');
+    } else {
+      await assert.rejects(load, /Client list could not load/);
+      assert.equal(applied, 0, 'roster HTTP failure must not certify readiness, regardless of Metrics status');
+    }
   }
   console.log('Kasper roster readiness: boot order, retry, overlap, mutation and HTTP failure checks passed');
 }

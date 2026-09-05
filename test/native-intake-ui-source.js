@@ -90,6 +90,10 @@ vm.runInContext([
   extract('_linearIntakeActorError'),
   extract('_linearIntakeRequireActor'),
   extract('_linearIntakeRecoveryCopy'),
+  extract('_linearIntakeAutomaticAttempts'),
+  extract('_linearIntakeScope'),
+  extract('_linearIntakeUnresolvedRead'),
+  extract('_linearIntakeParkUnknown'),
   extract('_linearIntakePersistRecovery'),
   extract('_linearIntakeCheckpointOrSuspend'),
   extract('_linearIntakePurgeSensitiveState'),
@@ -300,8 +304,9 @@ const result = {
   ok(!/test_override/.test(submit),
   'Submit never asks a browser credential to self-enter TEST scope');
   const runner = extract('_runNativeIntakeJob');
-  ok(runner.indexOf('result = await response.json()') < runner.indexOf('_linearIntakeCheckpointOrSuspend(job)')
-    && runner.indexOf('_linearIntakeCheckpointOrSuspend(job)') < runner.indexOf('_linearIntakeSendTelemetry(job)')
+  const resultCheckpoint = runner.indexOf('_linearIntakeCheckpointOrSuspend(job)', runner.indexOf('job.result = result'));
+  ok(runner.indexOf('result = await response.json()') < resultCheckpoint
+    && resultCheckpoint < runner.indexOf('_linearIntakeSendTelemetry(job)')
     && runner.indexOf('_linearIntakeSendTelemetry(job)') < runner.indexOf('await _writeNativeSubmissionCardsToCalendar(job)'),
   'the native response and validated IDs are checkpointed before telemetry or the first Calendar write');
   ok(submit.includes('await _linearIntakeWithLock')
@@ -427,138 +432,18 @@ const result = {
     && submit.includes('_linearResolveClientRow(clientName, selectedClientSlug)'),
   'Submit binds one client selection across the allowlist wait and native resolution');
 
-  // --- terminal-refusal discard: a resumed job the server permanently ------
-  // refuses must clear itself after two strikes instead of re-arming forever.
+  // The destructive characterization is superseded by the executable resume
+  // and recovery fault matrix in native-intake-preservation.js. Keep this
+  // suite guarding the shared source contract as well.
   vm.runInContext(extract('_linearIntakeDiscardTerminallyRefused'), context);
-  const notifications = [];
-  context.showNotify = (title, body) => notifications.push({ title, body });
-  const seedJob = extra => {
-    store.set('pending', JSON.stringify(Object.assign({
-      version: 3, signature: 'sig', result: null,
-      payload: { operation: 'intake_create', request_id: 'rq-discard', client_slug: 'fixture', items: [] }
-    }, extra || {})));
-  };
-  const refusal = status => Object.assign(new Error('refused'), { status, code: 'write_conflict' });
-  const call = (reason, status) => vm.runInContext(
-    `_linearIntakeDiscardTerminallyRefused(${JSON.stringify(reason)}, 'rq-discard', __err)`,
-    Object.assign(context, { __err: refusal(status) }));
-
-  seedJob();
-  ok(call('resume', 409) === false && store.has('pending')
-    && JSON.parse(store.get('pending')).resume_refusals === 1
-    && notifications.length === 0,
-  'first terminal refusal on a resume records a strike and keeps the job');
-  ok(call('resume', 409) === true && !store.has('pending')
-    && notifications.length === 1
-    && /discarded/i.test(notifications[0].title + notifications[0].body)
-    && notifications[0].body.includes('fixture'),
-  'second terminal refusal discards the job and announces it with the client named');
-  notifications.length = 0;
-
-  seedJob();
-  ok(call('submit', 409) === false && call('calendar-create-post', 409) === false
-    && store.has('pending') && !JSON.parse(store.get('pending')).resume_refusals,
-  'a live-click failure never discards: the user is present to retry');
-  ok(call('resume', 401) === false && call('resume', 403) === false && store.has('pending')
-    && !JSON.parse(store.get('pending')).resume_refusals,
-  'auth refusals are never terminal: signing back in can make the job succeed');
-
-  // An append whose database function was never installed returns 500 on every
-  // attempt forever, and the job then blocks every later Create Post. A server
-  // error has to be survivable-but-bounded rather than ignored outright.
-  seedJob();
-  ok(call('focus', 500) === false && call('visible', 503) === false && call('online', 500) === false
-    && !JSON.parse(store.get('pending')).resume_refusals,
-  'a refocused tab never spends a server-error strike: only a fresh page load counts');
-  ok([1, 2, 3, 4, 5].every(n => call('resume', 500) === false
-      && JSON.parse(store.get('pending')).resume_refusals === n)
-    && call('startup', 500) === true && !store.has('pending'),
-  'a server error discards only after six page loads, far above the refusal budget');
-  ok(notifications.length === 1 && /6 times/.test(notifications[0].body),
-  'the discard notice reports the budget the job actually spent');
-  notifications.length = 0;
-
-  // Strikes are one counter, so a 5xx already on the job counts toward the
-  // smaller 4xx budget. That is deliberate: a 4xx says the payload can never
-  // succeed, and two independent failures ending in a terminal refusal is
-  // enough to stop re-arming it.
-  seedJob();
-  ok(call('resume', 500) === false && JSON.parse(store.get('pending')).resume_refusals === 1
-    && call('resume', 409) === true && !store.has('pending'),
-  'a terminal refusal after a server error discards on the refusal budget, not the server one');
-  store.delete('pending');
-  notifications.length = 0;
-
-  seedJob({ result: { ok: true, native_committed: true, items: [] }, resume_refusals: 5 });
-  ok(call('resume', 409) === false && store.has('pending'),
-  'a job with committed native work is never discarded, whatever the strike count');
-
-  seedJob({ payload: { operation: 'intake_create', request_id: 'rq-other', client_slug: 'fixture', items: [] } });
-  ok(call('resume', 409) === false && store.has('pending'),
-  'a refusal for one request id never touches a different saved job');
-  store.delete('pending');
-  notifications.length = 0;
-
-  // A page load defers its pageshow resume until identity is verified, so the
-  // run that reaches the server arrives as 'staff-verified', not 'resume'.
-  // Demanding the literal 'resume' meant no strike ever counted on a real
-  // boot and a dead job blocked Create Post forever.
-  ['startup', 'focus', 'visible', 'online', 'staff-verified', 'client-verified'].forEach(reason => {
-    seedJob();
-    ok(call(reason, 409) === false && JSON.parse(store.get('pending')).resume_refusals === 1
-      && call(reason, 409) === true && !store.has('pending'),
-    'a background ' + reason + ' resume counts terminal-refusal strikes');
-    notifications.length = 0;
-  });
-
-  // A recovery copy is what sign-out leaves for a committed job: it can never
-  // match a fresh post signature, refuses to discard because it committed, and
-  // is rewritten on the next sign-out. Without a bounded life it blocks every
-  // later Create Post permanently.
-  const seedRecovery = extra => seedJob(Object.assign({
-    recovery_only: true, suspended: true, signature: 'recovery:rq-discard',
-    result: { ok: true, native_committed: true, items: [] }
-  }, extra || {}));
-  const statusless = () => Object.assign(context, { __err: new Error('calendar_card_write_failed') });
-  const callStatusless = reason => vm.runInContext(
-    `_linearIntakeDiscardTerminallyRefused(${JSON.stringify(reason)}, 'rq-discard', __err)`, statusless());
-
-  seedRecovery();
-  ok(callStatusless('resume') === false && callStatusless('resume') === false
-    && callStatusless('resume') === false && JSON.parse(store.get('pending')).resume_refusals === 3
-    && notifications.length === 0,
-  'a recovery copy survives three failed resumes: its debt is a real calendar card');
-  ok(callStatusless('resume') === true && !store.has('pending') && notifications.length === 1
-    && /safe in Production/.test(notifications[0].body) && notifications[0].body.includes('fixture'),
-  'a recovery copy stops retrying on the fourth failure and says the post itself is safe');
-  notifications.length = 0;
-
-  seedRecovery();
-  ok(call('resume', 401) === false && call('resume', 403) === false
-    && store.has('pending') && !JSON.parse(store.get('pending')).resume_refusals,
-  'signing back in can still finish a recovery copy, so auth refusals never strike it');
-
-  seedRecovery({ resume_refusals: 3 });
-  ok(call('submit', 409) === false && store.has('pending'),
-  'a live click never spends a recovery copy strike either');
-  store.delete('pending');
-  notifications.length = 0;
-
-  // The blocking copy has to name its own case: there is no dialog that lets
-  // the user go back and finish a recovery copy.
-  const pendingFn = extract('_linearIntakePending');
-  ok(pendingFn.includes("saved.recovery_only === true")
-    && pendingFn.includes("'native_intake_recovery_pending'")
-    && pendingFn.includes("'native_intake_pending_conflict'"),
-  'a recovery copy blocks under its own error code, not the pending-conflict one');
-  const errorTextFn = extract('_calNativePostErrorText');
-  ok(errorTextFn.includes("code === 'native_intake_recovery_pending'")
-    && /stops retrying on its own/.test(errorTextFn),
-  'the recovery block reads as self-clearing instead of sending the user to find a dialog');
-
-  const resumeFn = extract('_resumeNativeIntakeJob');
-  ok(resumeFn.includes('_linearIntakeDiscardTerminallyRefused(reason, requestId, error)'),
-  'the shared resume catch applies the terminal-refusal rule for every caller');
+  const retained = { payload: { request_id: 'fixture-kept' }, result: null };
+  store.set('pending', JSON.stringify(retained));
+  for (const status of [0, 401, 403, 409, 429, 500, 503]) {
+    for (let i = 0; i < 8; i++) context._linearIntakeDiscardTerminallyRefused('startup', 'fixture-kept', { status });
+    ok(store.get('pending') === JSON.stringify(retained), 'error ' + status + ' never establishes permission to discard');
+  }
+  ok(extract('_calNativePostErrorText').includes('See its recovery notice'), 'recovery error points to the scoped notice without promising a replay of unknown work');
+  ok(!extract('_calSubmitNativePost').includes('_linearIntakeRemoveIfCurrent'), 'Create Post never deletes from a 4xx response');
 
   if (failures) process.exit(1);
   console.log('\nNative intake UI checks passed');

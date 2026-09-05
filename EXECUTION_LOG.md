@@ -6285,10 +6285,14 @@ same issues in Linear through the outbound drain. The legacy threads were not
 touched. **Reversal — what the ledger can and cannot restore** (this corrects
 the recipe in the 19:3x entry above, which has the same gap): the canonical
 rows and links are fully reversible (drop what was written under the run id;
-the legacy threads are intact). The 11 occupants are fully reversible (the
-`crosswalk_occupant_evicted` event carries `from_status`, and the `card_id`
-they held is the event's `card_id`); the 11 Linear cancels are reversed by
-hand in Linear. **The 100 kept rows are not fully reversible from the ledger:**
+the legacy threads are intact). The 11 occupants are reversible in binding
+and status (the `crosswalk_occupant_evicted` event carries `from_status`, and
+the `card_id` they held is the event's `card_id`) but **not in their
+timestamps**: `track_b_deliverable_touch_timestamps` stamps `updated_at` on
+every row the RPC updates and `status_at` on the rows whose status changed
+(the 11 cancels), and neither prior value is recorded anywhere. The 11 Linear
+cancels are reversed by hand in Linear. **The 100 kept rows are not fully
+reversible from the ledger** (their `updated_at` moved too):
 the RPC overwrites `card_id`, `client_slug`, `origin`, `team` and `kind`,
 and the `crosswalk_bound` event records only `kind_before`. Of the other four,
 `team` is re-derivable from the Linear identifier's prefix and `client_slug`
@@ -6300,8 +6304,9 @@ exists only in a database backup taken before 19:31Z, which this repo cannot
 verify exists. Not exercised; a reversal here would be undoing the ruling, not
 repairing data — the cards still name these deliverables, so the binding is
 re-derivable from the card at any time, which is what Phase 3's readback
-checks. Follow-up recorded in OPEN_REPAIRS 156 "Still open": the event should
-carry the five before-values.
+checks. Follow-up recorded in OPEN_REPAIRS 156 "Still open": the events should
+carry the before-values — the five binding fields, and `updated_at` and
+`status_at` — for every row the RPC updates.
 
 **Linear delivery.** At commit time the outbound drain had last run at 20:45Z,
 before the apply (20:53Z); the next scheduled run (every 10 minutes) carries

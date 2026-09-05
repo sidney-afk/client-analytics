@@ -323,10 +323,13 @@ for their slots. There is no thread to strand, so the projection hazard cannot
 fire, and it proves the mechanics on rows that cannot misdisplay.
 
 **Phase 2 — the cards with threads, through the combined RPC.** ~~Blocked on
-that RPC existing.~~ The RPC is written (see §4); Phase 2 is now blocked on it
-being **applied** to the live database. The call list has been measured fresh
-(below) rather than reused: Phase 1's 60 repairs moved the counts, so the "63
-cards" above is stale. Binding plus import, one transaction, per card.
+that RPC existing.~~ ~~The RPC is written (see §4); Phase 2 is now blocked on it
+being **applied** to the live database.~~ **Applied and run on 2026-09-05, in
+two applies (89, then 11); 100 of 100 — see the status table at the top. What
+follows in this section is the record of how it was measured and executed, not
+an instruction to execute it again.** The call list was measured fresh (below)
+rather than reused: Phase 1's 60 repairs moved the counts, so the "63 cards"
+above is stale. Binding plus import, one transaction, per card.
 
 ### The Phase 2 call list, measured 2026-09-05 01:48 UTC
 

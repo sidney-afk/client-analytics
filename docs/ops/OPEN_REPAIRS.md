@@ -12739,16 +12739,23 @@ unattended; 7 for a person, as before.
   does not stop the next one. The link action should retire (or never create)
   the auto-made row when the card is pointed elsewhere — a separate change,
   not attempted here.
-* **The `crosswalk_bound` event records only `kind_before`.** The RPC
-  overwrites five fields (`card_id`, `client_slug`, `origin`, `team`,
-  `kind`) and the event keeps the prior value of one, so the 100 kept rows
-  cannot be restored to their pre-apply state from the ledger alone (the
-  occupants can; the canonical rows can). Found by Codex on #1307. The fix is
-  an Epoch 3 of the function that stores all five before-values in the event
-  payload — source-only until the owner applies it, and not needed for the 7
+* **The RPC's events do not carry a before-image.** `crosswalk_bound`
+  records only `kind_before` while the RPC overwrites five fields
+  (`card_id`, `client_slug`, `origin`, `team`, `kind`); and on every row it
+  updates — kept and evicted alike — the touch trigger
+  `track_b_deliverable_touch_timestamps` moves `updated_at`, and `status_at`
+  on the 11 it canceled, with neither prior value recorded in
+  `crosswalk_bound` or `crosswalk_occupant_evicted`. So neither the 100 kept
+  rows nor the 18 occupants can be restored to their exact pre-apply state from
+  the ledger alone; the canonical comment rows and links can. Found by Codex on
+  #1307, twice. The fix is an Epoch 3 of the function that stores the five
+  binding fields plus `updated_at` and `status_at` as they were, in both
+  events — source-only until the owner applies it, and not needed for the 7
   slots that remain (none is bindable). Both EXECUTION_LOG entries for
   2026-09-05 say what is and is not recoverable.
-* Applying the migration and running the 100 calls is the owner's dispatch
+* ~~Applying the migration and running the 100 calls is the owner's dispatch~~
+  — done 2026-09-05, twice (Epoch 1 at 19:3x, 89 of 100; Epoch 2 at 20:53, the
+  remaining 11). See "Second live apply" below.
 
 ### The runner (same day, later)
 

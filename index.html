@@ -22118,6 +22118,7 @@
     }
     function _syncviewStaffIdentitySave(identity) {
         if (_syncviewStaffIdentitySignature(_syncviewStaffIdentityLoad()) !== _syncviewStaffIdentitySignature(identity)) {
+            try { if (typeof _reviewDraftSuspend === 'function') _reviewDraftSuspend(); } catch (e) {}
             try { if (typeof _sxrWorkSuspend === 'function') _sxrWorkSuspend(); } catch (e) {}
         }
         _syncviewStaffIdentityMem = identity || null;
@@ -22133,6 +22134,7 @@
         }
     }
     function _syncviewInvalidateStaffVerification() {
+        try { if (typeof _reviewDraftSuspend === 'function') _reviewDraftSuspend(); } catch (e) {}
         try { if (typeof _sxrWorkSuspend === 'function') _sxrWorkSuspend(); } catch (e) {}
         _syncviewStaffIdentityVerified = false;
         _syncviewStaffVerificationEpoch++;
@@ -22165,6 +22167,11 @@
         const current = _syncviewStaffIdentityLoad();
         const currentSignature = _syncviewStaffIdentitySignature(current);
         const nextSignature = _syncviewStaffIdentitySignature(next);
+        // Detach outgoing private composer projections while its principal is
+        // still current. The existing purge below observes the incoming actor.
+        if (nextSignature !== currentSignature) {
+            try { if (typeof _reviewDraftSuspend === 'function') _reviewDraftSuspend(); } catch (e) {}
+        }
         _syncviewStaffIdentityMem = next || null;
         _syncviewStaffIdentityLoaded = true;
         if (!nextSignature) {
@@ -22386,6 +22393,7 @@
         return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
     }
     function _syncviewStaffPurgeSensitiveState() {
+        try { if (typeof _reviewDraftSuspend === 'function') _reviewDraftSuspend(); } catch (e) {}
         try { if (typeof _sxrWorkSuspend === 'function') _sxrWorkSuspend(); } catch (e) {}
         try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
         try { if (typeof _linearIntakePurgeSensitiveState === 'function') _linearIntakePurgeSensitiveState(); } catch (e) {}
@@ -39408,6 +39416,7 @@
         if (_calSaveInFlight[pid]) return _calAwaitCardSave(pid);
         const retryPost = calState.posts.find(p => p.id === pid);
         const _saveSlug = calClientSlug(calState.client);
+        const draftPrincipal = typeof _reviewDraftPrincipal === 'function' ? _reviewDraftPrincipal() : '';
         const retryPrincipal = _writeUiPrincipalKey();
         if (retryPost && retryPost._writeUiRetrySourceAt
             && retryPost._writeUiRetryPrincipal !== retryPrincipal) {
@@ -39691,6 +39700,7 @@
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'save failed');
+            if (typeof _reviewDraftSourceAck === 'function') _reviewDraftSourceAck('calendar', _saveSlug, wirePost, draftPrincipal);
             if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(post, sourceRepairRefsForWrite);
             const saved = json.post || post;
             const i2 = calState.posts.findIndex(p => p.id === realId);
@@ -42779,6 +42789,271 @@
        Approval, and posts with no media are hidden). */
     const COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
     const COMP_PILL_COLORS = { video: 'var(--cal-comp-video-dot)', graphic: 'var(--cal-comp-graphic-dot)', caption: 'var(--cal-comp-caption-dot)', title: 'var(--cal-comp-title-dot)' };
+    // Composer ownership only: one unsent revision and one captured attempt.
+    // No transport, discussion history, automatic replay, or writer authority.
+    const REVIEW_DRAFT_PREFIX = 'syncview_review_draft_v1:';
+    const _reviewDraftRecords = new Map();
+    const _reviewDraftSlots = new Map();
+    let _reviewDraftRevision = 0;
+    const _reviewDraftTab = Math.random().toString(36).slice(2);
+    let _reviewDraftAnonymous = '';
+    function _reviewDraftPrincipal() {
+        const principal = _writeUiPrincipalKey();
+        if (principal || _isClientLink) return principal;
+        // Local ownership is not authentication. Preserve existing unsigned
+        // staff/Kasper writer permissions without sharing drafts across sessions.
+        try {
+            if (!_reviewDraftAnonymous) {
+                _reviewDraftAnonymous = sessionStorage.getItem('syncview_review_draft_session_v1') || '';
+                if (!_reviewDraftAnonymous) {
+                    _reviewDraftAnonymous = 'session:' + _reviewDraftTab + ':' + (++_reviewDraftRevision);
+                    sessionStorage.setItem('syncview_review_draft_session_v1', _reviewDraftAnonymous);
+                    if (sessionStorage.getItem('syncview_review_draft_session_v1') !== _reviewDraftAnonymous) throw new Error('draft_session');
+                }
+            }
+            return _reviewDraftAnonymous;
+        } catch (e) { return ''; }
+    }
+    function _reviewDraftState(surface, post) {
+        if (surface === 'kasper') {
+            const item = _kasperState.items.find(x => x.post === post || (x.post.id === post.id && x.post.client === post.client));
+            if (!item) return null;
+            if (!item._drafts) item._drafts = {};
+            if (!item._errors) item._errors = {};
+            return { drafts: item._drafts, errors: item._errors, item };
+        }
+        return surface === 'samples' ? _sxrReviewState : _calReviewState;
+    }
+    function _reviewDraftCurrent(ctx) {
+        if (!ctx || ctx.principal !== _reviewDraftPrincipal()) return false;
+        if (ctx.surface === 'kasper') return _kasperState.items.some(x => x.post.id === ctx.pid && x.post.client === ctx.slug);
+        const state = ctx.surface === 'samples' ? sxrState : calState;
+        const slug = ctx.surface === 'samples' ? sxrClientSlug(state.client) : calClientSlug(state.client);
+        return slug === ctx.slug;
+    }
+    function _reviewDraftContext(surface, post, comp) {
+        const principal = _reviewDraftPrincipal(), slug = String(post && post.client || '');
+        if (!principal || !slug || !post.id || !['video', 'graphic', 'caption', 'title'].includes(comp)) return null;
+        const key = REVIEW_DRAFT_PREFIX + [surface, principal, slug, post.id, comp].map(encodeURIComponent).join(':');
+        let ctx = _reviewDraftRecords.get(key);
+        if (!ctx) {
+            ctx = { key, surface, principal, slug, pid: post.id, comp, post, raw: null, error: '',
+                value: { schema: 1, surface, principal, slug, pid: post.id, comp, text: '', revision: '', attempt: null } };
+            try {
+                ctx.raw = localStorage.getItem(key);
+                if (ctx.raw) {
+                    const value = JSON.parse(ctx.raw);
+                    for (const field of ['schema', 'surface', 'principal', 'slug', 'pid', 'comp']) {
+                        if (value[field] !== ctx.value[field]) throw new Error('draft_scope');
+                    }
+                    if (typeof value.text !== 'string' || typeof value.revision !== 'string'
+                        || (value.attempt && (!['note', 'tweak', 'approve-after-tweaks'].includes(value.attempt.kind)
+                            || typeof value.attempt.text !== 'string' || typeof value.attempt.id !== 'string' || !value.attempt.id
+                            || typeof value.attempt.revision !== 'string' || typeof value.attempt.createdAt !== 'string'
+                            || !['saving', 'failed', 'unconfirmed', 'native'].includes(value.attempt.phase)))
+                        || (value.delegated && (!value.delegated.id || typeof value.delegated.id !== 'string'
+                            || typeof value.delegated.revision !== 'string' || typeof value.delegated.createdAt !== 'string'))) throw new Error('draft_shape');
+                    ctx.value = value;
+                    if (ctx.value.attempt && ctx.value.attempt.phase === 'saving') {
+                        ctx.value = Object.assign({}, value, { attempt: Object.assign({}, value.attempt, { phase: 'unconfirmed' }) });
+                        if (!ctx.value.text && ctx.value.revision === ctx.value.attempt.revision) ctx.value.text = ctx.value.attempt.text;
+                    }
+                }
+            } catch (e) { ctx.unreadable = true; ctx.error = 'Draft storage could not be read. Keep this tab open.'; }
+            _reviewDraftRecords.set(key, ctx);
+        }
+        ctx.post = post;
+        return ctx;
+    }
+    function _reviewDraftWrite(ctx, value, keepMemory) {
+        try {
+            if (ctx.unreadable) throw new Error('draft_unreadable');
+            if (localStorage.getItem(ctx.key) !== ctx.raw) throw new Error('draft_changed');
+            const raw = JSON.stringify(value);
+            localStorage.setItem(ctx.key, raw);
+            if (localStorage.getItem(ctx.key) !== raw) throw new Error('draft_storage');
+            ctx.raw = raw; ctx.value = value; ctx.error = '';
+            return true;
+        } catch (e) {
+            if (keepMemory) ctx.value = value;
+            ctx.error = 'Draft is not stored safely. Keep this tab open and try again.';
+            return false;
+        }
+    }
+    function _reviewDraftMirror(ctx) {
+        if (!_reviewDraftCurrent(ctx)) return;
+        const state = _reviewDraftState(ctx.surface, ctx.post);
+        if (!state) return;
+        const key = ctx.surface === 'kasper' ? ctx.comp : ctx.pid + '|' + ctx.comp;
+        const slot = ctx.surface + '|' + ctx.pid + '|' + ctx.comp;
+        if (_reviewDraftSlots.get(slot) !== ctx.key) {
+            state.errors[key] = '';
+            if (state.saving) state.saving[key] = false;
+            if (state.item && state.item._saving) state.item._saving[key] = false;
+            if (state.draftActionIds) delete state.draftActionIds[key];
+            _reviewDraftSlots.set(slot, ctx.key);
+        }
+        state.drafts[key] = ctx.value.text;
+        if (state.draftActionIds && ctx.value.attempt && ctx.value.attempt.kind === 'tweak') state.draftActionIds[key] = ctx.value.attempt.id;
+    }
+    function _reviewDraftBind(surface, post, comp) {
+        const ctx = _reviewDraftContext(surface, post, comp);
+        if (ctx) _reviewDraftMirror(ctx);
+        return ctx;
+    }
+    function _reviewDraftInput(surface, post, comp, text) {
+        const ctx = _reviewDraftContext(surface, post, comp);
+        if (!ctx || !_reviewDraftCurrent(ctx)) return false;
+        const next = Object.assign({}, ctx.value, { text: String(text), revision: _reviewDraftTab + ':' + (++_reviewDraftRevision) });
+        const ok = _reviewDraftWrite(ctx, next, true);
+        _reviewDraftPaint(ctx); return ok;
+    }
+    function _reviewDraftTake(surface, post, comp, kind, text) {
+        const ctx = _reviewDraftContext(surface, post, comp);
+        if (!ctx || !_reviewDraftCurrent(ctx)) return null;
+        if (!ctx.value.revision && !_reviewDraftInput(surface, post, comp, text)) return null;
+        const prior = ctx.value.attempt;
+        if (!prior && !String(text).trim()) return null;
+        if (prior && prior.phase === 'saving') {
+            ctx.error = 'Earlier feedback is still being confirmed. Your draft is kept.';
+            _reviewDraftPaint(ctx); return null;
+        }
+        if (prior && prior.phase === 'native') {
+            ctx.error = 'Feedback was accepted. Its existing card-sync repair is still pending.';
+            _reviewDraftPaint(ctx); return null;
+        }
+        const retry = prior && ctx.retry === prior.id;
+        ctx.retry = '';
+        if (prior && (prior.kind !== kind || (!retry && prior.text.trim() !== String(text).trim()))) {
+            ctx.error = 'Earlier feedback is not confirmed. Your new draft is kept; use Retry earlier feedback below.';
+            _reviewDraftPaint(ctx); return null;
+        }
+        const attempt = prior || { id: _calMintCommentId(), kind, text: String(text), revision: ctx.value.revision, createdAt: new Date().toISOString() };
+        const next = Object.assign({}, ctx.value, { attempt: Object.assign({}, attempt, { phase: 'saving' }) });
+        if (!_reviewDraftWrite(ctx, next, false)) { _reviewDraftPaint(ctx); return null; }
+        return { ctx, ...attempt };
+    }
+    function _reviewDraftConsume(attempt) {
+        if (!attempt) return;
+        const ctx = attempt.ctx;
+        if (ctx.value.revision === attempt.revision) {
+            _reviewDraftWrite(ctx, Object.assign({}, ctx.value, { text: '' }), false);
+            _reviewDraftMirror(ctx);
+        }
+    }
+    function _reviewDraftFinish(attempt, phase) {
+        if (!attempt) return;
+        const ctx = attempt.ctx, pending = ctx.value.attempt;
+        if (!pending || pending.id !== attempt.id) return;
+        const next = Object.assign({}, ctx.value);
+        if (phase === 'accepted') {
+            next.attempt = null;
+            if (next.revision === attempt.revision) next.text = '';
+        } else {
+            next.attempt = Object.assign({}, pending, { phase });
+            if (next.revision === attempt.revision && !next.text) next.text = attempt.text;
+        }
+        _reviewDraftWrite(ctx, next, false);
+        _reviewDraftMirror(ctx); _reviewDraftPaint(ctx);
+    }
+    function _reviewDraftSourceAck(surface, slug, wire, principal) {
+        // Observe the existing writer's positive HTTP/envelope receipt. Only a
+        // matching comment actually present in this acknowledged wire retires
+        // its captured composer revision; another field's success cannot do so.
+        if (!wire || !wire.id || !principal) return;
+        for (const ctx of _reviewDraftRecords.values()) {
+            if ((ctx.surface === 'kasper' ? 'calendar' : ctx.surface) !== surface
+                || ctx.slug !== slug || ctx.pid !== wire.id || ctx.principal !== principal) continue;
+            let comments;
+            try { comments = JSON.parse(wire[ctx.comp + '_tweaks'] || 'null'); } catch (e) { continue; }
+            if (!Array.isArray(comments)) continue;
+            const delegated = ctx.value.delegated;
+            if (ctx.surface === 'samples' && delegated && comments.some(comment => comment && comment.id === delegated.id && !comment.is_tweak)) {
+                const next = Object.assign({}, ctx.value, { delegated: null });
+                if (next.revision === delegated.revision) next.text = '';
+                _reviewDraftWrite(ctx, next, false); _reviewDraftMirror(ctx); _reviewDraftPaint(ctx);
+            }
+            const attempt = ctx.value.attempt;
+            if (!attempt) continue;
+            if (comments.some(comment => comment && comment.id === attempt.id
+                && String(comment.body || '').trim() === attempt.text.trim()
+                && !!comment.is_tweak === (attempt.kind !== 'note'))) {
+                _reviewDraftFinish({ ctx, ...attempt }, 'accepted');
+            }
+        }
+    }
+    function _reviewDraftInner(ctx) {
+        if (!ctx || !_reviewDraftCurrent(ctx)) return '';
+        const attempt = ctx.value.attempt;
+        const error = ctx.error ? `<p role="alert">${_calEsc(ctx.error)}</p>` : '';
+        if (!attempt) {
+            const owned = ctx.surface === 'samples' && ctx.value.delegated && _sxrWorkView
+                && _sxrWorkView.principal === ctx.principal && _sxrWorkView.slug === ctx.slug
+                && _sxrWorkView.records.get(ctx.pid);
+            if (!owned) return error;
+            const saving = !!_sxrWorkView.saving[ctx.pid];
+            return error + '<div role="status">The previous note has not finished saving.</div>'
+                + (saving ? '' : `<button type="button" class="cal-link" style="min-height:44px" data-review-draft-retry="${_calEscAttr(ctx.key)}" onclick="_reviewDraftRetry(this)">Retry note save</button>`);
+        }
+        const label = attempt.phase === 'saving' ? 'Feedback confirmation pending.'
+            : attempt.phase === 'native' ? 'Feedback was accepted; card sync is still pending.' : 'Earlier feedback is not confirmed.';
+        // This is a captured composer revision, not a second discussion thread.
+        return error + `<div role="status">${label}</div><div class="cal-review-preview-caption" role="note" aria-label="Earlier feedback" style="white-space:pre-wrap;overflow-wrap:anywhere">${_calEsc(attempt.text)}</div>`
+            + (attempt.phase === 'saving' || attempt.phase === 'native' ? '' : `<button type="button" class="cal-link" style="min-height:44px" data-review-draft-retry="${_calEscAttr(ctx.key)}" onclick="_reviewDraftRetry(this)">Retry earlier feedback</button>`);
+    }
+    function _reviewDraftHtml(ctx) {
+        return ctx ? `<div class="cal-review-panel-err" data-review-draft-key="${_calEscAttr(ctx.key)}">${_reviewDraftInner(ctx)}</div>` : '';
+    }
+    function _reviewDraftPaint(ctx) {
+        if (!ctx || !_reviewDraftCurrent(ctx)) return;
+        document.querySelectorAll('[data-review-draft-key]').forEach(el => { if (el.dataset.reviewDraftKey === ctx.key) el.innerHTML = _reviewDraftInner(ctx); });
+    }
+    function _reviewDraftRetry(button) {
+        const ctx = _reviewDraftRecords.get(button.dataset.reviewDraftRetry);
+        if (!_reviewDraftCurrent(ctx)) return;
+        if (!ctx.value.attempt && ctx.surface === 'samples' && ctx.value.delegated && _sxrWorkView
+            && _sxrWorkView.principal === ctx.principal && _sxrWorkView.slug === ctx.slug
+            && _sxrWorkView.records.has(ctx.pid)) { _sxrRetrySave(ctx.pid); return; }
+        if (!ctx.value.attempt || ctx.value.attempt.phase === 'saving') return;
+        ctx.retry = ctx.value.attempt.id;
+        const { surface, pid, comp } = ctx, kind = ctx.value.attempt.kind;
+        if (surface === 'kasper') {
+            if (kind === 'note') _kasperAddCommentComp(pid, comp);
+            else _kasperRequestTweakComp(pid, comp, kind === 'approve-after-tweaks');
+        } else if (surface === 'calendar') {
+            if (kind === 'note') _calReviewComment(pid, comp); else _calReviewRequestTweak(pid, comp);
+        } else _sxrReviewRequestTweak(pid, comp);
+    }
+    function _reviewDraftSuspend() {
+        const principal = _reviewDraftPrincipal();
+        const attempts = Array.from(_reviewDraftRecords.values()).filter(ctx => ctx.principal === principal && ctx.value.attempt && ctx.value.attempt.phase !== 'native');
+        const withoutPrivateAttempt = (post, surface) => {
+            let copy = post;
+            for (const ctx of attempts) {
+                if ((ctx.surface === 'kasper' ? 'calendar' : ctx.surface) !== surface || ctx.slug !== post.client || ctx.pid !== post.id) continue;
+                const comments = _calCommentsFor(copy, ctx.comp);
+                if (!comments.some(comment => comment.id === ctx.value.attempt.id)) continue;
+                if (copy === post) copy = Object.assign({}, post);
+                _calSetCommentsFor(copy, ctx.comp, comments.filter(comment => comment.id !== ctx.value.attempt.id));
+            }
+            return copy;
+        };
+        // Detach only the visible copies. A captured in-flight writer keeps its
+        // original object and receipt; another actor cannot see its optimistic
+        // unconfirmed note as though it were a server-owned discussion entry.
+        try { calState.posts = calState.posts.map(post => withoutPrivateAttempt(post, 'calendar')); } catch (e) {}
+        try { _kasperState.items = _kasperState.items.map(item => Object.assign({}, item, { post: withoutPrivateAttempt(item.post, 'calendar') })); } catch (e) {}
+        if (!_isClientLink) {
+            _reviewDraftAnonymous = '';
+            try { sessionStorage.removeItem('syncview_review_draft_session_v1'); } catch (e) {}
+        }
+        try { _calReviewState.drafts = Object.create(null); _calReviewState.errors = Object.create(null); _calReviewState.saving = Object.create(null); _calReviewState.draftActionIds = Object.create(null); } catch (e) {}
+        try { _sxrReviewState.drafts = Object.create(null); _sxrReviewState.errors = Object.create(null); _sxrReviewState.saving = Object.create(null); _sxrReviewState.draftActionIds = Object.create(null); } catch (e) {}
+        try { _kasperState.items.forEach(item => { item._drafts = {}; item._errors = {}; item._saving = {}; }); } catch (e) {}
+        document.querySelectorAll('.cal-review-textarea').forEach(el => { el.value = ''; el.blur(); });
+        document.querySelectorAll('[data-review-draft-key]').forEach(el => { el.innerHTML = ''; });
+    }
+
     const _calReviewState = {
         expanded: new Set(),
         drafts: Object.create(null),
@@ -43392,6 +43667,7 @@
        false claim in the same spot this fix is removing one from. */
     const REVIEW_APPROVE_DRAFT_TITLE = 'Approve is off while this note is unsent below — press Comment to send it, or clear the text, to approve.';
     function _calReviewPanelHtml(p, comp) {
+        const reviewDraft = _reviewDraftBind('calendar', p, comp);
         const escId = _calEscAttr(p.id);
         const escComp = _calEscAttr(comp);
         const subStatus = _calNormStatus(p[comp + '_status'] || '');
@@ -43534,6 +43810,7 @@
             ${approveControl}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
+                ${_reviewDraftHtml(reviewDraft)}
                 <div class="cal-review-tweak-actions">
                     <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewComment('${escId}','${escComp}')" title="Leave a comment or question — won't change the status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
                     <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request change</button>
@@ -43669,6 +43946,7 @@
     function _calReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
         _calReviewState.drafts[key] = ta.value;
+        _reviewDraftInput('calendar', calState.posts.find(p => p.id === pid), comp, ta.value);
         delete _calReviewState.draftActionIds[key];
         const nowHasDraft = !!ta.value.trim();
         // Don't repaint on every keystroke — just toggle the two action
@@ -43861,13 +44139,16 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
-        const body = String(_calReviewState.drafts[key] || '').trim();
-        if (!body || _calReviewState.saving[key]) return;
+        const rawDraft = String(_calReviewState.drafts[key] || '');
+        if (_calReviewState.saving[key]) return;
+        const draftAttempt = _reviewDraftTake('calendar', post, comp, 'note', rawDraft);
+        if (!draftAttempt || !draftAttempt.text.trim()) return;
+        const body = draftAttempt.text.trim();
         const role = _calCommentRole();
         const list = _calCommentsFor(post, comp).slice();
-        const _now = new Date().toISOString();
-        list.push({
-            id: _calMintCommentId(),
+        const _now = draftAttempt.createdAt;
+        if (!list.some(comment => comment.id === draftAttempt.id)) list.push({
+            id: draftAttempt.id,
             parent_id: null,
             author: _calCurrentAuthor(),
             role: role,
@@ -43881,7 +44162,7 @@
         _calSetCommentsFor(post, comp, list);
         post.updated_at = _now;                 // no status change — it's a comment
         _calV2Log('REVIEW comment →', pid, '| comp:', comp, '| role:', _calCommentRole());
-        _calReviewState.drafts[key] = '';
+        _reviewDraftConsume(draftAttempt);
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
         delete _calReviewState.draftActionIds[key];
@@ -43891,8 +44172,15 @@
             [comp + '_tweaks']: _calStringifyComments(list),
         });
         Promise.resolve(_calFlushCardSave(pid)).then(() => {
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) { _reviewDraftFinish(draftAttempt, 'unconfirmed'); return; }
+            const saved = calState.posts.find(p => p.id === pid && p.client === draftAttempt.ctx.slug);
+            _reviewDraftFinish(draftAttempt, !saved ? 'unconfirmed' : saved._saveError ? (saved._writeUiRetrySourceAt ? 'native' : 'failed') : 'unconfirmed');
+            if (saved && saved._saveError) _calReviewState.errors[key] = saved._saveError;
+            _calReviewRepaintCard(pid);
             _calReviewState.saving[key] = false;
         }).catch(e => {
+            _reviewDraftFinish(draftAttempt, 'failed');
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) return;
             _calReviewState.saving[key] = false;
             _calReviewState.errors[key] = _writeUiFailureSentence(e);
             _calReviewRepaintCard(pid);
@@ -43902,15 +44190,18 @@
         const initialPost = calState.posts.find(p => p.id === pid);
         if (!initialPost) return;
         const key = pid + '|' + comp;
-        const rawDraft = String(_calReviewState.drafts[key] || '');
-        const body = rawDraft.trim();
-        if (!body || _calReviewState.saving[key]) return;
+        let rawDraft = String(_calReviewState.drafts[key] || '');
+        let body = rawDraft.trim();
+        if (_calReviewState.saving[key]) return;
         if (_isClientLink) {
             const cur = String(initialPost[comp + '_status'] || '').trim().toLowerCase();
             if (cur !== 'client approval' && cur !== 'tweaks needed') return;
         }
+        const draftAttempt = _reviewDraftTake('calendar', initialPost, comp, 'tweak', rawDraft);
+        if (!draftAttempt || !draftAttempt.text.trim()) return;
+        rawDraft = draftAttempt.text; body = rawDraft.trim();
         const _legacySlug = _writeUiSourceClientSlug('calendar', { post: initialPost });
-        let attemptId = '';
+        let attemptId = draftAttempt.id;
         let action = null;
         let deferredLegacyAttempt = false;
         let deferredLegacySourceOnly = false;
@@ -43929,7 +44220,9 @@
             pid,
             comp,
             async () => {
+                if (!_reviewDraftCurrent(draftAttempt.ctx)) throw new Error('Review owner changed; draft is preserved.');
                 const post = calState.posts.find(p => p.id === pid);
+                if (post && post.client !== draftAttempt.ctx.slug) throw new Error('Review client changed; draft is preserved.');
                 if (!post) throw new Error('This review item is no longer available');
                 if (_isClientLink) {
                     const currentStatus = String(post[comp + '_status'] || '').trim().toLowerCase();
@@ -43937,12 +44230,12 @@
                         throw new Error('This item changed while your request was waiting. Your draft is preserved.');
                     }
                 }
-                attemptId = String(_calReviewState.draftActionIds[key] || '')
-                    || _calMintCommentId();
+                attemptId = draftAttempt.id;
                 let inspection = await _writeUiLegacyInspectTargetTweak(
                     'calendar', _legacySlug, pid, comp, post, body, attemptId
                 );
                 inspection = await _writeUiLegacyRefreshActiveTweak('calendar', inspection);
+                if (!_reviewDraftCurrent(draftAttempt.ctx)) throw new Error('Review owner changed; draft is preserved.');
                 if (inspection.state === 'conflict') {
                     return { state: 'conflict', conflict: inspection, attempt_id: attemptId };
                 }
@@ -43993,7 +44286,7 @@
 
                 const _now = retryGate && inspection.item && inspection.item.queuedAt
                     ? new Date(Number(inspection.item.queuedAt)).toISOString()
-                    : new Date().toISOString();
+                    : draftAttempt.createdAt;
                 const newComment = existing || {
                     id: commentId,
                     parent_id: null,
@@ -44026,7 +44319,7 @@
                 _calV2Log('REVIEW request-change →', pid, '| comp:', comp, '| role:', role);
                 post.status = computeOverallStatus(post);
                 post.updated_at = new Date().toISOString();
-                _calReviewState.drafts[key] = '';
+                _reviewDraftConsume(draftAttempt);
                 delete _calReviewState.draftActionIds[key];
                 const localStatusMarker = _writeUiRequestTweakMarkLocalStatus('calendar', pid, comp);
                 const repairEdits = {
@@ -44071,6 +44364,7 @@
                         reserveStatusIntent: { status: post[comp + '_status'] },
                         deferLegacyUntilSourceSave: true
                     });
+                if (!_reviewDraftCurrent(draftAttempt.ctx)) throw new Error('Review owner changed; existing feedback receipt is preserved.');
                 const deferredLegacyComment =
                     !!(acknowledgement && acknowledgement.deferred_until_source_save);
                 deferredLegacyAttempt = deferredLegacyComment;
@@ -44124,6 +44418,7 @@
                 };
             }
         )).then(async outcome => {
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) { _reviewDraftFinish(draftAttempt, 'unconfirmed'); return; }
             _calReviewState.saving[key] = false;
             const current = calState.posts.find(p => p.id === pid)
                 || (action && action.post)
@@ -44141,7 +44436,7 @@
                 } else if (targetConflict.source_superseded !== true) {
                     _writeUiScheduleDeferredLegacyTweak('calendar');
                 }
-                _calReviewState.drafts[key] = rawDraft;
+                _reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed');
                 _calReviewState.errors[key] = targetConflict.source_superseded === true
                     ? 'This request was saved, but a newer status was applied. Review the latest status before retrying.'
                     : (targetConflict.delivered
@@ -44178,6 +44473,7 @@
                 }
                 if ((outcome.item && outcome.item.team_delivery_superseded === true)
                     || (committedDeliveryOutcome && committedDeliveryOutcome.state === 'superseded')) {
+                    _reviewDraftFinish(draftAttempt, 'failed');
                     _writeUiApplySupersededTeamDelivery(
                         'calendar', current, comp, outcome.action || action, key, rawDraft,
                         outcome.comment_id || attemptId
@@ -44188,7 +44484,7 @@
                     (outcome.item && outcome.item.source_only_superseded === true)
                     || (committedDeliveryOutcome
                         && committedDeliveryOutcome.state === 'source_only_superseded');
-                _calReviewState.drafts[key] = '';
+                _reviewDraftFinish(draftAttempt, 'accepted');
                 _calReviewState.errors[key] = '';
                 delete _calReviewState.draftActionIds[key];
                 delete _calReviewState.errorActionIds[key];
@@ -44214,7 +44510,7 @@
                         _writeUiRollbackRequestTweak('calendar', current, comp, action);
                         action.rollbackApplied = true;
                     }
-                    _calReviewState.drafts[key] = '';
+                    _reviewDraftFinish(draftAttempt, 'accepted');
                     _calReviewState.errors[key] = '';
                     delete _calReviewState.draftActionIds[key];
                     delete _calReviewState.errorActionIds[key];
@@ -44227,7 +44523,7 @@
                     _writeUiRollbackRequestTweak('calendar', current, comp, action);
                     action.rollbackApplied = true;
                 }
-                _calReviewState.drafts[key] = rawDraft;
+                _reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed');
                 _calReviewState.errors[key] = current._saveError || 'Save failed';
                 _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
                 _calReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
@@ -44251,6 +44547,7 @@
                 }
             }
             if (deliveryOutcome && deliveryOutcome.state === 'superseded') {
+                _reviewDraftFinish(draftAttempt, 'failed');
                 _writeUiApplySupersededTeamDelivery(
                     'calendar', current, comp, action, key, rawDraft,
                     action && action.comment_id || attemptId
@@ -44262,7 +44559,7 @@
                     _writeUiRollbackRequestTweak('calendar', current, comp, action);
                     action.rollbackApplied = true;
                 }
-                _calReviewState.drafts[key] = '';
+                _reviewDraftFinish(draftAttempt, 'accepted');
                 _calReviewState.errors[key] = '';
                 delete _calReviewState.draftActionIds[key];
                 delete _calReviewState.errorActionIds[key];
@@ -44271,7 +44568,8 @@
                 showToast('Change request saved — a newer status was applied');
                 return;
             }
-            if (action && action.clearsCard) _calReviewRemoveCard(pid);
+            _reviewDraftFinish(draftAttempt, 'accepted');
+            if (action && action.clearsCard && !draftAttempt.ctx.value.text) _calReviewRemoveCard(pid);
             else _calReviewRepaintCard(pid);
             if (_calCommentRole() === 'client' && !current._saveError) {
                 showToast(deferredLegacySourceOnly
@@ -44283,6 +44581,7 @@
                         : 'Change request sent — the team has been notified'));
             }
         }).catch(error => {
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) { _reviewDraftFinish(draftAttempt, 'unconfirmed'); return; }
             if (deferredLegacyAttempt || deferredLegacyOutboxIds.length) {
                 _writeUiScheduleDeferredLegacyTweak('calendar');
             }
@@ -44303,7 +44602,7 @@
                     _writeUiRollbackRequestTweak('calendar', current, comp, action);
                     action.rollbackApplied = true;
                 }
-                _calReviewState.drafts[key] = '';
+                _reviewDraftFinish(draftAttempt, 'accepted');
                 _calReviewState.errors[key] = '';
                 delete _calReviewState.draftActionIds[key];
                 delete _calReviewState.errorActionIds[key];
@@ -44315,7 +44614,7 @@
                 _writeUiRollbackRequestTweak('calendar', current, comp, action);
                 action.rollbackApplied = true;
             }
-            _calReviewState.drafts[key] = rawDraft;
+            _reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed');
             _writeUiReportFailure('calendar', 'comment', error);
             _calReviewState.errors[key] = _writeUiFailureSentence(error);
             _calReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
@@ -60650,6 +60949,7 @@
         }
     }
     function _syncviewPurgeClientEntrySurface() {
+        try { if (typeof _reviewDraftSuspend === 'function') _reviewDraftSuspend(); } catch (e) {}
         _writeUiCancelClientLegacyRetryTimers();
         try { if (typeof _syncviewCancelBriefWork === 'function') _syncviewCancelBriefWork(); } catch (e) {}
         try { if (typeof _calV2Teardown === 'function') _calV2Teardown(); } catch (e) {}
@@ -63818,6 +64118,7 @@
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const json = await resp.json();
                 if (!json.ok) throw new Error(json.error || 'save failed');
+            if (typeof _reviewDraftSourceAck === 'function') _reviewDraftSourceAck('samples', _saveSlug, wirePost, owner.principal);
                 if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(post, sourceRepairRefsForWrite);
                 const saved = json.sample || post;
                 if (saved.client != null && saved.client !== _saveSlug) throw new Error('Save response belongs to another client');
@@ -64242,6 +64543,7 @@
         return `<div class="cal-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${activeComps.map(comp => _sxrReviewPanelHtml(p, comp)).join('')}</div>`;
     }
     function _sxrReviewPanelHtml(p, comp) {
+        const reviewDraft = _reviewDraftBind('samples', p, comp);
         const escId = _sxrEscAttr(p.id), escComp = _sxrEscAttr(comp);
         const subStatus = _sxrNormStatus(p[comp + '_status'] || '');
         const state = subStatus === 'Approved' ? 'approved' : (subStatus === 'Tweaks Needed' ? 'tweaks' : 'pending');
@@ -64298,6 +64600,7 @@
             ${approveControl}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_sxrEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_sxrReviewOnDraftInput(this,'${escId}','${escComp}')" ${canAct ? '' : 'readonly'}>${_sxrEsc(draft)}</textarea>
+                ${_reviewDraftHtml(reviewDraft)}
                 <div class="cal-review-tweak-actions">
                     <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_sxrReviewComment('${escId}','${escComp}')" title="Leave a comment — won't change the status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
                     <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_sxrReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request change</button>
@@ -64368,6 +64671,7 @@
     function _sxrReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
         _sxrReviewState.drafts[key] = ta.value;
+        _reviewDraftInput('samples', sxrState.posts.find(p => p.id === pid), comp, ta.value);
         delete _sxrReviewState.draftActionIds[key];
         const nowHasDraft = !!ta.value.trim();
         const card = ta.closest('.cal-review-card'); if (!card) return;
@@ -64614,32 +64918,60 @@
         const key = pid + '|' + comp;
         const body = String(_sxrReviewState.drafts[key] || '').trim();
         if (!body || _sxrReviewState.saving[key]) return;
+        const composer = _reviewDraftContext('samples', post, comp);
+        if (!composer || !_reviewDraftCurrent(composer)) return;
+        if (!composer.value.revision && !_reviewDraftInput('samples', post, comp, _sxrReviewState.drafts[key])) return;
+        // Only the unsent revision and its handoff identity belong here. The
+        // existing Samples owned-work record owns the submitted note payload.
+        const previous = composer.value.delegated;
+        const delegated = previous && previous.revision === composer.value.revision ? previous
+            : { id: _sxrMintCommentId(), revision: composer.value.revision, createdAt: new Date().toISOString() };
+        if (!_reviewDraftWrite(composer, Object.assign({}, composer.value, { delegated }), false)) { _reviewDraftPaint(composer); return; }
         const role = _sxrCommentRole();
         const list = _sxrCommentsFor(post, comp).slice();
-        const _now = new Date().toISOString();
-        list.push({ id: _sxrMintCommentId(), parent_id: null, author: _sxrCurrentAuthor(), role, is_tweak: false, audience: (role === 'client') ? 'client' : 'internal', body, created_at: _now, updated_at: _now, done: false, done_at: '', done_by: '' });
+        const _now = delegated.createdAt;
+        if (!list.some(comment => comment.id === delegated.id)) list.push({ id: delegated.id, parent_id: null, author: _sxrCurrentAuthor(), role, is_tweak: false, audience: (role === 'client') ? 'client' : 'internal', body, created_at: _now, updated_at: _now, done: false, done_at: '', done_by: '' });
         _sxrSetCommentsFor(post, comp, list);
         post.updated_at = _now;
-        _sxrReviewState.drafts[key] = ''; _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
+        const owner = _sxrWorkBindView();
+        _sxrWorkPut(owner, post, _sxrPendingEdits[pid], 'pending');
+        const owned = owner.records.get(pid);
+        if (!owned || owned.storedRevision !== owned.revision) {
+            composer.error = 'Feedback is not stored safely. Keep this tab open and try again.';
+            _reviewDraftPaint(composer); return;
+        }
+        _reviewDraftWrite(composer, Object.assign({}, composer.value, { text: '' }), false);
+        _reviewDraftMirror(composer);
+        _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
         delete _sxrReviewState.draftActionIds[key];
         delete _sxrReviewState.errorActionIds[key];
         _sxrReviewRepaintCard(pid);
-        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
-        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid); });
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => {
+            if (!_reviewDraftCurrent(composer)) return;
+            _sxrReviewState.saving[key] = false;
+            _reviewDraftPaint(composer);
+        }).catch(e => {
+            if (!_reviewDraftCurrent(composer)) return;
+            _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = _writeUiFailureSentence(e); _sxrReviewRepaintCard(pid);
+        });
     }
     function _sxrReviewRequestTweak(pid, comp) {
         const initialPost = sxrState.posts.find(p => p.id === pid);
         if (!initialPost) return;
         const key = pid + '|' + comp;
-        const rawDraft = String(_sxrReviewState.drafts[key] || '');
-        const body = rawDraft.trim();
-        if (!body || _sxrReviewState.saving[key]) return;
+        let rawDraft = String(_sxrReviewState.drafts[key] || '');
+        let body = rawDraft.trim();
+        if (_sxrReviewState.saving[key]) return;
         if (_isClientLink) {
             const cur = String(initialPost[comp + '_status'] || '').trim().toLowerCase();
             if (cur !== 'client approval' && cur !== 'tweaks needed') return;
         }
+        const draftAttempt = _reviewDraftTake('samples', initialPost, comp, 'tweak', rawDraft);
+        if (!draftAttempt || !draftAttempt.text.trim()) return;
+        rawDraft = draftAttempt.text; body = rawDraft.trim();
         const _legacySlug = _writeUiSourceClientSlug('sxr', { post: initialPost });
-        let attemptId = '';
+        let attemptId = draftAttempt.id;
         let action = null;
         let deferredLegacyAttempt = false;
         let deferredLegacySourceOnly = false;
@@ -64658,7 +64990,9 @@
             pid,
             comp,
             async () => {
+                if (!_reviewDraftCurrent(draftAttempt.ctx)) throw new Error('Review owner changed; draft is preserved.');
                 const post = sxrState.posts.find(p => p.id === pid);
+                if (post && post.client !== draftAttempt.ctx.slug) throw new Error('Review client changed; draft is preserved.');
                 if (!post) throw new Error('This review item is no longer available');
                 if (_isClientLink) {
                     const currentStatus = String(post[comp + '_status'] || '').trim().toLowerCase();
@@ -64666,12 +65000,12 @@
                         throw new Error('This item changed while your request was waiting. Your draft is preserved.');
                     }
                 }
-                attemptId = String(_sxrReviewState.draftActionIds[key] || '')
-                    || _sxrMintCommentId();
+                attemptId = draftAttempt.id;
                 let inspection = await _writeUiLegacyInspectTargetTweak(
                     'sxr', _legacySlug, pid, comp, post, body, attemptId
                 );
                 inspection = await _writeUiLegacyRefreshActiveTweak('sxr', inspection);
+                if (!_reviewDraftCurrent(draftAttempt.ctx)) throw new Error('Review owner changed; draft is preserved.');
                 if (inspection.state === 'conflict') {
                     return { state: 'conflict', conflict: inspection, attempt_id: attemptId };
                 }
@@ -64721,7 +65055,7 @@
                 }
                 const _now = retryGate && inspection.item && inspection.item.queuedAt
                     ? new Date(Number(inspection.item.queuedAt)).toISOString()
-                    : new Date().toISOString();
+                    : draftAttempt.createdAt;
                 const newComment = existing || {
                     id: commentId,
                     parent_id: null,
@@ -64751,7 +65085,7 @@
                 post[comp + '_status'] = 'Tweaks Needed';
                 post.status = computeSampleOverallStatus(post);
                 post.updated_at = new Date().toISOString();
-                _sxrReviewState.drafts[key] = '';
+                _reviewDraftConsume(draftAttempt);
                 delete _sxrReviewState.draftActionIds[key];
                 const localStatusMarker = _writeUiRequestTweakMarkLocalStatus('sxr', pid, comp);
                 const repairEdits = {
@@ -64793,6 +65127,7 @@
                         reserveStatusIntent: { status: post[comp + '_status'] },
                         deferLegacyUntilSourceSave: true
                     });
+                if (!_reviewDraftCurrent(draftAttempt.ctx)) throw new Error('Review owner changed; existing feedback receipt is preserved.');
                 const deferredLegacyComment =
                     !!(acknowledgement && acknowledgement.deferred_until_source_save);
                 deferredLegacyAttempt = deferredLegacyComment;
@@ -64845,6 +65180,7 @@
                 };
             }
         )).then(async outcome => {
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) { _reviewDraftFinish(draftAttempt, 'unconfirmed'); return; }
             _sxrReviewState.saving[key] = false;
             const current = sxrState.posts.find(p => p.id === pid)
                 || (action && action.post)
@@ -64862,7 +65198,7 @@
                 } else if (targetConflict.source_superseded !== true) {
                     _writeUiScheduleDeferredLegacyTweak('sxr');
                 }
-                _sxrReviewState.drafts[key] = rawDraft;
+                _reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed');
                 _sxrReviewState.errors[key] = targetConflict.source_superseded === true
                     ? 'This request was saved, but a newer status was applied. Review the latest status before retrying.'
                     : (targetConflict.delivered
@@ -64899,6 +65235,7 @@
                 }
                 if ((outcome.item && outcome.item.team_delivery_superseded === true)
                     || (committedDeliveryOutcome && committedDeliveryOutcome.state === 'superseded')) {
+                    _reviewDraftFinish(draftAttempt, 'failed');
                     _writeUiApplySupersededTeamDelivery(
                         'sxr', current, comp, outcome.action || action, key, rawDraft,
                         outcome.comment_id || attemptId
@@ -64909,7 +65246,7 @@
                     (outcome.item && outcome.item.source_only_superseded === true)
                     || (committedDeliveryOutcome
                         && committedDeliveryOutcome.state === 'source_only_superseded');
-                _sxrReviewState.drafts[key] = '';
+                _reviewDraftFinish(draftAttempt, 'accepted');
                 _sxrReviewState.errors[key] = '';
                 delete _sxrReviewState.draftActionIds[key];
                 delete _sxrReviewState.errorActionIds[key];
@@ -64935,7 +65272,7 @@
                         _writeUiRollbackRequestTweak('sxr', current, comp, action);
                         action.rollbackApplied = true;
                     }
-                    _sxrReviewState.drafts[key] = '';
+                    _reviewDraftFinish(draftAttempt, 'accepted');
                     _sxrReviewState.errors[key] = '';
                     delete _sxrReviewState.draftActionIds[key];
                     delete _sxrReviewState.errorActionIds[key];
@@ -64948,7 +65285,7 @@
                     _writeUiRollbackRequestTweak('sxr', current, comp, action);
                     action.rollbackApplied = true;
                 }
-                _sxrReviewState.drafts[key] = rawDraft;
+                _reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed');
                 _sxrReviewState.errors[key] = current._saveError || 'Save failed';
                 _sxrReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
                 _sxrReviewState.errorActionIds[key] = String(action && action.comment_id || attemptId);
@@ -64972,6 +65309,7 @@
                 }
             }
             if (deliveryOutcome && deliveryOutcome.state === 'superseded') {
+                _reviewDraftFinish(draftAttempt, 'failed');
                 _writeUiApplySupersededTeamDelivery(
                     'sxr', current, comp, action, key, rawDraft,
                     action && action.comment_id || attemptId
@@ -64983,7 +65321,7 @@
                     _writeUiRollbackRequestTweak('sxr', current, comp, action);
                     action.rollbackApplied = true;
                 }
-                _sxrReviewState.drafts[key] = '';
+                _reviewDraftFinish(draftAttempt, 'accepted');
                 _sxrReviewState.errors[key] = '';
                 delete _sxrReviewState.draftActionIds[key];
                 delete _sxrReviewState.errorActionIds[key];
@@ -64994,7 +65332,8 @@
                 }
                 return;
             }
-            if (action && action.clearsCard) _sxrReviewRemoveCard(pid);
+            _reviewDraftFinish(draftAttempt, 'accepted');
+            if (action && action.clearsCard && !draftAttempt.ctx.value.text) _sxrReviewRemoveCard(pid);
             else _sxrReviewRepaintCard(pid);
             if (_sxrCommentRole() === 'client' && !current._saveError
                 && typeof showToast === 'function') {
@@ -65007,6 +65346,7 @@
                         : 'Change request sent — the team has been notified'));
             }
         }).catch(e => {
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) { _reviewDraftFinish(draftAttempt, 'unconfirmed'); return; }
             if (deferredLegacyAttempt || deferredLegacyOutboxIds.length) {
                 _writeUiScheduleDeferredLegacyTweak('sxr');
             }
@@ -65025,7 +65365,7 @@
                     _writeUiRollbackRequestTweak('sxr', current, comp, action);
                     action.rollbackApplied = true;
                 }
-                _sxrReviewState.drafts[key] = '';
+                _reviewDraftFinish(draftAttempt, 'accepted');
                 _sxrReviewState.errors[key] = '';
                 delete _sxrReviewState.draftActionIds[key];
                 delete _sxrReviewState.errorActionIds[key];
@@ -65037,7 +65377,7 @@
                 _writeUiRollbackRequestTweak('sxr', current, comp, action);
                 action.rollbackApplied = true;
             }
-            _sxrReviewState.drafts[key] = rawDraft;
+            _reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed');
             _writeUiReportFailure('sxr', 'comment', e);
             _sxrReviewState.errors[key] = _writeUiFailureSentence(e);
             _sxrReviewState.draftActionIds[key] = String(action && action.comment_id || attemptId);
@@ -75027,6 +75367,7 @@
         _kasperRepaintCard(pid);
     }
     function _kasperHeroPanel(item, comp) {
+        const reviewDraft = _reviewDraftBind('kasper', item.post, comp);
         const p = item.post;
         const escId = _calEscAttr(p.id);
         const escComp = _calEscAttr(comp);
@@ -75068,6 +75409,7 @@
                 </div>` : ''}
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
+                ${_reviewDraftHtml(reviewDraft)}
                     <div class="cal-review-tweak-actions">
                         <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperAddCommentComp('${escId}','${escComp}')" title="Leave a comment or question — internal only. Doesn't change the status or notify the editor; the card stays awaiting your approval."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
                         <button type="button" class="cal-review-aat-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-approve for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
@@ -75081,6 +75423,7 @@
     }
 
     function _kasperPanelHtml(item, comp) {
+        const reviewDraft = _reviewDraftBind('kasper', item.post, comp);
         const p = item.post;
         const escId = _calEscAttr(p.id);
         const escComp = _calEscAttr(comp);
@@ -75124,6 +75467,7 @@
             </div>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
+                ${_reviewDraftHtml(reviewDraft)}
                 <div class="cal-review-tweak-actions">
                     <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperAddCommentComp('${escId}','${escComp}')" title="Leave a comment or question — internal only. Doesn't change the status or notify the editor; the card stays awaiting your approval."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
                     <button type="button" class="cal-review-aat-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-approve for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
@@ -75229,6 +75573,7 @@
         // persist. Later component actions may add refs while this request is
         // in flight; they belong to their own chained write.
         const context = {
+            draftPrincipal: typeof _reviewDraftPrincipal === 'function' ? _reviewDraftPrincipal() : '',
             precommitted: !!(repairContext && repairContext.precommitted),
             refs: (Array.isArray(repairContext && repairContext.refs) ? repairContext.refs : [])
                 .filter(ref => ref && ref.key && ref.token)
@@ -75257,6 +75602,8 @@
     }
     async function _kasperPersistPostWrite(item, repairContext) {
         const retryPrincipal = _writeUiPrincipalKey();
+        const draftPrincipal = typeof _reviewDraftPrincipal === 'function' ? _reviewDraftPrincipal() : '';
+        if (repairContext && repairContext.draftPrincipal && repairContext.draftPrincipal !== draftPrincipal) throw new Error('Review owner changed; feedback is preserved.');
         if (item.post._writeUiRetrySourceAt
             && (item.post._writeUiRetryPrincipal !== retryPrincipal
                 || !_writeUiJournalCoversRepairRefs(item.post, 'calendar', 'kasper-calendar', item.slug, retryPrincipal))) {
@@ -75337,8 +75684,10 @@
             checkpointCommittedSource();
         }
         const resp = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const json = await resp.json().catch(() => ({}));
         if (!json || !json.ok) throw new Error((json && json.error) || 'Save failed');
+        if (typeof _reviewDraftSourceAck === 'function') _reviewDraftSourceAck('calendar', item.slug, wire, draftPrincipal);
         if (await _writeUiCompleteSourceRepairRefs(sourceRepairRefsForWrite)) _writeUiRemoveCompletedRepairRefs(item.post, sourceRepairRefsForWrite);
         delete item.post._writeUiRetrySourceAt;
         delete item.post._writeUiRetryPrincipal;
@@ -75371,6 +75720,7 @@
         if (!item) return;
         if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
         item._drafts[comp] = ta.value;
+        _reviewDraftInput('kasper', item.post, comp, ta.value);
         const nowHasDraft = !!ta.value.trim();
         // Don't repaint — that would yank the textarea out of focus mid-
         // keystroke. Approve / Submit are always rendered now; just toggle
@@ -75523,15 +75873,18 @@
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
         if (!item._touchedComps) item._touchedComps = new Set();
-        const body = String(item._drafts[comp] || '').trim();
-        if (!body || item._saving[comp]) return;
+        const rawDraft = String(item._drafts[comp] || '');
+        if (item._saving[comp]) return;
+        const draftAttempt = _reviewDraftTake('kasper', item.post, comp, 'note', rawDraft);
+        if (!draftAttempt || !draftAttempt.text.trim()) return;
+        const body = draftAttempt.text.trim();
         _kasperInvalidateInFlightLoad();
         const prev = Object.assign({ updated_at: item.post.updated_at },
             _kasperCommentSnapshot(item.post));
         const list = _calCommentsFor(item.post, comp).slice();
-        const _now = new Date().toISOString();
-        list.push({
-            id: _calMintCommentId(),
+        const _now = draftAttempt.createdAt;
+        if (!list.some(comment => comment.id === draftAttempt.id)) list.push({
+            id: draftAttempt.id,
             parent_id: null,
             author: 'Kasper',
             role: 'kasper',
@@ -75548,17 +75901,23 @@
         // No status change and no approval clearing — a comment isn't a tweak.
         item.post.updated_at = _now;
         item._touchedComps.add(comp);   // keep the card pinned in his queue
-        item._drafts[comp] = '';
+        _reviewDraftConsume(draftAttempt);
         item._saving[comp] = true;
         item._errors[comp] = null;
         _kasperRepaintCard(pid);
         try {
             await _kasperPersistPost(item);
+            // A successful card write can contain a later edit under the same
+            // comment ID. Only the exact-body source receipt retires this draft.
+            _reviewDraftFinish(draftAttempt, 'unconfirmed');
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) return;
             // Deliberately NO _calPostLinearComment — plain notes don't ping the editor.
             item._saving[comp] = false;
             _kasperPersistCache();
             _kasperRepaintCard(pid);
         } catch (e) {
+            _reviewDraftFinish(draftAttempt, 'failed');
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) return;
             Object.assign(item.post, prev);
             item._saving[comp] = false;
             item._errors[comp] = _writeUiFailureSentence(e);
@@ -75573,8 +75932,11 @@
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
         if (!item._touchedComps) item._touchedComps = new Set();
-        const body = String(item._drafts[comp] || '').trim();
-        if (!body || item._saving[comp]) return;
+        const rawDraft = String(item._drafts[comp] || '');
+        if (item._saving[comp]) return;
+        const draftAttempt = _reviewDraftTake('kasper', item.post, comp, approveAfterTweaks ? 'approve-after-tweaks' : 'tweak', rawDraft);
+        if (!draftAttempt || !draftAttempt.text.trim()) return;
+        const body = draftAttempt.text.trim();
         _kasperInvalidateInFlightLoad();
         // Mirrors the client-review submit: comment lands in the thread,
         // sub-status flips to Tweaks Needed, but the card STAYS in Kasper's
@@ -75593,9 +75955,9 @@
             kasper_approved_after_tweaks: item.post.kasper_approved_after_tweaks,
         }, _kasperCommentSnapshot(item.post));
         const list = _calCommentsFor(item.post, comp).slice();
-        const _now = new Date().toISOString();
+        const _now = draftAttempt.createdAt;
         const newComment = {
-            id: _calMintCommentId(),
+            id: draftAttempt.id,
             parent_id: null,
             author: 'Kasper',
             role: 'kasper',
@@ -75609,7 +75971,7 @@
             done_at: '',
             done_by: '',
         };
-        list.push(newComment);
+        if (!list.some(comment => comment.id === draftAttempt.id)) list.push(newComment);
         _calSetCommentsFor(item.post, comp, list);
         item.post[subKey] = 'Tweaks Needed';
         item.post.status = computeOverallStatus(item.post);
@@ -75627,7 +75989,7 @@
         _calClearStaleApprovals(item.post, null);
         item.post.updated_at = new Date().toISOString();
         item._touchedComps.add(comp);
-        item._drafts[comp] = '';
+        _reviewDraftConsume(draftAttempt);
         item._saving[comp] = true;
         item._errors[comp] = null;
         _kasperRepaintCard(pid);
@@ -75647,21 +76009,26 @@
             });
             nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
             _writeUiAdoptRepairAck(item.post, acknowledgement);
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) { _reviewDraftFinish(draftAttempt, nativeCommentCommitted ? 'native' : 'unconfirmed'); return; }
             const companions = _writeUiRepairCompanions(acknowledgement && acknowledgement.source_repair);
             await _kasperPersistPost(item, {
                 precommitted: nativeCommentCommitted,
                 refs: acknowledgement && acknowledgement.source_repair ? [acknowledgement.source_repair] : [],
                 companions
             });
+            _reviewDraftFinish(draftAttempt, 'accepted');
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) return;
             item._saving[comp] = false;
             // Persist now so a page reload before the next 30 s poll still
             // remembers the touched flag + TN status.
             _kasperPersistCache();
             _kasperRepaintCard(pid);
         } catch (e) {
+            _reviewDraftFinish(draftAttempt, nativeCommentCommitted ? 'native' : 'failed');
+            if (!_reviewDraftCurrent(draftAttempt.ctx)) return;
             if (!nativeCommentCommitted) {
                 Object.assign(item.post, prev);
-                item._drafts[comp] = body;
+                _reviewDraftMirror(draftAttempt.ctx);
                 _writeUiReportFailure('calendar', 'comment', e);
             } else {
                 _kasperPersistCache();

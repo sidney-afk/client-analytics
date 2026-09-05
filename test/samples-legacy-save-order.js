@@ -187,6 +187,7 @@ async function runReviewTweakCase({
   const key = pid + '|video';
   const post = {
     id: pid,
+    client: 'fixtureclient',
     linear_issue_id: 'https://linear.app/acme/issue/VID-2/review-sample',
     video_status: 'Client Approval',
     graphic_status: 'In Progress',
@@ -200,7 +201,12 @@ async function runReviewTweakCase({
   let stagedLegacy = null;
   let committedLegacy = null;
   const context = {
-    sxrState: { posts: [post] },
+    sxrState: { posts: [post], client: 'Fixture Client' },
+    sxrClientSlug: () => 'fixtureclient',
+    _writeUiPrincipalKey: () => 'staff:fixture:smm',
+    _calMintCommentId: () => 'review-comment-1',
+    document: { querySelectorAll: () => [] },
+    localStorage: (() => { const values = new Map(); return { getItem: k => values.get(k) || null, setItem: (k,v) => values.set(k,v) }; })(),
     _sxrReviewState: {
       drafts: { [key]: 'Please revise this cut' },
       saving: {},
@@ -342,6 +348,8 @@ async function runReviewTweakCase({
   // The review pane's error text reads the shipped failure-message table now.
   loadFailureSentence(context);
   vm.runInContext(extract('_sxrPostLinearComment'), context);
+  vm.runInContext(require('./helpers/review-draft-source')(source), context);
+  context._reviewDraftInput('samples', post, 'video', context._sxrReviewState.drafts[key]);
   vm.runInContext(extract('_sxrReviewRequestTweak'), context);
   context._sxrReviewRequestTweak(pid, 'video');
   for (let i = 0; i < 20 && context._sxrReviewState.saving[key] !== false; i++) {

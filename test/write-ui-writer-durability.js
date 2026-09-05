@@ -257,7 +257,8 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   ]) {
     const targetAt = fixture.handler.indexOf('_writeUiLegacyTargetWithLock(');
     const freshPostAt = fixture.handler.indexOf(fixture.freshPost, targetAt);
-    const mintAt = fixture.handler.indexOf(fixture.mint, freshPostAt);
+    const captureAt = fixture.handler.indexOf('_reviewDraftTake(');
+    const mintAt = fixture.handler.indexOf('attemptId = draftAttempt.id', freshPostAt);
     const inspectAt = fixture.handler.indexOf('await _writeUiLegacyInspectTargetTweak', mintAt);
     const inspectionCommittedAt = fixture.handler.indexOf("if (inspection.state === 'committed')", inspectAt);
     const listAt = fixture.handler.indexOf(fixture.comments, inspectAt);
@@ -269,7 +270,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     const sourceAt = fixture.handler.indexOf(fixture.sourceSave, stagedCommittedAt);
     const settledAt = fixture.handler.indexOf(')).then(async outcome =>', sourceAt);
     const sourceErrorAt = fixture.handler.indexOf(fixture.sourceError, settledAt);
-    assert(targetAt >= 0
+    assert(captureAt >= 0 && captureAt < targetAt
       && fixture.handler.slice(targetAt, targetAt + 120).includes(`'${fixture.surface}'`)
       && freshPostAt > targetAt
       && mintAt > freshPostAt
@@ -283,9 +284,9 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       && stageAt < stagedCommittedAt
       && stagedCommittedAt < sourceAt
       && sourceAt < settledAt,
-    fixture.label + ' holds the exact target from fresh action identity/snapshot construction through source commit');
-    assert(fixture.handler.includes('const body = rawDraft.trim()')
-      && fixture.handler.includes(`${fixture.state}.drafts[key] = rawDraft`)
+    fixture.label + ' captures the durable identity first, then holds the exact target from fresh snapshot through source commit');
+    assert(fixture.handler.includes('body = rawDraft.trim()')
+      && fixture.handler.includes("_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')")
       && fixture.handler.includes('deferLegacyUntilSourceSave: true')
       && fixture.handler.includes(fixture.activeBypass)
       && fixture.handler.includes('|| inspection.rearmed_team_delivery === true')
@@ -367,7 +368,8 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       surface + ' stages the exact inspected action and approval clears from its committed source edits');
     const reviewState = surface === 'Samples' ? '_sxrReviewState' : '_calReviewState';
     const surfaceKey = surface === 'Samples' ? 'sxr' : 'calendar';
-    assert(handler.includes(`attemptId = String(${reviewState}.draftActionIds[key] || '')`)
+    assert(handler.includes('const draftAttempt = _reviewDraftTake(')
+      && handler.includes('attemptId = draftAttempt.id')
       && handler.includes(`inspection = await _writeUiLegacyRefreshActiveTweak('${surfaceKey}', inspection)`),
     surface + ' reuses only the preserved action id and rechecks active ownership before retrying source');
     assert(handler.includes('deferredLegacySourceOnly = staged.source_only === true')
@@ -438,7 +440,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     const conflictOutcome = fixture.handler.slice(conflictOutcomeAt, conflictOutcomeEnd);
     const rollbackAt = fixture.handler.indexOf(`_writeUiRollbackRequestTweak('${fixture.surface}'`, stageAt);
     const reconcileAt = fixture.handler.indexOf('_writeUiLegacyReconcileCommittedTweak', conflictOutcomeAt);
-    const restoredDraftAt = fixture.handler.indexOf(`${fixture.state}.drafts[key] = rawDraft`, conflictOutcomeAt);
+    const restoredDraftAt = fixture.handler.indexOf("_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')", conflictOutcomeAt);
     const restoredErrorAt = fixture.handler.indexOf(
       `${fixture.state}.errors[key] = ${fixture.conflictName}.source_superseded`,
       restoredDraftAt
@@ -464,7 +466,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       && committedTeamAt > committedOutcomeAt
       && savedTeamAt > Math.max(conflictOutcomeAt, committedOutcomeAt),
     fixture.label + ' resolves ownership and staging inside the target lock, then flushes team debt only after target release');
-    assert(conflictOutcome.includes(`${fixture.state}.drafts[key] = rawDraft`)
+    assert(conflictOutcome.includes("_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')")
       && conflictOutcome.includes(`${fixture.state}.errors[key] = ${fixture.conflictName}.source_superseded`)
       && conflictOutcome.includes(`${fixture.conflictName}.source_superseded !== true`)
       && conflictOutcome.includes(`${fixture.state}.draftActionIds[key] = failedActionId`)
@@ -1258,14 +1260,14 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     const sourceError = handler.indexOf('if (current._saveError)');
     const resolvedRollback = handler.indexOf(`_writeUiRollbackRequestTweak('${surface}'`, sourceError);
     const sourceDraft = handler.indexOf(
-      `${surface === 'sxr' ? '_sxrReviewState' : '_calReviewState'}.drafts[key] = rawDraft`,
+      "_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')",
       sourceError
     );
     const rejectedCatch = handler.lastIndexOf('.catch(');
     const rejectedRollback = handler.indexOf(`_writeUiRollbackRequestTweak('${surface}'`, rejectedCatch);
     const rejectedConfirmation = handler.indexOf('_writeUiLegacyCommittedTweak(', rejectedCatch);
     const rejectedDraft = handler.indexOf(
-      `${surface === 'sxr' ? '_sxrReviewState' : '_calReviewState'}.drafts[key] = rawDraft`,
+      "_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')",
       rejectedCatch
     );
     assert(sourceError >= 0
@@ -1282,9 +1284,9 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     assert(handler.includes("inspection.state === 'active'")
       && handler.includes("inspection.state === 'committed'")
       && handler.includes('String(retryGate.comment_id || \'\')')
-      && handler.indexOf(surface === 'sxr' ? '_sxrMintCommentId()' : '_calMintCommentId()')
+      && handler.indexOf('attemptId = draftAttempt.id;', handler.indexOf('_writeUiLegacyTargetWithLock('))
         > handler.indexOf('_writeUiLegacyTargetWithLock('),
-    `${surface} inspects ownership and mints/adopts its action identity only after acquiring the target lock`);
+    `${surface} inspects ownership and adopts the durably captured action identity only after acquiring the target lock`);
     const actionBinding = 'String(action && action.comment_id || attemptId)';
     const reviewState = surface === 'sxr' ? '_sxrReviewState' : '_calReviewState';
     const draftBindings = handler.split(`${reviewState}.draftActionIds[key] = ${actionBinding}`).length - 1

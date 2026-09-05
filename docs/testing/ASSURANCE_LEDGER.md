@@ -24,6 +24,17 @@
 
 ## State restated 2026-08-22 — no new proof, just honest arithmetic
 
+Review feedback draft addendum (2026-09-05, source-only draft):
+`qa/feedback-drafts/` passes 18 visible conservation cells, 15 behavior groups
+and 3 real BFCache groups against the integrated Samples-based repair; 9
+additional forward/recovery/forward feedback groups preserve captured and newer
+revisions. The existing 8 local-work/13 recovery Samples groups also pass. The
+isolated actual-helper suite passes 13 groups. Refusal, ambiguous acceptance,
+same-ID edited-body retry and actual identity storage-event late outcomes are
+covered with fictional intercepted receivers. This does not refresh any live
+proof row below. See `docs/ops/REVIEW_FEEDBACK_DRAFTS.md` for the unproven
+feedback inverse and separate monitoring/client-continuity release gates.
+
 **Nothing here was re-proven on this date.** Every "Last proven" cell and every
 method is untouched; only the State column was recomputed against the rules
 below, and the header stamp above still names the last real cycle, 2026-07-20.

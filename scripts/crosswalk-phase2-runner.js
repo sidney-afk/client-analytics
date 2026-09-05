@@ -95,11 +95,24 @@ function mismatchFields(deliverable, card, component) {
 
 /* ---- live export -------------------------------------------------------- */
 
+/* Each table is paged on its OWN key. `clients` is keyed on slug and has no id
+   column at all -- ordering it by id is a 400 and the first live plan run died
+   on exactly that before writing a result. calendar_posts is keyed on
+   (client, id) and the bare id repeats across clients, so a page ordered by id
+   alone is not stable across offsets; it is ordered by the full key. */
+const TABLE_ORDER = Object.freeze({
+  clients: 'slug.asc',
+  calendar_posts: 'client.asc,id.asc',
+  deliverables: 'id.asc',
+});
+
 async function fetchAllRows(config, table, select, fetchImpl) {
   const pageSize = Number(config.pageSize) > 0 ? Number(config.pageSize) : 1000;
+  const order = TABLE_ORDER[table];
+  if (!order) throw new Error(`export_order_unknown_${table}`);
   const rows = [];
   for (let offset = 0; ; offset += pageSize) {
-    const url = `${config.url}/rest/v1/${table}?select=${encodeURIComponent(select)}&order=id.asc&limit=${pageSize}&offset=${offset}`;
+    const url = `${config.url}/rest/v1/${table}?select=${encodeURIComponent(select)}&order=${order}&limit=${pageSize}&offset=${offset}`;
     // eslint-disable-next-line no-await-in-loop
     const response = await fetchImpl(url, {
       method: 'GET',
@@ -609,6 +622,9 @@ if (require.main === module) {
 
 module.exports = {
   CONFIRM_ENV,
+  DELIVERABLE_SELECT,
+  TABLE_ORDER,
+  fetchAllRows,
   CONFIRM_TOKEN,
   DEFAULT_CAP,
   EVICT_MODE,

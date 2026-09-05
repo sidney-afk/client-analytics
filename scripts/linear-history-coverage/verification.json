@@ -1,0 +1,53 @@
+{
+  "source_state": "reviewed_head_plus_correction_pinned_by_content_digests",
+  "evidence_class": "OFFLINE_TEST",
+  "started_at": "2026-09-05T07:43:34.249Z",
+  "head": "366a5460a5752ee40c113883d227cc268f9d39b6",
+  "source_sha256": {
+    "index.html": "8f64f648d4b92ac2147bd9ecf3c3f0747f4081331df275b8c10ff25e0f10c53a",
+    "scripts/f34-linear-asset-rescue.js": "2d0e38a165fcfb1249d42a68235d755ff9d0fc5ff1183c491fd06a19e58e8516",
+    "supabase/functions/production-comments/policy.mjs": "7350215bf77e4928fa48d0f926db08e27ac73e990451427458db700ba4f01d12",
+    "test/helpers/extract-function.js": "364805d91956b24d9177d061f15f1c68c47b6e971f03f7427f375855f3e2607a",
+    "scripts/linear-history-coverage/scan.js": "0c91dbc7fcbfc6ba1a5f08a10bb6e2cf5053914018e465a92f16765bbce4e3ac",
+    "scripts/linear-history-coverage/reader-helpers.js": "cb9afe9ef6368d4293fe885bf0af12b4fdee7cad1404808024bd563c12b28326",
+    "scripts/linear-history-coverage/test.js": "060f962712d77208ace3550c8b3eed8e10c40958375a81a7736624bd35b6bae2",
+    "scripts/linear-history-coverage/fixtures/synthetic.js": "8c01b8452aa5d059a273cdb0685021748c61b0dcf4e07861855e4c668f75b3d9"
+  },
+  "result": {
+    "evidence_class": "OFFLINE_TEST",
+    "passed": 30,
+    "failed": 0
+  },
+  "baseline_regression": {
+    "source_head": "366a5460a5752ee40c113883d227cc268f9d39b6",
+    "executed_at": "2026-09-05T07:38:19.110Z",
+    "original_groups_passed": 25,
+    "new_regression_groups_failed": 5,
+    "scanner_sha256": "c1a40f8e372509d23a159b84f13008426ec9eb8734a150329af6cc6c23f83197"
+  },
+  "independent_reproduction": {
+    "script_sha256": "657df346027c54103f1e358dbbe028136f57c928bae50a61d99b6a46c631a450",
+    "reproduced_at": "2026-09-05T07:43:35.158Z",
+    "receipt_content_matches_readback": false,
+    "classification": "independently_stored",
+    "mapped_copy_accessibility": "contradictory_content_observation",
+    "mapped_observation_provenance_in_output": 0,
+    "original_provenance_field": 0,
+    "global_readiness": "UNPROVEN",
+    "provenance_counter_scope": "independent_script_counts_original_url_fields_only",
+    "mapped_provenance_validation": "targeted_regressions_assert_paired_mapped_observations"
+  },
+  "full_repository_suite": {
+    "evidence_class": "OFFLINE_TEST",
+    "source_head": "366a5460a5752ee40c113883d227cc268f9d39b6",
+    "completed_at": "2026-09-05T07:43:12.098Z",
+    "app_and_existing_tests_unchanged": true,
+    "suite_processes": 399,
+    "successful_suite_processes": 398,
+    "failed_suites": [
+      "asset-access-any-team.js"
+    ],
+    "failure_class": "windows_esm_absolute_path_import",
+    "disposable_postgresql": "NOT_TESTED"
+  }
+}

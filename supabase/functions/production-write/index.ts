@@ -3973,15 +3973,53 @@ async function assetSnapshot(
   let exclusiveBatchIds: Set<string> | null = null;
   if (orderedBatches.length > 1 && postUuid && deliverableClient) {
     const candidateIds = orderedBatches.map(row => clean(row.id)).filter(Boolean);
+    const occupantLimit = POST_ROW_LOOKUP_LIMIT * 4;
     const { data: occupants, error: occupantsError } = await supabase
       .from("production_deliverables_browser_v1")
       .select("batch_id,linear_issue_uuid,raw_issue_parent_id")
       .in("batch_id", candidateIds)
       .eq("client_slug", deliverableClient)
-      .limit(POST_ROW_LOOKUP_LIMIT * 4);
-    if (!occupantsError) {
+      .limit(occupantLimit);
+    const occupantRows = (occupants || []) as JsonMap[];
+    /* A TRUNCATED ANSWER IS NOT AN ANSWER. Exclusivity is decided by ABSENCE
+       -- a bucket is exclusive when no foreign row was seen -- so a page cut
+       off at the limit could hide the very row that makes a bucket shared, and
+       this function would then ASSERT an exclusivity it has not established.
+       A full page is therefore UNKNOWN, and an unknown exclusivity names no
+       target.
+
+       WHAT THAT DOES AND DOES NOT BUY, stated precisely because the first
+       version of this comment claimed more than it delivers (Codex, #1294 P2,
+       and the correction is the finding's).
+
+       Naming no target does NOT make the write fail closed end to end: the
+       browser then writes the row the reader is already on. If the reader is
+       sitting on a shared bucket, that write reaches the other posts in it.
+       So the guard prevents this function from asserting something false; it
+       does not prevent the outcome.
+
+       It is still right not to extend it into a refusal. Falling back to the
+       reader's own bucket is exactly what every batch_asset write did before
+       2026-09-05, so it is the status quo rather than an exposure this change
+       introduces -- and AGENTS.md's standing owner directive (2026-08-27, "I
+       prefer things to be not strict than strict") says a client must not
+       encode a guess about state it cannot see as a refusal. A refusal here
+       would be a dead end on a save that has always worked, to avert a
+       cross-post write in a branch that cannot currently be reached. There is
+       also no server-side proof to fail closed ON: the bucket the browser
+       names is one the reader genuinely occupies, which is a legitimate target
+       by the same rule that has always allowed it.
+
+       The one real cost is the narrow case Codex names: a response that is
+       exactly full AND complete is discarded, so a genuinely known exclusive
+       alternate is passed over in favour of the fallback. That is a
+       pessimisation, not an exposure, and it is unreachable on today's data --
+       measured 2026-09-05, the largest bucket holds 60 rows and the largest
+       split post's candidate buckets hold 33 between them, against a limit of
+       800. The residual is recorded in the ledger rather than left implied. */
+    if (!occupantsError && occupantRows.length < occupantLimit) {
       const shared = new Set<string>();
-      for (const row of ((occupants || []) as JsonMap[])) {
+      for (const row of occupantRows) {
         // The same post key the roster is built from: a child names its parent,
         // a parent names itself. Anything else in the bucket is another post.
         const key = clean(row.raw_issue_parent_id) || clean(row.linear_issue_uuid);

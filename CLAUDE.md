@@ -12,31 +12,30 @@ minute and would otherwise ask the owner for — again.
 
 Before any F27 Section 4 deploy, a sealed four-function rollback bundle has to be
 captured. **It is already automated.** The script lives on the owner's Windows
-machine, carries the credentials it needs, writes to `C:\F27-Bundles\` and names
-the file itself:
+machine, carries the credentials it needs, and names the file itself — a
+content-addressed `syncview-f27-edge-source-<sha256>.sourcebundle` written
+beside the script in `%USERPROFILE%\.syncview\`, whose full path it prints on
+its last line. Read that line rather than assuming a folder; an earlier version
+of this file said `C:\F27-Bundles\`, which is not where run #37's bundle
+landed:
 
 ```powershell
-f27capture
+& "$env:USERPROFILE\.syncview\f27-capture.ps1"
 ```
 
-That is the whole instruction. Give them that word.
+**Hand over that line, not the alias.** `f27capture` is the same script aliased
+in the owner's `$PROFILE`, and it is shorter — but on 2026-09-05 it answered
+`CommandNotFoundException` in a fresh window (the profile had not loaded), which
+cost a round trip in the middle of a deploy. The full path always works, so lead
+with it and mention the alias only as the shorthand.
 
 **RUN IT FROM ANY DIRECTORY — there is no `cd` to work out, and the owner should
 never be left wondering where to launch PowerShell from.** The script cds into
 the repo itself and loads its own `PROJECT_REF` / `SUPABASE_ACCESS_TOKEN` from a
 sibling file in `.syncview\` (see `AGENTS.md`), and every path it uses is
 absolute. A fresh PowerShell window at the default `C:\Users\<name>` prompt is
-exactly right.
-
-It is aliased in the owner's `$PROFILE`; if the alias ever misses, this is the
-same script, and it is equally directory-independent:
-
-```powershell
-& "$env:USERPROFILE\.syncview\f27-capture.ps1"
-```
-
-If a session is ever asked "where do I run this from", the answer is *anywhere* —
-do not send the owner hunting for a folder.
+exactly right. If a session is ever asked "where do I run this from", the answer
+is *anywhere* — do not send the owner hunting for a folder.
 
 **Do NOT** hand them the raw PowerShell from
 `docs/ops/F27_SECTION4_CAPTURE_PLAYBOOK.md` step by step, do NOT ask for or
@@ -45,9 +44,31 @@ playbook documents what the script automates — it is the reference, not the
 instruction. Asking the owner to re-derive this by hand has now happened more
 than once and it is the single most reliably annoying thing a session does here.
 
-After it runs: take `sealed_bundle_sha256` and `sealed_bundle_byte_length` from
-the receipt, hand them to the deploy form, and the owner drags the bundle into
-the SyncView backup folder on Drive. Nothing else.
+### THE BUNDLE GOES TO DRIVE **BEFORE** THE DISPATCH, NOT AFTER
+
+The order below is load-bearing and this file used to state it backwards, which
+failed run #37 on 2026-09-05:
+
+1. Run the capture.
+2. **Drag the named `.sourcebundle` into the `SyncView Backups/` Shared Drive
+   root.** The script prints its full path on the last line.
+3. *Then* dispatch, pasting `sealed_bundle_sha256` and
+   `sealed_bundle_byte_length` from the receipt.
+
+The lane does not receive the bundle — it FETCHES it out of Drive by
+content-addressed name during the run, and verifies an independent round-trip.
+Dispatching first fails in about 20 seconds with:
+
+```
+{"status":"FAIL","code":"OBJECT_MISSING",
+ "message":"The content-addressed private object was missing."}
+##[error]The sealed prior-four private fetch or independent round-trip failed
+```
+
+**That error means the upload, nothing else.** Nothing deployed, the capture is
+still valid because the live set did not move, and main is still the right SHA —
+so the recovery is: upload, then `Re-run jobs` on the same run, which keeps all
+five inputs. Do not re-capture and do not retype anything.
 
 Capture minutes before dispatching — a bundle that sealed an older live set
 restores the wrong code, and every earlier bundle is stale the moment a deploy

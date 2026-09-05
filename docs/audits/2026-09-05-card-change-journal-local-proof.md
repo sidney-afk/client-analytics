@@ -114,6 +114,24 @@ retained privately. The final proof follows correction of the manual grant
 artifact's CASE syntax and the restore sequence floor; differing session
 timezones are compared as typed UTC values, preserving the actual instant.
 
+## Draft integration provenance
+
+The original published candidate and local proof are retained at
+`ee07dd4c7f397ff07d5a28bf69248fac0937976e` (draft PR #1299). GitHub could not
+start pull-request checks because the repair ledger conflicted with newer main.
+The finite integration merges captured main
+`244de82a83a446d17b1a6b05e3b6c0828b631151` with those two exact parents,
+preserving both ledger entries and the historical candidate without rebasing.
+Every journal/backup runtime and focused test blob remains identical to the
+tested candidate; the SQL proofs therefore still bind to the hashes above.
+
+The second parent brings its already-merged main changes, including assets,
+`index.html` and `production-write`; those are inherited changes, not edits or
+proof supplied by this history implementation. Its local SQL receipts do not
+prove those unrelated runtime changes. Map/truth checks are repeated after the
+ledger resolution; integrated hosted checks are a separate receipt. No
+production merge, deployment or database action occurs in this draft merge.
+
 ## Separate present installation blocker: draft conservation
 
 The independent finite feedback-failure pass at the same `287c16cd` base and

@@ -53527,9 +53527,21 @@
                        the same trap batch_description was retargeted to avoid.
                        Both come from the same read, so they cannot disagree.
                        No target means an older gateway, an unread panel, or a
-                       gateway with nothing safe to offer -- all three fall back
-                       to the open row's own batch, exactly what shipped
-                       before. */
+                       gateway that could not establish which bucket belongs to
+                       this post alone -- all three fall back to the open row's
+                       own batch, exactly what shipped before 2026-09-05.
+                       THAT FALLBACK IS NOT A SAFE DEFAULT, it is the status quo
+                       one: if the reader is sitting on a bucket shared with
+                       another post, the write reaches that post too. It is left
+                       permissive deliberately. AGENTS.md's standing owner
+                       directive (2026-08-27, "I prefer things to be not strict
+                       than strict") says the browser must not encode a guess
+                       about state it cannot see as a refusal -- and a refusal
+                       here would be a dead end on a save that has always
+                       worked, to avert a case the gateway's own measurements
+                       put out of reach. Raised by Codex on #1294; the finding
+                       is right about the mechanism and the remedy belongs to
+                       the owner, not to this line. */
                     const assetState = _prodState.assets.get(String(issue.id));
                     const evidence = assetState && assetState.assets
                         && assetState.assets[writeSlot] || null;

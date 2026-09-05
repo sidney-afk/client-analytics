@@ -6136,3 +6136,40 @@ the write path and both real:
 
 Both were fixed before the `production-write` closure was deployed; the fingerprint
 was re-pinned on the corrected tree.
+
+## 2026-09-05 — F27 Section 4 deploy, run #37 attempt 2: production-write 66 → 67
+
+Deployed from commit `a05e1126437bb8c36bd3f33e3701a58924a8627d`.
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| batch-write | 35 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | verify_jwt=false |
+| deliverable-write | 35 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | verify_jwt=false |
+| linear-outbound | 47 | `1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39` | verify_jwt=false |
+| **production-write** | **67** | `d2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062` | verify_jwt=false |
+
+Only `production-write` moved; the other three redeployed at their existing
+closures. Sealed prior four captured at `b66c0ae1…` (534,985 bytes), prior
+`production-write` v66 / `cc44bf93…`. Forward deployment PASS, strict serial
+provider readbacks PASS, final four-function source/entrypoint/JWT/version/
+provider comparison PASS.
+
+**The first attempt failed in 21 seconds and the reason is worth keeping.** The
+lane does not receive the rollback bundle as an input — it FETCHES it out of the
+`SyncView Backups/` Shared Drive root by content-addressed name during the run
+and verifies an independent round-trip. The bundle had not been uploaded yet,
+because CLAUDE.md listed the upload AFTER the dispatch:
+
+```
+{"status":"FAIL","code":"OBJECT_MISSING",
+ "message":"The content-addressed private object was missing."}
+```
+
+Nothing deployed, the capture stayed valid (the live set had not moved) and the
+SHA stayed valid, so the recovery was upload-then-`Re-run jobs`, which preserves
+all five inputs. CLAUDE.md now states the order as a numbered sequence and names
+the error, so the next session recognises it instead of re-diagnosing it.
+
+The alias `f27capture` also answered `CommandNotFoundException` in a fresh
+window that had not loaded the owner's `$PROFILE`. CLAUDE.md now leads with the
+full script path, which always resolves, and keeps the alias as the shorthand.

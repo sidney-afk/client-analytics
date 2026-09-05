@@ -41,6 +41,18 @@ recipients or stacks are emitted. Unknown page-supplied reasons become
 `realm_guard_failed`; receipt ingestion refuses unknown values. Denials are
 deduplicated and retained through teardown, including proxy denials during setup.
 
+The independent full-continuity observer also refuses contradictory success:
+a `healthy` or `recovered` terminal with any allowed denial reason reports
+`integration_missing`, even if a newer success is present in the collected
+window. This is inconsistent monitor evidence, not proof of a client outage.
+Real non-green terminal codes retain their classification; historical receipts
+with no denial array and healthy receipts with an empty array remain readable.
+The browser's existing latch already prevents this contradiction; synthetic
+receipt tests establish the extra observer boundary, not a live false-green
+incident. The separately named initial-read contract recomputes its own safety
+verdict and remains full-continuity non-green. Its receipts are never consumed
+as full-continuity success.
+
 Every existing denial remains non-green. The metadata label identifies only a
 non-redirected POST to the exact configured fallback origin's
 `/webhook/linear-issue-statuses` path without a query; it does **not** certify the
@@ -214,6 +226,80 @@ command exits within 120 seconds. View writes start/terminal UUID receipts for
 both lanes. Exit 1 means a non-green result; exit 2 means config/operation failure.
 Keep raw exceptions, traces and browser screenshots private; do not upload them.
 
+### Git and receipt-directory binding
+
+The tooling must run in a real Git checkout/worktree with the exact approved
+commit and required local document object available. A source ZIP or a copied
+directory without its Git metadata is not an executable release for these
+launchers. Missing Git, missing objects, dirty guarded files and a mismatched
+`releaseSha` are operational setup refusals, not website failures. Preserve the
+guards; prepare an immutable reviewed checkout instead of replacing Git results
+with guessed constants. No launcher fetches a missing source object.
+
+Use a new, empty private receipt directory for a newly approved tooling release
+or document binding. Keep the previous directory intact under its previous
+binding; never mix histories or rewrite old receipt SHAs. Full-continuity receipt
+ingestion intentionally refuses a different `releaseSha`, rather than silently
+ignoring incompatible evidence. Initial-read additionally binds document, SDK
+and canary approval pins in its separate namespace. Rebinding a config while
+reusing its old output directory can therefore refuse observation correctly.
+Record both directory/binding hashes privately. This does not authorize losing
+an unresolved incident: reconcile or explicitly preserve its durable delivery
+intent under the existing supervised observer-recovery process before changing
+the observation epoch. There is no automatic cross-release state migration.
+
+### Manual recovery of a crashed worker's lock
+
+On a future persistent owner-run host, a killed process or hard deadline can
+leave `continuity.lock` (full viewing) or `samples-initial.lock` (initial-read).
+The next admission refuses with `EEXIST`; it does not steal the lock. Hosted
+view jobs use their own runner-temporary directories, so this is a persistent
+host recovery concern, not proof that a current schedule is wedged. No automatic
+stale-lock deletion or PID-only liveness check is implemented.
+
+For a separately supervised recovery:
+
+1. Stop **all admissions using that exact resolved output directory**, including
+   manual launchers, viewing, observation and drills as applicable. Keep the
+   independent missed-run alert available and record the coverage gap. An old
+   mtime, an expired deadline, an absent/reused PID or unchanged files cannot by
+   themselves prove the previous owner is inactive.
+2. Use the host supervisor's recorded job/run identity, process creation time,
+   executable/check-out path and full descendant lifecycle to prove the exact
+   prior worker and its browser/proxy children have ended. Confirm no new job
+   can start while recovery is underway. If the owner/process tree cannot be
+   identified or quiescence is uncertain, **leave the lock in place**. This
+   package supplies no automatic proof of operating-system process ownership.
+3. Privately capture the approved config/source binding, canonical output path,
+   lock file type/identity/bytes hash/timestamps and every start, terminal and
+   incident-state file hash. Verify the directory is the expected private
+   directory outside every Git ancestor. Never dump private config or raw
+   records into logs. Do not remove a directory, a symlink target or a guessed
+   similarly named lock.
+4. With admissions still stopped, re-read the exact regular lock file and require
+   unchanged identity/hash. Rename **only that file**, without overwriting any
+   destination, to a unique sibling quarantine name such as
+   `samples-initial.lock.quarantine-<new-UUID>` (or the full-view equivalent).
+   Preserve its bytes and all run/state files. Abort on drift, a missing lock,
+   a path mismatch or any newly started process. Never rename a live owner's
+   lock: its release callback must not race a replacement owner.
+5. Under the existing approved read scope, a fresh bounded invocation may acquire
+   a new lock. Verify its start, terminal and teardown; this proves only that
+   admission recovered. The old orphan remains `terminal_missing` in the same
+   directory/window, including after a later healthy run. Never manufacture its
+   terminal or delete it to force green.
+
+Retiring that failed observation epoch is a separate recorded owner decision:
+preserve the whole old directory, classify the missing terminal and coverage
+gap, reconcile any `attempted` notification by its original ID without a POST
+retry, and approve the next private directory/binding. Preserve/recover reviewed
+incident state using the supervised process above; if its authority cannot be
+carried safely, observation/delivery stays held. Merely changing directories is
+not incident recovery. The isolated child-process regression exercises lock
+survival, second-owner refusal, quarantine after that exact child exits, and
+retained orphan evidence. It does not establish host supervision or a live
+recovery operation.
+
 ## Hosted cadence and independent observation
 
 The dormant workflows propose a five-minute viewing cron and a five-minute
@@ -331,8 +417,8 @@ Set the three package enable variables false, set all private enable booleans
 and delivery enabled false, and stop admissions in this package's external host.
 Record intentional shutdown with its independent observer to avoid a false page.
 Let bounded jobs finish or cancel only this package's runs. Preserve artifacts and
-private intent receipts. Confirm the process tree has ended before removing only
-its private viewing lock; do not recursively erase output directories.
+private intent receipts. Follow the manual lock-quarantine procedure above only
+after proving the process tree has ended; do not recursively erase output directories.
 
 There are no live writes or database changes to roll back. A defective monitoring
 delta can be reverted or its gates left false without touching product bytes.

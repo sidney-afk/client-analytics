@@ -4,7 +4,7 @@ const {randomUUID}=require('node:crypto');
 const D=require('../scripts/client-continuity-delivery'),O=require('../scripts/client-continuity-observer');
 const H=require('../scripts/client-continuity-hosted'),U=require('../scripts/client-continuity-test-ui');
 const {report}=require('../scripts/client-continuity-monitor');
-const {requestDenialReason,requestPolicy}=require('../scripts/client-continuity-transport');
+const {requestDenialReason,requestPolicy,DENIAL_REASONS}=require('../scripts/client-continuity-transport');
 const sha='a'.repeat(40),id=randomUUID(),now=1000000;
 let passed=0;function eq(a,b){assert.deepEqual(a,b);passed++;}
 async function rejects(fn){await assert.rejects(fn);passed++;}
@@ -78,6 +78,32 @@ async function main(){
     const terminalFile=path.join(temp,`samples-${id}.terminal.json`);
     fs.writeFileSync(terminalFile,JSON.stringify({...end,denialReasons:['realtime_transport_blocked']}));
     eq(O.receipts(temp,sha,now).find(r=>'finishedAt' in r).denialReasons,['realtime_transport_blocked']);
+    // Exercise actual persisted receipt validation, then the independent
+    // evaluator. A future producer regression must not certify containment.
+    for(const lane of ['calendar','samples']) {
+      const laneStart={...start,lane},startFile=path.join(temp,`${lane}-${id}.start.json`),endFile=path.join(temp,`${lane}-${id}.terminal.json`);
+      fs.writeFileSync(startFile,JSON.stringify(laneStart));
+      const evaluated=terminal=>{
+        fs.writeFileSync(endFile,JSON.stringify({...laneStart,finishedAt:now,count:1,...terminal}));
+        const validated=O.receipts(temp,sha,now);
+        return O.evaluate(validated,1,now).find(r=>r.lane===lane);
+      };
+      for(const reason of DENIAL_REASONS) {
+        for(const code of ['healthy','recovered']) {
+          const verdict=evaluated({code,denialReasons:[reason]});
+          eq(verdict.code,'integration_missing');eq(verdict.ok,false);
+        }
+        for(const code of ['mutation_blocked','unexpected_request','valid_link_auth','read_failed'])eq(evaluated({code,denialReasons:[reason]}).code,code);
+      }
+      eq(evaluated({code:'healthy',denialReasons:[]}).code,'healthy');
+      eq(evaluated({code:'healthy'}).code,'healthy'); // historical format
+      eq(evaluated({code:'recovered',denialReasons:[]}).code,'recovered');
+      eq(evaluated({code:'healthy',denialReasons:[...DENIAL_REASONS]}).code,'integration_missing');
+      const newerId=randomUUID(),newerStart={...laneStart,runId:newerId,startedAt:now-100};
+      const contradicted=O.receipts(temp,sha,now);
+      eq(O.evaluate([...contradicted,newerStart,{...newerStart,finishedAt:now,code:'healthy',count:1,denialReasons:[]}],1,now).find(r=>r.lane===lane).code,'integration_missing');
+      if(lane==='calendar'){fs.unlinkSync(startFile);fs.unlinkSync(endFile);}
+    }
     fs.writeFileSync(terminalFile,JSON.stringify({...end,denialReasons:['https://fixture.invalid/private']}));
     assert.throws(()=>O.receipts(temp,sha,now));passed++;
     fs.unlinkSync(terminalFile);

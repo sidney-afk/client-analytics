@@ -1,0 +1,9 @@
+{
+  "name": "samples-initial-sdk-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated pinned real browser SDK for intercepted Samples initial-read tests only.",
+  "dependencies": {
+    "@supabase/supabase-js": "2.115.0"
+  }
+}

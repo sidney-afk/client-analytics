@@ -1146,7 +1146,7 @@ const laneOwnBlock = [
 ].join('\n');
 const laneOwnBlockRun = run(fixture('lane-own-block', appended(laneOwnBlock), realRb));
 ok(laneOwnBlockRun.code === 0,
-    'while the same words in the receipt\'s OWN block, before any subheading, are the receipt\'s own narrative and are exempt');
+    'while the same words in the receipt\'s OWN block with an OLDER run id are a dispatch the §4 deploy superseded, and ask for nothing');
 const lanePlan = [
     '',
     '## 2026-09-06 — Gateway follow-up merged',
@@ -1299,6 +1299,38 @@ const laneNestedOlderRun = laneNestedNewerRun.replace('33995000000', '3398000000
 const laneNestedOlderRunRun = run(fixture('lane-nested-older-run', insertInto(laneNestedOlderRun), realRb));
 ok(laneNestedOlderRunRun.code === 0,
     'while the same undated subsection with a run id OLDER than the receipt\'s is a dispatch the §4 deploy already superseded, and asks for nothing');
+
+/* ---- 8s. run ids order dispatches, the receipt's own block included (round twenty) */
+const laneOwnNewer = [
+    '',
+    'After the attestation the companion `deploy-onboarding-edge-functions` dispatch went out',
+    'too (run `33995000000`), redeploying `production-write` and `linear-outbound`.',
+    '',
+].join('\n');
+const laneOwnNewerRun = run(fixture('lane-own-newer', appended(laneOwnNewer), realRb));
+ok(laneOwnNewerRun.code === 1 && laneOwnNewerRun.json
+    && laneOwnNewerRun.json.failures.some(f => /the 2026-09-05 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f) && /its run id is newer than the receipt's/.test(f)),
+    'THE RECEIPT\'S OWN BLOCK IS NOT A BLANKET EXEMPTION: a companion onboarding dispatch recorded there with a run id newer than the receipt\'s FAILS');
+const laneOwnUnplaced = [
+    '',
+    'The companion `deploy-onboarding-edge-functions` dispatch went out the same evening.',
+    '',
+].join('\n');
+const laneOwnUnplacedRun = run(fixture('lane-own-unplaced', appended(laneOwnUnplaced), realRb));
+ok(laneOwnUnplacedRun.code === 1 && laneOwnUnplacedRun.json
+    && laneOwnUnplacedRun.json.failures.some(f => /the newest §4 receipt's own entry records a `deploy-onboarding-edge-functions` dispatch(?: \("[^"]*"\))? with no run id, which cannot be placed before or after the receipt \(run 33991332628\)/.test(f)),
+    'and one recorded there WITHOUT a run id cannot be placed before or after the receipt, and FAILS asking for the run id');
+const laneSameDayOlder = [
+    '',
+    '## 2026-09-05 — Companion dispatch',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch completed successfully (run `33980000000`); it',
+    'carried `production-write`.',
+    '',
+].join('\n');
+const laneSameDayOlderRun = run(fixture('lane-same-day-older', appended(laneSameDayOlder), realRb));
+ok(laneSameDayOlderRun.code === 0,
+    'RUN IDS OUTRANK THE DAY: a separately headed companion dispatch on the receipt\'s own date with an OLDER run id is one the §4 deploy superseded, and asks for nothing');
 
 /* ---- 9. the real repository -------------------------------------------- */
 

@@ -387,9 +387,11 @@ function otherOwningLanes() {
      the four a lane moves, and the log's own concise companion form
      ("`deploy-onboarding-edge-functions` dispatch (archive comment ordering EF
      goes live)") names none of them;
-   - the exemption for the receipt this guard compares against covers that
-     receipt's OWN block only, its heading to the next heading of any level,
-     not a follow-up written later in the same `##` entry;
+   - the receipt this guard compares against gets no blanket exemption: in its
+     own block (its heading to the next heading of any level) a lane dispatch
+     with an older run id is one the receipt superseded, one with a newer run
+     id is a finding, and one with no run id is reported as unplaceable; a
+     follow-up written later in the same `##` entry is judged like any other;
    - the reference has to record a dispatch that HAPPENED: a run id or a
      completed-dispatch word in its paragraph, and not a forward-looking one.
      "inert until a `deploy-onboarding-edge-functions` dispatch carries the
@@ -405,27 +407,41 @@ function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {
         const refs = ['`' + lane.base + '`', '`' + lane.file + '`'].concat(lane.name ? ['"' + lane.name + '"'] : []);
         for (const ref of refs) {
             for (let k = log.indexOf(ref); k >= 0; k = log.indexOf(ref, k + ref.length)) {
-                if (exempt && k >= exempt.from && k < exempt.to) continue;
                 const ev = recordsADispatch(log, k, ref.length);
                 if (!ev) continue;
-                /* The record is dated by the section that holds it, at any
-                   heading level, its own heading first and then its actual
-                   ancestors: the 2026-08-05 container holds dated `###`
-                   deploys through 2026-08-19, and a "### 2026-09-06 —
-                   companion release" written inside it is a 2026-09-06 record,
-                   not a 2026-08-05 one (Codex, nineteenth round on #1306). A
-                   run id after the reference that is newer than the §4
-                   receipt's makes the dispatch newer by construction, whatever
-                   heading it sits under. */
+                /* RUN IDS ORDER DISPATCHES ACROSS EVERY LANE. When the record's
+                   run id and the receipt's are both known they decide, and the
+                   day-level date is only the fallback. A run older than the
+                   receipt's is a dispatch the §4 deploy superseded, on any day
+                   and in any block, the receipt's own included (Codex,
+                   twentieth round on #1306: a same-day companion run that
+                   preceded the receipt is not a finding). A newer one is a
+                   finding wherever it sits, the receipt's own block included
+                   (same round: that block used to be skipped before the run id
+                   was read). Without run ids: a reference in the receipt's own
+                   block cannot be placed before or after it and is reported as
+                   such; elsewhere the section's date decides, the section being
+                   whatever heading holds the record, at any level, dated by its
+                   own heading or the nearest dated actual ancestor. The
+                   2026-08-05 container holds dated `###` deploys through
+                   2026-08-19, and a "### 2026-09-06 — companion release" inside
+                   it is a 2026-09-06 record (Codex, nineteenth round). */
+                const inOwn = !!(exempt && k >= exempt.from && k < exempt.to);
+                const cmp = ev.run && /^\d+$/.test(String(sinceRun || '')) ? Math.sign(Number(ev.run) - Number(sinceRun)) : null;
+                if (cmp !== null && cmp <= 0) continue;
+                const newerRun = cmp === 1;
                 const date = dateAt(heads, k);
-                const newerRun = !!(ev.run && /^\d+$/.test(String(sinceRun || '')) && Number(ev.run) > Number(sinceRun));
-                if (!newerRun && (!date || (sinceDate && date < sinceDate))) continue;
+                let unplaced = false;
+                if (!newerRun) {
+                    if (inOwn) unplaced = true;
+                    else if (!date || (sinceDate && date < sinceDate)) continue;
+                }
                 const section = sectionAt(heads, k);
                 const key = lane.base + '|' + (section ? section.at : -1);
                 if (seen.has(key)) continue;
                 seen.add(key);
                 found.push({
-                    at: k, date, run: ev.run, newerRun, line: lineAt(log, section ? section.at : k),
+                    at: k, date, run: ev.run, newerRun, unplaced, line: lineAt(log, section ? section.at : k),
                     lane: lane.base, name: lane.name, slugs: lane.slugs,
                 });
             }
@@ -980,12 +996,17 @@ function main() {
        the wrong deploy. */
     if (live) {
         for (const d of laneDispatchesSince(receiptsMeta.log, live.date || '', live.at, live.run || '')) {
-            failures.push((d.date ? 'the ' + d.date + ' entry' : 'the undated section at line ' + d.line)
-                + ' records a `' + d.lane + '` dispatch' + (d.run ? ' (run ' + d.run + ')' : '')
-                + (d.name ? ' ("' + d.name + '")' : '') + ', at or after the newest §4 receipt (run '
-                + (live.run || '?') + ', ' + (live.date || 'undated') + ')'
-                + (d.newerRun ? '; its run id is newer than the receipt\'s, whatever heading it sits under' : '')
-                + '. That lane deploys '
+            const where = d.unplaced
+                ? 'the newest §4 receipt\'s own entry records a `' + d.lane + '` dispatch' + (d.name ? ' ("' + d.name + '")' : '')
+                    + ' with no run id, which cannot be placed before or after the receipt (run ' + (live.run || '?') + ').'
+                    + ' Add run `<id>` after the lane reference: older than the receipt\'s means the §4 deploy superseded it,'
+                    + ' newer means the live versions may have moved.'
+                : (d.date ? 'the ' + d.date + ' entry' : 'the undated section at line ' + d.line)
+                    + ' records a `' + d.lane + '` dispatch' + (d.run ? ' (run ' + d.run + ')' : '')
+                    + (d.name ? ' ("' + d.name + '")' : '') + ', at or after the newest §4 receipt (run '
+                    + (live.run || '?') + ', ' + (live.date || 'undated') + ')'
+                    + (d.newerRun ? '; its run id is newer than the receipt\'s, whatever heading it sits under' : '') + '.';
+            failures.push(where + ' That lane deploys '
                 + d.slugs.join(' and ') + ', and it does not emit the ' + SCHEMA
                 + ' receipt this guard reads — so the live versions may have moved where this check'
                 + ' cannot see it, which is the exact way this row went stale on 2026-08-27.'

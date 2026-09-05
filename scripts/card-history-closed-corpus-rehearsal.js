@@ -232,4 +232,4 @@ async function run() {
   }
 }
 if(require.main===module)run().catch(e=>{console.error(e.stack);process.exitCode=1;});
-module.exports={declaration,dependencies,f27Relations,run};
+module.exports={declaration,dependencies,f27Relations,seedDependencies,run};

@@ -114,7 +114,9 @@ Atomic capture survives application bugs that overwrite or delete current
 rows. Off-database recovery is still limited by the existing six-hour snapshot
 cadence and scheduler reliability; this does not enable continuous WAL/PITR.
 Historical asset URLs are not the attachment bytes. Asset rescue and independent
-private storage remain separate work. Privileged DDL/TRUNCATE on owner tables,
+private storage remain separate work. The dormant schema-and-data recovery
+package in [TRACK_B_BACKUP.md](TRACK_B_BACKUP.md) is the reconstruction path for
+the database itself; it is locally proven only and not yet a retention claim. Privileged DDL/TRUNCATE on owner tables,
 disabled triggers, replication modes that bypass ordinary triggers, and database
 loss since the latest off-site package are explicit limits, not silently covered.
 

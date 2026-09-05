@@ -12716,3 +12716,22 @@ The matching authenticated schema artifact and empty-target reconstruction are
 still a RELEASE BLOCKER. See `TRACK_B_BACKUP.md` and the dated restore correction
 audit. Default schedule, journal SQL, frozen writers and live configuration stay
 unchanged by source preparation.
+
+### Recovery package (same day, later): schema-and-data reconstruction proven locally, dormant
+
+The schema-artifact blocker recorded above (data-only packages cannot rebuild
+a database; migration replay needs manual repair) now has an executable
+answer stacked on the v5 correction: `scripts/track-b-recovery-package.js`
+captures schema and data from one exported snapshot and refuses the package
+if the catalog changed during the window; `scripts/track-b-recovery-reconstruct.js`
+rebuilds an empty scratch through allowlisted DDL and validated COPY in one
+transaction, then verifies fingerprint, rows, sequences, ownership and no
+egress. The local rehearsal passes 16 checks including a baseline control
+(the existing data-only package cannot reconstruct the same empty target),
+wrong-password refusals on a SCRAM server, tamper/splice/mismatch refusals,
+missing-dependency and non-empty-target refusals, failed-COPY emptiness,
+exact rows and sequence next values, RLS/grant/trigger behaviour and replay
+of an accepted comment edit without a duplicate. Still not proven: private
+Drive storage and readback, installed-schema parity with a real project,
+asset bytes, key custody, retention and alert delivery. No schedule, upload,
+alert, install or production action exists or occurred.

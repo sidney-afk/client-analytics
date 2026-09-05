@@ -6184,3 +6184,13 @@ the error, so the next session recognises it instead of re-diagnosing it.
 The alias `f27capture` also answered `CommandNotFoundException` in a fresh
 window that had not loaded the owner's `$PROFILE`. CLAUDE.md now leads with the
 full script path, which always resolves, and keeps the alias as the shorthand.
+
+## 2026-09-05 — Track-B recovery package (schema + data): source-only, dormant
+
+Stacked on PR #1311 `aab2acd23112f7bdff849a9c0b68306d41bbf62c`. Adds the
+authenticated schema-and-data recovery package capture, empty-target
+reconstruction, restricted-principal prerequisites, local disposable proof
+(16 checks on a SCRAM-authenticated PostgreSQL 16.13) and offline format tests
+(10 groups). No live capture, upload, restore, schedule, alert, flag, writer,
+migration, n8n or billing action was performed. Cloud retrieval,
+installed-schema parity, asset bytes, key custody and retention remain open.

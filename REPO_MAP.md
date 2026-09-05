@@ -63,6 +63,16 @@ against source-derived dependency DDL, including the gated F27 relation shapes.
 `scripts/track-b-history-v5-backup-prerequisites.sql` is its distinct manual
 private-grant/scratch helper artifact. Full schema reconstruction remains blocked;
 `docs/audits/2026-09-05-card-history-restore-correction.md` records proof limits.
+The dormant recovery-package lane answers that blocker locally:
+`scripts/track-b-recovery-package.js` captures an authenticated schema+data
+package from one exported snapshot with a DDL-race fingerprint refusal,
+`scripts/track-b-recovery-reconstruct.js` rebuilds it into a verified empty
+scratch target through an allowlisted single-transaction DDL/COPY path,
+`scripts/track-b-recovery-prerequisites.sql` prepares the restricted capture
+and target principals, `scripts/track-b-recovery-rehearsal.js` is the CI-run
+disposable proof and `test/track-b-recovery-package.js` the offline format,
+classifier, tamper and watcher gate. Nothing uploads, schedules or alerts;
+`docs/audits/2026-09-05-card-history-recovery-package-proof.md` records limits.
 
 | Path | What it is |
 |---|---|

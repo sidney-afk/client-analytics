@@ -2526,30 +2526,30 @@ const ASSIGNEE_PROVIDER_POOL_LIMIT = 250;
  * exactly: an absent flag row is the normal pre-retirement state and must not
  * turn an otherwise valid write into a 503 -- absence means "strictest".
  */
-async function assigneeLanePolicyFor(
+async function assigneeEligibilityPolicyFor(
   supabase: SupabaseClient,
-  nativeEpoch = "",
-): Promise<ReturnType<typeof assigneeLanePolicy>> {
-  if (clean(nativeEpoch)) return assigneeLanePolicy(nativeEpoch, null, "read");
+): Promise<{ providerMappingRequired: boolean }> {
   try {
     const { data, error } = await supabase.from("syncview_runtime_flags")
       .select("value")
       .eq("key", ASSIGNEE_ELIGIBILITY_FLAG)
       .maybeSingle();
-    if (error) return assigneeLanePolicy("", null, "unreadable");
-    if (!data) return assigneeLanePolicy("", null, "missing");
-    return assigneeLanePolicy("", (data as JsonMap).value, "read");
+    // An absent flag row is the normal pre-retirement state and must not turn
+    // an otherwise valid write into a 503; absence means "strictest".
+    if (error || !data) return { providerMappingRequired: true };
+    return assigneeEligibilityPolicy((data as JsonMap).value);
   } catch (_error) {
-    return assigneeLanePolicy("", null, "unreadable");
+    return { providerMappingRequired: true };
   }
 }
 
-async function assigneeEligibilityPolicyFor(
+async function assigneeLanePolicyFor(
   supabase: SupabaseClient,
   nativeEpoch = "",
-): Promise<{ providerMappingRequired: boolean }> {
-  const policy = await assigneeLanePolicyFor(supabase, nativeEpoch);
-  return { providerMappingRequired: policy.providerMappingRequired };
+): Promise<ReturnType<typeof assigneeLanePolicy>> {
+  if (clean(nativeEpoch)) return assigneeLanePolicy(nativeEpoch, null, "read");
+  const flag = await assigneeEligibilityPolicyFor(supabase);
+  return assigneeLanePolicy("", { provider_mapping_required: flag.providerMappingRequired }, "read");
 }
 
 async function assigneeProviderPool(): Promise<Map<string, boolean>> {
@@ -2582,7 +2582,7 @@ async function assigneeEligibilityContext(
   needsProvider: boolean,
   nativeEpoch = "",
 ): Promise<{ providerMappingRequired: boolean; providerActiveFor: (id: string) => boolean | null }> {
-  const policy = await assigneeEligibilityPolicyFor(supabase, nativeEpoch);
+  const policy = await assigneeLanePolicyFor(supabase, nativeEpoch);
   // A native lane returns here unconditionally: providerMappingRequired is
   // false by construction, so assigneeProviderPool is unreachable for it.
   if (!policy.providerMappingRequired || !needsProvider) {
@@ -2675,34 +2675,40 @@ async function mappedCreateAssignees(
   }) as unknown as JsonMap[];
 }
 
-async function autoAssigneeForIntake(supabase: SupabaseClient, team: string, nativeEpoch = ""): Promise<string> {
-  const normalizedTeam = normalizeTeam(team);
+/*
+ * The intake pool: every active roster row on the team, ordered by name then
+ * id, minus whatever the lane policy excludes.
+ *
+ * THE STORED-MAPPING FILTER IS THE PROVIDER LANE'S, NOT THE ROSTER'S. It is
+ * reached on every intake with no explicit editor and dropped any active
+ * member without a linear_user_id. Right on provider work (linear-outbound
+ * resolves the mapping on drain; a missing one is a permanently failing
+ * receipt), wrong on a native lane where nothing drains and the same filter
+ * could turn a valid default designer into graphics_default_assignee_unavailable.
+ * So it follows the same lane policy the explicit path uses: required on
+ * provider work (missing/unreadable flag = strictest), lifted on native work
+ * and under the exact retired flag value. Ordering is untouched; provider
+ * activity was never verified here and still is not.
+ */
+async function intakeAssigneePool(
+  supabase: SupabaseClient,
+  team: string,
+  nativeEpoch = "",
+): Promise<JsonMap[]> {
   const { data, error } = await supabase.from("team_members")
     .select("id,name,role,team,linear_user_id,default_for_team,active")
     .eq("active", true)
-    .eq("team", normalizedTeam);
+    .eq("team", team);
   if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
-  /*
-   * THE STORED-MAPPING FILTER IS THE PROVIDER LANE'S, NOT THE ROSTER'S.
-   *
-   * This filter is reached on every intake that carries no explicit editor --
-   * every Submit and every Create Post that keeps the suggested default -- and
-   * it dropped any active member without a stored linear_user_id. On provider
-   * work that is correct: linear-outbound resolves the mapping on drain and a
-   * missing one is a permanently failing receipt ("outbound assignee mapping
-   * missing"). On a native lane nothing drains, so the same filter would only
-   * hide an active, role-compatible member from the pool and, on graphics,
-   * turn a perfectly good default designer into
-   * graphics_default_assignee_unavailable. So the filter now follows the same
-   * lane policy the explicit path uses: required on provider work (including
-   * the strictest missing/unreadable-flag reading), lifted on native work and
-   * under the exact retired flag value. It never verifies provider activity
-   * here -- it never did -- and the ordering rule is untouched.
-   */
   const policy = await assigneeLanePolicyFor(supabase, nativeEpoch);
-  const members = ((data || []) as JsonMap[])
+  return ((data || []) as JsonMap[])
     .filter(member => !policy.providerMappingRequired || clean(member.linear_user_id))
     .sort((left, right) => clean(left.name).localeCompare(clean(right.name)) || clean(left.id).localeCompare(clean(right.id)));
+}
+
+async function autoAssigneeForIntake(supabase: SupabaseClient, team: string, nativeEpoch = ""): Promise<string> {
+  const normalizedTeam = normalizeTeam(team);
+  const members = await intakeAssigneePool(supabase, normalizedTeam, nativeEpoch);
   if (normalizedTeam === "graphics") {
     const defaults = members.filter(member => member.default_for_team === true);
     if (defaults.length !== 1) throw new GatewayError(409, "graphics_default_assignee_unavailable");

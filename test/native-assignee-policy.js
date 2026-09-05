@@ -137,15 +137,16 @@ function slice(from, to) {
     'garbage input is an empty roster, not a crash');
 
   /* 4. Gateway wiring pins. */
-  const lanePolicyFor = slice('async function assigneeLanePolicyFor(', 'async function assigneeEligibilityPolicyFor(');
+  const lanePolicyFor = slice('async function assigneeLanePolicyFor(', 'async function assigneeProviderPool(');
+  const flagReader = slice('async function assigneeEligibilityPolicyFor(', 'async function assigneeLanePolicyFor(');
   ok(/if \(clean\(nativeEpoch\)\) return assigneeLanePolicy\(nativeEpoch, null, "read"\);/.test(lanePolicyFor)
-    && lanePolicyFor.indexOf('return assigneeLanePolicy(nativeEpoch') < lanePolicyFor.indexOf('from("syncview_runtime_flags")')
-    && /if \(error\) return assigneeLanePolicy\("", null, "unreadable"\);/.test(lanePolicyFor)
-    && /if \(!data\) return assigneeLanePolicy\("", null, "missing"\);/.test(lanePolicyFor)
-    && /catch \(_error\) \{\s*return assigneeLanePolicy\("", null, "unreadable"\);/.test(lanePolicyFor),
-    'assigneeLanePolicyFor returns the native policy BEFORE the flag read; missing and unreadable reads stay strictest on the provider lane');
+    && lanePolicyFor.indexOf('return assigneeLanePolicy(nativeEpoch') < lanePolicyFor.indexOf('assigneeEligibilityPolicyFor(supabase)')
+    && /if \(error \|\| !data\) return \{ providerMappingRequired: true \}/.test(flagReader)
+    && /catch \(_error\) \{\s*return \{ providerMappingRequired: true \};/.test(flagReader)
+    && !/from\("syncview_runtime_flags"\)/.test(lanePolicyFor),
+    'assigneeLanePolicyFor returns the native policy BEFORE the unchanged flag reader runs; missing and unreadable reads stay strictest on the provider lane');
   const context = slice('async function assigneeEligibilityContext(', 'async function assigneeRosterRow(');
-  ok(/nativeEpoch = ""/.test(context) && /assigneeEligibilityPolicyFor\(supabase, nativeEpoch\)/.test(context)
+  ok(/nativeEpoch = ""/.test(context) && /assigneeLanePolicyFor\(supabase, nativeEpoch\)/.test(context)
     && /if \(!policy\.providerMappingRequired \|\| !needsProvider\) \{[\s\S]{0,120}return \{ \.\.\.policy, providerActiveFor: \(\) => null \};/.test(context)
     && context.indexOf('providerActiveFor: () => null') < context.indexOf('await assigneeProviderPool()'),
     'assigneeEligibilityContext cannot reach assigneeProviderPool when the lane policy does not require a mapping');
@@ -154,12 +155,13 @@ function slice(from, to) {
     && assertFn.indexOf('if (!assigneeId) return null;') < assertFn.indexOf('assigneeRosterRow(')
     && /assigneeEligibilityContext\(supabase, !!member, nativeEpoch\)/.test(assertFn),
     'assertEligibleAssignee takes the lane epoch and returns for null unassignment before any roster, policy or provider read');
-  const auto = slice('async function autoAssigneeForIntake(', 'SUBMIT-TAB THUMBNAIL TEXT');
+  const auto = slice('async function intakeAssigneePool(', 'SUBMIT-TAB THUMBNAIL TEXT');
   ok(/nativeEpoch = ""/.test(auto) && /const policy = await assigneeLanePolicyFor\(supabase, nativeEpoch\);/.test(auto)
     && /\.filter\(member => !policy\.providerMappingRequired \|\| clean\(member\.linear_user_id\)\)/.test(auto)
     && /default_for_team/.test(auto) && /graphics_default_assignee_unavailable/.test(auto) && /video_assignee_pool_unavailable/.test(auto)
     && !/assigneeProviderPool|linearRead\(/.test(auto),
-    'the automatic filter follows the same lane policy, keeps both readiness refusals, and never reads the provider');
+    'the automatic pool filter follows the same lane policy, keeps both readiness refusals, and never reads the provider');
+  ok(/const members = await intakeAssigneePool\(supabase, normalizedTeam, nativeEpoch\);/.test(auto), 'autoAssigneeForIntake draws from that pool');
   const intake = slice('async function handleIntakeCreate(', 'const rootManifest: JsonMap = {');
   ok(/await assertEligibleAssignee\(supabase, requestedByTeam\[team\], team, nativeEpochByTeam\[team\]\)/.test(intake)
     && /await autoAssigneeForIntake\(supabase, team, nativeEpochByTeam\[team\]\)/.test(intake)

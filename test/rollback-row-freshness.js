@@ -1094,6 +1094,22 @@ ok(deepRun.json && deepRun.json.live && deepRun.json.live.run === '34000000000'
     && deepRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
     'and a receipt under a level-five heading is dated by that heading, so it is the newest on 2026-09-06 with no chronology complaint and the row is what fails');
 
+/* ---- 8m. no borrowed dates (round fourteen) ------------------------------ */
+const nestedReadableUndated = nestedReadable.replace('### 2026-09-06 — Deploy #40, run `34000000000`', '### Deploy #40, run `34000000000`');
+const undatedNestedRun = run(fixture('nested-readable-undated', insertInto(nestedReadableUndated), realRb));
+ok(undatedNestedRun.code === 1 && undatedNestedRun.json && undatedNestedRun.json.live && undatedNestedRun.json.live.run === '34000000000'
+    && undatedNestedRun.json.live.date === '2026-08-05'
+    && undatedNestedRun.json.failures.some(f => /newest receipt by run id \(34000000000, 2026-08-05\) is not the newest by date/.test(f))
+    && !undatedNestedRun.json.failures.some(f => /\(34000000000, 2026-08-19\)/.test(f)),
+    'A RECEIPT DOES NOT BORROW A SIBLING\'S DATE: a readable, undated Deploy #40 written after the dated Deploy #15 in the 2026-08-05 container takes its ancestor container\'s 2026-08-05, not the closed sibling\'s 2026-08-19, and the chronology check fails it against the container\'s later-dated deploys');
+const nestedReadableDeeper = nestedReadable.replace('Dispatched from `0123456789abcdef0123456789abcdef01234567`.\n\n| function', 'Dispatched from `0123456789abcdef0123456789abcdef01234567`.\n\n#### Versions\n\n| function');
+const deeperRun = run(fixture('nested-readable-deeper', insertInto(nestedReadableDeeper), realRb));
+ok(deeperRun.json && deeperRun.json.live && deeperRun.json.live.run === '34000000000' && deeperRun.json.live.date === '2026-09-06'
+    && deeperRun.json.live.commit === '0123456789abcdef0123456789abcdef01234567'
+    && !deeperRun.json.failures.some(f => /not the newest by\s+date|usable YYYY-MM-DD date|carries no run id/.test(f))
+    && deeperRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'but it DOES inherit from its actual ancestors: the same receipt under an undated "#### Versions" subheading takes the date, run id and commit of the "### 2026-09-06 — Deploy #40" above it, and the row is what fails');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

@@ -171,16 +171,14 @@ function deployAnchors(log) {
     return out;
 }
 
-/* The anchor a position belongs to: the nearest one at or before it, bounded
-   below by the enclosing `##` entry so a receipt can never inherit the identity
-   of a dispatch recorded under a different day's heading. */
-function enclosingAnchor(log, at, anchors) {
-    const entryStart = log.lastIndexOf('\n## ', at);
+/* The anchor a receipt belongs to: the LAST one inside the receipt's own
+   section or one of its actual ancestors' preambles (the ranges proseContext
+   computes), never one under a closed sibling heading, and never one under a
+   different `##` entry. */
+function enclosingAnchor(ranges, anchors) {
     let best = null;
     for (const a of anchors) {
-        if (a.at > at) break;
-        if (entryStart >= 0 && a.at < entryStart) continue;
-        best = a;
+        if (ranges.some(r => a.at >= r.from && a.at < r.to)) best = a;
     }
     return best;
 }
@@ -214,23 +212,56 @@ function validDate(text) {
 
 function proseContext(log, at, anchors) {
     const start = log.lastIndexOf('\n## ', at);
-    const chunk = log.slice(start < 0 ? 0 : start, at);
+    const chunkStart = start < 0 ? 0 : start;
+    const chunk = log.slice(chunkStart, at);
+    /* Every heading above the receipt inside its `##` entry, by absolute position. */
+    const heads = [...chunk.matchAll(/(?:^|\n)(#{2,6}) ([^\n]*)/g)].map(m => ({
+        at: chunkStart + m.index + (m[0][0] === '\n' ? 1 : 0),
+        level: m[1].length,
+        text: m[2],
+    }));
+    /* THE RECEIPT'S OWN HEADING AND ITS ACTUAL ANCESTORS, nothing else. Walking
+       upward, a heading counts only if it is shallower than every heading
+       already counted; a closed sibling (same level or deeper) is skipped, so
+       its date, run id and dispatched commit are never borrowed. A dated
+       "### Deploy #15" followed by an undated "### Deploy #40" used to lend #40
+       its date, which silenced the missing-date failure and left run-id order
+       with nothing real to be cross-checked against (Codex, fourteenth round on
+       #1306). Each counted heading contributes its own preamble only: the text
+       from that heading to the next heading of any level, or to the receipt
+       itself for the nearest one. */
+    const ranges = [];
+    let ceiling = Infinity;
+    for (let i = heads.length - 1; i >= 0; i--) {
+        if (heads[i].level >= ceiling) continue;
+        ceiling = heads[i].level;
+        ranges.push({ from: heads[i].at, to: i + 1 < heads.length ? heads[i + 1].at : at, text: heads[i].text });
+    }
+    ranges.reverse();
+    /* A container's date IS inherited when the deploy heading carries none:
+       the container is a real ancestor, its date is the entry the author
+       placed the deploy in, and an early date can only make this guard
+       stricter (a later-dated receipt trips the chronology check below, and
+       the unreadable-section sweep softens less). A sibling's date could go
+       either way, which is why it is never borrowed. */
+    const chain = ranges;
+    const scope = chain.length ? chain : [{ from: chunkStart, to: at, text: '' }];
+    const visible = scope.map(r => log.slice(r.from, r.to)).join('\n');
     /* An anchor OUTRANKS a bare token, always. See deployAnchors: the token
        nearest a table is routinely the id of the run that failed before it. */
-    const anchor = anchors ? enclosingAnchor(log, at, anchors) : null;
-    const run = anchor ? null : lastMatch(chunk, /[Rr]un\s+`(\d{6,})`/);
-    const commit = lastMatch(chunk, /from\s+`([0-9a-f]{7,40})`/);
-    /* The NEAREST dated heading above the receipt, at any level 2-4, and the
-       `##` entry heading only as the last resort. The 2026-08-05 container
-       holds `###` deploys dated through 2026-08-19, so a receipt written under
+    const anchor = anchors ? enclosingAnchor(scope, anchors) : null;
+    const run = anchor ? null : lastMatch(visible, /[Rr]un\s+`(\d{6,})`/);
+    const commit = lastMatch(visible, /from\s+`([0-9a-f]{7,40})`/);
+    /* The NEAREST dated heading in that chain, at any level 2-6, with the `##`
+       entry heading as the last resort. The 2026-08-05 container holds `###`
+       deploys dated through 2026-08-19, so a receipt written under
        "### 2026-09-06 — Deploy #40" inside it is a 2026-09-06 receipt, not a
        2026-08-05 one; dating it by the parent made the newest deploy by run id
        disagree with the date order and fail chronology (Codex, twelfth round on
        #1306). Same rule the unreadable-section sweep already applies. */
-    const heads = [...chunk.matchAll(/(?:^|\n)#{2,6} ([^\n]*)/g)];
     let date = '';
-    for (let i = heads.length - 1; i >= 0 && !date; i--) {
-        const d = heads[i][1].match(/\b(\d{4}-\d{2}-\d{2})\b/);
+    for (let i = chain.length - 1; i >= 0 && !date; i--) {
+        const d = chain[i].text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
         if (d) date = validDate(d[1]);
     }
     return {
@@ -902,7 +933,7 @@ function main() {
     const out = {
         ok: failures.length === 0,
         receipts: receipts.length,
-        live: live ? { run: live.run, commit: live.commit, source: live.source, functions: live.fns } : null,
+        live: live ? { run: live.run, commit: live.commit, date: live.date || '', source: live.source, functions: live.fns } : null,
         rollback: claim,
         failures, notes,
     };

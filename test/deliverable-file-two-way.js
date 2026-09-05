@@ -203,6 +203,22 @@ ok(/if \(generation !== _prodState\.projectionGeneration\) return null;/.test(en
 ok(/if \(!staffIdentity\) return null;/.test(ensureFiles),
   'without staff sign-in it asks for nothing at all');
 
+/* THE PILLS FOLLOW THE POST, NOT THE OPEN ROW'S BATCH (2026-09-05).
+   batch_files_read answers `deliverables where batch_id = <one id>`, and the
+   render loop asked only for the open parent's own batch. On a post whose
+   children sit on another batch row -- 109 of 1,136 measured live -- the
+   response carried the parent alone, _prodBatchFileFor found no entry for any
+   sub-issue, and every pill was omitted. The owner reported this as pills that
+   had stopped appearing; they had never appeared for these posts, and did for
+   the other 1,027. The common case still makes exactly one request. */
+const renderLoop = UI.slice(UI.indexOf('The file pills on the sub-issue list'));
+ok(/_prodPostRows\(openIssue\)\.forEach\(row => \{/.test(renderLoop.slice(0, 2400)),
+  'the pill links are asked for across every batch row the POST occupies, so a sub-issue on a different batch row than its parent still gets one');
+ok(/if \(!rowBatchId \|\| asked\.has\(rowBatchId\)\) return;/.test(renderLoop.slice(0, 2400)),
+  'each distinct batch row is asked for once, so a post that sits on one row -- the overwhelming majority -- pays exactly what it paid before');
+ok(/row\.authorityProject \|\| row\.storedClientSlug/.test(renderLoop.slice(0, 2400)),
+  "and each request declares the scope of the row that NAMES that batch, since the gateway pins on client_slug and answers a mismatch with a flat 403");
+
 const invalidate = grab(UI, '_prodInvalidateScopedReads');
 ok(/_prodState\.batchFiles\.clear\(\);/.test(invalidate)
   && /_prodState\.batchFilesStatus\.clear\(\);/.test(invalidate),

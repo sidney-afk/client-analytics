@@ -58703,14 +58703,43 @@
                 const batchAssetSource = _prodBatchAssetSource(_prodIssue(openRowId));
                 if (batchAssetSource) _prodEnsureAssets(batchAssetSource.id, false);
                 /* The file pills on the sub-issue list. Asked for once per
-                   batch, only where a list is actually drawn -- a row with a
-                   parent renders no sub-issue section, so it needs none. */
+                   BATCH ROW OF THE POST, only where a list is actually drawn --
+                   a row with a parent renders no sub-issue section, so it needs
+                   none.
+
+                   Per post rather than per row since 2026-09-05. batch_files_read
+                   answers `deliverables where batch_id = <one id>`, and this
+                   asked for the open parent's own batch only -- so on a post
+                   whose children sit on a different batch row (109 of 1,136
+                   measured) the response carried the parent and nothing else,
+                   _prodBatchFileFor found no entry for any sub-issue, and every
+                   pill was omitted. Reported by the owner as pills that used to
+                   be there: they were never there for these posts, and are for
+                   the other 1,027.
+
+                   Deliberately several calls to the EXISTING read rather than a
+                   new post-scoped one: the read is already cached and
+                   generation-keyed per batch id, the common case still makes
+                   exactly one request, and this half then ships with the page
+                   instead of waiting on a gateway deploy. */
                 const openIssue = _prodIssue(openRowId);
-                if (openIssue && !openIssue.parent && openIssue.batchId) {
-                    _prodEnsureBatchFiles(
-                        openIssue.batchId,
-                        String(openIssue.authorityProject || openIssue.storedClientSlug || '').trim()
-                    );
+                if (openIssue && !openIssue.parent) {
+                    const asked = new Set();
+                    _prodPostRows(openIssue).forEach(row => {
+                        const rowBatchId = String(row && row.batchId || '').trim();
+                        if (!rowBatchId || asked.has(rowBatchId)) return;
+                        asked.add(rowBatchId);
+                        /* The scope is taken from the row that NAMES the batch,
+                           not from the parent. They are the same client on every
+                           shape measured, but the gateway pins on client_slug and
+                           answers a mismatch with a flat 403 -- so asking under
+                           the scope that owns the row is the question that can
+                           succeed rather than the one that assumes. */
+                        const scope = String(
+                            row.authorityProject || row.storedClientSlug || ''
+                        ).trim();
+                        if (scope) _prodEnsureBatchFiles(rowBatchId, scope);
+                    });
                 }
             }
             if (_prodState.view === 'batch' && _prodState.openBatchId) {

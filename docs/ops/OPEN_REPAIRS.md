@@ -12533,3 +12533,40 @@ owner reported:
 **Merging inside a review window is itself the lesson.** The review that found
 the two P1s took four minutes; the fix was merged in six seconds. Nothing caught
 the fail-open except a second read of my own diff, which is not a control.
+
+### Residual, recorded rather than left implied (2026-09-05, Codex #1294 P2)
+
+The truncation guard above stops `assetSnapshot` **asserting** an exclusivity it
+has not established. It does **not** make the write fail closed end to end, and
+the first version of its comment implied that it did. Codex caught the overclaim
+on #1294 and the correction is its finding.
+
+When exclusivity is unknown the gateway names no target, and the browser then
+writes the row the reader is already on. If that row's bucket is shared with
+another post, the write reaches that post. Three things bound it:
+
+- **It is the status quo, not a new exposure.** Every `batch_asset` write went to
+  the reader's own bucket before 2026-09-05. The change narrowed that for the
+  cases it can prove and left the rest where it found them.
+- **A refusal is the wrong remedy here.** AGENTS.md carries a standing owner
+  directive (2026-08-27, "I prefer things to be not strict than strict"): the
+  browser must not encode a guess about state it cannot see as a refusal. A
+  refusal would be a dead end on a save that has always worked. There is also no
+  server-side proof to fail closed on — the bucket the browser names is one the
+  reader genuinely occupies, which is a legitimate target under the rule that has
+  always allowed it.
+- **The one real cost is a pessimisation, not an exposure.** A response that is
+  exactly full AND complete is discarded, so a genuinely known exclusive
+  alternate is passed over. Unreachable on today's data: largest bucket 60 rows,
+  largest split post's candidate buckets 33 between them, limit 800.
+
+**If the owner wants it closed properly**, the honest fix is not a browser
+refusal but removing the ambiguity: give a post a bucket it owns, so "which row
+does a post-level write belong on" stops being a question answered by inference.
+That is the structural change deferred at the top of this item, and it is the
+same one the Linear exit would make cheap.
+
+**And the process point, which is the more useful finding.** This was caught only
+because #1294 was held open for its review after #1288 merged six seconds after
+opening. The self-review that produced the truncation guard also produced its
+overclaim; a second reader found it in four minutes.

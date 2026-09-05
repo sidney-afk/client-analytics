@@ -3981,19 +3981,42 @@ async function assetSnapshot(
       .eq("client_slug", deliverableClient)
       .limit(occupantLimit);
     const occupantRows = (occupants || []) as JsonMap[];
-    /* A TRUNCATED ANSWER IS NOT AN ANSWER, and this is the one place where
-       being wrong is unsafe rather than merely unhelpful. Exclusivity is
-       decided by ABSENCE -- a bucket is exclusive when no foreign row was
-       seen -- so a result cut off at the limit could hide the very row that
-       makes a bucket shared, and the bucket would then be offered as a write
-       target for a post it does not belong to. Every other degradation here
-       fails towards "offer nothing"; this one would fail towards "offer the
-       wrong row", so a full page is treated as UNKNOWN.
-       Not reachable on today's data -- measured 2026-09-05, the largest bucket
-       holds 60 rows and the largest split post's candidate buckets hold 33
-       between them, against a limit of 800 -- which is exactly why it is worth
-       one comparison now rather than a debugging session the day a post grows.
-       Raised in self-review after the #1288 fix merged without one. */
+    /* A TRUNCATED ANSWER IS NOT AN ANSWER. Exclusivity is decided by ABSENCE
+       -- a bucket is exclusive when no foreign row was seen -- so a page cut
+       off at the limit could hide the very row that makes a bucket shared, and
+       this function would then ASSERT an exclusivity it has not established.
+       A full page is therefore UNKNOWN, and an unknown exclusivity names no
+       target.
+
+       WHAT THAT DOES AND DOES NOT BUY, stated precisely because the first
+       version of this comment claimed more than it delivers (Codex, #1294 P2,
+       and the correction is the finding's).
+
+       Naming no target does NOT make the write fail closed end to end: the
+       browser then writes the row the reader is already on. If the reader is
+       sitting on a shared bucket, that write reaches the other posts in it.
+       So the guard prevents this function from asserting something false; it
+       does not prevent the outcome.
+
+       It is still right not to extend it into a refusal. Falling back to the
+       reader's own bucket is exactly what every batch_asset write did before
+       2026-09-05, so it is the status quo rather than an exposure this change
+       introduces -- and AGENTS.md's standing owner directive (2026-08-27, "I
+       prefer things to be not strict than strict") says a client must not
+       encode a guess about state it cannot see as a refusal. A refusal here
+       would be a dead end on a save that has always worked, to avert a
+       cross-post write in a branch that cannot currently be reached. There is
+       also no server-side proof to fail closed ON: the bucket the browser
+       names is one the reader genuinely occupies, which is a legitimate target
+       by the same rule that has always allowed it.
+
+       The one real cost is the narrow case Codex names: a response that is
+       exactly full AND complete is discarded, so a genuinely known exclusive
+       alternate is passed over in favour of the fallback. That is a
+       pessimisation, not an exposure, and it is unreachable on today's data --
+       measured 2026-09-05, the largest bucket holds 60 rows and the largest
+       split post's candidate buckets hold 33 between them, against a limit of
+       800. The residual is recorded in the ledger rather than left implied. */
     if (!occupantsError && occupantRows.length < occupantLimit) {
       const shared = new Set<string>();
       for (const row of occupantRows) {

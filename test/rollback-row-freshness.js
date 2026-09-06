@@ -2549,6 +2549,49 @@ ok(theInitialAttemptRun.code === 1 && theInitialAttemptRun.json
     && theInitialAttemptRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
     'while the SAME modifier without "this" still points elsewhere, so the borrowed claim is refused');
 
+/* ---- 8bg. a modified occurrence noun; the generic word "check" (round 58) ---- */
+const followUpAttempt = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current attempt failed, while the follow-up attempt deployed nothing.',
+    '',
+].join('\n');
+const followUpAttemptRun = run(fixture('follow-up-attempt', appended(followUpAttempt), realRb));
+ok(followUpAttemptRun.code === 1 && followUpAttemptRun.json
+    && followUpAttemptRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A MODIFIED OCCURRENCE NOUN POINTS ELSEWHERE: "the follow-up attempt deployed nothing" is not this run\'s evidence, whatever the modifier is');
+
+const checkHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Deployment check run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const checkHeadingRun = run(fixture('check-heading', appended(checkHeading), realRb));
+ok(checkHeadingRun.code === 1 && checkHeadingRun.json
+    && /34000000000/.test(JSON.stringify(checkHeadingRun.json.failures)),
+    'AND THE PLAIN WORD IS ENOUGH: "Deployment check run `X`" is not an anchor either, so the table below it takes the parent deploy heading\'s run');
+
+const laneCheckVerdict = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` check passed (run `34000000000`).',
+    '',
+].join('\n');
+const laneCheckVerdictRun = run(fixture('lane-check-verdict', appended(laneCheckVerdict), realRb));
+ok(laneCheckVerdictRun.code === 0,
+    'while "the `lane` check passed (run `X`)" is a check verdict and asks for nothing, so a routine note cannot block a correct row');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

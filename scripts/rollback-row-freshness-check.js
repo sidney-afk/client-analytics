@@ -216,7 +216,7 @@ function deployAnchors(log) {
        this log says so in its heading ("Deploy #4 — RECORDED (run `X`)",
        "F27 Section 4 deploy, run `X`"), so a heading that names a check and
        never says deploy is skipped. */
-    const otherActivity = /\b(verification|verify|verifying|validation|validate|validating|drill|rehearsal|probe|smoke|audit|readback|read-back|confirmation|confirm|confirming|typecheck|lint|test run|dry[- ]run)\b/i;
+    const otherActivity = /\b(verification|verify|verifying|validation|validate|validating|drill|rehearsal|probe|smoke|audit|readback|read-back|confirmation|confirm|confirming|checks?|checking|checked|typecheck|lint|test run|dry[- ]run)\b/i;
     let m;
     while ((m = heading.exec(log))) {
         const line = m[0].split('\n')[0];
@@ -503,6 +503,12 @@ const OTHER_ATTEMPT = new RegExp(
        describing itself, and demanding a receipt for a zero-deploy failure
        is a false alarm (Codex, fifty-seventh round on #1306). */
     + '|(?<!\\bthis\\s)(?<!\\bcurrent\\s)\\b(?:previous|earlier|prior|original|preceding|another|other|subsequent|initial|repeat)\\s+[a-z][\\w-]*\\b'
+    /* And whatever the modifier, a MODIFIED occurrence noun points elsewhere:
+       "the follow-up attempt", "a second pass", "their later execution". The
+       modifier space is open, so this branch closes it from the other side --
+       any word standing between the determiner and the noun, unless it says
+       the occurrence is this one (Codex, fifty-eighth round on #1306). */
+    + '|\\b(?:the|a|an|that|its|their|our|some)\\s+(?!(?:current|latest|newest|same|very|only|present)\\b)(?:[a-z]+-[a-z]+|[a-z]+er|next|new|second|third|fourth|final|repeat|extra)\\s+(?:attempts?|runs?|dispatch(?:es)?|tr(?:y|ies)|jobs?|executions?|passes|pass|rounds?|cycles?|goes|go)\\b'
     + '|\\b(?:retry|re-?run|redo)\\b', 'i');
 
 function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {
@@ -735,7 +741,7 @@ const AHEAD_WORDS = 'until|pending|awaiting|await|next|future|upcoming|planned|p
    wording was missing, so "the LANE verification passed (run `X`)" read as a
    deployment and a routine check could block an otherwise-correct rollback
    update (Codex, fifty-fifth round on #1306). */
-const CHECK_WORDS = 'dry[- ]?runs?|validations?|validated?|verifications?|verified|confirmations?|read[- ]?backs?|audits?|plan[- ]only|plan mode|previews?|no-?ops?|typechecks?|lint|smoke[- ]?tests?|probes?';
+const CHECK_WORDS = 'dry[- ]?runs?|validations?|validated?|verifications?|verified|confirmations?|checks?|checking|checked|read[- ]?backs?|audits?|plan[- ]only|plan mode|previews?|no-?ops?|typechecks?|lint|smoke[- ]?tests?|probes?';
 const DISPATCH_DONE = new RegExp('\\b(' + DONE_WORDS + ')\\b', 'i');
 const DISPATCH_AHEAD = new RegExp('\\b(' + AHEAD_WORDS + ')\\b', 'i');
 const CHECK_ONLY = new RegExp('\\b(' + CHECK_WORDS + ')\\b', 'i');

@@ -17,8 +17,8 @@
  * In-app copy also recommended this tool as the fix for a failed background
  * calendar-card write, in three places -- text made reachable by the flip,
  * pointing users at a tool that would just mint them more broken cards.
- * Those three now recommend Create Post instead, which works regardless of
- * authority state.
+ * Two legacy writer notices still recommend Create Post. The retained-job
+ * notice instead requires review: unknown completion is not proof of absence.
  */
 const fs = require('fs');
 const path = require('path');
@@ -85,7 +85,7 @@ ok(/if \(importSeal\.sealed\) \{[\s\S]*?return;\s*\}/.test(importFn),
   'the sealed branch returns, so the same call never falls through to _calBulkUpsertPosts');
 
 /* ---- 4. The three in-app recommendations no longer point at a tool that -- */
-/* ---- mints broken cards; they point at the one that still works ---------- */
+/* ---- mints broken cards; retained work must not imply safe recreation ---- */
 
 ok(!/"Import from Linear"/.test(INDEX),
   'no in-app message still quotes "Import from Linear" as a recommended recovery action');
@@ -93,8 +93,18 @@ ok(/or open the calendar and use Create Post to add them now\./.test(INDEX),
   'the post-submit background-write-failure notice now points at Create Post');
 ok(/or use Create Post on the calendar to add the rest now\./.test(INDEX),
   'the partial-write-count notice now points at Create Post');
-ok(/Open the calendar and use Create Post to add them\./.test(INDEX),
-  'the resumed-job retry-cap notice now points at Create Post');
+const retainedNotice = grabFunc('_calCardJobRetain');
+function safeRetentionNotice(source) {
+  return /completion is unconfirmed/.test(source)
+    && /before recreating the work/.test(source)
+    && !/Create Post|Import from Linear|They have not been created/.test(source);
+}
+ok(safeRetentionNotice(retainedNotice),
+  'the retained-job notice requires review without claiming absence or recommending recreation');
+ok(!safeRetentionNotice(retainedNotice.replace('completion is unconfirmed', 'They have not been created')),
+  'negative control rejects a false claim that retained work was never created');
+ok(!safeRetentionNotice(retainedNotice.replace('before recreating the work', 'use Create Post')),
+  'negative control rejects recreate guidance for uncertain retained work');
 
 console.log(failures === 0
   ? '\nImport-from-Linear seal checks passed'

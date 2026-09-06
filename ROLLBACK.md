@@ -7,6 +7,8 @@ IMMUTABLE or discard packages to bypass a refusal. Existing empty-target and
 committed-unverified retention rules below remain in force. This correction
 does not activate v8 capture/restoration or the separate cutoff reader change.
 
+**Ordinary outbound read fence, unapplied:** the [source correction](docs/audits/2026-09-06-outbound-read-cutoff.md) adds no SQL owner and preserves accepted queue data. Before cutoff activation, its worker source can revert to captured base8e. After activation, do not restore the old unconditional provider reads: keep the transport fence, stop the worker, retain control/outbox receipts, and reconcile all preauthorized in-flight/accepted-after-cutoff debt through a reviewed recovery. Exact serving closure and old-isolate quiescence remain release gates. No rollback/deployment occurred here.
+
 **Native card HTTP adapter, uninstalled:** source withdrawal before any real
 acceptance changes no clients. After any future acceptance, hold new creation
 and retain compatible receipt replay and both durable owners. Reinstating the

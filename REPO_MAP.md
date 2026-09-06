@@ -1,5 +1,7 @@
 # Repo map
 
+Ordinary G8 read fence: `scripts/linear-outbound-read-seam.mjs`, `scripts/linear-outbound-read-lane.mjs`, and `test/linear-outbound-read-cutoff.js` exercise every provider transport using the actual worker and disposable SQL. `docs/audits/2026-09-06-outbound-read-cutoff.md` and `docs/audits/2026-09-06-outbound-read-cutoff.json` retain source hashes, baseline failures and the old-isolate/in-flight release holds. No global or serving cutoff claim.
+
 Current installed-boundary evidence: `docs/audits/2026-09-06-linear-exit-live-boundary.json` records four serving source closures and the presence/absence of narrowly named draft owners, RPCs and flags. Read-only metadata, not client-journey proof or a deployment instruction.
 
 Combined candidate evidence: `docs/audits/2026-09-06-linear-exit-candidate.md` ties the reviewed drafts to the canonical G0-G10 plan. `test/native-label-writes.js` runs the actual 40-group label handler/SQL lane in the existing explicitly bound disposable CI service; raw receipts/configuration remain outside the repository.

@@ -31,10 +31,10 @@ The raw native card payload is an initial full row: blank content and In Progres
 
 | Endpoint | Published version | Actual reachable write path |
 |---|---|---|
-| calendar-upsert-post | 7ef44971-5c6b-46d7-b7d1-68a504913d28 | Webhook ordinal1 → Build Row ordinal2 → reads13/14 → guard3/8 → branch4. Sheet write5 runs alongside database branch9/10. Existing row:15→comment helper16→strip17→direct calendar_posts update11. Missing row: direct calendar_posts create12. |
+| calendar-upsert-post | 7ef44971-5c6b-46d7-b7d1-68a504913d28 | Webhook ordinal1 → Build Row ordinal2 → reads13/14 → guard3/8 → branch4. Sheet write5 runs alongside database branch9/10. Existing row:15→comment helper16→strip17→direct calendar_posts update11. Missing row: calendar_posts node12 has an omitted/default operation; creation semantics remain UNPROVEN in this graph read. |
 | sample-review-upsert | b139f56e-e6ea-474f-bf3a-87ac80e88d91 | Webhook1→Build Row2→read3→guard4/5→prepare7/8→branch9. Existing:10→comment RPC11→strip12→direct sample_reviews update13. Missing: direct create14. Response and event paths follow. |
 
-Both Build Row nodes read the webhook **body**, whitelist fields and mint a fresh updated_at. Their whitelists omit video_deliverable_id and graphic_deliverable_id. Neither graph reads x-syncview-source or calls either frozen upsert EF. The Calendar helper was not traversed: direct scalar writes and the separate create branch already prove the bypass. The connector graph is sanitized source, not a raw export or execution result.
+Both Build Row nodes read the webhook **body**, whitelist fields and mint a fresh updated_at. Their whitelists omit video_deliverable_id and graphic_deliverable_id. Neither graph reads x-syncview-source or calls either frozen upsert EF. The Calendar helper was not traversed: the explicit scalar-update path and Samples create path establish the bypass without assuming Calendar node12's default operation. The connector graph is sanitized source, not a raw export or execution result.
 
 Browser wrappers trigger routing initialization **without awaiting it** (_calUpsertFetch:27353; _sxrUpsertFetch:62455). Empty or failed flag reads select n8n (_calFetchUpsertFlagOnce:25134–25145; Samples:62401–62412). A healthy observed cohort cannot prove this path unreachable.
 

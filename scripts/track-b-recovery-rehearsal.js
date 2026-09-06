@@ -15,7 +15,8 @@ const backup = require('./track-b-backup');
 const recovery = require('./track-b-recovery-package');
 const { reconstruct, OUTCOMES } = require('./track-b-recovery-reconstruct');
 const ROOT = path.resolve(__dirname, '..');
-const CORPUS = 'history-v8';
+const CORPUS = process.env.TRACK_B_RECOVERY_TEST_CORPUS || 'history-v7';
+if (!['history-v7','history-v8'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
 const quote = value => "'" + String(value).replaceAll("'", "''") + "'";
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recovery-reconstruct.js',
@@ -29,7 +30,7 @@ const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recover
   'migrations/2026-09-05-card-change-journal.sql', 'migrations/2026-09-05-calendar-feedback-recovery.sql',
   'migrations/2026-09-05-crosswalk-bind-and-import.sql', 'migrations/2026-09-06-native-card-materialization-boundary.sql',
   'migrations/2026-09-05-native-label-catalog-foundation.sql', 'migrations/2026-09-06-native-label-writes.sql',
-  'migrations/2026-09-06-linear-outbound-cutoff.sql'];
+  'migrations/2026-09-06-linear-outbound-cutoff.sql', 'migrations/2026-09-06-native-existing-assignment.sql'];
 // Platform-only prerequisites. No public application table/function/type is
 // recreated manually on the target; the package must reconstruct those.
 const TARGET_PREREQUISITES = `create schema extensions; create extension pgcrypto schema extensions;
@@ -121,14 +122,14 @@ async function run() {
     assert.ok(workload); source.query(workload[0]);
     for (const file of ['2026-09-02-workload-native-view.sql', '2026-09-05-workload-native-membership.sql'])
       source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
-    for (const file of ['2026-09-05-crosswalk-bind-and-import.sql', '2026-09-06-native-card-materialization-boundary.sql', '2026-09-05-native-label-catalog-foundation.sql', '2026-09-06-native-label-writes.sql', '2026-09-06-linear-outbound-cutoff.sql'])
+    for (const file of ['2026-09-05-crosswalk-bind-and-import.sql', '2026-09-06-native-card-materialization-boundary.sql', '2026-09-05-native-label-catalog-foundation.sql', '2026-09-06-native-label-writes.sql', '2026-09-06-linear-outbound-cutoff.sql', '2026-09-06-native-existing-assignment.sql'])
       source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
     const seeded = phase(cfg, source, 'seed', '', 'source');
     check('actual selected37 schema contains four accepted cards and retained unknown ingress', () => {
-      assert.equal(backup.resolveCorpus(CORPUS).tables.length, 39); assert.equal(seeded.value.cases.length, 4);
+      assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS === 'history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
       assert.ok(seeded.value.held.ingress_id); assert.equal(seeded.value.provider_attempts, 0);
       for (const table of backup.resolveCorpus(CORPUS).tables) assert.notEqual(source.query('select to_regclass(' + quote('public.' + table.name) + ')'), '');
-      source.query("insert into public.production_label_catalog_versions(version_id,schema_version,manifest,manifest_sha256,operator_attestation) values ('00000000-0000-4000-8000-000000000008',1,'{}','0000000000000000000000000000000000000000000000000000000000000000','{}')"); assert.equal(source.query("select count(*) from public.linear_outbound_cutoff_control where lane='mirror_outbox'"), '1');
+      if (CORPUS === 'history-v8') { source.query("insert into public.production_label_catalog_versions(version_id,schema_version,manifest,manifest_sha256,operator_attestation) values ('00000000-0000-4000-8000-000000000008',1,'{}','0000000000000000000000000000000000000000000000000000000000000000','{}')"); assert.equal(source.query("select count(*) from public.linear_outbound_cutoff_control where lane='mirror_outbox'"), '1'); } else assert.equal(source.query("select to_regclass('public.production_label_catalog_versions')"), '');
     });
     const deliverable = source.rows("select id,team from public.deliverables where team='video' order by id limit 1")[0];
     assert.ok(deliverable);
@@ -189,8 +190,8 @@ async function run() {
     source.query('drop table public.synthetic_capture_negative;drop function public.synthetic_capture_check(text);drop function public.synthetic_capture_write();');
     const summary = await recovery.captureRecoveryPackage({ ...opts, output: packet });
     const bytes = fs.readFileSync(packet), pkg = recovery.readRecoveryPackage(bytes, hmac), before = unionImages(source), sequences = captureSequences(source);
-    check('authenticated schema and all39 selected data sections bind exact observed corpus', () => {
-      assert.equal(summary.ok, true); assert.equal(summary.corpus, CORPUS); assert.equal(summary.data_table_count, 39);
+    check('authenticated schema and all selected corpus data sections bind exact observed corpus', () => {
+      assert.equal(summary.ok, true); assert.equal(summary.corpus, CORPUS); assert.equal(summary.data_table_count, backup.resolveCorpus(CORPUS).tables.length);
       assert.deepEqual(Object.keys(pkg.manifest.data.tables).sort(), backup.resolveCorpus(CORPUS).tables.map(t => t.name).sort());
       assert.equal(pkg.manifest.schema.fingerprint, source.query(recovery.fingerprintSql()));
       assert.ok(Object.values(pkg.manifest.data.tables).every(t => /^[0-9a-f]{64}$/.test(t.digest_sha256)));
@@ -215,7 +216,7 @@ async function run() {
       let error; try { reconstruct(malformed, targetEnv, { psql: cfg.psql, diagnosticDir }); } catch (e) { error = e; }
       assert.ok(error); assert.equal(error.outcome, OUTCOMES.ROLLED_BACK); assert.equal(error.receipt.retry_in_place_allowed, true); assert.equal(publicCount(target), '0');
     });
-    check('late39th-table COPY refusal rolls earlier schema and data back', () => {
+    check('late final-table COPY refusal rolls earlier schema and data back', () => {
       const section = backup.parseStrictPgDump(pkg.data, CORPUS).tables.production_card_materialization_ingress;
       const text = pkg.data.toString('utf8'), header = `COPY public.production_card_materialization_ingress (${section.columns.join(', ')}) FROM stdin;`;
       const at = text.indexOf(header); assert.ok(at >= 0); const start = at + header.length + 1, end = text.indexOf('\n', start);
@@ -226,8 +227,8 @@ async function run() {
       assert.equal(error.outcome, OUTCOMES.ROLLED_BACK); assert.equal(publicCount(target), '0');
     });
     const restored = reconstruct(pkg, targetEnv, { psql: cfg.psql, diagnosticDir });
-    check('restricted empty-target schema reconstruction verifies exact39 raw row images and sequences', () => {
-      assert.equal(restored.outcome, OUTCOMES.VERIFIED); assert.equal(restored.data_table_count, 39);
+    check('restricted empty-target schema reconstruction verifies exact corpus raw row images and sequences', () => {
+      assert.equal(restored.outcome, OUTCOMES.VERIFIED); assert.equal(restored.data_table_count, backup.resolveCorpus(CORPUS).tables.length);
       assert.equal(restored.schema_fingerprint_match, true); assert.equal(restored.content_digests_match, true);
       assert.deepEqual(unionImages(target), before); assert.deepEqual(captureSequences(target), sequences);
       for (const db of [source, target]) {
@@ -248,7 +249,7 @@ async function run() {
       const rows = target.rows(`select raw_body,raw_sha256,outcome from public.production_card_materialization_ingress where id=any(array[${replay.value.ingress_ids.map(quote).join(',')}]::uuid[])`);
       assert.equal(rows.length, 4); for (const row of rows) { assert.ok(seeded.value.cases.some(c => c.raw_body === row.raw_body)); assert.equal(row.raw_sha256, sha(row.raw_body)); assert.equal(row.outcome.ok, true); }
     });
-    check('retained39 evidence keeps anonymous privacy and mutation/TRUNCATE guards after reconstruction', () => {
+    check('retained corpus evidence keeps anonymous privacy and mutation/TRUNCATE guards after reconstruction', () => {
       for (const name of ['production_card_materialization_receipts', 'production_card_materialization_ingress', 'card_change_journal']) {
         for (const role of ['anon', 'authenticated']) assert.notEqual(target.raw(`set role ${role};select * from public.${name}`).status, 0);
         // Journal identity is GENERATED ALWAYS: assigning it is rejected before
@@ -275,14 +276,14 @@ async function run() {
       assert.deepEqual(unionImages(quarantine), before);
     });
     const report = { status: 'PASS', classification: 'ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY', passed: checks.length, checks,
-      corpus: CORPUS, table_count: 39, package_sha256: sha(bytes), source_sha256: pins,
+      corpus: CORPUS, table_count: backup.resolveCorpus(CORPUS).tables.length, package_sha256: sha(bytes), source_sha256: pins,
       data_coverage: pkg.manifest.data.tables, omitted_data_tables: pkg.manifest.omitted_data_tables,
       limits: ['Synthetic migration-shaped source; installed capture/reconstruction remains UNPROVEN',
-        'Whole public schema plus selected39 data, not a full platform or omitted-data backup',
+        'Whole public schema plus selected corpus data, not a full platform or omitted-data backup',
         'Callable lexical source is independently reviewed; execution coverage is limited to this fixture',
         'No serving adapter, provider, workflow, alert or live action'] };
     fs.writeFileSync(path.join(cfg.output, 'REPORT.private.json'), JSON.stringify(report, null, 2)); complete = true;
-    console.log(JSON.stringify({ status: 'PASS', passed: checks.length, table_count: 39 }));
+    console.log(JSON.stringify({ status: 'PASS', passed: checks.length, table_count: backup.resolveCorpus(CORPUS).tables.length }));
   } catch (error) {
     fs.writeFileSync(path.join(cfg.output, 'FAILURE.private.log'), String(error.stack || error) + '\n' + String(error.detail || ''));
     console.log(JSON.stringify({ status: 'FAIL', code: 'LOCAL_SCHEMA_REHEARSAL_FAILED', completed_checks: checks.length })); process.exitCode = 1;

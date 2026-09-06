@@ -2299,6 +2299,32 @@ ok(partialWentLiveRun.code === 1 && partialWentLiveRun.json
     && partialWentLiveRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
     'GOING LIVE IS DEPLOYING: "failed after the first function went live" is a partial deploy, so a later blanket no-deployment sentence cannot exempt it');
 
+/* ---- 8ax. numbered deploys; the no-deployment claim must be this run's (round 49) ---- */
+const numberedDeployed = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The first function was deployed, then the run failed. No deployment occurred after that point.',
+    '',
+].join('\n');
+const numberedDeployedRun = run(fixture('numbered-deployed', appended(numberedDeployed), realRb));
+ok(numberedDeployedRun.code === 1 && numberedDeployedRun.json
+    && numberedDeployedRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A COUNTED FUNCTION COUNTS DEPLOYED TOO: "the first function was deployed, then the run failed" is a partial deploy, so the blanket sentence after it cannot exempt the entry');
+
+const borrowedNothing = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'The current attempt failed (run `34000000000`). The previous attempt deployed nothing',
+    '(run `33999999999`).',
+    '',
+].join('\n');
+const borrowedNothingRun = run(fixture('borrowed-nothing', appended(borrowedNothing), realRb));
+ok(borrowedNothingRun.code === 1 && borrowedNothingRun.json
+    && borrowedNothingRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'AND THE NO-DEPLOYMENT CLAIM MUST BE THIS RUN\'S: a failed entry cannot borrow a previous attempt\'s "deployed nothing" as proof of its own');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

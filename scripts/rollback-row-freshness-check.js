@@ -1217,7 +1217,18 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            is qualified by a subset word, or the entry says somewhere that one
            of the four WAS deployed. Either way the entry is asked for its
            receipt, because a partial deploy moved a live version. */
-        const nothingShipped = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i.test(entryText);
+        const NOTHING_HERE = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
+        /* AND IT HAS TO BE ABOUT THIS RUN. An entry that keeps a previous
+           attempt's history ("The current attempt failed (run `X`). The
+           previous attempt deployed nothing (run `Y`).") used to borrow that
+           older sentence as its own proof (Codex, forty-ninth round on #1306),
+           so a claim is read only where it names this heading's run or names
+           no run at all. */
+        const nothingShipped = entryText.split(/(?<=[.!?])\s|\n{2,}/).some(sentence => {
+            if (!NOTHING_HERE.test(sentence)) return false;
+            const said = (sentence.match(/\brun\s+`?#?(\d{6,})`?/) || [])[1] || '';
+            return !said || !headRunEarly || said === headRunEarly;
+        });
         /* THE FORMATTING OF THE SHIPPED FUNCTION MUST NOT DECIDE THIS. Reading
            only backticked slugs paired with `deployed`/`deploys` let "failed
            after deploying production-write. No deployment occurred after that
@@ -1234,7 +1245,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
         const someShipped = new RegExp(DEPLOY_VERB + '[^.\\n]{0,60}' + SLUG_RE, 'i').test(entryText)
             || new RegExp(SLUG_RE + '[^.\\n]{0,60}\\b(?:was |were |had been |been )?deploy(?:ed|s|ing)?\\b', 'i').test(entryText)
             || new RegExp(SLUG_RE + '[^.\\n]{0,60}\\b(?:' + LIVE_VERB + ')\\b', 'i').test(entryText)
-            || new RegExp('\\b(?:the\\s+)?(?:first|second|third|one|two|three|1st|2nd|3rd|an? )\\s*functions?\\b[^.\\n]{0,40}\\b(?:' + LIVE_VERB + ')\\b', 'i').test(entryText);
+            || new RegExp('\\b(?:the\\s+)?(?:first|second|third|one|two|three|1st|2nd|3rd|an? )\\s*functions?\\b[^.\\n]{0,40}\\b(?:' + LIVE_VERB + '|(?:was |were |had been |been )?deploy(?:ed|s|ing)?)\\b', 'i').test(entryText);
         /* AND IT MUST DESCRIBE THIS DEPLOY. A successful entry that keeps the
            history of an earlier attempt ("Completed successfully. The previous
            attempt failed; no deployment occurred in run `Y`.") used to exempt

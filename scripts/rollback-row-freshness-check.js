@@ -822,6 +822,10 @@ const AHEAD_WORDS = 'until|pending|awaiting|await|next|future|upcoming|planned|p
    deployment and a routine check could block an otherwise-correct rollback
    update (Codex, fifty-fifth round on #1306). */
 const CHECK_WORDS = 'dry[- ]?runs?|validations?|validated?|verifications?|verified|confirmations?|checks?|checking|checked|read[- ]?backs?|audits?|plan[- ]only|plan mode|previews?|no-?ops?|typechecks?|lint|smoke[- ]?tests?|probes?';
+/* The nouns and verbs a sentence uses when it is ABOUT the dispatch. A
+   forward-looking word only plans the dispatch in a sentence that mentions one
+   (Codex, eighty-first round on #1306). */
+const DISPATCH_SUBJECT = /\b(?:dispatch(?:ed|es|ing)?|deploy(?:ed|s|ing|ment|ments)?|redeploy(?:ed|ing)?|run|runs|re-?runs?|lane|workflow|job|releas(?:e|ed|es|ing)|shipp?(?:ed|ing|s)?|rollout|roll(?:ed|ing)? out|cut ?over)\b/i;
 const DISPATCH_DONE = new RegExp('\\b(' + DONE_WORDS + ')\\b', 'i');
 const DISPATCH_AHEAD = new RegExp('\\b(' + AHEAD_WORDS + ')\\b', 'i');
 const CHECK_ONLY = new RegExp('\\b(' + CHECK_WORDS + ')\\b', 'i');
@@ -1001,8 +1005,25 @@ function recordsADispatch(log, k, len) {
        the plan behind a run that has since finished (Codex, forty-eighth round
        on #1306). Only a clause with no predicate of its own is dropped. */
     const APPOSITIVE = /,\s*(?:originally\s+|initially\s+|previously\s+)?(?:scheduled|planned|slated|booked|expected|intended|due)\s+(?:for|on|to run|to go)\b[^,.\n]*,/gi;
+    /* A FORWARD-LOOKING WORD GOVERNS THE DISPATCH ONLY IN A SENTENCE ABOUT IT.
+       "This will support the new applicant columns. Completed successfully (run
+       `X`)" records a finished dispatch with a note about what it is for, but
+       the note's "will" preceded the completion and made the whole record a
+       plan, so a lane that can move `production-write` went unseen (Codex,
+       eighty-first round on #1306). Where more than one sentence is being read,
+       those that mention no dispatch, run or lane and carry no verdict are set
+       aside first; a single clause is always read whole. */
+    const dropAsides = text => {
+        /* A heading ends a sentence without a full stop, so a paragraph break
+           separates too -- otherwise the heading and the aside below it read as
+           one sentence and the heading's own lane keeps the aside. */
+        const sents = text.split(/(?<=[.!?])\s+|\n{2,}/);
+        if (sents.length < 2) return text;
+        const kept = sents.filter(x => DISPATCH_SUBJECT.test(x) || /\bLANE\b/.test(x) || DISPATCH_DONE.test(x));
+        return kept.length ? kept.join(' ') : text;
+    };
     const plans = text => {
-        const t = dropIntro(norm(text)).replace(APPOSITIVE, ' ').replace(ADJECTIVAL, ' ');
+        const t = dropAsides(dropIntro(norm(text)).replace(APPOSITIVE, ' ').replace(ADJECTIVAL, ' '));
         const ahead = firstIndex(DISPATCH_AHEAD, t);
         if (ahead < 0) return false;
         const done = firstIndex(DISPATCH_DONE, t);
@@ -1100,6 +1121,9 @@ function recordsADispatch(log, k, len) {
        ("Smoke probe completed successfully" is about the probe). */
     if (!/\bNEGATED\b/.test(norm(whole)) && !CHECK_ONLY.test(whole)) {
         const opensWithVerdict = new RegExp('^(?:(?:it|this|that|which|was|were|is|has|had|been|also|then|all|not|never)\\s+)*(?:' + DONE_WORDS + '|NOT DISPATCHED|' + AHEAD_WORDS.replace(/LANE /g, '') + '|failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b', 'i');
+        /* What the sentence opens with, split: an outcome already reached, or
+           only a forward-looking word. */
+        const opensWithOutcome = new RegExp('^(?:(?:it|this|that|which|was|were|is|has|had|been|also|then|all|not|never)\\s+)*(?:' + DONE_WORDS + '|NOT DISPATCHED|failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b', 'i');
         /* AND CONTEXT MAY STAND BETWEEN THE LABEL AND ITS RESULT. Reading only
            the FIRST sentence after the reference dropped the record whenever
            two sentences of context preceded "Completed successfully (run `X`)",
@@ -1115,7 +1139,18 @@ function recordsADispatch(log, k, len) {
             const nm = rest.match(/[.;!?](?=\s|$)/);
             const cand = (nm ? rest.slice(0, nm.index) : rest).replace(/^\s*(?:Result|Outcome|Status|Verdict)\s*:\s*/i, '').trim();
             rest = nm ? rest.slice(nm.index + 1) : '';
-            if (cand && opensWithVerdict.test(cand)) { next = cand; break; }
+            if (!cand || !opensWithVerdict.test(cand)) continue;
+            /* A FORWARD-LOOKING SENTENCE STOPS THE SCAN ONLY WHEN IT IS ABOUT
+               THE DISPATCH. "This will support the new applicant columns"
+               opens with a planning word and says nothing about the run, but it
+               ended the scan and discarded the completion below it (Codex,
+               eighty-first round on #1306). A prospective sentence about
+               anything else is context and the scan reads on; "Will be
+               dispatched tomorrow" still ends it, because that is the label's
+               own result. */
+            if (!opensWithOutcome.test(cand) && !DISPATCH_SUBJECT.test(cand)) continue;
+            next = cand;
+            break;
         }
         if (next) {
             if (/\bNOT DISPATCHED\b/i.test(next)) return null;
@@ -1541,17 +1576,30 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            (run `X`)" -- so neither the heading nor a JSON block carries the id,
            and an older heading date softened a NEWER deploy to a note while its
            four malformed rows went unread (Codex, eightieth round on #1306). A
-           run id counts when its own sentence says this deploy finished: not a
-           plan, not a check, not a negation, not another attempt's, and not one
-           the entry already binds to a failure. */
+           run id counts when its own sentence says this deploy finished, with
+           the completion owning the id: not a plan, not a check's own verdict,
+           not a negation, not another attempt's, and not one the entry already
+           binds to a failure. */
         const proseRuns = entryText.split(/(?<=[.!?])\s|\n{2,}/).flatMap(sentence => {
             const t = sentence.replace(RETROSPECTIVE, ' ').replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ');
             if (!DISPATCH_DONE.test(t) || /\bNEGATED\b/.test(t)) return [];
-            if (CHECK_ONLY.test(t) || OTHER_ATTEMPT.test(sentence)) return [];
+            if (OTHER_ATTEMPT.test(sentence)) return [];
             const ahead = firstIndex(DISPATCH_AHEAD, t);
             const done = firstIndex(DISPATCH_DONE, t);
             if (ahead >= 0 && (done < 0 || ahead < done)) return [];
-            return [...sentence.matchAll(/\brun\s+`?#?(\d{6,})`?/gi)].map(m => m[1]);
+            /* A CHECK WORD ANYWHERE IN THE SENTENCE IS NOT A CHECK'S RUN.
+               Discarding the whole sentence on CHECK_ONLY threw away
+               "Completed successfully (run `X`) after validation", where the
+               completion precedes and owns the id (Codex, eighty-first round on
+               #1306). A check's own verdict is already gone -- CHECK_DONE
+               removes "the validation passed" before this -- so what remains is
+               the nearest predicate rule: the id belongs to the check only when
+               a check word stands between the completion and the id. */
+            return [...t.matchAll(/\brun\s+`?#?(\d{6,})`?/gi)].filter(m => {
+                const pre = t.slice(0, m.index);
+                const lastDone = lastIndex(DISPATCH_DONE, pre);
+                return lastDone >= 0 && !CHECK_ONLY.test(pre.slice(lastDone));
+            }).map(m => m[1]);
         }).filter(r => !failureRuns.includes(r));
         const runsHere = [(h.text.match(/[Rr]un\s+`?(\d{6,})`?/) || [])[1] || '']
             .concat([...block.matchAll(/"github_run_id"\s*:\s*"?(\d{6,})/g)].map(x => x[1]))

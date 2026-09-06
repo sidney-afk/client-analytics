@@ -3247,6 +3247,79 @@ const probeAfterContextRun = run(fixture('probe-after-context', appended(probeAf
 ok(probeAfterContextRun.code === 0,
     'while a sentence that opens with a subject of its own ("Smoke probe completed successfully") is still that subject\'s verdict, not the label\'s');
 
+/* ---- 8cd. an aside is not a plan; a trailing check is not the owner (round 81) ---- */
+
+/* A FORWARD-LOOKING WORD IN AN ASIDE IS NOT A PLAN FOR THE DISPATCH. A note
+   about what the deploy is for sits between the label and its result, and its
+   "will" preceded the completion, so the whole record read as a plan and the
+   lane went unseen. */
+const asideBeforeResult = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'This will support the new applicant columns. Completed successfully (run',
+    '`34000000000`).',
+    '',
+].join('\n');
+const asideBeforeResultRun = run(fixture('aside-before-result', appended(asideBeforeResult), realRb));
+ok(asideBeforeResultRun.code === 1 && asideBeforeResultRun.json
+    && asideBeforeResultRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AN ASIDE IS NOT A PLAN: "This will support the new applicant columns" before the completion does not turn a finished dispatch into a plan');
+
+/* And a forward-looking sentence that IS about the dispatch still ends it. */
+const planAboutDispatch = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'Will be dispatched tomorrow once the capture lands.',
+    '',
+].join('\n');
+const planAboutDispatchRun = run(fixture('plan-about-dispatch', appended(planAboutDispatch), realRb));
+ok(planAboutDispatchRun.code === 0,
+    'while "Will be dispatched tomorrow" is about the dispatch itself and still reads as a plan, asking for no receipt');
+
+/* A CHECK WORD AFTER THE RUN ID DOES NOT TAKE IT. The completion precedes and
+   owns the id; discarding the sentence for containing "validation" anywhere
+   softened a malformed NEWER receipt back to a note. */
+const trailingCheckWord = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'Completed successfully (run `34000000000`) after validation.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const trailingCheckWordRun = run(fixture('trailing-check-word', appended(trailingCheckWord), realRb));
+ok(trailingCheckWordRun.code === 1 && trailingCheckWordRun.json
+    && trailingCheckWordRun.json.failures.some(f => /"2026-09-04 — F27 Section 4 deploy"/.test(f)),
+    'A TRAILING CHECK WORD DOES NOT OWN THE RUN: "Completed successfully (run `X`) after validation" still dates the entry by that run');
+
+/* But a check that owns the run outright still does, so the entry stays a note. */
+const checkOwnsTheRun = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'The validation passed (run `34000000000`).',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const checkOwnsTheRunRun = run(fixture('check-owns-the-run', appended(checkOwnsTheRun), realRb));
+ok(checkOwnsTheRunRun.code === 0 && checkOwnsTheRunRun.json
+    && checkOwnsTheRunRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy"/.test(n)),
+    'while "The validation passed (run `X`)" is the check\'s run and does not date the entry, which stays a note');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

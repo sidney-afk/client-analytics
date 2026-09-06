@@ -121,6 +121,92 @@ The integrated visible-boot workflow now runs it after the existing Samples
 browser lane and also triggers when its driver changes. Hosted execution remains
 unproven until checks complete on the published integration head.
 
+### Native completeness census: capture prerequisite remains missing
+
+**SOURCE_ONLY assessment, 2026-09-06; G5 remains held.** Inspected integration
+`8cf22ea841e77b74bf75969a525d4ccc2ff204e4` and locally preserved comparator
+PR #1279 at `c5c0fdef4780ff92d6cc24b9802b65c6ee98de18`. No live read, new
+scanner, schema change or provider operation was performed. The selected reuse
+path is `qa/workload-consistency/compare.js` from that comparator, followed by a
+native adapter for its `source-harness.js`; its old static-name eligibility and
+exact old-ID plan lookup cannot be treated as the new browser contract.
+
+The comparator already refuses to attest input provenance: `compare.js:29`
+uses declared coverage, and `compare:165` always returns population verdict
+`UNPROVEN`. Its README's normalized-input section requires a separately
+reviewed read receipt. Reuse its privacy-safe discrepancy reporting after that
+receipt exists; do not add a second scanner that trusts another `complete:true`.
+
+At the integration pin, `workload_native_snapshot_v1`
+(`migrations/2026-09-05-workload-native-membership.sql:6`) correctly counts the
+rows selected by the native view and returns them with flags and plans in one
+statement snapshot. `projectNativeSnapshot`
+(`supabase/functions/workload-plan/native-snapshot.mjs:3`) validates that
+envelope and aliases. Neither supplies an independent base-table denominator
+or a capture identity that binds separately fetched raw records to that read.
+A mistakenly omitted native-view row would be absent from both its count and
+its payload. An empty provider mirror cannot disprove that omission.
+
+`scripts/track-b-backup.js:356` (`pgDumpArgs`) already supplies a single
+transactional dump of its selected tables. V6 includes the native owners,
+roster, flags and plans, but excludes `workload_issues` and does not export a
+shared snapshot token or capture the Workload RPC result inside that dump.
+`scripts/card-history-workload-rehearsal.js:97` and `:116` compare handler
+results before and after a synthetic restore; they do not implement a serving
+capture of an independently counted population. Repeated REST reads, matching
+timestamps, maximum `updated_at`, or a data-only restore receipt cannot fill
+this gap for concurrent inserts, deletes, flag changes or roster moves.
+
+The minimum missing implementation is a **private, reviewed read-only capture
+adapter**, not a new table or an anonymous roster endpoint:
+
+1. Use one explicitly bound database connection and a read-only repeatable-read
+   transaction. Capture the raw `workload_native_snapshot_v1()` result and the
+   independent inputs under that same snapshot. A paginated or parallel export
+   must import one exported PostgreSQL snapshot while its exporting transaction
+   remains open; unbound pages or transactions must refuse certification.
+2. Capture complete `deliverables`, their `batches`, `clients`, `team_members`,
+   all `workload_plan` keys, `prod_authority`, and the required native-view and
+   metadata observations. Record exact counts before eligibility filtering and
+   ordered unique primary keys, including excluded rows. Capture the complete
+   relevant `workload_issues` population if assessing legacy VID/GRA or CON/STR;
+   otherwise explicitly withhold those coverage claims. The provider mirror
+   is never the native denominator or proof of actual provider-only work.
+3. Derive eligibility from the actual native-view structural container rule
+   (`migrations/2026-09-02-workload-native-view.sql:263`), batch archive state,
+   team authority, strict active-client and exact active member role/team
+   membership (`editor`/`video`, `designer`/`graphics`). Preserve the current
+   status mapping, native/provider assignee
+   alias, unassigned/undated/excluded accounting and saved-plan aliases. Execute
+   the pinned `wlApplyData` (`index.html:16729`) and `wlSortSubIssues` (`:18288`)
+   semantics over the complete candidate set; do not activate `native_sort_key`
+   as browser `sort_order` or infer a plan owner from a name.
+4. Bind one unique capture ID, database identity privately, database snapshot
+   identity, start/end times, exact query/schema/RPC/view/label-helper hashes,
+   source browser/handler hashes and each section's count/byte digest in one
+   integrity-protected receipt. Definition drift, unknown columns/statuses,
+   missing relations/grants, malformed rows, duplicate identities, ambiguous
+   aliases, missing pages or count/digest disagreement must stop the result.
+   Exact serving closure and later observation are separate required evidence;
+   an offline receipt cannot promote itself to installed/live readiness.
+
+The adapter's required finite controls are: one eligible native-only row with
+an empty mirror still appears in the denominator; removing it only from the
+observed snapshot fails; deliberately truncated/duplicated/malformed inputs
+fail; a moved client/member/authority between unbound reads refuses comparison;
+a single shared read preserves a coherent old or new population; legitimate
+container/archive/status/roster exclusions remain counted; both plan aliases
+and the browser's actual ordering survive comparison. These controls are
+**required, not implemented or passed by this assessment**. Existing SQL and
+Chromium tests do not replace this native completeness census. Implement and
+review this capture boundary before extending the comparator or running it on
+private data. No new server capability has been installed or proven necessary:
+an approved existing SQL read channel could support it, but no such capture
+adapter currently binds these inputs and output together. A standalone
+read-only SQL capture and disposable rehearsal need no application/schema
+change; that implementation and the comparator's native adapter remain the
+next bounded slice, not a reason to require a new public API.
+
 Execution remains owner-coordinated: (1) capture exact serving `workload-plan`
 closure, current flags, grants, stored-plan counts/keys and schema/data restore
 point privately; prove installed native view/label helper and eligible population

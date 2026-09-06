@@ -247,12 +247,19 @@ function deployAnchors(log) {
            deployed functions — run `X`" carries a deploy word in its object,
            not in what the heading records (Codex, sixty-first round on #1306),
            so the leading verb decides before any deploy word is read. */
-        const leads = named.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
+        /* AND "DEPLOYED" AS AN ADJECTIVE DESCRIBES THE OBJECT, NOT THE ACT.
+           "Inspect deployed functions — run `X`" says what is being looked at,
+           so the word is dropped where it modifies a noun rather than governing
+           a phrase ("deployed via", "deployed from" still record a deploy).
+           Object-shaped, so no list of check verbs has to be complete (Codex,
+           sixty-second round on #1306). */
+        const objectless = named.replace(/\bdeployed\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b)[a-z]+\b/gi, ' ');
+        const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
-        const saysDeploy = /\bdeploy|releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(named)
-            || /(Section 4|§4)/i.test(named);
+        const saysDeploy = /\bdeploy|releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(objectless)
+            || /(Section 4|§4)/i.test(objectless);
         if (!saysDeploy) continue;
-        if (otherActivity.test(named) && !/\bdeploy/i.test(named)) continue;
+        if (otherActivity.test(objectless) && !/\bdeploy/i.test(objectless)) continue;
         out.push({ at: m.index, run: m[1] });
     }
     while ((m = prose.exec(log))) out.push({ at: m.index, run: m[1] });

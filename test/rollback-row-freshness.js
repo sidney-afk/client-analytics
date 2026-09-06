@@ -2656,6 +2656,26 @@ const failedDeploymentAdjectiveRun = run(fixture('failed-deployment-adjective', 
 ok(failedDeploymentAdjectiveRun.code === 0,
     'while "failed" describes a state, not an order: "the failed deployment deployed nothing" is this run describing itself and asks for nothing');
 
+/* ---- 8bk. "deployed" as an adjective describes the object (round 62) ---- */
+const inspectDeployedHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Inspect deployed functions — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const inspectDeployedHeadingRun = run(fixture('inspect-deployed-heading', appended(inspectDeployedHeading), realRb));
+ok(inspectDeployedHeadingRun.code === 1 && inspectDeployedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(inspectDeployedHeadingRun.json.failures)),
+    '"DEPLOYED" AS AN ADJECTIVE DESCRIBES THE OBJECT: "Inspect deployed functions — run `X`" is not an anchor, and no list of check verbs has to know the word "inspect"');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

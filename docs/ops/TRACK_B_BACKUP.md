@@ -374,3 +374,15 @@ freshness failure emails only; it changes no runtime flag, production authority,
 or live write path. The existing weekly private backup continues independently.
 
 **Integrated recovery follow-up, local/held:** `history-v6` adds the two FK-free recovery ledgers to v5 as a new exact35-table format. Prior versions retain their authenticated meaning; old restores refuse targets with newer recovery evidence. See `INTEGRATED_RECOVERY_CORPUS.md` for the finite combined proof, schema-artifact and feedback-RPC holds, manual prerequisites and unchanged legacy schedule default.
+
+**Materialization recovery follow-up, local/held:** `history-v7` is an explicit
+37-table format: v6's exact35 plus
+`production_card_materialization_receipts` and
+`production_card_materialization_ingress`, each with UUID `id` primary keys.
+The scheduled default remains v3. v6 and earlier recovery paths refuse a target
+that already contains either retained owner before the applicable source
+preflight can proceed or restore can disable triggers/truncate data. This source-only package does
+not install either table, grant an operational role, capture production data or
+prove an authenticated schema reconstruction, restored writer behavior, or
+live recovery. A future owner-run v7 grant artifact and an independently owned
+scratch proof remain required before selecting v7 for any capture.

@@ -91,6 +91,14 @@ const INTEGRATED_HISTORY_TABLES = Object.freeze([...CLOSED_HISTORY_TABLES,
   { name: 'production_card_provenance', pk: 'id', identity: true },
   { name: 'calendar_feedback_materializations', pk: 'attempt_key' },
 ]);
+// v7 deliberately adds only the two retained materialization owners. Both use
+// UUID primary keys and have neither identities nor foreign-key coverage to
+// inherit, so v6 must refuse them rather than treating a present empty table
+// as evidence it can safely capture or restore the older corpus.
+const MATERIALIZATION_HISTORY_TABLES = Object.freeze([...INTEGRATED_HISTORY_TABLES,
+  { name: 'production_card_materialization_receipts', pk: 'id' },
+  { name: 'production_card_materialization_ingress', pk: 'id' },
+]);
 const CORPORA = Object.freeze({
   'legacy-v3': Object.freeze({ name: 'legacy-v3', version: 3, magic: PACKAGE_MAGIC, tables: TABLES }),
   'history-v4': Object.freeze({ name: 'history-v4', version: 4,
@@ -99,6 +107,8 @@ const CORPORA = Object.freeze({
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V5\n', 'utf8'), tables: CLOSED_HISTORY_TABLES }),
   'history-v6': Object.freeze({ name: 'history-v6', version: 6,
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V6\n', 'utf8'), tables: INTEGRATED_HISTORY_TABLES }),
+  'history-v7': Object.freeze({ name: 'history-v7', version: 7,
+    magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V7\n', 'utf8'), tables: MATERIALIZATION_HISTORY_TABLES }),
 });
 
 function resolveCorpus(name = 'legacy-v3') {
@@ -114,7 +124,8 @@ function manifestCorpus(manifest) {
   const name = manifest && manifest.schema_version === 3 ? 'legacy-v3'
     : manifest && manifest.schema_version === 4 ? 'history-v4'
       : manifest && manifest.schema_version === 5 ? 'history-v5'
-        : manifest && manifest.schema_version === 6 ? 'history-v6' : '';
+        : manifest && manifest.schema_version === 6 ? 'history-v6'
+          : manifest && manifest.schema_version === 7 ? 'history-v7' : '';
   const corpus = resolveCorpus(name);
   if ((corpus.version >= 4 || manifest.corpus != null) && manifest.corpus !== corpus.name) {
     throw new Error('Track-B snapshot corpus does not match its schema version');
@@ -293,6 +304,7 @@ function corpusBoundarySql(corpusName) {
   // diagnostics. RESTRICT remains the ultimate restore race guard.
   return `do $corpus_boundary$ declare covered oid[] := array[${relations}]::oid[]; begin
 ${corpus.version < 6 ? "if to_regclass('public.production_card_provenance') is not null or to_regclass('public.calendar_feedback_materializations') is not null then raise exception 'Track-B package omits integrated recovery evidence'; end if;" : ''}
+${corpus.version < 7 ? "if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if;" : ''}
 if exists(select 1 from pg_catalog.pg_constraint where contype='f'
   and confrelid=any(covered) and not conrelid=any(covered)) then
   raise exception 'Track-B corpus has an omitted incoming foreign key';
@@ -1259,6 +1271,7 @@ module.exports = {
   HISTORY_TABLES,
   CLOSED_HISTORY_TABLES,
   INTEGRATED_HISTORY_TABLES,
+  MATERIALIZATION_HISTORY_TABLES,
   corpusBoundarySql,
   readOnlyPrivilegeArgs,
   configuredCorpus,

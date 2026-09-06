@@ -47325,7 +47325,9 @@
                     linear_issue_url: String(item.linear_issue_url || ''),
                     title: String(item.title || ''), video_number: Number(item.video_number || 0)
                 })),
-                mirror_pending: result.mirror_pending === true
+                mirror_pending: result.mirror_pending === true,
+                ...(Object.prototype.hasOwnProperty.call(result, 'card_materialization')
+                    ? { card_materialization: result.card_materialization } : {})
             },
             completed_card_ids: Array.isArray(job && job.completed_card_ids) ? job.completed_card_ids.slice() : [],
             stage: String(job && job.stage || 'materializing_cards'),
@@ -48277,6 +48279,49 @@
         return { mapped, cards: Array.from(cards.values()).sort((a, b) => a.number - b.number) };
     }
 
+    function _nativeAcceptedCardTransport(job, validated, card, clientSlug, isSamples) {
+        const result = job && job.result || {};
+        // Older accepted provider work has no server projection: retain its
+        // established generic route exactly. A present projection is strict.
+        if (!Object.prototype.hasOwnProperty.call(result, 'card_materialization')) return null;
+        const payload = job && job.payload || {};
+        const context = job && job.context || {};
+        const payloadSurface = String(payload.surface || '');
+        const expectedSource = isSamples
+            ? (payloadSurface === 'sxr' ? 'samples-native' : '')
+            : (payloadSurface === 'calendar' ? 'calendar-native'
+                : (payloadSurface === 'submission' ? 'submission-native' : ''));
+        const fail = () => { const error = new Error('native_card_materialization_incompatible_job'); error.code = 'native_card_materialization_incompatible_job'; throw error; };
+        const metadata = result.card_materialization;
+        const epochs = metadata && metadata.native_epochs;
+        const expectedTeams = Array.from(new Set((validated && validated.mapped || []).map(item => String(item.request && item.request.team || '')).filter(Boolean))).sort();
+        const epochTeams = epochs && typeof epochs === 'object' && !Array.isArray(epochs) ? Object.keys(epochs).sort() : [];
+        const saved = _linearIntakeRead();
+        if (!expectedSource || String(context.materialization_source || '') !== expectedSource
+            || String(context.surface || '') !== payloadSurface || String(payload.client_slug || '') !== String(clientSlug || '')
+            || !card || !String(card.cardId || '') || !metadata || metadata.version !== 1
+            || epochTeams.length !== expectedTeams.length || epochTeams.some((team, i) => team !== expectedTeams[i])
+            || epochTeams.some(team => typeof epochs[team] !== 'string' || !epochs[team])
+            || !saved || Number(saved.version) !== 3 || saved.suspended === true
+            || _linearIntakeJobId(saved) !== _linearIntakeJobId(job)
+            || JSON.stringify(saved.payload) !== JSON.stringify(payload) || JSON.stringify(saved.result) !== JSON.stringify(result)) fail();
+        let savedCards;
+        try { savedCards = _linearIntakeValidateResult(saved, saved.result).cards; } catch (error) { fail(); }
+        if (!savedCards.some(item => String(item && item.cardId || '') === String(card.cardId))) fail();
+        return { transport: 'supabase', source: expectedSource };
+    }
+
+    function _nativeAcceptedCurrentCard(row, isSamples, clientSlug, cardId, original) {
+        const common = `updated_at order_index name asset_url thumbnail_url status linear_issue_id graphic_linear_issue_id video_deliverable_id graphic_deliverable_id kasper_approved_at video_status graphic_status video_tweaks graphic_tweaks client_video_approved_at client_graphic_approved_at kasper_seen kasper_approved_after_tweaks thumb_rev kasper_finished_at kasper_closed_at video_status_at graphic_status_at video_urgent_pinged_at video_urgent_status_at video_urgent_issue video_urgent_editor`.split(/\s+/);
+        const surface = isSamples
+            ? ['creative_direction', 'hide_creative_direction', 'kasper_approved_by', 'created_at']
+            : `scheduled_date caption caption_alt caption_alt_platform post_url cta tweaks posted_at platform platforms color caption_status caption_tweaks client_caption_approved_at title_status title_tweaks client_title_approved_at kasper_finish_log`.split(/\s+/);
+        if (!row || typeof row !== 'object' || Array.isArray(row) || row.client !== clientSlug || row.id !== cardId) return false;
+        if (![...common, ...surface].every(field => Object.prototype.hasOwnProperty.call(row, field)
+            && (row[field] === null || typeof row[field] === 'string'))) return false;
+        return ['video_deliverable_id', 'graphic_deliverable_id'].every(field => (original[field] ?? '') === (row[field] ?? ''));
+    }
+
     async function _writeNativeSubmissionCardsToCalendar(job) {
         _linearIntakeRequireActor(job);
         const result = job && job.result;
@@ -48314,6 +48359,7 @@
                 graphic_deliverable_id: graphic && graphic.row.id || ''
             };
             _linearIntakeRequireActor(job);
+            const nativeTransport = _nativeAcceptedCardTransport(job, validated, card, clientSlug, isSamples);
             const materializationSource = String(job && job.context && job.context.materialization_source
                 || (job && job.payload && job.payload.surface === 'calendar' ? 'calendar-native' : 'submission-native'));
             /* A sample row carries creative_direction where a calendar post
@@ -48335,10 +48381,16 @@
                 }
                 : post;
             const response = isSamples
-                ? await _sxrUpsertFetch(clientSlug, { client: clientSlug, sample: row, comments_base_at: '' }, materializationSource)
-                : await _calUpsertFetch(clientSlug, { client: clientSlug, post: row }, materializationSource);
+                ? (nativeTransport
+                    ? await _sxrUpsertFetchPinned(clientSlug, { client: clientSlug, sample: row, comments_base_at: '' }, nativeTransport.source, nativeTransport.transport)
+                    : await _sxrUpsertFetch(clientSlug, { client: clientSlug, sample: row, comments_base_at: '' }, materializationSource))
+                : (nativeTransport
+                    ? await _calUpsertFetchPinned(clientSlug, { client: clientSlug, post: row }, nativeTransport.source, nativeTransport.transport)
+                    : await _calUpsertFetch(clientSlug, { client: clientSlug, post: row }, materializationSource));
             const json = await response.json().catch(() => ({}));
-            if (!response.ok || !json || json.ok !== true) {
+            const current = json && json[isSamples ? 'sample' : 'post'];
+            if (!response.ok || !json || json.ok !== true
+                || (nativeTransport && !_nativeAcceptedCurrentCard(current, isSamples, clientSlug, cardId, row))) {
                 throw new Error(isSamples ? 'sample_card_write_failed' : 'calendar_card_write_failed');
             }
             if (isSamples) {
@@ -48473,6 +48525,11 @@
         } else {
             _linearIntakeValidateResult(job, result);
             _linearIntakeRequireActor(job);
+            /* Sign-out stores an accepted result as a suspended recovery copy.
+               The same verified actor must durably thaw that exact copy before
+               its native card transport can resume; leaving it suspended turns
+               a recoverable card failure into repeated strike accounting. */
+            if (job.suspended === true) _linearIntakeCheckpointOrSuspend(job);
         }
         _linearIntakeRequireActor(job);
         _linearIntakeSendTelemetry(job);

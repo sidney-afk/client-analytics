@@ -16,7 +16,9 @@ their existing source authorization; serving compatibility and n8n fallback rout
 Native card loopback HTTP proof: `test/native-card-materialization-http.js`,
 `scripts/native-card-materialization/http-edge.mjs`, `scripts/native-card-materialization/http-lane.mjs`,
 `docs/audits/2026-09-06-native-card-http-proof.md` and
-`docs/audits/2026-09-06-native-card-http-proof-evidence.json`.
+`docs/audits/2026-09-06-native-card-http-proof-evidence.json`. `test/native-card-materialization-native-route.js`
+extracts the accepted-job browser selector: only server-projected immutable native epochs use EF; absent metadata preserves
+provider-era routing and malformed metadata holds. This is held source preparation, not installed admission.
 Actual source handlers and service RPC use only an explicitly owned disposable database;
 dated anonymous captures are optional private fixtures, not serving proof.
 

@@ -48485,6 +48485,11 @@
         } else {
             _linearIntakeValidateResult(job, result);
             _linearIntakeRequireActor(job);
+            /* Sign-out stores an accepted result as a suspended recovery copy.
+               The same verified actor must durably thaw that exact copy before
+               its native card transport can resume; leaving it suspended turns
+               a recoverable card failure into repeated strike accounting. */
+            if (job.suspended === true) _linearIntakeCheckpointOrSuspend(job);
         }
         _linearIntakeRequireActor(job);
         _linearIntakeSendTelemetry(job);

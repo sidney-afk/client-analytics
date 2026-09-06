@@ -316,9 +316,18 @@ end if;
 end $corpus_boundary$;\n`;
 }
 
+function materializationPresenceSql() {
+  return "do $materialization_boundary$ begin if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if; end $materialization_boundary$;\n";
+}
+
 function readOnlyPrivilegeSql(corpusName = 'legacy-v3') {
-  const boundary = resolveCorpus(corpusName).version >= 5 ? corpusBoundarySql(corpusName) : '';
-  return boundary + resolveCorpus(corpusName).tables.map(config => {
+  const corpus = resolveCorpus(corpusName);
+  // Keep v3/v4's original privilege protocol free of broader history/FK
+  // checks. They only gain the known post-v6 owner-presence refusal, so an
+  // older package can never be acknowledged complete after those owners exist.
+  const boundary = corpus.version >= 5 ? corpusBoundarySql(corpusName)
+    : corpus.version < 7 ? materializationPresenceSql() : '';
+  return boundary + corpus.tables.map(config => {
     const relation = `public.${config.name}`;
     return `select '${config.name}', has_table_privilege(current_user, '${relation}', 'SELECT'), `
       + `has_table_privilege(current_user, '${relation}', 'INSERT'), `

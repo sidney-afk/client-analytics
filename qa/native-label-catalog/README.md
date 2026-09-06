@@ -1,5 +1,14 @@
 # Native label proof
 
+2026-09-06 combined UI test correction from PR1326 `dd831df58adba6b7398e17ce49f3a7a6e1665e7b`:
+`node test/production-write-ui-source.js` now has 72 passing source/VM checks,
+including four actual label-writer plus gateway-constructor cases for native and
+provider selections/clears. They assert the complete IDs, native-only catalog
+version, target, CAS, one intent and one authenticated request. The old assertion
+incorrectly required a labels-only literal. In-memory mutations dropping clear
+actions or changing the version fail the corrected suite. No runtime, SQL or
+deployment behavior changes; this proof substitutes transport and identity.
+
 Contract: [native catalog and writes](../../docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md). Base8514; original cloud892894 remains preserved.
 
 - node test/native-label-catalog-foundation.js runs44 actual-handler/model controls. All HTTP fetches are substituted/refused. Optional NATIVE_LABEL_HANDLER_REPORT must point to a private receipt. Node22.12 emits expected experimental-TypeScript/module warnings. This is not SQL/SDK/serving proof.

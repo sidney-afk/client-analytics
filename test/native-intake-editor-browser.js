@@ -12,8 +12,49 @@ let checks=0;
 function pass(label){checks++;console.log('ok '+label);}
 assert.equal(extractFunction(html,'_calLegacyVideoEditorPool').replace('_calLegacyVideoEditorPool','_calNativeVideoEditorPool'),extractFunction(oldHtml,'_calNativeVideoEditorPool'));
 pass('provider browser loader body remains exact');
-for(const symbol of ['autoAssigneeForIntake','intakeAssigneePool','assertEligibleAssignee','handleIntakeCreate','handleCreateOptions']) {
+for(const symbol of ['autoAssigneeForIntake','intakeAssigneePool','assertEligibleAssignee','handleCreateOptions']) {
  assert.equal(extractFunction(gateway,symbol),extractFunction(oldGateway,symbol));pass(symbol+' remains exact');
+}
+// Accepted native intake now adds routing metadata to its terminal response.
+// Remove ONLY these exact additive bytes before pinning the entire historical
+// handler. Authorization, intake/receipt creation and every old response field
+// must still match; this does not waive arbitrary handler drift.
+const currentIntake=extractFunction(gateway,'handleIntakeCreate');
+const materializationBlock=`  // Browser routing metadata only. The epoch was resolved server-side from
+  // the accepted manifest/receipt before any provider read; absent metadata
+  // intentionally leaves existing provider-era browser jobs unchanged.
+  const cardMaterialization = teamList.length > 0
+    && currentResponseItems.length === plannedItems.length
+    && teamList.every(team => !!clean(nativeEpochByTeam[team]))
+    && currentResponseItems.every(item => !!clean(nativeEpochByTeam[normalizeTeam(item.team)]))
+    ? { version: 1, native_epochs: Object.fromEntries(teamList.map(team => [team, nativeEpochByTeam[team]])) }
+    : null;
+`;
+const materializationField='    ...(cardMaterialization ? { card_materialization: cardMaterialization } : {}),\n';
+assert.equal(currentIntake.split(materializationBlock).length,2);
+assert.equal(currentIntake.split(materializationField).length,2);
+assert.equal(currentIntake.replace(materializationBlock,'').replace(materializationField,''),extractFunction(oldGateway,'handleIntakeCreate'));
+pass('intake authorization, commits and original response remain exact around accepted native routing metadata');
+const metadataSource=currentIntake.slice(currentIntake.indexOf(materializationBlock),currentIntake.indexOf(materializationBlock)+materializationBlock.length);
+function metadata(teams,epochs,items,plannedCount=items.length) {
+ return JSON.parse(JSON.stringify(vm.runInNewContext(metadataSource+'\n({'+materializationField+'})',{
+  teamList:teams,nativeEpochByTeam:epochs,currentResponseItems:items,plannedItems:Array(plannedCount),
+  clean:value=>String(value??'').trim(),normalizeTeam:value=>String(value??'').toLowerCase(),
+ })));
+}
+for(const teams of [['video'],['graphics'],['video','graphics']]) {
+ const epochs=Object.fromEntries(teams.map(team=>[team,'accepted-'+team]));
+ assert.deepEqual(metadata(teams,epochs,teams.map(team=>({team}))),{card_materialization:{version:1,native_epochs:epochs}});
+ pass('complete accepted '+teams.join('+')+' receipt emits its original routing epochs');
+}
+for(const [label,teams,epochs,items,count] of [
+ ['no-team',[],{},[],0],['provider',['video'],{},[{team:'video'}],1],
+ ['mixed-provider',['video','graphics'],{video:'accepted-video'},[{team:'video'},{team:'graphics'}],2],
+ ['blank-epoch',['video'],{video:' '},[{team:'video'}],1],
+ ['partial-items',['video'],{video:'accepted-video'},[],1],
+ ['foreign-response-team',['video'],{video:'accepted-video'},[{team:'graphics'}],1],
+]) {
+ assert.deepEqual(metadata(teams,epochs,items,count),{});pass(label+' response cannot advertise native card transport');
 }
 // Existing-card options gained a separate capability after the intake picker.
 // Keep its entire old authorization prefix and response contract pinned; only

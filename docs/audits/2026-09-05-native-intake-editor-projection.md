@@ -1,5 +1,15 @@
 # Native Create Post editor projection — source candidate
 
+**2026-09-06 integrated test correction:** PR1326 source `dd831df58adba6b7398e17ce49f3a7a6e1665e7b`
+adds reviewed accepted-native card routing metadata to the intake response. The
+old whole-function pin therefore failed locally. The test now removes only that
+exact additive block/field before comparing every remaining historical byte;
+existing assignment authorization/response pins remain unchanged. Nine additional
+actual-expression controls bring the picker suite to 46 passing checks. The
+unchanged card-routing suite passes 11 checks. An injected unrelated intake change
+still fails the pin. These are offline source/VM results, not new runtime changes
+or serving proof; the original component evidence below retains its dated scope.
+
 Base: public PR1309 `69ae5d338486bd8084e6bbdbe65be1c44f63dbe1`.
 Remote main was separately recorded as
 `ab6366136c03239965c97b050ab5cf7c9763a228`; it was not merged into this branch.

@@ -1,5 +1,13 @@
 # Linear removal: completion accounting
 
+## September 6 UTC: held selected37 schema recovery prepared; hosted check pending
+
+[Draft PR #1324](https://github.com/sidney-afk/client-analytics/pull/1324), exact `8514a83ed1a65145a3a51ffe52e5fcbb2976be31`, is based on PR1323 `bbe030766e595fccd88adaa98d97ca5177f2226e` and preserves canonical history-v7 while adding a held selected37 schema/data reconstruction companion. The default schedule remains legacy-v3; no application adapter, client behavior, installed schema, role or live path changes.
+
+Evidence is deliberately separate: `26691a9d` passed16 local migration-shaped schema/data/replay groups across selected37 tables (106 synthetic rows:18 populated,19 empty), while `985ec992` adds three actual disposable SQL target-state observation/outcome groups through a pre-DDL renderer seam. The latter corrects function/type-only false retry guidance; it is not another full restore. Seven selected public tables have omitted data, and the first `2dcafbf1` attempt remains an actual13-group failed fixture result. The dedicated disposable CI step is source-only and hosted execution is pending.
+
+This bounded recovery preparation does not complete G3 activation, authenticated installed-schema recovery, label ownership, serving/client proof, provider/workflow/alert behavior, or full-platform backup. The next G3 engineering boundary remains real HTTP and both legacy n8n transports preserving accepted input and compatible current-row/refusal semantics before automatic creation can activate. Unknown or committed targets stay quarantined; only a verified empty rollback permits in-place retry.
+
 ## September 6 UTC: retained card recovery published; reassignment hosted checks closed
 
 [Draft PR #1323](https://github.com/sidney-afk/client-analytics/pull/1323), exact **`bbe030766e595fccd88adaa98d97ca5177f2226e`**, preserves the native materialization SQL and explicit history-v7 recovery histories together on unchanged PR1318 **`38f29bc6d3159ddda4b698819626f1efbd37c0b3`**. It adds a service-only root-intake boundary with exact supplied-text retention, immutable creation receipts, current-row replay and default hold; explicit v7 covers the unchanged35 v6 owners plus its two retained owners. Old format identities and the legacy-v3 scheduled default remain unchanged. No serving adapter is wired or capability installed.

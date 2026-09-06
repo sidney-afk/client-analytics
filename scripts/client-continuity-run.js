@@ -27,7 +27,12 @@ function resolvePageSource(config,root=ROOT) {
   const pageSourceSha=config.pageSourceSha===undefined?config.releaseSha:config.pageSourceSha;
   requireValue(typeof pageSourceSha==='string'&&/^[a-f0-9]{40}$/.test(pageSourceSha),'release_mismatch');
   requireValue(typeof config.pageSha256==='string'&&/^[a-f0-9]{64}$/.test(config.pageSha256),'release_mismatch');
-  const git=args=>execFileSync('git',['--no-replace-objects',...args],{cwd:root,stdio:['ignore','pipe','pipe'],maxBuffer:16000000});
+  const git=args=>execFileSync('git',['--no-replace-objects',...args],{
+    cwd:root,stdio:['ignore','pipe','pipe'],maxBuffer:16000000,timeout:10000,windowsHide:true,
+    // cat-file may otherwise fetch absent objects in a partial clone. A local
+    // release proof must neither contact the remote nor wait for credentials.
+    env:{...process.env,GIT_NO_LAZY_FETCH:'1',GIT_TERMINAL_PROMPT:'0'},
+  });
   try {
     // Full local commit IDs only. No fetch, branch, tag, URL or revision syntax.
     requireValue(git(['cat-file','-t',pageSourceSha]).toString().trim()==='commit','release_mismatch');

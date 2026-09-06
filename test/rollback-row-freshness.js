@@ -3133,6 +3133,34 @@ const failedBeforeDeployingDirectRun = run(fixture('failed-before-deploying-dire
 ok(failedBeforeDeployingDirectRun.code === 0,
     'AND THE DIRECT PRE-DEPLOY FORM IS THE SAME EVIDENCE: "failed before deploying any function" asks for no receipt either');
 
+/* ---- 8cb. the section is the scope; a check is not a deploy step (round 79) ---- */
+const laneHeadingLaterResult = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions`',
+    '',
+    'The staff functions were re-pinned after the schema change, which is why this ran',
+    'outside the usual window.',
+    '',
+    'Completed successfully (run `34000000000`).',
+    '',
+].join('\n');
+const laneHeadingLaterResultRun = run(fixture('lane-heading-later-result', appended(laneHeadingLaterResult), realRb));
+ok(laneHeadingLaterResultRun.code === 1 && laneHeadingLaterResultRun.json
+    && laneHeadingLaterResultRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'THE SECTION IS THE SCOPE: a heading, a paragraph of context, then "Completed successfully (run `X`)" is one record, not a heading with no verdict');
+
+const beforeVerification = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The run failed before any function verification.',
+    '',
+].join('\n');
+const beforeVerificationRun = run(fixture('before-verification', appended(beforeVerification), realRb));
+ok(beforeVerificationRun.code === 1 && beforeVerificationRun.json
+    && beforeVerificationRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'AND A CHECK IS NOT A DEPLOY STEP: "failed before any function verification" says when the checking stopped, not that nothing shipped');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

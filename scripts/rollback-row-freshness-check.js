@@ -747,7 +747,12 @@ function referenceScope(log, k, len) {
     if (/^#{2,6}\s/.test(lines[idx].text)) {
         let b = idx;
         while (b + 1 < lines.length && isBlank(lines[b + 1].text)) b++;
-        while (b + 1 < lines.length && !isBlank(lines[b + 1].text) && !/^#{1,6}\s/.test(lines[b + 1].text)) b++;
+        /* AND THROUGH THE WHOLE SECTION, not just the first paragraph under it:
+           a heading, a paragraph describing the change, then "Completed
+           successfully (run `X`)" is one record, and stopping at the first
+           blank line lost the verdict (Codex, seventy-ninth round on #1306).
+           The next heading still ends it. */
+        while (b + 1 < lines.length && !/^#{1,6}\s/.test(lines[b + 1].text)) b++;
         return { from: lines[idx].from, to: lines[b].to };
     }
     /* Backwards to the item's bullet line. Crossing a blank line is allowed
@@ -913,7 +918,7 @@ function recordsADispatch(log, k, len) {
        the four). Failure wording is a negation only where the record says the
        whole run deployed nothing; otherwise the run is read like any other and
        its dispatch stands. */
-    const NOTHING_SHIPPED = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|never deployed|before any (?:mutation|deploy|function)|before (?:it|they|we|the run|the lane|the job) could deploy|before deploying)\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
+    const NOTHING_SHIPPED = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|never deployed|before any (?:mutation|deploy)\b|before any functions?\b(?!\s+[a-z])|before (?:it|they|we|the run|the lane|the job) could deploy|before deploying)\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
     /* AND THE CLAIM HAS TO BE ABOUT THIS ATTEMPT. "the current run `X` failed,
        while the previous attempt deployed nothing" used to negate the current
        failure with the older attempt's evidence (Codex, fiftieth round on
@@ -1425,7 +1430,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            is qualified by a subset word, or the entry says somewhere that one
            of the four WAS deployed. Either way the entry is asked for its
            receipt, because a partial deploy moved a live version. */
-        const NOTHING_HERE = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy|function)|before (?:it|they|we|the run|the lane|the job) could deploy|before deploying)\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
+        const NOTHING_HERE = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy)\b|before any functions?\b(?!\s+[a-z])|before (?:it|they|we|the run|the lane|the job) could deploy|before deploying)\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
         /* AND IT HAS TO BE ABOUT THIS RUN. An entry that keeps a previous
            attempt's history ("The current attempt failed (run `X`). The
            previous attempt deployed nothing (run `Y`).") used to borrow that

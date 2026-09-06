@@ -121,7 +121,89 @@ The integrated visible-boot workflow now runs it after the existing Samples
 browser lane and also triggers when its driver changes. Hosted execution remains
 unproven until checks complete on the published integration head.
 
-### Native completeness census: capture boundary and remaining comparison
+### Native completeness census: private capture and scoped comparison
+
+**Native adapter implemented locally, 2026-09-06; live G5 remains held.**
+`qa/workload-consistency/native-adapter.js` connects the private packet below to
+the existing PR #1279 comparator, reused from
+`c5c0fdef4780ff92d6cc24b9802b65c6ee98de18`. `compare.js` keeps its historical
+default mode; its new explicit `native_workload` mode calls independently
+derived native eligibility and limits its required surfaces to native Workload.
+`source-harness.js` retains the older entry points and adds the actual current
+native reader/adoption path. No old red contract is renamed green, run against a
+different assumption, or used as a current production certificate. The original
+PR #1279 fixtures/report and its five independence failures remain separate,
+untouched historical evidence.
+
+The denominator is the complete captured `deliverables` population joined by
+exact keys to batches, clients and team members. The adapter reconstructs the
+native view's two structural-container cases, archive state, all 13 status
+mappings, native/provider assignee alias, per-team authority and exact active
+`editor`/`video` or `designer`/`graphics` eligibility. Every base row lands in one
+of four disjoint counts: structural container, archived non-container,
+provider-authority non-container, or native RPC work. Visible and excluded
+native work are then accounted for by the actual browser rules. An empty
+`workload_issues` mirror does not reduce this denominator. Expected parent rows
+use the actual unfiltered child/team rule, including mixed-team batches.
+
+The adapter compares that independent projection against the captured native
+view and native RPC records, and separately derives the Workload-label metadata
+from each raw relation. It preserves selected-ID/page completeness, duplicate
+refusal, PostgreSQL ASCII-space trimming and Unicode character lengths.
+Unrepresented non-string label/parent scalar shapes refuse comparison rather
+than using JavaScript coercion as database semantics. Exact PostgreSQL numeric
+lexemes survive a bounded parser that also rejects duplicate JSON keys. Unsafe
+numbers cannot enter browser fields through rounding; the deliberately unused
+`native_sort_key` remains exact text at that boundary. Missing/extra/duplicate
+rows, wrong fields/eligibility/weights, incomplete inputs, divergent aliases,
+impossible stored plan dates and changed exact numeric values refuse or mismatch.
+
+For both independently expected and captured native rows, the harness executes
+the pinned actual `projectNativeSnapshot`, `wlFetchNativeSnapshot`,
+`wlAdoptPlanRows`, `wlAdoptLinearMetadata`, `wlLoadSnapshot`, `wlApplyData`,
+capacity/date helpers and `wlSortSubIssues`. Only the captured response transport
+and synthetic staff context are supplied by the harness. It compares visible
+buckets, exclusion buckets, literal saved dates, display dates, weights,
+calendar groups and identifier ordering. Old UUID plan keys are retained and
+projected by the actual server helper, including unmatched historical plans.
+Activating `native_sort_key` as browser `sort_order` is a detected disagreement.
+This is source-VM evidence, not Chromium, staff-auth admission or live UI proof.
+
+Private invocation is `node qa/workload-consistency/native-adapter.js
+<absolute-private-capture.json> <absolute-private-comparison-config.json>`.
+The second file supplies `integrity_key`, `reviewed_adapter_commit` and an explicit
+ISO `today` comparison day. Both paths must be outside every Git ancestor.
+The packet signature/count/byte/schema bindings are verified first. Recorded
+capture source objects must exist locally and match current pinned source bytes;
+the capture may be from an ancestor with identical recorded files. Missing Git
+objects refuse without acquisition, replacement objects are disabled, and
+working source changes refuse. The executable comparison files are separately
+bound to their reviewed local commit. Output contains counts, ordinal finding
+references, fixed scope/limits and source hashes, with no client/member/work IDs
+or private paths.
+
+The only successful verdict is a **scoped comparison `MATCH`** for teams whose
+captured authority is native. If both teams are provider-owned the scope is
+`WITHHELD`; native projection disagreements report `MISMATCH`. CON/STR,
+provider-authority membership and actual provider-only work remain excluded
+from this verdict. Their mirror rows are used only where necessary for exact
+plan-alias validation. Assignee-email/old-provider-URL cosmetic parity is not
+claimed. Executable/serving provenance, DDL quiescence, live population,
+client journeys and **G5 remain UNPROVEN / HELD**, including on a scoped match.
+
+The finite registration is `test/workload-native-adapter.js` (28 offline
+controls). `qa/workload-consistency/native-adapter-rehearsal.js` supplies 30
+explicit disposable PostgreSQL/capture/source-VM controls, including an
+unmapped native-only omission with empty mirror, a same-count precise numeric
+substitution, all current statuses, imported/native container distinctions,
+inactive/wrong-role/wrong-team exclusions, old-key dates, unassigned/undated
+behavior, Unicode label boundaries, coherently forged impossible dates, current
+ordering, CON withholding and a coherent provider-authority transition.
+No workflow or live execution is activated. Rollback removes this diagnostic
+adapter; application code, captured receipts and all saved work are unchanged.
+The next readiness evidence is an independently authorized, serving-bound,
+DDL-coordinated population capture and scoped comparison; source tests cannot
+authorize that operation or substitute for it.
 
 **Local capture component implemented, 2026-09-06; G5 remains held.**
 `qa/workload-consistency/native-capture.js` now acquires the private input
@@ -129,10 +211,10 @@ boundary described below. It is deliberately limited to an explicitly owned
 loopback PostgreSQL fixture (`LOCAL_DISPOSABLE_ONLY`); it cannot be invoked
 against a hosted database. It adds no application, schema, grant, Edge Function,
 workflow or provider change. Clients see their existing application throughout.
-The prior assessment below is retained with its original source pins; its
-missing **capture implementation** is now partially resolved by this bounded
-component. Its native comparator adapter and live completeness verdict are
-still **NOT IMPLEMENTED / UNPROVEN**.
+The prior assessment below is retained with its original source pins. The
+capture component itself continues to label comparison **NOT IMPLEMENTED**;
+the separate adapter above supplies that additional comparison without changing
+or promoting acquisition's verdict. Live completeness remains **UNPROVEN**.
 
 The capture uses one noninteractive, bounded `psql` connection and one read-only
 repeatable-read transaction. Seven independently counted base sections are
@@ -210,11 +292,11 @@ browser, client write, provider completeness, installed schema or live proof.
 
 Rollback is removal of these diagnostic files; no application or stored work
 changes to undo. Private receipts are retained under the operator's existing
-private evidence policy. The selected next implementation remains the **existing
-PR #1279 comparator's native adapter**, preserving actual eligibility, aliases,
-ordering and exclusions. Do not call the old normalized comparator with these
-packets directly or infer native completeness from mirror emptiness. The earlier
-finite comparison controls below remain owed. Owner-approved serving capture,
+private evidence policy. The **existing PR #1279 comparator's native adapter**
+is described above. Do not call the old normalized comparator with these packets
+directly or infer native completeness from mirror emptiness. The historical
+required controls below are now exercised in the bounded local adapter lane;
+their live applicability is still held. Owner-approved serving capture,
 DDL/execution authority and an actual native population comparison are separate
 gates; this component does not authorize their execution.
 

@@ -862,8 +862,16 @@ function recordsADispatch(log, k, len) {
            (Codex, forty-second round on #1306). It makes a plan only where no
            completion precedes the run id, so "went out (run `X`), which will
            need a fresh capture" is unaffected. */
+        /* In the text after the run id, ORDER decides as it does before it:
+           "run `X` completed successfully, while the next dispatch is
+           scheduled for tomorrow" completes this run and plans another
+           (Codex, forty-third round on #1306). It is a plan only where the
+           forward word comes first. */
+        const post = norm(after.slice(rm.index));
+        const postAhead = firstIndex(DISPATCH_AHEAD, post);
+        const postDone = firstIndex(DISPATCH_DONE, post);
         const r = (firstIndex(DISPATCH_DONE, norm(pre)) < 0
-            && DISPATCH_AHEAD.test(norm(after.slice(rm.index))))
+            && postAhead >= 0 && (postDone < 0 || postAhead < postDone))
             ? null
             : judgeRun(rm[1], pre);
         if (r !== undefined) return r;
@@ -1521,8 +1529,19 @@ function main() {
                rather than a failure. The bundle's IDENTITY is unaffected: it is
                still matched against the digest and byte length the newest
                receipt sealed. */
+            /* Between means BETWEEN, by run id where the ids are known: two
+               receipts can share a date, and an owning-lane run from earlier
+               that day is not intervening (Codex, forty-third round on
+               #1306). A dispatch with no readable run id is judged by date
+               alone, as before. */
+            const num = x => (/^\d+$/.test(String(x || '')) ? Number(x) : null);
+            const lo = num(prior.run), hi = num(live.run);
             const between = laneDispatchesSince(receiptsMeta.log, prior.date || '', prior.at)
-                .filter(d => !live.date || d.date <= live.date);
+                .filter(d => {
+                    const r = num(d.run);
+                    if (r !== null && lo !== null && hi !== null) return r > lo && r < hi;
+                    return !live.date || d.date <= live.date;
+                });
             const msg = 'rollback bundle ' + claim.bundle.sha + ' claims it captures production-write v'
                 + claim.bundle.captured + ', but the release before the newest one was v'
                 + prior.fns['production-write'].version;

@@ -2175,6 +2175,31 @@ ok(laneDoneThenFutureRun.code === 1 && laneDoneThenFutureRun.json
     && laneDoneThenFutureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
     'while a completion BEFORE the run id keeps the dispatch: "went out (run `X`), which will need a fresh capture" still FAILS');
 
+/* ---- 8ar. order after the run id; intervening means between (round 43) ------ */
+const laneDoneThenNextPlan = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` completed successfully, while the next',
+    'dispatch is scheduled for tomorrow.',
+    '',
+].join('\n');
+const laneDoneThenNextPlanRun = run(fixture('lane-done-then-next-plan', appended(laneDoneThenNextPlan), realRb));
+ok(laneDoneThenNextPlanRun.code === 1 && laneDoneThenNextPlanRun.json
+    && laneDoneThenNextPlanRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'ORDER DECIDES AFTER THE RUN ID TOO: "run `X` completed successfully, while the next dispatch is scheduled for tomorrow" completes THIS run and plans another, so it FAILS');
+const lanePlanThenDone = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` is scheduled for tomorrow, after the',
+    'graphics bundle completed today.',
+    '',
+].join('\n');
+const lanePlanThenDoneRun = run(fixture('lane-plan-then-done', appended(lanePlanThenDone), realRb));
+ok(lanePlanThenDoneRun.code === 0,
+    'while a forward word FIRST is still a plan, whatever completed afterwards belongs to something else');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

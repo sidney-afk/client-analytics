@@ -2488,6 +2488,18 @@ ok(laneRetryClaimRun.code === 1 && laneRetryClaimRun.json
     && laneRetryClaimRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
     'AND BOTH READERS USE THE SAME OTHER-ATTEMPT RULE: the retry\'s no-op claim cannot silence the lane run\'s own failure either');
 
+/* ---- 8bd. a check verdict in prose is not a dispatch (round 55) ---- */
+const laneVerificationVerdict = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` verification passed (run `34000000000`).',
+    '',
+].join('\n');
+const laneVerificationVerdictRun = run(fixture('lane-verification-verdict', appended(laneVerificationVerdict), realRb));
+ok(laneVerificationVerdictRun.code === 0,
+    'A VERIFICATION VERDICT IS A CHECK, NOT A DEPLOYMENT: "the `lane` verification passed (run `X`)" asks for nothing, so recording a routine check cannot block a correct row');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

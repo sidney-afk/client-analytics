@@ -714,7 +714,11 @@ const AHEAD_WORDS = 'until|pending|awaiting|await|next|future|upcoming|planned|p
    ("dry-run passed", "validation succeeded", "passed the typecheck") says
    nothing about the dispatch, and a run id that follows one of these is the
    check's run (Codex, twenty-third round on #1306). */
-const CHECK_WORDS = 'dry[- ]?runs?|validations?|validated?|plan[- ]only|plan mode|previews?|no-?ops?|typechecks?|lint|smoke[- ]?tests?|probes?';
+/* The nouns a routine check goes by. Verification, confirmation and readback
+   wording was missing, so "the LANE verification passed (run `X`)" read as a
+   deployment and a routine check could block an otherwise-correct rollback
+   update (Codex, fifty-fifth round on #1306). */
+const CHECK_WORDS = 'dry[- ]?runs?|validations?|validated?|verifications?|verified|confirmations?|read[- ]?backs?|audits?|plan[- ]only|plan mode|previews?|no-?ops?|typechecks?|lint|smoke[- ]?tests?|probes?';
 const DISPATCH_DONE = new RegExp('\\b(' + DONE_WORDS + ')\\b', 'i');
 const DISPATCH_AHEAD = new RegExp('\\b(' + AHEAD_WORDS + ')\\b', 'i');
 const CHECK_ONLY = new RegExp('\\b(' + CHECK_WORDS + ')\\b', 'i');

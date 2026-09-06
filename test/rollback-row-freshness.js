@@ -2081,6 +2081,51 @@ const laneFailedProvenRun = run(fixture('lane-failed-proven', appended(laneFaile
 ok(laneFailedProvenRun.code === 0,
     'while a failure that says the whole run deployed nothing is silent, which is the only shape that proves it');
 
+/* ---- 8ap. post-deploy anchors; a source commit is not a trigger (round 41) -- */
+const postDeployAnchor = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '##### Post-deploy verification run 33000000000',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const postDeployAnchorRun = run(fixture('post-deploy-anchor', appended(postDeployAnchor), realRb));
+ok(postDeployAnchorRun.code === 1 && postDeployAnchorRun.json && postDeployAnchorRun.json.live
+    && postDeployAnchorRun.json.live.run === '34000000000'
+    && postDeployAnchorRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'A POST-DEPLOY CHECK IS NOT AN ANCHOR EITHER: "##### Post-deploy verification run 33000000000" names a check, and its "deploy" belongs to the phrase, so the table below it takes the deploy heading\'s run 34000000000 and the stale row FAILS');
+const laneFromCommit = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` completed successfully from commit',
+    '`0123456789abcdef0123456789abcdef01234567`.',
+    '',
+].join('\n');
+const laneFromCommitRun = run(fixture('lane-from-commit', appended(laneFromCommit), realRb));
+ok(laneFromCommitRun.code === 1 && laneFromCommitRun.json
+    && laneFromCommitRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'THE COMMIT A RUN DEPLOYED FROM IS NOT ITS TRIGGER: manual dispatches are pinned to a commit, so "completed successfully from commit `<sha>`" is not a push run and it FAILS');
+const laneFromPush = [
+    '',
+    '## 2026-09-06 — Staff functions',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` completed successfully on a push to main.',
+    '',
+].join('\n');
+const laneFromPushRun = run(fixture('lane-from-push', appended(laneFromPush), realRb));
+ok(laneFromPushRun.code === 0,
+    'while push and merge wording still exempts the run, because that is what says the guarded step was skipped');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

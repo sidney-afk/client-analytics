@@ -207,7 +207,12 @@ function deployAnchors(log) {
     let m;
     while ((m = heading.exec(log))) {
         const line = m[0].split('\n')[0];
-        if (otherActivity.test(line) && !/\bdeploy/i.test(line)) continue;
+        /* "##### Post-deploy verification run `X`" names a check, and its
+           "deploy" belongs to the phrase post-deploy, not to a deployment this
+           heading records (Codex, forty-first round on #1306). The mention is
+           removed before the heading is tested, as the sweep already does. */
+        const named = line.replace(/\b(?:post|pre)[- ]?deploy(?:ment)?\b/gi, ' ');
+        if (otherActivity.test(named) && !/\bdeploy/i.test(named)) continue;
         out.push({ at: m.index, run: m[1] });
     }
     while ((m = prose.exec(log))) out.push({ at: m.index, run: m[1] });
@@ -724,8 +729,12 @@ function lastIndex(re, text) {
 function pushRun(log, k, len) {
     const clause = referenceClause(log, k, len);
     if (/\b(dispatch|dispatched|dispatching|workflow_dispatch|manual|manually|owner-dispatched|re-run|rerun)\b/i.test(clause)) return false;
+    /* THE COMMIT A RUN DEPLOYED FROM IS NOT ITS TRIGGER. Manual Track-B
+       dispatches are pinned to a commit, so "completed successfully from
+       commit `<sha>`" says nothing about how the run started (Codex,
+       forty-first round on #1306). Only push and merge wording counts. */
     return /\bpush[- ]?(run|deploy|deployed|deployment|build|triggered)\b/i.test(clause)
-        || /\b(on|from|by) (?:a |the )?(?:push|merge|commit)\b/i.test(clause)
+        || /\b(on|from|by) (?:a |the )?(?:push|merge)\b/i.test(clause)
         || /\b(auto-deploy|auto-deployed|automatic(?:ally)? (?:deploy|deployed|ran|run)|merge run|push to main)\b/i.test(clause);
 }
 

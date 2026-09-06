@@ -125,3 +125,42 @@ is reading straight from its JSON output (`sealed_bundle_sha256`,
 `sealed_bundle_byte_length`); use those directly as `rollback_bundle_sha256` /
 `rollback_bundle_byte_length` for the Section 4 dispatch — no re-derivation,
 no re-explaining the naming convention.
+
+## Two working rules learned the expensive way (2026-09-05)
+
+Both cost a real defect on the same day, on the post-level asset work
+(`OPEN_REPAIRS` 155). Neither is about this codebase; both are about how a
+session works, which is why they live here rather than in the ledger.
+
+### DO NOT MERGE INSIDE A REVIEW WINDOW
+
+The Codex pass on this repo takes about four minutes and it earns its keep: on
+one PR it found two P1s, one of which would have made the owner's very first
+action — clearing a Frame folder — silently do nothing. The fix for those two
+P1s was then merged **six seconds** after its PR opened, so no review ran on it,
+and it shipped a fail-open that a second read caught only by luck.
+
+So: open the PR, let the review finish, then merge. A green CI is not a review.
+If a push follows a review, **the review does not re-run on it** — Codex triggers
+on open, on ready-for-review, and on an explicit `@codex review` comment, not on
+every push. After pushing a fix for a finding, ask for the re-review by name and
+say which commit you want looked at.
+
+The only thing that makes an instant merge tempting is that the change looks
+small. Every one of the three defects found this day was in a change that looked
+small.
+
+### MEASURE WITH THE KEY THE SHIPPED CODE USES
+
+A count published in a comment, a ledger entry or a PR body is load-bearing here
+— later sessions plan against it. On this change the first figures came from a
+grouping that treated any row with children as a post root, while the shipped
+code groups by immediate parent. The published numbers were wrong by 2.5× in the
+scary direction (109 split posts, actually 44) and mis-stated the exposure they
+were justifying (41, actually 8).
+
+Nothing about the fix changed, but the correction cost a PR and the numbers had
+already been written into six files. So: before quoting a measurement, derive it
+with the **same key, filter and ordering the code uses**, and cross-check it
+against one case you can name and verify by hand. If two methods disagree,
+reconcile them before publishing either — the disagreement is the finding.

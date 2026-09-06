@@ -7,8 +7,10 @@
 > residual). To roll back, disable the workflow or revert PR #840.
 
 The history-v5 correction below is **DRAFT / UNAPPLIED / NOT RECOVERABILITY-READY**.
-A matching authenticated schema artifact and empty-target restore proof are
-missing: this is a RELEASE BLOCKER. The historical receipt above proves its
+The matching authenticated schema-and-data recovery package and its empty-target
+reconstruction are now implemented as a **dormant, locally proven** lane (see
+"Recovery package" below); cloud retrieval, installed-schema parity, key custody
+and retention remain separate gates. The historical receipt above proves its
 original limited 14-table package only. No live state was refreshed here.
 
 The `Track-B private backup` GitHub Action takes one transactionally consistent
@@ -44,6 +46,7 @@ run. The existing weekly full backup remains independent and unchanged.
 | legacy-v3 | Original 14 tables | Historical limited package; still readable and the default schedule. It omits source cards, journal and replay crosswalks. |
 | history-v4 | Original 14 plus Calendar/Samples cards/events, Workload plan, journal and PR #1293 intake manifests: 21 | Preserved authenticated format. It omits real incoming FK dependencies and cannot restore into the normal migration-shaped schema. The previous minimal 21-table fixture did not prove that schema. |
 | history-v5 | v4 plus the 12 relations below: 33 | New explicit opt-in format, closed over known FK dependencies. Data-only preparation; full-schema reconstruction, cloud delivery, installed grants and retention remain unproven. |
+| history-v6 | v5 plus `production_label_catalog_versions`: 34 | **Recovery-package only.** Adds the staged native label catalog owner from PR #1316. Its rows are protected by UPDATE/DELETE/TRUNCATE triggers, so the destructive TRUNCATE + disable-user-triggers snapshot restore REFUSES this corpus outright rather than bypassing those protections; `restoreSql` raises on it. The empty-target recovery package is its only restore path, where the immutability triggers are created AFTER the rows load and come back enabled. Whole-public SCHEMA capture is not its data restoration: the staged rows are covered because this corpus names them, not because the schema dump exists. |
 
 V5 additionally includes:
 
@@ -87,9 +90,11 @@ receipt table internalizes none. The prior audit's total of 5 is incorrect.
 
 ### RELEASE BLOCKER: authenticated schema and empty-target reconstruction
 
-The package contains **data only**. `schema_version` is its format version, not
-proof of a captured database schema. No schema artifact producer, authenticated
-schema/data binding or empty-instance reconstruction is implemented here.
+The v3/v4/v5 snapshot packages contain **data only**. `schema_version` is their
+format version, not proof of a captured database schema. The separate recovery
+package below now supplies the schema artifact producer, the authenticated
+schema/data binding and the empty-instance reconstruction; the snapshot formats
+keep their original meaning and are not retroactively upgraded.
 Applying every migration in filename order is not a valid substitute: baseline
 function terminators/order, same-day ordering, Supabase-owned prerequisites,
 superseded files and intentionally gated F27 installation require an explicit
@@ -131,14 +136,207 @@ scaffolding. It does not install the full F27 worker/functions or prove the
 installed schema can be reconstructed. Its result closes the demonstrated
 corpus defect, not this schema-artifact release blocker.
 
+### Recovery package (schema + data): implemented, dormant, locally proven
+
+`scripts/track-b-recovery-package.js` captures one authenticated
+`.recovery` package and `scripts/track-b-recovery-reconstruct.js` rebuilds it
+into a genuinely empty scratch database. Both are manual CLIs: nothing
+schedules, uploads to Drive, alerts or touches a provider. The exact local
+proof is `scripts/track-b-recovery-rehearsal.js`, run by the unit CI job and
+recorded in `docs/audits/2026-09-05-card-history-recovery-package-proof.md`.
+
+**Recoverable boundary (versioned as `recovery_version` 1):**
+
+| Part | Captured | Reconstructed | Pinned prerequisite (verified on target, never recreated) |
+|---|---|---|---|
+| Schema | every object in `public`: tables, columns, defaults, identity sequences, constraints, indexes, `plpgsql`/`sql` functions, triggers and their enabled state, RLS flags, policies, replica identity, views, enum/domain/composite types, comments | yes, by the restricted target role which owns everything | schema `public` exists and is empty |
+| Grants | table, column, sequence and function ACLs for the roles seen in the source catalog (`anon`, `authenticated`, `service_role` always) | yes | those roles exist on the target |
+| Data | the selected snapshot corpus (`history-v6` = 34 tables, `history-v5` = 33); every other public table is reconstructed empty and listed in `omitted_data_tables`. Each covered table carries an exact ordered content digest | yes, exact rows, digest-verified before COMMIT | none |
+| Sequences | Exact `(last_value, is_called)` of every public sequence, read from the sequence relation itself and carried as validated decimal STRINGS, never through a JavaScript Number | yes, exact next allocation, called and uncalled alike | none |
+| Extensions | inventory of all installed extensions; `pgcrypto`-class extensions installed in `public`/`extensions` are required with name, schema and version | no | required extensions present with the same version; no egress-capable extension (`pg_net`, `dblink`, `http`, `postgres_fdw`, `pg_cron`) and no foreign server |
+| Platform | `supabase_realtime` presence and membership, non-public schemas, server version | no | publication exists when the source had one; target major version is not older. Membership is **not** re-added and is reported as `realtime_membership_restored` |
+| Owners, passwords, subscriptions, tablespaces, security labels | never | never | the owner is the restore role; credentials never enter a package |
+
+**Callable-dependency contract (what may execute while rows load).** Postponing
+triggers does not stop a CHECK, a column DEFAULT, a generated expression, an
+index expression or predicate, or a view from EXECUTING during reconstruction.
+Keyword counting is not an execution boundary, so the package carries a
+positively bounded contract instead. At capture, every callable an evaluated
+expression names is resolved against the source catalog and must be one of:
+
+- a `pg_catalog` function that is not on the denylist (file and large-object
+  access, backend signalling, configuration writes, replication, `setval`,
+  sleeps, advisory locks, `pg_notify`, XML-to-query bridges);
+- a function of a PINNED extension, non-volatile unless it is one of the
+  reviewed random/UUID generators;
+- a PURE `public` function: immutable, security INVOKER, `sql`/`plpgsql`, no
+  writing statement anywhere in its body, and transitively resolvable under the
+  same rules;
+- a name that resolves to nothing (a type name or SQL keyword), recorded as
+  such so the target can confirm it still resolves to nothing there.
+
+Anything else — an impure or writing function, a volatile extension callable, an
+unpinned extension, a function in another schema, a `public` function shadowing
+`pg_catalog` — REFUSES the capture and writes no package. The reader re-derives
+the same token set from the exact statements it will execute, so capture and
+read time cannot disagree, and the target re-verifies the contract before any
+DDL. Schema objects are never silently discarded to make a capture succeed.
+
+**Effective permissions are re-checked immediately before reconstruction**, on
+the actual connecting role: not superuser, createrole, createdb, BYPASSRLS or
+replication; no inherited superuser; no membership of `pg_execute_server_program`,
+`pg_read_server_files`, `pg_write_server_files`, `pg_signal_backend`,
+`pg_read_all_data`, `pg_write_all_data`, `pg_database_owner`, `pg_maintain` or
+`pg_create_subscription`; and no EXECUTE on the eight file/large-object/config
+catalog functions that PostgreSQL withholds from PUBLIC by default. An
+administrator is never substituted. The extension-name denylist and the absence
+of foreign servers are necessary, not sufficient, and are not treated as proof
+that nothing can execute.
+
+**Narrow extension EXECUTE contract.** The target prerequisites grant EXECUTE on
+exactly `digest(bytea,text)`, `gen_random_bytes(integer)` and `gen_random_uuid()`
+in `extensions`, never `ALL FUNCTIONS`, and the script refuses if the role ends
+up holding more. An extension's own PUBLIC default EXECUTE is a pinned platform
+property: it is measured and reported (`extension_public_default_execute`), never
+widened and never revoked, because the restored invoker functions rely on it.
+
+**What the reader can and cannot detect.** The reader cannot recompute a row
+digest from COPY text without a database, so a re-signed content digest passes
+the reader and is caught by the in-transaction verifier, which rolls the whole
+attempt back. A re-signed SEQUENCE VALUE is authoritative input rather than a
+checksum: it is applied verbatim and the verifier then agrees with it. Only the
+HMAC key protects that field. Malformed sequence shapes (a JSON number, a
+non-canonical decimal, an out-of-range value, a non-boolean `is_called`) are
+refused at read time.
+
+**Coherence and DDL boundary.** One `psql` session exports a repeatable-read
+snapshot; the catalog fingerprint, inventory, sequence state, prerequisites and
+all three `pg_dump` runs (`--section=pre-data`, data-only for the corpus,
+`--section=post-data`) import that snapshot. After the dumps a fresh session
+recomputes the fingerprint; any difference refuses the package and writes no
+file. The fingerprint hashes relation, column, constraint, index, function
+(body digest), trigger, policy, view, sequence, type, comment and
+owner-normalized ACL definitions, so a reconstruction owned by another role
+reproduces the same value. The separate catalog preflight of the v5 snapshot
+lane is unchanged and still not atomic; the recovery package is the artifact
+that answers that gap.
+
+**Authentication.** HMAC-SHA256 under the existing `TRACK_B_BACKUP_HMAC_KEY`
+covers the magic, manifest and every compressed section. The manifest carries
+each section's raw and compressed digests and a `binding` digest over the
+schema digests, data digest, fingerprint, corpus, capture time and source
+project ref. The reader refuses a wrong key, a flipped byte, a spliced section,
+a re-signed manifest whose digests, statement counts, row counts, corpus or
+origin disagree, a non-production origin, and a future capture time, before
+any target work. The existing v3/v4/v5 readers do not accept a recovery
+package and the recovery reader does not accept a snapshot package.
+
+**Reconstruction.** Only allowlisted statement classes re-emitted from the
+authenticated schema sections execute, in one transaction:
+prerequisite `DO` block (target empty, roles and extensions present, no egress
+extension or foreign server, restricted role holding `CREATE` on `public`),
+then pre-data DDL, then the validated `COPY` sections, then sequence values,
+then post-data (constraints, indexes, triggers, policies, RLS). Triggers and
+foreign keys do not exist while rows load, so no capture trigger, worker or
+provider call can fire and the restored journal is byte-exact. Rejected
+classes include ownership changes, extensions, roles, default privileges, `DO`,
+publications, subscriptions, servers, event triggers, functions in any
+language but `plpgsql`/`sql`, grants to unknown roles or with grant option,
+psql meta-commands other than `\restrict`, and anything naming another schema.
+`CREATE SCHEMA public`, its comment and schema-level ACLs are platform-owned
+and skipped. Session timeout `SET`s from the dump are skipped in favour of the
+transaction's own limits. Functions whose body references an egress primitive
+are counted (`egress_capable_functions`) rather than executed. There is no
+`TRUNCATE`, `DROP` or `CASCADE`: a non-empty target is refused, a failed
+statement rolls the whole transaction back and leaves the target as empty as
+it was found.
+
+**Verification after commit** (part of the tool, not only the rehearsal):
+fingerprint equality with the manifest, exact row counts for every corpus
+table, exact sequence state, zero egress extensions and foreign servers, and
+every public relation owned by the restore role. The receipt is public-safe:
+counts, digests, elapsed time and boolean outcomes only.
+
+**Principals.** `scripts/track-b-recovery-prerequisites.sql` prepares two
+existing restricted roles: `mode=capture` (`RECOVERY_CAPTURE_GRANTS_ONLY`)
+requires BYPASSRLS, refuses any write privilege and grants SELECT on every
+public relation and sequence because a whole-schema `pg_dump` locks every
+table; `mode=target` (`EMPTY_SCRATCH_TARGET_ONLY` plus `scratch_project_ref`)
+refuses a BYPASSRLS role and a non-empty target and grants `CREATE`/`USAGE` on
+`public` plus `USAGE`/`EXECUTE` in `extensions`. Neither mode creates roles or
+passwords. The capture principal's whole-schema SELECT, including the private
+HR and hiring tables, needs the same owner privacy review as v5.
+
+**Dormant operator use (not authorised by this document):**
+
+```
+node scripts/track-b-recovery-package.js capture --output=<private file>
+node scripts/track-b-recovery-package.js verify <file>
+node scripts/track-b-recovery-reconstruct.js <file>
+```
+
+Capture needs `TRACK_B_BACKUP_DATABASE_URL` (production ref enforced),
+`TRACK_B_BACKUP_HMAC_KEY` and `TRACK_B_BACKUP_CORPUS`. Reconstruction needs
+`TRACK_B_RECOVERY_TARGET_URL`, `TRACK_B_RESTORE_EXPECTED_PROJECT_REF`
+(production ref refused) and the literal `TRACK_B_RECOVERY_CONFIRM=EMPTY_SCRATCH_ONLY`.
+Neither command is wired into the scheduled workflow or the Drive uploader;
+the package must be stored through the existing private Shared Drive path by
+a separately reviewed lane.
+
+**Dormant watcher outputs.** `evaluateRecoveryWatch()` is a pure function
+returning `package_freshness`, `schema_mismatch`, `verification` and
+`retained_coverage` with alert codes `RECOVERY_PACKAGE_STALE|MISSING`,
+`RECOVERY_SCHEMA_MISMATCH`, `RECOVERY_VERIFICATION_FAILED|STALE_PACKAGE|NEVER`
+and `RECOVERY_COVERAGE_CHANGED`. No scheduler, recipient or transport exists;
+wiring it to the owner's approved channel is a separate gate.
+
+**Failure recovery: three outcomes, never conflated.** Reconstruction verifies
+fingerprint, per-table content digests, exact sequence state and ownership
+**inside the transaction, before COMMIT**, so a detectable mismatch never
+commits. The receipt always names one of:
+
+| Outcome | What happened | What the operator does |
+|---|---|---|
+| `rolled_back` | The transaction failed at any point (prerequisites, DDL, COPY, sequence, or the in-transaction verification). Nothing committed. | If the target was empty before the attempt (`target_was_empty_before: true`), retry it in place. If it was already populated, the refusal was the empty-target guard doing its job: use a fresh target. |
+| `committed_unverified` | The transaction COMMITTED and the independent post-commit read then failed or could not be transported. The target now HOLDS DATA. | **Quarantine it.** Do not retry in place: the empty-target guard will refuse, correctly. Reconstruct onto a FRESH empty target. Keep the failed target and its private diagnostic receipt for diagnosis. |
+| `verified` | Committed and independently verified. | Nothing. |
+
+The classification compares the target's public-relation count observed
+**before** the attempt with the count after, so a pre-DDL refusal on a populated
+target is reported as a rollback rather than a phantom commit, and a transport
+failure is never reported as an empty rollback.
+
+**Rollback.** For a `rolled_back` attempt there is nothing to undo. For a
+`committed_unverified` attempt the ONLY revert is discarding that disposable
+scratch database itself, which is an operator action recorded in the receipt and
+never automated here. **Deleting the package file is not a database rollback**
+and must never be described as one. In every case no production database, flag,
+writer, schedule or Drive state changes, and the snapshot lanes and their
+packages are untouched. A failed target is never erased automatically.
+
+**Private diagnostic receipt.** A failed attempt writes one JSON receipt to
+`TRACK_B_RECOVERY_DIAGNOSTIC_DIR` when set: attempt id, outcome, stage, corpus,
+package binding, relation counts and the quarantine/retry flags. It carries no
+row content and no raw SQL error text.
+
+**Still unproved, explicitly:** private Drive storage and independent readback
+of a recovery package; parity of the installed production schema with the
+reconstructed shape (local proof uses a migration-shaped synthetic source and
+pinned local platform prerequisites, not a Supabase project); asset bytes;
+HMAC key custody outside GitHub secrets; cross-major-version fingerprint
+stability; elapsed retention; alert delivery.
+
 ### Ordered rollout, still held
 
 1. Preserve current default v3 exports and all old packages. Source merge does
    not switch the schedule, install capture, grant access or deploy any writer.
    The journal's failed-comment conservation gate in `CARD_CHANGE_HISTORY.md`
    remains a separate prerequisite. Source preparation changes no client UI.
-2. Clear the schema-artifact blocker above. Independently verify installed
-   objects against captured definitions, including F27 and PR #1293's manifest
+2. Clear the schema-artifact blocker above with the recovery package lane:
+   capture one package from production with the reviewed capture principal,
+   store and independently read it back privately, reconstruct it into a
+   fresh empty scratch project, and compare the receipt's fingerprint and
+   inventory with the installed objects, including F27 and PR #1293's manifest
    migration at `5418ab5618595d9469f0527bd94623e9229a637e`. All 33 relations
    are mandatory; absent prerequisites stop v5. This does not deploy the
    separate gateway or bypass any migration's installation guard.
@@ -305,8 +503,9 @@ gate — that half of the alert was correct and stays.
 ## One-time restore rehearsal
 
 The restore job is manual and destructive to its target. Create a dedicated
-scratch Supabase project using the authenticated schema artifact and reviewed
-reconstruction recipe above; that capability is currently a release blocker.
+scratch Supabase project by reconstructing an authenticated recovery package
+into it (see "Recovery package" above); the dormant tools exist and are
+locally proven, but their use against a real project is a separate gate.
 A filename-order migration replay is insufficient. Then set:
 
 | Type | Name | Purpose |

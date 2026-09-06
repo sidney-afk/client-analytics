@@ -113,11 +113,12 @@ ok(/layer && layer\.childElementCount/.test(busy) && /_prodState\.writes\.size/.
   'an open picker layer or an in-flight write defers the tick to the next interval');
 
 const invalidateFor = extract('_prodInvalidateScopedReadsFor');
-ok(/if \(asset && !asset\.editing && !asset\.saving\)/.test(invalidateFor)
+ok(/if \(asset\) \{ asset\.status = 'idle'; asset\.complete = false;/.test(invalidateFor)
+  && !/_prodState\.assets\.delete\(/.test(invalidateFor)
   && /if \(description && !description\.editing && !description\.saving\)/.test(invalidateFor)
   && /description\.status = description\.hasValue \? 'stale' : 'idle'/.test(invalidateFor)
   && /description\.remoteChanged = true/.test(invalidateFor),
-'an open editor keeps its draft and is marked stale instead of being discarded');
+'an open editor keeps its draft and is marked stale instead of being discarded -- and since 2026-09-05 so is every cached asset read, which stays on screen while it re-reads (test/prod-asset-refresh-holds.js)');
 
 const startLoop = extract('_prodStartOperationalRefresh');
 ok(/document\.hidden \|\| currentNav !== 'production' \|\| !document\.getElementById\('prodRoot'\)/.test(startLoop),

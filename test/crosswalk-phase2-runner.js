@@ -197,9 +197,16 @@ ok(runner.planRepair(moved, { runId: 'unit' }).digest !== plan.digest,
   const threadBody = bodies.find(x => x.body.p_binding.card_id === 'c_thread' && x.body.p_binding.client_slug === 'acme').body;
   ok(threadBody.p_comments.length === 2 && threadBody.p_event.import_run_id === 'unit' && threadBody.p_event.action === 'crosswalk_phase2_bind_and_import',
     'the thread travels in p_comments and the event names the run');
+  ok(applied.refusals[0].sqlstate === 'P0001' && applied.refusals[0].message === 'crosswalk_bind_slot_occupied',
+    'a refusal keeps the SQLSTATE and the raise message beside the code — never P0001 alone');
   ok(applied.applied_count === 6 && applied.refusal_count === 1 && applied.refusals_by_code.slot_occupied === 1
     && applied.evicted_count === 1 && applied.evicted_by_mode.canceled === 1 && applied.imported_count === 3,
     'receipts and refusals are counted separately, by the RPC\'s own code with the crosswalk_bind_ prefix dropped');
+  const f27Plan = { ...plan, calls: plan.calls.slice(0, 1) };
+  const f27Rpc = async () => { const e = new Error('rpc_x_400'); e.rpc = { status: 400, code: 'P0001', message: 'f27_authority_generation_stale:video' }; throw e; };
+  const f27Applied = await runner.applyPlan(f27Plan, f27Rpc, { cap: 10 });
+  ok(f27Applied.refusals_by_code['f27_authority_generation_stale:video'] === 1,
+    "an F27 fence refusal is reported by its raise name with the team, not as its SQLSTATE");
   let capped = '';
   try { await runner.applyPlan(plan, rpc, { cap: 3 }); } catch (e) { capped = e.message; }
   ok(capped === 'cap_exceeded', 'a plan larger than the cap is refused before any call');

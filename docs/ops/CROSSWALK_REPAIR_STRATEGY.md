@@ -1,19 +1,27 @@
 # The card ↔ deliverable crosswalk: what is actually broken, and the order to fix it
 
-**Status (2026-09-05): PARTLY EXECUTED. Phase 1 ran; Phase 2's migration is
-WRITTEN but NOT APPLIED.** Source availability and live execution are two
-different things and this line separates them deliberately:
+**Status (2026-09-05, 21:00Z): EXECUTED — 100 of 100, TWO EPOCHS OF THE RPC,
+BOTH APPLIED LIVE.** Phase 1 ran on 2026-09-04. Phase 2's migration was applied
+live by the owner twice on 2026-09-05: the first version (#1291, ~18:25Z), through
+which the lane repaired **89 of 100** slots and was refused on the 11
+cancel-evictions by the F27 outbox fence; then the fixed version (#1301,
+~20:1xZ), through which the lane repaired **the remaining 11, 0 refused**
+(20:53Z), and the 11 native cancels reached Linear at 21:01Z. **The live
+function is the fixed version.** 7 slots remain, all for a person. Source
+availability and live execution are two different things and this block
+separates them deliberately:
 
 | | State |
 |---|---|
 | Phase 1 (90 cards with no legacy thread) | **RAN 2026-09-04.** 172 mismatching slots → 112; 60 repaired. Owner-executed SQL. |
-| Phase 2's combined RPC | **WRITTEN**, `migrations/2026-09-05-crosswalk-bind-and-import.sql`, rehearsed against a disposable PostgreSQL 16 (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). **REVISED 2026-09-05 evening under the owner's label ruling (§4b): kind never refuses, labels follow the card, contested slots resolve on request.** **NOT APPLIED to the live database, and no card has been repaired through it.** |
-| Phase 2 (the remaining slots) | **NOT STARTED.** Needs the migration applied. The call list is measured fresh by the lane at dispatch time (`crosswalk-phase2-repair.yml`, plan then apply — §5). |
-| Phase 3 (verify) | Not started. |
+| Phase 2's combined RPC | **Epoch 1 — APPLIED LIVE 2026-09-05 (#1291, owner, SQL Editor)**: kind never refuses, labels follow the card, contested slots resolve on request (§4b); 89 cards repaired through it. Its cancel-eviction path enqueued without the F27 authority binder and was refused on 11 slots. **Epoch 2 — APPLIED LIVE 2026-09-05 ~20:1xZ (#1301, owner, SQL Editor)**: same function, cancel path mints the binder via `track_b_f27_write_authorization`, detaches only under Linear authority; rehearsed against the F27 outbox fence installed verbatim (`scripts/crosswalk-bind-rehearsal.js`, `test/crosswalk-bind-and-import.js`). The remaining 11 cards went through it at 20:53Z, 0 refused. |
+| Phase 2 (the remaining slots) | **RAN 2026-09-05, 100 of 100, in two applies.** Migration applied by the owner; lane dispatched plan then apply (89 bound, 7 shells detached, 97 comments imported; 11 refused by the live F27 outbox fence because the cancel intent carried no authority binder — OPEN_REPAIRS 156, "First live apply"); RPC fixed, migration re-applied, plan then apply again (11 bound, 11 shells canceled natively with the binder, 12 comments imported, 0 refused — "Second live apply"). **7 slots remain, all for a person**: already_bound_elsewhere 5, client_mismatch 1, linear_identity_unproven 1; the plan summary names them by reason on every run. |
+| Phase 3 (verify) | **Partly done 2026-09-05.** After each apply the runner re-exports and applies the same four-field test to every slot (1,214 examined, 7 mismatching, none bindable), and the ledger and the touched rows were read back with the publishable key (`EXECUTION_LOG.md`, both crosswalk entries). Exit condition and population are defined in §5 ("Phase 3"): (a) 0 bindable — holds; (b) a recorded ruling for each of the 7 named slots — not yet; (c) the browser-side readback through `_prodCrosswalkMismatchFields` over the same population agreeing with the runner — not yet. |
 
 ~~**Status: PROPOSAL. Nothing here has been executed. No migration is written.**~~
 *(Superseded 2026-09-05. Kept because the sentence was quoted as evidence the
-operation did not exist; it now exists in source only.)*
+operation did not exist; it has since been written, applied live twice, and
+run to completion — see the table above.)*
 
 **Revision 2, 2026-09-04.** Revision 1 was reviewed and four of its claims were
 wrong. They are corrected below and the wrong ones are kept, struck, because one
@@ -155,7 +163,10 @@ order, and revision 1's plan would have stalled at its second step.
 **That RPC is now written** (2026-09-05):
 `public.production_comment_card_bind_and_import(p_binding, p_comments, p_event)`
 in `migrations/2026-09-05-crosswalk-bind-and-import.sql`, service-role only.
-**Written is not applied** — nothing in the live database has this function yet.
+~~**Written is not applied** — nothing in the live database has this function yet.~~
+*(Superseded 2026-09-05: applied live twice by the owner — Epoch 1 at ~18:25Z,
+Epoch 2 at ~20:1xZ — and run to completion; the status table at the top is
+current.)*
 
 It refuses more than the first draft did, and the two additions are worth
 naming here because they change what Phase 2 can finish on its own. Binding on
@@ -274,18 +285,33 @@ posted 3, tweak 1, approved 1), **64 of the 100 carry a legacy thread — 132
 comments ride along**, 0 deferred, 0 held back; 7 skipped
 (already_bound_elsewhere 5, client_mismatch 1, linear_identity_unproven 1);
 relabels other→thumbnail 26, thumbnail→video 14. The same 100 / 18 / 7 the
-ruling measured, now produced by the runner itself. The first forecast said 133
+ruling measured, now produced by the runner itself. **The live plan run said
+the same to the digit; the live apply landed 89 and was refused on the 11
+cancel-evictions by the F27 outbox fence** — the RPC enqueued without the
+authority binder. Fixed (OPEN_REPAIRS 156, "First live apply"); the rehearsal
+now carries the F27 closure and reproduces both the refusal and the pass. The first forecast said 133
 comments: 13 card ids are shared by two or more clients on live
 (`calendar_posts` is keyed on (client, id)), and the runner's first version
 keyed its import lookup on card id alone, so one client's comment was
 attributed to another client's call — Codex P1 on #1296. The planner now runs
 one client at a time; the comment count is what each card actually holds.
 
+**Second apply, 2026-09-05 20:53Z, after the migration was re-applied:** the
+plan said 18 mismatching → 11 calls, all with an eviction, 4 with a thread (12
+comments), 7 skipped — the residue of the first apply to the digit — and the
+apply landed all 11: 11 bound, 11 occupants canceled natively with the F27
+binder, 12 comments imported, 0 refused. 100 of 100. What is left is the 7
+slots for a person; the rule has nothing further to do here.
+
 **The three owner steps, in order:** (1) apply
 `migrations/2026-09-05-crosswalk-bind-and-import.sql` in the SQL Editor;
 (2) dispatch the lane in `plan` mode and read the counts; (3) dispatch it in
-`apply` mode with the plan digest and the confirm token. Expected after step 3:
-7 mismatching slots remain, all named by reason, none bindable.
+`apply` mode with the plan digest and the confirm token. The lane:
+https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
+(Run workflow → commit SHA on main, mode, run id, digest, confirm, cap).
+Expected after step 3: 7 mismatching slots remain, all named by reason, none
+bindable. **Done 2026-09-05, twice (Epoch 1, then Epoch 2 after the F27 fix);
+the result is exactly that.**
 
 ---
 
@@ -300,10 +326,13 @@ for their slots. There is no thread to strand, so the projection hazard cannot
 fire, and it proves the mechanics on rows that cannot misdisplay.
 
 **Phase 2 — the cards with threads, through the combined RPC.** ~~Blocked on
-that RPC existing.~~ The RPC is written (see §4); Phase 2 is now blocked on it
-being **applied** to the live database. The call list has been measured fresh
-(below) rather than reused: Phase 1's 60 repairs moved the counts, so the "63
-cards" above is stale. Binding plus import, one transaction, per card.
+that RPC existing.~~ ~~The RPC is written (see §4); Phase 2 is now blocked on it
+being **applied** to the live database.~~ **Applied and run on 2026-09-05, in
+two applies (89, then 11); 100 of 100 — see the status table at the top. What
+follows in this section is the record of how it was measured and executed, not
+an instruction to execute it again.** The call list was measured fresh (below)
+rather than reused: Phase 1's 60 repairs moved the counts, so the "63 cards"
+above is stale. Binding plus import, one transaction, per card.
 
 ### The Phase 2 call list, measured 2026-09-05 01:48 UTC
 
@@ -347,9 +376,22 @@ planner, so the RPC refusing it is consistency, not a new restriction.
 deliverable already bound elsewhere, a cross-client reference (the one item 147
 §2 records), and one slot where neither side names an issue.
 
-**Phase 3 — verify against the predicate.** `_prodCrosswalkMismatchFields` must
-return empty for all 1,271 slots. Item 99's lesson: do not relax a readback to a
-row count.
+**Phase 3 — verify against the predicate.** ~~`_prodCrosswalkMismatchFields`
+must return empty for all 1,271 slots.~~ *(Revised 2026-09-05, after the two
+applies.)* **Population:** what the runner examines — every filled video/graphic
+slot on every calendar card of an active client, test client excluded (1,214
+slots on 2026-09-05). The 1,271 of 2026-09-04 (§1) was measured over every
+client's calendar, test client included, before Phase 1; it is a different
+population and the two are not compared against each other. **Exit condition:**
+(a) the runner's post-apply re-export reports 0 bindable slots, and (b) every
+slot it still reports as mismatching is one of the named-reason exceptions
+(today 7: already_bound_elsewhere 5, client_mismatch 1,
+linear_identity_unproven 1) with a person's ruling for it recorded in
+OPEN_REPAIRS — a ruling may be "repair by hand" or "leave it, and here is why";
+either closes the slot — and (c) the browser-side readback through
+`_prodCrosswalkMismatchFields`, run over the same population, names the same
+slots and no others. (a) holds as of 2026-09-05 21:00Z; (b) and (c) do not
+yet. Item 99's lesson: do not relax a readback to a row count.
 
 **Rehearsal first, each phase.** The repo has the pattern
 (`scripts/component-fill-rehearsal.js`, `f42-apply-rehearsal.yml`): a dry run

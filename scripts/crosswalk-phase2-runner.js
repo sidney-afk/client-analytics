@@ -409,12 +409,21 @@ function planRepair(live, options = {}) {
 
 /* ---- apply ------------------------------------------------------------------- */
 
+/* The refusal as the receipt records it. The RPC and everything it calls
+   raise by NAME (crosswalk_bind_*, f27_*, team_is_linear_authoritative,
+   authority_unavailable, legacy_parity_*, test_client_scope_required ...), so
+   the name is the code; the SQLSTATE (P0001 for every raise) is kept beside
+   it, never instead of it -- the first live apply reported "P0001 11" and
+   nothing else, and the message was lost. The message is retained, bounded. */
+const RAISE_NAME = /crosswalk_bind_[a-z_]+|production comment card import [a-z ]+|f27_[a-z_]+(?::[a-z_]+)?|team_is_linear_authoritative|team_rollback_hold(?::[a-z_]+)?|authority_unavailable|legacy_parity_[a-z_]+|test_client_scope_required|invalid outbound [a-z]+|incomplete outbound intent/;
 function publicRpcFailure(error) {
   const detail = error && error.rpc && typeof error.rpc === 'object' ? error.rpc : {};
   const message = clean(detail.message || (error && error.message));
-  const match = message.match(/crosswalk_bind_[a-z_]+|production comment card import [a-z ]+/);
+  const match = message.match(RAISE_NAME);
   return {
     code: match ? match[0].replace(/^crosswalk_bind_/, '') : (clean(detail.code) || 'rpc_failure'),
+    sqlstate: clean(detail.code) || null,
+    message: message.slice(0, RPC_DETAIL_MAX) || null,
     status: Number(detail.status) || 0,
   };
 }

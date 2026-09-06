@@ -74,6 +74,14 @@ function assertScratchTarget(url = DB_URL, expectedRef = EXPECTED_REF, confirm =
 
 function restoreSql(parsedDump, corpusName = 'legacy-v3') {
   const corpus = resolveCorpus(corpusName);
+  // A retained-data corpus carries a relation whose rows are protected by
+  // UPDATE/DELETE/TRUNCATE triggers. This path TRUNCATEs and disables user
+  // triggers, so it would either be refused by the trigger or silently bypass
+  // the protection. Refuse here instead: those corpora restore only through the
+  // empty-target recovery package, which never truncates or disables anything.
+  if (corpus.recovery_package_only || corpus.tables.some(config => config.retained_data)) {
+    throw new Error(`Track-B corpus ${corpus.name} has retained-data relations and must restore through the recovery package, not the destructive snapshot path`);
+  }
   const names = corpus.tables.map(config => safeIdentifier(config.name));
   const helper = corpus.version === 5 ? 'track_b_restore_set_history_v5_user_triggers'
     : corpus.version === 4 ? 'track_b_restore_set_history_user_triggers' : 'track_b_restore_set_user_triggers';

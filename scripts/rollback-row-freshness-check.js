@@ -779,13 +779,19 @@ function recordsADispatch(log, k, len) {
        ends in a comma before the reference is dropped before the clause is
        judged. "The LANE dispatch, scheduled for Monday, will run then" keeps
        its forward reading, because there the reference comes first. */
+    /* A PLANNING ADJECTIVE IS NOT A FORWARD PREDICATE. "The planned LANE
+       manual dispatch completed successfully (run `X`)" records a deploy: the
+       adjective describes the run that has now happened (Codex, thirty-seventh
+       round on #1306). "the NEXT LANE dispatch" keeps its forward reading,
+       because next says the run is still to come. */
+    const ADJECTIVAL = /\b(?:planned|scheduled|proposed|intended|anticipated|agreed|expected)\s+(?=(?:\w+[- ]){0,3}(?:LANE|dispatch|deploy|deployment|release|run\b))/gi;
     const dropIntro = text => {
         const at = text.indexOf('LANE');
         const cut = text.lastIndexOf(',', at < 0 ? text.length : at);
         return cut > 0 ? text.slice(cut + 1) : text;
     };
     const plans = text => {
-        const t = dropIntro(norm(text));
+        const t = dropIntro(norm(text)).replace(ADJECTIVAL, ' ');
         const ahead = firstIndex(DISPATCH_AHEAD, t);
         if (ahead < 0) return false;
         const done = firstIndex(DISPATCH_DONE, t);

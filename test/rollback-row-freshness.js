@@ -1956,6 +1956,29 @@ const laneAppositionRun = run(fixture('lane-apposition', appended(laneApposition
 ok(laneAppositionRun.code === 0,
     'while the reference coming FIRST keeps its forward reading: "The `lane` dispatch, scheduled for Monday, will run then" is a plan and asks for nothing');
 
+/* ---- 8al. a planning adjective is not a forward predicate (round 37) -------- */
+const laneAdjective = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The planned `deploy-onboarding-edge-functions` manual dispatch completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneAdjectiveRun = run(fixture('lane-adjective', appended(laneAdjective), realRb));
+ok(laneAdjectiveRun.code === 1 && laneAdjectiveRun.json
+    && laneAdjectiveRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A PLANNING ADJECTIVE IS NOT A FORWARD PREDICATE: "The planned `lane` manual dispatch completed successfully (run `X`)" describes a run that has happened, and it FAILS');
+const laneNextAdjective = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The next `deploy-onboarding-edge-functions` dispatch (run `33995000000` reserved) carries the merged closure.',
+    '',
+].join('\n');
+const laneNextAdjectiveRun = run(fixture('lane-next-adjective', appended(laneNextAdjective), realRb));
+ok(laneNextAdjectiveRun.code === 0,
+    'while "the NEXT `lane` dispatch" keeps its forward reading: next says the run is still to come, and it asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

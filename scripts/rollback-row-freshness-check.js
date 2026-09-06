@@ -544,10 +544,11 @@ function ownBlock(log, at) {
    first (Codex, sixteenth round on #1306). And one item can span several
    paragraphs: a bullet line "`lane` dispatch:" followed by a blank line and an
    INDENTED paragraph "Completed successfully" is one item, so the item runs
-   from its bullet line to the line before the next bullet at any indentation,
-   across blank lines as long as the paragraph after the blank is indented
-   (Codex, seventeenth round). A paragraph at column zero after a blank line
-   is the end of the list, not part of the item. */
+   from its bullet line to the line before the next bullet at its own
+   indentation or shallower (a deeper bullet is its child), across blank lines
+   as long as the paragraph after the blank is indented (Codex, seventeenth
+   and thirtieth rounds). A paragraph at column zero after a blank line is
+   the end of the list, not part of the item. */
 function referenceScope(log, k, len) {
     const wStart = k - 3000 <= 0 ? 0 : log.lastIndexOf('\n', k - 3000) + 1;
     let wEnd = log.indexOf('\n', k + len + 3000);
@@ -581,16 +582,22 @@ function referenceScope(log, k, len) {
         }
     }
     if (first < 0) return paragraph();
-    /* Forwards to the line before the next bullet. At a blank line, the item
-       continues only if the next non-blank line is indented and not a bullet. */
+    /* Forwards to the line before the next bullet AT THE ITEM'S OWN INDENTATION
+       OR SHALLOWER: a deeper bullet is the item's child and carries its result
+       ("- `lane` dispatch:" then "  - Completed successfully (run `X`)."; Codex,
+       thirtieth round on #1306). At a blank line, the item continues only if
+       the next non-blank line is indented and not such a sibling. */
+    const indentOf = t => (t.match(/^[ \t]*/) || [''])[0].length;
+    const own = indentOf(lines[first].text);
+    const sibling = t => isBullet(t) && indentOf(t) <= own;
     let last = idx;
     for (let j = idx + 1; j < lines.length; j++) {
         const t = lines[j].text;
-        if (isBullet(t)) break;
+        if (sibling(t)) break;
         if (isBlank(t)) {
             let n = j + 1;
             while (n < lines.length && isBlank(lines[n].text)) n++;
-            if (n >= lines.length || isBullet(lines[n].text) || !isIndented(lines[n].text)) break;
+            if (n >= lines.length || sibling(lines[n].text) || !isIndented(lines[n].text)) break;
             continue;
         }
         last = j;

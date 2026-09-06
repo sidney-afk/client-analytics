@@ -1641,6 +1641,25 @@ const laneScheduledRun = run(fixture('lane-scheduled', appended(laneScheduled), 
 ok(laneScheduledRun.code === 0,
     '"SCHEDULED" IS A PLAN: "the dispatch is scheduled for run `X` after approval" asks for nothing');
 
+/* ---- 8ae. a child bullet is its parent's result (round thirty) --------------- */
+const laneChildDone = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch:',
+    '  - Completed successfully (run `33995000000`).',
+    '- Smoke probe: NOT DISPATCHED.',
+    '',
+].join('\n');
+const laneChildDoneRun = run(fixture('lane-child-done', appended(laneChildDone), realRb));
+ok(laneChildDoneRun.code === 1 && laneChildDoneRun.json
+    && laneChildDoneRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A CHILD BULLET IS ITS PARENT\'S RESULT: "- `lane` dispatch:" with "  - Completed successfully (run `X`)." beneath it is one record and FAILS, while the sibling bullet after it is not part of it');
+const laneChildNot = laneChildDone.replace('  - Completed successfully (run `33995000000`).', '  - NOT DISPATCHED (runner busy).').replace('- Smoke probe: NOT DISPATCHED.', '- Smoke probe completed successfully.');
+const laneChildNotRun = run(fixture('lane-child-not', appended(laneChildNot), realRb));
+ok(laneChildNotRun.code === 0,
+    'and a NOT DISPATCHED child is its parent\'s verdict too, unmoved by the sibling bullet that completed, so it asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

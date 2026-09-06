@@ -386,3 +386,8 @@ not install either table, grant an operational role, capture production data or
 prove an authenticated schema reconstruction, restored writer behavior, or
 live recovery. A future owner-run v7 grant artifact and an independently owned
 scratch proof remain required before selecting v7 for any capture.
+An initial disposable prerequisite attempt stopped at SQL parsing before any
+grant or restore action because this artifact omitted the required parentheses
+around its confirmation `CASE` expression. The source is corrected; the owner
+must still re-run the prerequisites and complete the separate scratch restore
+proof before v7 receives any recovery claim.

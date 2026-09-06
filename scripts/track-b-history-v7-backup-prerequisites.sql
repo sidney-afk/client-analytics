@@ -47,8 +47,8 @@ declare
     'production_card_materialization_ingress'];
 begin
   if mode not in ('backup','scratch') then raise exception 'Unsupported prerequisite mode'; end if;
-  if current_setting('track_b.setup_confirmation') <> case when mode='backup'
-    then 'HISTORY_V7_BACKUP_GRANTS_ONLY' else 'DISPOSABLE_SCRATCH_ONLY' end then
+  if current_setting('track_b.setup_confirmation') <> (case when mode='backup'
+    then 'HISTORY_V7_BACKUP_GRANTS_ONLY' else 'DISPOSABLE_SCRATCH_ONLY' end) then
     raise exception 'Explicit prerequisite confirmation required';
   end if;
   if mode='scratch' and (coalesce(current_setting('track_b.setup_scratch_ref',true),'') !~ '^[a-z0-9]{20}$'

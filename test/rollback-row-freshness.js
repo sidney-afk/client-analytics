@@ -2525,6 +2525,30 @@ const failedVerbNotModifierRun = run(fixture('failed-verb-not-modifier', appende
 ok(failedVerbNotModifierRun.code === 0,
     'while a bare verb is not a modifier: "the dispatch failed without deploying any function" still describes THIS run and asks for nothing');
 
+/* ---- 8bf. "this" claims the attempt as the current one (round 57) ---- */
+const thisInitialAttempt = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'This initial attempt failed without deploying any function.',
+    '',
+].join('\n');
+const thisInitialAttemptRun = run(fixture('this-initial-attempt', appended(thisInitialAttempt), realRb));
+ok(thisInitialAttemptRun.code === 0,
+    '"THIS" CLAIMS THE ATTEMPT AS THE CURRENT ONE: "this initial attempt failed without deploying any function" is the run describing itself, and a zero-deploy failure has no receipt to give');
+
+const theInitialAttempt = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the initial attempt deployed nothing.',
+    '',
+].join('\n');
+const theInitialAttemptRun = run(fixture('the-initial-attempt', appended(theInitialAttempt), realRb));
+ok(theInitialAttemptRun.code === 1 && theInitialAttemptRun.json
+    && theInitialAttemptRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'while the SAME modifier without "this" still points elsewhere, so the borrowed claim is refused');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

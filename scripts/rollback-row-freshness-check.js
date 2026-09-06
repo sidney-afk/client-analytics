@@ -493,12 +493,16 @@ function otherOwningLanes() {
    modifier that points elsewhere counts, and a claim is read as this run's
    only when it names this run or points nowhere else at all. */
 const OTHER_ATTEMPT = new RegExp(
-    '\\b(?:the|a|an|that|this|its|their|our)\\s+(?:previous|earlier|prior|first|second|third|last|original|preceding|failed|aborted|repeat|another|other|subsequent|later|initial)\\s+[a-z][\\w-]*\\b'
+    '\\b(?:the|a|an|that|its|their|our)\\s+(?:previous|earlier|prior|first|second|third|last|original|preceding|failed|aborted|repeat|another|other|subsequent|later|initial)\\s+[a-z][\\w-]*\\b'
     /* Without a determiner, a word that is also a verb is not a modifier:
        "the dispatch failed without deploying any function" describes THIS
        run, so `failed` and `aborted` are read as pointers elsewhere only
        after "the", "that" and the like. */
-    + '|\\b(?:previous|earlier|prior|original|preceding|another|other|subsequent|initial|repeat)\\s+[a-z][\\w-]*\\b'
+    /* Unless the entry has already said it means THIS one: "this initial
+       attempt failed without deploying any function" is the current run
+       describing itself, and demanding a receipt for a zero-deploy failure
+       is a false alarm (Codex, fifty-seventh round on #1306). */
+    + '|(?<!\\bthis\\s)(?<!\\bcurrent\\s)\\b(?:previous|earlier|prior|original|preceding|another|other|subsequent|initial|repeat)\\s+[a-z][\\w-]*\\b'
     + '|\\b(?:retry|re-?run|redo)\\b', 'i');
 
 function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {

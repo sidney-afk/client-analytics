@@ -2696,6 +2696,38 @@ ok(inspectConfigHeadingRun.code === 1 && inspectConfigHeadingRun.json
     && /34000000000/.test(JSON.stringify(inspectConfigHeadingRun.json.failures)),
     'A DEPLOYMENT NOUN USED AS AN OBJECT NAMES A THING: "Inspect deployment configuration — run `X`" is not an anchor, in any form of the word');
 
+/* ---- 8bm. a qualified pointer; every shipping word as an object (round 64) ---- */
+const qualifiedPointer = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the attempt immediately before it deployed nothing.',
+    '',
+].join('\n');
+const qualifiedPointerRun = run(fixture('qualified-pointer', appended(qualifiedPointer), realRb));
+ok(qualifiedPointerRun.code === 1 && qualifiedPointerRun.json
+    && qualifiedPointerRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A QUALIFIER DOES NOT BREAK THE POINTER: "the attempt immediately before it deployed nothing" still belongs to that attempt');
+
+const inspectReleasedHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Inspect released functions — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const inspectReleasedHeadingRun = run(fixture('inspect-released-heading', appended(inspectReleasedHeading), realRb));
+ok(inspectReleasedHeadingRun.code === 1 && inspectReleasedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(inspectReleasedHeadingRun.json.failures)),
+    'AND EVERY SHIPPING WORD NAMES A THING THE SAME WAY: "Inspect released functions — run `X`" is not an anchor either');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

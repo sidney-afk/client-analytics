@@ -258,7 +258,7 @@ function deployAnchors(log) {
            THING, while "deployed via", "deployed from" and a bare "deploy"
            before punctuation record the act (Codex, sixty-second and
            sixty-third rounds on #1306). */
-        const objectless = named.replace(/\bdeploy(?:ment|ed|s|ing)?\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b|#)[a-z]+\b/gi, ' ');
+        const objectless = named.replace(/\b(?:deploy(?:ment|ed|s|ing)?|releas(?:e|ed|es|ing)|shipp?(?:ed|ing|s)?|rollout|rolled out|cut ?over)\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b|#)[a-z]+\b/gi, ' ');
         const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
         const saysDeploy = /\bdeploy|releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(objectless)
@@ -544,7 +544,10 @@ const OTHER_ATTEMPT = new RegExp(
     /* And the same thing said the other way round: "the attempt before it",
        "the run after that", "the dispatch preceding this one" put the pointer
        AFTER the noun (Codex, fifty-ninth round on #1306). */
-    + '|\\b(?:attempts?|runs?|dispatch(?:es)?|tr(?:y|ies)|jobs?|executions?|passes|pass|rounds?|cycles?)\\s+(?:before|after|preceding|following|prior to|ahead of|behind|either side of)\\b'
+    /* A qualifier between the noun and its pointer changes nothing: "the
+       attempt immediately before it" is the same reference (Codex, sixty-fourth
+       round on #1306). */
+    + '|\\b(?:attempts?|runs?|dispatch(?:es)?|tr(?:y|ies)|jobs?|executions?|passes|pass|rounds?|cycles?)(?:\\s+(?:just|immediately|right|directly|shortly|long|somewhat|closely))*\\s+(?:before|after|preceding|following|prior to|ahead of|behind|either side of)\\b'
     + '|\\b(?:retry|re-?run|redo)\\b', 'i');
 
 function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {

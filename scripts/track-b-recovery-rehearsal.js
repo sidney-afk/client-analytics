@@ -138,7 +138,7 @@ async function run() {
       source.query(`update public.syncview_runtime_flags set value=${quote(JSON.stringify({schema_version:1,mode:'native',version_id:labelVersion}))}::jsonb where key='production_native_label_catalog';`);
       assert.equal(source.query("select count(*) from public.production_label_catalog_versions"), '1'); assert.equal(source.query("select count(*) from public.linear_outbound_cutoff_control where lane='mirror_outbox'"), '1');
       assert.equal(source.query("select (public.linear_outbound_cutoff_activate_v1(0,'synthetic-operator')->>'cutoff_enabled')"), 'true');
-      assert.notEqual(source.raw("select public.linear_outbound_claim_v1(0,'synthetic-claim',1)").status,0);
+      assert.notEqual(source.raw("select public.linear_outbound_claim_v1(0,'synthetic-claim',0)").status,0);
       const labelRow=source.rows("select id,client_slug,team,updated_at from public.deliverables where team='video' order by id limit 1")[0]; assert.ok(labelRow);
       source.query(`update public.deliverables set linear_raw=${quote(JSON.stringify({issue:{labelIds:[],labels:{nodes:[node],pageInfo:{hasNextPage:false,endCursor:null}}}}))}::jsonb where id=${quote(labelRow.id)};`);
       const current=source.rows(`select * from public.deliverables where id=${quote(labelRow.id)}`)[0], generation=Number(source.query("select generation from public.track_b_f27_team_fences where team='video'"));

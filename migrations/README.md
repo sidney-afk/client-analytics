@@ -67,6 +67,11 @@ executes these files (see `README.md` › Repository layout).
   and does not change `pto_v1`. This delta is **source-only** until a value-free apply/readback entry
   confirms both columns, all three function bodies (including the active-target guard), and their
   service-role-only grants in `EXECUTION_LOG.md`.
+- **`2026-09-05-workload-native-membership.sql`** is a source-only manual prerequisite for the
+  native-default staff Workload reader: three service-only functions provide an exact single
+  snapshot and alias-preserving plan target/set. No table, stored plan key, epoch or flag changes.
+  Requires the existing native Workload view and complete native workload-label projection.
+  Install/restore/serving holds are in `docs/ops/WORKLOAD_NATIVE_SOURCE.md`; never apply by merging.
 - **`2026-07-19-workload-plan.sql`** adds the `workload_plan` sidecar keyed by the stable Linear
   sub-issue id, with normalized client scope, nullable internal `plan_date`, and server-owned
   `updated_by` / `updated_at`. It deliberately adds no column or foreign key to the rebuildable

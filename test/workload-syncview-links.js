@@ -77,13 +77,13 @@ const pop = source.slice(source.indexOf('const parentUrl   = clientName'),
 ok(/const parentIdent = clientName/.test(pop)
   && /parentById\.get\(parentId\)\?\.identifier\) \|\| subs\[0\]\?\.identifier/.test(pop),
 'the header derives a Linear IDENTIFIER for the SyncView deep link, parent first then first sub');
-ok(/parentSyncUrl = parentIdent\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(parentIdent\)\)/.test(pop),
-  'the header link is the ?prod=1&d= deep link Production already resolves by identifier');
+ok(/parentSyncUrl = parentTarget\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(parentTarget\)\)/.test(pop),
+  'the header link uses the exact native target or legacy identifier');
 ok(/Open SyncView →/.test(pop), 'the primary header action now reads Open SyncView');
 ok(/workload-popover-parent-linear[^>]*href="\$\{wlEscape\(parentUrl\)\}/.test(pop)
   && /Linear ↗/.test(pop),
 'Linear stays reachable from the header as a secondary link -- video is still Linear-authoritative');
-ok(/const rowSyncUrl = s\.identifier\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(s\.identifier\)\)\s*:\s*\(s\.url \|\| ''\);/.test(pop),
+ok(/const rowSyncUrl = \(s\.nativeId \|\| s\.identifier\)\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(s\.nativeId \|\| s\.identifier\)\)\s*:\s*\(s\.url \|\| ''\);/.test(pop),
   'each sub-issue row links to its own SyncView detail, falling back to Linear only when no identifier exists');
 ok(/workload-popover-item-main" href="\$\{wlEscape\(rowSyncUrl\)\}/.test(pop),
   'the row MAIN click goes to SyncView');

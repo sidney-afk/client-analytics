@@ -141,6 +141,13 @@ Other:
   production 2026-08-24 (`--no-verify-jwt`); `quiz_intake_enabled` is still `{"enabled": false}`
   pending an end-to-end test, so the live endpoint currently fails closed.
 - `functions/v1/workload-plan` — staff-authenticated Workload sidecar projection/writer. Candidate
+  now adds `native_snapshot`: exact native/explicit-legacy population, current authority and saved
+  plans from one SQL snapshot. Existing `list` includes compatible UUID/native aliases; `set`
+  preserves the real stored key and rechecks its owner/authority in SQL. Both reads retain the
+  existing staff role-key gate; only Admin/SMM write. Three manual SQL prerequisites and the
+  complete function closure must be installed/read back before this browser is released.
+  Source-only scope/recovery limits: `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. Earlier evidence below
+  is historical and does not establish that this candidate serves. Previous candidate
   source allows Admin/SMM/Creative to list the same global plan projection while retaining
   Admin/SMM-only per-issue mutations. Creative's plan controls render read-only/disabled and its
   drag handles are absent. The function

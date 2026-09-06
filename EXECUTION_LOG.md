@@ -2,6 +2,16 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Source candidate: native Workload membership and compatible plans
+
+Base `99d31c815de3e1a46deeb01c45c09bf2937040ad`. Native-default normal/forced/background
+snapshot, exact authority/membership/weights and bidirectional saved-plan aliases implemented
+locally. Additive manual SQL + deliberate-manual `workload-plan` closure; no production operation.
+Focused real-source browser, disposable SQL and full-handler proofs are recorded in
+`docs/ops/WORKLOAD_NATIVE_SOURCE.md`. CON/STR and source-only feedback remain explicit gaps.
+Current source/serving/rollback limits there supersede earlier default-reader proposals;
+no G5/Decision A, serving, or integrated-release completion is claimed.
+
 ## 2026-09-05 — Built: paste an image into a SyncLinear description (awaits migration + first deploy)
 
 Owner: *"let's do it."* The storage decision in `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`

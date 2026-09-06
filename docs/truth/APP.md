@@ -535,6 +535,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   overrides as absent. Authentication or authorization denial instead purges the private projection
   immediately. Reads and writes are bounded, and only the newest overlapping refresh may publish
   plan state.
+- **2026-09-05 source candidate (serving unproven):** `wlFetchNativeSnapshot` is the common
+  normal/forced/background Workload reader. One service-only SQL snapshot selects native VID/GRA
+  under actual `prod_authority`, explicit legacy CON/STR/provider teams, and compatible saved plans.
+  Native IDs and both-direction exact aliases preserve stored plan keys; native failures retain
+  prior work with a warning and hold edits, without Linear fallback. Native active-client/assignee
+  eligibility, direct native links and canonical feedback previews are described in
+  `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. That section owns the migration/manual-function/browser
+  deployment order and limits; the historical deployed descriptions here are not proof it serves.
 - Candidate `workload-linear` uses the shared browser-write authenticator and the existing
   `LINEAR_MIRROR_API_KEY`; it has no n8n, frozen-writer, runtime-flag, schema, or `workload-plan`
   fallback. Metadata requests contain at most 100 unique active sub-issue ids and use bounded

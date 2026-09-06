@@ -248,6 +248,15 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 ## Workload internal plan-date contract (live)
 
+**New source-only candidate:** `2026-09-05-workload-native-membership.sql` adds service-only
+`workload_native_snapshot_v1`, `workload_native_plan_target_v1` and
+`workload_native_plan_set_v1`. No table or stored key is migrated. The snapshot uses one database
+statement snapshot/exact population count; the setter locks exact native ownership/current
+authority and retains old UUID/native plan storage across flips. The staff-only Edge adapter
+projects aliases onto the current card and preserves old list callers. Installed schema/grants,
+schema-aware restore and deliberate-manual serving proof are required before browser release;
+see `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. This does not refresh the live evidence below.
+
 - In the current live release, Linear `due_date` remains display-only in Workload. The
   `workload_plan.plan_date` is an
   independent Admin/SMM-owned scheduling value keyed by the exact sub-issue id; clearing it restores

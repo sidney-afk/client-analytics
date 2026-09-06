@@ -99,6 +99,15 @@ serving checks. No gateway, migration, writer, flag or data rollback belongs to
 this reader-only inverse. The inherited optional asset lookup index is not
 applied by this work.
 
+**2026-09-05 native Workload candidate — NOT LIVE:** additive snapshot/alias RPCs and the
+manual `workload-plan` closure have not been installed/deployed in this implementation pass.
+Preserve their alias-aware reader/writer during any later browser rollback. An old Edge Function
+may hide native-key plans, and an old browser cannot display native-only work; reverting source
+is not a proved data/visibility recovery. Do not flip authority or remove stored plans to conceal
+that mismatch. Require the captured schema/data/grants and an exact alias-aware restore drill
+before full rollback, as specified in `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. No live-state value
+changes in this candidate.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is

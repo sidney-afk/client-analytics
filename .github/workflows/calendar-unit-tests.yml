@@ -110,6 +110,18 @@ jobs:
           CARD_HISTORY_PG_DUMP: /usr/lib/postgresql/17/bin/pg_dump
           CARD_HISTORY_WORKLOAD_OUTPUT: ${{ runner.temp }}/workload-history-private
         run: node test/workload-history-integrated.js
+      - name: Restore retained native card requests with the v7 corpus
+        env:
+          CARD_MATERIALIZATION_HISTORY_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_MATERIALIZATION_HISTORY_PGHOST: 127.0.0.1
+          CARD_MATERIALIZATION_HISTORY_PGPORT: '5432'
+          CARD_MATERIALIZATION_HISTORY_PGUSER: postgres
+          # Synthetic credential for this job's existing loopback service only.
+          CARD_MATERIALIZATION_HISTORY_PGPASSWORD: postgres
+          CARD_MATERIALIZATION_HISTORY_PSQL: /usr/lib/postgresql/17/bin/psql
+          CARD_MATERIALIZATION_HISTORY_PG_DUMP: /usr/lib/postgresql/17/bin/pg_dump
+          CARD_MATERIALIZATION_HISTORY_OUTPUT: ${{ runner.temp }}/native-card-history-private
+        run: node scripts/card-materialization-history-rehearsal.js
       - name: Prove native Workload snapshot and plan aliases against disposable SQL
         env:
           WORKLOAD_TEST_REQUIRE: '1'

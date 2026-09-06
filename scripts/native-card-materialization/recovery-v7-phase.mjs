@@ -12,13 +12,21 @@ const result = { cases: [], provider_attempts: 0 };
 
 if (process.env.CARD_MATERIALIZATION_PHASE === 'seed') {
   await sql("update public.syncview_runtime_flags set value=value||'{\"mode\":\"native\",\"epoch\":\"synthetic-restore-coverage\"}'::jsonb where key='native_card_materialization';");
-  for (const [mode, surface] of [['both', 'calendar'], ['both', 'samples'], ['video', 'calendar'], ['graphics', 'samples']]) {
+  for (const [mode, surface] of [['both', 'calendar'], ['both', 'samples'], ['video', 'calendar'], ['thumbnail', 'samples']]) {
     const candidate = await accepted(mode, surface);
     const reply = await call(candidate.body, candidate.surface, candidate.source);
     assert.equal(reply.ok, true, 'accepted materialization');
     const key = surface === 'calendar' ? 'post' : 'sample';
     const table = surface === 'calendar' ? 'calendar_posts' : 'sample_reviews';
     const card = candidate.body[key];
+    if (mode === 'video') {
+      assert.ok(card.video_deliverable_id); assert.ok(!card.graphic_deliverable_id);
+      assert.equal(reply[key].graphic_deliverable_id, null);
+    }
+    if (mode === 'thumbnail') {
+      assert.ok(card.graphic_deliverable_id); assert.ok(!card.video_deliverable_id);
+      assert.equal(reply[key].video_deliverable_id, null);
+    }
     await sql(`update public.${table} set name='Later human title',status='Approved',order_index=773 where client=${quote(candidate.body.client)} and id=${quote(card.id)};`);
     result.cases.push({ body: candidate.body, raw_body: JSON.stringify(candidate.body), surface: candidate.surface, source: candidate.source,
       current: (await rows(`select * from public.${table} where client=${quote(candidate.body.client)} and id=${quote(card.id)}`))[0] });

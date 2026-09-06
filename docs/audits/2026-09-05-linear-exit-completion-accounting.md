@@ -5,21 +5,23 @@
 This replaces the former current accounting table and next-assignment note. Dated checkpoints below remain historical evidence. No production exit gate is complete: product watchers are **INACTIVE**, Decision A is **NOT READY**, and neither the 72-hour nor 14-day observation clock has started.
 
 - [Draft PR #1325](https://github.com/sidney-afk/client-analytics/pull/1325) at `4bb6c0745b615ddc4a19e09fb0ef0ee441ffd119` has hosted [run 34049309334](https://github.com/sidney-afk/client-analytics/actions/runs/34049309334) green: all 445 unit suites, v7 data and schema restores, type, F27, and privacy checks. The earlier 442/445 result remains historical failure evidence.
-- Cutoff source `fab66cc22` is pushed on `fix/cloud-outbound-cutoff-20260906`; its 13 disposable-database checks passed with zero failures. Final independent review is active. It has no PR and is not installed.
-- Browser transport `0cab1943` includes the same-actor resume correction and 10 offline controls. Its combined HTTP proof remains pending.
-- `integration/linear-exit-candidate-20260906` at `3a873a1ccb77369db55d99f19707fbd91358db92` combines Workload #1321, existing assignment #1322, HTTP #1325, cutoff, and main `5ed005c32732f415ea1868951fb42a132ddf045a`. Browser transport and labels are not merged into that candidate.
+- [Draft PR #1326](https://github.com/sidney-afk/client-analytics/pull/1326), exact `dd831df58adba6b7398e17ce49f3a7a6e1665e7b`, now combines Workload, existing assignment, HTTP/card routing, labels, cutoff and main `5ed005c32732f415ea1868951fb42a132ddf045a`. It is verified draft/unmerged/mergeable; exact-head hosted checks are running. No merge or deployment is approved.
+- Cutoff `33bfd23a51c388008531ec8ecba58e3152a115e0` corrects the independently found F27 snapshot/classification refusal. Fourteen actual database/gateway/worker-helper groups and 16 source checks pass. The read-only debt helper is STABLE SECURITY INVOKER; missing control remains an error. Normal emergency provider replay and global cutoff remain held.
+- Browser transport `0cab1943` corrects same-actor resume; combined `d2d3747a` passed 42 actual HTTP/database groups over 64 loopback requests with zero external attempts. A later retention correction at `67745a6b2` passes 11 extracted controls and keeps accepted native recovery through repeated failures. Older unmarked jobs remain a G6 obligation.
+- Combined `4195d0ac19a0eafde1d5d3a3693da121650971ff` passed 40 actual-handler label and 46 assignment groups with both native trigger families installed; independent source and integration reviews passed. Standalone label source is `7f67133d862ecbed78a7f963cbc1b48188c65f87`.
+- Fresh September6 read-only evidence: public HTML matches main at 18:21Z; production-write v68 and outbound v47 closures match main, while anonymous writer v48/v49 closures still match the preserved September4 captures. At 18:14Z all eight queried new tables, seven new RPCs and four new flags were absent. [Exact narrow evidence and limits](https://github.com/sidney-afk/client-analytics/blob/dd831df58adba6b7398e17ce49f3a7a6e1665e7b/docs/audits/2026-09-06-linear-exit-live-boundary.json).
 
 | Current area | Status and remaining boundary |
 |---|---|
-| **G2 labels** | `backend_paths` is implementing the native write and authority-flip read-only receipt adoption; independent review is active. This is source work, not activation. |
-| **Recovery corpus** | New catalog and cutoff retained owners are outside selected 37. A new explicit recovery version, with installation/reconstruction proof, is required before installation. The existing 37-owner proof does not cover them. |
+| **G2 labels** | Native write and authority-change read-only receipt adoption are implemented, independently reviewed and combined. Live export/catalog attestation, serving, installation and activation remain held. |
+| **Recovery corpus** | Explicit v8/39-owner preparation is active. Its first capture refused the table-reading cutoff view helper; a narrowly scoped read-only view-callable correction is under independent review. No v8 restore/replay PASS is claimed. The existing v7/37-owner proof is preserved and does not cover these two owners. |
 | **G4 assets and full population** | Open: complete population, asset discovery, reconciliation, and recovery evidence remain required. |
 | **G6 old n8n and stale callers** | Open: preserve valid accepted work and safely retire old caller/provider paths; browser transport proof is only one bounded prerequisite. |
 | **G7 watcher chain** | Open: final TEST-only canary, independent observer, human acknowledgement, and fallback evidence remain required. Watchers stay inactive. |
-| **G8 global cutoff** | Open: the bounded cutoff source is under independent review; full scheduler, webhook, stale-worker, debt, and provider-cutoff proof remains required. |
+| **G8 global cutoff** | Open: the bounded corrected cutoff has local evidence; full scheduler, webhook, stale-worker, debt, other-root and provider-cutoff proof remains required. |
 | **G9/G10 observation** | Held: no credential revocation, Decision A, or clock start. The required sequence remains 72 hours, then 14 days. |
 
-No live, n8n, flag, provider, alert, merge, deployment, or production action is authorized by these source and disposable results. Existing owner questions remain pending and are not re-sent here.
+No live mutation, n8n edit, flag/provider/alert change, merge or deployment is authorized by these source, read-only and disposable results. Existing owner questions remain pending and are not re-sent here.
 
 
 ## September 6 UTC: independent native-label and cutoff work accepted

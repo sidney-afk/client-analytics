@@ -106,5 +106,18 @@
                    "Only the eight named relations, seven named RPCs and four named flags were queried; no whole-schema or global configuration completeness claim",
                    "No product source, database data, schema, flags, credentials, provider settings or alerts changed"
                ],
-    "serving_observed_at":  "2026-09-06T18:11:24.1392411Z"
+    "serving_observed_at":  "2026-09-06T18:11:24.1392411Z",
+    "pages":  {
+                  "classification":  "LIVE_READ_SERVED_BYTES",
+                  "started_at":  "2026-09-06T18:21:24.667Z",
+                  "finished_at":  "2026-09-06T18:21:25.482Z",
+                  "source_commit":  "5ed005c32732f415ea1868951fb42a132ddf045a",
+                  "served_sha256":  "f586de124a592651f30182c4b786f7d52b7d7ed67494001107521dcbc928aaf6",
+                  "expected_sha256":  "f586de124a592651f30182c4b786f7d52b7d7ed67494001107521dcbc928aaf6",
+                  "matches":  true,
+                  "byte_count":  5280795,
+                  "limits":  [
+                                 "Public root HTML bytes only; no login, client journey, backend write or asset completeness proof"
+                             ]
+              }
 }

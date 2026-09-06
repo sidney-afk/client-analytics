@@ -1,0 +1,38 @@
+# Combined Linear-exit candidate
+
+This is implementation evidence for the one G0-G10 execution sequence in [draft PR1268](https://github.com/sidney-afk/client-analytics/pull/1268). It does not replace that sequence or authorize a release. Decision A remains **NOT READY**; product watchers are inactive and neither observation clock has started.
+
+## What is combined
+
+The candidate preserves the independently tested HTTP adapter in [PR1325](https://github.com/sidney-afk/client-analytics/pull/1325), native Workload capture/comparison in PR1319/1321, existing-work assignment in PR1322, and their retained parent histories. Main `5ed005c32732f415ea1868951fb42a132ddf045a` is merged so the recent description editor and asset work are preserved.
+
+Native labels now use an immutable, operator-attested catalog version and an atomic native receipt. An exact already-accepted native label retry can read its current result after authority changes, while new requests still obey authentication, scope, authority, CAS and F27 gates. The combined gateway excludes both native labels and native assignment from provider draining; one feature cannot restore the other's mirror.
+
+Accepted native intake carries server-derived routing metadata. Compatible retained browser jobs use the receipt-aware Calendar/Samples adapter despite generic routing-flag failures. Same-actor sign-in durably resumes suspended work. Repeated failures retain the accepted native job and give honest recovery guidance; a blocked job can still prevent another post in that browser until recovery finishes. Older unmarked jobs and n8n transports remain a separate G6 obligation.
+
+The bounded outbound cutoff orders queue/control locks, prevents old workers from taking new leases, preserves terminal native receipts and exposes classified queue debt. F27 snapshot and classification require persisted intent evidence; only the reserved SQL-only drill may claim after cutoff. Normal provider replay, pre-claim provider reads, other queues, inbound, n8n, external credentials and global egress remain outside this bounded proof.
+
+## Evidence, with its boundaries
+
+| Source / evidence | Result | What it does not prove |
+|---|---|---|
+| PR1325 `4bb6c0745b615ddc4a19e09fb0ef0ee441ffd119`, hosted run `34049309334` | All 445 unit suites; dedicated history/v7 data and schema reconstruction; F27, identity and types passed. Earlier 442/445 loader failure is preserved in that PR. | Serving anonymous writers or new catalog/cutoff data recovery. |
+| Combined `d2d3747a1646c9356c7d10bfc19181a0807666f1` | 42 local HTTP/database groups, 64 requests, zero external attempts; includes six dated anonymous-source fixture groups. | Live anonymous journeys. Later label integration is tested separately. |
+| Combined `4195d0ac19a0eafde1d5d3a3693da121650971ff` | 40 actual-handler label groups plus 46 assignment groups; both native trigger families installed in both disposable fixtures. Gateway SHA256 `fed25744b07b9bc1825019fd7e5b4b69079d866b25f3ead4b81faaf9f849d1da`. Independent combined guard review passed. | Installed schema, live roster/catalog completeness, provider-wide independence. |
+| Cutoff `33bfd23a51c388008531ec8ecba58e3152a115e0` | 14 actual database/gateway/worker-helper groups and 16 source checks passed. Service debt readers work; authenticated readers refuse; missing control remains an error. | Actual external in-flight completion, normal emergency provider replay, other egress roots. |
+| Browser retention `67745a6b2` | 11 extracted routing/resume/retention controls and existing intake/Samples controls passed. Older extraction loaders now load the real new helpers; assertions are retained. | A full browser/client lifecycle or server admission. |
+| [Fresh read-only boundary](2026-09-06-linear-exit-live-boundary.json) | Live production-write v68 and outbound v47 match captured main; anonymous writer v48/v49 closures still match their preserved September4 versions. All eight named new tables, seven new RPCs and four new flags were absent at the query time. | Whole-schema completeness, client functionality or authorization to install anything. |
+
+Private receipt digests: combined HTTP `70ec30d04288433d550512201a872b43f1129804d51c4e9e2db331ee7187d271`; combined labels/assignment `c72c03fb0fffc93c317abad25ca7deff1633035f02f7fbeaa45cb4a5ea899353`; cutoff `857ae44815589714af1784fc8fec583a4e3dd0c694021575349729635a992a6d`. Private files and database rows are not published.
+
+## Release holds and client behavior
+
+Preparation changes no client experience: this is an unmerged candidate, new database owners/capabilities are absent, and no deployment, flag, n8n or provider action occurred. The compatible frozen anonymous serving composition must be separately reviewed; deploying the repository authentication paths would violate the client contract.
+
+Before installation, finish the separately versioned recovery extension for the catalog and cutoff owners, with an empty-target schema reconstruction and accepted-receipt replay. Canonical v7 remains exactly 37 tables; its existing proof cannot certify the two new owners. Full-population work/comment/asset conservation, both old n8n transports, stale browser and endpoint paths, and all provider execution roots remain open under G4-G8.
+
+Before any client-facing release, current reserved TEST/staff journeys must pass with provider access denied, the served source and installed schema must match the reviewed candidate, and the existing watcher design must be activated and drilled. Delivery and human acknowledgement must be proven through SyncViewbot plus an independent missed-run/fallback observer; no new messages or alert activation are performed by this candidate. Existing owner questions remain pending.
+
+Before any accepted native work, an uninstalled source change is reversible. Afterwards preserve native rows, manifests, catalog versions, journal, receipts, ingress and cutoff state, and hold new admission through compatible controls. Reverting to an old full-row materializer or requeuing terminal native receipts is not a safe rollback. Stop progression on lost/duplicated work, unexplained queue debt, unexpected provider traffic, anonymous 401s, false empty readers, incompatible recovery or an undelivered alarm.
+
+G9 still requires 72 continuous hours after access removal; G10 requires at least 14 days after Decision A. Engineering work cannot satisfy those elapsed-time gates in one day. The September15 cancellation must be reconciled with that retention window by the owner.

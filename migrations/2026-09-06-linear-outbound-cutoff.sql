@@ -83,6 +83,7 @@ create or replace function public.linear_outbound_claim_v1(
 declare
   v_control public.linear_outbound_cutoff_control%rowtype;
   v_row public.mirror_outbox%rowtype;
+  v_drill_claim boolean := false;
 begin
   if p_lock_timeout_seconds < 1 or p_lock_timeout_seconds > 3600 then
     raise exception 'linear_cutoff_invalid_lock_timeout';
@@ -91,7 +92,25 @@ begin
   select * into v_control from public.linear_outbound_cutoff_control
   where lane = 'mirror_outbox' for share;
   if not found then raise exception 'linear_cutoff_control_unavailable'; end if;
-  if v_control.cutoff_enabled then return null; end if;
+  if v_control.cutoff_enabled then
+    -- The sole post-cutoff claim is the already-classified F27 drill row. Its
+    -- next transition is the existing SQL-only `no_external_call` terminal;
+    -- ordinary F27 recovery and every provider row remain unclaimable here.
+    select exists(
+      select 1
+      from public.track_b_team_rollbacks r
+      join public.track_b_team_rollback_intents i on i.rollback_id = r.id
+      join public.mirror_outbox o on o.id = i.outbox_id
+      where o.id = p_id and o.status = p_status and o.status = 'skipped'
+        and o.lock_token is null and o.locked_at is null
+        and r.state = 'open' and r.is_drill = true and r.team = '__f27_drill__'
+        and i.classification = 'replay' and i.terminal_receipt is null
+        and o.f27_drill_rollback_id = r.id and o.team = '__f27_drill__'
+        and o.client_slug = '__f27_drill__' and o.test_only = true
+        and o.legacy_parity = false
+    ) into v_drill_claim;
+    if not v_drill_claim then return null; end if;
+  end if;
 
   update public.mirror_outbox o set
     lock_token = gen_random_uuid(), locked_at = now(), updated_at = now(),
@@ -99,7 +118,13 @@ begin
     dispatch_authorized_at = null, dispatch_authorization = null
   where o.id = p_id and o.status = p_status
     and o.outbound_generation = v_control.generation
-    and o.cutoff_disposition is null
+    -- A reserved drill is inserted while cutoff is active, so the normal
+    -- stamp correctly records accepted_after_cutoff. Only the exact
+    -- evidence-bound drill predicate above may consume that retained label.
+    and (o.cutoff_disposition is null or (
+      v_control.cutoff_enabled and v_drill_claim
+      and o.cutoff_disposition = 'accepted_after_cutoff'
+    ))
     and (o.lock_token is null or o.locked_at < now() - make_interval(secs => p_lock_timeout_seconds))
   returning o.* into v_row;
   if not found then return null; end if;
@@ -138,7 +163,12 @@ end $fn$;
 -- This protects the actual existing direct-table checkpoint/release paths.
 create or replace function public.linear_outbound_stale_worker_guard_v1()
 returns trigger language plpgsql security definer set search_path = public as $fn$
-declare v_control public.linear_outbound_cutoff_control%rowtype;
+declare
+  v_control public.linear_outbound_cutoff_control%rowtype;
+  v_f27 record;
+  v_has_f27 boolean;
+  v_snapshot_same boolean;
+  v_same boolean;
 begin
   -- Also cover an old worker acquiring its first lease after cutoff. Looking
   -- only at OLD.lock_token misses exactly that ordinary update path.
@@ -150,6 +180,103 @@ begin
   select * into v_control from public.linear_outbound_cutoff_control
   where lane = 'mirror_outbox' for share;
   if not found then raise exception 'linear_cutoff_control_unavailable'; end if;
+  -- F27 snapshot and terminal classification are retained, non-egress work.
+  -- A session GUC alone is never sufficient: verify the persisted immutable
+  -- intent snapshot and retain every non-transition field from that snapshot
+  -- before accepting the restricted field transitions below. Normal F27 replay
+  -- remains excluded; only the existing no-external-call drill terminal may
+  -- move skipped -> written.
+  select r.id as rollback_id, r.team as rollback_team, r.correlation_id,
+         r.is_drill, i.classification, i.terminal_receipt, i.row_sha256,
+         i.row_snapshot
+    into v_f27
+    from public.track_b_team_rollbacks r
+    join public.track_b_team_rollback_intents i on i.rollback_id = r.id
+   where i.outbox_id = old.id
+     and r.state = 'open'
+     and lower(r.team) = lower(old.team)
+     and i.row_sha256 = encode(
+       extensions.digest(convert_to(i.row_snapshot::text, 'UTF8'), 'sha256'), 'hex'
+     );
+  v_has_f27 := found;
+  v_snapshot_same := (to_jsonb(old) - array['status','processed_at','next_retry_at','last_error',
+    'lock_token','locked_at','attempts','linear_result','updated_at'])
+    is not distinct from
+    (v_f27.row_snapshot - array['status','processed_at','next_retry_at','last_error',
+      'lock_token','locked_at','attempts','linear_result','updated_at']);
+  v_same := (to_jsonb(new) - array['status','processed_at','next_retry_at','last_error',
+    'lock_token','locked_at','attempts','linear_result','updated_at'])
+    is not distinct from
+    (to_jsonb(old) - array['status','processed_at','next_retry_at','last_error',
+      'lock_token','locked_at','attempts','linear_result','updated_at']);
+  if v_has_f27 and v_snapshot_same and v_same then
+    if v_f27.classification is null
+       and old.status in ('pending','failed','shadow_ok')
+       and old.lock_token is null and old.locked_at is null
+       and new.status = 'skipped' and new.next_retry_at is null
+       and new.last_error = (case when v_f27.is_drill then 'F27 drill hold ' else 'F27 hold ' end) || v_f27.correlation_id::text
+       and new.processed_at is not distinct from old.processed_at
+       and new.attempts is not distinct from old.attempts
+       and new.linear_result is not distinct from old.linear_result
+       and new.lock_token is null and new.locked_at is null then
+      return new;
+    end if;
+    if v_f27.classification = 'replay'
+       and old.status = 'skipped' and new.status = 'skipped'
+       and new.attempts = 0 and new.processed_at is null
+       and new.next_retry_at is not null
+       and new.last_error = 'F27 approved replay pending'
+       and new.lock_token is null and new.locked_at is null
+       and new.linear_result is not distinct from old.linear_result then
+      return new;
+    end if;
+    if v_f27.is_drill = true and v_f27.classification = 'replay'
+       and v_f27.terminal_receipt is null
+       and old.status = 'skipped' and new.status = 'skipped'
+       and old.lock_token is null and old.locked_at is null
+       and new.lock_token is not null and new.locked_at is not null
+       and new.dispatch_authorization is null and new.dispatch_authorized_at is null
+       and new.attempts is not distinct from old.attempts
+       and new.processed_at is not distinct from old.processed_at
+       and new.next_retry_at is not distinct from old.next_retry_at
+       and new.last_error is not distinct from old.last_error
+       and new.linear_result is not distinct from old.linear_result then
+      return new;
+    end if;
+    if v_f27.classification = 'discard'
+       and old.status = 'skipped' and new.status = 'skipped'
+       and new.processed_at is not null and new.next_retry_at is null
+       and new.last_error like 'F27 discard: %'
+       and new.lock_token is null and new.locked_at is null
+       and new.linear_result is not distinct from old.linear_result then
+      return new;
+    end if;
+    if v_f27.classification = 'already_reflected'
+       and old.status = 'skipped' and new.status = 'written'
+       and new.processed_at is not null and new.next_retry_at is null
+       and new.last_error like 'F27 already_reflected: %'
+       and new.lock_token is null and new.locked_at is null
+       and new.linear_result is not distinct from v_f27.terminal_receipt then
+      return new;
+    end if;
+    if v_f27.is_drill = true and v_f27.classification = 'replay'
+       and v_f27.terminal_receipt is null
+       and old.status = 'skipped' and new.status = 'written'
+       and old.lock_token is not null and new.lock_token is null
+       and new.locked_at is null and new.processed_at is not null
+       and new.next_retry_at is null and new.last_error is null
+       and new.linear_result->>'ok' = 'true'
+       and new.linear_result->>'type' = 'f27_drill_replay_terminal'
+       and new.linear_result->>'no_external_call' = 'true'
+       and new.linear_result->>'rollback_id' = v_f27.rollback_id::text
+       and new.linear_result->>'correlation_id' = v_f27.correlation_id::text
+       and new.linear_result->>'outbox_id' = old.id::text
+       and new.linear_result->>'dedup_key' = old.dedup_key
+       and new.linear_result->>'operation' = old.operation
+       and new.linear_result->>'intent_snapshot_sha256' = v_f27.row_sha256 then
+      return new;
+    end if;
+  end if;
   if v_control.cutoff_enabled or old.outbound_generation is distinct from v_control.generation then
     raise exception 'linear_cutoff_stale_worker_refused';
   end if;
@@ -188,7 +315,7 @@ end $fn$;
 
 create function public.linear_outbound_cutoff_debt_rows_v1()
 returns table(id bigint,status text,outbound_generation bigint,disposition text)
-language plpgsql security definer set search_path=public as $fn$
+language plpgsql stable security invoker set search_path=public as $fn$
 declare c public.linear_outbound_cutoff_control%rowtype;
 begin
   select * into c from public.linear_outbound_cutoff_control where lane='mirror_outbox';

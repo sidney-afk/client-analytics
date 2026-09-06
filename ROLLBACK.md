@@ -1,5 +1,7 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Browser v3 refusal retention, unapplied:** before future use, source withdrawal changes no installed work. After a retained hold exists, preserve compatible hold-aware resume/removal or reconcile and retain each exact record before reverting; the old bundle can delete it at its refusal limit. Do not clear storage or regenerate unknown requests. The accepted-job scrub remains compatible with existing sign-out privacy, and v1/48-hour/sign-out gaps remain explicit in [the scoped evidence](docs/audits/2026-09-06-native-intake-retention.md).
+
 **Recovery stable-view classifier, uninstalled:** source withdrawal changes no
 clients or database. Retain packages and a compatible verified reader: older
 engines refuse the new `public_stable_view` class. Do not relabel those functions

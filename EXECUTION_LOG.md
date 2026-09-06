@@ -1,5 +1,9 @@
 # SyncView Independence Execution Log
 
+## 2026-09-06 — Browser v3 refusal retention (unapplied)
+
+Reproduced all three 16a retry-budget deletions. The same v3 record now pauses automatic attempts at the existing 4/6/2 limits; existing error areas offer a current-owner/current-record retry under the Web Lock. Actual-source35 groups (including three baseline controls), six styled Chromium helper cases and affected suites pass. No writer/auth/server/storage-owner change; v1, unaccepted sign-out, unheld live 4xx, n8n and serving remain held. [Evidence and rollback](docs/audits/2026-09-06-native-intake-retention.md) do not claim global G6 closure.
+
 ## 2026-09-06 — Ordinary outbound provider-read fence (unapplied)
 
 Base8e reproduces an empty-queue viewer call and retained-lease issue read after cutoff. The single provider transport now requires the existing SQL lease/generation authorization for every read/page/mutation; viewer follows claim and SQL-only drill exit. Actual whole-handler/SQL34 and offline33 pass; positive mirror mutation, native acceptance/replay and the reserved SQL-only F27 drill remain. No SQL/new owner/auth/browser changes. [Evidence](docs/audits/2026-09-06-outbound-read-cutoff.md) retains 10 intercepted attempts/zero external, old-isolate quiescence, in-flight grant and deployment/recovery holds. No live action or G8 promotion.

@@ -50,3 +50,7 @@ Before any future installation, review a compatible serving-source composition p
 While preparing this branch, clients see the existing deployed site because no public runtime changes are made. After a future approved installation, native creation may return a visible hold or uncertain result while ordinary client approvals/comments/tweaks retain their existing transport. These future statements require the deployment and fallback gates above; they are not present client-journey measurements.
 
 Before any real native acceptance, an uninstalled source patch can be abandoned. After acceptance, hold new admission and preserve the compatible receipt-returning adapter and all retained owners. Reverting to an old full-row materializer could overwrite later edits, so it is not a safe operational rollback. No data is deleted by this slice.
+
+### Later v3 refusal-retention source checkpoint
+
+The earlier unmarked-job refusal policy above is historical. The [bounded v3 correction](2026-09-06-native-intake-retention.md) preserves the exact pending record at its existing retry limits and offers an explicit same-owner retry. The provider/native transport, writer and SQL bodies are unchanged. This does not close actorless v1 expiry, unaccepted sign-out, unheld live-click refusal, n8n or serving gaps; complete G6 remains held.

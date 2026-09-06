@@ -121,7 +121,99 @@ The integrated visible-boot workflow now runs it after the existing Samples
 browser lane and also triggers when its driver changes. Hosted execution remains
 unproven until checks complete on the published integration head.
 
-### Native completeness census: capture prerequisite remains missing
+### Native completeness census: capture boundary and remaining comparison
+
+**Local capture component implemented, 2026-09-06; G5 remains held.**
+`qa/workload-consistency/native-capture.js` now acquires the private input
+boundary described below. It is deliberately limited to an explicitly owned
+loopback PostgreSQL fixture (`LOCAL_DISPOSABLE_ONLY`); it cannot be invoked
+against a hosted database. It adds no application, schema, grant, Edge Function,
+workflow or provider change. Clients see their existing application throughout.
+The prior assessment below is retained with its original source pins; its
+missing **capture implementation** is now partially resolved by this bounded
+component. Its native comparator adapter and live completeness verdict are
+still **NOT IMPLEMENTED / UNPROVEN**.
+
+The capture uses one noninteractive, bounded `psql` connection and one read-only
+repeatable-read transaction. Seven independently counted base sections are
+`deliverables`, `batches`, `clients`, `team_members`, every `workload_plan` key,
+`prod_authority` (only this flag), and the entire `workload_issues` mirror.
+The complete native view and three-field Workload-label metadata view are two
+additional observations. No eligibility filter is applied to the base counts.
+The raw `workload_native_snapshot_v1()` result is collected in that transaction.
+Each section has its exact PostgreSQL JSON text, UTF-8 byte count and SHA-256;
+the original database response is retained too. Numeric lexemes larger than
+JavaScript's safe integer range are preserved. A later comparator must parse
+numeric row content losslessly; this component uses parsed values only for
+bounded identity/count/shape validation. No valid capture alone proves that
+the native view selected every eligible base row.
+
+Missing sections/relations/grants, count or byte-digest disagreements, duplicate
+or malformed identities, missing projected columns, invalid authority, malformed
+RPC envelopes, divergent saved-plan content, and reviewed catalog/source drift
+refuse a packet. All sections are capped at 50,000 rows and combined SQL output
+at 64 MiB; overflow is refusal, not truncation reported as complete. Workload's
+legacy mirror baseline lacks a declared primary key: its observed logical `id`
+uniqueness is validated in the captured rows rather than invented in the catalog.
+Base-table primary keys and exact selected schema/view/function definitions are
+recorded. `row_security=off` refuses a silently policy-filtered base read unless
+the explicitly bound fixture role already has the necessary bypass/ownership.
+
+**Observed binding has precise limits.** The packet binds locally observed Git
+HEAD/bytes, caller-declared reviewed pins, observed database/transaction identity,
+schema and selected RPC/view/label-helper definitions, SQL digest and content.
+Git replacement objects, ambient Git routing and lazy object fetching are
+disabled. The supplied HMAC key provides integrity under that key; a caller
+holding it can sign self-asserted evidence. This is neither an independently
+trusted attestation nor proof that repository bytes are serving. Only the listed
+catalog objects are covered, not an arbitrary transitive execution closure.
+
+An actual concurrency negative exposed another important limit: PostgreSQL
+repeatable-read data snapshots do **not** pin function executable definitions.
+A replacement between catalog evaluation and RPC execution formerly paired an
+old catalog with the new execution. The component now observes the catalog again
+after evaluation on the same connection and refuses persistent drift. Matching
+observations still cannot exclude a replace-and-restore between them. Therefore
+every successful public summary says executable binding **UNPROVEN**, requiring
+separately established DDL quiescence and serving closure before any later
+readiness verdict. No database DDL freeze, trigger, new lock protocol or serving
+assurance is introduced here.
+
+Private invocation is `node qa/workload-consistency/native-capture.js
+<absolute-private-config.json> <absolute-new-private-output.json>`. The config
+contains `connection` (explicit confirmation, literal loopback host, port,
+unique `card_history_*` fixture database, fixture role, absolute `psql` and
+purpose-specific synthetic password), `reviewed_catalog`, `reviewed_commit`,
+and a 32-byte hex `integrity_key`. The exported `inspectCatalog` is only a
+read-only acquisition helper: its result must be reviewed, not promoted into
+independent authority by copying it into config. Input/output paths must resolve
+outside every Git ancestor. Previous output is never overwritten. The public
+CLI emits only aggregate counts, hashes, fixed refusal codes and **UNPROVEN**
+readiness fields. No raw SQL diagnostics, private paths, row identifiers or
+credentials are printed. All ambient libpq overrides are removed (including
+case variants on Windows); only the explicit fixture password is forwarded.
+
+`test/workload-native-capture.js` provides 28 offline guards, including real Git
+replacement/missing-object controls and a local transport trap proving the
+unguarded missing-object control would try acquisition. The separate explicit
+`qa/workload-consistency/native-capture-rehearsal.js` uses existing migration-shaped
+fixture setup and the actual native RPC/view/label helper. Its finite controls
+cover native-only work with an empty mirror, exact bytes and counts, no capture
+writes, same-count content/precision tampering, malformed/truncated/duplicate
+input, source/catalog/grant refusals, saved dates, coherent concurrent source and
+authority changes, and the two executable-definition races. No new CI service
+or live invocation is enabled. This is database acquisition proof, not rendered
+browser, client write, provider completeness, installed schema or live proof.
+
+Rollback is removal of these diagnostic files; no application or stored work
+changes to undo. Private receipts are retained under the operator's existing
+private evidence policy. The selected next implementation remains the **existing
+PR #1279 comparator's native adapter**, preserving actual eligibility, aliases,
+ordering and exclusions. Do not call the old normalized comparator with these
+packets directly or infer native completeness from mirror emptiness. The earlier
+finite comparison controls below remain owed. Owner-approved serving capture,
+DDL/execution authority and an actual native population comparison are separate
+gates; this component does not authorize their execution.
 
 **SOURCE_ONLY assessment, 2026-09-06; G5 remains held.** Inspected integration
 `8cf22ea841e77b74bf75969a525d4ccc2ff204e4` and locally preserved comparator

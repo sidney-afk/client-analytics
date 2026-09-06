@@ -24,6 +24,14 @@ The replacement full run at exact immutable `688947308c96e6f00b09a495a1f16f939fd
 
 ## Integration decisions
 
+### Completed full-run checkpoint and targeted corrections
+
+The full suite on immutable `5e6095bc025ce819ae701f69828ca48cd9abe161` completed from **2026-09-06T02:15:22.488Z to 02:31:10.680Z**: **437/438 suites passed**, exit 1, with the checkout clean and unchanged throughout. The sole failure was `test/f40-workload-readiness-source.js`. Private full-log SHA256: `e44d56c91f30eec8cd37aff2df5da6c131db06eca18a4d97d6368c1d7de6e499`. Hosted unit job `101414056987` (run `34006314682`) independently reported the same 437/438 result. Later dedicated Workload SQL and combined restore steps were skipped after that failed step, so they are not hosted proof on this head. Top-level passing suite counts also do not erase declared optional lane skips.
+
+The F40 failure exposed a diagnostic defect as well as an outdated test: an empty provider mirror could certify native Workload as ready without counting native-only work. Correction `e112f620704541ff14b8fc0a091edf3a0494965b`, integrated at `8cf22ea84`, now refuses the unsupported native population **UNPROVEN before any request**. The historical provider cohort, exclusion accounting and zero floors remain tested. The complete CLI negative control reproduces the prior false green; the corrected source passes 62 focused checks, independently rerun after integration. This is not a native completeness census and does not close G5.
+
+On the same 5e head, visible-boot Chromium (including the five Workload groups), PTO UI, Edge Function types, identity exposure and F27 rollback checks passed. Production polish run `34006314735`, job `101414057161`, failed independently and remains tracked separately from the unit failure. Every correction requires current-head hosted checks and named re-review; earlier green checks are bounded to their exact source.
+
 Latest bounded integration evidence:
 
 - Actual Calendar handler/RPC with native, journal and provenance schema: **7 groups / 81 assertions**, independently rerun at `e2dde9b2c97f5e41a0f5bde80f78ce0a63ea6892`. Accepted notes/tweaks, lost responses, lifecycle holds and injected recorder failures preserve exact row images. See [combined Calendar proof](2026-09-06-calendar-feedback-combined-proof.md).

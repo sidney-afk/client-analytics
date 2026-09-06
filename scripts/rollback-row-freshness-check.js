@@ -270,7 +270,7 @@ function deployAnchors(log) {
                object of its own: "Hotfix deployed — run `X`" records the act,
                "Inspect deployed functions" does not (Codex, sixty-eighth round
                on #1306). */
-            .replace(/\b(?:deployment|deploy|rollout|release|cut ?over)\b(?!\s+(?:(?:was|is|are|were|has|have|had|been|got)\s+)*(?:complete|completed|succeeded|successful|finished|done|failed|green|via|from|to|by|on|at|in|into|through|with|as|after|before|during|the|this|run)\b)(?:\s+[a-z]+\b)?/gi, ' ')
+            .replace(/\b(?:deployment|deploy|rollout|release|cut ?over)\b(?!\s+(?:(?:was|is|are|were|has|have|had|been|got)\s+)*(?:(?:now|already|finally|just|then|[a-z]+ly)\s+)*(?:complete|completed|succeeded|successful|finished|done|failed|green|via|from|to|by|on|at|in|into|through|with|as|after|before|during|the|this|run)\b)(?:\s+[a-z]+\b)?/gi, ' ')
             .replace(/\b(?:deployed|released|shipped|rolled out)\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b|[a-z]*ly\b|and\b|then\b|but\b)[a-z]+\b/gi, ' ');
         const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
@@ -1198,7 +1198,15 @@ function executionLogReceipts() {
            seventy-third round on #1306). The commit is provenance this guard
            checks against the row, so a conflict in it is reported like any
            version conflict. */
-        if (prev.commit && r.commit && prev.commit !== r.commit) {
+        /* An abbreviated sha and the full one name the same commit, so they
+           are compared over the shorter one's length (Codex, seventy-fifth
+           round on #1306, catching the false alarm the comparison itself
+           introduced). */
+        const sameCommit = (x, y) => {
+            const n = Math.min(x.length, y.length);
+            return n >= 7 && x.slice(0, n).toLowerCase() === y.slice(0, n).toLowerCase();
+        };
+        if (prev.commit && r.commit && !sameCommit(prev.commit, r.commit)) {
             receiptsMeta.conflicts.push({
                 run: r.run, slug: 'deploy commit', at: r.at,
                 kept: { source: prev.source, version: prev.commit.slice(0, 8) },

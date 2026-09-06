@@ -3023,6 +3023,45 @@ ok(agoPointerRun.code === 1 && agoPointerRun.json
     && agoPointerRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
     'AND "AGO" POINTS BACKWARDS AS PLAINLY AS "BEFORE": "the attempt two runs ago deployed nothing" is that attempt\'s evidence, not this run\'s');
 
+/* ---- 8bx. abbreviated commits; adverbs inside the outcome (round 75) ---- */
+const abbreviatedCommit = run(fixture('abbreviated-commit',
+    LOG.replace('`152c050e0179ee127e02d0ea50853960d9019eab`', '`152c050e`') + [
+        '',
+        '```json',
+        '{ "schema": "syncview_f27_section4_deployed_versions_v1",',
+        '  "deploy_commit": "152c050e0179ee127e02d0ea50853960d9019eab",',
+        '  "github_run_id": "33684111985",',
+        '  "functions": [',
+        '    { "slug": "batch-write", "active_version": "35", "source_closure_sha256": "' + H.bw + '" },',
+        '    { "slug": "deliverable-write", "active_version": "35", "source_closure_sha256": "' + H.dw + '" },',
+        '    { "slug": "linear-outbound", "active_version": "47", "source_closure_sha256": "' + H.lo47 + '" },',
+        '    { "slug": "production-write", "active_version": "66", "source_closure_sha256": "' + H.pw66 + '" }',
+        '  ] }',
+        '```',
+        '',
+    ].join('\n'), rollback()));
+ok(abbreviatedCommit.code === 0,
+    'AN ABBREVIATED SHA IS THE SAME COMMIT: a prose receipt naming `152c050e` does not conflict with the attestation carrying the full sha');
+
+const adverbInOutcomeHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment is now complete — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const adverbInOutcomeHeadingRun = run(fixture('adverb-in-outcome-heading', appended(adverbInOutcomeHeading), realRb));
+ok(adverbInOutcomeHeadingRun.code === 1 && adverbInOutcomeHeadingRun.json
+    && /34000000000/.test(JSON.stringify(adverbInOutcomeHeadingRun.json.failures)),
+    'AND AN ADVERB INSIDE THE OUTCOME KEEPS IT: "Deployment is now complete — run `X`" anchors its own run');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

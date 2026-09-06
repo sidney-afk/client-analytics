@@ -167,6 +167,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
   const submissionLogs = [];
   const legacyCreateHits = [];
   const legacyProjectReads = [];
+  const intakeEditorReads = [];
   const restHits = [];
   const networkOrder = [];
   const implicitCardWrites = [];
@@ -276,6 +277,28 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
   await page.route('**/functions/v1/production-write', async route => {
     const request = route.request();
     const body = JSON.parse(request.postData() || '{}');
+    // Create Post now reads its admission-specific editor projection through
+    // this endpoint. A read must never fall through into writes[]: that wakes
+    // the intake wait before a real intake_create request has arrived.
+    if (body.action === 'intake_editor_options') {
+      const read = { body, headers: request.headers() };
+      intakeEditorReads.push(read);
+      const authorized = read.headers['x-syncview-key'] === 'browser-role-key'
+        && read.headers['x-syncview-actor'] === 'Browser Admin';
+      const client = clients.find(item => item.slug === body.client_slug && item.active === true);
+      if (!authorized || !client || !['calendar', 'sxr'].includes(body.surface)) {
+        await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ ok: false, error: 'operation_forbidden' }) });
+        return;
+      }
+      // Explicit successful native-admission DTO, matching the actual reader.
+      // Pool/epoch/ranking SQL is tested in the native editor handler lane.
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        ok: true, complete: true, contract: 'intake-editor-options-v1',
+        surface: body.surface, client_slug: client.slug, team: 'video', lane: 'native',
+        editors: [{ id: 'editor', name: 'Browser Editor', openCount: 1 }],
+      }) });
+      return;
+    }
     if (body.action === 'labels_read') {
       labelReads.push({ body, headers: request.headers() });
       const ids = selectedLabelIds.get(body.id) || [];
@@ -1790,6 +1813,12 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       await _calOpenNativePost();
     });
     await page.waitForSelector('#calNativePostOverlay input[name="calNativeBatchChoice"]');
+    await page.waitForFunction(() => _calNativePostState?.videoEditorStatus === 'ready');
+    expect(intakeEditorReads.some(read => read.body.client_slug === 'calendarfixture'
+      && read.body.surface === 'calendar' && read.headers['x-syncview-key'] === 'browser-role-key'
+      && read.headers['x-syncview-actor'] === 'Browser Admin')
+      && !writes.some(write => write.body.action === 'intake_editor_options'),
+    'Calendar editor projection must be a scoped authenticated read, never a counted write');
     const latestChoice = page.locator('#calNativePostOverlay input[value="batch"][data-batch-id="batch-latest"]');
     // Round 2 redesign (owner pick 2026-08-18, option E): Start a new batch is
     // first and the default; every compatible batch lives in ONE
@@ -1917,7 +1946,8 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect(calendarWrites.length === beforeNewCalendarWrites,
       'new-batch choice wrote a local card before native intake');
     await page.locator('#calNativePostCreate').click();
-    for (let i = 0; i < 100 && writes.length === beforeNewGatewayWrites; i++) {
+    for (let i = 0; i < 100 && !writes.slice(beforeNewGatewayWrites).some(write =>
+      write.body.operation === 'intake_create' && write.body.surface === 'calendar'); i++) {
       await new Promise(resolve => setTimeout(resolve, 20));
     }
     const newWrite = writes.slice(beforeNewGatewayWrites).find(write => write.body.operation === 'intake_create' && write.body.surface === 'calendar');

@@ -13362,3 +13362,5 @@ old-job cohort must be proved empty by refusal, never by waiting. Card
 completion is not declared and Decision A is not ready.
 
 **Item 160 independent follow-up, local/unapplied (formerly 156):** shared state completion now requires reciprocal manifest-child identity, so a moved or cleared child remains visible debt even if the old card slot still names it. The baseline false green reproduced on both Calendar and Samples. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md` for current proof and the held creation protocol. No authorization to re-gate anonymous writers is inferred.
+
+**Integrated recovery backup follow-up, local/held:** FK-free card provenance and Calendar feedback materialization receipts require the separate history-v6 exact35-table corpus. New12 offline and10 combined local SQL checks pass; authenticated schema reconstruction and combined feedback-RPC behavior remain release holds. See `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`. No install, activation or backup schedule change.

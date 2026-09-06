@@ -6548,3 +6548,7 @@ before (5 / 1 / 1). All 7 carry a recorded ruling (OPEN_REPAIRS 156). Phase 3
 ## 2026-09-05 ? Local reciprocal native intake completion correction
 
 Independent PR1314 review at `42452cdbf5c36ba74b08885a152943ff827c9aa3` reproduced forward-only false completion on both card owners. The shared state predicate now requires the exact expected child to point back. Original source/head and failing proof are retained; no installed schema or production state was changed. Current evidence and remaining holds: `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.
+
+## 2026-09-06 ? Local combined recovery corpus
+
+From integration `6b306f473524b8f4759d6f03f09df45e8ba0aaf7`, added explicit history-v6 for both FK-free recovery ledgers. Twelve new offline checks and ten finite combined SQL checks pass; old formats remain readable and default schedule unchanged. Evidence and held schema/feedback-RPC/integration boundaries: `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`. No production action.

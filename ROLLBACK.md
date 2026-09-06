@@ -722,3 +722,5 @@ it. Rollback is `drop index if exists
 public.production_asset_access_checks_by_url_idx;`.
 
 **Unapplied reciprocal completion correction:** no schema object, browser or writer/auth change. Withdrawing its state-reader change restores the known false green, so hold the runner and retain unresolved accounting rather than treating old output as completion. Keep accepted rows, receipts and provenance. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.
+
+**Local history-v6 follow-up:** preserve original14/21/33 packages as limited historical evidence and keep every newer receipt/provenance/journal row. Never bypass older-target refusal or truncate omitted data. No migration or activation occurred; see `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`.

@@ -85,12 +85,20 @@ const CLOSED_HISTORY_TABLES = Object.freeze([...HISTORY_TABLES.flatMap(table =>
   { name: 'track_b_f27_team_fences', pk: 'team' },
   { name: 'linear_intake_receipts', pk: 'receipt_key' },
 ]);
+// v6 additionally owns the two FK-free recovery ledgers. Their lack of FKs
+// makes explicit coverage mandatory; v5 remains exactly its authenticated33.
+const INTEGRATED_HISTORY_TABLES = Object.freeze([...CLOSED_HISTORY_TABLES,
+  { name: 'production_card_provenance', pk: 'id', identity: true },
+  { name: 'calendar_feedback_materializations', pk: 'attempt_key' },
+]);
 const CORPORA = Object.freeze({
   'legacy-v3': Object.freeze({ name: 'legacy-v3', version: 3, magic: PACKAGE_MAGIC, tables: TABLES }),
   'history-v4': Object.freeze({ name: 'history-v4', version: 4,
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V4\n', 'utf8'), tables: HISTORY_TABLES }),
   'history-v5': Object.freeze({ name: 'history-v5', version: 5,
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V5\n', 'utf8'), tables: CLOSED_HISTORY_TABLES }),
+  'history-v6': Object.freeze({ name: 'history-v6', version: 6,
+    magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V6\n', 'utf8'), tables: INTEGRATED_HISTORY_TABLES }),
 });
 
 function resolveCorpus(name = 'legacy-v3') {
@@ -105,7 +113,8 @@ function configuredCorpus() {
 function manifestCorpus(manifest) {
   const name = manifest && manifest.schema_version === 3 ? 'legacy-v3'
     : manifest && manifest.schema_version === 4 ? 'history-v4'
-      : manifest && manifest.schema_version === 5 ? 'history-v5' : '';
+      : manifest && manifest.schema_version === 5 ? 'history-v5'
+        : manifest && manifest.schema_version === 6 ? 'history-v6' : '';
   const corpus = resolveCorpus(name);
   if ((corpus.version >= 4 || manifest.corpus != null) && manifest.corpus !== corpus.name) {
     throw new Error('Track-B snapshot corpus does not match its schema version');
@@ -283,6 +292,7 @@ function corpusBoundarySql(corpusName) {
   // No row values, client identifiers, constraint names or dynamic SQL reach
   // diagnostics. RESTRICT remains the ultimate restore race guard.
   return `do $corpus_boundary$ declare covered oid[] := array[${relations}]::oid[]; begin
+${corpus.version < 6 ? "if to_regclass('public.production_card_provenance') is not null or to_regclass('public.calendar_feedback_materializations') is not null then raise exception 'Track-B package omits integrated recovery evidence'; end if;" : ''}
 if exists(select 1 from pg_catalog.pg_constraint where contype='f'
   and confrelid=any(covered) and not conrelid=any(covered)) then
   raise exception 'Track-B corpus has an omitted incoming foreign key';
@@ -1248,6 +1258,7 @@ module.exports = {
   CORPORA,
   HISTORY_TABLES,
   CLOSED_HISTORY_TABLES,
+  INTEGRATED_HISTORY_TABLES,
   corpusBoundarySql,
   readOnlyPrivilegeArgs,
   configuredCorpus,

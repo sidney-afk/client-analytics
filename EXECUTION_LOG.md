@@ -2,6 +2,12 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Dormant native label catalog owner, local source only
+
+Pinned fresh remote main `ab6366136c03239965c97b050ab5cf7c9763a228`. Actual source tracing found complete per-row selections but no complete native catalog owner. Added one private immutable catalog-version table, strict full-manifest staging and validation-only RPCs. Active reads/activation always refuse, including service callers; original gateway/browser/frozen writers, authority/F27, fingerprints/events/outboxes and provider behavior are unchanged. The closed fresh-create catalog call is dead; protected `create_options` remains reachable. See [the contract and exact new recovery inventory](docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md).
+
+Local disposable PostgreSQL: 48 checks PASS (two real teams, global/foreign/group/archive rules, cursor/count/metadata refusal, known empty, exact/concurrent immutable replay, invalid-stage no-residue, read/direct-write privilege denials, held activation). Actual unchanged HTTP gateway: 20 checks PASS with provider transport synthetic/refused and an explicit in-process mutation RPC model. Fresh label read/write still fail when Linear is denied; that red independence gate is preserved. No live/TEST/provider API, schema apply, deployment, flags, exports, alert or billing action occurred. Installing this table is held until separately versioned private schema/data/restore coverage includes it; history-v5's existing 33-table claim is not expanded. No native label write, complete import attestation, native activation or production readiness is claimed.
+
 ## 2026-08-31 — Deploy: a card can be completed from the card
 
 **Section 4 forward from `5a3365f2`, run `33434655418`, PASS.** `production-write`

@@ -1,5 +1,11 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+## 2026-09-05 — Dormant native label catalog foundation (unapplied)
+
+The baseline is `ab6366136c03239965c97b050ab5cf7c9763a228`; this slice does not change browser/gateway/active writer bytes. Local containment is to leave the new migration unapplied and its RPCs uncalled. No client-facing rollback, flag or deploy is needed. If a later authorized install has staged evidence, retain the additive catalog table, all versions, immutable triggers and private ACLs; stop future callers instead of deleting, truncating or replacing its contents. Service activation/active-read functions always refuse. Do not restore a provider-blind write lane or disable an existing writer to roll this foundation back.
+
+Installation itself remains held until the [new object inventory](docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md#complete-new-recovery-object-inventory) is included in authenticated schema capture, a separately versioned private data corpus, and a narrowly owned restore helper with exact retained-data proof. Current history-v5's 33-table package excludes it; ordinary restore TRUNCATE must not bypass the new immutable triggers or use CASCADE. No live restore point or installed rollback is asserted by local SQL tests. The single go-live checklist continues to own product release ordering.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is

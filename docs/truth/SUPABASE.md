@@ -1,5 +1,7 @@
 # Supabase — current truth
 
+**2026-09-05 scoped source addition, baseline `ab636613`:** the [dormant native label catalog foundation](../ops/NATIVE_LABEL_CATALOG_FOUNDATION.md) adds a service-only immutable version owner and validation RPCs. It is **unapplied**, has no live catalog, always refuses activation/active reads, and changes no current writer/authority/outbox. The new private relation/functions/triggers require explicit schema + data corpus + retained-data restore coverage before installation; current history-v5's 33-table corpus does not cover them. This scoped source note does not refresh the historical live facts below.
+
 > Last verified: 2026-08-24 @ c7f088a + scoped kasper_ad_performance v2 and v3 additions (see
 > callouts below) + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
 > (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to

@@ -1,5 +1,7 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Native label catalog / Linear label prerequisite / staged import and recovery coverage → [dormant catalog owner contract](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md). This is a held G2 foundation under the existing go-live checklist, not an activation or a second execution plan.
+
 > **The rule this doc keeps: any documented fact in ≤2 opens from here.**
 > Draft shipped by the 2026-07-19 vault audit (P4 proposal — owner ratifies by
 > merging). If this router ever fails to route you, add the missing row in the

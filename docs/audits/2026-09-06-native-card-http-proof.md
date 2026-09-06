@@ -52,3 +52,11 @@ On that combined tree the 70 offline adapter controls pass, four affected writer
 An earlier combined attempt stalled in the local Windows launcher because a spawned server inherited its output pipe. Stopping that owned server released the launcher, and its subsequent database check failed. That environmental failure is retained separately; directing subprocess output to private files fixed the launcher without changing product or test code. The successful result above is a distinct run, not a relabelled failure.
 
 The existing CI discovery will run the repository-source HTTP lane with its disposable PostgreSQL binding; private captured-source cases are optional locally and are not counted as hosted proof. No hosted result is anticipated here. Clients see no change while this draft remains unapplied. Serving composition, installed-schema equality, historical/failed-flag routes, active monitoring and approved client journeys remain release gates.
+
+### First hosted result and loader correction
+
+At `68f672313027f7c26d9dad4308c075a81f044b07`, hosted run `34048401035` passed 442 of 445 unit suites. The three failures were missing imports of the new adapter in older Calendar-feedback/reconciliation loaders; later restore steps were skipped, not passed. Type ratchet, F27 rollback proof and identity exposure passed separately. The new HTTP lane itself passed in hosted CI without private capture fixtures.
+
+The follow-up updates the current Calendar-feedback loader and its source hash list. The reconciliation suite intentionally demonstrates the pre-adapter full-row overwrite; its old browser and writers now explicitly read unchanged source `8514a83e`, and its result labels that historical negative. Assertions are retained, while the new receipt-aware positive remains in the independent current HTTP test. This is not a claim that repository authorization equals the frozen serving bodies.
+
+The three affected database suites then passed on an owned disposable server, including all 76 retained reconciliation checks. Their private wrapper result hash is recorded in the coordinator's integration receipt; no live database or deployment was involved. Hosted validation of this correction remains pending until a new run completes.

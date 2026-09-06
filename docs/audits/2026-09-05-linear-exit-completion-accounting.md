@@ -1,5 +1,10 @@
 # Linear removal: completion accounting
 
+## G7 alert diagnosis update - September 6, 23:08Z
+
+A fresh read-only Slack history request to the previously resolved private owner-DM destination returned both approved drill messages: false_empty and recovered, each count0, dated September5 18:36:02Z. The earlier delivery-drill receipt only said relay_terminal_success; the separate relay confirmation explicitly had independentSlackReadback:false and acknowledged:false. This new direct history read establishes message presence in the saved destination, not human receipt, notification display, current bot/owner membership revalidation, or acknowledgement. The owner says they did not see the messages; that statement remains authoritative for human acknowledgement. No new message, conversation, configuration or workflow action was performed. Product watchers, independent fallback and activation remain held. Private identifiers and unrelated message content are omitted.
+
+
 ## Latest bounded integration: d144 (September 6, 22:39Z)
 
 Candidate PR1326 now exact `d1442f65c4da6dc4e5ef8f155e1465f564cafa5e`, unchanged fast-forward of independently reviewed source. Legacy card attempts retain the exact proposed payload before transport; uncertain outcomes remain held instead of replayed. Per-job/store locks and expected-record comparisons guard checkpoint and cleanup; unavailable locks or unverifiable persistence refuse sending. Root reran23 actual-source/modeled-receiver groups, including two baseline defect cases and removed-CAS negative; all pass. Affected author suites and independent source review PASS. Exact d144 hosted run34064533540/job101570862787 passed all459 unit suites at22:47Z, followed by dedicated history/Workload17/35,v7data12/37,v7schema16/37,v8schema-data-grants-replay20/39. All applicable browser/type/F27/privacy checks and named post-push review PASS. Previous9e75 green458 remains historical. Real browser multitab, server/trigger, installed/serving and live proof remain UNPROVEN. Old bundles and actorless reconciliation remain held. Evidence is in candidate docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md.

@@ -42,3 +42,13 @@ This proves loopback HTTP with real selected SQL and actual source functions. It
 The original n8n bypasses and browser cold/failed-flag fallback remain an explicit release hold. A locally refused stub proves route selection, not a repaired graph. The dated anonymous captures are neither current serving equality nor permission to deploy repository auth onto frozen writers. HTTP body limits also do not establish upstream proxy limits or an operational abuse policy.
 
 Test-only rollback removes these files and their map entry; it changes no data or serving source. Private fixture data is deliberately retained. Any eventual runtime rollback must preserve accepted receipts/current-row replay and retained owners; reverting to the old full-row writer after native acceptance can overwrite human edits.
+
+## Combined-source review, 2026-09-06
+
+Coordinator review combined adapter `c32b12df251bcbbf50eed6e9627b6abd030dda76` and proof `29e95a558407734b34719385b72cd505a2b90c19` at `cfe873bac26770d1fdafa6fac565a5f01a93b71f`, both descended from PR1324 `8514a83ed1a65145a3a51ffe52e5fcbb2976be31`. The sole merge conflict was adjacent map entries; both entries are retained. Runtime, SQL, browser and proof bytes match their separately reviewed inputs.
+
+On that combined tree the 70 offline adapter controls pass, four affected writer/routing suites pass, map validation reports 451 pass, and the generated deployment manifest is current. A new actual loopback/disposable SQL run passes all 42 groups over 64 HTTP requests with zero external attempts, including the six dated anonymous-capture groups. Report SHA-256: `7b440340fb11dabeaa37a5b537e7f29aa3af9bcec552e01d32723fdf3835a790`; wrapper receipt SHA-256: `44107fac0e0d0fa953d762fb9a8f4a347cbb5709d64d8936167e07f43cba53fb`. The owned server was stopped and its listener count verified zero.
+
+An earlier combined attempt stalled in the local Windows launcher because a spawned server inherited its output pipe. Stopping that owned server released the launcher, and its subsequent database check failed. That environmental failure is retained separately; directing subprocess output to private files fixed the launcher without changing product or test code. The successful result above is a distinct run, not a relabelled failure.
+
+The existing CI discovery will run the repository-source HTTP lane with its disposable PostgreSQL binding; private captured-source cases are optional locally and are not counted as hosted proof. No hosted result is anticipated here. Clients see no change while this draft remains unapplied. Serving composition, installed-schema equality, historical/failed-flag routes, active monitoring and approved client journeys remain release gates.

@@ -1,5 +1,17 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**2026-09-06 Calendar feedback recovery slice 1 (source-only candidate):**
+nothing is applied or deployed. Local rollback reverts the browser half, the
+gateway `recover_source` modifier and the migration file; none of them changes
+an existing object. Once applied, the migration's rollback is the two `drop
+function` statements at its foot; keep `calendar_feedback_materializations`,
+which is evidence of source changes that already happened. A deployed
+`production-write` rolls back through the existing reviewed captured closure on
+the manual Section 4 lane, never a whole-branch revert. Do not restore a whole
+historical frontend or re-gate the frozen anonymous writers for this change:
+owned attempts now carry `recoverySource` / `statusReservation` fields that an
+older document ignores but must not erase.
+
 **2026-09-05 source-only comment receipt candidate:** the shared add fingerprint
 repair in `qa/comment-receipt-fingerprint/README.md` has not been deployed.
 Local rollback reverts its gateway/helper changes, restoring the old false

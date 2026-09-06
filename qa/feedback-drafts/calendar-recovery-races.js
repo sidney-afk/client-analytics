@@ -1,15 +1,15 @@
 'use strict';
 // Acceptance controls, not expected-failure tests: native lifecycle races must
-// not insert stale or resurrected source content. Every receiver is fictional.
+// not insert stale or resurrected source content, and valid empty cells must
+// receive the exact copy. Every receiver is fictional; the mock models the
+// recover_source contract, and qa/calendar-feedback-recovery proves it on
+// PostgreSQL with the actual handlers.
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {SplitStore,pending,fresh,retry,guards}=require('./calendar-recovery-access');
 const {SOURCE,OUT,Harness,ui,body,ID}=require('./run');
 const {clone}=require('./mock-backend');
 async function main(){
- // Isolate the atomicity requirement behind an explicitly compatible receipt
- // control. This is NOT a claim that current server fingerprints interoperate.
- process.env.CAL_RECOVERY_COMPATIBLE_RECEIPTS='1';
- const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',receiptModel:'compatible-control-only; current server conflicts',groups:[],safetyHolds:[],indexSha256:require('node:crypto').createHash('sha256').update(h.index).digest('hex')};
+ const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',receiptModel:'declared recover_source fixture contract',groups:[],safetyHolds:[],indexSha256:require('node:crypto').createHash('sha256').update(h.index).digest('hex')};
  const run=async(name,fn)=>{try{await fn();report.groups.push({name,status:'PASS'});console.log('PASS '+name);}catch(e){report.groups.push({name,status:'FAIL',error:e.message});console.log('FAIL '+name+': '+e.message);}finally{await h.closeSessions();}};
  try{
   for(const comp of ['video','graphic'])for(const cell of [null,''])await run(comp+' verified '+(cell===null?'null':'empty-string')+' source cell',async()=>{
@@ -22,14 +22,14 @@ async function main(){
    const storage=await s.context.storageState();await s.context.close();s=await h.session(b,'client',{storageState:storage});await h.open(s);await s.page.waitForLoadState('networkidle');
    const panel=s.page.locator(`[data-cal-review-recovery="${comp}"]`);if(!await panel.isVisible())await s.page.locator(`[data-cal-review-pid="${ID}"] .kcard-expand-btn`).click();
    b.outcome='healthy';await panel.getByRole('button',{name:'Retry card sync',exact:true}).click();await ui.until(()=>s.page.evaluate(()=>[..._reviewDraftRecords.values()].every(c=>!c.recovering)),'recovery completes');
-   const held=await s.page.evaluate(comp=>[..._reviewDraftRecords.values()].find(c=>c.comp===comp)?.recoveryFailure,comp);
-   if(held==='review_atomic_source_repair_unavailable'){
-    assert.ok(b.records.some(r=>r.action==='reconcile_only'),'valid nullable cell reaches exact native proof');
-    assert.equal(b.feedbackWrites.filter(w=>w.transport==='source'&&w.outcome==='accepted').length,0,'capability hold sends no source write');
-    assert.ok((await panel.innerText()).includes(body));report.safetyHolds.push({comp,cell,passed:true});
-   }
+   const recovered=b.records.filter(r=>r.action==='recover_source');
+   assert.equal(recovered.length,1,'one recovery request');assert.equal(recovered[0].outcome,'materialized');
+   assert.equal(b.feedbackWrites.filter(w=>w.transport==='source'&&w.outcome==='accepted').length,0,'no browser-side source write');
+   assert.equal(await panel.isVisible(),false,'resolved access disappears');
+   assert.equal(b.rows[0][comp+'_status'],'Tweaks Needed');
    await guards(h,b);
-   assert.ok(JSON.parse(b.rows[0][comp+'_tweaks']||'[]').some(c=>c.body===body),'complete repair acceptance still requires restoring original into valid empty source');
+   const entries=JSON.parse(b.rows[0][comp+'_tweaks']||'[]');assert.equal(entries.filter(c=>c.body===body).length,1,'exact copy restored once into the valid empty source cell');
+   if(comp==='video')assert.equal(b.rows[0].tweaks,b.rows[0].video_tweaks,'video alias mirrored');
   });
   for(const alias of ['legacy-only','malformed','nonarray'])await run('video alias '+alias+' is preserved/refused',async()=>{
    const b=new SplitStore('partial');let s=await pending(h,b);s=await fresh(h,b,s);
@@ -44,11 +44,11 @@ async function main(){
    const rows=JSON.parse(b.rows[0].video_tweaks||'[]');const stale=rows.find(c=>c.body===body&&!c.deleted&&!c.done);
    fs.writeFileSync(path.join(OUT,'native-'+action+'-race-private.json'),JSON.stringify({source:rows,native:b.comments,writes:b.feedbackWrites,contexts:await s.page.evaluate(()=>[..._reviewDraftRecords.values()])},null,2));
    assert.equal(b.comments.length,1,'no duplicate native submission');assert.equal(b.blocked.length,0);assert.deepEqual(h.sessions.flatMap(s=>s.errors),[]);
-   if(!raced){
-    assert.equal(await s.page.evaluate(()=>[..._reviewDraftRecords.values()].find(c=>c.value.attempt)?.recoveryFailure),'review_atomic_source_repair_unavailable');
-    assert.equal(b.feedbackWrites.filter(w=>w.transport==='source'&&w.outcome==='accepted').length,0);
-    assert.equal(!!stale,false);report.safetyHolds.push({action,passed:true});
-   }
+   const recovered=b.records.filter(r=>r.action==='recover_source');
+   assert.equal(recovered.length,1);assert.equal(recovered[0].outcome,'held:native_lifecycle_changed','the lifecycle change is seen under the same lock as the commit');
+   assert.equal(await s.page.evaluate(()=>[..._reviewDraftRecords.values()].find(c=>c.value.attempt)?.recoveryFailure),'review_recovery_held:native_lifecycle_changed');
+   assert.equal(b.feedbackWrites.filter(w=>w.transport==='source'&&w.outcome==='accepted').length,0);
+   report.safetyHolds.push({action,passed:true});
    assert.equal(raced,true,'complete repair acceptance must actually reach the raced source commit');
    assert.equal(!!stale,false,'native lifecycle race must not insert stale/unresolved source feedback');
   });

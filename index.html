@@ -27135,20 +27135,30 @@
         if (!Array.isArray(refs) || !refs.length) return Promise.resolve(true);
         return _writeUiRepairWithLock(() => _writeUiCompleteSourceRepairRefsUnlocked(refs));
     }
-    async function _writeUiGatewayWithRepair(intent, repair) {
+    async function _writeUiGatewayWithRepair(intent, repair, extra) {
         let initiallyExisting = null;
         let sourceRepair = null;
+        // `extra` is an optional second observer (the owned client attempt's
+        // companion-status reservation). Its beforeAttempt runs AFTER the
+        // journal checkpoint and BEFORE transport, so a reservation that cannot
+        // be stored sends nothing; its afterCommit/afterFailure receipt the
+        // result, including a lost response, and never throw past this point.
         try {
             const result = await _writeUiGatewayPost(intent, {
                 beforeAttempt: async payloadBody => {
                     const saved = await _writeUiPrepareRepairAttempt(repair, payloadBody);
                     if (saved && initiallyExisting === null) initiallyExisting = saved._wasExisting === true;
+                    if (extra && typeof extra.beforeAttempt === 'function') await extra.beforeAttempt(payloadBody);
                 },
-                afterCommit: async response => { sourceRepair = await _writeUiMarkRepairCommitted(repair, response); }
+                afterCommit: async response => {
+                    sourceRepair = await _writeUiMarkRepairCommitted(repair, response);
+                    if (extra && typeof extra.afterCommit === 'function') { try { await extra.afterCommit(response); } catch (e) {} }
+                }
             });
             return sourceRepair ? Object.assign({}, result, { source_repair: sourceRepair }) : result;
         }
         catch (error) {
+            if (extra && typeof extra.afterFailure === 'function') { try { await extra.afterFailure(error); } catch (e) {} }
             // Discard only a brand-new, explicitly pre-commit rejection. A
             // pre-existing or transport-ambiguous repair is durable debt and a
             // later 4xx (including authority-lane conflict) must never erase it.
@@ -32314,7 +32324,7 @@
                         meta && meta.post && meta.post.id, component, nativeStatus,
                         meta && meta.sourceEditedAt || Date.now()
                     ])
-                }, repair);
+                }, repair, meta && meta.recoveryHooks || null);
         };
         // Keep the stored chain live while returning the real acknowledgement
         // so a gateway failure blocks the source-row save for this caller.
@@ -32447,7 +32457,7 @@
         }
         // Keep the actual receipt fingerprint in the existing owned attempt.
         // This is metadata for read-only reconciliation, not another send queue.
-        const ownedReview = _isClientLink && meta && meta.isTweak
+        const ownedReview = _isClientLink && meta && (meta.isTweak || meta.recoverySource)
             && _reviewDraftContext('calendar', meta.post, component);
         const ownedAttempt = ownedReview && ownedReview.value.attempt;
         const captureReview = ownedAttempt && _reviewDraftCurrent(ownedReview)
@@ -32476,7 +32486,15 @@
                 };
         if (captureReview) return _writeUiGatewayPost(Object.assign({}, intent, { legacyResumeOwner: _writeUiLegacyResumeOwner() }), { beforeAttempt: payload => {
             if (!_reviewDraftCurrent(ownedReview) || ownedReview.value.attempt?.id !== ownedAttempt.id) throw new Error('Review owner changed; draft kept.');
-            const next = Object.assign({}, ownedReview.value, { attempt: Object.assign({}, ownedReview.value.attempt, { recoveryPayload: payload }) });
+            // The original source context travels with the receipt: the row
+            // revision the browser edited from and ONLY the owned scalar fields
+            // the source save would carry beside this comment. A later Retry
+            // proves acceptance and materializes exactly these; nothing is
+            // guessed for an attempt captured without them.
+            const source = meta.recoverySource && typeof meta.recoverySource === 'object'
+                ? Object.assign({ schema: 1 }, meta.recoverySource, { component }) : null;
+            const next = Object.assign({}, ownedReview.value, { attempt: Object.assign({}, ownedReview.value.attempt,
+                { recoveryPayload: payload }, source ? { recoverySource: source } : {}) });
             if (!_reviewDraftWrite(ownedReview, next, false)) throw new Error('Receipt metadata could not be stored; draft kept.');
         } });
         return _writeUiGatewayWithRepair(intent, repair);
@@ -39570,7 +39588,8 @@
                     const acknowledgement = await _calPushStatusToLinear(post.linear_issue_id, post.video_status, {
                         post, component: 'video', sourceEditedAt,
                         repairRecord: companion && companion.record,
-                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite,
+                        recoveryHooks: _calReviewCompanionStatusHooks(post, 'video')
                     });
                     if (acknowledgement && acknowledgement.deferred_until_source_save) {
                         gatewayAttempted = gatewayAttemptedBefore;
@@ -39594,7 +39613,8 @@
                     const acknowledgement = await _calPushStatusToLinear(post.graphic_linear_issue_id, post.graphic_status, {
                         post, component: 'graphic', sourceEditedAt,
                         repairRecord: companion && companion.record,
-                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite
+                        deferLegacyUntilSourceSave: deferLegacyStatusForWrite,
+                        recoveryHooks: _calReviewCompanionStatusHooks(post, 'graphic')
                     });
                     if (acknowledgement && acknowledgement.deferred_until_source_save) {
                         gatewayAttempted = gatewayAttemptedBefore;
@@ -42946,6 +42966,59 @@
         if (!_reviewDraftWrite(ctx, next, false)) { _reviewDraftPaint(ctx); return null; }
         return { ctx, ...attempt };
     }
+    const REVIEW_RECOVERY_OWNED_FIELDS = ['video_status', 'graphic_status', 'status', 'client_video_approved_at',
+        'client_graphic_approved_at', 'client_caption_approved_at', 'client_title_approved_at', 'kasper_approved_at'];
+    /* The exact original context a later recovery needs and cannot prove from
+       receipts: the source row revision the browser edited from and only the
+       owned scalar fields the failed source save would have carried beside the
+       comment cell. A note owns no scalar field. */
+    function _calReviewRecoverySource(kind, comp, previous, edits) {
+        const fields = {}, prior = {};
+        REVIEW_RECOVERY_OWNED_FIELDS.forEach(k => {
+            if (edits && Object.prototype.hasOwnProperty.call(edits, k)) {
+                fields[k] = String(edits[k] == null ? '' : edits[k]);
+                prior[k] = String(previous && previous[k] == null ? '' : previous[k]);
+            }
+        });
+        return { schema: 1, kind, component: comp, expected_updated_at: String(previous && previous.updated_at || ''), fields, previous: prior };
+    }
+    function _calReviewRecoverySourceValid(source, kind, comp) {
+        if (!source || typeof source !== 'object' || source.schema !== 1 || source.kind !== kind || source.component !== comp) return false;
+        if (typeof source.expected_updated_at !== 'string' || !source.expected_updated_at.trim()) return false;
+        for (const bucket of [source.fields, source.previous]) {
+            if (!bucket || typeof bucket !== 'object' || Array.isArray(bucket)) return false;
+            if (Object.keys(bucket).some(k => !REVIEW_RECOVERY_OWNED_FIELDS.includes(k) || typeof bucket[k] !== 'string')) return false;
+        }
+        if (kind === 'note' && Object.keys(source.fields).length) return false;
+        if (kind === 'tweak' && source.fields[comp + '_status'] !== 'Tweaks Needed') return false;
+        return true;
+    }
+    /* Reserve the companion native status identity inside the owned attempt
+       BEFORE that status request is sent, then receipt its result. Ownership of
+       the status later comes from this exact request, never from matching
+       status text or the shared client actor. */
+    function _calReviewCompanionStatusHooks(post, comp) {
+        if (typeof _isClientLink === 'undefined' || !_isClientLink || !post) return null;
+        const ctx = _reviewDraftContext('calendar', post, comp);
+        if (!ctx || ctx.unreadable || !_reviewDraftCurrent(ctx)) return null;
+        const attempt = ctx.value.attempt;
+        if (!attempt || attempt.kind !== 'tweak' || typeof attempt.recoveryPayload !== 'string' || !attempt.recoverySource) return null;
+        const attemptId = attempt.id;
+        const write = mutate => {
+            if (!_reviewDraftCurrent(ctx) || !ctx.value.attempt || ctx.value.attempt.id !== attemptId) throw new Error('Review owner changed; draft kept.');
+            const next = Object.assign({}, ctx.value, { attempt: Object.assign({}, ctx.value.attempt,
+                { statusReservation: mutate(ctx.value.attempt.statusReservation || null) }) });
+            if (!_reviewDraftWrite(ctx, next, false)) throw new Error('Companion status reservation could not be stored; draft kept.');
+        };
+        return {
+            beforeAttempt: payloadBody => write(() => ({ schema: 1, payload: String(payloadBody), result: 'sent', reservedAt: new Date().toISOString() })),
+            afterCommit: response => write(current => Object.assign({}, current || { schema: 1, payload: '' },
+                { result: 'accepted', row_version: response && response.row && response.row.version != null ? response.row.version : null, recordedAt: new Date().toISOString() })),
+            afterFailure: error => write(current => !current ? current : Object.assign({}, current, {
+                result: error && error.status >= 400 && error.status < 500 ? 'refused' : 'lost',
+                code: String(error && (error.code || error.message) || ''), recordedAt: new Date().toISOString() }))
+        };
+    }
     function _reviewDraftConsume(attempt) {
         if (!attempt) return;
         const ctx = attempt.ctx;
@@ -43481,7 +43554,7 @@
         if (!attempt) return ctx.value.text.trim() ? ctx : null;
         // Ownership permits displaying the user's own text, not claiming that
         // native/source accepted it. Missing receipts remain visible and retryable.
-        return attempt.kind === 'tweak' && ['native', 'saving', 'unconfirmed'].includes(attempt.phase) ? ctx : null;
+        return ['tweak', 'note'].includes(attempt.kind) && ['native', 'saving', 'unconfirmed'].includes(attempt.phase) ? ctx : null;
     }
     function _calReviewRecoveryHtml(post, comp) {
         const ctx = _calReviewRecoveryContext(post, comp);
@@ -43491,7 +43564,7 @@
         const retry = !!attempt;
         const note = ctx.value.text && (!attempt || ctx.value.revision !== attempt.revision) ? ctx.value.text : '';
         return `<div class="cal-review-panel" data-comp="${_calEscAttr(comp)}" data-cal-review-recovery="${_calEscAttr(comp)}">
-            <div class="cal-review-panel-err" role="status">${_calEsc(ctx.recoveryError || (attempt ? attempt.recoveryPayload ? 'Feedback confirmation is pending. Your original text is kept.' : 'This earlier attempt has no complete receipt metadata. Your original text is kept; its saved state needs review.' : 'Your newer note is still unsent.'))}</div>
+            <div class="cal-review-panel-err" role="status">${_calEsc(ctx.recoveryError || (attempt ? !attempt.recoveryPayload ? 'This earlier attempt has no complete receipt metadata. Your original text is kept; its saved state needs review.' : !attempt.recoverySource ? 'This earlier attempt has no complete original context. Your original text is kept; its saved state needs review.' : 'Feedback confirmation is pending. Your original text is kept.' : 'Your newer note is still unsent.'))}</div>
             ${attempt ? `<div class="cal-review-preview-caption" role="note" aria-label="Earlier feedback" style="white-space:pre-wrap;overflow-wrap:anywhere">${_calEsc(attempt.text)}</div>` : ''}
             <label>Newer unsent note<textarea class="cal-review-textarea" aria-label="Newer unsent note" data-cal-review-draft="${_calEscAttr(ctx.pid)}|${_calEscAttr(comp)}" oninput="_calReviewOnDraftInput(this,'${_calEscAttr(ctx.pid)}','${_calEscAttr(comp)}')">${_calEsc(note)}</textarea></label>
             ${retry ? `<button type="button" class="cal-link" style="min-height:44px" data-cal-recovery-key="${_calEscAttr(ctx.key)}" onclick="_calReviewRetryRecovery(this)" ${saving ? 'disabled' : ''}>Retry card sync</button>` : ''}
@@ -43507,14 +43580,27 @@
         button.disabled = true;
         ctx.recovering = true;
         try { await _calReviewReconcileFeedback(ctx); ctx.recoveryError = ''; }
-        catch (e) { ctx.recoveryFailure = String(e && e.message || 'unknown'); ctx.recoveryError = e && e.message === 'review_receipt_metadata_missing'
-            ? 'This earlier attempt has no complete receipt metadata. Your original text is kept; its saved state needs review.'
-            : e && e.message === 'review_atomic_source_repair_unavailable'
-                ? 'Your feedback is saved, but its Calendar copy could not be repaired safely. Your original text is kept; this needs review.'
-            : e && ['review_native_conflict', 'review_source_conflict', 'review_binding_changed', 'review_receipt_mismatch'].includes(e.message)
-                ? 'Feedback could not be confirmed because the saved version, receipt or card binding differs. Your original text is kept; this needs review.'
-            : 'Feedback could not be confirmed. Your text is kept; retry when the connection recovers. If this continues, the saved feedback or its card binding needs review.'; }
+        catch (e) { ctx.recoveryFailure = String(e && e.message || 'unknown'); ctx.recoveryError = _calReviewRecoverySentence(e); }
         finally { ctx.recovering = false; if (_reviewDraftCurrent(ctx)) _calRenderBody({ preserveScroll: true }); }
+    }
+    function _calReviewRecoverySentence(e) {
+        const code = String(e && e.message || '');
+        if (code === 'review_receipt_metadata_missing') return 'This earlier attempt has no complete receipt metadata. Your original text is kept; its saved state needs review.';
+        if (code === 'review_recovery_context_missing') return 'This earlier attempt has no complete original context. Your original text is kept; its saved state needs review.';
+        if (code === 'review_companion_status_unreserved') return 'Your feedback is saved, but its status change was never reserved. Your original text is kept; this needs review.';
+        if (code === 'review_recovery_unsupported') return 'Your feedback is saved, but this Calendar cannot finish its copy yet. Your original text is kept; this needs review.';
+        if (code.indexOf('review_recovery_held:') === 0) {
+            const reason = code.slice('review_recovery_held:'.length);
+            if (reason === 'source_row_changed') return 'This card changed after your feedback was written, so its Calendar copy is held until the newer card version is reviewed. Your feedback is saved and your original text is kept.';
+            if (reason === 'native_lifecycle_changed') return 'Your feedback was edited, deleted or resolved after it was accepted, so its earlier Calendar copy was not restored. Your original text is kept.';
+            if (reason === 'companion_status_unproven') return 'Your feedback is saved, but its status change was not confirmed. Your original text is kept; this needs review.';
+            if (reason === 'source_fields_diverged') return 'Your feedback is on the card, but its status fields differ from what you sent. Your original text is kept; this needs review.';
+            return 'Your feedback is saved, but its Calendar copy could not be completed safely (' + reason.replace(/[^a-z0-9_]/g, '') + '). Your original text is kept; this needs review.';
+        }
+        if (['review_native_conflict', 'review_source_conflict', 'review_binding_changed', 'review_receipt_mismatch', 'review_recovery_invalid'].includes(code)) {
+            return 'Feedback could not be confirmed because the saved version, receipt or card binding differs. Your original text is kept; this needs review.';
+        }
+        return 'Feedback could not be confirmed. Your text is kept; retry when the connection recovers. If this continues, the saved feedback or its card binding needs review.';
     }
     async function _calReviewReconcileFeedback(ctx) {
         const attempt = ctx.value.attempt, run = _syncviewClientEntryDataRun;
@@ -43535,8 +43621,21 @@
             || payload.request_id !== _writeUiIntentId('calendar', 'comment', [attempt.id])
             || !input || input.native_comment_id !== attempt.id || input.body !== attempt.text.trim()
             || input.card_id !== ctx.pid || input.component !== ctx.comp || input.audience !== 'client'
-            || input.is_tweak !== true || input.parent_id !== '' || !Number.isInteger(input.round)
+            || input.is_tweak !== (attempt.kind === 'tweak') || input.parent_id !== ''
+            || (attempt.kind === 'tweak' ? !Number.isInteger(input.round) : input.round !== null)
             || payload.source_edited_at !== attempt.createdAt || payload.legacy_parity) throw new Error('review_receipt_mismatch');
+        const source = attempt.recoverySource;
+        if (!_calReviewRecoverySourceValid(source, attempt.kind, ctx.comp)) throw new Error('review_recovery_context_missing');
+        let reservation = null;
+        if (attempt.kind === 'tweak') {
+            const stored = attempt.statusReservation;
+            let statusPayload = null;
+            try { statusPayload = stored && typeof stored.payload === 'string' ? JSON.parse(stored.payload) : null; } catch (e) { statusPayload = null; }
+            if (!statusPayload || statusPayload.operation !== 'status' || statusPayload.surface !== 'calendar'
+                || statusPayload.entity !== 'deliverable' || statusPayload.id !== payload.id || statusPayload.status !== 'tweak'
+                || typeof statusPayload.request_id !== 'string') throw new Error('review_companion_status_unreserved');
+            reservation = { payload: stored.payload, result: String(stored.result || 'sent') };
+        }
         const post = current(), binding = _prodCardBindingToken('calendar', post, [ctx.comp]);
         const check = () => {
             const value = current();
@@ -43548,71 +43647,55 @@
         if (!scope || scope.card_id !== ctx.pid || !_calUpsertUseEf(ctx.slug)) throw new Error('review_source_not_verifiable');
         const timeout = new AbortController(), timer = setTimeout(() => timeout.abort(), 15000);
         const field = ctx.comp + '_tweaks';
-        const readSource = async () => {
-            check();
-            const response = await fetch(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(ctx.slug)
-                + '&id=eq.' + encodeURIComponent(ctx.pid) + '&limit=2', {
-                cache: 'no-store', signal: timeout.signal,
-                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json', Prefer: 'count=exact' }
-            });
-            const rows = await response.json(); check();
-            if (!response.ok || response.headers.get('content-range') !== '0-0/1' || !Array.isArray(rows) || rows.length !== 1
-                || rows[0].id !== ctx.pid || rows[0].client !== ctx.slug || !Number.isFinite(Date.parse(rows[0].updated_at))
-                || _writeUiNativeId(rows[0], ctx.comp) !== payload.id || !Object.prototype.hasOwnProperty.call(rows[0], field)
-                || (rows[0][field] !== null && typeof rows[0][field] !== 'string')) throw new Error('review_source_incomplete');
-            const comments = rows[0][field] == null || !rows[0][field].trim() ? [] : JSON.parse(rows[0][field]);
-            if (!Array.isArray(comments) || comments.some(c => !c || typeof c.id !== 'string' || !c.id || typeof c.body !== 'string')
-                || new Set(comments.map(c => c.id)).size !== comments.length) throw new Error('review_source_incomplete');
-            const found = comments.find(c => c.id === attempt.id);
-            const matches = c => c.body.trim() === attempt.text.trim() && c.audience === 'client' && c.role === 'client'
-                && c.is_tweak === true && c.round === input.round && !c.parent_id && !c.deleted && !c.done && !c.edited;
-            if (found && !matches(found)) throw new Error('review_source_conflict');
-            if (ctx.comp === 'video' && rows[0].tweaks != null) {
-                if (typeof rows[0].tweaks !== 'string') throw new Error('review_source_incomplete');
-                const alias = rows[0].tweaks.trim() ? JSON.parse(rows[0].tweaks) : [];
-                if (!Array.isArray(alias) || alias.some(c => !c || typeof c.id !== 'string' || typeof c.body !== 'string')) throw new Error('review_source_incomplete');
-                if (alias.some(c => c.id === attempt.id && !matches(c))) throw new Error('review_source_conflict');
-                // The frozen RPC derives both video cells from video_tweaks.
-                // Do not erase legacy-only alias content by treating it as empty.
-                if (alias.some(c => !comments.some(p => JSON.stringify(p) === JSON.stringify(c)))) throw new Error('review_source_conflict');
-            }
-            return { row: rows[0], comments, found };
-        };
-        const readNative = async () => {
+        const matches = c => c && typeof c === 'object' && String(c.body || '').trim() === attempt.text.trim() && c.audience === 'client' && c.role === 'client'
+            && !!c.is_tweak === (attempt.kind === 'tweak') && (attempt.kind !== 'tweak' || c.round === input.round) && !c.parent_id && !c.deleted && !c.done && !c.edited;
+        /* One request finishes the attempt: the exact original comment request
+           plus the captured source context and the reserved companion status.
+           The gateway proves acceptance and canonical lifecycle under lock and
+           applies the copy, the owned fields and the CAS in one transaction.
+           No second native comment, no browser-side source write, no guess. */
+        const recover = async () => {
             check();
             const response = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, {
                 method: 'POST', cache: 'no-store', signal: timeout.signal,
                 headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
                     Accept: 'application/json', 'Content-Type': 'application/json', 'X-Syncview-Source': 'calendar' }, WRITE_UI_PRODUCTION_WRITE_URL),
-                body: JSON.stringify(Object.assign({}, payload, { reconcile_only: true }))
+                body: JSON.stringify(Object.assign({}, payload, { recover_source: {
+                    card_id: ctx.pid, component: ctx.comp, kind: attempt.kind,
+                    expected_updated_at: source.expected_updated_at, fields: source.fields, previous: source.previous,
+                    status: reservation
+                } }))
             });
-            const result = await response.json(); check();
-            if (!response.ok && response.status !== 409) throw new Error('review_native_read_unavailable');
+            const result = await response.json().catch(() => ({})); check();
+            if (response.status === 409 && result && result.recover_source === true && result.outcome === 'held') {
+                throw new Error('review_recovery_held:' + String(result.reason || 'unknown').replace(/[^a-z0-9_]/g, ''));
+            }
+            if (response.status === 400 && result && ['recover_source_unsupported', 'unsupported_operation'].includes(result.error)) throw new Error('review_recovery_unsupported');
+            if (response.status === 409 && result && result.error === 'companion_status_unreserved') throw new Error('review_companion_status_unreserved');
+            if (!response.ok && response.status !== 409 && response.status !== 400 && response.status !== 403) throw new Error('review_native_read_unavailable');
             const row = result.row, comment = result.comment;
-            if (!response.ok || result.ok !== true || result.reconcile_only !== true || result.outcome !== 'committed_exact'
-                || !row || row.id !== payload.id || row.card_id !== ctx.pid || row.client_slug !== ctx.slug
-                || _writeUiTeam(ctx.comp) !== String(row.team || '').toLowerCase() || row.origin !== 'calendar'
-                || !comment || typeof comment.id !== 'string' || !comment.id || comment.native_comment_id !== attempt.id || comment.body !== input.body
-                || comment.component !== ctx.comp || comment.audience !== 'client' || comment.is_tweak !== true
-                || comment.role !== 'client' || comment.round !== input.round || comment.parent_id || comment.version !== 1
-                || Date.parse(comment.source_created_at) !== Date.parse(payload.source_edited_at)
-                || Date.parse(comment.source_updated_at) !== Date.parse(payload.source_edited_at)
-                || comment.edited_at || comment.deleted_at || comment.resolved_at
-                || !Number.isFinite(Date.parse(comment.updated_at))) throw new Error('review_native_conflict');
-            return comment;
+            if (!response.ok || result.ok !== true || result.recover_source !== true
+                || !['materialized', 'already_present', 'already_materialized'].includes(result.outcome)
+                || !row || row.id !== ctx.pid || row.client !== ctx.slug || _writeUiNativeId(row, ctx.comp) !== payload.id
+                || !Number.isFinite(Date.parse(row.updated_at)) || (row[field] !== null && typeof row[field] !== 'string')
+                || !comment || comment.native_comment_id !== attempt.id || comment.body !== input.body || comment.component !== ctx.comp
+                || comment.audience !== 'client' || comment.role !== 'client' || !!comment.is_tweak !== (attempt.kind === 'tweak')
+                || comment.edited_at || comment.deleted_at || comment.resolved_at) throw new Error('review_recovery_invalid');
+            const comments = row[field] == null || !row[field].trim() ? [] : JSON.parse(row[field]);
+            if (!Array.isArray(comments) || comments.some(c => !c || typeof c.id !== 'string' || !c.id)
+                || new Set(comments.map(c => c.id)).size !== comments.length) throw new Error('review_recovery_invalid');
+            const found = comments.find(c => c.id === attempt.id);
+            if (!found || !matches(found)) throw new Error('review_recovery_invalid');
+            Object.keys(source.fields).forEach(k => { if (String(row[k] == null ? '' : row[k]) !== source.fields[k]) throw new Error('review_recovery_invalid'); });
+            return { row, comments, outcome: result.outcome };
         };
         try {
-            const source = await readSource();
-            await readNative();
-            if (!source.found) {
-                // The frozen source RPC cannot atomically check native version
-                // or lifecycle. A native deletion after readback could otherwise
-                // be resurrected here before the second read notices it. Keep
-                // the owned debt until that exact server capability exists.
-                throw new Error('review_atomic_source_repair_unavailable');
-            }
+            const done = await recover();
             const latest = check();
-            _calSetCommentsFor(latest, ctx.comp, _calMergeCommentLists(_calCommentsFor(latest, ctx.comp), source.comments));
+            _calSetCommentsFor(latest, ctx.comp, _calMergeCommentLists(_calCommentsFor(latest, ctx.comp), done.comments));
+            Object.keys(source.fields).forEach(k => { latest[k] = String(done.row[k] == null ? '' : done.row[k]); });
+            latest.updated_at = String(done.row.updated_at);
+            latest._baseAt = String(done.row.updated_at);
             _reviewDraftFinish({ ctx, ...attempt }, 'accepted');
             _calCacheWrite(ctx.slug, calState.posts);
         } finally { clearTimeout(timer); }
@@ -44528,6 +44611,7 @@
                         round: newComment.round,
                         repairEdits: Object.assign({}, repairEdits),
                         reserveStatusIntent: { status: post[comp + '_status'] },
+                        recoverySource: _calReviewRecoverySource('tweak', comp, previousFields, repairEdits),
                         deferLegacyUntilSourceSave: true
                     });
                 if (!_reviewDraftCurrent(draftAttempt.ctx)) throw new Error('Review owner changed; existing feedback receipt is preserved.');
@@ -45858,12 +45942,26 @@
             ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
             : _calCommentsFor(post, comp).slice();
         const role = _calCommentRole();
-        const _now = new Date().toISOString();
         const isRoot = !parentId;
         let nativeCommentCommitted = false;
         let committedBatch = null;
+        /* A client's root note on a linked video/graphic slot becomes an OWNED
+           attempt before its native send, exactly like a review tweak, so a
+           source save that fails after native acceptance keeps the note
+           visible and recoverable instead of relying on cache-only repair. A
+           slot that already carries an unresolved attempt is left alone. */
+        let ownedNote = null;
+        if (isRoot && role === 'client' && !_calComposeIsTweak && (comp === 'video' || comp === 'graphic')
+            && typeof _reviewDraftTake === 'function' && typeof _isClientLink !== 'undefined' && _isClientLink) {
+            const ownedCtx = _reviewDraftContext('calendar', post, comp);
+            if (ownedCtx && !ownedCtx.unreadable && _reviewDraftCurrent(ownedCtx) && !ownedCtx.value.attempt) {
+                ownedNote = _reviewDraftTake('calendar', post, comp, 'note', body);
+                if (ownedNote) _reviewDraftConsume(ownedNote);
+            }
+        }
+        const _now = ownedNote ? ownedNote.createdAt : new Date().toISOString();
         const msg = {
-            id: _calMintCommentId(),
+            id: ownedNote ? ownedNote.id : _calMintCommentId(),
             parent_id: parentId || null,
             author: _calCurrentAuthor(),
             role: role,
@@ -45931,12 +46029,17 @@
                     post, component: comp, comment: msg, parentId: msg.parent_id,
                     audience: _calMsgAudience(rootMsg), isTweak: isRoot && _calMsgIsTweak(msg),
                     round: rootMsg && Number.isInteger(rootMsg.round) ? rootMsg.round : null,
-                    canonicalUnlinked
+                    canonicalUnlinked,
+                    ...(ownedNote ? { recoverySource: _calReviewRecoverySource('note', comp, { updated_at: post.updated_at }, {}) } : {})
                 });
                 committedBatch = {};
                 _writeUiBindRepairAck(post, committedBatch, acknowledgement);
                 nativeCommentCommitted = !!(acknowledgement && acknowledgement.native_committed);
             } catch (e) {
+                // An explicit pre-commit refusal committed nothing: drop the
+                // owned attempt so the typed text stays an ordinary draft. An
+                // ambiguous failure keeps it unconfirmed and recoverable.
+                if (ownedNote) _reviewDraftFinish(ownedNote, e && e.precommitSafe === true ? 'accepted' : 'unconfirmed');
                 _writeUiReportFailure('calendar', 'comment', e);
                 return false;
             }
@@ -45959,6 +46062,13 @@
         // (edits/resolves/deletes never sync); audience-independent;
         // _calPostLinearComment no-ops on an unlinked issue (empty url).
         await _calWatchNoteSave(pid);
+        if (ownedNote && _reviewDraftCurrent(ownedNote.ctx) && ownedNote.ctx.value.attempt && ownedNote.ctx.value.attempt.id === ownedNote.id) {
+            // The source acknowledgement retires a delivered note itself. What
+            // is still owned here failed or lost its source save: keep it in
+            // its exact phase so Review offers Retry card sync.
+            const saved = calState.posts.find(p => p.id === pid && p.client === ownedNote.ctx.slug);
+            _reviewDraftFinish(ownedNote, !saved ? 'unconfirmed' : saved._saveError ? (saved._writeUiRetrySourceAt ? 'native' : (nativeCommentCommitted ? 'unconfirmed' : 'failed')) : 'unconfirmed');
+        }
         _calRefreshCommentsBtn(pid);
         _calUpdateCardStatusDisplay(pid);
         return true;

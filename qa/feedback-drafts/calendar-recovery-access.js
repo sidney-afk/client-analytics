@@ -4,7 +4,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const {Store,open,panel,snap,SOURCE,OUT,body,newer,Harness,ui,ID}=require('./run');
 const {CLIENTS,clone}=require('./mock-backend');
 class SplitStore extends Store {
- constructor(outcome){super('calendar','tweak',null);this.outcome=outcome;this.compatibleReceipts=process.env.CAL_RECOVERY_COMPATIBLE_RECEIPTS==='1';}
+ constructor(outcome){super('calendar','tweak',null);this.outcome=outcome;this.materialized=new Set();}
  async handle(route,role,origin){
   const q=route.request(),url=new URL(q.url());let payload;try{payload=q.postDataJSON();}catch{}
   if(q.method()==='GET'&&url.pathname==='/rest/v1/calendar_posts'&&url.searchParams.has('id')){
@@ -14,23 +14,54 @@ class SplitStore extends Store {
    if(this.readFault==='source-shape'&&output[0])output[0].video_tweaks='not a complete array';
    return route.fulfill({status:this.readFault==='source-failed'?503:200,contentType:'application/json',headers:{'content-range':this.readFault==='source-partial'?'0-0/*':rows.length?'0-'+(rows.length-1)+'/'+rows.length:'*/0','access-control-expose-headers':'content-range'},body:JSON.stringify(output)});
   }
+  if(payload?.recover_source&&url.pathname==='/functions/v1/production-write'){
+   // Declared fixture contract for the additive recover_source lane: the same
+   // decisions calendar_feedback_recovery_apply_v1 makes, modelled over the
+   // in-memory native/source stores. Real PostgreSQL proof lives in
+   // qa/calendar-feedback-recovery/; this keeps the browser-only lane honest.
+   const rs=payload.recover_source,comp=rs.component,field=comp+'_tweaks';
+   const record=this.records[this.records.push({action:'recover_source',outcome:'pending'})-1];
+   if(this.holdRecovery){this.holdRecovery=false;await new Promise(resolve=>this.pending.push(resolve));}
+   const held=reason=>{record.outcome='held:'+reason;return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({ok:false,recover_source:true,outcome:'held',reason,error:'recovery_held',row:null,comment:null})});};
+   const original=this.feedbackWrites.find(w=>w.transport==='native'&&w.body.request_id===payload.request_id)?.body;
+   const r=this.receipts.get(payload.request_id);
+   const current=this.comments.find(c=>c.native_comment_id===payload.comment.native_comment_id);
+   if(this.readFault==='native-held')await new Promise(resolve=>this.pending.push(resolve));
+   if(this.readFault==='native-failed'){record.outcome='unavailable';return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({ok:false,error:'reconcile_receipt_unavailable'})});}
+   if(this.readFault==='native-owner'){record.outcome='forbidden';return route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({ok:false,error:'client_scope_mismatch'})});}
+   const {recover_source:_omit,...bare}=payload;
+   assert.deepEqual(bare,original,'recovery re-sends the byte-equivalent original comment request');
+   if(!original||!r||!current)return held('native_comment_missing');
+   if(this.onSourceCommit){const change=this.onSourceCommit;this.onSourceCommit=null;change();}
+   const canonical=this.readFault==='native-edited'?{...current,body:'Fictional edited native feedback',version:2,edited_at:this.stamp()}:current;
+   if(canonical.edited_at||canonical.deleted_at||canonical.resolved_at||canonical.version!==1)return held('native_lifecycle_changed');
+   if(rs.kind==='tweak'){let sp=null;try{sp=JSON.parse(rs.status?.payload||'null');}catch{}if(!sp||sp.id!==payload.id||!this.receipts.get(sp.request_id))return held('companion_status_unproven');}
+   const row=this.rows.find(x=>x.id===rs.card_id&&x[comp+'_deliverable_id']===payload.id);
+   if(!row){record.outcome='forbidden';return route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({ok:false,error:'calendar_feedback_recovery_forbidden'})});}
+   let cell;try{cell=row[field]?JSON.parse(row[field]):[];}catch{return held('source_cell_malformed');}
+   if(!Array.isArray(cell)||cell.some(c=>!c||typeof c.id!=='string'||!c.id||typeof c.body!=='string')||new Set(cell.map(c=>c.id)).size!==cell.length)return held('source_cell_malformed');
+   if(comp==='video'&&row.tweaks){let alias;try{alias=JSON.parse(row.tweaks);}catch{return held('source_alias_divergent');}
+    if(!Array.isArray(alias)||alias.some(a=>!cell.some(c=>JSON.stringify(c)===JSON.stringify(a))))return held('source_alias_divergent');}
+   const found=cell.find(c=>c.id===payload.comment.native_comment_id);
+   const entry={id:current.native_comment_id,parent_id:null,author:current.author_name,role:'client',is_tweak:!!current.is_tweak,audience:'client',...(current.is_tweak?{round:current.round}:{}),body:current.body,created_at:original.source_edited_at,updated_at:original.source_edited_at,done:false,done_at:'',done_by:''};
+   let outcome;
+   if(found){
+    if(found.deleted)return held('source_entry_tombstoned');
+    if(found.body.trim()!==current.body||found.role!=='client'||found.audience!=='client'||!!found.is_tweak!==!!current.is_tweak||found.done||found.edited)return held('source_entry_conflict');
+    if(Object.keys(rs.fields).some(k=>String(row[k]==null?'':row[k])!==rs.fields[k]))return held('source_fields_diverged');
+    outcome=this.materialized.has(rs.card_id+'|'+comp+'|'+entry.id)?'already_materialized':'already_present';
+   }else{
+    if(this.materialized.has(rs.card_id+'|'+comp+'|'+entry.id))return held('materialization_conflict');
+    if(String(row.updated_at)!==rs.expected_updated_at)return held('source_row_changed');
+    cell.push(entry);row[field]=JSON.stringify(cell);if(comp==='video')row.tweaks=row[field];
+    Object.assign(row,rs.fields,{updated_at:this.stamp()});outcome='materialized';
+   }
+   this.materialized.add(rs.card_id+'|'+comp+'|'+entry.id);record.outcome=outcome;
+   if(this.loseRecoveryResponse){this.loseRecoveryResponse=false;return route.abort('failed');}
+   return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,recover_source:true,outcome,row:clone(row),comment:{...clone(current),source_created_at:original.source_edited_at,source_updated_at:original.source_edited_at}})});
+  }
   if(payload?.reconcile_only===true&&url.pathname==='/functions/v1/production-write'){
    const r=this.receipts.get(payload.request_id);this.records.push({action:'reconcile_only',outcome:r?'committed_exact':'absent'});
-   if(payload.operation==='comment'&&r){
-    const original=this.feedbackWrites.find(w=>w.transport==='native'&&w.body.request_id===payload.request_id)?.body;
-    assert.deepEqual(payload,{...original,reconcile_only:true},'readback uses byte-equivalent original fingerprint fields');
-    if(!this.compatibleReceipts){
-     // Current production-write add fingerprints include action/CAS-null keys
-     // omitted by reconcileEntityOperation. Actual stored add receipts conflict.
-     this.records.push({action:'current_receipt_fingerprint_conflict'});
-     return route.fulfill({status:409,contentType:'application/json',body:JSON.stringify({ok:false,reconcile_only:true,outcome:'conflict',error:'intent_conflict',row:this.native.find(n=>n.id===payload.id),comment:null})});
-    }
-    const current=clone(this.comments.find(c=>c.native_comment_id===payload.comment.native_comment_id)),row=clone(this.native.find(n=>n.id===payload.id));
-    if(this.readFault==='native-held')await new Promise(resolve=>this.pending.push(resolve));
-    if(this.readFault==='native-owner')row.client_slug=CLIENTS[1].slug;
-    if(this.readFault==='native-edited'){current.body='Fictional edited native feedback';current.version=2;current.edited_at=this.stamp();}
-    return route.fulfill({status:this.readFault==='native-failed'?503:200,contentType:'application/json',body:JSON.stringify({ok:true,reconcile_only:true,outcome:'committed_exact',row,comment:{...current,source_created_at:original.source_edited_at,source_updated_at:original.source_edited_at}})});
-   }
    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r?{...r,reconcile_only:true,outcome:'committed_exact'}:{ok:true,reconcile_only:true,outcome:'absent',row:this.native.find(n=>n.id===payload.id)})});
   }
   const source=q.method()==='POST'&&url.pathname.endsWith('/calendar-upsert'),prior=this.feedbackFault;
@@ -63,7 +94,7 @@ async function pending(h,b){const s=await open(h,b,'calendar');await (await pane
 async function retry(s){await recovery(s).getByRole('button',{name:'Retry card sync',exact:true}).click();await ui.until(()=>s.page.evaluate(()=>[..._reviewDraftRecords.values()].every(c=>!c.recovering)),'read/recovery settles');}
 async function guards(h,b){assert.equal(b.blocked.length,0);assert.deepEqual(h.sessions.flatMap(s=>s.errors),[]);assert.equal(b.comments.filter(c=>c.body===body).length,1,'one original native comment');}
 async function main(){
- const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',groups:[],receiptModel:process.env.CAL_RECOVERY_COMPATIBLE_RECEIPTS==='1'?'compatible receipt control; current server dependency remains':'current add/reconcile fingerprint conflict',browser:h.browser.version(),indexSha256:require('node:crypto').createHash('sha256').update(h.index).digest('hex')};
+ const h=await new Harness(SOURCE,OUT).start(),report={status:'INCOMPLETE',groups:[],receiptModel:'declared recover_source fixture contract; PostgreSQL proof in qa/calendar-feedback-recovery',browser:h.browser.version(),indexSha256:require('node:crypto').createHash('sha256').update(h.index).digest('hex')};
  try{for(const outcome of (process.env.CAL_RECOVERY_OUTCOMES||'partial,lost,refused').split(',')){
   assert.ok(['partial','lost','refused'].includes(outcome));
   const b=new SplitStore(outcome);let s=await open(h,b,'calendar');
@@ -83,40 +114,45 @@ async function main(){
    assert.ok((await recovery(s).innerText()).includes(body));
    const beforeWrites=b.feedbackWrites.length;
    const debtBefore=await s.page.evaluate(()=>localStorage.getItem(WRITE_UI_SOURCE_REPAIR_KEY));
-   b.outcome='held';await recovery(s).getByRole('button',{name:'Retry card sync',exact:true}).click();
-   if(outcome==='partial'){
-    await ui.until(()=>b.pending.length>0,'existing source-only retry held').catch(async e=>{fs.writeFileSync(path.join(OUT,'retry-diagnostic-private.json'),JSON.stringify({contexts:await s.page.evaluate(()=>[..._reviewDraftRecords.values()]),records:b.records},null,2));throw e;});
-    assert.equal(await recovery(s).getByRole('button',{name:'Retry card sync',exact:true}).isDisabled(),true);
-    assert.equal(b.comments.filter(c=>c.body===body).length,1,'pending repeated action cannot send another native comment');
-    b.release();
-   }
-   await ui.until(()=>s.page.evaluate(ID=>[..._reviewDraftRecords.values()].filter(c=>c.pid===ID).every(c=>!c.value.attempt),ID),'exact source readback retires only original feedback debt');
-   if(outcome==='lost')assert.equal(b.feedbackWrites.length,beforeWrites,'already committed source is confirmed without another write');
+   b.holdRecovery=true;await recovery(s).getByRole('button',{name:'Retry card sync',exact:true}).click();
+   await ui.until(()=>b.pending.length>0,'recovery request held').catch(async e=>{fs.writeFileSync(path.join(OUT,'retry-diagnostic-private.json'),JSON.stringify({contexts:await s.page.evaluate(()=>[..._reviewDraftRecords.values()]),records:b.records},null,2));throw e;});
+   assert.equal(await recovery(s).getByRole('button',{name:'Retry card sync',exact:true}).isDisabled(),true);
+   assert.equal(b.comments.filter(c=>c.body===body).length,1,'pending repeated action cannot send another native comment');
+   b.release();
+   await ui.until(()=>s.page.evaluate(ID=>[..._reviewDraftRecords.values()].filter(c=>c.pid===ID).every(c=>!c.value.attempt),ID),'exact recovery retires only original feedback debt');
+   const recovered=b.records.filter(r=>r.action==='recover_source');
+   assert.equal(recovered.length,1,'exactly one recovery request');assert.equal(recovered[0].outcome,outcome==='lost'?'already_present':'materialized');
+   assert.equal(b.feedbackWrites.length,beforeWrites,'recovery never issues a browser-side source write');
    assert.equal(await s.page.evaluate(()=>localStorage.getItem(WRITE_UI_SOURCE_REPAIR_KEY)),debtBefore,'confirmation never clears unrelated source/status repair records');
    await ui.until(async()=>!await recovery(s).isVisible(),'only resolved pending access disappears');
    assert.equal(b.comments.filter(c=>c.body===body).length,1);
-   const sourceIds=b.feedbackWrites.filter(w=>w.transport==='source').flatMap(w=>JSON.parse(w.body.post.video_tweaks||'[]').filter(c=>c.body===body).map(c=>c.id));
-   assert.ok(sourceIds.length>0&&sourceIds.every(id=>id===original),'original logical ID throughout recovery');
+   const sourceIds=JSON.parse(b.rows[0].video_tweaks||'[]').filter(c=>c.body===body).map(c=>c.id);
+   assert.equal(sourceIds.length,1,'one source copy');assert.equal(sourceIds[0],original,'original logical ID throughout recovery');
+   assert.equal(b.rows[0].video_status,'Tweaks Needed');assert.equal(b.rows[0].status,'Tweaks Needed');
   }
   assert.equal(b.blocked.length,0);assert.deepEqual(h.sessions.flatMap(s=>s.errors),[]);
   report.groups.push({outcome,passed:true});console.log('PASS Calendar '+outcome+' recovery access');
   b.release();await h.closeSessions();
  }
  if(!process.env.CAL_RECOVERY_OUTCOMES){
-  for(const fault of ['source-failed','source-shape','source-partial','native-failed','native-owner','native-edited','source-edited']){
+  for(const fault of ['source-shape','native-failed','native-owner','native-edited','source-edited','source-moved']){
    const b=new SplitStore('partial');let s=await pending(h,b);s=await fresh(h,b,s);b.readFault=fault;b.outcome='healthy';
+   if(fault==='source-shape')b.rows[0].video_tweaks='not a complete array';
    if(fault==='source-edited'){const c=clone(JSON.parse(b.feedbackWrites.find(w=>w.transport==='source').body.post.video_tweaks)[0]);c.body='Fictional other saved revision';c.updated_at=b.stamp();b.rows[0].video_tweaks=JSON.stringify([c]);}
-   const before=b.feedbackWrites.length;await retry(s);
-   assert.equal(b.feedbackWrites.length,before,'unknown/conflicting read cannot write');assert.equal((await snap(s,'calendar')).originalVisible,true);
-   assert.match(await recovery(s).innerText(),/could not be confirmed/);
+   if(fault==='source-moved'){b.rows[0].caption='Fictional unrelated caption edit';b.rows[0].updated_at=b.stamp();}
+   const before=b.feedbackWrites.length,rowBefore=JSON.stringify(b.rows[0]);await retry(s);
+   assert.equal(b.feedbackWrites.length,before,'unknown/conflicting read cannot write');assert.equal(JSON.stringify(b.rows[0]),rowBefore,'held recovery changes no source byte');assert.equal((await snap(s,'calendar')).originalVisible,true);
+   assert.match(await recovery(s).innerText(),fault==='source-moved'?/card changed after your feedback/:fault==='native-edited'?/edited, deleted or resolved/:/could not be confirmed|could not be completed/);
    if(fault==='native-failed'){b.readFault=null;await retry(s);assert.equal(await recovery(s).isVisible(),false,'verified recovery clears its warning');assert.ok(JSON.parse(b.rows[0].video_tweaks).some(c=>c.body===body));}
    await guards(h,b);report.groups.push({fault,passed:true});console.log('PASS Calendar '+fault+' retains pending text without write');await h.closeSessions();
   }
   {
-   const b=new SplitStore('partial');let s=await pending(h,b);s=await fresh(h,b,s);b.outcome='lost';const before=b.feedbackWrites.length;
-   await retry(s);assert.equal((await snap(s,'calendar')).originalVisible,true);assert.equal(b.feedbackWrites.length,before+1);assert.ok(JSON.parse(b.rows[0].video_tweaks).some(c=>c.body===body));
-   b.outcome='healthy';await retry(s);assert.equal(await recovery(s).isVisible(),false);assert.equal(b.feedbackWrites.length,before+1,'lost recovery response readback never rewrites an already saved copy');
-   await guards(h,b);report.groups.push({name:'recovery response loss then exact readback',passed:true});console.log('PASS recovery response loss remains pending then confirms without repeat write');await h.closeSessions();
+   const b=new SplitStore('partial');let s=await pending(h,b);s=await fresh(h,b,s);b.outcome='healthy';const before=b.feedbackWrites.length;
+   b.loseRecoveryResponse=true;await retry(s);assert.equal((await snap(s,'calendar')).originalVisible,true);assert.equal(await recovery(s).isVisible(),true,'lost recovery response keeps the attempt pending');
+   assert.ok(JSON.parse(b.rows[0].video_tweaks).some(c=>c.body===body),'the materialization itself committed');
+   await retry(s);assert.equal(await recovery(s).isVisible(),false);const recovered=b.records.filter(r=>r.action==='recover_source').map(r=>r.outcome);
+   assert.deepEqual(recovered,['materialized','already_materialized'],'lost recovery response then idempotent confirmation');assert.equal(b.feedbackWrites.length,before);
+   await guards(h,b);report.groups.push({name:'recovery response loss then idempotent confirmation',passed:true});console.log('PASS recovery response loss remains pending then confirms idempotently');await h.closeSessions();
   }
   {
    const b=new SplitStore('partial');let s=await pending(h,b);s=await fresh(h,b,s);
@@ -134,16 +170,17 @@ async function main(){
   {
    const b=new SplitStore('partial');let s=await pending(h,b);s=await fresh(h,b,s);const before=b.feedbackWrites.length;
    const other={id:'fictional-concurrent-note',body:'Fictional concurrent note',role:'client',audience:'client',is_tweak:false,created_at:b.stamp(),updated_at:b.stamp()};
-   b.onSourceCommit=()=>{b.rows[0].video_tweaks=JSON.stringify([other]);b.rows[0].video_status='Approved';b.rows[0].status='Approved';};
-   b.outcome='held';await recovery(s).getByRole('button',{name:'Retry card sync',exact:true}).click();await ui.until(()=>b.pending.length>0,'source recovery held');
+   b.rows[0].video_tweaks=JSON.stringify([other]);const moved=b.rows[0].updated_at=b.stamp();
+   await s.page.evaluate(moved=>{for(const c of _reviewDraftRecords.values())if(c.value.attempt){c.value.attempt.recoverySource.expected_updated_at=moved;localStorage.setItem(c.key,JSON.stringify(c.value));}},moved);
+   b.holdRecovery=true;await recovery(s).getByRole('button',{name:'Retry card sync',exact:true}).click();await ui.until(()=>b.pending.length>0,'recovery held');
    await recovery(s).getByRole('textbox',{name:'Newer unsent note'}).fill(newer);b.release();await ui.until(()=>s.page.evaluate(()=>[..._reviewDraftRecords.values()].every(c=>!c.recovering)),'late exact ack settles');
    assert.equal((await snap(s,'calendar')).newerVisible,true);assert.equal(await s.page.locator(`[data-cal-review-pid="${ID}"]`).isVisible(),true,'newer unfinished work keeps its own card access');
-   const comments=JSON.parse(b.rows[0].video_tweaks);assert.ok(comments.some(c=>c.id===other.id));assert.ok(comments.some(c=>c.body===body));
-   assert.equal(b.rows[0].status,'Approved');assert.equal(b.rows[0].video_status,'Approved');
-   const writes=b.feedbackWrites.slice(before);assert.equal(writes.length,1);assert.equal(writes[0].transport,'source');assert.deepEqual(Object.keys(writes[0].body.post).sort(),['id','tweaks','video_tweaks']);
+   const comments=JSON.parse(b.rows[0].video_tweaks);assert.deepEqual(comments[0],other,'concurrent note preserved byte-for-byte');assert.ok(comments.some(c=>c.body===body));
+   assert.equal(b.rows[0].status,'Tweaks Needed');assert.equal(b.rows[0].video_status,'Tweaks Needed');
+   assert.equal(b.feedbackWrites.length,before,'no browser-side source write');assert.equal(b.records.filter(r=>r.action==='recover_source').length,1);
    const approve=s.page.locator(`[data-cal-review-pid="${ID}"] .cal-review-panel[data-comp="video"] .cal-review-approve-btn`);
    if(await approve.isVisible())assert.equal(await approve.isDisabled(),true,'newer unsent work still prevents approval');
-   await guards(h,b);report.groups.push({name:'concurrent source/newer local note and current status',passed:true});console.log('PASS concurrent source note/status and newer typing survive exact source-only repair');await h.closeSessions();
+   await guards(h,b);report.groups.push({name:'concurrent source note and newer local note beside exact materialization',passed:true});console.log('PASS concurrent source note and newer typing survive exact materialization');await h.closeSessions();
   }
   {
    const b=new SplitStore('partial');

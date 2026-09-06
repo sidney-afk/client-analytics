@@ -2,6 +2,25 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Calendar feedback recovery slice 1; local candidate, nothing applied or deployed
+
+On base `7e5a743cce8a1552bc822e0e560896451f983cdf`, an owned client Calendar
+root note or tweak whose native comment was accepted but whose source-card save
+was refused or lost its response can now be finished by the offered `Retry card
+sync` control: the browser captures the original source revision, the owned
+fields and the reserved companion status identity before sending; the gateway's
+additive `recover_source` modifier rebuilds the exact add and status identities
+with the shared fingerprint helpers; the new service-only RPC proves receipts
+and canonical lifecycle under lock, applies the copy and owned fields under an
+original-source-row CAS, and records idempotent evidence. Frozen writers,
+readers, flags, authority and n8n untouched. Proof ran locally against the
+actual handlers and the frozen writer over a disposable PostgreSQL 16: handler
+matrix 19 groups / 621 checks; browser matrix 11 groups / 266 checks through the
+actual client controls for both components, notes and tweaks, response loss, lifecycle races,
+unrelated edits, wrong client and legacy attempts; the exact base document and
+handler proven to keep holding. No live call, write, migration apply, deploy or
+flag change happened. Serving parity and live TEST journeys remain gates.
+
 ## 2026-09-05 — Comment add receipt fingerprint; local source candidate
 
 On base `ce63c74d0333138f862cef5637bb7532fe059b74`, accepted comment adds include

@@ -48,14 +48,15 @@ diagnostics, never attachments for a public PR. `FEEDBACK_SOURCE` can select a
 separate exact checkout for negative controls; normal runs use this checkout.
 See `docs/ops/REVIEW_FEEDBACK_DRAFTS.md` for proof limits and recovery constraints.
 
-Calendar's bounded exact-receipt recovery and its old-attempt limitations are
-documented in `docs/ops/CALENDAR_FEEDBACK_RECONCILIATION.md`. Its separate
-16-group runner uses only intercepted source/native receivers, preserves
-negative-control failures, and never dispatches a production or TEST workflow.
-Full missing-source repair acceptance remains red while the atomicity capability
-is absent. `calendar-recovery-races.js` records seven positive safety holds
-separately from its still-failing complete-repair requirements; a withheld
-source commit is never counted as a successfully executed lifecycle race.
-`calendar-recovery-contract.js` checks the current server fingerprint-conflict
-and old-metadata holds. Compatible receipt mocks require the explicit
-`CAL_RECOVERY_COMPATIBLE_RECEIPTS=1` control; they are not current-server proof.
+Calendar's bounded recovery and its old-attempt limitations are documented in
+`docs/ops/CALENDAR_FEEDBACK_RECONCILIATION.md` and the contract in
+`docs/ops/CALENDAR_FEEDBACK_RECOVERY_CONTRACT.md`. The 16-group
+`calendar-recovery-access.js` runner models the additive `recover_source`
+gateway contract over its intercepted native/source stores (a declared fixture
+contract, never server proof); `calendar-recovery-races.js` proves valid empty
+cells receive the exact copy, divergent video aliases are preserved and refused,
+and native edit/delete/resolve racing the retry hold under the same modelled
+lock; `calendar-recovery-contract.js` checks five visible holds (missing receipt
+metadata, missing original context, unreserved or unproven companion status,
+changed source row). The decisive proof, with the actual handlers, the frozen
+writer and a disposable PostgreSQL, lives in `qa/calendar-feedback-recovery/`.

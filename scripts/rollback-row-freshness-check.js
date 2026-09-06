@@ -271,7 +271,7 @@ function deployAnchors(log) {
                "Inspect deployed functions" does not (Codex, sixty-eighth round
                on #1306). */
             .replace(/\b(?:deployment|deploy|rollout|release|cut ?over)\b(?!\s+(?:completed|succeeded|finished|done|failed|via|from|to|by|on|at|in|into|through|with|as|after|before|during|the|this|run)\b)(?:\s+[a-z]+\b)?/gi, ' ')
-            .replace(/\b(?:deployed|released|shipped|rolled out)\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b)[a-z]+\b/gi, ' ');
+            .replace(/\b(?:deployed|released|shipped|rolled out)\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b|[a-z]*ly\b|and\b|then\b|but\b)[a-z]+\b/gi, ' ');
         const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
         const saysDeploy = /\b(?:re-?)?deploy|\b(?:re-?)?releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(objectless)
@@ -1060,6 +1060,12 @@ function recordsADispatch(log, k, len) {
     const whole = before + ' LANE ' + after;
     if (plans(whole)) return null;
     if (DISPATCH_DONE.test(norm(whole))) return { run: '' };
+    /* A FAILURE THAT SAYS WHAT IT DEPLOYED IS STILL A DISPATCH. "the LANE
+       dispatch failed after deploying `production-write`" moved a guarded
+       function and carries no run id, so it is placed by its date rather than
+       dropped for having no completion word (Codex, sixty-ninth round on
+       #1306). */
+    if (new RegExp('\\b(?:failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b[^.\\n]{0,80}\\bdeploy(?:ed|ing|s)?\\b[^.\\n]{0,40}`?(?:' + SLUGS.join('|') + ')`?', 'i').test(whole)) return { run: '' };
     const lead = cStart > 0 ? span.match(/^[^.;!?]*?:\**(?=\s)/) : null;
     if (lead && DISPATCH_DONE.test(norm(lead[0])) && !DISPATCH_AHEAD.test(lead[0]) && !/\bNOT DISPATCHED\b/i.test(lead[0])) return { run: '' };
     /* A BARE LABEL TAKES THE SENTENCE THAT FOLLOWS IT AS ITS RESULT: "- `lane`

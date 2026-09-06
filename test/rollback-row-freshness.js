@@ -2853,6 +2853,38 @@ ok(unnumberedDeploymentFailureRun.code === 1 && unnumberedDeploymentFailureRun.j
     && unnumberedDeploymentFailureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
     'AND AN UNNUMBERED FAILURE IS UNNUMBERED WHATEVER NOUN IT USES: "the current deployment failed" is no more answered by another run\'s no-op claim than "the current run failed" was');
 
+/* ---- 8br. an adverb is not an object; an unnumbered partial failure (round 69) ---- */
+const adverbPredicateHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Hotfix deployed successfully — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const adverbPredicateHeadingRun = run(fixture('adverb-predicate-heading', appended(adverbPredicateHeading), realRb));
+ok(adverbPredicateHeadingRun.code === 1 && adverbPredicateHeadingRun.json
+    && /34000000000/.test(JSON.stringify(adverbPredicateHeadingRun.json.failures)),
+    'AN ADVERB IS NOT AN OBJECT: "Hotfix deployed successfully — run `X`" is still a predicate and anchors its own run');
+
+const unnumberedPartialFailure = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed after deploying `production-write`.',
+    '',
+].join('\n');
+const unnumberedPartialFailureRun = run(fixture('unnumbered-partial-failure', appended(unnumberedPartialFailure), realRb));
+ok(unnumberedPartialFailureRun.code === 1 && unnumberedPartialFailureRun.json
+    && unnumberedPartialFailureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AND A FAILURE THAT SAYS WHAT IT DEPLOYED IS STILL A DISPATCH: with no run id it is placed by its date, not dropped for having no completion word');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

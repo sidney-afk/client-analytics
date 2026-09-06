@@ -395,7 +395,9 @@ const CANDIDATES = new Map([
     // ASSET_EVIDENCE_MAX_AGE_MS in place of the live probe, and `recheck: true`
     // from the Refresh access button skips the ledger. One new read on
     // production_asset_access_checks per slot; no new import, file count 5.
-    source: 'd7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a',
+    // Uninstalled integration: native intake/eligibility/editor projection plus
+    // captured main asset logic. SQL prerequisite and serving proof stay held.
+    source: '6f5b55e112c8f478f0d14d221079d2fd50d4ec4df7a74d657184f16caec938b5',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

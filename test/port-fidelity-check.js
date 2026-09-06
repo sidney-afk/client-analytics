@@ -39,7 +39,48 @@ const PAIRS = [
   ['openFilterSub', '_prodOpenFilterSub'],
   ['openFilterMenu', '_prodOpenFilterMenu'],
   ['openGroupMenu', '_prodOpenGroupMenu'],
-  ['openSearch', '_prodOpenPalette']
+  ['openSearch', '_prodOpenPalette'],
+  /* The in-place description editor (2026-09-06): one module, written in the
+     artifact and transplanted whole. Names, classes and data attributes map
+     through normalize() below; the wired copies carry PORT-DELTA only where
+     the host's selectors differ. */
+  ['descRichAttr', '_prodDescRichAttr'],
+  ['descRichInline', '_prodDescRichInline'],
+  ['descRichBlockHTML', '_prodDescRichBlockHTML'],
+  ['descRichBuild', '_prodDescRichBuild'],
+  ['descRichContainer', '_prodDescRichContainer'],
+  ['descRichSerializeInline', '_prodDescRichSerializeInline'],
+  ['descRichSerialize', '_prodDescRichSerialize'],
+  ['descRichRoundTrips', '_prodDescRichRoundTrips'],
+  ['descRichBlockOf', '_prodDescRichBlockOf'],
+  ['descRichMakeBlock', '_prodDescRichMakeBlock'],
+  ['descRichIsEmpty', '_prodDescRichIsEmpty'],
+  ['descRichSettle', '_prodDescRichSettle'],
+  ['descRichNormalize', '_prodDescRichNormalize'],
+  ['descRichCaret', '_prodDescRichCaret'],
+  ['descRichSetCaret', '_prodDescRichSetCaret'],
+  ['descRichConvert', '_prodDescRichConvert'],
+  ['descRichCaretAtStart', '_prodDescRichCaretAtStart'],
+  ['descRichCaretAtEnd', '_prodDescRichCaretAtEnd'],
+  ['descRichSplitBlock', '_prodDescRichSplitBlock'],
+  ['descRichJoinBack', '_prodDescRichJoinBack'],
+  ['descRichJoinForward', '_prodDescRichJoinForward'],
+  ['descRichShortcut', '_prodDescRichShortcut'],
+  ['descRichInsertText', '_prodDescRichInsertText'],
+  ['descRichMakeLink', '_prodDescRichMakeLink'],
+  ['descRichAnchorAtCaret', '_prodDescRichAnchorAtCaret'],
+  ['descRichKeydown', '_prodDescRichKeydown'],
+  ['descLinkPopEnsure', '_prodDescLinkPopEnsure'],
+  ['descLinkPopEditable', '_prodDescLinkPopEditable'],
+  ['descLinkPopPlace', '_prodDescLinkPopPlace'],
+  ['descLinkPopShow', '_prodDescLinkPopShow'],
+  ['descLinkPopEdit', '_prodDescLinkPopEdit'],
+  ['descLinkPopNotify', '_prodDescLinkPopNotify'],
+  ['descLinkPopApply', '_prodDescLinkPopApply'],
+  ['descLinkPopRemove', '_prodDescLinkPopRemove'],
+  ['descLinkPopHide', '_prodDescLinkPopHide'],
+  ['descLinkPopHideSoon', '_prodDescLinkPopHideSoon'],
+  ['descLinkPopWire', '_prodDescLinkPopWire'],
 ];
 const CONST_PAIRS = [
   ['I', 'PROD_ICON']
@@ -142,6 +183,12 @@ function normalize(fn, names) {
   out = out.replace(new RegExp(names.wired.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), names.artifact);
   out = out.replace(/_prodState/g, 'S');
   out = out.replace(/_prodReadonlyGuard\(\)/g, 'READ_ONLY_GUARD()');
+  /* A sibling call keeps its artifact spelling: `_prodDescRichBuild` is the
+     port of `descRichBuild`, so the prefix strip also lowers the first letter
+     it exposes. Constants and body-mounted ids follow the same rule. */
+  out = out.replace(/_prod([A-Z])/g, (m, c) => c.toLowerCase());
+  out = out.replace(/\bPROD_/g, '');
+  out = out.replace(/'prod([A-Z])/g, (m, c) => "'" + c.toLowerCase());
   out = out.replace(/_prod/g, '');
   out = out.replace(/prod-/g, '');
   out = out.replace(/data-prod-/g, 'data-');

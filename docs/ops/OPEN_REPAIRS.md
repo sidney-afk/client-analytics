@@ -13115,3 +13115,79 @@ success, the original bytes travel untouched. [P2] Typing during an upload
 re-enabled Save through the draft-input path; both paths now respect the
 upload state.
 
+## 158. [2026-09-06, BUILT — owner decisions listed] The description edits in place, like Linear's
+
+**Owner (2026-09-06, with three screenshots of the Source editor):** *"can you
+make the description ... the same size as the description ... when we edit a
+description I would like it to behave like linear ... when we click edit it
+shouldn't change the way we are viewing things ... not a small box where we
+need to scroll down ... for the links we shouldn't see those weird brackets
+and parentheses ... if we hover over a link we can change the name of the
+hyperlink or the link ... when we paste an image we shouldn't see that weird
+thing that says pasted image, we should just see the actual image ... that
+applies for every kind of description of work ... slight bug: when I click
+edit and scroll down, it scrolls back up."*
+
+**What was there.** Edit replaced the rendered description with a boxed
+textarea (190px min, 520px max, its own scrollbar) carrying Source/Preview
+tabs and the raw Markdown: `[label](url)`, `![Pasted image 1](https://…)`.
+
+**What shipped.** The rule behind the five observations, applied to the
+surface: a description of work edits IN PLACE, in its rendered form. Details
+and the module are in `docs/syncview-design/WIRED-PARITY.md` item 39. In one
+line each: the editor is the read view made editable (same classes, same
+box, grows with the text); links are links, hover for a card that opens or
+edits text and URL; a pasted image is the image, a chip while it uploads;
+`- `, `# `, `---` shape the line as typed; Ctrl/Cmd+K links; a URL pasted
+over a selection becomes its link; clicking the read text starts editing at
+the click; Markdown is one toggle away and is what opens, with a reason,
+when the text would not survive the visual editor byte for byte.
+
+**The scroll report.** Mechanism, from the code rather than a live
+reproduction (no backend in the sandbox): every render rebuilds the pane and
+restores focus plus caret; Chrome reveals a restored caret by scrolling its
+container, so a reader who had scrolled past the editor was pulled back to
+the caret line on the next 30-second tick. Every focus/caret restore now runs
+under a scroll lock that puts the pane and window offsets back, and the
+editor no longer has an inner scroll box to fight. Proven in the browser
+lane: a render while editing keeps focus and the pane offset.
+
+**Found on the way.** The read renderer joined every line with `<br>`, which
+after a block (heading, rule, bullet, image) drew a spare empty line the
+source did not have; laying the editor over the read view exposed it. Fixed
+in `_prodLinkify`; the read view is tighter by one line after each of those.
+
+**Sweep (rule: every surface that edits Markdown rendered by
+`_prodLinkify`).** A1 deliverable description panel, also the batch parent
+through the same panel: FIXED here. A2 create-issue dialog description
+textarea and A3 comment composer: same rule applies, not built in this round,
+owner decisions below. C1/C2 Submit-tab intake notes feed the same field
+from another tab: owner decision. Captions, creative direction, review
+comments, onboarding answers, templates, agreements, PTO, credentials are not
+Markdown surfaces (escaped pre-wrap renderers): the rule does not apply.
+Stated as a claim.
+
+**Owner decisions.**
+1. Autosave on blur (the artifact does it; Linear autosaves). Kept explicit
+   Save/Cancel because a blur here writes to Linear. Recommend: keep explicit
+   for one more round, revisit once the editor has been lived in.
+2. Hide the Markdown toggle (Linear has none). Recommend: keep it; it is the
+   only honest path for the descriptions the visual editor cannot reproduce.
+3. Rich composer in the create-issue dialog (A2). Recommend: yes, next round,
+   same module.
+4. Rich comment composer (A3), link-only as comments are today. Recommend:
+   yes, after A2.
+5. Submit-tab notes (C1/C2). Recommend: no; they are typed once and land in
+   this panel, where they are editable in place.
+
+**Round one (Codex on #1320): three taken.** [P1] Tab was swallowed by the
+editor and trapped keyboard focus; it is left to the browser now. [P1]
+Remove link detached the anchor before the card's hide routine looked for
+the editor through it, so focus stayed on the hidden card; the root and
+caret are taken first and given back. [P2] A link text with `]` or an
+address with `)` serialized to Markdown the parser could not read back;
+addresses that the plain forms cannot carry now go out in the angle form,
+and the card refuses `[ ]` in text and `< >` in an address with a visible
+note. The lane also gained per-section phase markers after the first CI
+red reported under an assignee phase.
+

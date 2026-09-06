@@ -1,0 +1,275 @@
+{
+  "date": "2026-09-06",
+  "classification": "ACTUAL_LOOPBACK_HTTP_SERVICE_RPC_SQL_SYNTHETIC",
+  "base": "8514a83ed1a65145a3a51ffe52e5fcbb2976be31",
+  "adapter_head": "c32b12df251bcbbf50eed6e9627b6abd030dda76",
+  "result": {
+    "passed": 42,
+    "failed": 0,
+    "http_requests": 64,
+    "external_attempts": 0
+  },
+  "receipt_sha256": "dd3b1afac7da172e234b9ab90a4326cc137fee03bb047863dff4a5a7e0533229",
+  "runtime_and_captured_sources_sha256": {
+    "supabase/functions/calendar-upsert/index.ts": "6600872e58607cbaa55347a3f2922f6889a7a40690fa0f7deb2ed7c0d65dc9cd",
+    "supabase/functions/_shared/native-card-materialization.mjs": "7f3185bba428d18d4f773a9014dffd3bdff49873354b55391f8d72f27a98de74",
+    "supabase/functions/_shared/browser-write-auth.ts": "5e26152c8e98aa12976247379d16b5725d830c42bf02efa03b3be085159cfa79",
+    "supabase/functions/_shared/thumbnail-revisions.ts": "8e8478cb8812688656fb5dee5fe022dd32090722da9db78f12556459de81cb51",
+    "supabase/functions/sample-review-upsert/index.ts": "42b0beb5ac6812896f51910edf3d6506985f17216d067f1d23d9c0deeac5cf08",
+    "dated_capture/calendar-upsert/functions/calendar-upsert/index.ts": "414976024b7651afd03ddd9bc6b18eba3b97951fa3ed6bc98c05c0fc3256e389",
+    "dated_capture/calendar-upsert/functions/_shared/thumbnail-revisions.ts": "8e8478cb8812688656fb5dee5fe022dd32090722da9db78f12556459de81cb51",
+    "dated_capture/sample-review-upsert/functions/sample-review-upsert/index.ts": "d95eb9760a77305397ad045556cd160b2b12f125b23b1ca92f97acfa225b71c6",
+    "dated_capture/sample-review-upsert/functions/_shared/thumbnail-revisions.ts": "8e8478cb8812688656fb5dee5fe022dd32090722da9db78f12556459de81cb51"
+  },
+  "proof_sources_sha256": {
+    "test/native-card-materialization-http.js": "26c48127998be01f73c0cd950d635a2106a13fd438c386afa3a060483249c1b6",
+    "scripts/native-card-materialization/http-edge.mjs": "c8b70947398afd5b8d1b63d8c79b103b53c93e1fbd71d3c763ed6cdf8cf8a934",
+    "scripts/native-card-materialization/http-lane.mjs": "d66dddf345e101dd1919417da4ca89701d1011f55905e4bacb2e7d0d96e4f243",
+    "scripts/native-card-materialization/fixture.mjs": "7957feb460b2142d365ee5f76916bbc8b7464824bcc392a1e67967013782f3e4",
+    "scripts/native-intake-reconcile/load-gateway.mjs": "e64dbb151d7db7c23aaaa8e481b1062124069059b138e6f6e6281cb8b24d5ba1",
+    "scripts/native-intake-manifest/supabase-shim.mjs": "f0f688714bfc75eddb93b400fc672f1450cf20d3d71de36bebad14f517068abb",
+    "qa/calendar-feedback-recovery/seam.js": "74aecbbcd2163ccc4f1e46972fb2554714c250eec5b2bb3c4dfbb450659e1467",
+    "scripts/card-history-integrated-rehearsal.js": "3b0eea542ee19d3fc3bccbace092180a9e0803f47094cd06e27137ad552c233d",
+    "supabase/functions/production-write/index.ts": "d11b271202c9e17c28b9c45c3e3b50339109b9820c1024b31fe99080a9acefd6",
+    "index.html": "64f197a0a451329925c3c51a231c79af05fc5f425bf1b241ade2af15917c7d6c",
+    "migrations/2026-09-06-native-card-materialization-boundary.sql": "c0d8257b0d28a7ba4db3bfb50a03e795a82add394d077c9b426b1ad9f12e6a50"
+  },
+  "browser_source_sha256": "64f197a0a451329925c3c51a231c79af05fc5f425bf1b241ade2af15917c7d6c",
+  "captured_fixture_observed_at": "2026-09-04T20:57:54.380Z",
+  "captured_fixture": [
+    {
+      "surface": "calendar",
+      "baseline": {
+        "scope": "DATED_CAPTURE_SOURCE",
+        "sha256": "414976024b7651afd03ddd9bc6b18eba3b97951fa3ed6bc98c05c0fc3256e389"
+      },
+      "derived": {
+        "scope": "DATED_CAPTURE_PLUS_EXACT_ADAPTER_GRAFT",
+        "sha256": "f378842b872ad1e28eb36a60f592e4913120beda5672d3ad2af01c569c8b68f0"
+      }
+    },
+    {
+      "surface": "samples",
+      "baseline": {
+        "scope": "DATED_CAPTURE_SOURCE",
+        "sha256": "d95eb9760a77305397ad045556cd160b2b12f125b23b1ca92f97acfa225b71c6"
+      },
+      "derived": {
+        "scope": "DATED_CAPTURE_PLUS_EXACT_ADAPTER_GRAFT",
+        "sha256": "ee9538b66d5c582adb273d9024463836c846da5d5f82b77fd1c91c8e0ca978ee"
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "repository source retains unauthenticated refusal before native RPC",
+      "pass": true
+    },
+    {
+      "name": "default admission hold conserves one exact raw HTTP body with no card mutation",
+      "pass": true
+    },
+    {
+      "name": "calendar video actual native envelope creates full scoped row via HTTP",
+      "pass": true
+    },
+    {
+      "name": "calendar thumbnail actual native envelope creates full scoped row via HTTP",
+      "pass": true
+    },
+    {
+      "name": "calendar both actual native envelope creates full scoped row via HTTP",
+      "pass": true
+    },
+    {
+      "name": "samples video actual native envelope creates full scoped row via HTTP",
+      "pass": true
+    },
+    {
+      "name": "samples thumbnail actual native envelope creates full scoped row via HTTP",
+      "pass": true
+    },
+    {
+      "name": "samples both actual native envelope creates full scoped row via HTTP",
+      "pass": true
+    },
+    {
+      "name": "calendar malformed success cannot populate an originally absent native slot",
+      "pass": true
+    },
+    {
+      "name": "samples malformed success cannot populate an originally absent native slot",
+      "pass": true
+    },
+    {
+      "name": "calendar lost HTTP response retries current human-edited row without rewriting owners",
+      "pass": true
+    },
+    {
+      "name": "samples lost HTTP response retries current human-edited row without rewriting owners",
+      "pass": true
+    },
+    {
+      "name": "changed client cannot adopt accepted receipt over HTTP",
+      "pass": true
+    },
+    {
+      "name": "changed card cannot adopt accepted receipt over HTTP",
+      "pass": true
+    },
+    {
+      "name": "changed child cannot adopt accepted receipt over HTTP",
+      "pass": true
+    },
+    {
+      "name": "changed body cannot adopt accepted receipt over HTTP",
+      "pass": true
+    },
+    {
+      "name": "unknown manifest is retained and visibly held",
+      "pass": true
+    },
+    {
+      "name": "accepted replay remains available in hold while a fresh request is held",
+      "pass": true
+    },
+    {
+      "name": "wrong endpoint and invalid staff credential cannot reach an accepted native card",
+      "pass": true
+    },
+    {
+      "name": "ingress storage failure never acknowledges conservation or leaves untracked card",
+      "pass": true
+    },
+    {
+      "name": "RPC null cannot become successful browser consumption",
+      "pass": true
+    },
+    {
+      "name": "RPC sparse_success cannot become successful browser consumption",
+      "pass": true
+    },
+    {
+      "name": "RPC wrong_row cannot become successful browser consumption",
+      "pass": true
+    },
+    {
+      "name": "RPC string cannot become successful browser consumption",
+      "pass": true
+    },
+    {
+      "name": "RPC transport_error cannot become successful browser consumption",
+      "pass": true
+    },
+    {
+      "name": "oversize HTTP input refuses without native/ordinary mutation",
+      "pass": true
+    },
+    {
+      "name": "invalid_UTF8 HTTP input refuses without native/ordinary mutation",
+      "pass": true
+    },
+    {
+      "name": "malformed_JSON HTTP input refuses without native/ordinary mutation",
+      "pass": true
+    },
+    {
+      "name": "calendar ordinary UI rename-back remains an ordinary authenticated source write",
+      "pass": true
+    },
+    {
+      "name": "samples ordinary UI rename-back remains an ordinary authenticated source write",
+      "pass": true
+    },
+    {
+      "name": "calendar dated anonymous capture retains ordinary writes and derived adapter protects native replay",
+      "pass": true
+    },
+    {
+      "name": "samples dated anonymous capture retains ordinary writes and derived adapter protects native replay",
+      "pass": true
+    },
+    {
+      "name": "calendar repository authenticated ordinary approval note and tweak keep original writer ownership",
+      "pass": true
+    },
+    {
+      "name": "calendar dated anonymous baseline ordinary approval note and tweak keep original writer ownership",
+      "pass": true
+    },
+    {
+      "name": "calendar dated anonymous derived ordinary approval note and tweak keep original writer ownership",
+      "pass": true
+    },
+    {
+      "name": "samples repository authenticated ordinary approval note and tweak keep original writer ownership",
+      "pass": true
+    },
+    {
+      "name": "samples dated anonymous baseline ordinary approval note and tweak keep original writer ownership",
+      "pass": true
+    },
+    {
+      "name": "samples dated anonymous derived ordinary approval note and tweak keep original writer ownership",
+      "pass": true
+    },
+    {
+      "name": "actual retained browser adopts full current HTTP card before marking completed",
+      "pass": true
+    },
+    {
+      "name": "calendar actual cold and failed-flag router still exposes the held legacy transport",
+      "pass": true
+    },
+    {
+      "name": "samples actual cold and failed-flag router still exposes the held legacy transport",
+      "pass": true
+    },
+    {
+      "name": "no provider request or external socket left the fixture",
+      "pass": true
+    }
+  ],
+  "controls": [
+    {
+      "classification": "ACTUAL_LOOPBACK_HTTP_RESPONSE_TAMPER",
+      "adapter_head": "e4b56f582aa5c03e74b3bc93a35c0d362670c9d4",
+      "passed": 8,
+      "failed": 1,
+      "receipt_sha256": "4706569aedb8ae8b9b949c5d36b0020fb5321bf42c0d5eecd4b99580610fa776",
+      "finding": "Calendar video-only reply with unexpected graphic slot returned200; SQL state unchanged. Samples inverse was not reached in this stop-first baseline."
+    },
+    {
+      "classification": "HISTORICAL_HTTP_SUITE_BEFORE_ADDED_NEGATIVES",
+      "adapter_head": "e4b56f582aa5c03e74b3bc93a35c0d362670c9d4",
+      "passed": 40,
+      "failed": 0,
+      "receipt_sha256": "7369216abae526dec57a015284e3d19029057df6777343fdfaa7a3a03f691363"
+    },
+    {
+      "classification": "OFFLINE_TEST_BEFORE_DATABASE_IMPORT",
+      "passed": 3,
+      "failed": 0,
+      "receipt_sha256": "3d0770d15c0c6e128aeab8f8fdce4e172d1dab9e412359e2fc73fe7f22c3d605",
+      "checks": [
+        "ci_requires_binding",
+        "remote_host_refused",
+        "invalid_port_refused"
+      ]
+    }
+  ],
+  "review": {
+    "status": "CLOSED_DORMANT_SOURCE",
+    "finding": "Absent native slots now compare null/empty identity, both HTTP negatives pass; handler/auth and SQL bytes unchanged by correction."
+  },
+  "limits": [
+    "No serving equality or live client proof",
+    "Repository authentication and dated anonymous captures are distinct",
+    "n8n graph unchanged: cold/failed-flag fallback remains held",
+    "No full37 restore repeated; selected SQL/auth/grants are fixture-shaped",
+    "Not Deno-host or SDK-network execution",
+    "Private capture graft omits candidate outer catch/logging changes; not a deployment artifact",
+    "Hosted CI does not possess private captures; those six optional groups remain separately unproven there",
+    "Owned disposable PostgreSQL stopped after final proof; retained fixture databases are synthetic"
+  ]
+}

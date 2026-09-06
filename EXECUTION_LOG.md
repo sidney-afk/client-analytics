@@ -2,6 +2,24 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Native card HTTP source adapter, uninstalled
+
+**Bounded review correction:** preserve `e4b56f582` and its 66 offline controls.
+Independent HTTP response-only tampering reproduced an unexpected child in an
+originally empty slot being acknowledged. Both native slots now compare after
+empty-string/null normalization; 70 offline groups pass. SQL and both handler
+bodies are unchanged by this correction. Actual corrected HTTP proof is separate.
+
+One shared adapter adds exact-native-marker terminal branches to Calendar and
+Samples repository upserts from PR1324 `8514a83`. Existing authorization and
+ordinary writer bytes are preserved. Bounded fatal UTF-8 reading retains the
+delivered text; one SQL RPC must return complete scoped current-card evidence
+before success. Unknown acceptance remains 503 with unknown conservation.
+66 offline controls and four affected source/auth suites pass; independent
+HTTP/SQL evidence is separate and pending at this checkpoint. No SQL, corpus,
+browser, workflow, deployment or n8n changes. Automatic creation remains held;
+see [the scoped evidence and rollout limits](docs/audits/2026-09-06-native-card-http-adapter.md).
+
 ## 2026-09-06 — Canonical37 schema reconstruction and outcome correction
 
 Combined proof `26691a9d` passed16 actual schema/data/replay groups with all37

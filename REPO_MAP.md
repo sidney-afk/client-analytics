@@ -8,6 +8,18 @@ commit as any structural change.
 
 ## Top level
 
+Held native-card HTTP source adapter: `supabase/functions/_shared/native-card-materialization.mjs`,
+`test/native-card-materialization-adapter.js`, and
+`docs/audits/2026-09-06-native-card-http-adapter.md`. Both upsert handlers preserve
+their existing source authorization; serving compatibility and n8n fallback routing remain held.
+
+Native card loopback HTTP proof: `test/native-card-materialization-http.js`,
+`scripts/native-card-materialization/http-edge.mjs`, `scripts/native-card-materialization/http-lane.mjs`,
+`docs/audits/2026-09-06-native-card-http-proof.md` and
+`docs/audits/2026-09-06-native-card-http-proof-evidence.json`.
+Actual source handlers and service RPC use only an explicitly owned disposable database;
+dated anonymous captures are optional private fixtures, not serving proof.
+
 Selected37 authenticated schema/data proof: `docs/audits/2026-09-06-schema-v7-recovery.md`
 and `docs/audits/2026-09-06-schema-v7-recovery-evidence.json`.
 

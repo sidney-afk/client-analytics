@@ -1,5 +1,13 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Native card HTTP adapter, uninstalled:** source withdrawal before any real
+acceptance changes no clients. After any future acceptance, hold new creation
+and retain compatible receipt replay and both durable owners. Reinstating the
+old full-row writer can overwrite later edits and is not an operational inverse.
+Do not deploy repository auth gates onto frozen anonymous serving writers.
+Both n8n bypasses require their separate owner-approved amendment and rollback
+proof; see [the held adapter boundary](docs/audits/2026-09-06-native-card-http-adapter.md).
+
 **Selected37 schema recovery, unapplied:** retain authenticated packages and
 current/historical rows. Retry a failed reconstruction in place only when all
 public relation, function and type counters prove the target was and remains

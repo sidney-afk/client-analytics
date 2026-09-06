@@ -1,7 +1,7 @@
 // Loads the ACTUAL Edge Function handlers in-process: production-write (the
 // candidate working tree, or an exact git revision for baseline proof) and the
-// FROZEN calendar-upsert writer (always the working tree, which is byte-equal
-// to the frozen source). Only the npm supabase import is replaced by the seam
+// repository calendar-upsert writer (not evidence of its frozen serving body).
+// Only the npm supabase import is replaced by the seam
 // factory; relative imports resolve to their real files. External fetch is
 // refused and background work is collected so tests can drain it.
 import assert from 'node:assert/strict';
@@ -59,7 +59,7 @@ export async function loadProductionWrite(revision = null) {
   return loadFunction('production-write', ['../_shared/staff-role-auth.ts', './selected-label-pages.mjs', '../_shared/linear-create-id.mjs', './policy.mjs'], revision, 'production-write-' + (revision || 'candidate'));
 }
 export async function loadCalendarUpsert() {
-  return loadFunction('calendar-upsert', ['../_shared/browser-write-auth.ts', '../_shared/thumbnail-revisions.ts'], null, 'calendar-upsert-frozen');
+  return loadFunction('calendar-upsert', ['../_shared/browser-write-auth.ts', '../_shared/thumbnail-revisions.ts', '../_shared/native-card-materialization.mjs'], null, 'calendar-upsert-repository');
 }
 export function useSeam(factory) { state.clientFactory = factory; }
 export async function drainBackground() { const pending = state.background.splice(0); await Promise.all(pending); return pending.length; }

@@ -99,3 +99,6 @@ p95_write_ui_test_guard.js
 
 # --- app update nudge / version floor (2026-08-27, Codex review on #1163) ---
 p66_update_floor_wall.js
+
+# --- description-image-upload: the deployed writer's live contract (2026-09-05, Codex on #1310) ---
+p96_description_image_upload.js

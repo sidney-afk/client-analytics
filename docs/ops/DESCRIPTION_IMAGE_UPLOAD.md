@@ -1,4 +1,121 @@
-# Pasting an image into a description — scope
+# Pasting an image into a description — scope, decision, and what shipped
+
+> **Decided and built, 2026-09-05.** Owner: *"if you think this is a good plan
+> … then let's do it."* **Option B** (public bucket, unguessable path), images
+> kept **forever**. Everything in §3 is now code; the sections below this box
+> are the reasoning that led there and are kept as the record. What is left
+> is owner-side: apply one migration, let one deploy lane run. See §0.
+
+## 0. What shipped, and the two steps that make it live
+
+**Code (this repository):**
+
+| Piece | Where |
+|---|---|
+| Bucket `syncview-description-images` (public, 4 MiB, png/jpeg/webp/gif) + `description_images` ledger (service-role only) | `migrations/2026-09-05-description-images.sql` |
+| Edge Function `description-image-upload` — verified admin/SMM actor, three-condition byte check, ceilings, hourly per-actor rate limit, UUID naming, ledger row (object removed if the row is refused) | `supabase/functions/description-image-upload/index.ts` + `policy.mjs` |
+| Deploy lane, path-triggered on main, dispatchable by hand | `.github/workflows/deploy-description-image-upload.yml` |
+| Paste + drop handler on the description editor, browser-side downscale to 1600px long edge, placeholder swap, save guard, 360px display cap with click-to-open | `index.html` (`_prodDescriptionPaste` and siblings) |
+| Proof | `test/description-image-upload.js` (policy bytes + handler shape), `test/prod-description-image-paste.js` (editor behaviour, executed) |
+
+**To make it live, in this order:**
+
+1. **Apply the migration** in the Supabase SQL Editor:
+   `migrations/2026-09-05-description-images.sql`. It is idempotent. It creates
+   the bucket, the ledger, and the `description_image_upload_enabled` flag row
+   (seeded ENABLED). Applied 2026-09-05; the flag row was added to the file
+   after Codex review on #1310, so if the earlier version was the one run,
+   the `insert into public.syncview_runtime_flags …` statement at its end is
+   the one line still owed.
+2. **Deploy the function.** Merging to `main` triggers
+   `.github/workflows/deploy-description-image-upload.yml` automatically. If
+   the merge landed before the migration was applied, nothing breaks: the
+   function answers `503` (`rate_limit_unavailable`, because the ledger it
+   counts does not exist yet) and the browser removes its placeholder and
+   says the image could not be uploaded. Re-run the lane by hand if needed:
+   https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-description-image-upload.yml
+3. Open any SyncLinear issue, Edit the description, Ctrl+V a screenshot.
+
+**Until step 2 runs**, a paste gets the toast *"Image upload is not available
+yet on this backend"* (the browser maps the 404 to that sentence) and the
+description is left exactly as it was. Nothing else on the page changes.
+
+**Kill switch.** The function reads `description_image_upload_enabled` before
+it authenticates anyone and fails closed on a missing or malformed row. One
+statement switches uploads off for every caller, cached tabs included, with
+no deploy (`ROLLBACK.md`, Live State table). The browser answers *"Image
+upload is switched off right now."*
+
+**Rate limit is a reservation, not a look.** The ledger row is inserted
+BEFORE the object and the count that decides the limit includes the caller's
+own row, so ten screenshots dropped at once at the ceiling all withdraw
+rather than all pass. A failed storage write withdraws the row too. Two
+ceilings on that row: 120/hour per actor, and 600/hour per ROLE KEY. The
+second exists because the actor header is caller-chosen and the role secret
+is shared, so a stolen key could name each active member in turn; the role
+that secret resolved to is the one thing the caller cannot forge.
+
+**A header is not a file.** After the magic bytes agree with the label, the
+body must also carry its format's closing structure (PNG `IEND`, GIF `0x3B`,
+JPEG `FFD9`, a WebP RIFF length matching the file), so a signature-plus-IHDR
+stub is refused as `image_incomplete` instead of stored forever as a URL that
+renders broken.
+
+**The robots know it exists.** `qa/probes/p96_description_image_upload.js`
+runs nightly against the deployed function: the browser's preflight, the
+refusal order (flag, key, roster), a real 1x1 PNG round trip through the
+public URL, and the three byte refusals. It retains one 68-byte object per
+run. It REQUIRES the `SYNCVIEW_STAFF_ACTOR` repository secret (an active
+admin/SMM roster name the staff key's role resolves to) and fails without it
+rather than skipping, so the nightly is red on p96 until the owner adds that
+secret. Two owner-side items after merge, both one line:
+
+1. `SYNCVIEW_STAFF_ACTOR` in repo Settings → Secrets and variables → Actions.
+2. The role index, if the migration was applied before it was added:
+   `create index if not exists description_images_role_created_idx on public.description_images (actor_role, created_at desc);`
+
+**Every format is walked block by block; a PNG's pixels are inflated as a
+stream.** PNG: every chunk's length must fit and its CRC match, IHDR first
+with length 13, PLTE before IDAT and required for indexed colour (forbidden
+for greyscale), at least one IDAT with data, IEND exactly at the end of the
+file; then the IDAT stream is inflated through the runtime's built-in
+`DecompressionStream` and CONSUMED as it arrives (nothing decoded is kept),
+must reach exactly the byte count IHDR implies with a defined filter type on
+every scanline, and an IHDR implying more than a fixed 48 MiB of rows is
+refused as too large before anything is inflated, so the ceiling is never
+the header's own number. GIF: screen descriptor, global colour table, then
+extension blocks and image descriptors with their sub-blocks, at least one
+image, the trailer as the last byte. JPEG: a frame header and a Start Of
+Scan, entropy-coded data where 0xFF is followed only by a stuffed zero, a
+restart marker or a real segment, at least one entropy byte, EOI as the
+last two bytes. WebP: the RIFF size states the file's length, the chunks
+tile the payload exactly, the VP8X flags and reserved bits are parsed and
+the animation bit must agree with the ANIM/ANMF chunks, every frame and
+bitstream must fit its canvas and the ceiling, and a VP8 first partition
+must be nonempty and fit its chunk. None of this decodes pixels; it is what
+a decoder checks before it starts. The browser closes the gap from its side:
+a file it cannot decode is refused at paste time, and a decodable WebP is
+always redrawn to PNG or JPEG, so raw WebP reaches the function only from a
+direct authenticated caller.
+
+**Sizing, because it was the second half of the ask** (*"avoid things where
+people paste something and it looks huge or horrible"*): a Retina screenshot
+is 2x, so pasted raw it renders enormous, and Linear draws the mirrored
+markdown image at natural size where no CSS of ours reaches. So the BROWSER
+downscales to 1600px on the long edge before upload — the one lever that
+sizes the picture on both surfaces — never upscales, keeps PNG as PNG (text
+stays crisp, transparency survives) and passes a GIF through untouched. In
+the SyncView panel a 360px height cap with `object-fit: contain` and a
+zoom-in cursor keeps a tall capture from swallowing the layout; a click opens
+the full image in a new tab.
+
+**Not covered, on purpose:** images pasted INSIDE Linear arrive here as
+`uploads.linear.app` signed URLs that need Linear's own auth, so they render
+broken in SyncView. That is a proxy problem in the other direction and is
+not touched by this change.
+
+---
+
 
 **Why this file exists.** Owner, 2026-08-31: *"could you look into pasting
 images in the description? … same way it does in linear. So just a simple
@@ -9,8 +126,8 @@ render — before it, `![alt](url)` matched the *link* rule, so a description
 carrying a screenshot drew a stray `!` in front of a blue link to a PNG. Any
 image already reachable by URL now renders inline.
 
-**The other half — actually pasting bytes — is blocked on one decision**, and
-that PR said so rather than guessing:
+**The other half — actually pasting bytes — was blocked on one decision** (now
+made, §0), and that PR said so rather than guessing:
 
 > *"A paste handler needs somewhere to put the bytes, and that is a storage
 > decision plus a deploy… whether description images follow [the private

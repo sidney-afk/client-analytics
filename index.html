@@ -2956,7 +2956,14 @@
            `display:block` because an inline-block image inside `white-space:
            pre-wrap` inherits the surrounding line box and leaves a stripe of
            blank line under it. */
-        .prod-desc-image { display: block; max-width: 100%; height: auto; margin: 8px 0; border-radius: 6px; border: 1px solid var(--prod-line); background: var(--prod-column); }
+        /* `max-height` with both dimensions auto keeps the aspect ratio while
+           stopping a tall capture from swallowing the panel; the full-size
+           image is one click away (zoom-in cursor, opens in a new tab). The
+           browser also downscales to 1600px on the long edge BEFORE upload,
+           which is the only lever that reaches Linear, since Linear renders
+           the mirrored markdown image at its natural size. */
+        .prod-desc-image { display: block; max-width: 100%; max-height: 360px; width: auto; height: auto; object-fit: contain; margin: 8px 0; border-radius: 6px; border: 1px solid var(--prod-line); background: var(--prod-column); cursor: zoom-in; }
+        .prod-desc-image:focus-visible { outline: 2px solid var(--prod-accent); outline-offset: 2px; }
         .prod-desc a { color: var(--prod-link); text-decoration: none; }
         .prod-desc a:hover { text-decoration: underline; }
         .prod-desc-empty { color: var(--prod-faint); }
@@ -3231,6 +3238,8 @@
         .prod-description-footer { min-height: 42px; border-top: 1px solid var(--prod-divider); padding: 6px 7px 6px 11px; display: flex; align-items: center; gap: 6px; box-sizing: border-box; }
         .prod-description-count { color: var(--prod-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
         .prod-description-count.is-invalid { color: var(--prod-overdue, #eb5757); font-weight: 600; }
+        .prod-description-hint { color: var(--prod-faint); font-size: 11px; margin-left: 10px; }
+        .prod-description-textarea.is-drop-target { box-shadow: inset 0 0 0 2px var(--prod-accent); }
         .prod-description-save { background: var(--prod-accent); color: #fff; }
         .prod-description-save:hover { background: var(--prod-accent); color: #fff; filter: brightness(.96); }
         .prod-attribution-chip { border-style: solid; font-weight: 600; cursor: default; }
@@ -48152,6 +48161,7 @@
         const PROD_COMMENTS_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-comments';
         const PROD_WRITE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-write';
         const PROD_ARCHIVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/production-archive';
+        const PROD_DESCRIPTION_IMAGE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/description-image-upload';
         const PROD_AUTHORITY_FLAG_KEY = 'prod_authority';
         const PROD_COMMENTS_PAGE_SIZE = 50;
         /* Long enough that a genuinely slow read still lands (the estate's
@@ -54391,8 +54401,14 @@
                be told which client's board is open. `loading=lazy` because a
                description with several screenshots is otherwise several
                full-size fetches on a panel the reader may never scroll. */
+            /* `tabindex` and `role=link`: the image opens full size on click
+               (delegated, see _prodDescriptionImageOpen), and a keyboard user
+               has to be able to reach it and press Enter. No handler
+               attribute on the element itself -- that is the shape the alt
+               text must never be able to forge. */
             const imageTag = (alt, u) => '<img class="prod-desc-image" src="' + u + '"'
                 + ' alt="' + (String(alt || '').trim() || 'Pasted image') + '"'
+                + ' tabindex="0" role="link" title="Open full size"'
                 + ' loading="lazy" decoding="async" referrerpolicy="no-referrer">';
             if (allowImages) {
                 s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(imageTag(l, u)));
@@ -55417,6 +55433,7 @@
                 error: '',
                 remoteChanged: false,
                 requestId: '',
+                uploading: 0,
                 selectionStart: value.length,
                 selectionEnd: value.length,
                 sourceUpdatedAt: issue ? issue.updatedRaw : '',
@@ -55985,7 +56002,10 @@
                 counter.textContent = value.length.toLocaleString() + ' / 100,000';
                 counter.classList.toggle('is-invalid', value.length > 100000);
             }
-            if (save) save.disabled = value.length > 100000;
+            /* Both paths that touch this button must agree: an upload in
+               flight keeps it shut whatever the count says (Codex on #1310,
+               round nine). */
+            if (save) save.disabled = value.length > 100000 || state.uploading > 0;
             const error = panel && panel.querySelector('[data-prod-description-write-error]');
             if (error && !state.remoteChanged) error.remove();
         }
@@ -56055,6 +56075,401 @@
             }
             return true;
         }
+        /* ---- Pasting an image into a description (2026-09-05) ------------
+           Owner, 2026-08-31: "could you look into pasting images in the
+           description? ... same way it does in linear." #1204 shipped the
+           render half; this is the paste half, and the storage decision
+           behind it is written up in docs/ops/DESCRIPTION_IMAGE_UPLOAD.md.
+
+           SHAPE. A paste (or drop) that carries an image file is intercepted;
+           anything else -- ordinary text -- is left to the browser untouched.
+           A placeholder line is inserted at the caret straight away so the
+           editor answers the keystroke, the bytes are downscaled HERE (see
+           _prodDescriptionImageFit) and posted to description-image-upload,
+           and the placeholder is swapped for `![alt](https://…)` when the
+           URL comes back. On failure the placeholder is removed and a toast
+           says why: a paste that half-works is worse than one that does not.
+
+           WHY THE BROWSER DOWNSCALES. A Retina screenshot is 2x, so pasted
+           as-is it renders enormous -- and Linear draws the mirrored markdown
+           image at its natural size, where no CSS of ours reaches. Capping
+           the long edge at 1600px keeps text readable and is the one lever
+           that sizes the picture on BOTH surfaces. A GIF passes through
+           untouched, because redrawing it on a canvas would drop its frames.
+
+           Nothing here holds a storage key. The function verifies the bytes
+           and the actor; this only shapes and ships them. */
+        const PROD_DESCRIPTION_IMAGE_MAX_EDGE = 1600;
+        const PROD_DESCRIPTION_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+        const PROD_DESCRIPTION_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+        const PROD_DESCRIPTION_IMAGE_PLACEHOLDER_RE = /!\[Uploading image \d+…\]\(\)/;
+        let _prodDescriptionImageSeq = 0;
+        function _prodDescriptionImagePlaceholder(n) {
+            return '![Uploading image ' + n + '…]()';
+        }
+        /* Long-edge fit. Never upscales; a small image keeps its own pixels. */
+        function _prodDescriptionImageFit(width, height, maxEdge) {
+            width = Math.max(1, Math.round(Number(width) || 0));
+            height = Math.max(1, Math.round(Number(height) || 0));
+            maxEdge = Math.max(1, Number(maxEdge) || PROD_DESCRIPTION_IMAGE_MAX_EDGE);
+            const longest = Math.max(width, height);
+            const scale = longest > maxEdge ? maxEdge / longest : 1;
+            return {
+                scale,
+                width: Math.max(1, Math.round(width * scale)),
+                height: Math.max(1, Math.round(height * scale))
+            };
+        }
+        /* PNG stays PNG: screenshots are text and flat colour, which JPEG
+           smears and PNG keeps crisp, and PNG keeps transparency. Anything
+           else that had to be redrawn is re-encoded as JPEG, which is what a
+           photo wants. */
+        function _prodDescriptionImageOutputType(sourceType) {
+            return String(sourceType || '').toLowerCase() === 'image/png' ? 'image/png' : 'image/jpeg';
+        }
+        function _prodDescriptionImageAlt(file, n) {
+            const name = String(file && file.name || '').trim();
+            const base = name.replace(/\.[a-z0-9]+$/i, '');
+            /* The clipboard names every paste "image.png"; that is not an
+               alt text, it is the absence of one. */
+            const meaningful = base && !/^(image|screenshot|pasted[ _-]?image|clipboard)(\s*\(?\d*\)?)?$/i.test(base);
+            const alt = (meaningful ? base : 'Pasted image ' + n).replace(/[\[\]\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+            return alt.slice(0, 80);
+        }
+        function _prodDescriptionImageErrorText(error) {
+            const code = String(error && error.code || '');
+            const status = Number(error && error.status || 0);
+            if (code === 'unsupported_image_type' || code === 'image_type_mismatch' || code === 'image_bytes_unrecognized') {
+                return 'Only PNG, JPEG, WebP or GIF images can be pasted.';
+            }
+            if (code === 'image_incomplete' || code === 'image_undecodable') return 'That image file is cut off or damaged. Try copying it again.';
+            if (code === 'image_encode_failed') return 'This browser could not prepare the image. Try a PNG or JPEG.';
+            if (code === 'animated_webp_unsupported') return 'Animated WebP is not supported here. Paste a GIF or a still image instead.';
+            if (code === 'image_too_large') return 'That image is over 4 MB even after resizing. Try a smaller crop.';
+            if (code === 'rate_limited') return 'Too many images uploaded in the last hour. Try again a little later.';
+            if (code === 'operation_forbidden') return 'Only admin and SMM accounts can add images to a description.';
+            if (status === 401 || code === 'credentials_required' || code === 'invalid_staff_key' || code === 'roster_actor_required' || code === 'roster_actor_not_unique') {
+                return 'Staff sign-in is required to upload an image.';
+            }
+            if (status === 404) return 'Image upload is not available yet on this backend.';
+            if (code === 'upload_disabled') return 'Image upload is switched off right now.';
+            return 'The image could not be uploaded. The description is unchanged.';
+        }
+        /* Image files out of a DataTransfer. During a dragover the files are
+           not readable yet, so `probeOnly` answers from the item kinds. */
+        function _prodDescriptionTransferImages(transfer, probeOnly) {
+            const out = [];
+            if (!transfer) return out;
+            const items = transfer.items;
+            if (items && items.length) {
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (!item || item.kind !== 'file' || !/^image\//i.test(String(item.type || ''))) continue;
+                    if (probeOnly) { out.push(item); continue; }
+                    const file = item.getAsFile && item.getAsFile();
+                    if (file) out.push(file);
+                }
+                return out;
+            }
+            const files = transfer.files;
+            if (files && files.length) {
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file && /^image\//i.test(String(file.type || ''))) out.push(file);
+                }
+            }
+            return out;
+        }
+        function _prodDescriptionPaste(event, id) {
+            const files = _prodDescriptionTransferImages(event && event.clipboardData, false);
+            /* No image on the clipboard: an ordinary text paste, and the
+               browser's own behaviour is the right one. */
+            if (!files.length) return true;
+            event.preventDefault();
+            _prodDescriptionInsertImages(id, event.currentTarget || event.target, files);
+            return false;
+        }
+        function _prodDescriptionDragOver(event) {
+            const transfer = event && event.dataTransfer;
+            if (!_prodDescriptionTransferImages(transfer, true).length) return true;
+            event.preventDefault();
+            try { transfer.dropEffect = 'copy'; } catch (e) {}
+            const input = event.currentTarget || event.target;
+            if (input && input.classList) input.classList.add('is-drop-target');
+            return false;
+        }
+        function _prodDescriptionDragLeave(event) {
+            const input = event && (event.currentTarget || event.target);
+            if (input && input.classList) input.classList.remove('is-drop-target');
+            return true;
+        }
+        function _prodDescriptionDrop(event, id) {
+            const input = event && (event.currentTarget || event.target);
+            if (input && input.classList) input.classList.remove('is-drop-target');
+            const files = _prodDescriptionTransferImages(event && event.dataTransfer, false);
+            if (!files.length) return true;
+            event.preventDefault();
+            _prodDescriptionInsertImages(id, input, files);
+            return false;
+        }
+        function _prodDescriptionSourceInput(id) {
+            const panel = document.querySelector('[data-prod-description="' + CSS.escape(String(id || '')) + '"]');
+            return panel && panel.querySelector('[data-prod-description-control="source"]') || null;
+        }
+        /* Insert `text` at the caret ON ITS OWN LINE, in the live textarea
+           when there is one and in the draft either way. The draft is the
+           truth _prodRender redraws from, so a re-render mid-upload cannot
+           lose the placeholder. */
+        function _prodDescriptionInsertAtCaret(id, input, text) {
+            const state = _prodDescriptionState(id);
+            if (!state) return false;
+            const live = input && input.tagName === 'TEXTAREA' ? input : _prodDescriptionSourceInput(id);
+            const value = String(live ? live.value : state.draft || '');
+            let start = live && Number.isFinite(live.selectionStart) ? live.selectionStart : state.selectionStart;
+            let end = live && Number.isFinite(live.selectionEnd) ? live.selectionEnd : state.selectionEnd;
+            start = Math.min(Math.max(0, Number(start) || 0), value.length);
+            end = Math.min(Math.max(start, Number(end) || start), value.length);
+            const before = value.slice(0, start);
+            const after = value.slice(end);
+            const lead = before && !/\n$/.test(before) ? '\n' : '';
+            const tail = after && !/^\n/.test(after) ? '\n' : '';
+            const inserted = lead + text + tail;
+            const next = before + inserted + after;
+            const caret = before.length + inserted.length;
+            if (live) {
+                live.value = next;
+                try { live.setSelectionRange(caret, caret); } catch (e) {}
+            }
+            state.selectionStart = caret;
+            state.selectionEnd = caret;
+            _prodDescriptionDraftInput(id, next, live);
+            return true;
+        }
+        /* Swap a placeholder for its result (or for nothing). Works on the
+           live textarea when the editor is still in source mode, else on the
+           draft, and keeps the caret where the writer left it. */
+        function _prodDescriptionReplaceInDraft(id, placeholder, replacement) {
+            const state = _prodDescriptionState(id);
+            if (!state) return false;
+            const live = _prodDescriptionSourceInput(id);
+            const value = String(live ? live.value : state.draft || '');
+            const at = value.indexOf(placeholder);
+            if (at < 0) return false;
+            let block = placeholder;
+            let from = at;
+            if (!replacement) {
+                /* Take the line the placeholder was given with it, so a failed
+                   paste does not leave a blank line behind. */
+                if (value[at + block.length] === '\n') block = block + '\n';
+                else if (at > 0 && value[at - 1] === '\n' && (at + block.length === value.length)) { from = at - 1; block = '\n' + block; }
+            }
+            const next = value.slice(0, from) + (replacement || '') + value.slice(from + block.length);
+            const delta = (replacement || '').length - block.length;
+            const shift = pos => pos > from ? Math.max(from, pos + delta) : pos;
+            const start = shift(live && Number.isFinite(live.selectionStart) ? live.selectionStart : state.selectionStart);
+            const end = shift(live && Number.isFinite(live.selectionEnd) ? live.selectionEnd : state.selectionEnd);
+            if (live) {
+                const focused = document.activeElement === live;
+                live.value = next;
+                if (focused) { try { live.setSelectionRange(start, end); } catch (e) {} }
+            }
+            state.selectionStart = start;
+            state.selectionEnd = end;
+            _prodDescriptionDraftInput(id, next, live);
+            if (!live && state.editing && state.preview) _prodRender();
+            return true;
+        }
+        function _prodDescriptionSetUploading(id, delta) {
+            const state = _prodDescriptionState(id);
+            if (!state) return;
+            state.uploading = Math.max(0, (Number(state.uploading) || 0) + delta);
+            const panel = document.querySelector('[data-prod-description="' + CSS.escape(String(id || '')) + '"]');
+            const save = panel && panel.querySelector('[data-prod-description-control="save"]');
+            if (save) save.disabled = state.saving || state.uploading > 0 || String(state.draft || '').length > 100000;
+            const hint = panel && panel.querySelector('[data-prod-description-hint]');
+            if (hint) hint.textContent = state.uploading > 0
+                ? 'Uploading ' + (state.uploading === 1 ? 'image' : state.uploading + ' images') + '…'
+                : 'Paste or drop an image to add it';
+        }
+        function _prodDescriptionInsertImages(id, input, files) {
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state || !state.editing || state.saving) return false;
+            if (!_prodCanWrite(issue, _prodDescriptionOperation(issue))) {
+                _prodToast(_prodWriteGateText(issue, _prodDescriptionOperation(issue)));
+                return false;
+            }
+            files.forEach(file => { _prodDescriptionUploadImage(id, input, file); });
+            return true;
+        }
+        function _prodDescriptionCanvasBlob(canvas, type, quality) {
+            return new Promise(resolve => {
+                try { canvas.toBlob(blob => resolve(blob || null), type, quality); } catch (e) { resolve(null); }
+            });
+        }
+        /* An animated WebP is a VP8X container with bit 1 of its flags set.
+           Read off the first 21 bytes; no decode. */
+        async function _prodDescriptionWebpAnimated(file) {
+            try {
+                const head = new Uint8Array(await file.slice(0, 21).arrayBuffer());
+                if (head.length < 21) return false;
+                const tag = String.fromCharCode(head[12], head[13], head[14], head[15]);
+                return tag === 'VP8X' && (head[20] & 0x02) !== 0;
+            } catch (e) {
+                return false;
+            }
+        }
+        /* Shape the bytes before they travel: downscale to the long edge,
+           re-encode, and refuse here what the server would refuse anyway so
+           the writer hears it without a round trip. */
+        async function _prodDescriptionPrepareImage(file) {
+            const type = String(file && file.type || '').toLowerCase();
+            const fail = code => { const e = new Error(code); e.code = code; return e; };
+            if (!PROD_DESCRIPTION_IMAGE_TYPES.includes(type)) throw fail('unsupported_image_type');
+            const passThrough = () => {
+                if (file.size > PROD_DESCRIPTION_IMAGE_MAX_BYTES) throw fail('image_too_large');
+                return { blob: file, type };
+            };
+            /* An animated WebP would be flattened to one frame by the redraw
+               below, and the server cannot decode its bitstream to accept it
+               raw, so it is refused outright and said so (Codex on #1310,
+               round nine). A still WebP is redrawn as before. */
+            if (type === 'image/webp' && await _prodDescriptionWebpAnimated(file)) throw fail('animated_webp_unsupported');
+            let bitmap = null;
+            try { bitmap = await createImageBitmap(file); } catch (e) { bitmap = null; }
+            /* A GIF is never redrawn (that would drop its frames), but it IS
+               decoded first: a file whose first frame this browser cannot
+               decode is refused rather than shipped, since the server checks
+               a GIF's block structure and not its LZW stream. The original
+               bytes travel untouched on success. Codex on #1310, round nine. */
+            if (type === 'image/gif') {
+                if (!bitmap) throw fail('image_undecodable');
+                if (bitmap.close) bitmap.close();
+                return passThrough();
+            }
+            /* A file this browser cannot decode is refused HERE, not shipped
+               for the server to guess at: the server checks structure, not
+               pixels, and a file that fails to decode in the browser would
+               fail to render for every reader too. (Codex on #1310, round
+               eight.) The one exception is GIF above, which is never
+               decoded here because redrawing it would drop its frames. */
+            if (!bitmap) throw fail('image_undecodable');
+            const fit = _prodDescriptionImageFit(bitmap.width, bitmap.height, PROD_DESCRIPTION_IMAGE_MAX_EDGE);
+            /* PNG and JPEG that already fit travel byte-identical. WebP is
+               ALWAYS redrawn: the server cannot decode its bitstream, so a
+               WebP reaches it only as a PNG or JPEG this browser has
+               actually decoded. */
+            if (fit.scale === 1 && file.size <= PROD_DESCRIPTION_IMAGE_MAX_BYTES && type !== 'image/webp') {
+                if (bitmap.close) bitmap.close();
+                return { blob: file, type, width: bitmap.width, height: bitmap.height };
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = fit.width;
+            canvas.height = fit.height;
+            const context = canvas.getContext('2d');
+            if (!context) { if (bitmap.close) bitmap.close(); throw fail('image_encode_failed'); }
+            context.drawImage(bitmap, 0, 0, fit.width, fit.height);
+            if (bitmap.close) bitmap.close();
+            let outType = _prodDescriptionImageOutputType(type);
+            let blob = await _prodDescriptionCanvasBlob(canvas, outType, 0.9);
+            if (blob && blob.size > PROD_DESCRIPTION_IMAGE_MAX_BYTES && outType === 'image/png') {
+                outType = 'image/jpeg';
+                blob = await _prodDescriptionCanvasBlob(canvas, outType, 0.88);
+            }
+            if (!blob) throw fail('image_encode_failed');
+            if (blob.size > PROD_DESCRIPTION_IMAGE_MAX_BYTES) throw fail('image_too_large');
+            return { blob, type: outType, width: fit.width, height: fit.height };
+        }
+        function _prodDescriptionImageHeaderValue(value) {
+            return String(value == null ? '' : value).replace(/[^A-Za-z0-9_.:@-]+/g, '').slice(0, 160);
+        }
+        async function _prodDescriptionPostImage(issue, prepared) {
+            const headers = {
+                apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json',
+                'Content-Type': prepared.type
+            };
+            const clientSlug = _prodDescriptionImageHeaderValue(issue.authorityProject || issue.storedClientSlug || issue.project || '');
+            const issueId = _prodDescriptionImageHeaderValue(issue.id);
+            if (clientSlug) headers['X-Syncview-Image-Client'] = clientSlug;
+            if (issueId) headers['X-Syncview-Image-Issue'] = issueId;
+            const request = {
+                method: 'POST',
+                cache: 'no-store',
+                headers: _syncviewEfHeaders(headers, PROD_DESCRIPTION_IMAGE_EF_URL),
+                body: prepared.blob
+            };
+            /* A hung upload must not pin Save shut forever: the placeholder is
+               removed and the writer told, exactly as for any other failure. */
+            try {
+                if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+                    request.signal = AbortSignal.timeout(60000);
+                }
+            } catch (e) {}
+            const response = await fetch(PROD_DESCRIPTION_IMAGE_EF_URL, request);
+            const json = await response.json().catch(() => ({}));
+            const url = String(json && json.url || '');
+            if (!response.ok || !json || json.ok !== true || !/^https:\/\/[^\s)]+$/.test(url)) {
+                const error = new Error(String(json && json.error || 'upload_failed'));
+                error.code = String(json && json.error || '');
+                error.status = response.status;
+                throw error;
+            }
+            return url;
+        }
+        async function _prodDescriptionUploadImage(id, input, file) {
+            const issue = _prodIssue(id);
+            const state = issue && _prodDescriptionState(id);
+            if (!issue || !state) return false;
+            const n = ++_prodDescriptionImageSeq;
+            const placeholder = _prodDescriptionImagePlaceholder(n);
+            _prodDescriptionInsertAtCaret(id, input, placeholder);
+            _prodDescriptionSetUploading(id, 1);
+            try {
+                const prepared = await _prodDescriptionPrepareImage(file);
+                const url = await _prodDescriptionPostImage(issue, prepared);
+                const markdown = '![' + _prodDescriptionImageAlt(file, n) + '](' + url + ')';
+                if (!_prodDescriptionReplaceInDraft(id, placeholder, markdown)) {
+                    /* The editor was cancelled or the draft was replaced
+                       while the bytes were in flight. The upload succeeded
+                       and is durable; the writer simply is not in a state to
+                       receive it, so say so rather than inserting into a
+                       draft they did not ask to change. */
+                    _prodToast('Image uploaded, but the description editor had closed. Paste it again.');
+                }
+                return true;
+            } catch (error) {
+                _prodDescriptionReplaceInDraft(id, placeholder, '');
+                _prodToast(_prodDescriptionImageErrorText(error));
+                return false;
+            } finally {
+                _prodDescriptionSetUploading(id, -1);
+            }
+        }
+        /* A rendered image opens full size on click. Delegated, because the
+           renderer is a string builder and an inline handler attribute is
+           exactly the shape test/prod-description-images.js forbids. */
+        function _prodDescriptionImageOpen(event) {
+            const target = event && event.target;
+            const image = target && target.closest ? target.closest('img.prod-desc-image') : null;
+            if (!image) return false;
+            const src = String(image.getAttribute('src') || '');
+            if (!/^https:\/\//.test(src)) return false;
+            event.preventDefault();
+            window.open(src, '_blank', 'noopener,noreferrer');
+            return true;
+        }
+        if (typeof document !== 'undefined' && document.addEventListener) {
+            document.addEventListener('click', _prodDescriptionImageOpen);
+            /* Enter and Space on the focused image, so the full-size view is
+               not mouse-only. Raised by Codex on #1310. */
+            document.addEventListener('keydown', function (event) {
+                if (!event || (event.key !== 'Enter' && event.key !== ' ')) return;
+                if (event.altKey || event.ctrlKey || event.metaKey) return;
+                _prodDescriptionImageOpen(event);
+            });
+        }
         async function _prodSaveDescription(event, id) {
             if (event) {
                 event.preventDefault();
@@ -56070,6 +56485,15 @@
             const description = String(state.draft == null ? '' : state.draft);
             if (description.includes('\0')) {
                 state.error = 'Descriptions cannot contain NUL characters.';
+                _prodRender();
+                _prodFocusDescriptionControl(id, 'source');
+                return false;
+            }
+            /* A placeholder is not a description. Saving it would mirror the
+               literal text "Uploading image 1…" to Linear and lose the URL
+               that arrives a second later. */
+            if (state.uploading > 0 || PROD_DESCRIPTION_IMAGE_PLACEHOLDER_RE.test(description)) {
+                state.error = 'An image is still uploading. Save once it has finished.';
                 _prodRender();
                 _prodFocusDescriptionControl(id, 'source');
                 return false;
@@ -56219,6 +56643,10 @@
                         + ' onkeyup="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
                         + ' onclick="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
                         + ' onkeydown="return _prodDescriptionEditorKeydown(event,' + _jsAttrArg(id) + ')"'
+                        + ' onpaste="return _prodDescriptionPaste(event,' + _jsAttrArg(id) + ')"'
+                        + ' ondrop="return _prodDescriptionDrop(event,' + _jsAttrArg(id) + ')"'
+                        + ' ondragover="return _prodDescriptionDragOver(event)"'
+                        + ' ondragleave="return _prodDescriptionDragLeave(event)"'
                         + (state.saving ? ' disabled' : '') + '>' + _calEsc(state.draft) + '</textarea>'
                     : '<div class="prod-description-preview prod-desc" data-prod-description-control="preview" tabindex="0" role="region" aria-label="Description Markdown preview">'
                         + _prodDescriptionHTML(state.draft, true, 'No description.', true) + '</div>';
@@ -56236,9 +56664,10 @@
                     + '<button class="prod-description-action' + (!source ? ' is-active' : '') + '" type="button" data-prod-description-control="preview-tab" aria-pressed="' + (!source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg('preview') + ')"' + (state.saving ? ' disabled' : '') + '>Preview</button>'
                     + '</div></div><div class="prod-description-editor">' + editor
                     + '<div class="prod-description-footer"><span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + '" data-prod-description-count>' + count.toLocaleString() + ' / 100,000</span>'
+                    + (source ? '<span class="prod-description-hint" data-prod-description-hint>Paste or drop an image to add it</span>' : '')
                     + '<span class="prod-spacer"></span>'
                     + '<button class="prod-description-action" type="button" data-prod-description-control="cancel" onclick="return _prodCancelDescriptionEdit(' + _jsAttrArg(id) + ')"' + (state.saving ? ' disabled' : '') + '>Cancel</button>'
-                    + '<button class="prod-description-action prod-description-save" type="button" data-prod-description-control="save" onclick="return _prodSaveDescription(event,' + _jsAttrArg(id) + ')"' + (state.saving || count > 100000 ? ' disabled' : '') + '>' + (state.saving ? 'Saving…' : 'Save') + '</button>'
+                    + '<button class="prod-description-action prod-description-save" type="button" data-prod-description-control="save" onclick="return _prodSaveDescription(event,' + _jsAttrArg(id) + ')"' + (state.saving || count > 100000 || state.uploading > 0 ? ' disabled' : '') + '>' + (state.saving ? 'Saving…' : 'Save') + '</button>'
                     + '</div></div>' + editorState + '</section>';
             }
             const body = state.status === 'error'

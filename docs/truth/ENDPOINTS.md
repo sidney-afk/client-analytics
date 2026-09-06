@@ -1,10 +1,11 @@
 # Endpoint inventory — what `index.html` actually calls
 
-> Last verified: 2026-08-25 @ 3bdc839 (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
+> Last verified: 2026-09-05 @ 3d534cf (Slice 4 live since 2026-07-24; Slice 5 LIVE since the
 > 2026-07-26 window: `assignee_options` and the transition policy serve from `production-write`
 > v26, now retained in the F27 closure v27 — and the browser's keyset projection reads
 > the applied view v2; the §3 TEST drills of `docs/ops/SLICE5_APPLY_WINDOW.md` remain owed)
-> (23 literal + 4 composed app callers; 35 source slugs / 35 live — `production-archive` and
+> (25 literal + 4 composed app callers; 36 source slugs / 35 live — `description-image-upload`
+> is source-only until its first path-triggered deploy on main — `production-archive` and
 > `kasper-ad-performance-read` are deployed and callable from `main`; both hiring functions are
 > deployed with a private sidecar, application capture and reviewer alerts are live, and
 > `hiring_invites_enabled=false` keeps candidate email default-off; #850 write gateway remains
@@ -279,6 +280,14 @@ Other:
   the request/setup RPCs and active-roster approval finalizer is source-only until a value-free
   apply/readback receipt confirms its columns, functions, and service-role-only grants.
 - `functions/v1/thumbnail-folder-resolve` — thumbnail Drive-folder resolution
+- `functions/v1/description-image-upload` — staff-only (admin/SMM) writer for an image pasted or
+  dropped into a SyncLinear description. Raw image bytes in, one durable public URL out
+  (`syncview-description-images` bucket, UUID path, extension from the VERIFIED type). Verifies
+  the staff role key plus one exact active roster actor, the declared type against the magic
+  bytes, a 4 MiB / 8000px ceiling and a per-actor hourly rate limit read off the
+  `description_images` ledger before any service-role write. The browser downscales to 1600px on
+  the long edge first and inserts `![alt](url)`, which #1204 renders and the outbound mirror
+  carries to Linear as ordinary markdown (`docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`).
 - `functions/v1/thumbnail-revision-read` — no-store Calendar/Samples Previous/Current reader. It
   accepts one `{surface, client, source_id}` scope, verifies either a staff role key plus exact
   active roster identity or the exact client review token, confirms the source card belongs to that

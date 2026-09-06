@@ -249,7 +249,10 @@ async function run() {
     check('retained37 evidence keeps anonymous privacy and mutation/TRUNCATE guards after reconstruction', () => {
       for (const name of ['production_card_materialization_receipts', 'production_card_materialization_ingress', 'card_change_journal']) {
         for (const role of ['anon', 'authenticated']) assert.notEqual(target.raw(`set role ${role};select * from public.${name}`).status, 0);
-        for (const sql of [`update public.${name} set id=id`, `delete from public.${name}`, `truncate public.${name}`]) {
+        // Journal identity is GENERATED ALWAYS: assigning it is rejected before
+        // the immutable-row trigger. Use an ordinary column to reach the guard.
+        const unchanged = name === 'card_change_journal' ? 'operation=operation' : 'id=id';
+        for (const sql of [`update public.${name} set ${unchanged}`, `delete from public.${name}`, `truncate public.${name}`]) {
           const prior = unionImages(target), refused = target.raw(sql); assert.notEqual(refused.status, 0);
           assert.match(refused.stderr, /card_materialization_evidence_retained|card_change_journal_immutable/); assert.deepEqual(unionImages(target), prior);
         }

@@ -129,7 +129,17 @@ async function run() {
       assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS === 'history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
       assert.ok(seeded.value.held.ingress_id); assert.equal(seeded.value.provider_attempts, 0);
       for (const table of backup.resolveCorpus(CORPUS).tables) assert.notEqual(source.query('select to_regclass(' + quote('public.' + table.name) + ')'), '');
-      if (CORPUS === 'history-v8') { source.query("insert into public.production_label_catalog_versions(version_id,schema_version,manifest,manifest_sha256,operator_attestation) values ('00000000-0000-4000-8000-000000000008',1,'{}','0000000000000000000000000000000000000000000000000000000000000000','{}')"); assert.equal(source.query("select count(*) from public.linear_outbound_cutoff_control where lane='mirror_outbox'"), '1'); } else assert.equal(source.query("select to_regclass('public.production_label_catalog_versions')"), '');
+      if (CORPUS === 'history-v8') {
+      const labelVersion='00000000-0000-4000-8000-000000000700', teamVideo='00000000-0000-4000-8000-000000000900', teamGraphics='00000000-0000-4000-8000-000000000901';
+      const node={id:'00000000-0000-4000-8000-000000000001',name:'Synthetic label',color:'#123456',description:null,isGroup:false,archivedAt:null,team:null};
+      const manifest={schema_version:1,capture_id:'00000000-0000-4000-8000-000000000800',source_kind:'linear_workspace_issue_labels',source_sha256:'a'.repeat(64),workspace_fingerprint:'b'.repeat(64),captured_at:'2026-09-06T10:00:00Z',include_archived:true,teams:{video:teamVideo,graphics:teamGraphics},expected_count:1,pages:[{after:null,nodes:[node],pageInfo:{hasNextPage:false,endCursor:null}}]};
+      const attestation={contract:'operator-reviewed-complete-export-v1',source_sha256:manifest.source_sha256,workspace_fingerprint:manifest.workspace_fingerprint,teams:manifest.teams,expected_count:1,capture_id:manifest.capture_id,export_package_sha256:'c'.repeat(64),review_evidence_sha256:'d'.repeat(64),operator_subject:'synthetic-operator',archived_pages_verified:true,independent_count_reconciled:true,reviewed_at:'2026-09-06T11:00:00Z'};
+      source.query(`set role service_role;select public.production_label_catalog_stage_attested(${quote(labelVersion)}::uuid,${quote(JSON.stringify(manifest))}::jsonb,${quote(JSON.stringify(attestation))}::jsonb);`);
+      source.query(`update public.syncview_runtime_flags set value=${quote(JSON.stringify({schema_version:1,mode:'native',version_id:labelVersion}))}::jsonb where key='production_native_label_catalog';`);
+      assert.equal(source.query("select count(*) from public.production_label_catalog_versions"), '1'); assert.equal(source.query("select count(*) from public.linear_outbound_cutoff_control where lane='mirror_outbox'"), '1');
+      assert.equal(source.query("select (public.linear_outbound_cutoff_activate_v1(0,'synthetic-operator')->>'cutoff_enabled')"), 'true');
+      assert.notEqual(source.raw("select public.linear_outbound_claim_v1(0,'synthetic-claim',1)").status,0);
+    } else assert.equal(source.query("select to_regclass('public.production_label_catalog_versions')"), '');
     });
     const deliverable = source.rows("select id,team from public.deliverables where team='video' order by id limit 1")[0];
     assert.ok(deliverable);

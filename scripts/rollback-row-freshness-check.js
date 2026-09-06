@@ -771,8 +771,21 @@ function recordsADispatch(log, k, len) {
        (run `X`)" is a completion, "will run `X` after approval" and "the next
        LANE dispatch (run `X`)" are plans (Codex, twenty-first and
        twenty-third rounds on #1306). */
+    /* AN INTRODUCTORY CLAUSE DOES NOT GOVERN THE DISPATCH. "Originally
+       scheduled for Monday, the LANE manual dispatch completed successfully
+       (run `X`)" records a deploy: the scheduling language is set off before
+       the reference and describes how the run came to be, not what is still
+       to come (Codex, thirty-sixth round on #1306). So a leading phrase that
+       ends in a comma before the reference is dropped before the clause is
+       judged. "The LANE dispatch, scheduled for Monday, will run then" keeps
+       its forward reading, because there the reference comes first. */
+    const dropIntro = text => {
+        const at = text.indexOf('LANE');
+        const cut = text.lastIndexOf(',', at < 0 ? text.length : at);
+        return cut > 0 ? text.slice(cut + 1) : text;
+    };
     const plans = text => {
-        const t = norm(text);
+        const t = dropIntro(norm(text));
         const ahead = firstIndex(DISPATCH_AHEAD, t);
         if (ahead < 0) return false;
         const done = firstIndex(DISPATCH_DONE, t);

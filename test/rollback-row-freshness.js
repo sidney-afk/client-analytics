@@ -1920,6 +1920,42 @@ const lanePlannedAheadRun = run(fixture('lane-planned-ahead', appended(lanePlann
 ok(lanePlannedAheadRun.code === 0,
     'while a genuine "is planned for Monday" is still a plan and asks for nothing');
 
+/* ---- 8ak. an introductory clause does not govern the dispatch (round 36) ---- */
+const laneIntroSchedule = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'Originally scheduled for Monday, the `deploy-onboarding-edge-functions` manual dispatch',
+    'completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneIntroScheduleRun = run(fixture('lane-intro-schedule', appended(laneIntroSchedule), realRb));
+ok(laneIntroScheduleRun.code === 1 && laneIntroScheduleRun.json
+    && laneIntroScheduleRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'AN INTRODUCTORY CLAUSE DOES NOT GOVERN THE DISPATCH: "Originally scheduled for Monday, the `lane` manual dispatch completed successfully (run `X`)" records a deploy and FAILS');
+const laneIntroDelayed = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'Delayed from Friday and pending a second approval, the `deploy-onboarding-edge-functions`',
+    'dispatch went out (run `33995000000`).',
+    '',
+].join('\n');
+const laneIntroDelayedRun = run(fixture('lane-intro-delayed', appended(laneIntroDelayed), realRb));
+ok(laneIntroDelayedRun.code === 1 && laneIntroDelayedRun.json
+    && laneIntroDelayedRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'and so does any other leading phrase about how the run came to be, however it is worded');
+const laneApposition = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch, scheduled for Monday, will run then.',
+    '',
+].join('\n');
+const laneAppositionRun = run(fixture('lane-apposition', appended(laneApposition), realRb));
+ok(laneAppositionRun.code === 0,
+    'while the reference coming FIRST keeps its forward reading: "The `lane` dispatch, scheduled for Monday, will run then" is a plan and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

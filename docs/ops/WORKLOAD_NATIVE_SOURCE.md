@@ -105,8 +105,10 @@ not replace or extract product loaders/renderers. Endpoint responses and the
 boot fixture's third-party SDK are synthetic, so this does not add SQL, serving,
 live roster, OS containment or full-release proof. Timestamped receipts contain
 source hashes, synthetic scenario labels and counts. Playwright and Chromium are
-required; this optional browser lane is separate from the dependency-free unit
-discovery and makes no workflow change.
+required; this browser lane is separate from the dependency-free unit discovery.
+The integrated visible-boot workflow now runs it after the existing Samples
+browser lane and also triggers when its driver changes. Hosted execution remains
+unproven until checks complete on the published integration head.
 
 Execution remains owner-coordinated: (1) capture exact serving `workload-plan`
 closure, current flags, grants, stored-plan counts/keys and schema/data restore

@@ -6,6 +6,7 @@ on:
       - 'index.html'
       - 'package.json'
       - 'qa/boot/**'
+      - 'qa/workload-native/browser.js'
       - 'qa/client-continuity*.js'
       - 'qa/samples-initial-read.js'
       - 'qa/samples-initial-sdk/package.json'
@@ -24,6 +25,7 @@ on:
       - 'index.html'
       - 'package.json'
       - 'qa/boot/**'
+      - 'qa/workload-native/browser.js'
       - 'qa/client-continuity*.js'
       - 'qa/samples-initial-read.js'
       - 'qa/samples-initial-sdk/package.json'
@@ -80,6 +82,8 @@ jobs:
         run: npm run test:boot
       - name: Preserve Samples local work in the fully intercepted app
         run: node qa/boot/samples-local-work.js
+      - name: Preserve native Workload cards and dates through failed refreshes
+        run: node qa/workload-native/browser.js
       - name: Prove repaired source and original false-empty detection offline
         run: node test/client-continuity-monitor.js --strict-source
       - name: Observe anonymous continuity with entirely intercepted fixtures

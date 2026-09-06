@@ -1,5 +1,12 @@
 # Linear removal: completion accounting
 
+## G4 connector-visible issue census - September 6, 23:18Z
+
+LIVE_READ: completed77 cursor pages with includeArchived:true, orderBy:createdAt and structural fields only. Returned19,233 issues with19,233 unique UUIDs; terminal hasNextPage:false. Six visible teams,110 distinct referenced project IDs;4,857 roots and14,376 children;8,483 archived and12,731 with a project. Status types: completed15,151, canceled1,297, started1,098, backlog934, unstarted688, triage62, duplicate3. Every returned child resolves to a returned parent using the connector's parentId -> id identifier join; UUID is a different field and is not the parent join key.
+
+This is the connected account's visible issue population across all teams, read over approximately23:15-23:18Z. It is not an atomic snapshot, an admin completeness attestation, a creative-team-only count, an export, or a SyncLinear conservation result. Descriptions, comments, assets, deleted records, users and project-only records were not fetched. Private structural rows are retained outside the repository for subsequent comparison; only counts are published. No mutations or provider shutdown occurred. G4 remains open; this is a completed baseline read, not a claim all work has migrated.
+
+
 ## G7 alert diagnosis update - September 6, 23:08Z
 
 A fresh read-only Slack history request to the previously resolved private owner-DM destination returned both approved drill messages: false_empty and recovered, each count0, dated September5 18:36:02Z. The earlier delivery-drill receipt only said relay_terminal_success; the separate relay confirmation explicitly had independentSlackReadback:false and acknowledged:false. This new direct history read establishes message presence in the saved destination, not human receipt, notification display, current bot/owner membership revalidation, or acknowledgement. The owner says they did not see the messages; that statement remains authoritative for human acknowledgement. No new message, conversation, configuration or workflow action was performed. Product watchers, independent fallback and activation remain held. Private identifiers and unrelated message content are omitted.

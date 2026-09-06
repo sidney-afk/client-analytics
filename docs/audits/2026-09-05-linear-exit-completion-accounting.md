@@ -1,5 +1,17 @@
 # Linear removal: completion accounting
 
+## September 6 UTC: native Workload comparison published
+
+[Draft PR #1321](https://github.com/sidney-afk/client-analytics/pull/1321), exact `ed757463cf9211254434969aa3d51b1d7b8dc6f8`, is stacked on PR1319 at `a453863d`. The existing comparator now derives native VID/GRA membership independently from the captured base rows and checks the native view, snapshot and actual browser reader/adoption, saved-plan aliases, weights, dates, exclusions and ordering. An empty legacy mirror cannot hide an omitted native-only record. Eight diagnostic/test/documentation files change; capture, application, Edge Function, migration and workflow source remain unchanged.
+
+**30 actual disposable PostgreSQL/capture/source-VM groups and 28 offline controls passed** on the candidate; the coordinator independently repeated the offline controls. Repository map: 423 passed, zero failures. The privacy scan checked 51 roster terms and found no added identities. Named exact-source review **CLOSED/PASS**, including independently identified Unicode-length and coherently impossible saved-date corrections. Hosted CI is pending at this checkpoint. The 30 SQL/VM groups are an explicit local lane, not a hosted execution claim.
+
+The prior capture prerequisite, [PR1319 current-head run `34009046957`](https://github.com/sidney-afk/client-analytics/actions/runs/34009046957), is now **PASS**: all 439 unit suites, the dedicated 17-group/35-table restore and 28 SQL plus 29 actual-handler Workload checks. Its 25 new capture SQL groups remain local-only. This closes the earlier pending hosted statement below, without promoting any base result to PR1321.
+
+A scoped comparison `MATCH` is not live completeness: independent provenance, executable/serving binding, DDL quiescence, provider-authority population, CON/STR, client journeys and **G5 remain held**. The next bounded G2 engineering task is existing-card reassignment: its Linear validation, exact-card picker and durable mirror-receipt behavior must be handled together; the intake epoch does not authorize changing existing-work mirror semantics. That source/test task is assigned to Codex `weekend_execution_check`; no runtime implementation or release is claimed yet. Schema recovery PR1313 was rechecked at `8fa163b7`, still draft and unmerged; its correction/owner handoff remains outstanding.
+
+No merge, deployment, installation, live/TEST write, n8n/flag/provider/billing action or new alert occurred. Product watchers remain inactive, Decision A is not ready, and the existing G0-G10 order and observation periods remain unchanged. These checkpoints update the one canonical plan rather than creating another workstream plan.
+
 ## September 6 UTC: private Workload capture component published
 
 [Draft PR #1319](https://github.com/sidney-afk/client-analytics/pull/1319), exact `a453863d4f7046115f5131ad78f4d8040a61b7b9`, is stacked on validated PR1318 at `38f29bc6`. It adds a private same-transaction capture component, its disposable rehearsal, offline tests and owning documentation. **25 actual PostgreSQL checks and 30 offline checks passed**; the coordinator independently repeated the offline checks. Named source and post-publication reviews **CLOSED/PASS**. [Current-head hosted unit run `34009046957`](https://github.com/sidney-afk/client-analytics/actions/runs/34009046957) is pending at this checkpoint; the 25-check SQL capture rehearsal is an explicit local lane, not a hosted claim.

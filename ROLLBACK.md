@@ -23,6 +23,17 @@ assignee and manifest/receipt provenance, new requests return to the provider
 policy. No Live State entry changes. Evidence and gates:
 `docs/audits/2026-09-05-native-assignee-eligibility.md`.
 
+**Unapplied draft, 2026-09-05 (reconcile):** the native intake reconciler is
+manual-only and unscheduled, so its behaviour rollback is to stop dispatching.
+Rows it recovered and slots it bound are accepted work with real receipts and
+must be retained like any browser-materialized intake; never delete its reason
+rows, recovered children, `skipped` receipts or bound slots. It creates no card.
+Its card-table triggers only RECORD facts (created, deleted, slots changed) on
+every write once installed and alter nothing; if recording itself must stop,
+`alter table ... disable trigger zz_production_card_provenance` on both card
+tables restores the exact previous write path, and the table stays. Details:
+`docs/audits/2026-09-05-native-intake-reconcile.md`. This changes no Live State entry.
+
 **Unapplied draft, 2026-09-05:** native-only intake depends on PR1293. Its behavior
 rollback disables new native admission while retaining the epoch-aware gateway,
 manifest epochs and terminal receipts for accepted work. Do not drop/truncate
@@ -709,3 +720,5 @@ reads for it, so nothing new for the harness to be told about.
 adds `production_asset_access_checks_by_url_idx`; the lookup is correct without
 it. Rollback is `drop index if exists
 public.production_asset_access_checks_by_url_idx;`.
+
+**Unapplied reciprocal completion correction:** no schema object, browser or writer/auth change. Withdrawing its state-reader change restores the known false green, so hold the runner and retain unresolved accounting rather than treating old output as completion. Keep accepted rows, receipts and provenance. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.

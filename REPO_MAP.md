@@ -24,6 +24,16 @@ Native assignee eligibility draft (on PR1302): `scripts/native-intake-manifest/a
 `test/native-assignee-catalog-dryrun.js` (complete-or-refuse REST paging), and
 `docs/audits/2026-09-05-native-assignee-eligibility.md`. Adds no migration, flag or RPC.
 
+Server-owned completion of accepted native intake (draft, unapplied, disabled):
+`migrations/2026-09-05-native-intake-reconcile.sql`, `scripts/native-intake-reconcile/`
+(runner library, dry-run REST entry, proof lane and gateway loader),
+`test/native-intake-reconcile.js`, `test/native-intake-reconcile-cli.js` (public
+output carries no identifier), `.github/workflows/native-intake-reconcile.yml`
+(manual-only, no schedule) and `docs/audits/2026-09-05-native-intake-reconcile.md`.
+Includes the card provenance table and one fact-recording trigger per card table;
+automatic card creation is structurally held (`card_creation_held`). Stacked on
+PR1302; ledger item 156 and its two corrections.
+
 Disabled native-only intake draft: `migrations/2026-09-05-native-only-intake.sql`,
 `scripts/native-intake-manifest/native-only-lane.mjs`, `test/native-only-intake.js`,
 and `docs/audits/2026-09-05-native-only-intake.md`. Retains PR1293's harness and manifest contracts.
@@ -268,3 +278,5 @@ receipt observer, bounded drill and independent-host sentinel commands),
 - **Production-tab (design-kit) test** → `docs/syncview-design/tests/` + wire it into `prod-polish-gate.js` or `package.json`.
 - **Finished / superseded doc** → `docs/archive/` (don't delete history).
 - **New top-level anything** → think twice, then document it here (CI will remind you).
+
+`docs/audits/2026-09-05-native-intake-reciprocal-review.md` records the independent PR1314 review, both-surface reciprocal completion regression, local correction proof and the separate held creation protocol.

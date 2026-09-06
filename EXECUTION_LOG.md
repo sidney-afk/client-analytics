@@ -46,6 +46,16 @@ exact counts and run stamps in the audit note. No merge, deploy, flag
 update, live read or write, n8n change or credential use. Scope, evidence, gates
 and inverse: `docs/audits/2026-09-05-native-assignee-eligibility.md`.
 
+## 2026-09-05, draft server-owned native intake completion, no live action
+
+Built on PR1302 `8cb5cba91bc33fb17599b8f2a38625ae07f7743d` in an isolated branch;
+remote main recorded at `3d534cfa5598ef16e61c5ee7dc8072afaa9963c7`, not merged in.
+Adds the additive reconcile migration (two stages, two readers), a dry-run runner,
+a manual-only workflow definition and a 47-check proof on disposable PostgreSQL
+with the real gateway. No merge, deploy, migration apply, flag update, live data
+mutation, dispatch or n8n change occurred. Scope, evidence and limits:
+`docs/audits/2026-09-05-native-intake-reconcile.md`. Not Decision A.
+
 ## 2026-09-05 — Draft disabled native-only intake, no live action
 
 Built on PR1293 `5418ab5618595d9469f0527bd94623e9229a637e` in an isolated worktree.
@@ -6534,3 +6544,7 @@ in the owner's SQL Editor history and in the session record. The prior
 slots, 1,207 clean, 7 mismatching, 0 bindable, the same three reason counts as
 before (5 / 1 / 1). All 7 carry a recorded ruling (OPEN_REPAIRS 156). Phase 3
 (b) closed; (c) open.
+
+## 2026-09-05 ? Local reciprocal native intake completion correction
+
+Independent PR1314 review at `42452cdbf5c36ba74b08885a152943ff827c9aa3` reproduced forward-only false completion on both card owners. The shared state predicate now requires the exact expected child to point back. Original source/head and failing proof are retained; no installed schema or production state was changed. Current evidence and remaining holds: `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.

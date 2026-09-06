@@ -2500,6 +2500,31 @@ const laneVerificationVerdictRun = run(fixture('lane-verification-verdict', appe
 ok(laneVerificationVerdictRun.code === 0,
     'A VERIFICATION VERDICT IS A CHECK, NOT A DEPLOYMENT: "the `lane` verification passed (run `X`)" asks for nothing, so recording a routine check cannot block a correct row');
 
+/* ---- 8be. the modifier points elsewhere, whatever the noun (round 56) ---- */
+const earlierExecution = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the earlier execution deployed nothing.',
+    '',
+].join('\n');
+const earlierExecutionRun = run(fixture('earlier-execution', appended(earlierExecution), realRb));
+ok(earlierExecutionRun.code === 1 && earlierExecutionRun.json
+    && earlierExecutionRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'THE MODIFIER POINTS ELSEWHERE, WHATEVER THE NOUN: "the earlier execution deployed nothing" is not this run\'s evidence, and no list of nouns decides it');
+
+const failedVerbNotModifier = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed without deploying any function',
+    '(run `33995000000`).',
+    '',
+].join('\n');
+const failedVerbNotModifierRun = run(fixture('failed-verb-not-modifier', appended(failedVerbNotModifier), realRb));
+ok(failedVerbNotModifierRun.code === 0,
+    'while a bare verb is not a modifier: "the dispatch failed without deploying any function" still describes THIS run and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

@@ -486,7 +486,20 @@ function otherOwningLanes() {
    definition serves both readers: the dispatch reader and the unreadable-entry
    sweep had drifted apart, so a label fixed in one still slipped through the
    other (Codex, fifty-fourth round on #1306). */
-const OTHER_ATTEMPT = /\b(?:previous|earlier|prior|first|second|third|last|original|preceding|failed|aborted|repeat|another|other|subsequent|later|initial)\s+(?:attempt|run|dispatch|try|job)\b|\b(?:retry|re-?run|redo)\b/i;
+/* The NOUN is not the signal, the modifier is: "the earlier execution",
+   "the previous go", "the first pass" all hand the claim to something other
+   than this run, and a list of nouns will always be one short (Codex,
+   fifty-sixth round on #1306, asking for exactly this). So any noun after a
+   modifier that points elsewhere counts, and a claim is read as this run's
+   only when it names this run or points nowhere else at all. */
+const OTHER_ATTEMPT = new RegExp(
+    '\\b(?:the|a|an|that|this|its|their|our)\\s+(?:previous|earlier|prior|first|second|third|last|original|preceding|failed|aborted|repeat|another|other|subsequent|later|initial)\\s+[a-z][\\w-]*\\b'
+    /* Without a determiner, a word that is also a verb is not a modifier:
+       "the dispatch failed without deploying any function" describes THIS
+       run, so `failed` and `aborted` are read as pointers elsewhere only
+       after "the", "that" and the like. */
+    + '|\\b(?:previous|earlier|prior|original|preceding|another|other|subsequent|initial|repeat)\\s+[a-z][\\w-]*\\b'
+    + '|\\b(?:retry|re-?run|redo)\\b', 'i');
 
 function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {
     const lanes = otherOwningLanes();

@@ -1447,6 +1447,30 @@ ok(laneAfterDryRunRun.code === 1 && laneAfterDryRunRun.json
     && laneAfterDryRunRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
     'while a dispatch that went out, with its run id, is not excused by the dry-run mentioned after it, and FAILS');
 
+/* ---- 8x. the run id belongs to the nearest predicate (round twenty-four) ---- */
+const laneCheckThenDispatch = [
+    '### Companion',
+    '',
+    '`deploy-onboarding-edge-functions` dry-run passed, then the dispatch completed (run `33995000000`),',
+    'carrying `production-write` v69.',
+    '',
+].join('\n');
+const laneCheckThenDispatchRun = run(fixture('lane-check-then-dispatch', insertInto(laneCheckThenDispatch), realRb));
+ok(laneCheckThenDispatchRun.code === 1 && laneCheckThenDispatchRun.json
+    && laneCheckThenDispatchRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f) && /its run id is newer than the receipt's/.test(f)),
+    'THE RUN ID BELONGS TO THE NEAREST PREDICATE: "dry-run passed, then the dispatch completed (run `X`)" keeps the dispatch\'s run id, so even in an undated subsection of the 2026-08-05 container it is newer by construction and FAILS');
+const laneValidationSuccessfully = [
+    '',
+    '## 2026-09-06 — Pre-deploy notes',
+    '',
+    'The `deploy-onboarding-edge-functions` validation completed successfully; no deployment',
+    'was performed.',
+    '',
+].join('\n');
+const laneValidationSuccessfullyRun = run(fixture('lane-validation-successfully', appended(laneValidationSuccessfully), realRb));
+ok(laneValidationSuccessfullyRun.code === 0,
+    'and "validation completed successfully" is consumed whole as the check\'s verdict, leaving no "successfully" to read as the dispatch\'s: it asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

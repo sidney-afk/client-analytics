@@ -629,10 +629,24 @@ const CHECK_WORDS = 'dry[- ]?runs?|validations?|validated?|plan[- ]only|plan mod
 const DISPATCH_DONE = new RegExp('\\b(' + DONE_WORDS + ')\\b', 'i');
 const DISPATCH_AHEAD = new RegExp('\\b(' + AHEAD_WORDS + ')\\b', 'i');
 const CHECK_ONLY = new RegExp('\\b(' + CHECK_WORDS + ')\\b', 'i');
-const CHECK_DONE = new RegExp('\\b(?:' + CHECK_WORDS + ')\\s+(?:' + DONE_WORDS + ')\\b|\\b(?:' + DONE_WORDS + ')\\s+(?:the |its |a |all )?(?:' + CHECK_WORDS + ')\\b', 'gi');
+/* A check's completion phrase, with every completion modifier that follows it
+   ("validation completed successfully", "dry-run ran green"), so nothing of
+   the check's verdict is left to read as the dispatch's (Codex, twenty-fourth
+   round on #1306). */
+const CHECK_DONE = new RegExp('\\b(?:' + CHECK_WORDS + ')\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*'
+    + '|\\b(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*\\s+(?:the |its |a |all )?(?:' + CHECK_WORDS + ')\\b', 'gi');
 function firstIndex(re, text) {
     const m = text.match(re);
     return m ? m.index : -1;
+}
+function lastIndex(re, text) {
+    const g = new RegExp(re.source, 'gi');
+    let m, last = -1;
+    while ((m = g.exec(text))) {
+        last = m.index;
+        if (!m[0].length) g.lastIndex++;
+    }
+    return last;
 }
 function recordsADispatch(log, k, len) {
     const scope = referenceScope(log, k, len);
@@ -667,9 +681,15 @@ function recordsADispatch(log, k, len) {
     if (rm) {
         const pre = before + ' LANE ' + after.slice(0, rm.index);
         if (plans(pre)) return null;
-        /* a run id after a check noun ("dry-run passed (run `X`)") is the
-           check's run, not a deployment's: no proof, read on for completion */
-        if (!CHECK_ONLY.test(pre)) return { run: rm[1] };
+        /* THE RUN ID BELONGS TO THE NEAREST PREDICATE BEFORE IT. After a check's
+           phrase ("dry-run passed (run `X`)") or a bare check noun it is the
+           check's run and proves no deployment; after the dispatch's own
+           completion word ("dry-run passed, then the dispatch completed (run
+           `X`)") it is the dispatch's (Codex, twenty-fourth round on #1306: a
+           check noun anywhere in the clause used to discard the run id). */
+        const marked = pre.replace(CHECK_DONE, ' CHECKDONE ');
+        const lastCheck = Math.max(lastIndex(/\bCHECKDONE\b/, marked), lastIndex(CHECK_ONLY, marked));
+        if (lastCheck < 0 || lastIndex(DISPATCH_DONE, marked) > lastCheck) return { run: rm[1] };
     }
     const whole = before + ' LANE ' + after;
     if (plans(whole)) return null;

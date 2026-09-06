@@ -2767,6 +2767,39 @@ ok(claimNamesAnotherRunRun.code === 1 && claimNamesAnotherRunRun.json
     && claimNamesAnotherRunRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
     'AND A CLAIM THAT NAMES A RUN BELONGS TO THAT RUN: "run `Y` deployed nothing" says nothing about the failure of run `X`');
 
+/* ---- 8bo. a bare shipping noun as an object; a numbered claim (round 66) ---- */
+const inspectBareHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Inspect deployment — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const inspectBareHeadingRun = run(fixture('inspect-bare-heading', appended(inspectBareHeading), realRb));
+ok(inspectBareHeadingRun.code === 1 && inspectBareHeadingRun.json
+    && /34000000000/.test(JSON.stringify(inspectBareHeadingRun.json.failures)),
+    'A BARE SHIPPING NOUN IS STILL AN OBJECT: "Inspect deployment — run `X`" is not an anchor, with no noun of its own after it');
+
+const numberedClaimUnnumberedFailure = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` current run failed, while run `33900000000`',
+    'deployed nothing.',
+    '',
+].join('\n');
+const numberedClaimUnnumberedFailureRun = run(fixture('numbered-claim-unnumbered-failure', appended(numberedClaimUnnumberedFailure), realRb));
+ok(numberedClaimUnnumberedFailureRun.code === 1 && numberedClaimUnnumberedFailureRun.json
+    && numberedClaimUnnumberedFailureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AND A NUMBERED CLAIM CANNOT ANSWER AN UNNUMBERED FAILURE: "the current run failed, while run `Y` deployed nothing" leaves this run unaccounted for');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

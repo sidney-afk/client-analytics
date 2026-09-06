@@ -264,7 +264,7 @@ function deployAnchors(log) {
            #1306). So the object rule runs only on what does not lead. */
         const bare = named.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         const leadsShipping = /^(?:deploy|deployed|deploying|deploys|releas(?:e|ed|ing|es)|ship|shipped|shipping|rollout|roll out|rolled out|cut ?over)\b/i.test(bare);
-        const objectless = leadsShipping ? named : named.replace(/\b(?:deploy(?:ment|ed|s|ing)?|releas(?:e|ed|es|ing)|shipp?(?:ed|ing|s)?|rollout|rolled out|cut ?over)\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b|#)[a-z]+\b/gi, ' ');
+        const objectless = leadsShipping ? named : named.replace(/\b(?:deploy(?:ment|ed|s|ing)?|releas(?:e|ed|es|ing)|shipp?(?:ed|ing|s)?|rollout|rolled out|cut ?over)\b(?!\s+(?:via|from|to|by|on|at|in|into|through|with|as|after|before|during|the|this|run)\b)(?:\s+[a-z]+\b)?/gi, ' ');
         const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
         const saysDeploy = /\bdeploy|releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(objectless)
@@ -914,7 +914,15 @@ function recordsADispatch(log, k, len) {
         return clauses.some(clause => {
             if (!NOTHING_SHIPPED.test(clause) || OTHER_ATTEMPT.test(clause)) return false;
             const said = runIn(clause);
-            return !said || !failedRuns.length || failedRuns.includes(said);
+            if (!said) return true;
+            /* And a claim that names a run cannot answer a failure that named
+               none: "the current run failed, while run `Y` deployed nothing" is
+               about `Y` (Codex, sixty-sixth round on #1306). */
+            const unnumberedFailure = clauses.some(c =>
+                /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\b/i.test(c)
+                && /\brun\b/i.test(c) && !runIn(c));
+            if (unnumberedFailure) return false;
+            return !failedRuns.length || failedRuns.includes(said);
         });
     };
     const norm = text => {
@@ -978,7 +986,15 @@ function recordsADispatch(log, k, len) {
         const lastCheck = Math.max(lastIndex(/\bCHECKDONE\b/, marked), lastIndex(CHECK_ONLY, marked));
         const cleaned = norm(before + ' LANE ' + after);
         if (/\bNEGATED\b/.test(cleaned) && !DISPATCH_DONE.test(cleaned)) return null;
-        if (lastCheck < 0 || lastIndex(DISPATCH_DONE, marked) > lastCheck) return { run: runId };
+        /* AND THE ID MUST BE THIS DISPATCH'S. "the current run failed, while run
+           `Y` deployed nothing" names `Y` for the OTHER run, so adopting it
+           would file this failure under an older dispatch and hide it (Codex,
+           sixty-sixth round on #1306). With no id of its own the record is
+           judged by its date, which is what an unplaceable dispatch deserves. */
+        const failedBefore = /\brun\b/i.test(pre)
+            && /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\b/i.test(pre)
+            && !/\d{6,}/.test(pre);
+        if (lastCheck < 0 || lastIndex(DISPATCH_DONE, marked) > lastCheck) return { run: failedBefore ? '' : runId };
         return undefined;
     };
     const rm = after.match(/\brun\s+`?#?(\d{6,})/i);

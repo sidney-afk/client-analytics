@@ -634,7 +634,11 @@ const CHECK_ONLY = new RegExp('\\b(' + CHECK_WORDS + ')\\b', 'i');
    between the noun and its verdict ("validation was completed successfully",
    "dry-run has passed"), so nothing of the check's verdict is left to read as
    the dispatch's (Codex, twenty-fourth and twenty-fifth rounds on #1306). */
-const AUX_WORDS = 'was|were|is|are|has|had|have|been|got|also|then|all|both';
+const AUX_WORDS = 'was|were|is|are|has|had|have|been|got|also|then|all|both|not|never|no longer';
+/* A negated completion ("was not completed", "never dispatched") is not a
+   completion, of a check or of the dispatch (Codex, twenty-sixth round on
+   #1306). */
+const NEGATED_DONE = new RegExp('\\b(?:not|never|no longer|isn\'t|wasn\'t|hasn\'t|hadn\'t|didn\'t|weren\'t|haven\'t)\\b(?:\\s+(?:was|were|been|be|get|got))*\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*', 'gi');
 const CHECK_DONE = new RegExp('\\b(?:' + CHECK_WORDS + ')\\b(?:\\s+(?:' + AUX_WORDS + ')\\b)*\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*'
     + '|\\b(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*\\s+(?:the |its |a |all )?(?:' + CHECK_WORDS + ')\\b', 'gi');
 function firstIndex(re, text) {
@@ -665,7 +669,7 @@ function recordsADispatch(log, k, len) {
     const before = span.slice(cStart, rel);
     const after = span.slice(rel + len, cEnd);
     /* Completion words about a check are not about the dispatch. */
-    const norm = text => text.replace(CHECK_DONE, ' ');
+    const norm = text => text.replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ');
     /* PLANNING THE DISPATCH IS NOT PLANNING THE FOLLOW-UP. A forward-looking
        word makes a plan only when no completion word precedes it in the text
        considered: "completed successfully and will be smoke-tested tomorrow

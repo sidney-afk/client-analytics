@@ -1495,6 +1495,30 @@ ok(lanePassiveDispatchRun.code === 1 && lanePassiveDispatchRun.json
     && lanePassiveDispatchRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
     'while "the dispatch was completed successfully (run `X`)" is the dispatch\'s own verdict, passive or not, and FAILS');
 
+/* ---- 8z. a negated verdict is no verdict (round twenty-six) ------------------ */
+const laneNegatedCheck = [
+    '',
+    '## 2026-09-06 — Pre-deploy notes',
+    '',
+    'The `deploy-onboarding-edge-functions` validation was not completed successfully; no',
+    'deployment was performed.',
+    '',
+].join('\n');
+const laneNegatedCheckRun = run(fixture('lane-negated-check', appended(laneNegatedCheck), realRb));
+ok(laneNegatedCheckRun.code === 0,
+    'A NEGATED CHECK VERDICT IS STILL THE CHECK\'S: "validation was not completed successfully" is consumed whole and asks for nothing');
+const laneNegatedDispatch = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch was not completed; the runner died before',
+    'the first function.',
+    '',
+].join('\n');
+const laneNegatedDispatchRun = run(fixture('lane-negated-dispatch', appended(laneNegatedDispatch), realRb));
+ok(laneNegatedDispatchRun.code === 0,
+    'and a negated dispatch verdict with no run id, "the dispatch was not completed", is no completion either and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

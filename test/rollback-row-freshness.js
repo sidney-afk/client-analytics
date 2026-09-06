@@ -3320,6 +3320,64 @@ ok(checkOwnsTheRunRun.code === 0 && checkOwnsTheRunRun.json
     && checkOwnsTheRunRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy"/.test(n)),
     'while "The validation passed (run `X`)" is the check\'s run and does not date the entry, which stays a note');
 
+/* ---- 8ce. an outcome word is not an outcome; an adjunct owns nothing (round 82) ---- */
+
+/* CONTAINING AN OUTCOME WORD IS NOT OPENING WITH ONE. An impact statement kept
+   itself alive past the aside filter because "client success" matches the
+   completion vocabulary, and its "will" then made the whole record a plan. */
+const outcomeWordAside = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'This will improve client success. Completed successfully (run `34000000000`).',
+    '',
+].join('\n');
+const outcomeWordAsideRun = run(fixture('outcome-word-aside', appended(outcomeWordAside), realRb));
+ok(outcomeWordAsideRun.code === 1 && outcomeWordAsideRun.json
+    && outcomeWordAsideRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AN OUTCOME WORD IS NOT AN OUTCOME: "This will improve client success" is an impact statement, not a verdict, and does not keep the aside alive');
+
+/* A CHECK NAMED AS AN ADJUNCT OWNS NOTHING. "after validation" has no predicate
+   of its own; only a check that binds the id takes it. */
+const trailingAdjunct = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'Completed successfully after validation (run `34000000000`).',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const trailingAdjunctRun = run(fixture('trailing-adjunct', appended(trailingAdjunct), realRb));
+ok(trailingAdjunctRun.code === 1 && trailingAdjunctRun.json
+    && trailingAdjunctRun.json.failures.some(f => /"2026-09-04 — F27 Section 4 deploy"/.test(f)),
+    'AN ADJUNCT OWNS NOTHING: "Completed successfully after validation (run `X`)" still dates the entry by that run');
+
+/* while a check that BINDS the id still takes it. */
+const readbackOwnsRun = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'The deploy completed. The readback for run `34000000000` follows.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const readbackOwnsRunRun = run(fixture('readback-owns-run', appended(readbackOwnsRun), realRb));
+ok(readbackOwnsRunRun.code === 0 && readbackOwnsRunRun.json
+    && readbackOwnsRunRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy"/.test(n)),
+    'while "the readback for run `X`" binds the id to the check and does not date the entry, which stays a note');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

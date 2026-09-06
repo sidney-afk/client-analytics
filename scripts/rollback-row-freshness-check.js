@@ -822,6 +822,11 @@ const AHEAD_WORDS = 'until|pending|awaiting|await|next|future|upcoming|planned|p
    deployment and a routine check could block an otherwise-correct rollback
    update (Codex, fifty-fifth round on #1306). */
 const CHECK_WORDS = 'dry[- ]?runs?|validations?|validated?|verifications?|verified|confirmations?|checks?|checking|checked|read[- ]?backs?|audits?|plan[- ]only|plan mode|previews?|no-?ops?|typechecks?|lint|smoke[- ]?tests?|probes?';
+/* What a sentence OPENS with, when it opens with an outcome already reached
+   rather than a subject of its own. Containing an outcome word is not the same
+   thing: "This will improve client success" is an impact statement (Codex,
+   eighty-second round on #1306). */
+const OPENS_WITH_OUTCOME = new RegExp('^(?:(?:it|this|that|which|was|were|is|has|had|been|also|then|all|not|never)\\s+)*(?:' + DONE_WORDS + '|NOT DISPATCHED|failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b', 'i');
 /* The nouns and verbs a sentence uses when it is ABOUT the dispatch. A
    forward-looking word only plans the dispatch in a sentence that mentions one
    (Codex, eighty-first round on #1306). */
@@ -851,6 +856,10 @@ const FAILED_RUN = /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashe
    sweep reads result sentences the same way (eightieth round). */
 const RETROSPECTIVE = /\b(?:just |exactly |right )?as (?:planned|scheduled|expected|intended|arranged|agreed)\b/gi;
 const NEGATED_DONE = new RegExp('\\b(?:not|never|no longer|isn\'t|wasn\'t|hasn\'t|hadn\'t|didn\'t|weren\'t|haven\'t)\\b(?:\\s+(?:was|were|been|be|get|got))*\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*', 'gi');
+/* A check that BINDS a run id to itself: "the readback for run `X`". A check
+   word merely standing earlier in the sentence is an adjunct and takes nothing
+   (Codex, eighty-second round on #1306). */
+const CHECK_OWNS = new RegExp('\\b(?:' + CHECK_WORDS + ')\\b(?:\\s+[\\w-]+){0,2}\\s+(?:for|in|on|of|from|during)\\s+(?:the\\s+)?$', 'i');
 const CHECK_DONE = new RegExp('\\b(?:' + CHECK_WORDS + ')\\b(?:\\s+(?:' + AUX_WORDS + ')\\b)*\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*'
     + '|\\b(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*\\s+(?:the |its |a |all )?(?:' + CHECK_WORDS + ')\\b', 'gi');
 function firstIndex(re, text) {
@@ -1019,7 +1028,12 @@ function recordsADispatch(log, k, len) {
            one sentence and the heading's own lane keeps the aside. */
         const sents = text.split(/(?<=[.!?])\s+|\n{2,}/);
         if (sents.length < 2) return text;
-        const kept = sents.filter(x => DISPATCH_SUBJECT.test(x) || /\bLANE\b/.test(x) || DISPATCH_DONE.test(x));
+        /* A sentence earns its place by being about the dispatch or by OPENING
+           with an outcome. Merely containing an outcome word kept "This will
+           improve client success" alive, and its "will" then made the whole
+           record a plan (Codex, eighty-second round on #1306). */
+        const kept = sents.filter(x => DISPATCH_SUBJECT.test(x) || /\bLANE\b/.test(x)
+            || OPENS_WITH_OUTCOME.test(x.replace(/^[\s>*_#-]+/, '')));
         return kept.length ? kept.join(' ') : text;
     };
     const plans = text => {
@@ -1123,7 +1137,6 @@ function recordsADispatch(log, k, len) {
         const opensWithVerdict = new RegExp('^(?:(?:it|this|that|which|was|were|is|has|had|been|also|then|all|not|never)\\s+)*(?:' + DONE_WORDS + '|NOT DISPATCHED|' + AHEAD_WORDS.replace(/LANE /g, '') + '|failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b', 'i');
         /* What the sentence opens with, split: an outcome already reached, or
            only a forward-looking word. */
-        const opensWithOutcome = new RegExp('^(?:(?:it|this|that|which|was|were|is|has|had|been|also|then|all|not|never)\\s+)*(?:' + DONE_WORDS + '|NOT DISPATCHED|failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b', 'i');
         /* AND CONTEXT MAY STAND BETWEEN THE LABEL AND ITS RESULT. Reading only
            the FIRST sentence after the reference dropped the record whenever
            two sentences of context preceded "Completed successfully (run `X`)",
@@ -1148,7 +1161,7 @@ function recordsADispatch(log, k, len) {
                anything else is context and the scan reads on; "Will be
                dispatched tomorrow" still ends it, because that is the label's
                own result. */
-            if (!opensWithOutcome.test(cand) && !DISPATCH_SUBJECT.test(cand)) continue;
+            if (!OPENS_WITH_OUTCOME.test(cand) && !DISPATCH_SUBJECT.test(cand)) continue;
             next = cand;
             break;
         }
@@ -1598,7 +1611,14 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
             return [...t.matchAll(/\brun\s+`?#?(\d{6,})`?/gi)].filter(m => {
                 const pre = t.slice(0, m.index);
                 const lastDone = lastIndex(DISPATCH_DONE, pre);
-                return lastDone >= 0 && !CHECK_ONLY.test(pre.slice(lastDone));
+                /* AND IT MUST OWN THE ID, NOT MERELY STAND BEFORE IT.
+                   "Completed successfully after validation (run `X`)" names the
+                   check as an adjunct with no predicate of its own, and
+                   rejecting the id on its presence alone lost the completion's
+                   run (Codex, eighty-second round on #1306). A check's own
+                   verdict is already gone by here, so what is left takes the id
+                   only when it binds to it: "the readback for run `X`". */
+                return lastDone >= 0 && !CHECK_OWNS.test(pre);
             }).map(m => m[1]);
         }).filter(r => !failureRuns.includes(r));
         const runsHere = [(h.text.match(/[Rr]un\s+`?(\d{6,})`?/) || [])[1] || '']

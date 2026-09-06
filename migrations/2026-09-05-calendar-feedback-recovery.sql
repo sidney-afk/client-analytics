@@ -126,6 +126,7 @@ declare
   v_allowed text[] := array['video_status','graphic_status','status','client_video_approved_at',
     'client_graphic_approved_at','client_caption_approved_at','client_title_approved_at','kasper_approved_at'];
   v_key text;
+  v_approval_component text;
   v_existing public.calendar_feedback_materializations%rowtype;
   v_deliverable public.deliverables%rowtype;
   v_canonical public.production_comments%rowtype;
@@ -190,6 +191,10 @@ begin
       raise exception 'calendar_feedback_recovery_invalid_source';
     end if;
   end loop;
+  if (select array_agg(k order by k) from jsonb_object_keys(v_fields) k)
+     is distinct from (select array_agg(k order by k) from jsonb_object_keys(v_previous) k) then
+    raise exception 'calendar_feedback_recovery_invalid_source';
+  end if;
   v_team := case when v_component = 'graphic' then 'graphics' else 'video' end;
   v_cell_col := v_component || '_tweaks';
   v_link_col := v_component || '_deliverable_id';
@@ -200,6 +205,13 @@ begin
     if v_fields->>v_status_col is distinct from 'Tweaks Needed' then
       raise exception 'calendar_feedback_recovery_invalid_source';
     end if;
+    for v_key in select jsonb_object_keys(v_fields) loop
+      if (case when v_key in (v_status_col, 'status') then v_fields->>v_key <> 'Tweaks Needed'
+              when v_key like '%\_approved_at' then v_fields->>v_key <> ''
+              else true end) then
+        raise exception 'calendar_feedback_recovery_invalid_source';
+      end if;
+    end loop;
     if v_status is null then
       raise exception 'calendar_feedback_recovery_invalid_status';
     end if;
@@ -284,6 +296,14 @@ begin
 
   -- 6. Companion status receipt (tweak only): the reserved identity, not text.
   if v_is_tweak then
+    -- Derive from the locked, receipt-verified canonical identity; do not trust
+    -- a caller-supplied association or another accepted same-card status.
+    if v_status_dedup is distinct from 'write-ui:status:deliverable:' || v_deliverable_id ||
+      ':calendar:feedback-status:' || encode(sha256(convert_to(
+        'calendar-feedback-status-v1' || chr(10) || v_deliverable_id || chr(10) || v_canonical.native_comment_id,
+        'utf8')), 'hex') then
+      return jsonb_build_object('outcome', 'held', 'reason', 'companion_status_unbound');
+    end if;
     select o.* into v_outbox from public.mirror_outbox o where o.dedup_key = v_status_dedup;
     if not found
        or v_outbox.entity is distinct from 'deliverable'
@@ -311,6 +331,28 @@ begin
   if coalesce(v_row_json->>v_link_col, '') <> v_deliverable_id then
     raise exception 'calendar_feedback_recovery_forbidden';
   end if;
+  -- Only clear stamps that the existing Calendar stale-approval rule would
+  -- clear after this component enters Tweaks Needed. A client cannot clear
+  -- another component's still-current approval by calling it an owned field.
+  for v_key in select jsonb_object_keys(v_fields) loop
+    if v_key like '%\_approved_at' and coalesce(v_row_json->>v_key, '') <> '' then
+      if v_key = 'kasper_approved_at' then
+        if exists (select 1 from unnest(array['video','graphic','caption']) c
+          where c <> v_component and lower(btrim(coalesce(v_row_json->>(c || '_status'), '')))
+            in ('client approval','approved','scheduled','posted')) then
+          return jsonb_build_object('outcome', 'held', 'reason', 'approval_clear_unproven');
+        end if;
+      else
+        v_approval_component := replace(replace(v_key, 'client_', ''), '_approved_at', '');
+        if v_approval_component <> v_component and (
+          lower(btrim(coalesce(v_row_json->>(v_approval_component || '_status'), '')))
+            in ('client approval','approved','scheduled','posted')
+          or (v_approval_component = 'title' and btrim(coalesce(v_row_json->>'title_status', '')) = '')) then
+          return jsonb_build_object('outcome', 'held', 'reason', 'approval_clear_unproven');
+        end if;
+      end if;
+    end if;
+  end loop;
   v_cell_text := v_row_json->>v_cell_col;
   v_hold := null;
   if v_cell_text is null or btrim(v_cell_text) = '' then
@@ -325,8 +367,8 @@ begin
   end if;
   if v_hold is null then
     for v_elem in select e from jsonb_array_elements(v_cell) e loop
-      if jsonb_typeof(v_elem) <> 'object' or jsonb_typeof(v_elem->'id') <> 'string'
-         or coalesce(v_elem->>'id', '') = '' or jsonb_typeof(v_elem->'body') <> 'string' then
+      if jsonb_typeof(v_elem) is distinct from 'object' or jsonb_typeof(v_elem->'id') is distinct from 'string'
+         or coalesce(v_elem->>'id', '') = '' or jsonb_typeof(v_elem->'body') is distinct from 'string' then
         v_hold := 'source_cell_malformed';
       end if;
     end loop;
@@ -362,7 +404,7 @@ begin
     if coalesce((v_found->>'deleted')::boolean, false) then
       return jsonb_build_object('outcome', 'held', 'reason', 'source_entry_tombstoned');
     end if;
-    if btrim(v_found->>'body') <> v_canonical.body
+    if btrim(v_found->>'body') is distinct from v_canonical.body
        or lower(coalesce(v_found->>'role', '')) <> 'client'
        or lower(coalesce(v_found->>'audience', '')) <> 'client'
        or coalesce((v_found->>'is_tweak')::boolean, false) <> v_is_tweak

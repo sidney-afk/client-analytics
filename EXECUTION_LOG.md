@@ -2,6 +2,24 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Independent Calendar recovery corrections; local source only
+
+Preserved author head `a9d798e6120ddf13c6461bec496715dc06c4bcef` passed its
+original 621 handler / 266 browser assertions but independently reproduced
+three false-completion cases and a root-note refusal text-loss case. The bounded
+correction binds a new tweak status identity to its exact accepted comment,
+constrains component/status/approval fields, rejects missing source bodies, and
+retains ordinary draft text on precommit refusal. Corrected proof: 855 actual
+handler/SQL assertions, 276 actual-browser assertions, separate 6-assertion
+refusal browser case, 238 fingerprint assertions, 15 ownership cases and the
+existing mock hold/race controls. See the
+[independent correction report](docs/audits/2026-09-06-calendar-feedback-recovery-independent-corrections.md)
+for source hashes, preserved baseline evidence and concurrency limits. All
+database work used an owned disposable PostgreSQL cluster, now stopped. Frozen
+writers and shared fingerprint bytes are unchanged. No push, merge, installation,
+deployment, live call or flag change. Combined recovery-corpus integration and
+serving remain held; older unbound attempts remain visibly unresolved.
+
 ## 2026-09-06 — Calendar feedback recovery slice 1; local candidate, nothing applied or deployed
 
 On base `7e5a743cce8a1552bc822e0e560896451f983cdf`, an owned client Calendar

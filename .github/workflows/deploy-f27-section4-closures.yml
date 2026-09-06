@@ -281,7 +281,7 @@ jobs:
       # only: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      PRODUCTION_WRITE_SOURCE_SHA256: b440d92312e40d21f095f9ff411c1319072724837337b98670bed47c8786a11c
+      PRODUCTION_WRITE_SOURCE_SHA256: 044614b21547e78b14f5cb45c73a3281926c15f4eec910933b3e5b9ea59717e9
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -4968,8 +4968,12 @@ async function recoverCalendarFeedback(
   if (!expectedUpdatedAt) throw new GatewayError(400, "invalid_recover_source");
   const fields = recoveryFieldMap(recover.fields, "invalid_recover_source");
   const previous = recoveryFieldMap(recover.previous, "invalid_recover_source");
-  if (kind === "note" && Object.keys(fields).length) throw new GatewayError(400, "invalid_recover_source");
-  if (kind === "tweak" && fields[`${component}_status`] !== "Tweaks Needed") {
+  if (Object.keys(previous).sort().join("|") !== Object.keys(fields).sort().join("|")
+      || (kind === "note" && Object.keys(fields).length)
+      || (kind === "tweak" && (fields[`${component}_status`] !== "Tweaks Needed"
+        || Object.entries(fields).some(([key, value]) =>
+          key === `${component}_status` || key === "status" ? value !== "Tweaks Needed"
+            : key.endsWith("_approved_at") ? value !== "" : true)))) {
     throw new GatewayError(400, "invalid_recover_source");
   }
 
@@ -4992,6 +4996,13 @@ async function recoverCalendarFeedback(
         || !clientOperationAllowed("status", "client_approval", nextStatus)) {
       throw new GatewayError(400, "invalid_recover_source");
     }
+    // Bind the reserved status to this exact accepted comment, independently
+    // of the browser's claim of ownership. Existing unbound status receipts
+    // retain their identities and stay held; recovery never re-sends a status.
+    const expectedStatusRequestId = "calendar:feedback-status:" + await sha256Hex(
+      `calendar-feedback-status-v1\n${id}\n${intent.nativeCommentId}`,
+    );
+    if (statusRequestId !== expectedStatusRequestId) throw new GatewayError(409, "companion_status_unbound");
     const statusSourceEditedAt = sourceTimestamp(statusPayload.source_edited_at);
     const statusLegacyParity = statusPayload.legacy_parity === true;
     const statusFingerprint = await intentFingerprint({

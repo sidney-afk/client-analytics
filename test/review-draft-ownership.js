@@ -55,6 +55,20 @@ test('revision-loss mutant is rejected by the actual conservation assertion', ()
   const mutant = core.replace('if (next.revision === attempt.revision) next.text', 'if (true) next.text');
   assert.notEqual(mutant, core); assert.throws(() => newerConserved(mutant, 'accepted'), assert.AssertionError);
 });
+test('explicit precommit refusal restores ordinary text and preserves newer typing', () => {
+  const f = setup(); f.input('Original fictional text'); const attempt = f.take();
+  f.s._reviewDraftConsume(attempt); f.s._reviewDraftFinish(attempt, 'refused');
+  assert.equal(f.ctx().value.attempt, null); assert.equal(f.ctx().value.text, 'Original fictional text');
+  assert.equal(setup(f.storage).ctx().value.text, 'Original fictional text');
+  assert.equal(newerConserved(core, 'refused').ctx().value.attempt, null);
+});
+test('refusal with unavailable storage keeps the earlier owned attempt and original bytes', () => {
+  const f = setup(); f.input('Original fictional text'); const attempt = f.take(); f.s._reviewDraftConsume(attempt);
+  const before = f.storage.get(f.ctx().key); f.s.denied = true; f.s._reviewDraftFinish(attempt, 'refused');
+  assert.equal(f.storage.get(f.ctx().key), before); assert.equal(f.ctx().value.attempt.id, attempt.id);
+  assert.equal(f.ctx().value.attempt.text, 'Original fictional text');
+  assert.equal(setup(f.storage).ctx().value.text, 'Original fictional text');
+});
 test('captured ID is durable before clear; reopen is unconfirmed and explicit retry reuses it', () => {
   const f = setup(); f.input('Original fictional text'); const attempt = f.take();
   assert.equal(JSON.parse(f.storage.get(f.ctx().key)).attempt.id, attempt.id);

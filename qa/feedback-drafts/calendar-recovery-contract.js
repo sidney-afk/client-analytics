@@ -14,7 +14,7 @@ async function main(){
    if(hold==='no-context')delete c.value.attempt.recoverySource;
    if(hold==='status-unreserved')delete c.value.attempt.statusReservation;
    localStorage.setItem(c.key,JSON.stringify(c.value));}},hold);
-  if(hold==='status-unproven'){for(const [key,value] of b.receipts)if(key.startsWith('calendar:status:'))b.receipts.delete(key);}
+  if(hold==='status-unproven'){for(const [key,value] of b.receipts)if(key.startsWith('calendar:status:')||key.startsWith('calendar:feedback-status:'))b.receipts.delete(key);}
   if(hold==='row-changed'){b.rows[0].caption='Fictional unrelated caption edit';b.rows[0].updated_at=b.stamp();}
   s=await fresh(h,b,s);const before=b.feedbackWrites.length,rowBefore=JSON.stringify(b.rows[0]),requests=b.records.filter(r=>r.action==='recover_source').length;b.outcome='healthy';await retry(s);
   assert.equal(b.feedbackWrites.length,before,'no native replay or source write on an unsupported proof');assert.equal(JSON.stringify(b.rows[0]),rowBefore,'held recovery changes no source byte');

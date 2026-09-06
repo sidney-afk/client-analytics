@@ -386,7 +386,7 @@ const CANDIDATES = new Map([
     // helper shared with the reconcile reader, and the RPC error map learns
     // calendar_feedback_recovery_* codes. One new service RPC call
     // (calendar_feedback_recovery_apply_v1); no new import, file count 5.
-    source: 'b440d92312e40d21f095f9ff411c1319072724837337b98670bed47c8786a11c',
+    source: '044614b21547e78b14f5cb45c73a3281926c15f4eec910933b3e5b9ea59717e9',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

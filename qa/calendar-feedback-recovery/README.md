@@ -6,6 +6,25 @@ Candidate based on `7e5a743cce8a1552bc822e0e560896451f983cdf` (branch
 and tokens here are fictional. No network, credential, live backend, TEST
 client, workflow dispatch or deployment is used or required.
 
+The preserved author head `a9d798e6120ddf13c6461bec496715dc06c4bcef` was
+independently rerun: original 19 handler groups / 621 assertions and 11 browser
+groups / 266 assertions passed. Independent probes nevertheless exposed the
+defects recorded in
+`docs/audits/2026-09-06-calendar-feedback-recovery-independent-corrections.md`.
+The corrected handler has 22 groups / 855 assertions; the browser has 12 groups /
+276 assertions, including an actual old document whose unbound status stays
+visibly held. `node test/calendar-feedback-recovery-browser.js --precommit-probe`
+adds one group / 6 assertions for ordinary root-note preservation after actual
+gateway refusal. Set `CALENDAR_RECOVERY_DOCUMENT_REVISION` to the preserved
+author SHA with that probe to reproduce its text-loss failure. Document bytes
+remain pinned and verified by the harness.
+
+The original counts below describe the preserved matrix. Multiple HTTP retries
+use synchronous psql transport; `Promise.all` does not prove overlapping SQL
+transactions or lock waits. Lifecycle hooks commit their edits before recovery
+enters the RPC. Those limits remain explicit; no race proof is inferred from
+the test names.
+
 ## What runs
 
 - `pg.js`: starts a disposable PostgreSQL 16 (or uses the CI `postgres:16`
@@ -35,8 +54,8 @@ client, workflow dispatch or deployment is used or required.
   broken reciprocal link refused before any write, companion status
   unreserved / unproven / foreign, malformed, tombstoned and alias-divergent
   cells, malformed gateway requests, a transaction failure leaving no partial
-  change followed by exactly one materialization, and three concurrent retries
-  serializing to one materialization.
+  change followed by exactly one materialization, and three offered retries
+  producing one materialization through the synchronous SQL seam.
 - `browser.js` (`node test/calendar-feedback-recovery-browser.js`): 11
   groups, 266 checks, the complete document with the ACTUAL offered client
   controls. Review tweak

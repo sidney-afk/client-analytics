@@ -1,5 +1,15 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**2026-09-06 independent Calendar recovery corrections (source only):**
+Do not restore the unsafe `a9d798e` recovery handler as an operational inverse:
+it can accept unrelated status receipts, arbitrary allowed field values and
+bodyless source copies. A later reviewed rollback must disable recovery through
+the gateway before removing its RPC, retain the owned-draft UI and all accepted
+comments/status receipts/materialization evidence, and verify visible holds.
+Old unbound reservations are unresolved debt, not migrated or resent statuses.
+The new evidence table needs schema AND selected-data recovery coverage before
+installation. No operational rollback or installation was executed here.
+
 **2026-09-06 Calendar feedback recovery slice 1 (source-only candidate):**
 nothing is applied or deployed. Local rollback reverts the browser half, the
 gateway `recover_source` modifier and the migration file; none of them changes

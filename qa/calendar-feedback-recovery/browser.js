@@ -162,6 +162,10 @@ async function main() {
   const seam = new PgSupabase(db); edge.useSeam(() => seam);
   const handlers = { productionWrite: await edge.loadProductionWrite(BASELINE_MODE ? BASE : null), calendarUpsert: await edge.loadCalendarUpsert() };
   const h = await new Harness(SOURCE, OUT).start();
+  if (process.env.CALENDAR_RECOVERY_DOCUMENT_REVISION) {
+    const document = execFileSync('git', ['show', process.env.CALENDAR_RECOVERY_DOCUMENT_REVISION + ':index.html'], { cwd: SOURCE, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
+    h.documentOverride = () => document; h.index = document;
+  }
   const report = { status: 'INCOMPLETE', mode: BASELINE_MODE ? 'baseline' : 'candidate', source: SOURCE, indexSha256: require('node:crypto').createHash('sha256').update(h.index).digest('hex'),
     handlers: { productionWrite: handlers.productionWrite, calendarUpsert: handlers.calendarUpsert.source_sha256 }, schema, browser: h.browser.version(), groups: [], checks: 0 };
   const check = (condition, message) => { assert.ok(condition, message); report.checks++; };
@@ -173,6 +177,27 @@ async function main() {
   };
   const f = () => pg.seedFixture(db);
   try {
+    if (process.argv.includes('--precommit-probe')) {
+      await run('root note explicit precommit refusal retains ordinary draft across refresh', async () => {
+        f(); const b = new PgBackend(db, edge, handlers); let s = await openClient(h, b);
+        await ui.review(s.page, 'video');
+        await s.page.locator(`[data-cal-review-pid="${ID}"] .kcard-open-sheet`).click();
+        await ui.card(s.page).waitFor(); await ui.card(s.page).locator('.cal-comments-btn').click();
+        await s.page.locator('#calCommentsOverlay.open').waitFor();
+        b.beforeGateway = async entry => { if (entry.kind === 'comment') db.run(`update public.deliverables set origin = 'samples' where id = ${pg.lit(pg.FIXTURE.video)}`); };
+        await s.page.locator('#calCommentComposer').fill(body); await s.page.locator('.cal-cm-send').click();
+        await ui.until(() => b.gatewayRequests.some(g => g.kind === 'comment' && g.status === 403), 'actual precommit refusal', 15000);
+        await s.page.locator('#confirmOverlay.active').waitFor();
+        eq(pg.snapshot(db).comments, 0); eq(pg.snapshot(db).receipts, 0); eq(b.sourceRequests.length, 0);
+        const drafts = await s.page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('syncview_review_draft_v1:')).map(k => JSON.parse(localStorage.getItem(k))));
+        check(drafts.some(d => d.text === body && !d.attempt), 'refused text is an ordinary durable draft');
+        db.run(`update public.deliverables set origin = 'calendar' where id = ${pg.lit(pg.FIXTURE.video)}`);
+        s = await fresh(h, b, s);
+        const panel = await ui.review(s.page, 'video'); eq(await panel.locator('.cal-review-textarea').inputValue(), body);
+        eq(pg.snapshot(db).comments, 0); guards(h, b);
+      });
+      report.status = 'PASS'; return;
+    }
     if (BASELINE_MODE) {
       await run('baseline document + baseline handler: Retry card sync holds and the source copy never materializes', async () => {
         f(); const b = new PgBackend(db, edge, handlers); let s = await submitTweak(h, b, 'video');
@@ -303,6 +328,23 @@ async function main() {
       check(/no complete original context/.test(await recoveryPanel(s, 'video').innerText()), 'precise notice'); await retry(s, 'video');
       eq(b.gatewayRequests.length, gateway, 'nothing sent'); check(/no complete original context/.test(await recoveryPanel(s, 'video').innerText()));
       check((await recoveryPanel(s, 'video').innerText()).includes(body)); assert.deepEqual(pg.snapshot(db), before); report.checks++; guards(h, b);
+    });
+    await run('actual older document accepts an unbound status; corrected recovery keeps it visibly held', async () => {
+      f(); const b = new PgBackend(db, edge, handlers);
+      const old = execFileSync('git', ['show', 'a9d798e6120ddf13c6461bec496715dc06c4bcef:index.html'], { cwd: SOURCE, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
+      const candidateIndex = h.index;
+      h.documentOverride = () => old; h.index = old;
+      report.olderDocumentSha256 = require('node:crypto').createHash('sha256').update(old).digest('hex');
+      let s; try { s = await submitTweak(h, b, 'video'); } finally { h.documentOverride = null; h.index = candidateIndex; }
+      const before = pg.snapshot(db); eq(before.comments, 1); eq(before.outbox_status, 1);
+      check((await storedAttempts(s))[0].attempt.statusReservation.payload.includes('calendar:status:'), 'actual older reservation captured');
+      s = await fresh(h, b, s); await retry(s, 'video');
+      const request = b.gatewayRequests.filter(g => g.kind === 'recover_source').at(-1);
+      eq(request.status, 409); eq(request.response.error, 'companion_status_unbound');
+      check((await recoveryPanel(s, 'video').innerText()).includes('cannot be linked to it safely'), 'specific hold sentence');
+      check((await recoveryPanel(s, 'video').innerText()).includes(body), 'original text visible');
+      eq((await storedAttempts(s)).length, 1); assert.deepEqual(pg.snapshot(db), before); report.checks++;
+      eq(b.gatewayRequests.filter(g => g.kind === 'status').length, 1, 'recovery never sends a second status'); guards(h, b);
     });
     report.status = 'PASS';
   } catch (error) {

@@ -8,6 +8,40 @@ Video and graphic components only. Nothing here changes the frozen
 `calendar-upsert` / `sample-review-upsert` writers, their gating, anonymous
 access, any runtime flag, n8n, or SyncLinear sub-issue behavior.
 
+### Independent correction contract (2026-09-06)
+
+The correction preserves PR1317 author head
+`a9d798e6120ddf13c6461bec496715dc06c4bcef` and its original proof. See
+[the independent correction evidence](../audits/2026-09-06-calendar-feedback-recovery-independent-corrections.md).
+These requirements tighten the field allowlist and reserved-identity description
+below; the original passing matrix did not establish them:
+
+- Newly captured tweak status request IDs are `calendar:feedback-status:` plus
+  lowercase SHA-256 hex of UTF-8
+  `calendar-feedback-status-v1\n<deliverable_id>\n<native_comment_id>`.
+  The gateway derives this independently; the RPC derives it again from the
+  locked canonical comment after proving its accepted add receipt. The matching
+  status must actually have committed with its fingerprint and event. A browser
+  claim, another same-card status receipt, or matching status text is insufficient.
+- Old unbound reservations retain their identities and text, return
+  `companion_status_unbound`, and remain visibly held. No automatic status resend
+  or backfill is offered. Accepted comment IDs and fingerprint algorithms remain
+  unchanged.
+- A tweak may set only its own component status and overall status to
+  `Tweaks Needed`. Approval fields may only clear to an empty string, and must
+  satisfy the existing Calendar stale-approval rule under the source-row lock.
+  Another component's current approval cannot be cleared. A note owns no scalar
+  fields. `previous` must contain exactly the forward field keys; prior values
+  are context, not authorization.
+- Missing, null or non-string source IDs/bodies cannot certify an existing copy.
+  They return a visible hold without materialization evidence or source changes.
+- Explicit root-note precommit refusal retires only that unaccepted attempt and
+  restores its ordinary draft text without replacing a newer typing revision.
+
+This is source and isolated proof only. The new evidence table also needs
+authenticated schema and selected-data recovery coverage before installation;
+its data must survive rollback. Combined integration and serving remain separate.
+
 ## 1. Capture (browser, before the first native send)
 
 The existing owned attempt record (`syncview_review_draft_v1:*`, schema 1) gains

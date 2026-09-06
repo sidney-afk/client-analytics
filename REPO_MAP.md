@@ -40,6 +40,10 @@ in-process handler loader, `handler.mjs` matrix, `browser.js` actual-control
 matrix) is the decisive proof; `test/calendar-feedback-recovery-handler.js` and
 `test/calendar-feedback-recovery-browser.js` are its unit entry points (they
 skip loudly without PostgreSQL 16 / Chromium).
+The bounded independent corrections and preserved negative controls are in
+`docs/audits/2026-09-06-calendar-feedback-recovery-independent-corrections.md`:
+accepted-comment-bound status receipts, constrained fields, missing-body holds,
+and refused root-note draft retention; no frozen writer changes.
 
 First Samples release composition and held live gates:
 `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts

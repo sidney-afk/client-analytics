@@ -5,6 +5,7 @@
 // client transport (psql). Baseline = the exact branch base, run side by side.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const pg = require('./pg.js');
@@ -37,7 +38,8 @@ function context(f, component, kind, n = 1) {
   const nativeId = `c_fictional_${component}_${kind}_${n}`;
   const add = { operation: 'comment', surface: 'calendar', entity: 'deliverable', request_id: `calendar:comment:${nativeId}`, source_edited_at: SOURCE_AT, id: deliverable,
     comment: { body: BODY, native_comment_id: nativeId, parent_id: '', audience: 'client', component, is_tweak: kind === 'tweak', round: kind === 'tweak' ? 1 : null, card_id: f.card } };
-  const status = kind === 'tweak' ? { operation: 'status', surface: 'calendar', entity: 'deliverable', request_id: `calendar:status:${f.card}:${component}:tweak:${sanitize(SOURCE_AT)}`, source_edited_at: SOURCE_AT, id: deliverable, status: 'tweak' } : null;
+  const statusRequestId = 'calendar:feedback-status:' + createHash('sha256').update(`calendar-feedback-status-v1\n${deliverable}\n${nativeId}`).digest('hex');
+  const status = kind === 'tweak' ? { operation: 'status', surface: 'calendar', entity: 'deliverable', request_id: statusRequestId, source_edited_at: SOURCE_AT, id: deliverable, status: 'tweak' } : null;
   const fields = kind === 'tweak' ? { [`${component}_status`]: 'Tweaks Needed', status: 'Tweaks Needed' } : {};
   const previous = kind === 'tweak' ? { [`${component}_status`]: 'Client Approval', status: 'Client Approval' } : {};
   const recover = extra => ({ ...add, recover_source: { card_id: f.card, component, kind, expected_updated_at: f.clock, fields, previous,
@@ -293,13 +295,94 @@ try {
     eq(after.comments, 1); eq(after.receipts, 1);
   });
 
-  await group('concurrent retries of the same attempt serialize to one materialization', async () => {
+  // The psql seam executes each RPC synchronously. Promise.all offers multiple
+  // retries, but does not prove overlapping SQL transactions or lock waits.
+  await group('multiple offered retries produce one materialization (SQL seam serializes transport)', async () => {
     const f = pg.seedFixture(db); const ctx = context(f, 'video', 'tweak');
     await accept(candidate.handler, f, ctx);
     const results = await Promise.all([1, 2, 3].map(() => edge.invoke(candidate.handler, ctx.recover(), clientHeaders(f.client.token))));
     const outcomes = results.map(r => r.body.outcome).sort();
     assert.deepEqual(outcomes, ['already_materialized', 'already_materialized', 'materialized']); report.checks++;
     const after = pg.snapshot(db); eq(after.materializations, 1); eq(cell(after, 'video').length, 1); eq(after.calendar_events, 3);
+  });
+
+  await group('accepted status must belong to this exact comment, at both gateway and SQL boundaries', async () => {
+    const f = pg.seedFixture(db), first = context(f, 'video', 'tweak', 31), second = context(f, 'video', 'tweak', 32);
+    await accept(candidate.handler, f, first);
+    eq((await edge.invoke(candidate.handler, second.add, clientHeaders(f.client.token))).status, 200);
+    await edge.drainBackground();
+    const before = pg.snapshot(db);
+    for (const reservation of [first.status, { ...first.status, request_id: 'calendar:status:old-unbound-reservation' }]) {
+      const held = await edge.invoke(candidate.handler, second.recover({ status: { payload: JSON.stringify(reservation), result: 'accepted' } }), clientHeaders(f.client.token));
+      eq(held.status, 409); eq(held.body.error, 'companion_status_unbound'); assertUntouched(before, pg.snapshot(db));
+    }
+    // A forged browser assertion with the correct bound id is insufficient:
+    // its own status must actually have committed to the database.
+    const unproven = await edge.invoke(candidate.handler, second.recover(), clientHeaders(f.client.token));
+    eq(unproven.status, 409); eq(unproven.body.reason, 'companion_status_unproven');
+    const request = structuredClone(seam.calls.findLast(c => c.name === 'calendar_feedback_recovery_apply_v1').args.p_request);
+    const receipt = db.one(`select dedup_key, payload from public.mirror_outbox where operation = 'status'`);
+    request.status.dedup_key = receipt.dedup_key;
+    request.status.intent_fingerprint = receipt.payload._intent_fingerprint;
+    const direct = await seam.rpc('calendar_feedback_recovery_apply_v1', { p_request: request });
+    eq(direct.error, null); eq(direct.data.outcome, 'held'); eq(direct.data.reason, 'companion_status_unbound');
+    assertUntouched(before, pg.snapshot(db));
+    eq((await edge.invoke(candidate.handler, second.status, clientHeaders(f.client.token))).status, 200);
+    await edge.drainBackground();
+    const done = await edge.invoke(candidate.handler, second.recover(), clientHeaders(f.client.token));
+    eq(done.status, 200); eq(done.body.outcome, 'materialized'); eq(cell(pg.snapshot(db), 'video')[0].id, second.nativeId);
+    const replay = await edge.invoke(candidate.handler, second.recover(), clientHeaders(f.client.token));
+    eq(replay.body.outcome, 'already_materialized'); eq(pg.snapshot(db).materializations, 1);
+  });
+
+  await group('owned fields cannot change other status lanes, grant approvals or erase current approvals', async () => {
+    const stamp = '2026-09-05T11:00:00.000Z';
+    const f = pg.seedFixture(db, { row: { client_video_approved_at: stamp, client_graphic_approved_at: stamp, kasper_approved_at: stamp } });
+    const ctx = context(f, 'video', 'tweak'); await accept(candidate.handler, f, ctx);
+    const before = pg.snapshot(db);
+    const prior = fields => Object.fromEntries(Object.keys(fields).map(k => [k, String(before.card[k] || '')]));
+    for (const fields of [
+      { ...ctx.fields, graphic_status: 'Approved' },
+      { ...ctx.fields, graphic_status: 'Tweaks Needed' },
+      { ...ctx.fields, status: 'Approved' },
+      { ...ctx.fields, client_graphic_approved_at: '2099-01-01T00:00:00.000Z' },
+    ]) {
+      const refused = await edge.invoke(candidate.handler, ctx.recover({ fields, previous: prior(fields) }), clientHeaders(f.client.token));
+      eq(refused.status, 400); assertUntouched(before, pg.snapshot(db));
+    }
+    for (const key of ['client_graphic_approved_at', 'kasper_approved_at']) {
+      const fields = { ...ctx.fields, [key]: '' };
+      const held = await edge.invoke(candidate.handler, ctx.recover({ fields, previous: prior(fields) }), clientHeaders(f.client.token));
+      eq(held.status, 409); eq(held.body.reason, 'approval_clear_unproven'); assertUntouched(before, pg.snapshot(db));
+    }
+    const request = structuredClone(seam.calls.findLast(c => c.name === 'calendar_feedback_recovery_apply_v1').args.p_request);
+    request.source.fields = { ...ctx.fields, graphic_status: 'Approved' };
+    request.source.previous = prior(request.source.fields);
+    const direct = await seam.rpc('calendar_feedback_recovery_apply_v1', { p_request: request });
+    check(direct.error && direct.error.message.includes('calendar_feedback_recovery_invalid_source'), 'SQL rejects bypassing gateway field validation');
+    assertUntouched(before, pg.snapshot(db));
+    const fields = { ...ctx.fields, client_video_approved_at: '' };
+    const done = await edge.invoke(candidate.handler, ctx.recover({ fields, previous: prior(fields) }), clientHeaders(f.client.token));
+    eq(done.status, 200); eq(pg.snapshot(db).card.client_video_approved_at, '');
+    eq(pg.snapshot(db).card.client_graphic_approved_at, stamp); eq(pg.snapshot(db).card.kasper_approved_at, stamp);
+  });
+
+  await group('missing or non-string source identity/body cannot certify an already-present comment', async () => {
+    const f = pg.seedFixture(db), ctx = context(f, 'video', 'note'); await accept(candidate.handler, f, ctx);
+    const entry = { id: ctx.nativeId, parent_id: null, role: 'client', audience: 'client', is_tweak: false };
+    for (const value of [entry, { ...entry, body: null }, { ...entry, body: 7 }, { ...entry, body: [] },
+      { body: BODY }, { id: null, body: BODY }, { id: 'fictional-unrelated', parent_id: null }]) {
+      const wire = JSON.stringify([value]);
+      db.run(`update public.calendar_posts set video_tweaks = ${pg.lit(wire)}, tweaks = ${pg.lit(wire)} where id = ${pg.lit(f.card)}`);
+      const before = pg.snapshot(db);
+      const held = await edge.invoke(candidate.handler, ctx.recover(), clientHeaders(f.client.token));
+      eq(held.status, 409); eq(held.body.reason, 'source_cell_malformed'); assertUntouched(before, pg.snapshot(db));
+    }
+    const wire = JSON.stringify([{ ...entry, body: BODY }]);
+    db.run(`update public.calendar_posts set video_tweaks = ${pg.lit(wire)}, tweaks = ${pg.lit(wire)} where id = ${pg.lit(f.card)}`);
+    const before = pg.snapshot(db);
+    const done = await edge.invoke(candidate.handler, ctx.recover(), clientHeaders(f.client.token));
+    eq(done.status, 200); eq(done.body.outcome, 'already_present'); assertUntouched(before, pg.snapshot(db), ['materializations']);
   });
 
   eq(edge.externalRequests(), 0, 'no external request');

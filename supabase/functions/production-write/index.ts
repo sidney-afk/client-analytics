@@ -856,6 +856,58 @@ type LabelSnapshot = {
   selectedLabelIds: string[];
 };
 
+const NATIVE_LABEL_CATALOG_FLAG = "production_native_label_catalog";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+async function nativeLabelCatalogVersion(
+  supabase: SupabaseClient,
+  team: string,
+): Promise<string | null> {
+  const { data, error } = await supabase.from("syncview_runtime_flags")
+    .select("value").eq("key", NATIVE_LABEL_CATALOG_FLAG).maybeSingle();
+  if (error) throw new GatewayError(503, "native_label_catalog_config_unavailable");
+  if (!data) return null;
+  const value = parseJson((data as JsonMap).value);
+  if (value.enabled !== true) return null;
+  const version = lower(value.version_id);
+  if (!UUID_RE.test(version) || value.schema_version !== 1) {
+    throw new GatewayError(503, "native_label_catalog_config_invalid");
+  }
+  if (!['video', 'graphics'].includes(normalizeTeam(team))) {
+    throw new GatewayError(409, "entity_scope_unavailable");
+  }
+  return version;
+}
+
+function verifiedNativeCatalog(value: unknown, version: string, team: string): JsonMap {
+  const read = parseJson(value);
+  const catalog = read.catalog;
+  if (read.ok !== true || read.structure_complete !== true
+      || read.provider_completeness_verified !== true
+      || clean(read.version_id) !== version || Number(read.schema_version) !== 1
+      || normalizeTeam(read.team) !== normalizeTeam(team) || !Array.isArray(catalog)) {
+    throw new GatewayError(503, "native_label_catalog_unverified", { complete: false });
+  }
+  const normalized = catalog.map(label => sanitizedLabel(parseJson(label), true));
+  if (normalized.some(label => !label)
+      || new Set(normalized.map(label => clean(label?.id))).size !== normalized.length) {
+    throw new GatewayError(503, "native_label_catalog_malformed", { complete: false });
+  }
+  return { ...read, catalog: normalized };
+}
+
+async function readNativeLabelCatalog(
+  supabase: SupabaseClient,
+  version: string,
+  team: string,
+): Promise<JsonMap> {
+  const { data, error } = await supabase.rpc("production_label_catalog_read_version", {
+    p_version_id: version, p_team: normalizeTeam(team),
+  });
+  if (error) throw new GatewayError(503, "native_label_catalog_unavailable", { complete: false });
+  return verifiedNativeCatalog(data, version, team);
+}
+
 async function linearLabelCatalog(teamId: string, expectedTeam = ""): Promise<JsonMap[]> {
   const catalogQuery = `query SyncViewProductionLabelCatalog($teamId: String!, $after: String) {
     team(id: $teamId) { id key }
@@ -5190,6 +5242,19 @@ async function handleLabelsRead(
   const issueId = linearIssueIdForLabels(existing);
   if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
   const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
+  const nativeVersion = authority === "syncview"
+    ? await nativeLabelCatalogVersion(supabase, team)
+    : null;
+  if (nativeVersion) {
+    const native = nativeLabelSnapshot(existing);
+    if (!native) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
+    const read = await readNativeLabelCatalog(supabase, nativeVersion, team);
+    return json({
+      ok: true, complete: true, authority, catalog_version: nativeVersion,
+      catalog: mergeLabelCatalog(read.catalog as JsonMap[], native.labels),
+      selected_label_ids: native.ids, selected_labels: native.labels,
+    });
+  }
   const snapshot = await linearLabelSnapshot(issueId);
   const linearSelected = {
     labels: snapshot.selectedLabels,
@@ -5884,6 +5949,39 @@ async function handleEntityOperation(
   } else if (operation === "labels") {
     const labelIds = canonicalLabelIds(body.label_ids);
     if (!labelIds) throw new GatewayError(400, "invalid_label_ids");
+    const nativeVersion = authority === "syncview"
+      ? await nativeLabelCatalogVersion(supabase, team)
+      : null;
+    if (nativeVersion) {
+      assertCas(body, existing);
+      const native = nativeLabelSnapshot(existing);
+      if (!native) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
+      const read = await readNativeLabelCatalog(supabase, nativeVersion, team);
+      const { data: validated, error: validationError } = await supabase.rpc(
+        "production_label_catalog_validate_selection",
+        { p_version_id: nativeVersion, p_team: team, p_selected: native.labels, p_requested_ids: labelIds },
+      );
+      if (validationError) {
+        const message = clean(validationError.message);
+        if (/invalid_label_ids|label_not_applicable/.test(message)) {
+          throw new GatewayError(400, /label_not_applicable/.test(message) ? "label_not_applicable" : "invalid_label_ids");
+        }
+        throw new GatewayError(503, "native_label_validation_unavailable");
+      }
+      const validation = parseJson(validated);
+      if (validation.validation_only !== true
+          || clean(validation.version_id) !== nativeVersion
+          || clean(validation.manifest_sha256) !== clean(read.manifest_sha256)
+          || JSON.stringify(validation.selected_label_ids) !== JSON.stringify(labelIds)) {
+        throw new GatewayError(503, "native_label_validation_malformed");
+      }
+      // G2 stops at catalog/read/validation. Refuse before fingerprint, event,
+      // outbox or provider traffic until the accepted-receipt owner joins the
+      // explicitly versioned recovery corpus.
+      throw new GatewayError(503, "native_label_commit_installation_held", {
+        catalog_version: nativeVersion,
+      });
+    }
     const fingerprint = await intentFingerprint({
       operation, entity, id, requestId, surface, legacyParity,
       actorKey: principal.actorKey,

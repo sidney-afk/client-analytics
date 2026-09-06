@@ -1,5 +1,7 @@
 # Supabase — current truth
 
+**2026-09-05 scoped source addition, baseline `ab636613`:** the [dormant native label catalog foundation](../ops/NATIVE_LABEL_CATALOG_FOUNDATION.md) adds a service-only immutable version owner and validation RPCs. It is **unapplied**, has no live catalog, always refuses activation/active reads, and changes no current writer/authority/outbox. The new private relation/functions/triggers require explicit schema + data corpus + retained-data restore coverage before installation; current history-v5's 33-table corpus does not cover them. This scoped source note does not refresh the historical live facts below.
+
 **2026-09-05 draft-only reconcile addition (stacked on PR1302, unapplied):**
 `migrations/2026-09-05-native-intake-reconcile.sql` adds service-role-only
 functions that complete ACCEPTED native intake work from the immutable manifest:

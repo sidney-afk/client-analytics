@@ -122,8 +122,8 @@ async function run() {
     assert.ok(workload); source.query(workload[0]);
     for (const file of ['2026-09-02-workload-native-view.sql', '2026-09-05-workload-native-membership.sql'])
       source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
-    for (const file of ['2026-09-05-crosswalk-bind-and-import.sql', '2026-09-06-native-card-materialization-boundary.sql', '2026-09-05-native-label-catalog-foundation.sql', '2026-09-06-native-label-writes.sql', '2026-09-06-linear-outbound-cutoff.sql', '2026-09-06-native-existing-assignment.sql'])
-      source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
+    for (const file of ['2026-09-05-crosswalk-bind-and-import.sql', '2026-09-06-native-card-materialization-boundary.sql']) source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
+    if (CORPUS === 'history-v8') for (const file of ['2026-09-05-native-label-catalog-foundation.sql', '2026-09-06-native-label-writes.sql', '2026-09-06-linear-outbound-cutoff.sql', '2026-09-06-native-existing-assignment.sql']) source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
     const seeded = phase(cfg, source, 'seed', '', 'source');
     check('actual selected37 schema contains four accepted cards and retained unknown ingress', () => {
       assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS === 'history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);

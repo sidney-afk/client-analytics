@@ -2858,7 +2858,10 @@ async function existingAssignmentContext(supabase: SupabaseClient, expected: Jso
         && /production_assignment_context/.test(String(error.message || ""))) {
       const flag = await supabase.from("syncview_runtime_flags").select("value")
         .eq("key", "native_assignment_epochs").maybeSingle();
-      if (!flag.error && !flag.data) return { epoch: "", replay: false, preinstall: true };
+      if (flag && typeof flag === "object" && !Array.isArray(flag)
+          && flag.error === null && flag.data === null) {
+        return { epoch: "", replay: false, preinstall: true };
+      }
     }
     if (/idempotency_conflict/.test(String(error.message || ""))) throw new GatewayError(409, "idempotency_conflict");
     if (/assignment_scope_forbidden/.test(String(error.message || ""))) throw new GatewayError(403, "assignment_scope_forbidden");

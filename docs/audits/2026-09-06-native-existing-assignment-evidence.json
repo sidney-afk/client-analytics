@@ -355,5 +355,68 @@
     "Actual ordinary and ordinary-targeted drainer selectors only; the full worker viewer read and emergency F27 replay remain separate gates.",
     "No full unit/polish suite, hosted CI, installation, capability activation, provider or live-data action.",
     "Authenticated schema capture, retained-target restore (including USER-trigger controls), Section 4 closure re-pin, serving and G8 cutoff remain held."
-  ]
+  ],
+  "preinstall_correction": {
+    "classification": "ACTUAL_SOURCE_FUNCTION_OFFLINE",
+    "baseline_commit": "82ccefba0553c2d7dda087877d93d29156bbbb7b",
+    "results": {
+      "baseline": {
+        "source_sha256": "ce37af9948677793bcb382ff84d1476ac76248f77764c981622ef3d330ad322c",
+        "outcomes": [
+          {
+            "shape": "null",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "false",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "zero",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "empty-string",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "undefined",
+            "result": "provider_fallback"
+          }
+        ]
+      },
+      "candidate": {
+        "source_sha256": "668598153cc8704a18bd98b4b9109aaf1669d1ecc9ce1149fd3e61ae8af82f03",
+        "outcomes": [
+          {
+            "shape": "null",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "false",
+            "result": "authority_unavailable"
+          },
+          {
+            "shape": "zero",
+            "result": "authority_unavailable"
+          },
+          {
+            "shape": "empty-string",
+            "result": "authority_unavailable"
+          },
+          {
+            "shape": "undefined",
+            "result": "authority_unavailable"
+          }
+        ]
+      }
+    },
+    "receipt_sha256": "6713cac7786cfbd99172727f73bc8ab7c4ada1310f10eb8e9f30c13700975d0e",
+    "offline_checks": {
+      "passed": 28,
+      "failed": 0,
+      "test": "test/native-existing-assignment-preinstall.js"
+    },
+    "limits": "Only existingAssignmentContext response-shape validation changed. Original46 SQL checks were not rerun and remain pinned above. Actual SDK transport behavior UNPROVEN; no network or dependencies added."
+  }
 }

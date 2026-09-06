@@ -91,8 +91,9 @@ schema rehearsal. Expected fault paths retain their non-success responses.
 The preserved exact-base real-handler/SQL baseline has eight characterization
 checks: non-null existing assignment and its picker require Linear, null clear
 does not read Linear but remains pending mirror work, and changing the old
-eligibility flag alone does not retire the mirror obligation. The candidate
-passed **46 focused actual-handler/SQL checks**, including a separately asserted
+eligibility flag alone does not retire the mirror obligation. The preserved
+candidate `82ccefba0553c2d7dda087877d93d29156bbbb7b` passed **46 focused
+actual-handler/SQL checks**, including a separately asserted
 fresh `service_role` commit/replay, guest RPC refusal, two overlapping blocked
 SQL sessions, real journal/outbox rollback and actual ordinary/targeted worker
 selection. Most reads/RPCs use the inherited administrative fixture adapter;
@@ -104,3 +105,17 @@ The existing assignment/transition policy and native-assignee policy checks
 pass; deployment manifest ownership remains unchanged. No full
 unit suite, aggregate Production polish, hosted CI, live/provider call or
 deployment proof is claimed by this document.
+
+**Bounded pre-install correction after that SQL checkpoint:** independent
+actual-function fault injection found that the old `!flag.data` check admitted
+malformed `false`, `0`, empty-string and undefined data values as absence.
+The helper now requires a non-array response object with exactly `error: null`
+and `data: null`. All **28 offline actual-function controls** pass, including
+the four falsy negative controls, valid absent-row compatibility and unchanged
+installed provider/native responses. The exact original helper reproduces all
+four false fallbacks; the corrected helper refuses them. No migration, picker,
+writer transaction, fingerprint or drain behavior changed in this correction.
+The 46-case SQL receipt is preserved at its original source hash, not claimed
+as rerun. Real SDK transport-shape reachability remains unproven: no suitable
+existing local SDK fixture was available, and no package or network setup was
+introduced. `test/native-existing-assignment-preinstall.js` is always offline.

@@ -12,7 +12,8 @@ Existing-card native assignment (separate default-disabled capability):
 `migrations/2026-09-06-native-existing-assignment.sql`,
 `scripts/native-intake-manifest/existing-assignment-lane.mjs`,
 `scripts/native-intake-manifest/existing-assignment-journeys.mjs`,
-`test/native-existing-assignment.js`, `docs/ops/NATIVE_EXISTING_ASSIGNMENT.md`,
+`test/native-existing-assignment.js`, `test/native-existing-assignment-preinstall.js`,
+`docs/ops/NATIVE_EXISTING_ASSIGNMENT.md`,
 and `docs/audits/2026-09-06-native-existing-assignment-evidence.json`.
 Reuses existing outbox identities; native receipt retention and schema/restore
 integration remain explicit release prerequisites. No intake or frozen writer change.

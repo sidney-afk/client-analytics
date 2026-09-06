@@ -735,6 +735,17 @@ function referenceScope(log, k, len) {
         return { from: lines[a].from, to: lines[b].to };
     };
     if (idx < 0) return { from: Math.max(0, k - 800), to: Math.min(log.length, k + len + 800) };
+    /* A HEADING'S RESULT IS THE PARAGRAPH BELOW IT. "## 2026-09-06 —
+       `lane`" followed by "Completed successfully (run `X`)." is one record,
+       and scoping the reference to the heading line alone dropped the verdict
+       (Codex, seventy-first round on #1306). The scope stops at the next
+       heading, so a section's later paragraphs stay out of it. */
+    if (/^#{2,6}\s/.test(lines[idx].text)) {
+        let b = idx;
+        while (b + 1 < lines.length && isBlank(lines[b + 1].text)) b++;
+        while (b + 1 < lines.length && !isBlank(lines[b + 1].text) && !/^#{1,6}\s/.test(lines[b + 1].text)) b++;
+        return { from: lines[idx].from, to: lines[b].to };
+    }
     /* Backwards to the item's bullet line. Crossing a blank line is allowed
        only when the paragraph being left starts indented, i.e. is a
        continuation paragraph of an item rather than a paragraph after the list. */
@@ -1377,7 +1388,10 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            explicit statement that nothing shipped -- so a PARTIAL deploy, which
            does move live versions, still fails closed (Codex, thirty-second
            round on #1306). */
-        const entryText = h.text + '\n' + block;
+        /* The heading ENDS a sentence: with only a newline between them, a
+           body claim inherited the heading's run id and answered for it
+           (Codex, seventy-first round on #1306). */
+        const entryText = h.text.replace(/\s*$/, '') + '.\n' + block.replace(/^\s*#{1,6}[^\n]*\n?/, '');
         const headRunEarly = (h.text.match(/[Rr]un\s+`?#?(\d{6,})`?/) || [])[1] || '';
         /* The no-deployment claim has to cover the WHOLE run. "No deployment of
            the remaining three functions occurred" is a claim about a subset,

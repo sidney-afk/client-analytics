@@ -2909,6 +2909,30 @@ ok(countedPartialNoRunRun.code === 1 && countedPartialNoRunRun.json
     && countedPartialNoRunRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
     'AND COUNTED PROGRESS IS THE SAME EVIDENCE AS NAMING IT: "failed after deploying the first function" with no run id is still a dispatch');
 
+/* ---- 8bt. the heading ends a sentence; a heading's result paragraph (round 71) ---- */
+const claimUnderHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    'The previous attempt deployed nothing.',
+    '',
+].join('\n');
+const claimUnderHeadingRun = run(fixture('claim-under-heading', appended(claimUnderHeading), realRb));
+ok(claimUnderHeadingRun.code === 1 && claimUnderHeadingRun.json
+    && claimUnderHeadingRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A HEADING ENDS A SENTENCE: a body claim on the very next line cannot borrow the heading\'s run id to answer for it');
+
+const laneHeadingResult = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions`',
+    '',
+    'Completed successfully (run `34000000000`).',
+    '',
+].join('\n');
+const laneHeadingResultRun = run(fixture('lane-heading-result', appended(laneHeadingResult), realRb));
+ok(laneHeadingResultRun.code === 1 && laneHeadingResultRun.json
+    && laneHeadingResultRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND A HEADING\'S RESULT IS THE PARAGRAPH BELOW IT: a lane named in the heading with its verdict underneath is one record, not a heading with no verdict');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

@@ -26,6 +26,13 @@ function session(){const cp=spawn(db.config.psql,[...db.args(),'-w'],{env:{...pr
 let gw;
 try{
  gw=await loadGateway();const initial=await gw.post(gw.rootBody('video',gw.requestId()));assert.equal(initial.status,201);const d=db.rows('select * from public.deliverables order by created_at limit 1')[0];
+ // The integrated fixture already installs the real F27 hold guard and
+ // enqueue path. Load the retained terminal RPCs from the owning migration so
+ // the cutoff exception is exercised through their actual SQL transitions.
+ const f27=fs.readFileSync(path.join(root,'migrations/2026-07-20-f27-team-rollback.sql'),'utf8').replace(/\r\n/g,'\n');
+ for(const name of ['track_b_f27_begin','track_b_f27_begin_drill','track_b_f27_classify','track_b_f27_execute_drill_replay']){
+  const start=f27.indexOf('create or replace function public.'+name+'('),end=f27.indexOf('$fn$;',start);assert.ok(start>=0&&end>start,'f27_rpc_source_missing:'+name);query(f27.slice(start,end+5));
+ }
  const enqueue=key=>Number(query(`select public.mirror_outbox_enqueue('deliverable',${q(d.id)},'status',jsonb_build_object('status','in_progress','_f27_authority_generation',(select generation from public.track_b_f27_team_fences where team='video')),${q(key)},clock_timestamp(),${q(d.client_slug)},'video','Fixture Admin','admin',${q(d.id)},${q(d.batch_id)})`));
  await check('unchanged base worker applies a delayed terminal receipt after existing mode goes off',async()=>{
   const id=enqueue('g8-base-negative'),lease=await old.claimRow(client,row(id));assert.ok(lease?.lock_token);
@@ -87,6 +94,23 @@ try{
   const expression='set role service_role;select to_jsonb(public.production_comment_write('+j(comment)+','+j(event)+'))::text';const saved=JSON.parse(query(expression));assert.equal(saved.body,comment.body);
   const before=query("select to_jsonb(o)::text from public.mirror_outbox o where dedup_key='g8-client-note'");assert.equal(JSON.parse(before).cutoff_disposition,'accepted_after_cutoff');assert.equal(JSON.parse(before).status,'pending');
   query(expression);assert.equal(query("select count(*) from public.production_comment_mutation_receipts where dedup_key='g8-client-note'"),'1');assert.equal(query("select to_jsonb(o)::text from public.mirror_outbox o where dedup_key='g8-client-note'"),before);
+ });
+ await check('F27 snapshot, evidence-bound classification, and the SQL-only drill terminal survive cutoff without a provider dispatch',async()=>{
+  query("update public.syncview_runtime_flags set value='{\"mode\":\"off\"}' where key='linear_outbound_enabled'");
+  query("update public.syncview_runtime_flags set value='{\"enabled\":false}' where key='linear_legacy_parity_enabled'");
+  const graphics=Number(query(`select public.mirror_outbox_enqueue('deliverable',${q(d.id)},'status',jsonb_build_object('status','in_progress','_f27_authority_generation',(select generation from public.track_b_f27_team_fences where team='graphics')),'g8-f27-graphics',clock_timestamp(),${q(d.client_slug)},'graphics','Fixture Admin','admin',${q(d.id)},${q(d.batch_id)})`));
+  const hold=JSON.parse(query("set role service_role;select public.track_b_f27_begin('graphics','{\"video\":\"syncview\",\"graphics\":\"syncview\"}'::jsonb,'synthetic f27 hold')::text"));
+  assert.equal(hold.type,'f27_snapshot_terminal');assert.equal(row(graphics).status,'skipped');
+  assert.throws(()=>query(`set role service_role;select set_config('app.f27_rollback_bypass','1',true);update public.mirror_outbox set status='written' where id=${graphics}`),/linear_cutoff_stale_worker_refused/);
+  const discarded=JSON.parse(query(`set role service_role;select public.track_b_f27_classify(${q(hold.rollback_id)}::uuid,${graphics},'discard','synthetic evidence-bound discard','synthetic f27 operator',null)::text`));
+  assert.equal(discarded.type,'f27_classification_terminal');assert.equal(row(graphics).status,'skipped');
+  query("update public.syncview_runtime_flags set value='{\"video\":\"linear\",\"graphics\":\"linear\"}' where key='prod_authority'");
+  const drill=JSON.parse(query("set role service_role;select public.track_b_f27_begin_drill('{\"video\":\"linear\",\"graphics\":\"linear\"}'::jsonb,'synthetic f27 drill')::text"));
+  assert.equal(drill.type,'f27_drill_snapshot_terminal');assert.equal(row(drill.outbox_id).status,'skipped');
+  query(`set role service_role;select public.track_b_f27_classify(${q(drill.rollback_id)}::uuid,${Number(drill.outbox_id)},'replay','synthetic no-egress drill','synthetic f27 operator',null)`);
+  const lease=JSON.parse(query(`set role service_role;select public.linear_outbound_claim_v1(${Number(drill.outbox_id)},'skipped',600)::text`));assert.ok(lease.lock_token);
+  const terminal=JSON.parse(query(`set role service_role;select public.track_b_f27_execute_drill_replay(${q(drill.rollback_id)}::uuid,${Number(drill.outbox_id)},${q(lease.lock_token)}::uuid)::text`));
+  assert.equal(terminal.no_external_call,true);assert.equal(row(drill.outbox_id).status,'written');
  });
  await check('unavailable control refuses rather than silently treating empty claim as healthy',async()=>{
   const debtRows=JSON.parse(query("set role service_role;select coalesce(json_agg(t),'[]'::json) from (select * from public.linear_outbound_cutoff_debt_v1 order by id) t"));

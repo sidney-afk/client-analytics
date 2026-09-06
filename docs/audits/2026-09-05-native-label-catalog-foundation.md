@@ -1,3 +1,5 @@
+> Historical foundation evidence only: statements/hashes below describe Sept5 source f0e77. Current corrected gateway/browser/native-save source is documented in [Sept6 evidence](2026-09-06-native-label-writes.md). Historical unchanged-runtime/33-table statements are not current.
+
 # Native label catalog foundation — bounded source/proof snapshot
 
 Baseline: `ab6366136c03239965c97b050ab5cf7c9763a228`, captured remote main on 2026-09-05. This audit adds no execution authority. [The single go-live checklist](../independence/GO_LIVE_CHECKLIST.md) owns G2 and all release gates; [the catalog contract](../ops/NATIVE_LABEL_CATALOG_FOUNDATION.md) defines this dormant owner's source/recovery boundary.

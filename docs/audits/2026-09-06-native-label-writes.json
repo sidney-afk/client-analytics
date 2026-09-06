@@ -1,0 +1,82 @@
+{
+  "classification": "SOURCE_AND_DISPOSABLE_PROOF_ONLY",
+  "base": "8514a83ed1a65145a3a51ffe52e5fcbb2976be31",
+  "preserved_cloud": "892894e1bf56fb8f46eef6992d8bc2b5707bae24",
+  "observed_unintegrated_main": "5ed005c32732f415ea1868951fb42a132ddf045a",
+  "source_sha256": {
+    "supabase/functions/production-write/index.ts": "a3b3344df78103c565ddf2971ea8c533f31d7f31165205155997ec65cec46dcb",
+    "index.html": "70dfc9b4b857500bffc6184642f03913354145aa25abe7907bd9de5aa344d736",
+    "migrations/2026-09-05-native-label-catalog-foundation.sql": "ba19247491e2f809aaf211fb517838eeda9d1edb246cb1698943e70a14e1aa1a",
+    "migrations/2026-09-06-native-label-writes.sql": "ceb4161c5e2890804b4d8a1e9f38884c333591e854391fecb611681fdd3b138e",
+    "qa/native-label-catalog/write-proof.mjs": "67c8c78144016f77da72f1e869e15393ad386834132edae1762f4c8b6fb6793c"
+  },
+  "actual_handler_sql": {
+    "status": "PASS",
+    "groups": 40,
+    "cases": [
+      "attested stage exact replay is immutable; malformed evidence/incomplete manifest/changed attestation leave no residue",
+      "actual existing F27/journal schema plus attested and empty immutable catalog installed in disposable fixture",
+      "cloud negative: native-only card still refused before catalog",
+      "labelsv actual native catalog read without provider issue identity",
+      "labelsg actual native catalog read without provider issue identity",
+      "native labels commit event/journal/terminal original-fingerprint receipt atomically with no provider attempt",
+      "cloud negative: later catalog policy/CAS prevents accepted replay",
+      "accepted native replay survives hold with original version/fingerprint and no extra effects",
+      "changed intent on accepted identity conflicts before policy",
+      "accepted replay preserves later human state and returns current row",
+      "exact native receipt adopts current row after authority flip with no RPC/write/provider",
+      "actual service SQL exact native receipt is read-only across authority flip",
+      "new request remains refused under changed authority",
+      "current authenticated different actor cannot adopt another native receipt",
+      "missing current authority permits only exact read-only receipt adoption",
+      "actual denied authority read permits only exact read-only receipt adoption",
+      "cloud false-fallback / candidate refusal for malformed capability false",
+      "cloud false-fallback / candidate refusal for malformed capability 0",
+      "cloud false-fallback / candidate refusal for malformed capability \"\"",
+      "cloud false-fallback / candidate refusal for malformed capability {}",
+      "cloud false-fallback / candidate refusal for malformed capability null",
+      "stale picker catalog version cannot authorize a new write",
+      "foreign/archive/group/unknown new selection refused 003",
+      "foreign/archive/group/unknown new selection refused 004",
+      "foreign/archive/group/unknown new selection refused 005",
+      "foreign/archive/group/unknown new selection refused 999",
+      "archived and absent selected UUIDs remain selectable with legacy color defaults and unrelated metadata conserved",
+      "explicit clear commits through actual SQL",
+      "legitimate empty no-op receives one idempotent receipt",
+      "attested complete-empty catalog supports read and clear",
+      "catalog activation race refused under atomic SQL capability lock",
+      "actual F27 generation race refuses labels/event/receipt transaction with existing wait-class response",
+      "observed concurrent catalog activation waits for native commit and cannot change its accepted version",
+      "journal refusal rolls labels/event/native receipt back together",
+      "native receipt retention refuses delete",
+      "native receipt retention refuses truncate",
+      "anon cannot invoke native label writer",
+      "authenticated cannot invoke native label writer",
+      "active client caller cannot obtain native staff label catalog",
+      "provider-era accepted receipt survives hold without conversion or drainer restart"
+    ],
+    "receipt_sha256": "b2537b68eb09efa9b6101c9eab3f134c8af7f610583d2c40555fdf4daa1f6645",
+    "postgres": "16 portable, owned SCRAM loopback; service SQL password distinct",
+    "provider_requests_synthetic_or_denied": 8,
+    "background_drains": 0
+  },
+  "offline": {
+    "status": "pending final repeat",
+    "groups": 44,
+    "scope": "actual gateway with RPC-shaped in-process model plus three actual browser-source VM controls"
+  },
+  "held": [
+    "uninstalled; no serving proof",
+    "selected37 excludes catalog owner and new retention triggers; recovery extension required before install",
+    "real authenticated complete export and operator attestation not performed",
+    "full-suite/current-head hosted CI not run by author",
+    "F27 deployed closure pin and later assignment/HTTP/cutoff integration pending",
+    "no live/provider network, TEST mutation, n8n, flags, deploy, alert or billing action"
+  ],
+  "private_failures_preserved": [
+    "fixture batch missing before first business acceptance",
+    "fixture UTC serialization mismatch",
+    "actual incoming FK refused TRUNCATE before intended trigger; explicit RESTRICT dependency control corrected",
+    "new actor fixture UUID already used; replaced with unique fictional ID"
+  ]
+}

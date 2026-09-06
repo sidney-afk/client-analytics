@@ -1,5 +1,9 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+## 2026-09-06 ? Native-label accepted-work containment (uninstalled)
+
+After any future native acceptance, hold fresh labels with the compatible mode:hold gateway; preserve exact replay, all catalog/attestation rows, receipts and journal. Never remove the flag to mimic pre-install absence, requeue skipped native receipts, disable guards or redeploy a gateway treating native work as provider debt. Returning to provider needs separate reviewed reconciliation. Selected37 excludes this owner/guards, so install remains held. [Ordered gates](docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md#ordered-installation-and-rollback-holds). The next Sept6 paragraph is the superseded cloud proposal, including its no-native-acceptance claim.
+
 ## 2026-09-06 — Native label G2 handler prerequisite (unserved/default-disabled)
 
 Containment is the default: leave `production_native_label_catalog` absent/disabled and provider-era behavior remains selected. If later served source must be withdrawn, disable that capability value; do not delete immutable catalog evidence or accepted provider-era receipts/outboxes. Native writes are deliberately held before mutation, so this slice creates no native accepted work to reverse. Installation remains forbidden until authenticated schema recovery and an explicit versioned data-corpus extension cover the catalog owner and the future accepted-receipt boundary.

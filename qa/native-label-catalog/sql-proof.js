@@ -7,23 +7,25 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const {spawnSync, spawn} = require('node:child_process');
 const root = path.resolve(__dirname, '../..');
+if(process.env.NATIVE_LABEL_SQL_CONFIRM!=='LOCAL_DISPOSABLE_ONLY')throw Error('local_disposable_confirmation_required');
 const cfg = JSON.parse(fs.readFileSync(process.env.NATIVE_LABEL_PG_CONFIG, 'utf8'));
 assert.equal(cfg.host, '127.0.0.1');
-assert.ok(Number.isInteger(cfg.port) && cfg.port >= 1024);
+assert.ok(Number.isInteger(cfg.port) && cfg.port >= 1024 && cfg.port <=65535);
 assert.match(cfg.database, /^native_labels_[a-z0-9_]+$/);
 assert.equal(cfg.user, 'postgres');
+assert(path.isAbsolute(cfg.psql)&&path.isAbsolute(cfg.createdb));
 const migration = 'migrations/2026-09-05-native-label-catalog-foundation.sql';
 const passwords = Object.fromEntries(['anon','authenticated','service_role'].map(r=>[r,crypto.randomBytes(32).toString('hex')]));
 const env = role=>{
-  const value={...process.env,PGHOST:cfg.host,PGPORT:String(cfg.port),PGUSER:role,PGPASSWORD:role==='postgres'?cfg.password:passwords[role],PGDATABASE:cfg.database,PGCONNECT_TIMEOUT:'5',PGOPTIONS:'-c statement_timeout=15000'};
-  delete value.PGSERVICE;delete value.PGSERVICEFILE;return value;
+  const value={...process.env};for(const key of Object.keys(value))if(/^PG/i.test(key))delete value[key];
+  return Object.assign(value,{PGHOST:cfg.host,PGPORT:String(cfg.port),PGUSER:role,PGPASSWORD:role==='postgres'?cfg.password:passwords[role],PGDATABASE:cfg.database,PGCONNECT_TIMEOUT:'5',PGCLIENTENCODING:'UTF8',PGOPTIONS:'-c statement_timeout=15000'});
 };
-const args = ['-X','-qAt','-v','ON_ERROR_STOP=1'];
+const args = ['-X','-w','-qAt','-v','ON_ERROR_STOP=1'];
 const quote = s=>"'"+String(s).replace(/'/g,"''")+"'";
 const json = v=>quote(JSON.stringify(v))+'::jsonb';
 let checks=0; const cases=[];
 function sql(s,role='service_role',expected=null){
-  const r=spawnSync(cfg.psql,args,{input:s,env:env(role),encoding:'utf8',windowsHide:true});
+  const r=spawnSync(cfg.psql,args,{input:s,env:env(role),encoding:'utf8',windowsHide:true,timeout:30000,maxBuffer:8*1024*1024});
   if(expected){assert.notEqual(r.status,0);assert.ok((r.stderr||'').includes(expected),'wrong refusal classification');return null;}
   assert.equal(r.status,0,'local PostgreSQL command refused; inspect synthetic query locally');return r.stdout.trim();
 }
@@ -41,7 +43,7 @@ async function concurrently(s){
 }
 (async()=>{
   // A new isolated database only: existing database refusal stops the proof.
-  const created=spawnSync(cfg.createdb,['--maintenance-db','postgres','--host',cfg.host,'--port',String(cfg.port),'--username',cfg.user,cfg.database],{env:env('postgres'),encoding:'utf8',windowsHide:true});
+  const created=spawnSync(cfg.createdb,['-w','--maintenance-db','postgres','--host',cfg.host,'--port',String(cfg.port),'--username',cfg.user,cfg.database],{env:env('postgres'),encoding:'utf8',windowsHide:true,timeout:30000,maxBuffer:1024*1024});
   assert.equal(created.status,0,'new proof database must not already exist');
   sql(Object.entries(passwords).map(([r,p])=>`create role ${r} login password ${quote(p)};`).join('\n'),'postgres');
   sql(fs.readFileSync(path.join(root,migration),'utf8'),'postgres');pass('actual additive migration applies with only PostgreSQL roles as prerequisites');

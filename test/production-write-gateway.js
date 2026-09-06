@@ -457,8 +457,8 @@ function extractFunction(name, bodyMarker = '{') {
     && /authority === "syncview"[\s\S]{0,180}outboundLiveForDrain\(supabase\)/.test(edge)
     && /waitUntil\(\(async \(\) =>/.test(edge),
   'flipped live writes schedule the third exact-dedup drain shape in EdgeRuntime background work');
-  ok(/const mutationHasMirror = operation !== "comment" \|\| commentMirrorApplicable/.test(edge)
-    && /const shouldDrain = mutationHasMirror && \(legacyParity \|\| principal\.testOnly \|\| syncviewLiveDrain\)/.test(edge)
+  ok(/const mutationHasMirror = !nativeLabels && \(operation !== "comment" \|\| commentMirrorApplicable\)/.test(edge)
+    && /const shouldDrain = mutationHasMirror && !suppressLabelDrain && \(legacyParity \|\| principal\.testOnly \|\| syncviewLiveDrain\)/.test(edge)
     && /mirrorPending && awaitedDrain \? 202 : 200/.test(edge),
   'background drains extend shouldDrain without turning a durable native success into a pending HTTP response');
   ok(/overdueStatusBumpDate\(existing\.due_date\)/.test(edge)

@@ -1,5 +1,9 @@
 # SyncView Independence Execution Log
 
+## 2026-09-06 ? Cloud native-label proposal corrected
+
+Preserved892894 on exact8514. Actual controls reproduce its native-only read blocker, malformed flag provider fallback and accepted replay/CAS failure. Corrected source adds strict catalog policy plus atomic version-bound native saves/retained receipts with original identities.40 actual handler/SQL groups and44 offline handler/browser-source controls PASS; limits and selected37 installation hold are in [evidence](docs/audits/2026-09-06-native-label-writes.md). No production action. The next Sept6 section is the historical cloud proposal, not the accepted current contract.
+
 All times are UTC unless noted.
 
 ## 2026-09-06 — Bounded native label read/validation prerequisite (source only)

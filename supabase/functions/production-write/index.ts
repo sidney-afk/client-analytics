@@ -859,36 +859,62 @@ type LabelSnapshot = {
 const NATIVE_LABEL_CATALOG_FLAG = "production_native_label_catalog";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-async function nativeLabelCatalogVersion(
+async function nativeLabelCatalogConfig(
   supabase: SupabaseClient,
   team: string,
-): Promise<string | null> {
-  const { data, error } = await supabase.from("syncview_runtime_flags")
-    .select("value").eq("key", NATIVE_LABEL_CATALOG_FLAG).maybeSingle();
-  if (error) throw new GatewayError(503, "native_label_catalog_config_unavailable");
-  if (!data) return null;
-  const value = parseJson((data as JsonMap).value);
-  if (value.enabled !== true) return null;
-  const version = lower(value.version_id);
-  if (!UUID_RE.test(version) || value.schema_version !== 1) {
+): Promise<JsonMap> {
+  const reply = await supabase.rpc("production_label_catalog_capability", {});
+  if (!reply || typeof reply !== "object" || Array.isArray(reply)) {
+    throw new GatewayError(503, "native_label_catalog_config_unavailable");
+  }
+  if (reply.error !== null) {
+    const error = parseJson(reply.error);
+    if (["42883", "PGRST202"].includes(clean(error.code))
+        && clean(error.message).includes("production_label_catalog_capability")) {
+      const flag = await supabase.from("syncview_runtime_flags").select("value").eq("key", NATIVE_LABEL_CATALOG_FLAG).maybeSingle();
+      // Pre-install compatibility requires BOTH an absent RPC and an exact
+      // absent flag row. An installed/read-failed capability cannot fall back.
+      if (flag && typeof flag === "object" && !Array.isArray(flag) && flag.error === null && flag.data === null) {
+        return { mode: "provider", version_id: null };
+      }
+    }
+    throw new GatewayError(503, "native_label_catalog_config_unavailable");
+  }
+  const value = reply.data;
+  if (!value || typeof value !== "object" || Array.isArray(value)
+      || (value as JsonMap).schema_version !== 1
+      || typeof (value as JsonMap).mode !== "string"
+      || !["provider", "native", "hold"].includes(String((value as JsonMap).mode))) {
     throw new GatewayError(503, "native_label_catalog_config_invalid");
   }
+  const config = value as JsonMap;
+  if (config.mode === "native" ? typeof config.version_id !== "string" || !UUID_RE.test(config.version_id)
+      : config.version_id !== null) throw new GatewayError(503, "native_label_catalog_config_invalid");
   if (!['video', 'graphics'].includes(normalizeTeam(team))) {
     throw new GatewayError(409, "entity_scope_unavailable");
   }
-  return version;
+  return config;
 }
 
 function verifiedNativeCatalog(value: unknown, version: string, team: string): JsonMap {
   const read = parseJson(value);
   const catalog = read.catalog;
-  if (read.ok !== true || read.structure_complete !== true
-      || read.provider_completeness_verified !== true
-      || clean(read.version_id) !== version || Number(read.schema_version) !== 1
-      || normalizeTeam(read.team) !== normalizeTeam(team) || !Array.isArray(catalog)) {
+  if (!value || typeof value !== "object" || Array.isArray(value)
+      || read.ok !== true || read.structure_complete !== true || read.operator_attested !== true
+      || read.verification_state !== "operator_attested"
+      || read.version_id !== version || read.schema_version !== 1 || read.team !== normalizeTeam(team)
+      || typeof read.manifest_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(read.manifest_sha256)
+      || typeof read.attestation_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(read.attestation_sha256)
+      || !Array.isArray(catalog) || catalog.length > 5000) {
     throw new GatewayError(503, "native_label_catalog_unverified", { complete: false });
   }
-  const normalized = catalog.map(label => sanitizedLabel(parseJson(label), true));
+  const normalized = catalog.map(label => {
+    if (!label || typeof label !== "object" || Array.isArray(label)
+        || typeof label.id !== "string" || !UUID_RE.test(label.id)
+        || typeof label.name !== "string" || typeof label.color !== "string"
+        || !(label.description === null || typeof label.description === "string")) return null;
+    return sanitizedLabel(label, true);
+  });
   if (normalized.some(label => !label)
       || new Set(normalized.map(label => clean(label?.id))).size !== normalized.length) {
     throw new GatewayError(503, "native_label_catalog_malformed", { complete: false });
@@ -901,11 +927,13 @@ async function readNativeLabelCatalog(
   version: string,
   team: string,
 ): Promise<JsonMap> {
-  const { data, error } = await supabase.rpc("production_label_catalog_read_version", {
+  const reply = await supabase.rpc("production_label_catalog_read_attested", {
     p_version_id: version, p_team: normalizeTeam(team),
   });
-  if (error) throw new GatewayError(503, "native_label_catalog_unavailable", { complete: false });
-  return verifiedNativeCatalog(data, version, team);
+  if (!reply || typeof reply !== "object" || Array.isArray(reply) || reply.error !== null) {
+    throw new GatewayError(503, "native_label_catalog_unavailable", { complete: false });
+  }
+  return verifiedNativeCatalog(reply.data, version, team);
 }
 
 async function linearLabelCatalog(teamId: string, expectedTeam = ""): Promise<JsonMap[]> {
@@ -1538,6 +1566,12 @@ function eventFor(
 async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promise<unknown> {
   const { data, error } = await supabase.rpc(name, args);
   if (error) {
+    if (name === "production_labels_write") {
+      const labelCode = clean(error.message).match(/^(native_label_catalog_(?:held|changed|unverified|config_invalid)|native_label_scope_forbidden|native_label_state_incomplete|invalid_label_ids|label_not_applicable)$/)?.[0];
+      if (labelCode) throw new GatewayError(labelCode === "native_label_scope_forbidden" ? 403
+        : ["invalid_label_ids", "label_not_applicable"].includes(labelCode) ? 400
+        : ["native_label_catalog_changed", "native_label_state_incomplete"].includes(labelCode) ? 409 : 503, labelCode);
+    }
     if (String(error.code || "") === "23505" || /idempotency_conflict/i.test(clean(error.message))) {
       throw new GatewayError(409, "idempotency_conflict");
     }
@@ -5239,13 +5273,13 @@ async function handleLabelsRead(
   if (!targetClientSlug || !team) throw new GatewayError(409, "entity_scope_unavailable");
   const principal = await authenticate(supabase, req, body, targetClientSlug);
   if (principal.kind === "client") throw new GatewayError(403, "operation_forbidden");
-  const issueId = linearIssueIdForLabels(existing);
-  if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
   const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
-  const nativeVersion = authority === "syncview"
-    ? await nativeLabelCatalogVersion(supabase, team)
+  const config = authority === "syncview"
+    ? await nativeLabelCatalogConfig(supabase, team)
     : null;
-  if (nativeVersion) {
+  if (config?.mode === "hold") throw new GatewayError(503, "native_label_catalog_held");
+  if (config?.mode === "native") {
+    const nativeVersion = String(config.version_id);
     const native = nativeLabelSnapshot(existing);
     if (!native) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
     const read = await readNativeLabelCatalog(supabase, nativeVersion, team);
@@ -5255,6 +5289,8 @@ async function handleLabelsRead(
       selected_label_ids: native.ids, selected_labels: native.labels,
     });
   }
+  const issueId = linearIssueIdForLabels(existing);
+  if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
   const snapshot = await linearLabelSnapshot(issueId);
   const linearSelected = {
     labels: snapshot.selectedLabels,
@@ -5601,6 +5637,43 @@ async function handleEntityOperation(
       supabase, body, operation, surface, requestId, sourceEditedAt, entity, id, existing, targetClientSlug, team, principal,
     );
   }
+  // An exact accepted native label receipt is a read-only result adoption,
+  // not renewed admission. Current caller/scope/operation checks above still
+  // apply; a later authority outage or flip must not erase accepted work.
+  if (operation === "labels" && entity === "deliverable" && surface === "production"
+      && principal.kind === "staff" && !principal.testOnly && body.legacy_parity !== true) {
+    const acceptedDedup = dedupKey(operation, entity, id, requestId);
+    const { data: accepted, error: acceptedError } = await supabase.from("mirror_outbox")
+      .select("payload,status,linear_result").eq("dedup_key", acceptedDedup).maybeSingle();
+    if (acceptedError) throw new GatewayError(503, "idempotency_lookup_unavailable");
+    if (accepted && Object.prototype.hasOwnProperty.call(parseJson(accepted.payload), "_native_label_catalog_version")) {
+      const acceptedVersion = clean(parseJson(accepted.payload)._native_label_catalog_version);
+      if (!UUID_RE.test(acceptedVersion) || accepted.status !== "skipped"
+          || parseJson(accepted.linear_result).native_labels !== true
+          || parseJson(accepted.linear_result).catalog_version !== acceptedVersion) {
+        throw new GatewayError(409, "idempotency_conflict");
+      }
+      const labelIds = canonicalLabelIds(body.label_ids);
+      if (!labelIds) throw new GatewayError(400, "invalid_label_ids");
+      const fingerprint = await intentFingerprint({
+        operation, entity, id, requestId, surface, legacyParity: false,
+        actorKey: principal.actorKey, patch: { label_ids: labelIds },
+      });
+      const matched = await assertDedupIntent(supabase, acceptedDedup,
+        dedupExpectation(principal, team, sourceEditedAt, {
+          entity, entity_id: id, operation, legacy_parity: false, test_only: false,
+        }, fingerprint));
+      if (!matched) throw new GatewayError(503, "idempotency_lookup_unavailable");
+      const current = parseJson(await currentEntityRow(supabase, table, id));
+      if (clean(current.client_slug) !== targetClientSlug || normalizeTeam(current.team) !== team) {
+        throw new GatewayError(409, "idempotent_result_missing");
+      }
+      return json({ ok: true, native_committed: true, replayed: true, read_only: true,
+        authority: "syncview", authority_source: "accepted_native_receipt", legacy_parity: false,
+        mirror_pending: false, mirror: { attempted: false, acknowledged: true, not_applicable: true },
+        row: publicRow(current), ...selectedLabelReceipt(current), catalog_version: acceptedVersion });
+    }
+  }
   // Resolve the full write-authority chain — team authority, lane eligibility,
   // legacy-parity, and the F27 generation fence — BEFORE any provider probe. A
   // write-ineligible request (a Linear-authoritative team, an unreadable
@@ -5637,6 +5710,9 @@ async function handleEntityOperation(
 
   let result: unknown;
   let labelsReceipt: JsonMap | null = null;
+  let nativeLabels = false;
+  let suppressLabelDrain = false;
+  let labelCatalogVersion = "";
   let projectionReceipt: JsonMap | null = null;
   let commentMirrorApplicable = operation !== "comment" || commentMirrorEnabled;
   if (operation === "comment") {
@@ -5949,39 +6025,6 @@ async function handleEntityOperation(
   } else if (operation === "labels") {
     const labelIds = canonicalLabelIds(body.label_ids);
     if (!labelIds) throw new GatewayError(400, "invalid_label_ids");
-    const nativeVersion = authority === "syncview"
-      ? await nativeLabelCatalogVersion(supabase, team)
-      : null;
-    if (nativeVersion) {
-      assertCas(body, existing);
-      const native = nativeLabelSnapshot(existing);
-      if (!native) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
-      const read = await readNativeLabelCatalog(supabase, nativeVersion, team);
-      const { data: validated, error: validationError } = await supabase.rpc(
-        "production_label_catalog_validate_selection",
-        { p_version_id: nativeVersion, p_team: team, p_selected: native.labels, p_requested_ids: labelIds },
-      );
-      if (validationError) {
-        const message = clean(validationError.message);
-        if (/invalid_label_ids|label_not_applicable/.test(message)) {
-          throw new GatewayError(400, /label_not_applicable/.test(message) ? "label_not_applicable" : "invalid_label_ids");
-        }
-        throw new GatewayError(503, "native_label_validation_unavailable");
-      }
-      const validation = parseJson(validated);
-      if (validation.validation_only !== true
-          || clean(validation.version_id) !== nativeVersion
-          || clean(validation.manifest_sha256) !== clean(read.manifest_sha256)
-          || JSON.stringify(validation.selected_label_ids) !== JSON.stringify(labelIds)) {
-        throw new GatewayError(503, "native_label_validation_malformed");
-      }
-      // G2 stops at catalog/read/validation. Refuse before fingerprint, event,
-      // outbox or provider traffic until the accepted-receipt owner joins the
-      // explicitly versioned recovery corpus.
-      throw new GatewayError(503, "native_label_commit_installation_held", {
-        catalog_version: nativeVersion,
-      });
-    }
     const fingerprint = await intentFingerprint({
       operation, entity, id, requestId, surface, legacyParity,
       actorKey: principal.actorKey,
@@ -6001,63 +6044,99 @@ async function handleEntityOperation(
       dedupExpectation(principal, team, sourceEditedAt, outbound, fingerprint),
     );
     if (replay) {
-      result = existing;
+      const { data: stored, error: receiptError } = await supabase.from("mirror_outbox")
+        .select("payload,status,linear_result").eq("dedup_key", dedup).maybeSingle();
+      if (receiptError || !stored) throw new GatewayError(503, "idempotency_lookup_unavailable");
+      labelCatalogVersion = clean(parseJson(stored.payload)._native_label_catalog_version);
+      if (labelCatalogVersion) {
+        if (!UUID_RE.test(labelCatalogVersion) || stored.status !== "skipped"
+            || parseJson(stored.linear_result).native_labels !== true
+            || parseJson(stored.linear_result).catalog_version !== labelCatalogVersion) {
+          throw new GatewayError(409, "idempotency_conflict");
+        }
+        nativeLabels = true;
+        result = await currentEntityRow(supabase, table, id);
+        if (clean(parseJson(result).client_slug) !== targetClientSlug || normalizeTeam(parseJson(result).team) !== team) {
+          throw new GatewayError(409, "idempotent_result_missing");
+        }
+      } else {
+        // Existing provider debt stays provider debt. A newly held/native
+        // capability must not restart its drainer merely because of replay.
+        const config = await nativeLabelCatalogConfig(supabase, team);
+        suppressLabelDrain = config.mode !== "provider";
+        result = existing;
+      }
     } else {
       assertCas(body, existing);
-      const issueId = linearIssueIdForLabels(existing);
-      if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
-      const snapshot = await linearLabelSnapshot(issueId);
-      // The service-only TEST lane may bootstrap pre-F201 rows from this
-      // already-proven complete Linear selection. Normal SyncView authority
-      // remains strictly native and cannot foreign-round-trip label state.
-      const native = nativeLabelSnapshot(existing) || (principal.testOnly ? {
-        labels: snapshot.selectedLabels,
-        ids: snapshot.selectedLabelIds,
-      } : null);
-      if (!native) {
-        throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
-      }
-      const applicable = new Map(
-        [...native.labels, ...snapshot.catalog]
-          .map(label => [clean(label.id), label]),
-      );
-      const selectedLabels = labelIds.map(labelId => applicable.get(labelId));
-      if (selectedLabels.some(label => !label)) {
-        throw new GatewayError(400, "label_not_applicable");
-      }
-      const raw = parseJson(existing.linear_raw);
-      const rawIssue = parseJson(raw.issue);
-      raw.issue = {
-        ...rawIssue,
-        id: clean(rawIssue.id) || issueId,
-        labelIds,
-        labels: {
-          nodes: selectedLabels,
-          pageInfo: { hasNextPage: false, endCursor: null },
-        },
-      };
-      const row: JsonMap = { ...existing, linear_raw: raw };
-      const event = eventFor(
-        operation,
-        principal,
-        sourceEditedAt,
-        surface,
-        outbound,
-        existing,
-        clean(row.status),
-      );
-      event.expected_updated_at = clean(body.expected_updated_at);
-      try {
-        result = await rpc(supabase, "production_deliverable_write", { p_row: row, p_event: event });
-      } catch (error) {
-        if (error instanceof GatewayError && error.code === "write_conflict") {
-          const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
-          throw new GatewayError(409, "write_conflict", {
-            conflict: true,
-            row: publicRow(current || existing),
-          });
+      const config = await nativeLabelCatalogConfig(supabase, team);
+      if (config.mode === "hold") throw new GatewayError(503, "native_label_catalog_held");
+      if (config.mode === "native") {
+        if (principal.kind !== "staff" || principal.testOnly || legacyParity) throw new GatewayError(403, "native_label_scope_forbidden");
+        labelCatalogVersion = String(config.version_id);
+        if (body.catalog_version !== labelCatalogVersion) throw new GatewayError(409, "native_label_catalog_changed");
+        if (!nativeLabelSnapshot(existing)) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
+        await readNativeLabelCatalog(supabase, labelCatalogVersion, team);
+        const nativeOutbound = { ...outbound, payload: { ...parseJson(outbound.payload), _native_label_catalog_version: labelCatalogVersion } };
+        const event = eventFor(operation, principal, sourceEditedAt, surface, nativeOutbound, existing, clean(existing.status));
+        event.expected_updated_at = clean(body.expected_updated_at);
+        result = await rpc(supabase, "production_labels_write", { p_row: existing, p_event: event });
+        nativeLabels = true;
+      } else {
+        const issueId = linearIssueIdForLabels(existing);
+        if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
+        const snapshot = await linearLabelSnapshot(issueId);
+        // The service-only TEST lane may bootstrap pre-F201 rows from this
+        // already-proven complete Linear selection. Normal SyncView authority
+        // remains strictly native and cannot foreign-round-trip label state.
+        const native = nativeLabelSnapshot(existing) || (principal.testOnly ? {
+          labels: snapshot.selectedLabels,
+          ids: snapshot.selectedLabelIds,
+        } : null);
+        if (!native) {
+          throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
         }
-        throw error;
+        const applicable = new Map(
+          [...native.labels, ...snapshot.catalog]
+            .map(label => [clean(label.id), label]),
+        );
+        const selectedLabels = labelIds.map(labelId => applicable.get(labelId));
+        if (selectedLabels.some(label => !label)) {
+          throw new GatewayError(400, "label_not_applicable");
+        }
+        const raw = parseJson(existing.linear_raw);
+        const rawIssue = parseJson(raw.issue);
+        raw.issue = {
+          ...rawIssue,
+          id: clean(rawIssue.id) || issueId,
+          labelIds,
+          labels: {
+            nodes: selectedLabels,
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        };
+        const row: JsonMap = { ...existing, linear_raw: raw };
+        const event = eventFor(
+          operation,
+          principal,
+          sourceEditedAt,
+          surface,
+          outbound,
+          existing,
+          clean(row.status),
+        );
+        event.expected_updated_at = clean(body.expected_updated_at);
+        try {
+          result = await rpc(supabase, "production_deliverable_write", { p_row: row, p_event: event });
+        } catch (error) {
+          if (error instanceof GatewayError && error.code === "write_conflict") {
+            const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
+            throw new GatewayError(409, "write_conflict", {
+              conflict: true,
+              row: publicRow(current || existing),
+            });
+          }
+          throw error;
+        }
       }
     }
     labelsReceipt = selectedLabelReceipt(parseJson(result));
@@ -6238,13 +6317,13 @@ async function handleEntityOperation(
     }
   }
 
-  const syncviewLiveDrain = authority === "syncview"
+  const syncviewLiveDrain = !nativeLabels && !suppressLabelDrain && authority === "syncview"
     && !principal.testOnly
     && !legacyParity
     && await outboundLiveForDrain(supabase);
-  const mutationHasMirror = operation !== "comment" || commentMirrorApplicable;
-  const shouldDrain = mutationHasMirror && (legacyParity || principal.testOnly || syncviewLiveDrain);
-  const awaitedDrain = legacyParity || principal.testOnly;
+  const mutationHasMirror = !nativeLabels && (operation !== "comment" || commentMirrorApplicable);
+  const shouldDrain = mutationHasMirror && !suppressLabelDrain && (legacyParity || principal.testOnly || syncviewLiveDrain);
+  const awaitedDrain = !suppressLabelDrain && (legacyParity || principal.testOnly);
   const mirror = !mutationHasMirror
     ? { attempted: false, acknowledged: true, not_applicable: true }
     : awaitedDrain
@@ -6274,6 +6353,7 @@ async function handleEntityOperation(
           : publicRow(result),
     ...(operation === "comment" ? { comment: publicComment(result, principal) } : {}),
     ...(labelsReceipt || {}),
+    ...(nativeLabels ? { catalog_version: labelCatalogVersion } : {}),
     ...(projectionReceipt ? { projection: projectionReceipt } : {}),
   }, mirrorPending && awaitedDrain ? 202 : 200);
 }

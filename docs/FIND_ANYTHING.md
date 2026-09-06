@@ -1,5 +1,7 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Current native label catalog/save and recovery hold: [contract](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md), [correction evidence](audits/2026-09-06-native-label-writes.md). Default-disabled source; no activation/serving claim.
+
 Native label catalog / Linear label prerequisite / staged import and recovery coverage → [dormant catalog owner contract](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md). This is a held G2 foundation under the existing go-live checklist, not an activation or a second execution plan.
 
 > **The rule this doc keeps: any documented fact in ≤2 opens from here.**

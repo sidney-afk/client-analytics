@@ -1,5 +1,7 @@
 # Linear — current truth
 
+**Sept6 source-only successor on8514:** [native labels](../ops/NATIVE_LABEL_CATALOG_FOUNDATION.md) now has an executable default-disabled read/save path with immutable operator-attested catalog and original fingerprints. New native receipts are terminal and retain evidence without provider intent. Old queues/schedulers and whole-provider cutoff remain separate holds. Real export, selected37 extension, installation/serving remain unproven. Sept5 note below is historical.
+
 **2026-09-05 scoped source finding, baseline `ab636613`:** existing label selections are native per deliverable, but the staff picker and fresh label validation still call Linear. Exact accepted label retries precede that provider read. The [dormant catalog foundation](../ops/NATIVE_LABEL_CATALOG_FOUNDATION.md) supplies one private staging/validation owner, not an active catalog or a provider-independent writer. Activation is structurally held for authenticated complete import, compatible existing mirror/receipt retirement authority, and private recovery coverage. The later catalog fetch in closed Production creation is unreachable; `create_options` remains a separate reachable read. No live provider/configuration fact was refreshed by this note.
 
 > Last verified: 2026-08-25 @ 61a1d5f6 — live re-read of the claims below that can be

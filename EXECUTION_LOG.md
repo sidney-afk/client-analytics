@@ -6184,9 +6184,15 @@ because CLAUDE.md listed the upload AFTER the dispatch:
 ```
 
 Nothing deployed, the capture stayed valid (the live set had not moved) and the
-SHA stayed valid, so the recovery was upload-then-`Re-run jobs`, which preserves
-all five inputs. CLAUDE.md now states the order as a numbered sequence and names
-the error, so the next session recognises it instead of re-diagnosing it.
+SHA stayed valid, so the recovery was: upload the bundle, then run the lane again
+with the same five inputs. The owner did that as a FRESH dispatch, which is why
+run #38 (`33982906228`) carries the green deploy and #37 (`33982751799`) is the
+failed attempt; two run ids is the evidence, since a re-run keeps its own id.
+`Re-run jobs` on the failed run would have worked equally well and is the
+shorter path, because it preserves all five inputs without retyping them; that
+is what CLAUDE.md documents. CLAUDE.md now also states the order as a numbered
+sequence and names the error, so the next session recognises it instead of
+re-diagnosing it.
 
 The alias `f27capture` also answered `CommandNotFoundException` in a fresh
 window that had not loaded the owner's `$PROFILE`. CLAUDE.md now leads with the

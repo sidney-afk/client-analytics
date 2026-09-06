@@ -1536,11 +1536,16 @@ function main() {
                alone, as before. */
             const num = x => (/^\d+$/.test(String(x || '')) ? Number(x) : null);
             const lo = num(prior.run), hi = num(live.run);
-            const between = laneDispatchesSince(receiptsMeta.log, prior.date || '', prior.at)
+            /* No date floor on the scan: a dispatch recorded retroactively can
+               sit under a section dated before the prior receipt while its run
+               id falls between the two, and flooring by date discarded it
+               before the run-id filter below could see it (Codex, forty-fourth
+               round on #1306). The filter decides. */
+            const between = laneDispatchesSince(receiptsMeta.log, '', prior.at)
                 .filter(d => {
                     const r = num(d.run);
                     if (r !== null && lo !== null && hi !== null) return r > lo && r < hi;
-                    return !live.date || d.date <= live.date;
+                    return (!prior.date || d.date >= prior.date) && (!live.date || d.date <= live.date);
                 });
             const msg = 'rollback bundle ' + claim.bundle.sha + ' claims it captures production-write v'
                 + claim.bundle.captured + ', but the release before the newest one was v'

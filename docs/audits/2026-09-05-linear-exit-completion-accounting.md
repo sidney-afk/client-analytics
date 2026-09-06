@@ -1,5 +1,12 @@
 # Linear removal: completion accounting
 
+## Latest bounded integration: d144 (September 6, 22:39Z)
+
+Candidate PR1326 now exact `d1442f65c4da6dc4e5ef8f155e1465f564cafa5e`, unchanged fast-forward of independently reviewed source. Legacy card attempts retain the exact proposed payload before transport; uncertain outcomes remain held instead of replayed. Per-job/store locks and expected-record comparisons guard checkpoint and cleanup; unavailable locks or unverifiable persistence refuse sending. Root reran23 actual-source/modeled-receiver groups, including two baseline defect cases and removed-CAS negative; all pass. Affected author suites and independent source review PASS. Current hosted checks pending; previous9e75 green458 remains historical and does not cover d144. Real browser multitab, server/trigger, installed/serving and live proof remain UNPROVEN. Old bundles and actorless reconciliation remain held. Evidence is in candidate docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md.
+
+Owner update: Linear was reconnected and read-only workspace lookup now succeeds, clearing connector auth only. Full inventory/export remains outstanding. The owner reports not seeing the two test DMs; alert receipt and acknowledgement must not be claimed. Investigate private route/receipts read-only before any additional send. No new alert, production or n8n action occurred; watchers remain inactive. Latest section supersedes earlier pending connection and source-status statements without erasing their historical evidence.
+
+
 ## G6 bounded follow-up: legacy card outcome uncertainty (September 6, 21:38Z)
 
 SOURCE_ONLY at candidate `9e75f4dcd3d5680da9d1c962498d6a79ed497922`, `index.html`:

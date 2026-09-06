@@ -5,13 +5,18 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const {spawnSync,spawn}=require('node:child_process');
 const crypto=require('node:crypto');
 if(process.env.WORKLOAD_TEST_CONFIRM!=='LOCAL_DISPOSABLE_ONLY'){
+ if(process.env.WORKLOAD_TEST_REQUIRE==='1')throw Error('Required Workload SQL lane needs explicit disposable confirmation');
  console.log('SKIP Workload PostgreSQL lane: explicit disposable instance required');process.exit(0);
 }
 const root=path.resolve(__dirname,'..'),bin=process.env.WORKLOAD_TEST_PSQL,port=process.env.WORKLOAD_TEST_PORT;
 if(!bin||!path.isAbsolute(bin)||!/^\d{4,5}$/.test(port||''))throw Error('Explicit psql and disposable port required');
+if(process.env.WORKLOAD_TEST_REQUIRE==='1'&&!process.env.WORKLOAD_TEST_PASSWORD)throw Error('Required Workload SQL lane needs an explicit fixture password');
 const db='workload_'+crypto.randomBytes(8).toString('hex');
 const env=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^PG/i.test(key)));
-const args=database=>['-X','-q','-A','-t','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',port,'-U','postgres','-d',database];
+// Discard ambient PG* environment variables, restoring only the explicit fixture
+// password. Every client command fixes its loopback host, port, user and database.
+if(process.env.WORKLOAD_TEST_PASSWORD!==undefined)env.PGPASSWORD=process.env.WORKLOAD_TEST_PASSWORD;
+const args=database=>['-X','-w','-q','-A','-t','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',port,'-U','postgres','-d',database];
 function sql(text,database=db,refusal=false){const r=spawnSync(bin,args(database),{input:text,encoding:'utf8',env,windowsHide:true,timeout:30000,maxBuffer:16e6});
  if(refusal){assert.notEqual(r.status,0,'SQL negative control must refuse');return r.stderr;}
  if(r.status!==0)throw Error(r.stderr||'Local SQL failed');return r.stdout.trim();}

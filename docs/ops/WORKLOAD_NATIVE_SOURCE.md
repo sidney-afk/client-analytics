@@ -76,6 +76,21 @@ atomic loader and preserves receipt/session/write-race/auth assertions; it does
 not redirect them to dead `_wlLegacy*` code. This is offline VM/source proof,
 not Chromium, serving, a full integrated house suite or release approval.
 
+**Required SQL CI lane:** the existing unit job now runs the 28 SQL and 29
+handler checks in a separate, mandatory step against its disposable PostgreSQL
+16 service. The step resolves an executable `psql` path and supplies explicit
+confirmation, loopback port and a purpose-specific synthetic password. Required
+mode refuses missing setup or failed authentication; ordinary manual execution
+without confirmation still skips. Both SQL clients discard ambient `PG*`
+environment variables, use fixed loopback arguments and prohibit password
+prompts. A local SCRAM fixture passed all 57 checks with deliberately conflicting
+ambient connection settings; an incorrect explicit password refused. The exact
+prior harness failed before fixture creation on that same password-protected
+server, with only a generic bounded SQL failure recorded. The unit job has a
+20-minute limit for the expanded suite and SQL rehearsals: the coordinator's
+local integration already exceeded ten minutes. Shorter SQL process timeouts
+remain. This is a finite CI bound, not a hosted-CI pass or a deployment claim.
+
 Execution remains owner-coordinated: (1) capture exact serving `workload-plan`
 closure, current flags, grants, stored-plan counts/keys and schema/data restore
 point privately; prove installed native view/label helper and eligible population

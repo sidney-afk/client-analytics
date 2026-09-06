@@ -7,9 +7,11 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 if(process.env.WORKLOAD_TEST_CONFIRM!=='LOCAL_DISPOSABLE_ONLY'||!/^workload_[a-f0-9]{16}$/.test(process.env.WORKLOAD_TEST_DB||''))throw Error('Disposable SQL binding required');
 const psql=process.env.WORKLOAD_TEST_PSQL,port=process.env.WORKLOAD_TEST_PORT,database=process.env.WORKLOAD_TEST_DB;
 if(!path.isAbsolute(psql||'')||!/^\d{4,5}$/.test(port||''))throw Error('Explicit local transport required');
+if(process.env.WORKLOAD_TEST_REQUIRE==='1'&&!process.env.WORKLOAD_TEST_PASSWORD)throw Error('Required Workload SQL lane needs an explicit fixture password');
 const sqlEnv=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^PG/i.test(key)));
+if(process.env.WORKLOAD_TEST_PASSWORD!==undefined)sqlEnv.PGPASSWORD=process.env.WORKLOAD_TEST_PASSWORD;
 const quote=v=>v==null?'null':"'"+String(v).replaceAll("'","''")+"'";
-function sql(text){const r=spawnSync(psql,['-X','-q','-A','-t','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',port,'-U','postgres','-d',database],{input:text,encoding:'utf8',env:sqlEnv,windowsHide:true,timeout:10000,maxBuffer:16e6});if(r.status!==0)throw Error(r.stderr);return r.stdout.trim();}
+function sql(text){const r=spawnSync(psql,['-X','-w','-q','-A','-t','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',port,'-U','postgres','-d',database],{input:text,encoding:'utf8',env:sqlEnv,windowsHide:true,timeout:10000,maxBuffer:16e6});if(r.status!==0)throw Error(r.stderr);return r.stdout.trim();}
 let rpcFault=false, rpcCalls=0, legacyWrites=0, external=0;
 const db={rpc:async(name,params={})=>{rpcCalls++;if(rpcFault)return {data:null,error:{code:'fixture-refusal'}};
  if(!['workload_native_snapshot_v1','workload_native_plan_target_v1','workload_native_plan_set_v1'].includes(name))throw Error('Unapproved SQL RPC');

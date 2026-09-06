@@ -1,0 +1,289 @@
+'use strict';
+// LOCAL ONLY, prepared source. A migration-shaped source is captured with the
+// schema engine and reconstructed into an EMPTY restricted target. No serving
+// schema, provider, cloud, scheduler or alert claim. Both databases are retained.
+const assert = require('assert/strict');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const Module = require('module');
+const cp = require('child_process');
+const { LocalDatabase } = require('./card-change-journal-rehearsal');
+const { setup } = require('./card-history-integrated-rehearsal');
+const { unionImages } = require('./card-materialization-history-rehearsal');
+const backup = require('./track-b-backup');
+const recovery = require('./track-b-recovery-package');
+const { reconstruct, OUTCOMES } = require('./track-b-recovery-reconstruct');
+const ROOT = path.resolve(__dirname, '..');
+const CORPUS = 'history-v7';
+const quote = value => "'" + String(value).replaceAll("'", "''") + "'";
+const sha = value => crypto.createHash('sha256').update(value).digest('hex');
+const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recovery-reconstruct.js',
+  'scripts/track-b-recovery-prerequisites.sql', 'scripts/track-b-recovery-rehearsal.js',
+  'scripts/track-b-backup.js', 'scripts/track-b-restore-rehearsal.js',
+  'scripts/card-history-integrated-rehearsal.js', 'scripts/card-history-backup-rehearsal.js',
+  'scripts/card-history-closed-corpus-rehearsal.js', 'scripts/card-change-journal-rehearsal.js',
+  'scripts/native-card-materialization/fixture.mjs', 'scripts/native-card-materialization/recovery-v7-phase.mjs',
+  'migrations/live-schema-baseline-2026-07-03.sql', 'migrations/2026-09-02-workload-native-view.sql',
+  'migrations/2026-09-05-workload-native-membership.sql',
+  'migrations/2026-09-05-card-change-journal.sql', 'migrations/2026-09-05-calendar-feedback-recovery.sql',
+  'migrations/2026-09-05-crosswalk-bind-and-import.sql', 'migrations/2026-09-06-native-card-materialization-boundary.sql'];
+// Platform-only prerequisites. No public application table/function/type is
+// recreated manually on the target; the package must reconstruct those.
+const TARGET_PREREQUISITES = `create schema extensions; create extension pgcrypto schema extensions;
+create schema auth; create schema storage; create publication supabase_realtime;
+grant usage on schema public to anon, authenticated, service_role;`;
+
+function required(env, key) { if (!env[key]) throw new Error(key + '_required'); return String(env[key]); }
+function sameOrInside(child, parent) {
+  const a = child.toLowerCase(), b = parent.toLowerCase(); return a === b || a.startsWith(b + path.sep);
+}
+function config(env = process.env) {
+  if (env.TRACK_B_RECOVERY_TEST_CONFIRM !== 'LOCAL_DISPOSABLE_ONLY') throw new Error('local_disposable_confirmation_required');
+  const host = required(env, 'TRACK_B_RECOVERY_TEST_PGHOST'), port = required(env, 'TRACK_B_RECOVERY_TEST_PGPORT');
+  if (host !== '127.0.0.1' || !/^\d{4,5}$/.test(port) || +port > 65535) throw new Error('literal_loopback_port_required');
+  const file = key => { const raw = required(env, key); if (!path.isAbsolute(raw)) throw new Error('absolute_tool_path_required');
+    const value = fs.realpathSync.native(raw); if (!fs.statSync(value).isFile()) throw new Error('regular_tool_file_required'); return value; };
+  const output = required(env, 'TRACK_B_RECOVERY_TEST_OUTPUT');
+  if (!path.isAbsolute(output)) throw new Error('absolute_private_output_required');
+  let ancestor = path.resolve(output); while (!fs.existsSync(ancestor)) ancestor = path.dirname(ancestor);
+  if (sameOrInside(fs.realpathSync.native(ancestor), fs.realpathSync.native(ROOT))) throw new Error('repository_output_forbidden');
+  return { host, port, psql: file('TRACK_B_RECOVERY_TEST_PSQL'), pgDump: file('TRACK_B_RECOVERY_TEST_PG_DUMP'),
+    user: required(env, 'TRACK_B_RECOVERY_TEST_PGUSER'), password: required(env, 'TRACK_B_RECOVERY_TEST_PGPASSWORD'), output };
+}
+function cleanEnv(password) {
+  return { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^PG|^NIR_|^CARD_MATERIALIZATION_|^TRACK_B_RECOVERY_TEST_/i.test(key))),
+    PGPASSWORD: password, PGCLIENTENCODING: 'UTF8', PGOPTIONS: '', PGCONNECT_TIMEOUT: '10' };
+}
+function connectionEnv(cfg, db, user, password) {
+  return { ...cleanEnv(password), PGHOST: cfg.host, PGPORT: cfg.port, PGUSER: user, PGDATABASE: db.name };
+}
+class DB extends LocalDatabase {
+  raw(sql, database) { return cp.spawnSync(this.config.psql, ['-w', ...this.args(database)], {
+    input: "set time zone 'America/Guatemala';\n" + sql, encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024,
+    windowsHide: true, env: cleanEnv(this.config.password) }); }
+}
+function phase(cfg, db, kind, seed, name) {
+  const report = path.join(cfg.output, name + '.private.json');
+  const result = cp.spawnSync(process.execPath, ['--experimental-strip-types', path.join(ROOT, 'scripts/native-card-materialization/recovery-v7-phase.mjs')], {
+    timeout: 120000, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, windowsHide: true,
+    env: { ...cleanEnv(cfg.password), NIR_PGHOST: cfg.host, NIR_PGPORT: cfg.port, NIR_PGUSER: db.config.user,
+      NIR_PGDATABASE: db.name, NIR_PSQL: cfg.psql, CARD_MATERIALIZATION_FIXTURE: path.join(ROOT, 'scripts/native-card-materialization/fixture.mjs'),
+      CARD_MATERIALIZATION_PHASE: kind, CARD_MATERIALIZATION_PHASE_REPORT: report, CARD_MATERIALIZATION_PHASE_SEED: seed || '' } });
+  fs.writeFileSync(path.join(cfg.output, name + '.private.log'), (result.stdout || '') + (result.stderr || ''));
+  assert.equal(result.status, 0, 'actual gateway/browser/SQL phase');
+  return { report, value: JSON.parse(fs.readFileSync(report, 'utf8')) };
+}
+function grants(cfg, db, role, mode) {
+  return cp.spawnSync(cfg.psql, ['-w', ...db.args(), '-v', 'mode=' + mode, '-v', 'existing_role=' + role,
+    '-v', 'confirmation=' + (mode === 'capture' ? 'RECOVERY_CAPTURE_GRANTS_ONLY' : 'EMPTY_SCRATCH_TARGET_ONLY'),
+    '-v', 'scratch_project_ref=abcdefghijklmnopqrst', '-f', path.join(ROOT, 'scripts/track-b-recovery-prerequisites.sql')], {
+    encoding: 'utf8', timeout: 60000, windowsHide: true, env: cleanEnv(cfg.password) });
+}
+function publicCount(db) { return db.query("select (select count(*) from pg_class where relnamespace='public'::regnamespace)+(select count(*) from pg_proc where pronamespace='public'::regnamespace)+(select count(*) from pg_type where typnamespace='public'::regnamespace and typtype in('e','d','r','c'))"); }
+function captureSequences(db) {
+  return db.rows("select relname from pg_class where relnamespace='public'::regnamespace and relkind='S' order by relname")
+    .map(row => JSON.parse(db.query(recovery.sequenceStateSql(row.relname))));
+}
+// Test-only require seam: executes the exact reconstruct module and real psql,
+// refusing ONLY its independent post-COMMIT verify.sql subprocess. Portable on
+// Windows/POSIX; no runtime engine hook or executable shell wrapper is added.
+function postCommitRefusal() {
+  const filename = path.join(ROOT, 'scripts/track-b-recovery-reconstruct.js'), instance = new Module(filename, module);
+  instance.filename = filename; instance.paths = module.paths; const counts = { apply: 0, refused: 0 };
+  instance.require = id => id === 'child_process' ? { ...cp, spawnSync(tool, args, options) {
+    if (args.some(arg => /[\\/]verify\.sql$/.test(arg))) { counts.refused++; return { status: 3, stderr: 'synthetic postcommit transport refusal' }; }
+    if (args.some(arg => /[\\/]reconstruct\.sql$/.test(arg))) counts.apply++;
+    return cp.spawnSync(tool, args, options);
+  } } : module.require(id);
+  instance._compile(fs.readFileSync(filename, 'utf8'), filename);
+  return { reconstruct: instance.exports.reconstruct, counts };
+}
+async function run() {
+  const cfg = config(); fs.mkdirSync(cfg.output, { recursive: true });
+  const output = fs.realpathSync.native(cfg.output); if (sameOrInside(output, fs.realpathSync.native(ROOT))) throw new Error('repository_output_forbidden');
+  cfg.output = path.join(output, 'schema-v7-' + new Date().toISOString().replace(/[:.]/g, '-') + '-' + crypto.randomBytes(4).toString('hex'));
+  fs.mkdirSync(cfg.output); const checks = [], check = (name, fn) => { fn(); checks.push(name); };
+  const source = new DB(cfg), target = new DB(cfg), quarantine = new DB(cfg), databases = [source, target, quarantine];
+  const pins = Object.fromEntries(SOURCES.map(file => [file, sha(fs.readFileSync(path.join(ROOT, file)))]));
+  const captureRole = source.name + '_capture', targetRole = target.name + '_target', quarantineRole = quarantine.name + '_target';
+  const capturePassword = crypto.randomBytes(24).toString('hex'), targetPassword = crypto.randomBytes(24).toString('hex');
+  const hmac = crypto.randomBytes(32).toString('base64'); let complete = false;
+  try {
+    for (const db of databases) db.create();
+    setup(source, fs.readFileSync(path.join(ROOT, 'migrations/2026-09-05-calendar-feedback-recovery.sql'), 'utf8'));
+    // Same declaration and two real Workload migrations as the integrated
+    // Workload rehearsal. Its legacy population is empty and outside37.
+    const baseline = fs.readFileSync(path.join(ROOT, 'migrations/live-schema-baseline-2026-07-03.sql'), 'utf8');
+    const workload = baseline.match(/create table if not exists public\.workload_issues \([\s\S]*?\n\);/);
+    assert.ok(workload); source.query(workload[0]);
+    for (const file of ['2026-09-02-workload-native-view.sql', '2026-09-05-workload-native-membership.sql'])
+      source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
+    for (const file of ['2026-09-05-crosswalk-bind-and-import.sql', '2026-09-06-native-card-materialization-boundary.sql'])
+      source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
+    const seeded = phase(cfg, source, 'seed', '', 'source');
+    check('actual selected37 schema contains four accepted cards and retained unknown ingress', () => {
+      assert.equal(backup.resolveCorpus(CORPUS).tables.length, 37); assert.equal(seeded.value.cases.length, 4);
+      assert.ok(seeded.value.held.ingress_id); assert.equal(seeded.value.provider_attempts, 0);
+      for (const table of backup.resolveCorpus(CORPUS).tables) assert.notEqual(source.query('select to_regclass(' + quote('public.' + table.name) + ')'), '');
+      assert.equal(source.query("select to_regclass('public.production_label_catalog_versions')"), '');
+    });
+    const deliverable = source.rows("select id,team from public.deliverables where team='video' order by id limit 1")[0];
+    assert.ok(deliverable);
+    const comment = { id: 'schema-v7-comment', native_comment_id: 'schema-v7-comment', idempotency_key: 'schema-v7-add',
+      deliverable_id: deliverable.id, team: deliverable.team, author_key: 'synthetic-staff', author_name: 'Synthetic staff',
+      role: 'admin', body: 'Synthetic retained canonical note', audience: 'internal', source_updated_at: '2026-09-06T00:00:00Z' };
+    const event = { actor: 'synthetic-staff', role: 'admin', action: 'add', source: 'ui', outbound: { entity: 'comment',
+      entity_id: deliverable.id, operation: 'comment', team: 'video', dedup_key: 'schema-v7-add', payload: {
+        _intent_fingerprint: 'synthetic-schema-v7-add', _f27_legacy_parity: false,
+        _f27_authority_generation: Number(source.query("select generation from public.track_b_f27_team_fences where team='video'")) } } };
+    const commentSql = `set role service_role;select public.production_comment_write(${quote(JSON.stringify(comment))}::jsonb,${quote(JSON.stringify(event))}::jsonb);`;
+    source.query(commentSql);
+    check('canonical note and its accepted receipt coexist with actual native card receipts', () => {
+      assert.equal(source.query("select count(*) from public.production_comments where id='schema-v7-comment'"), '1');
+      assert.equal(source.query("select count(*) from public.mirror_outbox where dedup_key='schema-v7-add'"), '1');
+    });
+    source.query(`create sequence public.synthetic_large_seq as bigint; select setval('public.synthetic_large_seq',9007199254740993,true);
+      create sequence public.synthetic_uncalled_seq as bigint start with 9000; create sequence public.synthetic_fresh_seq as bigint;
+      create role ${captureRole} login bypassrls password ${quote(capturePassword)};
+      create role ${targetRole} login password ${quote(targetPassword)}; create role ${quarantineRole} login password ${quote(targetPassword)};`);
+    for (const db of [target, quarantine]) db.query(TARGET_PREREQUISITES);
+    check('capture role refuses write privilege and target refuses BYPASSRLS before narrow grants', () => {
+      source.query(`grant insert on public.calendar_posts to ${captureRole}`); assert.notEqual(grants(cfg, source, captureRole, 'capture').status, 0);
+      source.query(`revoke insert on public.calendar_posts from ${captureRole}`);
+      assert.equal(grants(cfg, source, captureRole, 'capture').status, 0);
+      target.query(`alter role ${targetRole} bypassrls`); assert.notEqual(grants(cfg, target, targetRole, 'target').status, 0);
+      target.query(`alter role ${targetRole} nobypassrls`);
+      for (const [db, role] of [[target, targetRole], [quarantine, quarantineRole]]) assert.equal(grants(cfg, db, role, 'target').status, 0);
+      assert.equal(publicCount(target), '0');
+    });
+    const sourceEnv = connectionEnv(cfg, source, captureRole, capturePassword), targetEnv = connectionEnv(cfg, target, targetRole, targetPassword);
+    check('both restricted connections require SCRAM/password authentication', () => {
+      for (const env of [sourceEnv, targetEnv]) for (const password of ['wrong', '']) {
+        const refused = cp.spawnSync(cfg.psql, ['-w', '-X', '-c', 'select 1'], { env: { ...env, PGPASSWORD: password }, encoding: 'utf8', timeout: 15000 });
+        assert.notEqual(refused.status, 0); assert.match(refused.stderr, /password authentication failed|no password supplied|fe_sendauth/);
+      }
+    });
+    const packet = path.join(cfg.output, 'schema.private.recovery'), opts = { psql: cfg.psql, pgDump: cfg.pgDump,
+      env: sourceEnv, corpusName: CORPUS, hmacInput: hmac,
+      sourceUrl: `postgresql://synthetic:synthetic@db.${backup.PRODUCTION_REF}.supabase.co:5432/postgres` };
+    let raced; try { await recovery.captureRecoveryPackage({ ...opts, output: packet + '.raced', hooks: { afterDumps: () => source.query('alter table public.calendar_posts add column synthetic_race text') } }); } catch (e) { raced = e; }
+    source.query('alter table public.calendar_posts drop column if exists synthetic_race');
+    check('catalog drift is refused and publishes no partial package', () => { assert.ok(raced); assert.match(raced.message, /catalog change/); assert.equal(fs.existsSync(packet + '.raced'), false); });
+    // A deliberate synthetic negative, not deletion of a sampled dependency to
+    // obtain a passing capture. No rows enter the CHECK table and the writing
+    // function is never intentionally called by this fixture.
+    source.query(`create function public.synthetic_capture_write() returns void language plpgsql immutable as $$
+      begin update public.calendar_posts set name=name where false; end;$$;
+      create function public.synthetic_capture_check(p text) returns boolean language plpgsql immutable as $$
+      declare marker text; begin marker := '/*'; perform public.synthetic_capture_write(); marker := '*/'; return true; end;$$;
+      create table public.synthetic_capture_negative(id text primary key,body text check(public.synthetic_capture_check(body)));`);
+    assert.equal(grants(cfg, source, captureRole, 'capture').status, 0);
+    let impure; try { await recovery.captureRecoveryPackage({ ...opts, output: packet + '.impure' }); } catch (e) { impure = e; }
+    fs.writeFileSync(path.join(cfg.output, 'impure-capture.private.log'), String(impure && impure.stack || 'CAPTURE_UNEXPECTEDLY_ACCEPTED'));
+    check('actual capture refuses a writing callable concealed between comment-like string literals', () => {
+      assert.ok(impure); assert.match(impure.message, /impure public callable|writing statement/); assert.equal(fs.existsSync(packet + '.impure'), false);
+    });
+    source.query('drop table public.synthetic_capture_negative;drop function public.synthetic_capture_check(text);drop function public.synthetic_capture_write();');
+    const summary = await recovery.captureRecoveryPackage({ ...opts, output: packet });
+    const bytes = fs.readFileSync(packet), pkg = recovery.readRecoveryPackage(bytes, hmac), before = unionImages(source), sequences = captureSequences(source);
+    check('authenticated schema and all37 selected data sections bind exact observed corpus', () => {
+      assert.equal(summary.ok, true); assert.equal(summary.corpus, CORPUS); assert.equal(summary.data_table_count, 37);
+      assert.deepEqual(Object.keys(pkg.manifest.data.tables).sort(), backup.resolveCorpus(CORPUS).tables.map(t => t.name).sort());
+      assert.equal(pkg.manifest.schema.fingerprint, source.query(recovery.fingerprintSql()));
+      assert.ok(Object.values(pkg.manifest.data.tables).every(t => /^[0-9a-f]{64}$/.test(t.digest_sha256)));
+      assert.equal(pkg.manifest.schema.egress_capable_functions, 0);
+      const large = pkg.manifest.sequences.find(s => s.name === 'synthetic_large_seq'); assert.equal(large.last_value, '9007199254740993');
+      assert.equal(pkg.manifest.sequences.find(s => s.name === 'synthetic_uncalled_seq').is_called, false);
+    });
+    check('wrong HMAC and prior35 data reader refuse the37 package', () => {
+      assert.throws(() => recovery.readRecoveryPackage(bytes, crypto.randomBytes(32).toString('base64')), /authentication failed/);
+      assert.throws(() => backup.parseStrictPgDump(pkg.data, 'history-v6'), /Unexpected table/);
+    });
+    const diagnosticDir = path.join(cfg.output, 'diagnostics');
+    check('data alone cannot reconstruct the empty target', () => {
+      const refused = cp.spawnSync(cfg.psql, ['-w', '-X', '-q', '-v', 'ON_ERROR_STOP=1'], { input: 'begin;\n' + backup.renderSafeCopySections(pkg.data, CORPUS) + '\ncommit;', env: targetEnv, encoding: 'utf8', timeout: 60000 });
+      assert.notEqual(refused.status, 0); assert.match(refused.stderr, /does not exist/); assert.equal(publicCount(target), '0');
+    });
+    check('permission race and in-transaction digest failure leave a genuinely empty target', () => {
+      target.query(`grant pg_read_server_files to ${targetRole}`); assert.throws(() => reconstruct(pkg, targetEnv, { psql: cfg.psql, diagnosticDir }));
+      assert.equal(publicCount(target), '0'); target.query(`revoke pg_read_server_files from ${targetRole}`);
+      const malformed = { ...pkg, manifest: { ...pkg.manifest, data: { ...pkg.manifest.data, tables: { ...pkg.manifest.data.tables,
+        clients: { ...pkg.manifest.data.tables.clients, digest_sha256: 'd'.repeat(64) } } } } };
+      let error; try { reconstruct(malformed, targetEnv, { psql: cfg.psql, diagnosticDir }); } catch (e) { error = e; }
+      assert.ok(error); assert.equal(error.outcome, OUTCOMES.ROLLED_BACK); assert.equal(error.receipt.retry_in_place_allowed, true); assert.equal(publicCount(target), '0');
+    });
+    check('late37th-table COPY refusal rolls earlier schema and data back', () => {
+      const section = backup.parseStrictPgDump(pkg.data, CORPUS).tables.production_card_materialization_ingress;
+      const text = pkg.data.toString('utf8'), header = `COPY public.production_card_materialization_ingress (${section.columns.join(', ')}) FROM stdin;`;
+      const at = text.indexOf(header); assert.ok(at >= 0); const start = at + header.length + 1, end = text.indexOf('\n', start);
+      const fields = text.slice(start, end).split('\t'), raw = section.columns.indexOf('raw_body'); assert.ok(raw >= 0);
+      fields[raw] = String.raw`\N`; const broken = { ...pkg, data: Buffer.from(text.slice(0, start) + fields.join('\t') + text.slice(end)) };
+      let error; try { reconstruct(broken, targetEnv, { psql: cfg.psql, diagnosticDir }); } catch (e) { error = e; }
+      assert.ok(error); assert.match(error.detail, /null value.*raw_body.*violates not-null constraint/);
+      assert.equal(error.outcome, OUTCOMES.ROLLED_BACK); assert.equal(publicCount(target), '0');
+    });
+    const restored = reconstruct(pkg, targetEnv, { psql: cfg.psql, diagnosticDir });
+    check('restricted empty-target schema reconstruction verifies exact37 raw row images and sequences', () => {
+      assert.equal(restored.outcome, OUTCOMES.VERIFIED); assert.equal(restored.data_table_count, 37);
+      assert.equal(restored.schema_fingerprint_match, true); assert.equal(restored.content_digests_match, true);
+      assert.deepEqual(unionImages(target), before); assert.deepEqual(captureSequences(target), sequences);
+      for (const db of [source, target]) {
+        assert.equal(db.query("select nextval('public.synthetic_large_seq')::text"), '9007199254740994');
+        assert.equal(db.query("select nextval('public.synthetic_uncalled_seq')::text"), '9000');
+        assert.equal(db.query("select nextval('public.synthetic_fresh_seq')::text"), '1');
+      }
+    });
+    const current = unionImages(target), replay = phase(cfg, target, 'replay', seeded.report, 'replay');
+    check('restored receipts replay four current human-edited cards in hold without rewriting any owner', () => {
+      assert.equal(replay.value.replayed, 4); assert.equal(replay.value.provider_attempts, 0);
+      const after = unionImages(target), other = rows => rows.filter(row => row.table_name !== 'production_card_materialization_ingress');
+      assert.deepEqual(other(after), other(current));
+      const prior = new Set(current.filter(row => row.table_name === 'production_card_materialization_ingress').map(row => row.image));
+      const incoming = after.filter(row => row.table_name === 'production_card_materialization_ingress');
+      assert.equal(incoming.length, prior.size + 4); for (const image of prior) assert.ok(incoming.some(row => row.image === image));
+      assert.equal(new Set(replay.value.ingress_ids).size, 4);
+      const rows = target.rows(`select raw_body,raw_sha256,outcome from public.production_card_materialization_ingress where id=any(array[${replay.value.ingress_ids.map(quote).join(',')}]::uuid[])`);
+      assert.equal(rows.length, 4); for (const row of rows) { assert.ok(seeded.value.cases.some(c => c.raw_body === row.raw_body)); assert.equal(row.raw_sha256, sha(row.raw_body)); assert.equal(row.outcome.ok, true); }
+    });
+    check('retained37 evidence keeps anonymous privacy and mutation/TRUNCATE guards after reconstruction', () => {
+      for (const name of ['production_card_materialization_receipts', 'production_card_materialization_ingress', 'card_change_journal']) {
+        for (const role of ['anon', 'authenticated']) assert.notEqual(target.raw(`set role ${role};select * from public.${name}`).status, 0);
+        for (const sql of [`update public.${name} set id=id`, `delete from public.${name}`, `truncate public.${name}`]) {
+          const prior = unionImages(target), refused = target.raw(sql); assert.notEqual(refused.status, 0);
+          assert.match(refused.stderr, /card_materialization_evidence_retained|card_change_journal_immutable/); assert.deepEqual(unionImages(target), prior);
+        }
+      }
+      assert.equal(target.query('select count(*) from pg_foreign_server'), '0');
+      assert.equal(target.query("select count(*) from pg_publication_tables where schemaname='public'"), '0');
+    });
+    check('restored canonical add receipt replays without duplicating current or historical rows', () => {
+      const beforeReplay = unionImages(target); target.query(commentSql); assert.deepEqual(unionImages(target), beforeReplay);
+    });
+    check('post-COMMIT verification transport refusal preserves the complete quarantined target', () => {
+      const seam = postCommitRefusal(), env = connectionEnv(cfg, quarantine, quarantineRole, targetPassword);
+      let error; try { seam.reconstruct(pkg, env, { psql: cfg.psql, diagnosticDir }); } catch (e) { error = e; }
+      assert.ok(error); assert.equal(error.outcome, OUTCOMES.COMMITTED_UNVERIFIED); assert.equal(error.receipt.retry_in_place_allowed, false);
+      assert.equal(error.receipt.quarantine_required, true); assert.deepEqual(seam.counts, { apply: 1, refused: 1 });
+      assert.deepEqual(unionImages(quarantine), before); assert.ok(fs.existsSync(error.receipt.diagnostic_file));
+      assert.throws(() => reconstruct(pkg, env, { psql: cfg.psql, diagnosticDir }), /reconstruction failed/);
+      assert.deepEqual(unionImages(quarantine), before);
+    });
+    const report = { status: 'PASS', classification: 'ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY', passed: checks.length, checks,
+      corpus: CORPUS, table_count: 37, package_sha256: sha(bytes), source_sha256: pins,
+      data_coverage: pkg.manifest.data.tables, omitted_data_tables: pkg.manifest.omitted_data_tables,
+      limits: ['Synthetic migration-shaped source; installed capture/reconstruction remains UNPROVEN',
+        'Whole public schema plus selected37 data, not a full platform or omitted-data backup',
+        'Callable lexical correction must be separately integrated and reviewed',
+        'No label owner, serving adapter, provider, workflow, alert or live action'] };
+    fs.writeFileSync(path.join(cfg.output, 'REPORT.private.json'), JSON.stringify(report, null, 2)); complete = true;
+    console.log(JSON.stringify({ status: 'PASS', passed: checks.length, table_count: 37 }));
+  } catch (error) {
+    fs.writeFileSync(path.join(cfg.output, 'FAILURE.private.log'), String(error.stack || error) + '\n' + String(error.detail || ''));
+    console.log(JSON.stringify({ status: 'FAIL', code: 'LOCAL_SCHEMA_REHEARSAL_FAILED', completed_checks: checks.length })); process.exitCode = 1;
+  } finally {
+    fs.writeFileSync(path.join(cfg.output, 'DATABASES.private.json'), JSON.stringify({ databases: databases.map(db => db.name), retained: true, complete }));
+  }
+}
+if (require.main === module) run().catch(() => { console.log(JSON.stringify({ status: 'FAIL', code: 'LOCAL_SCHEMA_CONFIGURATION_FAILED' })); process.exitCode = 1; });
+module.exports = { run, config, cleanEnv, connectionEnv, DB, postCommitRefusal, SOURCES };

@@ -787,3 +787,12 @@ whole-file revert. Procedure: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.
 The frozen anonymous client writers must never be re-gated as recovery.
 
 **Local history-v6 follow-up:** preserve original14/21/33 packages as limited historical evidence and keep every newer receipt/provenance/journal row. Never bypass older-target refusal or truncate omitted data. No migration or activation occurred; see `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`.
+
+**Unapplied selected37 schema-engine preparation:** withdrawing these new tools
+changes no runtime or database. Keep every previous package and receipt. A
+precommit refusal is retryable only after confirming the target is still empty;
+a committed-unverified target must remain quarantined and a fresh empty target
+used for another attempt. The prepared local rehearsal preserves its databases
+and private failures. Deleting an artifact is not a database rollback. See
+`docs/ops/RECOVERY_SCHEMA_V7.md`; no automatic cleanup or production grant is
+authorized by this source integration.

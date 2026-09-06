@@ -407,3 +407,11 @@ aggregate result. The combined draft invokes it in the existing disposable CI
 PostgreSQL job with a private temporary output directory. Hosted execution must
 be verified on the published head; no raw artifacts are uploaded. This is not
 a production procedure or an active product watcher.
+
+**Selected37 schema-engine preparation:** [RECOVERY_SCHEMA_V7.md](RECOVERY_SCHEMA_V7.md)
+imports the separate authenticated schema engine onto the preserved v7 corpus,
+without changing existing data package formats, grants, restore code or schedules.
+The label owner remains excluded/held. Offline validation is distinct from the
+still-required lexical correction and actual combined empty-target reconstruction
+and receipt replay. No authenticated-schema or installed recovery gate is closed
+by this source-only checkpoint.

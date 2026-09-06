@@ -37,6 +37,7 @@
 | Which n8n webhooks / Edge Functions does the app call? | `docs/truth/ENDPOINTS.md` |
 | Supabase tables, flags, write contracts | `docs/truth/SUPABASE.md` |
 | Private durable card changes, original values, retention and complete backup rollout | `docs/ops/CARD_CHANGE_HISTORY.md` (draft/unapplied; separate from the activity feed) |
+| Held schema reconstruction with canonical37 data and accepted receipt replay | `docs/ops/RECOVERY_SCHEMA_V7.md` (local source preparation; authenticated-schema proof remains held) |
 | n8n workflow inventory & state | `docs/truth/N8N.md` |
 | Google Sheets tabs, roster truth | `docs/truth/SHEETS.md` |
 | Linear teams/states/what syncs | `docs/truth/LINEAR.md` |

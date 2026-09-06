@@ -75,8 +75,25 @@ operator protocol. Full drainer/F27 compatibility, G8 provider cutoff, schema
 recovery, served closure and live/operator proof remain release holds.
 
 The reviewed migration and gateway must be included in a future exact-source
-manual release. This draft intentionally does not repin or modify the Section 4
-deployment workflow. No merge, deployment, flag change or live drill occurred.
+manual release. The coordinator has updated only the Section 4 declarative
+source fingerprint and matching test to the reviewed gateway at `2b6c718`:
+`8aeb7197ed8b4f8c3360c8697f12d9217cbfbc9aa50bbc81bc77801b9848d485`,
+still five files with unchanged entrypoint. The workflow remains manual;
+this source pin is not deployment or activation evidence.
+No merge, deployment, flag change or live drill occurred.
+
+An independent private v6 restore extension passed 15 PostgreSQL/handler
+groups on exact implementation `82ccefba` and unchanged assignment migration
+`ece90c9290d3ab8154692afd7c506e220d3202f0acec441a8fd2dd88c8e1e146`.
+All 35 restored table images matched, including the original terminal receipt
+and a later human assignment. Replaying the original request preserved that
+later assignment and all stored rows; a late COPY failure preserved retained
+target rows and trigger states. Provider attempts were zero in the isolated
+fixture. This closes the bounded data/trigger compatibility probe, not the
+authenticated full-schema reconstruction, installed permissions or external
+F27 recovery gates. The later `2b6c718` change touches only the gateway's
+malformed pre-install response check; this SQL/restore evidence is not
+misrepresented as a new gateway execution at that later revision.
 
 ## Finite evidence
 

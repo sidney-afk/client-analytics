@@ -397,7 +397,8 @@ const CANDIDATES = new Map([
     // production_asset_access_checks per slot; no new import, file count 5.
     // Uninstalled integration: native intake/eligibility/editor projection plus
     // captured main asset logic. SQL prerequisite and serving proof stay held.
-    source: '5d9807aaa5fa52653a29d3dc5be6157d21e4d4bdd3899d86b57dc5f9d016e41b',
+    // Source-only 2b6c718 assignment prerequisite; same five-file closure.
+    source: '8aeb7197ed8b4f8c3360c8697f12d9217cbfbc9aa50bbc81bc77801b9848d485',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

@@ -6147,16 +6147,24 @@ the write path and both real:
 Both were fixed before the `production-write` closure was deployed; the fingerprint
 was re-pinned on the corrected tree.
 
-## 2026-09-05 — F27 Section 4 deploy, run #37 attempt 2: production-write 66 → 67
+## 2026-09-05 — F27 Section 4 deploy, run `33982906228`: production-write 66 → 67
 
-Deployed from commit `a05e1126437bb8c36bd3f33e3701a58924a8627d`.
+Dispatched from `a05e1126437bb8c36bd3f33e3701a58924a8627d`. GitHub run #38; run #37
+(`33982751799`) was the `OBJECT_MISSING` attempt described below and deployed
+nothing. The first version of this heading said "run #37 attempt 2", which was
+wrong: the owner dispatched again rather than re-running, so the green deploy is
+its own run. Corrected 2026-09-05 when the rollback-row freshness guard was found
+unable to read this entry at all (see the v68 entry below).
+
+Capture receipt: sealed_bundle_sha256 = `b66c0ae103e18077521c153fe88b98191de6038a656251fbb2421c73118cde31`,
+sealed_bundle_byte_length = `534985`.
 
 | function | active version | source closure SHA-256 | JWT |
 |---|---|---|---|
-| batch-write | 35 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | verify_jwt=false |
-| deliverable-write | 35 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | verify_jwt=false |
-| linear-outbound | 47 | `1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39` | verify_jwt=false |
-| **production-write** | **67** | `d2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062` | verify_jwt=false |
+| `batch-write` | 35 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | verify_jwt=false |
+| `deliverable-write` | 35 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | verify_jwt=false |
+| `linear-outbound` | 47 | `1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39` | verify_jwt=false |
+| `production-write` | 66 → **67** | `d2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062` | verify_jwt=false |
 
 Only `production-write` moved; the other three redeployed at their existing
 closures. Sealed prior four captured at `b66c0ae1…` (534,985 bytes), prior
@@ -6176,9 +6184,15 @@ because CLAUDE.md listed the upload AFTER the dispatch:
 ```
 
 Nothing deployed, the capture stayed valid (the live set had not moved) and the
-SHA stayed valid, so the recovery was upload-then-`Re-run jobs`, which preserves
-all five inputs. CLAUDE.md now states the order as a numbered sequence and names
-the error, so the next session recognises it instead of re-diagnosing it.
+SHA stayed valid, so the recovery was: upload the bundle, then run the lane again
+with the same five inputs. The owner did that as a FRESH dispatch, which is why
+run #38 (`33982906228`) carries the green deploy and #37 (`33982751799`) is the
+failed attempt; two run ids is the evidence, since a re-run keeps its own id.
+`Re-run jobs` on the failed run would have worked equally well and is the
+shorter path, because it preserves all five inputs without retyping them; that
+is what CLAUDE.md documents. CLAUDE.md now also states the order as a numbered
+sequence and names the error, so the next session recognises it instead of
+re-diagnosing it.
 
 The alias `f27capture` also answered `CommandNotFoundException` in a fresh
 window that had not loaded the owner's `$PROFILE`. CLAUDE.md now leads with the
@@ -6269,6 +6283,89 @@ Browser half live on merge. Gateway half re-pins `production-write` to
 dispatch, which also carries the exclusivity truncation guard (`6a39a2bc…`,
 #1294). Optional index migration `2026-09-05-asset-evidence-by-url.sql`. Ledger
 item 155, addendum.
+
+## 2026-09-05 — F27 Section 4 deploy, run `33991332628`: production-write 67 → 68
+
+Dispatched from `3d534cfa5598ef16e61c5ee7dc8072afaa9963c7` (GitHub run #39).
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 35 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | verify_jwt=false |
+| `deliverable-write` | 35 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | verify_jwt=false |
+| `linear-outbound` | 47 | `1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39` | verify_jwt=false |
+| `production-write` | 67 → **68** | `d7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a` | verify_jwt=false |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "3d534cfa5598ef16e61c5ee7dc8072afaa9963c7",
+  "github_run_id": "33991332628",
+  "functions": [
+    {
+      "slug": "batch-write",
+      "active_version": "35",
+      "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a",
+      "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5",
+      "provider_bundle_sha256": "ccc36ce94f39efbb8db84a554eeaef6b5ce013547be5d2349ee8adbdddc2fda5",
+      "verify_jwt": false
+    },
+    {
+      "slug": "deliverable-write",
+      "active_version": "35",
+      "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575",
+      "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68",
+      "provider_bundle_sha256": "3868706acd8e86632c960a6d08cc8ed94e3e8787237a530b135c6e5a05a1f3dd",
+      "verify_jwt": false
+    },
+    {
+      "slug": "linear-outbound",
+      "active_version": "47",
+      "source_closure_sha256": "1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39",
+      "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684",
+      "provider_bundle_sha256": "b72429af7131bc954c8140f8f15c0c437c1fa4568f300bb3134a4f2752f8d626",
+      "verify_jwt": false
+    },
+    {
+      "slug": "production-write",
+      "active_version": "68",
+      "source_closure_sha256": "d7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a",
+      "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5",
+      "provider_bundle_sha256": "ce1b28208e0e3f591cf71cfdf8c18b984c4c8968fcaa6a9635054eaa5a5a4efc",
+      "verify_jwt": false
+    }
+  ]
+}
+```
+
+Capture receipt: sealed_bundle_sha256 = `fc9f12f78373f94b36fd6aac104fca4b373a5d61cbb1d2ad640fc787f123ddbe`,
+sealed_bundle_byte_length = `546849`, sealing `production-write` v67 / `d2914ac2…`.
+
+Only `production-write` moved; the other three redeployed at their existing
+closures. Forward deployment PASS, strict serial provider readbacks PASS, final
+four-function source/entrypoint/JWT/version/provider comparison PASS. Green on
+the first attempt: the capture, the Drive upload and the dispatch ran in the
+order CLAUDE.md now states, from the script path rather than the alias.
+
+This deploy carries two changes: the ledger-verdict reuse in `asset_access_read`
+(#1305) and the exclusivity truncation guard (#1294, `6a39a2bc…`, which had not
+shipped on its own). The owner applied
+`migrations/2026-09-05-asset-evidence-by-url.sql` before dispatching
+("Success. No rows returned").
+
+**The rollback-row freshness guard could not read either of today's deploys,
+and the Live State row had been stale since v66.** Codex P1 on #1306. Both
+entries were first written with the slugs unquoted in the versions table, no run
+id in the heading and no attestation block, which is none of the three shapes
+`scripts/rollback-row-freshness-check.js` parses; so the guard kept comparing
+ROLLBACK.md against the 2026-09-02 receipt and reporting agreement while the row
+named `production-write` v66 and bundle `3010578b…` (v65) as the one-step
+restore. Restoring by that row after this deploy would have stepped back three
+releases. Both entries now carry the run id, the quoted slugs, the arrow-shaped
+version cell and the sealed bundle line, this one carries the JSON attestation,
+and the guard itself now refuses a Section 4 deploy entry it cannot read, naming
+the line and what to fix (Codex P1 on #1306, second round; the guard's own suite
+already ran it against the real files, so a stale row is red rather than silent
+from here on).
 
 ## 2026-09-05 — Crosswalk Phase 2, second apply: 11 of 11, 0 refused; 7 slots remain for a person
 

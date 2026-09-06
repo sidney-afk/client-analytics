@@ -12648,6 +12648,30 @@ Pin: `PRODUCTION_WRITE_SOURCE_SHA256` re-pinned with this change. Live is still
 `d2914ac2…` (v67, deployed from `a05e1126`); the repo had already moved to
 `6a39a2bc…` (the exclusivity truncation guard). The next dispatch carries both.
 
+**Closed out, same day.** Deployed as `production-write` v68 (closure
+`d7fc8348…`) from `3d534cfa…`, run 33991332628, green on the first attempt with
+the capture, the Drive upload and the dispatch in the order CLAUDE.md now
+states; the truncation guard from #1294 shipped with it. Codex found one real
+hole in review (a cleared file's pill would have stayed up for the session once
+entries survived a refresh) and it was fixed before merge. The owner applied the
+optional index before dispatching. The five-minute window decision above stays
+open.
+
+**And one more finding out of the deploy record, Codex P1 on #1306.**
+`ROLLBACK.md`'s Live State row still said `production-write` v66 with bundle
+`3010578b…` (v65) as the one-step restore, through both of today's deploys. The
+freshness guard (`scripts/rollback-row-freshness-check.js`) never disagreed
+because neither deploy entry was written in a shape it parses (slugs unquoted in
+the table, no run id in the heading, no attestation block), so it kept comparing
+the row against the 2026-09-02 receipt. A restore by that row would have stepped
+back three releases. Fixed in the same PR: both entries rewritten in the parsed
+shape, the row moved to v68 / `fc9f12f7…` (captures v67), and the guard itself
+now refuses a Section 4 deploy entry it cannot read (Codex's second round: a
+real-file run alone would have stayed green on the next malformed entry, and the
+guard's suite already ran one). Three fixtures prove it: the exact shape that
+blinded it is named by line, a table without the heading is still caught, and
+the same entry in the parsed shape is read and fails for the row instead.
+
 ## 156. [2026-09-05, RULED, WRITTEN, APPLIED LIVE TWICE AND RUN — 100 of 100, 7 for a person; updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
 
 Item 148's RPC required a deliverable's `kind` to match the card slot ("team is

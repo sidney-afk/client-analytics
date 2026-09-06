@@ -137,8 +137,15 @@ ok(/created_at timestamptz not null default now\(\)/.test(migration),
 // ---- The browser half: no staff demand on the client link -------------------
 ok(/if \(!\(typeof _isIntake !== 'undefined' && _isIntake\)\) \{\s*\n\s*try \{ identity = await _syncviewRequireStaffIdentity\('intake'\); \}/.test(browser),
   'the client link no longer demands a staff identity, and the staff tab still does');
-ok(/if \(typeof _isIntake !== 'undefined' && _isIntake\) return null;/.test(browser),
-  'the resume-time actor binding also steps aside on the client link, where it could only ever throw');
+const actorWorld = require('./helpers/native-intake-world').makeWorld();
+actorWorld.context._isIntake = true;
+actorWorld.identity = null;
+ok(actorWorld.context._linearIntakeRequireActor({ context: {} }) === null,
+  'anonymous intake still resumes without a staff identity');
+let staffRejected = false;
+try { actorWorld.context._linearIntakeRequireActor({ context: { initiating_actor_id: 'fixture-staff' } }); }
+catch (error) { staffRejected = error.code === 'native_intake_actor_mismatch'; }
+ok(staffRejected, 'opening the anonymous link cannot replay an existing staff-bound request');
 ok(/typeof _isIntake !== 'undefined'/.test(browser),
   'both checks read the flag defensively, so an uninitialised value resolves to the STRICT staff path');
 for (const code of ['public_intake_too_large', 'public_intake_rate_limited', 'public_intake_rate_unavailable']) {

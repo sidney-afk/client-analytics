@@ -62,6 +62,13 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 ## Test & automation entry points
 
+Browser intake preservation: `test/native-intake-preservation.js` exercises the
+real job functions through `test/helpers/native-intake-world.js` (adapted from
+PR #1274). `node qa/browser-intake-preservation.js` tests the actual handlers and
+visible recovery control with every request intercepted. Scope, proof limits and
+sign-out/rollback release gates are in
+`docs/audits/2026-09-05-browser-intake-preservation.md`.
+
 | Command / trigger | What runs | Notes |
 |---|---|---|
 | `npm test` | `test/run-all.js` → every `test/*.js` (dependency-free; normally offline, with F63 using only an explicitly required disposable PostgreSQL 16 service) | Runs on every push (`calendar-unit-tests.yml`). It never targets a live backend. Run before every commit. |

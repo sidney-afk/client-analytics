@@ -251,6 +251,10 @@ receipt observer, bounded drill and independent-host sentinel commands),
 `.github/workflows/client-continuity-hosted-observer.yml`,
 `.github/workflows/client-continuity-hosted-delivery-drill.yml` (dormant hosted package).
 
+`docs/audits/2026-09-06-production-intake-polish-fixture.md` and its `.json`
+receipt record the actual browser baseline/candidate proof for the Create Post
+editor read mock and intake wait in `docs/syncview-design/tests/prod-write-gateway-browser.js`.
+
 | Command / trigger | What runs | Notes |
 |---|---|---|
 | `npm test` | `test/run-all.js` → every `test/*.js` (dependency-free; normally offline, with F63 using only an explicitly required disposable PostgreSQL 16 service) | Runs on every push (`calendar-unit-tests.yml`). It never targets a live backend. Run before every commit. |

@@ -1540,6 +1540,35 @@ const shippedDeployRun = run(fixture('shipped-deploy-heading', appended(shippedD
 ok(shippedDeployRun.code === 1 && shippedDeployRun.json && shippedDeployRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy: a new gateway half, first deploy"/.test(f) && UNREADABLE.test(f)),
     'while the same entry headed as a deploy, with no forward-looking word before "deploy", is still asked for its receipt');
 
+/* ---- 8ab. a negated verdict outranks its run id (round twenty-seven) --------- */
+const laneNegatedRunAfter = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch was not completed (run `33995000000`); the',
+    'runner died before the first function.',
+    '',
+].join('\n');
+const laneNegatedRunAfterRun = run(fixture('lane-negated-run-after', appended(laneNegatedRunAfter), realRb));
+ok(laneNegatedRunAfterRun.code === 0,
+    'A NEGATED VERDICT OUTRANKS ITS RUN ID: "the dispatch was not completed (run `X`)" deployed nothing and asks for nothing');
+const laneNegatedRunBefore = laneNegatedRunAfter.replace('dispatch was not completed (run `33995000000`);', 'dispatch (run `33995000000`) was not completed;');
+const laneNegatedRunBeforeRun = run(fixture('lane-negated-run-before', appended(laneNegatedRunBefore), realRb));
+ok(laneNegatedRunBeforeRun.code === 0,
+    'and so does "the dispatch (run `X`) was not completed", with the run id ahead of the negation');
+const laneDoneProbeNot = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch completed (run `33995000000`), but the smoke probe',
+    'was not completed.',
+    '',
+].join('\n');
+const laneDoneProbeNotRun = run(fixture('lane-done-probe-not', appended(laneDoneProbeNot), realRb));
+ok(laneDoneProbeNotRun.code === 1 && laneDoneProbeNotRun.json
+    && laneDoneProbeNotRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while a positive verdict beside a negated one about something else ("completed (run `X`), but the smoke probe was not completed") stands, and FAILS');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

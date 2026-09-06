@@ -695,6 +695,13 @@ function recordsADispatch(log, k, len) {
            check noun anywhere in the clause used to discard the run id). */
         const marked = pre.replace(CHECK_DONE, ' CHECKDONE ');
         const lastCheck = Math.max(lastIndex(/\bCHECKDONE\b/, marked), lastIndex(CHECK_ONLY, marked));
+        /* A negated verdict with no positive one anywhere in the clause ("was
+           not completed (run `X`)", "(run `X`) was not completed") says the run
+           deployed nothing, run id or not (Codex, twenty-seventh round on
+           #1306). A positive verdict beside a negated one about something else
+           ("completed (run `X`), but the smoke probe was not completed") stands. */
+        const cleaned = norm(before + ' LANE ' + after);
+        if (/\bNEGATED\b/.test(cleaned) && !DISPATCH_DONE.test(cleaned)) return null;
         if (lastCheck < 0 || lastIndex(DISPATCH_DONE, marked) > lastCheck) return { run: rm[1] };
     }
     const whole = before + ' LANE ' + after;

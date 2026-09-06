@@ -1,5 +1,8 @@
 'use strict';
 const http=require('node:http');
+const {installReadSubscriptionObserver}=require('./samples-read-subscriptions');
+const SAFETY_OUTCOMES=Object.freeze(['mutation_blocked','unexpected_request','valid_link_auth','browser_error',
+  'read_failed','scope_mismatch','setup_failed','teardown_failed','teardown_observation_failed','untracked_failure']);
 const DENIAL_REASONS=Object.freeze(['metadata_post_blocked','realtime_transport_blocked',
   'worker_transport_blocked','beacon_transport_blocked','keepalive_transport_blocked',
   'realm_guard_failed','proxy_http_blocked','proxy_tunnel_blocked','proxy_socket_error','other_request_blocked']);
@@ -31,9 +34,10 @@ function installRealmGuard() {
     try {
       if(w.__continuityTransportGuard)return;
       Object.defineProperty(w,'__continuityTransportGuard',{value:true});
-      let denied=false;const reasons=new Set();
+      let denied=false,realtimeDenied=0;const reasons=new Set();
       Object.defineProperty(w,'__continuityTransportDenied',{get:()=>denied});
       Object.defineProperty(w,'__continuityTransportDeniedReasons',{get:()=>[...reasons]});
+      Object.defineProperty(w,'__continuityRealtimeDeniedCount',{get:()=>realtimeDenied});
       const deny=reason=>{
         denied=true;reasons.add(reason);
         // A blank child may inherit its parent's binding only after initialization.
@@ -49,7 +53,11 @@ function installRealmGuard() {
         return nativeFetch.call(this,request);
       });
       for(const name of ['WebSocket','WebTransport','Worker','SharedWorker']) {
-        if(name in w)replace(w,name,function(){deny(name==='Worker'||name==='SharedWorker'?'worker_transport_blocked':'realtime_transport_blocked');throw new w.TypeError('monitor_transport_blocked');});
+        if(name in w)replace(w,name,function(...args){
+          if(name==='WebSocket') {realtimeDenied++;if(w.__continuityAttributeReadSocket)w.__continuityAttributeReadSocket(args);}
+          else if(name==='WebTransport')realtimeDenied++;
+          deny(name==='Worker'||name==='SharedWorker'?'worker_transport_blocked':'realtime_transport_blocked');throw new w.TypeError('monitor_transport_blocked');
+        });
       }
       const nativeOpen=w.open;
       replace(w,'open',function(...args){const child=nativeOpen.apply(this,args);if(child)protect(child);return child;});
@@ -66,44 +74,56 @@ function installRealmGuard() {
 }
 
 async function installTransportGuard(context,config,deps={}) {
-  let code=null,closing=false;
-  const active=new Set(),reasons=new Set();
-  const latch=(value,reason)=>{if(reason)reasons.add(DENIAL_REASONS.includes(reason)?reason:'realm_guard_failed');if(!code || value==='mutation_blocked')code=value;};
+  let code=null,closing=false,setupComplete=false,teardownComplete=false,realmRealtimeEvents=0;
+  const active=new Set(),reasons=new Set(),outcomes=new Set(),deniedRequests=new WeakSet();
+  const subscriptions={known:0,unknown:0,matched:0,unmatched:0,realtimeDenied:0,labels:[]};
+  const latch=(value,reason)=>{outcomes.add(SAFETY_OUTCOMES.includes(value)?value:'untracked_failure');if(reason)reasons.add(DENIAL_REASONS.includes(reason)?reason:'realm_guard_failed');if(!code || value==='mutation_blocked')code=value;};
   if(deps.firewall) {
     deps.firewall.onDenied=reason=>latch('mutation_blocked',reason);
     for(const reason of deps.firewall.deniedReasons)latch('mutation_blocked',reason);
   }
-  await context.exposeBinding('__continuityTransportBlocked',(_,reason)=>latch('mutation_blocked',DENIAL_REASONS.includes(reason)?reason:'realm_guard_failed'));
-  await context.addInitScript(installRealmGuard);
+  await context.exposeBinding('__continuityTransportBlocked',(_,reason)=>{if(reason==='realtime_transport_blocked')realmRealtimeEvents++;latch('mutation_blocked',DENIAL_REASONS.includes(reason)?reason:'realm_guard_failed');});
+  if(config.initialRead===true)await context.addInitScript({content:`(${installReadSubscriptionObserver.toString()})(${JSON.stringify({scope:config.scope,backendOrigin:config.backendOrigin})});(${installRealmGuard.toString()})();`});
+  else await context.addInitScript(installRealmGuard);
   context.on('page',page=>{
     page.on('pageerror',()=>latch('browser_error'));
-    page.on('websocket',()=>latch('mutation_blocked','realtime_transport_blocked'));
+    page.on('console',message=>{if(message.type()==='error')outcomes.add('browser_error');});
+    page.on('websocket',()=>{outcomes.add('untracked_failure');latch('mutation_blocked','realtime_transport_blocked');});
   });
-  context.on('request',request=>{const violation=requestPolicy(request,config);if(violation)latch(violation,requestDenialReason(request,config));});
+  context.on('request',request=>{
+    const url=new URL(request.url());
+    if(url.origin===new URL(config.backendOrigin).origin&&url.pathname===`/rest/v1/${config.lane==='samples'?'sample_reviews':'calendar_posts'}`&&url.searchParams.get('client')!==`eq.${config.scope}`)outcomes.add('scope_mismatch');
+    const violation=requestPolicy(request,config);if(violation){deniedRequests.add(request);latch(violation,requestDenialReason(request,config));}
+  });
+  context.on('requestfailed',request=>{if(!deniedRequests.has(request))outcomes.add('read_failed');});
   context.on('response',response=>{
     if([401,403].includes(response.status()) && new URL(response.url()).origin===new URL(config.backendOrigin).origin)latch('valid_link_auth');
+    if(response.status()>=400)outcomes.add('read_failed');
   });
   await context.routeWebSocket('**/*',socket=>{latch('mutation_blocked','realtime_transport_blocked');socket.close();});
   await context.route('**/*',route=>{
     const work=(async()=>{
       try {
         const violation=requestPolicy(route.request(),config);
-        if(violation){latch(violation,requestDenialReason(route.request(),config));await route.abort();return;}
-        if(closing){await route.abort();return;}
+        if(violation){deniedRequests.add(route.request());latch(violation,requestDenialReason(route.request(),config));await route.abort();return;}
+        if(closing){outcomes.add('read_failed');await route.abort();return;}
         // Never continue/fallback: Playwright does not re-route automatic hops.
         // Fixture forwarding returns the same response contract, without live I/O.
         const response=await (deps.forward ? deps.forward(route,deps.directRead) : deps.directRead(route.request()));
         if([401,403].includes(response.status()) && new URL(route.request().url()).origin===new URL(config.backendOrigin).origin)latch('valid_link_auth');
-        if(response.status()>=300 && response.status()<400){latch('unexpected_request');await route.abort();return;}
-        if(closing){await route.abort();return;}
+        if(response.status()>=400)outcomes.add('read_failed');
+        if(response.status()>=300 && response.status()<400){deniedRequests.add(route.request());latch('unexpected_request');await route.abort();return;}
+        if(closing){outcomes.add('read_failed');await route.abort();return;}
         await route.fulfill({status:response.status(),headers:response.headers(),body:await response.body()});
-      } catch {if(!closing)latch('read_failed');await route.abort().catch(()=>{});}
+      } catch {outcomes.add('read_failed');if(!closing)latch('read_failed');await route.abort().catch(()=>{});}
     })();
     active.add(work);void work.finally(()=>active.delete(work));return work;
   });
+  setupComplete=true;
   return {
     code:()=>code,
     denialReasons:()=>[...reasons].sort(),
+    safety:()=>({version:1,setupComplete,teardownComplete,outcomes:[...outcomes].sort(),subscriptions:{...subscriptions,realmRealtimeEvents,labels:[...new Set(subscriptions.labels)].sort()}}),
     async prepare(page){await page.evaluate(installRealmGuard);},
     async close(){
       closing=true;
@@ -115,20 +135,35 @@ async function installTransportGuard(context,config,deps={}) {
           (async()=>{
             for(const page of context.pages())for(const frame of page.frames()) {
               try {
-                const state=await frame.evaluate(()=>({denied:!!window.__continuityTransportDenied,reasons:window.__continuityTransportDeniedReasons}));
+                const state=await frame.evaluate(()=>({denied:!!window.__continuityTransportDenied,reasons:window.__continuityTransportDeniedReasons,
+                  realtimeDenied:window.__continuityRealtimeDeniedCount||0,subscriptions:window.__continuityReadSubscriptionState}));
+                subscriptions.realtimeDenied+=state.realtimeDenied;
+                if(state.subscriptions) {
+                  for(const key of ['known','unknown','matched','unmatched'])subscriptions[key]+=state.subscriptions[key];
+                  subscriptions.labels.push(...state.subscriptions.labels);
+                }
                 if(state.denied) {
                   latch('mutation_blocked');
                   for(const reason of Array.isArray(state.reasons)?state.reasons:['realm_guard_failed'])latch('mutation_blocked',reason);
                 }
-              } catch {}
+              } catch {outcomes.add('teardown_observation_failed');}
             }
             await Promise.all([context.close(),deps.disposeRead?.()]);
             await Promise.allSettled([...active]);
+            teardownComplete=true;
           })(),
           new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('teardown_timeout')),3000);}),
         ]);
-      } catch {latch('read_failed');}
-      finally {clearTimeout(timer);if(deps.firewall)await deps.firewall.close();}
+      } catch {teardownComplete=false;outcomes.add('teardown_failed');latch('read_failed');}
+      finally {
+        clearTimeout(timer);
+        if(deps.firewall) {
+          let firewallTimer;
+          try{await Promise.race([deps.firewall.close(),new Promise((_,reject)=>{firewallTimer=setTimeout(()=>reject(Error('cleanup_timeout')),1000);})]);}
+          catch{teardownComplete=false;outcomes.add('teardown_failed');latch('read_failed');}
+          finally{clearTimeout(firewallTimer);}
+        }
+      }
     },
   };
 }
@@ -178,4 +213,4 @@ async function openGuardedContext(browser,config,deps={}) {
     throw error;
   }
 }
-module.exports={requestPolicy,requestDenialReason,DENIAL_REASONS,installRealmGuard,openGuardedContext,denyProxy};
+module.exports={requestPolicy,requestDenialReason,DENIAL_REASONS,SAFETY_OUTCOMES,installRealmGuard,openGuardedContext,denyProxy};

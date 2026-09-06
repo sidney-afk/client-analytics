@@ -1,0 +1,52 @@
+{
+  "contract": "samples_initial_card_list_v1",
+  "viewEnabled": false,
+  "observeEnabled": false,
+  "drillEnabled": false,
+  "releaseSha": "EXACT_REVIEWED_MONITOR_COMMIT",
+  "pageSourceSha": "EXACT_APPROVED_DOCUMENT_COMMIT",
+  "pageSha256": "SHA256_OF_APPROVED_SERVED_DOCUMENT",
+  "expectedSdkSha256": "SHA256_OF_APPROVED_ACTUAL_CDN_SDK_BYTES",
+  "activatedAt": 0,
+  "censusAuthorityConfirmed": false,
+  "censusReadOnlyRoleConfirmed": false,
+  "outputDirectoryEnv": "SAMPLES_INITIAL_OUTPUT",
+  "backendOriginEnv": "SAMPLES_INITIAL_BACKEND",
+  "fallbackOriginEnv": "SAMPLES_INITIAL_READER_FALLBACK",
+  "censusKeyEnv": "SAMPLES_INITIAL_CENSUS_READ_KEY",
+  "readOriginsEnv": "SAMPLES_INITIAL_READ_ORIGINS_JSON",
+  "samples": {
+    "linkEnv": "SAMPLES_INITIAL_LINK",
+    "scopeEnv": "SAMPLES_INITIAL_SCOPE",
+    "requiredVisibleIdsEnv": "SAMPLES_INITIAL_CANARY_IDS_JSON",
+    "requiredVisibleTitlesEnv": "SAMPLES_INITIAL_CANARY_TITLES_JSON"
+  },
+  "canary": {
+    "approvalId": "FRESH_OWNER_APPROVAL_UUID",
+    "ownerApproved": false,
+    "ownerDesignatedTestScope": false,
+    "approvedAt": 0,
+    "expiresAt": null
+  },
+  "delivery": {
+    "contract": "samples_initial_card_list_v1",
+    "enabled": false,
+    "activation": "OWNER_APPROVED_CONTINUITY_DELIVERY",
+    "recipientConfirmed": false,
+    "independenceConfirmed": false,
+    "primary": {
+      "kind": "relay",
+      "webhookEnv": "SAMPLES_INITIAL_ALERT_RELAY",
+      "baseUrlEnv": "SAMPLES_INITIAL_RELAY_ORIGIN",
+      "apiKeyEnv": "SAMPLES_INITIAL_RELAY_READ_KEY"
+    },
+    "fallback": {
+      "kind": "syncviewbot",
+      "tokenEnv": "SAMPLES_INITIAL_BOT_TOKEN",
+      "dmEnv": "SAMPLES_INITIAL_BOT_DM",
+      "botUserEnv": "SAMPLES_INITIAL_BOT_USER",
+      "ownerUserEnv": "SAMPLES_INITIAL_RECIPIENT",
+      "teamEnv": "SAMPLES_INITIAL_TEAM"
+    }
+  }
+}

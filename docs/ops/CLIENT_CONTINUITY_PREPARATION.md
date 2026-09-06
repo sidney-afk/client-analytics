@@ -266,9 +266,12 @@ incident. Leave deliveryEnabled false after the bounded drill.
 Set private enabled and deliveryEnabled false and stop admissions in this package's
 scheduler. Mark intentional deactivation in its independent observer. Do not stop
 shared watchdogs or relay workflows. Let the bounded read worker exit; if it was
-killed, confirm its process tree has ended before removing only its private
-continuity.lock. Preserve start/terminal/incident receipts. Do not automatically
-clear stale locks, delete directories or erase failures to get a green run.
+killed, follow the [manual lock-quarantine procedure](CLIENT_CONTINUITY_OPERATIONS.md#manual-recovery-of-a-crashed-workers-lock):
+stop all admissions, prove that exact worker and descendants have ended, preserve
+the lock and run/state evidence, and quarantine only the unchanged lock file.
+A PID or age alone is insufficient. Do not automatically clear stale locks,
+delete directories or erase failures to get a green run. Admission recovery
+does not close an orphan terminal or an unresolved notification.
 
 No viewing data rollback is needed. Any later TEST action residue needs a fresh
 explicit cleanup approval, quiescent requests and exact scope/run-owned CAS with

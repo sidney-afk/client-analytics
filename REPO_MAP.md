@@ -162,6 +162,15 @@ Inactive first-Samples-repair monitoring preparation:
 `test/client-continuity-view.js` and `test/helpers/client-continuity-source.js` (census/launcher/source coverage), and
 `docs/ops/CLIENT_CONTINUITY_PREPARATION.md` (activation/recovery requirements).
 
+Separate disabled initial Samples read: `scripts/samples-read-subscriptions.js`
+(exact real-SDK read-subscription attribution), `scripts/samples-initial-read.js`
+(post-teardown initial-only contract), `scripts/samples-initial-read-run.js`
+(private manual launcher, separate receipts/observer/recovery),
+`qa/samples-initial-sdk/package.json` (isolated fixture-only SDK dependency),
+`qa/samples-initial-read.js` and `test/samples-initial-read.js` (real-SDK intercepted
+faults and contract isolation), `docs/ops/SAMPLES_INITIAL_READ.md` and
+`docs/ops/samples-initial-read.example.json` (held activation and private references).
+
 Inactive hosted continuation: `scripts/client-continuity-hosted.js` (view,
 receipt observer, bounded drill and independent-host sentinel commands),
 `scripts/client-continuity-observer.js` (receipt validation and durable alert intent),

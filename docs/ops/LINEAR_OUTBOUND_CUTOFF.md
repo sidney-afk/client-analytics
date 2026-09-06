@@ -27,7 +27,7 @@ A provider response lost after a pre-cutoff authorization is not called success 
 This is **not global Linear cutoff**. The following remain red and must be inventoried and closed before G8:
 
 * provider reads made by `linear-outbound` before mutation construction, including viewer/issue/context reads;
-* the F27 replay/drill RPC and its emergency provider path beyond the ordinary mutation authorization seam;
+* F27 emergency provider replay beyond its retained snapshot, evidence-bound classification, and SQL-only drill terminal; the cutoff permits no ordinary F27 requeue, provider authorization, or provider dispatch;
 * `linear-inbound`, webhook delivery, parity and semantic reconciliation roots;
 * browser calls, retained browser queues, `workload-linear`, other Edge Functions, and any direct provider HTTP path;
 * all n8n schedules/workflows and credentials, GitHub Actions schedulers, provider tokens, account controls, and billing;
@@ -37,7 +37,7 @@ No n8n/workflow/scheduler, credential, runtime flag, F27 fence generation, autho
 
 ## Installation, rehearsal, and recovery dependencies
 
-Installation is held until the exact migration and matching `linear-outbound` source are reviewed, installed/deployed as one release window, source/readback verified, and the existing F27 install/recovery contract is reconciled with the added table, columns, triggers, and changed function dependency. Deploying only the Edge Function fails closed at claim. With SQL installed, the corrected update guard also refuses a fresh lease from the unchanged old direct claimant after cutoff; this bounded control does not make a partial release ready. The new control owner is outside selected37 recovery and must be included in an explicit compatible recovery extension before installation. Source closure pins must be recomputed on the combined release candidate.
+Installation is held until the exact migration and matching `linear-outbound` source are reviewed, installed/deployed as one release window, source/readback verified, and the existing F27 install/recovery contract is reconciled with the added table, columns, triggers, and changed function dependency. Deploying only the Edge Function fails closed at claim. With SQL installed, the corrected update guard also refuses a fresh lease from the unchanged old direct claimant after cutoff; it preserves only F27 snapshot/hold, a transition whose persisted rollback-intent row hash matches the pre-transition queue row, evidence-bound classification, and the existing drill's `no_external_call` terminal. It does not admit ordinary F27 requeue or emergency provider replay. This bounded control does not make a partial release ready. The new control owner is outside selected37 recovery and must be included in an explicit compatible recovery extension before installation. Source closure pins must be recomputed on the combined release candidate.
 
 The primitive starts inactive (`cutoff_enabled=false`, generation zero). There is intentionally no public or automatic re-enable RPC. Recovery must first reconcile every `authorized_before_cutoff` row against provider truth and classify every `accepted_after_cutoff` receipt without deleting it or manufacturing success. A later reviewed recovery delta may advance from an exact generation only after that debt manifest and compatible accepted-work rollback exist.
 

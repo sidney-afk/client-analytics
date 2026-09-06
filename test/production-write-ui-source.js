@@ -272,10 +272,10 @@ ok(/const verificationEpoch = _syncviewStaffVerificationEpoch/.test(extract('_pr
 ok(/_prodState\.writes\.has\(id \+ ':labels'\)/.test(extract('_prodEnsureLabels'))
   && /_prodState\.labels = new Map\(\[\.\.\._prodState\.labels\]\.filter/.test(extract('_prodRefresh')),
 'Production refreshes preserve a pending label write and do not race it with an older protected read');
-ok(/_prodGatewayWrite\(issue, 'labels', \{ label_ids: labelIds \}\)/.test(source)
-  && /payload\.expected_updated_at = issue\.updatedRaw/.test(source)
+ok(/_prodGatewayWrite\(issue, 'labels', \{ label_ids: labelIds,\s*\.\.\.\(state\.catalogVersion \? \{ catalog_version: state\.catalogVersion \} : \{\}\) \}\)/.test(extract('_prodRunLabelsWrite'))
+  && /payload\.expected_updated_at = issue\.updatedRaw/.test(extract('_prodGatewayWrite'))
   && /_prodWriteRequestId\(operation\)/.test(extract('_prodGatewayWrite')),
-'label toggles send one full selected-id set through the existing CAS/idempotency envelope');
+'label toggles send one full selected-id set and the available native catalog version through the existing CAS/idempotency envelope');
 ok(/data-prod-label-search-input/.test(source)
   && /role="checkbox"/.test(source)
   && /_prodLabelColorStyle\(label\)/.test(source)
@@ -535,6 +535,53 @@ ok(/_prodWriteGateAttrs\(issue, 'status'/.test(extract('_prodStatusIcon'))
 'status icons and detail properties reuse the shared write-gate attribute helper');
 
 (async () => {
+  // Run the actual label writer AND authenticated gateway payload constructor.
+  // Only transport/render/identity providers are synthetic; no network or SQL.
+  for (const [lane, catalogVersion, labelIds] of [
+    ['native selection', '00000000-0000-4000-8000-000000000701', ['label-one', 'label-two']],
+    ['native clear', '00000000-0000-4000-8000-000000000701', []],
+    ['provider selection', '', ['label-one', 'label-two']],
+    ['provider clear', '', []],
+  ]) {
+    const requests = []; const adopted = [];
+    const issue = { id: 'synthetic-issue', authorityProject: 'synthetic-scope', updatedRaw: '2026-09-06T12:00:00Z' };
+    const state = { status: 'ready', saving: false, catalogVersion, catalog: [] };
+    const writes = new Map(); const labelRequestTokens = new Map(); let identities = 0;
+    const labelsContext = {
+      Map, Date, String, Object, Error, JSON,
+      _prodState: { writes, labels: new Map([[issue.id, state]]), labelRequestTokens },
+      _prodIssue: () => issue, _prodLabelState: () => state, _prodCanWrite: () => true,
+      _syncviewStaffIdentityForHeaders: () => ({ key: 'synthetic-staff' }),
+      _syncviewStaffIdentitySignature: identity => identity.key, _syncviewStaffVerificationEpoch: 1,
+      _prodNextLabelRequestToken: id => { const value = (labelRequestTokens.get(id) || 0) + 1; labelRequestTokens.set(id, value); return value; },
+      _prodWriteRequestId: operation => { identities++; return 'intent:' + operation; },
+      _prodRefreshLabelSurfaces: () => {}, _prodRender: () => {}, _prodToast: () => {},
+      _prodApplyGatewayRow: () => {}, _prodAdoptLabelPayload: (id, payload) => adopted.push({ id, payload }),
+      _prodEnsureLabels: () => { throw new Error('successful fixture must not require recovery'); },
+      _prodWriteErrorText: () => 'unexpected-fixture-refusal',
+      _syncviewEfHeaders: headers => ({ ...headers, 'X-Syncview-Key': 'synthetic-staff' }),
+      PROD_WRITE_EF_URL: 'https://synthetic.invalid/production-write', CAL_SUPABASE_ANON_KEY: 'synthetic-public-key',
+      document: { getElementById: () => null },
+      fetch: async (url, init) => {
+        requests.push({ url, ...init, body: JSON.parse(init.body) });
+        return { ok: true, status: 200, json: async () => ({ ok: true, native_committed: true, row: { id: issue.id } }) };
+      },
+    };
+    vm.createContext(labelsContext);
+    vm.runInContext('async ' + extract('_prodGatewayWrite') + '\nasync ' + extract('_prodRunLabelsWrite'), labelsContext);
+    await labelsContext._prodRunLabelsWrite(issue.id, labelIds);
+    const request = requests[0]; const payload = request && request.body;
+    ok(requests.length === 1 && request.url === labelsContext.PROD_WRITE_EF_URL
+      && request.method === 'POST' && request.headers['X-Syncview-Key'] === 'synthetic-staff'
+      && payload.operation === 'labels' && payload.surface === 'production' && payload.entity === 'deliverable'
+      && payload.id === issue.id && payload.client_slug === issue.authorityProject
+      && JSON.stringify(payload.label_ids) === JSON.stringify(labelIds)
+      && (catalogVersion ? payload.catalog_version === catalogVersion : !Object.hasOwn(payload, 'catalog_version'))
+      && payload.expected_updated_at === issue.updatedRaw && payload.request_id === 'intent:labels'
+      && Number.isFinite(Date.parse(payload.source_edited_at)) && identities === 1
+      && adopted.length === 1 && writes.size === 0,
+    lane + ' sends exact complete selection/catalog/CAS/intent through one authenticated gateway request');
+  }
   const draft = {
     action: 'edit',
     commentId: 'comment-fixture',

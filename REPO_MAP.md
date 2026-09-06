@@ -68,6 +68,10 @@ Native Create Post editor projection (stacked on PR1309):
 `test/native-intake-editor-projection.js`, `test/native-intake-editor-browser.js`,
 and `docs/audits/2026-09-05-native-intake-editor-projection.md`.
 Staff-only read; no new migration, flag, public roster or existing-work picker change.
+The integrated picker source test also pins the sole accepted-routing response
+addition and retains exact historical intake/assignment boundaries. Native label
+payload/CAS/intent checks are in `test/production-write-ui-source.js`, with proof
+scope documented in `qa/native-label-catalog/README.md`.
 
 Native assignee eligibility draft (on PR1302): `scripts/native-intake-manifest/assignee-lane.mjs`
 (real-handler assignment journeys, denied provider transport, PR1302-head negative control),

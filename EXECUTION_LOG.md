@@ -1,5 +1,9 @@
 # SyncView Independence Execution Log
 
+## 2026-09-06 ? Cloud native-label proposal corrected
+
+Preserved892894 on exact8514. Actual controls reproduce its native-only read blocker, malformed flag provider fallback and accepted replay/CAS failure. Corrected source adds strict catalog policy plus atomic version-bound native saves/retained receipts with original identities.40 actual handler/SQL groups and44 offline handler/browser-source controls PASS; limits and selected37 installation hold are in [evidence](docs/audits/2026-09-06-native-label-writes.md). No production action. The next Sept6 section is the historical cloud proposal, not the accepted current contract.
+
 All times are UTC unless noted.
 
 ## 2026-09-06 — Native card HTTP source adapter, uninstalled
@@ -19,6 +23,16 @@ before success. Unknown acceptance remains 503 with unknown conservation.
 HTTP/SQL evidence is separate and pending at this checkpoint. No SQL, corpus,
 browser, workflow, deployment or n8n changes. Automatic creation remains held;
 see [the scoped evidence and rollout limits](docs/audits/2026-09-06-native-card-http-adapter.md).
+
+## 2026-09-06 — Bounded native label read/validation prerequisite (source only)
+
+Started from exact integration head `8514a83ed1a65145a3a51ffe52e5fcbb2976be31` and reused dormant label owner `f0e77a47a1e26a1e2a97b514ee06cec824c31b90`. The actual Production handlers now have a default-disabled, exact-version native catalog read/validation path. Admitted native requests require independently verified completeness, make zero attempted Linear calls, and fail visibly for missing truth; writes stop at an explicit installation hold before receipt/event/outbox/mutation. Provider behavior and accepted receipt replay remain intact. Current SQL still reports completeness unverified and selected37 still excludes the owner, so installation/activation is red. Remote main `3f3875964` drift was recorded but not merged/rebased. No live/TEST, deployment, SQL apply, n8n, flag, credential, provider, alert, billing or watcher action occurred.
+
+## 2026-09-05 — Dormant native label catalog owner, local source only
+
+Pinned fresh remote main `ab6366136c03239965c97b050ab5cf7c9763a228`. Actual source tracing found complete per-row selections but no complete native catalog owner. Added one private immutable catalog-version table, strict full-manifest staging and validation-only RPCs. Active reads/activation always refuse, including service callers; original gateway/browser/frozen writers, authority/F27, fingerprints/events/outboxes and provider behavior are unchanged. The closed fresh-create catalog call is dead; protected `create_options` remains reachable. See [the contract and exact new recovery inventory](docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md).
+
+Local disposable PostgreSQL: 48 checks PASS (two real teams, global/foreign/group/archive rules, cursor/count/metadata refusal, known empty, exact/concurrent immutable replay, invalid-stage no-residue, read/direct-write privilege denials, held activation). Actual unchanged HTTP gateway: 20 checks PASS with provider transport synthetic/refused and an explicit in-process mutation RPC model. Fresh label read/write still fail when Linear is denied; that red independence gate is preserved. No live/TEST/provider API, schema apply, deployment, flags, exports, alert or billing action occurred. Installing this table is held until separately versioned private schema/data/restore coverage includes it; history-v5's existing 33-table claim is not expanded. No native label write, complete import attestation, native activation or production readiness is claimed.
 
 ## 2026-09-06 — Canonical37 schema reconstruction and outcome correction
 

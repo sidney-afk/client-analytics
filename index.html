@@ -26727,7 +26727,7 @@
         add('access', [
             'operation_forbidden', 'comment_forbidden', 'comment_parent_forbidden',
             'client_scope_mismatch', 'client_inactive', 'asset_scope_forbidden',
-            'assignee_scope_forbidden', 'assignment_scope_forbidden', 'description_scope_forbidden',
+            'assignee_scope_forbidden', 'assignment_scope_forbidden', 'description_scope_forbidden', 'native_label_scope_forbidden',
             'skip_graphic_generation_forbidden', 'test_client_scope_required',
             'test_project_scope_required', 'test_scope_service_only'
         ]);
@@ -26739,7 +26739,8 @@
             'intake_assignee_override_not_allowed', 'label_not_applicable',
             'label_selection_out_of_catalog', 'production_create_batch_scope',
             'production_create_parent_nested', 'production_create_parent_route',
-            'production_create_parent_scope', 'production_create_closed'
+            'production_create_parent_scope', 'production_create_closed',
+            'native_label_catalog_held', 'native_label_catalog_unverified', 'native_label_catalog_config_invalid'
         ]);
         // Someone else won the race.
         add('conflict', [
@@ -26764,7 +26765,7 @@
             'component_fill_sort_mismatch', 'component_fill_card_missing',
             'source_repair_receipt_required', 'status_commit_required',
             'create_parent_not_found', 'batch_parent_mapping_missing',
-            'batch_parent_mapping_ambiguous', 'native_label_state_incomplete'
+            'batch_parent_mapping_ambiguous', 'native_label_state_incomplete', 'native_label_catalog_changed'
         ]);
         // The local repair journal for this write does not line up.
         add('repair', [
@@ -26807,7 +26808,8 @@
             'graphics_default_assignee_unavailable', 'create_parent_lookup_unavailable',
             'create_replay_lookup_unavailable', 'graphic_generation_unavailable',
             'graphic_generation_failed', 'label_catalog_unavailable',
-            'label_catalog_incomplete', 'label_selection_incomplete'
+            'label_catalog_incomplete', 'label_selection_incomplete',
+            'native_label_catalog_config_unavailable', 'native_label_catalog_unavailable', 'native_label_catalog_malformed'
         ]);
         // A payload this UI built, which the gateway will reject every time.
         add('bug', [
@@ -50161,6 +50163,7 @@
                 status: 'ready',
                 complete: true,
                 authority: payload && payload.authority || '',
+                catalogVersion: typeof (payload && payload.catalog_version) === 'string' ? payload.catalog_version : '',
                 catalog: [...allById.values()],
                 selectedIds,
                 selected,
@@ -50172,6 +50175,8 @@
         }
         function _prodLabelErrorText(error) {
             const code = String(error && (error.code || error.message) || '');
+            if (code === 'native_label_catalog_changed') return 'The label catalog changed. Reload labels before saving again.';
+            if (code.indexOf('native_label_catalog_') === 0) return 'The native label catalog is unavailable or held. No provider fallback was attempted. Ask the owner to verify its import and release state.';
             if (error && error.status === 401) return 'Staff sign-in expired. Sign in again to load labels.';
             if (error && error.status === 403) return 'This staff account cannot read labels for this issue.';
             if (code === 'incomplete_label_state' || code === 'labels_incomplete') return 'Linear returned an incomplete label catalog. Nothing was changed.';
@@ -55034,7 +55039,8 @@
             state.writeError = '';
             _prodRefreshLabelSurfaces(id);
             try {
-                const json = await _prodGatewayWrite(issue, 'labels', { label_ids: labelIds });
+                const json = await _prodGatewayWrite(issue, 'labels', { label_ids: labelIds,
+                    ...(state.catalogVersion ? { catalog_version: state.catalogVersion } : {}) });
                 if (!json) {
                     if (!identityStillCurrent()) return;
                     const current = _prodLabelState(id) || state;

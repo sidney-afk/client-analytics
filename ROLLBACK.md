@@ -8,6 +8,20 @@ Do not deploy repository auth gates onto frozen anonymous serving writers.
 Both n8n bypasses require their separate owner-approved amendment and rollback
 proof; see [the held adapter boundary](docs/audits/2026-09-06-native-card-http-adapter.md).
 
+## 2026-09-06 ? Native-label accepted-work containment (uninstalled)
+
+After any future native acceptance, hold fresh labels with the compatible mode:hold gateway; preserve exact replay, all catalog/attestation rows, receipts and journal. Never remove the flag to mimic pre-install absence, requeue skipped native receipts, disable guards or redeploy a gateway treating native work as provider debt. Returning to provider needs separate reviewed reconciliation. Selected37 excludes this owner/guards, so install remains held. [Ordered gates](docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md#ordered-installation-and-rollback-holds). The next Sept6 paragraph is the superseded cloud proposal, including its no-native-acceptance claim.
+
+## 2026-09-06 — Native label G2 handler prerequisite (unserved/default-disabled)
+
+Containment is the default: leave `production_native_label_catalog` absent/disabled and provider-era behavior remains selected. If later served source must be withdrawn, disable that capability value; do not delete immutable catalog evidence or accepted provider-era receipts/outboxes. Native writes are deliberately held before mutation, so this slice creates no native accepted work to reverse. Installation remains forbidden until authenticated schema recovery and an explicit versioned data-corpus extension cover the catalog owner and the future accepted-receipt boundary.
+
+## 2026-09-05 — Dormant native label catalog foundation (unapplied)
+
+The baseline is `ab6366136c03239965c97b050ab5cf7c9763a228`; this slice does not change browser/gateway/active writer bytes. Local containment is to leave the new migration unapplied and its RPCs uncalled. No client-facing rollback, flag or deploy is needed. If a later authorized install has staged evidence, retain the additive catalog table, all versions, immutable triggers and private ACLs; stop future callers instead of deleting, truncating or replacing its contents. Service activation/active-read functions always refuse. Do not restore a provider-blind write lane or disable an existing writer to roll this foundation back.
+
+Installation itself remains held until the [new object inventory](docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md#complete-new-recovery-object-inventory) is included in authenticated schema capture, a separately versioned private data corpus, and a narrowly owned restore helper with exact retained-data proof. Current history-v5's 33-table package excludes it; ordinary restore TRUNCATE must not bypass the new immutable triggers or use CASCADE. No live restore point or installed rollback is asserted by local SQL tests. The single go-live checklist continues to own product release ordering.
+
 **Selected37 schema recovery, unapplied:** retain authenticated packages and
 current/historical rows. Retry a failed reconstruction in place only when all
 public relation, function and type counters prove the target was and remains

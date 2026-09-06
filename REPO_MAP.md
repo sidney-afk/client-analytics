@@ -1,5 +1,9 @@
 # Repo map
 
+**Native labels Sept6 (uninstalled):** `migrations/2026-09-06-native-label-writes.sql` extends the one immutable catalog owner with operator attestation, capability and atomic native receipts. Actual rehearsal: `qa/native-label-catalog/write-proof.mjs`; source/proof: `docs/audits/2026-09-06-native-label-writes.md` and `docs/audits/2026-09-06-native-label-writes.json`. Browser forwards catalog version; anonymous frozen writers unchanged; selected37 excludes this owner. Sept5 inventory below is historical.
+
+**Dormant native labels (2026-09-05):** `migrations/2026-09-05-native-label-catalog-foundation.sql` owns the single service-only immutable staged catalog and validation RPCs; activation remains structurally held. Contract/recovery inventory: `docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md`. Local proof: `qa/native-label-catalog/README.md`, `qa/native-label-catalog/sql-proof.js`, `qa/native-label-catalog/handler-proof.mjs`, `test/native-label-catalog-foundation.js`; immutable snapshot: `docs/audits/2026-09-05-native-label-catalog-foundation.md`. No active gateway/browser/flags/receipts changed; current 33-table history corpus coverage is explicitly insufficient for installing this new owner.
+
 The one-page guide to where everything lives. **This file is enforced**: the
 offline unit suite (`test/repo-map-sync.js`, run by `npm test` and by CI on
 every push) fails if a top-level path or `docs/` subdirectory is added,

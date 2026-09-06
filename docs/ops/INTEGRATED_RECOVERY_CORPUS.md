@@ -1,5 +1,7 @@
 # Integrated recovery data corpus (local, held)
 
+September6 successor: [explicit history-v8](RECOVERY_SCHEMA_V8.md) adds the separately retained catalog and cutoff owners with20 local schema/data/replay groups across39 tables. Older formats and their dated evidence below retain their exact scope. No scheduled format, installed state or release gate changes automatically.
+
 Base integration: `6b306f473524b8f4759d6f03f09df45e8ba0aaf7`. The independent review found that card provenance and Calendar feedback materialization receipts have no foreign keys and were outside history-v5. Its FK preflight therefore could not detect their omission. Restoring source cards without their recovery evidence can change whether a deleted, cleared or already-materialized action is considered owed.
 
 The additive `history-v6` package contains the existing v5's exact33 tables plus `production_card_provenance` (identity id) and `calendar_feedback_materializations` (attempt_key): **35 tables**. It has its own authenticated magic/version/corpus and scratch trigger helper. v3/v4/v5 remain readable with their original14/21/33 meanings. Old restore plans now refuse a target containing either FK-free recovery table before disabling triggers or truncating data; v5 export preflight also refuses this known incomplete scope. The scheduled default remains legacy-v3. No configuration or live backup was changed.

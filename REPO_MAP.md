@@ -394,4 +394,6 @@ The separately reviewed lexer correction is preserved in `test/track-b-recovery-
 
 `test/track-b-recovery-empty-target.js` checks actual outcome-module empty-target and retry guidance against all public object categories, with intercepted SQL.
 
+Explicit catalog/cutoff recovery: `docs/ops/RECOVERY_SCHEMA_V8.md`, `docs/audits/2026-09-06-native-recovery-v8-evidence.json`, and `scripts/track-b-history-v8-backup-prerequisites.sql` cover the39-owner successor while preserving prior formats/defaults. The shared schema rehearsal selects v8 explicitly and separately exercises its data-role grants and trigger helper.
+
 Bounded G8 outbound prerequisite: `migrations/2026-09-06-linear-outbound-cutoff.sql`, `supabase/functions/linear-outbound/index.ts`, `scripts/linear-outbound-cutoff-rehearsal.js`, `scripts/linear-outbound-cutoff-lane.mjs`, `test/linear-outbound-cutoff.js`, and `docs/ops/LINEAR_OUTBOUND_CUTOFF.md` add/test an inactive server generation/high-water gate for the ordinary `mirror_outbox` claim and provider-mutation lane. It preserves pending accepted receipts and explicitly leaves inbound, reconciliation, browser, n8n, F27 emergency, credentials, provider reads, installation and serving red.

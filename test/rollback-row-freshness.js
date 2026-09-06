@@ -2423,6 +2423,38 @@ ok(validationHeadingRun.code === 1 && validationHeadingRun.json
     && /34000000000/.test(JSON.stringify(validationHeadingRun.json.failures)),
     'AND A VALIDATION IS A CHECK TOO: "Deployment validation run `X`" is not an anchor, so the table below it takes the parent deploy heading\'s run');
 
+/* ---- 8bb. any other-attempt label; test-led checks (round 53) ---- */
+const retryClaim = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current attempt failed, while the retry deployed nothing.',
+    '',
+].join('\n');
+const retryClaimRun = run(fixture('retry-claim', appended(retryClaim), realRb));
+ok(retryClaimRun.code === 1 && retryClaimRun.json
+    && retryClaimRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'ANY OTHER-ATTEMPT LABEL COUNTS, NOT A CHOSEN FEW: "while the retry deployed nothing" is the retry\'s evidence, so the current failure is still asked for its receipt');
+
+const testLedHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '### Test the deployment — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const testLedHeadingRun = run(fixture('test-led-heading', appended(testLedHeading), realRb));
+ok(testLedHeadingRun.code === 1 && testLedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(testLedHeadingRun.json.failures)),
+    'AND A TEST-LED CHECK IS A CHECK: "Test the deployment — run `X`" is not an anchor, so the readback below it takes the parent deploy heading\'s run');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

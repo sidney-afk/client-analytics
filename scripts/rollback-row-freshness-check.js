@@ -234,7 +234,7 @@ function deployAnchors(log) {
             .replace(/\b(?:verification|validation|readback|read-back|audit|smoke test|probe|drill|rehearsal)\s+of\s+(?:the\s+)?deploy(?:ment)?\b/gi, ' verification ')
             /* And the verb-led form of the same phrase: "Verify deployment run
                `X`" is a check, not a deploy (Codex, fifty-first round). */
-            .replace(/\b(?:verify|verifying|verified|validate|validating|validated|check|checking|checked|re-?check(?:ing|ed)?|audit|auditing|smoke[- ]?test(?:ing|ed)?|probe|probing|read[- ]?back)\s+(?:the\s+|this\s+)?deploy(?:ment)?\b/gi, ' verification ');
+            .replace(/\b(?:verify|verifying|verified|validate|validating|validated|test|testing|tested|re-?test(?:ing|ed)?|check|checking|checked|re-?check(?:ing|ed)?|audit|auditing|smoke[- ]?test(?:ing|ed)?|probe|probing|read[- ]?back)\s+(?:the\s+|this\s+)?deploy(?:ment)?\b/gi, ' verification ');
         if (otherActivity.test(named) && !/\bdeploy/i.test(named)) continue;
         out.push({ at: m.index, run: m[1] });
     }
@@ -1243,13 +1243,14 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            older sentence as its own proof (Codex, forty-ninth round on #1306),
            so a claim is read only where it names this heading's run or names
            no run at all. */
-        const nothingShipped = entryText.split(/(?<=[.!?])\s|\n{2,}/).some(sentence => {
+        const nothingShipped = entryText.split(/(?<=[.!?])\s|\n{2,}|,\s*(?:while|whereas|although|though|but)\s/).some(sentence => {
             if (!NOTHING_HERE.test(sentence)) return false;
             /* Naming no run is not the same as describing this one: "The
                previous attempt deployed nothing" is another attempt's evidence
                whether or not it carries a run id (Codex, fifty-second round on
                #1306). */
-            if (/\b(?:previous|earlier|prior|first|last|original|preceding|failed|aborted)\s+(?:attempt|run|dispatch|try|job)\b/i.test(sentence)
+            const OTHER_LABEL = /\b(?:previous|earlier|prior|first|second|third|last|original|preceding|failed|aborted|repeat|another|other|subsequent|later|initial)\s+(?:attempt|run|dispatch|try|job)\b|\b(?:retry|re-?run|redo)\b/i;
+            if (OTHER_LABEL.test(sentence)
                 && !new RegExp('\\b(?:this|the current|current)\\s+(?:attempt|run)\\b', 'i').test(sentence)) {
                 const named = (sentence.match(/\brun\s+`?#?(\d{6,})`?/) || [])[1] || '';
                 if (!named || (headRunEarly && named !== headRunEarly)) return false;

@@ -158,17 +158,24 @@ function main() {
   }
 }
 
+function failureResponse(error) {
+  const outcome = error.outcome || 'failed';
+  const retryEmpty = outcome === OUTCOMES.ROLLED_BACK && error.receipt && error.receipt.retry_in_place_allowed === true;
+  return { ok: false, outcome, stage: error.stage || null, message: error.message,
+    quarantine_required: outcome === OUTCOMES.COMMITTED_UNVERIFIED,
+    operator_action: outcome === OUTCOMES.COMMITTED_UNVERIFIED
+      ? 'target may hold committed data: quarantine it and use a FRESH empty target after review; deleting the package is not a database rollback'
+      : retryEmpty ? 'transaction rollback and empty target confirmed: the same empty target may be retried'
+        : outcome === OUTCOMES.ROLLED_BACK ? 'attempt rolled back; retry in place is not authorized by this receipt: review target state and prerequisites'
+          : 'validation failed or target outcome is unverified: review the failure and prerequisites; no rollback or retry-in-place claim is established',
+    diagnostic_file: (error.receipt && error.receipt.diagnostic_file) || null };
+}
+
 if (require.main === module) {
   try { main(); } catch (error) {
-    const outcome = error.outcome || 'failed';
-    console.error(JSON.stringify({ ok: false, outcome, stage: error.stage || null, message: error.message,
-      quarantine_required: outcome === OUTCOMES.COMMITTED_UNVERIFIED,
-      operator_action: outcome === OUTCOMES.COMMITTED_UNVERIFIED
-        ? 'target holds committed data: quarantine it, retry on a FRESH empty target; deleting the package is not a database rollback'
-        : 'transaction rolled back: the same empty target may be retried',
-      diagnostic_file: (error.receipt && error.receipt.diagnostic_file) || null }));
+    console.error(JSON.stringify(failureResponse(error)));
     process.exitCode = 1;
   }
 }
 
-module.exports = { OUTCOMES, assertRecoveryTarget, observeTargetState, reconstruct };
+module.exports = { OUTCOMES, assertRecoveryTarget, observeTargetState, reconstruct, failureResponse };

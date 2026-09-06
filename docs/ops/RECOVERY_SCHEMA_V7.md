@@ -11,9 +11,13 @@ and staged label expansion are deliberately not integrated.
 ## Exact source boundary
 
 `track-b-recovery-package.js`, `track-b-recovery-reconstruct.js`, and
-`track-b-recovery-prerequisites.sql` initially retain fa4 bytes. The separately
-reviewed callable lexer correction must be integrated before any real capture
-rehearsal can close the known lexical safety finding. No application, Edge
+`track-b-recovery-prerequisites.sql` initially retained fa4 bytes in
+`b554db97a155b0ef2adec68a28f1fa1a659c6344`. The follow-up imports the exact reviewed
+lexer from `33e0f576e40d61fabd8d4283fb0e9f11cfdf29b4` (engine SHA-256
+`b86ecbfc52cc47e3e2981c170674963cd88c4e595ab66cd9b34f882ae456aff8`). It also limits
+CLI failure guidance: validation failures no longer claim a rollback, and
+retry-in-place guidance requires an observed empty-target rollback receipt.
+The reconstruction core remains unchanged. No application, Edge
 Function, migration, runtime flag, backup schedule, or existing data-restore
 implementation changes in this preparation. The frozen anonymous client writers
 and every existing accepted receipt remain untouched.
@@ -43,8 +47,8 @@ node test/track-b-backup-integrated-corpus.js
 node test/track-b-backup-corpus.js
 ```
 
-This preparation passed **18 package, 6 local-target/launch-adapter, 21 existing
-v3-v7 corpus and 33 existing v3-v4 groups**. These are offline/synthetic package
+This preparation passed **18 package, 8 local-target/launch/CLI groups, 33 lexer,
+21 existing v3-v7 corpus and 33 existing v3-v4 groups**. These are offline/synthetic package
 checks. The first new corpus assertion incorrectly assumed old COPY order was
 a prefix; v5 intentionally places referenced owners first. It was corrected to
 verify every retained table's exact primary-key/identity metadata and independently
@@ -80,7 +84,7 @@ do not prove this combination. There is no current authenticated-schema PASS,
 capture approval, installed-role evidence, restore-duration result, retention
 duration proof, or recovery activation claim.
 
-## Next isolated run, after lexical correction and source review
+## Next isolated run, after combined source review
 
 Use an already running, privately owned disposable PostgreSQL server with
 password authentication. The script never manages a server and never drops a
@@ -91,7 +95,9 @@ database. Set all of these explicitly:
   `TRACK_B_RECOVERY_TEST_PGPORT`
 - `TRACK_B_RECOVERY_TEST_PGUSER` and `TRACK_B_RECOVERY_TEST_PGPASSWORD`
 - Absolute executable paths `TRACK_B_RECOVERY_TEST_PSQL` and
-  `TRACK_B_RECOVERY_TEST_PG_DUMP` (use the already reviewed PostgreSQL 17 clients)
+  `TRACK_B_RECOVERY_TEST_PG_DUMP`; record the actual client/server versions.
+  The prior local 12-group data proof used PostgreSQL 16 tools; the dedicated CI
+  lane selects PostgreSQL 17 clients. Neither version is inferred for a new run.
 - Absolute `TRACK_B_RECOVERY_TEST_OUTPUT` outside the repository
 
 Run `node scripts/track-b-recovery-rehearsal.js`. Missing configuration fails;

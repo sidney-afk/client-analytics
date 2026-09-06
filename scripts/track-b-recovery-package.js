@@ -193,7 +193,10 @@ function splitSqlStatements(text) {
 
 function stripDollarQuoted(text) {
   const bodies = [];
-  const stripped = text.replace(/\$([A-Za-z_][A-Za-z0-9_]*)?\$[\s\S]*?\$\1\$/g, match => { bodies.push(match); return '$BODY$'; });
+  const stripped = sqlTokens(text).map(token => {
+    if (token.kind !== 'dollar') return token.raw;
+    bodies.push(token.raw); return '$BODY$';
+  }).join('');
   return { stripped, bodies };
 }
 
@@ -205,33 +208,86 @@ function normalizeRoleList(tail) {
 // Callable references: names that precede "(" in SQL text, minus strings,
 // comments and known keywords. Used identically at capture and read time.
 // ---------------------------------------------------------------------------
-// PostgreSQL block comments NEST, so a non-greedy /* ... */ regex stops at the
-// first inner terminator and leaves comment text behind as if it were code
-// (OPEN_REPAIRS 145 is the same mistake). Scan with a depth counter instead.
-function stripBlockComments(text, replacement = ' ') {
-  const source = String(text || '');
-  let out = ''; let i = 0; let depth = 0;
+// One lexical pass: comment markers have no meaning inside strings/quoted
+// identifiers, and dollar quotes inside a string/comment are not a function
+// body. Keep executable identifiers distinct from literal text. This is a
+// bounded lexer, not a SQL grammar or an independent execution-safety proof.
+function sqlTokens(text) {
+  const source = String(text || ''); const tokens = []; let i = 0;
+  const add = (kind, start, value, extra = {}) => tokens.push({ kind, raw: source.slice(start, i), value, ...extra });
   while (i < source.length) {
-    if (source.startsWith('/*', i)) { depth += 1; i += 2; continue; }
-    if (depth > 0 && source.startsWith('*/', i)) { depth -= 1; i += 2; if (depth === 0) out += replacement; continue; }
-    if (depth === 0) out += source[i];
-    i += 1;
+    const start = i; const ch = source[i];
+    if (/\s/.test(ch)) { while (i < source.length && /\s/.test(source[i])) i += 1; add('space', start); continue; }
+    if (source.startsWith('--', i)) { const end = source.indexOf('\n', i); i = end < 0 ? source.length : end; add('line_comment', start); continue; }
+    if (source.startsWith('/*', i)) {
+      let depth = 1; i += 2;
+      while (i < source.length && depth) {
+        if (source.startsWith('/*', i)) { depth += 1; i += 2; }
+        else if (source.startsWith('*/', i)) { depth -= 1; i += 2; }
+        else i += 1;
+      }
+      if (depth) throw new Error('Unterminated SQL block comment in callable contract');
+      add('block_comment', start); continue;
+    }
+    const quotedPrefix = source.slice(i).match(/^(?:[eEbBxXnN](?=')|[uU]&(?=['"]))/);
+    if (ch === "'" || ch === '"' || quotedPrefix) {
+      const lead = quotedPrefix ? quotedPrefix[0] : ''; i += lead.length;
+      const quote = source[i++]; const escaped = /^[eE]$/.test(lead); let value = ''; let closed = false; let slashes = 0;
+      while (i < source.length) {
+        const c = source[i];
+        if (escaped && c === '\\') { if (i + 1 >= source.length) break; value += source.slice(i, i + 2); i += 2; continue; }
+        if (c === quote) {
+          // A non-E string with an odd backslash run before a quote depends on
+          // standard_conforming_strings. Never guess that ambiguity away.
+          if (quote === "'" && !escaped && slashes % 2) throw new Error('Ambiguous non-E SQL string escape in callable contract');
+          if (source[i + 1] === quote) { value += quote; i += 2; slashes = 0; continue; }
+          i += 1; closed = true; break;
+        }
+        value += c; slashes = c === '\\' ? slashes + 1 : 0; i += 1;
+      }
+      if (!closed) throw new Error('Unterminated SQL quoted token in callable contract');
+      add(quote === '"' ? 'identifier' : 'string', start, value, { unicodeEscaped: /^[uU]&$/.test(lead) }); continue;
+    }
+    if (ch === '$') {
+      const match = source.slice(i).match(/^\$(?:[A-Za-z_\u0080-\uffff][A-Za-z0-9_\u0080-\uffff]*)?\$/);
+      if (match) {
+        const tag = match[0]; const end = source.indexOf(tag, i + tag.length);
+        if (end < 0) throw new Error('Unterminated SQL dollar quote in callable contract');
+        const value = source.slice(i + tag.length, end); i = end + tag.length; add('dollar', start, value); continue;
+      }
+    }
+    const word = source.slice(i).match(/^[A-Za-z_\u0080-\uffff][A-Za-z0-9_$\u0080-\uffff]*/);
+    if (word) { i += word[0].length; add('word', start, word[0].toLowerCase()); continue; }
+    i += 1; add('symbol', start, ch);
   }
-  // An unterminated block comment swallows the rest, exactly as the server does.
-  return out;
+  return tokens;
+}
+
+function stripBlockComments(text, replacement = ' ') {
+  return sqlTokens(text).map(token => token.kind === 'block_comment' ? replacement : token.raw).join('');
 }
 
 function stripSqlNoise(text) {
-  return stripBlockComments(String(text || '')).replace(/'(?:[^']|'')*'/g, "''").replace(/--[^\n]*/g, ' ').replace(/"[^"]*"/g, ' q ');
+  return sqlTokens(text).map(token => ['space', 'word', 'symbol'].includes(token.kind) ? token.raw : ' ').join('');
 }
 
 function callNamesIn(text) {
   const names = new Set();
-  for (const match of stripSqlNoise(text).matchAll(/\b([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)\s*\(/gi)) {
-    const name = match[1].toLowerCase();
-    const bare = name.includes('.') ? name.split('.')[1] : name;
-    if (!name.includes('.') && SQL_CALL_KEYWORDS.has(bare)) continue;
-    names.add(name);
+  const tokens = sqlTokens(text).filter(token => !['space', 'line_comment', 'block_comment'].includes(token.kind));
+  const identifier = token => token && ['word', 'identifier'].includes(token.kind);
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (!identifier(tokens[i]) || tokens[i - 1]?.value === '.') continue;
+    const parts = [tokens[i]]; let end = i + 1;
+    while (tokens[end]?.value === '.' && identifier(tokens[end + 1])) { parts.push(tokens[end + 1]); end += 2; }
+    if (tokens[end]?.kind !== 'symbol' || tokens[end].value !== '(') continue;
+    if (parts.length > 2 || parts.some(part => part.unicodeEscaped || !/^[a-z_][a-z0-9_]{0,62}$/.test(part.value))) {
+      throw new Error('Unsupported callable identifier in Track-B recovery contract');
+    }
+    const name = parts.map(part => part.value).join('.');
+    // Quoted identifiers remain callable even when their spelling is a SQL
+    // keyword. lower/upper are actual functions, not grammar constructs.
+    if (parts.length === 1 && parts[0].kind === 'word' && SQL_CALL_KEYWORDS.has(name) && !['lower', 'upper'].includes(name)) continue;
+    names.add(name); i = end - 1;
   }
   return names;
 }
@@ -261,17 +317,19 @@ function evaluatedExpressionTexts(statements) {
 
 // Purity contract for a public function an expression may execute.
 function functionPurity(statementText) {
-  const { stripped, bodies } = stripDollarQuoted(statementText);
-  const head = stripped.replace(/\s+/g, ' ');
+  const tokens = sqlTokens(statementText);
+  const headTokens = tokens.map(token => token.kind === 'dollar' ? { kind: 'body_placeholder', raw: '$BODY$' } : token);
+  const head = headTokens.map(token => ['line_comment', 'block_comment'].includes(token.kind) ? ' ' : token.raw).join('').replace(/\s+/g, ' ');
+  const modifiers = headTokens.filter(token => token.kind === 'word').map(token => token.value).join(' ');
   const reasons = [];
   const name = (head.match(new RegExp(`^CREATE (?:OR REPLACE )?FUNCTION public\\.(${IDENT})\\(`, 'i')) || [])[1];
   if (!name) reasons.push('not_a_public_function');
-  const language = (head.match(/\bLANGUAGE\s+([A-Za-z_]+)/i) || [])[1];
+  const language = (modifiers.match(/\blanguage\s+([a-z_]+)/) || [])[1];
   if (!language || !/^(sql|plpgsql)$/i.test(language)) reasons.push('language');
-  if (!/\bIMMUTABLE\b/i.test(head)) reasons.push('not_immutable');
-  if (/\bSECURITY DEFINER\b/i.test(head)) reasons.push('security_definer');
+  if (!/\bimmutable\b/.test(modifiers)) reasons.push('not_immutable');
+  if (/\bsecurity definer\b/.test(modifiers)) reasons.push('security_definer');
   if (/\bAS\s+'/i.test(head)) reasons.push('quoted_body');
-  const body = bodies.map(item => item.replace(/^\$[A-Za-z0-9_]*\$/, '').replace(/\$[A-Za-z0-9_]*\$$/, '')).join('\n');
+  const body = tokens.filter(token => token.kind === 'dollar').map(token => token.value).join('\n');
   if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(body))) reasons.push('writing_statement');
   return { pure: reasons.length === 0, reasons, name: name ? unquote(name) : null, calls: [...callNamesIn(body)] };
 }
@@ -559,7 +617,7 @@ hits as (
   where (w.schema_name is null or n.nspname=w.schema_name) and n.nspname not in ('pg_toast','information_schema')
 )
 select coalesce(json_agg(json_build_object('token', token, 'schema', schema_name, 'name', proname, 'volatility', volatility, 'security_definer', prosecdef,
-  'language', lanname, 'extension', extension, 'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex')) order by token, schema_name, proname), '[]'::json) from hits`;
+  'language', lanname, 'extension', extension, 'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex'), 'body', prosrc) order by token, schema_name, proname), '[]'::json) from hits`;
 }
 
 function dependencyEdgesSql() {
@@ -605,6 +663,7 @@ function classifyCallable(token, hits, requiredExtensionNames, visited, resolveB
     if (!token.includes('.') && hits.some(hit => hit.schema === 'pg_catalog')) throw new Error(`Track-B recovery capture found a public callable shadowing pg_catalog (${bare})`);
     for (const hit of publicHits) {
       if (hit.volatility !== 'i' || hit.security_definer || !['sql', 'plpgsql'].includes(hit.language)) throw new Error(`Track-B recovery capture found an impure public callable (${bare})`);
+      if (typeof hit.body !== 'string') throw new Error('Track-B recovery capture lacks a public callable body');
       if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(hit.body))) throw new Error(`Track-B recovery capture found a public callable with a writing statement (${bare})`);
     }
     if (!visited.has(bare)) { visited.add(bare); for (const hit of publicHits) resolveBody(hit.body); }
@@ -1089,8 +1148,9 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     for (const item of evaluatedExpressionTexts([...sections.pre.statements, ...sections.post.statements])) {
       for (const name of callNamesIn(item.text)) seedTokens.add(name);
     }
-    // Bodies for purity checks travel with the resolution query.
-    references = resolveCallableContract(sql => query(sql.replace("'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex')", "'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex'), 'body', prosrc")), seedTokens, edges, requiredExtensionNames);
+    // Bodies stay private in the resolution query; references retain hashes,
+    // never body text. This replaces the earlier equivalent query injection.
+    references = resolveCallableContract(query, seedTokens, edges, requiredExtensionNames);
     if (typeof hooks.afterDumps === 'function') await hooks.afterDumps();
     const fingerprintAfter = runPsql(env, fingerprintSql(), { psql });
     if (fingerprintAfter !== fingerprintBefore) throw new Error('Track-B recovery capture observed a catalog change; package refused');

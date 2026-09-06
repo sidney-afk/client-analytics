@@ -1,0 +1,46 @@
+{
+  "classification": "OFFLINE_ACTUAL_MODULES_NO_SQL_EXECUTION",
+  "base_commit": "fa4e175742e7fe7c903f694d9b341767d4929ed2",
+  "baseline_source_sha256": "90768f446046a6e7809eda0c5bff188c9b00291700db0ccf91987f1444d5fbdd",
+  "candidate_source_sha256": "b86ecbfc52cc47e3e2981c170674963cd88c4e595ab66cd9b34f882ae456aff8",
+  "baseline": {
+    "wrapped_pure": true,
+    "wrapped_calls": [],
+    "unhidden_write_refused": true,
+    "capture_classifier_admitted": true,
+    "quoted_reader_q_contract_accepted": true,
+    "quoted_calls": [
+      "q"
+    ]
+  },
+  "candidate": {
+    "wrapped_pure": false,
+    "wrapped_calls": [
+      "public.synthetic_write"
+    ],
+    "unhidden_write_refused": true,
+    "capture_classifier_admitted": false,
+    "quoted_reader_q_contract_accepted": false,
+    "quoted_calls": [
+      "public.synthetic_write"
+    ]
+  },
+  "tests": [
+    {
+      "test": "test/track-b-recovery-callable-lexer.js",
+      "status": "PASS",
+      "passed": 33
+    },
+    {
+      "test": "test/track-b-recovery-package.js",
+      "status": "PASS",
+      "passed": 18
+    }
+  ],
+  "limits": [
+    "Quoted-name reader bypass is not a full capture bypass proof; direct pg_depend edges may detect it.",
+    "Real capture already supplied private body text through query injection; direct projection is equivalent clarity, not a newly reproduced missing-body defect.",
+    "No schema reconstruction, operator/cast grammar completeness, installed or release-readiness proof."
+  ],
+  "comparison_receipt_sha256": "228c9c625e8ca7408a6a899bde2cae02545de55ce3dd21f6becfcdef4df48e2f"
+}

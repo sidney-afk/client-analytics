@@ -2,6 +2,18 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Source-only callable and failure-guidance integration
+
+After initial `b554db97a`, copied the exact reviewed lexer runtime/test/audit from
+`33e0f576e40d61fabd8d4283fb0e9f11cfdf29b4`; its original branch is preserved.
+Local Git history transfer was refused by an unrelated missing promisor object,
+so no broader branch, label or competing corpus was merged. Runtime hash matches
+the reviewed `b86ecbfc`. Added the coordinator's narrow CLI outcome correction:
+validation failures make no rollback claim, and only a confirmed empty-target
+rollback permits retry-in-place guidance. Offline lexer33, canonical-package18
+and preparation/actual-CLI8 groups pass. No SQL run or authenticated-schema PASS
+is claimed; the next exact-head isolated37 rehearsal remains required.
+
 ## 2026-09-06 — Held selected37 schema engine preparation
 
 On preserved `bbe030766`, selectively imported the schema engine from PR1313

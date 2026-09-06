@@ -274,7 +274,7 @@ async function run() {
       data_coverage: pkg.manifest.data.tables, omitted_data_tables: pkg.manifest.omitted_data_tables,
       limits: ['Synthetic migration-shaped source; installed capture/reconstruction remains UNPROVEN',
         'Whole public schema plus selected37 data, not a full platform or omitted-data backup',
-        'Callable lexical correction must be separately integrated and reviewed',
+        'Callable lexical source is independently reviewed; execution coverage is limited to this fixture',
         'No label owner, serving adapter, provider, workflow, alert or live action'] };
     fs.writeFileSync(path.join(cfg.output, 'REPORT.private.json'), JSON.stringify(report, null, 2)); complete = true;
     console.log(JSON.stringify({ status: 'PASS', passed: checks.length, table_count: 37 }));

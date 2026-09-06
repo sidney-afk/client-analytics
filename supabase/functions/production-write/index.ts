@@ -1490,6 +1490,10 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
       throw new GatewayError(409, "idempotency_conflict");
     }
     if (/write_conflict/i.test(clean(error.message))) throw new GatewayError(409, "write_conflict");
+    if (/assignment_scope_forbidden|assignee_out_of_scope|assignee_role_incompatible/i.test(clean(error.message))) {
+      const code = clean(error.message).match(/assignment_scope_forbidden|assignee_out_of_scope|assignee_role_incompatible/i)![0].toLowerCase();
+      throw new GatewayError(403, code);
+    }
     if (/authority_unavailable/i.test(clean(error.message))) throw new GatewayError(503, "authority_unavailable");
     if (/legacy_parity_gate_unavailable/i.test(clean(error.message))) {
       throw new GatewayError(503, "legacy_parity_gate_unavailable");
@@ -2842,6 +2846,46 @@ async function mappedCreateAssignees(
   }) as unknown as JsonMap[];
 }
 
+// Existing work has its own receipt/capability; intake admission never decides
+// whether an assignee change still owes a provider mirror.
+async function existingAssignmentContext(supabase: SupabaseClient, expected: JsonMap): Promise<JsonMap> {
+  const { data, error } = await supabase.rpc("production_assignment_context", { p_expected: expected });
+  if (error) {
+    // Pre-install compatibility requires BOTH an exact missing RPC and a
+    // successful absent flag read. A stale schema cache with an installed
+    // capability, malformed result or transport failure cannot select Linear.
+    if (["PGRST202", "42883"].includes(String(error.code || ""))
+        && /production_assignment_context/.test(String(error.message || ""))) {
+      const flag = await supabase.from("syncview_runtime_flags").select("value")
+        .eq("key", "native_assignment_epochs").maybeSingle();
+      if (flag && typeof flag === "object" && !Array.isArray(flag)
+          && flag.error === null && flag.data === null) {
+        return { epoch: "", replay: false, preinstall: true };
+      }
+    }
+    if (/idempotency_conflict/.test(String(error.message || ""))) throw new GatewayError(409, "idempotency_conflict");
+    if (/assignment_scope_forbidden/.test(String(error.message || ""))) throw new GatewayError(403, "assignment_scope_forbidden");
+    throw new GatewayError(503, "authority_unavailable");
+  }
+  const context = parseJson(data);
+  if (context.contract !== "existing-assignment-v1" || typeof context.epoch !== "string"
+      || typeof context.replay !== "boolean"
+      || (context.epoch !== "" && !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(context.epoch))) {
+    throw new GatewayError(503, "authority_unavailable");
+  }
+  return context;
+}
+
+async function existingAssignmentOptions(supabase: SupabaseClient, team: string, epoch: string): Promise<JsonMap[]> {
+  if (!epoch) return await mappedCreateAssignees(supabase, team);
+  const result = await supabase.from("team_members")
+    .select("id,name,role,team,active,linear_user_id", { count: "exact" })
+    .eq("active", true).eq("team", team).order("id", { ascending: true }).limit(5000);
+  if (result.error || !Array.isArray(result.data) || !Number.isSafeInteger(result.count)
+      || result.count !== result.data.length) throw new GatewayError(503, "assignee_lookup_unavailable");
+  return eligibleAssigneeProjection(result.data, team, { providerMappingRequired: false }) as unknown as JsonMap[];
+}
+
 /*
  * THE INTAKE POOL, PER LANE.
  *
@@ -3641,6 +3685,10 @@ async function handleAssigneeOptions(
       })) {
     throw new GatewayError(403, "assignee_scope_forbidden");
   }
+  const assignment = await existingAssignmentContext(supabase, {
+    entity: "deliverable", entity_id: id, operation: "assignee", client_slug: requestedClientSlug, team,
+    actor: principal.actorName, role: principal.actorRole, test_only: principal.testOnly, legacy_parity: false,
+  });
   return json({
     ok: true,
     complete: true,
@@ -3648,7 +3696,7 @@ async function handleAssigneeOptions(
     client_slug: clean(existing.client_slug),
     team,
     current_assignee_id: clean(existing.assignee_id) || null,
-    assignees: await mappedCreateAssignees(supabase, team),
+    assignees: await existingAssignmentOptions(supabase, team, clean(assignment.epoch)),
   });
 }
 
@@ -5573,6 +5621,7 @@ async function handleEntityOperation(
   let result: unknown;
   let labelsReceipt: JsonMap | null = null;
   let projectionReceipt: JsonMap | null = null;
+  let nativeAssignment = false;
   let commentMirrorApplicable = operation !== "comment" || commentMirrorEnabled;
   if (operation === "comment") {
     const commentInput = parseJson(body.comment);
@@ -6089,7 +6138,6 @@ async function handleEntityOperation(
       fingerprintPatch = patch;
     } else {
       const assigneeId = clean(body.assignee_id == null ? parseJson(body.patch).assignee_id : body.assignee_id);
-      await validateAssignee(supabase, assigneeId, team);
       patch = { assignee_id: assigneeId || null };
       payload = { assignee_id: assigneeId || null };
       fingerprintPatch = patch;
@@ -6100,6 +6148,21 @@ async function handleEntityOperation(
       patch: fingerprintPatch,
     });
     payload._intent_fingerprint = fingerprint;
+    if (operation === "assignee") {
+      const assignment = await existingAssignmentContext(supabase, {
+        ...dedupExpectation(principal, team, sourceEditedAt, outboundBase, fingerprint), dedup_key: dedup,
+      });
+      const epoch = clean(assignment.epoch);
+      nativeAssignment = !!epoch;
+      if (epoch) {
+        payload._native_assignment_epoch = epoch;
+        if (!assignment.replay) await assertEligibleAssignee(supabase, clean(patch.assignee_id), team, epoch);
+      } else {
+        // The provider branch deliberately keeps its original validation,
+        // including accepted provider retries and the existing retirement flag.
+        await validateAssignee(supabase, clean(patch.assignee_id), team);
+      }
+    }
     const outbound = {
       ...outboundBase,
       payload: f27FencedPayload(payload, authorityGeneration, legacyParity),
@@ -6121,10 +6184,17 @@ async function handleEntityOperation(
       assertCas(body, existing, operation === "description");
     }
     if (replay) {
-      result = existing;
+      if (nativeAssignment) {
+        // The entity read may predate a concurrent winner. Return current
+        // scoped state, never repaint that stale row or reapply the old intent.
+        const refreshed = await supabase.from("deliverables").select("*")
+          .eq("id", id).eq("client_slug", targetClientSlug).eq("team", team).maybeSingle();
+        if (refreshed.error || !refreshed.data) throw new GatewayError(503, "entity_lookup_unavailable");
+        result = refreshed.data;
+      } else result = existing;
     } else {
       try {
-        result = await rpc(supabase, "production_deliverable_write", { p_row: row, p_event: event });
+        result = await rpc(supabase, nativeAssignment ? "production_assignee_write" : "production_deliverable_write", { p_row: row, p_event: event });
       } catch (error) {
         if (error instanceof GatewayError && error.code === "write_conflict") {
           const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
@@ -6144,7 +6214,7 @@ async function handleEntityOperation(
     && !principal.testOnly
     && !legacyParity
     && await outboundLiveForDrain(supabase);
-  const mutationHasMirror = operation !== "comment" || commentMirrorApplicable;
+  const mutationHasMirror = !nativeAssignment && (operation !== "comment" || commentMirrorApplicable);
   const shouldDrain = mutationHasMirror && (legacyParity || principal.testOnly || syncviewLiveDrain);
   const awaitedDrain = legacyParity || principal.testOnly;
   const mirror = !mutationHasMirror

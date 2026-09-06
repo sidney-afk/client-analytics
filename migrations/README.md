@@ -8,6 +8,13 @@ executes these files (see `README.md` › Repository layout).
 
 ## How to read this folder
 
+- **`2026-09-06-native-existing-assignment.sql`** is draft/unapplied. It adds a
+  separate default-provider native-assignment capability, service-only context
+  and atomic write wrapper, and retained terminal receipt guards on the existing
+  outbox. No new table or accepted-history rewrite. Its explicit hold, provider
+  rollback and schema/retained-target restore gates are documented in
+  `docs/ops/NATIVE_EXISTING_ASSIGNMENT.md`.
+
 - **`2026-09-05-card-change-journal.sql`** is a draft/unapplied private atomic
   before/after INSERT/UPDATE/DELETE journal on six card owners. No writer, auth,
   runtime flag or existing RPC is changed. Installation checks exact keys;
@@ -714,4 +721,3 @@ executes these files (see `README.md` › Repository layout).
   `qa/calendar-feedback-recovery/`; contract in
   `docs/ops/CALENDAR_FEEDBACK_RECOVERY_CONTRACT.md`. Rollback block at the
   bottom of the file (drop the two functions; keep the evidence table).
-

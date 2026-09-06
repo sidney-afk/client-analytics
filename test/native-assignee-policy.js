@@ -187,8 +187,12 @@ function slice(from, to) {
     'intake resolves its native epochs first and hands them to both the explicit and the automatic assignment path');
   ok(/validateAssignee\([\s\S]{0,120}assertEligibleAssignee\(supabase, assigneeId, team\);/.test(edge)
     && /validateCreateAssignee\([\s\S]{0,140}return await assertEligibleAssignee\(supabase, assigneeId, team\);/.test(edge)
-    && /assignees: await mappedCreateAssignees\(supabase, team\),/.test(edge),
-    'the SyncLinear assignee operation, Production create and both pickers stay on the provider lane (no epoch passed)');
+    && /if \(!epoch\) return await mappedCreateAssignees\(supabase, team\);/.test(edge),
+    'Production create and the existing-assignee provider fallback keep their original eligibility contract');
+  ok(/production_assignment_context/.test(edge)
+    && /assignees: await existingAssignmentOptions\(supabase, team, clean\(assignment.epoch\)\)/.test(edge)
+    && /nativeAssignment \? "production_assignee_write" : "production_deliverable_write"/.test(edge),
+    'existing-card assignment uses its own receipt/capability and atomic writer, independent of intake admission');
   ok(/assigneeLanePolicy,/.test(edge.slice(0, edge.indexOf('} from "./policy.mjs"'))), 'the gateway imports the lane policy from policy.mjs');
 
   if (failures) { console.error(`\n${failures} native assignee policy check(s) failed`); process.exit(1); }

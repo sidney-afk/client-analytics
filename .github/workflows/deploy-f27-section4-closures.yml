@@ -284,7 +284,9 @@ jobs:
       # Integration candidate on captured main 99d31; source only, NOT deployed.
       # Includes native intake/eligibility/editor projection. Native SQL must
       # precede this gateway even while all native admission epochs are disabled.
-      PRODUCTION_WRITE_SOURCE_SHA256: 5d9807aaa5fa52653a29d3dc5be6157d21e4d4bdd3899d86b57dc5f9d016e41b
+      # Source-only assignment prerequisite on reviewed 2b6c718: distinct
+      # provider/native/hold receipt lane; install/activation and serving held.
+      PRODUCTION_WRITE_SOURCE_SHA256: 8aeb7197ed8b4f8c3360c8697f12d9217cbfbc9aa50bbc81bc77801b9848d485
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

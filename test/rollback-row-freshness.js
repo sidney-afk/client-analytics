@@ -2933,6 +2933,26 @@ ok(laneHeadingResultRun.code === 1 && laneHeadingResultRun.json
     && laneHeadingResultRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
     'AND A HEADING\'S RESULT IS THE PARAGRAPH BELOW IT: a lane named in the heading with its verdict underneath is one record, not a heading with no verdict');
 
+/* ---- 8bu. a completed deployment noun is still a deploy (round 72) ---- */
+const deploymentCompleteHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment complete — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const deploymentCompleteHeadingRun = run(fixture('deployment-complete-heading', appended(deploymentCompleteHeading), realRb));
+ok(deploymentCompleteHeadingRun.code === 1 && deploymentCompleteHeadingRun.json
+    && /34000000000/.test(JSON.stringify(deploymentCompleteHeadingRun.json.failures)),
+    'A COMPLETED DEPLOYMENT NOUN IS STILL A DEPLOY: "Deployment complete — run `X`" states an outcome, not an inspection object, so it anchors its own run');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

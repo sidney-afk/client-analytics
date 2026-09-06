@@ -2676,6 +2676,26 @@ ok(inspectDeployedHeadingRun.code === 1 && inspectDeployedHeadingRun.json
     && /34000000000/.test(JSON.stringify(inspectDeployedHeadingRun.json.failures)),
     '"DEPLOYED" AS AN ADJECTIVE DESCRIBES THE OBJECT: "Inspect deployed functions — run `X`" is not an anchor, and no list of check verbs has to know the word "inspect"');
 
+/* ---- 8bl. a deployment noun used as an object (round 63) ---- */
+const inspectConfigHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Inspect deployment configuration — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const inspectConfigHeadingRun = run(fixture('inspect-config-heading', appended(inspectConfigHeading), realRb));
+ok(inspectConfigHeadingRun.code === 1 && inspectConfigHeadingRun.json
+    && /34000000000/.test(JSON.stringify(inspectConfigHeadingRun.json.failures)),
+    'A DEPLOYMENT NOUN USED AS AN OBJECT NAMES A THING: "Inspect deployment configuration — run `X`" is not an anchor, in any form of the word');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

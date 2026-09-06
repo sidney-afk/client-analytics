@@ -253,7 +253,12 @@ function deployAnchors(log) {
            a phrase ("deployed via", "deployed from" still record a deploy).
            Object-shaped, so no list of check verbs has to be complete (Codex,
            sixty-second round on #1306). */
-        const objectless = named.replace(/\bdeployed\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b)[a-z]+\b/gi, ' ');
+        /* Any form of the word behaves the same way: "deployment
+           configuration", "deployed functions" and "deploy plan" name a
+           THING, while "deployed via", "deployed from" and a bare "deploy"
+           before punctuation record the act (Codex, sixty-second and
+           sixty-third rounds on #1306). */
+        const objectless = named.replace(/\bdeploy(?:ment|ed|s|ing)?\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b|#)[a-z]+\b/gi, ' ');
         const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
         const saysDeploy = /\bdeploy|releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(objectless)

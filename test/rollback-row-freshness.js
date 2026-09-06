@@ -3102,6 +3102,37 @@ ok(wentLiveHeadingRun.code === 1 && wentLiveHeadingRun.json
     && /34000000000/.test(JSON.stringify(wentLiveHeadingRun.json.failures)),
     '"WENT LIVE" IS THE SAME OUTCOME AS "IS LIVE": the verb in front of it does not change what the heading records');
 
+/* ---- 8ca. plain adverbs lead too; the direct pre-deploy form (round 78) ---- */
+const nowDeployedHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Now deployed production functions — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const nowDeployedHeadingRun = run(fixture('now-deployed-heading', appended(nowDeployedHeading), realRb));
+ok(nowDeployedHeadingRun.code === 1 && nowDeployedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(nowDeployedHeadingRun.json.failures)),
+    'A PLAIN ADVERB LEADS AS WELL AS AN -LY ONE: "Now deployed production functions — run `X`" still records the act');
+
+const failedBeforeDeployingDirect = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The run failed before deploying any function.',
+    '',
+].join('\n');
+const failedBeforeDeployingDirectRun = run(fixture('failed-before-deploying-direct', appended(failedBeforeDeployingDirect), realRb));
+ok(failedBeforeDeployingDirectRun.code === 0,
+    'AND THE DIRECT PRE-DEPLOY FORM IS THE SAME EVIDENCE: "failed before deploying any function" asks for no receipt either');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

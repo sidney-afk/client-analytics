@@ -702,16 +702,33 @@ function lastIndex(re, text) {
     }
     return last;
 }
-/* Does the record at k say the run was a push, merge or automatic one, rather
-   than a dispatch? Judged on the reference's own clause and scope. */
+/* Does the record at k say the RUN IT NAMES was a push, merge or automatic one
+   rather than a dispatch? Judged on the reference's own clause, never the whole
+   scope: "the `lane` manual dispatch completed successfully (run `X`) after the
+   previous push run failed" records a real dispatch, and the unrelated push
+   beside it must not discard it (Codex, thirty-third round on #1306). A clause
+   that names any dispatch marker at all is never exempted, so an ambiguous
+   record fails closed. */
 function pushRun(log, k, len) {
+    const clause = referenceClause(log, k, len);
+    if (/\b(dispatch|dispatched|dispatching|workflow_dispatch|manual|manually|owner-dispatched|re-run|rerun)\b/i.test(clause)) return false;
+    return /\bpush[- ]?(run|deploy|deployed|deployment|build|triggered)\b/i.test(clause)
+        || /\b(on|from|by) (?:a |the )?(?:push|merge|commit)\b/i.test(clause)
+        || /\b(auto-deploy|auto-deployed|automatic(?:ally)? (?:deploy|deployed|ran|run)|merge run|push to main)\b/i.test(clause);
+}
+
+/* The sentence around a reference, inside its item or paragraph. */
+function referenceClause(log, k, len) {
     const scope = referenceScope(log, k, len);
     const span = log.slice(scope.from, scope.to);
-    if (/\b(dispatch|dispatched|dispatching|workflow_dispatch|manual|manually|owner-dispatched|re-run|rerun)\b/i.test(span)
-        && !/\b(push|merge|auto)[- ]?(run|deploy|deployment|build)\b/i.test(span)) return false;
-    return /\bpush[- ]?(run|deploy|deployed|deployment|build|triggered)\b/i.test(span)
-        || /\b(on|from|by) (?:a |the )?(?:push|merge|commit)\b/i.test(span)
-        || /\b(auto-deploy|auto-deployed|automatic(?:ally)? (?:deploy|deployed|ran|run)|merge run|push to main)\b/i.test(span);
+    const rel = k - scope.from;
+    const sep = /[.;!?](?=\s|$)/g;
+    let cStart = 0, cEnd = span.length, m;
+    while ((m = sep.exec(span))) {
+        if (m.index < rel) cStart = m.index + 1;
+        else if (m.index >= rel + len) { cEnd = m.index; break; }
+    }
+    return span.slice(cStart, cEnd);
 }
 
 function recordsADispatch(log, k, len) {
@@ -1077,8 +1094,19 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            explicit statement that nothing shipped -- so a PARTIAL deploy, which
            does move live versions, still fails closed (Codex, thirty-second
            round on #1306). */
-        const failedNothing = new RegExp(FAILED_RUN.source, 'i').test(h.text + '\n' + block)
-            && /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b/i.test(h.text + '\n' + block);
+        const entryText = h.text + '\n' + block;
+        /* The no-deployment claim has to cover the WHOLE run. "No deployment of
+           the remaining three functions occurred" is a claim about a subset,
+           and the run that says it moved one function already (Codex,
+           thirty-third round on #1306). Two ways it fails to cover: the claim
+           is qualified by a subset word, or the entry says somewhere that one
+           of the four WAS deployed. Either way the entry is asked for its
+           receipt, because a partial deploy moved a live version. */
+        const nothingShipped = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)/i.test(entryText);
+        const someShipped = new RegExp('\\bdeploy(?:ed|s)?\\b[^.\\n]{0,60}`(?:' + SLUGS.join('|') + ')`', 'i').test(entryText)
+            || new RegExp('`(?:' + SLUGS.join('|') + ')`[^.\\n]{0,60}\\b(?:was |were |had been )?deploy(?:ed|s)?\\b', 'i').test(entryText);
+        const failedNothing = new RegExp(FAILED_RUN.source, 'i').test(entryText)
+            && nothingShipped && !someShipped;
         const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text) && !deployAhead))
             && !/NOT DISPATCHED/i.test(h.text) && !failedNothing;
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);

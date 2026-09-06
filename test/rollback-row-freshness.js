@@ -1773,6 +1773,55 @@ ok(failedPartialRun.code === 1 && failedPartialRun.json
     && failedPartialRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `33995000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
     'while a PARTIAL failure, which did move a live version, still fails closed and is asked for its receipt');
 
+/* ---- 8ah. subset no-deployment claims; push beside a dispatch (round 33) ----- */
+const failedSubset = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `33995000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`. `production-write` deployed,',
+    'then the lane failed on the provider readback. No deployment of the remaining three',
+    'functions occurred.',
+    '',
+].join('\n');
+const failedSubsetRun = run(fixture('failed-subset', appended(failedSubset), realRb));
+ok(failedSubsetRun.code === 1 && failedSubsetRun.json
+    && failedSubsetRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `33995000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A SUBSET NO-DEPLOYMENT CLAIM IS NOT A WHOLE-RUN ONE: "No deployment of the remaining three functions occurred" beside a `production-write` that shipped is a PARTIAL deploy, and it is still asked for its receipt');
+const failedNamesOne = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `33995000000`',
+    '',
+    'The lane deployed `production-write` and then aborted. No deployment occurred afterwards.',
+    '',
+].join('\n');
+const failedNamesOneRun = run(fixture('failed-names-one', appended(failedNamesOne), realRb));
+ok(failedNamesOneRun.code === 1 && failedNamesOneRun.json
+    && failedNamesOneRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `33995000000`"/.test(f)),
+    'and an entry that names one of the four as deployed is a partial deploy whatever else it claims, so an unqualified "no deployment occurred" beside it does not exempt it');
+const laneDispatchAfterPush = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch completed successfully (run `33995000000`)',
+    'after the previous push run failed.',
+    '',
+].join('\n');
+const laneDispatchAfterPushRun = run(fixture('lane-dispatch-after-push', appended(laneDispatchAfterPush), realRb));
+ok(laneDispatchAfterPushRun.code === 1 && laneDispatchAfterPushRun.json
+    && laneDispatchAfterPushRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A PUSH MENTIONED BESIDE A DISPATCH DOES NOT EXEMPT IT: the manual dispatch that completed is the run recorded, and the failed push run beside it changes nothing -- it FAILS');
+const lanePushThenPlan = [
+    '',
+    '## 2026-09-06 — Staff functions',
+    '',
+    'The `deploy-onboarding-edge-functions` push run `33995000000` completed successfully.',
+    'A manual dispatch is scheduled for Monday.',
+    '',
+].join('\n');
+const lanePushThenPlanRun = run(fixture('lane-push-then-plan', appended(lanePushThenPlan), realRb));
+ok(lanePushThenPlanRun.code === 0,
+    'while a push run in its own sentence is still exempt when the dispatch mentioned nearby is a separate, later sentence');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

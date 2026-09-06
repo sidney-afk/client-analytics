@@ -4,6 +4,13 @@ All times are UTC unless noted.
 
 ## 2026-09-06 — Existing-card native assignment, isolated draft only
 
+Follow-up on PR1322's first hosted run `34012555030` at `6b4c213`: 437/440
+unit suites, including the new 46 SQL and 28 offline controls passing. The
+three failures are preserved in the owning document. A scoped browser refusal
+classification and two outdated source-test boundaries are corrected locally;
+the three affected suites pass. Gateway/SQL/F27 pins are unchanged, no live
+action occurred, and full hosted re-verification remains pending.
+
 From integration `38f29bc6d3159ddda4b698819626f1efbd37c0b3`, a distinct
 default-disabled assignment capability now owns the existing SyncLinear
 assignment/picker lane. The original provider contract and receipt identities

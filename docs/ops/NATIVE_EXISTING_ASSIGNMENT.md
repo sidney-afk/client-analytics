@@ -3,8 +3,9 @@
 This bounded G2 change starts from validated integration
 `38f29bc6d3159ddda4b698819626f1efbd37c0b3`. It covers the SyncLinear existing-card
 `assignee` operation and its existing exact-card `assignee_options` reader.
-It changes no browser, intake selection, Production creation, frozen client
-writer, n8n workflow, current capability value or deployed function.
+The browser delta only classifies the new assignment-scope refusal using the
+existing access guidance. Intake selection, Production creation, frozen client
+writers, n8n workflows, current capability values and deployed functions are unchanged.
 
 ## Authority and accepted intent
 
@@ -115,13 +116,13 @@ fresh `service_role` commit/replay, guest RPC refusal, two overlapping blocked
 SQL sessions, real journal/outbox rollback and actual ordinary/targeted worker
 selection. Most reads/RPCs use the inherited administrative fixture adapter;
 the separate role canaries establish only their stated privilege boundaries.
-Ten intake/create/provider helpers and five browser/policy/frozen-auth source
-paths are unchanged from the exact base. See the
+At that original checkpoint, ten intake/create/provider helpers and five
+browser/policy/frozen-auth source paths were unchanged from the exact base. See the
 [public-safe source and test receipt](../audits/2026-09-06-native-existing-assignment-evidence.json).
 The existing assignment/transition policy and native-assignee policy checks
-pass; deployment manifest ownership remains unchanged. No full
-unit suite, aggregate Production polish, hosted CI, live/provider call or
-deployment proof is claimed by this document.
+pass; deployment manifest ownership remains unchanged. The original checkpoint
+did not claim a full unit suite, aggregate Production polish or hosted CI.
+Live/provider-call and deployment proof remain unclaimed.
 
 **Bounded pre-install correction after that SQL checkpoint:** independent
 actual-function fault injection found that the old `!flag.data` check admitted
@@ -136,3 +137,21 @@ The 46-case SQL receipt is preserved at its original source hash, not claimed
 as rerun. Real SDK transport-shape reachability remains unproven: no suitable
 existing local SDK fixture was available, and no package or network setup was
 introduced. `test/native-existing-assignment-preinstall.js` is always offline.
+
+**First hosted integration result, preserved:** run `34012555030` on exact
+`6b4c21304ec0698d81af447ef70b506bd6f6bcda` reported **437/440** unit suites.
+The new 46-check actual-handler/SQL lane and 28 offline pre-install controls
+passed there. Identity exposure, F27 rollback proof and Edge Function types
+also passed; later dedicated history/Workload steps were skipped after the
+unit failure. No clean whole-suite result is inferred.
+
+The three failures exposed two stale test boundaries and one real guidance
+omission. The intake-picker test now pins the existing-card reader's entire
+authorization prefix and response contract around its intentional separate
+assignment capability; its five intake/create helpers remain byte-pinned.
+The drain assertion now requires native assignments to exclude mirrors while
+preserving background-write response behavior. The browser gives
+`assignment_scope_forbidden` the existing access guidance instead of generic
+retry advice. All three affected suites pass locally, including 37 picker
+controls. Gateway, SQL, frozen writers and F27 source pins are unchanged by
+this correction. Full hosted re-verification remains pending.

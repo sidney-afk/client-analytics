@@ -12,9 +12,23 @@ let checks=0;
 function pass(label){checks++;console.log('ok '+label);}
 assert.equal(extractFunction(html,'_calLegacyVideoEditorPool').replace('_calLegacyVideoEditorPool','_calNativeVideoEditorPool'),extractFunction(oldHtml,'_calNativeVideoEditorPool'));
 pass('provider browser loader body remains exact');
-for(const symbol of ['autoAssigneeForIntake','intakeAssigneePool','assertEligibleAssignee','handleIntakeCreate','handleAssigneeOptions','handleCreateOptions']) {
+for(const symbol of ['autoAssigneeForIntake','intakeAssigneePool','assertEligibleAssignee','handleIntakeCreate','handleCreateOptions']) {
  assert.equal(extractFunction(gateway,symbol),extractFunction(oldGateway,symbol));pass(symbol+' remains exact');
 }
+// Existing-card options gained a separate capability after the intake picker.
+// Keep its entire old authorization prefix and response contract pinned; only
+// the reviewed capability lookup and eligible-roster provider are different.
+const oldOptions=extractFunction(oldGateway,'handleAssigneeOptions');
+const currentOptions=extractFunction(gateway,'handleAssigneeOptions');
+const capabilityStart=currentOptions.indexOf('  const assignment = await existingAssignmentContext(');
+const oldResponse=oldOptions.indexOf('  return json({');
+const currentResponse=currentOptions.indexOf('  return json({');
+assert.ok(capabilityStart>0 && currentResponse>capabilityStart && oldResponse>0);
+assert.equal(currentOptions.slice(0,capabilityStart),oldOptions.slice(0,oldResponse));
+assert.equal(currentOptions.slice(currentResponse).replace(
+ 'existingAssignmentOptions(supabase, team, clean(assignment.epoch))',
+ 'mappedCreateAssignees(supabase, team)'),oldOptions.slice(oldResponse));
+pass('existing-card options preserve exact authorization and response around the separate assignment capability');
 function world(result) {
  const context={console,Set,Number,JSON,Error,CAL_SUPABASE_URL:'https://synthetic.invalid',CAL_SUPABASE_ANON_KEY:'synthetic',
   _calNativePostState:{surface:'calendar',clientSlug:'synthetic-client'},actor:{key:'synthetic-key',role:'admin',member:{id:'synthetic-actor'}},

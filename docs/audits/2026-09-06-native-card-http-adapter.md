@@ -41,6 +41,10 @@ Four existing affected suites pass: `browser-writer-auth.js`, `calendar-upsert-e
 
 ## Order and rollback
 
+On combined source `d2d3747a1646c9356c7d10bfc19181a0807666f1`, the local actual HTTP lane passed 42 groups over 64 loopback requests with zero external attempts, including six dated anonymous-source fixture groups. The private integration receipt digest is `70ec30d04288433d550512201a872b43f1129804d51c4e9e2db331ee7187d271`. This incorporates the latest main and resumed-job routing, not current serving evidence.
+
+A later bounded correction retains accepted native-epoch browser recovery across repeated failures instead of deleting it after four retries. Its pending message requests recovery without promising automatic discard. Staff may remain blocked from starting a different post in that browser until recovery completes; this is an explicit admission/operations gate. The extracted route/resume/retention control passes 11 groups. The existing intake and Samples extraction suites initially lacked the new helpers; loading those real helpers restores their unchanged assertions. Older unmarked jobs keep their existing refusal policy, so global legacy conservation remains open.
+
 Before any future installation, review a compatible serving-source composition preserving anonymous authorization, install and verify the existing SQL/receipt/provenance/journal and selected37 recovery dependencies, prove both legacy transports, and repeat the designated client/staff tests with exact serving hashes. This source slice supplies no deployment command or approval.
 
 While preparing this branch, clients see the existing deployed site because no public runtime changes are made. After a future approved installation, native creation may return a visible hold or uncertain result while ordinary client approvals/comments/tweaks retain their existing transport. These future statements require the deployment and fallback gates above; they are not present client-journey measurements.

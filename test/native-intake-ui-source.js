@@ -99,6 +99,8 @@ vm.runInContext([
   extract('_linearIntakeBatchTitle'),
   extract('_linearIntakeItems'),
   extract('_linearIntakeValidateResult'),
+  extract('_nativeAcceptedCardTransport'),
+  extract('_nativeAcceptedCurrentCard'),
   extract('_writeNativeSubmissionCardsToCalendar'),
 ].join('\n'), context);
 

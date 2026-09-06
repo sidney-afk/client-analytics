@@ -41317,6 +41317,7 @@
         if (code === 'intake_assignee_override_conflict') return 'This post asked for two different editors at once. Reopen Create Post and choose one.';
         if (code === 'assignee_not_eligible' || code === 'assignee_ineligible') return 'That editor cannot take this work right now. Choose someone else.';
         if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake before starting a different one.';
+        if (code === 'native_card_recovery_pending') return 'An earlier post is saved, but its card still needs recovery. Retry; if it remains blocked, contact your workspace administrator.';
         if (code === 'native_intake_recovery_pending') return 'An earlier post in this browser is still finishing its calendar card. Reload the page and try again; it stops retrying on its own.';
         if (code === 'batch_version_conflict' || code === 'write_conflict') return 'That batch changed while this window was open. Close this message and try again.';
         if (/^invalid_intake_append_|^batch_not_(active|found)$/.test(code)) return 'That batch cannot take this post right now. Start a new batch instead.';
@@ -47380,8 +47381,10 @@
                 // A recovery copy blocks under its own code: it is not an
                 // intake the user can go back and finish, so the generic
                 // pending-conflict copy sends them looking for a dialog that
-                // does not exist. It clears itself after repeated failures.
-                const code = saved.recovery_only === true
+                // does not exist. Native-epoch recovery remains retained.
+                const nativeRecovery = saved.result && saved.result.native_committed === true
+                    && Object.prototype.hasOwnProperty.call(saved.result, 'card_materialization');
+                const code = nativeRecovery ? 'native_card_recovery_pending' : saved.recovery_only === true
                     ? 'native_intake_recovery_pending' : 'native_intake_pending_conflict';
                 const error = new Error(code);
                 error.code = code;
@@ -48585,6 +48588,11 @@
         // therefore get a bounded life too: every resume failure counts, with
         // or without an HTTP status, because a card write rejected by the
         // network carries no status and would otherwise never strike.
+        // Native-epoch card recovery has a retained server receipt. Repeated
+        // transport or capability holds must not discard its browser context.
+        // Keep the pending work visible until compatible recovery completes.
+        if (saved.result && saved.result.native_committed === true
+            && Object.prototype.hasOwnProperty.call(saved.result, 'card_materialization')) return false;
         const recoveryOnly = saved.recovery_only === true;
         const status = Number(error && error.status);
         if (status === 401 || status === 403) return false;

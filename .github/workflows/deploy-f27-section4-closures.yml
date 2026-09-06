@@ -284,7 +284,10 @@ jobs:
       # Draft native assignee eligibility closure over PR1302: the same two
       # additive migrations precede a separately authorized deployment. Both
       # epoch flags remain disabled; no activation or serving proof in this PR.
-      PRODUCTION_WRITE_SOURCE_SHA256: 4b39313659ac267b588c116dbaba42ca4c106596d448a7eef88d19850ddce0bf
+      # Follow-up staff Create Post editor preview: read-only action only;
+      # native write admission/replay and the frozen client writers unchanged.
+      # This source pin is not deployment or activation evidence.
+      PRODUCTION_WRITE_SOURCE_SHA256: fa34e467c5e94fc3145b56304b6ae747d35b1064da7b09a8205d384d39d6fa27
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

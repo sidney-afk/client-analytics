@@ -1,5 +1,9 @@
 # SyncView Independence Execution Log
 
+## 2026-09-06 — Legacy Calendar job retention, uninstalled
+
+Version1 refused/expired/attempt-exhausted or known-invalid jobs retain their exact local records instead of being deleted. Twenty-three actual-source groups include four preserved baseline deletions; eligible provider behavior and completed checkpoints remain compatible. Generic notices avoid identities and unsafe recreation advice. No durable quarantine, native identity, serving or G6 completion is claimed. [Proof and authority-reversal limits](docs/audits/2026-09-06-legacy-calendar-job-retention.md).
+
 ## 2026-09-06 — Browser v3 refusal retention (unapplied)
 
 Reproduced all three 16a retry-budget deletions. The same v3 record now pauses automatic attempts at the existing 4/6/2 limits; existing error areas offer a current-owner/current-record retry under the Web Lock. Actual-source35 groups (including three baseline controls), six styled Chromium helper cases and affected suites pass. No writer/auth/server/storage-owner change; v1, unaccepted sign-out, unheld live 4xx, n8n and serving remain held. [Evidence and rollback](docs/audits/2026-09-06-native-intake-retention.md) do not claim global G6 closure.

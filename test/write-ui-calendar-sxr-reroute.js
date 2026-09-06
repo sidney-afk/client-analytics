@@ -164,7 +164,7 @@ for (const field of ['calendar_linear', 'sxr_linear', 'submission_cards', 'nativ
 assert(lifecycle.includes('unknown_records') && lifecycle.includes("drain_state: unknown ? 'unknown' : 'observed'"), 'corrupt local debt cannot be reported as a clean zero');
 const cardJobs = between('function _calCardJobTeams', '// Tabs that fetch their own data sources');
 assert(cardJobs.includes("authority[team] !== 'linear'"), 'post-submit v1 jobs may drain only while every required team remains Linear-authoritative');
-assert(cardJobs.includes("'discarded_authority'"), 'flipped-team v1 jobs must terminally discard with diagnostics');
+assert(cardJobs.includes("_calCardJobRetain('authority')"), 'flipped-team v1 jobs must retain their original record without replay');
 
 assert(source.includes("const CAL_LINEAR_META_LS_KEY = 'syncview_calLinearMeta_v2'"));
 assert(source.includes("const CAL_CACHE_KEY_PREFIX = 'syncview_calCache_v2:'"));

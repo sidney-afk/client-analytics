@@ -48882,8 +48882,8 @@
        done are skipped, and matched cards use deterministic p_lin_ ids so a
        re-send updates the same row. */
     const CAL_CARD_JOBS_KEY = 'syncview_calCardJobs_v1';
-    const CAL_CARD_JOB_MAX_AGE_MS = 48 * 60 * 60 * 1000;    // give up after 2 days…
-    const CAL_CARD_JOB_MAX_RUNS = 5;                        // …or 5 attempts
+    const CAL_CARD_JOB_MAX_AGE_MS = 48 * 60 * 60 * 1000;    // stop automatic retry after 2 days…
+    const CAL_CARD_JOB_MAX_RUNS = 5;                        // …or 5 attempts; retain the record
     const CAL_CARD_JOB_LIVE_HEARTBEAT_MS = 3 * 60 * 1000;   // fresher ⇒ another tab owns it
 
     function _calCardJobsRead() {
@@ -48919,6 +48919,18 @@
         return job;
     }
     let _calCardJobsResumePromise = null;
+    let _calCardJobsRetentionNotified = false;
+    function _calCardJobRetain(reason) {
+        // No job rewrite: another tab may still own its heartbeat/checkpoints.
+        _writeUiQueueDiagnostic('submission', 'retained_' + reason, { kind: 'calendar_cards' });
+        if (_calCardJobsRetentionNotified) return;
+        try {
+            showNotify('Saved calendar work needs review',
+                'Automatic recovery could not finish. The saved details remain in this browser;'
+                + ' completion is unconfirmed. Contact your workspace administrator before recreating the work.');
+            _calCardJobsRetentionNotified = true;
+        } catch (e) {}
+    }
     function _calCardJobTeams(job) {
         const mode = String(job && job.mode || 'video').toLowerCase();
         if (mode === 'thumbnail') return ['graphics'];
@@ -48933,49 +48945,20 @@
         const now = Date.now(), runs = [];
         _calCardJobsRead().forEach(job => {
             if (!job || !job.clientName || !Array.isArray(job.videos) || !job.videos.length) {
-                if (job && job.id) _calCardJobRemove(job.id);
-                return;
-            }
-            const teams = _calCardJobTeams(job);
-            if (teams.some(team => authority[team] !== 'linear')) {
-                /* OPEN_REPAIRS item 65: this discard is correct -- the job
-                   writes cards through the Linear submission lane, and that
-                   lane is closed for a SyncView-authoritative team -- but it
-                   used to be SILENT. The queue diagnostic below goes to a
-                   localStorage ring nobody reads, while the retry-cap branch a
-                   few lines down, which drops strictly less work, does notify.
-                   Post-flip this branch catches every job rather than some, so
-                   the one path that discarded without a word became the only
-                   path that runs. Measured: three seeded jobs, zero survive,
-                   zero notices.
-
-                   Deliberately does NOT repeat the retry-cap copy pointing at
-                   Import from Linear. That tool now seals itself when video
-                   authority is syncview (OPEN_REPAIRS item 66), but sending a
-                   syncview-authoritative team there still just hands them a
-                   refusal screen instead of the recovery they need -- Create
-                   Post is the one recommendation that works regardless of
-                   authority state, so every "backfill via Import" message in
-                   this file (the retry-cap branch a few lines down included)
-                   was changed to point there instead. */
-                const unwritten = (job.videos || []).filter(v => !(job.done || []).includes(v.number)).length;
-                _calCardJobRemove(job.id);
-                _writeUiQueueDiagnostic('submission', 'discarded_authority', { kind: 'calendar_cards', id: job.id });
-                if (unwritten) {
-                    showNotify('Calendar cards were not written', unwritten + ' calendar card(s) for '
-                        + job.clientName + ' were queued through the Linear submission lane, which is closed'
-                        + ' now that this team runs on SyncView. They have not been created. Add them from'
-                        + ' the calendar with Create Post.');
-                }
+                _calCardJobRetain('invalid');
                 return;
             }
             const remaining = job.videos.filter(v => !(job.done || []).includes(v.number));
             if (!remaining.length) { _calCardJobRemove(job.id); return; }
+            const teams = _calCardJobTeams(job);
+            if (teams.some(team => authority[team] !== 'linear')) {
+                // A closed provider lane is not proof that work is absent.
+                // Retain original fragments without inventing a native owner.
+                _calCardJobRetain('authority');
+                return;
+            }
             if ((now - job.createdAt) > CAL_CARD_JOB_MAX_AGE_MS || (job.runs || 0) >= CAL_CARD_JOB_MAX_RUNS) {
-                _calCardJobRemove(job.id);
-                showNotify('Calendar cards missing', 'A Linear submission for ' + job.clientName
-                    + ' still has ' + remaining.length + ' calendar card(s) unwritten and automatic'
-                    + ' retries have stopped. Open the calendar and use Create Post to add them.');
+                _calCardJobRetain((now - job.createdAt) > CAL_CARD_JOB_MAX_AGE_MS ? 'expired' : 'retry_limit');
                 return;
             }
             // A fresh heartbeat means another open tab is mid-run on this job.

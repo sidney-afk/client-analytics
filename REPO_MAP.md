@@ -1,5 +1,7 @@
 # Repo map
 
+Legacy Calendar v1 retention: `test/legacy-calendar-job-retention.js` executes actual queue functions with four pinned deletion controls; `docs/audits/2026-09-06-legacy-calendar-job-retention.md` records unchanged provider eligibility, retained fragments, authority-reversal risk and no durable-quarantine claim.
+
 Browser v3 refusal retention: `test/native-intake-retained-refusals.js` executes actual saved-job/lock/retry functions and an optional finite Chromium helper check. `docs/audits/2026-09-06-native-intake-retention.md` and `docs/audits/2026-09-06-native-intake-retention.json` preserve baseline deletions, source pins and the remaining v1/sign-out/provider/serving holds. No new storage or server owner.
 
 Ordinary G8 read fence: `scripts/linear-outbound-read-seam.mjs`, `scripts/linear-outbound-read-lane.mjs`, and `test/linear-outbound-read-cutoff.js` exercise every provider transport using the actual worker and disposable SQL. `docs/audits/2026-09-06-outbound-read-cutoff.md` and `docs/audits/2026-09-06-outbound-read-cutoff.json` retain source hashes, baseline failures and the old-isolate/in-flight release holds. No global or serving cutoff claim.

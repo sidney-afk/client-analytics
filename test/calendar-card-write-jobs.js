@@ -105,6 +105,7 @@ def('_calCardJobSave');
 def('_calCardJobRemove');
 const _calCardJobCreate = def('_calCardJobCreate');
 def('_calCardJobTeams');
+def('_calCardJobRetain');
 const _resumePendingCalCardJobs = def('_resumePendingCalCardJobs');
 const _writeLinearVideoCardsToCalendar = def('_writeLinearVideoCardsToCalendar');
 
@@ -121,6 +122,7 @@ function issuesFor(title, nums) {
   return out;
 }
 function reset() {
+  globalThis._calCardJobsRetentionNotified = false;
   _store.clear(); fetchLog = []; notifications = []; linearForceLog = [];
   fetchOkFor = () => true;
   linearResponses = [issuesFor('T', [1, 2, 3])];
@@ -216,9 +218,9 @@ reset();
   globalThis._calCardJobsResumePromise = null;
   await _resumePendingCalCardJobs(authorityState);
   const left = _calCardJobsRead().map(j => j.id);
-  ok(JSON.stringify(left) === JSON.stringify(['ccj_live']), 'expired/spent/finished jobs are dropped; live-heartbeat job is left for its owner');
+  ok(JSON.stringify(left) === JSON.stringify(['ccj_live','ccj_old','ccj_spent']), 'expired/spent and live-heartbeat jobs are retained; completed checkpoints are removed');
   ok(fetchLog.length === 0, 'none of the guarded jobs triggered a write');
-  ok(notifications.length === 2 && notifications.every(n => /Create Post/.test(n.msg)), 'expired + spent jobs surface the manual backfill path');
+  ok(notifications.length === 1 && /unconfirmed/.test(notifications[0].msg), 'retained debt gives one honest review notice per session');
   globalThis._calCardJobsResumePromise = null;
   const firstResume = _resumePendingCalCardJobs(authorityState);
   const secondResume = _resumePendingCalCardJobs(authorityState);
@@ -227,7 +229,7 @@ reset();
 }
 
 console.log('\n============================================================');
-console.log('5b) authority guard — stale jobs discard after flip; outage preserves');
+console.log('5b) authority guard — stale jobs remain after flip; outage preserves');
 console.log('============================================================');
 reset();
 {
@@ -237,30 +239,25 @@ reset();
   ok(_calCardJobsRead().length === 1, 'authority read failure leaves the legacy job untouched');
   authorityState = { video: 'linear', graphics: 'syncview' };
   await _resumePendingCalCardJobs(authorityState);
-  ok(_calCardJobsRead().length === 0, 'a job requiring a flipped team is terminally discarded');
-  ok(queueDiagnostics.some(row => row.outcome === 'discarded_authority' && row.item.id === job.id),
-    'authority discard is retained in the local public-safe diagnostic');
+  ok(_calCardJobsRead().length === 1, 'a job requiring a flipped team is retained without replay');
+  ok(queueDiagnostics.some(row => row.outcome === 'retained_authority' && !row.item.id),
+    'authority retention has a diagnostic without identity');
 }
 
-/* OPEN_REPAIRS item 65. Everything above 5b pins a world that ended on
- * 2026-08-16, and 5b itself stops at the MIXED shape -- so the branch that now
- * catches EVERY job was only ever exercised in the configuration where it
- * caught some. Post-F1(video) both teams are SyncView-authoritative, this
- * discard is the only path a pending job can take, and it used to take it in
- * total silence while the retry-cap branch beside it -- which drops strictly
- * less work -- notified. These four run under today's live shape. */
+/* Retain the historical both-team authority regression, now requiring exact
+ * retention instead of deletion and unsafe recreation advice. */
 reset();
 {
   const job = _calCardJobCreate('Fixture Client', [{ number: 1 }, { number: 2 }], 'T', 'both');
   authorityState = { video: 'syncview', graphics: 'syncview' };
   await _resumePendingCalCardJobs(authorityState);
-  ok(_calCardJobsRead().length === 0,
-    'BOTH teams flipped: the job is discarded, as it must be -- the lane it writes through is closed');
-  ok(queueDiagnostics.some(row => row.outcome === 'discarded_authority' && row.item.id === job.id),
-    'the discard is still recorded in the diagnostic ring');
-  ok(notifications.length === 1 && /2 calendar card/.test(notifications[0].msg)
-     && /Fixture Client/.test(notifications[0].msg),
-    'the user is TOLD, and told how many cards and for which client -- not silently dropped');
+  ok(_calCardJobsRead().length === 1,
+    'BOTH teams flipped: the job remains while the provider lane is closed');
+  ok(queueDiagnostics.some(row => row.outcome === 'retained_authority' && !row.item.id),
+    'retention is recorded without exposing job identity');
+  ok(notifications.length === 1 && /unconfirmed/.test(notifications[0].msg)
+     && !/Fixture Client/.test(notifications[0].msg),
+    'recovery notice is honest and does not expose another client');
   ok(!/Import from Linear/i.test(notifications[0].msg),
     'and is NOT sent to Import from Linear, which mints unusable cards post-flip (item 66)');
 }

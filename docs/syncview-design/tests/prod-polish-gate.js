@@ -157,6 +157,14 @@ const FAILURE_SIGNATURES = [
   ['pwg_status_write', /PWG_PHASE_STATUS_WRITE\b/],
   ['pwg_due_write', /PWG_PHASE_DUE_WRITE\b/],
   ['pwg_due_receipt', /PWG_PHASE_DUE_RECEIPT\b/],
+  // The description flows (2026-09-06): the Markdown textarea and the five
+  // sections of the in-place editor, each its own literal marker.
+  ['pwg_description_markdown', /PWG_PHASE_DESCRIPTION_MARKDOWN\b/],
+  ['pwg_inplace_place', /PWG_PHASE_INPLACE_PLACE\b/],
+  ['pwg_inplace_type', /PWG_PHASE_INPLACE_TYPE\b/],
+  ['pwg_inplace_link', /PWG_PHASE_INPLACE_LINK\b/],
+  ['pwg_inplace_render', /PWG_PHASE_INPLACE_RENDER\b/],
+  ['pwg_inplace_save', /PWG_PHASE_INPLACE_SAVE\b/],
 ];
 
 /* Fallback vocabulary: JavaScript's own built-in error constructor names.

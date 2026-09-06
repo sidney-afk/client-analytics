@@ -56,6 +56,12 @@ const PHASES = [
   // `pwg_quarantined_identity` could always have been any of those, which is
   // why splitting the quarantine block changed nothing. These name them.
   'authority_restore', 'status_write', 'due_write', 'due_receipt',
+  // The description flows (2026-09-06). The Markdown textarea flows and the
+  // in-place editor's five sections each carry their own marker, because the
+  // first CI red on the in-place editor reported `pwg_assignee_projection`
+  // for a section three hundred lines away from any assignee.
+  'description_markdown', 'inplace_place', 'inplace_type', 'inplace_link',
+  'inplace_render', 'inplace_save',
 ];
 let currentPhase = PHASES[0];
 function phase(name) {
@@ -1279,6 +1285,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       || read.response.assignees.every(row => row.id !== 'unmapped-designer')),
     'an unmapped member was offered as an assignee candidate');
 
+    phase('description_markdown');
     await page.evaluate(() => _prodOpenDeliverable('gra-description-parent'));
     await page.waitForFunction(() => _prodDescriptionState('gra-description-parent')?.status === 'ready');
     expect(descriptionReads.some(read => read.id === 'gra-description-parent'
@@ -1456,6 +1463,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     await page.waitForFunction(() => document.activeElement?.matches('[data-prod-description-edit]'));
 
     /* ---- The in-place editor itself ---------------------------------- */
+    phase('inplace_place');
     const childBefore = await page.evaluate(() => _prodDescriptionState('gra-description-child').value);
     /* Measured through a fresh query, not a held handle: a render between
        resolving the locator and reading the box hands back a detached node
@@ -1468,8 +1476,15 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       return { left: r.left, top: r.top, width: r.width, height: r.height, font: cs.fontSize + '/' + cs.lineHeight, clickEdit: el.hasAttribute('data-prod-desc-click-edit') };
     });
     expect(readBox.clickEdit, 'the read view is not click-to-edit while the write gate is open');
-    await page.locator('[data-prod-description="gra-description-child"] .prod-description-body').click({ position: { x: 60, y: 28 } });
+    /* Click the middle of the heading's own text, measured, so the caret
+       lands inside it whatever font the runner draws it with. */
+    const headingPoint = await page.evaluate(() => {
+      const r = document.querySelector('[data-prod-description="gra-description-child"] .prod-description-body .prod-md-heading').getBoundingClientRect();
+      return { x: r.left + Math.min(r.width / 2, 60), y: r.top + r.height / 2 };
+    });
+    await page.mouse.click(headingPoint.x, headingPoint.y);
     await page.waitForSelector('[data-prod-description-control="rich"]');
+    await page.waitForFunction(() => document.activeElement?.matches('[data-prod-description-control="rich"]'));
     const editBox = await page.locator('[data-prod-description-control="rich"]').evaluate(el => {
       const r = el.getBoundingClientRect();
       const cs = getComputedStyle(el);
@@ -1490,7 +1505,8 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect(await page.locator('[data-prod-description-control="rich"] .prod-md-heading').count() === 1
       && /Child local draft/.test(richText) && !/## /.test(richText),
     'the editor shows rendered shapes, not Markdown syntax: ' + JSON.stringify(richText));
-    await page.evaluate(() => { const el = document.querySelector('[data-prod-description-control="rich"]'); _prodDescRichSetCaret(el, { block: el.children.length - 1, offset: 1e9 }); });
+    phase('inplace_type');
+    await page.evaluate(() => { const el = document.querySelector('[data-prod-description-control="rich"]'); el.focus(); _prodDescRichSetCaret(el, { block: el.children.length - 1, offset: 1e9 }); });
     await page.keyboard.press('Enter');
     await page.keyboard.type('- typed bullet');
     await page.keyboard.press('Enter');
@@ -1516,8 +1532,9 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       && await page.locator('[data-prod-description-control="rich"] a').count() === 2,
     'a URL pasted over a selection did not become its link: ' + JSON.stringify(pastedDraft));
     // Hover card on a link: shows the host, edits text and URL in place.
+    phase('inplace_link');
     await page.locator('[data-prod-description-control="rich"] a').first().hover();
-    await page.waitForSelector('#prodDescLinkPop:not([hidden])');
+    await page.waitForSelector('#prodDescLinkPop:not([hidden])', { timeout: 10000 });
     expect((await page.locator('#prodDescLinkPop .prod-linkpop-url').textContent()) === 'linked.example'
       && await page.locator('#prodDescLinkPop [data-prod-linkpop="edit"]').isVisible(),
     'hovering a link did not show its card with Edit');
@@ -1525,11 +1542,14 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     await page.locator('#prodDescLinkPop [data-prod-linkpop-text]').fill('the brief');
     await page.locator('#prodDescLinkPop [data-prod-linkpop-href]').fill('https://brief.example/x');
     await page.locator('#prodDescLinkPop .prod-linkpop-apply').click();
+    await page.waitForFunction(() => document.getElementById('prodDescLinkPop')?.hidden === true
+      && document.activeElement?.matches('[data-prod-description-control="rich"]'));
     const linkedDraft = await page.evaluate(() => _prodDescriptionState('gra-description-child').draft);
     expect(/\[the brief\]\(https:\/\/brief\.example\/x\) https:\/\/example\.com\/page$/.test(linkedDraft)
       && await page.locator('#prodDescLinkPop').isHidden(),
     'editing a link through its card did not rewrite the Markdown: ' + JSON.stringify(linkedDraft));
     // A background render keeps the caret and does not move the pane.
+    phase('inplace_render');
     await page.evaluate(() => {
       const pane = document.querySelector('#prodRoot .prod-detail-main');
       pane.scrollTop = 40;
@@ -1545,12 +1565,14 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect(afterRender.focused && afterRender.pane === afterRender.before && afterRender.draft === linkedDraft,
       'a re-render while editing lost focus, moved the pane, or changed the draft: ' + JSON.stringify(afterRender));
     // Escape discards; the saved text is what the read view showed.
+    phase('inplace_save');
     await page.locator('[data-prod-description-control="rich"]').press('Escape');
     await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.editing === false);
     expect(await page.evaluate(() => _prodDescriptionState('gra-description-child').value) === childBefore,
       'Escape did not discard the visual draft');
     // Save from the visual editor writes the serialized Markdown exactly.
     await page.locator('[data-prod-description-edit]').click();
+    await page.waitForFunction(() => document.activeElement?.matches('[data-prod-description-control="rich"]'));
     await page.evaluate(() => { const el = document.querySelector('[data-prod-description-control="rich"]'); _prodDescRichSetCaret(el, { block: el.children.length - 1, offset: 1e9 }); });
     await page.keyboard.press('Enter');
     await page.keyboard.type('Saved from the visual editor');
@@ -1598,6 +1620,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       document.documentElement.removeAttribute('data-theme');
     });
 
+    phase('assignee_projection');
     await page.evaluate(() => _prodOpenDeliverable('gra-fixture'));
     await page.waitForFunction(() => _prodLabelState('gra-fixture')?.status === 'ready');
     expect(labelReads.some(read => read.body.action === 'labels_read'

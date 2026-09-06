@@ -1609,6 +1609,38 @@ ok(laneDoneProbeFailedRun.code === 1 && laneDoneProbeFailedRun.json
     && laneDoneProbeFailedRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
     'while "completed (run `X`) but the post-deploy probe failed" is a completed dispatch beside an unrelated failure, and FAILS');
 
+/* ---- 8ad. a bare label takes the next sentence; "scheduled" is a plan (round twenty-nine) */
+const laneLabelThenDone = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch. Completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneLabelThenDoneRun = run(fixture('lane-label-then-done', appended(laneLabelThenDone), realRb));
+ok(laneLabelThenDoneRun.code === 1 && laneLabelThenDoneRun.json
+    && laneLabelThenDoneRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A BARE LABEL TAKES THE SENTENCE THAT FOLLOWS IT: "- `lane` dispatch. Completed successfully (run `X`)." is one record and FAILS with its run id');
+const laneLabelThenProbe = laneLabelThenDone.replace('dispatch. Completed successfully', 'dispatch. Smoke probe completed successfully');
+const laneLabelThenProbeRun = run(fixture('lane-label-then-probe', appended(laneLabelThenProbe), realRb));
+ok(laneLabelThenProbeRun.code === 0,
+    'while a following sentence with a subject of its own ("Smoke probe completed successfully") is about the probe, not the label, and asks for nothing');
+const laneLabelThenNot = laneLabelThenDone.replace('Completed successfully (run `33995000000`).', 'NOT DISPATCHED (runner busy).');
+const laneLabelThenNotRun = run(fixture('lane-label-then-not', appended(laneLabelThenNot), realRb));
+ok(laneLabelThenNotRun.code === 0,
+    'and "- `lane` dispatch. NOT DISPATCHED (runner busy)." asks for nothing');
+const laneScheduled = [
+    '',
+    '## 2026-09-06 — Approval pending',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch is scheduled for run `33995000000` after',
+    'approval.',
+    '',
+].join('\n');
+const laneScheduledRun = run(fixture('lane-scheduled', appended(laneScheduled), realRb));
+ok(laneScheduledRun.code === 0,
+    '"SCHEDULED" IS A PLAN: "the dispatch is scheduled for run `X` after approval" asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

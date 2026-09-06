@@ -620,7 +620,7 @@ const DONE_WORDS = 'dispatched|went out|deployed|redeployed|shipped|ran|passed|P
    reference replaced by LANE, so "without a LANE dispatch" is caught while
    "completed without errors" is not (Codex, twenty-second round on #1306:
    a bare "without" read a completed run as a plan). */
-const AHEAD_WORDS = 'until|pending|awaiting|await|next|future|upcoming|planned|planning|will|would|not yet|owed|instead of|rather than|to be dispatched|without (?:a |the |any |ever )?(?:LANE )?(?:dispatch|dispatching|run|running)';
+const AHEAD_WORDS = 'until|pending|awaiting|await|next|future|upcoming|planned|planning|scheduled|scheduling|queued|to run|will|would|not yet|owed|instead of|rather than|to be dispatched|without (?:a |the |any |ever )?(?:LANE )?(?:dispatch|dispatching|run|running)';
 /* Checks that are not deployments: a completion word about one of these
    ("dry-run passed", "validation succeeded", "passed the typecheck") says
    nothing about the dispatch, and a run id that follows one of these is the
@@ -713,7 +713,27 @@ function recordsADispatch(log, k, len) {
     if (plans(whole)) return null;
     if (DISPATCH_DONE.test(norm(whole))) return { run: '' };
     const lead = cStart > 0 ? span.match(/^[^.;!?]*?:\**(?=\s)/) : null;
-    return lead && DISPATCH_DONE.test(norm(lead[0])) && !DISPATCH_AHEAD.test(lead[0]) && !/\bNOT DISPATCHED\b/i.test(lead[0]) ? { run: '' } : null;
+    if (lead && DISPATCH_DONE.test(norm(lead[0])) && !DISPATCH_AHEAD.test(lead[0]) && !/\bNOT DISPATCHED\b/i.test(lead[0])) return { run: '' };
+    /* A BARE LABEL TAKES THE SENTENCE THAT FOLLOWS IT AS ITS RESULT: "- `lane`
+       dispatch. Completed successfully (run `X`)." is one record split at a
+       period (Codex, twenty-ninth round on #1306). Only when the clause carries
+       no verdict of its own, and only when the next sentence, inside the same
+       item or paragraph, opens with a verdict rather than a subject of its own
+       ("Smoke probe completed successfully" is about the probe). */
+    if (!/\bNEGATED\b/.test(norm(whole)) && !CHECK_ONLY.test(whole)) {
+        const rest = span.slice(cEnd + 1);
+        const nm = rest.match(/[.;!?](?=\s|$)/);
+        const next = (nm ? rest.slice(0, nm.index) : rest).replace(/^\s*(?:Result|Outcome|Status|Verdict)\s*:\s*/i, '').trim();
+        const opensWithVerdict = new RegExp('^(?:(?:it|this|that|which|was|were|is|has|had|been|also|then|all|not|never)\\s+)*(?:' + DONE_WORDS + '|NOT DISPATCHED|' + AHEAD_WORDS.replace(/LANE /g, '') + '|failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b', 'i');
+        if (next && opensWithVerdict.test(next)) {
+            if (/\bNOT DISPATCHED\b/i.test(next)) return null;
+            const nrm = next.match(/\brun\s+`?#?(\d{6,})/i);
+            if (nrm && !plans(next.slice(0, nrm.index)) && !/\bNEGATED\b/.test(norm(next))) return { run: nrm[1] };
+            if (plans(next) || /\bNEGATED\b/.test(norm(next))) return null;
+            if (DISPATCH_DONE.test(norm(next))) return { run: '' };
+        }
+    }
+    return null;
 }
 
 /* THE CONCISE PROSE SHAPE, which produced no receipt at all. EXECUTION_LOG.md

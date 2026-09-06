@@ -1,0 +1,17 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const sql=fs.readFileSync('migrations/2026-09-06-linear-outbound-cutoff.sql','utf8');
+const ef=fs.readFileSync('supabase/functions/linear-outbound/index.ts','utf8');
+let checks=0;const ok=(v,m)=>{assert.ok(v,m);checks++;};
+ok(sql.includes("cutoff_enabled boolean not null default false"),'cutoff primitive is inactive by default');
+ok(sql.includes("'accepted_after_cutoff'") && !/delete\s+from\s+public\.mirror_outbox/i.test(sql),'post-cutoff debt is classified, not deleted');
+ok(!/status\s*=\s*'(?:written|skipped|stale)'/.test(sql),'cutoff never manufactures terminal queue success');
+ok(sql.includes("for share")&&sql.includes("for update"),'enqueue/claim/authorize serialize with activation');
+ok(sql.includes("outbound_generation is distinct from v_control.generation"),'stale worker apply fails closed');
+ok(ef.includes('rpc("linear_outbound_claim_v1"'),'actual drainer claim uses server gate');
+ok(ef.includes('await authorizeProviderDispatch(supabase, row);'),'actual provider mutation has immediate authorization');
+ok(ef.indexOf('await authorizeProviderDispatch(supabase, row);') < ef.indexOf('const data = await linearGraphql(mutation.query'),'authorization precedes outbound mutation');
+ok(ef.includes('throw new Error("outbound cutoff claim unavailable")'),'missing/failed claim read is not an empty success');
+const base=cp.execFileSync('git',['show','8514a83ed1a65145a3a51ffe52e5fcbb2976be31:supabase/functions/linear-outbound/index.ts'],{encoding:'utf8'});
+ok(!base.includes('linear_outbound_claim_v1')&&!base.includes('linear_outbound_authorize_dispatch_v1'),'pinned-base negative control lacks server cutoff');
+console.log(`linear outbound cutoff source: ${checks} passed (SOURCE/OFFLINE; no serving proof)`);

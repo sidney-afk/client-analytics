@@ -4,6 +4,12 @@ All times are UTC unless noted.
 
 ## 2026-09-06 — Native card HTTP source adapter, uninstalled
 
+**Bounded review correction:** preserve `e4b56f582` and its 66 offline controls.
+Independent HTTP response-only tampering reproduced an unexpected child in an
+originally empty slot being acknowledged. Both native slots now compare after
+empty-string/null normalization; 70 offline groups pass. SQL and both handler
+bodies are unchanged by this correction. Actual corrected HTTP proof is separate.
+
 One shared adapter adds exact-native-marker terminal branches to Calendar and
 Samples repository upserts from PR1324 `8514a83`. Existing authorization and
 ordinary writer bytes are preserved. Bounded fatal UTF-8 reading retains the

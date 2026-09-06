@@ -94,7 +94,9 @@ function completeCurrentRow(row, surface, client, cardId, original) {
     if (!own(row, field) || (row[field] !== null && typeof row[field] !== 'string')) return false;
   }
   for (const field of ['video_deliverable_id', 'graphic_deliverable_id']) {
-    if (typeof original[field] === 'string' && original[field] !== '' && row[field] !== original[field]) return false;
+    // Both occupied AND empty slots are accepted identity. SQL represents an
+    // absent UUID as NULL; the retained browser envelope uses an empty string.
+    if ((original[field] ?? '') !== (row[field] ?? '')) return false;
   }
   return true;
 }

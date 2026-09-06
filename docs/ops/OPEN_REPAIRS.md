@@ -4,7 +4,8 @@
 the [native-card HTTP adapter](../audits/2026-09-06-native-card-http-adapter.md)
 preserves current repository auth and ordinary writer bytes, retains bounded UTF-8
 request text through one SQL RPC, and refuses incomplete/uncertain acknowledgements.
-66 offline controls pass. Actual serving composition, anonymous client continuity,
+70 offline controls pass after the bounded empty-child-slot response correction.
+Actual serving composition, anonymous client continuity,
 both n8n fallback amendments and installed SQL/recovery remain explicit gates;
 automatic creation is not enabled. No production action or client-surface change.
 

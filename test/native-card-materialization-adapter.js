@@ -101,7 +101,7 @@ const ingress = '00000000-0000-4000-8000-000000000002';
       let calls = 0;
       const result = await materializeNativeCard({ ...input, ...overrides, supabase: { async rpc(name, args) {
         calls++; assert.equal(name, 'production_card_materialize');
-        assert.deepEqual(args, { p_surface: surface, p_source: 'submission-native', p_raw_body: rawText });
+        assert.deepEqual(args, { p_surface: surface, p_source: 'submission-native', p_raw_body: overrides.rawText ?? rawText });
         if (reply instanceof Error) throw reply;
         return reply;
       } } });
@@ -118,6 +118,22 @@ const ingress = '00000000-0000-4000-8000-000000000002';
       assert.equal(calls, 1); assert.equal(result.status, 409); assert.equal(result.body.ok, false); assert.equal(result.body.conserved, true);
     });
     const changed = mutate => { const copy = structuredClone(good); mutate(copy); return copy; };
+    await check(surface + ' unexpected child in originally empty graphic slot is unknown', async () => {
+      const { result, calls } = await invoke(changed(x => x.data[key].graphic_deliverable_id = ingress));
+      assert.equal(calls, 1); assert.equal(result.status, 503); assert.equal(result.body.conserved, null);
+    });
+    await check(surface + ' thumbnail-only null/empty slot compatibility and unexpected video refusal', async () => {
+      const envelope = JSON.parse(rawText);
+      envelope[key].video_deliverable_id = '';
+      envelope[key].graphic_deliverable_id = child;
+      const overrides = { rawText: JSON.stringify(envelope) };
+      const valid = changed(x => { x.data[key].video_deliverable_id = null; x.data[key].graphic_deliverable_id = child; });
+      const accepted = await invoke(valid, overrides);
+      assert.equal(accepted.calls, 1); assert.equal(accepted.result.status, 200);
+      valid.data[key].video_deliverable_id = ingress;
+      const refused = await invoke(valid, overrides);
+      assert.equal(refused.calls, 1); assert.equal(refused.result.status, 503); assert.equal(refused.result.body.conserved, null);
+    });
     for (const [name, reply] of [
       ['transport rejection', new Error('private upstream detail')],
       ['error field', { data: good.data, error: { message: 'private upstream detail' } }],

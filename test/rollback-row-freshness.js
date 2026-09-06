@@ -3062,6 +3062,26 @@ ok(adverbInOutcomeHeadingRun.code === 1 && adverbInOutcomeHeadingRun.json
     && /34000000000/.test(JSON.stringify(adverbInOutcomeHeadingRun.json.failures)),
     'AND AN ADVERB INSIDE THE OUTCOME KEEPS IT: "Deployment is now complete — run `X`" anchors its own run');
 
+/* ---- 8by. going live is an outcome (round 76) ---- */
+const nowLiveHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment is now live — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const nowLiveHeadingRun = run(fixture('now-live-heading', appended(nowLiveHeading), realRb));
+ok(nowLiveHeadingRun.code === 1 && nowLiveHeadingRun.json
+    && /34000000000/.test(JSON.stringify(nowLiveHeadingRun.json.failures)),
+    'GOING LIVE IS AN OUTCOME: "Deployment is now live — run `X`" anchors its own run, like "complete" and "successful" before it');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

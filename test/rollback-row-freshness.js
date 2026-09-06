@@ -2885,6 +2885,30 @@ ok(unnumberedPartialFailureRun.code === 1 && unnumberedPartialFailureRun.json
     && unnumberedPartialFailureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
     'AND A FAILURE THAT SAYS WHAT IT DEPLOYED IS STILL A DISPATCH: with no run id it is placed by its date, not dropped for having no completion word');
 
+/* ---- 8bs. pre-deploy failures; counted partial progress (round 70) ---- */
+const failedBeforeDeploying = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The run failed before it could deploy any function.',
+    '',
+].join('\n');
+const failedBeforeDeployingRun = run(fixture('failed-before-deploying', appended(failedBeforeDeploying), realRb));
+ok(failedBeforeDeployingRun.code === 0,
+    'A PRE-DEPLOY FAILURE SHIPPED NOTHING: "the run failed before it could deploy any function" is whole-run evidence, so the entry asks for no receipt');
+
+const countedPartialNoRun = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed after deploying the first function.',
+    '',
+].join('\n');
+const countedPartialNoRunRun = run(fixture('counted-partial-no-run', appended(countedPartialNoRun), realRb));
+ok(countedPartialNoRunRun.code === 1 && countedPartialNoRunRun.json
+    && countedPartialNoRunRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AND COUNTED PROGRESS IS THE SAME EVIDENCE AS NAMING IT: "failed after deploying the first function" with no run id is still a dispatch');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

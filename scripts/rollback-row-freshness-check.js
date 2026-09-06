@@ -898,7 +898,7 @@ function recordsADispatch(log, k, len) {
        the four). Failure wording is a negation only where the record says the
        whole run deployed nothing; otherwise the run is read like any other and
        its dispatch stands. */
-    const NOTHING_SHIPPED = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|never deployed|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
+    const NOTHING_SHIPPED = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|never deployed|before any (?:mutation|deploy|function)|before (?:it|they|we|the run|the lane|the job) could deploy)\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
     /* AND THE CLAIM HAS TO BE ABOUT THIS ATTEMPT. "the current run `X` failed,
        while the previous attempt deployed nothing" used to negate the current
        failure with the older attempt's evidence (Codex, fiftieth round on
@@ -1065,7 +1065,10 @@ function recordsADispatch(log, k, len) {
        function and carries no run id, so it is placed by its date rather than
        dropped for having no completion word (Codex, sixty-ninth round on
        #1306). */
-    if (new RegExp('\\b(?:failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b[^.\\n]{0,80}\\bdeploy(?:ed|ing|s)?\\b[^.\\n]{0,40}`?(?:' + SLUGS.join('|') + ')`?', 'i').test(whole)) return { run: '' };
+    /* Named or counted, the record says a function moved: "failed after
+       deploying the first function" is the same evidence as naming it
+       (Codex, seventieth round on #1306). */
+    if (new RegExp('\\b(?:failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b[^.\\n]{0,80}\\bdeploy(?:ed|ing|s)?\\b[^.\\n]{0,40}(?:`?(?:' + SLUGS.join('|') + ')`?|(?:the\\s+)?(?:first|second|third|one|two|three|1st|2nd|3rd)\\s+functions?)', 'i').test(whole)) return { run: '' };
     const lead = cStart > 0 ? span.match(/^[^.;!?]*?:\**(?=\s)/) : null;
     if (lead && DISPATCH_DONE.test(norm(lead[0])) && !DISPATCH_AHEAD.test(lead[0]) && !/\bNOT DISPATCHED\b/i.test(lead[0])) return { run: '' };
     /* A BARE LABEL TAKES THE SENTENCE THAT FOLLOWS IT AS ITS RESULT: "- `lane`
@@ -1383,7 +1386,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            is qualified by a subset word, or the entry says somewhere that one
            of the four WAS deployed. Either way the entry is asked for its
            receipt, because a partial deploy moved a live version. */
-        const NOTHING_HERE = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
+        const NOTHING_HERE = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy|function)|before (?:it|they|we|the run|the lane|the job) could deploy)\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
         /* AND IT HAS TO BE ABOUT THIS RUN. An entry that keeps a previous
            attempt's history ("The current attempt failed (run `X`). The
            previous attempt deployed nothing (run `Y`).") used to borrow that

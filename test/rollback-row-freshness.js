@@ -1519,6 +1519,27 @@ const laneNegatedDispatchRun = run(fixture('lane-negated-dispatch', appended(lan
 ok(laneNegatedDispatchRun.code === 0,
     'and a negated dispatch verdict with no run id, "the dispatch was not completed", is no completion either and asks for nothing');
 
+/* ---- 8aa. a heading that awaits its deploy is not a deploy record ------------ */
+/* Surfaced by the merge of #1310 into this branch: its entry is headed
+   "Built: ... (awaits migration + first deploy)", names Section 4 in its body
+   to say which lane will carry the gateway half, and holds no receipt because
+   nothing shipped. The sweep read "deploy" in the heading and demanded one. */
+const awaitsDeploy = [
+    '',
+    '## 2026-09-06 — Built: a new gateway half (awaits migration + first deploy)',
+    '',
+    'The browser half is merged. The gateway half rides the F27 Section 4 lane on its next',
+    'dispatch and is inert until then; no edge function was deployed today.',
+    '',
+].join('\n');
+const awaitsDeployRun = run(fixture('awaits-deploy-heading', appended(awaitsDeploy), realRb));
+ok(awaitsDeployRun.code === 0,
+    'A HEADING THAT AWAITS ITS DEPLOY IS NOT A DEPLOY RECORD: "Built: ... (awaits migration + first deploy)" with Section 4 named in its body and no receipt asks for nothing');
+const shippedDeploy = awaitsDeploy.replace('Built: a new gateway half (awaits migration + first deploy)', 'F27 Section 4 deploy: a new gateway half, first deploy');
+const shippedDeployRun = run(fixture('shipped-deploy-heading', appended(shippedDeploy), realRb));
+ok(shippedDeployRun.code === 1 && shippedDeployRun.json && shippedDeployRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy: a new gateway half, first deploy"/.test(f) && UNREADABLE.test(f)),
+    'while the same entry headed as a deploy, with no forward-looking word before "deploy", is still asked for its receipt');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

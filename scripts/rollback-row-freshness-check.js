@@ -953,7 +953,14 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            readable sibling again. */
         ancestors.push({ level: h.level, text: h.text, section4: namesSection4(h.text) || namesSection4(block) });
         const sectionFourHere = namesSection4(h.text) || underSection4 || namesSection4(block);
-        const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text)))
+        /* A heading whose "deploy" is forward-looking is not a deploy record:
+           "Built: ... (awaits migration + first deploy)" is an entry about code
+           that has NOT shipped, and it names Section 4 in its body only to say
+           which lane will carry it. Surfaced by the merge of #1310 during
+           review of #1306. "NOT DISPATCHED" is the same idea in the log's own
+           words. */
+        const deployAhead = /\b(awaits?|awaiting|pending|before|until|not yet|to be|planned|upcoming|will|would|without|ahead of)\b[^\n]{0,40}?\bdeploy/i.test(h.text);
+        const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text) && !deployAhead))
             && !/NOT DISPATCHED/i.test(h.text);
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
         if (!unreadableRows && !truncatedTables && !attestations && !noReceiptUnder) continue;

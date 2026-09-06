@@ -32,6 +32,8 @@ The first combined hosted run `34051779861` at `dd831df58` passed452 of454 unit 
 
 The source-only four-closure calculation at `5f89b89e15b788fa902ba78d641f5b640e7c8bee` changes only outbound to `43329cdf65d87d20dffa16e5711a3deb0f1902acceae652cd5c5f5d255adcde9` (five files). Batch, deliverable and production closures remain identical to the preceding candidate. Both Section4 carriers are updated; this neither dispatches the workflow nor proves deployment. The worker's private receipt digest is `8de6bc39c9a030ae0f76c00d3bcbd604c1c3bcf08b06a31bb6f69f9db03a1f88`.
 
+Hosted run `34055217417` at `16a701a318eaf829a6357bb0352ff7babd51b1c6` passed455/456 unit suites, including the new33 offline and34 actual worker/SQL groups. The sole failure was `test/write-ui-outbox-parity.js` expecting old one-argument team lookup calls. The correction requires the exact added `{ supabase, row }` context on both UUID and team-key paths and retains every routing predicate. Separate negative controls remove each binding and must fail. No runtime or closure changes are made by this correction. Later dedicated history/restore steps were skipped in this failed run; the preceding e520 restore success remains its own exact evidence. Browser, types, F27 and privacy passed.
+
 ## Release holds and client behavior
 
 Preparation changes no client experience: this is an unmerged candidate, new database owners/capabilities are absent, and no deployment, flag, n8n or provider action occurred. The compatible frozen anonymous serving composition must be separately reviewed; deploying the repository authentication paths would violate the client contract.

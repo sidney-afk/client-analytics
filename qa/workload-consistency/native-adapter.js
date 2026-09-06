@@ -9,6 +9,7 @@ const ROOT=capture.ROOT,own=(x,k)=>Object.hasOwn(x,k),obj=x=>x!==null&&typeof x=
 const fail=code=>{throw Error(code);};
 // PostgreSQL btrim(text) removes ASCII spaces by default, not JS whitespace.
 const trim=x=>typeof x==='string'?x.replace(/^ +| +$/g,''):'';
+const pgLength=value=>[...value].length;
 const TEAM={video:['VID','Video','editor'],graphics:['GRA','Graphics','designer']};
 const STATUS={triage:['Triage','triage'],backlog:['Backlog','backlog'],todo:['Todo','unstarted'],in_progress:['In Progress','started'],
  smm_approval:['For SMM approval','started'],kasper_approval:['For Kasper approval','started'],client_approval:['For Client approval','started'],
@@ -47,13 +48,13 @@ function labels(raw){
     // shapes are explicitly held rather than approximated by JS coercion.
     if((node.id!=null&&typeof node.id!=='string')||(node.name!=null&&typeof node.name!=='string'))fail('LABEL_SCALAR_SHAPE_UNREPRESENTED');
     const id=trim(node.id),name=trim(node.name);
-    if(!id||id.length>200||!name||name.length>200||ids.has(id)||names.has(name))return bad;
+    if(!id||pgLength(id)>200||!name||pgLength(name)>200||ids.has(id)||names.has(name))return bad;
     ids.add(id);names.add(name);
     if(['2× Workload','3× Workload'].includes(name))chosen.push({id,name,color:typeof node.color==='string'&&/^#[0-9a-f]{6}$/i.test(node.color)?node.color.toUpperCase():null});
   }
   if(own(raw.issue,'labelIds')){
     const selected=raw.issue.labelIds;
-    if(!Array.isArray(selected)||selected.length>250||selected.some(v=>typeof v!=='string'||!trim(v)||trim(v).length>200))return bad;
+    if(!Array.isArray(selected)||selected.length>250||selected.some(v=>typeof v!=='string'||!trim(v)||pgLength(trim(v))>200))return bad;
     const set=new Set(selected.map(trim));if(set.size!==selected.length||set.size!==ids.size||[...set].some(v=>!ids.has(v)))return bad;
   }
   return {complete:true,labels:chosen};
@@ -102,10 +103,12 @@ function derive(sections){
   }
   // Legacy rows are retained only to validate exact plan alias ownership. Their
   // mirror content is never treated as an independent provider denominator.
+  const aliasOwners=new Map();for(const n of view){if(!n.is_sub_issue||n.linear_id===null)continue;
+    if(!aliasOwners.has(n.linear_id))aliasOwners.set(n.linear_id,[]);aliasOwners.get(n.linear_id).push(n);}
   for(const w of sections.workload_issues){
     if(w.active!==true)continue;const team=w.team_key==='VID'?'video':w.team_key==='GRA'?'graphics':null;
     if(team&&authority[team]!=='linear')continue;
-    const owners=view.filter(n=>n.is_sub_issue&&n.linear_id===w.id);
+    const owners=aliasOwners.get(w.id)||[];
     if(owners.length>1)fail('PLAN_ALIAS_AMBIGUOUS');
     rpc.push({...w,source:'legacy',native_plan_id:owners[0]?.id??null,native_plan_client_name:owners[0]?.client_name??null});
   }
@@ -132,6 +135,7 @@ async function compareCapture(result,key,options){
   compareRows(derived.metadata,decoded.sections.production_deliverables_browser_v1,'metadata',report);
   const observedNative=decoded.snapshot.rows.filter(r=>r.source==='native');
   compareRows(derived.rpc.filter(r=>r.source==='native'),observedNative,'native_rpc',report);
+  for(const plan of decoded.sections.workload_plan){day(plan.plan_date);if(typeof plan.client!=='string'||!plan.client)fail('BASE_PLAN_SCOPE_INVALID');}
   const plans=exact.browserValue(decoded.sections.workload_plan);
   const {projectNativeSnapshot}=await import(pathToFileURL(path.join(ROOT,'supabase/functions/workload-plan/native-snapshot.mjs')).href);
   const normalize=harness.context(['wlNormalizeClient']).wlNormalizeClient;

@@ -39,7 +39,7 @@ async function run(cfg,output){
    linear_raw:{precision_probe:new exact.ExactNumber('9007199254740993'),issue:{labels:{nodes:[],pageInfo:{hasNextPage:false}}}},...extra});
   const fixtures=[work('del_native_2',{sort_key:new exact.ExactNumber('9007199254740993')}),work('del_native_10',{sort_key:new exact.ExactNumber('-123.456789012345678901')}),
    work('del_old_5',{linear_issue_uuid:'old-work-alias',assignee_id:'00000000-0000-4000-8000-000000000051'}),
-   work('del_graphics_3',{team:'graphics',kind:'graphic',assignee_id:'00000000-0000-4000-8000-000000000048'}),
+   work('del_graphics_3',{team:'graphics',kind:'thumbnail',assignee_id:'00000000-0000-4000-8000-000000000048'}),
    work('del_wrong_team_4',{assignee_id:'00000000-0000-4000-8000-000000000048'}),work('del_inactive_6',{assignee_id:'00000000-0000-4000-8000-000000000049'}),
    work('del_wrong_role_7',{assignee_id:'00000000-0000-4000-8000-000000000050'}),work('del_unassigned_empty_8',{assignee_id:null,due_date:null}),
    work('del_unassigned_work_9',{assignee_id:null,due_date:null,status:'in_progress'}),work('del_unassigned_date_11',{assignee_id:null}),
@@ -48,6 +48,7 @@ async function run(cfg,output){
    work('b1_child_16',{linear_raw:{issue:{parent:{id:'provider-parent'},labels:{nodes:[],pageInfo:{hasNextPage:false}}}}})];
   for(const status of ['triage','backlog','in_progress','smm_approval','kasper_approval','client_approval','tweak','approved','scheduled','posted','canceled','duplicate'])fixtures.push(work('del_status_'+status,{status,identifier:'STATUS-'+status}));
   fixtures[0].linear_raw.issue.labels.nodes=[{id:'weight-fixture',name:'3× Workload',color:'#abc123'}];fixtures[0].linear_raw.issue.labelIds=['weight-fixture'];
+  const unicode='🙂'.repeat(101);fixtures[1].linear_raw.issue.labels.nodes=[{id:unicode,name:unicode}];fixtures[1].linear_raw.issue.labelIds=[unicode];
   for(const row of fixtures){const keys=Object.keys(row);db.query('insert into deliverables('+keys.join(',')+')values('+keys.map(k=>row[k]===null?'null':row[k] instanceof exact.ExactNumber?row[k].raw:typeof row[k]==='object'?lit(exact.stringify(row[k]))+'::jsonb':lit(row[k])).join(',')+');');}
   db.query("insert into workload_plan(issue_id,client,plan_date,updated_by)values('old-work-alias','nativefixture','2030-01-09','synthetic'),('del_native_2','nativefixture','2030-01-08','synthetic'),('retired-plan','nativefixture',null,'synthetic');");
   const catalog=await capture.inspectCatalog(cfg),result=await capture.capture(cfg,catalog,head,key);
@@ -57,6 +58,7 @@ async function run(cfg,output){
   check('every base row has exactly one structural/archive/authority/source category',()=>{const a=correct.accounting;assert.equal(a.base_deliverables,fixtures.length);assert.equal(a.structural_containers,2);assert.equal(a.archived_noncontainers,1);assert.equal(a.structural_containers+a.archived_noncontainers+a.provider_authority_noncontainers+a.native_rpc_work,a.base_deliverables);});
   check('numeric capture precision survives adapter parsing',()=>{const rows=adapter.decode(result,key,head).sections.deliverables;assert.equal(rows.find(r=>r.id==='del_native_2').sort_key.raw,'9007199254740993');assert.equal(rows.find(r=>r.id==='del_native_10').sort_key.raw,'-123.456789012345678901');});
   check('label whitespace follows PostgreSQL btrim rather than JavaScript trim',()=>assert.deepEqual(adapter.labels({issue:{labels:{nodes:[{id:'id',name:'\t3× Workload\t'}],pageInfo:{hasNextPage:false}}}}),{complete:true,labels:[]}));
+  check('actual SQL and adapter count Unicode characters rather than UTF-16 units',()=>{assert.equal(db.query("select production_workload_label_projection(linear_raw)->>'complete' from deliverables where id='del_native_10'"),'true');assert.equal(adapter.labels(fixtures[1].linear_raw).complete,true);assert.ok(unicode.length>200&&[...unicode].length<=200);});
   const noChange=mutate(result,key,()=>{});check('lossless fixture reseal preserves exact numeric distinction',()=>assert.notEqual(noChange.packet.body.raw_database_json.indexOf('9007199254740993'),-1));
   check('ordinary JSON reconstruction would lose that precision',()=>assert.notEqual(JSON.stringify(JSON.parse('{"n":9007199254740993}')),'{"n":9007199254740993}'));
   assert.equal((await adapter.compareCapture(noChange,key,options)).comparison,'MATCH');checks.push('semantically unchanged lossless packet still matches');
@@ -70,6 +72,8 @@ async function run(cfg,output){
   await bad('changed roster assembled from a different read refuses',mutate(result,key,(body,change)=>change('team_members',rows=>{rows.find(r=>r.id.endsWith('047')).active=false;})));
   await bad('native saved plan alias cannot point at another row',mutate(result,key,body=>{body.native_snapshot.rows.find(r=>r.id==='del_old_5').linear_id='unrelated-alias';}));
   await bad('saved date changed only in RPC refuses',mutate(result,key,body=>{body.native_snapshot.plans.find(r=>r.issue_id==='old-work-alias').plan_date='2030-01-10';}));
+  await bad('coherently forged impossible saved date refuses before matching regex-only readers',mutate(result,key,(body,change)=>{
+   change('workload_plan',rows=>{rows.find(r=>r.issue_id==='old-work-alias').plan_date='2030-02-31';});body.native_snapshot.plans.find(r=>r.issue_id==='old-work-alias').plan_date='2030-02-31';}));
   await bad('new sort_order cannot silently replace current identifier ordering',mutate(result,key,body=>{body.native_snapshot.rows.filter(r=>r.is_sub_issue).forEach((r,i)=>{r.sort_order=100-i;});}));
   await bad('same-count exact numeric field substitution is detected',mutate(result,key,(body,change)=>change('workload_issues_native_v1',rows=>{rows.find(r=>r.id==='del_native_2').native_sort_key=new exact.ExactNumber('9007199254740992');})));
   await bad('wrong workload weights in captured metadata are detected',mutate(result,key,(body,change)=>change('production_deliverables_browser_v1',rows=>{rows.find(r=>r.id==='del_native_2').workload_labels=[];})));

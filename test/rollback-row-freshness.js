@@ -1726,6 +1726,53 @@ const planHeadingRun = run(fixture('plan-heading', appended(planHeading), realRb
 ok(planHeadingRun.code === 0,
     'A PLAN NOUN AFTER THE DEPLOYMENT NOUN IS STILL A PLAN: "F27 Section 4 deployment plan approved for tomorrow" with no receipt asks for nothing');
 
+/* ---- 8ag. push runs of a dispatch-gated lane; failed attempts (round 32) ----- */
+const lanePush = [
+    '',
+    '## 2026-09-06 — Staff functions',
+    '',
+    'The `deploy-onboarding-edge-functions` push run `33995000000` completed successfully',
+    'when the onboarding readers merged.',
+    '',
+].join('\n');
+const lanePushRun = run(fixture('lane-push-run', appended(lanePush), realRb));
+ok(lanePushRun.code === 0,
+    'A PUSH RUN OF A DISPATCH-GATED LANE MOVES NOTHING HERE: the onboarding lane carries `production-write` only in a step gated on workflow_dispatch, so a run the entry calls a push run asks for nothing');
+const laneTerse = [
+    '',
+    '## 2026-09-06 — Staff functions',
+    '',
+    'The `deploy-onboarding-edge-functions` lane completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneTerseRun = run(fixture('lane-terse', appended(laneTerse), realRb));
+ok(laneTerseRun.code === 1 && laneTerseRun.json
+    && laneTerseRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while a record that names no trigger at all still FAILS -- requiring positive dispatch evidence would blind this guard to a terse record of a real deploy, so the exemption needs the entry to SAY it was a push');
+const failedNothing = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `33995000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`; the lane refused before any',
+    'mutation on a fingerprint mismatch. No deployment occurred and the live set did not move.',
+    '',
+].join('\n');
+const failedNothingRun = run(fixture('failed-nothing', appended(failedNothing), realRb));
+ok(failedNothingRun.code === 0,
+    'A FAILED ATTEMPT THAT DEPLOYED NOTHING NEEDS NO RECEIPT: "deploy failed" with "no deployment occurred" in its body is legitimate history and asks for nothing');
+const failedPartial = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `33995000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`; the lane deployed',
+    '`production-write` and then failed on the readback of `linear-outbound`.',
+    '',
+].join('\n');
+const failedPartialRun = run(fixture('failed-partial', appended(failedPartial), realRb));
+ok(failedPartialRun.code === 1 && failedPartialRun.json
+    && failedPartialRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `33995000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'while a PARTIAL failure, which did move a live version, still fails closed and is asked for its receipt');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

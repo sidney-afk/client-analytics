@@ -402,7 +402,21 @@ function otherOwningLanes() {
         const owned = SLUGS.filter(sl => new RegExp('\\b' + sl + '\\b').test(text));
         if (!owned.length) continue;
         const nm = text.match(/^name:\s*(.+)$/m);
-        out.push({ file: f, base: f.replace(/\.ya?ml$/, ''), name: nm ? nm[1].trim().replace(/^["']|["']$/g, '') : '', slugs: owned });
+        /* A LANE THAT ONLY MOVES THESE FUNCTIONS WHEN A PERSON DISPATCHES IT.
+           `deploy-onboarding-edge-functions` auto-deploys its own staff
+           functions on a push to main, but the Track-B step that carries
+           `production-write` and `linear-outbound` is gated on
+           `github.event_name == 'workflow_dispatch'` -- the workflow says so
+           itself: "A normal merge/push must never deploy that set." So a push
+           run of that lane moves nothing this guard tracks (Codex,
+           thirty-second round on #1306). Read from the workflow, never listed
+           here: a step that loses its gate must make this guard stricter, not
+           leave a stale exemption behind. */
+        const steps = text.split(/\n(?=\s*- (?:name|id|uses|run):)/);
+        const carrying = steps.filter(st => owned.some(sl => new RegExp('\\b' + sl + '\\b').test(st)) && /\brun:|\buses:/.test(st));
+        const manualOnly = carrying.length > 0
+            && carrying.every(st => /if:[^\n]*github\.event_name\s*==\s*'?"?workflow_dispatch/.test(st));
+        out.push({ file: f, base: f.replace(/\.ya?ml$/, ''), name: nm ? nm[1].trim().replace(/^["']|["']$/g, '') : '', slugs: owned, manualOnly });
     }
     return out;
 }
@@ -454,6 +468,15 @@ function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {
                 const k = rm.index;
                 const ev = recordsADispatch(log, k, rm[0].length);
                 if (!ev) continue;
+                /* A lane whose guarded step is dispatch-gated moves nothing
+                   here on a push run, so a record that SAYS it was a push,
+                   merge or auto run is not a companion deploy. Only an explicit
+                   statement exempts it: a terse record of a real dispatch ("the
+                   onboarding lane deployed `production-write`, run `X`") names
+                   no trigger at all, and requiring positive dispatch evidence
+                   would blind this guard to exactly the deploy it exists to
+                   catch. Fails closed, as everything here does. */
+                if (lane.manualOnly && pushRun(log, k, rm[0].length)) continue;
                 /* RUN IDS ORDER DISPATCHES ACROSS EVERY LANE. When the record's
                    run id and the receipt's are both known they decide, and the
                    day-level date is only the fallback. A run older than the
@@ -679,6 +702,18 @@ function lastIndex(re, text) {
     }
     return last;
 }
+/* Does the record at k say the run was a push, merge or automatic one, rather
+   than a dispatch? Judged on the reference's own clause and scope. */
+function pushRun(log, k, len) {
+    const scope = referenceScope(log, k, len);
+    const span = log.slice(scope.from, scope.to);
+    if (/\b(dispatch|dispatched|dispatching|workflow_dispatch|manual|manually|owner-dispatched|re-run|rerun)\b/i.test(span)
+        && !/\b(push|merge|auto)[- ]?(run|deploy|deployment|build)\b/i.test(span)) return false;
+    return /\bpush[- ]?(run|deploy|deployed|deployment|build|triggered)\b/i.test(span)
+        || /\b(on|from|by) (?:a |the )?(?:push|merge|commit)\b/i.test(span)
+        || /\b(auto-deploy|auto-deployed|automatic(?:ally)? (?:deploy|deployed|ran|run)|merge run|push to main)\b/i.test(span);
+}
+
 function recordsADispatch(log, k, len) {
     const scope = referenceScope(log, k, len);
     const span = log.slice(scope.from, scope.to);
@@ -1036,8 +1071,16 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
             /* and the plan noun after the deployment noun: "deployment plan
                approved for tomorrow" (Codex, thirty-first round on #1306). */
             || /\bdeploy(?:ment)?\s+(?:plan|planning|schedule|proposal|checklist|readiness|rehearsal|preview|window|slot)\b/i.test(h.text);
+        /* A DEPLOY THAT FAILED WITHOUT DEPLOYING ANYTHING CANNOT HAVE A
+           RECEIPT, and the log keeps those attempts as history (run #37 on
+           2026-09-05 is one). Both halves are required -- a failure word AND an
+           explicit statement that nothing shipped -- so a PARTIAL deploy, which
+           does move live versions, still fails closed (Codex, thirty-second
+           round on #1306). */
+        const failedNothing = new RegExp(FAILED_RUN.source, 'i').test(h.text + '\n' + block)
+            && /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b/i.test(h.text + '\n' + block);
         const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text) && !deployAhead))
-            && !/NOT DISPATCHED/i.test(h.text);
+            && !/NOT DISPATCHED/i.test(h.text) && !failedNothing;
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
         if (!unreadableRows && !truncatedTables && !attestations && !noReceiptUnder) continue;
         const heading = h.text.replace(/^#+ /, '').slice(0, 120);

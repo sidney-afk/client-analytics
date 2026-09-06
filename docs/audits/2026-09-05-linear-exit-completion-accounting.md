@@ -1,4 +1,4 @@
-﻿## G4 archive payload measurement — 2026-09-06 23:58 UTC
+## G4 archive payload measurement — 2026-09-06 23:58 UTC
 
 LIVE_READ, aggregate-only read-only Management queries: 18,072 archive rows; all 18,072 have SQL-null legacy comments; zero have comments or attachments keys at raw root/raw.issue. 7,611 have a nonempty description at those locations. This is the entire archive, not the 12,651 provider issues previously classified archive-only.
 
@@ -137,7 +137,7 @@ The next assigned G5 slice is adaptation of the existing PR1279 comparator to th
 
 ## September 6 UTC: combined validation checkpoint complete
 
-[Draft PR #1318](https://github.com/sidney-afk/client-analytics/pull/1318) now holds exact reviewed source **`38f29bc6d3159ddda4b698819626f1efbd37c0b3`**. It remains open, draft and unmerged against captured main `99d31c815de3e1a46deeb01c45c09bf2937040ad`. This result supersedes the pending-check statements in the earlier checkpoint below. It closes the named combined source/isolated-validation milestone; **no production G0â€“G10 gate, Decision A or live watcher activation is closed by it**.
+[Draft PR #1318](https://github.com/sidney-afk/client-analytics/pull/1318) now holds exact reviewed source **`38f29bc6d3159ddda4b698819626f1efbd37c0b3`**. It remains open, draft and unmerged against captured main `99d31c815de3e1a46deeb01c45c09bf2937040ad`. This result supersedes the pending-check statements in the earlier checkpoint below. It closes the named combined source/isolated-validation milestone; **no production G0–G10 gate, Decision A or live watcher activation is closed by it**.
 
 - The complete immutable local and hosted runs on preserved `5e6095bc` each reported **437/438**. The failure exposed a Workload diagnostic that could falsely certify an empty provider mirror. Its correction refuses unsupported native populations **UNPROVEN before network**, preserving the historical negative controls. The separate Production browser failure was reproduced as an old fixture counting an editor-options read as an intake write; the scoped read fixture and actual-intake wait repair it without weakening save/CAS/order assertions. Both old failures remain recorded.
 - [Current-head unit run `34007153349`](https://github.com/sidney-afk/client-analytics/actions/runs/34007153349) passed **all 438 suites**. Its later steps actually executed and passed the **17-group / 35-table Workload restore** and **28 SQL + 29 actual-handler Workload checks**, as well as the private-history and older corpus rehearsals. Those steps had been skipped after the old unit failure; they are now hosted disposable proof, not serving/live proof. Declared optional skips retain their limits.
@@ -173,15 +173,15 @@ No deployment, migration installation, native flag activation, production/TEST m
 
 **We have reviewed draft foundations, not a completed removal.** The remaining work includes engineering beyond the three active Claude corrections, deployment and operator drills, then observation periods. An overall percentage would hide those different requirements.
 
-This is an accounting of the existing G0â€“G10 plan, based only on the September 5 checkpoint in [PR #1268 at `b694922268b0f6435decb93f95395bb4c4235a84`](https://github.com/sidney-afk/client-analytics/blob/b694922268b0f6435decb93f95395bb4c4235a84/docs/independence/GO_LIVE_CHECKLIST.md). No source re-audit, live measurement or new PR-status check was performed. â€œReviewedâ€ below means a bounded draft prerequisite; it does not close its production gate. Historical population counts remain dated, not current inventories.
+This is an accounting of the existing G0–G10 plan, based only on the September 5 checkpoint in [PR #1268 at `b694922268b0f6435decb93f95395bb4c4235a84`](https://github.com/sidney-afk/client-analytics/blob/b694922268b0f6435decb93f95395bb4c4235a84/docs/independence/GO_LIVE_CHECKLIST.md). No source re-audit, live measurement or new PR-status check was performed. “Reviewed” below means a bounded draft prerequisite; it does not close its production gate. Historical population counts remain dated, not current inventories.
 
-**Newer ownership confirmation:** the owner now confirms three Claude tasks are running, extending the checkpoint's earlier â€œlaunch not yet confirmedâ€ statement. Their outcomes are not assumed:
+**Newer ownership confirmation:** the owner now confirms three Claude tasks are running, extending the checkpoint's earlier “launch not yet confirmed” statement. Their outcomes are not assumed:
 
-- Claude â€” native completion corrections, starting from PR #1308 `48f7501`: trustworthy retry intent, human-edit safety and expected-child concurrency.
-- Claude â€” history/schema recovery, starting from PR #1311 `aab2acd2`: authenticated schema capture and empty-target reconstruction.
-- Claude â€” complete Calendar feedback recovery, starting from `7e5a743c`: exact comment/status companion receipts, source-row CAS and complete recovery.
-- Codex (`provider_retirement`) â€” intake-aligned Create Post native editor projection, starting from PR #1309 `69ae5d3`.
-- Codex (`backend_paths`) â€” bounded native label read/validation dependency removal from pinned main `ab6366136c03239965c97b050ab5cf7c9763a228`. Its trace found no complete native catalog owner; the coordinator authorized a single dormant versioned catalog foundation and staged read/validation contract. Live completeness and a provider fallback are not assumed.
+- Claude — native completion corrections, starting from PR #1308 `48f7501`: trustworthy retry intent, human-edit safety and expected-child concurrency.
+- Claude — history/schema recovery, starting from PR #1311 `aab2acd2`: authenticated schema capture and empty-target reconstruction.
+- Claude — complete Calendar feedback recovery, starting from `7e5a743c`: exact comment/status companion receipts, source-row CAS and complete recovery.
+- Codex (`provider_retirement`) — intake-aligned Create Post native editor projection, starting from PR #1309 `69ae5d3`.
+- Codex (`backend_paths`) — bounded native label read/validation dependency removal from pinned main `ab6366136c03239965c97b050ab5cf7c9763a228`. Its trace found no complete native catalog owner; the coordinator authorized a single dormant versioned catalog foundation and staged read/validation contract. Live completeness and a provider fallback are not assumed.
 
 Both Codex lanes were restricted to local/synthetic work and publication only after coordinator review. Their subsequent outcomes are recorded below; the original assignment list above is historical.
 
@@ -202,4 +202,3 @@ No product release, migration, flag, provider action or watcher activation follo
 The next critical unassigned technical slice is an explicit recovery-corpus version for the additional catalog and cutoff retained owners, including installation/reconstruction and semantic replay proof. It must preserve every earlier corpus version and does **not** authorize installation. It should begin only after the active candidate-integration, label, browser-proof, and cutoff-review lanes supply their final source boundaries.
 
 G4 full population/assets, G6 old-caller retirement, G7 watcher-chain assembly, and G8 global cutoff remain open program work. Their historical assignments and evidence above are retained; this current checkpoint does not create new owner requests.
-

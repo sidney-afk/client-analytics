@@ -20,7 +20,7 @@ if (process.env.CARD_MATERIALIZATION_PHASE === 'seed') {
     const table = surface === 'calendar' ? 'calendar_posts' : 'sample_reviews';
     const card = candidate.body[key];
     await sql(`update public.${table} set name='Later human title',status='Approved',order_index=773 where client=${quote(candidate.body.client)} and id=${quote(card.id)};`);
-    result.cases.push({ body: candidate.body, surface: candidate.surface, source: candidate.source,
+    result.cases.push({ body: candidate.body, raw_body: JSON.stringify(candidate.body), surface: candidate.surface, source: candidate.source,
       current: (await rows(`select * from public.${table} where client=${quote(candidate.body.client)} and id=${quote(card.id)}`))[0] });
   }
   const raw = ' {\n "unaccepted":"synthetic retained attempt"\n} ';
@@ -32,9 +32,10 @@ if (process.env.CARD_MATERIALIZATION_PHASE === 'seed') {
 } else if (process.env.CARD_MATERIALIZATION_PHASE === 'replay') {
   const saved = JSON.parse(fs.readFileSync(process.env.CARD_MATERIALIZATION_PHASE_SEED, 'utf8'));
   for (const candidate of saved.cases) {
-    const reply = await call(candidate.body, candidate.surface, candidate.source);
+    const reply = JSON.parse(await sql(`set time zone 'America/Guatemala'; set role service_role; select public.production_card_materialize(${quote(candidate.surface)},${quote(candidate.source)},${quote(candidate.raw_body)})::text;`));
     assert.equal(reply.ok, true, 'accepted receipt replay in hold');
     assert.deepEqual(reply[candidate.surface === 'calendar' ? 'post' : 'sample'], candidate.current);
+    result.ingress_ids = [...(result.ingress_ids || []), reply.ingress_id];
   }
   result.replayed = saved.cases.length;
 } else throw new Error('local_phase_unknown');

@@ -216,7 +216,7 @@ function deployAnchors(log) {
        this log says so in its heading ("Deploy #4 — RECORDED (run `X`)",
        "F27 Section 4 deploy, run `X`"), so a heading that names a check and
        never says deploy is skipped. */
-    const otherActivity = /\b(verification|verify|verifying|validation|validate|validating|drill|rehearsal|probe|smoke|audit|readback|read-back|typecheck|lint|test run|dry[- ]run)\b/i;
+    const otherActivity = /\b(verification|verify|verifying|validation|validate|validating|drill|rehearsal|probe|smoke|audit|readback|read-back|confirmation|confirm|confirming|typecheck|lint|test run|dry[- ]run)\b/i;
     let m;
     while ((m = heading.exec(log))) {
         const line = m[0].split('\n')[0];
@@ -230,11 +230,11 @@ function deployAnchors(log) {
            the same way before the heading is judged. */
         const named = line
             .replace(/\b(?:post|pre)[- ]?deploy(?:ment)?\b/gi, ' ')
-            .replace(/\bdeploy(?:ment)?\s+(?=(?:verification|verify|validation|validate|check|readback|read-back|audit|smoke|probe|drill|rehearsal|test)\b)/gi, ' ')
-            .replace(/\b(?:verification|validation|readback|read-back|audit|smoke test|probe|drill|rehearsal)\s+of\s+(?:the\s+)?deploy(?:ment)?\b/gi, ' verification ')
+            .replace(/\bdeploy(?:ment)?\s+(?=(?:verification|verify|validation|validate|confirmation|confirm|check|readback|read-back|audit|smoke|probe|drill|rehearsal|test)\b)/gi, ' ')
+            .replace(/\b(?:verification|validation|confirmation|readback|read-back|audit|smoke test|probe|drill|rehearsal)\s+of\s+(?:the\s+)?deploy(?:ment)?\b/gi, ' verification ')
             /* And the verb-led form of the same phrase: "Verify deployment run
                `X`" is a check, not a deploy (Codex, fifty-first round). */
-            .replace(/\b(?:verify|verifying|verified|validate|validating|validated|test|testing|tested|re-?test(?:ing|ed)?|check|checking|checked|re-?check(?:ing|ed)?|audit|auditing|smoke[- ]?test(?:ing|ed)?|probe|probing|read[- ]?back)\s+(?:the\s+|this\s+)?deploy(?:ment)?\b/gi, ' verification ');
+            .replace(/\b(?:verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|re-?test(?:ing|ed)?|check|checking|checked|re-?check(?:ing|ed)?|audit|auditing|smoke[- ]?test(?:ing|ed)?|probe|probing|read[- ]?back)\s+(?:the\s+|this\s+)?deploy(?:ment)?\b/gi, ' verification ');
         if (otherActivity.test(named) && !/\bdeploy/i.test(named)) continue;
         out.push({ at: m.index, run: m[1] });
     }
@@ -482,6 +482,12 @@ function otherOwningLanes() {
      completed-dispatch word in its paragraph, and not a forward-looking one.
      "inert until a `deploy-onboarding-edge-functions` dispatch carries the
      merged closure" is a plan, and the log already says it that way. */
+/* ANOTHER ATTEMPT'S EVIDENCE IS NOT THIS ONE'S, wherever it is read. One
+   definition serves both readers: the dispatch reader and the unreadable-entry
+   sweep had drifted apart, so a label fixed in one still slipped through the
+   other (Codex, fifty-fourth round on #1306). */
+const OTHER_ATTEMPT = /\b(?:previous|earlier|prior|first|second|third|last|original|preceding|failed|aborted|repeat|another|other|subsequent|later|initial)\s+(?:attempt|run|dispatch|try|job)\b|\b(?:retry|re-?run|redo)\b/i;
+
 function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {
     const lanes = otherOwningLanes();
     if (!lanes.length) return [];
@@ -811,7 +817,6 @@ function recordsADispatch(log, k, len) {
        failure with the older attempt's evidence (Codex, fiftieth round on
        #1306), so a clause that hands the claim to another attempt does not
        silence this one. */
-    const OTHER_ATTEMPT = /\b(?:previous|earlier|prior|first|last|original|preceding)\s+(?:attempt|run|dispatch|try)\b/i;
     const wholeRunSilent = t => t
         .split(/[.;]\s|,\s*(?:while|whereas|although|though|but)\s/)
         .some(clause => NOTHING_SHIPPED.test(clause) && !OTHER_ATTEMPT.test(clause));
@@ -1249,8 +1254,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
                previous attempt deployed nothing" is another attempt's evidence
                whether or not it carries a run id (Codex, fifty-second round on
                #1306). */
-            const OTHER_LABEL = /\b(?:previous|earlier|prior|first|second|third|last|original|preceding|failed|aborted|repeat|another|other|subsequent|later|initial)\s+(?:attempt|run|dispatch|try|job)\b|\b(?:retry|re-?run|redo)\b/i;
-            if (OTHER_LABEL.test(sentence)
+            if (OTHER_ATTEMPT.test(sentence)
                 && !new RegExp('\\b(?:this|the current|current)\\s+(?:attempt|run)\\b', 'i').test(sentence)) {
                 const named = (sentence.match(/\brun\s+`?#?(\d{6,})`?/) || [])[1] || '';
                 if (!named || (headRunEarly && named !== headRunEarly)) return false;

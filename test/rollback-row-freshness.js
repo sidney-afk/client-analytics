@@ -2455,6 +2455,39 @@ ok(testLedHeadingRun.code === 1 && testLedHeadingRun.json
     && /34000000000/.test(JSON.stringify(testLedHeadingRun.json.failures)),
     'AND A TEST-LED CHECK IS A CHECK: "Test the deployment — run `X`" is not an anchor, so the readback below it takes the parent deploy heading\'s run');
 
+/* ---- 8bc. confirmation headings; one other-attempt rule for both readers (round 54) ---- */
+const confirmHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Confirm deployment — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const confirmHeadingRun = run(fixture('confirm-heading', appended(confirmHeading), realRb));
+ok(confirmHeadingRun.code === 1 && confirmHeadingRun.json
+    && /34000000000/.test(JSON.stringify(confirmHeadingRun.json.failures)),
+    'A CONFIRMATION IS A CHECK TOO: "Confirm deployment — run `X`" is not an anchor, so the table below it takes the parent deploy heading\'s run');
+
+const laneRetryClaim = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` current run `34000000000` failed, while the retry',
+    'deployed nothing.',
+    '',
+].join('\n');
+const laneRetryClaimRun = run(fixture('lane-retry-claim', appended(laneRetryClaim), realRb));
+ok(laneRetryClaimRun.code === 1 && laneRetryClaimRun.json
+    && laneRetryClaimRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND BOTH READERS USE THE SAME OTHER-ATTEMPT RULE: the retry\'s no-op claim cannot silence the lane run\'s own failure either');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

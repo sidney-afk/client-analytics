@@ -1,4 +1,114 @@
-# Workload needs a native source — scope
+# Workload native membership — implementation and retained scope
+
+## 2026-09-05 candidate: native default and compatible saved plans
+
+**SOURCE_ONLY; not deployed, not G5 closed.** Base is remote main
+`99d31c815de3e1a46deeb01c45c09bf2937040ad`. This current section supersedes the
+older proposed identity/default-read choices below; dated measurements below
+have not been refreshed by this implementation.
+
+The staff board now opens, force-refreshes, refreshes after intake, and refreshes
+in the background through `workload-plan` action `native_snapshot`. The new
+service-only `workload_native_snapshot_v1()` reads the current `prod_authority`,
+population and every saved-plan row in one PostgreSQL statement snapshot. Its
+exact count must match all returned identities; more than 50,000 population or
+plan rows refuses rather than returning a partial success. A missing flag,
+dependency, grant, alias proof or complete native weight projection holds the
+read. The previous board remains visible with a retry warning; saved-plan and
+deadline writes are held. An auth denial purges the private plan/metadata state.
+The old `wl2` switch, cache and provider transport cannot rescue a failed native
+snapshot. Historical `_wlLegacy*` functions remain inert compatibility source.
+
+VID/GRA use the existing native view only when their actual authority is
+`syncview`. Existing status mapping, imported-container exclusions, completed
+status filtering, item order, weighted Video capacity and unweighted Graphics
+capacity remain. Active native client and exact active assignee team/creative
+role determine native membership; a missing provider user mapping is allowed.
+Excluded/unassigned work retains the existing visible exclusion accounting.
+Legacy rows retain their previous membership rules. **CON/STR remain explicit
+legacy source coverage, with a visible warning.** A provider-authority VID/GRA
+team also remains explicitly legacy and uses the existing metadata gateway.
+Failure does not replace a native population with a provider population.
+
+Native board IDs are deliverable IDs. Mapped old UUIDs are aliases, never new
+storage identities inferred from a name or title. The snapshot projects each
+saved plan onto its currently visible native or provider card; old `list`
+callers receive both exact aliases. Writes resolve the same owner again under
+locks. Existing UUID/native storage keys are retained; conflicting dual rows,
+cross-client ownership and ambiguous aliases refuse without deleting anything.
+A first native-authority plan uses the native ID; a first provider-authority
+mapped plan uses the provider UUID after exact current mirror/client validation.
+The SQL writer rechecks and locks the authority row before choosing that key.
+The original sidecar remains last-write semantics; this is not a new general
+plan CAS or replay protocol. New schema contains three functions and **no new
+table, epoch, data migration or flag**.
+
+Native Workload links use native deliverable IDs. Native feedback preview uses
+the existing staff `production-comments` canonical reader with exact complete
+pagination, identity/session checks and deleted/resolved suppression, without a
+Linear fallback. Empty preview explicitly directs staff to the post's review
+notes. This does **not** prove source-only Calendar/Samples feedback coverage or
+feedback write/retry continuity. Those remain G4/G5 integration gates. CON/STR
+feedback retains its existing legacy path; native membership is not full
+provider independence.
+
+### Evidence and release gates
+
+- `test/workload-native-membership.js`: 47 isolated real-source reader/adoption
+  checks, including exact-base forced-provider negative control. No network.
+- `test/workload-native-postgres.js` plus `qa/workload-native/handler.mjs`:
+  opt-in disposable PostgreSQL proof; 28 SQL and 29 full-handler/shared-auth
+  checks. Includes >1,000 rows, real statement snapshot/concurrent plan commit,
+  both flip directions, first/existing storage keys, alias refusal and service
+  privileges. The SDK is replaced with SQL transport; the consumed production
+  view columns use the actual label helper. Legacy/flag tables are minimal
+  fixtures. This is not installed-schema, Deno serving or live continuity proof.
+- Existing capacity, saved-plan optimistic restoration, actor and authority
+  tests must still pass after their fixture interfaces follow the atomic reader.
+  Full integrated house/CI checks and named independent review remain required.
+
+**Targeted compatibility result:** all six adapted Workload suites passed in
+one run, 2026-09-06 01:41:52–01:42:50 UTC, with unchanged runtime/test hashes:
+`workload-linear-browser`, `workload-plan-failclosed`, `workload-plan-source`,
+`workload-syncview-links`, `workload-overdue-ruling`, and
+`workload-tweak-exclusive-bucket`. The browser fixture composes the actual
+atomic loader and preserves receipt/session/write-race/auth assertions; it does
+not redirect them to dead `_wlLegacy*` code. This is offline VM/source proof,
+not Chromium, serving, a full integrated house suite or release approval.
+
+Execution remains owner-coordinated: (1) capture exact serving `workload-plan`
+closure, current flags, grants, stored-plan counts/keys and schema/data restore
+point privately; prove installed native view/label helper and eligible population
+against the same authority. Classify every active provider-only row before
+release: absence from the native view is not proof that its work is obsolete.
+(2) Include the three additive functions in the
+schema/grant restore corpus and test restoration; install the manual migration
+only after approval. (3) Manually deploy/read back the complete `workload-plan`
+closure, including `native-snapshot.mjs`; prove old/new list aliases, read roles,
+write roles and preserved dates. (4) Release the browser only after those gates,
+then designated staff canaries for each team, normal/forced/background refresh,
+weights, unassigned/excluded counts, deadlines, pins/clear/group move, native
+links and failed reads. Clients keep their existing anonymous review surfaces:
+this staff-only route adds no compulsory client descriptor or writer gate.
+
+Abort on count/alias drift, missing weights, a lost pin, enabled writes after
+failed authority, unexpected provider egress for native requests, or serving
+closure mismatch. Keep the prior visible staff board while investigating.
+Do not flip authority as a rollback shortcut. Preserve the additive reader and
+alias-aware writer during a browser rollback: restoring the older Edge Function
+can hide native-key plans from old UUID callers. An old browser cannot display
+native-only work; therefore a full old-source rollback is **not** a proven
+continuity recovery after new native work/pins exist. Require a forward repair
+or an approved, tested exact data/alias restore. Never delete native plans to
+make an older viewer appear consistent. Helpers may be removed only before any
+new caller/plan depends on them, or after that separately proved recovery.
+
+Remaining: known native-view eligibility differences need current reconciliation;
+CON/STR authority/provider paths; source-only feedback; broader roster/default
+picker and native label ownership; manual serving proof; client/staff integrated
+release canaries and observation. This implementation does not close Decision A.
+
+## Retained historical investigation
 
 **Why this file exists.** Owner, 2026-09-01: *"we have to think about leaving
 linear soon, like in a week we'll remove anything regarding linear."* That is not

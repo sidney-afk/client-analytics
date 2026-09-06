@@ -13976,7 +13976,8 @@
         _wlV2FlagCache = on;
         return on;
     }
-    function _wlV2Ready() { return _wlV2Enabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
+    // The old sticky mirror kill switch cannot reopen a provider read path.
+    function _wlV2Ready() { return !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
 
     // Fast first paint: publish the (non-sensitive) issue rows and drop the
     // skeleton as soon as the fast Supabase read returns, instead of blocking
@@ -14057,8 +14058,8 @@
         const source = Array.isArray(issues) ? issues : [];
         const subs = source.filter(issue => issue && issue.isSubIssue
             && wlIsActiveStatus(issue)
-            && wlIsAllowedClient(issue.clientName)
-            && (!issue.assigneeId || wlIsAllowedEditor(issue.assigneeName, issue.teamKey, issue.teamName)));
+            && wlIssueClientAllowed(issue)
+            && (!issue.assigneeId || wlIssueEditorAllowed(issue)));
         const parentIds = new Set(subs.map(issue => String(issue.parentId || '')).filter(Boolean));
         return subs.concat(source.filter(issue => issue && !issue.isSubIssue && parentIds.has(String(issue.id || ''))));
     }
@@ -14386,6 +14387,13 @@
     }
     async function _wlV2CheckWatermark() {
         if (_wlV2WatermarkBusy || document.hidden || !document.querySelector('.workload-view')) return;
+        if (wlState.loading || wlState.refreshing || _wlPlanWriteInFlight.size || _wlDueWriteInFlight.size) return;
+        _wlV2WatermarkBusy = true;
+        try { await wlRefetchSilent(); }
+        finally { _wlV2WatermarkBusy = false; }
+    }
+    async function _wlLegacyCheckWatermark() {
+        if (_wlV2WatermarkBusy || document.hidden || !document.querySelector('.workload-view')) return;
         if (wlState.loading || wlState.refreshing || wlState.planStatus === 'loading' || wlState.planStatus === 'refreshing') return;
         _wlV2WatermarkBusy = true;
         try {
@@ -14432,7 +14440,120 @@
     }
     window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel, polling: !!_wlV2WatermarkTimer, sourceSyncedAt: wlState.sourceSyncedAt }; };
 
+    function wlIssueClientAllowed(issue) {
+        return issue && issue.workloadSource === 'native'
+            ? issue.nativeClientActive === true : wlIsAllowedClient(issue && issue.clientName);
+    }
+    function wlIssueEditorAllowed(issue) {
+        return issue && issue.workloadSource === 'native'
+            ? issue.nativeAssigneeEligible === true
+            : wlIsAllowedEditor(issue && issue.assigneeName, issue && issue.teamKey, issue && issue.teamName);
+    }
+    function wlSnapshotIdentity() {
+        const value = _syncviewStaffIdentityForHeaders();
+        return value ? JSON.stringify([value.key, value.role, value.member && value.member.id]) : '';
+    }
+    async function wlFetchNativeSnapshot() {
+        await _syncviewRequireStaffIdentity('workload-plan-read');
+        const owner = wlSnapshotIdentity(), session = _wlPlanSessionGeneration;
+        const readGeneration = _wlPlanWriteGeneration;
+        if (!owner) throw new Error('Staff sign-in is required to load Workload.');
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+        try {
+            const response = await fetch(WORKLOAD_PLAN_URL, {
+                method: 'POST', cache: 'no-store', signal: controller.signal,
+                headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, WORKLOAD_PLAN_URL),
+                body: JSON.stringify({ action: 'native_snapshot' })
+            });
+            const value = await response.json();
+            if (!response.ok || !value || value.ok !== true || value.complete !== true
+                || value.contract !== 'workload-native-snapshot-v1'
+                || !Array.isArray(value.rows) || !Array.isArray(value.plans)
+                || value.count !== value.rows.length || !Number.isSafeInteger(value.count)
+                || !Array.isArray(value.legacy_teams)) {
+                const error = new Error('Workload could not load a complete snapshot. Please retry.');
+                error.status = response.status;
+                throw error;
+            }
+            const authority = wlProductionAuthorityValue(value.authority);
+            if (!authority) throw new Error('Workload authority is unavailable.');
+            const fingerprint = wlProductionAuthorityFingerprint(authority);
+            const seen = new Set(), metadata = [], issues = [];
+            for (const row of value.rows) {
+                if (!row || typeof row.id !== 'string' || !row.id || seen.has(row.id)
+                    || !['native','legacy'].includes(row.source) || typeof row.is_sub_issue !== 'boolean') {
+                    throw new Error('Workload row identities are incomplete.');
+                }
+                seen.add(row.id);
+                const issue = { ..._wlV2MapRow(row), workloadSource: row.source,
+                    linearId: row.source === 'native' ? row.linear_id : row.id,
+                    nativeClientActive: row.native_client_active,
+                    nativeAssigneeEligible: row.native_assignee_eligible };
+                if (row.source === 'native') {
+                    if (row.is_sub_issue && (typeof row.native_client_active !== 'boolean'
+                        || typeof row.native_assignee_eligible !== 'boolean'
+                        || !['VID','GRA'].includes(row.team_key))) {
+                        throw new Error('Native Workload membership is incomplete.');
+                    }
+                    issue.nativeId = row.is_sub_issue ? row.id : '';
+                    issue.url = '';
+                    if (row.is_sub_issue && wlIsActiveStatus(issue) && wlIssueClientAllowed(issue)) {
+                        const projected = wlNativeMetadataRow(row.id, row.native_metadata);
+                        const team = wlMetadataTeamBucket(row.team_key, row.team_name);
+                        if (!projected || !team || authority[team] !== 'syncview') {
+                            throw new Error('Native Workload deadlines or weights are incomplete.');
+                        }
+                        metadata.push({ ...projected, due_authority: 'syncview',
+                            due_authority_team: team, due_authority_fingerprint: fingerprint });
+                    }
+                }
+                issues.push(issue);
+            }
+            const planIds = new Set();
+            for (const plan of value.plans) {
+                if (!plan || typeof plan.issue_id !== 'string' || !plan.issue_id || planIds.has(plan.issue_id)
+                    || (plan.plan_date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(plan.plan_date))) {
+                    throw new Error('Saved work days are incomplete.');
+                }
+                planIds.add(plan.issue_id);
+            }
+            // Provider-authority teams remain explicit compatibility work; they
+            // never substitute for a failed native snapshot or native metadata.
+            const foreign = issues.filter(issue => issue.workloadSource === 'legacy'
+                && issue.isSubIssue && wlIsActiveStatus(issue)
+                && wlMetadataTeamBucket(issue.teamKey, issue.teamName));
+            if (foreign.length) {
+                // Keep the snapshot's explicit provider authority. A second
+                // flag read could mix native weights with an older provider
+                // population during a team transition.
+                const oldRows = await wlFetchForeignLinearMetadata(foreign.map(issue => issue.id));
+                const byId = new Map(oldRows.map(row => [row.issue_id, row]));
+                if (oldRows.length !== foreign.length || byId.size !== foreign.length) {
+                    throw new Error('Legacy Workload metadata is incomplete.');
+                }
+                for (const issue of foreign) {
+                    const row = byId.get(issue.id), team = wlMetadataTeamBucket(issue.teamKey, issue.teamName);
+                    if (!row || authority[team] !== 'linear') throw new Error('Legacy Workload metadata is incomplete.');
+                    row.due_authority = 'linear'; row.due_authority_team = team;
+                    row.due_authority_fingerprint = fingerprint;
+                }
+                metadata.push(...oldRows);
+                if (oldRows.partialFailure) metadata.partialFailure = oldRows.partialFailure;
+            }
+            if (session !== _wlPlanSessionGeneration || owner !== wlSnapshotIdentity()) {
+                throw new Error('Staff session changed while Workload was loading.');
+            }
+            return { issues, metadata, plans: { rows: value.plans, readGeneration },
+                fetchedAt: Date.now(), fromCache: false, legacyTeams: value.legacy_teams };
+        } finally { clearTimeout(timer); }
+    }
     async function loadLinearIssues(force) {
+        // The public symbol is retained for intake discovery callers. Default,
+        // explicit Refresh and forced post-create discovery share one source.
+        return wlFetchNativeSnapshot();
+    }
+    async function _wlLegacyLoadLinearIssues(force) {
         const cache = wlReadCache();
         if (cache && !force && wlIsFresh(cache.fetchedAt)) {
             return { issues: cache.issues, fetchedAt: cache.fetchedAt, fromCache: true };
@@ -14900,7 +15021,7 @@
 
     async function wlFetchLinearMetadata(issues) {
         const activeIssues = (issues || [])
-            .filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue) && wlIsAllowedClient(issue.clientName));
+            .filter(issue => issue && issue.isSubIssue && wlIsActiveStatus(issue) && wlIssueClientAllowed(issue));
         const activeIds = [...new Set(activeIssues
             .map(issue => String(issue && issue.id || '').trim())
             .filter(Boolean))];
@@ -15223,6 +15344,37 @@
     // manual plan when plans landed — the bounded set that animates its settle.
     let _wlSettleAnimIds = null;
     async function wlLoadSnapshot(force, fallback) {
+        const generation = ++_wlPlanLoadGeneration, session = _wlPlanSessionGeneration;
+        try {
+            const value = await loadLinearIssues(!!force);
+            if (generation !== _wlPlanLoadGeneration || session !== _wlPlanSessionGeneration) return null;
+            wlAdoptPlanRows(value.plans);
+            wlAdoptLinearMetadata(value.metadata, value.issues, value.fetchedAt, { skipIssueCacheWrite: true });
+            wlApplyData(value.issues, value.fetchedAt);
+            wlState.nativeLegacyTeams = value.legacyTeams;
+            wlState.backgroundError = value.legacyTeams.length
+                ? 'Some teams still use the legacy Workload source.' : null;
+            wlState.planLoading = false;
+            return value;
+        } catch (error) {
+            if (generation !== _wlPlanLoadGeneration || session !== _wlPlanSessionGeneration) return null;
+            if (Number(error.status) === 401) _syncviewStaffIdentityClear();
+            else if (Number(error.status) === 403) wlPurgePlanSensitiveState();
+            else {
+                if (!wlState.issueSnapshot.length && fallback && Array.isArray(fallback.issues)) {
+                    wlApplyData(fallback.issues, fallback.fetchedAt);
+                }
+                wlState.backgroundError = 'Workload could not refresh. Previously loaded work is shown; retry to update it.';
+                wlState.planStatus = wlState.planHasSnapshot ? 'stale' : 'unknown';
+                wlState.linearMetadataStatus = wlState.workloadByIssueId.size ? 'stale' : 'unknown';
+                // Retain the visible last snapshot, but a failed authority /
+                // membership refresh cannot authorize an old deadline route.
+                wlState.dueAuthorityByIssueId.clear();
+            }
+            throw error;
+        }
+    }
+    async function _wlLegacyLoadSnapshot(force, fallback) {
         const loadGeneration = ++_wlPlanLoadGeneration;
         let fastPainted = false;
         wlState.planStatus = wlState.planHasSnapshot ? 'refreshing' : 'loading';
@@ -16250,7 +16402,6 @@
         try {
             await wlLoadSnapshot(false, cache);
             wlState.error = null;
-            wlState.backgroundError = null;
         } catch (e) {
             console.error('[SyncView] Workload fetch failed:', e);
             if (!cache) wlState.error = e.message || 'Failed to load issues from Linear.';
@@ -16301,6 +16452,40 @@
     // loader, never selects a loading state, and publishes only a complete set
     // of issues, saved plans, and Linear metadata.
     async function wlRefetchSilent(options) {
+        if (!document.querySelector('.workload-view') || !_syncviewStaffIdentityForHeaders()) return false;
+        if (_wlPlanWriteInFlight.size || _wlDueWriteInFlight.size || wlState.loading || wlState.refreshing) return false;
+        if (_wlBackgroundRefreshPromise) return _wlBackgroundRefreshPromise;
+        const run = async () => {
+            const before = wlBackgroundBusinessFingerprint();
+            const editingBefore = `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`;
+            try {
+                const result = await wlLoadSnapshot(false, null);
+                if (!result) return false;
+                wlState.error = null;
+                if (document.querySelector('.workload-view')) {
+                    if (before !== wlBackgroundBusinessFingerprint()
+                        || editingBefore !== `${wlPlanEditingEnabled()}:${wlLinearEditingEnabled()}`) {
+                        renderWorkloadAll({ deferWhilePopoverOpen: true });
+                    }
+                    else renderWorkloadPlanStatus();
+                }
+                return true;
+            } catch (error) {
+                if (document.querySelector('.workload-view')) renderWorkloadPlanStatus();
+                return false;
+            }
+        };
+        const pending = run();
+        _wlBackgroundRefreshPromise = pending;
+        try { return await pending; }
+        finally {
+            if (_wlBackgroundRefreshPromise === pending) {
+                _wlBackgroundRefreshPromise = null;
+                if (!_wlNativeDueReceiptRetryPromise) wlScheduleNativeDueReceiptRetry();
+            }
+        }
+    }
+    async function _wlLegacyRefetchSilent(options) {
         const sensitiveOnly = !!(options && options.sensitiveOnly);
         if (!document.querySelector('.workload-view') || (!sensitiveOnly && !_wlV2Ready())) return false;
         if (!_syncviewStaffIdentityForHeaders()) return false;
@@ -16437,14 +16622,14 @@
     async function wlManualRefresh() {
         if (!document.querySelector('.workload-view') || wlState.refreshing || _wlDueWriteInFlight.size) return;
         const priorWatermark = wlState.sourceSyncedAt;
-        const shouldRebaseMirror = _wlV2Ready();
+        const shouldRebaseMirror = false; // native snapshots do not use the mirror watermark
         if (shouldRebaseMirror) wlState.sourceSyncedAt = null;
         wlState.refreshing = true;
         wlSpinnerOn();
         try {
             const payload = await wlLoadSnapshot(true, null);
             if (!document.querySelector('.workload-view')) return;
-            wlState.backgroundError = null;
+            if (!payload || !payload.legacyTeams || !payload.legacyTeams.length) wlState.backgroundError = null;
             if (shouldRebaseMirror && payload && !payload.usedFallback) {
                 await wlRebaseMirrorWatermarkAfterDirectRefresh();
             } else if (shouldRebaseMirror) {
@@ -16561,19 +16746,18 @@
         const dropped = new Map();
         for (const i of issues) {
             if (!i.isSubIssue || !wlIsActiveStatus(i)) continue;
-            if (wlIsAllowedClient(i.clientName)) continue;
+            if (wlIssueClientAllowed(i)) continue;
             const k = i.clientName || '(no client)';
             dropped.set(k, (dropped.get(k) || 0) + 1);
         }
         if (dropped.size) {
-            console.warn('[workload] dropped sub-issues with unrecognised clients:',
-                [...dropped.entries()].map(([n, c]) => `${n} (${c})`).join(', '));
+            console.warn('[workload] inactive or unrecognised client rows:', [...dropped.values()].reduce((a,b) => a+b,0));
         }
-        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIsAllowedClient(i.clientName));
+        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIssueClientAllowed(i));
         // Replace each sub's clientName with the canonical sheet name so
         // dropdowns, group keys and rollup labels collapse "Miki-agrawal" and
         // "Miki Agrawal" into a single "Miki Agrawal" entry.
-        for (const s of subs) s.clientName = wlCanonicalClient(s.clientName);
+        for (const s of subs) if (s.workloadSource !== 'native') s.clientName = wlCanonicalClient(s.clientName);
 
         // Log who's passing the editor filter so the user can spot people
         // who shouldn't be there — graphic designers currently pass through
@@ -16587,17 +16771,15 @@
             const display = wlDisplayName(s.assigneeName) || s.assigneeName || 'Unknown';
             if (team === 'graphics') {
                 graphicsPass.add(display);
-            } else if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) {
+            } else if (!wlIssueEditorAllowed(s)) {
                 videoDropped.set(display, (videoDropped.get(display) || 0) + 1);
             }
         }
         if (graphicsPass.size) {
-            console.info('[workload] graphic designers passing through (no graphics allowlist yet):',
-                [...graphicsPass].sort().join(', '));
+            console.info('[workload] graphics assignee count:', graphicsPass.size);
         }
         if (videoDropped.size) {
-            console.warn('[workload] dropped sub-issues from non-allowlisted video editors:',
-                [...videoDropped.entries()].map(([n, c]) => `${n} (${c})`).join(', '));
+            console.warn('[workload] excluded assignee row count:', [...videoDropped.values()].reduce((a,b) => a+b,0));
         }
         for (const s of subs) {
             if (!s.parentId) continue;
@@ -16647,7 +16829,7 @@
                is keyed on the row team, so admitting a cross-team row would
                open a second capacity lane for one person and double-count them
                in the matrix. The repair for a mis-teamed row is in Linear. */
-            if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) {
+            if (!wlIssueEditorAllowed(s)) {
                 excluded.offTeamAssignee.push(s);
                 continue;
             }
@@ -17653,7 +17835,7 @@
         const all = wlState.allActiveSubs || [];
         // Editors: scoped to active team filter so Video pill hides graphics-only assignees.
         const editors = [...new Map(all.filter(s => s.assigneeId &&
-                wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName) &&
+                wlIssueEditorAllowed(s) &&
                 (wlState.team === 'all' || wlTeamBucket(s.teamKey, s.teamName) === wlState.team))
             .map(s => [s.assigneeId, wlDisplayName(s.assigneeName) || 'Unknown'])).entries()]
             .sort((a, b) => String(a[1]).localeCompare(String(b[1])));
@@ -17929,7 +18111,9 @@
         if (wlState.backgroundError) {
             el.hidden = false;
             el.className = 'workload-plan-status is-warning';
-            el.textContent = 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.';
+            el.textContent = wlState.backgroundError === 'Some teams still use the legacy Workload source.'
+                ? 'Some teams still use the legacy Workload source.'
+                : 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.';
             return;
         }
         if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
@@ -18366,7 +18550,7 @@
             if (!s.assigneeId) return;
             if (seen.has(s.id)) return;
             seen.add(s.id);
-            if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) return;
+            if (!wlIssueEditorAllowed(s)) return;
             // The "Editor workload / freest first" panel is for video editors
             // only. Graphics designers have a different per-day capacity and
             // a different definition of "free", so mixing them in skews the
@@ -19026,6 +19210,66 @@
     const _wlTweakCommentsCache = new Map(); // linear issue id -> { fetchedAt, comments[] }
     let _wlTweakCommentsToken = 0;           // invalidates in-flight fills when a newer popover opens
     async function wlFetchTweakComments(ids) {
+        const owner = wlSnapshotIdentity();
+        if (!owner) throw new Error('Staff sign-in is required to read feedback.');
+        const issues = new Map((wlState.issueSnapshot || []).map(issue => [issue.id, issue]));
+        const legacy = [], out = {};
+        for (const id of ids) {
+            const issue = issues.get(id);
+            if (!issue) throw new Error('Feedback target changed.');
+            if (issue.workloadSource !== 'native') {
+                if (issue.workloadSource !== 'legacy' || wlState.planStatus !== 'ready') {
+                    throw new Error('Refresh Workload before loading this feedback.');
+                }
+                legacy.push(id); continue;
+            }
+            const rows = [], seen = new Set();
+            let before = null, total = null, complete = false;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+            try {
+                for (let page = 0; page < 50; page++) {
+                    const url = CAL_SUPABASE_URL + '/functions/v1/production-comments';
+                    const response = await fetch(url, {
+                        method: 'POST', cache: 'no-store', signal: controller.signal,
+                        headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, url),
+                        body: JSON.stringify({ deliverable_id: issue.nativeId, limit: 100, before })
+                    });
+                    const value = await response.json();
+                    if (!response.ok || !value || value.ok !== true || value.canonical_thread !== true
+                        || value.audience_scope !== 'all' || !Array.isArray(value.comments)
+                        || !Number.isSafeInteger(value.total) || value.total < 0
+                        || typeof value.has_more !== 'boolean' || (total !== null && total !== value.total)) {
+                        throw new Error('Feedback is incomplete.');
+                    }
+                    total = value.total;
+                    for (const row of value.comments) {
+                        if (!row || !row.id || seen.has(row.id) || typeof row.body !== 'string') {
+                            throw new Error('Feedback identities are incomplete.');
+                        }
+                        seen.add(row.id); rows.push(row);
+                    }
+                    if (!value.has_more) { complete = rows.length === total; break; }
+                    if (!value.next_cursor || !value.next_cursor.id || !value.next_cursor.created_at
+                        || JSON.stringify(value.next_cursor) === JSON.stringify(before)) {
+                        throw new Error('Feedback pagination is incomplete.');
+                    }
+                    before = value.next_cursor;
+                }
+                if (!complete || owner !== wlSnapshotIdentity() || issues.get(id) !== issue
+                    || !(wlState.issueSnapshot || []).some(row => row === issue)) {
+                    throw new Error('Feedback scope changed or is incomplete.');
+                }
+                out[id] = rows.filter(row => !row.deleted_at && !row.resolved_at).map(row => ({
+                    author: row.author_name, body: row.body, createdAt: row.source_created_at || row.created_at
+                }));
+            } finally { clearTimeout(timer); }
+        }
+        if (legacy.length) Object.assign(out, await _wlLegacyFetchTweakComments(legacy));
+        if (owner !== wlSnapshotIdentity()) throw new Error('Feedback scope changed.');
+        return out;
+    }
+    async function _wlLegacyFetchTweakComments(ids) {
         const now = Date.now();
         const missing = ids.filter(id => {
             const hit = _wlTweakCommentsCache.get(id);
@@ -19048,11 +19292,11 @@
         for (const id of ids) out[id] = (_wlTweakCommentsCache.get(id) || { comments: [] }).comments;
         return out;
     }
-    function wlRenderTweakComments(comments) {
+    function wlRenderTweakComments(comments, native) {
         // No comment on the sub-issue → render nothing. An absent comment is
         // not worth a row of its own; the empty popover row speaks for itself.
         if (!comments || !comments.length) {
-            return '';
+            return native ? '<div class="wl-tweak-comment-more">No feedback is available here. Open the post in SyncView to check its review notes.</div>' : '';
         }
         const shown = comments.slice(0, 3);
         const more = comments.length - shown.length;
@@ -19063,7 +19307,7 @@
             <span class="wl-tweak-comment-body" onclick="wlToggleTweakComment(this)" onkeydown="wlOnTweakCommentKey(event,this)">${wlEscape(c.body || '')}</span>
             <span class="wl-tweak-comment-time">${wlEscape(_calFmtCommentTime(c.createdAt))}</span>
         </div>`).join('') + (more > 0
-            ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'} on the sub-issue in Linear</div>`
+            ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'}</div>`
             : '');
     }
     // Expand/collapse is only offered on comments whose body genuinely
@@ -19180,8 +19424,9 @@
         const parentIdent = clientName
             ? ((parentId && wlState.parentById.get(parentId)?.identifier) || subs[0]?.identifier || '')
             : '';
-        const parentSyncUrl = parentIdent
-            ? (location.pathname + '?prod=1&d=' + encodeURIComponent(parentIdent))
+        const parentTarget = subs[0]?.workloadSource === 'native' ? subs[0]?.nativeId : parentIdent;
+        const parentSyncUrl = parentTarget
+            ? (location.pathname + '?prod=1&d=' + encodeURIComponent(parentTarget))
             : '';
         const parentTitle = (parentId && wlState.parentById.get(parentId)?.title) || clientName || editorName || '';
         const headerTitle = clientName || editorName || parentTitle;
@@ -19241,8 +19486,8 @@
             const tweakBox = wlIsTweaksNeeded(s)
                 ? `<div class="wl-tweak-comments" data-wl-comments-for="${wlEscape(s.id)}"><div class="wl-tweak-comments-status" role="status" aria-label="Loading">${_svSkel('sv-skeleton-line', 'width:72%;height:10px;')}</div></div>`
                 : '';
-            const rowSyncUrl = s.identifier
-                ? (location.pathname + '?prod=1&d=' + encodeURIComponent(s.identifier))
+            const rowSyncUrl = (s.nativeId || s.identifier)
+                ? (location.pathname + '?prod=1&d=' + encodeURIComponent(s.nativeId || s.identifier))
                 : (s.url || '');
             const linearBtn = s.url
                 ? `<a class="workload-popover-item-cal workload-popover-item-linear" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Linear" data-tip="Open in Linear"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/></svg></a>`
@@ -19288,13 +19533,13 @@
                 for (const s of tweakSubs) {
                     const sel = (window.CSS && CSS.escape) ? CSS.escape(s.id) : String(s.id).replace(/"/g, '');
                     const box = pop.querySelector('[data-wl-comments-for="' + sel + '"]');
-                    if (box) box.innerHTML = wlRenderTweakComments(byId[s.id]);
+                    if (box) box.innerHTML = wlRenderTweakComments(byId[s.id], s.workloadSource === 'native');
                 }
                 wlMarkClampedComments(pop);
             }).catch(() => {
                 if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
                 pop.querySelectorAll('.wl-tweak-comments').forEach(box => {
-                    box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load the comments — open the sub-issue in Linear to read them.</div>';
+                    box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load feedback. Retry or open the post in SyncView.</div>';
                 });
             });
         }

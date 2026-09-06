@@ -3343,6 +3343,76 @@ async function productionCreateReplay(
   }, 200);
 }
 
+// A successful native picker read must contain the entire bounded result. A
+// PostgREST row cap, null body or duplicate identity is an unavailable read,
+// never evidence that an editor or their work is absent.
+function completeIntakeEditorRows(result: { data: unknown; error: unknown; count: unknown }): JsonMap[] {
+  if (result.error || !Array.isArray(result.data)
+      || !Number.isSafeInteger(result.count) || Number(result.count) !== result.data.length
+      || result.data.some(row => !row || typeof row !== "object" || Array.isArray(row) || !clean(row.id))
+      || new Set(result.data.map(row => clean(row.id))).size !== result.data.length) {
+    throw new GatewayError(503, "intake_editor_options_unavailable");
+  }
+  return result.data as JsonMap[];
+}
+
+async function handleIntakeEditorOptions(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+): Promise<Response> {
+  const surface = surfaceFor(body);
+  const clientSlug = clean(body.client_slug);
+  if (!["calendar", "sxr"].includes(surface) || !clientSlug) {
+    throw new GatewayError(400, "invalid_surface_operation");
+  }
+  // Exactly the existing staff Create Post roles. Public Submit's deliberate
+  // intake exception grants no read access here, nor does a client share link.
+  const principal = await authenticate(supabase, req, body, clientSlug);
+  if (principal.kind !== "staff" || !["admin", "smm"].includes(principal.keyRole)) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const client = principal.client || await clientBySlug(supabase, clientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "client_inactive");
+  // This is a NEW-admission preview, not a reservation or an accepted-request
+  // replay. Submission still resolves its own immutable epoch through intakeEpochs.
+  const epochs = parseJson(await rpc(supabase, "production_native_intake_epochs", {}));
+  if (typeof epochs.video !== "string" || typeof epochs.graphics !== "string") {
+    throw new GatewayError(503, "authority_unavailable");
+  }
+  const responseScope = { ok: true, complete: true, contract: "intake-editor-options-v1", surface, client_slug: clientSlug, team: "video" };
+  if (!epochs.video) return json({ ...responseScope, lane: "provider" });
+  if (await authorityFor(supabase, "video") !== "syncview") {
+    throw new GatewayError(409, "team_is_linear_authoritative");
+  }
+  const members = completeIntakeEditorRows(await supabase.from("team_members")
+    .select("id,name,role,team,linear_user_id,default_for_team,active", { count: "exact" })
+    .eq("active", true).eq("team", "video").limit(10000));
+  const editors = nativeIntakePool(members, "video");
+  if (!editors.length) throw new GatewayError(409, "video_assignee_pool_unavailable");
+  const openRows = completeIntakeEditorRows(await supabase.from("deliverables")
+    .select("id,assignee_id,status,linear_issue_uuid", { count: "exact" })
+    .eq("team", "video").in("status", INTAKE_LOAD_LIVE_STATUSES as unknown as string[]).limit(10000));
+  const parentRows = completeIntakeEditorRows(await supabase.from("production_deliverables_browser_v1")
+    .select("id,raw_issue_parent_id", { count: "exact" })
+    .eq("team", "video").not("raw_issue_parent_id", "is", null).limit(10000));
+  const parents = new Set(parentRows.map(row => clean(row.raw_issue_parent_id)).filter(Boolean));
+  const load = new Map(editors.map(member => [clean(member.id), 0]));
+  for (const row of openRows) {
+    if (parents.has(clean(row.linear_issue_uuid))) continue;
+    const id = clean(row.assignee_id);
+    if (load.has(id)) load.set(id, Number(load.get(id) || 0) + 1);
+  }
+  // Same eligibility, work population and tie order as autoAssigneeForIntake.
+  // Only minimal display fields leave the authenticated gateway.
+  editors.sort((left, right) => Number(load.get(clean(left.id)) || 0) - Number(load.get(clean(right.id)) || 0)
+    || clean(left.name).localeCompare(clean(right.name)) || clean(left.id).localeCompare(clean(right.id)));
+  const projection = editors.map(member => ({
+    id: clean(member.id), name: clean(member.name) || "Editor", openCount: Number(load.get(clean(member.id)) || 0),
+  }));
+  return json({ ...responseScope, lane: "native", editors: projection });
+}
+
 async function handleCreateOptions(
   supabase: SupabaseClient,
   req: Request,
@@ -7197,6 +7267,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     if (lower(body.action) === "description_read") {
       return await handleDescriptionRead(supabase, req, body);
+    }
+    if (lower(body.action) === "intake_editor_options") {
+      return await handleIntakeEditorOptions(supabase, req, body);
     }
     if (lower(body.action) === "create_options") {
       return await handleCreateOptions(supabase, req, body);

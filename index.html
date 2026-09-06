@@ -40203,6 +40203,54 @@
     const CAL_NATIVE_LIVE_VIDEO_STATUSES = ['todo', 'in_progress', 'tweak'];
     const CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS = 4000;
     async function _calNativeVideoEditorPool() {
+        const state = _calNativePostState;
+        const identity = _syncviewStaffIdentityForHeaders();
+        const clientSlug = String(state && state.clientSlug || '');
+        const surface = String(state && state.surface || '');
+        const actorId = String(identity && identity.member && identity.member.id || '');
+        const actorKey = String(identity && identity.key || '');
+        const actorRole = String(identity && identity.role || '');
+        const current = () => {
+            const now = _syncviewStaffIdentityForHeaders();
+            return state && state === _calNativePostState
+                && state.surface === surface && state.clientSlug === clientSlug
+                && _nativePostViewSlug(surface) === clientSlug
+                && actorId && now && actorKey === now.key && actorRole === now.role
+                && now.member && actorId === now.member.id;
+        };
+        if (!current() || !['admin', 'smm'].includes(actorRole)) throw new Error('editor scope unavailable');
+        const url = CAL_SUPABASE_URL + '/functions/v1/production-write';
+        const response = await fetch(url, {
+            method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                Accept: 'application/json', 'Content-Type': 'application/json' }, url),
+            body: JSON.stringify({ action: 'intake_editor_options', surface, client_slug: clientSlug }),
+        });
+        const result = await response.json();
+        if (!current() || !response.ok || !result || result.ok !== true || result.complete !== true
+            || result.contract !== 'intake-editor-options-v1' || result.surface !== surface
+            || result.client_slug !== clientSlug || result.team !== 'video') {
+            throw new Error('editor options unavailable');
+        }
+        // Only a successful current provider decision may use the old picker.
+        // A missing endpoint, unreadable epoch or malformed result never guesses
+        // this lane. Submission still independently validates its current policy.
+        if (result.lane === 'provider' && result.editors === undefined) {
+            const editors = await _calLegacyVideoEditorPool();
+            if (!current()) throw new Error('editor scope changed');
+            return editors;
+        }
+        if (result.lane !== 'native' || !Array.isArray(result.editors) || !result.editors.length
+            || result.editors.some(editor => !editor || typeof editor.id !== 'string' || !editor.id.trim()
+                || typeof editor.name !== 'string' || !editor.name.trim()
+                || !Number.isSafeInteger(editor.openCount) || editor.openCount < 0)
+            || new Set(result.editors.map(editor => editor.id)).size !== result.editors.length) {
+            throw new Error('editor options incomplete');
+        }
+        return result.editors.map(editor => ({ id: editor.id, name: editor.name, openCount: editor.openCount }));
+    }
+    async function _calLegacyVideoEditorPool() {
         /*
          * ELIGIBILITY, not just the roster. Caught in review: the shared
          * `_syncviewStaffRoster` cache selects id/name/role/team and nothing
@@ -40983,6 +41031,7 @@
             clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null, batchFilter: '',
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
         };
+        const editorState = _calNativePostState;
         /* Loaded alongside the batch options rather than before them: the
            picker must never hold the dialog open, and a roster or load read
            that fails leaves Create Post working exactly as it did before. */
@@ -40996,14 +41045,14 @@
             _calNativeVideoEditorPool(),
             new Promise((resolve, reject) => setTimeout(reject, CAL_NATIVE_EDITOR_POOL_TIMEOUT_MS, new Error('editor pool timed out'))),
         ]).then(editors => {
-            if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
+            if (_calNativePostState !== editorState) return;
             _calNativePostState.videoEditors = editors;
             _calNativePostState.videoEditorStatus = editors.length ? 'ready' : 'unavailable';
             _calNativePostState.videoEditorSuggestedId = editors.length ? editors[0].id : '';
             if (!_calNativePostState.videoEditorId) _calNativePostState.videoEditorId = _calNativePostState.videoEditorSuggestedId;
             try { _calRenderNativePostChoice(); } catch (e) {}
         }).catch(() => {
-            if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
+            if (_calNativePostState !== editorState) return;
             _calNativePostState.videoEditorStatus = 'unavailable';
             try { _calRenderNativePostChoice(); } catch (e) {}
         });

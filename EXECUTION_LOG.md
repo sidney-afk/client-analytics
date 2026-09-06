@@ -2,6 +2,20 @@
 
 All times are UTC unless noted.
 
+## 2026-09-05 — Native Create Post editor projection; local source only
+
+On exact PR1309 `69ae5d338486bd8084e6bbdbe65be1c44f63dbe1`, Create Post still
+hid native-eligible editors without a Linear mapping. A staff-only
+`intake_editor_options` read now uses the existing native admission-epoch RPC
+and native eligibility policy. The browser uses its minimal complete response
+or, only after an explicit provider decision, the unchanged provider loader.
+The intake writer and accepted-request replay remain unchanged. Forty-seven
+focused handler/disposable-SQL assertions passed, including six intercepted
+Chromium checks and exact baseline controls; 37 offline browser/source checks
+passed. See `docs/audits/2026-09-05-native-intake-editor-projection.md` for the
+fixture, scope, failure and release limits. No deployment, flag, migration on
+a service, live data, provider or n8n operation occurred.
+
 ## 2026-09-05 — Draft native assignee eligibility on PR1302, no live action
 
 Built on PR1302 `8cb5cba91bc33fb17599b8f2a38625ae07f7743d` (over PR1293

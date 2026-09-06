@@ -1,5 +1,17 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**2026-09-05 local Create Post editor projection:** restore only the new
+editor-read wrapper/caller changes first, returning to the preserved provider
+loader. Keep all accepted intake jobs, payloads, receipts and native epochs.
+That browser rollback hides unmapped editors again but retains ordinary
+automatic assignment and cannot move already accepted work. Only then, if a
+future approved release needs it, restore the separately captured reviewed
+gateway closure through its manual lane; do not revert unrelated gateway
+features or re-gate frozen client writers. An older/failed options endpoint
+already degrades to visible picker unavailability and server-side automatic
+assignment, never an assumed provider or valid empty native response.
+See `docs/audits/2026-09-05-native-intake-editor-projection.md`.
+
 **Unmerged draft, 2026-09-05 (native assignee eligibility):** on PR1302, assignment
 eligibility follows the server-resolved native epoch; a native lane never reads
 `production_assignee_eligibility` or the provider and applies the exact

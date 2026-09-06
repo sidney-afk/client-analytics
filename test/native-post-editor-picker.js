@@ -103,7 +103,7 @@ ok(/Current workloads could not be read/.test(disclaimer),
   'an unranked list says so instead of presenting an alphabetical first as if it were the freest');
 
 const pool = html.slice(
-  html.indexOf('async function _calNativeVideoEditorPool('),
+  html.indexOf('async function _calLegacyVideoEditorPool('),
   html.indexOf('function _calNativeEditorDisclaimer('),
 );
 /*
@@ -117,7 +117,7 @@ const pool = html.slice(
 ok(/team=eq\.video/.test(pool) && /role=eq\.editor/.test(pool),
   'the pool is video editors only — graphics designers are never offered');
 ok(/linear_user_id=not\.is\.null/.test(pool),
-  'and only editors the gateway can actually assign, matching its linear_user_id requirement');
+  'the preserved provider loader keeps its mapped-editor requirement; native projection is covered separately');
 /* Targets a CALL, not a mention: the comment above this function in index.html
    explains why it stopped using the sign-in roster, and an assertion that
    scanned for the bare name would fail on that explanation. Source pins in

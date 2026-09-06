@@ -32,7 +32,9 @@ function ok(condition, message) {
 }
 
 // ---- 1. the browser pool, EXECUTED with a canned estate --------------------
-const start = html.indexOf('async function _calNativeVideoEditorPool()');
+// The provider loader retains this exact degradation contract; native options
+// now have a separate authenticated complete-or-refuse projection.
+const start = html.indexOf('async function _calLegacyVideoEditorPool()');
 const end = html.indexOf('\n    }', html.indexOf('withLoad.sort', start)) + 6;
 ok(start > -1 && end > start, 'the browser pool is findable (harness is not vacuous)');
 const poolSrc = html.slice(start, end);
@@ -57,7 +59,7 @@ const responses = url => {
 };
 const pool = new Function(
   'CAL_SUPABASE_URL', 'CAL_SUPABASE_ANON_KEY', 'CAL_NATIVE_LIVE_VIDEO_STATUSES', 'fetch',
-  poolSrc + '\nreturn _calNativeVideoEditorPool;')(
+  poolSrc + '\nreturn _calLegacyVideoEditorPool;')(
   'https://x.test', 'k', ['todo', 'in_progress', 'tweak'],
   async url => ({ ok: true, json: async () => responses(url) }));
 
@@ -73,7 +75,7 @@ const pool = new Function(
   /* Without the exclusion this suggestion inverts — that is the regression. */
   const noParents = new Function(
     'CAL_SUPABASE_URL', 'CAL_SUPABASE_ANON_KEY', 'CAL_NATIVE_LIVE_VIDEO_STATUSES', 'fetch',
-    poolSrc + '\nreturn _calNativeVideoEditorPool;')(
+    poolSrc + '\nreturn _calLegacyVideoEditorPool;')(
     'https://x.test', 'k', ['todo', 'in_progress', 'tweak'],
     async url => ({ ok: true, json: async () => (url.includes('raw_issue_parent_id=not.is.null') ? [] : responses(url)) }));
   const blind = await noParents();
@@ -83,7 +85,7 @@ const pool = new Function(
   /* A failed parent read degrades to the uncorrected count, never to null. */
   const parentReadFails = new Function(
     'CAL_SUPABASE_URL', 'CAL_SUPABASE_ANON_KEY', 'CAL_NATIVE_LIVE_VIDEO_STATUSES', 'fetch',
-    poolSrc + '\nreturn _calNativeVideoEditorPool;')(
+    poolSrc + '\nreturn _calLegacyVideoEditorPool;')(
     'https://x.test', 'k', ['todo', 'in_progress', 'tweak'],
     async url => url.includes('raw_issue_parent_id=not.is.null')
       ? { ok: false, json: async () => [] }

@@ -1,0 +1,64 @@
+{
+  "baseline": "688947308c96e6f00b09a495a1f16f939fde479d",
+  "checks": 25,
+  "observations": [
+    {
+      "label": "baseline-present",
+      "fetches": 0,
+      "uploads": 0,
+      "trace_sha256": "0aa49f04da5699986553b7311b61aaf9fba6a6b7f224f3642f057edfc420b8df"
+    },
+    {
+      "label": "candidate-present",
+      "fetches": 0,
+      "uploads": 0,
+      "trace_sha256": "76cd17eb03c1002e66d4acba722424076c3098ec4180230f1a065c5eb177792d"
+    },
+    {
+      "label": "baseline-missing-commit",
+      "fetches": 1,
+      "uploads": 1,
+      "trace_sha256": "1d2ec2c891b479a2f06f01943f81a3ce43290016d58dbdf874520fbe24bc3d41"
+    },
+    {
+      "label": "candidate-missing-commit",
+      "fetches": 0,
+      "uploads": 0,
+      "trace_sha256": "29436a31c3437d7141f89de3e2cb73eb87bca0d7e44f18f0358b90629daed475"
+    },
+    {
+      "label": "baseline-missing-tree",
+      "fetches": 1,
+      "uploads": 1,
+      "trace_sha256": "b29775b440b22bffe668eef71060dc13735bfb275e0279083e9d64fe33a50f67"
+    },
+    {
+      "label": "candidate-missing-tree",
+      "fetches": 0,
+      "uploads": 0,
+      "trace_sha256": "476e43c2d63bf9491d117cd6560287058787aabac77687cd52777258921e6726"
+    },
+    {
+      "label": "baseline-missing-blob",
+      "fetches": 3,
+      "uploads": 3,
+      "trace_sha256": "d2ae875b8bc4c03d3eba8bb11a84d29078cfd29473991417684768422ee84603"
+    },
+    {
+      "label": "candidate-missing-blob",
+      "fetches": 0,
+      "uploads": 0,
+      "trace_sha256": "344da14ade26ba72f55ae038067a819284ddffe492cda4113ee806121dd2ace4"
+    }
+  ],
+  "external_transports_allowed": false,
+  "baseline_module_sha256": "5a08a7a558b2f1870ed998e39d2f5ea41c1b4b60f587928a247f92bb8be3742e",
+  "candidate_module_sha256": "3f29bab79091fdeec597435bee1e08f27e0cba22997b354cd1fbbbb8fc2cfffa",
+  "status": "PASS",
+  "runtime_fix_commit": "2fb8ec8b3176dd959055e5ac5c3403af2fd8373c",
+  "classification": "OFFLINE_REAL_GIT_LOCAL_FILE_TRANSPORT",
+  "git_version": "2.49.0.windows.1",
+  "existing_view_checks": 57,
+  "private_receipt_sha256": "306a99e6c5de5ed58cf34b70a8810d601b8db72d27d3f58ed280092ee5f8c9e1",
+  "test_source_sha256": "bc613834d246650f7012af705c209016c49ad3826c2cec1cb17065592e78d346"
+}

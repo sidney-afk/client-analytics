@@ -165,6 +165,7 @@ const FAILURE_SIGNATURES = [
   ['pwg_inplace_link', /PWG_PHASE_INPLACE_LINK\b/],
   ['pwg_inplace_render', /PWG_PHASE_INPLACE_RENDER\b/],
   ['pwg_inplace_save', /PWG_PHASE_INPLACE_SAVE\b/],
+  ['pwg_labels_projection', /PWG_PHASE_LABELS_PROJECTION\b/],
 ];
 
 /* Fallback vocabulary: JavaScript's own built-in error constructor names.

@@ -61,7 +61,7 @@ const PHASES = [
   // first CI red on the in-place editor reported `pwg_assignee_projection`
   // for a section three hundred lines away from any assignee.
   'description_markdown', 'inplace_place', 'inplace_type', 'inplace_link',
-  'inplace_render', 'inplace_save',
+  'inplace_render', 'inplace_save', 'labels_projection',
 ];
 let currentPhase = PHASES[0];
 function phase(name) {
@@ -1620,7 +1620,11 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       document.documentElement.removeAttribute('data-theme');
     });
 
-    phase('assignee_projection');
+    /* The label catalog, picker and assignee options on the graphics fixture.
+       Its own name: a phase is a location, and re-entering
+       `assignee_projection` here would make that location plural
+       (test/prod-polish-failure-location.js). */
+    phase('labels_projection');
     await page.evaluate(() => _prodOpenDeliverable('gra-fixture'));
     await page.waitForFunction(() => _prodLabelState('gra-fixture')?.status === 'ready');
     expect(labelReads.some(read => read.body.action === 'labels_read'

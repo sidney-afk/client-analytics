@@ -68,9 +68,10 @@ jobs:
       # Supersedes eff38b69 (eighth release, ONE PARENT PER CARD), which
       # superseded ff0fc693, 5d8bf7dc (targeted-drain reclaim) and ef89adbf.
       # File count is unchanged, so the closure membership did not move.
-      # Uninstalled candidate d906e5aab55d771b1f2801c52119b55cccc91fea:
-      # server-owned claim/dispatch fences; compatible SQL must precede deploy.
-      LINEAR_OUTBOUND_SOURCE_SHA256: 99ea1e55e3b3126c7c4688235926a79f6491412f0348b17a27ff684259d16a3b
+      # Uninstalled candidate 5f89b89e15b788fa902ba78d641f5b640e7c8bee:
+      # every provider read/page/mutation reauthorizes its lease and generation;
+      # compatible SQL must precede deploy and old isolates must be quiescent.
+      LINEAR_OUTBOUND_SOURCE_SHA256: 43329cdf65d87d20dffa16e5711a3deb0f1902acceae652cd5c5f5d255adcde9
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5

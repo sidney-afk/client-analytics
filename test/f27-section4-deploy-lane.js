@@ -70,8 +70,8 @@ const CANDIDATES = new Map([
   // an unbound linear_result. Still index.ts only -- file count 5, entrypoint
   // hash unchanged.
   ['linear-outbound', {
-    // Uninstalled combined candidate d906e5aa, matching the dispatch carrier.
-    source: '99ea1e55e3b3126c7c4688235926a79f6491412f0348b17a27ff684259d16a3b',
+    // Uninstalled combined candidate 5f89b89e, matching the dispatch carrier.
+    source: '43329cdf65d87d20dffa16e5711a3deb0f1902acceae652cd5c5f5d255adcde9',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],

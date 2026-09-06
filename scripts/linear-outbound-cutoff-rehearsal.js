@@ -12,11 +12,12 @@ const password=process.env.G8_TEST_PASSWORD||'';
 for(const k of Object.keys(process.env))if(/^PG/i.test(k))delete process.env[k];process.env.PGPASSWORD=password;
 const {LocalDatabase,source}=require('./card-change-journal-rehearsal'),{setup}=require('./card-history-integrated-rehearsal');
 const config={host:'127.0.0.1',port,user:'postgres',psql,password},db=new LocalDatabase(config);
+const argv=process.argv.slice(2);assert.ok(argv.length===0||(argv.length===1&&argv[0]==='--read-fence'),'unknown_rehearsal_lane');
 const output=process.env.G8_TEST_OUTPUT||fs.mkdtempSync(path.join(os.tmpdir(),'g8-cutoff-'));
 fs.mkdirSync(output,{recursive:true});fs.writeFileSync(path.join(output,'DATABASE.private.json'),JSON.stringify({database:db.name,retained:true}));
 try{
  db.create();setup(db,source('2026-09-05-calendar-feedback-recovery.sql'));
- const r=spawnSync(process.execPath,['--experimental-strip-types',path.join(__dirname,'linear-outbound-cutoff-lane.mjs')],{
+ const r=spawnSync(process.execPath,['--experimental-strip-types',path.join(__dirname,argv.length?'linear-outbound-read-lane.mjs':'linear-outbound-cutoff-lane.mjs')],{
   encoding:'utf8',timeout:180000,maxBuffer:8e6,windowsHide:true,env:{...process.env,NIR_PGHOST:config.host,NIR_PGPORT:port,NIR_PGUSER:config.user,NIR_PGDATABASE:db.name,NIR_PSQL:psql,G8_TEST_OUTPUT:output}});
  fs.writeFileSync(path.join(output,'lane.private.log'),(r.stdout||'')+(r.stderr||''));
  const summary=(r.stdout||'').match(/^G8_RESULT (.+)$/m);if(summary)console.log(summary[0]);

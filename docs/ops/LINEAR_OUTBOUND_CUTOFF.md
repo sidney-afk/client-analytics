@@ -1,5 +1,7 @@
 # Bounded Linear outbound cutoff prerequisite (G8)
 
+**Sept6 source follow-up:** the ordinary worker now authorizes every provider read and mutation at its single transport boundary, and an empty queue never resolves the provider viewer. Exact evidence and limits: [read cutoff correction](../audits/2026-09-06-outbound-read-cutoff.md), 34 actual handler/SQL groups plus 33 offline checks. This supersedes the historical read-path gap below only for the new source. Old deployed isolates can still read and must quiesce; a grant preceding cutoff remains in flight. Installation, serving and global G8 remain held. The retained sections below describe the earlier SQL/mutation prerequisite and its dated proofs.
+
 **Status (2026-09-06): 13 actual disposable PostgreSQL/gateway/worker-helper groups and 12 offline controls pass after independent correction. NOT installed, enabled, deployed, or global G8 proof.**
 
 ## Problem and bounded result
@@ -26,7 +28,7 @@ A provider response lost after a pre-cutoff authorization is not called success 
 
 This is **not global Linear cutoff**. The following remain red and must be inventoried and closed before G8:
 
-* provider reads made by `linear-outbound` before mutation construction, including viewer/issue/context reads;
+* provider reads from old deployed `linear-outbound` isolates, including their unconditional viewer: the source follow-up above requires exact deployment/readback and old-worker quiescence before this hold can clear;
 * F27 emergency provider replay beyond its retained snapshot, evidence-bound classification, and SQL-only drill terminal; the cutoff permits no ordinary F27 requeue, provider authorization, or provider dispatch;
 * `linear-inbound`, webhook delivery, parity and semantic reconciliation roots;
 * browser calls, retained browser queues, `workload-linear`, other Edge Functions, and any direct provider HTTP path;

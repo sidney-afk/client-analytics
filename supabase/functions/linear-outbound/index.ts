@@ -59,6 +59,7 @@ type OutboxRow = JsonMap & {
   outbound_generation: number;
   f27_drill_rollback_id?: string | null;
 };
+type ProviderDispatch = { supabase: SupabaseClient; row: OutboxRow };
 
 const LINEAR_URL = "https://api.linear.app/graphql";
 const OUTBOUND_FLAG = "linear_outbound_enabled";
@@ -194,9 +195,14 @@ async function readFlag(supabase: SupabaseClient, key: string): Promise<JsonMap>
   return value as JsonMap;
 }
 
-async function linearGraphql(query: string, variables: JsonMap): Promise<JsonMap> {
+async function linearGraphql(query: string, variables: JsonMap, dispatch: ProviderDispatch): Promise<JsonMap> {
   const key = clean(Deno.env.get("LINEAR_MIRROR_API_KEY"));
   if (!key) throw new Error("LINEAR_MIRROR_API_KEY unavailable");
+  // Every provider request, including reads and subsequent pagination, needs
+  // a current server-authorized lease. A grant winning before activation is
+  // retained in-flight evidence; it is not atomic network revocation.
+  if (!dispatch?.supabase || !dispatch.row) throw new Error("outbound provider lease unavailable");
+  await authorizeProviderDispatch(dispatch.supabase, dispatch.row);
   const response = await fetch(LINEAR_URL, {
     method: "POST",
     headers: {
@@ -221,20 +227,22 @@ async function linearGraphql(query: string, variables: JsonMap): Promise<JsonMap
   return parseJson(body.data);
 }
 
-async function readViewer(): Promise<JsonMap> {
+async function readViewer(dispatch: ProviderDispatch): Promise<JsonMap> {
   const data = await linearGraphql(
     "query SyncViewMirrorViewer { viewer { id name email } }",
     {},
+    dispatch,
   );
   return parseJson(data.viewer);
 }
 
-async function readIssue(id: string, allowMissing = false): Promise<JsonMap | null> {
+async function readIssue(id: string, allowMissing = false, dispatch: ProviderDispatch): Promise<JsonMap | null> {
   if (!id) return null;
   try {
     const data = await linearGraphql(
       "query SyncViewMirrorIssue($id: String!) { issue(id: $id) { " + issueFields() + " } }",
       { id },
+      dispatch,
     );
     const issue = data.issue;
     return issue && typeof issue === "object" && !Array.isArray(issue) ? issue as JsonMap : null;
@@ -285,12 +293,13 @@ async function ownMirrorWriteClocks(
     .filter(Boolean);
 }
 
-async function readLinearComment(id: string, allowMissing = false): Promise<JsonMap | null> {
+async function readLinearComment(id: string, allowMissing = false, dispatch: ProviderDispatch): Promise<JsonMap | null> {
   if (!id) return null;
   try {
     const data = await linearGraphql(
       "query SyncViewMirrorComment($id: String!) { comment(id: $id) { id body createdAt updatedAt issue { id identifier updatedAt } } }",
       { id },
+      dispatch,
     );
     const comment = data.comment;
     return comment && typeof comment === "object" && !Array.isArray(comment)
@@ -302,13 +311,14 @@ async function readLinearComment(id: string, allowMissing = false): Promise<Json
   }
 }
 
-async function readCommentByMarker(issueId: string, dedupKey: string): Promise<JsonMap | null> {
+async function readCommentByMarker(issueId: string, dedupKey: string, dispatch: ProviderDispatch): Promise<JsonMap | null> {
   if (!issueId || !dedupKey) return null;
   let after: string | null = null;
   for (let page = 0; page < 50; page++) {
     const data = await linearGraphql(
       "query SyncViewMirrorIssueComments($id: String!, $after: String) { issue(id: $id) { comments(first: 100, after: $after) { nodes { id body createdAt updatedAt issue { id identifier updatedAt } } pageInfo { hasNextPage endCursor } } } }",
       { id: issueId, after },
+      dispatch,
     );
     const connection = parseJson(parseJson(data.issue).comments);
     const nodes = Array.isArray(connection.nodes) ? connection.nodes : [];
@@ -337,6 +347,7 @@ async function readAttachmentRevisionPresent(
   issueId: string,
   issue: JsonMap | null,
   payload: JsonMap,
+  dispatch: ProviderDispatch,
 ): Promise<boolean> {
   const marker = attachmentRevisionMarker(payload);
   if (!marker) return false;
@@ -350,6 +361,7 @@ async function readAttachmentRevisionPresent(
     const data = await linearGraphql(
       "query SyncViewMirrorIssueAttachments($id: String!, $after: String) { issue(id: $id) { attachments(first: 100, after: $after) { nodes { id url title subtitle } pageInfo { hasNextPage endCursor } } } }",
       { id: issueId, after },
+      dispatch,
     );
     const connection = parseJson(parseJson(data.issue).attachments);
     if (attachmentNodesHaveRevision(parseArray(connection.nodes), marker)) return true;
@@ -362,18 +374,19 @@ async function readAttachmentRevisionPresent(
   throw new Error("attachment revision pagination exceeded");
 }
 
-async function readTeam(id: string): Promise<JsonMap | null> {
+async function readTeam(id: string, dispatch: ProviderDispatch): Promise<JsonMap | null> {
   if (!id) return null;
   const data = await linearGraphql(
     "query SyncViewMirrorTeam($id: String!) { team(id: $id) { id key name states { nodes { id name type position } } } }",
     { id },
+    dispatch,
   );
   const team = data.team;
   return team && typeof team === "object" && !Array.isArray(team) ? team as JsonMap : null;
 }
 
 const teamByKeyCache = new Map<string, JsonMap>();
-async function readTeamByRowTeam(value: unknown): Promise<JsonMap | null> {
+async function readTeamByRowTeam(value: unknown, dispatch: ProviderDispatch): Promise<JsonMap | null> {
   const rowTeam = lower(value);
   const key = ["graphics", "graphic", "gra"].includes(rowTeam)
     ? "GRA"
@@ -386,6 +399,7 @@ async function readTeamByRowTeam(value: unknown): Promise<JsonMap | null> {
   const data = await linearGraphql(
     "query SyncViewMirrorTeams { teams(first: 50) { nodes { id key name states { nodes { id name type position } } } } }",
     {},
+    dispatch,
   );
   const teams = parseJson(data.teams);
   const nodes = Array.isArray(teams.nodes) ? teams.nodes : [];
@@ -594,8 +608,8 @@ async function resolveContext(
 
   let team = issue && issue.team && typeof issue.team === "object" ? issue.team as JsonMap : null;
   const requestedTeamId = clean(payload.team_id || (team && team.id));
-  if (!team && requestedTeamId) team = await readTeam(requestedTeamId);
-  if (!team && row.operation === "create") team = await readTeamByRowTeam(row.team);
+  if (!team && requestedTeamId) team = await readTeam(requestedTeamId, { supabase, row });
+  if (!team && row.operation === "create") team = await readTeamByRowTeam(row.team, { supabase, row });
   context.team_id = clean(requestedTeamId || (team && team.id));
 
   const stateSlug = clean(payload.status);
@@ -661,7 +675,12 @@ async function authorizeProviderDispatch(supabase: SupabaseClient, row: OutboxRo
     p_generation: Number(row.outbound_generation),
   });
   const receipt = parseJson(data);
-  if (error || receipt.authorized !== true || Number(receipt.outbox_id) !== Number(row.id)) {
+  if (error || receipt.authorized !== true
+      || typeof receipt.outbox_id !== "number" || !Number.isSafeInteger(receipt.outbox_id)
+      || receipt.outbox_id !== Number(row.id)
+      || typeof receipt.generation !== "number" || !Number.isSafeInteger(receipt.generation)
+      || receipt.generation < 0 || receipt.generation !== Number(row.outbound_generation)
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean(receipt.authorization))) {
     throw new Error("outbound cutoff dispatch refused");
   }
 }
@@ -1358,6 +1377,7 @@ Deno.serve(async (req: Request) => {
 
   let rows: OutboxRow[] = [];
   let mirrorActor: JsonMap = {};
+  let mirrorActorLoaded = false;
   let f27DrillReceipt: JsonMap | null = null;
   if (f27ReplayRequestValue) {
     f27ReplayRequestValue = await f27ReplayAuthorization(supabase, f27ReplayRequestValue);
@@ -1374,12 +1394,6 @@ Deno.serve(async (req: Request) => {
       Boolean(f27ReplayRequestValue),
     );
     counts.enqueued = rows.length;
-    if (f27ReplayRequestValue?.isDrill !== true
-        && (initialMode === "live"
-          || f27ReplayRequestValue
-          || rows.some(row => row.legacy_parity === true))) {
-      mirrorActor = await readViewer();
-    }
   }
 
   for (const candidate of rows) {
@@ -1579,7 +1593,12 @@ Deno.serve(async (req: Request) => {
       }
       const issueId = linearIssueId(row, entity, dependency)
         || (row.operation === "create" ? await deterministicLinearCreateId(row.dedup_key) : "");
-      const issue = issueId ? await readIssue(issueId, row.operation === "create") : null;
+      const dispatch = { supabase, row };
+      if (!mirrorActorLoaded && (control.mode === "live" || f27Replay || control.legacyParity)) {
+        mirrorActor = await readViewer(dispatch);
+        mirrorActorLoaded = true;
+      }
+      const issue = issueId ? await readIssue(issueId, row.operation === "create", dispatch) : null;
       if (testClient || row.test_only === true) {
         await testScope(supabase, row, issue);
       }
@@ -1634,7 +1653,7 @@ Deno.serve(async (req: Request) => {
         context.linear_comment_id = "";
       }
       if (row.operation === "comment" && (commentAction === "add" || commentAction === "edit")) {
-        context.comment_marker_match = await readCommentByMarker(issueId, row.dedup_key);
+        context.comment_marker_match = await readCommentByMarker(issueId, row.dedup_key, dispatch);
       }
       if (row.operation === "comment"
           && commentAction === "delete"
@@ -1643,6 +1662,7 @@ Deno.serve(async (req: Request) => {
         context.linear_comment = await readLinearComment(
           clean(context.linear_comment_id),
           true,
+          dispatch,
         );
       }
       if (row.operation === "attachment" && issue) {
@@ -1653,6 +1673,7 @@ Deno.serve(async (req: Request) => {
           issueId,
           issue,
           parseJson(row.payload),
+          dispatch,
         );
       }
       if (issue && CLOCK_GUARDED_OPERATIONS.has(lower(row.operation))) {
@@ -1820,10 +1841,10 @@ Deno.serve(async (req: Request) => {
         }, f27Replay, row));
       }
       if (Number(row.attempts || 0) > 0) counts.retried++;
-      const data = await linearGraphql(mutation.query, mutation.variables as JsonMap);
+      const data = await linearGraphql(mutation.query, mutation.variables as JsonMap, dispatch);
       let result = extractMutationResult(mutation.kind, data);
       if (mutation.kind === "issueArchive" || mutation.kind === "issueUnarchive") {
-        result = await readIssue(issueId);
+        result = await readIssue(issueId, false, dispatch);
       }
       const resultMap = result && typeof result === "object" ? result as JsonMap : {};
       const resultIssue = mutation.kind === "commentCreate" || mutation.kind === "commentUpdate"

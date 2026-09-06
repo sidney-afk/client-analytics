@@ -1,5 +1,9 @@
 # SyncView Independence Execution Log
 
+## 2026-09-06 — Ordinary outbound provider-read fence (unapplied)
+
+Base8e reproduces an empty-queue viewer call and retained-lease issue read after cutoff. The single provider transport now requires the existing SQL lease/generation authorization for every read/page/mutation; viewer follows claim and SQL-only drill exit. Actual whole-handler/SQL34 and offline33 pass; positive mirror mutation, native acceptance/replay and the reserved SQL-only F27 drill remain. No SQL/new owner/auth/browser changes. [Evidence](docs/audits/2026-09-06-outbound-read-cutoff.md) retains 10 intercepted attempts/zero external, old-isolate quiescence, in-flight grant and deployment/recovery holds. No live action or G8 promotion.
+
 ## 2026-09-06 — Integrated picker/label source-test correction
 
 Both reported PR1326 `dd831df58` unit failures reproduced locally: the intake

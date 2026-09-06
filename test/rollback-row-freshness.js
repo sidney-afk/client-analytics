@@ -2728,6 +2728,45 @@ ok(inspectReleasedHeadingRun.code === 1 && inspectReleasedHeadingRun.json
     && /34000000000/.test(JSON.stringify(inspectReleasedHeadingRun.json.failures)),
     'AND EVERY SHIPPING WORD NAMES A THING THE SAME WAY: "Inspect released functions — run `X`" is not an anchor either');
 
+/* ---- 8bn. leading verbs, two digests, and a claim that names a run (round 65) ---- */
+const transitiveDeployHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '### Deploy production functions — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const transitiveDeployHeadingRun = run(fixture('transitive-deploy-heading', appended(transitiveDeployHeading), realRb));
+ok(transitiveDeployHeadingRun.code === 1 && transitiveDeployHeadingRun.json
+    && /34000000000/.test(JSON.stringify(transitiveDeployHeadingRun.json.failures)),
+    'A SHIPPING VERB THAT LEADS THE HEADING GOVERNS ITS OBJECT: "Deploy production functions — run `X`" is still an anchor and its v69 table is read');
+
+const twoBundles = run(fixture('two-bundles', LOG
+    + '\n**Superseded bundle**: `sealed_bundle_sha256 = 1111111111111111111111111111111111111111111111111111111111111111`,\n'
+    + '`byte_length = 111111`.\n', rollback()));
+ok(twoBundles.code === 1,
+    'AND TWO DIGESTS IN ONE ENTRY NAME TWO BUNDLES: with no statement of which is this deploy\'s, the entry has no readable bundle and the row is asked to prove it');
+
+const claimNamesAnotherRun = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` current run `34000000000` failed, while run',
+    '`33900000000` deployed nothing.',
+    '',
+].join('\n');
+const claimNamesAnotherRunRun = run(fixture('claim-names-another-run', appended(claimNamesAnotherRun), realRb));
+ok(claimNamesAnotherRunRun.code === 1 && claimNamesAnotherRunRun.json
+    && claimNamesAnotherRunRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND A CLAIM THAT NAMES A RUN BELONGS TO THAT RUN: "run `Y` deployed nothing" says nothing about the failure of run `X`');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

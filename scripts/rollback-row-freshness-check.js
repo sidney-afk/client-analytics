@@ -258,7 +258,13 @@ function deployAnchors(log) {
            THING, while "deployed via", "deployed from" and a bare "deploy"
            before punctuation record the act (Codex, sixty-second and
            sixty-third rounds on #1306). */
-        const objectless = named.replace(/\b(?:deploy(?:ment|ed|s|ing)?|releas(?:e|ed|es|ing)|shipp?(?:ed|ing|s)?|rollout|rolled out|cut ?over)\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b|#)[a-z]+\b/gi, ' ');
+        /* A SHIPPING VERB THAT LEADS THE HEADING GOVERNS ITS OBJECT: "Deploy
+           production functions — run `X`" records the act, while "Inspect
+           deployment configuration" names a thing (Codex, sixty-fifth round on
+           #1306). So the object rule runs only on what does not lead. */
+        const bare = named.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
+        const leadsShipping = /^(?:deploy|deployed|deploying|deploys|releas(?:e|ed|ing|es)|ship|shipped|shipping|rollout|roll out|rolled out|cut ?over)\b/i.test(bare);
+        const objectless = leadsShipping ? named : named.replace(/\b(?:deploy(?:ment|ed|s|ing)?|releas(?:e|ed|es|ing)|shipp?(?:ed|ing|s)?|rollout|rolled out|cut ?over)\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b|#)[a-z]+\b/gi, ' ');
         const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
         const saysDeploy = /\bdeploy|releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(objectless)
@@ -438,9 +444,17 @@ function anchorsInEntry(log, at, anchors) {
    check that reports the same thing whether it looked or not. */
 function sealedBundleIn(text) {
     const t = String(text || '');
-    const sha = t.match(/(?:sealed|rollback)_bundle_sha256\s*=?\s*`?([0-9a-f]{64})/);
-    const bytes = t.match(/(?:rollback_bundle_)?byte_length\s*=?\s*`?(\d+)/);
-    return sha ? { sha: sha[1], bytes: bytes ? bytes[1] : '' } : null;
+    /* TWO DIGESTS IN ONE ENTRY NAME TWO BUNDLES, and reading the first one is a
+       coin toss: "Superseded sealed_bundle_sha256 = A" above "Current capture
+       sealed_bundle_sha256 = B" used to certify A (Codex, sixty-fifth round on
+       #1306). Where the entry does not say which is this deploy's, the entry
+       has no readable bundle, so the row is asked to prove it rather than
+       matched against a guess. */
+    const shas = [...new Set([...t.matchAll(/(?:sealed|rollback)_bundle_sha256\s*=?\s*`?([0-9a-f]{64})/g)].map(m => m[1]))];
+    if (shas.length > 1) return null;
+    const sha = shas[0];
+    const lens = [...new Set([...t.matchAll(/(?:rollback_bundle_)?byte_length\s*=?\s*`?(\d+)/g)].map(m => m[1]))];
+    return sha ? { sha, bytes: lens.length === 1 ? lens[0] : '' } : null;
 }
 
 /* ---- the lanes this guard does NOT read ---------------------------------- */
@@ -883,9 +897,26 @@ function recordsADispatch(log, k, len) {
        failure with the older attempt's evidence (Codex, fiftieth round on
        #1306), so a clause that hands the claim to another attempt does not
        silence this one. */
-    const wholeRunSilent = t => t
-        .split(/[.;]\s|,\s*(?:while|whereas|although|though|but)\s/)
-        .some(clause => NOTHING_SHIPPED.test(clause) && !OTHER_ATTEMPT.test(clause));
+    /* AND A CLAIM THAT NAMES A RUN BELONGS TO THAT RUN. "the current run `X`
+       failed, while run `Y` deployed nothing" carries no other-attempt word at
+       all, and the second clause is about `Y` (Codex, sixty-fifth round on
+       #1306), so run ids decide where the words do not. */
+    const wholeRunSilent = t => {
+        const clauses = t.split(/[.;]\s|,\s*(?:while|whereas|although|though|but)\s/);
+        const runIn = c => (c.match(/\brun\s+`?#?(\d{6,})`?/) || [])[1] || '';
+        /* The failure VERBS only: FAILED_RUN also carries the no-deployment
+           wording, and a clause matching itself would make every claim its own
+           run's. */
+        const failedRuns = clauses
+            .filter(c => /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\b/i.test(c))
+            .map(runIn)
+            .filter(Boolean);
+        return clauses.some(clause => {
+            if (!NOTHING_SHIPPED.test(clause) || OTHER_ATTEMPT.test(clause)) return false;
+            const said = runIn(clause);
+            return !said || !failedRuns.length || failedRuns.includes(said);
+        });
+    };
     const norm = text => {
         const t = text.replace(RETROSPECTIVE, ' ').replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ');
         return wholeRunSilent(t) ? t.replace(FAILED_RUN, ' NEGATED ') : t;

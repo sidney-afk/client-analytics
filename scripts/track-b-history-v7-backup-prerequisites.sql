@@ -23,8 +23,16 @@ declare
   sequence_name text;
   role_record record;
   protected_role text;
+  validator text;
   expected_keys text[];
   actual_keys text[];
+  validators constant text[] := array[
+    'public._linear_intake_is_string_array(jsonb)',
+    'public._linear_intake_canonical_json(jsonb)',
+    'public._linear_intake_sha256_hex(text)',
+    'public._linear_intake_payload_is_canonical(text)',
+    'public._linear_intake_expected_child_count(jsonb)',
+    'public._linear_intake_replay_note_is_valid(text,text,text,text,integer,text,jsonb)'];
   relations constant text[] := array[
     'team_members','clients','client_access','client_access_events',
     'syncview_auth_events','syncview_runtime_flags','flag_flips','settings_events',
@@ -91,14 +99,16 @@ begin
         or has_table_privilege(role_name,'public.' || relation_name,'TRUNCATE'))) then
       raise exception 'Dedicated role has forbidden inherited or direct write privileges';
     end if;
-    foreach protected_role in array array['anon','authenticated','service_role'] loop
-      if has_table_privilege(protected_role,'public.' || relation_name,'INSERT')
-        or has_table_privilege(protected_role,'public.' || relation_name,'UPDATE')
-        or has_table_privilege(protected_role,'public.' || relation_name,'DELETE')
-        or has_table_privilege(protected_role,'public.' || relation_name,'TRUNCATE') then
-        raise exception 'Protected runtime role has forbidden history write privilege';
-      end if;
-    end loop;
+    if relation_name = any(array['production_card_materialization_receipts','production_card_materialization_ingress']) then
+      foreach protected_role in array array['anon','authenticated','service_role'] loop
+        if has_table_privilege(protected_role,'public.' || relation_name,'INSERT')
+          or has_table_privilege(protected_role,'public.' || relation_name,'UPDATE')
+          or has_table_privilege(protected_role,'public.' || relation_name,'DELETE')
+          or has_table_privilege(protected_role,'public.' || relation_name,'TRUNCATE') then
+          raise exception 'Protected runtime role has forbidden materialization history write privilege';
+        end if;
+      end loop;
+    end if;
     if relation_name = any(array['client_access_events','syncview_auth_events','flag_flips','settings_events',
       'deliverable_events','mirror_outbox','calendar_post_events','sample_review_events','card_change_journal','production_card_provenance'])
       and pg_get_serial_sequence('public.' || relation_name,'id') is null then
@@ -115,7 +125,27 @@ begin
     or (c.conrelid in (select to_regclass('public.'||r) from unnest(relations) r)
       and c.confrelid not in (select to_regclass('public.'||r) from unnest(relations) r))
   )) then raise exception 'History v7 corpus foreign-key boundary is incomplete'; end if;
+  -- The two new owners need only built-in CHECK operators. The retained v6
+  -- rows still carry these immutable invoker CHECK dependencies during COPY.
+  if mode='scratch' then
+    foreach validator in array validators loop
+      if not exists(select 1 from pg_proc where oid=to_regprocedure(validator)
+        and provolatile='i' and not prosecdef) then
+        raise exception 'Reviewed immutable invoker receipt validator required';
+      end if;
+    end loop;
+    if to_regprocedure('extensions.digest(bytea,text)') is null then
+      raise exception 'Reviewed pgcrypto receipt dependency required';
+    end if;
+  end if;
   execute format('grant usage on schema public to %I',role_name);
+  if mode='scratch' then
+    execute format('grant usage on schema extensions to %I',role_name);
+    foreach validator in array validators loop
+      execute format('grant execute on function %s to %I',validator,role_name);
+    end loop;
+    execute format('grant execute on function extensions.digest(bytea,text) to %I',role_name);
+  end if;
   foreach relation_name in array relations loop
     execute format('grant %s on table public.%I to %I',
       case when mode='backup' then 'select' else 'select, insert, truncate' end,relation_name,role_name);

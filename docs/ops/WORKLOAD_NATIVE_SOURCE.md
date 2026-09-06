@@ -91,6 +91,23 @@ server, with only a generic bounded SQL failure recorded. The unit job has a
 local integration already exceeded ten minutes. Shorter SQL process timeouts
 remain. This is a finite CI bound, not a hosted-CI pass or a deployment claim.
 
+**Separate actual Chromium smoke:** `node qa/workload-native/browser.js` loads
+the complete integrated HTML through the existing boot stream server and
+intercepts all external requests. Five groups passed against integration
+`688947308c96e6f00b09a495a1f16f939fde479d` on 2026-09-06: staff verification
+and native-only card visibility using the real client-group expander; actual
+plan handler acknowledgement and forced-refresh alias continuity; missing SQL
+preserving visible cards with a warning and disabled writes; successful retry;
+and a storage receipt arriving during an older background read causing a new
+post-flight read before debt clears. The run made six synthetic snapshot reads,
+one synthetic plan write and zero unknown/provider/WebSocket requests. It does
+not replace or extract product loaders/renderers. Endpoint responses and the
+boot fixture's third-party SDK are synthetic, so this does not add SQL, serving,
+live roster, OS containment or full-release proof. Timestamped receipts contain
+source hashes, synthetic scenario labels and counts. Playwright and Chromium are
+required; this optional browser lane is separate from the dependency-free unit
+discovery and makes no workflow change.
+
 Execution remains owner-coordinated: (1) capture exact serving `workload-plan`
 closure, current flags, grants, stored-plan counts/keys and schema/data restore
 point privately; prove installed native view/label helper and eligible population

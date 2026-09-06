@@ -391,3 +391,13 @@ grant or restore action because this artifact omitted the required parentheses
 around its confirmation `CASE` expression. The source is corrected; the owner
 must still re-run the prerequisites and complete the separate scratch restore
 proof before v7 receives any recovery claim.
+
+For a privately owned disposable PostgreSQL server only, the portable v7 proof
+is `node scripts/card-materialization-history-rehearsal.js`. Set
+`CARD_MATERIALIZATION_HISTORY_CONFIRM=LOCAL_DISPOSABLE_ONLY`, literal
+`CARD_MATERIALIZATION_HISTORY_PGHOST=127.0.0.1`, an explicit port, absolute
+`CARD_MATERIALIZATION_HISTORY_PSQL` and `CARD_MATERIALIZATION_HISTORY_PG_DUMP`
+paths, and an absolute private `CARD_MATERIALIZATION_HISTORY_OUTPUT` outside
+the repository. It retains synthetic databases and private raw outputs for
+review, never starts/stops/drops a server or database, and prints only an
+aggregate result. It is not a workflow step or a production procedure.

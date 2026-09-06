@@ -379,7 +379,14 @@ const CANDIDATES = new Map([
     // empty slot (43 of 1,567 buckets hold more than one post; one holds
     // seven). One extra client-pinned read, asked only when the post spans
     // more than one bucket.
-    source: 'd2914ac298988e37ac7f8a3b78301eb9ed7d65804927d5d78443f56baf49e062',
+    // Re-pinned 2026-09-06 (Calendar feedback recovery slice 1, NOT YET
+    // DEPLOYED; stacked on the fingerprint-correction branch, which itself was
+    // not re-pinned): the client comment operation gains the additive
+    // `recover_source` modifier, the comment-add reconstruction moves into a
+    // helper shared with the reconcile reader, and the RPC error map learns
+    // calendar_feedback_recovery_* codes. One new service RPC call
+    // (calendar_feedback_recovery_apply_v1); no new import, file count 5.
+    source: 'b440d92312e40d21f095f9ff411c1319072724837337b98670bed47c8786a11c',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

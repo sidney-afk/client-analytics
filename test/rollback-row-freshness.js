@@ -2800,6 +2800,26 @@ ok(numberedClaimUnnumberedFailureRun.code === 1 && numberedClaimUnnumberedFailur
     && numberedClaimUnnumberedFailureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
     'AND A NUMBERED CLAIM CANNOT ANSWER AN UNNUMBERED FAILURE: "the current run failed, while run `Y` deployed nothing" leaves this run unaccounted for');
 
+/* ---- 8bp. a redeploy is a deploy (round 67) ---- */
+const redeployHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '### Redeploy production functions — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const redeployHeadingRun = run(fixture('redeploy-heading', appended(redeployHeading), realRb));
+ok(redeployHeadingRun.code === 1 && redeployHeadingRun.json
+    && /34000000000/.test(JSON.stringify(redeployHeadingRun.json.failures)),
+    'A REDEPLOY IS A DEPLOY: "Redeploy production functions — run `X`" anchors its own run, so the v69 table below it is not filed under the older parent');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

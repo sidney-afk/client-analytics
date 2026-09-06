@@ -263,11 +263,11 @@ function deployAnchors(log) {
            deployment configuration" names a thing (Codex, sixty-fifth round on
            #1306). So the object rule runs only on what does not lead. */
         const bare = named.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
-        const leadsShipping = /^(?:deploy|deployed|deploying|deploys|releas(?:e|ed|ing|es)|ship|shipped|shipping|rollout|roll out|rolled out|cut ?over)\b/i.test(bare);
+        const leadsShipping = /^(?:re-?)?(?:deploy|deployed|deploying|deploys|releas(?:e|ed|ing|es)|ship|shipped|shipping|rollout|roll out|rolled out|cut ?over)\b/i.test(bare);
         const objectless = leadsShipping ? named : named.replace(/\b(?:deploy(?:ment|ed|s|ing)?|releas(?:e|ed|es|ing)|shipp?(?:ed|ing|s)?|rollout|rolled out|cut ?over)\b(?!\s+(?:via|from|to|by|on|at|in|into|through|with|as|after|before|during|the|this|run)\b)(?:\s+[a-z]+\b)?/gi, ' ');
         const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
-        const saysDeploy = /\bdeploy|releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(objectless)
+        const saysDeploy = /\b(?:re-?)?deploy|\b(?:re-?)?releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(objectless)
             || /(Section 4|§4)/i.test(objectless);
         if (!saysDeploy) continue;
         if (otherActivity.test(objectless) && !/\bdeploy/i.test(objectless)) continue;

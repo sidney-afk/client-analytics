@@ -1,8 +1,8 @@
 name: Calendar unit tests
 
 # Fast, dependency-free logic/wiring checks (test/*.js). Most are hermetic
-# source/logic checks; F63 additionally exercises only a disposable PostgreSQL
-# 16 service. No test in this job reaches a live backend or browser.
+# source/logic checks; database lanes, including native Workload, use only the
+# disposable PostgreSQL 16 service. No test reaches a live backend or browser.
 # `push` is restricted to main ON PURPOSE. With `branches: ['**']` a commit on
 # an open pull request's branch matched BOTH triggers and ran this suite twice
 # on the same source. Measured on fc068d15 (2026-08-26): run #3499 (push) passed
@@ -19,7 +19,10 @@ on:
 jobs:
   unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Bound the full suite plus required disposable SQL rehearsals. The expanded
+    # local integration already exceeds ten minutes; individual SQL calls also
+    # retain their shorter process/query timeouts. No retry or failure bypass.
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -43,6 +46,9 @@ jobs:
       # trigger against this same disposable PostgreSQL. Both attach defects it
       # covers are invisible to source-only assertions.
       ARTIFACT_REQUIRE_POSTGRES: '1'
+      # Explicitly opt the discovered Calendar recovery integration proof into
+      # this disposable service; its wrapper refuses an unbound CI invocation.
+      CALENDAR_RECOVERY_INTEGRATED: LOCAL_DISPOSABLE_ONLY
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,6 +58,18 @@ jobs:
           node-version: '22'
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
+      - name: Prove native Workload snapshot and plan aliases against disposable SQL
+        env:
+          WORKLOAD_TEST_REQUIRE: '1'
+          WORKLOAD_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          WORKLOAD_TEST_PORT: '5432'
+          # Synthetic credential for this job's existing loopback service only.
+          WORKLOAD_TEST_PASSWORD: postgres
+        run: |
+          set -euo pipefail
+          workload_psql="$(command -v psql)"
+          test -x "$workload_psql"
+          WORKLOAD_TEST_PSQL="$workload_psql" node test/workload-native-postgres.js
 
   identity-exposure:
     # THIS REPOSITORY IS PUBLIC AND THE ROSTER IS IN IT. Measured 2026-09-02:

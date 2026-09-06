@@ -2391,6 +2391,38 @@ ok(verbLedCheckHeadingRun.code === 1 && verbLedCheckHeadingRun.json
     && /34000000000/.test(JSON.stringify(verbLedCheckHeadingRun.json.failures)),
     'AND A VERB-LED CHECK IS A CHECK: "Verify deployment run `X`" is not an anchor, so the table below it takes the parent deploy heading\'s run');
 
+/* ---- 8ba. an unnumbered other-attempt claim; validation headings (round 52) ---- */
+const otherAttemptNoRun = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current attempt failed (run `34000000000`). The previous attempt deployed nothing.',
+    '',
+].join('\n');
+const otherAttemptNoRunRun = run(fixture('other-attempt-no-run', appended(otherAttemptNoRun), realRb));
+ok(otherAttemptNoRunRun.code === 1 && otherAttemptNoRunRun.json
+    && otherAttemptNoRunRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'NAMING NO RUN IS NOT DESCRIBING THIS ONE: "The previous attempt deployed nothing" is another attempt\'s evidence, so the failed entry is still asked for its receipt');
+
+const validationHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Deployment validation run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const validationHeadingRun = run(fixture('validation-heading', appended(validationHeading), realRb));
+ok(validationHeadingRun.code === 1 && validationHeadingRun.json
+    && /34000000000/.test(JSON.stringify(validationHeadingRun.json.failures)),
+    'AND A VALIDATION IS A CHECK TOO: "Deployment validation run `X`" is not an anchor, so the table below it takes the parent deploy heading\'s run');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

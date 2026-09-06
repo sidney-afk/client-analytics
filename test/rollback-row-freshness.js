@@ -2358,6 +2358,39 @@ ok(otherAttemptClauseRun.code === 1 && otherAttemptClauseRun.json
     && otherAttemptClauseRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
     'AND A CLAIM HANDED TO ANOTHER ATTEMPT DOES NOT SILENCE THIS ONE: "the current run failed, while the previous attempt deployed nothing" still FAILS');
 
+/* ---- 8az. completion after a failure; verb-led checks (round 51) ---- */
+const rerunAfterFailure = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'The initial job failed but the re-run completed successfully. No deployment occurred during',
+    'the failed attempt.',
+    '',
+].join('\n');
+const rerunAfterFailureRun = run(fixture('rerun-after-failure', appended(rerunAfterFailure), realRb));
+ok(rerunAfterFailureRun.code === 1 && rerunAfterFailureRun.json
+    && rerunAfterFailureRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A COMPLETION AFTER A FAILURE STILL COUNTS: "the initial job failed but the re-run completed successfully" claims a deploy, so the entry is asked for its receipt');
+
+const verbLedCheckHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Verify deployment run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const verbLedCheckHeadingRun = run(fixture('verb-led-check-heading', appended(verbLedCheckHeading), realRb));
+ok(verbLedCheckHeadingRun.code === 1 && verbLedCheckHeadingRun.json
+    && /34000000000/.test(JSON.stringify(verbLedCheckHeadingRun.json.failures)),
+    'AND A VERB-LED CHECK IS A CHECK: "Verify deployment run `X`" is not an anchor, so the table below it takes the parent deploy heading\'s run');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

@@ -231,7 +231,10 @@ function deployAnchors(log) {
         const named = line
             .replace(/\b(?:post|pre)[- ]?deploy(?:ment)?\b/gi, ' ')
             .replace(/\bdeploy(?:ment)?\s+(?=(?:verification|verify|check|readback|read-back|audit|smoke|probe|drill|rehearsal|test)\b)/gi, ' ')
-            .replace(/\b(?:verification|readback|read-back|audit|smoke test|probe|drill|rehearsal)\s+of\s+(?:the\s+)?deploy(?:ment)?\b/gi, ' verification ');
+            .replace(/\b(?:verification|readback|read-back|audit|smoke test|probe|drill|rehearsal)\s+of\s+(?:the\s+)?deploy(?:ment)?\b/gi, ' verification ')
+            /* And the verb-led form of the same phrase: "Verify deployment run
+               `X`" is a check, not a deploy (Codex, fifty-first round). */
+            .replace(/\b(?:verify|verifying|verified|check|checking|checked|re-?check(?:ing|ed)?|audit|auditing|smoke[- ]?test(?:ing|ed)?|probe|probing|read[- ]?back)\s+(?:the\s+|this\s+)?deploy(?:ment)?\b/gi, ' verification ');
         if (otherActivity.test(named) && !/\bdeploy/i.test(named)) continue;
         out.push({ at: m.index, run: m[1] });
     }
@@ -1270,7 +1273,11 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            completion of its own, or the failure names a run that is not this
            heading's. */
         const claimsCompletion = /\b(completed|succeeded|success|successful|successfully|shipped|went out|green|PASS)\b/i
-            .test(entryText.replace(new RegExp(FAILED_RUN.source + '[^.\n]*', 'gi'), ' '));
+            /* The failure clause ENDS at the conjunction that turns the
+               sentence: "The initial job failed but the re-run completed
+               successfully" claims a completion, and swallowing the rest of
+               the sentence hid it (Codex, fifty-first round on #1306). */
+            .test(entryText.replace(new RegExp(FAILED_RUN.source + '[^.\n]*?(?=\\b(?:but|yet|although|though|whereas|while|then|before|after|and then|so)\\b|[.\\n]|$)', 'gi'), ' '));
         const failureRuns = [...entryText.matchAll(new RegExp('(?:' + FAILED_RUN.source + '|no deployment|nothing (?:was )?deployed)[^.\n]{0,120}?\\brun\\s+`?#?(\\d{6,})', 'gi'))]
             .map(m => m[m.length - 1]);
         const failureIsOurs = !failureRuns.length

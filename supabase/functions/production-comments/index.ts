@@ -12,6 +12,7 @@ import {
   type StaffRoleKey,
 } from "../_shared/staff-role-auth.ts";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
+import { readLegacyFeedback } from "./feedback.mjs";
 import {
   audienceAllowed,
   clean,
@@ -378,6 +379,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }))
       .filter(Boolean);
     const tail = comments.length ? comments[comments.length - 1] as JsonMap : null;
+    let feedback = null;
+    if (body.include_feedback === true && principal.kind === "staff") {
+      // Existing authorization and durable allow audit precede every source read.
+      feedback = await readLegacyFeedback(supabase, target, principal);
+      const { data: latest, error: latestError } = await supabase.from("deliverables")
+        .select("id,client_slug,team,origin,card_id").eq("id", deliverableId).maybeSingle();
+      if (latestError) throw new Error("target_recheck_failed");
+      if (!latest || (["id", "client_slug", "team", "origin", "card_id"] as const).some(
+        key => clean(latest[key]) !== clean(target[key]),
+      )) return json({ ok: false, error: "forbidden" }, 403);
+    }
     return json({
       ok: true,
       canonical_thread: true,
@@ -388,6 +400,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ? { created_at: clean(tail.created_at), id: clean(tail.id) }
         : null,
       comments,
+      ...(feedback ? { feedback } : {}),
     });
   } catch (_error) {
     return json({ ok: false, error: "read_failed" }, 500);

@@ -30,6 +30,13 @@ accepted evidence, strip markers or requeue native receipts. Full release order,
 old-serving limitations and retained-data rollback:
 `docs/audits/2026-09-05-native-only-intake.md`. This changes no Live State entry.
 
+Draft source note (2026-09-05): mapped component feedback is not deployed. Its
+rollback is the bounded browser diff plus the previously captured **reader-only**
+`production-comments` closure, retaining all canonical/source data and receipts.
+No writer restore, table drop, queue replay, flag or frozen-writer change belongs
+to this slice. The existing multi-function onboarding dispatch is not a
+reader-only rollback. See `docs/features/COMPONENT_FEEDBACK.md`.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is

@@ -75,6 +75,13 @@ and target principals, `scripts/track-b-recovery-rehearsal.js` is the CI-run
 disposable proof and `test/track-b-recovery-package.js` the offline format,
 classifier, tamper and watcher gate. Nothing uploads, schedules or alerts;
 `docs/audits/2026-09-05-card-history-recovery-package-proof.md` records limits.
+The 2026-09-06 correction adds exact sequence state (decimal strings plus the
+real `is_called`), a positively bounded callable-dependency contract for every
+expression that executes during load, an effective-permission recheck of the
+connecting role, ACL target validation, in-transaction verification before
+COMMIT with quarantined `committed_unverified` recovery, and the
+recovery-package-only `history-v6` corpus covering PR #1316's staged label
+catalog; `docs/audits/2026-09-06-recovery-package-correction.md` records it.
 
 | Path | What it is |
 |---|---|

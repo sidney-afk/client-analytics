@@ -26,6 +26,11 @@ declare
   role_record record;
   relation record;
   v_count integer;
+  contract_signature text;
+  granted_signatures integer := 0;
+  -- Kept identical to EXTENSION_FUNCTION_CONTRACT in track-b-recovery-package.js.
+  contract_signatures constant text[] := array[
+    'digest(bytea,text)', 'gen_random_bytes(integer)', 'gen_random_uuid()'];
 begin
   if mode not in ('capture','target') then raise exception 'Unsupported recovery prerequisite mode'; end if;
   if current_setting('track_b.recovery_confirmation') <> (case when mode='capture'
@@ -66,7 +71,30 @@ begin
     execute format('grant create, usage on schema public to %I', role_name);
     if to_regnamespace('extensions') is not null then
       execute format('grant usage on schema extensions to %I', role_name);
-      execute format('grant execute on all functions in schema extensions to %I', role_name);
+      -- NARROW CONTRACT, not "all functions": exactly the signatures the
+      -- reviewed callable contract permits an expression to evaluate. Anything
+      -- else in `extensions` stays ungranted to this role. The PUBLIC default
+      -- EXECUTE that an extension installs is a pinned PLATFORM property: it is
+      -- verified and reported, never widened here, and never revoked (the
+      -- restored invoker functions rely on it for the platform roles).
+      foreach contract_signature in array contract_signatures loop
+        if to_regprocedure('extensions.' || contract_signature) is not null then
+          execute format('grant execute on function extensions.%s to %I', contract_signature, role_name);
+          granted_signatures := granted_signatures + 1;
+        end if;
+      end loop;
+      if granted_signatures = 0 then
+        raise exception 'Recovery target lacks every reviewed extension callable';
+      end if;
+      select count(*) into v_count from pg_catalog.pg_proc p
+        join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+        cross join lateral pg_catalog.aclexplode(p.proacl) e
+        join pg_catalog.pg_roles g on g.oid = e.grantee
+        where n.nspname = 'extensions' and g.rolname = role_name and e.privilege_type = 'EXECUTE'
+          and replace(p.proname || '(' || pg_catalog.pg_get_function_identity_arguments(p.oid) || ')', ' ', '') <> all(contract_signatures);
+      if v_count > 0 then
+        raise exception 'Recovery target role holds EXECUTE in extensions beyond the reviewed contract';
+      end if;
     end if;
   end if;
 end $recovery_prerequisites$;

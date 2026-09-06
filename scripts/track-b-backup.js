@@ -85,12 +85,24 @@ const CLOSED_HISTORY_TABLES = Object.freeze([...HISTORY_TABLES.flatMap(table =>
   { name: 'track_b_f27_team_fences', pk: 'team' },
   { name: 'linear_intake_receipts', pk: 'receipt_key' },
 ]);
+// v6 adds ONLY the staged native label catalog owner (PR #1316,
+// migrations/2026-09-05-native-label-catalog-foundation.sql). Its rows are
+// protected by UPDATE/DELETE/TRUNCATE triggers, so it is deliberately NOT
+// restorable through the destructive TRUNCATE+disable-triggers snapshot path:
+// restoreSql refuses it. The empty-target recovery package is its only restore,
+// where the immutability triggers are created AFTER the rows load and come back
+// enabled. v3/v4/v5 keep their exact table sets and signed meanings.
+const STAGED_CATALOG_TABLES = Object.freeze([...CLOSED_HISTORY_TABLES,
+  { name: 'production_label_catalog_versions', pk: 'version_id', retained_data: true },
+]);
 const CORPORA = Object.freeze({
   'legacy-v3': Object.freeze({ name: 'legacy-v3', version: 3, magic: PACKAGE_MAGIC, tables: TABLES }),
   'history-v4': Object.freeze({ name: 'history-v4', version: 4,
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V4\n', 'utf8'), tables: HISTORY_TABLES }),
   'history-v5': Object.freeze({ name: 'history-v5', version: 5,
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V5\n', 'utf8'), tables: CLOSED_HISTORY_TABLES }),
+  'history-v6': Object.freeze({ name: 'history-v6', version: 6, recovery_package_only: true,
+    magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V6\n', 'utf8'), tables: STAGED_CATALOG_TABLES }),
 });
 
 function resolveCorpus(name = 'legacy-v3') {
@@ -105,7 +117,8 @@ function configuredCorpus() {
 function manifestCorpus(manifest) {
   const name = manifest && manifest.schema_version === 3 ? 'legacy-v3'
     : manifest && manifest.schema_version === 4 ? 'history-v4'
-      : manifest && manifest.schema_version === 5 ? 'history-v5' : '';
+      : manifest && manifest.schema_version === 5 ? 'history-v5'
+        : manifest && manifest.schema_version === 6 ? 'history-v6' : '';
   const corpus = resolveCorpus(name);
   if ((corpus.version >= 4 || manifest.corpus != null) && manifest.corpus !== corpus.name) {
     throw new Error('Track-B snapshot corpus does not match its schema version');
@@ -1248,6 +1261,7 @@ module.exports = {
   CORPORA,
   HISTORY_TABLES,
   CLOSED_HISTORY_TABLES,
+  STAGED_CATALOG_TABLES,
   corpusBoundarySql,
   readOnlyPrivilegeArgs,
   configuredCorpus,

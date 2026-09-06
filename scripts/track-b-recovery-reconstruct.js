@@ -95,18 +95,26 @@ function reconstruct(pkg, env, { psql = 'psql', tempDir = null, diagnosticDir = 
   const verifyFile = path.join(dir, 'verify.sql');
   const base = { attempt_id: attemptId, target_project_ref: targetRef, package_binding: pkg.manifest.binding,
     source_generated_at: pkg.manifest.generated_at, corpus: pkg.manifest.corpus, recovery_version: pkg.manifest.recovery_version };
+  // Observed BEFORE the attempt. "Did this attempt commit anything?" is a
+  // comparison against this, not "is the target empty" — a pre-DDL refusal on
+  // an already-populated target is still a rollback, not a commit.
+  const stateBefore = observeTargetState(env, psql);
   try {
     fs.writeFileSync(restoreFile, recovery.reconstructSql(pkg), { mode: 0o600 });
     fs.writeFileSync(verifyFile, recovery.verificationSql(pkg.manifest), { mode: 0o600 });
     const applied = spawnSync(psql, ['--no-psqlrc', '--quiet', '--set=ON_ERROR_STOP=1', '--file', restoreFile], { encoding: 'utf8', env, stdio: ['ignore', 'ignore', 'pipe'], maxBuffer: 16 * 1024 * 1024 });
     if (applied.error || applied.status !== 0) {
-      // The whole reconstruction is one transaction, so a non-zero exit means
-      // it rolled back. Confirm the target is still empty rather than assume it.
+      // The whole reconstruction is one transaction, so a non-zero exit means it
+      // rolled back. Confirm that by comparing with the pre-attempt observation
+      // rather than assuming, so a transport failure is never read as a rollback.
       const state = observeTargetState(env, psql);
-      const rolledBack = state.known && state.public_relations === 0;
+      const rolledBack = state.known && stateBefore.known && state.public_relations === stateBefore.public_relations;
       const receipt = { ...base, ok: false, outcome: rolledBack ? OUTCOMES.ROLLED_BACK : OUTCOMES.COMMITTED_UNVERIFIED,
-        stage: 'reconstruction', target_state_known: state.known, target_public_relations: state.public_relations,
-        retry_in_place_allowed: rolledBack, quarantine_required: !rolledBack, elapsed_seconds: Math.round((Date.now() - started) / 1000) };
+        stage: 'reconstruction', target_state_known: state.known && stateBefore.known,
+        target_public_relations_before: stateBefore.public_relations, target_public_relations: state.public_relations,
+        target_was_empty_before: stateBefore.known && stateBefore.public_relations === 0,
+        retry_in_place_allowed: rolledBack && stateBefore.public_relations === 0,
+        quarantine_required: !rolledBack, elapsed_seconds: Math.round((Date.now() - started) / 1000) };
       receipt.diagnostic_file = writeDiagnostic(diagnosticDir, receipt);
       throw outcomeError(receipt.outcome, 'Track-B recovery reconstruction', applied, { receipt });
     }

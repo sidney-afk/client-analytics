@@ -78,9 +78,16 @@ const DANGEROUS_CATALOG_FUNCTIONS = Object.freeze(['pg_read_file', 'pg_read_bina
   'pg_logical_emit_message', 'pg_switch_wal', 'pg_backup_start', 'pg_backup_stop', 'pg_promote', 'pg_replication_origin_create',
   'setval', 'pg_file_write', 'pg_file_unlink', 'pg_file_rename', 'query_to_xml', 'database_to_xml', 'schema_to_xml']);
 // Signatures the target role must NOT be able to execute (privilege recheck).
+// MEASURED on PostgreSQL 16 against a plain LOGIN role: exactly these eight are
+// withheld from PUBLIC by default, so holding EXECUTE on one is a real privilege
+// signal. pg_sleep, set_config, pg_notify, pg_advisory_lock, pg_export_snapshot
+// and pg_terminate_backend ARE PUBLIC-executable by default, so they prove
+// nothing about this role; they stay in the expression denylist above, which is
+// the check that matters for reconstruction, and pg_signal_backend membership is
+// covered by DANGEROUS_ROLE_MEMBERSHIPS.
 const DANGEROUS_CATALOG_SIGNATURES = Object.freeze(['pg_catalog.pg_read_file(text)', 'pg_catalog.pg_read_binary_file(text)', 'pg_catalog.pg_ls_dir(text)',
-  'pg_catalog.pg_stat_file(text)', 'pg_catalog.lo_import(text)', 'pg_catalog.lo_export(oid,text)', 'pg_catalog.pg_terminate_backend(integer,bigint)',
-  'pg_catalog.pg_reload_conf()', 'pg_catalog.pg_rotate_logfile()', 'pg_catalog.pg_export_snapshot()']);
+  'pg_catalog.pg_stat_file(text)', 'pg_catalog.lo_import(text)', 'pg_catalog.lo_export(oid,text)',
+  'pg_catalog.pg_reload_conf()', 'pg_catalog.pg_rotate_logfile()']);
 const DANGEROUS_ROLE_MEMBERSHIPS = Object.freeze(['pg_execute_server_program', 'pg_read_server_files', 'pg_write_server_files', 'pg_signal_backend',
   'pg_read_all_data', 'pg_write_all_data', 'pg_database_owner', 'pg_maintain', 'pg_create_subscription']);
 // Volatile extension functions an expression may still call (no side effects).
@@ -198,8 +205,24 @@ function normalizeRoleList(tail) {
 // Callable references: names that precede "(" in SQL text, minus strings,
 // comments and known keywords. Used identically at capture and read time.
 // ---------------------------------------------------------------------------
+// PostgreSQL block comments NEST, so a non-greedy /* ... */ regex stops at the
+// first inner terminator and leaves comment text behind as if it were code
+// (OPEN_REPAIRS 145 is the same mistake). Scan with a depth counter instead.
+function stripBlockComments(text, replacement = ' ') {
+  const source = String(text || '');
+  let out = ''; let i = 0; let depth = 0;
+  while (i < source.length) {
+    if (source.startsWith('/*', i)) { depth += 1; i += 2; continue; }
+    if (depth > 0 && source.startsWith('*/', i)) { depth -= 1; i += 2; if (depth === 0) out += replacement; continue; }
+    if (depth === 0) out += source[i];
+    i += 1;
+  }
+  // An unterminated block comment swallows the rest, exactly as the server does.
+  return out;
+}
+
 function stripSqlNoise(text) {
-  return String(text || '').replace(/'(?:[^']|'')*'/g, "''").replace(/--[^\n]*/g, ' ').replace(/"[^"]*"/g, ' q ');
+  return stripBlockComments(String(text || '')).replace(/'(?:[^']|'')*'/g, "''").replace(/--[^\n]*/g, ' ').replace(/"[^"]*"/g, ' q ');
 }
 
 function callNamesIn(text) {
@@ -249,7 +272,7 @@ function functionPurity(statementText) {
   if (/\bSECURITY DEFINER\b/i.test(head)) reasons.push('security_definer');
   if (/\bAS\s+'/i.test(head)) reasons.push('quoted_body');
   const body = bodies.map(item => item.replace(/^\$[A-Za-z0-9_]*\$/, '').replace(/\$[A-Za-z0-9_]*\$$/, '')).join('\n');
-  if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(body).replace(/\/\*[\s\S]*?\*\//g, ' '))) reasons.push('writing_statement');
+  if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(body))) reasons.push('writing_statement');
   return { pure: reasons.length === 0, reasons, name: name ? unquote(name) : null, calls: [...callNamesIn(body)] };
 }
 
@@ -582,7 +605,7 @@ function classifyCallable(token, hits, requiredExtensionNames, visited, resolveB
     if (!token.includes('.') && hits.some(hit => hit.schema === 'pg_catalog')) throw new Error(`Track-B recovery capture found a public callable shadowing pg_catalog (${bare})`);
     for (const hit of publicHits) {
       if (hit.volatility !== 'i' || hit.security_definer || !['sql', 'plpgsql'].includes(hit.language)) throw new Error(`Track-B recovery capture found an impure public callable (${bare})`);
-      if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(hit.body).replace(/\/\*[\s\S]*?\*\//g, ' '))) throw new Error(`Track-B recovery capture found a public callable with a writing statement (${bare})`);
+      if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(hit.body))) throw new Error(`Track-B recovery capture found a public callable with a writing statement (${bare})`);
     }
     if (!visited.has(bare)) { visited.add(bare); for (const hit of publicHits) resolveBody(hit.body); }
     return { class: 'public_pure', name: bare, body_sha256: publicHits.map(hit => hit.body_sha256).sort() };
@@ -807,6 +830,7 @@ function inTransactionVerificationSql(manifest) {
   const corpus = backup.resolveCorpus(manifest.corpus);
   const fingerprint = safeName(manifest.schema.fingerprint, /^[0-9a-f]{32}$/, 'fingerprint');
   const lines = ['do $recovery_verify$ declare v_text text; v_called boolean; begin', "  perform set_config('timezone', 'UTC', true);",
+    "  perform set_config('search_path', 'public', true);",
     `  select (${fingerprintSql().replace(/\n/g, ' ')}) into v_text;`,
     `  if v_text <> '${fingerprint}' then raise exception 'Track-B recovery verification: schema fingerprint mismatch'; end if;`];
   for (const config of corpus.tables) {
@@ -848,7 +872,7 @@ function reconstructSql(pkg) {
 // Post-commit verification (fresh session): the same facts, independently.
 function verificationSql(manifest) {
   const corpus = backup.resolveCorpus(manifest.corpus);
-  const lines = ["set timezone = 'UTC';", `select 'fingerprint' || E'\\t' || (${fingerprintSql()});`];
+  const lines = ["set timezone = 'UTC';", "set search_path = 'public';", `select 'fingerprint' || E'\\t' || (${fingerprintSql()});`];
   for (const config of corpus.tables) {
     lines.push(`select 'rows:${config.name}' || E'\\t' || count(*)::text from public.${config.name};`);
     lines.push(`select 'digest:${config.name}' || E'\\t' || (${dataDigestSql(config.name)});`);
@@ -862,7 +886,10 @@ function verificationSql(manifest) {
   lines.push("select 'foreign_servers' || E'\\t' || count(*)::text from pg_catalog.pg_foreign_server;");
   lines.push("select 'realtime_tables' || E'\\t' || count(*)::text from pg_catalog.pg_publication_tables where pubname='supabase_realtime' and schemaname='public';");
   lines.push("select 'owner_is_current_user' || E'\\t' || (select bool_and(pg_get_userbyid(c.relowner)=current_user)::text from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('r','p','v','m','S'));");
-  lines.push("select 'extension_executable_beyond_contract' || E'\\t' || count(*)::text from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname='extensions' and has_function_privilege(current_user, p.oid, 'execute') and (p.proname||'('||pg_catalog.pg_get_function_identity_arguments(p.oid)||')') not in (" + EXTENSION_FUNCTION_CONTRACT.map(sqlLiteral).join(',') + ');');
+  // DIRECT grants to the restore role only. An extension's PUBLIC default
+  // EXECUTE is a pinned platform property, reported separately, never widened.
+  lines.push("select 'extension_executable_beyond_contract' || E'\\t' || count(*)::text from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace cross join lateral pg_catalog.aclexplode(p.proacl) e join pg_catalog.pg_roles g on g.oid=e.grantee where n.nspname='extensions' and g.rolname=current_user and e.privilege_type='EXECUTE' and replace(p.proname||'('||pg_catalog.pg_get_function_identity_arguments(p.oid)||')', ' ', '') not in (" + EXTENSION_FUNCTION_CONTRACT.map(sqlLiteral).join(',') + ');');
+  lines.push("select 'extension_public_default_execute' || E'\\t' || count(*)::text from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace cross join lateral pg_catalog.aclexplode(p.proacl) e where n.nspname='extensions' and e.grantee=0 and e.privilege_type='EXECUTE';");
   return lines.join('\n') + '\n';
 }
 
@@ -909,6 +936,7 @@ function verifyReconstruction(manifest, observed) {
     realtime_membership_restored: Number(observed.realtime_tables || 0),
     egress_capable_functions: Number(manifest.schema.egress_capable_functions || 0),
     extension_executable_beyond_contract: Number(observed.extension_executable_beyond_contract || 0),
+    extension_public_default_execute: Number(observed.extension_public_default_execute || 0),
     callable_reference_count: Object.keys(manifest.callable_references || {}).length,
   };
 }
@@ -959,9 +987,12 @@ function opaque(stage, result) {
 }
 
 function runPsql(env, sql, { psql = 'psql', snapshot = null } = {}) {
+  // Pin timezone AND search_path: pg_get_*def render qualified names when
+  // search_path is empty, so every fingerprint context must agree or an
+  // identical schema hashes differently.
   const input = snapshot
-    ? `begin isolation level repeatable read read only;\nset transaction snapshot ${sqlLiteral(snapshot)};\nset local timezone = 'UTC';\n${sql};\ncommit;\n`
-    : `set timezone = 'UTC';\n${sql};\n`;
+    ? `begin isolation level repeatable read read only;\nset transaction snapshot ${sqlLiteral(snapshot)};\nset local timezone = 'UTC';\nset local search_path = 'public';\n${sql};\ncommit;\n`
+    : `set timezone = 'UTC';\nset search_path = 'public';\n${sql};\n`;
   const result = spawnSync(psql, ['--no-psqlrc', '--quiet', '--tuples-only', '--no-align', '--set=ON_ERROR_STOP=1'], { input, encoding: 'utf8', env, maxBuffer: 64 * 1024 * 1024 });
   if (result.error || result.status !== 0) throw opaque('Track-B recovery catalog query', result);
   return result.stdout.trim();
@@ -999,21 +1030,17 @@ function requiredExtensions(extensions) {
 }
 
 // Resolve the callable contract against the source catalog inside the snapshot.
-function resolveCallableContract(query, evaluatedTexts, edges, requiredExtensionNames) {
+function resolveCallableContract(query, seedTokens, edges, requiredExtensionNames) {
   const references = {};
   const visited = new Set();
-  const pending = new Set();
-  for (const item of evaluatedTexts) for (const name of callNamesIn(item.text)) pending.add(name);
+  const pending = new Set(seedTokens);
   const resolveBody = body => { for (const name of callNamesIn(body)) if (!references[name]) pending.add(name); };
   while (pending.size) {
     const batch = [...pending].filter(name => !references[name]); pending.clear();
     if (!batch.length) break;
     const hits = JSON.parse(query(callableResolutionSql(batch)));
     for (const token of batch) {
-      const own = hits.filter(hit => hit.token === token).map(hit => ({ ...hit, body: hit.body_sha256 ? null : null }));
-      // Bodies are needed for purity; fetch them for public hits only.
-      const withBodies = own.map(hit => hit);
-      references[token] = classifyCallable(token, withBodies, requiredExtensionNames, visited, resolveBody);
+      references[token] = classifyCallable(token, hits.filter(hit => hit.token === token), requiredExtensionNames, visited, resolveBody);
     }
   }
   for (const edge of edges) {
@@ -1033,7 +1060,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
   const dir = tempDir || fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'track-b-recovery-'));
   const files = { pre: path.join(dir, 'pre-data.sql'), post: path.join(dir, 'post-data.sql'), data: path.join(dir, 'data.sql') };
   const session = await openSnapshotSession(env, psql);
-  let fingerprintBefore; let inventory; let sequences; let prerequisites; let digests; let references;
+  let fingerprintBefore; let inventory; let sequences; let prerequisites; let digests; let references; let sections;
   try {
     const query = sql => runPsql(env, sql, { psql, snapshot: session.snapshot });
     fingerprintBefore = query(fingerprintSql());
@@ -1044,13 +1071,26 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     const requiredExtensionNames = new Set(requiredExtensions(prerequisites.extensions).map(item => item.name));
     const evaluatedTexts = JSON.parse(query(evaluatedSourceTextsSql()));
     const edges = JSON.parse(query(dependencyEdgesSql()));
-    // Bodies for purity checks travel with the resolution query.
-    references = resolveCallableContract(sql => query(sql.replace("'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex')", "'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex'), 'body', prosrc")), evaluatedTexts, edges, requiredExtensionNames);
     for (const section of ['pre-data', 'data', 'post-data']) {
       const target = section === 'pre-data' ? files.pre : section === 'post-data' ? files.post : files.data;
       const result = spawnSync(pgDump, pgDumpSectionArgs(section, target, corpus.name, session.snapshot), { encoding: 'utf8', env, maxBuffer: 16 * 1024 * 1024 });
       if (result.error || result.status !== 0) throw opaque(`Track-B recovery ${section} dump`, result);
     }
+    // Seed the contract from BOTH the catalog-rendered expressions and the
+    // exact statements the reader will re-scan, so capture and read time can
+    // never disagree about which tokens must be classified.
+    const roles = prerequisites.roles || [...PLATFORM_ROLES];
+    sections = {
+      pre: validateSchemaSection(fs.readFileSync(files.pre).toString('utf8'), roles),
+      post: validateSchemaSection(fs.readFileSync(files.post).toString('utf8'), roles),
+    };
+    const seedTokens = new Set();
+    for (const item of evaluatedTexts) for (const name of callNamesIn(item.text)) seedTokens.add(name);
+    for (const item of evaluatedExpressionTexts([...sections.pre.statements, ...sections.post.statements])) {
+      for (const name of callNamesIn(item.text)) seedTokens.add(name);
+    }
+    // Bodies for purity checks travel with the resolution query.
+    references = resolveCallableContract(sql => query(sql.replace("'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex')", "'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex'), 'body', prosrc")), seedTokens, edges, requiredExtensionNames);
     if (typeof hooks.afterDumps === 'function') await hooks.afterDumps();
     const fingerprintAfter = runPsql(env, fingerprintSql(), { psql });
     if (fingerprintAfter !== fingerprintBefore) throw new Error('Track-B recovery capture observed a catalog change; package refused');
@@ -1061,8 +1101,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
   for (const file of Object.values(files)) fs.rmSync(file, { force: true });
   if (!tempDir) fs.rmSync(dir, { recursive: true, force: true });
   const roles = prerequisites.roles || [...PLATFORM_ROLES];
-  const pre = validateSchemaSection(preData.toString('utf8'), roles);
-  const post = validateSchemaSection(postData.toString('utf8'), roles);
+  const pre = sections.pre; const post = sections.post;
   const inspected = backup.inspectPlainDump(data, corpus.name);
   for (const name of Object.keys(inspected)) inspected[name].digest_sha256 = digests[name];
   const corpusNames = new Set(corpus.tables.map(config => config.name));
@@ -1184,6 +1223,7 @@ module.exports = {
   dependencyEdgesSql,
   evaluateRecoveryWatch,
   evaluatedExpressionTexts,
+  evaluatedSourceTextsSql,
   fingerprintSql,
   functionPurity,
   inTransactionVerificationSql,
@@ -1201,6 +1241,7 @@ module.exports = {
   sequenceValueSql,
   sourcePreflightSql,
   splitSqlStatements,
+  stripBlockComments,
   stripDollarQuoted,
   summarize,
   targetPrerequisiteSql,

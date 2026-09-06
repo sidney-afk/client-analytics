@@ -12901,3 +12901,33 @@ That closes the repair set the rule can close: every slot the runner examines
 is either clean or one of the 7 named for a person, and the runner's plan
 summary lists those 7 by reason on every run. Item 147's residue and the "Still
 open" list above are the whole of what is left.
+
+### Recovery package correction (2026-09-06): four defects closed, two boundaries stated
+
+The independent review of the recovery slice found, and this corrects: sequence
+state carried through a JavaScript Number with `is_called` hard-coded, so a
+large value and an uncalled sequence both restored wrong AND verified green;
+expressions (CHECK, default, index, view) that execute during load with no
+bounded contract on what they may call, so a writing CHECK could change another
+copied row and still match a schema fingerprint; a manual grant of EXECUTE on
+ALL functions in `extensions`; and post-commit-only verification, which left
+committed state behind while the runbook called deleting the package a rollback.
+
+Now: exact `(last_value, is_called)` as validated decimal strings end to end,
+with version 1 packages refused rather than reinterpreted; a positively bounded
+callable contract that refuses impure, volatile, unpinned-extension and
+foreign-schema callables at capture and re-verifies at read and on the target;
+EXECUTE narrowed to three reviewed signatures with the script refusing more;
+ACL validation of every target, closing the confirmed multi-target cross-schema
+parser gap; and verification inside the transaction so a detectable mismatch
+never commits, with `committed_unverified` quarantined, never auto-erased, and
+recovered onto a fresh empty target.
+
+Two boundaries are stated rather than papered over: a re-signed content digest
+is caught in-transaction, not by the reader, and a re-signed sequence value is
+applied verbatim because it is authoritative input, so only the HMAC protects
+it. PR #1316's staged label catalog is covered by a new recovery-package-only
+`history-v6` corpus; the destructive snapshot restore refuses it rather than
+disabling its immutability triggers. Still unproven: cloud retrieval, installed
+schema parity, asset bytes, key custody, retention, alert delivery. Nothing was
+applied, deployed or activated.

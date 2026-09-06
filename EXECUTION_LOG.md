@@ -6379,3 +6379,22 @@ check: 11 outbound deliveries at 21:00Z, 100 `crosswalk_bound` and 18
 into canonical threads. 7 slots remain, all for a person, named by reason in
 every plan summary. OPEN_REPAIRS 156 ("Second live apply");
 CROSSWALK_REPAIR_STRATEGY status table.
+
+## 2026-09-06 — Track-B recovery package correction: source-only, dormant
+
+Stacked on preserved PR #1313 `8fa163b79475f50474c092eafa6e6db446d2241e`, with
+the pinned dependency `f0e77a47a1e26a1e2a97b514ee06cec824c31b90` (PR #1316,
+parent `ab63661`) brought in as a recorded integration merge. Corrects exact
+sequence state, adds a bounded callable-dependency contract and an effective
+permission recheck, narrows the extensions EXECUTE grant from ALL FUNCTIONS to
+three reviewed signatures, validates every ACL target, moves verification inside
+the transaction so a detectable mismatch cannot commit, distinguishes
+rolled_back / committed_unverified / verified with quarantine and a private
+diagnostic receipt, and adds the recovery-package-only `history-v6` corpus for
+the staged label catalog. v3/v4/v5 meanings are unchanged.
+
+Local: 30 rehearsal groups on disposable SCRAM PostgreSQL 16.13, 18 offline
+groups, plus the preserved 41/33 corpus suites. No live capture, upload,
+restore, migration apply, schedule, alert, flag, writer, n8n, provider or
+billing action was performed. Cloud retrieval, installed-schema parity, asset
+bytes, key custody and retention remain open.

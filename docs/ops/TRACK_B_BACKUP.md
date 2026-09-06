@@ -46,6 +46,7 @@ run. The existing weekly full backup remains independent and unchanged.
 | legacy-v3 | Original 14 tables | Historical limited package; still readable and the default schedule. It omits source cards, journal and replay crosswalks. |
 | history-v4 | Original 14 plus Calendar/Samples cards/events, Workload plan, journal and PR #1293 intake manifests: 21 | Preserved authenticated format. It omits real incoming FK dependencies and cannot restore into the normal migration-shaped schema. The previous minimal 21-table fixture did not prove that schema. |
 | history-v5 | v4 plus the 12 relations below: 33 | New explicit opt-in format, closed over known FK dependencies. Data-only preparation; full-schema reconstruction, cloud delivery, installed grants and retention remain unproven. |
+| history-v6 | v5 plus `production_label_catalog_versions`: 34 | **Recovery-package only.** Adds the staged native label catalog owner from PR #1316. Its rows are protected by UPDATE/DELETE/TRUNCATE triggers, so the destructive TRUNCATE + disable-user-triggers snapshot restore REFUSES this corpus outright rather than bypassing those protections; `restoreSql` raises on it. The empty-target recovery package is its only restore path, where the immutability triggers are created AFTER the rows load and come back enabled. Whole-public SCHEMA capture is not its data restoration: the staged rows are covered because this corpus names them, not because the schema dump exists. |
 
 V5 additionally includes:
 
@@ -150,11 +151,63 @@ recorded in `docs/audits/2026-09-05-card-history-recovery-package-proof.md`.
 |---|---|---|---|
 | Schema | every object in `public`: tables, columns, defaults, identity sequences, constraints, indexes, `plpgsql`/`sql` functions, triggers and their enabled state, RLS flags, policies, replica identity, views, enum/domain/composite types, comments | yes, by the restricted target role which owns everything | schema `public` exists and is empty |
 | Grants | table, column, sequence and function ACLs for the roles seen in the source catalog (`anon`, `authenticated`, `service_role` always) | yes | those roles exist on the target |
-| Data | the selected snapshot corpus (`history-v5` = 33 tables); every other public table is reconstructed empty and listed in `omitted_data_tables` | yes, exact rows | none |
-| Sequences | `pg_sequences` state of every public sequence | yes, exact next values | none |
+| Data | the selected snapshot corpus (`history-v6` = 34 tables, `history-v5` = 33); every other public table is reconstructed empty and listed in `omitted_data_tables`. Each covered table carries an exact ordered content digest | yes, exact rows, digest-verified before COMMIT | none |
+| Sequences | Exact `(last_value, is_called)` of every public sequence, read from the sequence relation itself and carried as validated decimal STRINGS, never through a JavaScript Number | yes, exact next allocation, called and uncalled alike | none |
 | Extensions | inventory of all installed extensions; `pgcrypto`-class extensions installed in `public`/`extensions` are required with name, schema and version | no | required extensions present with the same version; no egress-capable extension (`pg_net`, `dblink`, `http`, `postgres_fdw`, `pg_cron`) and no foreign server |
 | Platform | `supabase_realtime` presence and membership, non-public schemas, server version | no | publication exists when the source had one; target major version is not older. Membership is **not** re-added and is reported as `realtime_membership_restored` |
 | Owners, passwords, subscriptions, tablespaces, security labels | never | never | the owner is the restore role; credentials never enter a package |
+
+**Callable-dependency contract (what may execute while rows load).** Postponing
+triggers does not stop a CHECK, a column DEFAULT, a generated expression, an
+index expression or predicate, or a view from EXECUTING during reconstruction.
+Keyword counting is not an execution boundary, so the package carries a
+positively bounded contract instead. At capture, every callable an evaluated
+expression names is resolved against the source catalog and must be one of:
+
+- a `pg_catalog` function that is not on the denylist (file and large-object
+  access, backend signalling, configuration writes, replication, `setval`,
+  sleeps, advisory locks, `pg_notify`, XML-to-query bridges);
+- a function of a PINNED extension, non-volatile unless it is one of the
+  reviewed random/UUID generators;
+- a PURE `public` function: immutable, security INVOKER, `sql`/`plpgsql`, no
+  writing statement anywhere in its body, and transitively resolvable under the
+  same rules;
+- a name that resolves to nothing (a type name or SQL keyword), recorded as
+  such so the target can confirm it still resolves to nothing there.
+
+Anything else — an impure or writing function, a volatile extension callable, an
+unpinned extension, a function in another schema, a `public` function shadowing
+`pg_catalog` — REFUSES the capture and writes no package. The reader re-derives
+the same token set from the exact statements it will execute, so capture and
+read time cannot disagree, and the target re-verifies the contract before any
+DDL. Schema objects are never silently discarded to make a capture succeed.
+
+**Effective permissions are re-checked immediately before reconstruction**, on
+the actual connecting role: not superuser, createrole, createdb, BYPASSRLS or
+replication; no inherited superuser; no membership of `pg_execute_server_program`,
+`pg_read_server_files`, `pg_write_server_files`, `pg_signal_backend`,
+`pg_read_all_data`, `pg_write_all_data`, `pg_database_owner`, `pg_maintain` or
+`pg_create_subscription`; and no EXECUTE on the eight file/large-object/config
+catalog functions that PostgreSQL withholds from PUBLIC by default. An
+administrator is never substituted. The extension-name denylist and the absence
+of foreign servers are necessary, not sufficient, and are not treated as proof
+that nothing can execute.
+
+**Narrow extension EXECUTE contract.** The target prerequisites grant EXECUTE on
+exactly `digest(bytea,text)`, `gen_random_bytes(integer)` and `gen_random_uuid()`
+in `extensions`, never `ALL FUNCTIONS`, and the script refuses if the role ends
+up holding more. An extension's own PUBLIC default EXECUTE is a pinned platform
+property: it is measured and reported (`extension_public_default_execute`), never
+widened and never revoked, because the restored invoker functions rely on it.
+
+**What the reader can and cannot detect.** The reader cannot recompute a row
+digest from COPY text without a database, so a re-signed content digest passes
+the reader and is caught by the in-transaction verifier, which rolls the whole
+attempt back. A re-signed SEQUENCE VALUE is authoritative input rather than a
+checksum: it is applied verbatim and the verifier then agrees with it. Only the
+HMAC key protects that field. Malformed sequence shapes (a JSON number, a
+non-canonical decimal, an out-of-range value, a non-boolean `is_called`) are
+refused at read time.
 
 **Coherence and DDL boundary.** One `psql` session exports a repeatable-read
 snapshot; the catalog fingerprint, inventory, sequence state, prerequisites and
@@ -237,9 +290,34 @@ returning `package_freshness`, `schema_mismatch`, `verification` and
 and `RECOVERY_COVERAGE_CHANGED`. No scheduler, recipient or transport exists;
 wiring it to the owner's approved channel is a separate gate.
 
-**Rollback.** Delete the private package file(s); no database, flag, writer,
-schedule or Drive state changes. The snapshot lanes and their packages are
-untouched.
+**Failure recovery: three outcomes, never conflated.** Reconstruction verifies
+fingerprint, per-table content digests, exact sequence state and ownership
+**inside the transaction, before COMMIT**, so a detectable mismatch never
+commits. The receipt always names one of:
+
+| Outcome | What happened | What the operator does |
+|---|---|---|
+| `rolled_back` | The transaction failed at any point (prerequisites, DDL, COPY, sequence, or the in-transaction verification). Nothing committed. | If the target was empty before the attempt (`target_was_empty_before: true`), retry it in place. If it was already populated, the refusal was the empty-target guard doing its job: use a fresh target. |
+| `committed_unverified` | The transaction COMMITTED and the independent post-commit read then failed or could not be transported. The target now HOLDS DATA. | **Quarantine it.** Do not retry in place: the empty-target guard will refuse, correctly. Reconstruct onto a FRESH empty target. Keep the failed target and its private diagnostic receipt for diagnosis. |
+| `verified` | Committed and independently verified. | Nothing. |
+
+The classification compares the target's public-relation count observed
+**before** the attempt with the count after, so a pre-DDL refusal on a populated
+target is reported as a rollback rather than a phantom commit, and a transport
+failure is never reported as an empty rollback.
+
+**Rollback.** For a `rolled_back` attempt there is nothing to undo. For a
+`committed_unverified` attempt the ONLY revert is discarding that disposable
+scratch database itself, which is an operator action recorded in the receipt and
+never automated here. **Deleting the package file is not a database rollback**
+and must never be described as one. In every case no production database, flag,
+writer, schedule or Drive state changes, and the snapshot lanes and their
+packages are untouched. A failed target is never erased automatically.
+
+**Private diagnostic receipt.** A failed attempt writes one JSON receipt to
+`TRACK_B_RECOVERY_DIAGNOSTIC_DIR` when set: attempt id, outcome, stage, corpus,
+package binding, relation counts and the quarantine/retry flags. It carries no
+row content and no raw SQL error text.
 
 **Still unproved, explicitly:** private Drive storage and independent readback
 of a recovery package; parity of the installed production schema with the

@@ -263,7 +263,7 @@ function deployAnchors(log) {
            deployment configuration" names a thing (Codex, sixty-fifth round on
            #1306). So the object rule runs only on what does not lead. */
         const bare = named.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
-        const leadsShipping = /^(?:re-?)?(?:deploy|deployed|deploying|deploys|releas(?:e|ed|ing|es)|ship|shipped|shipping|rollout|roll out|rolled out|cut ?over)\b/i.test(bare);
+        const leadsShipping = /^(?:[a-z]+ly\s+)*(?:re-?)?(?:deploy|deployed|deploying|deploys|releas(?:e|ed|ing|es)|ship|shipped|shipping|rollout|roll out|rolled out|cut ?over)\b/i.test(bare);
         const objectless = leadsShipping ? named : named
             /* A NOUN FORM NAMES A THING: "Inspect deployment", "deployment
                configuration". A PARTICIPLE IS A PREDICATE unless it takes an
@@ -569,6 +569,10 @@ const OTHER_ATTEMPT = new RegExp(
        attempt immediately before it" is the same reference (Codex, sixty-fourth
        round on #1306). */
     + '|\\b(?:attempts?|runs?|dispatch(?:es)?|tr(?:y|ies)|jobs?|executions?|passes|pass|rounds?|cycles?)(?:\\s+(?:just|immediately|right|directly|shortly|long|somewhat|closely))*\\s+(?:before|after|preceding|following|prior to|ahead of|behind|either side of)\\b'
+    /* And "ago" points backwards as plainly as "before": "the attempt two
+       runs ago deployed nothing" is that attempt's evidence (Codex,
+       seventy-fourth round on #1306). */
+    + '|\\b(?:attempts?|runs?|dispatch(?:es)?|tr(?:y|ies)|jobs?|executions?|passes|pass|rounds?|cycles?)\\b[^.\\n]{0,30}\\bago\\b'
     + '|\\b(?:retry|re-?run|redo)\\b', 'i');
 
 function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {

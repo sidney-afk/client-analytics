@@ -2991,6 +2991,38 @@ ok(commitDisagreement.code === 1 && commitDisagreement.json
     && commitDisagreement.json.failures.some(f => /disagree on deploy commit/.test(f)),
     'AND TWO RECEIPTS FOR ONE RUN MUST AGREE ON THE COMMIT: preferring the attestation used to discard the disagreement silently');
 
+/* ---- 8bw. an adverb-led deploy heading; "ago" points backwards (round 74) ---- */
+const adverbLedHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Successfully deployed production functions — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const adverbLedHeadingRun = run(fixture('adverb-led-heading', appended(adverbLedHeading), realRb));
+ok(adverbLedHeadingRun.code === 1 && adverbLedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(adverbLedHeadingRun.json.failures)),
+    'AN ADVERB IN FRONT DOES NOT STOP THE VERB LEADING: "Successfully deployed production functions — run `X`" still records the act');
+
+const agoPointer = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the attempt two runs ago deployed nothing.',
+    '',
+].join('\n');
+const agoPointerRun = run(fixture('ago-pointer', appended(agoPointer), realRb));
+ok(agoPointerRun.code === 1 && agoPointerRun.json
+    && agoPointerRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'AND "AGO" POINTS BACKWARDS AS PLAINLY AS "BEFORE": "the attempt two runs ago deployed nothing" is that attempt\'s evidence, not this run\'s');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

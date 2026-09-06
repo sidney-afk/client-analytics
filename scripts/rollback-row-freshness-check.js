@@ -270,7 +270,7 @@ function deployAnchors(log) {
                object of its own: "Hotfix deployed — run `X`" records the act,
                "Inspect deployed functions" does not (Codex, sixty-eighth round
                on #1306). */
-            .replace(/\b(?:deployment|deploy|rollout|release|cut ?over)\b(?!\s+(?:complete|completed|succeeded|successful|finished|done|failed|green|via|from|to|by|on|at|in|into|through|with|as|after|before|during|the|this|run)\b)(?:\s+[a-z]+\b)?/gi, ' ')
+            .replace(/\b(?:deployment|deploy|rollout|release|cut ?over)\b(?!\s+(?:(?:was|is|are|were|has|have|had|been|got)\s+)*(?:complete|completed|succeeded|successful|finished|done|failed|green|via|from|to|by|on|at|in|into|through|with|as|after|before|during|the|this|run)\b)(?:\s+[a-z]+\b)?/gi, ' ')
             .replace(/\b(?:deployed|released|shipped|rolled out)\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b|[a-z]*ly\b|and\b|then\b|but\b)[a-z]+\b/gi, ' ');
         const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
@@ -1188,6 +1188,19 @@ function executionLogReceipts() {
                 }
             }
         }
+        /* AND ON THE COMMIT THEY DEPLOYED FROM. Two receipts for one run that
+           name different commits cannot both be right, and preferring the
+           attestation silently discarded the disagreement (Codex,
+           seventy-third round on #1306). The commit is provenance this guard
+           checks against the row, so a conflict in it is reported like any
+           version conflict. */
+        if (prev.commit && r.commit && prev.commit !== r.commit) {
+            receiptsMeta.conflicts.push({
+                run: r.run, slug: 'deploy commit', at: r.at,
+                kept: { source: prev.source, version: prev.commit.slice(0, 8) },
+                other: { source: r.source, version: r.commit.slice(0, 8) },
+            });
+        }
         for (const slug of SLUGS) {
             const a = prev.fns[slug], b = r.fns[slug];
             if (!a || !b) continue;
@@ -1591,7 +1604,7 @@ function main() {
             + ' a block naming fewer is truncated or hand-written, and under another entry\'s run id it would fold into that'
             + ' run\'s receipt with the omitted function never compared. Copy the lane\'s full attestation.');
     }
-    const says = v => (v === '(absent)' ? 'does not name it' : 'says v' + v);
+    const says = v => (v === '(absent)' ? 'does not name it' : /^[0-9a-f]{7,}$/i.test(v) ? 'says `' + v + '`' : 'says v' + v);
     const an = s => (/^[aeiou]/i.test(s) ? 'an ' : 'a ') + s;
     for (const c of (receiptsMeta.conflicts || [])) {
         failures.push('two receipts claim run ' + c.run + ' but disagree on ' + c.slug + ': the ' + c.kept.source + ' '

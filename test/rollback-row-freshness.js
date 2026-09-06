@@ -2953,6 +2953,44 @@ ok(deploymentCompleteHeadingRun.code === 1 && deploymentCompleteHeadingRun.json
     && /34000000000/.test(JSON.stringify(deploymentCompleteHeadingRun.json.failures)),
     'A COMPLETED DEPLOYMENT NOUN IS STILL A DEPLOY: "Deployment complete — run `X`" states an outcome, not an inspection object, so it anchors its own run');
 
+/* ---- 8bv. an auxiliary outcome; receipts must agree on the commit (round 73) ---- */
+const auxiliaryOutcomeHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment was successful — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const auxiliaryOutcomeHeadingRun = run(fixture('auxiliary-outcome-heading', appended(auxiliaryOutcomeHeading), realRb));
+ok(auxiliaryOutcomeHeadingRun.code === 1 && auxiliaryOutcomeHeadingRun.json
+    && /34000000000/.test(JSON.stringify(auxiliaryOutcomeHeadingRun.json.failures)),
+    'AN AUXILIARY DOES NOT HIDE THE OUTCOME: "Deployment was successful — run `X`" anchors its own run just as "Deployment complete" does');
+
+const commitDisagreement = run(fixture('commit-disagreement', LOG + [
+    '',
+    '## 2026-09-02 — F27 Section 4 deploy, run `33684111985`',
+    '',
+    'Run `33684111985`, dispatched from `9999999999999999999999999999999999999999`.',
+    '',
+    '```json',
+    '{"schema":"' + 'syncview_f27_section4_deployed_versions_v1' + '","run_id":"33684111985",',
+    '"commit":"9999999999999999999999999999999999999999","functions":[',
+    '{"slug":"batch-write","version":35},{"slug":"deliverable-write","version":35},',
+    '{"slug":"linear-outbound","version":47},{"slug":"production-write","version":66}]}',
+    '```',
+    '',
+].join('\n'), rollback()));
+ok(commitDisagreement.code === 1 && commitDisagreement.json
+    && commitDisagreement.json.failures.some(f => /disagree on deploy commit/.test(f)),
+    'AND TWO RECEIPTS FOR ONE RUN MUST AGREE ON THE COMMIT: preferring the attestation used to discard the disagreement silently');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

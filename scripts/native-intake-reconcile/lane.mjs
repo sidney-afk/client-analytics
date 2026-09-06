@@ -775,6 +775,46 @@ try {
   const p5forced = await runSql(`select public.production_intake_reconcile_reason('duplicate key value violates unique constraint "x" DETAIL: Key (id)=(secret)', '23505')`);
   ok('P5-postgres-messages-collapse-to-their-sqlstate', p5forced.status === 0 && p5forced.stdout.trim() === 'sql_error:23505');
 
+  // R7. Forward slots alone cannot complete a card. A deliverable moved or
+  // unlinked after a successful bind stays visible without undoing that edit.
+  // Exercise both actual table owners, their Stage 2 return, paginated backlog,
+  // summary delta, and full card/child/receipt values after the refusal.
+  for (const surface of ['submission', 'sxr']) {
+    const ix = await interrupted('both', 2, { surface });
+    await children(ix.body.request_id);
+    const ids = await dels(ix.m.batch_id), cid = ix.m.expected_items[0].row.card_id;
+    const table = surface === 'sxr' ? 'sample_reviews' : 'calendar_posts';
+    const graphic = ids.find(d => d.team === 'graphics');
+    await sql(`insert into public.${table}(client,id,updated_at,order_index,name,status,video_deliverable_id)
+      values('fixture-client',${q(cid)},'2026-09-05T10:00:00Z','1','Synthetic reciprocal binding','In Progress',${q(ids.find(d => d.team === 'video').id)})`);
+    const bound = await cards(ix.body.request_id);
+    ok('R7-' + table + '-reciprocal-bind-complete', bound.outcome === 'materialized' && (await state(ix.body.request_id)).complete === true);
+    const owedBefore = (await fn('production_intake_reconcile_summary', {})).owed.cards;
+    for (const variant of [
+      { name: 'moved', cardId: 'p_synthetic_other', kind: graphic.kind, reason: 'deliverable_rebound' },
+      { name: 'cleared', cardId: null, kind: graphic.kind, reason: 'deliverable_card_cleared' },
+      { name: 'wrong-identity', cardId: cid, kind: 'other', reason: 'children_incomplete' },
+    ]) {
+      await sql(`update public.deliverables set card_id=${variant.cardId === null ? 'null' : q(variant.cardId)},kind=${q(variant.kind)} where id=${q(graphic.id)}`);
+      const before = JSON.stringify([await card('fixture-client', cid, table), await dels(ix.m.batch_id), await receipts(ix.m.batch_id)]);
+      const observed = await state(ix.body.request_id);
+      const again = await cards(ix.body.request_id);
+      const backlog = await pageAll();
+      const summary = await fn('production_intake_reconcile_summary', {});
+      const after = JSON.stringify([await card('fixture-client', cid, table), await dels(ix.m.batch_id), await receipts(ix.m.batch_id)]);
+      ok('R7-' + table + '-' + variant.name + '-remains-visible-without-repair',
+        observed.complete === false && observed.cards[0].complete === false && observed.owed.cards === 1
+        && again.outcome === 'unresolved' && again.unresolved.some(r => r.reason === variant.reason)
+        && backlog.seen.includes(ix.body.request_id) && summary.owed.cards === owedBefore + 1 && before === after,
+        { complete: observed.complete, owed: observed.owed, outcome: again.outcome, reasons: again.unresolved, unchanged: before === after });
+    }
+    await sql(`update public.deliverables set card_id=${q(cid)},kind=${q(graphic.kind)} where id=${q(graphic.id)}`);
+    ok('R7-' + table + '-exact-identity-restored-completes', (await state(ix.body.request_id)).complete === true
+      && (await cards(ix.body.request_id)).outcome === 'complete'
+      && !(await pageAll()).seen.includes(ix.body.request_id)
+      && (await fn('production_intake_reconcile_summary', {})).owed.cards === owedBefore);
+  }
+
   ok('S99-zero-provider-or-drainer-requests-during-any-reconciliation', noProvider(), net.requests.slice(0, 3));
 
   console.log(JSON.stringify({ suite: 'native-intake-reconcile', passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length,

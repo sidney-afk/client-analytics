@@ -12640,3 +12640,5 @@ the transaction (the browser already sends `x-syncview-source`; the writer drops
 it before the database), a frozen-body change and an owner decision; or the
 old-job cohort must be proved empty by refusal, never by waiting. Card
 completion is not declared and Decision A is not ready.
+
+**Item 156 independent follow-up, local/unapplied:** shared state completion now requires reciprocal manifest-child identity, so a moved or cleared child remains visible debt even if the old card slot still names it. The baseline false green reproduced on both Calendar and Samples. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md` for current proof and the held creation protocol. No authorization to re-gate anonymous writers is inferred.

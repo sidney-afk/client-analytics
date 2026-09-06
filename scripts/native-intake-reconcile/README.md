@@ -20,8 +20,9 @@ observable stages over `migrations/2026-09-05-native-intake-reconcile.sql`:
 `production_intake_reconcile_state`, `_backlog` and `_summary` are read-only.
 `production_card_provenance` plus one AFTER row trigger per card table record
 three facts inside the writer's transaction (card created, with the slot ids it
-was created with; card deleted; deliverable slots changed). No trigger alters,
-refuses or reorders a write. `reconcile-lib.js`
+was created with; card deleted; deliverable slots changed). The trigger does not classify payloads or change their fields. If recording a
+fact fails, its enclosing card write fails atomically; save-failure continuity
+must be proved before installation. `reconcile-lib.js`
 pages the backlog and calls the stages in order; `run.js` is the REST entry
 (dry-run by default, apply needs an explicit confirmation) and prints only the
 public report: aggregates, allowlisted reason codes and, with
@@ -46,3 +47,5 @@ v48/v49 bodies are a different, un-gated deployment and are not proved by it.
 output carries no identifier.
 
 Contract, evidence and limits: `docs/audits/2026-09-05-native-intake-reconcile.md`.
+
+Independent follow-up: `docs/audits/2026-09-05-native-intake-reciprocal-review.md` records the reciprocal-completion correction and separates the frozen authentication directive from a future compatible operation-identity design. Stage 2 remains bind-only; missing-card completion and serving proof remain held.

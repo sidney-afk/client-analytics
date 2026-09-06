@@ -162,3 +162,5 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - **Production-tab (design-kit) test** → `docs/syncview-design/tests/` + wire it into `prod-polish-gate.js` or `package.json`.
 - **Finished / superseded doc** → `docs/archive/` (don't delete history).
 - **New top-level anything** → think twice, then document it here (CI will remind you).
+
+`docs/audits/2026-09-05-native-intake-reciprocal-review.md` records the independent PR1314 review, both-surface reciprocal completion regression, local correction proof and the separate held creation protocol.

@@ -603,3 +603,5 @@ no row at install time.
 construction — the panel behaves exactly as it did on 2026-09-04 for the two
 shared slots, and the file pills improve on the posts that already had them. No
 error, no console noise, no partial state.
+
+**Unapplied reciprocal completion correction:** no schema object, browser or writer/auth change. Withdrawing its state-reader change restores the known false green, so hold the runner and retain unresolved accounting rather than treating old output as completion. Keep accepted rows, receipts and provenance. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.

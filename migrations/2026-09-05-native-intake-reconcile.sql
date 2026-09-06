@@ -185,8 +185,9 @@ begin
     v_slots_changed := v_created_id is not null and exists(select 1 from public.production_card_provenance p
       where p.surface = v_purpose and p.client = v_m.client_slug and p.card_id = v_card.card_id
         and p.kind = 'slots_changed' and p.id > v_created_id);
-    -- Expected slot ids come from the manifest; a slot is satisfied only when the
-    -- card row names exactly that deliverable.
+    -- Both directions must agree: the card names the manifest's deliverable,
+    -- and that exact child still belongs to this card. A later human re-card or
+    -- unlink remains owed even when the old forward slot was not cleared.
     v_slots := '{}';
     v_card_complete := v_card_found;
     for v_item in select value from jsonb_array_elements(v_m.expected_items)
@@ -198,7 +199,12 @@ begin
           case when v_row->>'team' = 'graphics' then v_card_graphic else v_card_video end end));
       if not v_card_found or nullif(btrim(coalesce(
           case when v_row->>'team' = 'graphics' then v_card_graphic else v_card_video end, '')), '')
-          is distinct from v_row->>'id' then
+          is distinct from v_row->>'id'
+          or not exists (select 1 from jsonb_array_elements(v_children) child
+            where child->>'id' = v_row->>'id'
+              and (child->>'present')::boolean
+              and (child->>'identity_ok')::boolean
+              and child->>'current_card_id' = v_card.card_id) then
         v_card_complete := false;
       end if;
     end loop;

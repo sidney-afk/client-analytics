@@ -6145,3 +6145,7 @@ the write path and both real:
 
 Both were fixed before the `production-write` closure was deployed; the fingerprint
 was re-pinned on the corrected tree.
+
+## 2026-09-05 ? Local reciprocal native intake completion correction
+
+Independent PR1314 review at `42452cdbf5c36ba74b08885a152943ff827c9aa3` reproduced forward-only false completion on both card owners. The shared state predicate now requires the exact expected child to point back. Original source/head and failing proof are retained; no installed schema or production state was changed. Current evidence and remaining holds: `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.

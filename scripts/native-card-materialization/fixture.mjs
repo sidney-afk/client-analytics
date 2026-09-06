@@ -13,10 +13,11 @@ async function call(body,surface='calendar',source='submission-native',raw){
 }
 const capture={console,_isIntake:true,__sent:[],_linearIntakeCheckpointOrSuspend:()=>{},_calCacheRead:()=>null,_sxrCacheRead:()=>null,
   _calCacheWrite:()=>{},_sxrCacheWrite:()=>{},
-  _calUpsertFetch:async(_c,p,s)=>{capture.__sent.push({body:p,surface:'calendar',source:s});return new Response(JSON.stringify({ok:false}),{status:409});},
-  _sxrUpsertFetch:async(_c,p,s)=>{capture.__sent.push({body:p,surface:'samples',source:s});return new Response(JSON.stringify({ok:false}),{status:409});}};
+  _linearIntakeRead:()=>capture.__job||null,
+  _calUpsertFetchPinned:async(_c,p,s,transport)=>{capture.__sent.push({body:p,surface:'calendar',source:s,transport});return new Response(JSON.stringify({ok:false}),{status:409});},
+  _sxrUpsertFetchPinned:async(_c,p,s,transport)=>{capture.__sent.push({body:p,surface:'samples',source:s,transport});return new Response(JSON.stringify({ok:false}),{status:409});}};
 vm.createContext(capture);const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
-vm.runInContext(['async '+extractFunction(html,'_writeNativeSubmissionCardsToCalendar'),extractFunction(html,'_linearIntakeValidateResult'),extractFunction(html,'_linearIntakeRequireActor')].join('\n'),capture);
+vm.runInContext(['async '+extractFunction(html,'_writeNativeSubmissionCardsToCalendar'),extractFunction(html,'_nativeAcceptedCardTransport'),extractFunction(html,'_linearIntakeValidateResult'),extractFunction(html,'_linearIntakeRequireActor'),extractFunction(html,'_linearIntakeJobId')].join('\n'),capture);
 async function accepted(mode='both',surface='calendar',failAt=0,overrides={}){
   const body=gw.rootBody(mode,gw.requestId(surface==='samples'?'sxr':'submission'),{surface:surface==='samples'?'sxr':'submission',...overrides});
   let n=0;hooks.beforeRpc=name=>{if(name==='production_deliverable_write'&&++n===failAt)throw new Error('synthetic_child_interruption');};
@@ -26,7 +27,7 @@ async function accepted(mode='both',surface='calendar',failAt=0,overrides={}){
   return emitted(body,response);
 }
 async function emitted(body,response){
-  capture.__sent=[];try{await capture._writeNativeSubmissionCardsToCalendar({payload:body,result:response.json,context:{},completed_card_ids:[]});}catch{}
+  capture.__sent=[];const job={version:3,payload:body,result:response.json,context:{surface:body.surface,materialization_source:source},completed_card_ids:[]};capture.__job=job;try{await capture._writeNativeSubmissionCardsToCalendar(job);}catch{}
   if(capture.__sent.length!==1)throw new Error('actual_browser_payload_missing');
   return {intake_body:body,response,...capture.__sent[0]};
 }

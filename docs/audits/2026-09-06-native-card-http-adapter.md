@@ -31,6 +31,12 @@ Four existing affected suites pass: `browser-writer-auth.js`, `calendar-upsert-e
 
 **Automatic creation remains held.** Both verified n8n bypasses still normalize away native markers/IDs and write directly. Their owner-approved compatible amendment, unknown-job conservation and rollback proof remain required. This adapter makes no n8n change and cannot prevent an old browser's fallback request from reaching those routes. The browser's bounded retry/expiry behavior also remains unchanged; a known held raw card request is not a complete original intake/media backup.
 
+## Browser accepted-job routing seam
+
+`_writeNativeSubmissionCardsToCalendar` now uses the existing pinned EF helpers only after `_nativeAcceptedCardTransport` re-reads the current version-3 pending job and verifies exact request ID, payload, accepted result, client, card, surface, and the matching delivered marker. Calendar accepts `submission-native` or `calendar-native` according to its original intake surface; Samples accepts only `samples-native`. This selector is independent of the cold/failed generic per-client EF flags, so an already accepted native job cannot be redirected through n8n merely because that roster read failed.
+
+The marker alone is not admission. Missing, stale, suspended, pre-version-3, changed, or provider-era records produce `native_card_materialization_incompatible_job` before either EF or n8n is called; the saved record is not removed. EF hold, refusal, or unknown response also has no n8n retry. Ordinary save writers remain on their existing generic routing helpers. `node test/native-card-materialization-native-route.js` extracts the browser functions and proves exact serialized Calendar/Samples payloads and preserved auth headers, the EF-only accepted route, retained incompatible records, an EF 409 without fallback, and the unchanged ordinary legacy selection. This is OFFLINE_TEST only and does not prove an installed browser or n8n compatibility.
+
 ## Order and rollback
 
 Before any future installation, review a compatible serving-source composition preserving anonymous authorization, install and verify the existing SQL/receipt/provenance/journal and selected37 recovery dependencies, prove both legacy transports, and repeat the designated client/staff tests with exact serving hashes. This source slice supplies no deployment command or approval.

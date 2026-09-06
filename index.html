@@ -48237,6 +48237,45 @@
         return { mapped, cards: Array.from(cards.values()).sort((a, b) => a.number - b.number) };
     }
 
+    function _nativeAcceptedCardTransport(job, card, clientSlug, isSamples) {
+        /* A native marker is a terminal materialization selector, never an
+           authority grant. Only the exact, durably checkpointed production-write
+           result may bypass a cold or failed generic EF roster. Older provider
+           jobs do not acquire this capability by carrying a lookalike source;
+           retain them for their separate compatibility path instead. */
+        const payload = job && job.payload || {};
+        const context = job && job.context || {};
+        const payloadSurface = String(payload.surface || '');
+        const expectedSource = isSamples
+            ? (payloadSurface === 'sxr' ? 'samples-native' : '')
+            : (payloadSurface === 'calendar' ? 'calendar-native'
+                : (payloadSurface === 'submission' ? 'submission-native' : ''));
+        const source = String(context.materialization_source || '');
+        const requestId = _linearIntakeJobId(job);
+        const saved = _linearIntakeRead();
+        const incompatible = () => {
+            const error = new Error('native_card_materialization_incompatible_job');
+            error.code = 'native_card_materialization_incompatible_job';
+            throw error;
+        };
+        if (!expectedSource || source !== expectedSource || String(context.surface || '') !== payloadSurface
+            || !requestId || String(payload.client_slug || '') !== String(clientSlug || '')
+            || !card || !String(card.cardId || '')) incompatible();
+        /* The job passed here is normally the lock-held current storage record.
+           Re-read it anyway: no in-memory or pre-native result may select EF. */
+        if (!saved || Number(saved.version) !== 3 || saved.suspended === true
+            || _linearIntakeJobId(saved) !== requestId
+            || String(saved && saved.context && saved.context.materialization_source || '') !== expectedSource
+            || String(saved && saved.context && saved.context.surface || '') !== payloadSurface
+            || JSON.stringify(saved.payload) !== JSON.stringify(payload)
+            || JSON.stringify(saved.result) !== JSON.stringify(job && job.result)) incompatible();
+        let savedCards;
+        try { savedCards = _linearIntakeValidateResult(saved, saved.result).cards; }
+        catch (error) { incompatible(); }
+        if (!savedCards.some(item => String(item && item.cardId || '') === String(card.cardId))) incompatible();
+        return { transport: 'supabase', source: expectedSource };
+    }
+
     async function _writeNativeSubmissionCardsToCalendar(job) {
         _linearIntakeRequireActor(job);
         const result = job && job.result;
@@ -48274,8 +48313,7 @@
                 graphic_deliverable_id: graphic && graphic.row.id || ''
             };
             _linearIntakeRequireActor(job);
-            const materializationSource = String(job && job.context && job.context.materialization_source
-                || (job && job.payload && job.payload.surface === 'calendar' ? 'calendar-native' : 'submission-native'));
+            const nativeTransport = _nativeAcceptedCardTransport(job, card, clientSlug, isSamples);
             /* A sample row carries creative_direction where a calendar post
                carries the scheduling/caption fields, but the NATIVE LINKAGE --
                both Linear issue urls and both deliverable ids -- is identical,
@@ -48294,9 +48332,11 @@
                     graphic_deliverable_id: graphic && graphic.row.id || ''
                 }
                 : post;
+            // Accepted native work never falls back through a provider route:
+            // a held or uncertain EF reply leaves this persisted job resumable.
             const response = isSamples
-                ? await _sxrUpsertFetch(clientSlug, { client: clientSlug, sample: row, comments_base_at: '' }, materializationSource)
-                : await _calUpsertFetch(clientSlug, { client: clientSlug, post: row }, materializationSource);
+                ? await _sxrUpsertFetchPinned(clientSlug, { client: clientSlug, sample: row, comments_base_at: '' }, nativeTransport.source, nativeTransport.transport)
+                : await _calUpsertFetchPinned(clientSlug, { client: clientSlug, post: row }, nativeTransport.source, nativeTransport.transport);
             const json = await response.json().catch(() => ({}));
             if (!response.ok || !json || json.ok !== true) {
                 throw new Error(isSamples ? 'sample_card_write_failed' : 'calendar_card_write_failed');

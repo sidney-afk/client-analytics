@@ -70,6 +70,29 @@ Its structure/readiness and Project-menu comparator failures were corrected in
 tests, preserving mutation assertions; behavior passed 168/168 and full pixel
 checks passed in light/dark. No live business mutation occurred.
 
+## 2026-09-05 — Draft correction: history restore corpus
+
+Separate local branch from preserved PR #1299 `85018bf8`; review source
+`af929858` and one captured remote-main pin `ab636613` are recorded in
+`docs/audits/2026-09-05-card-history-restore-correction.md`. Actual dependency
+DDL proves the 21-table corpus omits incoming FK and comment/intake replay
+state. New explicit v5 preparation covers 33 relations while old packages and
+the default v3 schedule retain their meaning. No live action occurred.
+The authenticated schema artifact and empty-target reconstruction remain a
+release blocker. Journal/rollback SQL, writers, website and auth are unchanged.
+
+## 2026-09-05 — Draft preparation: private committed card history
+
+Source-only work from `287c16cd1c46da18c9d6e302e9a8d7c66c746e50`; remote main
+observed at `731e7c248fd8c055a577e7c7f40a81236532250c` without incorporating
+unrelated drift. The owner's durable-history request is implemented as an
+additive private six-owner database journal and explicit versioned backup
+preparation. No live data, migration, grant, trigger, Edge Function, frozen
+writer access, flag, n8n workflow, backup setting or provider state was changed.
+See `docs/ops/CARD_CHANGE_HISTORY.md` for exact scope, local SQL proof, the
+separate PR #1293 manifest prerequisite and still-owed deployment/restore gates.
+This entry records preparation, not installation or a live retention guarantee.
+
 ## 2026-08-31 — Deploy: a card can be completed from the card
 
 **Section 4 forward from `5a3365f2`, run `33434655418`, PASS.** `production-write`

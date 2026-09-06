@@ -56,6 +56,63 @@ const TABLES = Object.freeze([
   { name: 'linear_archive', pk: 'linear_uuid' },
 ]);
 
+// v3 remains the scheduled default. Each expanded version is explicit opt-in;
+// a data package alone never certifies schema reconstruction or recoverability.
+const HISTORY_TABLES = Object.freeze([...TABLES,
+  { name: 'calendar_posts', pk: ['client', 'id'] },
+  { name: 'sample_reviews', pk: ['client', 'id'] },
+  { name: 'calendar_post_events', pk: 'id', identity: true },
+  { name: 'sample_review_events', pk: 'id', identity: true },
+  { name: 'workload_plan', pk: 'issue_id' },
+  { name: 'card_change_journal', pk: 'id', identity: true },
+  { name: 'production_intake_manifests', pk: 'request_id' },
+]);
+// Preserve v4's authenticated meaning. v5 closes its known FK boundary and
+// retains comment/intake replay evidence plus the corresponding F27 generation.
+const CLOSED_HISTORY_TABLES = Object.freeze([...HISTORY_TABLES.flatMap(table =>
+  // F27 drill outbox rows hold a non-deferrable FK to this parent. COPY must
+  // materialize it first; preserve the original v3/v4 order independently.
+  table.name === 'mirror_outbox' ? [{ name: 'track_b_team_rollbacks', pk: 'id' }, table] : [table]),
+  { name: 'pto_members', pk: 'member_id' },
+  { name: 'pto_requests', pk: 'id' },
+  { name: 'pto_adjustments', pk: 'id' },
+  { name: 'linear_project_ids_shape_migration_20260728', pk: 'slug' },
+  { name: 'production_asset_access_checks', pk: ['deliverable_id', 'slot', 'url_sha256'] },
+  { name: 'linear_archive_asset_refs', pk: 'ref_id' },
+  { name: 'production_comment_card_links', pk: ['source_surface', 'card_id', 'component', 'native_comment_id'] },
+  { name: 'production_comment_mutation_receipts', pk: 'dedup_key' },
+  { name: 'track_b_team_rollback_intents', pk: ['rollback_id', 'outbox_id'] },
+  { name: 'track_b_f27_team_fences', pk: 'team' },
+  { name: 'linear_intake_receipts', pk: 'receipt_key' },
+]);
+const CORPORA = Object.freeze({
+  'legacy-v3': Object.freeze({ name: 'legacy-v3', version: 3, magic: PACKAGE_MAGIC, tables: TABLES }),
+  'history-v4': Object.freeze({ name: 'history-v4', version: 4,
+    magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V4\n', 'utf8'), tables: HISTORY_TABLES }),
+  'history-v5': Object.freeze({ name: 'history-v5', version: 5,
+    magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V5\n', 'utf8'), tables: CLOSED_HISTORY_TABLES }),
+});
+
+function resolveCorpus(name = 'legacy-v3') {
+  if (!Object.prototype.hasOwnProperty.call(CORPORA, name)) throw new Error('Unsupported Track-B backup corpus');
+  return CORPORA[name];
+}
+
+function configuredCorpus() {
+  return resolveCorpus(clean(process.env.TRACK_B_BACKUP_CORPUS) || 'legacy-v3').name;
+}
+
+function manifestCorpus(manifest) {
+  const name = manifest && manifest.schema_version === 3 ? 'legacy-v3'
+    : manifest && manifest.schema_version === 4 ? 'history-v4'
+      : manifest && manifest.schema_version === 5 ? 'history-v5' : '';
+  const corpus = resolveCorpus(name);
+  if ((corpus.version >= 4 || manifest.corpus != null) && manifest.corpus !== corpus.name) {
+    throw new Error('Track-B snapshot corpus does not match its schema version');
+  }
+  return corpus;
+}
+
 function clean(value) {
   return String(value == null ? '' : value).trim();
 }
@@ -91,16 +148,16 @@ function snapshotName(generatedAt) {
   return name;
 }
 
-function exactTableNames(value) {
+function exactTableNames(value, corpusName = 'legacy-v3') {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const expected = TABLES.map(config => config.name).sort();
+  const expected = resolveCorpus(corpusName).tables.map(config => config.name).sort();
   const actual = Object.keys(value).sort();
   return actual.length === expected.length && actual.every((name, index) => name === expected[index]);
 }
 
-function assertExactTableManifest(manifest) {
-  if (Number(manifest && manifest.table_count) !== TABLES.length
-    || !exactTableNames(manifest && manifest.tables)) {
+function assertExactTableManifest(manifest, corpusName = 'legacy-v3') {
+  if (Number(manifest && manifest.table_count) !== resolveCorpus(corpusName).tables.length
+    || !exactTableNames(manifest && manifest.tables, corpusName)) {
     throw new Error('Track-B snapshot manifest does not contain the exact table allowlist');
   }
   return true;
@@ -220,8 +277,26 @@ function runPostgresTool(command, args, capture = false, stage = 'PostgreSQL bac
   return result.stdout || '';
 }
 
-function readOnlyPrivilegeSql() {
-  return TABLES.map(config => {
+function corpusBoundarySql(corpusName) {
+  const corpus = resolveCorpus(corpusName);
+  const relations = corpus.tables.map(config => `'public.${config.name}'::regclass`).join(',');
+  // No row values, client identifiers, constraint names or dynamic SQL reach
+  // diagnostics. RESTRICT remains the ultimate restore race guard.
+  return `do $corpus_boundary$ declare covered oid[] := array[${relations}]::oid[]; begin
+if exists(select 1 from pg_catalog.pg_constraint where contype='f'
+  and confrelid=any(covered) and not conrelid=any(covered)) then
+  raise exception 'Track-B corpus has an omitted incoming foreign key';
+end if;
+if exists(select 1 from pg_catalog.pg_constraint where contype='f'
+  and conrelid=any(covered) and not confrelid=any(covered)) then
+  raise exception 'Track-B corpus has an omitted referenced relation';
+end if;
+end $corpus_boundary$;\n`;
+}
+
+function readOnlyPrivilegeSql(corpusName = 'legacy-v3') {
+  const boundary = resolveCorpus(corpusName).version >= 5 ? corpusBoundarySql(corpusName) : '';
+  return boundary + resolveCorpus(corpusName).tables.map(config => {
     const relation = `public.${config.name}`;
     return `select '${config.name}', has_table_privilege(current_user, '${relation}', 'SELECT'), `
       + `has_table_privilege(current_user, '${relation}', 'INSERT'), `
@@ -232,14 +307,16 @@ function readOnlyPrivilegeSql() {
   }).join(' union all ');
 }
 
-function verifyReadOnlyPrivilegeOutput(text) {
+function verifyReadOnlyPrivilegeOutput(text, corpusName = 'legacy-v3') {
   const observed = new Map();
   for (const line of String(text || '').split(/\r?\n/)) {
     if (!clean(line)) continue;
     const [name, select, insert, update, remove, truncate, allRows] = line.split('|').map(clean);
+    if (observed.has(name)) throw new Error('Duplicate backup privilege result');
     observed.set(name, { select, insert, update, remove, truncate, allRows });
   }
-  for (const config of TABLES) {
+  if (observed.size !== resolveCorpus(corpusName).tables.length) throw new Error('Incomplete backup privilege result');
+  for (const config of resolveCorpus(corpusName).tables) {
     const row = observed.get(config.name);
     if (!row || row.select !== 't') throw new Error(`Backup database role lacks SELECT on public.${config.name}`);
     if ([row.insert, row.update, row.remove, row.truncate].some(value => value !== 'f')) {
@@ -252,16 +329,21 @@ function verifyReadOnlyPrivilegeOutput(text) {
   return true;
 }
 
-function assertReadOnlySource() {
-  assertProductionSource();
-  const output = runPostgresTool('psql', [
-    '--no-psqlrc', '--tuples-only', '--no-align', '--field-separator=|',
-    '--set=ON_ERROR_STOP=1', '--command', readOnlyPrivilegeSql(),
-  ], true, 'Backup privilege preflight');
-  return verifyReadOnlyPrivilegeOutput(output);
+function readOnlyPrivilegeArgs(corpusName = 'legacy-v3') {
+  // DO emits a command tag even with --tuples-only. Keep the fixed privilege
+  // result protocol free of that tag without suppressing errors/exit status.
+  return ['--no-psqlrc', '--quiet', '--tuples-only', '--no-align', '--field-separator=|',
+    '--set=ON_ERROR_STOP=1', '--command', readOnlyPrivilegeSql(corpusName),
+  ];
 }
 
-function pgDumpArgs(output) {
+function assertReadOnlySource(corpusName = 'legacy-v3') {
+  assertProductionSource();
+  const output = runPostgresTool('psql', readOnlyPrivilegeArgs(corpusName), true, 'Backup privilege preflight');
+  return verifyReadOnlyPrivilegeOutput(output, corpusName);
+}
+
+function pgDumpArgs(output, corpusName = 'legacy-v3') {
   const args = [
     '--format=plain',
     '--data-only',
@@ -272,7 +354,7 @@ function pgDumpArgs(output) {
     '--lock-wait-timeout=60000',
     `--file=${path.resolve(output)}`,
   ];
-  for (const config of TABLES) args.push(`--table=public.${config.name}`);
+  for (const config of resolveCorpus(corpusName).tables) args.push(`--table=public.${config.name}`);
   return args;
 }
 
@@ -284,7 +366,7 @@ function parseDumpIdentifier(value) {
   return name;
 }
 
-function allowedDumpControlLine(line) {
+function allowedDumpControlLine(line, corpusName = 'legacy-v3') {
   if (!line || line.startsWith('--')) return true;
   if (/^\\(?:un)?restrict [A-Za-z0-9]+$/.test(line)) return true;
   if (/^SET (?:statement_timeout|lock_timeout|idle_in_transaction_session_timeout|transaction_timeout) = 0;$/.test(line)) return true;
@@ -299,13 +381,13 @@ function allowedDumpControlLine(line) {
   if (line === "SELECT pg_catalog.set_config('search_path', '', false);") return true;
   const sequence = line.match(/^SELECT pg_catalog\.setval\('public\.([a-z_][a-z0-9_]*)'(?:::regclass)?, [0-9]+, (?:true|false)\);$/);
   if (sequence) {
-    const allowedSequences = new Set(TABLES.filter(config => config.identity).map(config => `${config.name}_${config.pk}_seq`));
+    const allowedSequences = new Set(resolveCorpus(corpusName).tables.filter(config => config.identity).map(config => `${config.name}_${config.pk}_seq`));
     return allowedSequences.has(sequence[1]);
   }
   return false;
 }
 
-function parseStrictPgDump(value) {
+function parseStrictPgDump(value, corpusName = 'legacy-v3') {
   const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value || ''), 'utf8');
   let text;
   try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch (_) {
@@ -313,7 +395,8 @@ function parseStrictPgDump(value) {
   }
   if (text.includes('\0')) throw new Error('Track-B PostgreSQL dump contains a NUL byte');
   if (/\r(?!\n)/.test(text)) throw new Error('Track-B PostgreSQL dump contains an invalid carriage return');
-  const allowlist = new Set(TABLES.map(config => config.name));
+  const corpus = resolveCorpus(corpusName);
+  const allowlist = new Set(corpus.tables.map(config => config.name));
   const tables = {};
   let active = null;
   let sawHeader = false;
@@ -340,21 +423,25 @@ function parseStrictPgDump(value) {
       active = { name, columns, rows: [] };
       continue;
     }
-    if (!allowedDumpControlLine(line)) {
+    if (!allowedDumpControlLine(line, corpusName)) {
       throw new Error('Disallowed PostgreSQL dump statement');
     }
   }
   if (!sawHeader) throw new Error('Track-B package does not contain a PostgreSQL dump');
   if (active) throw new Error(`Unterminated COPY section for public.${active.name}`);
-  for (const config of TABLES) {
+  for (const config of corpus.tables) {
     if (!tables[config.name]) throw new Error(`Track-B dump is missing public.${config.name}`);
+    const keys = Array.isArray(config.pk) ? config.pk : [config.pk];
+    if (!keys.every(key => tables[config.name].columns.includes(key))) {
+      throw new Error(`Track-B dump is missing primary-key columns for public.${config.name}`);
+    }
   }
   return { tables };
 }
 
-function inspectPlainDump(value) {
-  const parsed = parseStrictPgDump(value);
-  return Object.fromEntries(TABLES.map(config => [config.name, {
+function inspectPlainDump(value, corpusName = 'legacy-v3') {
+  const parsed = parseStrictPgDump(value, corpusName);
+  return Object.fromEntries(resolveCorpus(corpusName).tables.map(config => [config.name, {
     rows: parsed.tables[config.name].rows.length,
     primary_key: config.pk,
   }]));
@@ -365,10 +452,10 @@ function quotedIdentifier(value) {
   return `"${name}"`;
 }
 
-function renderSafeCopySections(value) {
-  const parsed = parseStrictPgDump(value);
+function renderSafeCopySections(value, corpusName = 'legacy-v3') {
+  const parsed = parseStrictPgDump(value, corpusName);
   const lines = [];
-  for (const config of TABLES) {
+  for (const config of resolveCorpus(corpusName).tables) {
     const section = parsed.tables[config.name];
     lines.push(`COPY public.${quotedIdentifier(config.name)} (${section.columns.map(quotedIdentifier).join(', ')}) FROM stdin;`);
     lines.push(...section.rows, '\\.');
@@ -392,12 +479,14 @@ function hmacSha256(key, value) {
   return crypto.createHmac('sha256', key).update(value).digest();
 }
 
-function buildManifest(dumpBytes, generatedAt = new Date().toISOString(), sourceUrl = DB_URL) {
-  const tables = inspectPlainDump(dumpBytes);
+function buildManifest(dumpBytes, generatedAt = new Date().toISOString(), sourceUrl = DB_URL, corpusName = 'legacy-v3') {
+  const corpus = resolveCorpus(corpusName);
+  const tables = inspectPlainDump(dumpBytes, corpusName);
   return {
     format: 'syncview-track-b-postgresql-snapshot',
-    schema_version: SCHEMA_VERSION,
-    table_count: TABLES.length,
+    schema_version: corpus.version,
+    ...(corpus.version >= 4 ? { corpus: corpus.name } : {}),
+    table_count: corpus.tables.length,
     generated_at: generatedAt,
     completed_at: new Date().toISOString(),
     source_project_ref: assertProductionSource(sourceUrl),
@@ -414,17 +503,17 @@ function buildManifest(dumpBytes, generatedAt = new Date().toISOString(), source
   };
 }
 
-function packSnapshot(dumpFile, output, generatedAt = new Date().toISOString(), sourceUrl = DB_URL, hmacInput = HMAC_KEY_INPUT) {
+function packSnapshot(dumpFile, output, generatedAt = new Date().toISOString(), sourceUrl = DB_URL, hmacInput = HMAC_KEY_INPUT, corpusName = 'legacy-v3') {
   const key = parseHmacKey(hmacInput);
   const dumpBytes = fs.readFileSync(path.resolve(dumpFile));
-  const manifest = buildManifest(dumpBytes, generatedAt, sourceUrl);
+  const manifest = buildManifest(dumpBytes, generatedAt, sourceUrl, corpusName);
   const compressed = zlib.gzipSync(dumpBytes, { level: 9 });
   manifest.snapshot.compressed_bytes = compressed.length;
   manifest.snapshot.compressed_sha256 = sha256(compressed);
   const manifestBytes = Buffer.from(canonicalJson(manifest), 'utf8');
   const length = Buffer.alloc(8);
   length.writeBigUInt64BE(BigInt(manifestBytes.length));
-  const unsignedPackage = Buffer.concat([PACKAGE_MAGIC, length, manifestBytes, compressed]);
+  const unsignedPackage = Buffer.concat([resolveCorpus(corpusName).magic, length, manifestBytes, compressed]);
   const packageBytes = Buffer.concat([unsignedPackage, hmacSha256(key, unsignedPackage)]);
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
   fs.writeFileSync(path.resolve(output), packageBytes, { mode: 0o600 });
@@ -458,8 +547,8 @@ function authenticatedGeneratedAt(manifest, nowMs = Date.now()) {
 function readSnapshotBytes(packageBytesInput, hmacInput = HMAC_KEY_INPUT, nowMs = Date.now()) {
   const key = parseHmacKey(hmacInput);
   const packageBytes = Buffer.isBuffer(packageBytesInput) ? packageBytesInput : Buffer.from(packageBytesInput || '');
-  if (packageBytes.length < PACKAGE_MAGIC.length + 8 + 2 + HMAC_BYTES
-    || !packageBytes.subarray(0, PACKAGE_MAGIC.length).equals(PACKAGE_MAGIC)) {
+  const corpus = Object.values(CORPORA).find(item => packageBytes.subarray(0, item.magic.length).equals(item.magic));
+  if (!corpus || packageBytes.length < corpus.magic.length + 8 + 2 + HMAC_BYTES) {
     throw new Error('Unsupported Track-B snapshot package');
   }
   const unsignedPackage = packageBytes.subarray(0, packageBytes.length - HMAC_BYTES);
@@ -468,8 +557,8 @@ function readSnapshotBytes(packageBytesInput, hmacInput = HMAC_KEY_INPUT, nowMs 
   if (!crypto.timingSafeEqual(actualTag, expectedTag)) {
     throw new Error('Track-B snapshot authentication failed');
   }
-  const manifestLength = Number(packageBytes.readBigUInt64BE(PACKAGE_MAGIC.length));
-  const manifestStart = PACKAGE_MAGIC.length + 8;
+  const manifestLength = Number(packageBytes.readBigUInt64BE(corpus.magic.length));
+  const manifestStart = corpus.magic.length + 8;
   const payloadStart = manifestStart + manifestLength;
   const payloadEnd = packageBytes.length - HMAC_BYTES;
   if (!Number.isSafeInteger(manifestLength) || manifestLength < 2 || manifestLength > 1024 * 1024 || payloadStart >= payloadEnd) {
@@ -479,7 +568,7 @@ function readSnapshotBytes(packageBytesInput, hmacInput = HMAC_KEY_INPUT, nowMs 
   try { manifest = JSON.parse(packageBytes.subarray(manifestStart, payloadStart).toString('utf8')); } catch (_) {
     throw new Error('Invalid Track-B snapshot manifest JSON');
   }
-  if (manifest.format !== 'syncview-track-b-postgresql-snapshot' || manifest.schema_version !== SCHEMA_VERSION) {
+  if (manifest.format !== 'syncview-track-b-postgresql-snapshot' || manifestCorpus(manifest).name !== corpus.name) {
     throw new Error('Unsupported Track-B snapshot manifest');
   }
   if (!manifest.authentication || manifest.authentication.algorithm !== 'hmac-sha256'
@@ -499,18 +588,18 @@ function readSnapshotBytes(packageBytesInput, hmacInput = HMAC_KEY_INPUT, nowMs 
     || clean(manifest.snapshot && manifest.snapshot.sha256) !== sha256(dumpBytes)) {
     throw new Error('Track-B PostgreSQL dump checksum mismatch');
   }
-  const parsed = parseStrictPgDump(dumpBytes);
-  const inspected = inspectPlainDump(dumpBytes);
-  assertExactTableManifest(manifest);
-  for (const config of TABLES) {
+  const parsed = parseStrictPgDump(dumpBytes, corpus.name);
+  const inspected = inspectPlainDump(dumpBytes, corpus.name);
+  assertExactTableManifest(manifest, corpus.name);
+  for (const config of corpus.tables) {
     const expected = manifest.tables && manifest.tables[config.name];
     const actual = inspected[config.name];
-    if (!expected || Number(expected.rows) !== actual.rows || clean(expected.primary_key) !== config.pk) {
+    if (!expected || Number(expected.rows) !== actual.rows || canonicalJson(expected.primary_key) !== canonicalJson(config.pk)) {
       throw new Error(`Track-B snapshot manifest mismatch for ${config.name}`);
     }
   }
   authenticatedGeneratedAt(manifest, nowMs);
-  return { manifest, dumpBytes, parsed };
+  return { manifest, dumpBytes, parsed, corpus: corpus.name };
 }
 
 function readSnapshotFile(file, hmacInput = HMAC_KEY_INPUT, nowMs = Date.now()) {
@@ -805,7 +894,8 @@ async function writeFreshnessMarker(token, staleKey, ageHours, driveContext) {
   readAlertMarker(remoteBytes, staleKey);
 }
 
-function selectAuthenticatedCandidates(candidates, hmacInput = HMAC_KEY_INPUT, nowMs = Date.now()) {
+function selectAuthenticatedCandidates(candidates, hmacInput = HMAC_KEY_INPUT, nowMs = Date.now(), requiredCorpus = 'legacy-v3') {
+  const minimumVersion = resolveCorpus(requiredCorpus).version;
   parseHmacKey(hmacInput);
   const valid = [];
   let invalidCount = 0;
@@ -813,6 +903,7 @@ function selectAuthenticatedCandidates(candidates, hmacInput = HMAC_KEY_INPUT, n
     try {
       if (!candidate || candidate.error || !candidate.file || !Buffer.isBuffer(candidate.bytes)) throw new Error('candidate unavailable');
       const snapshot = readSnapshotBytes(candidate.bytes, hmacInput, nowMs);
+      if (snapshot.manifest.schema_version < minimumVersion) throw new Error('Snapshot lacks required history coverage');
       if (clean(candidate.file.name) !== snapshotName(snapshot.manifest.generated_at)) {
         throw new Error('Drive filename does not match authenticated generated_at');
       }
@@ -835,6 +926,7 @@ async function selectLatestAuthenticatedFromDrive(token, files, {
   hmacInput = HMAC_KEY_INPUT,
   nowMs = Date.now(),
   download = downloadBackupBytes,
+  requiredCorpus = 'legacy-v3',
 } = {}) {
   parseHmacKey(hmacInput);
   // One candidate at a time: the Drive folder accumulates snapshots without
@@ -854,7 +946,7 @@ async function selectLatestAuthenticatedFromDrive(token, files, {
     } catch (_) {
       candidate = { file, error: true };
     }
-    const single = selectAuthenticatedCandidates([candidate], hmacInput, nowMs);
+    const single = selectAuthenticatedCandidates([candidate], hmacInput, nowMs, requiredCorpus);
     if (single.latest) {
       validCount += 1;
       if (!latest || single.latest.generatedMs > latest.generatedMs) {
@@ -875,16 +967,17 @@ async function selectLatestAuthenticatedFromDrive(token, files, {
 }
 
 async function createAndUpload() {
+  const corpusName = configuredCorpus();
   assertProductionSource();
-  assertReadOnlySource();
+  assertReadOnlySource(corpusName);
   const generatedAt = new Date().toISOString();
   const name = snapshotName(generatedAt);
   const output = path.resolve(outputArg() || path.join(process.env.RUNNER_TEMP || process.cwd(), name));
   const tempDir = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'track-b-dump-'));
   const dumpFile = path.join(tempDir, 'track-b.sql');
   try {
-    runPostgresTool('pg_dump', pgDumpArgs(dumpFile), false, 'Transactional Track-B snapshot');
-    const manifest = packSnapshot(dumpFile, output, generatedAt);
+    runPostgresTool('pg_dump', pgDumpArgs(dumpFile, corpusName), false, 'Transactional Track-B snapshot');
+    const manifest = packSnapshot(dumpFile, output, generatedAt, DB_URL, HMAC_KEY_INPUT, corpusName);
     verifySnapshotFile(output);
     const account = parseDriveCredentials();
     const token = await driveAccessToken(account);
@@ -895,6 +988,7 @@ async function createAndUpload() {
     console.log(JSON.stringify({
       ok: true,
       file_id: uploaded.id,
+      corpus: corpusName,
       file_name: name,
       receipt_written: true,
       last_known_good_advanced: true,
@@ -1046,7 +1140,8 @@ async function checkFreshness() {
   }
   const candidates = mergeReceiptCandidate(files, receiptFile);
   const nowMs = Date.now();
-  const selection = await selectLatestAuthenticatedFromDrive(token, candidates, { nowMs });
+  const requiredCorpus = configuredCorpus();
+  const selection = await selectLatestAuthenticatedFromDrive(token, candidates, { nowMs, requiredCorpus });
   const latest = selection.latest;
   const freshness = classifyFreshness({
     fileCount: candidates.length,
@@ -1059,6 +1154,8 @@ async function checkFreshness() {
     console.log(JSON.stringify({
       ok: true,
       stale: false,
+      required_corpus: requiredCorpus,
+      snapshot_corpus: manifestCorpus(latest.manifest).name,
       latest_file_id: latest.file.id,
       authenticated_generated_at: latest.manifest.generated_at,
       age_hours: Number(freshness.ageHours.toFixed(2)),
@@ -1091,6 +1188,7 @@ async function checkFreshness() {
   console.log(JSON.stringify({
     ok: false,
     stale: true,
+    required_corpus: requiredCorpus,
     failure_reason: freshness.reason,
     alerted: slackAlerted,
     slack_configured: Boolean(SLACK_WEBHOOK),
@@ -1114,7 +1212,7 @@ async function downloadLatest() {
   const driveContext = await resolveDriveContext(token, account);
   const files = await listBackups(token, fetch, driveContext.folderId, driveContext.driveId);
   if (!files.length) throw new Error('No Track-B backup exists in the configured Drive folder');
-  const selection = await selectLatestAuthenticatedFromDrive(token, files, { retainBytes: true });
+  const selection = await selectLatestAuthenticatedFromDrive(token, files, { retainBytes: true, requiredCorpus: configuredCorpus() });
   if (!selection.latest) throw new Error('No authenticated Track-B backup exists in the configured Drive folder');
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
   fs.writeFileSync(path.resolve(output), selection.latest.bytes, { mode: 0o600 });
@@ -1147,6 +1245,14 @@ if (require.main === module) {
 }
 
 module.exports = {
+  CORPORA,
+  HISTORY_TABLES,
+  CLOSED_HISTORY_TABLES,
+  corpusBoundarySql,
+  readOnlyPrivilegeArgs,
+  configuredCorpus,
+  manifestCorpus,
+  resolveCorpus,
   FILE_PREFIX,
   HMAC_BYTES,
   MAX_FUTURE_SKEW_MS,

@@ -13139,3 +13139,39 @@ withdrawing the first draft's flag-routed widening under the retired value. The
 dry-run's REST read now pages with exact counts and refuses truncated or
 unknown-total rosters. "Provider lane byte-for-byte unchanged" in the entry
 above was overbroad for the first draft; the precise scope is in the audit note.
+
+## Pending durable card history — draft, not installed
+
+The owner's request to keep every card change for at least 30 days is tracked
+by `docs/ops/CARD_CHANGE_HISTORY.md`. This source-only slice adds a private
+atomic INSERT/UPDATE/DELETE before/after journal to Calendar cards, Samples
+cards, native batches/deliverables/comments and Workload plans. It preserves
+existing semantic events/outboxes and anonymous writer access, records actors
+only to the assurance the transport actually provides, and retains history
+when current rows are deleted. Proposed retention is 90 days/minimum 30, with
+no automatic pruning.
+
+Open completion gates: independent exact-source review; separate PR #1293
+manifest schema prerequisite for the expanded backup corpus; reviewed schema/
+private-grant installation; reserved real-client-link TEST canary; complete
+private snapshot/readback/scratch restore; actual alert delivery; and observed
+retention window. Existing 14-table backups are explicitly limited. No live
+change or history guarantee is implied by this draft or its local SQL tests.
+The pre-install comment-failure continuity gate is currently **FAIL**, not merely
+unproven: the separate finite browser proof at `287c16cd` found refused-note/
+tweak drafts lost immediately or on reopening, including newer typing. The
+accepted Samples-note subset remains conserved. Install must wait for the
+separate failure-preservation repairs and passing failure/reopen tests because
+a journal insertion failure intentionally rejects the corresponding save.
+
+**Restore review correction, draft/unapplied:** preserved PR #1299 `85018bf8`
+proved only a minimal 21-table fixture. An independent migration-shaped catalog
+reproduced 9 incoming FKs from 8 omitted tables, plus the F27 intent edge.
+New explicit `history-v5` data coverage includes all 33 known closed-corpus
+relations and retains comment/intake dedup evidence; old packages remain readable
+and limited. Raw legacy14 TRUNCATE also refused those FK dependencies before the
+new legacy guard, so narrowing that guard is not a full-schema legacy fix.
+The matching authenticated schema artifact and empty-target reconstruction are
+still a RELEASE BLOCKER. See `TRACK_B_BACKUP.md` and the dated restore correction
+audit. Default schedule, journal SQL, frozen writers and live configuration stay
+unchanged by source preparation.

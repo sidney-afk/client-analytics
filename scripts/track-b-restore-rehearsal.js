@@ -75,7 +75,8 @@ function assertScratchTarget(url = DB_URL, expectedRef = EXPECTED_REF, confirm =
 function restoreSql(parsedDump, corpusName = 'legacy-v3') {
   const corpus = resolveCorpus(corpusName);
   const names = corpus.tables.map(config => safeIdentifier(config.name));
-  const helper = corpus.version === 7 ? 'track_b_restore_set_history_v7_user_triggers'
+  const helper = corpus.version === 8 ? 'track_b_restore_set_history_v8_user_triggers'
+    : corpus.version === 7 ? 'track_b_restore_set_history_v7_user_triggers'
     : corpus.version === 6 ? 'track_b_restore_set_history_v6_user_triggers'
     : corpus.version === 5 ? 'track_b_restore_set_history_v5_user_triggers'
     : corpus.version === 4 ? 'track_b_restore_set_history_user_triggers' : 'track_b_restore_set_user_triggers';

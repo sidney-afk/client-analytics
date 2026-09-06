@@ -1,5 +1,7 @@
 # Native card materialization boundary — dormant G3 prerequisite
 
+**2026-09-06 HTTP source follow-up (held):** the [narrow shared adapter](../audits/2026-09-06-native-card-http-adapter.md) adds exact-marker terminal branches to both repository upserts, preserving their authorization bytes. Its 66 offline controls do not establish serving anonymous compatibility. It is uninstalled, does not amend either n8n bypass and does not enable automatic creation. The SQL-only history below retains its original scope. Selected37 authenticated schema reconstruction now has its separate [local proof](../audits/2026-09-06-schema-v7-recovery.md); installed/live reconstruction remains unproven.
+
 This implements one SQL boundary under the existing [G0–G10 plan](../independence/GO_LIVE_CHECKLIST.md), from exact integration base `38f29bc6d3159ddda4b698819626f1efbd37c0b3`. It consumes the [accepted compatibility contract](../audits/2026-09-06-native-card-compatibility.md). Automatic card creation remains held. No Edge Function, browser, n8n, writer authentication or live setting changes in this slice. The combined draft adds one disposable PostgreSQL recovery step to CI; it does not install or schedule product behavior.
 
 ## Authority and storage contract

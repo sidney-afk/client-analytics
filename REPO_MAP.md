@@ -8,6 +8,11 @@ commit as any structural change.
 
 ## Top level
 
+Held native-card HTTP source adapter: `supabase/functions/_shared/native-card-materialization.mjs`,
+`test/native-card-materialization-adapter.js`, and
+`docs/audits/2026-09-06-native-card-http-adapter.md`. Both upsert handlers preserve
+their existing source authorization; serving compatibility and n8n fallback routing remain held.
+
 Selected37 authenticated schema/data proof: `docs/audits/2026-09-06-schema-v7-recovery.md`
 and `docs/audits/2026-09-06-schema-v7-recovery-evidence.json`.
 

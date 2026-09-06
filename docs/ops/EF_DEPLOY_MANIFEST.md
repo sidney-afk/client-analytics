@@ -23,7 +23,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `ai-onboarding-list` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `batch-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
 | `calendar-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
-| `calendar-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
+| `calendar-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/native-card-materialization.mjs`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `caption-prompts-save` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `client-credentials` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `client-review-link` | [deploy-client-review-link](../../.github/workflows/deploy-client-review-link.yml) | workflow_dispatch | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/client-review-token-policy.mjs`<br>`_shared/staff-role-auth.ts` | - |
@@ -48,7 +48,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `quiz-capture` | NONE | **NO CI DEPLOY PATH.** | - | - |
 | `quiz-leads-list` | NONE | **NO CI DEPLOY PATH.** | `_shared/staff-role-auth.ts` | - |
 | `sample-review-reorder` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
-| `sample-review-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
+| `sample-review-upsert` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/native-card-materialization.mjs`<br>`_shared/staff-role-auth.ts`<br>`_shared/thumbnail-revisions.ts` | - |
 | `smm-weekly-reports` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `templates-save` | NONE | **NO CI DEPLOY PATH.** | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/staff-role-auth.ts` | - |
 | `thumbnail-folder-resolve` | NONE | **NO CI DEPLOY PATH.** | - | - |

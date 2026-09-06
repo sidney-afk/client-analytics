@@ -1,5 +1,13 @@
 # Open repairs and pending owner decisions
 
+**2026-09-06 bounded G3 follow-up — source prepared, release held:**
+the [native-card HTTP adapter](../audits/2026-09-06-native-card-http-adapter.md)
+preserves current repository auth and ordinary writer bytes, retains bounded UTF-8
+request text through one SQL RPC, and refuses incomplete/uncertain acknowledgements.
+66 offline controls pass. Actual serving composition, anonymous client continuity,
+both n8n fallback amendments and installed SQL/recovery remain explicit gates;
+automatic creation is not enabled. No production action or client-surface change.
+
 Created 2026-08-08 from the reset audit, because several known repairs lived
 only in chat transcripts and session summaries — which is how the ~52
 unparented batches went two days with no file anywhere tracking them. An item

@@ -18,6 +18,7 @@ const suites = [
   ['fast', 'Production structure subset', 'docs/syncview-design/tests/prod-structure-subset.js'],
   ['fast', 'Production read-only smoke', 'docs/syncview-design/tests/prod-readonly-smoke.js'],
   ['fast', 'Production comment thread', 'docs/syncview-design/tests/prod-comments-browser.js'],
+  ['fast', 'Production component feedback', 'docs/syncview-design/tests/prod-feedback-browser.js'],
   ['fast', 'Production write gateway', 'docs/syncview-design/tests/prod-write-gateway-browser.js'],
   ['interaction', 'Production interaction inventory', 'docs/syncview-design/tests/prod-interaction-inventory.js'],
   ['fast', 'Production accessibility/focus', 'docs/syncview-design/tests/prod-a11y-focus.js'],

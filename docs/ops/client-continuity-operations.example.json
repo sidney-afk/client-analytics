@@ -1,0 +1,20 @@
+{
+  "releaseSha": "EXACT_REVIEWED_CHECKOUT_SHA",
+  "activatedAt": 0,
+  "viewEnabled": false,
+  "observeEnabled": false,
+  "drillEnabled": false,
+  "sentinelEnabled": false,
+  "recoveryEnabled": false,
+  "delivery": {
+    "enabled": false,
+    "activation": "OWNER_APPROVED_CONTINUITY_DELIVERY",
+    "recipientConfirmed": false,
+    "primary": {
+      "kind": "relay",
+      "webhookEnv": "SLACK_ALERT_WEBHOOK",
+      "baseUrlEnv": "CONTINUITY_N8N_ORIGIN",
+      "apiKeyEnv": "N8N_API_KEY"
+    }
+  }
+}

@@ -1,5 +1,178 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Legacy v1 uncertainty, unapplied:** retain exact attempted payloads, completed checkpoints and compatible hold handling. Returning to the old writer after an unknown outcome can remint IDs or overwrite current fields. Do not strip attempt metadata, clear storage, infer a native request or reverse authority to retry. Staff reconciliation requires acceptance/current-card evidence; localStorage is not a backup. [The bounded source correction](docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md) supersedes the next historical paragraph's authority-reversal behavior, with old-bundle and serving limits still held.
+
+**Legacy Calendar v1 retention, unapplied:** preserve and reconcile retained records before reversing authority or restoring a deletion-capable bundle. Authority reversal can resume otherwise eligible provider-era work; retention is not durable quarantine. Do not clear storage or recreate an unknown outcome. [Evidence and limits](docs/audits/2026-09-06-legacy-calendar-job-retention.md).
+
+**Browser v3 refusal retention, unapplied:** before future use, source withdrawal changes no installed work. After a retained hold exists, preserve compatible hold-aware resume/removal or reconcile and retain each exact record before reverting; the old bundle can delete it at its refusal limit. Do not clear storage or regenerate unknown requests. The accepted-job scrub remains compatible with existing sign-out privacy, and v1/48-hour/sign-out gaps remain explicit in [the scoped evidence](docs/audits/2026-09-06-native-intake-retention.md).
+
+**Recovery stable-view classifier, uninstalled:** source withdrawal changes no
+clients or database. Retain packages and a compatible verified reader: older
+engines refuse the new `public_stable_view` class. Do not relabel those functions
+IMMUTABLE or discard packages to bypass a refusal. Existing empty-target and
+committed-unverified retention rules below remain in force. This correction
+does not activate v8 capture/restoration or the separate cutoff reader change.
+
+**Ordinary outbound read fence, unapplied:** the [source correction](docs/audits/2026-09-06-outbound-read-cutoff.md) adds no SQL owner and preserves accepted queue data. Before cutoff activation, its worker source can revert to captured base8e. After activation, do not restore the old unconditional provider reads: keep the transport fence, stop the worker, retain control/outbox receipts, and reconcile all preauthorized in-flight/accepted-after-cutoff debt through a reviewed recovery. Exact serving closure and old-isolate quiescence remain release gates. No rollback/deployment occurred here.
+
+**Native card HTTP adapter, uninstalled:** source withdrawal before any real
+acceptance changes no clients. After any future acceptance, hold new creation
+and retain compatible receipt replay and both durable owners. Reinstating the
+old full-row writer can overwrite later edits and is not an operational inverse.
+Do not deploy repository auth gates onto frozen anonymous serving writers.
+Both n8n bypasses require their separate owner-approved amendment and rollback
+proof; see [the held adapter boundary](docs/audits/2026-09-06-native-card-http-adapter.md).
+
+## 2026-09-06 ? Native-label accepted-work containment (uninstalled)
+
+After any future native acceptance, hold fresh labels with the compatible mode:hold gateway; preserve exact replay, all catalog/attestation rows, receipts and journal. Never remove the flag to mimic pre-install absence, requeue skipped native receipts, disable guards or redeploy a gateway treating native work as provider debt. Returning to provider needs separate reviewed reconciliation. Selected37 excludes this owner/guards, so install remains held. [Ordered gates](docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md#ordered-installation-and-rollback-holds). The next Sept6 paragraph is the superseded cloud proposal, including its no-native-acceptance claim.
+
+## 2026-09-06 — Native label G2 handler prerequisite (unserved/default-disabled)
+
+Containment is the default: leave `production_native_label_catalog` absent/disabled and provider-era behavior remains selected. If later served source must be withdrawn, disable that capability value; do not delete immutable catalog evidence or accepted provider-era receipts/outboxes. Native writes are deliberately held before mutation, so this slice creates no native accepted work to reverse. Installation remains forbidden until authenticated schema recovery and an explicit versioned data-corpus extension cover the catalog owner and the future accepted-receipt boundary.
+
+## 2026-09-05 — Dormant native label catalog foundation (unapplied)
+
+The baseline is `ab6366136c03239965c97b050ab5cf7c9763a228`; this slice does not change browser/gateway/active writer bytes. Local containment is to leave the new migration unapplied and its RPCs uncalled. No client-facing rollback, flag or deploy is needed. If a later authorized install has staged evidence, retain the additive catalog table, all versions, immutable triggers and private ACLs; stop future callers instead of deleting, truncating or replacing its contents. Service activation/active-read functions always refuse. Do not restore a provider-blind write lane or disable an existing writer to roll this foundation back.
+
+Installation itself remains held until the [new object inventory](docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md#complete-new-recovery-object-inventory) is included in authenticated schema capture, a separately versioned private data corpus, and a narrowly owned restore helper with exact retained-data proof. Current history-v5's 33-table package excludes it; ordinary restore TRUNCATE must not bypass the new immutable triggers or use CASCADE. No live restore point or installed rollback is asserted by local SQL tests. The single go-live checklist continues to own product release ordering.
+
+**Selected37 schema recovery, unapplied:** retain authenticated packages and
+current/historical rows. Retry a failed reconstruction in place only when all
+public relation, function and type counters prove the target was and remains
+empty. Unknown or committed targets stay quarantined; use a fresh target after
+review. Source withdrawal changes no clients. The local16-group proof and
+separate3-group outcome delta do not authorize production restoration; see
+[`RECOVERY_SCHEMA_V7.md`](docs/ops/RECOVERY_SCHEMA_V7.md).
+
+**Dormant G3 card materialization:** hold fresh admission and retain both materialization
+owners, intake/outbox receipts, provenance, journal and compatible current-row replay.
+Never drop the evidence or restore old full-row materializers over accepted cards.
+Installation needs explicit schema/data recovery for the two new owners; see
+[`NATIVE_CARD_MATERIALIZATION_BOUNDARY.md`](docs/ops/NATIVE_CARD_MATERIALIZATION_BOUNDARY.md).
+The explicit v7 data package now has a finite local restore/replay proof, but
+authenticated schema reconstruction remains held. Before installation, reverting
+this draft changes no saved work. After any future accepted use, retain both
+owners and compatible v7 packages; never force an older corpus to omit them.
+Removing the new disposable CI step affects proof coverage only, not clients.
+
+**2026-09-06 existing-card assignment draft/unapplied:** stop fresh assignment
+admission with its explicit per-team `hold` mode. Keep accepted native receipt
+lookup and retention guards. Do not silently restore provider mode after
+provider cutoff, revert to a pre-capability gateway that cannot replay accepted
+native receipts, or drop/rewrite/truncate those receipts. Provider mode is a
+separate explicit pre-cutoff recovery decision. Schema and trigger-aware
+retained-target restore integration are still required before installation or
+activation. `docs/ops/NATIVE_EXISTING_ASSIGNMENT.md` owns the finite contract.
+
+**2026-09-05 local Create Post editor projection:** restore only the new
+editor-read wrapper/caller changes first, returning to the preserved provider
+loader. Keep all accepted intake jobs, payloads, receipts and native epochs.
+That browser rollback hides unmapped editors again but retains ordinary
+automatic assignment and cannot move already accepted work. Only then, if a
+future approved release needs it, restore the separately captured reviewed
+gateway closure through its manual lane; do not revert unrelated gateway
+features or re-gate frozen client writers. An older/failed options endpoint
+already degrades to visible picker unavailability and server-side automatic
+assignment, never an assumed provider or valid empty native response.
+See `docs/audits/2026-09-05-native-intake-editor-projection.md`.
+
+**Unmerged draft, 2026-09-05 (native assignee eligibility):** on PR1302, assignment
+eligibility follows the server-resolved native epoch; a native lane never reads
+`production_assignee_eligibility` or the provider and applies the exact
+active/team/creative-role contract to automatic choices too; the provider
+explicit path keeps its flag behaviour and the provider automatic path keeps its
+original stored-mapping contract.
+Inverse is the team's native epoch CAS alone: accepted native rows keep their
+assignee and manifest/receipt provenance, new requests return to the provider
+policy. No Live State entry changes. Evidence and gates:
+`docs/audits/2026-09-05-native-assignee-eligibility.md`.
+
+**Unapplied draft, 2026-09-05 (reconcile):** the native intake reconciler is
+manual-only and unscheduled, so its behaviour rollback is to stop dispatching.
+Rows it recovered and slots it bound are accepted work with real receipts and
+must be retained like any browser-materialized intake; never delete its reason
+rows, recovered children, `skipped` receipts or bound slots. It creates no card.
+Its card-table triggers only RECORD facts (created, deleted, slots changed) on
+every write once installed and alter nothing; if recording itself must stop,
+`alter table ... disable trigger zz_production_card_provenance` on both card
+tables restores the exact previous write path, and the table stays. Details:
+`docs/audits/2026-09-05-native-intake-reconcile.md`. This changes no Live State entry.
+
+**Unapplied draft, 2026-09-05:** native-only intake depends on PR1293. Its behavior
+rollback disables new native admission while retaining the epoch-aware gateway,
+manifest epochs and terminal receipts for accepted work. Do not drop/truncate
+accepted evidence, strip markers or requeue native receipts. Full release order,
+old-serving limitations and retained-data rollback:
+`docs/audits/2026-09-05-native-only-intake.md`. This changes no Live State entry.
+
+Draft source note (2026-09-05): mapped component feedback is not deployed. Its
+rollback is the bounded browser diff plus the previously captured **reader-only**
+`production-comments` closure, retaining all canonical/source data and receipts.
+No writer restore, table drop, queue replay, flag or frozen-writer change belongs
+to this slice. The existing multi-function onboarding dispatch is not a
+reader-only rollback. See `docs/features/COMPONENT_FEEDBACK.md`.
+
+**2026-09-06 independent Calendar recovery corrections (source only):**
+Do not restore the unsafe `a9d798e` recovery handler as an operational inverse:
+it can accept unrelated status receipts, arbitrary allowed field values and
+bodyless source copies. A later reviewed rollback must disable recovery through
+the gateway before removing its RPC, retain the owned-draft UI and all accepted
+comments/status receipts/materialization evidence, and verify visible holds.
+Old unbound reservations are unresolved debt, not migrated or resent statuses.
+The new evidence table needs schema AND selected-data recovery coverage before
+installation. No operational rollback or installation was executed here.
+
+**2026-09-06 Calendar feedback recovery slice 1 (source-only candidate):**
+nothing is applied or deployed. Local rollback reverts the browser half, the
+gateway `recover_source` modifier and the migration file; none of them changes
+an existing object. Once applied, the migration's rollback is the two `drop
+function` statements at its foot; keep `calendar_feedback_materializations`,
+which is evidence of source changes that already happened. A deployed
+`production-write` rolls back through the existing reviewed captured closure on
+the manual Section 4 lane, never a whole-branch revert. Do not restore a whole
+historical frontend or re-gate the frozen anonymous writers for this change:
+owned attempts now carry `recoverySource` / `statusReservation` fields that an
+older document ignores but must not erase.
+
+**2026-09-05 source-only comment receipt candidate:** the shared add fingerprint
+repair in `qa/comment-receipt-fingerprint/README.md` has not been deployed.
+Local rollback reverts its gateway/helper changes, restoring the old false
+receipt conflict; it neither removes accepted comments nor rewrites their
+fingerprints. A later serving rollback must use its reviewed captured closure
+through the existing manual lane. Do not restore a whole historical frontend or
+re-gate the frozen anonymous writers for this change. Complete Calendar
+source-copy/status recovery is separate and remains held.
+
+For the first Samples continuity release, use the paired draft-preserving reader
+inverse in `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` and
+`docs/ops/SAMPLES_RECOVERY_REHEARSAL.md`. Historical whole-document revert notes
+are not its operational inverse: the old document cannot display new owned debt.
+Preserve ownership, save receipts, field debt and cache throughout recovery.
+
+**Pinned ab636 local integration, not released (2026-09-05):** merge
+`dd702412f7a36a46f610ea05ecad8ac06469ba73` pairs forward HTML
+`aa2be6645b440cd2a9487692112b5f0d23f4c236ad37e990087a80cb1365815f` with recovery
+HTML `717b52d9a40b589429a43f90cd81859be08bd8620eab162093ea2f977ef0de02`.
+Only this pair preserves that tree's inherited asset changes as well as the
+Samples debt schema and save receipts. The `e665ba77` pair remains preserved for
+its own document; do not mix either pair or use the historical whole-PR revert
+directions below for this integrated release. Before release, abandoning the
+isolated local branch changes no serving state. After any separately approved
+release, use only the exact paired reader inverse under the packet's owner and
+serving checks. No gateway, migration, writer, flag or data rollback belongs to
+this reader-only inverse. The inherited optional asset lookup index is not
+applied by this work.
+
+**2026-09-05 native Workload candidate — NOT LIVE:** additive snapshot/alias RPCs and the
+manual `workload-plan` closure have not been installed/deployed in this implementation pass.
+Preserve their alias-aware reader/writer during any later browser rollback. An old Edge Function
+may hide native-key plans, and an old browser cannot display native-only work; reverting source
+is not a proved data/visibility recovery. Do not flip authority or remove stored plans to conceal
+that mismatch. Require the captured schema/data/grants and an exact alias-aware restore drill
+before full rollback, as specified in `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. No live-state value
+changes in this candidate.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is
@@ -34,6 +207,19 @@ Treat immediate behavior as a target until F132 closes. Do not remove the indepe
 schedule while F132 is open; if reducing duplicate cadence, remove the pager's last-branch dispatch.
 
 ## 1. Standing rules (non-negotiable)
+
+**Samples G1 candidate (2026-09-04, release held):** browser-only read correction,
+based on `13e187a7d0043ed110b486feb50502758a026229`; no new kill flag or writer change.
+Before merge, abandon/revert this PR. If later released with coordinator approval,
+revert the complete PR's browser/harness/docs commits in reverse order and verify
+the reverted Pages bytes plus client reads. The reviewed intermediate head
+`c10ebc8465b5fc95976014e21184a6c2076d8d96` is not a recommended recovery target: it
+can discard unscoped drafts. Let pending saves settle and preserve unfinished work
+before reloading retained tabs; propagation is not instant. The full revert restores
+the known false-empty defect, so keep incident evidence and the release hold.
+No cache purge, data restore, EF deployment, authority reversal, authentication change
+or frozen-writer rollback belongs to this procedure. Monitoring and client-continuity
+gates in draft #1268 remain prerequisites for release.
 
 1. **One-step behavior rollback, always.** Every cutover ships behind a server-readable runtime
    kill switch. Flip that switch first; a frontend revert is secondary because stale tabs and Pages
@@ -94,6 +280,14 @@ schedule while F132 is open; if reducing duplicate cadence, remove the pager's l
 
 Update in the same PR as any change. "Rollback" must be executable by the owner alone.
 
+> **Root intake manifest draft (2026-09-05), not installed:**
+> `docs/audits/2026-09-05-native-intake-manifest.md` records the additive
+> parent+expected-request transaction and retained-data rollback contract.
+> Restore the exact captured prior production-write closure through its approved
+> deployment lane; retain the manifest table, wrapper and accepted/inflight
+> receipts. New old-code requests after rollback lack manifests. No live behavior,
+> flag, authority or frozen anonymous writer was changed by this draft.
+
 > **Workload candidate clarification (2026-07-23):** the existing editable-plan row describes the
 > currently serving plan-date boundary, where deadlines are display-only. The F40/F46/F99/F100
 > source candidate has its own row below: Linear-authoritative due writes use `workload-linear`,
@@ -104,6 +298,7 @@ Update in the same PR as any change. "Rollback" must be executable by the owner 
 | Surface | Current production path | Kill switch / rollback | Last verified |
 |---|---|---|---|
 | SyncLinear description images (paste an image into a description) | `description-image-upload` Edge Function writes the public `syncview-description-images` bucket under the service role after binding the object to one active admin/SMM roster actor and verifying the bytes; the browser inserts the returned https URL as markdown, which the outbound mirror carries to Linear. Deploys on merge via `.github/workflows/deploy-description-image-upload.yml`; bucket, `description_images` ledger and the flag row come from `migrations/2026-09-05-description-images.sql` (applied by the owner 2026-09-05). | **One statement, server-side, no deploy:** `update public.syncview_runtime_flags set value = '{"enabled": false}'::jsonb, updated_by = 'owner-kill' where key = 'description_image_upload_enabled';` — the function reads the flag before authenticating anyone and fails closed on a missing or malformed row, so cached tabs and direct callers are contained at once; the browser shows "Image upload is switched off right now" and leaves the description untouched. Re-enable by setting `enabled` back to `true`. Already-uploaded objects stay readable by URL (that is the ratified public-bucket property); deleting them is a Storage action, not a rollback. Code rollback: revert the merge; the function keeps answering only while the flag is on. | 2026-09-05 (merged with #1310; flag row inserted enabled by the migration) |
+| Private card history (**DRAFT / UNAPPLIED**) | No installed capture is claimed. `docs/ops/CARD_CHANGE_HISTORY.md` prepares atomic private row images for six owners and a separately activated complete backup corpus. Frozen anonymous writers and all existing events/outboxes remain unchanged. | After a separately approved install, one transaction disables only the six `card_change_journal_after` triggers; retain journal/schema/guards/private packages and record the ensuing capture gap. Do not drop history, change auth, replay outboxes or roll back business rows blindly. Backup fallback to the legacy corpus is explicitly limited, not full-history recovery. The new v5 data-only correction retains prior packages and all33 covered relations; matching authenticated schema/empty-target restore remains blocked. Changing the schedule never authorizes provider/outbox replay. | 2026-09-05 source preparation from `287c16cd`; local synthetic PostgreSQL only, no live deployment/retention claim. |
 | Hiring Process capture, review, and interview booking | The private Hiring Process sidecar, `hiring-applications`, and `hiring-automation` are live. Active n8n Application Capture (`oi4BPg79dykdet6H`) mirrors only the dedicated iClosed application event and alerts Kasper. The existing Sales - Call Booked receiver (`xoPqojySDriQ8Mzh`) has a strict first branch for only the dedicated interview event; it records the private hiring status and otherwise continues through its unchanged sales path. Candidate invitation delivery is deliberately **OFF**: `hiring_invites_enabled` is exactly false and the dedicated dispatcher is inactive. | **Immediate candidate-email kill:** keep/set and read back `hiring_invites_enabled={"enabled":false}`; this blocks queue/claim/authorization/send even if an operator later activates the dispatcher. **Capture containment:** deactivate Application Capture to stop new application mirror/alerts. **Booking-mirror containment:** restore/publish the captured pre-branch Sales - Call Booked version `d9d981ec-f133-429d-972a-729189612a99`; this removes only the hiring branch and retains the prior sales booking path. For only the alert-link repair, restore/publish Application Capture version `52274b74-e7d0-4b6f-83fb-6ff36c86e12e`. Read back the graph/active version after any restore; never delete the workflow or drop the private audit rows. | 2026-08-25: active versions read back as `759a33ed-7156-4a86-89ed-bac45497ba55` (capture) and `a82e2ce1-d062-4997-a812-7621b5c1b635` (booking). Controlled internal route proved one provider-receipted invite and `interview_booked` state; booking execution `432073` ran only the hiring branch. Flag returned to false and dispatcher remains inactive. |
 | Client review-token provisioning (SOURCE-ONLY 2026-08-04) | **SUPERSEDED 2026-08-08: live is v4 == main**, deployed through the dispatch-only CI lane (`deploy-client-review-link.yml`, fingerprint readback PASS) — the mint-on-demand layers below are LIVE and the one missing-token client was verified working before and after. Historical description (accurate until 2026-08-08): live `client-review-link` was the operator-deployed 2026-07-15 v2, which returns `review_token_missing` for any client whose `public.client_access` row is absent — true for every client whose roster row postdates the one-time 2026-07-05/06 B0 seed (as of 2026-08-04, exactly one: `lukecutting`). The candidate provisions that missing token at three layers: the source-only `migrations/2026-08-04-client-access-auto-provision.sql` (`after insert` trigger on `public.clients` + one-time backfill), on-demand minting inside `client-review-link` for a verified staff principal against an active client, and `scripts/provision-client-access.js` for operator backfill. Merging changes only the Pages toast wording; the token layers require a deliberate-manual EF deploy and a hand-applied migration. **No layer can rotate a stored token** — writes are INSERT / `ON CONFLICT DO NOTHING`, and the issuer's one UPDATE is guarded on the token being blank (F35: rotating one `401`s every link a client already holds). | Browser toast wording: `git revert` the merge and let Pages redeploy. Migration: the one-command owner-only block at the foot of the SQL file drops the trigger, the trigger function, the column default, and the mint function. It deliberately deletes **no** minted token — deleting one revokes a live client link, which is the outage this change exists to prevent. Edge Function: redeploy the captured 2026-07-15 v2 source under F51 source-exact rules and match the deployed-source/JWT hashes. Reverting any layer restores the *old failure*, not an outage; the fallback in every case is `scripts/provision-client-access.js --apply`. | 2026-08-04 (unit suite 193/193 on branch; `client-access-provisioning` proven to go red on both an `on conflict do update` backfill and an issuer `upsert`; delta applied, re-applied, and rolled back against a disposable PostgreSQL 16 with the pre-existing token byte-identical throughout. Nothing was deployed, applied, or written to any live backend.) |
 | Production mirror hierarchy (F145) | PR #885 is merged on `main` as `f00da653`: Production follows each deliverable's persisted Linear parent UUID globally instead of inventing hierarchy from batch/title similarity. Pages run `29713997171` deployed that merge, and read-only live-HTML inspection found `_prodResolveParentLinks` plus the raw-parent projection with no `batchParent`. This changed only the browser projection/adapter and guards; no schema, data, writer, runtime flag, authority, Edge Function, or n8n state changed. | Run `git revert -m 1 f00da65341797ec55f2f9a0d53b97e6bccd7056f`, push through the normal reviewed path, then require the resulting Pages deployment and live-HTML readback before calling rollback complete. No flag flip, database cleanup, n8n edit, writer rollback, or client drill is required because this is a read-only hierarchy projection. | 2026-07-20 (exact-head run `29711105120` attempt 2 passed all four F145 lanes; Pages run `29713997171` served the merge. Current-main run `29713997723` later failed fast + interaction while heavy/review-packet passed; the PR-head and merge trees are identical, so this is not evidence of an F145 code delta, but the current-main gate remains red for separate triage.) |
@@ -630,6 +825,31 @@ reads for it, so nothing new for the harness to be told about.
 adds `production_asset_access_checks_by_url_idx`; the lookup is correct without
 it. Rollback is `drop index if exists
 public.production_asset_access_checks_by_url_idx;`.
+
+**Unapplied reciprocal completion correction:** no schema object, browser or writer/auth change. Withdrawing its state-reader change restores the known false green, so hold the runner and retain unresolved accounting rather than treating old output as completion. Keep accepted rows, receipts and provenance. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.
+
+## 2026-09-05 review feedback draft compatibility (unreleased)
+
+Do not raw-revert the full HTML while owned review drafts remain. The prior
+document cannot display `syncview_review_draft_v1:` records. Preserve those
+bytes, the composer ownership/display bridge, and existing Samples/native/source
+repair queues. The Samples reader-only inverse can retain all of this code;
+its exact-head builder refuses other writer/schema drift. Removing the feedback
+implementation itself still requires a separately verified compatibility bridge
+or per-owner reconciliation. It is an explicit release blocker, not a safe
+whole-file revert. Procedure: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.
+The frozen anonymous client writers must never be re-gated as recovery.
+
+**Local history-v6 follow-up:** preserve original14/21/33 packages as limited historical evidence and keep every newer receipt/provenance/journal row. Never bypass older-target refusal or truncate omitted data. No migration or activation occurred; see `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`.
+
+**Unapplied selected37 schema-engine preparation:** withdrawing these new tools
+changes no runtime or database. Keep every previous package and receipt. A
+precommit refusal is retryable only after confirming the target is still empty;
+a committed-unverified target must remain quarantined and a fresh empty target
+used for another attempt. The prepared local rehearsal preserves its databases
+and private failures. Deleting an artifact is not a database rollback. See
+`docs/ops/RECOVERY_SCHEMA_V7.md`; no automatic cleanup or production grant is
+authorized by this source integration.
 
 ## 2026-09-05 — deployed: production-write v68
 

@@ -8,6 +8,20 @@ executes these files (see `README.md` › Repository layout).
 
 ## How to read this folder
 
+- **`2026-09-06-native-existing-assignment.sql`** is draft/unapplied. It adds a
+  separate default-provider native-assignment capability, service-only context
+  and atomic write wrapper, and retained terminal receipt guards on the existing
+  outbox. No new table or accepted-history rewrite. Its explicit hold, provider
+  rollback and schema/retained-target restore gates are documented in
+  `docs/ops/NATIVE_EXISTING_ASSIGNMENT.md`.
+
+- **`2026-09-05-card-change-journal.sql`** is a draft/unapplied private atomic
+  before/after INSERT/UPDATE/DELETE journal on six card owners. No writer, auth,
+  runtime flag or existing RPC is changed. Installation checks exact keys;
+  history has no cascading foreign keys, public reads or automatic pruning.
+  `docs/ops/CARD_CHANGE_HISTORY.md` owns the staged backup prerequisites,
+  separate PR #1293 manifest dependency and retained-data rollback.
+
 - **`live-schema-baseline-2026-07-03.sql`** is the authoritative reconstruction
   point: a schema-only snapshot of the live database captured 2026-07-03. To
   rebuild from scratch, start here.
@@ -60,6 +74,11 @@ executes these files (see `README.md` › Repository layout).
   and does not change `pto_v1`. This delta is **source-only** until a value-free apply/readback entry
   confirms both columns, all three function bodies (including the active-target guard), and their
   service-role-only grants in `EXECUTION_LOG.md`.
+- **`2026-09-05-workload-native-membership.sql`** is a source-only manual prerequisite for the
+  native-default staff Workload reader: three service-only functions provide an exact single
+  snapshot and alias-preserving plan target/set. No table, stored plan key, epoch or flag changes.
+  Requires the existing native Workload view and complete native workload-label projection.
+  Install/restore/serving holds are in `docs/ops/WORKLOAD_NATIVE_SOURCE.md`; never apply by merging.
 - **`2026-07-19-workload-plan.sql`** adds the `workload_plan` sidecar keyed by the stable Linear
   sub-issue id, with normalized client scope, nullable internal `plan_date`, and server-owned
   `updated_by` / `updated_at`. It deliberately adds no column or foreign key to the rebuildable
@@ -686,3 +705,22 @@ executes these files (see `README.md` › Repository layout).
   once. `native_assignee_id` carries the other one. Because two columns moved,
   `create or replace view` cannot re-apply over an earlier branch build — the
   file's header says to drop it first.
+- **`2026-09-05-calendar-feedback-recovery.sql`** adds the service-role-only
+  `calendar_feedback_recovery_apply_v1(jsonb)` and the insert-only evidence
+  table `calendar_feedback_materializations`. In one transaction it proves an
+  accepted client comment add by its mutation receipt and canonical identity
+  under `FOR UPDATE` (no outbox required), proves the reserved companion status
+  by its outbox receipt, checks the reciprocal client/card/deliverable binding
+  and an original-source-row `updated_at` CAS, appends the verified entry to
+  the component cell beside every existing entry and tombstone, applies only
+  the allowlisted owned scalar fields, ledgers `calendar_post_events`, and
+  records idempotent evidence; every hold returns without writing. It touches
+  no existing object, flag, grant or writer. **SOURCE-ONLY until applied.**
+  Apply this first, then deploy `production-write`, then the browser half.
+  Exercised end to end on a disposable PostgreSQL 16 by
+  `qa/calendar-feedback-recovery/`; contract in
+  `docs/ops/CALENDAR_FEEDBACK_RECOVERY_CONTRACT.md`. Rollback block at the
+  bottom of the file (drop the two functions; keep the evidence table).
+
+
+- **`2026-09-06-linear-outbound-cutoff.sql`** is the unapplied, default-inactive G8 prerequisite for only the ordinary `mirror_outbox` claim/provider-mutation lane. It adds a server generation/high-water control, classifies accepted post-cutoff receipts without terminalizing them, and refuses stale worker application. It does not close inbound/reconciliation/browser/n8n/F27/provider-control coverage; see `docs/ops/LINEAR_OUTBOUND_CUTOFF.md`.

@@ -98,13 +98,13 @@ ok(/if \(error \|\| !data\) throw new Error\(`runtime flag unavailable: \$\{key\
   && /if \(!key\) return ""/.test(outbound)
   && /return raw === "linear" \? "linear" : ""/.test(outbound),
 'parity fails closed when authority is unreadable, malformed, or has an unknown team/value');
-ok(/if \(!team && requestedTeamId\) team = await readTeam\(requestedTeamId\)/.test(outbound)
-  && /if \(!team && row\.operation === "create"\) team = await readTeamByRowTeam\(row\.team\)/.test(outbound)
+ok(/if \(!team && requestedTeamId\) team = await readTeam\(requestedTeamId, \{ supabase, row \}\)/.test(outbound)
+  && /if \(!team && row\.operation === "create"\) team = await readTeamByRowTeam\(row\.team, \{ supabase, row \}\)/.test(outbound)
   && /\["graphics", "graphic", "gra"\]\.includes\(rowTeam\)[\s\S]*\? "GRA"/.test(outbound)
   && /\["video", "vid"\]\.includes\(rowTeam\)[\s\S]*\? "VID"/.test(outbound)
   && /if \(!key\) return null/.test(outbound)
   && /teams\(first: 50\)/.test(outbound),
-'create retains supplied team UUID support and otherwise resolves VID/GRA read-only');
+'create retains supplied team UUID support and otherwise resolves VID/GRA read-only with exact dispatch context');
 ok(/async function targetResult/.test(outbound)
   && /status,operation,team,dedup_key,legacy_parity,test_only,attempts,next_retry_at,last_error,linear_result/.test(outbound)
   && /\.\.\.summary,\s*target/.test(outbound)

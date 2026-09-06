@@ -1,5 +1,17 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Legacy card accepted but response lost / duplicate retry / caption overwrite → [uncertain-attempt retention](audits/2026-09-06-legacy-card-outcome-uncertainty.md). Actual browser-source/model receiver proof; exact fragments held without automatic replay or inferred native identity. Serving, actorless recovery and old bundles remain held.
+
+Old Calendar submission queue disappears after authority change or expiry → [v1 retention boundary](audits/2026-09-06-legacy-calendar-job-retention.md). No inferred native identity, durable quarantine or automatic recovery.
+
+Saved intake disappears after repeated failures / Retry saved post → [bounded v3 retention evidence](audits/2026-09-06-native-intake-retention.md). Existing slot and exact request retained; v1 queues, sign-out and complete G6 remain held.
+
+Ordinary Linear worker viewer/read egress after cutoff → [bounded transport correction](audits/2026-09-06-outbound-read-cutoff.md) and [G8 owner contract](ops/LINEAR_OUTBOUND_CUTOFF.md). Actual isolated proof; old-worker quiescence and global egress remain held.
+
+Current native label catalog/save and recovery hold: [contract](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md), [correction evidence](audits/2026-09-06-native-label-writes.md). Default-disabled source; no activation/serving claim.
+
+Native label catalog / Linear label prerequisite / staged import and recovery coverage → [dormant catalog owner contract](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md). This is a held G2 foundation under the existing go-live checklist, not an activation or a second execution plan.
+
 > **The rule this doc keeps: any documented fact in ≤2 opens from here.**
 > Draft shipped by the 2026-07-19 vault audit (P4 proposal — owner ratifies by
 > merging). If this router ever fails to route you, add the missing row in the
@@ -36,6 +48,8 @@
 | Where does file/folder X live? | `REPO_MAP.md` |
 | Which n8n webhooks / Edge Functions does the app call? | `docs/truth/ENDPOINTS.md` |
 | Supabase tables, flags, write contracts | `docs/truth/SUPABASE.md` |
+| Private durable card changes, original values, retention and complete backup rollout | `docs/ops/CARD_CHANGE_HISTORY.md` (draft/unapplied; separate from the activity feed) |
+| Held schema reconstruction with canonical37 data and accepted receipt replay | `docs/ops/RECOVERY_SCHEMA_V7.md` (local source preparation; authenticated-schema proof remains held) |
 | n8n workflow inventory & state | `docs/truth/N8N.md` |
 | Google Sheets tabs, roster truth | `docs/truth/SHEETS.md` |
 | Linear teams/states/what syncs | `docs/truth/LINEAR.md` |

@@ -2,11 +2,12 @@
 'use strict';
 
 /**
- * F40 — will the Workload lane survive the flip?
+ * F40 — historical provider-mirror cohort readiness before the flip.
  *
  * READ-ONLY. Needs no secret: it reads the same publishable key and the same
- * safe projection the browser itself uses, so it measures exactly what a
- * designer's page would see.
+ * safe projection. This does NOT census the new native-default Workload
+ * population. An unsupported browser contract exits UNPROVEN before requests;
+ * native completeness requires a separately implemented and proved census.
  *
  * WHY THIS EXISTS. After F1 the Workload page stops asking the Linear gateway
  * for a team's due dates and workload weights and reads them natively instead
@@ -95,8 +96,8 @@ function readPublicConfig() {
 
 const CONFIG = readPublicConfig();
 
-/* The gate must audit exactly the population the Workload page loads, no more
- * and no less. wlFetchLinearMetadata filters active issues through
+/* This historical computation supports only the provider-mirror population.
+ * The old wlFetchLinearMetadata filters active issues through
  * `wlIsActiveStatus` and `wlIsAllowedClient` (index.html) before anything
  * reaches the native reader, so an issue that fails either filter can never
  * produce the failure this gate predicts. Counting it anyway produces a
@@ -105,6 +106,17 @@ const CONFIG = readPublicConfig();
  * These lists are read from the shipped app so they cannot drift from it. */
 function readBrowserContract() {
   const source = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const loader = source.match(/async function loadLinearIssues\(force\) \{([\s\S]*?)\n {4}\}/);
+  const metadata = source.match(/async function wlFetchLinearMetadata\(issues\) \{([\s\S]*?)\n {4}\}/);
+  // Require the known active legacy entry and its actual population filter.
+  // A nearby inert legacy function cannot certify the current native loader.
+  const legacyPopulation = !!(loader && metadata
+    && /\bwlReadCache\(\)/.test(loader[1])
+    && /const url = force[\s\S]*?: LINEAR_ISSUES_WEBHOOK;/.test(loader[1])
+    && /await fetch\(url, init\)/.test(loader[1])
+    && !/\bwlFetchNativeSnapshot\(/.test(loader[1])
+    && /wlIsActiveStatus\(issue\)/.test(metadata[1])
+    && /wlIsAllowedClient\(issue\.clientName\)/.test(metadata[1]));
   const parked = source.match(/const WL_PARKED_STATUSES = new Set\(\[([\s\S]*?)\]\);/);
   const names = source.match(/const WL_CLIENT_NAMES = \[([\s\S]*?)\];/);
   // The terminal STATUS TYPES were hard-coded here while the parked list and
@@ -122,6 +134,7 @@ function readBrowserContract() {
   );
   if (!terminalTypes.size) throw new Error('could not read the terminal status types from index.html');
   return {
+    population: legacyPopulation ? 'legacy-provider-mirror' : 'unsupported',
     parkedStatuses: new Set(strings(parked[1])),
     seedClients: strings(names[1]),
     terminalTypes,
@@ -278,6 +291,9 @@ async function auditTeam(team, allowedClients) {
 }
 
 async function main() {
+  if (CONTRACT.population !== 'legacy-provider-mirror') {
+    throw new Error('UNPROVEN: F40 covers only the historical provider-mirror cohort; the current Workload population needs a new native completeness census. No remote data was read.');
+  }
   const args = process.argv.slice(2);
   const asJson = args.includes('--json');
   const teamArg = (args.find(value => value.startsWith('--team=')) || '--team=graphics').split('=')[1];
@@ -315,7 +331,7 @@ async function main() {
       const floor = ACCEPTED_FLOORS[result.team] || 0;
       const verdict = result.unprovable_total <= floor ? 'READY' : 'NOT READY';
       console.log(`\nF40 workload readiness — ${result.team}: ${verdict}`);
-      console.log(`  audited (what the page loads) ${result.active_sub_issues}`);
+      console.log(`  audited legacy mirror cohort ${result.active_sub_issues}`);
       console.log(`    excluded, parked/terminal  ${result.excluded_parked_or_terminal}`);
       console.log(`    excluded, off roster       ${result.excluded_off_roster}`);
       console.log(`  provable after the flip      ${result.provable_total}`);
@@ -355,7 +371,7 @@ async function main() {
   if (atFloor.length) {
     console.log(`\nF40 gate: ${atFloor.map(r => `${r.team}=${r.unprovable_total}`).join(' ')} unprovable row(s), at or under the owner-accepted floor ✅ PASS`);
   } else {
-    console.log('\nF40 gate: every active sub-issue is provable natively ✅');
+    console.log('\nF40 gate: every audited legacy mirror sub-issue is provable natively ✅');
   }
 }
 

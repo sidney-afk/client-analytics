@@ -1,5 +1,14 @@
 # Open repairs and pending owner decisions
 
+**2026-09-06 bounded G3 follow-up — source prepared, release held:**
+the [native-card HTTP adapter](../audits/2026-09-06-native-card-http-adapter.md)
+preserves current repository auth and ordinary writer bytes, retains bounded UTF-8
+request text through one SQL RPC, and refuses incomplete/uncertain acknowledgements.
+70 offline controls pass after the bounded empty-child-slot response correction.
+Actual serving composition, anonymous client continuity,
+both n8n fallback amendments and installed SQL/recovery remain explicit gates;
+automatic creation is not enabled. No production action or client-surface change.
+
 Created 2026-08-08 from the reset audit, because several known repairs lived
 only in chat transcripts and session summaries — which is how the ~52
 unparented batches went two days with no file anywhere tracking them. An item
@@ -13191,3 +13200,338 @@ and the card refuses `[ ]` in text and `< >` in an address with a visible
 note. The lane also gained per-section phase markers after the first CI
 red reported under an assignee phase.
 
+
+Integration numbering: the four draft-only rows formerly 158-161 are now 159-162 after preserving current main's description-editor row 158. Original source-draft labels and commit-pinned historical citations remain unchanged.
+
+## 159. [2026-09-05, DRAFT — unmerged, disabled by default, on PR1302; numbered 157 in the source draft] Explicit and automatic assignment still asked Linear on a native-admitted intake
+
+Numbered against current main (156 is its last item); this branch is based on
+PR1302, so check for a duplicate header at integration.
+
+**Symptom.** With a team admitted natively (PR1302's `native_intake_epochs`), a
+Submit or Create Post that named an editor still ran
+`assertEligibleAssignee -> assigneeEligibilityContext -> assigneeProviderPool`,
+because `production_assignee_eligibility` missing, unreadable or strict meant
+"provider mapping required", which meant one Linear `users` read. Linear down
+refused the request (zero partial commit, correct) for work that would never
+drain to Linear. The automatic path had a second, silent provider-era rule:
+`autoAssigneeForIntake` dropped any active member without a stored
+`linear_user_id`, on every intake with no explicit editor.
+
+**Fix (draft).** `assigneeLanePolicy` in `policy.mjs`: the server-resolved native
+epoch decides the lane; a native lane never reads the flag or the provider and
+keeps active/role/team checks; a provider lane is unchanged, strictest on
+absence. The automatic filter follows the same policy. `nativeAssigneeCatalogReadiness`
+plus `scripts/native-assignee-catalog-dryrun.js` report roster readiness as
+counts. Real-handler lane with denied provider transport and a PR1302-head
+negative control: `test/native-assignee-eligibility.js`. Full note:
+`docs/audits/2026-09-05-native-assignee-eligibility.md`.
+
+**Left open on purpose.** (a) The Create Post dialog still filters its editor
+pool to mapped editors in the browser; on a native lane with an unmapped freest
+editor its suggestion and the server default can differ, so a native epoch must
+not be enabled while the dry-run's `provider_lane_would_refuse` is non-zero
+unless the picker moves to a server projection. (b) A credentialless public
+Submit may carry an explicit video `assignee_id` and is accepted on both lanes
+(authorization scope, pre-existing, not changed here). (c) SyncLinear non-null
+assignee, Production create and both pickers stay provider-dependent.
+
+**Addendum, same day, after an independent actual-handler review of `3c40c0ae`.**
+Two regressions in the first draft's AUTOMATIC selection, both corrected in the
+draft and pinned at the handler on both lanes with PR1302-head controls: (1) on
+the native lane the automatic pool admitted every active same-team role, so an
+active unmapped SMM marked as the sole graphics default was assigned where
+PR1302 refuses 409; (2) a mapped default designer beside an unmapped SMM default
+was refused 409 while readiness said ready, where PR1302 assigns the designer.
+Fix: `nativeIntakePool` in `policy.mjs` (active, exact team, exact creative role,
+mapping optional) is now the one pool behind both the native automatic choice
+and `nativeAssigneeCatalogReadiness`; the provider automatic pool is restored to
+its original contract (stored mapping required, no flag read, role by caller),
+withdrawing the first draft's flag-routed widening under the retired value. The
+dry-run's REST read now pages with exact counts and refuses truncated or
+unknown-total rosters. "Provider lane byte-for-byte unchanged" in the entry
+above was overbroad for the first draft; the precise scope is in the audit note.
+
+## Pending durable card history — draft, not installed
+
+The owner's request to keep every card change for at least 30 days is tracked
+by `docs/ops/CARD_CHANGE_HISTORY.md`. This source-only slice adds a private
+atomic INSERT/UPDATE/DELETE before/after journal to Calendar cards, Samples
+cards, native batches/deliverables/comments and Workload plans. It preserves
+existing semantic events/outboxes and anonymous writer access, records actors
+only to the assurance the transport actually provides, and retains history
+when current rows are deleted. Proposed retention is 90 days/minimum 30, with
+no automatic pruning.
+
+Open completion gates: independent exact-source review; separate PR #1293
+manifest schema prerequisite for the expanded backup corpus; reviewed schema/
+private-grant installation; reserved real-client-link TEST canary; complete
+private snapshot/readback/scratch restore; actual alert delivery; and observed
+retention window. Existing 14-table backups are explicitly limited. No live
+change or history guarantee is implied by this draft or its local SQL tests.
+The pre-install comment-failure continuity gate is currently **FAIL**, not merely
+unproven: the separate finite browser proof at `287c16cd` found refused-note/
+tweak drafts lost immediately or on reopening, including newer typing. The
+accepted Samples-note subset remains conserved. Install must wait for the
+separate failure-preservation repairs and passing failure/reopen tests because
+a journal insertion failure intentionally rejects the corresponding save.
+
+**Restore review correction, draft/unapplied:** preserved PR #1299 `85018bf8`
+proved only a minimal 21-table fixture. An independent migration-shaped catalog
+reproduced 9 incoming FKs from 8 omitted tables, plus the F27 intent edge.
+New explicit `history-v5` data coverage includes all 33 known closed-corpus
+relations and retains comment/intake dedup evidence; old packages remain readable
+and limited. Raw legacy14 TRUNCATE also refused those FK dependencies before the
+new legacy guard, so narrowing that guard is not a full-schema legacy fix.
+The matching authenticated schema artifact and empty-target reconstruction are
+still a RELEASE BLOCKER. See `TRACK_B_BACKUP.md` and the dated restore correction
+audit. Default schedule, journal SQL, frozen writers and live configuration stay
+unchanged by source preparation.
+
+## 160. [2026-09-05, DRAFT REPAIR — source and synthetic proof; release held; numbered 157 in the source draft] Samples could turn a failed or incomplete read into an empty board, and unfinished local work needed an owned recovery path
+
+**Owner and scope.** First Samples release #1295, coordinated under the
+Linear-exit plan #1268. This entry records the existing #1269 reader/local-work
+repair carried into that release; it does not open a second implementation.
+The ledger at pinned main `ab6366136c03239965c97b050ab5cf7c9763a228` had no entry
+owning this false-empty/recovery correction. Historical Samples queue/filter,
+nightly-probe and comment-symmetry entries describe different defects.
+
+**What the candidate changes.** `_sxrFetchAuthoritativePosts` requires exact
+counted per-client keyset pages and validates completeness and identity.
+`_sxrFetchPosts` treats failed, malformed, wrong-client or empty fallback as
+unverified; valid scoped nonempty fallback can be shown with an incomplete or
+outdated notice but cannot replace existing cards/cache or certify freshness.
+Only authoritative primary recovery can clear that warning and certify an
+empty result. `loadSxrCards` and owned work helpers retain unfinished work
+across reads, client/actor changes and reload; field debt is cleared only by
+matching acknowledgements. Existing writer routes and frozen anonymous writer
+authorization are unchanged. This does not implement the separate composer
+draft/history proposals or prove server persistence after browser storage loss.
+
+**Current finite integration.** Local merge
+`dd702412f7a36a46f610ea05ecad8ac06469ba73` combines reviewed release
+`e665ba77f95d832029c7b0c028c3011b249ea3a0` with only pinned main `ab636613`.
+The merge is conflict-free; all 308 named Samples functions and its
+monitor/recovery harness paths are unchanged from the release. Inherited
+Production assets, Edge source, optional lookup-index migration and tests stay
+at the captured main version. No original release checkout or evidence is
+overwritten. The full proof and paired forward/recovery hashes live in
+`docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`; the inverse changes only the reader
+and preserves the new tree's assets, owned work, receipts and cache.
+
+**Not closed by this record.** Review of the new final commit, applicable hosted
+checks, exact serving/writer pre-state, approved populated TEST journeys with
+persistence/readback, and operational monitoring/independent recovery proof
+remain release gates. Previous CI belongs to `e665ba77`; at this local proof
+checkpoint, the merge had not been pushed, deployed or exercised against
+production. Do not use an older
+whole HTML document as rollback: it cannot display the new owned debt. Do not
+infer a live fix, full comment history or zero-loss guarantee from the offline
+checks. Close this entry only with the reviewed release, serving and bounded
+journey/recovery receipts, or an explicit owner decision to abandon it.
+
+## 161. [2026-09-05, IMPLEMENTATION DRAFT, unapplied, disabled; numbered 156 in its source draft] Native intake child recovery and visible card-completion debt
+
+**2026-09-06 bounded compatibility evidence — still held:** retained native jobs have
+distinct HTTP source markers, but both freshly read published n8n fallback graphs strip
+those markers/native child IDs and write card tables directly. An EF-only creation
+receipt cannot fence that path. The [finite amendment contract](../audits/2026-09-06-native-card-compatibility.md)
+preserves anonymous UI writes, requires both transports to adopt one manifest/receipt
+meaning, and explicitly holds unknown pre-manifest recovery, browser-expiry conservation,
+trigger-aware backups and the compatible inverse. No workflow or runtime changed.
+
+**Current integrated scope:** child recovery plus conservative existing-card binding only. Automatic card creation remains held. The chronological entries below retain superseded creation/guard claims; the final correction and reciprocal review govern the candidate. Installing even an AFTER provenance recorder can reject a save if recording fails, so failure-preservation testing remains required.
+
+Owner-directed continuation of item 155's neighbour on the same day, the
+native-intake reliability evidence (PR1274, head `7d2812ac`), through the root
+manifest (PR1293, `5418ab56`) and the disabled native intake epochs (PR1302,
+`8cb5cba9`). Those two drafts left both materialization gates red: a root intake
+interrupted after its parent commit owed children that only the original
+browser payload could recreate, and every accepted intake owed a Calendar or
+Samples card that only the submitting tab ever wrote.
+
+### What this adds
+
+One additive migration, `migrations/2026-09-05-native-intake-reconcile.sql`, on top
+of PR1302, with two independently observable stages and two read-only readers:
+
+1. `production_intake_reconcile_children` recreates missing expected NATIVE
+   children from the immutable manifest through the unchanged
+   `production_deliverable_write`, with the original ids, brief, card plan, dedup
+   keys, fingerprints, accepted per-team epoch, original actor and role, and the
+   parent receipt as `depends_on_id`. The F27 fence and hold triggers, the native
+   receipt guard and authority run exactly as they do for the gateway. All or
+   nothing per request; readback of the facts, not of the RPC result.
+2. `production_intake_reconcile_cards` creates the missing card in the exact
+   browser shape the frozen writers receive today, or binds only an empty slot on
+   an existing card, and refuses archived, deleted, occupied, re-carded and
+   un-carded cases with a durable reason and an owner.
+
+Completion is a query over existing facts (manifest, deliverable rows, receipts,
+card slots). No new authority table. Reasons go to `deliverable_events` as
+`source='reconcile'` rows and are never read to decide completeness.
+
+`scripts/native-intake-reconcile/` holds the runner library (backlog paging,
+stage order, report) and a dry-run-by-default REST entry;
+`.github/workflows/native-intake-reconcile.yml` is manual-only with no schedule
+and refuses apply without an exact confirmation phrase. Nothing is installed,
+scheduled or dispatched.
+
+### What the proof showed
+
+`test/native-intake-reconcile.js`: 47 checks passed against the real gateway and
+real SQL on disposable PostgreSQL 16, provider unreachable throughout, zero
+provider or drainer requests. Interruption before the first and before the
+second child, response loss, two concurrent reconcilers, a reconciler racing the
+explicit gateway retry, epoch change after acceptance, partial backlog pages,
+existing card with an empty slot, occupied slot, human edits, archived and
+deleted cards, re-carded and un-carded deliverables, identity conflicts, open
+F27 hold and fence bump, Linear authority, provider-era request, archived batch,
+inactive client, samples surface, missing terminal receipt, roles, and the
+runner library including response loss. The inherited PR1293 and PR1302 suites
+are unchanged (41 plus 3, and 50), and their gateway readiness rows stay red on
+purpose: the gateway itself did not change.
+
+### Left open, on purpose
+
+- Provider-era children are reported, never recreated; the explicit gateway
+  retry owns them.
+- Pre-manifest requests are invisible here.
+- Installed and full serving are unproven; nothing touched a live database.
+- The card shape is proven against the frozen writers' repository source, not
+  their serving bodies; live-only constraints or triggers on the card tables are
+  not in the fixture.
+- Alerting is designed (owed counts, backlog age, conflicts, missing terminal
+  receipts, dead-man heartbeat), not delivered.
+
+Contract, evidence, release order, client-visible behaviour per step, rollback
+and the smallest next action: `docs/audits/2026-09-05-native-intake-reconcile.md`.
+
+### Corrected 2026-09-05, review of head `df3d032`
+
+Independent review found three release blockers in the first head, all real:
+
+1. The runner printed the whole report, request ids and raw RPC error bodies
+   into a public Actions log. Public output is now aggregate counts, allowlisted
+   reason codes and, only with a private hash key, keyed correlation tokens; the
+   full report can be written only to a file outside the repository; reasons are
+   bounded at the SQL source before they reach the anon-readable ledger. Proved
+   by running the actual CLI against a canary-seeded fake endpoint
+   (`test/native-intake-reconcile-cli.js`).
+2. The claim that a late original browser job is "a no-op" was false. The saved
+   job resends its complete initial row with no `comments_base_at`; the writer's
+   CAS never engages, and a person's rename, schedule, status and caption, or an
+   archive, were overwritten. Reproduced with the actual extracted browser
+   function through the repository writer sources (negative control B1). Closed
+   at the table layer, where old tabs and saved jobs also land: an append-only
+   card provenance table records each creation's initial signature inside the
+   writer transaction, and a BEFORE UPDATE guard recognises an update carrying
+   exactly that signature as the replay, keeps the human-owned fields and any
+   occupied slot, and lets the write proceed and be acknowledged. No writer body,
+   credential or refusal changed. This is a database behaviour change under the
+   frozen writers and is an explicit release hold pending owner review.
+3. "No card event row" was read as "never created", but both writers insert
+   events best-effort after the row commit. Reproduced (negative control P1: a
+   committed card whose event was lost, then deleted, was recreated). Never
+   created is now proved from the provenance table and an `installed` marker;
+   requests accepted before the marker are held, not recreated.
+
+Lane: 62 checks passed (47 first head, 15 review round). Still unproven: the
+serving v48/v49 bodies against these triggers, installed behaviour, provider-era
+child recovery, and any card created before the provenance install.
+
+### Corrected 2026-09-05, review of head `48f7501`
+
+Independent review found the second correction unsound. The BEFORE UPDATE guard
+recognised a replay by row CONTENT: an update carrying exactly the creation
+signature. A person renaming a card back to its original title carries exactly
+that signature too. Reproduced on the base head through the actual writers: on
+both Calendar and Samples the rename-back returned 200 and the card kept the
+intermediate title. The creation classifier (fresh statuses, no schedule, one
+bound slot) also matched copied and non-intake rows. Both are removed; no trigger
+on either card table alters, refuses or reorders a write any more.
+
+What the unchanged frozen writer conveys to the database is the resulting row
+values and its own clock, nothing else: no request id, no source, no base
+timestamp. No row-level rule can therefore tell a late original browser job from
+a person, and a waiting period cannot be assumed to drain old jobs. Automatic
+card CREATION by the reconciler is structurally disabled: a missing card is
+reported as `card_creation_held` (owner operator) and stays in the backlog and
+the summary as visible debt until its owner, the browser job or a person,
+creates it. Stage 1's child recovery is unchanged and separately usable. What
+remains automatic is provable from recorded facts alone: binding a slot the
+created fact shows empty and no slots_changed fact has touched since. The card
+row is locked first, then every expected deliverable, and exact identity and
+cardinality are revalidated under those locks before any write
+(`reconcile_child_identity_changed`, `card_missing_under_lock`). The previous
+audit's lock-order sentence was reversed relative to its code; both now agree.
+The private report path guard resolves real paths and refuses in-repository
+`..private` names and symlinks into the tree.
+
+Lane: 66 checks passed, including both rename-backs, a genuine late browser
+retry (observed overwriting a person's fields through the frozen writer, a
+pre-existing hazard this branch did not introduce and does not widen: the
+reconciler wrote nothing), a copied lookalike, a concurrent re-card and a
+concurrent delete during the bind, and rollback under a synthetic failure; CLI
+16, including the two path-guard cases. Remaining contract before automatic
+creation can be considered: the writer must convey an operation identity into
+the transaction (the browser already sends `x-syncview-source`; the writer drops
+it before the database), a frozen-body change and an owner decision; or the
+old-job cohort must be proved empty by refusal, never by waiting. Card
+completion is not declared and Decision A is not ready.
+
+**Item 160 independent follow-up, local/unapplied (formerly 156):** shared state completion now requires reciprocal manifest-child identity, so a moved or cleared child remains visible debt even if the old card slot still names it. The baseline false green reproduced on both Calendar and Samples. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md` for current proof and the held creation protocol. No authorization to re-gate anonymous writers is inferred.
+
+## 162. [2026-09-06, CANDIDATE — source-only; numbered 156 in its source draft] Accepted Calendar feedback recovery with exact companion receipts
+
+**Defect class.** A client's Calendar tweak/note writes twice: the native
+canonical comment (accepted, receipted) and the source card cell through the
+frozen `calendar-upsert`. When the second write is refused or loses its
+response, the client keeps an owned attempt but nothing could safely insert the
+missing copy: `calendar_merge_comments` merges by id/stamp and never checks
+`production_comments`, so a native edit/delete/resolve between a browser
+readback and the source insert could resurrect stale feedback (the BLOCKED hold
+in `CALENDAR_FEEDBACK_RECONCILIATION.md`). The repaired readback also refused
+an accepted add that had a mutation receipt but no outbox row.
+
+**What ships in the candidate.** `migrations/2026-09-05-calendar-feedback-recovery.sql`
+(service-only `calendar_feedback_recovery_apply_v1`, insert-only evidence
+table), the additive `recover_source` modifier in `production-write` behind the
+existing client-token authorization and front-door binding, and the browser
+half: the owned attempt now carries the original source revision, the owned
+fields (`<comp>_status`, `status`, cleared approval stamps for a tweak; nothing
+for a note) and the exact companion status request reserved before it is sent
+and receipted afterwards, lost responses included. `Retry card sync` re-sends
+the byte-equivalent original comment request plus that context; one RPC
+transaction proves the add by receipt + canonical identity under `FOR UPDATE`,
+proves the status by its reserved outbox receipt, checks reciprocal
+client/card/deliverable binding and an original-source-row CAS, appends the
+verified entry beside every existing entry and tombstone, applies only the
+owned fields, ledgers events, records evidence. Holds are visible and
+write-free. Root notes from the Sheet notes overlay are owned attempts now.
+
+**Proof.** Actual handlers + frozen writer over a disposable PostgreSQL 16:
+handler matrix 19 groups / 621 checks; browser matrix 11 groups / 266 checks
+through the offered controls (both components, notes and tweaks, response loss, lifecycle races,
+unrelated edits, wrong client, legacy attempts); exact-base document and handler
+proven to keep holding. Mock lanes re-pointed at the same declared contract;
+the seven previously red complete-repair requirements in
+`calendar-recovery-races.js` pass because the mock now models the atomic
+lifecycle check the RPC performs.
+
+**Explicitly not done, by design (first slice).** A missing native status is
+never replayed (`companion_status_unproven` holds). An unrelated source change
+since capture holds (`source_row_changed`) rather than guessing. A comment copy
+already on the card with differing status fields holds
+(`source_fields_diverged`); the card, not the copy, is the debt. Divergent
+legacy `tweaks` aliases hold. Attempts captured before this candidate (no
+`recoverySource`) stay visible and unresolved with a precise notice. No
+permanent source/native synchronization is promised after later lifecycle
+changes.
+
+**Gates left open.** Apply the migration; deploy `production-write` through
+the manual Section 4 lane with a fresh capture; a live TEST-client drill of
+the exact button path; Samples is out of scope.
+
+**Integrated recovery backup follow-up, local/held:** FK-free card provenance and Calendar feedback materialization receipts require the separate history-v6 exact35-table corpus. New12 offline and10 combined local SQL checks pass; authenticated schema reconstruction and combined feedback-RPC behavior remain release holds. See `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`. No install, activation or backup schedule change.

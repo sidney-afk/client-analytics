@@ -1,4 +1,422 @@
-# Workload needs a native source — scope
+# Workload native membership — implementation and retained scope
+
+## 2026-09-05 candidate: native default and compatible saved plans
+
+**SOURCE_ONLY; not deployed, not G5 closed.** Base is remote main
+`99d31c815de3e1a46deeb01c45c09bf2937040ad`. This current section supersedes the
+older proposed identity/default-read choices below; dated measurements below
+have not been refreshed by this implementation.
+
+The staff board now opens, force-refreshes, refreshes after intake, and refreshes
+in the background through `workload-plan` action `native_snapshot`. The new
+service-only `workload_native_snapshot_v1()` reads the current `prod_authority`,
+population and every saved-plan row in one PostgreSQL statement snapshot. Its
+exact count must match all returned identities; more than 50,000 population or
+plan rows refuses rather than returning a partial success. A missing flag,
+dependency, grant, alias proof or complete native weight projection holds the
+read. The previous board remains visible with a retry warning; saved-plan and
+deadline writes are held. An auth denial purges the private plan/metadata state.
+The old `wl2` switch, cache and provider transport cannot rescue a failed native
+snapshot. Historical `_wlLegacy*` functions remain inert compatibility source.
+
+VID/GRA use the existing native view only when their actual authority is
+`syncview`. Existing status mapping, imported-container exclusions, completed
+status filtering, item order, weighted Video capacity and unweighted Graphics
+capacity remain. Active native client and exact active assignee team/creative
+role determine native membership; a missing provider user mapping is allowed.
+Excluded/unassigned work retains the existing visible exclusion accounting.
+Legacy rows retain their previous membership rules. **CON/STR remain explicit
+legacy source coverage, with a visible warning.** A provider-authority VID/GRA
+team also remains explicitly legacy and uses the existing metadata gateway.
+Failure does not replace a native population with a provider population.
+
+Native board IDs are deliverable IDs. Mapped old UUIDs are aliases, never new
+storage identities inferred from a name or title. The snapshot projects each
+saved plan onto its currently visible native or provider card; old `list`
+callers receive both exact aliases. Writes resolve the same owner again under
+locks. Existing UUID/native storage keys are retained; conflicting dual rows,
+cross-client ownership and ambiguous aliases refuse without deleting anything.
+A first native-authority plan uses the native ID; a first provider-authority
+mapped plan uses the provider UUID after exact current mirror/client validation.
+The SQL writer rechecks and locks the authority row before choosing that key.
+The original sidecar remains last-write semantics; this is not a new general
+plan CAS or replay protocol. New schema contains three functions and **no new
+table, epoch, data migration or flag**.
+
+Native Workload links use native deliverable IDs. Native feedback preview uses
+the existing staff `production-comments` canonical reader with exact complete
+pagination, identity/session checks and deleted/resolved suppression, without a
+Linear fallback. Empty preview explicitly directs staff to the post's review
+notes. This does **not** prove source-only Calendar/Samples feedback coverage or
+feedback write/retry continuity. Those remain G4/G5 integration gates. CON/STR
+feedback retains its existing legacy path; native membership is not full
+provider independence.
+
+### Evidence and release gates
+
+- Integration base `688947308c96e6f00b09a495a1f16f939fde479d`:
+  `test/workload-history-integrated.js` adds **17 actual-handler/PostgreSQL
+  groups PASS** with the real six-owner journal and history-v6 restore. It
+  preserves UUID/native saved-plan aliases and days, refuses dual aliases,
+  proves plan/journal failure atomicity, restores all35 row images and trigger
+  state, and re-reads exact aliases/dates through the handler after restore.
+  SQL calls use `service_role`; anonymous/authenticated RPC execution refuses.
+  The SDK transport is replaced with SQL and external fetch is denied. See
+  `docs/ops/INTEGRATED_RECOVERY_CORPUS.md` for the opt-in command and limits;
+  this does not prove installed schema, browser/serving, CON/STR data recovery,
+  or execute the native intake/Calendar recovery RPCs in this lane.
+- `test/workload-native-membership.js`: 47 isolated real-source reader/adoption
+  checks, including exact-base forced-provider negative control. No network.
+- `test/workload-native-postgres.js` plus `qa/workload-native/handler.mjs`:
+  opt-in disposable PostgreSQL proof; 28 SQL and 29 full-handler/shared-auth
+  checks. Includes >1,000 rows, real statement snapshot/concurrent plan commit,
+  both flip directions, first/existing storage keys, alias refusal and service
+  privileges. The SDK is replaced with SQL transport; the consumed production
+  view columns use the actual label helper. Legacy/flag tables are minimal
+  fixtures. This is not installed-schema, Deno serving or live continuity proof.
+- Existing capacity, saved-plan optimistic restoration, actor and authority
+  tests must still pass after their fixture interfaces follow the atomic reader.
+  Full integrated house/CI checks and named independent review remain required.
+
+**Targeted compatibility result:** all six adapted Workload suites passed in
+one run, 2026-09-06 01:41:52–01:42:50 UTC, with unchanged runtime/test hashes:
+`workload-linear-browser`, `workload-plan-failclosed`, `workload-plan-source`,
+`workload-syncview-links`, `workload-overdue-ruling`, and
+`workload-tweak-exclusive-bucket`. The browser fixture composes the actual
+atomic loader and preserves receipt/session/write-race/auth assertions; it does
+not redirect them to dead `_wlLegacy*` code. This is offline VM/source proof,
+not Chromium, serving, a full integrated house suite or release approval.
+
+**Required SQL CI lane:** the existing unit job now runs the 28 SQL and 29
+handler checks in a separate, mandatory step against its disposable PostgreSQL
+16 service. The step resolves an executable `psql` path and supplies explicit
+confirmation, loopback port and a purpose-specific synthetic password. Required
+mode refuses missing setup or failed authentication; ordinary manual execution
+without confirmation still skips. Both SQL clients discard ambient `PG*`
+environment variables, use fixed loopback arguments and prohibit password
+prompts. A local SCRAM fixture passed all 57 checks with deliberately conflicting
+ambient connection settings; an incorrect explicit password refused. The exact
+prior harness failed before fixture creation on that same password-protected
+server, with only a generic bounded SQL failure recorded. The unit job has a
+20-minute limit for the expanded suite and SQL rehearsals: the coordinator's
+local integration already exceeded ten minutes. Shorter SQL process timeouts
+remain. This is a finite CI bound, not a hosted-CI pass or a deployment claim.
+
+**Separate actual Chromium smoke:** `node qa/workload-native/browser.js` loads
+the complete integrated HTML through the existing boot stream server and
+intercepts all external requests. Five groups passed against integration
+`688947308c96e6f00b09a495a1f16f939fde479d` on 2026-09-06: staff verification
+and native-only card visibility using the real client-group expander; actual
+plan handler acknowledgement and forced-refresh alias continuity; missing SQL
+preserving visible cards with a warning and disabled writes; successful retry;
+and a storage receipt arriving during an older background read causing a new
+post-flight read before debt clears. The run made six synthetic snapshot reads,
+one synthetic plan write and zero unknown/provider/WebSocket requests. It does
+not replace or extract product loaders/renderers. Endpoint responses and the
+boot fixture's third-party SDK are synthetic, so this does not add SQL, serving,
+live roster, OS containment or full-release proof. Timestamped receipts contain
+source hashes, synthetic scenario labels and counts. Playwright and Chromium are
+required; this browser lane is separate from the dependency-free unit discovery.
+The integrated visible-boot workflow now runs it after the existing Samples
+browser lane and also triggers when its driver changes. Hosted execution remains
+unproven until checks complete on the published integration head.
+
+### Native completeness census: private capture and scoped comparison
+
+**Native adapter implemented locally, 2026-09-06; live G5 remains held.**
+`qa/workload-consistency/native-adapter.js` connects the private packet below to
+the existing PR #1279 comparator, reused from
+`c5c0fdef4780ff92d6cc24b9802b65c6ee98de18`. `compare.js` keeps its historical
+default mode; its new explicit `native_workload` mode calls independently
+derived native eligibility and limits its required surfaces to native Workload.
+`source-harness.js` retains the older entry points and adds the actual current
+native reader/adoption path. No old red contract is renamed green, run against a
+different assumption, or used as a current production certificate. The original
+PR #1279 fixtures/report and its five independence failures remain separate,
+untouched historical evidence.
+
+The denominator is the complete captured `deliverables` population joined by
+exact keys to batches, clients and team members. The adapter reconstructs the
+native view's two structural-container cases, archive state, all 13 status
+mappings, native/provider assignee alias, per-team authority and exact active
+`editor`/`video` or `designer`/`graphics` eligibility. Every base row lands in one
+of four disjoint counts: structural container, archived non-container,
+provider-authority non-container, or native RPC work. Visible and excluded
+native work are then accounted for by the actual browser rules. An empty
+`workload_issues` mirror does not reduce this denominator. Expected parent rows
+use the actual unfiltered child/team rule, including mixed-team batches.
+
+The adapter compares that independent projection against the captured native
+view and native RPC records, and separately derives the Workload-label metadata
+from each raw relation. It preserves selected-ID/page completeness, duplicate
+refusal, PostgreSQL ASCII-space trimming and Unicode character lengths.
+Unrepresented non-string label/parent scalar shapes refuse comparison rather
+than using JavaScript coercion as database semantics. Exact PostgreSQL numeric
+lexemes survive a bounded parser that also rejects duplicate JSON keys. Unsafe
+numbers cannot enter browser fields through rounding; the deliberately unused
+`native_sort_key` remains exact text at that boundary. Missing/extra/duplicate
+rows, wrong fields/eligibility/weights, incomplete inputs, divergent aliases,
+impossible stored plan dates and changed exact numeric values refuse or mismatch.
+
+For both independently expected and captured native rows, the harness executes
+the pinned actual `projectNativeSnapshot`, `wlFetchNativeSnapshot`,
+`wlAdoptPlanRows`, `wlAdoptLinearMetadata`, `wlLoadSnapshot`, `wlApplyData`,
+capacity/date helpers and `wlSortSubIssues`. Only the captured response transport
+and synthetic staff context are supplied by the harness. It compares visible
+buckets, exclusion buckets, literal saved dates, display dates, weights,
+calendar groups and identifier ordering. Old UUID plan keys are retained and
+projected by the actual server helper, including unmatched historical plans.
+Activating `native_sort_key` as browser `sort_order` is a detected disagreement.
+This is source-VM evidence, not Chromium, staff-auth admission or live UI proof.
+
+Private invocation is `node qa/workload-consistency/native-adapter.js
+<absolute-private-capture.json> <absolute-private-comparison-config.json>`.
+The second file supplies `integrity_key`, `reviewed_adapter_commit` and an explicit
+ISO `today` comparison day. Both paths must be outside every Git ancestor.
+The packet signature/count/byte/schema bindings are verified first. Recorded
+capture source objects must exist locally and match current pinned source bytes;
+the capture may be from an ancestor with identical recorded files. Missing Git
+objects refuse without acquisition, replacement objects are disabled, and
+working source changes refuse. The executable comparison files are separately
+bound to their reviewed local commit. Output contains counts, ordinal finding
+references, fixed scope/limits and source hashes, with no client/member/work IDs
+or private paths.
+
+The only successful verdict is a **scoped comparison `MATCH`** for teams whose
+captured authority is native. If both teams are provider-owned the scope is
+`WITHHELD`; native projection disagreements report `MISMATCH`. CON/STR,
+provider-authority membership and actual provider-only work remain excluded
+from this verdict. Their mirror rows are used only where necessary for exact
+plan-alias validation. Assignee-email/old-provider-URL cosmetic parity is not
+claimed. Executable/serving provenance, DDL quiescence, live population,
+client journeys and **G5 remain UNPROVEN / HELD**, including on a scoped match.
+
+The finite registration is `test/workload-native-adapter.js` (28 offline
+controls). `qa/workload-consistency/native-adapter-rehearsal.js` supplies 30
+explicit disposable PostgreSQL/capture/source-VM controls, including an
+unmapped native-only omission with empty mirror, a same-count precise numeric
+substitution, all current statuses, imported/native container distinctions,
+inactive/wrong-role/wrong-team exclusions, old-key dates, unassigned/undated
+behavior, Unicode label boundaries, coherently forged impossible dates, current
+ordering, CON withholding and a coherent provider-authority transition.
+No workflow or live execution is activated. Rollback removes this diagnostic
+adapter; application code, captured receipts and all saved work are unchanged.
+The next readiness evidence is an independently authorized, serving-bound,
+DDL-coordinated population capture and scoped comparison; source tests cannot
+authorize that operation or substitute for it.
+
+**Local capture component implemented, 2026-09-06; G5 remains held.**
+`qa/workload-consistency/native-capture.js` now acquires the private input
+boundary described below. It is deliberately limited to an explicitly owned
+loopback PostgreSQL fixture (`LOCAL_DISPOSABLE_ONLY`); it cannot be invoked
+against a hosted database. It adds no application, schema, grant, Edge Function,
+workflow or provider change. Clients see their existing application throughout.
+The prior assessment below is retained with its original source pins. The
+capture component itself continues to label comparison **NOT IMPLEMENTED**;
+the separate adapter above supplies that additional comparison without changing
+or promoting acquisition's verdict. Live completeness remains **UNPROVEN**.
+
+The capture uses one noninteractive, bounded `psql` connection and one read-only
+repeatable-read transaction. Seven independently counted base sections are
+`deliverables`, `batches`, `clients`, `team_members`, every `workload_plan` key,
+`prod_authority` (only this flag), and the entire `workload_issues` mirror.
+The complete native view and three-field Workload-label metadata view are two
+additional observations. No eligibility filter is applied to the base counts.
+The raw `workload_native_snapshot_v1()` result is collected in that transaction.
+Each section has its exact PostgreSQL JSON text, UTF-8 byte count and SHA-256;
+the original database response is retained too. Numeric lexemes larger than
+JavaScript's safe integer range are preserved. A later comparator must parse
+numeric row content losslessly; this component uses parsed values only for
+bounded identity/count/shape validation. No valid capture alone proves that
+the native view selected every eligible base row.
+
+Missing sections/relations/grants, count or byte-digest disagreements, duplicate
+or malformed identities, missing projected columns, invalid authority, malformed
+RPC envelopes, divergent saved-plan content, and reviewed catalog/source drift
+refuse a packet. All sections are capped at 50,000 rows and combined SQL output
+at 64 MiB; overflow is refusal, not truncation reported as complete. Workload's
+legacy mirror baseline lacks a declared primary key: its observed logical `id`
+uniqueness is validated in the captured rows rather than invented in the catalog.
+Base-table primary keys and exact selected schema/view/function definitions are
+recorded. `row_security=off` refuses a silently policy-filtered base read unless
+the explicitly bound fixture role already has the necessary bypass/ownership.
+
+**Observed binding has precise limits.** The packet binds locally observed Git
+HEAD/bytes, caller-declared reviewed pins, observed database/transaction identity,
+schema and selected RPC/view/label-helper definitions, SQL digest and content.
+Git replacement objects, ambient Git routing and lazy object fetching are
+disabled. The supplied HMAC key provides integrity under that key; a caller
+holding it can sign self-asserted evidence. This is neither an independently
+trusted attestation nor proof that repository bytes are serving. Only the listed
+catalog objects are covered, not an arbitrary transitive execution closure.
+
+An actual concurrency negative exposed another important limit: PostgreSQL
+repeatable-read data snapshots do **not** pin function executable definitions.
+A replacement between catalog evaluation and RPC execution formerly paired an
+old catalog with the new execution. The component now observes the catalog again
+after evaluation on the same connection and refuses persistent drift. Matching
+observations still cannot exclude a replace-and-restore between them. Therefore
+every successful public summary says executable binding **UNPROVEN**, requiring
+separately established DDL quiescence and serving closure before any later
+readiness verdict. No database DDL freeze, trigger, new lock protocol or serving
+assurance is introduced here.
+
+Private invocation is `node qa/workload-consistency/native-capture.js
+<absolute-private-config.json> <absolute-new-private-output.json>`. The config
+contains `connection` (explicit confirmation, literal loopback host, port,
+unique `card_history_*` fixture database, fixture role, absolute `psql` and
+purpose-specific synthetic password), `reviewed_catalog`, `reviewed_commit`,
+and a 32-byte hex `integrity_key`. The exported `inspectCatalog` is only a
+read-only acquisition helper: its result must be reviewed, not promoted into
+independent authority by copying it into config. Input/output paths must resolve
+outside every Git ancestor. Previous output is never overwritten. The public
+CLI emits only aggregate counts, hashes, fixed refusal codes and **UNPROVEN**
+readiness fields. No raw SQL diagnostics, private paths, row identifiers or
+credentials are printed. All ambient libpq overrides are removed (including
+case variants on Windows); only the explicit fixture password is forwarded.
+
+`test/workload-native-capture.js` provides 30 offline guards, including real Git
+replacement/missing-object controls and a local transport trap proving the
+unguarded missing-object control would try acquisition. Subprocess timeout and
+output refusals stay latched even if the child exits zero afterward; a fake-child
+regression and the same source with that latch removed prove the output-limit
+negative. The separate explicit
+`qa/workload-consistency/native-capture-rehearsal.js` uses existing migration-shaped
+fixture setup and the actual native RPC/view/label helper. Its finite controls
+cover native-only work with an empty mirror, exact bytes and counts, no capture
+writes, same-count content/precision tampering, malformed/truncated/duplicate
+input, source/catalog/grant refusals, saved dates, coherent concurrent source and
+authority changes, and the two executable-definition races. No new CI service
+or live invocation is enabled. This is database acquisition proof, not rendered
+browser, client write, provider completeness, installed schema or live proof.
+
+Rollback is removal of these diagnostic files; no application or stored work
+changes to undo. Private receipts are retained under the operator's existing
+private evidence policy. The **existing PR #1279 comparator's native adapter**
+is described above. Do not call the old normalized comparator with these packets
+directly or infer native completeness from mirror emptiness. The historical
+required controls below are now exercised in the bounded local adapter lane;
+their live applicability is still held. Owner-approved serving capture,
+DDL/execution authority and an actual native population comparison are separate
+gates; this component does not authorize their execution.
+
+**SOURCE_ONLY assessment, 2026-09-06; G5 remains held.** Inspected integration
+`8cf22ea841e77b74bf75969a525d4ccc2ff204e4` and locally preserved comparator
+PR #1279 at `c5c0fdef4780ff92d6cc24b9802b65c6ee98de18`. No live read, new
+scanner, schema change or provider operation was performed. The selected reuse
+path is `qa/workload-consistency/compare.js` from that comparator, followed by a
+native adapter for its `source-harness.js`; its old static-name eligibility and
+exact old-ID plan lookup cannot be treated as the new browser contract.
+
+The comparator already refuses to attest input provenance: `compare.js:29`
+uses declared coverage, and `compare:165` always returns population verdict
+`UNPROVEN`. Its README's normalized-input section requires a separately
+reviewed read receipt. Reuse its privacy-safe discrepancy reporting after that
+receipt exists; do not add a second scanner that trusts another `complete:true`.
+
+At the integration pin, `workload_native_snapshot_v1`
+(`migrations/2026-09-05-workload-native-membership.sql:6`) correctly counts the
+rows selected by the native view and returns them with flags and plans in one
+statement snapshot. `projectNativeSnapshot`
+(`supabase/functions/workload-plan/native-snapshot.mjs:3`) validates that
+envelope and aliases. Neither supplies an independent base-table denominator
+or a capture identity that binds separately fetched raw records to that read.
+A mistakenly omitted native-view row would be absent from both its count and
+its payload. An empty provider mirror cannot disprove that omission.
+
+`scripts/track-b-backup.js:356` (`pgDumpArgs`) already supplies a single
+transactional dump of its selected tables. V6 includes the native owners,
+roster, flags and plans, but excludes `workload_issues` and does not export a
+shared snapshot token or capture the Workload RPC result inside that dump.
+`scripts/card-history-workload-rehearsal.js:97` and `:116` compare handler
+results before and after a synthetic restore; they do not implement a serving
+capture of an independently counted population. Repeated REST reads, matching
+timestamps, maximum `updated_at`, or a data-only restore receipt cannot fill
+this gap for concurrent inserts, deletes, flag changes or roster moves.
+
+The minimum missing implementation is a **private, reviewed read-only capture
+adapter**, not a new table or an anonymous roster endpoint:
+
+1. Use one explicitly bound database connection and a read-only repeatable-read
+   transaction. Capture the raw `workload_native_snapshot_v1()` result and the
+   independent inputs under that same snapshot. A paginated or parallel export
+   must import one exported PostgreSQL snapshot while its exporting transaction
+   remains open; unbound pages or transactions must refuse certification.
+2. Capture complete `deliverables`, their `batches`, `clients`, `team_members`,
+   all `workload_plan` keys, `prod_authority`, and the required native-view and
+   metadata observations. Record exact counts before eligibility filtering and
+   ordered unique primary keys, including excluded rows. Capture the complete
+   relevant `workload_issues` population if assessing legacy VID/GRA or CON/STR;
+   otherwise explicitly withhold those coverage claims. The provider mirror
+   is never the native denominator or proof of actual provider-only work.
+3. Derive eligibility from the actual native-view structural container rule
+   (`migrations/2026-09-02-workload-native-view.sql:263`), batch archive state,
+   team authority, strict active-client and exact active member role/team
+   membership (`editor`/`video`, `designer`/`graphics`). Preserve the current
+   status mapping, native/provider assignee
+   alias, unassigned/undated/excluded accounting and saved-plan aliases. Execute
+   the pinned `wlApplyData` (`index.html:16729`) and `wlSortSubIssues` (`:18288`)
+   semantics over the complete candidate set; do not activate `native_sort_key`
+   as browser `sort_order` or infer a plan owner from a name.
+4. Bind one unique capture ID, database identity privately, database snapshot
+   identity, start/end times, exact query/schema/RPC/view/label-helper hashes,
+   source browser/handler hashes and each section's count/byte digest in one
+   integrity-protected receipt. Definition drift, unknown columns/statuses,
+   missing relations/grants, malformed rows, duplicate identities, ambiguous
+   aliases, missing pages or count/digest disagreement must stop the result.
+   Exact serving closure and later observation are separate required evidence;
+   an offline receipt cannot promote itself to installed/live readiness.
+
+The adapter's required finite controls are: one eligible native-only row with
+an empty mirror still appears in the denominator; removing it only from the
+observed snapshot fails; deliberately truncated/duplicated/malformed inputs
+fail; a moved client/member/authority between unbound reads refuses comparison;
+a single shared read preserves a coherent old or new population; legitimate
+container/archive/status/roster exclusions remain counted; both plan aliases
+and the browser's actual ordering survive comparison. These controls are
+**required, not implemented or passed by this assessment**. Existing SQL and
+Chromium tests do not replace this native completeness census. Implement and
+review this capture boundary before extending the comparator or running it on
+private data. No new server capability has been installed or proven necessary:
+an approved existing SQL read channel could support it, but no such capture
+adapter currently binds these inputs and output together. A standalone
+read-only SQL capture and disposable rehearsal need no application/schema
+change; that implementation and the comparator's native adapter remain the
+next bounded slice, not a reason to require a new public API.
+
+Execution remains owner-coordinated: (1) capture exact serving `workload-plan`
+closure, current flags, grants, stored-plan counts/keys and schema/data restore
+point privately; prove installed native view/label helper and eligible population
+against the same authority. Classify every active provider-only row before
+release: absence from the native view is not proof that its work is obsolete.
+(2) Include the three additive functions in the
+schema/grant restore corpus and test restoration; install the manual migration
+only after approval. (3) Manually deploy/read back the complete `workload-plan`
+closure, including `native-snapshot.mjs`; prove old/new list aliases, read roles,
+write roles and preserved dates. (4) Release the browser only after those gates,
+then designated staff canaries for each team, normal/forced/background refresh,
+weights, unassigned/excluded counts, deadlines, pins/clear/group move, native
+links and failed reads. Clients keep their existing anonymous review surfaces:
+this staff-only route adds no compulsory client descriptor or writer gate.
+
+Abort on count/alias drift, missing weights, a lost pin, enabled writes after
+failed authority, unexpected provider egress for native requests, or serving
+closure mismatch. Keep the prior visible staff board while investigating.
+Do not flip authority as a rollback shortcut. Preserve the additive reader and
+alias-aware writer during a browser rollback: restoring the older Edge Function
+can hide native-key plans from old UUID callers. An old browser cannot display
+native-only work; therefore a full old-source rollback is **not** a proven
+continuity recovery after new native work/pins exist. Require a forward repair
+or an approved, tested exact data/alias restore. Never delete native plans to
+make an older viewer appear consistent. Helpers may be removed only before any
+new caller/plan depends on them, or after that separately proved recovery.
+
+Remaining: known native-view eligibility differences need current reconciliation;
+CON/STR authority/provider paths; source-only feedback; broader roster/default
+picker and native label ownership; manual serving proof; client/staff integrated
+release canaries and observation. This implementation does not close Decision A.
+
+## Retained historical investigation
 
 **Why this file exists.** Owner, 2026-09-01: *"we have to think about leaving
 linear soon, like in a week we'll remove anything regarding linear."* That is not

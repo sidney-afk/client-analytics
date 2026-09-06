@@ -1,0 +1,123 @@
+{
+    "classification":  "LIVE_READ",
+    "observed_at":  "2026-09-06T18:14:24.554299Z",
+    "source_commit":  "5ed005c32732f415ea1868951fb42a132ddf045a",
+    "functions":  [
+                      {
+                          "slug":  "calendar-upsert",
+                          "serving_version":  48,
+                          "verify_jwt":  false,
+                          "serving_closure_sha256":  "e849f9cce1a63f286d7dc059726b7aa8a709be1b2b92654ef1c5269bebdc4e4e",
+                          "main_closure_sha256":  "84d5297a2ce20c5d4248cfd6b11ff3b0165ec0b331b2dfd6634e8cd04b4b5bf9",
+                          "serving_file_count":  2,
+                          "comparison_to_main":  "FAIL"
+                      },
+                      {
+                          "slug":  "linear-outbound",
+                          "serving_version":  47,
+                          "verify_jwt":  false,
+                          "serving_closure_sha256":  "1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39",
+                          "main_closure_sha256":  "1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39",
+                          "serving_file_count":  5,
+                          "comparison_to_main":  "PASS"
+                      },
+                      {
+                          "slug":  "production-write",
+                          "serving_version":  68,
+                          "verify_jwt":  false,
+                          "serving_closure_sha256":  "d7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a",
+                          "main_closure_sha256":  "d7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a",
+                          "serving_file_count":  5,
+                          "comparison_to_main":  "PASS"
+                      },
+                      {
+                          "slug":  "sample-review-upsert",
+                          "serving_version":  49,
+                          "verify_jwt":  false,
+                          "serving_closure_sha256":  "0da507abdb51b885f39e4776b421dacb1cdae985623b29c97b8b56330abb350d",
+                          "main_closure_sha256":  "6b149e0015e6039e736141bc94b17807a1dd957b79c8d75fa45fb1ae5a4a0b2a",
+                          "serving_file_count":  2,
+                          "comparison_to_main":  "FAIL"
+                      }
+                  ],
+    "catalog":  {
+                    "classification":  "LIVE_READ_CATALOG_ONLY",
+                    "started_at":  "2026-09-06T18:14:24.731Z",
+                    "flags":  [
+
+                              ],
+                    "functions":  [
+
+                                  ],
+                    "relations":  [
+                                      {
+                                          "name":  "calendar_feedback_materializations",
+                                          "present":  false
+                                      },
+                                      {
+                                          "name":  "card_change_journal",
+                                          "present":  false
+                                      },
+                                      {
+                                          "name":  "linear_outbound_cutoff_control",
+                                          "present":  false
+                                      },
+                                      {
+                                          "name":  "production_card_materialization_ingress",
+                                          "present":  false
+                                      },
+                                      {
+                                          "name":  "production_card_materialization_receipts",
+                                          "present":  false
+                                      },
+                                      {
+                                          "name":  "production_card_provenance",
+                                          "present":  false
+                                      },
+                                      {
+                                          "name":  "production_intake_manifests",
+                                          "present":  false
+                                      },
+                                      {
+                                          "name":  "production_label_catalog_versions",
+                                          "present":  false
+                                      }
+                                  ],
+                    "observed_at":  "2026-09-06T18:14:24.554299+00:00",
+                    "requested_functions":  [
+                                                "production_intake_epoch_read",
+                                                "production_assignee_write",
+                                                "production_labels_write",
+                                                "production_card_materialize",
+                                                "linear_outbound_claim_v1",
+                                                "linear_outbound_cutoff_activate_v1",
+                                                "calendar_feedback_recovery_apply_v1"
+                                            ],
+                    "requested_flags":  [
+                                            "native_intake_epochs",
+                                            "native_assignment_epochs",
+                                            "production_native_label_catalog",
+                                            "native_card_materialization"
+                                        ]
+                },
+    "limits":  [
+                   "Serving source/version and catalog existence only; no client or staff interaction performed",
+                   "Frozen anonymous writer closures match the September4 capture; differences from main are intentional and are not a redeploy instruction",
+                   "Only the eight named relations, seven named RPCs and four named flags were queried; no whole-schema or global configuration completeness claim",
+                   "No product source, database data, schema, flags, credentials, provider settings or alerts changed"
+               ],
+    "serving_observed_at":  "2026-09-06T18:11:24.1392411Z",
+    "pages":  {
+                  "classification":  "LIVE_READ_SERVED_BYTES",
+                  "started_at":  "2026-09-06T18:21:24.667Z",
+                  "finished_at":  "2026-09-06T18:21:25.482Z",
+                  "source_commit":  "5ed005c32732f415ea1868951fb42a132ddf045a",
+                  "served_sha256":  "f586de124a592651f30182c4b786f7d52b7d7ed67494001107521dcbc928aaf6",
+                  "expected_sha256":  "f586de124a592651f30182c4b786f7d52b7d7ed67494001107521dcbc928aaf6",
+                  "matches":  true,
+                  "byte_count":  5280795,
+                  "limits":  [
+                                 "Public root HTML bytes only; no login, client journey, backend write or asset completeness proof"
+                             ]
+              }
+}

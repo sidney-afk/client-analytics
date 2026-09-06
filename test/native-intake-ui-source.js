@@ -99,6 +99,8 @@ vm.runInContext([
   extract('_linearIntakeBatchTitle'),
   extract('_linearIntakeItems'),
   extract('_linearIntakeValidateResult'),
+  extract('_nativeAcceptedCardTransport'),
+  extract('_nativeAcceptedCurrentCard'),
   extract('_writeNativeSubmissionCardsToCalendar'),
 ].join('\n'), context);
 
@@ -427,14 +429,15 @@ const result = {
     && submit.includes('_linearResolveClientRow(clientName, selectedClientSlug)'),
   'Submit binds one client selection across the allowlist wait and native resolution');
 
-  // --- terminal-refusal discard: a resumed job the server permanently ------
-  // refuses must clear itself after two strikes instead of re-arming forever.
+  // Retry budgets pause automatic work without erasing uncertain acceptance.
   vm.runInContext(extract('_linearIntakeDiscardTerminallyRefused'), context);
   const notifications = [];
+  currentIdentity = { role: 'smm', member: { id: 'actor-a' } };
   context.showNotify = (title, body) => notifications.push({ title, body });
   const seedJob = extra => {
     store.set('pending', JSON.stringify(Object.assign({
       version: 3, signature: 'sig', result: null,
+      context: { initiating_actor_id: 'actor-a', initiating_actor_role: 'smm' },
       payload: { operation: 'intake_create', request_id: 'rq-discard', client_slug: 'fixture', items: [] }
     }, extra || {})));
   };
@@ -448,11 +451,11 @@ const result = {
     && JSON.parse(store.get('pending')).resume_refusals === 1
     && notifications.length === 0,
   'first terminal refusal on a resume records a strike and keeps the job');
-  ok(call('resume', 409) === true && !store.has('pending')
+  ok(call('resume', 409) === false && JSON.parse(store.get('pending')).resume_held === true
     && notifications.length === 1
-    && /discarded/i.test(notifications[0].title + notifications[0].body)
-    && notifications[0].body.includes('fixture'),
-  'second terminal refusal discards the job and announces it with the client named');
+    && /unconfirmed/.test(notifications[0].body)
+    && !notifications[0].body.includes('fixture'),
+  'second refusal retains the job, pauses automatic retries and gives private-safe unknown-outcome guidance');
   notifications.length = 0;
 
   seedJob();
@@ -472,20 +475,19 @@ const result = {
   'a refocused tab never spends a server-error strike: only a fresh page load counts');
   ok([1, 2, 3, 4, 5].every(n => call('resume', 500) === false
       && JSON.parse(store.get('pending')).resume_refusals === n)
-    && call('startup', 500) === true && !store.has('pending'),
-  'a server error discards only after six page loads, far above the refusal budget');
-  ok(notifications.length === 1 && /6 times/.test(notifications[0].body),
-  'the discard notice reports the budget the job actually spent');
+    && call('startup', 500) === false && JSON.parse(store.get('pending')).resume_held === true,
+  'six server-error page loads retain the request and pause automatic retries');
+  ok(notifications.length === 1 && /Retry saved post/.test(notifications[0].body),
+  'the retained notice points to the exact saved-request action');
   notifications.length = 0;
 
   // Strikes are one counter, so a 5xx already on the job counts toward the
-  // smaller 4xx budget. That is deliberate: a 4xx says the payload can never
-  // succeed, and two independent failures ending in a terminal refusal is
-  // enough to stop re-arming it.
+  // smaller 4xx budget. Neither status proves that an earlier attempt failed
+  // to commit; reaching either budget only stops automatic attempts.
   seedJob();
   ok(call('resume', 500) === false && JSON.parse(store.get('pending')).resume_refusals === 1
-    && call('resume', 409) === true && !store.has('pending'),
-  'a terminal refusal after a server error discards on the refusal budget, not the server one');
+    && call('resume', 409) === false && JSON.parse(store.get('pending')).resume_held === true,
+  'a refusal after a server error holds on the smaller budget without discarding');
   store.delete('pending');
   notifications.length = 0;
 
@@ -506,15 +508,14 @@ const result = {
   ['startup', 'focus', 'visible', 'online', 'staff-verified', 'client-verified'].forEach(reason => {
     seedJob();
     ok(call(reason, 409) === false && JSON.parse(store.get('pending')).resume_refusals === 1
-      && call(reason, 409) === true && !store.has('pending'),
-    'a background ' + reason + ' resume counts terminal-refusal strikes');
+      && call(reason, 409) === false && JSON.parse(store.get('pending')).resume_held === true,
+    'a background ' + reason + ' resume counts strikes but retains the exact job');
     notifications.length = 0;
   });
 
   // A recovery copy is what sign-out leaves for a committed job: it can never
-  // match a fresh post signature, refuses to discard because it committed, and
-  // is rewritten on the next sign-out. Without a bounded life it blocks every
-  // later Create Post permanently.
+  // match a fresh post signature. The explicit saved-request action now
+  // reaches it without creating a replacement request or deleting card debt.
   const seedRecovery = extra => seedJob(Object.assign({
     recovery_only: true, suspended: true, signature: 'recovery:rq-discard',
     result: { ok: true, native_committed: true, items: [] }
@@ -528,9 +529,9 @@ const result = {
     && callStatusless('resume') === false && JSON.parse(store.get('pending')).resume_refusals === 3
     && notifications.length === 0,
   'a recovery copy survives three failed resumes: its debt is a real calendar card');
-  ok(callStatusless('resume') === true && !store.has('pending') && notifications.length === 1
-    && /safe in Production/.test(notifications[0].body) && notifications[0].body.includes('fixture'),
-  'a recovery copy stops retrying on the fourth failure and says the post itself is safe');
+  ok(callStatusless('resume') === false && JSON.parse(store.get('pending')).resume_held === true && notifications.length === 1
+    && /unconfirmed/.test(notifications[0].body) && !notifications[0].body.includes('fixture'),
+  'a recovery copy keeps accepted IDs and card debt at the fourth failure without claiming completed delivery');
   notifications.length = 0;
 
   seedRecovery();
@@ -544,8 +545,7 @@ const result = {
   store.delete('pending');
   notifications.length = 0;
 
-  // The blocking copy has to name its own case: there is no dialog that lets
-  // the user go back and finish a recovery copy.
+  // The existing error area offers the retained request, not a new signature.
   const pendingFn = extract('_linearIntakePending');
   ok(pendingFn.includes("saved.recovery_only === true")
     && pendingFn.includes("'native_intake_recovery_pending'")
@@ -553,8 +553,8 @@ const result = {
   'a recovery copy blocks under its own error code, not the pending-conflict one');
   const errorTextFn = extract('_calNativePostErrorText');
   ok(errorTextFn.includes("code === 'native_intake_recovery_pending'")
-    && /stops retrying on its own/.test(errorTextFn),
-  'the recovery block reads as self-clearing instead of sending the user to find a dialog');
+    && /completion is unconfirmed/.test(errorTextFn),
+  'recovery feedback states retained work and unknown completion');
 
   const resumeFn = extract('_resumeNativeIntakeJob');
   ok(resumeFn.includes('_linearIntakeDiscardTerminallyRefused(reason, requestId, error)'),

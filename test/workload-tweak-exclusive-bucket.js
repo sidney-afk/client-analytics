@@ -158,6 +158,8 @@ const wlApplyData = compile('wlApplyData', {
   wlComputeAutoPlacements,
   wlIsActiveStatus: () => true,
   wlIsAllowedClient: () => true,
+  wlIssueClientAllowed: compile('wlIssueClientAllowed', { wlIsAllowedClient: () => true }),
+  wlIssueEditorAllowed: compile('wlIssueEditorAllowed', { wlIsAllowedEditor: () => true }),
   wlCanonicalClient: name => name,
   wlTeamBucket: () => 'video',
   wlDisplayName: name => name,
@@ -1230,7 +1232,7 @@ check(loadingPlanStatus.hidden === true
     && !INDEX.includes('Refreshing saved work days')
     && /wlState\.planStatus === 'loading' \|\| wlState\.planStatus === 'refreshing'/.test(workloadRenderSource)
     && /_svLoadingSkeletonHtml\('workload'\)/.test(workloadRenderSource)
-    && /renderWorkloadAll\(\);/.test(workloadLoadSource)
+    && /renderWorkloadAll\(\);/.test(workloadInitSource)
     && !workloadLoadSource.includes('deferWhilePopoverOpen')
     && /await wlLoadSnapshot\(true, null\)/.test(grabFunc('wlManualRefresh'))
     && /hasWarmSnapshot[\s\S]*renderWorkloadAll\(\)[\s\S]*_wlV2CheckWatermark\(\)[\s\S]*return/.test(workloadInitSource)
@@ -1250,22 +1252,19 @@ const watermarkFetchSource = grabFunc('_wlV2FetchLatestWatermark');
 const watermarkCheckSource = grabFunc('_wlV2CheckWatermark');
 const watermarkPollSource = grabFunc('_wlV2EnsureWatermarkPoll');
 const workloadTeardownSource = grabFunc('_wlV2Teardown');
-check(/select=synced_at&active=eq\.true&order=synced_at\.desc&limit=1/.test(watermarkFetchSource)
-    && /cache: 'no-store'/.test(watermarkFetchSource)
-    && /Array\.isArray\(rows\)[\s\S]*rows\[0\][\s\S]*synced_at/.test(watermarkFetchSource),
-  'the foreground staleness probe reads the newest active mirror watermark without using cached HTTP state');
-check(/_wlV2WatermarkBusy \|\| document\.hidden \|\| !document\.querySelector\('\.workload-view'\)/.test(watermarkCheckSource)
-    && /wlState\.loading \|\| wlState\.refreshing \|\| wlState\.planStatus === 'loading' \|\| wlState\.planStatus === 'refreshing'/.test(watermarkCheckSource)
-    && /const latest = await _wlV2FetchLatestWatermark\(\)/.test(watermarkCheckSource)
-    && /if \(!wlState\.sourceSyncedAt\)[\s\S]*wlState\.sourceSyncedAt = latest[\s\S]*return/.test(watermarkCheckSource)
-    && /Date\.parse\(latest\) > Date\.parse\(wlState\.sourceSyncedAt\)[\s\S]*await wlRefetchSilent\(\)/.test(watermarkCheckSource)
-    && /refreshed === true[\s\S]*wlState\.sourceSyncedAt = latest/.test(watermarkCheckSource)
-    && /_wlV2FetchIssues\(\)/.test(workloadBackgroundSource)
-    && /wlFetchPlanRows\(\)/.test(workloadBackgroundSource)
-    && /wlFetchLinearMetadata\(freshIssues\)/.test(workloadBackgroundSource)
-    && !/loadLinearIssues|wlLoadSnapshot|LINEAR_ISSUES_WEBHOOK/.test(workloadBackgroundSource)
+check(/return wlFetchNativeSnapshot\(\)/.test(grabFunc('loadLinearIssues'))
+    && /action: 'native_snapshot'/.test(grabFunc('wlFetchNativeSnapshot'))
+    && /cache: 'no-store'/.test(grabFunc('wlFetchNativeSnapshot')),
+  'freshness reads the native complete snapshot with no cached HTTP or mirror fallback');
+check(/_wlV2WatermarkBusy \|\| document\.hidden/.test(watermarkCheckSource)
+    && /wlState\.loading \|\| wlState\.refreshing/.test(watermarkCheckSource)
+    && /_wlPlanWriteInFlight\.size \|\| _wlDueWriteInFlight\.size/.test(watermarkCheckSource)
+    && /await wlRefetchSilent\(\)/.test(watermarkCheckSource)
+    && !/_wlV2FetchLatestWatermark|sourceSyncedAt/.test(watermarkCheckSource)
+    && /await wlLoadSnapshot\(false, null\)/.test(workloadBackgroundSource)
+    && !/_wlV2FetchIssues|wlFetchPlanRows|wlFetchLinearMetadata|LINEAR_ISSUES_WEBHOOK/.test(workloadBackgroundSource)
     && /finally[\s\S]*_wlV2WatermarkBusy = false/.test(watermarkCheckSource),
-  'watermark polling consumes complete no-diff snapshots through the Supabase/Edge-only background lane');
+  'foreground polling uses the atomic native snapshot without feeder watermark and fences active writes');
 check(/!_wlV2Ready\(\) \|\| _wlV2WatermarkTimer/.test(watermarkPollSource)
     && /setInterval\(_wlV2CheckWatermark, WL_V2_WATERMARK_POLL_MS\)/.test(watermarkPollSource)
     && /_wlV2EnsureWatermarkPoll\(\)/.test(grabFunc('initWorkloadView'))
@@ -1399,7 +1398,7 @@ const popoverSource = grabFunc('wlOpenRollupPopover');
    a per-row icon, because video is still Linear-authoritative. */
 check(popoverSource.includes('Open SyncView →')
     && !popoverSource.includes('Open Linear →')
-    && popoverSource.includes("'?prod=1&d=' + encodeURIComponent(parentIdent)")
+    && popoverSource.includes("'?prod=1&d=' + encodeURIComponent(parentTarget)")
     && popoverSource.includes('workload-popover-parent-linear')
     && popoverSource.includes('workload-popover-item-linear')
     && !popoverSource.includes('Open parent')

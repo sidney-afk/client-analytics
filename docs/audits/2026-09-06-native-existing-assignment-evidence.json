@@ -1,0 +1,422 @@
+{
+  "base_commit": "38f29bc6d3159ddda4b698819626f1efbd37c0b3",
+  "classification": "ACTUAL_HANDLER_DISPOSABLE_SQL_SYNTHETIC_TRANSPORT",
+  "baseline": {
+    "base": "38f29bc6d3159ddda4b698819626f1efbd37c0b3",
+    "passed": 8,
+    "failed": 0,
+    "checks": [
+      {
+        "id": "native-intake-positive-control",
+        "pass": true,
+        "evidence": {
+          "status": 201
+        }
+      },
+      {
+        "id": "existing-native-row-nonnull-still-provider-dependent",
+        "pass": true,
+        "evidence": {
+          "status": 503,
+          "error": "assignee_provider_unavailable"
+        }
+      },
+      {
+        "id": "existing-card-picker-same-provider-dependency",
+        "pass": true,
+        "evidence": {
+          "status": 503,
+          "error": "assignee_provider_unavailable"
+        }
+      },
+      {
+        "id": "null-clear-no-provider-read-but-pending-mirror",
+        "pass": true,
+        "evidence": {
+          "status": 200,
+          "mirror_pending": true
+        }
+      },
+      {
+        "id": "eligibility-retirement-alone-leaves-unmirrorable-pending-intent",
+        "pass": true,
+        "evidence": {
+          "status": 200,
+          "mirror_pending": true
+        }
+      },
+      {
+        "id": "accepted-replay-revalidates-provider-before-receipt",
+        "pass": true,
+        "evidence": {
+          "status": 503,
+          "error": "assignee_provider_unavailable"
+        }
+      },
+      {
+        "id": "same-accepted-request-replays-with-original-flag-contract",
+        "pass": true,
+        "evidence": {
+          "status": 200
+        }
+      },
+      {
+        "id": "same-request-changed-assignee-conflicts",
+        "pass": true,
+        "evidence": {
+          "status": 409,
+          "error": "idempotency_conflict"
+        }
+      }
+    ],
+    "source_sha256": "d11b271202c9e17c28b9c45c3e3b50339109b9820c1024b31fe99080a9acefd6",
+    "classification": "ACTUAL_HANDLER_DISPOSABLE_SQL_SYNTHETIC_TRANSPORT",
+    "receipt_sha256": "71d95273bc1735bb5e6f10e2294bb76821f1e1207b6a7adbeaefc63a4bd76732"
+  },
+  "candidate": {
+    "suite": "native-existing-assignment",
+    "passed": 46,
+    "failed": 0,
+    "journey_sha256": "9ae56fd0a1b2e19f83c041b9fa3d26c6c893cf6fd3dcfea790a88f521b6a0a7c",
+    "checks": [
+      {
+        "id": "native-intake-control",
+        "pass": true,
+        "evidence": {
+          "status": 201
+        }
+      },
+      {
+        "id": "preinstall-provider-refusal-preserved",
+        "pass": true,
+        "evidence": {
+          "status": 503
+        }
+      },
+      {
+        "id": "preinstall-picker-provider-refusal-preserved",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "preinstall-clear-provider-read-free",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "preinstall-flag-read-failure-held",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "installed-default-provider-contract",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "provider-retired-flag-original-pending-receipt",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "native-exact-card-picker-unmapped-visible",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "native-incomplete-picker-held",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "native-unreadable-roster-held",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "native-unmapped-assignment-terminal-one-receipt",
+        "pass": true,
+        "evidence": {
+          "status": 200
+        }
+      },
+      {
+        "id": "native-role-refused-zero-change",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "native-team-refused-zero-change",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "native-absent-refused-zero-change",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "changed-original-assignee-conflicts",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "different-author-cannot-adopt-receipt",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "later-human-assignment-canary",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "accepted-native-replay-hold",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "accepted-native-replay-changed-epoch",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "accepted-native-replay-provider-restored",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "hold-blocks-new-clear-with-zero-change",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "hold-does-not-drain-old-provider-receipt",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "explicit-provider-mode-retains-original-receipt",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "unauthenticated-receipt-access-refused",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "receipt-cannot-be-adopted-across-client-scope",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "malformed-capability-held-unexpected",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "malformed-capability-held-native",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "native-null-clear-terminal",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "late-provider-write-refused-after-native-install",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "fresh-roster-change-refused-at-rpc",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "fresh-epoch-change-refused-at-rpc",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "f27-generation-change-refuses-before-terminalization",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "lost-response-replay-conserves-committed-state",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "racing-replay-returns-postwinner-row",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "concurrent-sql-retry-one-terminal-receipt",
+        "pass": true,
+        "evidence": {
+          "blocked_sql_sessions": 2,
+          "statuses": [
+            200,
+            200
+          ]
+        }
+      },
+      {
+        "id": "real-journal-native-assignment-capture",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "actual-service-role-rpc-commit-and-gateway-replay",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "anon-rpc-execution-denied",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "authenticated-rpc-execution-denied",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "card_change_journal-failure-rolls-back-row-event-receipt-journal",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "mirror_outbox-failure-rolls-back-row-event-receipt-journal",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "receipt-retained-update",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "receipt-retained-delete",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "receipt-retained-truncate",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "actual-normal-drainer-selector-excludes-native-receipts",
+        "pass": true,
+        "evidence": null
+      },
+      {
+        "id": "actual-targeted-drainer-selector-excludes-native-receipt",
+        "pass": true,
+        "evidence": null
+      }
+    ],
+    "classification": "ACTUAL_HANDLER_DISPOSABLE_SQL_SYNTHETIC_TRANSPORT",
+    "source_sha256": "ce37af9948677793bcb382ff84d1476ac76248f77764c981622ef3d330ad322c",
+    "migration_sha256": "ece90c9290d3ab8154692afd7c506e220d3202f0acec441a8fd2dd88c8e1e146",
+    "receipt_sha256": "5af6b8b35be1b5c2096d178ffa0d985a4194b0aa527e01447711e1c817bbdfaa",
+    "log_sha256": "313629150b622ff360130b0f5ce4947230ad39cff26772bc356283e43fe399b2"
+  },
+  "unchanged_from_base": {
+    "gateway_functions": [
+      "handleIntakeCreate",
+      "handleProductionCreate",
+      "handleCreateOptions",
+      "handleIntakeEditorOptions",
+      "autoAssigneeForIntake",
+      "intakeAssigneePool",
+      "assertEligibleAssignee",
+      "validateAssignee",
+      "validateCreateAssignee",
+      "mappedCreateAssignees"
+    ],
+    "git_paths": [
+      "index.html",
+      "supabase/functions/production-write/policy.mjs",
+      "supabase/functions/calendar-upsert/index.ts",
+      "supabase/functions/sample-review-upsert/index.ts",
+      "supabase/functions/_shared/staff-role-auth.ts"
+    ]
+  },
+  "limits": [
+    "Synthetic transport; own disposable PostgreSQL, actual repository RPCs/journal and handler.",
+    "Most fixture reads/RPCs use the historical administrative SQL adapter; explicit service_role fresh-write/replay and anon/authenticated refusal canaries are separately asserted.",
+    "Actual ordinary and ordinary-targeted drainer selectors only; the full worker viewer read and emergency F27 replay remain separate gates.",
+    "No full unit/polish suite, hosted CI, installation, capability activation, provider or live-data action.",
+    "Authenticated schema capture, retained-target restore (including USER-trigger controls), Section 4 closure re-pin, serving and G8 cutoff remain held."
+  ],
+  "preinstall_correction": {
+    "classification": "ACTUAL_SOURCE_FUNCTION_OFFLINE",
+    "baseline_commit": "82ccefba0553c2d7dda087877d93d29156bbbb7b",
+    "results": {
+      "baseline": {
+        "source_sha256": "ce37af9948677793bcb382ff84d1476ac76248f77764c981622ef3d330ad322c",
+        "outcomes": [
+          {
+            "shape": "null",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "false",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "zero",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "empty-string",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "undefined",
+            "result": "provider_fallback"
+          }
+        ]
+      },
+      "candidate": {
+        "source_sha256": "668598153cc8704a18bd98b4b9109aaf1669d1ecc9ce1149fd3e61ae8af82f03",
+        "outcomes": [
+          {
+            "shape": "null",
+            "result": "provider_fallback"
+          },
+          {
+            "shape": "false",
+            "result": "authority_unavailable"
+          },
+          {
+            "shape": "zero",
+            "result": "authority_unavailable"
+          },
+          {
+            "shape": "empty-string",
+            "result": "authority_unavailable"
+          },
+          {
+            "shape": "undefined",
+            "result": "authority_unavailable"
+          }
+        ]
+      }
+    },
+    "receipt_sha256": "6713cac7786cfbd99172727f73bc8ab7c4ada1310f10eb8e9f30c13700975d0e",
+    "offline_checks": {
+      "passed": 28,
+      "failed": 0,
+      "test": "test/native-existing-assignment-preinstall.js"
+    },
+    "limits": "Only existingAssignmentContext response-shape validation changed. Original46 SQL checks were not rerun and remain pinned above. Actual SDK transport behavior UNPROVEN; no network or dependencies added."
+  }
+}

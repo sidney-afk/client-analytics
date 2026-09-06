@@ -6,6 +6,15 @@ on:
       - 'index.html'
       - 'package.json'
       - 'qa/boot/**'
+      - 'qa/workload-native/browser.js'
+      - 'qa/client-continuity*.js'
+      - 'qa/samples-initial-read.js'
+      - 'qa/samples-initial-sdk/package.json'
+      - 'scripts/samples-*.js'
+      - 'test/samples-initial-read.js'
+      - 'scripts/client-continuity*.js'
+      - 'test/helpers/client-continuity-source.js'
+      - 'test/samples-authoritative-read.js'
       - 'supabase/functions/client-token-verify/index.ts'
       - 'test/client-entry-preflight.js'
       - '.github/workflows/client-entry-visible-boot.yml'
@@ -16,6 +25,15 @@ on:
       - 'index.html'
       - 'package.json'
       - 'qa/boot/**'
+      - 'qa/workload-native/browser.js'
+      - 'qa/client-continuity*.js'
+      - 'qa/samples-initial-read.js'
+      - 'qa/samples-initial-sdk/package.json'
+      - 'scripts/samples-*.js'
+      - 'test/samples-initial-read.js'
+      - 'scripts/client-continuity*.js'
+      - 'test/helpers/client-continuity-source.js'
+      - 'test/samples-authoritative-read.js'
       - 'supabase/functions/client-token-verify/index.ts'
       - 'test/client-entry-preflight.js'
       - '.github/workflows/client-entry-visible-boot.yml'
@@ -25,6 +43,9 @@ concurrency:
   group: client-entry-visible-boot-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   visible-boot:
     name: Streamed visible boot (one attempt)
@@ -32,6 +53,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -40,6 +63,9 @@ jobs:
         run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').devDependencies.playwright + '\n')"
       - name: Install browser test dependencies
         run: npm install --no-package-lock
+      - name: Install isolated pinned Samples SDK fixture
+        working-directory: qa/samples-initial-sdk
+        run: npm install --no-package-lock --ignore-scripts
       - name: Cache Playwright Chromium
         id: playwright-cache
         uses: actions/cache@v4
@@ -54,3 +80,23 @@ jobs:
         run: npx playwright install chromium
       - name: Drive streamed first paint, reload, and BFCache once
         run: npm run test:boot
+      - name: Preserve Samples local work in the fully intercepted app
+        run: node qa/boot/samples-local-work.js
+      - name: Preserve native Workload cards and dates through failed refreshes
+        run: node qa/workload-native/browser.js
+      - name: Prove repaired source and original false-empty detection offline
+        run: node test/client-continuity-monitor.js --strict-source
+      - name: Observe anonymous continuity with entirely intercepted fixtures
+        run: node qa/client-continuity.js
+      - name: Refuse transport escapes with independent loopback receivers
+        run: node qa/client-continuity-transport.js
+      - name: Exercise inactive launcher with fictional read-only transport
+        run: node scripts/client-continuity-run.js --fixture
+      - name: Drive six anonymous TEST actions with isolated persisted readback
+        run: node scripts/client-continuity-test-ui.js --fixture
+      - name: Check inactive hosted operations and delivery with synthetic receipts
+        run: node test/client-continuity-operations.js
+      - name: Verify separate initial-read contract and real SDK faults offline
+        run: |
+          node test/samples-initial-read.js
+          node scripts/samples-initial-read-run.js --fixture

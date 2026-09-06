@@ -54,6 +54,12 @@ globalThis.localStorage = {
 // The writer sleeps 15s before polling and 5s between attempts / 200ms between
 // writes; collapse every wait so the suite runs instantly.
 globalThis.setTimeout = (fn) => { fn(); return 0; };
+const lockTails = new Map();
+Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks: { request(name, options, fn) {
+  const next = (lockTails.get(name) || Promise.resolve()).then(fn);
+  lockTails.set(name, next.catch(() => {}));
+  return next;
+} } } });
 
 // Job-store constants are top-level consts in index.html; the extracted
 // functions resolve them as free variables, so mirror them here.
@@ -84,7 +90,7 @@ globalThis.fetch = async (url, opts) => {
   const body = JSON.parse(opts.body);
   fetchLog.push({ url, body });
   const okResp = fetchOkFor(body.post);
-  return { json: async () => (okResp ? { ok: true, post: body.post } : { ok: false }) };
+  return { ok: okResp, json: async () => (okResp ? { ok: true, post: body.post } : { ok: false }) };
 };
 
 let linearResponses = []; // queue; each entry: array | 'throw'
@@ -100,11 +106,15 @@ globalThis.loadLinearIssues = async force => {
 const wlNormalizeClient = def('wlNormalizeClient');
 def('_calSubNum');
 const _calCardJobsRead = def('_calCardJobsRead');
+for (const name of ['_calCardJobWithLock', '_calCardJobUncertain']) {
+  if (INDEX.includes('function ' + name + '(')) def(name);
+}
 def('_calCardJobsWrite');
 def('_calCardJobSave');
 def('_calCardJobRemove');
 const _calCardJobCreate = def('_calCardJobCreate');
 def('_calCardJobTeams');
+def('_calCardJobRetain');
 const _resumePendingCalCardJobs = def('_resumePendingCalCardJobs');
 const _writeLinearVideoCardsToCalendar = def('_writeLinearVideoCardsToCalendar');
 
@@ -121,6 +131,7 @@ function issuesFor(title, nums) {
   return out;
 }
 function reset() {
+  globalThis._calCardJobsRetentionNotified = false;
   _store.clear(); fetchLog = []; notifications = []; linearForceLog = [];
   fetchOkFor = () => true;
   linearResponses = [issuesFor('T', [1, 2, 3])];
@@ -137,7 +148,7 @@ console.log('1) job store — create / persist / remove round-trip');
 console.log('============================================================');
 reset();
 {
-  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
+  const job = await _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
   const stored = _calCardJobsRead();
   ok(stored.length === 1 && stored[0].id === job.id, 'created job is persisted to localStorage');
   ok(JSON.stringify(stored[0].videos) === JSON.stringify([{ number: 1 }, { number: 2 }, { number: 3 }]), 'job stores the video numbers');
@@ -151,7 +162,7 @@ console.log('2) happy path — all cards land, job is removed');
 console.log('============================================================');
 reset();
 {
-  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
+  const job = await _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
   await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
   ok(fetchLog.length === 3, 'one upsert POST per video');
   ok(linearForceLog.length > 0 && linearForceLog.every(force => force === true),
@@ -171,7 +182,7 @@ console.log('============================================================');
 reset();
 {
   fetchOkFor = (post) => post.name !== 'Video 2'; // Video 2 write fails
-  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
+  const job = await _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
   await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
   const stored = _calCardJobsRead();
   ok(stored.length === 1, 'incomplete job stays queued');
@@ -181,7 +192,7 @@ reset();
 }
 
 console.log('\n============================================================');
-console.log('4) resumed run — writes ONLY the missing card, then completes');
+console.log('4) uncertain resume — keeps the exact missing-card attempt without replay');
 console.log('============================================================');
 {
   // continue from scenario 3's store state; age the heartbeat past the
@@ -192,9 +203,9 @@ console.log('============================================================');
   fetchOkFor = () => true; fetchLog = []; notifications = [];
   globalThis._calCardJobsResumePromise = null;
   await _resumePendingCalCardJobs(authorityState);
-  ok(fetchLog.length === 1 && fetchLog[0].body.post.name === 'Video 2', 'resume writes only the missing Video 2');
-  ok(fetchLog[0].body.post.id === 'p_lin_vid2', 'resumed card still gets its deterministic id (no duplicate)');
-  ok(_calCardJobsRead().length === 0, 'job removed once the last card lands');
+  ok(fetchLog.length === 0, 'resume does not resend an unacknowledged Video 2');
+  ok(_calCardJobsRead()[0].card_attempts.find(row => row.number === 2).payload.post.id === 'p_lin_vid2', 'the original missing-card identity remains retained');
+  ok(JSON.stringify(_calCardJobsRead()[0].done) === JSON.stringify([1, 3]), 'acknowledged siblings remain conserved with the unresolved attempt');
 }
 
 console.log('\n============================================================');
@@ -216,9 +227,9 @@ reset();
   globalThis._calCardJobsResumePromise = null;
   await _resumePendingCalCardJobs(authorityState);
   const left = _calCardJobsRead().map(j => j.id);
-  ok(JSON.stringify(left) === JSON.stringify(['ccj_live']), 'expired/spent/finished jobs are dropped; live-heartbeat job is left for its owner');
+  ok(JSON.stringify(left) === JSON.stringify(['ccj_live','ccj_old','ccj_spent']), 'expired/spent and live-heartbeat jobs are retained; completed checkpoints are removed');
   ok(fetchLog.length === 0, 'none of the guarded jobs triggered a write');
-  ok(notifications.length === 2 && notifications.every(n => /Create Post/.test(n.msg)), 'expired + spent jobs surface the manual backfill path');
+  ok(notifications.length === 1 && /unconfirmed/.test(notifications[0].msg), 'retained debt gives one honest review notice per session');
   globalThis._calCardJobsResumePromise = null;
   const firstResume = _resumePendingCalCardJobs(authorityState);
   const secondResume = _resumePendingCalCardJobs(authorityState);
@@ -227,40 +238,35 @@ reset();
 }
 
 console.log('\n============================================================');
-console.log('5b) authority guard — stale jobs discard after flip; outage preserves');
+console.log('5b) authority guard — stale jobs remain after flip; outage preserves');
 console.log('============================================================');
 reset();
 {
-  const job = _calCardJobCreate('Fixture Client', [{ number: 1 }], 'T', 'both');
+  const job = await _calCardJobCreate('Fixture Client', [{ number: 1 }], 'T', 'both');
   authorityState = null;
   await _resumePendingCalCardJobs();
   ok(_calCardJobsRead().length === 1, 'authority read failure leaves the legacy job untouched');
   authorityState = { video: 'linear', graphics: 'syncview' };
   await _resumePendingCalCardJobs(authorityState);
-  ok(_calCardJobsRead().length === 0, 'a job requiring a flipped team is terminally discarded');
-  ok(queueDiagnostics.some(row => row.outcome === 'discarded_authority' && row.item.id === job.id),
-    'authority discard is retained in the local public-safe diagnostic');
+  ok(_calCardJobsRead().length === 1, 'a job requiring a flipped team is retained without replay');
+  ok(queueDiagnostics.some(row => row.outcome === 'retained_authority' && !row.item.id),
+    'authority retention has a diagnostic without identity');
 }
 
-/* OPEN_REPAIRS item 65. Everything above 5b pins a world that ended on
- * 2026-08-16, and 5b itself stops at the MIXED shape -- so the branch that now
- * catches EVERY job was only ever exercised in the configuration where it
- * caught some. Post-F1(video) both teams are SyncView-authoritative, this
- * discard is the only path a pending job can take, and it used to take it in
- * total silence while the retry-cap branch beside it -- which drops strictly
- * less work -- notified. These four run under today's live shape. */
+/* Retain the historical both-team authority regression, now requiring exact
+ * retention instead of deletion and unsafe recreation advice. */
 reset();
 {
-  const job = _calCardJobCreate('Fixture Client', [{ number: 1 }, { number: 2 }], 'T', 'both');
+  const job = await _calCardJobCreate('Fixture Client', [{ number: 1 }, { number: 2 }], 'T', 'both');
   authorityState = { video: 'syncview', graphics: 'syncview' };
   await _resumePendingCalCardJobs(authorityState);
-  ok(_calCardJobsRead().length === 0,
-    'BOTH teams flipped: the job is discarded, as it must be -- the lane it writes through is closed');
-  ok(queueDiagnostics.some(row => row.outcome === 'discarded_authority' && row.item.id === job.id),
-    'the discard is still recorded in the diagnostic ring');
-  ok(notifications.length === 1 && /2 calendar card/.test(notifications[0].msg)
-     && /Fixture Client/.test(notifications[0].msg),
-    'the user is TOLD, and told how many cards and for which client -- not silently dropped');
+  ok(_calCardJobsRead().length === 1,
+    'BOTH teams flipped: the job remains while the provider lane is closed');
+  ok(queueDiagnostics.some(row => row.outcome === 'retained_authority' && !row.item.id),
+    'retention is recorded without exposing job identity');
+  ok(notifications.length === 1 && /unconfirmed/.test(notifications[0].msg)
+     && !/Fixture Client/.test(notifications[0].msg),
+    'recovery notice is honest and does not expose another client');
   ok(!/Import from Linear/i.test(notifications[0].msg),
     'and is NOT sent to Import from Linear, which mints unusable cards post-flip (item 66)');
 }
@@ -270,9 +276,10 @@ reset();
  * simply notified unconditionally. */
 reset();
 {
-  const job = _calCardJobCreate('Fixture Client', [{ number: 1 }], 'T', 'both');
+  const job = await _calCardJobCreate('Fixture Client', [{ number: 1 }], 'T', 'both');
   job.done = [1];
-  _calCardJobSave(job);
+  delete job.card_attempt_protocol; delete job.card_attempts; // historical acknowledged checkpoint
+  await _calCardJobSave(job);
   authorityState = { video: 'syncview', graphics: 'syncview' };
   await _resumePendingCalCardJobs(authorityState);
   ok(notifications.length === 0,
@@ -285,7 +292,7 @@ console.log('============================================================');
 reset();
 {
   linearResponses = ['throw', issuesFor('T', [1, 2, 3])]; // attempt 0 fails, attempt 1 succeeds
-  const job = _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
+  const job = await _calCardJobCreate('Fixture Client', videos3, 'T', 'both');
   await _writeLinearVideoCardsToCalendar('Fixture Client', videos3, 'T', { mode: 'both', job });
   ok(fetchLog.length === 3, 'all cards still written after a transient poll error');
   ok(fetchLog.every(f => f.body.post.id.startsWith('p_lin_')), 'cards keep their deterministic Linear-derived ids (not random fallback)');

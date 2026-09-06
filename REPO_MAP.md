@@ -1,5 +1,21 @@
 # Repo map
 
+Legacy card outcome uncertainty: `test/legacy-card-outcome-uncertainty.js` runs actual browser-source/model-receiver controls with preserved base duplicate/overwrite payload failures. `docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md` and `docs/audits/2026-09-06-legacy-card-outcome-uncertainty.json` pin verified write-ahead fragments, current-record checks, uncertainty holds and no server/actor/durable-backup claim. The next v1 entry describes its earlier checkpoint.
+
+Legacy Calendar v1 retention: `test/legacy-calendar-job-retention.js` executes actual queue functions with four pinned deletion controls; `docs/audits/2026-09-06-legacy-calendar-job-retention.md` records unchanged provider eligibility, retained fragments, authority-reversal risk and no durable-quarantine claim.
+
+Browser v3 refusal retention: `test/native-intake-retained-refusals.js` executes actual saved-job/lock/retry functions and an optional finite Chromium helper check. `docs/audits/2026-09-06-native-intake-retention.md` and `docs/audits/2026-09-06-native-intake-retention.json` preserve baseline deletions, source pins and the remaining v1/sign-out/provider/serving holds. No new storage or server owner.
+
+Ordinary G8 read fence: `scripts/linear-outbound-read-seam.mjs`, `scripts/linear-outbound-read-lane.mjs`, and `test/linear-outbound-read-cutoff.js` exercise every provider transport using the actual worker and disposable SQL. `docs/audits/2026-09-06-outbound-read-cutoff.md` and `docs/audits/2026-09-06-outbound-read-cutoff.json` retain source hashes, baseline failures and the old-isolate/in-flight release holds. No global or serving cutoff claim.
+
+Current installed-boundary evidence: `docs/audits/2026-09-06-linear-exit-live-boundary.json` records four serving source closures and the presence/absence of narrowly named draft owners, RPCs and flags. Read-only metadata, not client-journey proof or a deployment instruction.
+
+Combined candidate evidence: `docs/audits/2026-09-06-linear-exit-candidate.md` ties the reviewed drafts to the canonical G0-G10 plan. `test/native-label-writes.js` runs the actual 40-group label handler/SQL lane in the existing explicitly bound disposable CI service; raw receipts/configuration remain outside the repository.
+
+**Native labels Sept6 (uninstalled):** `migrations/2026-09-06-native-label-writes.sql` extends the one immutable catalog owner with operator attestation, capability and atomic native receipts. Actual rehearsal: `qa/native-label-catalog/write-proof.mjs`; source/proof: `docs/audits/2026-09-06-native-label-writes.md` and `docs/audits/2026-09-06-native-label-writes.json`. Browser forwards catalog version; anonymous frozen writers unchanged; selected37 excludes this owner. Sept5 inventory below is historical.
+
+**Dormant native labels (2026-09-05):** `migrations/2026-09-05-native-label-catalog-foundation.sql` owns the single service-only immutable staged catalog and validation RPCs; activation remains structurally held. Contract/recovery inventory: `docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md`. Local proof: `qa/native-label-catalog/README.md`, `qa/native-label-catalog/sql-proof.js`, `qa/native-label-catalog/handler-proof.mjs`, `test/native-label-catalog-foundation.js`; immutable snapshot: `docs/audits/2026-09-05-native-label-catalog-foundation.md`. No active gateway/browser/flags/receipts changed; current 33-table history corpus coverage is explicitly insufficient for installing this new owner.
+
 The one-page guide to where everything lives. **This file is enforced**: the
 offline unit suite (`test/repo-map-sync.js`, run by `npm test` and by CI on
 every push) fails if a top-level path or `docs/` subdirectory is added,
@@ -7,6 +23,170 @@ renamed, or removed without updating this map — so keep it current in the same
 commit as any structural change.
 
 ## Top level
+
+Held native-card HTTP source adapter: `supabase/functions/_shared/native-card-materialization.mjs`,
+`test/native-card-materialization-adapter.js`, and
+`docs/audits/2026-09-06-native-card-http-adapter.md`. Both upsert handlers preserve
+their existing source authorization; serving compatibility and n8n fallback routing remain held.
+
+Native card loopback HTTP proof: `test/native-card-materialization-http.js`,
+`scripts/native-card-materialization/http-edge.mjs`, `scripts/native-card-materialization/http-lane.mjs`,
+`docs/audits/2026-09-06-native-card-http-proof.md` and
+`docs/audits/2026-09-06-native-card-http-proof-evidence.json`. `test/native-card-materialization-native-route.js`
+extracts the accepted-job browser selector: only server-projected immutable native epochs use EF; absent metadata preserves
+provider-era routing and malformed metadata holds. This is held source preparation, not installed admission.
+Actual source handlers and service RPC use only an explicitly owned disposable database;
+dated anonymous captures are optional private fixtures, not serving proof.
+
+Selected37 authenticated schema/data proof: `docs/audits/2026-09-06-schema-v7-recovery.md`
+and `docs/audits/2026-09-06-schema-v7-recovery-evidence.json`.
+
+Dormant G3 native card SQL boundary: `migrations/2026-09-06-native-card-materialization-boundary.sql`,
+`scripts/native-card-materialization/` (actual gateway/browser fixture and finite SQL overlaps),
+`test/native-card-materialization.js`, and `docs/ops/NATIVE_CARD_MATERIALIZATION_BOUNDARY.md`.
+Two private retained owners; default hold; HTTP/n8n routing and versioned recovery remain installation gates.
+Exact source/evidence handoff: `docs/audits/2026-09-06-native-card-materialization-sql.md` and
+`docs/audits/2026-09-06-native-card-materialization-sql-evidence.json`.
+Combined recovery proof: `docs/audits/2026-09-06-native-card-materialization-recovery.md`
+and `docs/audits/2026-09-06-native-card-materialization-recovery-evidence.json`.
+
+Existing-card native assignment (separate default-disabled capability):
+`migrations/2026-09-06-native-existing-assignment.sql`,
+`scripts/native-intake-manifest/existing-assignment-lane.mjs`,
+`scripts/native-intake-manifest/existing-assignment-journeys.mjs`,
+`test/native-existing-assignment.js`, `test/native-existing-assignment-preinstall.js`,
+`docs/ops/NATIVE_EXISTING_ASSIGNMENT.md`,
+and `docs/audits/2026-09-06-native-existing-assignment-evidence.json`.
+Reuses existing outbox identities; native receipt retention and schema/restore
+integration remain explicit release prerequisites. No intake or frozen writer change.
+
+Native card creation compatibility evidence and proposed boundary:
+`docs/audits/2026-09-06-native-card-compatibility.md` and
+`docs/audits/2026-09-06-native-card-compatibility-evidence.json`.
+Published n8n graphs are read-only evidence; automatic creation and all amendments remain held.
+
+Linear-exit combined runtime preparation and release-order holds:
+`docs/audits/2026-09-06-linear-exit-runtime-integration.md`. Retains the canonical
+G0–G10 plan in PR1268, exact component inputs and separate source/serving proof.
+
+Native Create Post editor projection (stacked on PR1309):
+`scripts/native-intake-manifest/editor-projection-lane.mjs`,
+`scripts/native-intake-manifest/editor-projection-journeys.mjs`,
+`scripts/native-intake-manifest/editor-projection-shim.mjs`,
+`test/native-intake-editor-projection.js`, `test/native-intake-editor-browser.js`,
+and `docs/audits/2026-09-05-native-intake-editor-projection.md`.
+Staff-only read; no new migration, flag, public roster or existing-work picker change.
+The integrated picker source test also pins the sole accepted-routing response
+addition and retains exact historical intake/assignment boundaries. Native label
+payload/CAS/intent checks are in `test/production-write-ui-source.js`, with proof
+scope documented in `qa/native-label-catalog/README.md`.
+
+Native assignee eligibility draft (on PR1302): `scripts/native-intake-manifest/assignee-lane.mjs`
+(real-handler assignment journeys, denied provider transport, PR1302-head negative control),
+`scripts/native-intake-manifest/fault-shim.mjs` (one-read fault wrapper over the pinned shim),
+`scripts/native-assignee-catalog-dryrun.js` (roster readiness aggregate, counts only),
+`test/native-assignee-eligibility.js`, `test/native-assignee-policy.js`,
+`test/native-assignee-catalog-dryrun.js` (complete-or-refuse REST paging), and
+`docs/audits/2026-09-05-native-assignee-eligibility.md`. Adds no migration, flag or RPC.
+
+Server-owned completion of accepted native intake (draft, unapplied, disabled):
+`migrations/2026-09-05-native-intake-reconcile.sql`, `scripts/native-intake-reconcile/`
+(runner library, dry-run REST entry, proof lane and gateway loader),
+`test/native-intake-reconcile.js`, `test/native-intake-reconcile-cli.js` (public
+output carries no identifier), `.github/workflows/native-intake-reconcile.yml`
+(manual-only, no schedule) and `docs/audits/2026-09-05-native-intake-reconcile.md`.
+Includes the card provenance table and one fact-recording trigger per card table;
+automatic card creation is structurally held (`card_creation_held`). Stacked on
+PR1302; integrated ledger item 160 (formerly 156) and its corrections.
+
+Disabled native-only intake draft: `migrations/2026-09-05-native-only-intake.sql`,
+`scripts/native-intake-manifest/native-only-lane.mjs`, `test/native-only-intake.js`,
+and `docs/audits/2026-09-05-native-only-intake.md`. Retains PR1293's harness and manifest contracts.
+
+Root expected-request manifest draft: `migrations/2026-09-05-native-intake-root-manifest.sql`,
+`scripts/native-intake-manifest/` (pinned bootstrap/shim, actual gateway proof),
+`test/native-intake-manifest.js`, and `docs/audits/2026-09-05-native-intake-manifest.md`.
+Server-only prospective storage/detectability; no deployed recovery/materializer claim.
+
+Mapped feedback: `docs/features/COMPONENT_FEEDBACK.md` owns the draft read contract;
+`supabase/functions/production-comments/feedback.mjs` provides the staff-only exact
+component source projection; `test/component-feedback-read.js` executes its real
+handler; `docs/syncview-design/tests/prod-feedback-browser.js` tests the actual
+component renderer, loader and focus behavior with fictional transport.
+`test/prod-context-menu-pixel-contract.js` preserves the pixel comparator's
+icon, shortcut and explicit submenu/refusal contracts.
+
+Comment add receipt reconstruction: `qa/comment-receipt-fingerprint/README.md`
+documents the source-only repair and limits; `run.mjs` in that folder loads the
+complete gateway handler with synthetic RPC-shaped persistence.
+`test/comment-receipt-fingerprint.js` runs the baseline/candidate exact-receipt,
+unchanged accepted-hash and changed-request refusal matrix offline.
+
+Review composer preservation: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md` owns the
+schema/authority/recovery limits. `test/review-draft-ownership.js` executes the
+actual helpers through `test/helpers/review-draft-source.js`.
+`qa/feedback-drafts/` contains complete-document failure/retry/identity and real
+BFCache tests with fictional intercepted transports; its README states the
+server assumptions and local-only proof limits.
+The blocked Calendar visibility experiment and its red fresh-page prerequisite
+are recorded in `docs/ops/CALENDAR_FEEDBACK_RECOVERY_ACCESS_BLOCKER.md`;
+`qa/feedback-drafts/calendar-recovery-access.js` is its intercepted regression.
+The bounded frontend extension and legacy-debt limits live in
+`docs/ops/CALENDAR_FEEDBACK_RECONCILIATION.md`.
+`qa/feedback-drafts/calendar-recovery-races.js` preserves nullable-cell, alias and
+native/source race acceptance controls, including unresolved failures.
+`qa/feedback-drafts/calendar-recovery-contract.js` verifies visible safe holds
+(missing metadata or context, unreserved/unproven companion status, changed row).
+
+Calendar feedback recovery slice 1: `docs/ops/CALENDAR_FEEDBACK_RECOVERY_CONTRACT.md`
+is the executable contract; `migrations/2026-09-05-calendar-feedback-recovery.sql`
+adds the service-only `calendar_feedback_recovery_apply_v1` RPC and its
+insert-only evidence table; `production-write` gains the additive
+`recover_source` modifier. `qa/calendar-feedback-recovery/` (README, `pg.js`
+disposable PostgreSQL loader, `seam.js` psql-backed Supabase seam, `edge.mjs`
+in-process handler loader, `handler.mjs` matrix, `browser.js` actual-control
+matrix) is the decisive proof; `test/calendar-feedback-recovery-handler.js` and
+`test/calendar-feedback-recovery-browser.js` are its unit entry points (they
+skip loudly without PostgreSQL 16 / Chromium).
+The bounded independent corrections and preserved negative controls are in
+`docs/audits/2026-09-06-calendar-feedback-recovery-independent-corrections.md`:
+accepted-comment-bound status receipts, constrained fields, missing-body holds,
+and refused root-note draft retention; no frozen writer changes.
+The separately opted-in `qa/calendar-feedback-recovery/integrated.mjs` lane,
+through `test/calendar-feedback-recovery-integrated.js`, tests actual recovery
+with the journal/native/provenance migration fixture and exact35-table row
+conservation. `test/calendar-feedback-recovery-local-target.js` checks local
+target parsing and intercepted libpq environment isolation without a connection.
+`docs/audits/2026-09-06-calendar-feedback-combined-proof.md` and its `.json`
+receipt record exact-source combined execution, guard negative controls and
+the separate required CI environment binding.
+
+First Samples release composition and held live gates:
+`docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts
+`SAMPLES_RECOVERY_TARGET_SHA` and records the exact integrated document tested.
+
+Samples recovery prerequisite: `scripts/samples-recovery-build.js` creates a
+guarded, offline reader inverse without changing the checkout. The operating
+constraints and pinned receipts live in `docs/ops/SAMPLES_RECOVERY_REHEARSAL.md`.
+`test/samples-recovery-build.js` checks drift refusals and unverified read behavior;
+`qa/boot/samples-recovery-rehearsal.js` exercises actual forward/recovery/forward
+documents with intercepted writes, owned receipt conservation and negative controls.
+
+Samples local-work correction: `test/samples-local-work.js` exercises held saves,
+reload recovery, client/actor ownership, storage failures and legacy mixed caches.
+`test/helpers/samples-work-context.js` loads the shipped recovery helpers for the
+existing mocked writer suites. `node qa/boot/samples-local-work.js` runs the full
+local app with intercepted writes, real typing/debounce, client switches, fresh
+browser recovery and accessible storage retry. Recovery records are separate
+from verified read caches; unknown legacy draft bytes remain private and unassigned.
+Field-level recovery debt survives later batches until matching acknowledgement;
+existing staff identity cleanup suspends the Samples view without deleting its
+owned recovery bytes. Storage Retry reattempts incomplete per-record hydration.
+
+Samples G1 regression: `test/samples-authoritative-read.js` executes the shipped
+per-client reader, loader and cache with fictional fixtures and no external I/O.
+The existing `qa/boot/client-entry-sequence.js` supplies exact-count Samples receipts
+in its fully mocked client-navigation lane.
 
 | Path | What it is |
 |---|---|
@@ -37,6 +217,33 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 ## Backend & data
 
+The draft private card-history slice is mapped in
+`docs/ops/CARD_CHANGE_HISTORY.md`: additive
+`migrations/2026-09-05-card-change-journal.sql`, real local-only
+`scripts/card-change-journal-rehearsal.js`, and its target-boundary test
+`test/card-change-journal.js`. `scripts/card-change-journal-rollback.sql` is the
+future owner-operated capture-disable transaction that retains history. The SQL
+rehearsal also runs against the existing
+disposable PostgreSQL service in `calendar-unit-tests.yml`; it reaches no live
+backend. Existing `scripts/track-b-backup.js` and
+`scripts/track-b-restore-rehearsal.js` own versioned private package coverage and
+remain separate from any production writer deployment.
+`test/track-b-backup-corpus.js` gates legacy-versus-history package coverage;
+`scripts/track-b-history-backup-prerequisites.sql` prepares the separately
+reviewed private backup grants and scratch-only restore helper after all
+expanded-corpus schema prerequisites exist.
+`scripts/card-history-backup-rehearsal.js` proves the actual 21-table private
+dump/package/restore against disposable PostgreSQL. Its PR #1293 manifest
+prerequisite is fetched at an immutable commit and hash-checked for this local
+proof only; it does not install production schema or deploy the gateway.
+The corrective `history-v5` format adds actual FK closure and replay evidence;
+`scripts/card-history-closed-corpus-rehearsal.js` proves its 33-table data restore
+against source-derived dependency DDL, including the gated F27 relation shapes.
+`test/track-b-backup-closed-corpus.js` preserves v3/v4 compatibility and gates v5.
+`scripts/track-b-history-v5-backup-prerequisites.sql` is its distinct manual
+private-grant/scratch helper artifact. Full schema reconstruction remains blocked;
+`docs/audits/2026-09-05-card-history-restore-correction.md` records proof limits.
+
 | Path | What it is |
 |---|---|
 | `supabase/` | Standard Supabase CLI layout: `supabase/config.toml` + `supabase/functions/` (Edge Functions). B4 outbound lives in `supabase/functions/linear-outbound/`, `supabase/functions/deliverable-write/`, `supabase/functions/batch-write/`, and shared write/auth code under `supabase/functions/_shared/`; `supabase/functions/_shared/linear-create-id.mjs` owns F203's deterministic Linear create UUIDs. `supabase/functions/linear-inbound/` owns strict echo suppression and carries F27's sole new per-function frozen Deno lock/config; `.github/workflows/deploy-f27-linear-inbound.yml` is its dispatch-only exact-SHA P.3 deploy/captured-v39 restore lane and has no push trigger. `.github/workflows/deploy-f27-section4-closures.yml` is the separate dispatch-only, exact-SHA, strictly serial F27 §4 deploy/source-exact restore lane for only `linear-outbound`, `production-write`, `deliverable-write`, and `batch-write`; it does not replace the P.3 lane or the onboarding lane. `supabase/functions/workload-plan/index.ts` is Workload's deliberate-manual sidecar gateway. Candidate source separates the staff-authenticated global plan projection (Admin/SMM/Creative) from the unchanged Admin/SMM-only writer; the read widening is not live until this exact function source is manually deployed. Other scoped deploys are path-triggered by `.github/workflows/deploy-onboarding-edge-functions.yml`, `.github/workflows/deploy-thumbnail-edge-functions.yml`, `.github/workflows/deploy-pto-edge-functions.yml`, and `.github/workflows/deploy-description-image-upload.yml` (the staff-only writer behind pasting an image into a SyncLinear description, `supabase/functions/description-image-upload/`) — do not move. |
@@ -61,6 +268,48 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 | `docs/syncview-design/` | The **locked design kit** for the visible **Linear** mirror (internally the `production` surface): `docs/syncview-design/SyncView.html` (behavior source of truth), `docs/syncview-design/linear-design-tokens.md` (visual build spec), `docs/syncview-design/WIRED-PARITY.md` (parity contract), wired test gates in `docs/syncview-design/tests/`, raw probe measurements in `docs/syncview-design/probe-data/`, prototype-era suites in `docs/syncview-design/tests/design-machine-originals/`. |
 
 ## Test & automation entry points
+
+Inactive first-Samples-repair monitoring preparation:
+`scripts/client-continuity-monitor.js` (read truth, relay/fallback and liveness),
+`scripts/client-continuity-view.js` (request/DOM observer and private scoped census),
+`scripts/client-continuity-transport.js` (context transport denial and bounded safety finalization),
+`scripts/client-continuity-run.js` (inactive manual launcher and private receipts),
+`docs/ops/client-continuity.config.example.json` (inactive secret-reference template),
+`scripts/client-continuity-actions.js` (gated TEST persistence runner),
+`test/client-continuity-monitor.js` (offline fixtures and actual reader checks),
+`qa/client-continuity.js` and `qa/client-continuity-fixtures.js` (intercepted boot harness reuse),
+`qa/client-continuity-transport.js` (independent loopback transport escape regressions),
+`test/client-continuity-view.js` and `test/helpers/client-continuity-source.js` (census/launcher/source coverage), and
+`test/client-continuity-local-objects.js` (real local promisor Git negative controls;
+no external transport), with exact source/trace digest evidence in
+`docs/audits/2026-09-06-continuity-local-object-proof.md` and its `.json` receipt, and
+`docs/ops/CLIENT_CONTINUITY_PREPARATION.md` (activation/recovery requirements).
+
+Separate disabled initial Samples read: `scripts/samples-read-subscriptions.js`
+(exact real-SDK read-subscription attribution), `scripts/samples-initial-read.js`
+(post-teardown initial-only contract), `scripts/samples-initial-read-run.js`
+(private manual launcher, separate receipts/observer/recovery),
+`qa/samples-initial-sdk/package.json` (isolated fixture-only SDK dependency),
+`qa/samples-initial-read.js` and `test/samples-initial-read.js` (real-SDK intercepted
+faults and contract isolation), `docs/ops/SAMPLES_INITIAL_READ.md` and
+`docs/ops/samples-initial-read.example.json` (held activation and private references).
+
+Inactive hosted continuation: `scripts/client-continuity-hosted.js` (view,
+receipt observer, bounded drill and independent-host sentinel commands),
+`scripts/client-continuity-observer.js` (receipt validation and durable alert intent),
+`scripts/client-continuity-delivery.js` (existing relay terminal confirmation and optional direct bot readback),
+`scripts/client-continuity-test-ui.js` and `qa/client-continuity-test-ui.js`
+(actual anonymous controls against isolated persisted fixtures; live automation unavailable),
+`test/client-continuity-operations.js` (synthetic operation/delivery/state boundaries),
+`docs/ops/client-continuity-operations.example.json` (inactive private reference template),
+`docs/ops/CLIENT_CONTINUITY_OPERATIONS.md` (finite activation/disable handoff), and
+`.github/workflows/client-continuity-hosted-view.yml`,
+`.github/workflows/client-continuity-hosted-observer.yml`,
+`.github/workflows/client-continuity-hosted-delivery-drill.yml` (dormant hosted package).
+
+`docs/audits/2026-09-06-production-intake-polish-fixture.md` and its `.json`
+receipt record the actual browser baseline/candidate proof for the Create Post
+editor read mock and intake wait in `docs/syncview-design/tests/prod-write-gateway-browser.js`.
 
 | Command / trigger | What runs | Notes |
 |---|---|---|
@@ -126,7 +375,11 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 |---|---|
 | `.github/` | CI workflows (unit, client-entry visible boot, nightlies, prod-polish gate, reconcile crons, edge-function deploy), PR template, Copilot instructions. |
 | `.claude/` | Claude Code config: hooks (README-drift + repo-map reminders), the six quality skills (`master-test`, `overnight-test`, `human-audit`, `feedback-expansion`, `bug-archaeology`, `site-assurance`) — each a general protocol + target binding; when to use which: `docs/testing/README.md`; the shared prioritization contract: `docs/QUALITY_TIERS.md` — plus the meta skills `skill-forge` (the house method for creating/improving skills: amplification intake + house invariants; see `docs/vision/STEP_BACK_2026-07-18.md`) and `night-shift` (unattended work under shared usage limits: checkpoint-every-unit, pause-not-failure, sleep-across-the-reset). |
-| `test/` | Fast dependency-free unit/wiring suites — auto-discovered by `test/run-all.js` (every `test/*.js` runs; fixtures live in `test/fixtures/`). Suites are offline except the explicitly required disposable-PostgreSQL 16 F63 gate; none reaches a live backend. Workload plan-date coverage is split between `workload-plan-source.js`, the hermetic production-helper harness `workload-plan-failclosed.js`, and the extended tweak/literal-bucket guard. `workload-capacity-placement.js` is the dedicated hermetic guard for capacity-aware automatic placement: pins are absolute, automatic work walks backward to a day with room, never forward past its ideal day and never before today (enforced at compute time AND re-applied at read time, so a tab open across midnight cannot paint a stored move on a past day), a saturated window keeps its honest over-capacity badge, and no capacity move is ever written to the sidecar. The matching positive source guard lives in `workload-plan-source.js`. |
+| `test/` | Fast dependency-free unit/wiring suites — auto-discovered by `test/run-all.js` (every `test/*.js` runs; fixtures live in `test/fixtures/`). Suites are offline except explicitly required disposable-PostgreSQL lanes; none reaches a live backend. Workload plan-date coverage is split between `workload-plan-source.js`, the hermetic production-helper harness `workload-plan-failclosed.js`, and the extended tweak/literal-bucket guard. `workload-capacity-placement.js` preserves absolute pins, backwards-only automatic placement, timezone floors and honest capacity badges without writing the sidecar. `test/workload-native-membership.js` exercises the native-default reader/adoption and exact-base provider negative control; `test/workload-native-postgres.js` owns the opt-in unique-database proof, and `qa/workload-native/handler.mjs` runs the full handler/shared auth over its disposable SQL transport. |
+| `supabase/functions/workload-plan/native-snapshot.mjs` | Staff-only complete snapshot validator and bidirectional UUID/native plan alias projection. `migrations/2026-09-05-workload-native-membership.sql` supplies the three service-only manual RPC prerequisites; no stored plan ID or table migration. `docs/ops/WORKLOAD_NATIVE_SOURCE.md` owns source/serving, CON/STR, feedback, installation and recovery limits. |
+| `qa/workload-native/browser.js` | Five-group actual Chromium smoke of the complete integrated HTML using the boot stream server and synthetic intercepted transport: native-only visibility, plan alias acknowledgement/refresh, failed-refresh continuity, recovery, and post-flight native receipt retry. No product function substitution, workflow activation or live-service proof. |
+| `qa/workload-consistency/native-capture.js` | Private local-only, read-only repeatable-read acquisition of native Workload base rows plus the actual snapshot RPC. Exact PostgreSQL bytes, counted identities, observed catalog/source binding and HMAC integrity; no native completeness or serving attestation. `native-capture-rehearsal.js` supplies the explicit disposable SQL negatives; `test/workload-native-capture.js` registers offline guards. Owning limits: `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. |
+| `qa/workload-consistency/native-adapter.js` | Private native VID/GRA adapter for the reused PR1279 `compare.js` and `source-harness.js`: independent base membership, exact plan aliases, actual browser reader/adoption/buckets/ordering, and scoped comparison only. `lossless-json.js` preserves numeric lexemes and rejects duplicate keys; `native-adapter-rehearsal.js` supplies explicit SQL/VM controls and `test/workload-native-adapter.js` registers offline guards. Provider/serving/live/G5 and old contract tests remain held. |
 | `test/helpers/` | Shared test infrastructure, required by suites rather than auto-run (`run-all.js` discovers `test/*.js` only, so nothing here is mistaken for a suite). `extract-function.js` is the ONE correct index.html function extractor: brace-balanced with strings, template literals (tracked as a frame STACK, not a flag), comments and REGEX LITERALS all inert — the hazard in `OPEN_REPAIRS` item 96, where a hand-rolled scanner counts the braces inside `/(\d{1,2})/` or opens a string on the quote in `/[\"]/` and silently over-extracts into the NEXT function, so an assertion passes against a neighbour. Most suites still carry their own scanner and may, for as long as it is right: `test/extract-function-integrity.js` compiles each suite's own extractor, runs it over every function that suite names, and fails naming the file and the function when the result is not that function. |
 | `test/helpers/strip-comments.js` | The block-comment stripper the gates share, and the reason they no longer roll their own. `src.replace(/\/\*[\s\S]*?\*\//g, ' ')` — which seventeen suites used — opens a comment at ANY `/` followed by `*`, including the pair inside a string or an HTML attribute, and runs to the next closing delimiter anywhere in the file: two `accept="…,video/*"` attributes swallowed 64k characters of `index.html`, so both upload flows (24 functions, `_tkWireFormEvents` through `_ttpRenderQueue`) were invisible to every gate that stripped that way, and every NEGATIVE assertion over them passed vacuously. It is a stateless RULE, not a parser — a real opener is never preceded by an identifier character, `*`, `/`, `.` or a quote — because a JS scanner run over 5MB of HTML+CSS+JS drifts on an apostrophe in prose and on regex literals containing quotes. `test/comment-strip-is-honest.js` keeps the raw regex out and pins the behaviour. OPEN_REPAIRS 145. |
 | `test/prod-backend-bridge.js` | Guards the heavy-lane transport below: that it is not a TLS bypass, that it is a transport and not a fixture, that its hosts are an allowlist rather than a hole out of the sandbox, that it refuses every non-GET/HEAD method BEFORE the request is made (a mutation that reaches the fetch has already changed production, so the lane's end-of-run `noWriteRequests` report is not a guard), and that a run which carried nothing cannot report a tidy pass count. |
@@ -146,3 +399,21 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 - **Production-tab (design-kit) test** → `docs/syncview-design/tests/` + wire it into `prod-polish-gate.js` or `package.json`.
 - **Finished / superseded doc** → `docs/archive/` (don't delete history).
 - **New top-level anything** → think twice, then document it here (CI will remind you).
+
+`docs/audits/2026-09-05-native-intake-reciprocal-review.md` records the independent PR1314 review, both-surface reciprocal completion regression, local correction proof and the separate held creation protocol.
+
+Integrated recovery backup: `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`, `scripts/track-b-history-v6-backup-prerequisites.sql`, `scripts/track-b-history-v7-backup-prerequisites.sql`, `scripts/card-history-integrated-rehearsal.js`, `scripts/card-history-integrated-acceptance.mjs`, `scripts/card-materialization-history-rehearsal.js`, `scripts/native-card-materialization/recovery-v7-phase.mjs`, and `test/track-b-backup-integrated-corpus.js` define/test held explicit 35- and 37-table data corpora. History-v7 adds the two retained materialization owners; its portable proof requires an explicitly owned loopback PostgreSQL server and private output. The grant artifact and actual scratch recovery remain held.
+
+Combined Workload recovery proof: `scripts/card-history-workload-rehearsal.js`, `qa/workload-native/integrated-handler.mjs`, and `test/workload-history-integrated.js` exercise the actual Workload handler/service-role RPCs, saved-plan aliases, six-owner journal failure atomicity and all35-table restore in an explicitly owned disposable PostgreSQL fixture. Normal offline invocation explicitly skips; the opt-in lane requires local PostgreSQL and never starts/stops servers.
+
+Held selected37 schema recovery: `docs/ops/RECOVERY_SCHEMA_V7.md`, `scripts/track-b-recovery-package.js`, `scripts/track-b-recovery-reconstruct.js`, `scripts/track-b-recovery-prerequisites.sql`, `scripts/track-b-recovery-rehearsal.js`, `test/track-b-recovery-package.js`, and `test/track-b-recovery-v7-preparation.js` integrate the separate authenticated schema engine with canonical v3-v7 meanings. The combined real schema/data/replay proof remains held; the reviewed lexer source is included. Label data and active scheduling are excluded.
+
+The separately reviewed lexer correction is preserved in `test/track-b-recovery-callable-lexer.js`, `docs/audits/2026-09-06-recovery-callable-lexer.md`, and `docs/audits/2026-09-06-recovery-callable-lexer-evidence.json`. Its offline source closure does not establish actual combined schema execution.
+
+`test/track-b-recovery-stable-view-callables.js` exercises the recovery engine's ordinary-view-only STABLE invoker classification, transitive nonvolatile closure, load-expression refusals and authenticated synthetic package reader. Owning contract: `docs/ops/RECOVERY_SCHEMA_V7.md`; offline proof is separate from actual combined schema/data restoration and installation.
+
+`test/track-b-recovery-empty-target.js` checks actual outcome-module empty-target and retry guidance against all public object categories, with intercepted SQL.
+
+Explicit catalog/cutoff recovery: `docs/ops/RECOVERY_SCHEMA_V8.md`, `docs/audits/2026-09-06-native-recovery-v8-evidence.json`, and `scripts/track-b-history-v8-backup-prerequisites.sql` cover the39-owner successor while preserving prior formats/defaults. The shared schema rehearsal selects v8 explicitly and separately exercises its data-role grants and trigger helper.
+
+Bounded G8 outbound prerequisite: `migrations/2026-09-06-linear-outbound-cutoff.sql`, `supabase/functions/linear-outbound/index.ts`, `scripts/linear-outbound-cutoff-rehearsal.js`, `scripts/linear-outbound-cutoff-lane.mjs`, `test/linear-outbound-cutoff.js`, and `docs/ops/LINEAR_OUTBOUND_CUTOFF.md` add/test an inactive server generation/high-water gate for the ordinary `mirror_outbox` claim and provider-mutation lane. It preserves pending accepted receipts and explicitly leaves inbound, reconciliation, browser, n8n, F27 emergency, credentials, provider reads, installation and serving red.

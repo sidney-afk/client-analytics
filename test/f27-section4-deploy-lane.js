@@ -70,7 +70,8 @@ const CANDIDATES = new Map([
   // an unbound linear_result. Still index.ts only -- file count 5, entrypoint
   // hash unchanged.
   ['linear-outbound', {
-    source: '1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39',
+    // Uninstalled combined candidate 5f89b89e, matching the dispatch carrier.
+    source: '43329cdf65d87d20dffa16e5711a3deb0f1902acceae652cd5c5f5d255adcde9',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
@@ -395,7 +396,11 @@ const CANDIDATES = new Map([
     // ASSET_EVIDENCE_MAX_AGE_MS in place of the live probe, and `recheck: true`
     // from the Refresh access button skips the ledger. One new read on
     // production_asset_access_checks per slot; no new import, file count 5.
-    source: 'd7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a',
+    // Uninstalled integration: native intake/eligibility/editor projection plus
+    // captured main asset logic. SQL prerequisite and serving proof stay held.
+    // Source-only 2b6c718 assignment prerequisite; same five-file closure.
+    // Uninstalled combined candidate d906e5aa; source-only closure evidence.
+    source: 'ae528a869f8c09022282785b983e94cde40a02b4e679eb03a1282bef725f6cac',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

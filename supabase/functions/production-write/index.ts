@@ -29,6 +29,9 @@ import {
   assigneeEligibility,
   batchAssetColumn,
   assigneeEligibilityPolicy,
+  assigneeLaneFor,
+  assigneeLanePolicy,
+  nativeIntakePool,
   browserCredentialTestOverride,
   canonicalLinearUserId,
   eligibleAssigneeProjection,
@@ -40,6 +43,7 @@ import {
   clientCommentTargetAllowed,
   clientOperationAllowed,
   clientScopeAllowed,
+  commentAddFingerprint,
   commentLifecycleCapabilities,
   commentLifecycleAllowed,
   componentFillTitle,
@@ -852,6 +856,86 @@ type LabelSnapshot = {
   selectedLabelIds: string[];
 };
 
+const NATIVE_LABEL_CATALOG_FLAG = "production_native_label_catalog";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+async function nativeLabelCatalogConfig(
+  supabase: SupabaseClient,
+  team: string,
+): Promise<JsonMap> {
+  const reply = await supabase.rpc("production_label_catalog_capability", {});
+  if (!reply || typeof reply !== "object" || Array.isArray(reply)) {
+    throw new GatewayError(503, "native_label_catalog_config_unavailable");
+  }
+  if (reply.error !== null) {
+    const error = parseJson(reply.error);
+    if (["42883", "PGRST202"].includes(clean(error.code))
+        && clean(error.message).includes("production_label_catalog_capability")) {
+      const flag = await supabase.from("syncview_runtime_flags").select("value").eq("key", NATIVE_LABEL_CATALOG_FLAG).maybeSingle();
+      // Pre-install compatibility requires BOTH an absent RPC and an exact
+      // absent flag row. An installed/read-failed capability cannot fall back.
+      if (flag && typeof flag === "object" && !Array.isArray(flag) && flag.error === null && flag.data === null) {
+        return { mode: "provider", version_id: null };
+      }
+    }
+    throw new GatewayError(503, "native_label_catalog_config_unavailable");
+  }
+  const value = reply.data;
+  if (!value || typeof value !== "object" || Array.isArray(value)
+      || (value as JsonMap).schema_version !== 1
+      || typeof (value as JsonMap).mode !== "string"
+      || !["provider", "native", "hold"].includes(String((value as JsonMap).mode))) {
+    throw new GatewayError(503, "native_label_catalog_config_invalid");
+  }
+  const config = value as JsonMap;
+  if (config.mode === "native" ? typeof config.version_id !== "string" || !UUID_RE.test(config.version_id)
+      : config.version_id !== null) throw new GatewayError(503, "native_label_catalog_config_invalid");
+  if (!['video', 'graphics'].includes(normalizeTeam(team))) {
+    throw new GatewayError(409, "entity_scope_unavailable");
+  }
+  return config;
+}
+
+function verifiedNativeCatalog(value: unknown, version: string, team: string): JsonMap {
+  const read = parseJson(value);
+  const catalog = read.catalog;
+  if (!value || typeof value !== "object" || Array.isArray(value)
+      || read.ok !== true || read.structure_complete !== true || read.operator_attested !== true
+      || read.verification_state !== "operator_attested"
+      || read.version_id !== version || read.schema_version !== 1 || read.team !== normalizeTeam(team)
+      || typeof read.manifest_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(read.manifest_sha256)
+      || typeof read.attestation_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(read.attestation_sha256)
+      || !Array.isArray(catalog) || catalog.length > 5000) {
+    throw new GatewayError(503, "native_label_catalog_unverified", { complete: false });
+  }
+  const normalized = catalog.map(label => {
+    if (!label || typeof label !== "object" || Array.isArray(label)
+        || typeof label.id !== "string" || !UUID_RE.test(label.id)
+        || typeof label.name !== "string" || typeof label.color !== "string"
+        || !(label.description === null || typeof label.description === "string")) return null;
+    return sanitizedLabel(label, true);
+  });
+  if (normalized.some(label => !label)
+      || new Set(normalized.map(label => clean(label?.id))).size !== normalized.length) {
+    throw new GatewayError(503, "native_label_catalog_malformed", { complete: false });
+  }
+  return { ...read, catalog: normalized };
+}
+
+async function readNativeLabelCatalog(
+  supabase: SupabaseClient,
+  version: string,
+  team: string,
+): Promise<JsonMap> {
+  const reply = await supabase.rpc("production_label_catalog_read_attested", {
+    p_version_id: version, p_team: normalizeTeam(team),
+  });
+  if (!reply || typeof reply !== "object" || Array.isArray(reply) || reply.error !== null) {
+    throw new GatewayError(503, "native_label_catalog_unavailable", { complete: false });
+  }
+  return verifiedNativeCatalog(reply.data, version, team);
+}
+
 async function linearLabelCatalog(teamId: string, expectedTeam = ""): Promise<JsonMap[]> {
   const catalogQuery = `query SyncViewProductionLabelCatalog($teamId: String!, $after: String) {
     team(id: $teamId) { id key }
@@ -1482,10 +1566,20 @@ function eventFor(
 async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promise<unknown> {
   const { data, error } = await supabase.rpc(name, args);
   if (error) {
+    if (name === "production_labels_write") {
+      const labelCode = clean(error.message).match(/^(native_label_catalog_(?:held|changed|unverified|config_invalid)|native_label_scope_forbidden|native_label_state_incomplete|invalid_label_ids|label_not_applicable)$/)?.[0];
+      if (labelCode) throw new GatewayError(labelCode === "native_label_scope_forbidden" ? 403
+        : ["invalid_label_ids", "label_not_applicable"].includes(labelCode) ? 400
+        : ["native_label_catalog_changed", "native_label_state_incomplete"].includes(labelCode) ? 409 : 503, labelCode);
+    }
     if (String(error.code || "") === "23505" || /idempotency_conflict/i.test(clean(error.message))) {
       throw new GatewayError(409, "idempotency_conflict");
     }
     if (/write_conflict/i.test(clean(error.message))) throw new GatewayError(409, "write_conflict");
+    if (/assignment_scope_forbidden|assignee_out_of_scope|assignee_role_incompatible/i.test(clean(error.message))) {
+      const code = clean(error.message).match(/assignment_scope_forbidden|assignee_out_of_scope|assignee_role_incompatible/i)![0].toLowerCase();
+      throw new GatewayError(403, code);
+    }
     if (/authority_unavailable/i.test(clean(error.message))) throw new GatewayError(503, "authority_unavailable");
     if (/legacy_parity_gate_unavailable/i.test(clean(error.message))) {
       throw new GatewayError(503, "legacy_parity_gate_unavailable");
@@ -1497,6 +1591,14 @@ async function rpc(supabase: SupabaseClient, name: string, args: JsonMap): Promi
     }
     if (/test_client_scope_required/i.test(clean(error.message))) {
       throw new GatewayError(403, "test_client_scope_required");
+    }
+    if (/calendar_feedback_recovery_forbidden/i.test(clean(error.message))) {
+      throw new GatewayError(403, "calendar_feedback_recovery_forbidden");
+    }
+    if (/calendar_feedback_recovery_invalid_(scope|comment|source|status|actor)/i.test(clean(error.message))) {
+      throw new GatewayError(400, clean(error.message)
+        .match(/calendar_feedback_recovery_invalid_(scope|comment|source|status|actor)/i)?.[0]
+        .toLowerCase() || "calendar_feedback_recovery_invalid_scope");
     }
     if (/batch_not_found|batch_not_active|batch_team_mismatch|batch_parent_mapping_(missing|ambiguous)/i.test(clean(error.message))) {
       const code = /batch_not_found/i.test(clean(error.message))
@@ -2014,6 +2116,145 @@ function canonicalCommentMatchesReceipt(
     && clean(comment.native_comment_id) === clean(expected.native_comment_id);
 }
 
+type CommentAddIntent = {
+  dedup: string;
+  fingerprint: string;
+  productionCommentId: string;
+  nativeCommentId: string;
+  suppliedNativeId: string;
+  commentBody: string;
+  audience: string;
+  parentId: string;
+  component: string;
+  isTweak: boolean;
+  round: number | null;
+  expectedOperationPayload: JsonMap;
+  expectedComment: JsonMap;
+};
+
+// Rebuilds the identity, dedup key and fingerprint an accepted comment add
+// carried, from the same request bytes. Shared by the reconcile reader and the
+// Calendar feedback recovery lane so neither can drift from the write path.
+async function reconstructCommentAdd(
+  supabase: SupabaseClient,
+  body: JsonMap,
+  surface: string,
+  requestId: string,
+  entity: Entity,
+  id: string,
+  targetClientSlug: string,
+  team: string,
+  principal: Principal,
+  historicalLegacyParity: boolean,
+): Promise<CommentAddIntent> {
+  const commentInput = parseJson(body.comment);
+  // This reader reconstructs add receipts only. Never certify a lifecycle
+  // request by silently treating its action/CAS as the earlier add.
+  if (normalizeCommentAction(commentInput.action || "add") !== "add") {
+    throw new GatewayError(400, "reconcile_operation_unsupported");
+  }
+  const commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
+  if (!commentBody || commentBody.length > MAX_COMMENT_BODY) {
+    throw new GatewayError(400, "invalid_comment_body");
+  }
+  let audience = principal.kind === "client" ? "client" : lower(commentInput.audience || "internal");
+  if (!["internal", "client"].includes(audience)) throw new GatewayError(400, "invalid_comment_audience");
+  const suppliedNativeId = clean(commentInput.native_comment_id);
+  if (suppliedNativeId
+      && (!(surface === "calendar" || surface === "sxr")
+        || !/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(suppliedNativeId))) {
+    throw new GatewayError(400, "invalid_native_comment_id");
+  }
+  const dedup = suppliedNativeId
+    ? dedupKey("comment", entity, id, `native:${suppliedNativeId}`)
+    : dedupKey("comment", entity, id, requestId);
+  const rawParentId = clean(commentInput.parent_id);
+  let parentId = rawParentId;
+  if (rawParentId) {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(rawParentId)) {
+      throw new GatewayError(400, "invalid_comment_parent");
+    }
+    // Resolve the parent honestly: "no such row" and "two rows" are not the
+    // same answer and must not share a code. See resolveCommentByRef.
+    const parentMatch = await resolveCommentByRef(
+      supabase, rawParentId, "id,native_comment_id,deliverable_id,batch_id,client_slug,audience",
+    );
+    if (parentMatch.state === "unavailable") {
+      throw new GatewayError(503, "comment_parent_lookup_unavailable");
+    }
+    if (parentMatch.state === "missing") {
+      // The thread this reply names does not exist here. Deterministic: no
+      // reload and no retry can conjure it, so it gets its own code rather
+      // than borrowing the ambiguity one.
+      throw new GatewayError(409, "comment_parent_not_found");
+    }
+    if (parentMatch.state === "ambiguous") {
+      throw new GatewayError(409, "comment_parent_ambiguous");
+    }
+    const parent = parentMatch.row;
+    if (clean(parent.client_slug) !== targetClientSlug
+        || clean(parent.deliverable_id) !== (entity === "deliverable" ? id : "")
+        || clean(parent.batch_id) !== (entity === "batch" ? id : "")
+        || (principal.kind === "client" && clean(parent.audience) !== "client")) {
+      throw new GatewayError(403, "comment_parent_forbidden");
+    }
+    parentId = clean(parent.id);
+    // A reply is part of the resolved canonical thread. Its visibility is
+    // inherited server-side and cannot be widened or hidden by caller input.
+    audience = lower(parent.audience) === "client" ? "client" : "internal";
+  }
+  const productionCommentId = suppliedNativeId
+    ? await deterministicNativeId("pc", `${entity}:${id}`, suppliedNativeId)
+    : await deterministicNativeId("pc", requestId, `${entity}:${id}:production`);
+  const nativeCommentId = suppliedNativeId || productionCommentId;
+  const round = commentInput.round == null || commentInput.round === ""
+    ? null
+    : Number(commentInput.round);
+  if (round != null && (!Number.isInteger(round) || round < 0)) {
+    throw new GatewayError(400, "invalid_comment_round");
+  }
+  const fingerprint = await commentAddFingerprint({
+    operation: "comment", entity, id,
+    ...(suppliedNativeId ? {} : { requestId, surface, legacyParity: historicalLegacyParity }),
+    actorKey: principal.actorKey,
+    comment: {
+      body: commentBody,
+      audience,
+      native_comment_id: nativeCommentId,
+      parent_id: parentId || null,
+      component: clean(commentInput.component) || null,
+      is_tweak: commentInput.is_tweak === true,
+      round,
+    },
+  });
+  const expectedOperationPayload = { body: commentBody };
+  const expectedComment = {
+    id: productionCommentId,
+    idempotency_key: dedup,
+    deliverable_id: entity === "deliverable" ? id : null,
+    batch_id: entity === "batch" ? id : null,
+    client_slug: targetClientSlug,
+    team,
+    author_key: principal.actorKey,
+    native_comment_id: nativeCommentId,
+  };
+  return {
+    dedup,
+    fingerprint,
+    productionCommentId,
+    nativeCommentId,
+    suppliedNativeId,
+    commentBody,
+    audience,
+    parentId,
+    component: clean(commentInput.component) || "",
+    isTweak: commentInput.is_tweak === true,
+    round,
+    expectedOperationPayload,
+    expectedComment,
+  };
+}
+
 async function reconcileEntityOperation(
   supabase: SupabaseClient,
   body: JsonMap,
@@ -2093,90 +2334,15 @@ async function reconcileEntityOperation(
     });
     expectedOperationPayload = { url: fileUrl };
   } else {
-    const commentInput = parseJson(body.comment);
-    const commentBody = String(commentInput.body == null ? body.body || "" : commentInput.body).trim();
-    if (!commentBody || commentBody.length > MAX_COMMENT_BODY) {
-      throw new GatewayError(400, "invalid_comment_body");
-    }
-    let audience = principal.kind === "client" ? "client" : lower(commentInput.audience || "internal");
-    if (!["internal", "client"].includes(audience)) throw new GatewayError(400, "invalid_comment_audience");
-    const suppliedNativeId = clean(commentInput.native_comment_id);
-    if (suppliedNativeId
-        && (!(surface === "calendar" || surface === "sxr")
-          || !/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(suppliedNativeId))) {
-      throw new GatewayError(400, "invalid_native_comment_id");
-    }
-    if (suppliedNativeId) dedup = dedupKey("comment", entity, id, `native:${suppliedNativeId}`);
-    const rawParentId = clean(commentInput.parent_id);
-    let parentId = rawParentId;
-    if (rawParentId) {
-      if (!/^[a-zA-Z0-9][a-zA-Z0-9:_-]{1,199}$/.test(rawParentId)) {
-        throw new GatewayError(400, "invalid_comment_parent");
-      }
-      // Resolve the parent honestly: "no such row" and "two rows" are not the
-      // same answer and must not share a code. See resolveCommentByRef.
-      const parentMatch = await resolveCommentByRef(
-        supabase, rawParentId, "id,native_comment_id,deliverable_id,batch_id,client_slug,audience",
-      );
-      if (parentMatch.state === "unavailable") {
-        throw new GatewayError(503, "comment_parent_lookup_unavailable");
-      }
-      if (parentMatch.state === "missing") {
-        // The thread this reply names does not exist here. Deterministic: no
-        // reload and no retry can conjure it, so it gets its own code rather
-        // than borrowing the ambiguity one.
-        throw new GatewayError(409, "comment_parent_not_found");
-      }
-      if (parentMatch.state === "ambiguous") {
-        throw new GatewayError(409, "comment_parent_ambiguous");
-      }
-      const parent = parentMatch.row;
-      if (clean(parent.client_slug) !== targetClientSlug
-          || clean(parent.deliverable_id) !== (entity === "deliverable" ? id : "")
-          || clean(parent.batch_id) !== (entity === "batch" ? id : "")
-          || (principal.kind === "client" && clean(parent.audience) !== "client")) {
-        throw new GatewayError(403, "comment_parent_forbidden");
-      }
-      parentId = clean(parent.id);
-      // A reply is part of the resolved canonical thread. Its visibility is
-      // inherited server-side and cannot be widened or hidden by caller input.
-      audience = lower(parent.audience) === "client" ? "client" : "internal";
-    }
-    productionCommentId = suppliedNativeId
-      ? await deterministicNativeId("pc", `${entity}:${id}`, suppliedNativeId)
-      : await deterministicNativeId("pc", requestId, `${entity}:${id}:production`);
-    nativeCommentId = suppliedNativeId || productionCommentId;
-    const round = commentInput.round == null || commentInput.round === ""
-      ? null
-      : Number(commentInput.round);
-    if (round != null && (!Number.isInteger(round) || round < 0)) {
-      throw new GatewayError(400, "invalid_comment_round");
-    }
-    fingerprint = await intentFingerprint({
-      operation, entity, id,
-      ...(suppliedNativeId ? {} : { requestId, surface, legacyParity: historicalLegacyParity }),
-      actorKey: principal.actorKey,
-      comment: {
-        body: commentBody,
-        audience,
-        native_comment_id: nativeCommentId,
-        parent_id: parentId || null,
-        component: clean(commentInput.component) || null,
-        is_tweak: commentInput.is_tweak === true,
-        round,
-      },
-    });
-    expectedOperationPayload = { body: commentBody };
-    expectedComment = {
-      id: productionCommentId,
-      idempotency_key: dedup,
-      deliverable_id: entity === "deliverable" ? id : null,
-      batch_id: entity === "batch" ? id : null,
-      client_slug: targetClientSlug,
-      team,
-      author_key: principal.actorKey,
-      native_comment_id: nativeCommentId,
-    };
+    const intent = await reconstructCommentAdd(
+      supabase, body, surface, requestId, entity, id, targetClientSlug, team, principal, historicalLegacyParity,
+    );
+    dedup = intent.dedup;
+    fingerprint = intent.fingerprint;
+    productionCommentId = intent.productionCommentId;
+    nativeCommentId = intent.nativeCommentId;
+    expectedOperationPayload = intent.expectedOperationPayload;
+    expectedComment = intent.expectedComment;
   }
 
   const outbound: JsonMap = {
@@ -2362,7 +2528,9 @@ async function parentRouteForAppend(
   principal: Principal,
   legacyParity: boolean,
   validateExternal = true,
+  nativeEpoch = "",
 ): Promise<JsonMap> {
+  if (nativeEpoch) return { parent_linear_issue_id: null, depends_on_id: null, dependency_dedup_key: null };
   const directIds = parentIdsForTeam(batch.linear_parent_ids, team);
   if (directIds.length > 1) throw new GatewayError(409, "batch_parent_mapping_ambiguous");
   const { data, error } = await supabase.from("mirror_outbox")
@@ -2377,6 +2545,7 @@ async function parentRouteForAppend(
   if (error) throw new GatewayError(503, "batch_parent_lookup_unavailable");
   const candidates = ((data || []) as JsonMap[]).filter(row => {
     const payload = parseJson(row.payload);
+    if (clean(payload._native_intake_epoch)) return false;
     const eligibleStatuses = validateExternal
       ? ["pending", "failed", "shadow_ok", "written"]
       : ["pending", "failed", "shadow_ok", "written", "skipped", "stale"];
@@ -2498,7 +2667,43 @@ function intakeAttribution(client: ClientRow, team: string, projectId: string): 
   };
 }
 
-async function projectForIntake(client: ClientRow, team: string, principal: Principal): Promise<string> {
+// Server-only admission. An unreadable flag or receipt is not provider fallback.
+// Existing manifests/receipts choose their original epoch before provider reads.
+async function intakeEpochs(
+  supabase: SupabaseClient, principal: Principal, requestId: string,
+  rootBatchId: string, teams: string[], dedups: string[],
+): Promise<Record<string, string>> {
+  const result = parseJson(await rpc(supabase, "production_intake_epoch_read", {
+    p_request_id: requestId, p_batch_id: rootBatchId,
+    p_client_slug: principal.clientSlug, p_actor_key: principal.actorKey,
+    p_role: principal.actorRole, p_auth_kind: principal.kind,
+    p_teams: teams, p_dedups: dedups,
+  }));
+  if (teams.some(team => typeof result[team] !== "string")) {
+    throw new GatewayError(503, "authority_unavailable");
+  }
+  return result as Record<string, string>;
+}
+
+function intakeEpochPayload(epoch: string, requestId: string): JsonMap {
+  // Empty is also persisted: a later flag flip cannot convert provider work.
+  return { _native_intake_epoch: epoch, _native_intake_request: requestId };
+}
+
+async function providerDrainPlans(supabase: SupabaseClient, plans: JsonMap[]): Promise<JsonMap[]> {
+  if (!plans.length) return plans;
+  const { data, error } = await supabase.from("mirror_outbox")
+    .select("dedup_key,payload").in("dedup_key", plans.map(plan => clean(plan.dedup_key)));
+  if (error || !data) throw new GatewayError(503, "idempotency_lookup_unavailable");
+  const receipts = new Map((data as JsonMap[]).map(row => [clean(row.dedup_key), row]));
+  return plans.filter(plan => {
+    const receipt = receipts.get(clean(plan.dedup_key));
+    if (!receipt) throw new GatewayError(500, "outbox_checkpoint_missing");
+    return !clean(parseJson(receipt.payload)._native_intake_epoch);
+  });
+}
+
+async function projectForIntake(client: ClientRow, team: string, principal: Principal, nativeEpoch = ""): Promise<string> {
   if (principal.testOnly) {
     const projectId = configuredTestProjectForTeam(team);
     const allowlist = configuredTestProjectIds();
@@ -2506,6 +2711,7 @@ async function projectForIntake(client: ClientRow, team: string, principal: Prin
       throw new GatewayError(503, "test_project_mapping_unavailable");
     }
     if (!allowlist.has(projectId)) throw new GatewayError(403, "test_project_scope_required");
+    if (nativeEpoch) return projectId;
     const project = await readLinearProject(projectId);
     if (!projectMatchesTeam(project, team)) {
       throw new GatewayError(403, "test_project_scope_required");
@@ -2515,6 +2721,7 @@ async function projectForIntake(client: ClientRow, team: string, principal: Prin
   const tagged = projectIdsForTeam(client.linear_project_ids, team);
   if (tagged.length > 1) throw new GatewayError(409, "project_mapping_ambiguous");
   if (tagged.length === 1) {
+    if (nativeEpoch) return tagged[0];
     const project = await readLinearProject(tagged[0]);
     if (!projectMatchesTeam(project, team)) throw new GatewayError(409, "project_mapping_missing");
     return tagged[0];
@@ -2563,6 +2770,19 @@ async function linearStateIdForCreate(teamId: string, team: string, status: stri
 const ASSIGNEE_ELIGIBILITY_FLAG = "production_assignee_eligibility";
 const ASSIGNEE_PROVIDER_POOL_LIMIT = 250;
 
+/*
+ * THE LANE DECIDES WHETHER THE FLAG IS EVEN READ (2026-09-05).
+ *
+ * `nativeEpoch` is the server-resolved native epoch for the team (see
+ * intakeEpochs: accepted manifest/receipt first, the native_intake_epochs flag
+ * only for new admission). Non-empty means the write is native work whose
+ * outbox receipt is terminal, so no provider mapping and no provider read can
+ * be a prerequisite; the flag below is not consulted at all, and a missing,
+ * unreadable or strict value can therefore never re-introduce a Linear call
+ * on that lane. Empty means provider work and keeps the pre-existing contract
+ * exactly: an absent flag row is the normal pre-retirement state and must not
+ * turn an otherwise valid write into a 503 -- absence means "strictest".
+ */
 async function assigneeEligibilityPolicyFor(
   supabase: SupabaseClient,
 ): Promise<{ providerMappingRequired: boolean }> {
@@ -2578,6 +2798,15 @@ async function assigneeEligibilityPolicyFor(
   } catch (_error) {
     return { providerMappingRequired: true };
   }
+}
+
+async function assigneeLanePolicyFor(
+  supabase: SupabaseClient,
+  nativeEpoch = "",
+): Promise<ReturnType<typeof assigneeLanePolicy>> {
+  if (clean(nativeEpoch)) return assigneeLanePolicy(nativeEpoch, null, "read");
+  const flag = await assigneeEligibilityPolicyFor(supabase);
+  return assigneeLanePolicy("", { provider_mapping_required: flag.providerMappingRequired }, "read");
 }
 
 async function assigneeProviderPool(): Promise<Map<string, boolean>> {
@@ -2608,8 +2837,11 @@ async function assigneeProviderPool(): Promise<Map<string, boolean>> {
 async function assigneeEligibilityContext(
   supabase: SupabaseClient,
   needsProvider: boolean,
+  nativeEpoch = "",
 ): Promise<{ providerMappingRequired: boolean; providerActiveFor: (id: string) => boolean | null }> {
-  const policy = await assigneeEligibilityPolicyFor(supabase);
+  const policy = await assigneeLanePolicyFor(supabase, nativeEpoch);
+  // A native lane returns here unconditionally: providerMappingRequired is
+  // false by construction, so assigneeProviderPool is unreachable for it.
   if (!policy.providerMappingRequired || !needsProvider) {
     return { ...policy, providerActiveFor: () => null };
   }
@@ -2639,10 +2871,12 @@ async function assertEligibleAssignee(
   supabase: SupabaseClient,
   assigneeId: string,
   team: string,
+  nativeEpoch = "",
 ): Promise<{ id: string; linearUserId: string } | null> {
+  // Null unassignment is not a candidate: no roster, policy or provider read.
   if (!assigneeId) return null;
   const member = await assigneeRosterRow(supabase, assigneeId);
-  const context = await assigneeEligibilityContext(supabase, !!member);
+  const context = await assigneeEligibilityContext(supabase, !!member, nativeEpoch);
   const verdict = assigneeEligibility(member, team, {
     providerMappingRequired: context.providerMappingRequired,
     providerActive: context.providerActiveFor(canonicalLinearUserId(member && member.linear_user_id)),
@@ -2681,6 +2915,7 @@ async function validateCreateAssignee(
 async function mappedCreateAssignees(
   supabase: SupabaseClient,
   team: string,
+  nativeEpoch = "",
 ): Promise<JsonMap[]> {
   const normalizedTeam = normalizeTeam(team);
   if (!normalizedTeam) throw new GatewayError(400, "invalid_team");
@@ -2690,23 +2925,97 @@ async function mappedCreateAssignees(
     .eq("team", normalizedTeam);
   if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
   const rows = (data || []) as JsonMap[];
-  const context = await assigneeEligibilityContext(supabase, rows.length > 0);
+  const context = await assigneeEligibilityContext(supabase, rows.length > 0, nativeEpoch);
   return eligibleAssigneeProjection(rows, normalizedTeam, {
     providerMappingRequired: context.providerMappingRequired,
     providerActiveFor: context.providerActiveFor,
   }) as unknown as JsonMap[];
 }
 
-async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Promise<string> {
-  const normalizedTeam = normalizeTeam(team);
+// Existing work has its own receipt/capability; intake admission never decides
+// whether an assignee change still owes a provider mirror.
+async function existingAssignmentContext(supabase: SupabaseClient, expected: JsonMap): Promise<JsonMap> {
+  const { data, error } = await supabase.rpc("production_assignment_context", { p_expected: expected });
+  if (error) {
+    // Pre-install compatibility requires BOTH an exact missing RPC and a
+    // successful absent flag read. A stale schema cache with an installed
+    // capability, malformed result or transport failure cannot select Linear.
+    if (["PGRST202", "42883"].includes(String(error.code || ""))
+        && /production_assignment_context/.test(String(error.message || ""))) {
+      const flag = await supabase.from("syncview_runtime_flags").select("value")
+        .eq("key", "native_assignment_epochs").maybeSingle();
+      if (flag && typeof flag === "object" && !Array.isArray(flag)
+          && flag.error === null && flag.data === null) {
+        return { epoch: "", replay: false, preinstall: true };
+      }
+    }
+    if (/idempotency_conflict/.test(String(error.message || ""))) throw new GatewayError(409, "idempotency_conflict");
+    if (/assignment_scope_forbidden/.test(String(error.message || ""))) throw new GatewayError(403, "assignment_scope_forbidden");
+    throw new GatewayError(503, "authority_unavailable");
+  }
+  const context = parseJson(data);
+  if (context.contract !== "existing-assignment-v1" || typeof context.epoch !== "string"
+      || typeof context.replay !== "boolean"
+      || (context.epoch !== "" && !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(context.epoch))) {
+    throw new GatewayError(503, "authority_unavailable");
+  }
+  return context;
+}
+
+async function existingAssignmentOptions(supabase: SupabaseClient, team: string, epoch: string): Promise<JsonMap[]> {
+  if (!epoch) return await mappedCreateAssignees(supabase, team);
+  const result = await supabase.from("team_members")
+    .select("id,name,role,team,active,linear_user_id", { count: "exact" })
+    .eq("active", true).eq("team", team).order("id", { ascending: true }).limit(5000);
+  if (result.error || !Array.isArray(result.data) || !Number.isSafeInteger(result.count)
+      || result.count !== result.data.length) throw new GatewayError(503, "assignee_lookup_unavailable");
+  return eligibleAssigneeProjection(result.data, team, { providerMappingRequired: false }) as unknown as JsonMap[];
+}
+
+/*
+ * THE INTAKE POOL, PER LANE.
+ *
+ * Native lane (a non-empty server-resolved epoch): the SAME contract the
+ * explicit path enforces through assertEligibleAssignee, applied to the
+ * automatic choice -- active, exact team, exact creative role
+ * (CREATIVE_ROLE_BY_TEAM), mapping optional. The first draft of this pool
+ * admitted every active same-team role natively, so an active unmapped SMM
+ * marked as the sole graphics default was assigned (caught by the independent
+ * 2026-09-05 review; PR1302 refused it). The eligibility flag is not read here
+ * either: nothing on a native lane depends on it.
+ *
+ * Provider lane: the ORIGINAL automatic contract, unchanged from before this
+ * draft -- every active same-team row with a stored linear_user_id, no flag
+ * read, role decided by the caller exactly as it always was (video picks
+ * editors, graphics picks the single default_for_team row among mapped
+ * members). The first draft routed this filter through the eligibility flag,
+ * which under the exact retired value admitted unmapped automatic candidates
+ * the base always excluded; that widening is withdrawn. The flag's retirement
+ * value keeps its pre-existing meaning on the explicit path only.
+ *
+ * Ordering (name, then id) is the same on both lanes.
+ */
+async function intakeAssigneePool(
+  supabase: SupabaseClient,
+  team: string,
+  nativeEpoch = "",
+): Promise<JsonMap[]> {
   const { data, error } = await supabase.from("team_members")
     .select("id,name,role,team,linear_user_id,default_for_team,active")
     .eq("active", true)
-    .eq("team", normalizedTeam);
+    .eq("team", team);
   if (error) throw new GatewayError(503, "assignee_lookup_unavailable");
-  const members = ((data || []) as JsonMap[])
-    .filter(member => clean(member.linear_user_id))
+  const rows = (data || []) as JsonMap[];
+  // nativeIntakePool is also what nativeAssigneeCatalogReadiness counts, so the
+  // dry-run and the gateway answer from one pool.
+  if (assigneeLaneFor(nativeEpoch) === "native") return nativeIntakePool(rows, team) as JsonMap[];
+  return rows.filter(member => clean(member.linear_user_id))
     .sort((left, right) => clean(left.name).localeCompare(clean(right.name)) || clean(left.id).localeCompare(clean(right.id)));
+}
+
+async function autoAssigneeForIntake(supabase: SupabaseClient, team: string, nativeEpoch = ""): Promise<string> {
+  const normalizedTeam = normalizeTeam(team);
+  const members = await intakeAssigneePool(supabase, normalizedTeam, nativeEpoch);
   if (normalizedTeam === "graphics") {
     const defaults = members.filter(member => member.default_for_team === true);
     if (defaults.length !== 1) throw new GatewayError(409, "graphics_default_assignee_unavailable");
@@ -3329,6 +3638,76 @@ async function productionCreateReplay(
   }, 200);
 }
 
+// A successful native picker read must contain the entire bounded result. A
+// PostgREST row cap, null body or duplicate identity is an unavailable read,
+// never evidence that an editor or their work is absent.
+function completeIntakeEditorRows(result: { data: unknown; error: unknown; count: unknown }): JsonMap[] {
+  if (result.error || !Array.isArray(result.data)
+      || !Number.isSafeInteger(result.count) || Number(result.count) !== result.data.length
+      || result.data.some(row => !row || typeof row !== "object" || Array.isArray(row) || !clean(row.id))
+      || new Set(result.data.map(row => clean(row.id))).size !== result.data.length) {
+    throw new GatewayError(503, "intake_editor_options_unavailable");
+  }
+  return result.data as JsonMap[];
+}
+
+async function handleIntakeEditorOptions(
+  supabase: SupabaseClient,
+  req: Request,
+  body: JsonMap,
+): Promise<Response> {
+  const surface = surfaceFor(body);
+  const clientSlug = clean(body.client_slug);
+  if (!["calendar", "sxr"].includes(surface) || !clientSlug) {
+    throw new GatewayError(400, "invalid_surface_operation");
+  }
+  // Exactly the existing staff Create Post roles. Public Submit's deliberate
+  // intake exception grants no read access here, nor does a client share link.
+  const principal = await authenticate(supabase, req, body, clientSlug);
+  if (principal.kind !== "staff" || !["admin", "smm"].includes(principal.keyRole)) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const client = principal.client || await clientBySlug(supabase, clientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "client_inactive");
+  // This is a NEW-admission preview, not a reservation or an accepted-request
+  // replay. Submission still resolves its own immutable epoch through intakeEpochs.
+  const epochs = parseJson(await rpc(supabase, "production_native_intake_epochs", {}));
+  if (typeof epochs.video !== "string" || typeof epochs.graphics !== "string") {
+    throw new GatewayError(503, "authority_unavailable");
+  }
+  const responseScope = { ok: true, complete: true, contract: "intake-editor-options-v1", surface, client_slug: clientSlug, team: "video" };
+  if (!epochs.video) return json({ ...responseScope, lane: "provider" });
+  if (await authorityFor(supabase, "video") !== "syncview") {
+    throw new GatewayError(409, "team_is_linear_authoritative");
+  }
+  const members = completeIntakeEditorRows(await supabase.from("team_members")
+    .select("id,name,role,team,linear_user_id,default_for_team,active", { count: "exact" })
+    .eq("active", true).eq("team", "video").limit(10000));
+  const editors = nativeIntakePool(members, "video");
+  if (!editors.length) throw new GatewayError(409, "video_assignee_pool_unavailable");
+  const openRows = completeIntakeEditorRows(await supabase.from("deliverables")
+    .select("id,assignee_id,status,linear_issue_uuid", { count: "exact" })
+    .eq("team", "video").in("status", INTAKE_LOAD_LIVE_STATUSES as unknown as string[]).limit(10000));
+  const parentRows = completeIntakeEditorRows(await supabase.from("production_deliverables_browser_v1")
+    .select("id,raw_issue_parent_id", { count: "exact" })
+    .eq("team", "video").not("raw_issue_parent_id", "is", null).limit(10000));
+  const parents = new Set(parentRows.map(row => clean(row.raw_issue_parent_id)).filter(Boolean));
+  const load = new Map(editors.map(member => [clean(member.id), 0]));
+  for (const row of openRows) {
+    if (parents.has(clean(row.linear_issue_uuid))) continue;
+    const id = clean(row.assignee_id);
+    if (load.has(id)) load.set(id, Number(load.get(id) || 0) + 1);
+  }
+  // Same eligibility, work population and tie order as autoAssigneeForIntake.
+  // Only minimal display fields leave the authenticated gateway.
+  editors.sort((left, right) => Number(load.get(clean(left.id)) || 0) - Number(load.get(clean(right.id)) || 0)
+    || clean(left.name).localeCompare(clean(right.name)) || clean(left.id).localeCompare(clean(right.id)));
+  const projection = editors.map(member => ({
+    id: clean(member.id), name: clean(member.name) || "Editor", openCount: Number(load.get(clean(member.id)) || 0),
+  }));
+  return json({ ...responseScope, lane: "native", editors: projection });
+}
+
 async function handleCreateOptions(
   supabase: SupabaseClient,
   req: Request,
@@ -3392,6 +3771,10 @@ async function handleAssigneeOptions(
       })) {
     throw new GatewayError(403, "assignee_scope_forbidden");
   }
+  const assignment = await existingAssignmentContext(supabase, {
+    entity: "deliverable", entity_id: id, operation: "assignee", client_slug: requestedClientSlug, team,
+    actor: principal.actorName, role: principal.actorRole, test_only: principal.testOnly, legacy_parity: false,
+  });
   return json({
     ok: true,
     complete: true,
@@ -3399,7 +3782,7 @@ async function handleAssigneeOptions(
     client_slug: clean(existing.client_slug),
     team,
     current_assignee_id: clean(existing.assignee_id) || null,
-    assignees: await mappedCreateAssignees(supabase, team),
+    assignees: await existingAssignmentOptions(supabase, team, clean(assignment.epoch)),
   });
 }
 
@@ -4938,9 +5321,24 @@ async function handleLabelsRead(
   if (!targetClientSlug || !team) throw new GatewayError(409, "entity_scope_unavailable");
   const principal = await authenticate(supabase, req, body, targetClientSlug);
   if (principal.kind === "client") throw new GatewayError(403, "operation_forbidden");
+  const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
+  const config = authority === "syncview"
+    ? await nativeLabelCatalogConfig(supabase, team)
+    : null;
+  if (config?.mode === "hold") throw new GatewayError(503, "native_label_catalog_held");
+  if (config?.mode === "native") {
+    const nativeVersion = String(config.version_id);
+    const native = nativeLabelSnapshot(existing);
+    if (!native) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
+    const read = await readNativeLabelCatalog(supabase, nativeVersion, team);
+    return json({
+      ok: true, complete: true, authority, catalog_version: nativeVersion,
+      catalog: mergeLabelCatalog(read.catalog as JsonMap[], native.labels),
+      selected_label_ids: native.ids, selected_labels: native.labels,
+    });
+  }
   const issueId = linearIssueIdForLabels(existing);
   if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
-  const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
   const snapshot = await linearLabelSnapshot(issueId);
   const linearSelected = {
     labels: snapshot.selectedLabels,
@@ -4960,6 +5358,172 @@ async function handleLabelsRead(
     selected_label_ids: selected.ids,
     selected_labels: selected.labels,
   });
+}
+
+const RECOVERY_OWNED_FIELDS = [
+  "video_status", "graphic_status", "status", "client_video_approved_at", "client_graphic_approved_at",
+  "client_caption_approved_at", "client_title_approved_at", "kasper_approved_at",
+];
+
+function recoveryFieldMap(value: unknown, code: string): JsonMap {
+  const map = parseJson(value);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new GatewayError(400, code);
+  const out: JsonMap = {};
+  for (const [key, raw] of Object.entries(map)) {
+    if (!RECOVERY_OWNED_FIELDS.includes(key) || typeof raw !== "string") throw new GatewayError(400, code);
+    out[key] = raw;
+  }
+  return out;
+}
+
+// Calendar feedback recovery. The browser re-sends the exact original comment
+// request plus `recover_source`; the gateway rebuilds the add identity with the
+// shared reconstruction, rebuilds the reserved companion status identity from
+// the exact status request bytes, validates the owned field allowlist, and
+// hands one request to calendar_feedback_recovery_apply_v1. Every write, lock,
+// CAS and hold decision lives in that RPC.
+async function recoverCalendarFeedback(
+  supabase: SupabaseClient,
+  body: JsonMap,
+  operation: string,
+  surface: string,
+  requestId: string,
+  sourceEditedAt: string,
+  entity: Entity,
+  id: string,
+  existing: JsonMap,
+  targetClientSlug: string,
+  team: string,
+  principal: Principal,
+): Promise<Response> {
+  if (principal.kind !== "client") throw new GatewayError(403, "operation_forbidden");
+  if (surface !== "calendar" || entity !== "deliverable" || operation !== "comment") {
+    throw new GatewayError(400, "recover_source_unsupported");
+  }
+  const recover = parseJson(body.recover_source);
+  if (!body.recover_source || typeof body.recover_source !== "object" || Array.isArray(body.recover_source)) {
+    throw new GatewayError(400, "invalid_recover_source");
+  }
+  const component = lower(recover.component);
+  if (component !== "video" && component !== "graphic") throw new GatewayError(400, "invalid_recover_source");
+  const commentInput = parseJson(body.comment);
+  const requestedCardId = clean(body.card_id || commentInput.card_id);
+  if (!requestedCardId || clean(recover.card_id) !== requestedCardId) throw new GatewayError(400, "invalid_recover_source");
+  // The same front-door binding the accepted add satisfied, plus an actual
+  // card binding: recovery writes the card row, so an unbound target is out.
+  if (!clientCommentFrontDoorTargetAllowed(surface, existing, component, requestedCardId, principal.clientSlug)
+      || clean(existing.card_id) !== requestedCardId) {
+    throw new GatewayError(403, "comment_forbidden");
+  }
+  const intent = await reconstructCommentAdd(
+    supabase, body, surface, requestId, entity, id, targetClientSlug, team, principal, body.legacy_parity === true,
+  );
+  const kind = lower(recover.kind);
+  if (!intent.suppliedNativeId || intent.parentId || intent.audience !== "client"
+      || intent.component !== component
+      || (kind !== "note" && kind !== "tweak")
+      || intent.isTweak !== (kind === "tweak")
+      || (kind === "tweak" && (intent.round == null || intent.round < 1))) {
+    throw new GatewayError(400, "invalid_recover_source");
+  }
+  const expectedUpdatedAt = clean(recover.expected_updated_at);
+  if (!expectedUpdatedAt) throw new GatewayError(400, "invalid_recover_source");
+  const fields = recoveryFieldMap(recover.fields, "invalid_recover_source");
+  const previous = recoveryFieldMap(recover.previous, "invalid_recover_source");
+  if (Object.keys(previous).sort().join("|") !== Object.keys(fields).sort().join("|")
+      || (kind === "note" && Object.keys(fields).length)
+      || (kind === "tweak" && (fields[`${component}_status`] !== "Tweaks Needed"
+        || Object.entries(fields).some(([key, value]) =>
+          key === `${component}_status` || key === "status" ? value !== "Tweaks Needed"
+            : key.endsWith("_approved_at") ? value !== "" : true)))) {
+    throw new GatewayError(400, "invalid_recover_source");
+  }
+
+  let status: JsonMap | null = null;
+  if (kind === "tweak") {
+    const reservation = parseJson(recover.status);
+    if (!recover.status || typeof recover.status !== "object" || typeof reservation.payload !== "string") {
+      throw new GatewayError(409, "companion_status_unreserved");
+    }
+    let statusPayload: JsonMap;
+    try { statusPayload = JSON.parse(reservation.payload); } catch { throw new GatewayError(400, "invalid_recover_source"); }
+    if (!statusPayload || typeof statusPayload !== "object" || Array.isArray(statusPayload)) {
+      throw new GatewayError(400, "invalid_recover_source");
+    }
+    const statusRequestId = validRequestId(statusPayload.request_id);
+    const nextStatus = lower(statusPayload.status);
+    if (lower(statusPayload.operation) !== "status" || lower(statusPayload.surface) !== "calendar"
+        || lower(statusPayload.entity || "deliverable") !== "deliverable" || clean(statusPayload.id) !== id
+        || !statusRequestId || nextStatus !== "tweak"
+        || !clientOperationAllowed("status", "client_approval", nextStatus)) {
+      throw new GatewayError(400, "invalid_recover_source");
+    }
+    // Bind the reserved status to this exact accepted comment, independently
+    // of the browser's claim of ownership. Existing unbound status receipts
+    // retain their identities and stay held; recovery never re-sends a status.
+    const expectedStatusRequestId = "calendar:feedback-status:" + await sha256Hex(
+      `calendar-feedback-status-v1\n${id}\n${intent.nativeCommentId}`,
+    );
+    if (statusRequestId !== expectedStatusRequestId) throw new GatewayError(409, "companion_status_unbound");
+    const statusSourceEditedAt = sourceTimestamp(statusPayload.source_edited_at);
+    const statusLegacyParity = statusPayload.legacy_parity === true;
+    const statusFingerprint = await intentFingerprint({
+      operation: "status", entity, id, requestId: statusRequestId, surface, legacyParity: statusLegacyParity,
+      actorKey: principal.actorKey,
+      patch: { status: nextStatus, status_at: statusSourceEditedAt },
+    });
+    status = {
+      dedup_key: dedupKey("status", entity, id, statusRequestId),
+      intent_fingerprint: statusFingerprint,
+      native_status: nextStatus,
+      reported_result: clean(reservation.result) || null,
+    };
+  }
+
+  const request: JsonMap = {
+    client: principal.clientSlug,
+    card_id: requestedCardId,
+    component,
+    deliverable_id: id,
+    actor: { name: principal.actorName, role: principal.actorRole, key: principal.actorKey },
+    comment: {
+      native_comment_id: intent.nativeCommentId,
+      canonical_id: intent.productionCommentId,
+      dedup_key: intent.dedup,
+      intent_fingerprint: intent.fingerprint,
+      body: intent.commentBody,
+      is_tweak: intent.isTweak,
+      round: intent.round,
+      entry_created_at: sourceEditedAt,
+    },
+    status,
+    source: { expected_updated_at: expectedUpdatedAt, fields, previous },
+  };
+  const result = parseJson(await rpc(supabase, "calendar_feedback_recovery_apply_v1", { p_request: request }));
+  const outcome = clean(result.outcome);
+  const canonical = await findReceiptComment(supabase, intent.dedup, intent.productionCommentId, intent.nativeCommentId);
+  const materialization = parseJson(result.materialization);
+  const response: JsonMap = {
+    ok: outcome !== "held",
+    recover_source: true,
+    outcome,
+    reason: clean(result.reason) || null,
+    row: result.row && typeof result.row === "object" ? result.row : null,
+    materialization: materialization.attempt_key ? {
+      attempt_key: materialization.attempt_key,
+      outcome: materialization.outcome,
+      applied: materialization.applied,
+      source_updated_at_before: materialization.source_updated_at_before,
+      source_updated_at_after: materialization.source_updated_at_after,
+      created_at: materialization.created_at,
+    } : null,
+    comment: canonical ? publicComment(canonical, principal) : null,
+  };
+  if (outcome === "held") return json({ ...response, error: "recovery_held" }, 409);
+  if (!["materialized", "already_present", "already_materialized"].includes(outcome)) {
+    throw new GatewayError(500, "recovery_result_invalid");
+  }
+  return json(response, 200);
 }
 
 async function handleEntityOperation(
@@ -5113,6 +5677,51 @@ async function handleEntityOperation(
       principal,
     );
   }
+  if (body.recover_source !== undefined) {
+    // Calendar feedback recovery: finish an owned client note/tweak whose
+    // native add was accepted but whose source-card save failed. Read-only at
+    // the gateway; the single service RPC owns every write and every hold.
+    return await recoverCalendarFeedback(
+      supabase, body, operation, surface, requestId, sourceEditedAt, entity, id, existing, targetClientSlug, team, principal,
+    );
+  }
+  // An exact accepted native label receipt is a read-only result adoption,
+  // not renewed admission. Current caller/scope/operation checks above still
+  // apply; a later authority outage or flip must not erase accepted work.
+  if (operation === "labels" && entity === "deliverable" && surface === "production"
+      && principal.kind === "staff" && !principal.testOnly && body.legacy_parity !== true) {
+    const acceptedDedup = dedupKey(operation, entity, id, requestId);
+    const { data: accepted, error: acceptedError } = await supabase.from("mirror_outbox")
+      .select("payload,status,linear_result").eq("dedup_key", acceptedDedup).maybeSingle();
+    if (acceptedError) throw new GatewayError(503, "idempotency_lookup_unavailable");
+    if (accepted && Object.prototype.hasOwnProperty.call(parseJson(accepted.payload), "_native_label_catalog_version")) {
+      const acceptedVersion = clean(parseJson(accepted.payload)._native_label_catalog_version);
+      if (!UUID_RE.test(acceptedVersion) || accepted.status !== "skipped"
+          || parseJson(accepted.linear_result).native_labels !== true
+          || parseJson(accepted.linear_result).catalog_version !== acceptedVersion) {
+        throw new GatewayError(409, "idempotency_conflict");
+      }
+      const labelIds = canonicalLabelIds(body.label_ids);
+      if (!labelIds) throw new GatewayError(400, "invalid_label_ids");
+      const fingerprint = await intentFingerprint({
+        operation, entity, id, requestId, surface, legacyParity: false,
+        actorKey: principal.actorKey, patch: { label_ids: labelIds },
+      });
+      const matched = await assertDedupIntent(supabase, acceptedDedup,
+        dedupExpectation(principal, team, sourceEditedAt, {
+          entity, entity_id: id, operation, legacy_parity: false, test_only: false,
+        }, fingerprint));
+      if (!matched) throw new GatewayError(503, "idempotency_lookup_unavailable");
+      const current = parseJson(await currentEntityRow(supabase, table, id));
+      if (clean(current.client_slug) !== targetClientSlug || normalizeTeam(current.team) !== team) {
+        throw new GatewayError(409, "idempotent_result_missing");
+      }
+      return json({ ok: true, native_committed: true, replayed: true, read_only: true,
+        authority: "syncview", authority_source: "accepted_native_receipt", legacy_parity: false,
+        mirror_pending: false, mirror: { attempted: false, acknowledged: true, not_applicable: true },
+        row: publicRow(current), ...selectedLabelReceipt(current), catalog_version: acceptedVersion });
+    }
+  }
   // Resolve the full write-authority chain — team authority, lane eligibility,
   // legacy-parity, and the F27 generation fence — BEFORE any provider probe. A
   // write-ineligible request (a Linear-authoritative team, an unreadable
@@ -5149,7 +5758,11 @@ async function handleEntityOperation(
 
   let result: unknown;
   let labelsReceipt: JsonMap | null = null;
+  let nativeLabels = false;
+  let suppressLabelDrain = false;
+  let labelCatalogVersion = "";
   let projectionReceipt: JsonMap | null = null;
+  let nativeAssignment = false;
   let commentMirrorApplicable = operation !== "comment" || commentMirrorEnabled;
   if (operation === "comment") {
     const commentInput = parseJson(body.comment);
@@ -5317,7 +5930,7 @@ async function handleEntityOperation(
     if (round != null && (!Number.isInteger(round) || round < 0)) {
       throw new GatewayError(400, "invalid_comment_round");
     }
-    const fingerprint = await intentFingerprint({
+    const fingerprint = await (action === "add" ? commentAddFingerprint : intentFingerprint)({
       operation, action, entity, id,
       ...(suppliedNativeId ? {} : { requestId, surface, legacyParity }),
       actorKey: principal.actorKey,
@@ -5480,63 +6093,99 @@ async function handleEntityOperation(
       dedupExpectation(principal, team, sourceEditedAt, outbound, fingerprint),
     );
     if (replay) {
-      result = existing;
+      const { data: stored, error: receiptError } = await supabase.from("mirror_outbox")
+        .select("payload,status,linear_result").eq("dedup_key", dedup).maybeSingle();
+      if (receiptError || !stored) throw new GatewayError(503, "idempotency_lookup_unavailable");
+      labelCatalogVersion = clean(parseJson(stored.payload)._native_label_catalog_version);
+      if (labelCatalogVersion) {
+        if (!UUID_RE.test(labelCatalogVersion) || stored.status !== "skipped"
+            || parseJson(stored.linear_result).native_labels !== true
+            || parseJson(stored.linear_result).catalog_version !== labelCatalogVersion) {
+          throw new GatewayError(409, "idempotency_conflict");
+        }
+        nativeLabels = true;
+        result = await currentEntityRow(supabase, table, id);
+        if (clean(parseJson(result).client_slug) !== targetClientSlug || normalizeTeam(parseJson(result).team) !== team) {
+          throw new GatewayError(409, "idempotent_result_missing");
+        }
+      } else {
+        // Existing provider debt stays provider debt. A newly held/native
+        // capability must not restart its drainer merely because of replay.
+        const config = await nativeLabelCatalogConfig(supabase, team);
+        suppressLabelDrain = config.mode !== "provider";
+        result = existing;
+      }
     } else {
       assertCas(body, existing);
-      const issueId = linearIssueIdForLabels(existing);
-      if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
-      const snapshot = await linearLabelSnapshot(issueId);
-      // The service-only TEST lane may bootstrap pre-F201 rows from this
-      // already-proven complete Linear selection. Normal SyncView authority
-      // remains strictly native and cannot foreign-round-trip label state.
-      const native = nativeLabelSnapshot(existing) || (principal.testOnly ? {
-        labels: snapshot.selectedLabels,
-        ids: snapshot.selectedLabelIds,
-      } : null);
-      if (!native) {
-        throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
-      }
-      const applicable = new Map(
-        [...native.labels, ...snapshot.catalog]
-          .map(label => [clean(label.id), label]),
-      );
-      const selectedLabels = labelIds.map(labelId => applicable.get(labelId));
-      if (selectedLabels.some(label => !label)) {
-        throw new GatewayError(400, "label_not_applicable");
-      }
-      const raw = parseJson(existing.linear_raw);
-      const rawIssue = parseJson(raw.issue);
-      raw.issue = {
-        ...rawIssue,
-        id: clean(rawIssue.id) || issueId,
-        labelIds,
-        labels: {
-          nodes: selectedLabels,
-          pageInfo: { hasNextPage: false, endCursor: null },
-        },
-      };
-      const row: JsonMap = { ...existing, linear_raw: raw };
-      const event = eventFor(
-        operation,
-        principal,
-        sourceEditedAt,
-        surface,
-        outbound,
-        existing,
-        clean(row.status),
-      );
-      event.expected_updated_at = clean(body.expected_updated_at);
-      try {
-        result = await rpc(supabase, "production_deliverable_write", { p_row: row, p_event: event });
-      } catch (error) {
-        if (error instanceof GatewayError && error.code === "write_conflict") {
-          const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
-          throw new GatewayError(409, "write_conflict", {
-            conflict: true,
-            row: publicRow(current || existing),
-          });
+      const config = await nativeLabelCatalogConfig(supabase, team);
+      if (config.mode === "hold") throw new GatewayError(503, "native_label_catalog_held");
+      if (config.mode === "native") {
+        if (principal.kind !== "staff" || principal.testOnly || legacyParity) throw new GatewayError(403, "native_label_scope_forbidden");
+        labelCatalogVersion = String(config.version_id);
+        if (body.catalog_version !== labelCatalogVersion) throw new GatewayError(409, "native_label_catalog_changed");
+        if (!nativeLabelSnapshot(existing)) throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
+        await readNativeLabelCatalog(supabase, labelCatalogVersion, team);
+        const nativeOutbound = { ...outbound, payload: { ...parseJson(outbound.payload), _native_label_catalog_version: labelCatalogVersion } };
+        const event = eventFor(operation, principal, sourceEditedAt, surface, nativeOutbound, existing, clean(existing.status));
+        event.expected_updated_at = clean(body.expected_updated_at);
+        result = await rpc(supabase, "production_labels_write", { p_row: existing, p_event: event });
+        nativeLabels = true;
+      } else {
+        const issueId = linearIssueIdForLabels(existing);
+        if (!issueId) throw new GatewayError(409, "linear_issue_unavailable");
+        const snapshot = await linearLabelSnapshot(issueId);
+        // The service-only TEST lane may bootstrap pre-F201 rows from this
+        // already-proven complete Linear selection. Normal SyncView authority
+        // remains strictly native and cannot foreign-round-trip label state.
+        const native = nativeLabelSnapshot(existing) || (principal.testOnly ? {
+          labels: snapshot.selectedLabels,
+          ids: snapshot.selectedLabelIds,
+        } : null);
+        if (!native) {
+          throw new GatewayError(409, "native_label_state_incomplete", { complete: false });
         }
-        throw error;
+        const applicable = new Map(
+          [...native.labels, ...snapshot.catalog]
+            .map(label => [clean(label.id), label]),
+        );
+        const selectedLabels = labelIds.map(labelId => applicable.get(labelId));
+        if (selectedLabels.some(label => !label)) {
+          throw new GatewayError(400, "label_not_applicable");
+        }
+        const raw = parseJson(existing.linear_raw);
+        const rawIssue = parseJson(raw.issue);
+        raw.issue = {
+          ...rawIssue,
+          id: clean(rawIssue.id) || issueId,
+          labelIds,
+          labels: {
+            nodes: selectedLabels,
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        };
+        const row: JsonMap = { ...existing, linear_raw: raw };
+        const event = eventFor(
+          operation,
+          principal,
+          sourceEditedAt,
+          surface,
+          outbound,
+          existing,
+          clean(row.status),
+        );
+        event.expected_updated_at = clean(body.expected_updated_at);
+        try {
+          result = await rpc(supabase, "production_deliverable_write", { p_row: row, p_event: event });
+        } catch (error) {
+          if (error instanceof GatewayError && error.code === "write_conflict") {
+            const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
+            throw new GatewayError(409, "write_conflict", {
+              conflict: true,
+              row: publicRow(current || existing),
+            });
+          }
+          throw error;
+        }
       }
     }
     labelsReceipt = selectedLabelReceipt(parseJson(result));
@@ -5666,7 +6315,6 @@ async function handleEntityOperation(
       fingerprintPatch = patch;
     } else {
       const assigneeId = clean(body.assignee_id == null ? parseJson(body.patch).assignee_id : body.assignee_id);
-      await validateAssignee(supabase, assigneeId, team);
       patch = { assignee_id: assigneeId || null };
       payload = { assignee_id: assigneeId || null };
       fingerprintPatch = patch;
@@ -5677,6 +6325,21 @@ async function handleEntityOperation(
       patch: fingerprintPatch,
     });
     payload._intent_fingerprint = fingerprint;
+    if (operation === "assignee") {
+      const assignment = await existingAssignmentContext(supabase, {
+        ...dedupExpectation(principal, team, sourceEditedAt, outboundBase, fingerprint), dedup_key: dedup,
+      });
+      const epoch = clean(assignment.epoch);
+      nativeAssignment = !!epoch;
+      if (epoch) {
+        payload._native_assignment_epoch = epoch;
+        if (!assignment.replay) await assertEligibleAssignee(supabase, clean(patch.assignee_id), team, epoch);
+      } else {
+        // The provider branch deliberately keeps its original validation,
+        // including accepted provider retries and the existing retirement flag.
+        await validateAssignee(supabase, clean(patch.assignee_id), team);
+      }
+    }
     const outbound = {
       ...outboundBase,
       payload: f27FencedPayload(payload, authorityGeneration, legacyParity),
@@ -5698,10 +6361,17 @@ async function handleEntityOperation(
       assertCas(body, existing, operation === "description");
     }
     if (replay) {
-      result = existing;
+      if (nativeAssignment) {
+        // The entity read may predate a concurrent winner. Return current
+        // scoped state, never repaint that stale row or reapply the old intent.
+        const refreshed = await supabase.from("deliverables").select("*")
+          .eq("id", id).eq("client_slug", targetClientSlug).eq("team", team).maybeSingle();
+        if (refreshed.error || !refreshed.data) throw new GatewayError(503, "entity_lookup_unavailable");
+        result = refreshed.data;
+      } else result = existing;
     } else {
       try {
-        result = await rpc(supabase, "production_deliverable_write", { p_row: row, p_event: event });
+        result = await rpc(supabase, nativeAssignment ? "production_assignee_write" : "production_deliverable_write", { p_row: row, p_event: event });
       } catch (error) {
         if (error instanceof GatewayError && error.code === "write_conflict") {
           const { data: current } = await supabase.from("deliverables").select("*").eq("id", id).maybeSingle();
@@ -5717,13 +6387,13 @@ async function handleEntityOperation(
     }
   }
 
-  const syncviewLiveDrain = authority === "syncview"
+  const syncviewLiveDrain = !nativeLabels && !suppressLabelDrain && authority === "syncview"
     && !principal.testOnly
     && !legacyParity
     && await outboundLiveForDrain(supabase);
-  const mutationHasMirror = operation !== "comment" || commentMirrorApplicable;
-  const shouldDrain = mutationHasMirror && (legacyParity || principal.testOnly || syncviewLiveDrain);
-  const awaitedDrain = legacyParity || principal.testOnly;
+  const mutationHasMirror = !nativeAssignment && !nativeLabels && (operation !== "comment" || commentMirrorApplicable);
+  const shouldDrain = mutationHasMirror && !suppressLabelDrain && (legacyParity || principal.testOnly || syncviewLiveDrain);
+  const awaitedDrain = !suppressLabelDrain && (legacyParity || principal.testOnly);
   const mirror = !mutationHasMirror
     ? { attempted: false, acknowledged: true, not_applicable: true }
     : awaitedDrain
@@ -5753,6 +6423,7 @@ async function handleEntityOperation(
           : publicRow(result),
     ...(operation === "comment" ? { comment: publicComment(result, principal) } : {}),
     ...(labelsReceipt || {}),
+    ...(nativeLabels ? { catalog_version: labelCatalogVersion } : {}),
     ...(projectionReceipt ? { projection: projectionReceipt } : {}),
   }, mirrorPending && awaitedDrain ? 202 : 200);
 }
@@ -5763,7 +6434,8 @@ async function ensureBatch(
   event: JsonMap,
   dedup: string,
   replay: boolean,
-): Promise<{ row: JsonMap; outboxId: number }> {
+  rootManifest?: JsonMap,
+): Promise<{ row: JsonMap; outboxId: number; expectedItems?: JsonMap[]; sourceEditedAt?: string }> {
   const { data, error } = await supabase.from("batches").select("*").eq("id", clean(row.id)).maybeSingle();
   if (error) throw new GatewayError(503, "batch_lookup_unavailable");
   if (data && (
@@ -5777,8 +6449,17 @@ async function ensureBatch(
     || clean(data.color) !== clean(row.color)
   )) throw new GatewayError(409, "intake_id_conflict");
   if (replay && !data) throw new GatewayError(500, "idempotent_result_missing");
-  const written = replay ? data : await rpc(supabase, "production_batch_write", { p_row: data || row, p_event: event });
-  return { row: parseJson(written), outboxId: await findOutboxId(supabase, dedup) };
+  // Check root intent even on receipt replay; the wrapper calls the original
+  // writer, preserving parent identity, authority checks and receipt keys.
+  const written = rootManifest
+    ? await rpc(supabase, "production_intake_root_begin", { p_row: data || row, p_event: event, p_manifest: rootManifest })
+    : replay ? data : await rpc(supabase, "production_batch_write", { p_row: data || row, p_event: event });
+  const result = parseJson(written);
+  return {
+    row: rootManifest ? parseJson(result.batch) : result,
+    outboxId: await findOutboxId(supabase, dedup),
+    ...(rootManifest ? { expectedItems: result.expected_items as JsonMap[], sourceEditedAt: clean(result.source_edited_at) } : {}),
+  };
 }
 
 /* The planning-loop twin of ensureDeliverable's identity check. A row found
@@ -6002,7 +6683,11 @@ async function handleComponentFill(
    */
   const authority = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
   if (authority !== "syncview") throw new GatewayError(409, "team_is_linear_authoritative");
-  const projectId = await projectForIntake(client, team, principal);
+  const deliverableId = await deterministicNativeId("del", requestId, `${team}:fill:${cardId}`);
+  const epochs = await intakeEpochs(supabase, principal, requestId, "", [team],
+    [dedupKey("create", "deliverable", deliverableId, requestId)]);
+  const nativeEpoch = epochs[team];
+  const projectId = await projectForIntake(client, team, principal, nativeEpoch);
   const generation = await f27WriteAuthorizationGeneration(supabase, team);
 
   const purpose = clean(batch.purpose) === "samples" ? "samples" : "calendar";
@@ -6012,7 +6697,7 @@ async function handleComponentFill(
   // Deterministic in the CARD rather than an index: a retry of this fill, from
   // any tab, is the same write. The card can only ever gain one component of
   // this team, so there is nothing else for the id to distinguish.
-  const deliverableId = await deterministicNativeId("del", requestId, `${team}:fill:${cardId}`);
+
   /*
    * THE ROUTE IS RESOLVED FROM WHICHEVER TEAM OWNS THE PARENT, which on a
    * single-team batch is the sibling's and not the one being filled.
@@ -6033,7 +6718,7 @@ async function handleComponentFill(
   const ownParentIds = parentIdsForTeam(batch.linear_parent_ids, team);
   const routeTeam = ownParentIds.length === 1 ? team : normalizeTeam(sibling.team);
   const route = await parentRouteForAppend(
-    supabase, batch, clientSlug, routeTeam, projectId, principal, false,
+    supabase, batch, clientSlug, routeTeam, projectId, principal, false, true, nativeEpoch,
   );
   const routeFingerprint = {
     parent_linear_issue_id: clean(route.parent_linear_issue_id) || null,
@@ -6097,6 +6782,8 @@ async function handleComponentFill(
       status: row.status,
       due_date: row.due_date || undefined,
       _intent_fingerprint: fingerprint,
+      ...intakeEpochPayload(nativeEpoch, requestId),
+      ...(nativeEpoch ? { _native_parent_batch_id: batchId } : {}),
     }, generation, false),
   };
   const event = eventFor("component_fill", principal, sourceEditedAt, surface, outbound, null, clean(row.status));
@@ -6114,7 +6801,7 @@ async function handleComponentFill(
     });
   }
 
-  const drainKeys = [
+  const drainKeys = nativeEpoch ? [] : [
     ...(routeFingerprint.dependency_dedup_key ? [clean(routeFingerprint.dependency_dedup_key)] : []),
     dedup,
   ];
@@ -6280,18 +6967,23 @@ async function handleIntakeCreate(
     });
     if (logError) throw new GatewayError(503, "public_intake_rate_unavailable");
   }
+  const epochDedups = await Promise.all(items.map(async (item, index) =>
+    dedupKey("create", "deliverable", await deterministicNativeId("del", requestId, `${normalizeTeam(item.team)}:${index}`), requestId)));
+  const nativeEpochByTeam = await intakeEpochs(supabase, principal, requestId,
+    appendToBatch ? "" : await deterministicNativeId("bat", requestId, "submission"), teamList, epochDedups);
   // This read-only validation happens before the first native row write.
   const projectByTeam: Record<string, string> = {};
   const authorityByTeam: Record<string, "linear" | "syncview"> = {};
   const parityByTeam: Record<string, boolean> = {};
   const generationByTeam: Record<string, number> = {};
   for (const team of teamList) {
-    projectByTeam[team] = await projectForIntake(client, team, principal);
+    projectByTeam[team] = await projectForIntake(client, team, principal, nativeEpochByTeam[team]);
     authorityByTeam[team] = principal.testOnly ? "syncview" : await authorityFor(supabase, team);
     // Native intake is already an authenticated native-first flow. The server
     // selects parity only for the still-Linear-authoritative leg; a mixed
     // graphics-first request therefore takes one normal and one parity lane.
     parityByTeam[team] = !principal.testOnly && authorityByTeam[team] === "linear";
+    if (nativeEpochByTeam[team] && parityByTeam[team]) throw new GatewayError(409, "team_is_linear_authoritative");
     generationByTeam[team] = await f27WriteAuthorizationGeneration(supabase, team);
   }
   if (Object.values(parityByTeam).some(Boolean)) await assertLegacyParityEnabled(supabase);
@@ -6460,8 +7152,10 @@ async function handleIntakeCreate(
     }
     requestedByTeam[team] = requested;
   }
+  // The lane is the one resolved above for this request: an accepted native
+  // manifest/receipt keeps its epoch on replay whatever the flags say now.
   for (const team of Object.keys(requestedByTeam)) {
-    await assertEligibleAssignee(supabase, requestedByTeam[team], team);
+    await assertEligibleAssignee(supabase, requestedByTeam[team], team, nativeEpochByTeam[team]);
   }
 
   const assigneeByTeam: Record<string, string> = {};
@@ -6495,7 +7189,7 @@ async function handleIntakeCreate(
         ? requestedByTeam[team]
         : mirrorAssignees.size === 1
           ? [...mirrorAssignees][0]
-          : await autoAssigneeForIntake(supabase, team);
+          : await autoAssigneeForIntake(supabase, team, nativeEpochByTeam[team]);
   }
 
   const plannedItems: JsonMap[] = [];
@@ -6658,6 +7352,7 @@ async function handleIntakeCreate(
       principal,
       parityByTeam[appendParentTeam],
       !exactRowRetry,
+      nativeEpochByTeam[appendParentTeam],
     );
     const sharedParentIds = parentIdsForTeam(appendBatch.linear_parent_ids, appendParentTeam);
     const parentRouteByTeam: Record<string, JsonMap> = {};
@@ -6668,7 +7363,9 @@ async function handleIntakeCreate(
       }
       const ownIds = parentIdsForTeam(appendBatch.linear_parent_ids, team);
       const ownsDistinctParent = ownIds.length === 1 && !sharedParentIds.includes(ownIds[0]);
-      parentRouteByTeam[team] = ownsDistinctParent
+      parentRouteByTeam[team] = nativeEpochByTeam[team]
+        ? { parent_linear_issue_id: null, depends_on_id: null, dependency_dedup_key: null }
+        : ownsDistinctParent || !!nativeEpochByTeam[appendParentTeam]
         ? await parentRouteForAppend(
           supabase,
           appendBatch,
@@ -6678,6 +7375,7 @@ async function handleIntakeCreate(
           principal,
           parityByTeam[team],
           !exactRowRetry,
+          nativeEpochByTeam[team],
         )
         : sharedAppendRoute;
     }
@@ -6732,6 +7430,8 @@ async function handleIntakeCreate(
           due_date: row.due_date || undefined,
           priority: row.priority == null ? undefined : row.priority,
           _intent_fingerprint: childFingerprint,
+          ...intakeEpochPayload(nativeEpochByTeam[team], requestId),
+          ...(appendToBatch && nativeEpochByTeam[team] ? { _native_parent_batch_id: batchId } : {}),
         }, generationByTeam[team], legacyParity),
       };
       const childEvent = eventFor(
@@ -6773,7 +7473,7 @@ async function handleIntakeCreate(
       });
     }
 
-    const drainPlans: JsonMap[] = [];
+    let drainPlans: JsonMap[] = [];
     const seenDrainDedups = new Set<string>();
     for (const team of teamList) {
       const route = parentRouteByTeam[team];
@@ -6799,6 +7499,7 @@ async function handleIntakeCreate(
       }
     }
 
+    drainPlans = await providerDrainPlans(supabase, drainPlans);
     const mirrorResults: JsonMap[] = [];
     for (const plan of drainPlans) {
       if (plan.targeted === true) {
@@ -6892,6 +7593,9 @@ async function handleIntakeCreate(
    * batchParentId in linear-outbound); the planner states the shape here.
    */
   const parentTeam = teamList.includes("video") ? "video" : teamList[0];
+  if (nativeEpochByTeam[parentTeam] && teamList.some(team => !nativeEpochByTeam[team])) {
+    throw new GatewayError(409, "batch_parent_mapping_missing");
+  }
   const parentPlans: JsonMap[] = [];
   for (const team of [parentTeam]) {
     const parentDedup = dedupKey("create", "batch", batchId, `${requestId}:${team}`);
@@ -6957,6 +7661,7 @@ async function handleIntakeCreate(
         // resolves the shared issue instead of nothing.
         _parent_teams: teamList,
         _intent_fingerprint: parentFingerprint,
+          ...intakeEpochPayload(nativeEpochByTeam[team], requestId),
       }, generationByTeam[team], parityByTeam[team]),
     };
     const parentEvent = eventFor("intake_create", principal, sourceEditedAt, surface, parentOutbound, null);
@@ -7003,6 +7708,8 @@ async function handleIntakeCreate(
         due_date: row.due_date || undefined,
         priority: row.priority == null ? undefined : row.priority,
         _intent_fingerprint: childFingerprint,
+          ...intakeEpochPayload(nativeEpochByTeam[team], requestId),
+          ...(appendToBatch && nativeEpochByTeam[team] ? { _native_parent_batch_id: batchId } : {}),
       }, generationByTeam[team], legacyParity),
     };
     planned.child_dedup = childDedup;
@@ -7018,13 +7725,61 @@ async function handleIntakeCreate(
   // Every item, mapping, assignee, existing deterministic row, and dedup
   // fingerprint is validated above before the first native RPC commits.
   const firstParent = parentPlans[0];
+  // Private first-accepted intent, never returned to the browser. Whitelist
+  // caller-owned fields so credentials and unrelated properties are excluded.
+  // Resolved rows preserve content for a LATER reconstruction design only.
+  const intakeFields = (input: JsonMap, keys: string[]): JsonMap => Object.fromEntries(
+    keys.filter(key => Object.prototype.hasOwnProperty.call(input, key)).map(key => [key, input[key]]),
+  );
+  const rootManifest: JsonMap = {
+    request_id: requestId,
+    native_epochs: nativeEpochByTeam,
+    authority_generations: generationByTeam,
+    request_intent: {
+      source_timestamp_supplied: !!clean(body.source_edited_at),
+      batch: intakeFields(batchInput, ["name", "description", "notes", "filming_doc_url", "footage_folder_url", "delivery_folder_url", "color"]),
+      items: items.map(item => intakeFields(item, ["team", "title", "brief", "videoNumber", "number", "status", "assignee_id", "due_date", "priority", "card_id", "sort_key"])),
+    },
+    expected_items: plannedItems.map(item => ({
+      item_index: item.item_index, video_number: item.video_number,
+      source_brief: item.source_brief, row: item.row,
+      child_dedup: item.child_dedup, child_fingerprint: item.child_fingerprint,
+    })),
+  };
   const batch = await ensureBatch(
     supabase,
     batchRow,
     firstParent.event as JsonMap,
     clean(firstParent.dedup),
     firstParent.replay === true,
+    rootManifest,
   );
+  // An explicit identical resend may regenerate a different brief/attribution.
+  // The immutable first plan governs those fields; original receipt semantics,
+  // current authorization and F27 fences stay unchanged. This is not a recovery
+  // endpoint: the full original caller request was required and validated above.
+  if (!Array.isArray(batch.expectedItems) || batch.expectedItems.length !== plannedItems.length
+      || !Number.isFinite(Date.parse(clean(batch.sourceEditedAt)))) {
+    throw new GatewayError(500, "idempotent_result_missing");
+  }
+  // An omitted timestamp is a supported request shape. Its first server clock
+  // governs later explicit retries too; do not turn that default into a gate.
+  sourceEditedAt = clean(batch.sourceEditedAt);
+  for (let index = 0; index < plannedItems.length; index++) {
+    const planned = plannedItems[index];
+    const accepted = batch.expectedItems[index];
+    const acceptedRow = parseJson(accepted.row);
+    if (clean(acceptedRow.id) !== clean((planned.row as JsonMap).id)
+        || clean(accepted.child_fingerprint) !== clean(planned.child_fingerprint)) {
+      throw new GatewayError(500, "idempotent_result_missing");
+    }
+    (planned.row as JsonMap).brief = acceptedRow.brief;
+    (planned.row as JsonMap).linear_raw = acceptedRow.linear_raw;
+    (planned.row as JsonMap).created_at = acceptedRow.created_at;
+    (planned.row as JsonMap).status_at = acceptedRow.status_at;
+    (planned.child_outbound as JsonMap).source_edited_at = sourceEditedAt;
+    ((planned.child_outbound as JsonMap).payload as JsonMap).description = acceptedRow.brief || undefined;
+  }
   // One parent, so every child depends on the same outbox row whatever team
   // it belongs to. The map is kept rather than collapsed to a scalar because
   // the append path still routes per team through linear_parent_ids, and a
@@ -7034,7 +7789,7 @@ async function handleIntakeCreate(
   for (const team of teamList) parentOutboxByTeam[team] = sharedParentOutboxId;
   const responseItems: JsonMap[] = [];
   const displacedBatchIds = new Set<string>();
-  const drainPlans: JsonMap[] = parentPlans.map(parent => ({
+  let drainPlans: JsonMap[] = parentPlans.map(parent => ({
     dedup_key: parent.dedup,
     team: parent.team,
     targeted: principal.testOnly || (parent.outbound as JsonMap).legacy_parity === true,
@@ -7060,6 +7815,7 @@ async function handleIntakeCreate(
     });
   }
 
+  drainPlans = await providerDrainPlans(supabase, drainPlans);
   const mirrorResults: JsonMap[] = [];
   for (const plan of drainPlans) {
     if (plan.targeted === true) {
@@ -7104,9 +7860,19 @@ async function handleIntakeCreate(
       ? { item_index: item.item_index, video_number: Number(item.video_number), ...publicRow(current) }
       : item;
   });
+  // Browser routing metadata only. The epoch was resolved server-side from
+  // the accepted manifest/receipt before any provider read; absent metadata
+  // intentionally leaves existing provider-era browser jobs unchanged.
+  const cardMaterialization = teamList.length > 0
+    && currentResponseItems.length === plannedItems.length
+    && teamList.every(team => !!clean(nativeEpochByTeam[team]))
+    && currentResponseItems.every(item => !!clean(nativeEpochByTeam[normalizeTeam(item.team)]))
+    ? { version: 1, native_epochs: Object.fromEntries(teamList.map(team => [team, nativeEpochByTeam[team]])) }
+    : null;
   return json({
     ok: true,
     native_committed: true,
+    ...(cardMaterialization ? { card_materialization: cardMaterialization } : {}),
     authority: authorityByTeam,
     legacy_parity: parityByTeam,
     mirror_pending: mirrorPending,
@@ -7143,6 +7909,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     if (lower(body.action) === "description_read") {
       return await handleDescriptionRead(supabase, req, body);
+    }
+    if (lower(body.action) === "intake_editor_options") {
+      return await handleIntakeEditorOptions(supabase, req, body);
     }
     if (lower(body.action) === "create_options") {
       return await handleCreateOptions(supabase, req, body);

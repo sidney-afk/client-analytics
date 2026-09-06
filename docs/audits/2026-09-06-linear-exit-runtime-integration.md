@@ -32,6 +32,8 @@ The F40 failure exposed a diagnostic defect as well as an outdated test: an empt
 
 On the same 5e head, visible-boot Chromium (including the five Workload groups), PTO UI, Edge Function types, identity exposure and F27 rollback checks passed. Production polish run `34006314735`, job `101414057161`, failed independently and remains tracked separately from the unit failure. Every correction requires current-head hosted checks and named re-review; earlier green checks are bounded to their exact source.
 
+Production correction `c3b78fdac67a40192c8c209195a08a8b8f88d533` repairs the old browser mock counting the new editor-options read as an intake write. The fixture now answers the actual scoped read contract, asserts separate read accounting and waits for the actual Calendar intake operation. The isolated phase and complete gateway-browser suite both reproduce the unchanged 5e failure and pass after the correction. Existing payload, ownership, CAS, native-ID and write-order assertions remain; see [the fixture proof and exact hashes](2026-09-06-production-intake-polish-fixture.md). Neither this correction nor the F40 correction changes the application, Edge Functions, SQL, authentication or workflow behavior.
+
 Latest bounded integration evidence:
 
 - Actual Calendar handler/RPC with native, journal and provenance schema: **7 groups / 81 assertions**, independently rerun at `e2dde9b2c97f5e41a0f5bde80f78ce0a63ea6892`. Accepted notes/tweaks, lost responses, lifecycle holds and injected recorder failures preserve exact row images. See [combined Calendar proof](2026-09-06-calendar-feedback-combined-proof.md).

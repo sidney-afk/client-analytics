@@ -2259,6 +2259,20 @@ ok(undatedBetweenRun.code === 0 && undatedBetweenRun.json
     && undatedBetweenRun.json.notes.some(n => /run `33600000000` entry records a `deploy-onboarding-edge-functions` dispatch between the two/.test(n)),
     'AN UNDATED INTERVENING DISPATCH IS STILL INTERVENING: a run id between the two receipts places the entry even with no date on its heading, so the captured version is a NOTE rather than a two-step failure');
 
+/* ---- 8av. a function-scoped denial is not whole-run evidence (round 47) ---- */
+const namedDenial = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed while deploying',
+    'production-comments (run `34000000000`), and did not deploy production-comments.',
+    '',
+].join('\n');
+const namedDenialRun = run(fixture('named-denial', appended(namedDenial), realRb));
+ok(namedDenialRun.code === 1 && namedDenialRun.json
+    && namedDenialRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'A DENIAL THAT NAMES A FUNCTION IS NOT WHOLE-RUN EVIDENCE: the lane deploys two guarded functions before `production-comments`, so "did not deploy production-comments" cannot silence the run');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

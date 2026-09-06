@@ -795,7 +795,7 @@ function recordsADispatch(log, k, len) {
        the four). Failure wording is a negation only where the record says the
        whole run deployed nothing; otherwise the run is read like any other and
        its dispatch stands. */
-    const NOTHING_SHIPPED = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|never deployed|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)/i;
+    const NOTHING_SHIPPED = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|never deployed|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
     const norm = text => {
         const t = text.replace(RETROSPECTIVE, ' ').replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ');
         return NOTHING_SHIPPED.test(t) ? t.replace(FAILED_RUN, ' NEGATED ') : t;
@@ -1211,7 +1211,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            is qualified by a subset word, or the entry says somewhere that one
            of the four WAS deployed. Either way the entry is asked for its
            receipt, because a partial deploy moved a live version. */
-        const nothingShipped = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)/i.test(entryText);
+        const nothingShipped = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i.test(entryText);
         /* THE FORMATTING OF THE SHIPPED FUNCTION MUST NOT DECIDE THIS. Reading
            only backticked slugs paired with `deployed`/`deploys` let "failed
            after deploying production-write. No deployment occurred after that

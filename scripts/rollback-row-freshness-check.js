@@ -1175,7 +1175,16 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            heading at or past the newest receipt's makes it newer whatever any
            date says. */
         const entryDate = validDate((h.text.match(/\b(\d{4}-\d{2}-\d{2})\b/) || [])[1] || '');
-        const ownRun = (h.text.match(/[Rr]un\s+`?(\d{6,})`?/) || [])[1] || '';
+        /* THE RUN A BROKEN RECEIPT CARRIES STILL DATES IT. A truncated
+           attestation under an older-dated heading can name a github_run_id
+           newer than the live receipt's; reading only the heading let the
+           date soften it to a note while it proved a newer deploy may be
+           invisible (Codex, thirty-eighth round on #1306). The newest run the
+           section names anywhere, heading or block, decides. */
+        const runsHere = [(h.text.match(/[Rr]un\s+`?(\d{6,})`?/) || [])[1] || '']
+            .concat([...block.matchAll(/"github_run_id"\s*:\s*"?(\d{6,})/g)].map(x => x[1]))
+            .filter(Boolean);
+        const ownRun = runsHere.sort((a, b) => Number(b) - Number(a))[0] || '';
         const runNewer = !!(ownRun && newestRun && Number(ownRun) >= Number(newestRun));
         const predates = !runNewer && !truncatedTables && !!entryDate && !!newestDate && entryDate < newestDate;
         out.push({

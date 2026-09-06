@@ -1979,6 +1979,30 @@ const laneNextAdjectiveRun = run(fixture('lane-next-adjective', appended(laneNex
 ok(laneNextAdjectiveRun.code === 0,
     'while "the NEXT `lane` dispatch" keeps its forward reading: next says the run is still to come, and it asks for nothing');
 
+/* ---- 8am. a broken receipt is dated by the run it carries (round 38) -------- */
+const brokenNewerRun = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy notes',
+    '',
+    '```json',
+    '{',
+    '  "schema": "syncview_f27_section4_deployed_versions_v1",',
+    '  "github_run_id": "34000000000",',
+    '  "functions": [',
+    '    { "slug": "production-write", "active_version": "69",',
+    '```',
+    '',
+].join('\n');
+const brokenNewerRunRun = run(fixture('broken-newer-run', appended(brokenNewerRun), realRb));
+ok(brokenNewerRunRun.code === 1 && brokenNewerRunRun.json
+    && brokenNewerRunRun.json.failures.some(f => /"2026-09-04 — F27 Section 4 deploy notes"/.test(f) && /attestation block\(s\) this guard cannot read/.test(f)),
+    'A BROKEN RECEIPT IS DATED BY THE RUN IT CARRIES: a truncated attestation naming run 34000000000 under a 2026-09-04 heading is NOT softened to history by its date, because the run it names is newer than the live receipt\'s');
+const brokenOlderRun = brokenNewerRun.replace('34000000000', '33000000000');
+const brokenOlderRunRun = run(fixture('broken-older-run', appended(brokenOlderRun), realRb));
+ok(brokenOlderRunRun.code === 0 && brokenOlderRunRun.json
+    && brokenOlderRunRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy notes"/.test(n)),
+    'while the same block naming an OLDER run stays a note: it predates the newest receipt by both its date and the run it carries');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

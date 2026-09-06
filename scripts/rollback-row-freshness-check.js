@@ -101,8 +101,17 @@ function receiptsFromJson(log) {
         receiptsMeta.parsedJson.push({ from: b.from, to: b.to });
         const m = { index: b.from };
         const fns = {};
+        /* A SLUG NAMED TWICE IS NOT A RECEIPT. A five-row block whose second
+           `production-write` row carries a stale version used to overwrite the
+           first while still counting as four functions named, so malformed
+           pasted evidence could certify a stale row (Codex, forty-second round
+           on #1306). */
+        const seen = new Set();
+        let duplicated = false;
         for (const f of obj.functions) {
             if (!f || !f.slug) continue;
+            if (seen.has(f.slug)) duplicated = true;
+            seen.add(f.slug);
             fns[f.slug] = {
                 version: String(f.active_version || '').trim(),
                 closure: String(f.source_closure_sha256 || '').trim().toLowerCase(),
@@ -113,6 +122,10 @@ function receiptsFromJson(log) {
            entry's run id it folds into that run's complete receipt and the
            function it omitted -- the one that changed -- is never compared
            (Codex, thirteenth round on #1306). */
+        if (duplicated) {
+            receiptsMeta.unreadableAttestations.push({ at: b.from });
+            continue;
+        }
         const named = SLUGS.filter(slug => fns[slug]);
         if (named.length < SLUGS.length) {
             receiptsMeta.incompleteAttestations.push({
@@ -843,7 +856,16 @@ function recordsADispatch(log, k, len) {
     };
     const rm = after.match(/\brun\s+`?#?(\d{6,})/i);
     if (rm) {
-        const r = judgeRun(rm[1], before + ' LANE ' + after.slice(0, rm.index));
+        const pre = before + ' LANE ' + after.slice(0, rm.index);
+        /* And the rest of the clause still counts: "run `X` is scheduled for
+           tomorrow after approval" puts its forward language AFTER the run id
+           (Codex, forty-second round on #1306). It makes a plan only where no
+           completion precedes the run id, so "went out (run `X`), which will
+           need a fresh capture" is unaffected. */
+        const r = (firstIndex(DISPATCH_DONE, norm(pre)) < 0
+            && DISPATCH_AHEAD.test(norm(after.slice(rm.index))))
+            ? null
+            : judgeRun(rm[1], pre);
         if (r !== undefined) return r;
     } else {
         /* THE BINDING FORM puts the run before the lane and ties them with a
@@ -1489,10 +1511,29 @@ function main() {
                 + ' ROLLBACK.md names cannot be checked against the one that deploy actually captured.'
                 + ' Copy the capture receipt into the EXECUTION_LOG entry.');
         } else if (claim.bundle.captured !== prior.fns['production-write'].version) {
-            failures.push('rollback bundle ' + claim.bundle.sha + ' claims it captures production-write v'
+            /* THE PREVIOUS §4 RECEIPT IS NOT ALWAYS THE PREVIOUS LIVE STATE. An
+               owning lane can move `production-write` between two Section 4
+               releases, and this guard cannot read that lane's versions, so the
+               version live just before the newest release is not derivable and
+               the row's correct claim would be reported as two steps back
+               (Codex, forty-second round on #1306). Where such a dispatch is
+               recorded in between, the mismatch is a note naming the reason
+               rather than a failure. The bundle's IDENTITY is unaffected: it is
+               still matched against the digest and byte length the newest
+               receipt sealed. */
+            const between = laneDispatchesSince(receiptsMeta.log, prior.date || '', prior.at)
+                .filter(d => !live.date || d.date <= live.date);
+            const msg = 'rollback bundle ' + claim.bundle.sha + ' claims it captures production-write v'
                 + claim.bundle.captured + ', but the release before the newest one was v'
-                + prior.fns['production-write'].version
-                + ' — restoring it would step back more than once');
+                + prior.fns['production-write'].version;
+            if (between.length) {
+                notes.push(msg + ' — the ' + between[0].date + ' entry records a `' + between[0].lane
+                    + '` dispatch between the two, and that lane\'s versions are not readable here, so the'
+                    + ' version live just before the newest release cannot be derived from this log. The'
+                    + ' bundle itself still matches the digest and byte length the newest receipt sealed.');
+            } else {
+                failures.push(msg + ' — restoring it would step back more than once');
+            }
         }
     }
 

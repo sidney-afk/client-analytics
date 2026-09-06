@@ -2126,6 +2126,55 @@ const laneFromPushRun = run(fixture('lane-from-push', appended(laneFromPush), re
 ok(laneFromPushRun.code === 0,
     'while push and merge wording still exempts the run, because that is what says the guarded step was skipped');
 
+/* ---- 8aq. duplicate slugs; planning after a run id (round 42) --------------- */
+const dupSlug = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '```json',
+    JSON.stringify({
+        schema: 'syncview_f27_section4_deployed_versions_v1',
+        deploy_commit: '0123456789abcdef0123456789abcdef01234567',
+        github_run_id: '34000000000',
+        functions: [
+            { slug: 'batch-write', active_version: '35', source_closure_sha256: H.bw, verify_jwt: false },
+            { slug: 'deliverable-write', active_version: '35', source_closure_sha256: H.dw, verify_jwt: false },
+            { slug: 'linear-outbound', active_version: '47', source_closure_sha256: H.lo47, verify_jwt: false },
+            { slug: 'production-write', active_version: '69', source_closure_sha256: 'e'.repeat(64), verify_jwt: false },
+            { slug: 'production-write', active_version: '68', source_closure_sha256: 'd7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a', verify_jwt: false },
+        ],
+    }, null, 2),
+    '```',
+    '',
+].join('\n');
+const dupSlugRun = run(fixture('dup-slug', appended(dupSlug), realRb));
+ok(dupSlugRun.code === 1 && dupSlugRun.json
+    && dupSlugRun.json.failures.some(f => /attestation block\(s\) this guard cannot read/.test(f)),
+    'A SLUG NAMED TWICE IS NOT A RECEIPT: a five-row block whose duplicate `production-write` row carries the stale version is unreadable, so it cannot certify the row it disagrees with');
+const lanePlanTrailing = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` is scheduled for tomorrow after approval.',
+    '',
+].join('\n');
+const lanePlanTrailingRunCheck = run(fixture('lane-plan-after-run', appended(lanePlanTrailing), realRb));
+ok(lanePlanTrailingRunCheck.code === 0,
+    'PLANNING AFTER THE RUN ID STILL COUNTS: "run `X` is scheduled for tomorrow after approval" is a plan, because no completion precedes the run id');
+const laneDoneThenFuture = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch went out (run `34000000000`), which will need a fresh capture.',
+    '',
+].join('\n');
+const laneDoneThenFutureRun = run(fixture('lane-done-then-future', appended(laneDoneThenFuture), realRb));
+ok(laneDoneThenFutureRun.code === 1 && laneDoneThenFutureRun.json
+    && laneDoneThenFutureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'while a completion BEFORE the run id keeps the dispatch: "went out (run `X`), which will need a fresh capture" still FAILS');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

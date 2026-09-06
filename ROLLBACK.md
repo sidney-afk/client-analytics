@@ -1,5 +1,14 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**2026-09-06 existing-card assignment draft/unapplied:** stop fresh assignment
+admission with its explicit per-team `hold` mode. Keep accepted native receipt
+lookup and retention guards. Do not silently restore provider mode after
+provider cutoff, revert to a pre-capability gateway that cannot replay accepted
+native receipts, or drop/rewrite/truncate those receipts. Provider mode is a
+separate explicit pre-cutoff recovery decision. Schema and trigger-aware
+retained-target restore integration are still required before installation or
+activation. `docs/ops/NATIVE_EXISTING_ASSIGNMENT.md` owns the finite contract.
+
 **2026-09-05 local Create Post editor projection:** restore only the new
 editor-read wrapper/caller changes first, returning to the preserved provider
 loader. Keep all accepted intake jobs, payloads, receipts and native epochs.

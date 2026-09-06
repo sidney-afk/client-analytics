@@ -1,5 +1,9 @@
 # Linear removal: completion accounting
 
+## September 6 UTC: independent native-label and cutoff work accepted
+
+Two independent overnight source/disposable tasks now own native labels (G2) and a bounded server cutoff prerequisite (G8). Both remain draft-only, inactive and subject to separate review; no G2, G8, Decision A, serving, alert or release gate is closed. The published HTTP adapter `c32b12df251bcbbf50eed6e9627b6abd030dda76` and disposable proof `29e95a558407734b34719385b72cd505a2b90c19`, each from `8514a83e`, await combined review and are not integrated.
+
 ## September 6 UTC: held selected 37 schema recovery hosted proof closed; HTTP work active
 
 [Draft PR #1324](https://github.com/sidney-afk/client-analytics/pull/1324), exact `8514a83ed1a65145a3a51ffe52e5fcbb2976be31`, is based on PR1323 `bbe030766e595fccd88adaa98d97ca5177f2226e` and preserves canonical history-v7 while adding a held selected 37 schema/data reconstruction companion. The default schedule remains legacy-v3; no application adapter, client behavior, installed schema, role or live path changes.

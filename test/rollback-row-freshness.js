@@ -1867,6 +1867,59 @@ ok(postDeployNamedRun.code === 1 && postDeployNamedRun.json
     && postDeployNamedRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 post-deploy notes and Deploy #41"/.test(f) && /holds no receipt this guard can read/.test(f)),
     'while a heading that names a deploy alongside its post-deploy notes is still a deploy record, and is asked for its receipt');
 
+/* ---- 8aj. release headings; "as planned" looks back (round 35) -------------- */
+const releaseHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 release, run `33995000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567` and completed successfully.',
+    '',
+].join('\n');
+const releaseHeadingRun = run(fixture('release-heading', appended(releaseHeading), realRb));
+ok(releaseHeadingRun.code === 1 && releaseHeadingRun.json
+    && releaseHeadingRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 release, run `33995000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A SECTION 4 RELEASE IS A DEPLOY: "F27 Section 4 release, run `X`" ships the same four functions without the word deploy, and a receipt-less entry headed that way is asked for one');
+const releaseNested = [
+    '### Companion release',
+    '',
+    'The graphics lane shipped its own bundle; nothing in Section 4 moved.',
+    '',
+].join('\n');
+const releaseNestedRun = run(fixture('release-nested', insertInto(releaseNested), realRb));
+ok(releaseNestedRun.code === 0,
+    'while a nested "### Companion release" under a Section 4 entry is another lane\'s business: release wording counts only where the heading itself names Section 4');
+const releasePlanned = [
+    '',
+    '## 2026-09-06 — F27 Section 4 release planned for Monday',
+    '',
+    'The four closures are pinned; nothing has shipped.',
+    '',
+].join('\n');
+const releasePlannedRun = run(fixture('release-planned', appended(releasePlanned), realRb));
+ok(releasePlannedRun.code === 0,
+    'and a Section 4 release that is planned rather than done asks for nothing, the same as a planned deploy');
+const laneAsPlanned = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'As planned, the `deploy-onboarding-edge-functions` manual dispatch completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneAsPlannedRun = run(fixture('lane-as-planned', appended(laneAsPlanned), realRb));
+ok(laneAsPlannedRun.code === 1 && laneAsPlannedRun.json
+    && laneAsPlannedRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    '"AS PLANNED" LOOKS BACK: it says the dispatch went the way it was meant to, not that it is still to come, so the completed dispatch beside it FAILS');
+const lanePlannedAhead = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'A `deploy-onboarding-edge-functions` dispatch is planned for Monday (run `33995000000` reserved).',
+    '',
+].join('\n');
+const lanePlannedAheadRun = run(fixture('lane-planned-ahead', appended(lanePlannedAhead), realRb));
+ok(lanePlannedAheadRun.code === 0,
+    'while a genuine "is planned for Monday" is still a plan and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

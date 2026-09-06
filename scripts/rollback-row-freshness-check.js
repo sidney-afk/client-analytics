@@ -758,7 +758,13 @@ function recordsADispatch(log, k, len) {
     const before = span.slice(cStart, rel);
     const after = span.slice(rel + len, cEnd);
     /* Completion words about a check are not about the dispatch. */
-    const norm = text => text.replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ').replace(FAILED_RUN, ' NEGATED ');
+    /* "AS PLANNED" LOOKS BACK, NOT FORWARD. "As planned, the LANE manual
+       dispatch completed successfully (run `X`)" records a deploy that
+       happened; the planning word only says it went the way it was meant to
+       (Codex, thirty-fifth round on #1306). Removed before the clause is read
+       so it can neither make a plan nor hide one. */
+    const RETROSPECTIVE = /\b(?:just |exactly |right )?as (?:planned|scheduled|expected|intended|arranged|agreed)\b/gi;
+    const norm = text => text.replace(RETROSPECTIVE, ' ').replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ').replace(FAILED_RUN, ' NEGATED ');
     /* PLANNING THE DISPATCH IS NOT PLANNING THE FOLLOW-UP. A forward-looking
        word makes a plan only when no completion word precedes it in the text
        considered: "completed successfully and will be smoke-tested tomorrow
@@ -1095,11 +1101,14 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            deployed via F27 Section 4" records a deploy that happened (Codex,
            twenty-eighth round). "NOT DISPATCHED" is the same idea in the log's
            own words. */
-        const deployAhead = /\b(awaits?|awaiting|pending|before|until|not yet|to be|planned|upcoming|will|would|without|ahead of)\b[^\n]{0,40}?\bdeploy(?:ment)?\b/i.test(h.text)
+        const deployAhead = /\b(awaits?|awaiting|pending|before|until|not yet|to be|planned|upcoming|will|would|without|ahead of)\b[^\n]{0,40}?\b(?:deploy(?:ment)?|release|ship|rollout|cutover)\b/i.test(h.text)
             || /\b(not yet|never|not|to be|will be|would be|yet to be|still to be)\s+(?:\w+\s+)?deployed\b/i.test(h.text)
             /* and the plan noun after the deployment noun: "deployment plan
                approved for tomorrow" (Codex, thirty-first round on #1306). */
-            || /\bdeploy(?:ment)?\s+(?:plan|planning|schedule|proposal|checklist|readiness|rehearsal|preview|window|slot)\b/i.test(h.text);
+            || /\bdeploy(?:ment)?\s+(?:plan|planning|schedule|proposal|checklist|readiness|rehearsal|preview|window|slot)\b/i.test(h.text)
+            /* and the forward word after the shipping noun: "release planned
+               for Monday", "cutover scheduled" (Codex, thirty-fifth round). */
+            || /\b(?:deploy(?:ment)?|releas(?:e|ing)|shipping|rollout|cutover)\s+(?:is |was |has been |to be )?(?:planned|planning|scheduled|proposed|pending|upcoming|awaited|owed)\b/i.test(h.text);
         /* A DEPLOY THAT FAILED WITHOUT DEPLOYING ANYTHING CANNOT HAVE A
            RECEIPT, and the log keeps those attempts as history (run #37 on
            2026-09-05 is one). Both halves are required -- a failure word AND an
@@ -1125,7 +1134,19 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            removed before the heading is tested, so a heading that also names a
            deploy some other way still counts. */
         const headDeployWords = h.text.replace(/\b(?:post|pre)[- ]?deploy(?:ment)?\b/gi, ' ');
-        const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(headDeployWords) && !deployAhead))
+        /* "F27 Section 4 release, run `X`" ships the same four functions and
+           says so without the word deploy (Codex, thirty-fifth round on
+           #1306). Release, ship, rollout and cutover count like deploy, and
+           the forward-looking test applies to them the same way. */
+        /* Release wording counts only where the heading NAMES Section 4: "F27
+           Section 4 release, run `X`" ships the same four functions, while a
+           nested "### Companion release" under a Section 4 entry is another
+           lane's business and has never been asked for a §4 receipt. "deploy"
+           keeps its inherited context, as before. */
+        const shipWord = /releas(?:e|ed|ing)|shipp(?:ed|ing)|\bships?\b|rollout|roll(?:ed|ing)? out|cutover|cut over/i;
+        const claimsShip = (sectionFourHere && /deploy/i.test(headDeployWords))
+            || (namesSection4(h.text) && shipWord.test(headDeployWords));
+        const headSaysDeploy = (bodyClaimsForward || (claimsShip && !deployAhead))
             && !/NOT DISPATCHED/i.test(h.text) && !failedNothing;
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
         if (!unreadableRows && !truncatedTables && !attestations && !noReceiptUnder) continue;

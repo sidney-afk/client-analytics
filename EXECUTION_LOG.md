@@ -2,6 +2,17 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Built: the description edits in place, like Linear's
+
+Owner: *"when we click edit it shouldn't change the way we are viewing things ... like
+linear."* The Source/Preview textarea is replaced by an in-place editor built from the
+Markdown with the read view's own classes: links are links with a hover card to open or
+edit them, a pasted image is the image, `- `/`# `/`---` shape the line as typed, Markdown
+stays one toggle away and is what opens when the text cannot round-trip exactly. The
+"scrolls back up" report is closed by a scroll lock around every focus restore. Artifact
+first (`docs/syncview-design/SyncView.html`), 36 mapped ports. Browser-only, no deploy.
+WIRED-PARITY 39, OPEN_REPAIRS 158 with five owner decisions.
+
 ## 2026-09-05 — Built: paste an image into a SyncLinear description (awaits migration + first deploy)
 
 Owner: *"let's do it."* The storage decision in `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`

@@ -3228,6 +3228,45 @@
         .prod-description-action[data-prod-write="off"] { cursor: not-allowed; }
         .prod-description-body { min-height: 24px; }
         .prod-description .prod-desc { margin: 0; }
+        /* IN PLACE (2026-09-06). Read view and editor share one box: 6px of
+           side padding pulled back out with a negative margin, so the text
+           does not move by a pixel when editing starts; the editor adds a
+           hairline ring and nothing else. Height is whatever the text needs. */
+        .prod-description .prod-description-body, .prod-description .prod-description-rich { margin: 0 -6px; padding: 3px 6px; border-radius: 6px; min-height: 30px; }
+        .prod-description-body[data-prod-desc-click-edit] { cursor: text; }
+        .prod-description-body[data-prod-desc-click-edit]:hover { background: var(--prod-hover); }
+        .prod-description-rich { position: relative; outline: none; box-shadow: 0 0 0 1px var(--prod-accent); background: var(--prod-surface); color: var(--prod-strong); }
+        .prod-description-rich.is-drop-target { box-shadow: 0 0 0 2px var(--prod-accent); }
+        .prod-description-rich[contenteditable="false"] { opacity: .7; }
+        .prod-description-rich.is-empty::before { content: 'Add a description…'; position: absolute; color: var(--prod-faint); pointer-events: none; }
+        .prod-desc .prod-md-bullet-text { flex: 1 1 auto; min-width: 0; }
+        /* display:none, not height:0: a zero-height block with a line box in it still stops the neighbouring heading and rule margins collapsing through, which is 2px to 14px the read view does not have. The block stays in the model; the caret helpers step over it. */
+        .prod-desc .prod-md-gap { display: none; }
+        .prod-desc-uploading { display: inline-flex; align-items: center; padding: 0 8px; border-radius: 6px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 20px; }
+        .prod-description-footer-rich { min-height: 0; border-top: 0; padding: 4px 0 0; }
+        .prod-description-footer-rich .prod-description-hint { margin-left: 0; }
+        .prod-description-footer-rich .prod-description-count { margin-left: auto; }
+        .prod-description-count.is-quiet { display: none; }
+        /* The link card: one body-mounted element, shown on hover over any
+           description link, editable where the description is. z-index sits
+           with the toast, below the tooltip. */
+        .prod-linkpop { position: fixed; z-index: 10000; min-width: 220px; max-width: min(380px, calc(100vw - 16px)); padding: 5px; border: 1px solid var(--prod-border-soft); border-radius: 9px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: var(--prod-shadow-pop); font-size: 12px; line-height: 18px; }
+        .prod-linkpop-view { display: flex; align-items: center; gap: 4px; }
+        .prod-linkpop-url { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 6px; color: var(--prod-link); text-decoration: none; }
+        .prod-linkpop-url:hover { text-decoration: underline; }
+        .prod-linkpop-btn { min-height: 26px; border: 0; border-radius: 6px; padding: 0 8px; background: transparent; color: var(--prod-muted); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+        .prod-linkpop-btn:hover { background: var(--prod-hover); color: var(--prod-strong); }
+        .prod-linkpop-apply { background: var(--prod-accent); color: #fff; }
+        .prod-linkpop-apply:hover { background: var(--prod-accent); color: #fff; filter: brightness(.96); }
+        .prod-linkpop-form { display: none; flex-direction: column; gap: 6px; padding: 2px; }
+        .prod-linkpop.is-editing .prod-linkpop-form { display: flex; }
+        .prod-linkpop.is-editing .prod-linkpop-view { display: none; }
+        .prod-linkpop-field { display: flex; align-items: center; gap: 8px; }
+        .prod-linkpop-field span { width: 30px; color: var(--prod-muted); }
+        .prod-linkpop-field input { flex: 1 1 auto; min-width: 0; min-height: 26px; border: 1px solid var(--prod-border-soft); border-radius: 6px; padding: 0 7px; font: inherit; font-size: 12px; background: var(--prod-surface); color: var(--prod-strong); outline: none; }
+        .prod-linkpop-field input:focus { border-color: var(--prod-accent); }
+        .prod-linkpop-actions { display: flex; align-items: center; gap: 4px; }
+        .prod-linkpop-spacer { flex: 1 1 auto; }
         .prod-description-state { margin-top: 8px; border-radius: 7px; padding: 8px 10px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 18px; }
         .prod-description-state.is-error { color: var(--prod-overdue, #eb5757); }
         .prod-description-state button { min-height: 26px; margin-left: 6px; border: 0; border-radius: 6px; padding: 0 8px; background: var(--prod-surface); color: inherit; font: inherit; font-weight: 600; cursor: pointer; }
@@ -54440,7 +54479,7 @@
         function _prodLinkify(s, options) {
             const allowImages = !!(options && options.images);
             const lines = String(s || '').replace(/\r\n?/g, '\n').split('\n');
-            return lines.map((line, ix) => {
+            const parts = lines.map((line, ix) => {
                 line = _prodNormalizeMarkdownLine(line);
                 const trimmed = line.trim();
                 if (!trimmed) {
@@ -54457,7 +54496,15 @@
                     return '<span class="prod-md-bullet"><span class="prod-md-bullet-mark">•</span><span>' + _prodLinkifyInline(trimmed.replace(/^[-*]\s+/, ''), allowImages) + '</span></span>';
                 }
                 return _prodLinkifyInline(line, allowImages);
-            }).filter(part => part !== null).join('<br>');
+            }).filter(part => part !== null);
+            /* A heading, rule or bullet is a block and already ends its line.
+               Joining every part with <br> put a spare empty line after each
+               of them (2026-09-06, found by laying the in-place editor over
+               the read view: a bullet list was followed by two blank lines
+               where the source had one). Only an inline line takes the
+               break; a blank source line still yields its own. */
+            const blockPart = part => /^<(span class="prod-md-(heading|bullet)"|hr class="prod-md-rule")/.test(part) || /<img [^>]*>\s*$/.test(part);
+            return parts.map((part, ix) => part + (ix < parts.length - 1 && !blockPart(part) ? '<br>' : '')).join('');
         }
         function _prodCommentTruthy(value) {
             if (value === true || value === 1) return true;
@@ -55436,6 +55483,16 @@
                 uploading: 0,
                 selectionStart: value.length,
                 selectionEnd: value.length,
+                /* The in-place editor (2026-09-06). `source` is the Markdown
+                   textarea, offered as a toggle and taken automatically when
+                   the visual editor cannot reproduce the text exactly;
+                   `sourceReason` is the one-line explanation shown then. The
+                   caret in the visual editor is (block, offset), which
+                   survives the rebuild every render performs. */
+                source: false,
+                sourceReason: '',
+                caretBlock: 0,
+                caretOffset: 0,
                 sourceUpdatedAt: issue ? issue.updatedRaw : '',
                 /* Set only when a READ completes. A value seeded from the
                    projection above carries no stamp, because it did not come
@@ -55668,7 +55725,36 @@
                 state.selectionStart = Number.isFinite(active.selectionStart) ? active.selectionStart : state.selectionStart;
                 state.selectionEnd = Number.isFinite(active.selectionEnd) ? active.selectionEnd : state.selectionEnd;
             }
+            if (control === 'rich') _prodDescriptionRememberCaret(id, active);
             return { id, control };
+        }
+        /* FOCUS MUST NOT MOVE THE PAGE. Owner, 2026-09-06: "when I click edit
+           and scroll down, it scrolls back up." Every render rebuilds the
+           pane and puts focus and the caret back; Chrome reveals a restored
+           caret by scrolling its container, so a reader who had scrolled past
+           the editor was pulled back to the caret line on the next tick. The
+           pane's offset is taken before the restore and put back after it. */
+        function _prodDescriptionKeepScroll(fn) {
+            const pane = document.querySelector('#prodRoot .prod-detail-main');
+            const top = pane ? pane.scrollTop : 0;
+            const x = window.scrollX;
+            const y = window.scrollY;
+            let out;
+            try { out = fn(); } finally {
+                if (pane && pane.scrollTop !== top) pane.scrollTop = top;
+                if (window.scrollX !== x || window.scrollY !== y) window.scrollTo(x, y);
+            }
+            return out;
+        }
+        function _prodDescriptionRememberCaret(id, root) {
+            const state = _prodDescriptionState(id);
+            const caret = state && root ? _prodDescRichCaret(root) : null;
+            if (!caret) return;
+            state.caretBlock = caret.block;
+            state.caretOffset = caret.offset;
+        }
+        function _prodDescriptionEditorControl(state) {
+            return state && state.source ? 'source' : 'rich';
         }
         function _prodRestoreDescriptionFocus(snapshot) {
             if (!snapshot || !snapshot.id || !snapshot.control) return false;
@@ -55676,13 +55762,16 @@
             const target = panel && panel.querySelector('[data-prod-description-control="' + CSS.escape(snapshot.control) + '"]');
             if (!target) return false;
             try {
-                target.focus({ preventScroll: true });
-                if (snapshot.control === 'source' && target.setSelectionRange) {
+                _prodDescriptionKeepScroll(() => {
+                    target.focus({ preventScroll: true });
                     const state = _prodState.descriptions.get(snapshot.id);
-                    const start = Math.min(Number(state && state.selectionStart || 0), target.value.length);
-                    const end = Math.min(Number(state && state.selectionEnd || start), target.value.length);
-                    target.setSelectionRange(start, end);
-                }
+                    if (snapshot.control === 'source' && target.setSelectionRange) {
+                        const start = Math.min(Number(state && state.selectionStart || 0), target.value.length);
+                        const end = Math.min(Number(state && state.selectionEnd || start), target.value.length);
+                        target.setSelectionRange(start, end);
+                    }
+                    if (snapshot.control === 'rich') _prodDescRichSetCaret(target, { block: state && state.caretBlock, offset: state && state.caretOffset });
+                });
             } catch (e) { return false; }
             return document.activeElement === target;
         }
@@ -55858,19 +55947,44 @@
             } catch (e) { return false; }
             return document.activeElement === target;
         }
-        function _prodFocusDescriptionControl(id, control) {
+        /* `options.point` is the click that opened the editor: the editing
+           surface is laid out exactly like the read view, so the caret can be
+           placed where the click landed. `options.link` is the index of a link
+           whose hover card asked to edit it from the read view. */
+        function _prodFocusDescriptionControl(id, control, options) {
+            options = options || {};
             setTimeout(() => {
                 const panel = document.querySelector('[data-prod-description="' + CSS.escape(String(id || '')) + '"]');
                 const target = panel && panel.querySelector('[data-prod-description-control="' + CSS.escape(String(control || '')) + '"]');
                 if (!target) return;
                 try {
-                    target.focus({ preventScroll: true });
-                    if (control === 'source' && target.setSelectionRange) {
+                    _prodDescriptionKeepScroll(() => {
+                        target.focus({ preventScroll: true });
                         const state = _prodDescriptionState(id);
-                        const start = Math.min(Number(state && state.selectionStart || 0), target.value.length);
-                        const end = Math.min(Number(state && state.selectionEnd || start), target.value.length);
-                        target.setSelectionRange(start, end);
-                    }
+                        if (control === 'source' && target.setSelectionRange) {
+                            const start = Math.min(Number(state && state.selectionStart || 0), target.value.length);
+                            const end = Math.min(Number(state && state.selectionEnd || start), target.value.length);
+                            target.setSelectionRange(start, end);
+                        }
+                        if (control === 'rich') {
+                            let placed = false;
+                            if (options.point && document.caretRangeFromPoint) {
+                                const range = document.caretRangeFromPoint(options.point.x, options.point.y);
+                                if (range && target.contains(range.startContainer)) {
+                                    const selection = window.getSelection();
+                                    selection.removeAllRanges();
+                                    selection.addRange(range);
+                                    placed = true;
+                                }
+                            }
+                            if (!placed) _prodDescRichSetCaret(target, { block: state && state.caretBlock, offset: state && state.caretOffset });
+                            _prodDescriptionRememberCaret(id, target);
+                            if (Number.isInteger(options.link)) {
+                                const anchor = target.querySelectorAll('a')[options.link];
+                                if (anchor) _prodDescLinkPopShow(anchor, true);
+                            }
+                        }
+                    });
                 } catch (e) {}
             }, 0);
         }
@@ -56001,6 +56115,7 @@
             if (counter) {
                 counter.textContent = value.length.toLocaleString() + ' / 100,000';
                 counter.classList.toggle('is-invalid', value.length > 100000);
+                counter.classList.toggle('is-quiet', counter.hasAttribute('data-prod-description-count-quiet') && value.length < 90000);
             }
             /* Both paths that touch this button must agree: an upload in
                flight keeps it shut whatever the count says (Codex on #1310,
@@ -56009,7 +56124,8 @@
             const error = panel && panel.querySelector('[data-prod-description-write-error]');
             if (error && !state.remoteChanged) error.remove();
         }
-        function _prodBeginDescriptionEdit(id) {
+        function _prodBeginDescriptionEdit(id, options) {
+            options = options || {};
             const issue = _prodIssue(id);
             const state = issue && _prodDescriptionState(id);
             if (!issue || !state) return false;
@@ -56035,16 +56151,63 @@
             state.requestId = '';
             state.selectionStart = state.draft.length;
             state.selectionEnd = state.draft.length;
+            /* In place, in its rendered form, unless the text cannot come
+               back out of the visual editor byte for byte. Then it opens as
+               Markdown and says why, because silently normalising a
+               description that Linear mirrors is worse than a textarea. */
+            state.source = !_prodDescRichRoundTrips(state.draft);
+            state.sourceReason = state.source ? 'This description uses Markdown the visual editor cannot keep exactly, so it opened as Markdown.' : '';
+            state.caretBlock = state.draft.split('\n').length - 1;
+            state.caretOffset = 1e9;
             _prodRender();
-            _prodFocusDescriptionControl(id, 'source');
+            _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state), options);
             return false;
         }
+        /* The read view is the editor: a click on the text starts editing
+           with the caret where the click landed. Links and images keep their
+           own click. */
+        function _prodDescriptionBodyClick(event, id) {
+            const target = event && event.target;
+            if (target && target.closest && target.closest('a, img, button')) return true;
+            const selection = window.getSelection && window.getSelection();
+            if (selection && !selection.isCollapsed) return true;
+            _prodBeginDescriptionEdit(id, { point: { x: event.clientX, y: event.clientY } });
+            return false;
+        }
+        /* Markdown ⇄ visual. The visual side is refused, with the reason on
+           screen, when the current draft would not survive the trip. */
         function _prodSetDescriptionMode(id, mode) {
             const state = _prodDescriptionState(id);
             if (!state || !state.editing || state.saving) return false;
-            state.preview = mode === 'preview';
+            const toSource = mode === 'source';
+            if (!toSource && !_prodDescRichRoundTrips(state.draft)) {
+                state.sourceReason = 'This Markdown cannot be shown exactly in the visual editor. Keep editing it as Markdown.';
+                _prodRender();
+                _prodFocusDescriptionControl(id, 'source');
+                return false;
+            }
+            /* Carry the caret across: a Markdown offset becomes (line, column)
+               and back, which is exact for plain text and close enough where
+               markup differs. */
+            const draft = String(state.draft || '');
+            if (toSource && !state.source) {
+                const lines = draft.split('\n');
+                const block = Math.min(Math.max(0, state.caretBlock || 0), lines.length - 1);
+                const column = Math.min(Number(state.caretOffset) || 0, lines[block].length);
+                const offset = lines.slice(0, block).reduce((n, line) => n + line.length + 1, 0) + column;
+                state.selectionStart = offset;
+                state.selectionEnd = offset;
+            } else if (!toSource && state.source) {
+                const before = draft.slice(0, Math.min(Number(state.selectionStart) || 0, draft.length));
+                const parts = before.split('\n');
+                state.caretBlock = parts.length - 1;
+                state.caretOffset = parts[parts.length - 1].length;
+            }
+            state.source = toSource;
+            state.sourceReason = '';
+            state.preview = false;
             _prodRender();
-            _prodFocusDescriptionControl(id, state.preview ? 'preview' : 'source');
+            _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
             return false;
         }
         function _prodCancelDescriptionEdit(id) {
@@ -56052,15 +56215,60 @@
             if (!state || state.saving) return false;
             state.editing = false;
             state.preview = false;
+            state.source = false;
+            state.sourceReason = '';
             state.draft = state.value;
             state.error = '';
             state.remoteChanged = false;
             state.requestId = '';
+            _prodDescLinkPopHide(true);
             _prodRender();
             _prodFocusDescriptionControl(id, 'edit');
             return false;
         }
+        /* Everything the visual editor does between keystrokes: the typing
+           shortcuts, the DOM tidy, and the Markdown the draft is made of. */
+        function _prodDescriptionRichInput(id, root) {
+            const state = _prodDescriptionState(id);
+            if (!state || !root || state.saving) return false;
+            _prodDescRichShortcut(root);
+            _prodDescRichNormalize(root);
+            _prodDescriptionRememberCaret(id, root);
+            _prodDescriptionDraftInput(id, _prodDescRichSerialize(root), root);
+            return true;
+        }
+        /* Rebuild the editor from its own Markdown, caret kept: after a paste
+           this is what turns pasted `- item` and `[label](url)` text into the
+           shapes they mean. */
+        function _prodDescriptionRichRebuild(id, root) {
+            const state = _prodDescriptionState(id);
+            if (!state || !root) return false;
+            const caret = _prodDescRichCaret(root) || { block: state.caretBlock, offset: state.caretOffset };
+            root.innerHTML = _prodDescRichBuild(state.draft);
+            _prodDescRichNormalize(root);
+            _prodDescRichSetCaret(root, caret);
+            _prodDescriptionRememberCaret(id, root);
+            return true;
+        }
+        function _prodDescriptionRichRoot(id) {
+            const panel = document.querySelector('[data-prod-description="' + CSS.escape(String(id || '')) + '"]');
+            return panel && panel.querySelector('[data-prod-description-control="rich"]') || null;
+        }
         function _prodDescriptionEditorKeydown(event, id) {
+            const root = event && event.currentTarget;
+            if (root && root.getAttribute && root.getAttribute('data-prod-description-control') === 'rich') {
+                if ((event.ctrlKey || event.metaKey) && String(event.key || '').toLowerCase() === 'k') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const anchor = _prodDescRichAnchorAtCaret(root) || _prodDescRichMakeLink(root, '', '');
+                    if (anchor) _prodDescLinkPopShow(anchor, true);
+                    return false;
+                }
+                if (event.key !== 'Escape' && !((event.ctrlKey || event.metaKey) && event.key === 'Enter') && _prodDescRichKeydown(event, root)) {
+                    _prodDescriptionRichInput(id, root);
+                    return false;
+                }
+            }
             if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
@@ -56074,6 +56282,744 @@
                 return false;
             }
             return true;
+        }
+        /* ---- In-place description editor (2026-09-06) --------------------------
+           Owner: "when we click edit it shouldn't change the way we are viewing
+           things ... like linear ... links ... we shouldn't see those weird brackets
+           ... when we paste an image we should just see the actual image."
+
+           The editing surface IS the rendered surface: a contenteditable built from
+           the Markdown with the same classes the read view uses, one block per source
+           line, and a serializer that walks it back to Markdown. Every block and every
+           inline mark carries the exact source form it came from (`data-md`,
+           `data-md-prefix`, `data-md-raw`), so an untouched description serializes
+           byte-for-byte to what was loaded. _prodDescRichRoundTrips() proves that before
+           the editor is offered; a description it cannot keep opens in Markdown.
+
+           No library. The block model is deliberately small: paragraph, heading,
+           bullet, rule. Inline: bold, italic, code, link (three source forms), image,
+           and the upload placeholder. Anything else is text and stays text. */
+        const PROD_DESC_RICH_PLACEHOLDER_RE = /!\[Uploading image (\d+)…\]\(\)/;
+        const PROD_DESC_RICH_BLOCK_TYPES = ['p', 'h', 'ul', 'hr'];
+        function _prodDescRichAttr(s) {
+          return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').split('"').join('&quot;');
+        }
+        function _prodDescRichInline(s) {
+          s = _prodDescRichAttr(s);
+          const st = [];
+          const keep = h => { st.push(h); return 'XMDTOK' + (st.length - 1) + 'ENDMDTOK'; };
+          /* Marker attributes carry no `*` or `_`, so the bold and italic passes
+             below cannot match inside a tag they already produced. */
+          const label = l => String(l || '')
+            .replace(/^\*\*([^*]+)\*\*$/, '<strong data-md="bb">$1</strong>')
+            .replace(/^__([^_]+)__$/, '<strong data-md="uu">$1</strong>')
+            .replace(/^`([^`]+)`$/, '<code>$1</code>');
+          const anchor = (l, u, form) => '<a href="' + u + '" data-md="' + form + '" target="_blank" rel="noopener noreferrer">' + (form === 'bare' ? u : label(l)) + '</a>';
+          const image = (l, u, form) => '<img class="prod-desc-image" src="' + u + '" alt="' + l + '" data-md="' + form + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">';
+          const placeholder = n => '<span class="prod-desc-uploading" data-md-placeholder="' + n + '" contenteditable="false">Uploading image…</span>';
+          const trimLinkTail = u => {
+            let suffix = '';
+            while (u) {
+              if (u.endsWith('**')) { suffix = '**' + suffix; u = u.slice(0, -2); }
+              else if (u.endsWith('*')) { suffix = '*' + suffix; u = u.slice(0, -1); }
+              else if (u.endsWith('&gt;')) { suffix = '&gt;' + suffix; u = u.slice(0, -4); }
+              else if (/[)\].,!?;]$/.test(u)) { suffix = u.slice(-1) + suffix; u = u.slice(0, -1); }
+              else break;
+            }
+            return { url: u, suffix };
+          };
+          s = s.replace(/`([^`]+)`/g, (m, c) => keep('<code>' + c + '</code>'));
+          s = s.replace(/!\[Uploading image (\d+)…\]\(\)/g, (m, n) => keep(placeholder(n)));
+          s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(image(l, u, 'angle')));
+          s = s.replace(/!\[([^\]]*)\]\((https:\/\/[^\s)]+)\)/g, (m, l, u) => keep(image(l, u, 'plain')));
+          s = s.replace(/\[([^\]]+)\]\(&lt;(https?:\/\/.*?)&gt;\)/g, (m, l, u) => keep(anchor(l, u, 'angle')));
+          s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, l, u) => keep(anchor(l, u, 'named')));
+          s = s.replace(/(https?:\/\/[^\s<]+)/g, (m, u) => { const out = trimLinkTail(u); return keep(anchor(out.url, out.url, 'bare')) + out.suffix; });
+          s = s.replace(/\*\*([^*]+)\*\*/g, '<strong data-md="bb">$1</strong>');
+          s = s.replace(/\*([^*\n]+)\*/g, '<em data-md="s">$1</em>');
+          s = s.replace(/(^|\s)__([^_]+)__(?=\s|$|[.,!?])/g, '$1<strong data-md="uu">$2</strong>');
+          s = s.replace(/(^|\s)_([^_\n]+)_(?=\s|$|[.,!?])/g, '$1<em data-md="u">$2</em>');
+          return s.replace(/XMDTOK(\d+)ENDMDTOK/g, (m, i) => st[+i]);
+        }
+        function _prodDescRichBlockHTML(kind, prefix, inner, raw) {
+          if (kind === 'hr') return '<div class="prod-md-hr" data-md="hr" data-md-raw="' + _prodDescRichAttr(raw || '---') + '" contenteditable="false"><hr class="prod-md-rule"></div>';
+          const body = inner || '<br>';
+          if (kind === 'h') return '<div class="prod-md-heading" data-md="h" data-md-prefix="' + _prodDescRichAttr(prefix || '# ') + '">' + body + '</div>';
+          if (kind === 'ul') return '<div class="prod-md-bullet" data-md="ul" data-md-prefix="' + _prodDescRichAttr(prefix || '- ') + '"><span class="prod-md-bullet-mark" contenteditable="false">•</span><span class="prod-md-bullet-text">' + body + '</span></div>';
+          return '<div class="prod-md-p" data-md="p"' + (raw ? ' data-md-raw="' + _prodDescRichAttr(raw) + '"' : '') + '>' + body + '</div>';
+        }
+        function _prodDescRichBuild(markdown) {
+          const lines = String(markdown == null ? '' : markdown).replace(/\r\n?/g, '\n').split('\n');
+          const blocks = lines.map(line => {
+            let m;
+            if (!line.trim()) return { kind: 'blank', html: _prodDescRichBlockHTML('p', '', '', line) };
+            if ((m = /^(-{3,})\s*$/.exec(line))) return { kind: 'hr', html: _prodDescRichBlockHTML('hr', '', '', line) };
+            if ((m = /^(#{1,4}\s+)(.*)$/.exec(line))) return { kind: 'h', html: _prodDescRichBlockHTML('h', m[1], _prodDescRichInline(m[2])) };
+            if ((m = /^([-*]\s+)(.*)$/.exec(line))) return { kind: 'ul', html: _prodDescRichBlockHTML('ul', m[1], _prodDescRichInline(m[2])) };
+            return { kind: 'p', html: _prodDescRichBlockHTML('p', '', _prodDescRichInline(line)) };
+          });
+          /* The read view draws no blank line beside a heading or rule. The editor
+             keeps every line in the model and collapses those on screen, so the
+             first paint already sits exactly where the read view sat. */
+          const blockish = b => !!b && (b.kind === 'h' || b.kind === 'hr');
+          return blocks.map((b, i) => (b.kind === 'blank' && (blockish(blocks[i - 1]) || blockish(blocks[i + 1])))
+            ? b.html.replace('class="prod-md-p"', 'class="prod-md-p prod-md-gap"')
+            : b.html).join('');
+        }
+        function _prodDescRichContainer(block) {
+          if (!block) return null;
+          if (block.getAttribute('data-md') === 'ul') return block.querySelector('.prod-md-bullet-text') || block;
+          return block;
+        }
+        function _prodDescRichSerializeInline(el) {
+          let out = '';
+          Array.from(el.childNodes).forEach(n => {
+            if (n.nodeType === 3) { out += n.nodeValue; return; }
+            if (n.nodeType !== 1) return;
+            const tag = n.tagName;
+            if (tag === 'BR') return;
+            if (tag === 'IMG') {
+              const alt = n.getAttribute('alt') || '';
+              const src = n.getAttribute('src') || '';
+              out += n.getAttribute('data-md') === 'angle' ? '![' + alt + '](<' + src + '>)' : '![' + alt + '](' + src + ')';
+              return;
+            }
+            if (n.hasAttribute('data-md-placeholder')) { out += '![Uploading image ' + n.getAttribute('data-md-placeholder') + '…]()'; return; }
+            if (n.classList && n.classList.contains('prod-md-bullet-mark')) return;
+            const inner = _prodDescRichSerializeInline(n);
+            if (tag === 'A') {
+              const href = n.getAttribute('href') || '';
+              const form = n.getAttribute('data-md') || 'named';
+              if (form === 'bare' && inner === href) { out += href; return; }
+              if (form === 'angle') { out += '[' + (inner || href) + '](<' + href + '>)'; return; }
+              out += '[' + (inner || href) + '](' + href + ')';
+              return;
+            }
+            if (tag === 'STRONG' || tag === 'B') { const mk = n.getAttribute('data-md') === 'uu' ? '__' : '**'; out += inner ? mk + inner + mk : ''; return; }
+            if (tag === 'EM' || tag === 'I') { const mk = n.getAttribute('data-md') === 'u' ? '_' : '*'; out += inner ? mk + inner + mk : ''; return; }
+            if (tag === 'CODE') { out += inner ? '`' + inner + '`' : ''; return; }
+            out += inner;
+          });
+          return out;
+        }
+        function _prodDescRichSerialize(root) {
+          const lines = [];
+          Array.from(root.childNodes).forEach(node => {
+            if (node.nodeType !== 1) { const t = String(node.textContent || ''); if (t.trim()) lines.push(t); return; }
+            const kind = node.getAttribute('data-md') || 'p';
+            if (kind === 'hr') { lines.push(node.getAttribute('data-md-raw') || '---'); return; }
+            const inline = _prodDescRichSerializeInline(_prodDescRichContainer(node));
+            if (kind === 'h') { lines.push((node.getAttribute('data-md-prefix') || '# ') + inline); return; }
+            if (kind === 'ul') { lines.push((node.getAttribute('data-md-prefix') || '- ') + inline); return; }
+            lines.push(inline || node.getAttribute('data-md-raw') || '');
+          });
+          return lines.join('\n');
+        }
+        /* The one honesty check: can this Markdown come back out unchanged? */
+        function _prodDescRichRoundTrips(markdown) {
+          const source = String(markdown == null ? '' : markdown).replace(/\r\n?/g, '\n');
+          const probe = document.createElement('div');
+          probe.innerHTML = _prodDescRichBuild(source);
+          return _prodDescRichSerialize(probe) === source;
+        }
+        function _prodDescRichBlockOf(root, node) {
+          while (node && node !== root) {
+            if (node.parentNode === root) return node.nodeType === 1 ? node : null;
+            node = node.parentNode;
+          }
+          return null;
+        }
+        function _prodDescRichMakeBlock(kind, prefix) {
+          const host = document.createElement('div');
+          host.innerHTML = _prodDescRichBlockHTML(kind, prefix, '', '');
+          return host.firstChild;
+        }
+        function _prodDescRichIsEmpty(container) {
+          if (!container) return true;
+          if (container.querySelector && container.querySelector('img,[data-md-placeholder]')) return false;
+          return !String(container.textContent || '').length;
+        }
+        /* An empty container must hold exactly one <br>: an empty text node left
+           behind by a split gives the caret nowhere to be, and Chrome then drops it
+           to the start of the editable root on the next key. */
+        function _prodDescRichSettle(container) {
+          if (!container) return;
+          if (_prodDescRichIsEmpty(container)) {
+            Array.from(container.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.tagName === 'BR')) n.remove(); });
+            if (!container.firstChild) container.appendChild(document.createElement('br'));
+            while (container.childNodes.length > 1) container.lastChild.remove();
+            return;
+          }
+          Array.from(container.childNodes).forEach(n => { if (n.nodeType === 3 && !n.nodeValue) n.remove(); });
+        }
+        /* Browser edits leave <b>, <i>, styled spans, nested divs and stray <br>s
+           behind. Fold every one of them back into the block model so the serializer
+           only ever sees shapes it knows. Idempotent. */
+        function _prodDescRichNormalize(root) {
+          const unwrap = el => { while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el); el.remove(); };
+          const clean = el => {
+            Array.from(el.querySelectorAll('*')).forEach(n => {
+              if (!n.isConnected) return;
+              if (n.hasAttribute('style')) n.removeAttribute('style');
+              const tag = n.tagName;
+              if (tag === 'B' || (tag === 'STRONG' && !n.hasAttribute('data-md'))) {
+                const s = document.createElement('strong'); s.setAttribute('data-md', 'bb');
+                while (n.firstChild) s.appendChild(n.firstChild);
+                n.replaceWith(s);
+                return;
+              }
+              if (tag === 'I' || (tag === 'EM' && !n.hasAttribute('data-md'))) {
+                const e = document.createElement('em'); e.setAttribute('data-md', 's');
+                while (n.firstChild) e.appendChild(n.firstChild);
+                n.replaceWith(e);
+                return;
+              }
+              if (tag === 'A') { if (!n.hasAttribute('data-md')) n.setAttribute('data-md', 'named'); n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener noreferrer'); return; }
+              if (tag === 'IMG') { if (String(n.getAttribute('src') || '').indexOf('https://') !== 0) n.remove(); else n.classList.add('prod-desc-image'); return; }
+              if (tag === 'STRONG' || tag === 'EM' || tag === 'CODE' || tag === 'BR' || tag === 'HR') return;
+              if (tag === 'SPAN' && (n.hasAttribute('data-md-placeholder') || n.classList.contains('prod-md-bullet-mark') || n.classList.contains('prod-md-bullet-text'))) return;
+              if (tag === 'DIV') return;
+              unwrap(n);
+            });
+          };
+          /* 1. Stray top-level inline nodes become paragraphs. */
+          let run = [];
+          const flush = () => {
+            if (!run.length) return;
+            const p = _prodDescRichMakeBlock('p');
+            p.innerHTML = '';
+            root.insertBefore(p, run[0]);
+            run.forEach(n => p.appendChild(n));
+            run = [];
+          };
+          Array.from(root.childNodes).forEach(n => {
+            const block = n.nodeType === 1 && n.tagName === 'DIV';
+            if (block) { flush(); if (!PROD_DESC_RICH_BLOCK_TYPES.includes(n.getAttribute('data-md') || '')) { n.className = 'prod-md-p'; n.setAttribute('data-md', 'p'); } return; }
+            run.push(n);
+          });
+          flush();
+          /* 2. Inline cleanup, nested divs hoisted, blocks split at <br>. */
+          clean(root);
+          let guard = 0;
+          Array.from(root.children).forEach(block => {
+            const kind = block.getAttribute('data-md');
+            if (kind === 'hr') { block.innerHTML = '<hr class="prod-md-rule">'; block.setAttribute('contenteditable', 'false'); return; }
+            if (kind === 'ul' && !block.querySelector('.prod-md-bullet-text')) {
+              const text = document.createElement('span'); text.className = 'prod-md-bullet-text';
+              Array.from(block.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.classList.contains('prod-md-bullet-mark'))) text.appendChild(n); });
+              block.appendChild(text);
+            }
+            if (kind === 'ul' && !block.querySelector('.prod-md-bullet-mark')) {
+              const mark = document.createElement('span'); mark.className = 'prod-md-bullet-mark'; mark.setAttribute('contenteditable', 'false'); mark.textContent = '•';
+              block.insertBefore(mark, block.firstChild);
+            }
+            let current = block;
+            while (guard++ < 10000) {
+              const container = _prodDescRichContainer(current);
+              const boundary = Array.from(container.querySelectorAll('br,div')).find(b => !(b.tagName === 'BR' && b === container.lastChild && container.childNodes.length > 1) && !(b.tagName === 'BR' && container.childNodes.length === 1));
+              if (!boundary) break;
+              const range = document.createRange();
+              range.setStartAfter(boundary);
+              range.setEnd(container, container.childNodes.length);
+              const tail = range.extractContents();
+              const nested = boundary.tagName === 'DIV' ? boundary : null;
+              boundary.remove();
+              const next = _prodDescRichMakeBlock('p');
+              next.innerHTML = '';
+              if (nested) { while (nested.firstChild) next.appendChild(nested.firstChild); }
+              next.appendChild(tail);
+              if (nested && !next.firstChild && !tail.childNodes.length) { /* an empty nested div: a blank line */ }
+              current.after(next);
+              current = next;
+            }
+          });
+          /* 3. Every block is focusable: an empty container holds one <br>, a
+             filled one holds no trailing <br> and no empty text nodes. */
+          Array.from(root.children).forEach(block => {
+            const kind = block.getAttribute('data-md');
+            if (kind === 'hr') return;
+            const container = _prodDescRichContainer(block);
+            _prodDescRichSettle(container);
+            if (container.childNodes.length > 1) {
+              const last = container.lastChild;
+              if (last.nodeType === 1 && last.tagName === 'BR') last.remove();
+            }
+            if (kind === 'p' && !_prodDescRichIsEmpty(container)) block.removeAttribute('data-md-raw');
+          });
+          /* 4. Same rule as _prodDescRichBuild: a blank line beside a heading or rule is
+             kept in the model and collapsed on screen. */
+          const blocks = Array.from(root.children);
+          blocks.forEach((block, i) => {
+            const kind = block.getAttribute('data-md');
+            const blank = kind === 'p' && _prodDescRichIsEmpty(_prodDescRichContainer(block));
+            const blockish = b => !!b && ['h', 'hr'].includes(b.getAttribute('data-md'));
+            block.classList.toggle('prod-md-gap', blank && (blockish(blocks[i - 1]) || blockish(blocks[i + 1])));
+          });
+          root.classList.toggle('is-empty', blocks.length <= 1 && (!blocks[0] || _prodDescRichIsEmpty(_prodDescRichContainer(blocks[0]))));
+          return root;
+        }
+        /* Caret as (block index, character offset in the block), which survives a
+           rebuild of the same Markdown. */
+        function _prodDescRichCaret(root) {
+          const sel = window.getSelection && window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return null;
+          const block = _prodDescRichBlockOf(root, sel.focusNode);
+          if (!block) return { block: 0, offset: 0 };
+          const container = _prodDescRichContainer(block);
+          const range = document.createRange();
+          range.selectNodeContents(container);
+          if (container.contains(sel.focusNode)) range.setEnd(sel.focusNode, sel.focusOffset);
+          return { block: Array.prototype.indexOf.call(root.children, block), offset: range.toString().length };
+        }
+        function _prodDescRichSetCaret(root, pos) {
+          const sel = window.getSelection && window.getSelection();
+          if (!sel) return false;
+          const blocks = root.children;
+          if (!blocks.length) return false;
+          let block = blocks[Math.min(Math.max(0, Number(pos && pos.block) || 0), blocks.length - 1)];
+          /* A rule holds no caret and a collapsed blank line draws no box: settle
+             on the nearest block that can show one. */
+          const holds = b => !!b && b.getAttribute('data-md') !== 'hr' && !b.classList.contains('prod-md-gap');
+          if (!holds(block)) {
+            let next = block.nextElementSibling;
+            while (next && !holds(next)) next = next.nextElementSibling;
+            let prev = block.previousElementSibling;
+            while (prev && !holds(prev)) prev = prev.previousElementSibling;
+            block = next || prev || block;
+          }
+          const container = _prodDescRichContainer(block);
+          const range = document.createRange();
+          let remaining = Math.max(0, Number(pos && pos.offset) || 0);
+          let placed = false;
+          const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+          let text;
+          while ((text = walker.nextNode())) {
+            const len = text.nodeValue.length;
+            if (remaining <= len) { range.setStart(text, remaining); placed = true; break; }
+            remaining -= len;
+          }
+          if (!placed) range.setStart(container, container.childNodes.length);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return true;
+        }
+        function _prodDescRichConvert(block, kind, prefix) {
+          const next = _prodDescRichMakeBlock(kind, prefix);
+          const from = _prodDescRichContainer(block);
+          const to = _prodDescRichContainer(next);
+          to.innerHTML = '';
+          while (from.firstChild) to.appendChild(from.firstChild);
+          _prodDescRichSettle(to);
+          block.replaceWith(next);
+          return next;
+        }
+        function _prodDescRichCaretAtStart(container, range) {
+          const probe = document.createRange();
+          probe.selectNodeContents(container);
+          probe.setEnd(range.startContainer, range.startOffset);
+          if (probe.toString().length) return false;
+          const frag = probe.cloneContents();
+          return !frag.querySelector || !frag.querySelector('img,[data-md-placeholder]');
+        }
+        function _prodDescRichCaretAtEnd(container, range) {
+          const probe = document.createRange();
+          probe.selectNodeContents(container);
+          probe.setStart(range.endContainer, range.endOffset);
+          if (probe.toString().length) return false;
+          const frag = probe.cloneContents();
+          return !frag.querySelector || !frag.querySelector('img,[data-md-placeholder]');
+        }
+        /* Enter: split the block at the caret. A bullet continues as a bullet, an
+           empty bullet leaves the list, a heading is followed by a paragraph, and a
+           paragraph reading `---` becomes a rule. Returns true when handled. */
+        function _prodDescRichSplitBlock(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount) return false;
+          const range = sel.getRangeAt(0);
+          if (!root.contains(range.startContainer)) return false;
+          if (!range.collapsed) range.deleteContents();
+          let block = _prodDescRichBlockOf(root, range.startContainer);
+          if (!block) return false;
+          const kind = block.getAttribute('data-md');
+          const place = target => { const r = document.createRange(); r.setStart(target, 0); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); };
+          if (kind === 'hr') { const p = _prodDescRichMakeBlock('p'); block.after(p); place(p); return true; }
+          const container = _prodDescRichContainer(block);
+          if (kind === 'p' && /^-{3,}$/.test(String(container.textContent || '').trim()) && _prodDescRichCaretAtEnd(container, range)) {
+            const hr = _prodDescRichMakeBlock('hr'); hr.setAttribute('data-md-raw', String(container.textContent || '').trim());
+            const p = _prodDescRichMakeBlock('p');
+            block.replaceWith(hr); hr.after(p); place(p); return true;
+          }
+          if (kind === 'ul' && _prodDescRichIsEmpty(container)) { place(_prodDescRichContainer(_prodDescRichConvert(block, 'p'))); return true; }
+          const tail = document.createRange();
+          tail.setStart(range.startContainer, range.startOffset);
+          tail.setEnd(container, container.childNodes.length);
+          const frag = tail.extractContents();
+          const next = _prodDescRichMakeBlock(kind === 'ul' ? 'ul' : 'p', block.getAttribute('data-md-prefix'));
+          const nextContainer = _prodDescRichContainer(next);
+          nextContainer.innerHTML = '';
+          nextContainer.appendChild(frag);
+          _prodDescRichSettle(nextContainer);
+          _prodDescRichSettle(container);
+          block.after(next);
+          place(nextContainer);
+          return true;
+        }
+        /* Backspace at the start of a block: a bullet or heading becomes a
+           paragraph first; a paragraph joins the block above (a rule above is
+           simply removed). Returns true when handled. */
+        function _prodDescRichJoinBack(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount) return false;
+          const range = sel.getRangeAt(0);
+          if (!range.collapsed || !root.contains(range.startContainer)) return false;
+          const block = _prodDescRichBlockOf(root, range.startContainer);
+          if (!block) return false;
+          const kind = block.getAttribute('data-md');
+          const container = _prodDescRichContainer(block);
+          if (kind !== 'hr' && !_prodDescRichCaretAtStart(container, range)) return false;
+          const place = (target, offset) => { _prodDescRichSetCaret(root, { block: Array.prototype.indexOf.call(root.children, target), offset }); };
+          if (kind === 'ul' || kind === 'h') { place(_prodDescRichConvert(block, 'p'), 0); return true; }
+          const prev = block.previousElementSibling;
+          if (!prev) return true;
+          if (prev.getAttribute('data-md') === 'hr') { prev.remove(); place(block, 0); return true; }
+          const prevContainer = _prodDescRichContainer(prev);
+          const last = prevContainer.lastChild;
+          if (last && last.nodeType === 1 && last.tagName === 'BR') last.remove();
+          const offset = String(prevContainer.textContent || '').length;
+          Array.from(container.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.tagName === 'BR' && _prodDescRichIsEmpty(container))) prevContainer.appendChild(n); });
+          _prodDescRichSettle(prevContainer);
+          block.remove();
+          place(prev, offset);
+          return true;
+        }
+        /* Delete at the end of a block: the block below joins this one. */
+        function _prodDescRichJoinForward(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount) return false;
+          const range = sel.getRangeAt(0);
+          if (!range.collapsed || !root.contains(range.startContainer)) return false;
+          const block = _prodDescRichBlockOf(root, range.startContainer);
+          if (!block) return false;
+          const container = _prodDescRichContainer(block);
+          if (block.getAttribute('data-md') === 'hr' || !_prodDescRichCaretAtEnd(container, range)) return false;
+          const next = block.nextElementSibling;
+          if (!next) return true;
+          if (next.getAttribute('data-md') === 'hr') { next.remove(); return true; }
+          const offset = String(container.textContent || '').length;
+          const last = container.lastChild;
+          if (last && last.nodeType === 1 && last.tagName === 'BR') last.remove();
+          const nextContainer = _prodDescRichContainer(next);
+          Array.from(nextContainer.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.tagName === 'BR' && _prodDescRichIsEmpty(nextContainer))) container.appendChild(n); });
+          _prodDescRichSettle(container);
+          next.remove();
+          _prodDescRichSetCaret(root, { block: Array.prototype.indexOf.call(root.children, block), offset });
+          return true;
+        }
+        /* Typing `- `, `* ` or `# ` at the start of an empty line turns the line
+           into that block, the way Linear does. Called after input. */
+        function _prodDescRichShortcut(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return false;
+          const block = _prodDescRichBlockOf(root, sel.focusNode);
+          if (!block || block.getAttribute('data-md') !== 'p') return false;
+          const text = String(block.textContent || '');
+          let kind = '';
+          if (/^[-*] $/.test(text)) kind = 'ul';
+          else if (/^#{1,4} $/.test(text)) kind = 'h';
+          if (!kind) return false;
+          const next = _prodDescRichMakeBlock(kind, text);
+          block.replaceWith(next);
+          _prodDescRichSetCaret(root, { block: Array.prototype.indexOf.call(root.children, next), offset: 0 });
+          return true;
+        }
+        /* Plain text at the caret; each newline starts a new block. */
+        function _prodDescRichInsertText(root, text) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return false;
+          const lines = String(text == null ? '' : text).replace(/\r\n?/g, '\n').split('\n');
+          let range = sel.getRangeAt(0);
+          if (!range.collapsed) range.deleteContents();
+          const put = value => {
+            if (!value) return;
+            const node = document.createTextNode(value);
+            range = sel.getRangeAt(0);
+            range.insertNode(node);
+            range.setStartAfter(node);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          };
+          put(lines[0]);
+          for (let i = 1; i < lines.length; i++) {
+            if (!_prodDescRichSplitBlock(root)) break;
+            put(lines[i]);
+          }
+          return true;
+        }
+        /* Wrap the selection in a link (or drop a link at the caret). Returns the
+           anchor, so the popover can open on it. */
+        function _prodDescRichMakeLink(root, url, label) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return null;
+          const range = sel.getRangeAt(0);
+          const a = document.createElement('a');
+          a.setAttribute('data-md', 'named');
+          a.setAttribute('target', '_blank');
+          a.setAttribute('rel', 'noopener noreferrer');
+          a.setAttribute('href', url || '');
+          if (range.collapsed) { a.textContent = label || url || 'link'; if (!label && !url) a.setAttribute('data-md-new', '1'); }
+          else a.appendChild(range.extractContents());
+          range.insertNode(a);
+          range.selectNodeContents(a);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          return a;
+        }
+        function _prodDescRichAnchorAtCaret(root) {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return null;
+          let node = sel.focusNode;
+          while (node && node !== root) { if (node.nodeType === 1 && node.tagName === 'A') return node; node = node.parentNode; }
+          return null;
+        }
+        /* Keys the block model owns. Everything else is the browser's. */
+        function _prodDescRichKeydown(event, root) {
+          if (!event || !root) return false;
+          if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            if (_prodDescRichSplitBlock(root)) { event.preventDefault(); return true; }
+            return false;
+          }
+          if (event.key === 'Backspace' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            if (_prodDescRichJoinBack(root)) { event.preventDefault(); return true; }
+            return false;
+          }
+          if (event.key === 'Delete' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            if (_prodDescRichJoinForward(root)) { event.preventDefault(); return true; }
+            return false;
+          }
+          if (event.key === 'Tab') { event.preventDefault(); return true; }
+          return false;
+        }
+        /* ---- Link popover ------------------------------------------------------
+           Hover a link in a description and a small card shows where it goes, with
+           Open, and -- where the description is editable -- Edit (text and URL) and
+           Remove. One body-mounted element, shared by every description on the page.
+           Ctrl/Cmd+K in the editor opens the same card for the link at the caret, or
+           makes one from the selection. */
+        // PORT-DELTA: the wired description surface is .prod-desc (artifact: .d-desc).
+        const PROD_DESC_LINK_SCOPE = '.prod-desc';
+        const _prodDescLinkPop = { el: null, anchor: null, timer: 0, editing: false };
+        function _prodDescLinkPopEnsure() {
+          if (_prodDescLinkPop.el && _prodDescLinkPop.el.isConnected) return _prodDescLinkPop.el;
+          const el = document.createElement('div');
+          el.id = 'prodDescLinkPop';
+          el.className = 'prod-linkpop';
+          el.setAttribute('role', 'dialog');
+          el.setAttribute('aria-label', 'Link');
+          el.hidden = true;
+          el.innerHTML = '<div class="prod-linkpop-view"><a class="prod-linkpop-url" data-prod-linkpop="open" target="_blank" rel="noopener noreferrer"></a>'
+            + '<button type="button" class="prod-linkpop-btn" data-prod-linkpop="edit">Edit</button></div>'
+            + '<form class="prod-linkpop-form" data-prod-linkpop-form>'
+            + '<label class="prod-linkpop-field"><span>Text</span><input data-prod-linkpop-text autocomplete="off" spellcheck="false"></label>'
+            + '<label class="prod-linkpop-field"><span>URL</span><input data-prod-linkpop-href autocomplete="off" spellcheck="false" placeholder="https://"></label>'
+            + '<div class="prod-linkpop-actions"><button type="button" class="prod-linkpop-btn" data-prod-linkpop="remove">Remove link</button><span class="prod-linkpop-spacer"></span>'
+            + '<button type="button" class="prod-linkpop-btn" data-prod-linkpop="cancel">Cancel</button><button type="submit" class="prod-linkpop-btn prod-linkpop-apply">Apply</button></div></form>';
+          document.body.appendChild(el);
+          el.addEventListener('mouseenter', () => { clearTimeout(_prodDescLinkPop.timer); });
+          el.addEventListener('mouseleave', () => { if (!_prodDescLinkPop.editing) _prodDescLinkPopHideSoon(); });
+          el.addEventListener('click', event => {
+            const btn = event.target.closest('[data-prod-linkpop]');
+            if (!btn) return;
+            const action = btn.getAttribute('data-prod-linkpop');
+            if (action === 'open') return;
+            event.preventDefault();
+            if (action === 'edit') _prodDescLinkPopEdit();
+            else if (action === 'cancel') _prodDescLinkPopHide(true);
+            else if (action === 'remove') _prodDescLinkPopRemove();
+          });
+          el.querySelector('[data-prod-linkpop-form]').addEventListener('submit', event => { event.preventDefault(); _prodDescLinkPopApply(); });
+          el.addEventListener('keydown', event => {
+            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); _prodDescLinkPopHide(true); }
+          });
+          _prodDescLinkPop.el = el;
+          return el;
+        }
+        function _prodDescLinkPopEditable(anchor) {
+          const root = anchor && anchor.closest ? anchor.closest('[contenteditable="true"]') : null;
+          if (root) return { root, read: false };
+          const body = anchor && anchor.closest ? anchor.closest('[data-prod-desc-click-edit]') : null;
+          return body ? { root: body, read: true } : null;
+        }
+        function _prodDescLinkPopPlace(anchor) {
+          const el = _prodDescLinkPop.el;
+          const rect = anchor.getBoundingClientRect();
+          el.hidden = false;
+          const width = el.offsetWidth || 260;
+          const height = el.offsetHeight || 40;
+          let left = rect.left;
+          let top = rect.bottom + 6;
+          if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - width);
+          if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - 6 - height);
+          el.style.left = Math.round(left) + 'px';
+          el.style.top = Math.round(top) + 'px';
+        }
+        function _prodDescLinkPopShow(anchor, edit) {
+          if (!anchor || !anchor.isConnected) return false;
+          const el = _prodDescLinkPopEnsure();
+          clearTimeout(_prodDescLinkPop.timer);
+          _prodDescLinkPop.anchor = anchor;
+          _prodDescLinkPop.editing = false;
+          const href = anchor.getAttribute('href') || '';
+          const url = el.querySelector('.prod-linkpop-url');
+          url.setAttribute('href', href);
+          url.textContent = href.replace(/^https?:\/{2}/, '').replace(/\/$/, '') || 'No URL yet';
+          const editable = _prodDescLinkPopEditable(anchor);
+          el.querySelector('[data-prod-linkpop="edit"]').hidden = !editable;
+          el.classList.remove('is-editing');
+          _prodDescLinkPopPlace(anchor);
+          if (edit) _prodDescLinkPopEdit();
+          return true;
+        }
+        function _prodDescLinkPopEdit() {
+          const anchor = _prodDescLinkPop.anchor;
+          const editable = _prodDescLinkPopEditable(anchor);
+          if (!anchor || !editable) return false;
+          if (editable.read) {
+            /* A read view: hand the request to whoever owns the editor. It begins
+               editing and re-opens this card on the same link. */
+            const index = Array.prototype.indexOf.call(editable.root.querySelectorAll('a'), anchor);
+            _prodDescLinkPopHide(true);
+            editable.root.dispatchEvent(new CustomEvent('desc-link-edit', { bubbles: true, detail: { index } }));
+            return true;
+          }
+          const el = _prodDescLinkPop.el;
+          _prodDescLinkPop.editing = true;
+          el.classList.add('is-editing');
+          el.querySelector('[data-prod-linkpop-text]').value = anchor.hasAttribute('data-md-new') ? '' : (anchor.textContent || '');
+          el.querySelector('[data-prod-linkpop-href]').value = anchor.getAttribute('href') || '';
+          _prodDescLinkPopPlace(anchor);
+          const focus = el.querySelector(anchor.getAttribute('href') ? '[data-prod-linkpop-text]' : '[data-prod-linkpop-href]');
+          focus.focus();
+          focus.select();
+          return true;
+        }
+        function _prodDescLinkPopNotify(anchorOrRoot) {
+          const root = anchorOrRoot && anchorOrRoot.closest ? anchorOrRoot.closest('[contenteditable="true"]') : null;
+          if (root) root.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        function _prodDescLinkPopApply() {
+          const anchor = _prodDescLinkPop.anchor;
+          const el = _prodDescLinkPop.el;
+          if (!anchor || !anchor.isConnected || !el) { _prodDescLinkPopHide(true); return false; }
+          const text = String(el.querySelector('[data-prod-linkpop-text]').value || '').trim();
+          let href = String(el.querySelector('[data-prod-linkpop-href]').value || '').trim();
+          if (href && !/^https?:\/{2}/i.test(href)) href = 'https://' + href;
+          if (!/^https?:\/{2}\S+$/i.test(href)) { el.querySelector('[data-prod-linkpop-href]').focus(); return false; }
+          anchor.setAttribute('href', href);
+          anchor.textContent = text || href;
+          anchor.setAttribute('data-md', text && text !== href ? 'named' : 'bare');
+          anchor.removeAttribute('data-md-new');
+          const root = anchor.closest('[contenteditable="true"]');
+          _prodDescLinkPopHide(true);
+          _prodDescLinkPopNotify(root);
+          return true;
+        }
+        function _prodDescLinkPopRemove() {
+          const anchor = _prodDescLinkPop.anchor;
+          if (!anchor || !anchor.isConnected) { _prodDescLinkPopHide(true); return false; }
+          const root = anchor.closest('[contenteditable="true"]');
+          while (anchor.firstChild) anchor.parentNode.insertBefore(anchor.firstChild, anchor);
+          anchor.remove();
+          _prodDescLinkPopHide(true);
+          _prodDescLinkPopNotify(root);
+          return true;
+        }
+        function _prodDescLinkPopHide(now) {
+          clearTimeout(_prodDescLinkPop.timer);
+          const el = _prodDescLinkPop.el;
+          if (!el) return;
+          const done = () => {
+            const wasEditing = _prodDescLinkPop.editing;
+            el.hidden = true;
+            el.classList.remove('is-editing');
+            /* A link that was created empty and then abandoned is not a link. */
+            const anchor = _prodDescLinkPop.anchor;
+            const root = anchor && anchor.isConnected && anchor.closest ? anchor.closest('[contenteditable="true"]') : null;
+            if (anchor && root && !anchor.getAttribute('href')) {
+              if (!anchor.hasAttribute('data-md-new')) { while (anchor.firstChild) anchor.parentNode.insertBefore(anchor.firstChild, anchor); }
+              anchor.remove();
+              _prodDescLinkPopNotify(root);
+            }
+            /* The card's inputs had the focus; the writer was in the editor and
+               goes back there, just after the link. */
+            if (wasEditing && root) {
+              try { root.focus({ preventScroll: true }); } catch (e) {}
+              const sel = window.getSelection && window.getSelection();
+              if (sel && anchor && anchor.isConnected) {
+                const r = document.createRange();
+                r.setStartAfter(anchor);
+                r.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(r);
+              }
+            }
+            _prodDescLinkPop.anchor = null;
+            _prodDescLinkPop.editing = false;
+          };
+          if (now) done(); else _prodDescLinkPop.timer = setTimeout(done, 250);
+        }
+        function _prodDescLinkPopHideSoon() { _prodDescLinkPopHide(false); }
+        function _prodDescLinkPopWire() {
+          if (_prodDescLinkPop.wired || typeof document === 'undefined') return;
+          _prodDescLinkPop.wired = true;
+          document.addEventListener('mouseover', event => {
+            const anchor = event.target && event.target.closest ? event.target.closest(PROD_DESC_LINK_SCOPE + ' a') : null;
+            if (!anchor) return;
+            if (_prodDescLinkPop.editing) return;
+            clearTimeout(_prodDescLinkPop.timer);
+            _prodDescLinkPop.timer = setTimeout(() => _prodDescLinkPopShow(anchor, false), 120);
+          });
+          document.addEventListener('mouseout', event => {
+            const anchor = event.target && event.target.closest ? event.target.closest(PROD_DESC_LINK_SCOPE + ' a') : null;
+            if (!anchor) return;
+            clearTimeout(_prodDescLinkPop.timer);
+            if (_prodDescLinkPop.anchor === anchor && !_prodDescLinkPop.editing) _prodDescLinkPopHideSoon();
+            else if (!_prodDescLinkPop.anchor) _prodDescLinkPop.timer = 0;
+          });
+          document.addEventListener('focusin', event => {
+            const anchor = event.target && event.target.closest ? event.target.closest(PROD_DESC_LINK_SCOPE + ' a') : null;
+            if (anchor && !_prodDescLinkPop.editing) _prodDescLinkPopShow(anchor, false);
+          });
+          document.addEventListener('mousedown', event => {
+            if (!_prodDescLinkPop.el || _prodDescLinkPop.el.hidden) return;
+            if (_prodDescLinkPop.el.contains(event.target)) return;
+            if (_prodDescLinkPop.anchor && _prodDescLinkPop.anchor.contains(event.target)) return;
+            _prodDescLinkPopHide(true);
+          });
+          /* Inside the editor a plain click places the caret; Ctrl/Cmd+click opens. */
+          document.addEventListener('click', event => {
+            const anchor = event.target && event.target.closest ? event.target.closest('[contenteditable="true"] a') : null;
+            if (!anchor) return;
+            if (event.ctrlKey || event.metaKey) return;
+            event.preventDefault();
+          });
+          document.addEventListener('scroll', () => { if (_prodDescLinkPop.el && !_prodDescLinkPop.el.hidden && !_prodDescLinkPop.editing) _prodDescLinkPopHide(true); }, true);
+        }
+        _prodDescLinkPopWire();
+        /* A link's hover card, opened on the READ view, asked to edit that
+           link: begin editing and re-open the card on the same link in the
+           editor. The card only dispatches this where the body is marked
+           click-to-edit, which the panel does only when the write gate is
+           open, and _prodBeginDescriptionEdit re-checks that gate itself. */
+        if (typeof document !== 'undefined' && document.addEventListener) {
+            document.addEventListener('desc-link-edit', function (event) {
+                const panel = event && event.target && event.target.closest ? event.target.closest('[data-prod-description]') : null;
+                if (!panel) return;
+                const index = event.detail && Number.isInteger(event.detail.index) ? event.detail.index : null;
+                _prodBeginDescriptionEdit(panel.getAttribute('data-prod-description'), { link: index });
+            });
         }
         /* ---- Pasting an image into a description (2026-09-05) ------------
            Owner, 2026-08-31: "could you look into pasting images in the
@@ -56182,11 +57128,25 @@
         }
         function _prodDescriptionPaste(event, id) {
             const files = _prodDescriptionTransferImages(event && event.clipboardData, false);
-            /* No image on the clipboard: an ordinary text paste, and the
-               browser's own behaviour is the right one. */
-            if (!files.length) return true;
+            const input = event.currentTarget || event.target;
+            if (!files.length) {
+                /* No image on the clipboard. In the textarea the browser's own
+                   paste is right. In the visual editor the text is placed as
+                   blocks, a URL pasted over a selection becomes its link, and
+                   pasted Markdown is rendered straight away. */
+                const rich = input && input.getAttribute && input.getAttribute('data-prod-description-control') === 'rich';
+                const text = rich && event.clipboardData ? String(event.clipboardData.getData('text/plain') || '') : '';
+                if (!rich || !text) return true;
+                event.preventDefault();
+                const selection = window.getSelection();
+                if (selection && !selection.isCollapsed && /^https?:\/\/\S+$/.test(text.trim())) _prodDescRichMakeLink(input, text.trim());
+                else _prodDescRichInsertText(input, text);
+                _prodDescriptionRichInput(id, input);
+                _prodDescriptionRichRebuild(id, input);
+                return false;
+            }
             event.preventDefault();
-            _prodDescriptionInsertImages(id, event.currentTarget || event.target, files);
+            _prodDescriptionInsertImages(id, input, files);
             return false;
         }
         function _prodDescriptionDragOver(event) {
@@ -56223,6 +57183,8 @@
         function _prodDescriptionInsertAtCaret(id, input, text) {
             const state = _prodDescriptionState(id);
             if (!state) return false;
+            const rich = _prodDescriptionRichRoot(id);
+            if (rich && !(input && input.tagName === 'TEXTAREA')) return _prodDescriptionRichInsertLine(id, rich, text);
             const live = input && input.tagName === 'TEXTAREA' ? input : _prodDescriptionSourceInput(id);
             const value = String(live ? live.value : state.draft || '');
             let start = live && Number.isFinite(live.selectionStart) ? live.selectionStart : state.selectionStart;
@@ -56245,12 +57207,50 @@
             _prodDescriptionDraftInput(id, next, live);
             return true;
         }
+        /* The visual-editor twin of the textarea insert above: the text lands
+           on its own line, the same newline rules, and the editor is rebuilt
+           from the Markdown so the placeholder shows as its chip. */
+        function _prodDescriptionRichInsertLine(id, root, text) {
+            const state = _prodDescriptionState(id);
+            if (!state || !root) return false;
+            if (document.activeElement !== root || !_prodDescRichCaret(root)) {
+                try { root.focus({ preventScroll: true }); } catch (e) {}
+                _prodDescRichSetCaret(root, { block: state.caretBlock, offset: state.caretOffset });
+            }
+            const selection = window.getSelection();
+            const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+            const block = range ? _prodDescRichBlockOf(root, range.startContainer) : null;
+            const container = _prodDescRichContainer(block);
+            const leftEmpty = !container || _prodDescRichCaretAtStart(container, range);
+            const rightEmpty = !container || _prodDescRichCaretAtEnd(container, range);
+            _prodDescRichInsertText(root, (leftEmpty ? '' : '\n') + text + (rightEmpty ? '' : '\n'));
+            _prodDescriptionRichInput(id, root);
+            _prodDescriptionRichRebuild(id, root);
+            return true;
+        }
         /* Swap a placeholder for its result (or for nothing). Works on the
-           live textarea when the editor is still in source mode, else on the
-           draft, and keeps the caret where the writer left it. */
+           live editor, visual or Markdown, else on the draft, and keeps the
+           caret where the writer left it. */
         function _prodDescriptionReplaceInDraft(id, placeholder, replacement) {
             const state = _prodDescriptionState(id);
             if (!state) return false;
+            const rich = _prodDescriptionRichRoot(id);
+            if (rich) {
+                const n = (String(placeholder).match(/Uploading image (\d+)/) || [])[1];
+                const chip = n && rich.querySelector('[data-md-placeholder="' + n + '"]');
+                if (!chip) return false;
+                const block = _prodDescRichBlockOf(rich, chip);
+                if (replacement) {
+                    const host = document.createElement('span');
+                    host.innerHTML = _prodDescRichInline(replacement);
+                    while (host.firstChild) chip.parentNode.insertBefore(host.firstChild, chip);
+                }
+                chip.remove();
+                /* A failed paste takes the line it was given with it. */
+                if (!replacement && block && _prodDescRichIsEmpty(_prodDescRichContainer(block)) && rich.children.length > 1) block.remove();
+                _prodDescriptionRichInput(id, rich);
+                return true;
+            }
             const live = _prodDescriptionSourceInput(id);
             const value = String(live ? live.value : state.draft || '');
             const at = value.indexOf(placeholder);
@@ -56486,7 +57486,7 @@
             if (description.includes('\0')) {
                 state.error = 'Descriptions cannot contain NUL characters.';
                 _prodRender();
-                _prodFocusDescriptionControl(id, 'source');
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
                 return false;
             }
             /* A placeholder is not a description. Saving it would mirror the
@@ -56495,13 +57495,13 @@
             if (state.uploading > 0 || PROD_DESCRIPTION_IMAGE_PLACEHOLDER_RE.test(description)) {
                 state.error = 'An image is still uploading. Save once it has finished.';
                 _prodRender();
-                _prodFocusDescriptionControl(id, 'source');
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
                 return false;
             }
             if (description.length > 100000) {
                 state.error = 'Descriptions can contain at most 100,000 characters.';
                 _prodRender();
-                _prodFocusDescriptionControl(id, 'source');
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
                 return false;
             }
             if (!state.requestId) state.requestId = _prodWriteRequestId('description');
@@ -56613,7 +57613,7 @@
                 if (String(error && error.code || '') === 'write_conflict') state.requestId = '';
                 _prodToast(state.error);
                 _prodRender();
-                _prodFocusDescriptionControl(id, 'source');
+                _prodFocusDescriptionControl(id, _prodDescriptionEditorControl(state));
             }
             return false;
         }
@@ -56633,46 +57633,62 @@
             const count = String(state.draft || '').length;
             /* The Edit control is gated on the operation the save will send, so a
                button can never render enabled for a write its own gate refuses. */
-            const gateAttrs = _prodWriteGateAttrs(issue, _prodDescriptionOperation(issue), { title: 'Edit description', tip: 'Edit Markdown description' });
+            const gateAttrs = _prodWriteGateAttrs(issue, _prodDescriptionOperation(issue), { title: 'Edit description', tip: 'Edit description' });
+            const writable = _prodCanWrite(issue, _prodDescriptionOperation(issue));
             if (state.editing) {
-                const source = !state.preview;
+                const source = !!state.source;
+                /* IN PLACE (2026-09-06). The visual editor is the read view
+                   made editable: same classes, same type, same box, grows with
+                   the text. Markdown is one toggle away, and is what opens when
+                   the text cannot be shown exactly. */
+                const handlers = ' onkeydown="return _prodDescriptionEditorKeydown(event,' + _jsAttrArg(id) + ')"'
+                    + ' onpaste="return _prodDescriptionPaste(event,' + _jsAttrArg(id) + ')"'
+                    + ' ondrop="return _prodDescriptionDrop(event,' + _jsAttrArg(id) + ')"'
+                    + ' ondragover="return _prodDescriptionDragOver(event)"'
+                    + ' ondragleave="return _prodDescriptionDragLeave(event)"';
                 const editor = source
-                    ? '<textarea class="prod-description-textarea" data-prod-description-control="source" aria-label="Description Markdown source" maxlength="100000"'
+                    ? '<div class="prod-description-editor"><textarea class="prod-description-textarea" data-prod-description-control="source" aria-label="Description Markdown source" maxlength="100000"'
                         + ' oninput="_prodDescriptionDraftInput(' + _jsAttrArg(id) + ',this.value,this)"'
                         + ' onselect="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
                         + ' onkeyup="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
                         + ' onclick="_prodDescriptionRememberSelection(' + _jsAttrArg(id) + ',this)"'
-                        + ' onkeydown="return _prodDescriptionEditorKeydown(event,' + _jsAttrArg(id) + ')"'
-                        + ' onpaste="return _prodDescriptionPaste(event,' + _jsAttrArg(id) + ')"'
-                        + ' ondrop="return _prodDescriptionDrop(event,' + _jsAttrArg(id) + ')"'
-                        + ' ondragover="return _prodDescriptionDragOver(event)"'
-                        + ' ondragleave="return _prodDescriptionDragLeave(event)"'
-                        + (state.saving ? ' disabled' : '') + '>' + _calEsc(state.draft) + '</textarea>'
-                    : '<div class="prod-description-preview prod-desc" data-prod-description-control="preview" tabindex="0" role="region" aria-label="Description Markdown preview">'
-                        + _prodDescriptionHTML(state.draft, true, 'No description.', true) + '</div>';
+                        + handlers + (state.saving ? ' disabled' : '') + '>' + _calEsc(state.draft) + '</textarea>'
+                        + '<div class="prod-description-footer"><span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + '" data-prod-description-count>' + count.toLocaleString() + ' / 100,000</span>'
+                        + '<span class="prod-description-hint" data-prod-description-hint>Paste or drop an image to add it</span>'
+                        + '</div></div>'
+                    : '<div class="prod-description-rich prod-desc' + (String(state.draft || '').trim() ? '' : ' is-empty') + '" data-prod-description-control="rich" contenteditable="' + (state.saving ? 'false' : 'true') + '" role="textbox" aria-multiline="true" aria-label="Description" spellcheck="true"'
+                        + ' oninput="_prodDescriptionRichInput(' + _jsAttrArg(id) + ',this)"'
+                        + ' onkeyup="_prodDescriptionRememberCaret(' + _jsAttrArg(id) + ',this)"'
+                        + ' onclick="_prodDescriptionRememberCaret(' + _jsAttrArg(id) + ',this)"'
+                        + handlers + '>' + _prodDescRichBuild(state.draft) + '</div>'
+                        + '<div class="prod-description-footer prod-description-footer-rich"><span class="prod-description-hint" data-prod-description-hint>Paste or drop an image to add it</span>'
+                        + '<span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + (count < 90000 ? ' is-quiet' : '') + '" data-prod-description-count data-prod-description-count-quiet="1">' + count.toLocaleString() + ' / 100,000</span>'
+                        + '</div>';
                 const editorState = state.error
                     ? '<div class="prod-description-state is-error" data-prod-description-write-error>' + _calEsc(state.error) + '</div>'
                     : state.refreshing
                         ? '<div class="prod-description-state" data-prod-description-refreshing>Refreshing the server description. Your draft and cursor are preserved.</div>'
                         : state.saving
                             ? '<div class="prod-description-state" data-prod-description-saving>Saving description…</div>'
-                            : '';
-                return '<section class="prod-description" data-prod-description="' + _calEscAttr(id) + '" data-prod-description-state="' + _calEscAttr(status) + '" aria-labelledby="prod-description-title-' + _calEscAttr(id) + '">'
+                            : state.sourceReason
+                                ? '<div class="prod-description-state" data-prod-description-source-notice>' + _calEsc(state.sourceReason) + '</div>'
+                                : '';
+                return '<section class="prod-description" data-prod-description="' + _calEscAttr(id) + '" data-prod-description-state="' + _calEscAttr(status) + '" data-prod-description-mode="' + (source ? 'source' : 'rich') + '" aria-labelledby="prod-description-title-' + _calEscAttr(id) + '">'
                     + '<div class="prod-description-head"><span class="prod-description-title" id="prod-description-title-' + _calEscAttr(id) + '">Description</span>'
                     + '<div class="prod-description-actions">'
-                    + '<button class="prod-description-action' + (source ? ' is-active' : '') + '" type="button" data-prod-description-control="source-tab" aria-pressed="' + (source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg('source') + ')"' + (state.saving ? ' disabled' : '') + '>Source</button>'
-                    + '<button class="prod-description-action' + (!source ? ' is-active' : '') + '" type="button" data-prod-description-control="preview-tab" aria-pressed="' + (!source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg('preview') + ')"' + (state.saving ? ' disabled' : '') + '>Preview</button>'
-                    + '</div></div><div class="prod-description-editor">' + editor
-                    + '<div class="prod-description-footer"><span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + '" data-prod-description-count>' + count.toLocaleString() + ' / 100,000</span>'
-                    + (source ? '<span class="prod-description-hint" data-prod-description-hint>Paste or drop an image to add it</span>' : '')
-                    + '<span class="prod-spacer"></span>'
+                    + '<button class="prod-description-action' + (source ? ' is-active' : '') + '" type="button" data-prod-description-control="markdown-tab" aria-pressed="' + (source ? 'true' : 'false') + '" onclick="return _prodSetDescriptionMode(' + _jsAttrArg(id) + ',' + _jsAttrArg(source ? 'rich' : 'source') + ')"' + (state.saving ? ' disabled' : '') + '>Markdown</button>'
                     + '<button class="prod-description-action" type="button" data-prod-description-control="cancel" onclick="return _prodCancelDescriptionEdit(' + _jsAttrArg(id) + ')"' + (state.saving ? ' disabled' : '') + '>Cancel</button>'
                     + '<button class="prod-description-action prod-description-save" type="button" data-prod-description-control="save" onclick="return _prodSaveDescription(event,' + _jsAttrArg(id) + ')"' + (state.saving || count > 100000 || state.uploading > 0 ? ' disabled' : '') + '>' + (state.saving ? 'Saving…' : 'Save') + '</button>'
-                    + '</div></div>' + editorState + '</section>';
+                    + '</div></div>' + editor + editorState + '</section>';
             }
+            /* The read view is click-to-edit where a write is allowed: the
+               text is the control, the way it is in Linear. The Edit button
+               stays for the keyboard and for the gate's own copy when a write
+               is refused. */
+            const clickEdit = writable && state.status === 'ready' && !state.refreshing;
             const body = state.status === 'error'
                 ? ''
-                : '<div class="prod-description-body prod-desc">' + _prodDescriptionHTML(state.value, state.hasValue, 'No description.', true) + '</div>';
+                : '<div class="prod-description-body prod-desc"' + (clickEdit ? ' data-prod-desc-click-edit="1" onclick="return _prodDescriptionBodyClick(event,' + _jsAttrArg(id) + ')"' : '') + '>' + _prodDescriptionHTML(state.value, state.hasValue, 'No description.', true) + '</div>';
             const readState = state.status === 'error'
                 ? '<div class="prod-description-state is-error" data-prod-description-error>' + _calEsc(state.error || 'Description could not load.')
                     + '<button type="button" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')">Retry</button></div>'

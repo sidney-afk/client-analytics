@@ -1293,6 +1293,17 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     'parent Markdown was not rendered through the Production description surface');
 
     await page.locator('[data-prod-description-edit]').click();
+    /* IN PLACE (2026-09-06): Edit opens the visual editor, which looks
+       exactly like the read view; the Markdown textarea is one toggle away.
+       The CAS/idempotency flows below drive the textarea, because a caret
+       offset in Markdown is what they assert; the visual editor has its own
+       section further down. */
+    expect(await page.locator('[data-prod-description-control="rich"][contenteditable="true"]').count() === 1
+      && await page.locator('[data-prod-description="gra-description-parent"] .prod-md-heading').count() === 1
+      && await page.locator('[data-prod-description="gra-description-parent"] .prod-md-bullet').count() === 1
+      && await page.locator('[data-prod-description-control="source"]').count() === 0,
+    'Edit did not open the in-place visual editor with the rendered Markdown shapes');
+    await page.locator('[data-prod-description-control="markdown-tab"]').click();
     const parentDraft = '# Updated parent\n\n- Keep whitespace\n\n**Owner:** Browser SMM\n\n';
     const parentSource = page.locator('[data-prod-description-control="source"]');
     await parentSource.fill(parentDraft);
@@ -1344,6 +1355,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     'saved parent Markdown did not render or restore focus to Edit');
 
     await page.locator('[data-prod-description-edit]').click();
+    await page.locator('[data-prod-description-control="markdown-tab"]').click();
     const writesBeforeNul = writes.filter(write => write.body.operation === 'description').length;
     await page.locator('[data-prod-description-control="source"]').evaluate(element => {
       element.value = 'Invalid\u0000description';
@@ -1406,6 +1418,7 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
       'description Retry did not adopt the fresh second-device value');
 
     await page.locator('[data-prod-description-edit]').click();
+    await page.locator('[data-prod-description-control="markdown-tab"]').click();
     const childDraft = '## Child local draft\n\nPreserve this on conflict.  \n';
     await page.locator('[data-prod-description-control="source"]').fill(childDraft);
     childRow.brief = '## Child server conflict\n\nCurrent server value';
@@ -1439,14 +1452,124 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     'description conflict retry did not use the refreshed cursor, new idempotency key, and exact retained draft');
 
     await page.locator('[data-prod-description-edit]').click();
-    await page.locator('[data-prod-description-control="source"]').press('Escape');
+    await page.locator('[data-prod-description-control="rich"]').press('Escape');
     await page.waitForFunction(() => document.activeElement?.matches('[data-prod-description-edit]'));
+
+    /* ---- The in-place editor itself ---------------------------------- */
+    const childBefore = await page.evaluate(() => _prodDescriptionState('gra-description-child').value);
+    /* Measured through a fresh query, not a held handle: a render between
+       resolving the locator and reading the box hands back a detached node
+       (all zeros), which is a timing artefact and not a finding. */
+    await page.waitForFunction(() => (document.querySelector('[data-prod-description="gra-description-child"] .prod-description-body')?.getBoundingClientRect().width || 0) > 0);
+    const readBox = await page.evaluate(() => {
+      const el = document.querySelector('[data-prod-description="gra-description-child"] .prod-description-body');
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return { left: r.left, top: r.top, width: r.width, height: r.height, font: cs.fontSize + '/' + cs.lineHeight, clickEdit: el.hasAttribute('data-prod-desc-click-edit') };
+    });
+    expect(readBox.clickEdit, 'the read view is not click-to-edit while the write gate is open');
+    await page.locator('[data-prod-description="gra-description-child"] .prod-description-body').click({ position: { x: 60, y: 28 } });
+    await page.waitForSelector('[data-prod-description-control="rich"]');
+    const editBox = await page.locator('[data-prod-description-control="rich"]').evaluate(el => {
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return { left: r.left, top: r.top, width: r.width, height: r.height, font: cs.fontSize + '/' + cs.lineHeight, focused: document.activeElement === el, overflow: cs.overflowY, maxHeight: cs.maxHeight, caret: _prodDescRichCaret(el), blocks: Array.from(el.children).map(b => b.className + ':' + b.getBoundingClientRect().height + ':' + getComputedStyle(b).display) };
+    });
+    /* A trailing newline in the source is one empty line the read view does
+       not draw (a trailing <br> makes no line box) and the editor must: the
+       caret has to have somewhere to be after the last line. That is the one
+       allowed difference, 24px at the bottom, and only then. */
+    const trailingLine = /\n$/.test(childBefore) ? 24 : 0;
+    expect(Math.abs(editBox.left - readBox.left) <= 1 && Math.abs(editBox.top - readBox.top) <= 1
+      && Math.abs(editBox.width - readBox.width) <= 1 && Math.abs(editBox.height - (readBox.height + trailingLine)) <= 1
+      && editBox.font === readBox.font && editBox.focused && editBox.maxHeight === 'none',
+    'the editor does not sit exactly where the read view sat, at the same size and type: ' + JSON.stringify({ readBox, editBox }));
+    expect(editBox.caret && editBox.caret.block === 0 && editBox.caret.offset > 0,
+      'a click on the text did not place the caret where the click landed: ' + JSON.stringify(editBox.caret));
+    const richText = await page.locator('[data-prod-description-control="rich"]').textContent();
+    expect(await page.locator('[data-prod-description-control="rich"] .prod-md-heading').count() === 1
+      && /Child local draft/.test(richText) && !/## /.test(richText),
+    'the editor shows rendered shapes, not Markdown syntax: ' + JSON.stringify(richText));
+    await page.evaluate(() => { const el = document.querySelector('[data-prod-description-control="rich"]'); _prodDescRichSetCaret(el, { block: el.children.length - 1, offset: 1e9 }); });
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('- typed bullet');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('see https://example.com/page');
+    const typedDraft = await page.evaluate(() => _prodDescriptionState('gra-description-child').draft);
+    // Enter inside a bullet continues the list, as it does in Linear.
+    expect(typedDraft === childBefore + '\n- typed bullet\n- see https://example.com/page'
+      && await page.locator('[data-prod-description-control="rich"] .prod-md-bullet').count() === 2,
+    'typing did not produce the expected Markdown draft with live bullets: ' + JSON.stringify(typedDraft));
+    // A pasted URL over a selection becomes that selection's link, and a
+    // pasted Markdown line is rendered on landing.
+    await page.evaluate(() => {
+      const el = document.querySelector('[data-prod-description-control="rich"]');
+      const block = el.children[el.children.length - 1];
+      const text = _prodDescRichContainer(block).firstChild;
+      const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 3);
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      const dt = new DataTransfer(); dt.setData('text/plain', 'https://linked.example');
+      el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+    });
+    const pastedDraft = await page.evaluate(() => _prodDescriptionState('gra-description-child').draft);
+    expect(/\[see\]\(https:\/\/linked\.example\) https:\/\/example\.com\/page$/.test(pastedDraft)
+      && await page.locator('[data-prod-description-control="rich"] a').count() === 2,
+    'a URL pasted over a selection did not become its link: ' + JSON.stringify(pastedDraft));
+    // Hover card on a link: shows the host, edits text and URL in place.
+    await page.locator('[data-prod-description-control="rich"] a').first().hover();
+    await page.waitForSelector('#prodDescLinkPop:not([hidden])');
+    expect((await page.locator('#prodDescLinkPop .prod-linkpop-url').textContent()) === 'linked.example'
+      && await page.locator('#prodDescLinkPop [data-prod-linkpop="edit"]').isVisible(),
+    'hovering a link did not show its card with Edit');
+    await page.locator('#prodDescLinkPop [data-prod-linkpop="edit"]').click();
+    await page.locator('#prodDescLinkPop [data-prod-linkpop-text]').fill('the brief');
+    await page.locator('#prodDescLinkPop [data-prod-linkpop-href]').fill('https://brief.example/x');
+    await page.locator('#prodDescLinkPop .prod-linkpop-apply').click();
+    const linkedDraft = await page.evaluate(() => _prodDescriptionState('gra-description-child').draft);
+    expect(/\[the brief\]\(https:\/\/brief\.example\/x\) https:\/\/example\.com\/page$/.test(linkedDraft)
+      && await page.locator('#prodDescLinkPop').isHidden(),
+    'editing a link through its card did not rewrite the Markdown: ' + JSON.stringify(linkedDraft));
+    // A background render keeps the caret and does not move the pane.
+    await page.evaluate(() => {
+      const pane = document.querySelector('#prodRoot .prod-detail-main');
+      pane.scrollTop = 40;
+      window.__paneBefore = pane.scrollTop;
+      _prodRender();
+    });
+    await page.waitForTimeout(50);
+    const afterRender = await page.evaluate(() => {
+      const pane = document.querySelector('#prodRoot .prod-detail-main');
+      const el = document.querySelector('[data-prod-description-control="rich"]');
+      return { focused: document.activeElement === el, pane: pane.scrollTop, before: window.__paneBefore, draft: _prodDescriptionState('gra-description-child').draft };
+    });
+    expect(afterRender.focused && afterRender.pane === afterRender.before && afterRender.draft === linkedDraft,
+      'a re-render while editing lost focus, moved the pane, or changed the draft: ' + JSON.stringify(afterRender));
+    // Escape discards; the saved text is what the read view showed.
+    await page.locator('[data-prod-description-control="rich"]').press('Escape');
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.editing === false);
+    expect(await page.evaluate(() => _prodDescriptionState('gra-description-child').value) === childBefore,
+      'Escape did not discard the visual draft');
+    // Save from the visual editor writes the serialized Markdown exactly.
+    await page.locator('[data-prod-description-edit]').click();
+    await page.evaluate(() => { const el = document.querySelector('[data-prod-description-control="rich"]'); _prodDescRichSetCaret(el, { block: el.children.length - 1, offset: 1e9 }); });
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('Saved from the visual editor');
+    const richSaveResponse = page.waitForResponse(response => response.url().includes('/functions/v1/production-write')
+      && JSON.parse(response.request().postData() || '{}').operation === 'description'
+      && JSON.parse(response.request().postData() || '{}').id === 'gra-description-child');
+    await page.locator('[data-prod-description-control="save"]').click();
+    await richSaveResponse;
+    await page.waitForFunction(() => _prodDescriptionState('gra-description-child')?.editing === false);
+    const richWrite = writes.filter(write => write.body.operation === 'description' && write.body.id === 'gra-description-child').pop();
+    expect(richWrite && richWrite.body.description === childBefore + '\nSaved from the visual editor',
+      'the visual editor did not save its Markdown exactly: ' + JSON.stringify(richWrite && richWrite.body.description));
 
     await page.setViewportSize({ width: 360, height: 760 });
     await page.evaluate(() => {
       localStorage.setItem('syncview_theme', 'dark');
       document.documentElement.setAttribute('data-theme', 'dark');
       _prodBeginDescriptionEdit('gra-description-child');
+      _prodSetDescriptionMode('gra-description-child', 'source');
     });
     const compactDescription = await page.locator('[data-prod-description="gra-description-child"]').evaluate(panel => {
       const editor = panel.querySelector('.prod-description-editor');

@@ -484,14 +484,17 @@ ok(/state\.draft = value/.test(extract('_prodDescriptionDraftInput'))
   && /state\.error = state\.remoteChanged/.test(extract('_prodDescriptionDraftInput'))
   && /state\.remoteChanged = !!serverRow/.test(extract('_prodSaveDescription'))
   && /state\.requestId = ''/.test(extract('_prodSaveDescription'))
-  && /_prodFocusDescriptionControl\(id, 'source'\)/.test(extract('_prodSaveDescription')),
+  && /_prodFocusDescriptionControl\(id, _prodDescriptionEditorControl\(state\)\)/.test(extract('_prodSaveDescription')),
 'description write errors retain the draft while conflict rows replace the server baseline and CAS cursor');
 ok(!/_prodRestRows/.test(extract('_prodLoadBriefs'))
   && /Descriptions are hydrated only on demand through the guarded/.test(extract('_prodLoadBriefs'))
   && /_prodState\.briefsLoaded = true/.test(extract('_prodLoadBriefs')),
 'legacy bulk brief hydration is removed; descriptions load only through the protected per-issue reader');
+// The editor is in place since 2026-09-06: the visual surface (`rich`) is
+// the default and the Markdown textarea (`source`) is one toggle away.
 ok(/data-prod-description-control="source"/.test(source)
-  && /data-prod-description-control="preview"/.test(source)
+  && /data-prod-description-control="rich"/.test(source)
+  && /data-prod-description-control="markdown-tab"/.test(source)
   && /maxlength="100000"/.test(source)
   && /event\.key === 'Escape'/.test(extract('_prodDescriptionEditorKeydown'))
   && /_prodFocusDescriptionControl\(id, 'edit'\)/.test(extract('_prodCancelDescriptionEdit'))

@@ -977,3 +977,53 @@ links are not gonna change."
     newer gateway under the older browser simply answers faster. The index
     migration is optional and independent. `ROLLBACK.md` carries the row.
 -   **Suites.** `test/prod-asset-refresh-holds.js`, `test/asset-evidence-reuse.js`.
+
+39. **The description edits in place, the way Linear's does (2026-09-06).**
+    Owner: *"when we click edit it shouldn't change the way we are viewing
+    things ... we shouldn't see those weird brackets ... when we paste an
+    image we should just see the actual image ... when I click edit and
+    scroll down, it scrolls back up."* Edit used to swap the rendered text for
+    a boxed 190px textarea with Source/Preview tabs and raw Markdown in it.
+-   **Rule.** A description of work edits IN PLACE: the editing surface is the
+    rendered surface, same classes, same type, same box, growing with the
+    text. Links render as links and hover to a small card that opens or edits
+    them (text and URL); a pasted image shows as the image, with a chip while
+    it uploads; typing `- `, `# ` or `---` shapes the line as Linear does;
+    Ctrl/Cmd+K makes or edits a link; a URL pasted over a selection becomes
+    its link; a click on the read text starts editing with the caret where the
+    click landed.
+-   **How.** One module, written in the artifact (`descRich*`,
+    `descLinkPop*`) and transplanted whole (`_prodDescRich*`,
+    `_prodDescLinkPop*`, 36 mapped ports in `test/port-fidelity-check.js`,
+    whose normalize now also lowers the letter the `_prod` strip exposes). A
+    contenteditable is built from the Markdown, one block per source line,
+    every block and inline mark tagged with the exact source form it came from
+    (`data-md`, `data-md-prefix`, `data-md-raw`), and a serializer walks it
+    back. `descRichRoundTrips()` proves an untouched description comes back
+    byte for byte BEFORE the editor is offered; a description it cannot keep
+    opens as Markdown with a one-line reason, and the Markdown textarea stays
+    one toggle away for everyone.
+-   **Same box.** Read view and editor share `margin: 0 -6px; padding: 3px
+    6px`; the editor adds a hairline accent ring and nothing else. The read
+    renderer no longer draws a spare empty line after a heading, rule, bullet
+    or image (its `<br>` join did, which laying the editor over it exposed),
+    and the editor collapses the blank lines the read view does not draw with
+    `display:none` so margins collapse identically. Five Markdown shapes
+    measure pixel-equal in both.
+-   **Scroll.** Every focus and caret restore, on every render, runs under
+    `_prodDescriptionKeepScroll`, which puts the detail pane and the window
+    back where they were: Chrome reveals a restored caret by scrolling, which
+    is the "scrolls back up" of the report.
+-   **Kept.** Explicit Save/Cancel (the artifact saves on blur; a blur-save
+    here writes to Linear, so it is an owner decision, listed), Escape and
+    Ctrl+Enter, the write gate on Edit AND on the click-to-edit body, the
+    100,000-character ceiling (the count is shown only from 90,000), the NUL
+    refusal, the upload placeholder guard on Save, the conflict/CAS flow.
+-   **Environment.** One new body-mounted element, `#prodDescLinkPop`
+    (`.prod-linkpop`, z-index 10000 with the toast; `ADAPTER.md`).
+-   **Suites.** `test/prod-description-rich-editor.js` (Markdown → editor HTML
+    in Node, the wiring contracts, the shared box), the in-place section of
+    `docs/syncview-design/tests/prod-write-gateway-browser.js` (pixel-equal
+    placement over the read view, caret from the click, typing, paste-to-link,
+    the link card, render-while-editing keeps focus and pane offset, Escape
+    discards, Save writes the exact Markdown).

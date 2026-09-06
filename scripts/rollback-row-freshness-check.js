@@ -825,8 +825,14 @@ function recordsADispatch(log, k, len) {
         const cut = text.lastIndexOf(',', at < 0 ? text.length : at);
         return cut > 0 ? text.slice(cut + 1) : text;
     };
+    /* AN APPOSITIVE SAYS WHEN IT WAS PLANNED, NOT THAT IT IS STILL TO COME.
+       "The LANE manual dispatch, scheduled for Monday, completed successfully
+       (run `X`)" is a completed dispatch: the clause between the commas dates
+       the plan behind a run that has since finished (Codex, forty-eighth round
+       on #1306). Only a clause with no predicate of its own is dropped. */
+    const APPOSITIVE = /,\s*(?:originally\s+|initially\s+|previously\s+)?(?:scheduled|planned|slated|booked|expected|intended|due)\s+(?:for|on|to run|to go)\b[^,.\n]*,/gi;
     const plans = text => {
-        const t = dropIntro(norm(text)).replace(ADJECTIVAL, ' ');
+        const t = dropIntro(norm(text)).replace(APPOSITIVE, ' ').replace(ADJECTIVAL, ' ');
         const ahead = firstIndex(DISPATCH_AHEAD, t);
         if (ahead < 0) return false;
         const done = firstIndex(DISPATCH_DONE, t);
@@ -1220,8 +1226,15 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            quoted or bare, and the verb in every form it takes. */
         const SLUG_RE = '`?(?:' + SLUGS.join('|') + ')`?\\b';
         const DEPLOY_VERB = '\\bdeploy(?:ed|s|ing|ment of)?\\b';
+        /* AND THE VERB NEED NOT BE "DEPLOY". "failed after the first function
+           went live" is a partial deploy stated in the lane's own serial terms
+           (Codex, forty-eighth round on #1306), so going live, shipping and
+           being released count, whether the function is named or counted. */
+        const LIVE_VERB = '(?:went|gone|going|was|were|is|are|had gone)\\s+live|shipped|ship|shipping|releas(?:ed|ing)|rolled out';
         const someShipped = new RegExp(DEPLOY_VERB + '[^.\\n]{0,60}' + SLUG_RE, 'i').test(entryText)
-            || new RegExp(SLUG_RE + '[^.\\n]{0,60}\\b(?:was |were |had been |been )?deploy(?:ed|s|ing)?\\b', 'i').test(entryText);
+            || new RegExp(SLUG_RE + '[^.\\n]{0,60}\\b(?:was |were |had been |been )?deploy(?:ed|s|ing)?\\b', 'i').test(entryText)
+            || new RegExp(SLUG_RE + '[^.\\n]{0,60}\\b(?:' + LIVE_VERB + ')\\b', 'i').test(entryText)
+            || new RegExp('\\b(?:the\\s+)?(?:first|second|third|one|two|three|1st|2nd|3rd|an? )\\s*functions?\\b[^.\\n]{0,40}\\b(?:' + LIVE_VERB + ')\\b', 'i').test(entryText);
         /* AND IT MUST DESCRIBE THIS DEPLOY. A successful entry that keeps the
            history of an earlier attempt ("Completed successfully. The previous
            attempt failed; no deployment occurred in run `Y`.") used to exempt

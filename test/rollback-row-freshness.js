@@ -2273,6 +2273,32 @@ ok(namedDenialRun.code === 1 && namedDenialRun.json
     && namedDenialRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
     'A DENIAL THAT NAMES A FUNCTION IS NOT WHOLE-RUN EVIDENCE: the lane deploys two guarded functions before `production-comments`, so "did not deploy production-comments" cannot silence the run');
 
+/* ---- 8aw. appositive schedules; partial deploys stated as going live (round 48) ---- */
+const laneAppositiveSchedule = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch, scheduled for Monday, completed',
+    'successfully (run `34000000000`).',
+    '',
+].join('\n');
+const laneAppositiveScheduleRun = run(fixture('lane-appositive-schedule', appended(laneAppositiveSchedule), realRb));
+ok(laneAppositiveScheduleRun.code === 1 && laneAppositiveScheduleRun.json
+    && laneAppositiveScheduleRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AN APPOSITIVE DATES THE PLAN, NOT THE FUTURE: "the dispatch, scheduled for Monday, completed successfully" is a completed dispatch, so it FAILS');
+
+const partialWentLive = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The lane failed after the first function went live. No deployment occurred after that point.',
+    '',
+].join('\n');
+const partialWentLiveRun = run(fixture('partial-went-live', appended(partialWentLive), realRb));
+ok(partialWentLiveRun.code === 1 && partialWentLiveRun.json
+    && partialWentLiveRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'GOING LIVE IS DEPLOYING: "failed after the first function went live" is a partial deploy, so a later blanket no-deployment sentence cannot exempt it');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

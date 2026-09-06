@@ -321,3 +321,5 @@ receipt observer, bounded drill and independent-host sentinel commands),
 - **New top-level anything** → think twice, then document it here (CI will remind you).
 
 `docs/audits/2026-09-05-native-intake-reciprocal-review.md` records the independent PR1314 review, both-surface reciprocal completion regression, local correction proof and the separate held creation protocol.
+
+Integrated recovery backup: `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`, `scripts/track-b-history-v6-backup-prerequisites.sql`, `scripts/card-history-integrated-rehearsal.js`, `scripts/card-history-integrated-acceptance.mjs`, and `test/track-b-backup-integrated-corpus.js` define/test a held35-table data corpus with card provenance and Calendar materialization receipts.

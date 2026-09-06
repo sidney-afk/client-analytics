@@ -12,6 +12,7 @@ on:
           - configured
           - history-v4
           - history-v5
+          - history-v6
         default: configured
       restore_rehearsal:
         description: 'Destructively restore the new backup into the configured scratch project'
@@ -30,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      TRACK_B_BACKUP_CORPUS: ${{ inputs.backup_corpus == 'history-v5' && 'history-v5' || inputs.backup_corpus == 'history-v4' && 'history-v4' || vars.TRACK_B_BACKUP_CORPUS || 'legacy-v3' }}
+      TRACK_B_BACKUP_CORPUS: ${{ inputs.backup_corpus == 'history-v6' && 'history-v6' || inputs.backup_corpus == 'history-v5' && 'history-v5' || inputs.backup_corpus == 'history-v4' && 'history-v4' || vars.TRACK_B_BACKUP_CORPUS || 'legacy-v3' }}
       TRACK_B_BACKUP_DATABASE_URL: ${{ secrets.TRACK_B_BACKUP_DATABASE_URL }}
       TRACK_B_BACKUP_HMAC_KEY: ${{ secrets.TRACK_B_BACKUP_HMAC_KEY }}
       TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON: ${{ secrets.TRACK_B_BACKUP_GOOGLE_CREDENTIALS_JSON }}

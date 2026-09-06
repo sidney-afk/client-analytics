@@ -765,3 +765,5 @@ implementation itself still requires a separately verified compatibility bridge
 or per-owner reconciliation. It is an explicit release blocker, not a safe
 whole-file revert. Procedure: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.
 The frozen anonymous client writers must never be re-gated as recovery.
+
+**Local history-v6 follow-up:** preserve original14/21/33 packages as limited historical evidence and keep every newer receipt/provenance/journal row. Never bypass older-target refusal or truncate omitted data. No migration or activation occurred; see `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`.

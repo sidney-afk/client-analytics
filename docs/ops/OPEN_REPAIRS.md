@@ -13413,3 +13413,5 @@ changes.
 **Gates left open.** Apply the migration; deploy `production-write` through
 the manual Section 4 lane with a fresh capture; a live TEST-client drill of
 the exact button path; Samples is out of scope.
+
+**Integrated recovery backup follow-up, local/held:** FK-free card provenance and Calendar feedback materialization receipts require the separate history-v6 exact35-table corpus. New12 offline and10 combined local SQL checks pass; authenticated schema reconstruction and combined feedback-RPC behavior remain release holds. See `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`. No install, activation or backup schedule change.

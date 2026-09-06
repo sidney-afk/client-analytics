@@ -372,3 +372,5 @@ separate requirements.
 Disable `.github/workflows/track-b-backup.yml`. This stops backup scheduling and
 freshness failure emails only; it changes no runtime flag, production authority,
 or live write path. The existing weekly private backup continues independently.
+
+**Integrated recovery follow-up, local/held:** `history-v6` adds the two FK-free recovery ledgers to v5 as a new exact35-table format. Prior versions retain their authenticated meaning; old restores refuse targets with newer recovery evidence. See `INTEGRATED_RECOVERY_CORPUS.md` for the finite combined proof, schema-artifact and feedback-RPC holds, manual prerequisites and unchanged legacy schedule default.

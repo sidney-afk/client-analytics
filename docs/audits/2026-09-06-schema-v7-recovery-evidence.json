@@ -1,0 +1,172 @@
+{
+  "classification": "ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY",
+  "proof_commit": "26691a9da9e685a4e43be7516ee6e58b34f2fcd0",
+  "status": "PASS",
+  "groups": 16,
+  "corpus": "history-v7",
+  "selected_tables": 37,
+  "synthetic_rows": 106,
+  "populated_selected_tables": 18,
+  "empty_selected_tables": 19,
+  "started_at": "2026-09-06T06:20:03.187Z",
+  "receipt_written_at": "2026-09-06T06:21:15.093Z",
+  "private_receipt_sha256": "a23efce3b37dc1842d83c4ea59cd972db099d7a940eaa9c794ecd78da73d302a",
+  "source_sha256": {
+    "scripts/track-b-recovery-package.js": "b86ecbfc52cc47e3e2981c170674963cd88c4e595ab66cd9b34f882ae456aff8",
+    "scripts/track-b-recovery-reconstruct.js": "73a688109b77cf44d9733fdcb226e4909bf2ac950ba7c50d4464097a7d752ba6",
+    "scripts/track-b-recovery-prerequisites.sql": "c9572d74ac636eb3a423095048c01aaa830dbdc656ec196966c79c7fa4d463e0",
+    "scripts/track-b-recovery-rehearsal.js": "2a948c9a8827fb4e0c6bbc07966b3dc5fe2fb059481abd6a9088d001ba710ad5",
+    "scripts/track-b-backup.js": "42b2fa4ae5b8ad4f4331fbec2245d58c8039bd4c5abeb41936a0cbe414883613",
+    "scripts/track-b-restore-rehearsal.js": "6a9a2fb153f1d640db4c58d2459ede67dbc1fdf10e16bcac9cf258e6f3713740",
+    "scripts/card-history-integrated-rehearsal.js": "3b0eea542ee19d3fc3bccbace092180a9e0803f47094cd06e27137ad552c233d",
+    "scripts/card-history-backup-rehearsal.js": "2a209395a0124610f58cb56e4048a9ccff50d17f0eba10740192e907b5df849d",
+    "scripts/card-history-closed-corpus-rehearsal.js": "8316c1b6ef570b551f558b6fd5045f4930cb7b5ecdbbe00a3e5f79cee734e748",
+    "scripts/card-change-journal-rehearsal.js": "6aad9b40d83e7771601a618fa69130665428b5c149f02a901b359c4e86f89595",
+    "scripts/native-card-materialization/fixture.mjs": "7957feb460b2142d365ee5f76916bbc8b7464824bcc392a1e67967013782f3e4",
+    "scripts/native-card-materialization/recovery-v7-phase.mjs": "9120ea833c5bb63bd1172eb97e737e7c077df0fe0e7e33056757dc2e649fe377",
+    "migrations/live-schema-baseline-2026-07-03.sql": "0fe101d62b3c03200e007a943ec442c75366f7467e25357085a623d21c68243f",
+    "migrations/2026-09-02-workload-native-view.sql": "f777ef057aad113a502b7f2be51d16bef81d0b9a7c09c0294d73f2dbb278427f",
+    "migrations/2026-09-05-workload-native-membership.sql": "5d28025f801aa1b30c895cfeec22d409a961071838f9af3e80704d12c26977b9",
+    "migrations/2026-09-05-card-change-journal.sql": "1a353835fee61ab8d52ae3f9ed94d83ea1fdb85f6ba9e45eace642409c96ef1e",
+    "migrations/2026-09-05-calendar-feedback-recovery.sql": "ee6858accc21b28c03f18579c49d4361dd1287645b785dd20e0136e7ee5851cb",
+    "migrations/2026-09-05-crosswalk-bind-and-import.sql": "63a65a6c9aae13176abb3dd08c416d9afa69aa13bf77966669c6fc7e2e7725ce",
+    "migrations/2026-09-06-native-card-materialization-boundary.sql": "c0d8257b0d28a7ba4db3bfb50a03e795a82add394d077c9b426b1ad9f12e6a50"
+  },
+  "checks": [
+    "actual selected37 schema contains four accepted cards and retained unknown ingress",
+    "canonical note and its accepted receipt coexist with actual native card receipts",
+    "capture role refuses write privilege and target refuses BYPASSRLS before narrow grants",
+    "both restricted connections require SCRAM/password authentication",
+    "catalog drift is refused and publishes no partial package",
+    "actual capture refuses a writing callable concealed between comment-like string literals",
+    "authenticated schema and all37 selected data sections bind exact observed corpus",
+    "wrong HMAC and prior35 data reader refuse the37 package",
+    "data alone cannot reconstruct the empty target",
+    "permission race and in-transaction digest failure leave a genuinely empty target",
+    "late37th-table COPY refusal rolls earlier schema and data back",
+    "restricted empty-target schema reconstruction verifies exact37 raw row images and sequences",
+    "restored receipts replay four current human-edited cards in hold without rewriting any owner",
+    "retained37 evidence keeps anonymous privacy and mutation/TRUNCATE guards after reconstruction",
+    "restored canonical add receipt replays without duplicating current or historical rows",
+    "post-COMMIT verification transport refusal preserves the complete quarantined target"
+  ],
+  "omitted_data_tables": [
+    "filming_plans",
+    "linear_archive_asset_rescue_config",
+    "production_comment_import_conflicts",
+    "production_comment_read_audit",
+    "production_comment_read_budget",
+    "public_intake_log",
+    "workload_issues"
+  ],
+  "limits": [
+    "Synthetic migration-shaped source; installed capture/reconstruction remains UNPROVEN",
+    "Whole public schema plus selected37 data, not a full platform or omitted-data backup",
+    "Callable lexical source is independently reviewed; execution coverage is limited to this fixture",
+    "No label owner, serving adapter, provider, workflow, alert or live action"
+  ],
+  "target_state_delta": {
+    "head": "985ec99246e5fba5b4185bedef2b1f98b4830f90",
+    "status": "PASS",
+    "classification": "ACTUAL_DISPOSABLE_SQL_OBSERVATION_WITH_PRE_DDL_RENDER_SEAM",
+    "groups": 3,
+    "source_sha256": "56c9196f97ee8708a037fb3bc1a52649fce236916e0270586a7e83ed8959c9a6",
+    "private_receipt_sha256": "e4e02167681e4056fc30b72fdee187c9efbd012e12124c947b53a032a18e5d5b",
+    "results": [
+      {
+        "status": "PASS",
+        "classification": "ACTUAL_DISPOSABLE_SQL_OBSERVATION_WITH_PRE_DDL_RENDER_SEAM",
+        "fixture": "function",
+        "rows": [
+          {
+            "label": "baseline",
+            "fixture": "function",
+            "observed": {
+              "known": true,
+              "public_relations": 0
+            },
+            "retry_in_place_allowed": true,
+            "outcome": "rolled_back"
+          },
+          {
+            "label": "candidate",
+            "fixture": "function",
+            "observed": {
+              "known": true,
+              "public_relations": 0,
+              "public_functions": 1,
+              "public_types": 0
+            },
+            "retry_in_place_allowed": false,
+            "outcome": "rolled_back"
+          }
+        ]
+      },
+      {
+        "status": "PASS",
+        "classification": "ACTUAL_DISPOSABLE_SQL_OBSERVATION_WITH_PRE_DDL_RENDER_SEAM",
+        "fixture": "type",
+        "rows": [
+          {
+            "label": "baseline",
+            "fixture": "type",
+            "observed": {
+              "known": true,
+              "public_relations": 0
+            },
+            "retry_in_place_allowed": true,
+            "outcome": "rolled_back"
+          },
+          {
+            "label": "candidate",
+            "fixture": "type",
+            "observed": {
+              "known": true,
+              "public_relations": 0,
+              "public_functions": 0,
+              "public_types": 1
+            },
+            "retry_in_place_allowed": false,
+            "outcome": "rolled_back"
+          }
+        ]
+      },
+      {
+        "status": "PASS",
+        "classification": "ACTUAL_DISPOSABLE_SQL_OBSERVATION_WITH_PRE_DDL_RENDER_SEAM",
+        "fixture": "empty",
+        "rows": [
+          {
+            "label": "baseline",
+            "fixture": "empty",
+            "observed": {
+              "known": true,
+              "public_relations": 0
+            },
+            "retry_in_place_allowed": true,
+            "outcome": "rolled_back"
+          },
+          {
+            "label": "candidate",
+            "fixture": "empty",
+            "observed": {
+              "known": true,
+              "public_relations": 0,
+              "public_functions": 0,
+              "public_types": 0
+            },
+            "retry_in_place_allowed": true,
+            "outcome": "rolled_back"
+          }
+        ]
+      }
+    ],
+    "limits": [
+      "Administrator fixture setup; no new restricted-role or full37 restore claim",
+      "Actual catalog observation/outcome handling; SQL renderer deliberately refuses before DDL",
+      "No live or provider connection; databases retained"
+    ]
+  },
+  "workflow_source_sha256": "8592193424dd43c2303797d2fc4cea09f2d09dee65aefbb44a10a6ff78947263",
+  "hosted": "UNPROVEN until published final head runs"
+}

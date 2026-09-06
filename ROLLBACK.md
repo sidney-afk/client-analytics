@@ -1,5 +1,13 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Selected37 schema recovery, unapplied:** retain authenticated packages and
+current/historical rows. Retry a failed reconstruction in place only when all
+public relation, function and type counters prove the target was and remains
+empty. Unknown or committed targets stay quarantined; use a fresh target after
+review. Source withdrawal changes no clients. The local16-group proof and
+separate3-group outcome delta do not authorize production restoration; see
+[`RECOVERY_SCHEMA_V7.md`](docs/ops/RECOVERY_SCHEMA_V7.md).
+
 **Dormant G3 card materialization:** hold fresh admission and retain both materialization
 owners, intake/outbox receipts, provenance, journal and compatible current-row replay.
 Never drop the evidence or restore old full-row materializers over accepted cards.
@@ -787,3 +795,12 @@ whole-file revert. Procedure: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.
 The frozen anonymous client writers must never be re-gated as recovery.
 
 **Local history-v6 follow-up:** preserve original14/21/33 packages as limited historical evidence and keep every newer receipt/provenance/journal row. Never bypass older-target refusal or truncate omitted data. No migration or activation occurred; see `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`.
+
+**Unapplied selected37 schema-engine preparation:** withdrawing these new tools
+changes no runtime or database. Keep every previous package and receipt. A
+precommit refusal is retryable only after confirming the target is still empty;
+a committed-unverified target must remain quarantined and a fresh empty target
+used for another attempt. The prepared local rehearsal preserves its databases
+and private failures. Deleting an artifact is not a database rollback. See
+`docs/ops/RECOVERY_SCHEMA_V7.md`; no automatic cleanup or production grant is
+authorized by this source integration.

@@ -8,6 +8,9 @@ commit as any structural change.
 
 ## Top level
 
+Selected37 authenticated schema/data proof: `docs/audits/2026-09-06-schema-v7-recovery.md`
+and `docs/audits/2026-09-06-schema-v7-recovery-evidence.json`.
+
 Dormant G3 native card SQL boundary: `migrations/2026-09-06-native-card-materialization-boundary.sql`,
 `scripts/native-card-materialization/` (actual gateway/browser fixture and finite SQL overlaps),
 `test/native-card-materialization.js`, and `docs/ops/NATIVE_CARD_MATERIALIZATION_BOUNDARY.md`.
@@ -356,3 +359,9 @@ editor read mock and intake wait in `docs/syncview-design/tests/prod-write-gatew
 Integrated recovery backup: `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`, `scripts/track-b-history-v6-backup-prerequisites.sql`, `scripts/track-b-history-v7-backup-prerequisites.sql`, `scripts/card-history-integrated-rehearsal.js`, `scripts/card-history-integrated-acceptance.mjs`, `scripts/card-materialization-history-rehearsal.js`, `scripts/native-card-materialization/recovery-v7-phase.mjs`, and `test/track-b-backup-integrated-corpus.js` define/test held explicit 35- and 37-table data corpora. History-v7 adds the two retained materialization owners; its portable proof requires an explicitly owned loopback PostgreSQL server and private output. The grant artifact and actual scratch recovery remain held.
 
 Combined Workload recovery proof: `scripts/card-history-workload-rehearsal.js`, `qa/workload-native/integrated-handler.mjs`, and `test/workload-history-integrated.js` exercise the actual Workload handler/service-role RPCs, saved-plan aliases, six-owner journal failure atomicity and all35-table restore in an explicitly owned disposable PostgreSQL fixture. Normal offline invocation explicitly skips; the opt-in lane requires local PostgreSQL and never starts/stops servers.
+
+Held selected37 schema recovery: `docs/ops/RECOVERY_SCHEMA_V7.md`, `scripts/track-b-recovery-package.js`, `scripts/track-b-recovery-reconstruct.js`, `scripts/track-b-recovery-prerequisites.sql`, `scripts/track-b-recovery-rehearsal.js`, `test/track-b-recovery-package.js`, and `test/track-b-recovery-v7-preparation.js` integrate the separate authenticated schema engine with canonical v3-v7 meanings. The combined real schema/data/replay proof remains held; the reviewed lexer source is included. Label data and active scheduling are excluded.
+
+The separately reviewed lexer correction is preserved in `test/track-b-recovery-callable-lexer.js`, `docs/audits/2026-09-06-recovery-callable-lexer.md`, and `docs/audits/2026-09-06-recovery-callable-lexer-evidence.json`. Its offline source closure does not establish actual combined schema execution.
+
+`test/track-b-recovery-empty-target.js` checks actual outcome-module empty-target and retry guidance against all public object categories, with intercepted SQL.

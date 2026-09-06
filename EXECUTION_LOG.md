@@ -2,6 +2,42 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Canonical37 schema reconstruction and outcome correction
+
+Combined proof `26691a9d` passed16 actual schema/data/replay groups with all37
+selected tables (106 synthetic rows;18 populated and19 empty). The original
+`2dcafbf1` retention-fixture failure remains recorded. The separately reviewed
+target-state fix is integrated as `985ec992`; seven offline and three actual SQL
+observation/outcome controls close the function/type-only false-retry case.
+The latter uses a pre-DDL renderer seam, not another full37 restore. A disposable
+CI schema step is added; hosted execution is pending publication. No live change,
+provider call, frozen-writer edit, schedule activation or product watcher follows.
+See [exact evidence and limits](docs/audits/2026-09-06-schema-v7-recovery.md).
+
+## 2026-09-06 — Source-only callable and failure-guidance integration
+
+After initial `b554db97a`, copied the exact reviewed lexer runtime/test/audit from
+`33e0f576e40d61fabd8d4283fb0e9f11cfdf29b4`; its original branch is preserved.
+Local Git history transfer was refused by an unrelated missing promisor object,
+so no broader branch, label or competing corpus was merged. Runtime hash matches
+the reviewed `b86ecbfc`. Added the coordinator's narrow CLI outcome correction:
+validation failures make no rollback claim, and only a confirmed empty-target
+rollback permits retry-in-place guidance. Offline lexer33, canonical-package18
+and preparation/actual-CLI8 groups pass. No SQL run or authenticated-schema PASS
+is claimed; the next exact-head isolated37 rehearsal remains required.
+
+## 2026-09-06 — Held selected37 schema engine preparation
+
+On preserved `bbe030766`, selectively imported the schema engine from PR1313
+`fa4e1757`, keeping canonical v3-v7 data libraries and all product runtime bytes.
+The competing 34-table v6 and label expansion are excluded. Prepared a finite
+actual37 empty-target schema/data/replay lane; it has not run at this checkpoint.
+Offline package18, configuration6, existing integrated-corpus21 and corpus33
+groups pass. The separate callable lexer correction and exact combined SQL
+rehearsal remain required; no schema recovery or installed/live gate is green.
+See [owning contract](docs/ops/RECOVERY_SCHEMA_V7.md). No runtime migration,
+workflow, grant, capture, upload, deployment or client transport was changed.
+
 ## 2026-09-06 — Combined dormant card boundary and history-v7 recovery
 
 Preserved SQL handoff `198b42bb` and recovery history through `96719f8d` in one

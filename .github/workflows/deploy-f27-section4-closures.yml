@@ -68,7 +68,9 @@ jobs:
       # Supersedes eff38b69 (eighth release, ONE PARENT PER CARD), which
       # superseded ff0fc693, 5d8bf7dc (targeted-drain reclaim) and ef89adbf.
       # File count is unchanged, so the closure membership did not move.
-      LINEAR_OUTBOUND_SOURCE_SHA256: 1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39
+      # Uninstalled candidate d906e5aab55d771b1f2801c52119b55cccc91fea:
+      # server-owned claim/dispatch fences; compatible SQL must precede deploy.
+      LINEAR_OUTBOUND_SOURCE_SHA256: 99ea1e55e3b3126c7c4688235926a79f6491412f0348b17a27ff684259d16a3b
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
@@ -286,7 +288,10 @@ jobs:
       # precede this gateway even while all native admission epochs are disabled.
       # Source-only assignment prerequisite on reviewed 2b6c718: distinct
       # provider/native/hold receipt lane; install/activation and serving held.
-      PRODUCTION_WRITE_SOURCE_SHA256: 8aeb7197ed8b4f8c3360c8697f12d9217cbfbc9aa50bbc81bc77801b9848d485
+      # Uninstalled candidate d906e5aab55d771b1f2801c52119b55cccc91fea:
+      # combines current main, accepted-card routing, native labels/assignment.
+      # Admission, schema/recovery, serving/client and alert gates remain held.
+      PRODUCTION_WRITE_SOURCE_SHA256: ae528a869f8c09022282785b983e94cde40a02b4e679eb03a1282bef725f6cac
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

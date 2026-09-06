@@ -70,7 +70,8 @@ const CANDIDATES = new Map([
   // an unbound linear_result. Still index.ts only -- file count 5, entrypoint
   // hash unchanged.
   ['linear-outbound', {
-    source: '1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39',
+    // Uninstalled combined candidate d906e5aa, matching the dispatch carrier.
+    source: '99ea1e55e3b3126c7c4688235926a79f6491412f0348b17a27ff684259d16a3b',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
@@ -398,7 +399,8 @@ const CANDIDATES = new Map([
     // Uninstalled integration: native intake/eligibility/editor projection plus
     // captured main asset logic. SQL prerequisite and serving proof stay held.
     // Source-only 2b6c718 assignment prerequisite; same five-file closure.
-    source: '8aeb7197ed8b4f8c3360c8697f12d9217cbfbc9aa50bbc81bc77801b9848d485',
+    // Uninstalled combined candidate d906e5aa; source-only closure evidence.
+    source: 'ae528a869f8c09022282785b983e94cde40a02b4e679eb03a1282bef725f6cac',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

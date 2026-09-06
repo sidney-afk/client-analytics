@@ -3082,6 +3082,26 @@ ok(nowLiveHeadingRun.code === 1 && nowLiveHeadingRun.json
     && /34000000000/.test(JSON.stringify(nowLiveHeadingRun.json.failures)),
     'GOING LIVE IS AN OUTCOME: "Deployment is now live — run `X`" anchors its own run, like "complete" and "successful" before it');
 
+/* ---- 8bz. "went live" is the same outcome (round 77) ---- */
+const wentLiveHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment went live — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const wentLiveHeadingRun = run(fixture('went-live-heading', appended(wentLiveHeading), realRb));
+ok(wentLiveHeadingRun.code === 1 && wentLiveHeadingRun.json
+    && /34000000000/.test(JSON.stringify(wentLiveHeadingRun.json.failures)),
+    '"WENT LIVE" IS THE SAME OUTCOME AS "IS LIVE": the verb in front of it does not change what the heading records');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

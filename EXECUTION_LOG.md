@@ -13,6 +13,50 @@ migration in the SQL Editor the same day. Codex review added a fail-closed runti
 (`description_image_upload_enabled`, one-statement kill in `ROLLBACK.md`), a reserve-then-count
 rate limit, and keyboard activation for the full-size view. OPEN_REPAIRS 157.
 
+## 2026-09-05 — Native Create Post editor projection; local source only
+
+On exact PR1309 `69ae5d338486bd8084e6bbdbe65be1c44f63dbe1`, Create Post still
+hid native-eligible editors without a Linear mapping. A staff-only
+`intake_editor_options` read now uses the existing native admission-epoch RPC
+and native eligibility policy. The browser uses its minimal complete response
+or, only after an explicit provider decision, the unchanged provider loader.
+The intake writer and accepted-request replay remain unchanged. Forty-seven
+focused handler/disposable-SQL assertions passed, including six intercepted
+Chromium checks and exact baseline controls; 37 offline browser/source checks
+passed. See `docs/audits/2026-09-05-native-intake-editor-projection.md` for the
+fixture, scope, failure and release limits. No deployment, flag, migration on
+a service, live data, provider or n8n operation occurred.
+
+## 2026-09-05 — Draft native assignee eligibility on PR1302, no live action
+
+Built on PR1302 `8cb5cba91bc33fb17599b8f2a38625ae07f7743d` (over PR1293
+`5418ab5618595d9469f0527bd94623e9229a637e`) in the isolated branch
+`claude/native-assignee-eligibility-q8o1jd`; remote main recorded at
+`3d534cfa5598ef16e61c5ee7dc8072afaa9963c7` and not merged. Assignment eligibility
+and automatic selection now follow the server-resolved native epoch: a native
+lane consults neither `production_assignee_eligibility` nor Linear; the explicit
+provider path keeps its pre-existing flag behaviour and the automatic provider
+path keeps its original stored-mapping contract with no flag read. Same-day
+correction after an independent handler review: the native automatic pool now
+applies the exact creative-role contract (an SMM default is never a native
+graphics default) and shares one pool with the readiness aggregate; the first
+draft's flag-routed automatic filter is withdrawn. Real-handler lane on disposable
+PostgreSQL with denied provider transport and a PR1302-head negative control;
+exact counts and run stamps in the audit note. No merge, deploy, flag
+update, live read or write, n8n change or credential use. Scope, evidence, gates
+and inverse: `docs/audits/2026-09-05-native-assignee-eligibility.md`.
+
+## 2026-09-05 — Draft disabled native-only intake, no live action
+
+Built on PR1293 `5418ab5618595d9469f0527bd94623e9229a637e` in an isolated worktree.
+The additive native epoch/terminal receipt contract removes provider reads for
+explicit native intake and adds native-parent append/fill compatibility. Original
+manifest and real PostgreSQL/F27 write-fence tests are retained. No merge, deploy,
+flag update, live data mutation or n8n change occurred. Exact scope, mixed-lane
+limits, evidence and retained-data rollback are in
+`docs/audits/2026-09-05-native-only-intake.md`. Full serving and materialization
+readiness remain held; this is not Decision A or B5 activation.
+
 ## 2026-08-31 — Deploy: a card can be completed from the card
 
 **Section 4 forward from `5a3365f2`, run `33434655418`, PASS.** `production-write`

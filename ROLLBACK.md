@@ -1,5 +1,35 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**2026-09-05 local Create Post editor projection:** restore only the new
+editor-read wrapper/caller changes first, returning to the preserved provider
+loader. Keep all accepted intake jobs, payloads, receipts and native epochs.
+That browser rollback hides unmapped editors again but retains ordinary
+automatic assignment and cannot move already accepted work. Only then, if a
+future approved release needs it, restore the separately captured reviewed
+gateway closure through its manual lane; do not revert unrelated gateway
+features or re-gate frozen client writers. An older/failed options endpoint
+already degrades to visible picker unavailability and server-side automatic
+assignment, never an assumed provider or valid empty native response.
+See `docs/audits/2026-09-05-native-intake-editor-projection.md`.
+
+**Unmerged draft, 2026-09-05 (native assignee eligibility):** on PR1302, assignment
+eligibility follows the server-resolved native epoch; a native lane never reads
+`production_assignee_eligibility` or the provider and applies the exact
+active/team/creative-role contract to automatic choices too; the provider
+explicit path keeps its flag behaviour and the provider automatic path keeps its
+original stored-mapping contract.
+Inverse is the team's native epoch CAS alone: accepted native rows keep their
+assignee and manifest/receipt provenance, new requests return to the provider
+policy. No Live State entry changes. Evidence and gates:
+`docs/audits/2026-09-05-native-assignee-eligibility.md`.
+
+**Unapplied draft, 2026-09-05:** native-only intake depends on PR1293. Its behavior
+rollback disables new native admission while retaining the epoch-aware gateway,
+manifest epochs and terminal receipts for accepted work. Do not drop/truncate
+accepted evidence, strip markers or requeue native receipts. Full release order,
+old-serving limitations and retained-data rollback:
+`docs/audits/2026-09-05-native-only-intake.md`. This changes no Live State entry.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is
@@ -93,6 +123,14 @@ schedule while F132 is open; if reducing duplicate cadence, remove the pager's l
 ## 2. Live State table — what is serving production RIGHT NOW
 
 Update in the same PR as any change. "Rollback" must be executable by the owner alone.
+
+> **Root intake manifest draft (2026-09-05), not installed:**
+> `docs/audits/2026-09-05-native-intake-manifest.md` records the additive
+> parent+expected-request transaction and retained-data rollback contract.
+> Restore the exact captured prior production-write closure through its approved
+> deployment lane; retain the manifest table, wrapper and accepted/inflight
+> receipts. New old-code requests after rollback lack manifests. No live behavior,
+> flag, authority or frozen anonymous writer was changed by this draft.
 
 > **Workload candidate clarification (2026-07-23):** the existing editable-plan row describes the
 > currently serving plan-date boundary, where deadlines are display-only. The F40/F46/F99/F100

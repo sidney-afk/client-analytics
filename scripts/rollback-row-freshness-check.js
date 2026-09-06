@@ -1212,8 +1212,16 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            of the four WAS deployed. Either way the entry is asked for its
            receipt, because a partial deploy moved a live version. */
         const nothingShipped = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)/i.test(entryText);
-        const someShipped = new RegExp('\\bdeploy(?:ed|s)?\\b[^.\\n]{0,60}`(?:' + SLUGS.join('|') + ')`', 'i').test(entryText)
-            || new RegExp('`(?:' + SLUGS.join('|') + ')`[^.\\n]{0,60}\\b(?:was |were |had been )?deploy(?:ed|s)?\\b', 'i').test(entryText);
+        /* THE FORMATTING OF THE SHIPPED FUNCTION MUST NOT DECIDE THIS. Reading
+           only backticked slugs paired with `deployed`/`deploys` let "failed
+           after deploying production-write. No deployment occurred after that
+           point" keep its exemption, so a partial live deploy stayed
+           unreceipted (Codex, forty-sixth round on #1306). The slug is read
+           quoted or bare, and the verb in every form it takes. */
+        const SLUG_RE = '`?(?:' + SLUGS.join('|') + ')`?\\b';
+        const DEPLOY_VERB = '\\bdeploy(?:ed|s|ing|ment of)?\\b';
+        const someShipped = new RegExp(DEPLOY_VERB + '[^.\\n]{0,60}' + SLUG_RE, 'i').test(entryText)
+            || new RegExp(SLUG_RE + '[^.\\n]{0,60}\\b(?:was |were |had been |been )?deploy(?:ed|s|ing)?\\b', 'i').test(entryText);
         /* AND IT MUST DESCRIBE THIS DEPLOY. A successful entry that keeps the
            history of an earlier attempt ("Completed successfully. The previous
            attempt failed; no deployment occurred in run `Y`.") used to exempt
@@ -1559,7 +1567,11 @@ function main() {
                id falls between the two, and flooring by date discarded it
                before the run-id filter below could see it (Codex, forty-fourth
                round on #1306). The filter decides. */
-            const between = laneDispatchesSince(receiptsMeta.log, '', prior.at)
+            /* The prior run id is the floor, so a dispatch recorded under an
+               UNDATED heading survives the scan on its run id alone; without it
+               the scan dropped such an entry for lacking a date before the
+               filter below could place it (Codex, forty-sixth round on #1306). */
+            const between = laneDispatchesSince(receiptsMeta.log, '', prior.at, prior.run || '')
                 .filter(d => {
                     const r = num(d.run);
                     if (r !== null && lo !== null && hi !== null) return r > lo && r < hi;
@@ -1569,7 +1581,10 @@ function main() {
                 + claim.bundle.captured + ', but the release before the newest one was v'
                 + prior.fns['production-write'].version;
             if (between.length) {
-                notes.push(msg + ' — the ' + between[0].date + ' entry records a `' + between[0].lane
+                const where = between[0].date
+                    ? 'the ' + between[0].date + ' entry'
+                    : (between[0].run ? 'the run `' + between[0].run + '` entry' : 'an undated entry');
+                notes.push(msg + ' — ' + where + ' records a `' + between[0].lane
                     + '` dispatch between the two, and that lane\'s versions are not readable here, so the'
                     + ' version live just before the newest release cannot be derived from this log. The'
                     + ' bundle itself still matches the digest and byte length the newest receipt sealed.');

@@ -2234,6 +2234,31 @@ ok(laneColonBindRun.code === 1 && laneColonBindRun.json
     && laneColonBindRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
     'PUNCTUATION BINDS A LEADING RUN ID TOO: "Run `X`: the `lane` manual dispatch completed successfully" under an OLDER date is newer by its run id, and FAILS');
 
+/* ---- 8au. formatting must not decide the exemption; undated intervening runs (round 46) ---- */
+const partialBareSlug = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The lane failed after deploying production-write. No deployment occurred after that point.',
+    '',
+].join('\n');
+const partialBareSlugRun = run(fixture('partial-bare-slug', appended(partialBareSlug), realRb));
+ok(partialBareSlugRun.code === 1 && partialBareSlugRun.json
+    && partialBareSlugRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'THE SHIPPED FUNCTION COUNTS HOWEVER IT IS WRITTEN: "failed after deploying production-write" is a partial deploy even unquoted, so a later blanket "no deployment occurred" cannot exempt it');
+
+const undatedBetween = [
+    '',
+    '## Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch, run `33600000000`, completed successfully.',
+    '',
+].join('\n');
+const undatedBetweenRun = run(fixture('undated-between', LOG + undatedBetween, rollback({ captures: '64' })));
+ok(undatedBetweenRun.code === 0 && undatedBetweenRun.json
+    && undatedBetweenRun.json.notes.some(n => /run `33600000000` entry records a `deploy-onboarding-edge-functions` dispatch between the two/.test(n)),
+    'AN UNDATED INTERVENING DISPATCH IS STILL INTERVENING: a run id between the two receipts places the entry even with no date on its heading, so the captured version is a NOTE rather than a two-step failure');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

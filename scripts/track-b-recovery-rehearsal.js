@@ -10,7 +10,6 @@ const Module = require('module');
 const cp = require('child_process');
 const { LocalDatabase } = require('./card-change-journal-rehearsal');
 const { setup } = require('./card-history-integrated-rehearsal');
-const { unionImages } = require('./card-materialization-history-rehearsal');
 const backup = require('./track-b-backup');
 const recovery = require('./track-b-recovery-package');
 const { reconstruct, OUTCOMES } = require('./track-b-recovery-reconstruct');
@@ -19,6 +18,12 @@ const CORPUS = process.env.TRACK_B_RECOVERY_TEST_CORPUS || 'history-v7';
 if (!['history-v7','history-v8'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
 const quote = value => "'" + String(value).replaceAll("'", "''") + "'";
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
+// The older data rehearsal intentionally fixes its comparison at v7. This
+// combined schema lane compares the selected corpus, including FK-free owners.
+function unionImages(db) {
+  const sql = backup.resolveCorpus(CORPUS).tables.map(t => `select ${quote(t.name)} as table_name,to_jsonb(t)::text as image from public.${t.name} t`).join(' union all ');
+  return db.rows(`select table_name,image from (${sql}) images order by table_name,image`);
+}
 const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recovery-reconstruct.js',
   'scripts/track-b-recovery-prerequisites.sql', 'scripts/track-b-recovery-rehearsal.js',
   'scripts/track-b-backup.js', 'scripts/track-b-restore-rehearsal.js',
@@ -29,8 +34,9 @@ const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recover
   'migrations/2026-09-05-workload-native-membership.sql',
   'migrations/2026-09-05-card-change-journal.sql', 'migrations/2026-09-05-calendar-feedback-recovery.sql',
   'migrations/2026-09-05-crosswalk-bind-and-import.sql', 'migrations/2026-09-06-native-card-materialization-boundary.sql',
+  ...(CORPUS === 'history-v8' ? [
   'migrations/2026-09-05-native-label-catalog-foundation.sql', 'migrations/2026-09-06-native-label-writes.sql',
-  'migrations/2026-09-06-linear-outbound-cutoff.sql', 'migrations/2026-09-06-native-existing-assignment.sql'];
+  'migrations/2026-09-06-linear-outbound-cutoff.sql', 'migrations/2026-09-06-native-existing-assignment.sql'] : [])];
 // Platform-only prerequisites. No public application table/function/type is
 // recreated manually on the target; the package must reconstruct those.
 const TARGET_PREREQUISITES = `create schema extensions; create extension pgcrypto schema extensions;
@@ -112,6 +118,7 @@ async function run() {
   const captureRole = source.name + '_capture', targetRole = target.name + '_target', quarantineRole = quarantine.name + '_target';
   const capturePassword = crypto.randomBytes(24).toString('hex'), targetPassword = crypto.randomBytes(24).toString('hex');
   const hmac = crypto.randomBytes(32).toString('base64'); let complete = false;
+  let labelReplaySql, labelNewSql, labelCurrent, cutoffReceipt, cutoffState, cutoffDebt;
   try {
     for (const db of databases) db.create();
     setup(source, fs.readFileSync(path.join(ROOT, 'migrations/2026-09-05-calendar-feedback-recovery.sql'), 'utf8'));
@@ -125,7 +132,7 @@ async function run() {
     for (const file of ['2026-09-05-crosswalk-bind-and-import.sql', '2026-09-06-native-card-materialization-boundary.sql']) source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
     if (CORPUS === 'history-v8') for (const file of ['2026-09-05-native-label-catalog-foundation.sql', '2026-09-06-native-label-writes.sql', '2026-09-06-linear-outbound-cutoff.sql', '2026-09-06-native-existing-assignment.sql']) source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
     const seeded = phase(cfg, source, 'seed', '', 'source');
-    check('actual selected37 schema contains four accepted cards and retained unknown ingress', () => {
+    check('actual selected corpus schema contains four accepted cards and retained unknown ingress', () => {
       assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS === 'history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
       assert.ok(seeded.value.held.ingress_id); assert.equal(seeded.value.provider_attempts, 0);
       for (const table of backup.resolveCorpus(CORPUS).tables) assert.notEqual(source.query('select to_regclass(' + quote('public.' + table.name) + ')'), '');
@@ -137,16 +144,23 @@ async function run() {
       source.query(`set role service_role;select public.production_label_catalog_stage_attested(${quote(labelVersion)}::uuid,${quote(JSON.stringify(manifest))}::jsonb,${quote(JSON.stringify(attestation))}::jsonb);`);
       source.query(`update public.syncview_runtime_flags set value=${quote(JSON.stringify({schema_version:1,mode:'native',version_id:labelVersion}))}::jsonb where key='production_native_label_catalog';`);
       assert.equal(source.query("select count(*) from public.production_label_catalog_versions"), '1'); assert.equal(source.query("select count(*) from public.linear_outbound_cutoff_control where lane='mirror_outbox'"), '1');
-      assert.equal(source.query("select (public.linear_outbound_cutoff_activate_v1(0,'synthetic-operator')->>'cutoff_enabled')"), 'true');
-      assert.notEqual(source.raw("select public.linear_outbound_claim_v1(0,'synthetic-claim',0)").status,0);
       const labelRow=source.rows("select id,client_slug,team,updated_at from public.deliverables where team='video' order by id limit 1")[0]; assert.ok(labelRow);
       source.query(`update public.deliverables set linear_raw=${quote(JSON.stringify({issue:{labelIds:[],labels:{nodes:[],pageInfo:{hasNextPage:false,endCursor:null}}}}))}::jsonb where id=${quote(labelRow.id)};`);
       const current=source.rows(`select * from public.deliverables where id=${quote(labelRow.id)}`)[0], generation=Number(source.query("select generation from public.track_b_f27_team_fences where team='video'"));
-      const labelEvent={surface:'production',auth_kind:'staff',source:'ui',action:'labels_change',actor:'synthetic-operator',role:'admin',expected_updated_at:current.updated_at,outbound:{operation:'labels',entity:'deliverable',entity_id:current.id,test_only:false,legacy_parity:false,dedup_key:'write-ui:labels:deliverable:'+current.id+':v8',payload:{_intent_fingerprint:'v8-native-label-receipt',_native_label_catalog_version:labelVersion,label_ids:[],_f27_authority_generation:generation}}};
+      const labelEvent={surface:'production',auth_kind:'staff',source:'ui',action:'labels_change',actor:'synthetic-operator',role:'admin',expected_updated_at:current.updated_at,outbound:{operation:'labels',entity:'deliverable',entity_id:current.id,test_only:false,legacy_parity:false,dedup_key:'write-ui:labels:deliverable:'+current.id+':v8',payload:{_intent_fingerprint:'v8-native-label-receipt',_native_label_catalog_version:labelVersion,label_ids:[node.id],_f27_authority_generation:generation}}};
       const shape=source.rows(`select jsonb_typeof(linear_raw->'issue'->'labels'->'nodes') nodes_type,jsonb_typeof(linear_raw->'issue'->'labelIds') ids_type from public.deliverables where id=${quote(current.id)}`)[0];
       assert.deepEqual(shape,{nodes_type:'array',ids_type:'array'}); assert.equal(Array.isArray(labelEvent.outbound.payload.label_ids),true);
       source.query(`set role service_role;select public.production_labels_write(${quote(JSON.stringify(current))}::jsonb,${quote(JSON.stringify(labelEvent))}::jsonb);`);
       assert.equal(source.query("select count(*) from public.mirror_outbox where payload ? '_native_label_catalog_version' and status='skipped'"), '1');
+      labelReplaySql = `set role service_role;select to_jsonb(public.production_labels_write(${quote(JSON.stringify(current))}::jsonb,${quote(JSON.stringify(labelEvent))}::jsonb))::text;`;
+      source.query(`update public.deliverables set title='Later retained human label title' where id=${quote(current.id)};`);
+      labelCurrent = source.rows(`select * from public.deliverables where id=${quote(current.id)}`)[0];
+      assert.deepEqual(labelCurrent.linear_raw.issue.labelIds, [node.id]);
+      const newEvent = JSON.parse(JSON.stringify(labelEvent));
+      newEvent.expected_updated_at = labelCurrent.updated_at;
+      newEvent.outbound.dedup_key += '-new'; newEvent.outbound.payload._intent_fingerprint += '-new';
+      labelNewSql = `set role service_role;select public.production_labels_write(${quote(JSON.stringify(labelCurrent))}::jsonb,${quote(JSON.stringify(newEvent))}::jsonb);`;
+      source.query(`update public.syncview_runtime_flags set value='{"schema_version":1,"mode":"hold","version_id":null}'::jsonb where key='production_native_label_catalog';`);
     } else assert.equal(source.query("select to_regclass('public.production_label_catalog_versions')"), '');
     });
     const deliverable = source.rows("select id,team from public.deliverables where team='video' order by id limit 1")[0];
@@ -163,6 +177,19 @@ async function run() {
     check('canonical note and its accepted receipt coexist with actual native card receipts', () => {
       assert.equal(source.query("select count(*) from public.production_comments where id='schema-v7-comment'"), '1');
       assert.equal(source.query("select count(*) from public.mirror_outbox where dedup_key='schema-v7-add'"), '1');
+    });
+    if (CORPUS === 'history-v8') check('cutoff retains a real pre-cutoff queued receipt and refuses its valid lease request', () => {
+      cutoffReceipt = source.rows("select id,status,outbound_generation from public.mirror_outbox where dedup_key='schema-v7-add'")[0];
+      assert.equal(cutoffReceipt.status, 'pending'); assert.equal(cutoffReceipt.outbound_generation, 0);
+      // Roll back an actual successful claim to prove this exact row and call
+      // were eligible before cutoff; no external worker is run.
+      assert.equal(source.query(`begin;set role service_role;select (public.linear_outbound_claim_v1(${cutoffReceipt.id},'pending',600) is not null)::text;rollback;`), 'true');
+      assert.equal(source.query("select (public.linear_outbound_cutoff_activate_v1(0,'synthetic-operator')->>'cutoff_enabled')"), 'true');
+      assert.equal(source.query(`set role service_role;select (public.linear_outbound_claim_v1(${cutoffReceipt.id},'pending',600) is null)::text;`), 'true');
+      cutoffState = source.rows("select * from public.linear_outbound_cutoff_control order by lane");
+      cutoffDebt = source.rows("select * from public.linear_outbound_cutoff_debt_v1 order by id");
+      assert.equal(cutoffState[0].generation, 1);
+      assert.equal(cutoffDebt.find(r => String(r.id) === String(cutoffReceipt.id)).disposition, 'unclaimed_before_cutoff');
     });
     source.query(`create sequence public.synthetic_large_seq as bigint; select setval('public.synthetic_large_seq',9007199254740993,true);
       create sequence public.synthetic_uncalled_seq as bigint start with 9000; create sequence public.synthetic_fresh_seq as bigint;
@@ -217,9 +244,10 @@ async function run() {
       const large = pkg.manifest.sequences.find(s => s.name === 'synthetic_large_seq'); assert.equal(large.last_value, '9007199254740993');
       assert.equal(pkg.manifest.sequences.find(s => s.name === 'synthetic_uncalled_seq').is_called, false);
     });
-    check('wrong HMAC and prior35 data reader refuse the37 package', () => {
+    check('wrong HMAC and prior data readers refuse the selected newer package', () => {
       assert.throws(() => recovery.readRecoveryPackage(bytes, crypto.randomBytes(32).toString('base64')), /authentication failed/);
       assert.throws(() => backup.parseStrictPgDump(pkg.data, 'history-v6'), /Unexpected table/);
+      if (CORPUS === 'history-v8') assert.throws(() => backup.parseStrictPgDump(pkg.data, 'history-v7'), /Unexpected table/);
     });
     const diagnosticDir = path.join(cfg.output, 'diagnostics');
     check('data alone cannot reconstruct the empty target', () => {
@@ -234,7 +262,7 @@ async function run() {
       let error; try { reconstruct(malformed, targetEnv, { psql: cfg.psql, diagnosticDir }); } catch (e) { error = e; }
       assert.ok(error); assert.equal(error.outcome, OUTCOMES.ROLLED_BACK); assert.equal(error.receipt.retry_in_place_allowed, true); assert.equal(publicCount(target), '0');
     });
-    check('late final-table COPY refusal rolls earlier schema and data back', () => {
+    check('late37th-table COPY refusal rolls earlier schema and data back', () => {
       const section = backup.parseStrictPgDump(pkg.data, CORPUS).tables.production_card_materialization_ingress;
       const text = pkg.data.toString('utf8'), header = `COPY public.production_card_materialization_ingress (${section.columns.join(', ')}) FROM stdin;`;
       const at = text.indexOf(header); assert.ok(at >= 0); const start = at + header.length + 1, end = text.indexOf('\n', start);
@@ -284,6 +312,30 @@ async function run() {
     check('restored canonical add receipt replays without duplicating current or historical rows', () => {
       const beforeReplay = unionImages(target); target.query(commentSql); assert.deepEqual(unionImages(target), beforeReplay);
     });
+    if (CORPUS === 'history-v8') {
+      check('restored accepted native label receipt replays current edited state under hold without any corpus mutation', () => {
+        const beforeReplay = unionImages(target);
+        assert.deepEqual(JSON.parse(target.query(labelReplaySql)), labelCurrent);
+        assert.deepEqual(unionImages(target), beforeReplay);
+        const refused = target.raw(labelNewSql); assert.notEqual(refused.status, 0);
+        assert.match(refused.stderr, /native_label_catalog_held/); assert.deepEqual(unionImages(target), beforeReplay);
+      });
+      check('restored cutoff generation and debt preserve stale-worker refusal and restricted catalog access', () => {
+        const prior = unionImages(target);
+        assert.deepEqual(target.rows("select * from public.linear_outbound_cutoff_control order by lane"), cutoffState);
+        assert.deepEqual(target.rows("select * from public.linear_outbound_cutoff_debt_v1 order by id"), cutoffDebt);
+        assert.equal(target.query(`set role service_role;select (public.linear_outbound_claim_v1(${cutoffReceipt.id},'pending',600) is null)::text;`), 'true');
+        const refused = target.raw("set role service_role;select public.linear_outbound_cutoff_activate_v1(0,'synthetic-operator');");
+        assert.notEqual(refused.status, 0); assert.match(refused.stderr, /linear_cutoff_generation_conflict/);
+        for (const role of ['anon', 'authenticated']) for (const table of ['production_label_catalog_versions','linear_outbound_cutoff_control']) {
+          const read = target.raw(`set role ${role};select * from public.${table}`); assert.notEqual(read.status, 0); assert.match(read.stderr, /permission denied/);
+        }
+        for (const statement of ['update public.production_label_catalog_versions set manifest=manifest','delete from public.production_label_catalog_versions','truncate public.production_label_catalog_versions']) {
+          const write = target.raw(statement); assert.notEqual(write.status, 0); assert.match(write.stderr, /label_catalog_immutable/);
+        }
+        assert.deepEqual(unionImages(target), prior);
+      });
+    }
     check('post-COMMIT verification transport refusal preserves the complete quarantined target', () => {
       const seam = postCommitRefusal(), env = connectionEnv(cfg, quarantine, quarantineRole, targetPassword);
       let error; try { seam.reconstruct(pkg, env, { psql: cfg.psql, diagnosticDir }); } catch (e) { error = e; }

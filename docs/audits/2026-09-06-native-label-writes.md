@@ -1,4 +1,4 @@
-﻿# Native labels: cloud correction and executable native-save proof
+# Native labels: cloud correction and executable native-save proof
 
 Exact input: integration8514a83ed1a65145a3a51ffe52e5fcbb2976be31. The applied cloud proposal is preserved as its own892894e1b commit. Current remote main5ed005c was observed separately, not integrated. The [catalog contract](../ops/NATIVE_LABEL_CATALOG_FOUNDATION.md) remains subordinate to the single go-live checklist. This source is draft/uninstalled and no release gate is promoted.
 

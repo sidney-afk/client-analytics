@@ -61,9 +61,11 @@
     "background_drains": 0
   },
   "offline": {
-    "status": "pending final repeat",
+    "status": "PASS",
     "groups": 44,
-    "scope": "actual gateway with RPC-shaped in-process model plus three actual browser-source VM controls"
+    "source_sha256": "a3b3344df78103c565ddf2971ea8c533f31d7f31165205155997ec65cec46dcb",
+    "scope": "actual gateway with RPC-shaped in-process model plus three actual browser-source VM controls",
+    "receipt_log_sha256": "68d49d3255be7110ea5700a7c43fd3533a66d514038aec3e7c4728060f1e6aab"
   },
   "held": [
     "uninstalled; no serving proof",
@@ -78,5 +80,13 @@
     "fixture UTC serialization mismatch",
     "actual incoming FK refused TRUNCATE before intended trigger; explicit RESTRICT dependency control corrected",
     "new actor fixture UUID already used; replaced with unique fictional ID"
+  ],
+  "affected_checks": [
+    "production-write-gateway PASS",
+    "write-ui-failure-messages PASS",
+    "batch-parent-labels-terminate PASS",
+    "b1-workload-labels-preserved PASS",
+    "repo-map-sync454/0",
+    "truth-sync542/0"
   ]
 }

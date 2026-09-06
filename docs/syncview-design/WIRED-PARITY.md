@@ -1021,6 +1021,10 @@ links are not gonna change."
     refusal, the upload placeholder guard on Save, the conflict/CAS flow.
 -   **Environment.** One new body-mounted element, `#prodDescLinkPop`
     (`.prod-linkpop`, z-index 10000 with the toast; `ADAPTER.md`).
+-   **Review round (Codex on #1320).** Tab is left to the browser; Remove
+    link gives focus and the caret back; a URL the plain Markdown forms
+    cannot carry goes out in the angle form, and the card refuses `[ ]` in
+    text and `< >` in an address with a note.
 -   **Suites.** `test/prod-description-rich-editor.js` (Markdown → editor HTML
     in Node, the wiring contracts, the shared box), the in-place section of
     `docs/syncview-design/tests/prod-write-gateway-browser.js` (pixel-equal

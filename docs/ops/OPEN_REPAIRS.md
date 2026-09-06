@@ -13156,3 +13156,14 @@ Stated as a claim.
 5. Submit-tab notes (C1/C2). Recommend: no; they are typed once and land in
    this panel, where they are editable in place.
 
+**Round one (Codex on #1320): three taken.** [P1] Tab was swallowed by the
+editor and trapped keyboard focus; it is left to the browser now. [P1]
+Remove link detached the anchor before the card's hide routine looked for
+the editor through it, so focus stayed on the hidden card; the root and
+caret are taken first and given back. [P2] A link text with `]` or an
+address with `)` serialized to Markdown the parser could not read back;
+addresses that the plain forms cannot carry now go out in the angle form,
+and the card refuses `[ ]` in text and `< >` in an address with a visible
+note. The lane also gained per-section phase markers after the first CI
+red reported under an assignee phase.
+

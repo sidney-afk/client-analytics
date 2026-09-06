@@ -3265,6 +3265,7 @@
         .prod-linkpop-field span { width: 30px; color: var(--prod-muted); }
         .prod-linkpop-field input { flex: 1 1 auto; min-width: 0; min-height: 26px; border: 1px solid var(--prod-border-soft); border-radius: 6px; padding: 0 7px; font: inherit; font-size: 12px; background: var(--prod-surface); color: var(--prod-strong); outline: none; }
         .prod-linkpop-field input:focus { border-color: var(--prod-accent); }
+        .prod-linkpop-note { padding: 0 2px; color: var(--prod-overdue, #eb5757); font-size: 11px; line-height: 16px; }
         .prod-linkpop-actions { display: flex; align-items: center; gap: 4px; }
         .prod-linkpop-spacer { flex: 1 1 auto; }
         .prod-description-state { margin-top: 8px; border-radius: 7px; padding: 8px 10px; background: var(--prod-hover); color: var(--prod-muted); font-size: 12px; line-height: 18px; }
@@ -56390,8 +56391,13 @@
             if (tag === 'A') {
               const href = n.getAttribute('href') || '';
               const form = n.getAttribute('data-md') || 'named';
-              if (form === 'bare' && inner === href) { out += href; return; }
-              if (form === 'angle') { out += '[' + (inner || href) + '](<' + href + '>)'; return; }
+              /* A URL with whitespace or a `)` in it, or one ending in the
+                 punctuation a bare link sheds, cannot survive the plain forms: it
+                 goes out as `[label](<url>)`, which the parser reads back exactly
+                 (Codex on #1310's follow-up, #1320). */
+              const fragile = /[\s)]/.test(href) || /[)\].,!?;*]$/.test(href);
+              if (form === 'bare' && inner === href && !fragile) { out += href; return; }
+              if (form === 'angle' || fragile) { out += '[' + (inner || href) + '](<' + href + '>)'; return; }
               out += '[' + (inner || href) + '](' + href + ')';
               return;
             }
@@ -56799,7 +56805,9 @@
             if (_prodDescRichJoinForward(root)) { event.preventDefault(); return true; }
             return false;
           }
-          if (event.key === 'Tab') { event.preventDefault(); return true; }
+          /* Tab is deliberately NOT taken: there is no indentation to perform, and
+             a keyboard user has to be able to reach Markdown, Cancel and Save
+             (Codex on #1320). */
           return false;
         }
         /* ---- Link popover ------------------------------------------------------
@@ -56824,6 +56832,7 @@
             + '<form class="prod-linkpop-form" data-prod-linkpop-form>'
             + '<label class="prod-linkpop-field"><span>Text</span><input data-prod-linkpop-text autocomplete="off" spellcheck="false"></label>'
             + '<label class="prod-linkpop-field"><span>URL</span><input data-prod-linkpop-href autocomplete="off" spellcheck="false" placeholder="https://"></label>'
+            + '<div class="prod-linkpop-note" data-prod-linkpop-note hidden></div>'
             + '<div class="prod-linkpop-actions"><button type="button" class="prod-linkpop-btn" data-prod-linkpop="remove">Remove link</button><span class="prod-linkpop-spacer"></span>'
             + '<button type="button" class="prod-linkpop-btn" data-prod-linkpop="cancel">Cancel</button><button type="submit" class="prod-linkpop-btn prod-linkpop-apply">Apply</button></div></form>';
           document.body.appendChild(el);
@@ -56898,6 +56907,7 @@
           _prodDescLinkPop.editing = true;
           el.classList.add('is-editing');
           el.querySelector('[data-prod-linkpop-text]').value = anchor.hasAttribute('data-md-new') ? '' : (anchor.textContent || '');
+          el.querySelector('[data-prod-linkpop-note]').hidden = true;
           el.querySelector('[data-prod-linkpop-href]').value = anchor.getAttribute('href') || '';
           _prodDescLinkPopPlace(anchor);
           const focus = el.querySelector(anchor.getAttribute('href') ? '[data-prod-linkpop-text]' : '[data-prod-linkpop-href]');
@@ -56915,8 +56925,15 @@
           if (!anchor || !anchor.isConnected || !el) { _prodDescLinkPopHide(true); return false; }
           const text = String(el.querySelector('[data-prod-linkpop-text]').value || '').trim();
           let href = String(el.querySelector('[data-prod-linkpop-href]').value || '').trim();
+          const note = el.querySelector('[data-prod-linkpop-note]');
+          const refuse = (field, why) => { note.textContent = why; note.hidden = false; el.querySelector(field).focus(); return false; };
           if (href && !/^https?:\/{2}/i.test(href)) href = 'https://' + href;
-          if (!/^https?:\/{2}\S+$/i.test(href)) { el.querySelector('[data-prod-linkpop-href]').focus(); return false; }
+          if (!/^https?:\/{2}\S+$/i.test(href)) return refuse('[data-prod-linkpop-href]', 'Enter a full https:// address.');
+          /* The Markdown forms cannot carry these: a `]` ends the label and `<`
+             or `>` end the angle URL. Said here, not lost at the next render. */
+          if (/[\[\]]/.test(text)) return refuse('[data-prod-linkpop-text]', 'Link text cannot contain [ or ].');
+          if (/[<>]/.test(href)) return refuse('[data-prod-linkpop-href]', 'The address cannot contain < or >.');
+          note.hidden = true;
           anchor.setAttribute('href', href);
           anchor.textContent = text || href;
           anchor.setAttribute('data-md', text && text !== href ? 'named' : 'bare');
@@ -56930,9 +56947,25 @@
           const anchor = _prodDescLinkPop.anchor;
           if (!anchor || !anchor.isConnected) { _prodDescLinkPopHide(true); return false; }
           const root = anchor.closest('[contenteditable="true"]');
-          while (anchor.firstChild) anchor.parentNode.insertBefore(anchor.firstChild, anchor);
+          /* The root and the caret are taken BEFORE the anchor goes, because the
+             hide routine finds them through the anchor (Codex on #1320). */
+          let last = null;
+          while (anchor.firstChild) { last = anchor.firstChild; anchor.parentNode.insertBefore(last, anchor); }
+          const parent = anchor.parentNode;
           anchor.remove();
+          _prodDescLinkPop.anchor = null;
           _prodDescLinkPopHide(true);
+          if (root) {
+            try { root.focus({ preventScroll: true }); } catch (e) {}
+            const sel = window.getSelection && window.getSelection();
+            if (sel && parent) {
+              const r = document.createRange();
+              if (last && last.parentNode) r.setStartAfter(last); else r.setStart(parent, 0);
+              r.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(r);
+            }
+          }
           _prodDescLinkPopNotify(root);
           return true;
         }

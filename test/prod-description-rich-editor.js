@@ -145,6 +145,20 @@ const linkify = grabFunc(INDEX, 'function _prodLinkify(');
 ok(/const blockPart = part => /.test(linkify) && /!blockPart\(part\) \? '<br>' : ''/.test(linkify),
   'the read renderer no longer draws a spare empty line after a heading, rule, bullet or image');
 
+/* ---- 3b. Codex on #1320 --------------------------------------------------- */
+console.log('the keyboard can leave, fragile URLs survive, Remove gives focus back');
+const keys = grabFunc(INDEX, 'function _prodDescRichKeydown(');
+ok(!/'Tab'/.test(keys), 'Tab is not taken by the editor, so focus can reach Markdown, Cancel and Save');
+const serial = grabFunc(INDEX, 'function _prodDescRichSerializeInline(');
+ok(/const fragile = \/\[\\s\)\]\/\.test\(href\) \|\| \/\[\)\\\]\.,!\?;\*\]\$\/\.test\(href\);/.test(serial) && /if \(form === 'angle' \|\| fragile\)/.test(serial),
+  'a URL with whitespace, a ) or trailing punctuation is serialized in the angle form the parser reads back exactly');
+const apply = grabFunc(INDEX, 'function _prodDescLinkPopApply(');
+ok(/Link text cannot contain \[ or \]\./.test(apply) && /The address cannot contain < or >\./.test(apply) && /data-prod-linkpop-note/.test(apply),
+  'the card refuses a label with [ ] or an address with < >, with a visible note');
+const remove = grabFunc(INDEX, 'function _prodDescLinkPopRemove(');
+ok(/root\.focus\(\{ preventScroll: true \}\)/.test(remove) && /r\.setStartAfter\(last\)/.test(remove), 'Remove link returns focus and the caret to the editor');
+ok(/\.prod-linkpop-note \{/.test(INDEX), 'and the note is styled');
+
 /* ---- 4. Artifact first ---------------------------------------------------- */
 console.log('the artifact carries the same editor');
 ok(/function descRichBuild\(/.test(ARTIFACT) && /function descRichSerialize\(/.test(ARTIFACT) && /function descLinkPopShow\(/.test(ARTIFACT), 'the module lives in the design artifact');

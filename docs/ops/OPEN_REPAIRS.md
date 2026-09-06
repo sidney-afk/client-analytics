@@ -12846,6 +12846,51 @@ is either clean or one of the 7 named for a person, and the runner's plan
 summary lists those 7 by reason on every run. Item 147's residue and the "Still
 open" list above are the whole of what is left.
 
+### The seven, ruled (same day, late evening UTC) — six "leave", one one-row move; the repair set is closed
+
+The owner looked at each of the 7 slots the runner refuses for a person, with
+both sides named (the card, the issue it links, and the card that holds the
+deliverable), and ruled every one. This public file keeps only the aggregate:
+the per-row topology would let a reader re-run the classifier against the
+anonymously readable tables and pick out each row, so the per-row rulings live
+in the session record, and the runner's plan summary is the live list, by
+reason, on every run.
+
+| | count |
+|---|---|
+| ruled "leave" | 6 |
+| ruled "move" (one guarded row update by the owner) | 1 |
+| by reason: already_bound_elsewhere / client_mismatch / linear_identity_unproven | 5 / 1 / 1 |
+
+What the "leave" rulings are, in kind and without pointing at rows: archived
+duplicate cards whose live twin already holds the deliverable and links the
+same issue; a pair of live cards that correctly share one Linear issue because
+that client's work was tracked as one issue per filming day at the time; an
+unstarted thumbnail on an archived card with no Linear link to prove identity;
+and an archived card pointing at another client's issue (the item 147 §2 case),
+which is never bound. The "move" is one of the owner's standing rulings applied by hand to one
+row (`EXECUTION_LOG.md`, 2026-09-05, "one-row crosswalk re-point"); the
+ledger guard wrote its bare `update` event.
+Re-read with the runner's own classifier minutes later: still 7 mismatching, 0
+bindable, the same three reasons — and every one of the 7 now carries a ruling.
+One unused auto-made Graphics issue that surfaced during the review can be
+retired whenever the owner likes — **through SyncView's native status path,
+not by editing Linear**: Graphics is SyncView-authoritative, so `linear-inbound`
+treats a manual Linear status edit as detect-only and reconciliation would put
+it back; a native cancel goes out through the outbox with the F27 binder like
+tonight's eleven did.
+
+The RPC refuses `already_bound_elsewhere` without asking what kind of card
+holds the row. That is deliberate — a person decided each of these — and the
+owner's rulings about which card wins are recorded here, not encoded, until a
+case shows they need to be.
+
+This closes Phase 3 (b) in `CROSSWALK_REPAIR_STRATEGY.md` §5 for the slot
+set of this evening: every remaining mismatch has a ruling, counted here and
+recorded per row in the owner's private session (the `Claude-Session` trailer
+on PR #1312's commits). A slot that appears later is unruled until a person
+rules on it. (c), the browser-side readback, is still open.
+
 ## 157. [2026-09-05, BUILT — live once the owner applies one migration and the deploy lane runs] Pasting an image into a description, the other half
 
 **What.** Owner, 2026-09-05: *"paste an image on the description of parent

@@ -76,3 +76,10 @@ live TEST-client journeys, the Samples surface, legacy `tweaks`-alias
 reconciliation, replay of a missing native status, and any behavior after a
 later native lifecycle change remain outside this lane and are release gates
 owned by the coordinator.
+# Local database boundary
+
+The fixture drops and recreates its own database names. External `PGHOST` or
+`CALENDAR_RECOVERY_PG` configuration is accepted only for loopback addresses or
+local Unix sockets, with a valid port; remote targets refuse before any database
+probe. `test/calendar-feedback-recovery-local-target.js` checks that boundary
+without opening a connection. Use a separately owned disposable server.

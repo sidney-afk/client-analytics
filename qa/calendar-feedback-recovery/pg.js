@@ -98,14 +98,26 @@ class Db {
 }
 
 class Cluster {
-  static fromEnv() {
+  static fromEnv(env = process.env) {
     // CI provides a disposable postgres:16 service through the standard PG*
     // variables (calendar-unit-tests.yml); CALENDAR_RECOVERY_PG=host:port:user
     // names one explicitly. Either way psql inherits PGPASSWORD from the env.
-    const spec = process.env.CALENDAR_RECOVERY_PG;
-    if (spec) { const [host, port, user] = spec.split(':'); return { host, port: Number(port), user: user || 'postgres', external: true, stop() {} }; }
-    if (process.env.PGHOST) return { host: process.env.PGHOST, port: Number(process.env.PGPORT || 5432), user: process.env.PGUSER || 'postgres', external: true, stop() {} };
-    return null;
+    const spec = env.CALENDAR_RECOVERY_PG;
+    let conn;
+    if (spec) {
+      const match = /^(\[[^\]]+\]|[^:]+):(\d+)(?::([^:]+))?$/.exec(spec);
+      if (!match) throw new Error('calendar_recovery_local_connection_required');
+      conn = { host: match[1].replace(/^\[|\]$/g, ''), port: Number(match[2]), user: match[3] || 'postgres' };
+    } else if (env.PGHOST) conn = { host: env.PGHOST, port: Number(env.PGPORT || 5432), user: env.PGUSER || 'postgres' };
+    else return null;
+    // The lane drops and recreates its fixture database. Reject remote PG*
+    // configuration before probing availability or running any SQL.
+    const localSocket = process.platform !== 'win32' && conn.host.startsWith('/') && path.isAbsolute(conn.host);
+    if (!['127.0.0.1', '::1', 'localhost'].includes(conn.host) && !localSocket
+        || !Number.isInteger(conn.port) || conn.port < 1 || conn.port > 65535) {
+      throw new Error('calendar_recovery_local_connection_required');
+    }
+    return { ...conn, external: true, stop() {} };
   }
   static available() {
     return !!Cluster.fromEnv() || !!(pgBin('initdb') !== 'initdb' || spawnSync('bash', ['-lc', 'command -v initdb'], { encoding: 'utf8' }).status === 0);

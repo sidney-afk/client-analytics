@@ -764,7 +764,16 @@ function recordsADispatch(log, k, len) {
        (Codex, thirty-fifth round on #1306). Removed before the clause is read
        so it can neither make a plan nor hide one. */
     const RETROSPECTIVE = /\b(?:just |exactly |right )?as (?:planned|scheduled|expected|intended|arranged|agreed)\b/gi;
-    const norm = text => text.replace(RETROSPECTIVE, ' ').replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ').replace(FAILED_RUN, ' NEGATED ');
+    /* A FAILURE THAT NAMES WHAT IT DEPLOYED IS NOT "NOTHING SHIPPED". The
+       onboarding lane deploys its functions one after another, so "failed
+       after deploying `production-write` (run `X`)" left a guarded function
+       live (Codex, thirty-ninth round on #1306). Failure wording is read as a
+       negation only when the text does not also say one of the four went out. */
+    const SHIPPED_ONE = new RegExp('\\bdeploy(?:ed|ing|s)?\\b[^.\\n]{0,40}`(?:' + SLUGS.join('|') + ')`', 'i');
+    const norm = text => {
+        const t = text.replace(RETROSPECTIVE, ' ').replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ');
+        return SHIPPED_ONE.test(t) ? t : t.replace(FAILED_RUN, ' NEGATED ');
+    };
     /* PLANNING THE DISPATCH IS NOT PLANNING THE FOLLOW-UP. A forward-looking
        word makes a plan only when no completion word precedes it in the text
        considered: "completed successfully and will be smoke-tested tomorrow
@@ -1120,14 +1129,26 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            deployed via F27 Section 4" records a deploy that happened (Codex,
            twenty-eighth round). "NOT DISPATCHED" is the same idea in the log's
            own words. */
-        const deployAhead = /\b(awaits?|awaiting|pending|before|until|not yet|to be|planned|upcoming|will|would|without|ahead of)\b[^\n]{0,40}?\b(?:deploy(?:ment)?|release|ship|rollout|cutover)\b/i.test(h.text)
-            || /\b(not yet|never|not|to be|will be|would be|yet to be|still to be)\s+(?:\w+\s+)?deployed\b/i.test(h.text)
+        /* A LEADING TEMPORAL PHRASE DOES NOT MAKE THE DEPLOY FORWARD-LOOKING.
+           "Before lunch, F27 Section 4 deployment completed, run `X`" records a
+           deploy that happened; the "before" belongs to the time of day, not to
+           the deployment (Codex, thirty-ninth round on #1306). The same rule
+           the lane parser applies to introductions: a leading phrase ending in
+           a comma, ahead of the shipping word, is dropped before the heading is
+           judged. */
+        const headMain = (() => {
+            const w = h.text.search(/\b(?:deploy|releas|shipp|rollout|cutover)/i);
+            const cut = w > 0 ? h.text.lastIndexOf(',', w) : -1;
+            return cut > 0 ? h.text.slice(cut + 1) : h.text;
+        })();
+        const deployAhead = /\b(awaits?|awaiting|pending|before|until|not yet|to be|planned|upcoming|will|would|without|ahead of)\b[^\n]{0,40}?\b(?:deploy(?:ment)?|release|ship|rollout|cutover)\b/i.test(headMain)
+            || /\b(not yet|never|not|to be|will be|would be|yet to be|still to be)\s+(?:\w+\s+)?deployed\b/i.test(headMain)
             /* and the plan noun after the deployment noun: "deployment plan
                approved for tomorrow" (Codex, thirty-first round on #1306). */
-            || /\bdeploy(?:ment)?\s+(?:plan|planning|schedule|proposal|checklist|readiness|rehearsal|preview|window|slot)\b/i.test(h.text)
+            || /\bdeploy(?:ment)?\s+(?:plan|planning|schedule|proposal|checklist|readiness|rehearsal|preview|window|slot)\b/i.test(headMain)
             /* and the forward word after the shipping noun: "release planned
                for Monday", "cutover scheduled" (Codex, thirty-fifth round). */
-            || /\b(?:deploy(?:ment)?|releas(?:e|ing)|shipping|rollout|cutover)\s+(?:is |was |has been |to be )?(?:planned|planning|scheduled|proposed|pending|upcoming|awaited|owed)\b/i.test(h.text);
+            || /\b(?:deploy(?:ment)?|releas(?:e|ing)|shipping|rollout|cutover)\s+(?:is |was |has been |to be )?(?:planned|planning|scheduled|proposed|pending|upcoming|awaited|owed)\b/i.test(headMain);
         /* A DEPLOY THAT FAILED WITHOUT DEPLOYING ANYTHING CANNOT HAVE A
            RECEIPT, and the log keeps those attempts as history (run #37 on
            2026-09-05 is one). Both halves are required -- a failure word AND an

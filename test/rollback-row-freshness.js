@@ -2003,6 +2003,50 @@ ok(brokenOlderRunRun.code === 0 && brokenOlderRunRun.json
     && brokenOlderRunRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy notes"/.test(n)),
     'while the same block naming an OLDER run stays a note: it predates the newest receipt by both its date and the run it carries');
 
+/* ---- 8an. temporal headings; failures that shipped something (round 39) ----- */
+const headBeforeLunch = [
+    '',
+    '## 2026-09-06 — Before lunch, F27 Section 4 deployment completed, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+].join('\n');
+const headBeforeLunchRun = run(fixture('head-before-lunch', appended(headBeforeLunch), realRb));
+ok(headBeforeLunchRun.code === 1 && headBeforeLunchRun.json
+    && headBeforeLunchRun.json.failures.some(f => /Before lunch, F27 Section 4 deployment completed/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A LEADING TEMPORAL PHRASE DOES NOT MAKE A HEADING FORWARD-LOOKING: "Before lunch, F27 Section 4 deployment completed, run `X`" records a deploy and is asked for its receipt');
+const headBeforeDeploy = [
+    '',
+    '## 2026-09-06 — Gateway half merged, before the F27 Section 4 deploy',
+    '',
+    'The closure is pinned; nothing has shipped yet.',
+    '',
+].join('\n');
+const headBeforeDeployRun = run(fixture('head-before-deploy', appended(headBeforeDeploy), realRb));
+ok(headBeforeDeployRun.code === 0,
+    'while a "before" that really does govern the deploy still marks the heading forward-looking, and asks for nothing');
+const laneFailedAfterOne = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed after deploying `production-write` (run `33995000000`).',
+    '',
+].join('\n');
+const laneFailedAfterOneRun = run(fixture('lane-failed-after-one', appended(laneFailedAfterOne), realRb));
+ok(laneFailedAfterOneRun.code === 1 && laneFailedAfterOneRun.json
+    && laneFailedAfterOneRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A FAILURE THAT NAMES WHAT IT DEPLOYED IS NOT "NOTHING SHIPPED": the lane deploys its functions one after another, so a run that failed after `production-write` went out left a guarded function live, and it FAILS');
+const laneFailedNothingAtAll = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed without deploying any function (run `33995000000`).',
+    '',
+].join('\n');
+const laneFailedNothingAtAllRun = run(fixture('lane-failed-nothing-at-all', appended(laneFailedNothingAtAll), realRb));
+ok(laneFailedNothingAtAllRun.code === 0,
+    'while a failure that names no function it deployed still asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

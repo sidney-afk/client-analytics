@@ -51,6 +51,18 @@ no change. This test-only delta can be reverted without changing saved work.
 
 ## Release and integration holds
 
+### Explicit materialization extension, 2026-09-06
+
+The combined dormant card boundary adds `history-v7`, exact37: the unchanged
+v6 corpus plus its two UUID-keyed retained materialization owners. Formats
+v3/v4/v5/v6 keep their original identities and 14/21/33/35 table counts.
+The [final recovery record](../audits/2026-09-06-native-card-materialization-recovery.md)
+documents 12 actual local groups against the final SQL, including four original
+accepted envelopes, exact37 row images, non-UTC current-row replay and late-COPY
+rollback. The separate v7 prerequisite artifact is unapplied outside disposable
+fixtures. This extension does not repair the authenticated schema reconstruction
+hold below or add label-catalog coverage.
+
 1. Install required native manifest/epoch RPCs before the new production-write serving revision: provider-default intake also calls `production_intake_epoch_read`. Then prove exact gateway/feedback-reader serving revisions before exposing dependent frontend flows. Never redeploy or re-gate the frozen anonymous writers to accomplish this.
 2. Prove frontend comment/save-failure continuity before installing journal/provenance triggers; either recorder's failure aborts its business transaction. Existing separate browser or SQL passes do not prove combined write/recovery behavior.
 3. Complete an authenticated schema + data capture and empty-target, trigger-aware restoration for this35-table corpus before calling it recoverable. The v6 grant artifact supplies no schema bundle. Source catalog preflight is separate from the data snapshot and cannot rule out concurrent DDL drift. The separate PR1313 schema effort must consume this object inventory; it is not silently expanded here. The label catalog remains outside35 and install-held.

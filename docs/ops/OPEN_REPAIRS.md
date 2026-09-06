@@ -13175,3 +13175,46 @@ The matching authenticated schema artifact and empty-target reconstruction are
 still a RELEASE BLOCKER. See `TRACK_B_BACKUP.md` and the dated restore correction
 audit. Default schedule, journal SQL, frozen writers and live configuration stay
 unchanged by source preparation.
+
+## 159. [2026-09-05, DRAFT REPAIR — source and synthetic proof; release held; numbered 157 in the source draft] Samples could turn a failed or incomplete read into an empty board, and unfinished local work needed an owned recovery path
+
+**Owner and scope.** First Samples release #1295, coordinated under the
+Linear-exit plan #1268. This entry records the existing #1269 reader/local-work
+repair carried into that release; it does not open a second implementation.
+The ledger at pinned main `ab6366136c03239965c97b050ab5cf7c9763a228` had no entry
+owning this false-empty/recovery correction. Historical Samples queue/filter,
+nightly-probe and comment-symmetry entries describe different defects.
+
+**What the candidate changes.** `_sxrFetchAuthoritativePosts` requires exact
+counted per-client keyset pages and validates completeness and identity.
+`_sxrFetchPosts` treats failed, malformed, wrong-client or empty fallback as
+unverified; valid scoped nonempty fallback can be shown with an incomplete or
+outdated notice but cannot replace existing cards/cache or certify freshness.
+Only authoritative primary recovery can clear that warning and certify an
+empty result. `loadSxrCards` and owned work helpers retain unfinished work
+across reads, client/actor changes and reload; field debt is cleared only by
+matching acknowledgements. Existing writer routes and frozen anonymous writer
+authorization are unchanged. This does not implement the separate composer
+draft/history proposals or prove server persistence after browser storage loss.
+
+**Current finite integration.** Local merge
+`dd702412f7a36a46f610ea05ecad8ac06469ba73` combines reviewed release
+`e665ba77f95d832029c7b0c028c3011b249ea3a0` with only pinned main `ab636613`.
+The merge is conflict-free; all 308 named Samples functions and its
+monitor/recovery harness paths are unchanged from the release. Inherited
+Production assets, Edge source, optional lookup-index migration and tests stay
+at the captured main version. No original release checkout or evidence is
+overwritten. The full proof and paired forward/recovery hashes live in
+`docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`; the inverse changes only the reader
+and preserves the new tree's assets, owned work, receipts and cache.
+
+**Not closed by this record.** Review of the new final commit, applicable hosted
+checks, exact serving/writer pre-state, approved populated TEST journeys with
+persistence/readback, and operational monitoring/independent recovery proof
+remain release gates. Previous CI belongs to `e665ba77`; at this local proof
+checkpoint, the merge had not been pushed, deployed or exercised against
+production. Do not use an older
+whole HTML document as rollback: it cannot display the new owned debt. Do not
+infer a live fix, full comment history or zero-loss guarantee from the offline
+checks. Close this entry only with the reviewed release, serving and bounded
+journey/recovery receipts, or an explicit owner decision to abandon it.

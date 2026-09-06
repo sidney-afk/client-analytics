@@ -93,6 +93,72 @@ See `docs/ops/CARD_CHANGE_HISTORY.md` for exact scope, local SQL proof, the
 separate PR #1293 manifest prerequisite and still-owed deployment/restore gates.
 This entry records preparation, not installation or a live retention guarantee.
 
+## 2026-09-05 — Samples integration of pinned ab636 main; local only
+
+Created an isolated validation branch from #1295
+`e665ba77f95d832029c7b0c028c3011b249ea3a0` and merged only captured main
+`ab6366136c03239965c97b050ab5cf7c9763a228`, without conflicts, as
+`dd702412f7a36a46f610ea05ecad8ac06469ba73`. All 308 named Samples functions,
+monitor/recovery helpers and frozen writers retain the reviewed release bytes;
+all Edge sources/migrations retain the captured main bytes. The inherited main
+delta is asset display/access reuse, its tests, optional lookup index and docs.
+The original release and its recovery pair remain preserved. The packet records
+the new paired hashes, exact-source focused checks and still-open release gates.
+No push or #1295 update is authorized by this checkpoint. Named review of the
+final commit must finish before advancing; prior review and CI are historical.
+No production read or write, merge to main, deployment, migration, workflow
+dispatch, flag change or alert delivery was performed. This is local source and
+synthetic proof only; `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` owns the receipts.
+
+## 2026-09-04 — Samples G1 reader candidate; draft, release held
+
+**Targeted review correction:** #1269 was verified draft/unmerged at reviewed head
+`c10ebc8465b5fc95976014e21184a6c2076d8d96`. Draft creation now stamps the originating
+client; refresh merges retain unfinished work and defer paint while typing even
+when a draft is created during a foreground read. The coordinator's fallback
+decision supersedes the initial fail-closed fallback design below: valid scoped
+nonempty fallback may appear on a cold open with incomplete/outdated feedback,
+but never replaces existing content/cache or clears its warning. Only primary
+recovery stamps cache verification; recently verified caches refresh quietly.
+The Production comments fixture's missing-count timeout was reproduced, then its
+scoped empty/nonempty receipts and CORS exposure were corrected. Unexpected writes
+are blocked before network I/O; the intercepted comments writer assertions remain.
+Local regression also executes actual draft promotion, held save and HTTP failure,
+followed by refresh and client switch. No backend/writer-route/auth change.
+Validation: 48 isolated Samples cases, the affected Production comments browser
+suite (including counted empty and nonempty Samples), and 24 mocked boot groups
+pass. The 397-suite run passes 395; only the same two baseline Windows environment
+failures remain. Comments writes are intercepted and unexpected writes blocked;
+the staff portion may observe live read-only lists. No live persistence or release
+proof is claimed. Monitoring and client-continuity release gates remain held.
+Local writer cache checkpoints do not inherit a full-read verification stamp;
+only an authoritative primary snapshot may certify a cache as recently verified.
+
+**Initial implementation evidence (superseded fallback design):**
+
+Isolated worktree from remote main `13e187a7d0043ed110b486feb50502758a026229`.
+Analysis draft #1268 remained at `c1aa4d934d1a1532632842295cddaf0b176c1b73`;
+its operative G1 and Samples evidence were read, and `index.html` had no drift.
+An offline actual-source probe reproduced HTTP 500 / `ok:false` / empty fallback
+as Samples empty success while Calendar v2 refused those fixtures.
+
+The candidate requires counted, client-scoped primary pages and validates fallback
+HTTP/envelope/rows/completeness before replacement. A fallback without a completeness
+receipt is unavailable; an empty fallback never proves emptiness. Failed refreshes
+keep useful scoped rows/cache visibly stale with retry; a complete primary empty result
+may clear the board. Cache authority and source-repair rules remain intact.
+
+Local proof: 49 isolated Samples cases; 24 fully mocked browser groups, including
+stale/retry at 360/768/1280 in light/dark; Calendar fallback and writer durability
+regressions pass. The 397-suite run initially had three failures: two Windows
+environment failures reproduced on untouched baseline (ESM absolute-path import and
+hard-coded `/tmp`), plus a cache sandbox missing the new validator/client field,
+which was corrected and rerun successfully. Disposable database lanes were skipped
+locally; hosted CI remains required. No live persistence, deployed-byte, monitoring
+or client-continuity release proof is claimed. No live data, writer/auth, EF, n8n,
+flag, migration, notification or deployment changed. Rollback: the Samples G1 entry
+in `ROLLBACK.md`; coordinator monitoring/client-continuity gates hold production release.
+
 ## 2026-08-31 — Deploy: a card can be completed from the card
 
 **Section 4 forward from `5a3365f2`, run `33434655418`, PASS.** `production-write`

@@ -229,7 +229,7 @@ const YT = 'https://youtu.be/dQw4w9WgXcQ';
   check('calendar refreshes the visible card when the bump condition fired',
         /if \(bumpThumbRev\) _calRefreshCardThumb\(realId\);/.test(INDEX));
   check('samples also bump and refresh on the same condition',
-        /const bumpThumbRev = \('thumbnail_url' in edits \|\| 'asset_url' in edits\)[\s\S]*_calShouldBumpThumbRevForGraphicStatus\(edits, prevSnapshot, post\);[\s\S]*if \(bumpThumbRev\) post\.thumb_rev = _sxrBumpThumbRev\(realId\);[\s\S]*if \(bumpThumbRev\) _sxrForceThumbRefresh\(realId\);/.test(INDEX));
+        /const bumpThumbRev = \('thumbnail_url' in edits \|\| 'asset_url' in edits\)[\s\S]*_calShouldBumpThumbRevForGraphicStatus\(edits, prevSnapshot, post\);[\s\S]*if \(bumpThumbRev\) post\.thumb_rev = _sxrBumpThumbRev\(realId\);[\s\S]*if \(bumpThumbRev && _sxrWorkCurrent\(owner\)\) _sxrForceThumbRefresh\(realId\);/.test(INDEX));
   check('cache-bust prefers persisted post.thumb_rev, falls back to session _calThumbRev',
         /\(p && p\.thumb_rev\) \|\| \(p && p\.id && _calThumbRev\[p\.id\]\)/.test(INDEX));
 })();

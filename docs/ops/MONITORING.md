@@ -1,5 +1,20 @@
 # SyncView Monitoring Coverage
 
+First Samples repair preparation (inactive):
+[`CLIENT_CONTINUITY_PREPARATION.md`](CLIENT_CONTINUITY_PREPARATION.md) documents
+the synthetic W01/W02/W10 checks, gated TEST runner, independent delivery and
+liveness interfaces, required product integration, activation drills and disable
+procedure. Local detector success does not establish installed monitoring or
+live journey/delivery proof; the strict source gate now passes on the combined repaired candidate. The manual
+viewing launcher and its private configuration are documented there; it sends no
+alerts during viewing and no schedule is installed.
+
+The separate [inactive operations continuation](CLIENT_CONTINUITY_OPERATIONS.md)
+adds hosted viewing/receipt jobs, a read-only external sentinel command, bounded
+primary relay drills, and six isolated anonymous UI persistence checks. Its
+independent host/fallback and live automatic TEST writer adapter remain absent;
+viewing approval does not require pretending those action guarantees exist.
+
 This page answers: what watches each critical SyncView sync edge, where alerts land, and how to
 contain or roll it back. A one-step kill may stop new behavior; F27 and F51 prove that safe team
 authority recovery and exact Edge Function rollback require additional evidence.

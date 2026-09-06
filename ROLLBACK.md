@@ -37,6 +37,26 @@ No writer restore, table drop, queue replay, flag or frozen-writer change belong
 to this slice. The existing multi-function onboarding dispatch is not a
 reader-only rollback. See `docs/features/COMPONENT_FEEDBACK.md`.
 
+For the first Samples continuity release, use the paired draft-preserving reader
+inverse in `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` and
+`docs/ops/SAMPLES_RECOVERY_REHEARSAL.md`. Historical whole-document revert notes
+are not its operational inverse: the old document cannot display new owned debt.
+Preserve ownership, save receipts, field debt and cache throughout recovery.
+
+**Pinned ab636 local integration, not released (2026-09-05):** merge
+`dd702412f7a36a46f610ea05ecad8ac06469ba73` pairs forward HTML
+`aa2be6645b440cd2a9487692112b5f0d23f4c236ad37e990087a80cb1365815f` with recovery
+HTML `717b52d9a40b589429a43f90cd81859be08bd8620eab162093ea2f977ef0de02`.
+Only this pair preserves that tree's inherited asset changes as well as the
+Samples debt schema and save receipts. The `e665ba77` pair remains preserved for
+its own document; do not mix either pair or use the historical whole-PR revert
+directions below for this integrated release. Before release, abandoning the
+isolated local branch changes no serving state. After any separately approved
+release, use only the exact paired reader inverse under the packet's owner and
+serving checks. No gateway, migration, writer, flag or data rollback belongs to
+this reader-only inverse. The inherited optional asset lookup index is not
+applied by this work.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is
@@ -71,6 +91,19 @@ Treat immediate behavior as a target until F132 closes. Do not remove the indepe
 schedule while F132 is open; if reducing duplicate cadence, remove the pager's last-branch dispatch.
 
 ## 1. Standing rules (non-negotiable)
+
+**Samples G1 candidate (2026-09-04, release held):** browser-only read correction,
+based on `13e187a7d0043ed110b486feb50502758a026229`; no new kill flag or writer change.
+Before merge, abandon/revert this PR. If later released with coordinator approval,
+revert the complete PR's browser/harness/docs commits in reverse order and verify
+the reverted Pages bytes plus client reads. The reviewed intermediate head
+`c10ebc8465b5fc95976014e21184a6c2076d8d96` is not a recommended recovery target: it
+can discard unscoped drafts. Let pending saves settle and preserve unfinished work
+before reloading retained tabs; propagation is not instant. The full revert restores
+the known false-empty defect, so keep incident evidence and the release hold.
+No cache purge, data restore, EF deployment, authority reversal, authentication change
+or frozen-writer rollback belongs to this procedure. Monitoring and client-continuity
+gates in draft #1268 remain prerequisites for release.
 
 1. **One-step behavior rollback, always.** Every cutover ships behind a server-readable runtime
    kill switch. Flip that switch first; a frontend revert is secondary because stale tabs and Pages

@@ -1660,6 +1660,72 @@ const laneChildNotRun = run(fixture('lane-child-not', appended(laneChildNot), re
 ok(laneChildNotRun.code === 0,
     'and a NOT DISPATCHED child is its parent\'s verdict too, unmoved by the sibling bullet that completed, so it asks for nothing');
 
+/* ---- 8af. links, the binding form, postpositive plans (round thirty-one) ----- */
+const laneLink = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    '[deploy-onboarding-edge-functions workflow](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml)',
+    'completed successfully (run `33995000000`); it carried `production-write`.',
+    '',
+].join('\n');
+const laneLinkRun = run(fixture('lane-link', appended(laneLink), realRb));
+ok(laneLinkRun.code === 1 && laneLinkRun.json
+    && laneLinkRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A MARKDOWN LINK NAMES THE LANE: the repository\'s own direct-workflow-link convention is a lane reference, and a completed dispatch recorded that way FAILS');
+const laneUrl = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The companion lane <https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml>',
+    'completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneUrlRun = run(fixture('lane-url', appended(laneUrl), realRb));
+ok(laneUrlRun.code === 1 && laneUrlRun.json
+    && laneUrlRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'and so does the bare canonical workflow URL');
+const laneBind = [
+    '### Companion release',
+    '',
+    'Run `33995000000` of `deploy-onboarding-edge-functions` completed successfully; it carried `production-write` v69.',
+    '',
+].join('\n');
+const laneBindRun = run(fixture('lane-bind', insertInto(laneBind), realRb));
+ok(laneBindRun.code === 1 && laneBindRun.json
+    && laneBindRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f) && /its run id is newer/.test(f)),
+    'THE BINDING FORM KEEPS ITS RUN: "Run `X` of `lane` completed successfully" in an undated subsection of the 2026-08-05 container is the lane\'s run, newer by construction, and FAILS');
+const laneBindOlder = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'Run `33980000000` of `deploy-onboarding-edge-functions` completed successfully earlier in the week.',
+    '',
+].join('\n');
+const laneBindOlderRun = run(fixture('lane-bind-older', appended(laneBindOlder), realRb));
+ok(laneBindOlderRun.code === 0,
+    'while the same form with a run id OLDER than the receipt\'s is a dispatch the §4 deploy superseded, whatever the entry\'s date, and asks for nothing');
+const laneBindPlanned = [
+    '',
+    '## 2026-09-06 — Plan',
+    '',
+    'Run `33995000000` of `deploy-onboarding-edge-functions` is scheduled for tomorrow after approval.',
+    '',
+].join('\n');
+const laneBindPlannedRun = run(fixture('lane-bind-planned', appended(laneBindPlanned), realRb));
+ok(laneBindPlannedRun.code === 0,
+    'and "Run `X` of `lane` is scheduled for tomorrow" is a plan whose verdict follows the lane, and asks for nothing');
+const planHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deployment plan approved for tomorrow',
+    '',
+    'No deployment has occurred; the plan names the four closures and the order they ship in.',
+    '',
+].join('\n');
+const planHeadingRun = run(fixture('plan-heading', appended(planHeading), realRb));
+ok(planHeadingRun.code === 0,
+    'A PLAN NOUN AFTER THE DEPLOYMENT NOUN IS STILL A PLAN: "F27 Section 4 deployment plan approved for tomorrow" with no receipt asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

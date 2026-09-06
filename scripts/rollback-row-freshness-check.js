@@ -436,10 +436,23 @@ function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {
     const found = [];
     const seen = new Set();
     for (const lane of lanes) {
-        const refs = ['`' + lane.base + '`', '`' + lane.file + '`'].concat(lane.name ? ['"' + lane.name + '"'] : []);
-        for (const ref of refs) {
-            for (let k = log.indexOf(ref); k >= 0; k = log.indexOf(ref, k + ref.length)) {
-                const ev = recordsADispatch(log, k, ref.length);
+        /* The lane named as a reference: its base or filename in backticks,
+           its workflow name in quotes, its canonical Actions URL, or a
+           Markdown link whose text names it. The repository's own convention
+           for a lane is the direct workflow link, so a companion deploy
+           recorded that way must be read (Codex, thirty-first round on #1306). */
+        const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const refs = [
+            new RegExp('`' + esc(lane.base) + '`', 'g'),
+            new RegExp('`' + esc(lane.file) + '`', 'g'),
+            new RegExp('/actions/workflows/' + esc(lane.file) + '\\b', 'g'),
+            new RegExp('\\[[^\\]\\n]*' + esc(lane.base) + '[^\\]\\n]*\\]\\(', 'g'),
+        ].concat(lane.name ? [new RegExp('"' + esc(lane.name) + '"', 'g')] : []);
+        for (const re of refs) {
+            let rm;
+            while ((rm = re.exec(log))) {
+                const k = rm.index;
+                const ev = recordsADispatch(log, k, rm[0].length);
                 if (!ev) continue;
                 /* RUN IDS ORDER DISPATCHES ACROSS EVERY LANE. When the record's
                    run id and the receipt's are both known they decide, and the
@@ -695,26 +708,43 @@ function recordsADispatch(log, k, len) {
         const done = firstIndex(DISPATCH_DONE, t);
         return done < 0 || ahead < done;
     };
-    const rm = after.match(/\brun\s+`?#?(\d{6,})/i);
-    if (rm) {
-        const pre = before + ' LANE ' + after.slice(0, rm.index);
+    /* THE RUN ID BELONGS TO THE NEAREST PREDICATE BEFORE IT. After a check's
+       phrase ("dry-run passed (run `X`)") or a bare check noun it is the
+       check's run and proves no deployment; after the dispatch's own
+       completion word ("dry-run passed, then the dispatch completed (run
+       `X`)") it is the dispatch's (Codex, twenty-fourth round on #1306: a
+       check noun anywhere in the clause used to discard the run id). A
+       negated verdict with no positive one anywhere in the clause ("was not
+       completed (run `X`)", "(run `X`) was not completed") says the run
+       deployed nothing, run id or not (twenty-seventh round); a positive
+       verdict beside a negated one about something else ("completed (run
+       `X`), but the smoke probe was not completed") stands. Returns the
+       evidence, null for a plan or a non-deployment, or undefined when the run
+       id is a check's and the clause must be read without it. */
+    const judgeRun = (runId, pre) => {
         if (plans(pre)) return null;
-        /* THE RUN ID BELONGS TO THE NEAREST PREDICATE BEFORE IT. After a check's
-           phrase ("dry-run passed (run `X`)") or a bare check noun it is the
-           check's run and proves no deployment; after the dispatch's own
-           completion word ("dry-run passed, then the dispatch completed (run
-           `X`)") it is the dispatch's (Codex, twenty-fourth round on #1306: a
-           check noun anywhere in the clause used to discard the run id). */
         const marked = pre.replace(CHECK_DONE, ' CHECKDONE ');
         const lastCheck = Math.max(lastIndex(/\bCHECKDONE\b/, marked), lastIndex(CHECK_ONLY, marked));
-        /* A negated verdict with no positive one anywhere in the clause ("was
-           not completed (run `X`)", "(run `X`) was not completed") says the run
-           deployed nothing, run id or not (Codex, twenty-seventh round on
-           #1306). A positive verdict beside a negated one about something else
-           ("completed (run `X`), but the smoke probe was not completed") stands. */
         const cleaned = norm(before + ' LANE ' + after);
         if (/\bNEGATED\b/.test(cleaned) && !DISPATCH_DONE.test(cleaned)) return null;
-        if (lastCheck < 0 || lastIndex(DISPATCH_DONE, marked) > lastCheck) return { run: rm[1] };
+        if (lastCheck < 0 || lastIndex(DISPATCH_DONE, marked) > lastCheck) return { run: runId };
+        return undefined;
+    };
+    const rm = after.match(/\brun\s+`?#?(\d{6,})/i);
+    if (rm) {
+        const r = judgeRun(rm[1], before + ' LANE ' + after.slice(0, rm.index));
+        if (r !== undefined) return r;
+    } else {
+        /* THE BINDING FORM puts the run before the lane and ties them with a
+           preposition: "Run `X` of `lane` completed successfully" (Codex,
+           thirty-first round on #1306). The run is the lane's; the verdict
+           follows the lane, so forward-looking words after it still make a
+           plan ("Run `X` of `lane` is scheduled for tomorrow"). */
+        const bind = before.match(/\brun\s+`?#?(\d{6,})`?\s+(?:of|for|on|by|in|from|through|via)\s+(?:the\s+|this\s+|that\s+)?(?:[\w-]+\s+){0,2}$/i);
+        if (bind) {
+            const r = judgeRun(bind[1], before.slice(0, bind.index) + ' LANE ' + after);
+            if (r !== undefined) return r;
+        }
     }
     const whole = before + ' LANE ' + after;
     if (plans(whole)) return null;
@@ -1002,7 +1032,10 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            twenty-eighth round). "NOT DISPATCHED" is the same idea in the log's
            own words. */
         const deployAhead = /\b(awaits?|awaiting|pending|before|until|not yet|to be|planned|upcoming|will|would|without|ahead of)\b[^\n]{0,40}?\bdeploy(?:ment)?\b/i.test(h.text)
-            || /\b(not yet|never|not|to be|will be|would be|yet to be|still to be)\s+(?:\w+\s+)?deployed\b/i.test(h.text);
+            || /\b(not yet|never|not|to be|will be|would be|yet to be|still to be)\s+(?:\w+\s+)?deployed\b/i.test(h.text)
+            /* and the plan noun after the deployment noun: "deployment plan
+               approved for tomorrow" (Codex, thirty-first round on #1306). */
+            || /\bdeploy(?:ment)?\s+(?:plan|planning|schedule|proposal|checklist|readiness|rehearsal|preview|window|slot)\b/i.test(h.text);
         const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text) && !deployAhead))
             && !/NOT DISPATCHED/i.test(h.text);
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);

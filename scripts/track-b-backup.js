@@ -313,7 +313,7 @@ function corpusBoundarySql(corpusName) {
   // diagnostics. RESTRICT remains the ultimate restore race guard.
   return `do $corpus_boundary$ declare covered oid[] := array[${relations}]::oid[]; begin
 ${corpus.version < 6 ? "if to_regclass('public.production_card_provenance') is not null or to_regclass('public.calendar_feedback_materializations') is not null then raise exception 'Track-B package omits integrated recovery evidence'; end if;" : ''}
-${corpus.version < 7 ? "if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if;" : ''}
+${corpus.version < 7 ? "if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if; if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if;" : ''}
 ${corpus.version < 8 ? "if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if;" : ''}
 if exists(select 1 from pg_catalog.pg_constraint where contype='f'
   and confrelid=any(covered) and not conrelid=any(covered)) then
@@ -327,7 +327,7 @@ end $corpus_boundary$;\n`;
 }
 
 function materializationPresenceSql() {
-  return "do $materialization_boundary$ begin if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if; end $materialization_boundary$;\n";
+  return "do $materialization_boundary$ begin if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if; if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if; end $materialization_boundary$;\n";
 }
 
 function readOnlyPrivilegeSql(corpusName = 'legacy-v3') {

@@ -1,5 +1,11 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Dormant G3 card materialization:** hold fresh admission and retain both materialization
+owners, intake/outbox receipts, provenance, journal and compatible current-row replay.
+Never drop the evidence or restore old full-row materializers over accepted cards.
+Installation needs explicit schema/data recovery for the two new owners; see
+[`NATIVE_CARD_MATERIALIZATION_BOUNDARY.md`](docs/ops/NATIVE_CARD_MATERIALIZATION_BOUNDARY.md).
+
 **2026-09-05 local Create Post editor projection:** restore only the new
 editor-read wrapper/caller changes first, returning to the preserved provider
 loader. Keep all accepted intake jobs, payloads, receipts and native epochs.

@@ -8,6 +8,13 @@ commit as any structural change.
 
 ## Top level
 
+Dormant G3 native card SQL boundary: `migrations/2026-09-06-native-card-materialization-boundary.sql`,
+`scripts/native-card-materialization/` (actual gateway/browser fixture and finite SQL overlaps),
+`test/native-card-materialization.js`, and `docs/ops/NATIVE_CARD_MATERIALIZATION_BOUNDARY.md`.
+Two private retained owners; default hold; HTTP/n8n routing and versioned recovery remain installation gates.
+Exact source/evidence handoff: `docs/audits/2026-09-06-native-card-materialization-sql.md` and
+`docs/audits/2026-09-06-native-card-materialization-sql-evidence.json`.
+
 Native card creation compatibility evidence and proposed boundary:
 `docs/audits/2026-09-06-native-card-compatibility.md` and
 `docs/audits/2026-09-06-native-card-compatibility-evidence.json`.

@@ -2,6 +2,21 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 ? Dormant native card materialization SQL
+
+From preserved integration `38f29bc6d3159ddda4b698819626f1efbd37c0b3`, added a
+service-only root-manifest card boundary with two private retained owners, default
+hold, exact received-text conservation and current-row replay. The final finite
+actual-handler/extracted-browser/disposable-PostgreSQL lane passed 56 checks,
+including real lock waits, all six component/surface payloads, late storage failures
+and retained receipt/privacy controls. No browser, EF, n8n, workflow or frozen
+authentication file changed. No deployment/live action occurred.
+
+See [`native-card-materialization-sql.md`](docs/audits/2026-09-06-native-card-materialization-sql.md)
+for exact hashes, earlier red receipts and the separate v7 recovery checkpoint.
+HTTP/fallback compatibility, authenticated schema/data recovery and activation
+remain held under canonical G3.
+
 ## 2026-09-06 — Combined Workload/history-v6 proof; test-only preparation
 
 On integration `688947308c96e6f00b09a495a1f16f939fde479d`, 17 finite

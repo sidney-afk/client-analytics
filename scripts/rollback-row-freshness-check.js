@@ -235,6 +235,17 @@ function deployAnchors(log) {
             /* And the verb-led form of the same phrase: "Verify deployment run
                `X`" is a check, not a deploy (Codex, fifty-first round). */
             .replace(/\b(?:verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|re-?test(?:ing|ed)?|check|checking|checked|re-?check(?:ing|ed)?|audit|auditing|smoke[- ]?test(?:ing|ed)?|probe|probing|read[- ]?back)\s+(?:the\s+|this\s+)?deploy(?:ment)?\b/gi, ' verification ');
+        /* AND A HEADING MUST SAY IT RECORDS A DEPLOY. Skipping the check
+           words this guard happens to know left every other activity -- a
+           capture, a rehearsal named something new -- accepted as an anchor
+           merely for carrying a run id (Codex, sixtieth round on #1306). The
+           test is now the other way round: a heading anchors a receipt when it
+           says deploy, release, ship, rollout or cutover, or names Section 4;
+           anything else is some other activity, whether or not this guard has
+           a word for it. */
+        const saysDeploy = /\bdeploy|releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(named)
+            || /(Section 4|§4)/i.test(named);
+        if (!saysDeploy) continue;
         if (otherActivity.test(named) && !/\bdeploy/i.test(named)) continue;
         out.push({ at: m.index, run: m[1] });
     }

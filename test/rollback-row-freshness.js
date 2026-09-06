@@ -2605,6 +2605,26 @@ ok(attemptBeforeItRun.code === 1 && attemptBeforeItRun.json
     && attemptBeforeItRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
     'THE POINTER CAN FOLLOW THE NOUN: "the attempt before it deployed nothing" is another attempt\'s evidence, said the other way round');
 
+/* ---- 8bi. an anchor must SAY it records a deploy (round 60) ---- */
+const captureHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Capture run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const captureHeadingRun = run(fixture('capture-heading', appended(captureHeading), realRb));
+ok(captureHeadingRun.code === 1 && captureHeadingRun.json
+    && /34000000000/.test(JSON.stringify(captureHeadingRun.json.failures)),
+    'AN ANCHOR MUST SAY IT RECORDS A DEPLOY: "Capture run `X`" names no deployment, so the table below it takes the parent deploy heading\'s run and no list of check words has to know the word "capture"');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

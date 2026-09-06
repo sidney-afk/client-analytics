@@ -224,7 +224,14 @@ function deployAnchors(log) {
            "deploy" belongs to the phrase post-deploy, not to a deployment this
            heading records (Codex, forty-first round on #1306). The mention is
            removed before the heading is tested, as the sweep already does. */
-        const named = line.replace(/\b(?:post|pre)[- ]?deploy(?:ment)?\b/gi, ' ');
+        /* "##### Deployment verification run `X`" is the same phrase the other
+           way round: the deploy word modifies the check and does not record a
+           deployment of its own (Codex, fiftieth round on #1306), so it goes
+           the same way before the heading is judged. */
+        const named = line
+            .replace(/\b(?:post|pre)[- ]?deploy(?:ment)?\b/gi, ' ')
+            .replace(/\bdeploy(?:ment)?\s+(?=(?:verification|verify|check|readback|read-back|audit|smoke|probe|drill|rehearsal|test)\b)/gi, ' ')
+            .replace(/\b(?:verification|readback|read-back|audit|smoke test|probe|drill|rehearsal)\s+of\s+(?:the\s+)?deploy(?:ment)?\b/gi, ' verification ');
         if (otherActivity.test(named) && !/\bdeploy/i.test(named)) continue;
         out.push({ at: m.index, run: m[1] });
     }
@@ -796,9 +803,18 @@ function recordsADispatch(log, k, len) {
        whole run deployed nothing; otherwise the run is read like any other and
        its dispatch stands. */
     const NOTHING_SHIPPED = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|never deployed|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)(?!\s+(?:the\s+)?`?[a-z][a-z0-9]*(?:-[a-z0-9]+)+`?)/i;
+    /* AND THE CLAIM HAS TO BE ABOUT THIS ATTEMPT. "the current run `X` failed,
+       while the previous attempt deployed nothing" used to negate the current
+       failure with the older attempt's evidence (Codex, fiftieth round on
+       #1306), so a clause that hands the claim to another attempt does not
+       silence this one. */
+    const OTHER_ATTEMPT = /\b(?:previous|earlier|prior|first|last|original|preceding)\s+(?:attempt|run|dispatch|try)\b/i;
+    const wholeRunSilent = t => t
+        .split(/[.;]\s|,\s*(?:while|whereas|although|though|but)\s/)
+        .some(clause => NOTHING_SHIPPED.test(clause) && !OTHER_ATTEMPT.test(clause));
     const norm = text => {
         const t = text.replace(RETROSPECTIVE, ' ').replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ');
-        return NOTHING_SHIPPED.test(t) ? t.replace(FAILED_RUN, ' NEGATED ') : t;
+        return wholeRunSilent(t) ? t.replace(FAILED_RUN, ' NEGATED ') : t;
     };
     /* PLANNING THE DISPATCH IS NOT PLANNING THE FOLLOW-UP. A forward-looking
        word makes a plan only when no completion word precedes it in the text

@@ -2325,6 +2325,39 @@ ok(borrowedNothingRun.code === 1 && borrowedNothingRun.json
     && borrowedNothingRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
     'AND THE NO-DEPLOYMENT CLAIM MUST BE THIS RUN\'S: a failed entry cannot borrow a previous attempt\'s "deployed nothing" as proof of its own');
 
+/* ---- 8ay. verification headings; the claim must be this attempt's (round 50) ---- */
+const deploymentVerificationHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Deployment verification run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const deploymentVerificationHeadingRun = run(fixture('deployment-verification-heading', appended(deploymentVerificationHeading), realRb));
+ok(deploymentVerificationHeadingRun.code === 1 && deploymentVerificationHeadingRun.json
+    && /34000000000/.test(JSON.stringify(deploymentVerificationHeadingRun.json.failures)),
+    'A DEPLOYMENT VERIFICATION IS STILL A VERIFICATION: the table below it takes the parent deploy heading\'s run 34000000000, not the check\'s, so the stale row FAILS');
+
+const otherAttemptClause = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` current run `34000000000` failed, while the previous',
+    'attempt deployed nothing.',
+    '',
+].join('\n');
+const otherAttemptClauseRun = run(fixture('other-attempt-clause', appended(otherAttemptClause), realRb));
+ok(otherAttemptClauseRun.code === 1 && otherAttemptClauseRun.json
+    && otherAttemptClauseRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND A CLAIM HANDED TO ANOTHER ATTEMPT DOES NOT SILENCE THIS ONE: "the current run failed, while the previous attempt deployed nothing" still FAILS');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

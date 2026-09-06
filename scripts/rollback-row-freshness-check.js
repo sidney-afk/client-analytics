@@ -881,7 +881,11 @@ function recordsADispatch(log, k, len) {
            thirty-first round on #1306). The run is the lane's; the verdict
            follows the lane, so forward-looking words after it still make a
            plan ("Run `X` of `lane` is scheduled for tomorrow"). */
-        const bind = before.match(/\brun\s+`?#?(\d{6,})`?\s+(?:of|for|on|by|in|from|through|via)\s+(?:the\s+|this\s+|that\s+)?(?:[\w-]+\s+){0,2}$/i);
+        /* A preposition binds the run to the lane, and so does punctuation:
+           "Run `X`: the LANE manual dispatch completed successfully" (Codex,
+           forty-fifth round on #1306). */
+        const bind = before.match(/\brun\s+`?#?(\d{6,})`?\s+(?:of|for|on|by|in|from|through|via)\s+(?:the\s+|this\s+|that\s+)?(?:[\w-]+\s+){0,2}$/i)
+            || before.match(/\brun\s+`?#?(\d{6,})`?\s*[:,—–-]\s*(?:the\s+|this\s+|that\s+)?(?:[\w-]+\s+){0,3}$/i);
         if (bind) {
             const r = judgeRun(bind[1], before.slice(0, bind.index) + ' LANE ' + after);
             if (r !== undefined) return r;
@@ -1199,6 +1203,7 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            does move live versions, still fails closed (Codex, thirty-second
            round on #1306). */
         const entryText = h.text + '\n' + block;
+        const headRunEarly = (h.text.match(/[Rr]un\s+`?#?(\d{6,})`?/) || [])[1] || '';
         /* The no-deployment claim has to cover the WHOLE run. "No deployment of
            the remaining three functions occurred" is a claim about a subset,
            and the run that says it moved one function already (Codex,
@@ -1209,8 +1214,21 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
         const nothingShipped = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)/i.test(entryText);
         const someShipped = new RegExp('\\bdeploy(?:ed|s)?\\b[^.\\n]{0,60}`(?:' + SLUGS.join('|') + ')`', 'i').test(entryText)
             || new RegExp('`(?:' + SLUGS.join('|') + ')`[^.\\n]{0,60}\\b(?:was |were |had been )?deploy(?:ed|s)?\\b', 'i').test(entryText);
+        /* AND IT MUST DESCRIBE THIS DEPLOY. A successful entry that keeps the
+           history of an earlier attempt ("Completed successfully. The previous
+           attempt failed; no deployment occurred in run `Y`.") used to exempt
+           itself with another run's failure (Codex, forty-fifth round on
+           #1306). Two ways it fails to describe this one: the entry claims a
+           completion of its own, or the failure names a run that is not this
+           heading's. */
+        const claimsCompletion = /\b(completed|succeeded|success|successful|successfully|shipped|went out|green|PASS)\b/i
+            .test(entryText.replace(new RegExp(FAILED_RUN.source + '[^.\n]*', 'gi'), ' '));
+        const failureRuns = [...entryText.matchAll(new RegExp('(?:' + FAILED_RUN.source + '|no deployment|nothing (?:was )?deployed)[^.\n]{0,120}?\\brun\\s+`?#?(\\d{6,})', 'gi'))]
+            .map(m => m[m.length - 1]);
+        const failureIsOurs = !failureRuns.length
+            || failureRuns.some(r => !headRunEarly || r === headRunEarly);
         const failedNothing = new RegExp(FAILED_RUN.source, 'i').test(entryText)
-            && nothingShipped && !someShipped;
+            && nothingShipped && !someShipped && !claimsCompletion && failureIsOurs;
         /* "##### Post-deploy verification" is commentary ABOUT a deploy, not a
            record of one, and its subtree has no receipt of its own by nature
            (Codex, thirty-fourth round on #1306). The post/pre-deploy mention is

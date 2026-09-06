@@ -2200,6 +2200,40 @@ const lanePlanThenDoneRun = run(fixture('lane-plan-then-done', appended(lanePlan
 ok(lanePlanThenDoneRun.code === 0,
     'while a forward word FIRST is still a plan, whatever completed afterwards belongs to something else');
 
+/* ---- 8as. the failure must be this deploy's; colon binding (round 45) ------- */
+const successWithOldFailure = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'Completed successfully. The previous attempt failed; no deployment occurred in run `33999999999`.',
+    '',
+].join('\n');
+const successWithOldFailureRun = run(fixture('success-with-old-failure', appended(successWithOldFailure), realRb));
+ok(successWithOldFailureRun.code === 1 && successWithOldFailureRun.json
+    && successWithOldFailureRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'THE FAILURE MUST BE THIS DEPLOY\'S: an entry that completed successfully and keeps an earlier attempt\'s failure in its body cannot exempt itself with another run\'s failure, and is asked for its receipt');
+const failureOwnRun = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The lane refused on the ancestry check; no deployment occurred in run `34000000000`.',
+    '',
+].join('\n');
+const failureOwnRunRun = run(fixture('failure-own-run', appended(failureOwnRun), realRb));
+ok(failureOwnRunRun.code === 0,
+    'while a failure naming its OWN run, with no completion claimed anywhere in the entry, is still legitimate history and asks for nothing');
+const laneColonBind = [
+    '',
+    '## 2026-09-04 — Companion release',
+    '',
+    'Run `34000000000`: the `deploy-onboarding-edge-functions` manual dispatch completed successfully.',
+    '',
+].join('\n');
+const laneColonBindRun = run(fixture('lane-colon-bind', appended(laneColonBind), realRb));
+ok(laneColonBindRun.code === 1 && laneColonBindRun.json
+    && laneColonBindRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'PUNCTUATION BINDS A LEADING RUN ID TOO: "Run `X`: the `lane` manual dispatch completed successfully" under an OLDER date is newer by its run id, and FAILS');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..');
@@ -29,9 +30,11 @@ function rewriteOnce(source, needle, replacement, file) {
   return source.replace(needle, replacement);
 }
 
-async function loadOne(slug) {
+async function loadOne(slug, revision) {
   const file = path.join(ROOT, 'supabase', 'functions', slug, 'index.ts');
-  let source = fs.readFileSync(file, 'utf8');
+  let source = revision
+    ? execFileSync('git', ['show', revision + ':supabase/functions/' + slug + '/index.ts'], { cwd: ROOT, encoding: 'utf8', windowsHide: true })
+    : fs.readFileSync(file, 'utf8');
   source = rewriteOnce(source,
     'import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";',
     `import { createClient, SupabaseClient } from "${pathToFileURL(SHIM).href}";`, slug);
@@ -39,6 +42,10 @@ async function loadOne(slug) {
     `from "${pathToFileURL(path.join(ROOT, 'supabase', 'functions', '_shared', 'browser-write-auth.ts')).href}";`, slug);
   source = rewriteOnce(source, 'from "../_shared/thumbnail-revisions.ts";',
     `from "${pathToFileURL(path.join(ROOT, 'supabase', 'functions', '_shared', 'thumbnail-revisions.ts')).href}";`, slug);
+  if (source.includes('from "../_shared/native-card-materialization.mjs";')) {
+    source = rewriteOnce(source, 'from "../_shared/native-card-materialization.mjs";',
+      `from "${pathToFileURL(path.join(ROOT, 'supabase', 'functions', '_shared', 'native-card-materialization.mjs')).href}";`, slug);
+  }
   source = rewriteOnce(source, 'Deno.serve(', 'globalThis.__nirServe(', slug);
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'nir-writer-'));
   const rewritten = path.join(scratch, slug + '.rewritten.ts');
@@ -53,9 +60,13 @@ async function loadOne(slug) {
 /* Requires globalThis.Deno / EdgeRuntime / fetch to be installed already by
    load-gateway.mjs (same process). Returns one `post(slug, body, source)`
    helper that performs a browser-shaped write through the chosen writer. */
-export async function loadWriters() {
-  const calendar = await loadOne('calendar-upsert');
-  const samples = await loadOne('sample-review-upsert');
+export async function loadWriters({ revision = null } = {}) {
+  // The retained reconciliation regression explicitly reproduces the old
+  // full-row materializer. Its expected overwrite is a historical negative,
+  // not the new receipt-aware HTTP path exercised by its dedicated test.
+  if (revision && revision !== '8514a83ed1a65145a3a51ffe52e5fcbb2976be31') throw new Error('unsupported_writer_control_revision');
+  const calendar = await loadOne('calendar-upsert', revision);
+  const samples = await loadOne('sample-review-upsert', revision);
   async function post(slug, body, source = 'submission-native') {
     const writer = slug === 'sample-review-upsert' ? samples : calendar;
     const req = new Request(`http://writers.fixture.invalid/functions/v1/${slug}`, {

@@ -27,7 +27,7 @@ const pins = ['qa/calendar-feedback-recovery/integrated.mjs', 'qa/calendar-feedb
   'supabase/functions/production-write/selected-label-pages.mjs', 'supabase/functions/_shared/staff-role-auth.ts',
   'supabase/functions/_shared/linear-create-id.mjs', 'supabase/functions/calendar-upsert/index.ts',
   'supabase/functions/_shared/browser-write-auth.ts', 'supabase/functions/_shared/browser-write-auth-policy.mjs',
-  'supabase/functions/_shared/thumbnail-revisions.ts',
+  'supabase/functions/_shared/thumbnail-revisions.ts', 'supabase/functions/_shared/native-card-materialization.mjs',
   'migrations/2026-07-04-a2-writer-edge-functions.sql', 'migrations/2026-07-10-urgent-tweak-pings.sql',
   'migrations/2026-07-13-write-ui-fix-pack-flags.sql', 'migrations/2026-07-13-write-ui-reroute-allowlist.sql',
   'migrations/2026-08-04-client-access-auto-provision.sql',

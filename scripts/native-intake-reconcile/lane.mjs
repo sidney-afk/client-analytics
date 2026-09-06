@@ -16,6 +16,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
+import { execFileSync } from 'node:child_process';
 import { hooks, resetHooks, runSql } from '../native-intake-manifest/supabase-shim.mjs';
 import { loadGateway, ROOT } from './load-gateway.mjs';
 import { loadWriters } from './load-writers.mjs';
@@ -28,9 +29,13 @@ const { net, post, requestId, rootBody } = gw;
    write semantics are what the browser materialization exercises below; the
    serving v48/v49 bodies are a different, un-gated deployment this lane cannot
    see and does not claim. */
-const writers = await loadWriters();
+// Historical full-row writer negative remains pinned after the native HTTP
+// path replaces that behavior. The current positive is tested independently
+// in test/native-card-materialization-http.js; this is not serving evidence.
+const writers = await loadWriters({ revision: '8514a83ed1a65145a3a51ffe52e5fcbb2976be31' });
 
-/* THE ACTUAL BROWSER MATERIALIZATION FUNCTION, extracted from index.html and
+/* THE ACTUAL LEGACY BROWSER MATERIALIZATION FUNCTION, extracted from the
+   same pinned source revision as the historical writer negative above and
    run against the real writers. Only its environment is substituted: no staff
    identity (client-link mode, which returns before the staff binding), an
    in-memory cache, a checkpoint recorder, and fetch wrappers that call the
@@ -38,7 +43,7 @@ const writers = await loadWriters();
    tab or a saved job sends today. */
 const { extractFunction } = await import(pathToFileURL(path.join(ROOT, 'test', 'helpers', 'extract-function.js')).href)
   .then(m => m.default || m);
-const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const html = execFileSync('git', ['show', '8514a83ed1a65145a3a51ffe52e5fcbb2976be31:index.html'], { cwd: ROOT, encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
 const bctx = {
   console, _isIntake: true, __sent: [], __checkpoints: [], __calCache: null, __sxrCache: null,
   _linearIntakeCheckpointOrSuspend: job => { bctx.__checkpoints.push(JSON.parse(JSON.stringify(job))); },
@@ -817,9 +822,9 @@ try {
 
   ok('S99-zero-provider-or-drainer-requests-during-any-reconciliation', noProvider(), net.requests.slice(0, 3));
 
-  console.log(JSON.stringify({ suite: 'native-intake-reconcile', passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length,
+  console.log(JSON.stringify({ suite: 'native-intake-reconcile', writer_control_revision: '8514a83ed1a65145a3a51ffe52e5fcbb2976be31', passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length,
     readiness: { missing_child_materialization: 'PASS_IN_FIXTURE', missing_card_materialization: 'HELD_NOT_AUTOMATED',
-      empty_since_creation_slot_bind: 'PASS_IN_FIXTURE', late_browser_replay_overwrite: 'PRE_EXISTING_UNRESOLVED',
+      empty_since_creation_slot_bind: 'PASS_IN_FIXTURE', late_browser_replay_overwrite: 'REPRODUCED_ON_PINNED_LEGACY_SOURCE',
       provider_era_child_recovery: 'NOT_IMPLEMENTED', installed_full_serving: 'UNPROVEN', chosen_editor_provider_independence: 'OUT_OF_SCOPE' } }));
   if (checks.some(c => !c.pass)) process.exitCode = 1;
 } finally {

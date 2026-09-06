@@ -196,8 +196,20 @@ function deployAnchors(log) {
     const out = [];
     const heading = /^#{2,6} [^\n]*?\brun `(\d{6,})`/gm;
     const prose = /\*\*Section 4 forward from `[0-9a-f]{7,40}`, run `(\d{6,})`/g;
+    /* A HEADING THAT NAMES A DIFFERENT ACTIVITY IS NOT A DEPLOY'S IDENTITY.
+       "##### Verification run 33000000000" above a receipt's table would hand
+       that receipt the verification's run id and file a real deploy under an
+       older run (Codex, thirty-fourth round on #1306). Every deploy anchor in
+       this log says so in its heading ("Deploy #4 — RECORDED (run `X`)",
+       "F27 Section 4 deploy, run `X`"), so a heading that names a check and
+       never says deploy is skipped. */
+    const otherActivity = /\b(verification|verify|verifying|drill|rehearsal|probe|smoke|audit|readback|read-back|typecheck|lint|test run|dry[- ]run)\b/i;
     let m;
-    while ((m = heading.exec(log))) out.push({ at: m.index, run: m[1] });
+    while ((m = heading.exec(log))) {
+        const line = m[0].split('\n')[0];
+        if (otherActivity.test(line) && !/\bdeploy/i.test(line)) continue;
+        out.push({ at: m.index, run: m[1] });
+    }
     while ((m = prose.exec(log))) out.push({ at: m.index, run: m[1] });
     out.sort((a, b) => a.at - b.at);
     return out;
@@ -1107,7 +1119,13 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
             || new RegExp('`(?:' + SLUGS.join('|') + ')`[^.\\n]{0,60}\\b(?:was |were |had been )?deploy(?:ed|s)?\\b', 'i').test(entryText);
         const failedNothing = new RegExp(FAILED_RUN.source, 'i').test(entryText)
             && nothingShipped && !someShipped;
-        const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text) && !deployAhead))
+        /* "##### Post-deploy verification" is commentary ABOUT a deploy, not a
+           record of one, and its subtree has no receipt of its own by nature
+           (Codex, thirty-fourth round on #1306). The post/pre-deploy mention is
+           removed before the heading is tested, so a heading that also names a
+           deploy some other way still counts. */
+        const headDeployWords = h.text.replace(/\b(?:post|pre)[- ]?deploy(?:ment)?\b/gi, ' ');
+        const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(headDeployWords) && !deployAhead))
             && !/NOT DISPATCHED/i.test(h.text) && !failedNothing;
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);
         if (!unreadableRows && !truncatedTables && !attestations && !noReceiptUnder) continue;

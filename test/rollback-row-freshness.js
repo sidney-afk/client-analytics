@@ -1822,6 +1822,51 @@ const lanePushThenPlanRun = run(fixture('lane-push-then-plan', appended(lanePush
 ok(lanePushThenPlanRun.code === 0,
     'while a push run in its own sentence is still exempt when the dispatch mentioned nearby is a separate, later sentence');
 
+/* ---- 8ai. verification anchors and post-deploy commentary (round 34) -------- */
+const verifyAnchor = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '##### Verification run 33000000000',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const verifyAnchorRun = run(fixture('verify-anchor', appended(verifyAnchor), realRb));
+ok(verifyAnchorRun.code === 1 && verifyAnchorRun.json && verifyAnchorRun.json.live
+    && verifyAnchorRun.json.live.run === '34000000000'
+    && verifyAnchorRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'A VERIFICATION HEADING IS NOT A DEPLOY ANCHOR: a table under "##### Verification run 33000000000" takes the identity of the deploy heading above it, not the check\'s, so the newest deploy is run 34000000000 and the stale row FAILS');
+const postDeploy = [
+    '',
+    '##### Post-deploy verification',
+    '',
+    'The four functions read back at their attested versions; the browser half was',
+    'spot-checked on the live page.',
+    '',
+].join('\n');
+const postDeployRun = run(fixture('post-deploy-note', appended(postDeploy), realRb));
+ok(postDeployRun.code === 0,
+    'and "##### Post-deploy verification" under a Section 4 entry is commentary about a deploy, not a record of one, so it is not asked for a receipt');
+const postDeployNamed = [
+    '',
+    '## 2026-09-06 — F27 Section 4 post-deploy notes and Deploy #41',
+    '',
+    'Deploy #41 shipped `production-write` v69 from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+].join('\n');
+const postDeployNamedRun = run(fixture('post-deploy-named', appended(postDeployNamed), realRb));
+ok(postDeployNamedRun.code === 1 && postDeployNamedRun.json
+    && postDeployNamedRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 post-deploy notes and Deploy #41"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'while a heading that names a deploy alongside its post-deploy notes is still a deploy record, and is asked for its receipt');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

@@ -1569,6 +1569,46 @@ ok(laneDoneProbeNotRun.code === 1 && laneDoneProbeNotRun.json
     && laneDoneProbeNotRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
     'while a positive verdict beside a negated one about something else ("completed (run `X`), but the smoke probe was not completed") stands, and FAILS');
 
+/* ---- 8ac. "deployed" is not "deploy"; a failed run is a negated one (round twenty-eight) */
+const pendingFixesDeployed = [
+    '',
+    '## 2026-09-06 — Pending fixes deployed via F27 Section 4, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`; the four functions moved.',
+    '',
+].join('\n');
+const pendingFixesDeployedRun = run(fixture('pending-fixes-deployed', appended(pendingFixesDeployed), realRb));
+ok(pendingFixesDeployedRun.code === 1 && pendingFixesDeployedRun.json
+    && pendingFixesDeployedRun.json.failures.some(f => /"2026-09-06 — Pending fixes deployed via F27 Section 4, run `34000000000`"/.test(f) && UNREADABLE.test(f)),
+    '"DEPLOYED" IS NOT "DEPLOY": "Pending fixes deployed via F27 Section 4" records a deploy that happened, is not excused by the word "pending", and is asked for its receipt');
+const notYetDeployed = awaitsDeploy.replace('Built: a new gateway half (awaits migration + first deploy)', 'Built: a new gateway half (not yet deployed)');
+const notYetDeployedRun = run(fixture('not-yet-deployed', appended(notYetDeployed), realRb));
+ok(notYetDeployedRun.code === 0,
+    'while "(not yet deployed)" is the future form and asks for nothing');
+const laneFailedNoDeploy = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed without deploying any function',
+    '(run `33995000000`).',
+    '',
+].join('\n');
+const laneFailedNoDeployRun = run(fixture('lane-failed-no-deploy', appended(laneFailedNoDeploy), realRb));
+ok(laneFailedNoDeployRun.code === 0,
+    'A FAILED RUN IS A NEGATED ONE: "the dispatch failed without deploying any function (run `X`)" asks for nothing');
+const laneDoneProbeFailed = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch completed (run `33995000000`) but the post-deploy',
+    'probe failed.',
+    '',
+].join('\n');
+const laneDoneProbeFailedRun = run(fixture('lane-done-probe-failed', appended(laneDoneProbeFailed), realRb));
+ok(laneDoneProbeFailedRun.code === 1 && laneDoneProbeFailedRun.json
+    && laneDoneProbeFailedRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while "completed (run `X`) but the post-deploy probe failed" is a completed dispatch beside an unrelated failure, and FAILS');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

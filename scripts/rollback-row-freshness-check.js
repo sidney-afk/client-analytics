@@ -638,6 +638,11 @@ const AUX_WORDS = 'was|were|is|are|has|had|have|been|got|also|then|all|both|not|
 /* A negated completion ("was not completed", "never dispatched") is not a
    completion, of a check or of the dispatch (Codex, twenty-sixth round on
    #1306). */
+/* Explicit failure wording is a negated verdict too: "the dispatch failed
+   without deploying any function (run `X`)" deployed nothing (Codex,
+   twenty-eighth round on #1306). A positive verdict beside it still stands
+   ("completed (run `X`) but the post-deploy probe failed"). */
+const FAILED_RUN = /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out|deployed nothing|deploying nothing|no deployment|without deploying|did not deploy|never deployed)\b/gi;
 const NEGATED_DONE = new RegExp('\\b(?:not|never|no longer|isn\'t|wasn\'t|hasn\'t|hadn\'t|didn\'t|weren\'t|haven\'t)\\b(?:\\s+(?:was|were|been|be|get|got))*\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*', 'gi');
 const CHECK_DONE = new RegExp('\\b(?:' + CHECK_WORDS + ')\\b(?:\\s+(?:' + AUX_WORDS + ')\\b)*\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*'
     + '|\\b(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*\\s+(?:the |its |a |all )?(?:' + CHECK_WORDS + ')\\b', 'gi');
@@ -669,7 +674,7 @@ function recordsADispatch(log, k, len) {
     const before = span.slice(cStart, rel);
     const after = span.slice(rel + len, cEnd);
     /* Completion words about a check are not about the dispatch. */
-    const norm = text => text.replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ');
+    const norm = text => text.replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ').replace(FAILED_RUN, ' NEGATED ');
     /* PLANNING THE DISPATCH IS NOT PLANNING THE FOLLOW-UP. A forward-looking
        word makes a plan only when no completion word precedes it in the text
        considered: "completed successfully and will be smoke-tested tomorrow
@@ -964,9 +969,13 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            "Built: ... (awaits migration + first deploy)" is an entry about code
            that has NOT shipped, and it names Section 4 in its body only to say
            which lane will carry it. Surfaced by the merge of #1310 during
-           review of #1306. "NOT DISPATCHED" is the same idea in the log's own
-           words. */
-        const deployAhead = /\b(awaits?|awaiting|pending|before|until|not yet|to be|planned|upcoming|will|would|without|ahead of)\b[^\n]{0,40}?\bdeploy/i.test(h.text);
+           review of #1306. Only the bare future form counts ("deploy",
+           "deployment", "not yet deployed", "to be deployed"): "Pending fixes
+           deployed via F27 Section 4" records a deploy that happened (Codex,
+           twenty-eighth round). "NOT DISPATCHED" is the same idea in the log's
+           own words. */
+        const deployAhead = /\b(awaits?|awaiting|pending|before|until|not yet|to be|planned|upcoming|will|would|without|ahead of)\b[^\n]{0,40}?\bdeploy(?:ment)?\b/i.test(h.text)
+            || /\b(not yet|never|not|to be|will be|would be|yet to be|still to be)\s+(?:\w+\s+)?deployed\b/i.test(h.text);
         const headSaysDeploy = (bodyClaimsForward || (sectionFourHere && /deploy/i.test(h.text) && !deployAhead))
             && !/NOT DISPATCHED/i.test(h.text);
         const noReceiptUnder = headSaysDeploy && !within(h.at, treeEnd);

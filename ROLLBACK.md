@@ -1,5 +1,11 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+## 2026-09-05 — Dormant native label catalog foundation (unapplied)
+
+The baseline is `ab6366136c03239965c97b050ab5cf7c9763a228`; this slice does not change browser/gateway/active writer bytes. Local containment is to leave the new migration unapplied and its RPCs uncalled. No client-facing rollback, flag or deploy is needed. If a later authorized install has staged evidence, retain the additive catalog table, all versions, immutable triggers and private ACLs; stop future callers instead of deleting, truncating or replacing its contents. Service activation/active-read functions always refuse. Do not restore a provider-blind write lane or disable an existing writer to roll this foundation back.
+
+Installation itself remains held until the [new object inventory](docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md#complete-new-recovery-object-inventory) is included in authenticated schema capture, a separately versioned private data corpus, and a narrowly owned restore helper with exact retained-data proof. Current history-v5's 33-table package excludes it; ordinary restore TRUNCATE must not bypass the new immutable triggers or use CASCADE. No live restore point or installed rollback is asserted by local SQL tests. The single go-live checklist continues to own product release ordering.
+
 **This file is law.** The owner's requirement, verbatim in spirit: *"I need to make sure that if
 there's a bug or a problem or anything happening, I can click on a button and everything goes
 back to normal. Our whole business depends on this."* Every phase of the independence plan is
@@ -604,3 +610,29 @@ the pre-2026-09-05 behaviour, not a broken control.
 the same day, separately and independently of this lane. Its rollback is
 unchanged: re-apply the definition from
 `migrations/2026-08-30-artifact-video-projection.sql`.
+
+## 2026-09-05 — pending: production-write pinned at d7fc8348… (evidence reuse)
+
+Two repo pins have moved since v67 `d2914ac2…` was deployed, neither yet
+dispatched: `6a39a2bc…` (exclusivity truncation guard, #1294) and `d7fc8348…`
+(`asset_access_read` reuses a fresh ledger verdict by `(slot, url_sha256)`;
+`recheck: true` forces a probe). The next Section 4 dispatch carries both; there
+is no intermediate state to restore to.
+
+**The browser half is live first and is safe against either gateway.** It sends
+`recheck` only from the Refresh access button; an older gateway ignores the
+field and probes as it always has. A newer gateway under an older browser
+answers the same shape faster. Rolling the function back to v67 therefore leaves
+a working page with live probes, not a broken read.
+
+**There is no runtime switch for the reuse short of redeploying v67.** Per row,
+the Refresh access button forces a live probe (`recheck: true`), and the window
+a held verdict can be reused for is bounded by `ASSET_EVIDENCE_MAX_AGE_MS`
+(five minutes), after which the next read probes again on its own. Disabling it
+for everyone is the v67 restore above; there is deliberately no flag the page
+reads for it, so nothing new for the harness to be told about.
+
+**The index migration is independent.** `2026-09-05-asset-evidence-by-url.sql`
+adds `production_asset_access_checks_by_url_idx`; the lookup is correct without
+it. Rollback is `drop index if exists
+public.production_asset_access_checks_by_url_idx;`.

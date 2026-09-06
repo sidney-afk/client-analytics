@@ -11,22 +11,38 @@
  *             plpgsql/sql, triggers, policies, RLS flags, replica identity,
  *             views, enum/domain/composite types, comments, table/column/
  *             sequence/function ACLs for the platform roles);
- *   data    = the selected Track-B corpus tables only; every other public
- *             table is reconstructed empty and listed as omitted;
+ *   data    = the selected Track-B corpus tables only, each bound by an exact
+ *             ordered content digest; every other public table is
+ *             reconstructed empty and listed as omitted;
+ *   sequences = exact (last_value, is_called) of every public sequence as
+ *             validated decimal strings, never through a JavaScript Number;
  *   pinned  = roles, extensions (name/schema/version), non-public schemas and
  *             the realtime publication are PREREQUISITES verified on the
  *             target, never recreated by the package;
+ *   callable = every function an expression can execute while rows load
+ *             (CHECK, default, generated column, index expression/predicate,
+ *             view, materialized view) is resolved at capture against the
+ *             source catalog and must be pg_catalog (not denylisted), a
+ *             stable/immutable function of a pinned extension, or a PURE public
+ *             function (immutable, invoker, sql/plpgsql, no writing statement,
+ *             transitively resolvable). Anything else refuses the capture; the
+ *             reader and the target re-verify the same contract;
  *   coherence = pre-data, data and post-data dumps import ONE exported
  *             repeatable-read snapshot; a catalog fingerprint taken inside
  *             that snapshot must equal a fresh fingerprint taken after the
  *             dumps, otherwise the package is refused (DDL race fail-closed).
+ *             Sequence state is read inside the capture window but sequences
+ *             are not MVCC objects: a value can be later than the row
+ *             snapshot, never earlier than any value the rows use.
  *
- * The reconstruction executes only allowlisted DDL classes re-emitted from
- * the authenticated sections, inside one transaction, in the order
- * pre-data -> COPY -> sequence values -> post-data. Triggers, foreign keys and
- * policies therefore do not exist while rows are loaded: nothing fires, no
- * journal capture pollutes the restored journal, and no egress can occur.
- * Owner names are never restored; the restricted restore role owns everything.
+ * Reconstruction executes only allowlisted DDL classes re-emitted from the
+ * authenticated sections, inside one transaction, in the order
+ * pre-data -> COPY -> sequence values -> post-data -> in-transaction
+ * verification (fingerprint, per-table digests, sequences, ownership). A
+ * detectable mismatch therefore rolls the whole transaction back and leaves
+ * the target empty. Triggers, foreign keys and policies do not exist while
+ * rows load; CHECK/default/index expressions DO execute, which is exactly why
+ * the callable contract above exists. Owner names are never restored.
  */
 const crypto = require('crypto');
 const fs = require('fs');
@@ -38,23 +54,67 @@ const backup = require('./track-b-backup');
 
 const RECOVERY_MAGIC = Buffer.from('SYNCVIEW_TRACK_B_RECOVERY_V1\n', 'utf8');
 const RECOVERY_FORMAT = 'syncview-track-b-recovery-package';
-const RECOVERY_VERSION = 1;
+// Version 2: exact sequence state (decimal strings + is_called), per-table
+// content digests, callable-dependency contract and in-transaction
+// verification. Version 1 packages (local proofs only) carried a lossy
+// sequence projection and are refused rather than reinterpreted.
+const RECOVERY_VERSION = 2;
+const LEGACY_RECOVERY_VERSIONS = Object.freeze({ 1: 'lossy sequence projection; recapture with version 2' });
 const RECOVERY_FILE_PREFIX = 'syncview-track-b-recovery-';
 const HMAC_BYTES = backup.HMAC_BYTES;
 const PLATFORM_ROLES = Object.freeze(['anon', 'authenticated', 'service_role']);
 const REQUIRED_EXTENSION_ALLOWLIST = Object.freeze(['pgcrypto', 'uuid-ossp', 'pg_trgm', 'citext', 'btree_gist', 'btree_gin']);
 const EGRESS_EXTENSIONS = Object.freeze(['pg_net', 'dblink', 'http', 'postgres_fdw', 'pg_cron']);
+const EGRESS_SCHEMAS = Object.freeze(['net', 'dblink', 'cron']);
+// Informational only: counted on trigger/RPC bodies, which reconstruction never
+// invokes. It is NOT the execution boundary; the callable contract is.
 const EGRESS_BODY_PATTERN = /\b(net\.http_|dblink|pg_net|http_(?:post|get|put|delete)|pg_read_(?:binary_)?file|pg_execute_server_program|lo_import|lo_export)\b|\bcopy\b[^;]*\bprogram\b/i;
+// pg_catalog functions that must never appear in an expression the restore
+// evaluates, and whose EXECUTE the restore role must not hold.
+const DANGEROUS_CATALOG_FUNCTIONS = Object.freeze(['pg_read_file', 'pg_read_binary_file', 'pg_ls_dir', 'pg_stat_file', 'pg_ls_logdir', 'pg_ls_waldir',
+  'lo_import', 'lo_export', 'lo_unlink', 'lo_from_bytea', 'lo_put', 'pg_terminate_backend', 'pg_cancel_backend', 'pg_reload_conf', 'pg_rotate_logfile',
+  'pg_notify', 'set_config', 'pg_sleep', 'pg_sleep_for', 'pg_sleep_until', 'pg_advisory_lock', 'pg_advisory_xact_lock', 'pg_advisory_unlock',
+  'pg_export_snapshot', 'pg_create_physical_replication_slot', 'pg_create_logical_replication_slot', 'pg_drop_replication_slot',
+  'pg_logical_emit_message', 'pg_switch_wal', 'pg_backup_start', 'pg_backup_stop', 'pg_promote', 'pg_replication_origin_create',
+  'setval', 'pg_file_write', 'pg_file_unlink', 'pg_file_rename', 'query_to_xml', 'database_to_xml', 'schema_to_xml']);
+// Signatures the target role must NOT be able to execute (privilege recheck).
+const DANGEROUS_CATALOG_SIGNATURES = Object.freeze(['pg_catalog.pg_read_file(text)', 'pg_catalog.pg_read_binary_file(text)', 'pg_catalog.pg_ls_dir(text)',
+  'pg_catalog.pg_stat_file(text)', 'pg_catalog.lo_import(text)', 'pg_catalog.lo_export(oid,text)', 'pg_catalog.pg_terminate_backend(integer,bigint)',
+  'pg_catalog.pg_reload_conf()', 'pg_catalog.pg_rotate_logfile()', 'pg_catalog.pg_export_snapshot()']);
+const DANGEROUS_ROLE_MEMBERSHIPS = Object.freeze(['pg_execute_server_program', 'pg_read_server_files', 'pg_write_server_files', 'pg_signal_backend',
+  'pg_read_all_data', 'pg_write_all_data', 'pg_database_owner', 'pg_maintain', 'pg_create_subscription']);
+// Volatile extension functions an expression may still call (no side effects).
+const VOLATILE_EXTENSION_ALLOWLIST = Object.freeze(['gen_random_bytes', 'gen_random_uuid', 'uuid_generate_v1', 'uuid_generate_v1mc', 'uuid_generate_v4', 'gen_salt']);
+// The narrow EXECUTE contract the target prerequisites grant in `extensions`.
+const EXTENSION_FUNCTION_CONTRACT = Object.freeze(['digest(bytea,text)', 'gen_random_bytes(integer)', 'gen_random_uuid()']);
+// A pure function body may not contain any of these statements.
+const BODY_WRITE_KEYWORDS = /\b(insert|update|delete|truncate|execute|perform|call|copy|notify|listen|unlisten|create|alter|drop|grant|revoke|refresh|lock|commit|rollback|savepoint|prepare|deallocate|import|vacuum|analyze|analyse|reindex|cluster|checkpoint|discard|load|security)\b/i;
+// Tokens that precede "(" in SQL without naming a function.
+const SQL_CALL_KEYWORDS = new Set(['and', 'or', 'not', 'in', 'is', 'as', 'on', 'any', 'all', 'some', 'exists', 'array', 'row', 'values', 'select', 'from', 'where',
+  'when', 'then', 'else', 'end', 'case', 'cast', 'over', 'filter', 'within', 'group', 'order', 'by', 'having', 'limit', 'offset', 'join', 'using', 'left',
+  'right', 'inner', 'outer', 'full', 'cross', 'lateral', 'union', 'intersect', 'except', 'distinct', 'between', 'like', 'ilike', 'similar', 'to', 'with',
+  'recursive', 'returning', 'into', 'default', 'check', 'constraint', 'references', 'primary', 'key', 'unique', 'foreign', 'exclude', 'generated', 'always',
+  'stored', 'identity', 'collate', 'interval', 'timestamp', 'timestamptz', 'time', 'timetz', 'numeric', 'decimal', 'varchar', 'varying', 'char', 'character',
+  'bit', 'float', 'double', 'precision', 'nchar', 'if', 'elsif', 'elseif', 'while', 'loop', 'for', 'foreach', 'return', 'raise', 'declare', 'begin',
+  'exception', 'get', 'diagnostics', 'strict', 'nulls', 'first', 'last', 'asc', 'desc', 'extract', 'position', 'substring', 'trim', 'overlay', 'xmlelement',
+  'xmlforest', 'xmlattributes', 'xmlparse', 'xmlserialize', 'xmlexists', 'xmlagg', 'coalesce', 'nullif', 'greatest', 'least', 'grouping', 'treat', 'only',
+  'table', 'index', 'btree', 'hash', 'gin', 'gist', 'brin', 'spgist', 'setof', 'language', 'returns', 'function', 'procedure', 'trigger', 'each', 'statement',
+  'each_row', 'ordinality', 'rows', 'range', 'groups', 'partition', 'window', 'lower', 'upper']);
+// lower/upper are real pg_catalog functions too; keyword membership only means
+// "do not fail if unresolved", resolution still classifies them when present.
 const SKIPPED_SESSION_SETTINGS = Object.freeze(['statement_timeout', 'lock_timeout', 'idle_in_transaction_session_timeout', 'transaction_timeout']);
 const ALLOWED_SESSION_SETTINGS = Object.freeze([...SKIPPED_SESSION_SETTINGS, 'client_encoding', 'standard_conforming_strings',
   'check_function_bodies', 'xmloption', 'client_min_messages', 'row_security', 'default_tablespace',
   'default_table_access_method', 'default_toast_compression']);
 const IDENT = '(?:"[^"]+"|[a-z_][a-z0-9_]*)';
+const ARGS = '\\((?:[^()]|\\([^()]*\\))*\\)';
+const SEQUENCE_RANGES = Object.freeze({ smallint: [-32768n, 32767n], integer: [-2147483648n, 2147483647n], bigint: [-9223372036854775808n, 9223372036854775807n] });
 
 function clean(value) { return String(value == null ? '' : value).trim(); }
 function sha256(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function hmacSha256(key, value) { return crypto.createHmac('sha256', key).update(value).digest(); }
 function u64(value) { const b = Buffer.alloc(8); b.writeBigUInt64BE(BigInt(value)); return b; }
+function unquote(name) { return clean(name).replace(/^"(.*)"$/, '$1'); }
 
 function recoveryName(generatedAt) {
   const stamp = clean(generatedAt).replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
@@ -131,7 +191,110 @@ function stripDollarQuoted(text) {
 }
 
 function normalizeRoleList(tail) {
-  return clean(tail).split(',').map(item => clean(item).replace(/^"(.*)"$/, '$1'));
+  return clean(tail).split(',').map(item => unquote(item));
+}
+
+// ---------------------------------------------------------------------------
+// Callable references: names that precede "(" in SQL text, minus strings,
+// comments and known keywords. Used identically at capture and read time.
+// ---------------------------------------------------------------------------
+function stripSqlNoise(text) {
+  return String(text || '').replace(/'(?:[^']|'')*'/g, "''").replace(/--[^\n]*/g, ' ').replace(/"[^"]*"/g, ' q ');
+}
+
+function callNamesIn(text) {
+  const names = new Set();
+  for (const match of stripSqlNoise(text).matchAll(/\b([a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)?)\s*\(/gi)) {
+    const name = match[1].toLowerCase();
+    const bare = name.includes('.') ? name.split('.')[1] : name;
+    if (!name.includes('.') && SQL_CALL_KEYWORDS.has(bare)) continue;
+    names.add(name);
+  }
+  return names;
+}
+
+// Texts an expression evaluates during reconstruction, drawn from the package
+// statements themselves (read-time) so the contract does not trust the manifest.
+function evaluatedExpressionTexts(statements) {
+  const texts = [];
+  for (const text of statements) {
+    const head = text.replace(/\s+/g, ' ');
+    if (/^CREATE (?:UNLOGGED )?TABLE public\./i.test(head)) {
+      texts.push({ kind: 'table_definition', text: text.replace(/^CREATE (?:UNLOGGED )?TABLE public\.[^(]*\(/i, '(') });
+    } else if (/^ALTER TABLE (?:ONLY )?public\.\S+ ALTER COLUMN \S+ SET DEFAULT /i.test(head)) {
+      texts.push({ kind: 'default', text: head.replace(/^ALTER TABLE (?:ONLY )?public\.\S+ ALTER COLUMN \S+ SET DEFAULT /i, '') });
+    } else if (/^ALTER TABLE (?:ONLY )?public\.\S+ ADD CONSTRAINT \S+ CHECK /i.test(head)) {
+      texts.push({ kind: 'check', text: head.replace(/^ALTER TABLE (?:ONLY )?public\.\S+ ADD CONSTRAINT \S+ CHECK /i, '') });
+    } else if (/^CREATE (?:UNIQUE )?INDEX /i.test(head)) {
+      texts.push({ kind: 'index', text: head.replace(/^CREATE (?:UNIQUE )?INDEX \S+ ON public\.\S+ USING \S+ /i, '') });
+    } else if (/^CREATE (?:OR REPLACE )?VIEW public\./i.test(head) || /^CREATE MATERIALIZED VIEW public\./i.test(head)) {
+      texts.push({ kind: 'view', text: head.replace(/^CREATE (?:OR REPLACE )?(?:MATERIALIZED )?VIEW public\.\S+/i, '') });
+    } else if (/^ALTER DOMAIN public\.\S+ ADD CONSTRAINT /i.test(head) || /^CREATE DOMAIN public\./i.test(head)) {
+      texts.push({ kind: 'domain', text: head });
+    }
+  }
+  return texts;
+}
+
+// Purity contract for a public function an expression may execute.
+function functionPurity(statementText) {
+  const { stripped, bodies } = stripDollarQuoted(statementText);
+  const head = stripped.replace(/\s+/g, ' ');
+  const reasons = [];
+  const name = (head.match(new RegExp(`^CREATE (?:OR REPLACE )?FUNCTION public\\.(${IDENT})\\(`, 'i')) || [])[1];
+  if (!name) reasons.push('not_a_public_function');
+  const language = (head.match(/\bLANGUAGE\s+([A-Za-z_]+)/i) || [])[1];
+  if (!language || !/^(sql|plpgsql)$/i.test(language)) reasons.push('language');
+  if (!/\bIMMUTABLE\b/i.test(head)) reasons.push('not_immutable');
+  if (/\bSECURITY DEFINER\b/i.test(head)) reasons.push('security_definer');
+  if (/\bAS\s+'/i.test(head)) reasons.push('quoted_body');
+  const body = bodies.map(item => item.replace(/^\$[A-Za-z0-9_]*\$/, '').replace(/\$[A-Za-z0-9_]*\$$/, '')).join('\n');
+  if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(body).replace(/\/\*[\s\S]*?\*\//g, ' '))) reasons.push('writing_statement');
+  return { pure: reasons.length === 0, reasons, name: name ? unquote(name) : null, calls: [...callNamesIn(body)] };
+}
+
+// Read-time contract: every callable name in evaluated expressions and in the
+// bodies of pure public functions must be classified by the manifest, every
+// public function so classified must exist in the package and be pure, and
+// no other class may appear.
+function verifyCallableContract(statements, manifest) {
+  const references = manifest.callable_references || {};
+  const pureFunctions = new Map();
+  for (const text of statements) {
+    if (/^CREATE (?:OR REPLACE )?FUNCTION public\./i.test(text)) {
+      const purity = functionPurity(text);
+      if (purity.name) pureFunctions.set(purity.name, purity);
+    }
+  }
+  const visited = new Set();
+  const require = (name, origin) => {
+    const entry = references[name];
+    if (!entry) throw new Error(`Track-B recovery callable reference is outside the manifest contract (${origin})`);
+    if (entry.class === 'pg_catalog') {
+      if (DANGEROUS_CATALOG_FUNCTIONS.includes(entry.name)) throw new Error('Track-B recovery callable contract names a denylisted catalog function');
+      return;
+    }
+    if (entry.class === 'extension') {
+      if (!(manifest.prerequisites.required_extensions || []).some(item => item.name === entry.extension)) throw new Error('Track-B recovery callable contract references an unpinned extension');
+      return;
+    }
+    if (entry.class === 'not_a_function' || entry.class === 'keyword') return;
+    if (entry.class === 'public_pure') {
+      if (visited.has(entry.name)) return;
+      visited.add(entry.name);
+      const purity = pureFunctions.get(entry.name);
+      if (!purity) throw new Error('Track-B recovery package lacks a pure function the contract requires');
+      if (!purity.pure) throw new Error(`Track-B recovery public function violates the purity contract (${purity.reasons.join(',')})`);
+      for (const call of purity.calls) require(call, 'function body');
+      return;
+    }
+    throw new Error('Track-B recovery callable contract has an unsupported class');
+  };
+  let evaluated = 0;
+  for (const item of evaluatedExpressionTexts(statements)) {
+    for (const name of callNamesIn(item.text)) { evaluated += 1; require(name, item.kind); }
+  }
+  return { evaluated_references: evaluated, pure_functions: [...visited].sort() };
 }
 
 // ---------------------------------------------------------------------------
@@ -147,31 +310,33 @@ function classifySchemaStatement(statement, allowedRoles = PLATFORM_ROLES) {
   const head = stripped.replace(/\s+/g, ' ');
   const roles = new Set([...allowedRoles, ...PLATFORM_ROLES]);
   const rolesAllowed = tail => normalizeRoleList(tail).every(role => role === 'PUBLIC' || roles.has(role));
+  const roleList = `${IDENT}(?:, ${IDENT})*`;
   const tests = [
     [new RegExp(`^SET (${ALLOWED_SESSION_SETTINGS.join('|')}) = [^;]{1,60}$`, 'i'), match => (
       SKIPPED_SESSION_SETTINGS.includes(match[1].toLowerCase()) ? { action: 'skip', kind: 'session_timeout_setting' } : { action: 'execute', kind: 'session_setting' })],
     [/^SELECT pg_catalog\.set_config\('search_path', '', false\)$/, () => ({ action: 'execute', kind: 'search_path_reset' })],
     [/^CREATE SCHEMA public$/i, () => ({ action: 'skip', kind: 'platform_schema' })],
     [/^COMMENT ON SCHEMA public IS /i, () => ({ action: 'skip', kind: 'platform_schema_comment' })],
-    [/^(?:GRANT|REVOKE) [A-Z, ]+ ON SCHEMA public /i, () => ({ action: 'skip', kind: 'platform_schema_acl' })],
+    [new RegExp(`^(?:GRANT|REVOKE) [A-Z, ]+ ON SCHEMA public (?:TO|FROM) ${roleList}$`, 'i'), () => ({ action: 'skip', kind: 'platform_schema_acl' })],
     [new RegExp(`^CREATE (?:UNLOGGED )?TABLE public\\.${IDENT} \\(`, 'i'), () => ({ action: 'execute', kind: 'table' })],
-    [new RegExp(`^CREATE (?:UNIQUE )?INDEX ${IDENT} ON public\\.${IDENT} `, 'i'), () => ({ action: 'execute', kind: 'index' })],
+    [new RegExp(`^CREATE (?:UNIQUE )?INDEX ${IDENT} ON public\\.${IDENT} USING ${IDENT} \\(`, 'i'), () => ({ action: 'execute', kind: 'index' })],
     [new RegExp(`^CREATE SEQUENCE public\\.${IDENT}`, 'i'), () => ({ action: 'execute', kind: 'sequence' })],
     [new RegExp(`^ALTER SEQUENCE public\\.${IDENT} OWNED BY public\\.${IDENT}\\.${IDENT}$`, 'i'), () => ({ action: 'execute', kind: 'sequence_owner' })],
     [new RegExp(`^ALTER TABLE (?:ONLY )?public\\.${IDENT} ALTER COLUMN ${IDENT} (?:ADD GENERATED (?:ALWAYS|BY DEFAULT) AS IDENTITY|SET DEFAULT|SET NOT NULL|SET STATISTICS|SET STORAGE|SET \\()`, 'i'), () => ({ action: 'execute', kind: 'column_alter' })],
     [new RegExp(`^ALTER TABLE (?:ONLY )?public\\.${IDENT} ADD CONSTRAINT ${IDENT} (?:PRIMARY KEY|UNIQUE|FOREIGN KEY|CHECK|EXCLUDE)`, 'i'), () => ({ action: 'execute', kind: 'constraint' })],
     [new RegExp(`^ALTER TABLE (?:ONLY )?public\\.${IDENT} (?:ENABLE|FORCE) ROW LEVEL SECURITY$`, 'i'), () => ({ action: 'execute', kind: 'row_security' })],
-    [new RegExp(`^ALTER TABLE (?:ONLY )?public\\.${IDENT} REPLICA IDENTITY `, 'i'), () => ({ action: 'execute', kind: 'replica_identity' })],
+    [new RegExp(`^ALTER TABLE (?:ONLY )?public\\.${IDENT} REPLICA IDENTITY (?:DEFAULT|FULL|NOTHING|USING INDEX ${IDENT})$`, 'i'), () => ({ action: 'execute', kind: 'replica_identity' })],
     [new RegExp(`^ALTER TABLE (?:ONLY )?public\\.${IDENT} (?:ENABLE|DISABLE) (?:ALWAYS |REPLICA )?TRIGGER ${IDENT}$`, 'i'), () => ({ action: 'execute', kind: 'trigger_state' })],
     [new RegExp(`^ALTER TABLE (?:ONLY )?public\\.${IDENT} CLUSTER ON ${IDENT}$`, 'i'), () => ({ action: 'execute', kind: 'cluster' })],
     [new RegExp(`^CREATE (?:OR REPLACE )?(?:FUNCTION|PROCEDURE) public\\.${IDENT}\\(`, 'i'), () => {
       const language = stripped.match(/\bLANGUAGE\s+([A-Za-z_]+)/i);
       if (!language || !/^(plpgsql|sql)$/i.test(language[1])) return { action: 'reject', kind: 'function_language' };
       if (/\bLANGUAGE\s+[A-Za-z_]+[\s\S]*\bLANGUAGE\s+/i.test(stripped)) return { action: 'reject', kind: 'function_language' };
+      if (/\bAS\s+'/i.test(head)) return { action: 'reject', kind: 'function_quoted_body' };
       return { action: 'execute', kind: 'function', egress: bodies.some(body => EGRESS_BODY_PATTERN.test(body)) };
     }],
     [new RegExp(`^CREATE (?:CONSTRAINT )?TRIGGER ${IDENT} (?:BEFORE|AFTER|INSTEAD OF) (?:INSERT|UPDATE|DELETE|TRUNCATE)(?: OF ${IDENT}(?:, ${IDENT})*)?(?: OR (?:INSERT|UPDATE|DELETE|TRUNCATE)(?: OF ${IDENT}(?:, ${IDENT})*)?)* ON public\\.${IDENT} [\\s\\S]*EXECUTE (?:FUNCTION|PROCEDURE) public\\.${IDENT}\\(`, 'i'), () => ({ action: 'execute', kind: 'trigger' })],
-    [new RegExp(`^CREATE POLICY ${IDENT} ON public\\.${IDENT} `, 'i'), match => {
+    [new RegExp(`^CREATE POLICY ${IDENT} ON public\\.${IDENT} `, 'i'), () => {
       const to = head.match(/ TO ([^ ]+(?:, [^ ]+)*) (?:USING|WITH)/i) || head.match(/ TO ([^ ]+(?:, [^ ]+)*)$/i);
       return to && !rolesAllowed(to[1]) ? { action: 'reject', kind: 'policy_role' } : { action: 'execute', kind: 'policy' };
     }],
@@ -183,11 +348,10 @@ function classifySchemaStatement(statement, allowedRoles = PLATFORM_ROLES) {
     [new RegExp(`^ALTER DOMAIN public\\.${IDENT} ADD CONSTRAINT `, 'i'), () => ({ action: 'execute', kind: 'domain_constraint' })],
     [new RegExp(`^COMMENT ON (?:TABLE|COLUMN|FUNCTION|PROCEDURE|INDEX|TYPE|DOMAIN|SEQUENCE|VIEW|MATERIALIZED VIEW) public\\.${IDENT}`, 'i'), () => ({ action: 'execute', kind: 'comment' })],
     [new RegExp(`^COMMENT ON (?:CONSTRAINT|TRIGGER|POLICY) ${IDENT} ON public\\.${IDENT} IS `, 'i'), () => ({ action: 'execute', kind: 'comment' })],
-    [new RegExp(`^(GRANT|REVOKE) (?:[A-Z]+(?:\\([^)]*\\))?(?:, ?)?)+ ON (?:TABLE|SEQUENCE|FUNCTION|PROCEDURE|ROUTINE|TYPE|DOMAIN) public\\.${IDENT}[^;]* (TO|FROM) ([^;]+)$`, 'i'), match => {
-      const tail = match[3].replace(/ WITH GRANT OPTION$/i, '');
-      if (/ WITH GRANT OPTION$/i.test(match[3]) || /GRANTED BY/i.test(match[3])) return { action: 'reject', kind: 'grant_option' };
-      return rolesAllowed(tail) ? { action: 'execute', kind: 'acl' } : { action: 'reject', kind: 'acl_role' };
-    }],
+    // Exactly ONE public target, no comma list, no other schema, no grant option.
+    [new RegExp(`^(GRANT|REVOKE) ((?:[A-Z]+(?:\\([^)]*\\))?)(?:, ?(?:[A-Z]+(?:\\([^)]*\\))?))*) ON (TABLE|SEQUENCE|FUNCTION|PROCEDURE|ROUTINE|TYPE|DOMAIN) public\\.${IDENT}(?:${ARGS})? (TO|FROM) (${roleList})$`, 'i'), match => (
+      rolesAllowed(match[5]) ? { action: 'execute', kind: 'acl' } : { action: 'reject', kind: 'acl_role' })],
+    [/^(GRANT|REVOKE) /i, () => ({ action: 'reject', kind: 'acl_shape' })],
   ];
   for (const [pattern, resolve] of tests) {
     const match = head.match(pattern);
@@ -220,7 +384,7 @@ function createdTables(statements) {
   const names = new Set();
   for (const text of statements) {
     const match = text.match(new RegExp(`^CREATE (?:UNLOGGED )?TABLE public\\.(${IDENT}) \\(`, 'i'));
-    if (match) names.add(match[1].replace(/^"(.*)"$/, '$1'));
+    if (match) names.add(unquote(match[1]));
   }
   return names;
 }
@@ -286,7 +450,7 @@ function inventorySql() {
   return `select json_build_object(
   'tables', (select json_agg(c.relname order by c.relname) from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('r','p')),
   'views', (select count(*) from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('v','m')),
-  'sequences', (select count(*) from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind='S'),
+  'sequences', (select json_agg(c.relname order by c.relname) from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind='S'),
   'functions', (select count(*) from pg_catalog.pg_proc p where p.pronamespace='public'::regnamespace),
   'triggers', (select count(*) from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid=t.tgrelid where c.relnamespace='public'::regnamespace and not t.tgisinternal),
   'disabled_triggers', (select count(*) from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid=t.tgrelid where c.relnamespace='public'::regnamespace and not t.tgisinternal and t.tgenabled='D'),
@@ -297,9 +461,41 @@ function inventorySql() {
 )`;
 }
 
-function sequencesSql() {
-  return `select coalesce(json_agg(json_build_object('name', sequencename, 'last_value', last_value, 'start_value', start_value, 'increment_by', increment_by, 'data_type', data_type::text) order by sequencename), '[]'::json)
-from pg_catalog.pg_sequences where schemaname='public'`;
+// Exact sequence state: the sequence relation itself (last_value, is_called)
+// plus its catalog definition, everything as text. pg_sequences.last_value is
+// NULL for an uncalled sequence and is not the state; it is never used here.
+function sequenceStateSql(name) {
+  const safe = safeName(name, /^[a-z_][a-z0-9_]{0,62}$/, 'sequence name');
+  return `select json_build_object('name', '${safe}', 'last_value', s.last_value::text, 'is_called', s.is_called,
+  'start_value', q.seqstart::text, 'increment_by', q.seqincrement::text, 'min_value', q.seqmin::text, 'max_value', q.seqmax::text,
+  'data_type', q.seqtypid::regtype::text)
+from public.${safe} s cross join pg_catalog.pg_sequence q where q.seqrelid='public.${safe}'::regclass`;
+}
+
+function validateSequenceState(item) {
+  const name = safeName(item && item.name, /^[a-z_][a-z0-9_]{0,62}$/, 'sequence name');
+  const type = clean(item.data_type);
+  if (!SEQUENCE_RANGES[type]) throw new Error('Unsupported sequence data type in Track-B recovery manifest');
+  const decimal = value => { if (typeof value !== 'string' || !/^-?(?:0|[1-9]\d{0,18})$/.test(value)) throw new Error('Unsafe sequence value in Track-B recovery manifest'); return BigInt(value); };
+  const last = decimal(item.last_value); const min = decimal(item.min_value); const max = decimal(item.max_value); decimal(item.start_value); decimal(item.increment_by);
+  const [lo, hi] = SEQUENCE_RANGES[type];
+  if (min < lo || max > hi || min > max || last < min || last > max) throw new Error('Sequence value out of range in Track-B recovery manifest');
+  if (typeof item.is_called !== 'boolean') throw new Error('Sequence is_called must be an explicit boolean in Track-B recovery manifest');
+  return { name, last_value: item.last_value, is_called: item.is_called };
+}
+
+function sequenceValueSql(manifest) {
+  return (manifest.sequences || []).map(item => {
+    const state = validateSequenceState(item);
+    return `select pg_catalog.setval('public.${state.name}', '${state.last_value}'::bigint, ${state.is_called});`;
+  });
+}
+
+// Exact ordered content digest of one table, timezone-pinned so the same rows
+// produce the same digest on any server. Never stores or prints row content.
+function dataDigestSql(table) {
+  const safe = safeName(table, /^[a-z_][a-z0-9_]{0,62}$/, 'table name');
+  return `select encode(pg_catalog.sha256(convert_to(coalesce(string_agg(to_jsonb(t)::text, E'\\n' order by to_jsonb(t)::text), ''), 'UTF8')), 'hex') from public.${safe} t`;
 }
 
 function prerequisitesSql() {
@@ -323,6 +519,82 @@ select json_build_object(
     else json_build_object('present', false) end),
   'foreign_servers', (select count(*) from pg_catalog.pg_foreign_server)
 )`;
+}
+
+// Resolve every callable name seen in evaluated expressions and pure-function
+// bodies against the SOURCE catalog. pg_depend supplies the authoritative
+// non-pinned edges; the name resolution supplies the class of every token.
+function callableResolutionSql(names) {
+  const list = names.length ? names.map(name => sqlLiteral(name)).join(',') : "'__none__'";
+  return `with wanted(token) as (select * from (values (${list.split(',').join('),(')})) v(token)),
+parsed as (select token, case when position('.' in token) > 0 then split_part(token, '.', 1) else null end as schema_name,
+  case when position('.' in token) > 0 then split_part(token, '.', 2) else token end as bare from wanted),
+hits as (
+  select w.token, n.nspname as schema_name, p.proname, p.provolatile::text as volatility, p.prosecdef, l.lanname, p.prosrc,
+    (select e.extname from pg_catalog.pg_depend d join pg_catalog.pg_extension e on e.oid=d.refobjid where d.classid='pg_proc'::regclass and d.objid=p.oid and d.refclassid='pg_extension'::regclass and d.deptype='e' limit 1) as extension
+  from parsed w join pg_catalog.pg_proc p on p.proname=w.bare join pg_catalog.pg_namespace n on n.oid=p.pronamespace join pg_catalog.pg_language l on l.oid=p.prolang
+  where (w.schema_name is null or n.nspname=w.schema_name) and n.nspname not in ('pg_toast','information_schema')
+)
+select coalesce(json_agg(json_build_object('token', token, 'schema', schema_name, 'name', proname, 'volatility', volatility, 'security_definer', prosecdef,
+  'language', lanname, 'extension', extension, 'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex')) order by token, schema_name, proname), '[]'::json) from hits`;
+}
+
+function dependencyEdgesSql() {
+  return `select coalesce(json_agg(json_build_object('kind', kind, 'relation', relation, 'function', fn) order by kind, relation, fn), '[]'::json) from (
+  select case d.classid when 'pg_constraint'::regclass then 'check' when 'pg_attrdef'::regclass then 'default' when 'pg_class'::regclass then 'index' else 'view' end as kind,
+    case d.classid when 'pg_constraint'::regclass then (select conrelid::regclass::text from pg_catalog.pg_constraint where oid=d.objid)
+      when 'pg_attrdef'::regclass then (select adrelid::regclass::text from pg_catalog.pg_attrdef where oid=d.objid)
+      when 'pg_class'::regclass then (select i.indrelid::regclass::text from pg_catalog.pg_index i where i.indexrelid=d.objid)
+      else (select ev_class::regclass::text from pg_catalog.pg_rewrite where oid=d.objid) end as relation,
+    n.nspname||'.'||p.proname as fn
+  from pg_catalog.pg_depend d join pg_catalog.pg_proc p on p.oid=d.refobjid join pg_catalog.pg_namespace n on n.oid=p.pronamespace
+  where d.refclassid='pg_proc'::regclass and d.classid in ('pg_constraint'::regclass,'pg_attrdef'::regclass,'pg_class'::regclass,'pg_rewrite'::regclass)
+) edges where relation like 'public.%' or relation not like '%.%'`;
+}
+
+function evaluatedSourceTextsSql() {
+  return `select coalesce(json_agg(json_build_object('kind', kind, 'text', expr)), '[]'::json) from (
+  select 'check' kind, pg_get_constraintdef(oid) expr from pg_catalog.pg_constraint where contype='c' and connamespace='public'::regnamespace
+  union all select 'default', pg_get_expr(adbin, adrelid) from pg_catalog.pg_attrdef where adrelid in (select oid from pg_catalog.pg_class where relnamespace='public'::regnamespace)
+  union all select 'index', regexp_replace(pg_get_indexdef(indexrelid), '^CREATE (UNIQUE )?INDEX \\S+ ON \\S+ USING \\S+ ', '') from pg_catalog.pg_index where indrelid in (select oid from pg_catalog.pg_class where relnamespace='public'::regnamespace)
+  union all select 'view', pg_get_viewdef(c.oid) from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('v','m')
+  union all select 'domain', pg_get_constraintdef(oid) from pg_catalog.pg_constraint where contype='c' and contypid in (select oid from pg_catalog.pg_type where typnamespace='public'::regnamespace and typtype='d')
+) x`;
+}
+
+// Classify one resolved token. Returns {class, ...} or throws for unsafe ones.
+function classifyCallable(token, hits, requiredExtensionNames, visited, resolveBody) {
+  const bare = token.includes('.') ? token.split('.')[1] : token;
+  if (!hits.length) {
+    if (token.includes('.')) throw new Error('Track-B recovery capture found a qualified callable that does not resolve');
+    return { class: 'not_a_function', name: bare };
+  }
+  const schemas = new Set(hits.map(hit => hit.schema));
+  for (const schema of schemas) {
+    if (!['pg_catalog', 'public'].includes(schema) && !hits.some(hit => hit.schema === schema && hit.extension)) {
+      throw new Error(`Track-B recovery capture found a callable in an unsupported schema (${schema})`);
+    }
+  }
+  if (DANGEROUS_CATALOG_FUNCTIONS.includes(bare)) throw new Error(`Track-B recovery capture found a denylisted catalog callable (${bare})`);
+  const publicHits = hits.filter(hit => hit.schema === 'public');
+  const extensionHits = hits.filter(hit => hit.extension);
+  if (publicHits.length && (token.includes('.') ? token.startsWith('public.') : true)) {
+    if (!token.includes('.') && hits.some(hit => hit.schema === 'pg_catalog')) throw new Error(`Track-B recovery capture found a public callable shadowing pg_catalog (${bare})`);
+    for (const hit of publicHits) {
+      if (hit.volatility !== 'i' || hit.security_definer || !['sql', 'plpgsql'].includes(hit.language)) throw new Error(`Track-B recovery capture found an impure public callable (${bare})`);
+      if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(hit.body).replace(/\/\*[\s\S]*?\*\//g, ' '))) throw new Error(`Track-B recovery capture found a public callable with a writing statement (${bare})`);
+    }
+    if (!visited.has(bare)) { visited.add(bare); for (const hit of publicHits) resolveBody(hit.body); }
+    return { class: 'public_pure', name: bare, body_sha256: publicHits.map(hit => hit.body_sha256).sort() };
+  }
+  if (extensionHits.length && (token.includes('.') ? !token.startsWith('pg_catalog.') : !hits.some(hit => hit.schema === 'pg_catalog'))) {
+    for (const hit of extensionHits) {
+      if (!requiredExtensionNames.has(hit.extension)) throw new Error(`Track-B recovery capture found a callable from an unpinned extension (${hit.extension})`);
+      if (hit.volatility === 'v' && !VOLATILE_EXTENSION_ALLOWLIST.includes(bare)) throw new Error(`Track-B recovery capture found a volatile extension callable (${bare})`);
+    }
+    return { class: 'extension', name: bare, extension: extensionHits[0].extension, schema: extensionHits[0].schema };
+  }
+  return { class: 'pg_catalog', name: bare };
 }
 
 function sourcePreflightSql(corpusName) {
@@ -357,6 +629,9 @@ function bindingDigest(manifest) {
     pre_data: manifest.schema.pre_data.sha256, post_data: manifest.schema.post_data.sha256,
     data: manifest.data.sha256, fingerprint: manifest.schema.fingerprint, corpus: manifest.corpus,
     generated_at: manifest.generated_at, source_project_ref: manifest.source_project_ref,
+    recovery_version: manifest.recovery_version,
+    table_digests: Object.fromEntries(Object.entries(manifest.data.tables || {}).map(([name, item]) => [name, item.digest_sha256 || null])),
+    sequences: (manifest.sequences || []).map(item => `${item.name}:${item.last_value}:${item.is_called}`),
   }));
 }
 
@@ -396,12 +671,17 @@ function readRecoveryPackage(input, hmacInput, nowMs = Date.now()) {
   let manifest;
   try { manifest = JSON.parse(bytes.subarray(offset, offset + manifestLength).toString('utf8')); } catch (_) { throw new Error('Invalid Track-B recovery manifest JSON'); }
   offset += manifestLength;
-  if (manifest.format !== RECOVERY_FORMAT || manifest.recovery_version !== RECOVERY_VERSION) throw new Error('Unsupported Track-B recovery manifest');
+  if (manifest.format !== RECOVERY_FORMAT) throw new Error('Unsupported Track-B recovery manifest');
+  if (LEGACY_RECOVERY_VERSIONS[manifest.recovery_version]) {
+    throw new Error(`Track-B recovery package version ${manifest.recovery_version} is refused: ${LEGACY_RECOVERY_VERSIONS[manifest.recovery_version]}`);
+  }
+  if (manifest.recovery_version !== RECOVERY_VERSION) throw new Error('Unsupported Track-B recovery manifest');
   const corpus = backup.resolveCorpus(manifest.corpus);
   if (manifest.corpus_version !== corpus.version) throw new Error('Track-B recovery corpus does not match its version');
   if (clean(manifest.source_project_ref) !== backup.PRODUCTION_REF) throw new Error('Track-B recovery package is not a production capture');
   if (manifest.binding !== bindingDigest(manifest)) throw new Error('Track-B recovery schema/data binding mismatch');
   backup.authenticatedGeneratedAt(manifest, nowMs);
+  for (const item of manifest.sequences || []) validateSequenceState(item);
   const readSection = (descriptor, length) => {
     if (offset + length > unsigned.length) throw new Error('Track-B recovery section exceeds package');
     const compressed = bytes.subarray(offset, offset + length); offset += length;
@@ -430,15 +710,23 @@ function readRecoveryPackage(input, hmacInput, nowMs = Date.now()) {
     if (!expected || Number(expected.rows) !== inspected[config.name].rows || backup.canonicalJson(expected.primary_key) !== backup.canonicalJson(config.pk)) {
       throw new Error(`Track-B recovery manifest mismatch for ${config.name}`);
     }
+    if (!/^[0-9a-f]{64}$/.test(String(expected.digest_sha256 || ''))) throw new Error(`Track-B recovery manifest lacks a content digest for ${config.name}`);
     if (!tables.has(config.name)) throw new Error(`Track-B recovery schema section does not create ${config.name}`);
   }
   if (Number(manifest.data.table_count) !== corpus.tables.length) throw new Error('Track-B recovery data table count mismatch');
-  return { manifest, corpus: corpus.name, preData, postData, data, parsedData: parsed, schema: { pre, post } };
+  const sequenceNames = new Set((manifest.sequences || []).map(item => item.name));
+  for (const text of pre.statements) {
+    const created = text.match(new RegExp(`^CREATE SEQUENCE public\\.(${IDENT})`, 'i')) || text.match(new RegExp(`SEQUENCE NAME public\\.(${IDENT})`, 'i'));
+    if (created && !sequenceNames.has(unquote(created[1]))) throw new Error('Track-B recovery manifest lacks the state of a package sequence');
+  }
+  const callable = verifyCallableContract([...pre.statements, ...post.statements], manifest);
+  return { manifest, corpus: corpus.name, preData, postData, data, parsedData: parsed, schema: { pre, post }, callable };
 }
 
 // ---------------------------------------------------------------------------
 // Reconstruction SQL for an EMPTY target. One transaction; no TRUNCATE, DROP,
-// CASCADE or owner assignment; prerequisites verified before any DDL.
+// CASCADE or owner assignment; prerequisites verified before any DDL; exact
+// verification before COMMIT so a mismatch rolls everything back.
 // ---------------------------------------------------------------------------
 function sqlLiteral(value) { return "'" + String(value).replace(/'/g, "''") + "'"; }
 function safeName(value, pattern, what) {
@@ -457,17 +745,31 @@ function targetPrerequisiteSql(manifest) {
   }));
   const major = Math.floor(Number(prerequisites.server_version_num || 0) / 10000);
   const realtime = prerequisites.realtime_publication && prerequisites.realtime_publication.present === true;
-  return `do $recovery_target$ declare v_count integer; v_role text; v_ext record; begin
+  const references = Object.values(manifest.callable_references || {});
+  const catalogNames = [...new Set(references.filter(item => item.class === 'pg_catalog').map(item => safeName(item.name, /^[a-z_][a-z0-9_]{0,62}$/, 'callable name')))];
+  const absentNames = [...new Set(references.filter(item => item.class === 'not_a_function').map(item => safeName(item.name, /^[a-z_][a-z0-9_]{0,62}$/, 'callable name')))];
+  const extensionCalls = references.filter(item => item.class === 'extension').map(item => ({
+    name: safeName(item.name, /^[a-z_][a-z0-9_]{0,62}$/, 'callable name'), schema: safeName(item.schema, /^[a-z_][a-z0-9_]{0,62}$/, 'callable schema') }));
+  const array = values => (values.length ? `array[${values.map(sqlLiteral).join(',')}]::text[]` : 'array[]::text[]');
+  return `do $recovery_target$ declare v_count integer; v_role text; v_ext record; v_name text; v_sig text; begin
   select count(*) into v_count from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('r','p','v','m','S','f','c','i','I','t');
   if v_count > 0 then raise exception 'Track-B recovery target is not empty'; end if;
   select count(*) into v_count from pg_catalog.pg_proc p where p.pronamespace='public'::regnamespace;
   if v_count > 0 then raise exception 'Track-B recovery target is not empty'; end if;
   select count(*) into v_count from pg_catalog.pg_type t where t.typnamespace='public'::regnamespace and t.typtype in ('e','d','r','c');
   if v_count > 0 then raise exception 'Track-B recovery target is not empty'; end if;
-  if (select rolsuper or rolcreaterole or rolcreatedb from pg_catalog.pg_roles where rolname=current_user) then raise exception 'Track-B recovery role must be restricted'; end if;
+  -- Effective-permission recheck of the CONNECTING role, immediately before DDL.
+  if (select rolsuper or rolcreaterole or rolcreatedb or rolbypassrls or rolreplication from pg_catalog.pg_roles where rolname=current_user) then raise exception 'Track-B recovery role must be restricted'; end if;
+  if exists(select 1 from pg_catalog.pg_roles r where r.rolsuper and r.rolname<>current_user and pg_has_role(current_user, r.oid, 'member')) then raise exception 'Track-B recovery role inherits superuser'; end if;
+  foreach v_role in array ${array([...DANGEROUS_ROLE_MEMBERSHIPS])} loop
+    if exists(select 1 from pg_catalog.pg_roles where rolname=v_role) and pg_has_role(current_user, v_role, 'member') then raise exception 'Track-B recovery role holds a dangerous membership'; end if;
+  end loop;
+  foreach v_sig in array ${array([...DANGEROUS_CATALOG_SIGNATURES])} loop
+    if to_regprocedure(v_sig) is not null and has_function_privilege(current_user, to_regprocedure(v_sig), 'execute') then raise exception 'Track-B recovery role can execute a dangerous catalog function'; end if;
+  end loop;
   if not has_schema_privilege(current_user, 'public', 'CREATE') then raise exception 'Track-B recovery role lacks CREATE on public'; end if;
-  foreach v_role in array array[${roles.map(sqlLiteral).join(',') || 'null::text'}]::text[] loop
-    if v_role is not null and not exists(select 1 from pg_catalog.pg_roles where rolname=v_role) then raise exception 'Track-B recovery target lacks a required role'; end if;
+  foreach v_role in array ${array(roles)} loop
+    if not exists(select 1 from pg_catalog.pg_roles where rolname=v_role) then raise exception 'Track-B recovery target lacks a required role'; end if;
   end loop;
   for v_ext in select * from (values ${extensions.map(item => `(${sqlLiteral(item.name)},${sqlLiteral(item.schema)},${sqlLiteral(item.version)})`).join(',') || "(null::text,null::text,null::text)"}) v(name, schema, version) loop
     if v_ext.name is not null and not exists(select 1 from pg_catalog.pg_extension e join pg_catalog.pg_namespace n on n.oid=e.extnamespace
@@ -475,21 +777,55 @@ function targetPrerequisiteSql(manifest) {
       raise exception 'Track-B recovery target lacks a required extension'; end if;
   end loop;
   if exists(select 1 from pg_catalog.pg_extension where extname in (${EGRESS_EXTENSIONS.map(sqlLiteral).join(',')})) then raise exception 'Track-B recovery target has an egress-capable extension'; end if;
+  if exists(select 1 from pg_catalog.pg_namespace where nspname in (${EGRESS_SCHEMAS.map(sqlLiteral).join(',')})) then raise exception 'Track-B recovery target has an egress-capable schema'; end if;
   if exists(select 1 from pg_catalog.pg_foreign_server) then raise exception 'Track-B recovery target has a foreign server'; end if;
+  -- Callable contract on the target: catalog names exist and are not denylisted,
+  -- extension callables exist under the pinned extension and are executable by
+  -- this role, and names the source resolved to nothing resolve to nothing here.
+  foreach v_name in array ${array(catalogNames)} loop
+    if not exists(select 1 from pg_catalog.pg_proc p where p.pronamespace='pg_catalog'::regnamespace and p.proname=v_name) then raise exception 'Track-B recovery target lacks a catalog callable'; end if;
+    if v_name = any(${array([...DANGEROUS_CATALOG_FUNCTIONS])}) then raise exception 'Track-B recovery contract names a denylisted callable'; end if;
+  end loop;
+  for v_ext in select * from (values ${extensionCalls.map(item => `(${sqlLiteral(item.name)},${sqlLiteral(item.schema)})`).join(',') || '(null::text,null::text)'}) v(name, schema) loop
+    if v_ext.name is not null then
+      if not exists(select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace join pg_catalog.pg_depend d on d.classid='pg_proc'::regclass and d.objid=p.oid and d.refclassid='pg_extension'::regclass
+        where p.proname=v_ext.name and n.nspname=v_ext.schema) then raise exception 'Track-B recovery target lacks an extension callable'; end if;
+      if exists(select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where p.proname=v_ext.name and n.nspname=v_ext.schema and not has_function_privilege(current_user, p.oid, 'execute')) then
+        raise exception 'Track-B recovery role lacks EXECUTE on a contract callable'; end if;
+    end if;
+  end loop;
+  foreach v_name in array ${array(absentNames)} loop
+    if exists(select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where p.proname=v_name and n.nspname in ('pg_catalog','public','extensions')) then raise exception 'Track-B recovery target resolves a name the source did not'; end if;
+  end loop;
   if current_setting('server_version_num')::int / 10000 < ${major} then raise exception 'Track-B recovery target server is older than the source'; end if;
   ${realtime ? "if not exists(select 1 from pg_catalog.pg_publication where pubname='supabase_realtime') then raise exception 'Track-B recovery target lacks the realtime publication'; end if;" : ''}
 end $recovery_target$;`;
 }
 
-function sequenceValueSql(manifest) {
-  const lines = [];
-  for (const item of manifest.sequences || []) {
-    const name = safeName(item.name, /^[a-z_][a-z0-9_]{0,62}$/, 'sequence name');
-    if (item.last_value === null || item.last_value === undefined) continue;
-    if (!/^-?\d{1,19}$/.test(String(item.last_value))) throw new Error('Unsafe sequence value in Track-B recovery manifest');
-    lines.push(`select pg_catalog.setval('public.${name}', ${item.last_value}, true);`);
+// In-transaction verification: any mismatch raises, so COMMIT never happens.
+function inTransactionVerificationSql(manifest) {
+  const corpus = backup.resolveCorpus(manifest.corpus);
+  const fingerprint = safeName(manifest.schema.fingerprint, /^[0-9a-f]{32}$/, 'fingerprint');
+  const lines = ['do $recovery_verify$ declare v_text text; v_called boolean; begin', "  perform set_config('timezone', 'UTC', true);",
+    `  select (${fingerprintSql().replace(/\n/g, ' ')}) into v_text;`,
+    `  if v_text <> '${fingerprint}' then raise exception 'Track-B recovery verification: schema fingerprint mismatch'; end if;`];
+  for (const config of corpus.tables) {
+    const digest = safeName(manifest.data.tables[config.name].digest_sha256, /^[0-9a-f]{64}$/, 'content digest');
+    const rows = safeName(String(manifest.data.tables[config.name].rows), /^\d{1,12}$/, 'row count');
+    lines.push(`  select count(*)::text into v_text from public.${safeName(config.name, /^[a-z_][a-z0-9_]{0,62}$/, 'table name')};`,
+      `  if v_text <> '${rows}' then raise exception 'Track-B recovery verification: row count mismatch'; end if;`,
+      `  select (${dataDigestSql(config.name).replace(/\n/g, ' ')}) into v_text;`,
+      `  if v_text <> '${digest}' then raise exception 'Track-B recovery verification: content digest mismatch'; end if;`);
   }
-  return lines;
+  for (const item of manifest.sequences || []) {
+    const state = validateSequenceState(item);
+    lines.push(`  select last_value::text, is_called into v_text, v_called from public.${state.name};`,
+      `  if v_text <> '${state.last_value}' or v_called <> ${state.is_called} then raise exception 'Track-B recovery verification: sequence state mismatch'; end if;`);
+  }
+  lines.push("  if exists(select 1 from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('r','p','v','m','S') and pg_get_userbyid(c.relowner)<>current_user) then raise exception 'Track-B recovery verification: ownership mismatch'; end if;",
+    "  if exists(select 1 from pg_catalog.pg_extension where extname in (" + EGRESS_EXTENSIONS.map(sqlLiteral).join(',') + ")) or exists(select 1 from pg_catalog.pg_foreign_server) then raise exception 'Track-B recovery verification: egress capability appeared'; end if;",
+    'end $recovery_verify$;');
+  return lines.join('\n');
 }
 
 function reconstructSql(pkg) {
@@ -503,20 +839,30 @@ function reconstructSql(pkg) {
     backup.renderSafeCopySections(data, corpus).trimEnd(),
     ...sequenceValueSql(manifest),
     ...schema.post.statements.map(text => `${text};`),
+    inTransactionVerificationSql(manifest),
     'commit;',
     '',
   ].join('\n');
 }
 
+// Post-commit verification (fresh session): the same facts, independently.
 function verificationSql(manifest) {
   const corpus = backup.resolveCorpus(manifest.corpus);
-  const lines = [`select 'fingerprint' || E'\\t' || (${fingerprintSql()});`];
-  for (const config of corpus.tables) lines.push(`select 'rows:${config.name}' || E'\\t' || count(*)::text from public.${config.name};`);
-  lines.push(`select 'sequences' || E'\\t' || (${sequencesSql()})::text;`);
+  const lines = ["set timezone = 'UTC';", `select 'fingerprint' || E'\\t' || (${fingerprintSql()});`];
+  for (const config of corpus.tables) {
+    lines.push(`select 'rows:${config.name}' || E'\\t' || count(*)::text from public.${config.name};`);
+    lines.push(`select 'digest:${config.name}' || E'\\t' || (${dataDigestSql(config.name)});`);
+  }
+  for (const item of manifest.sequences || []) {
+    const state = validateSequenceState(item);
+    lines.push(`select 'seq:${state.name}' || E'\\t' || last_value::text || '|' || is_called::text from public.${state.name};`);
+  }
+  lines.push("select 'sequence_count' || E'\\t' || count(*)::text from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind='S';");
   lines.push("select 'egress_extensions' || E'\\t' || count(*)::text from pg_catalog.pg_extension where extname in (" + EGRESS_EXTENSIONS.map(sqlLiteral).join(',') + ');');
   lines.push("select 'foreign_servers' || E'\\t' || count(*)::text from pg_catalog.pg_foreign_server;");
   lines.push("select 'realtime_tables' || E'\\t' || count(*)::text from pg_catalog.pg_publication_tables where pubname='supabase_realtime' and schemaname='public';");
   lines.push("select 'owner_is_current_user' || E'\\t' || (select bool_and(pg_get_userbyid(c.relowner)=current_user)::text from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('r','p','v','m','S'));");
+  lines.push("select 'extension_executable_beyond_contract' || E'\\t' || count(*)::text from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname='extensions' and has_function_privilege(current_user, p.oid, 'execute') and (p.proname||'('||pg_catalog.pg_get_function_identity_arguments(p.oid)||')') not in (" + EXTENSION_FUNCTION_CONTRACT.map(sqlLiteral).join(',') + ');');
   return lines.join('\n') + '\n';
 }
 
@@ -536,15 +882,17 @@ function verifyReconstruction(manifest, observed) {
   if (observed.fingerprint !== manifest.schema.fingerprint) throw new Error('Track-B recovery schema fingerprint mismatch after reconstruction');
   const tables = {};
   for (const config of corpus.tables) {
-    const expected = Number(manifest.data.tables[config.name].rows);
-    if (Number(observed[`rows:${config.name}`]) !== expected) throw new Error(`Track-B recovery row-count mismatch for ${config.name}`);
-    tables[config.name] = expected;
+    const expected = manifest.data.tables[config.name];
+    if (observed[`rows:${config.name}`] !== String(expected.rows)) throw new Error(`Track-B recovery row-count mismatch for ${config.name}`);
+    if (observed[`digest:${config.name}`] !== expected.digest_sha256) throw new Error(`Track-B recovery content digest mismatch for ${config.name}`);
+    tables[config.name] = Number(expected.rows);
   }
-  let sequences;
-  try { sequences = JSON.parse(observed.sequences || '[]'); } catch (_) { throw new Error('Malformed Track-B recovery sequence verification'); }
-  const expectedSequences = backup.canonicalJson((manifest.sequences || []).map(item => ({ name: item.name, last_value: item.last_value, start_value: item.start_value, increment_by: item.increment_by })));
-  const observedSequences = backup.canonicalJson(sequences.map(item => ({ name: item.name, last_value: item.last_value, start_value: item.start_value, increment_by: item.increment_by })));
-  if (expectedSequences !== observedSequences) throw new Error('Track-B recovery sequence state mismatch after reconstruction');
+  const sequences = manifest.sequences || [];
+  if (observed.sequence_count !== String(sequences.length)) throw new Error('Track-B recovery sequence count mismatch after reconstruction');
+  for (const item of sequences) {
+    const state = validateSequenceState(item);
+    if (observed[`seq:${state.name}`] !== `${state.last_value}|${state.is_called}`) throw new Error('Track-B recovery sequence state mismatch after reconstruction');
+  }
   if (observed.egress_extensions !== '0' || observed.foreign_servers !== '0') throw new Error('Track-B recovery target acquired an egress capability');
   if (observed.owner_is_current_user !== 'true') throw new Error('Track-B recovery objects are not owned by the restore role');
   const realtimeExpected = manifest.prerequisites && manifest.prerequisites.realtime_publication && Array.isArray(manifest.prerequisites.realtime_publication.tables)
@@ -552,6 +900,7 @@ function verifyReconstruction(manifest, observed) {
   return {
     corpus: corpus.name,
     schema_fingerprint_match: true,
+    content_digests_match: true,
     data_table_count: corpus.tables.length,
     omitted_data_table_count: (manifest.omitted_data_tables || []).length,
     sequence_count: sequences.length,
@@ -559,6 +908,8 @@ function verifyReconstruction(manifest, observed) {
     realtime_membership_expected: realtimeExpected,
     realtime_membership_restored: Number(observed.realtime_tables || 0),
     egress_capable_functions: Number(manifest.schema.egress_capable_functions || 0),
+    extension_executable_beyond_contract: Number(observed.extension_executable_beyond_contract || 0),
+    callable_reference_count: Object.keys(manifest.callable_references || {}).length,
   };
 }
 
@@ -582,7 +933,7 @@ function evaluateRecoveryWatch({ manifest = null, nowMs = Date.now(), thresholdH
   const verification = { status: 'never' };
   if (lastReconstruction) {
     verification.status = lastReconstruction.ok === true && lastReconstruction.package_sha256 === (manifest && manifest.package_sha256) ? 'ok'
-      : lastReconstruction.ok === true ? 'stale_package' : 'failed';
+      : lastReconstruction.ok === true ? 'stale_package' : lastReconstruction.outcome === 'committed_unverified' ? 'committed_unverified' : 'failed';
     if (verification.status !== 'ok') alerts.push('RECOVERY_VERIFICATION_' + verification.status.toUpperCase());
   } else alerts.push('RECOVERY_VERIFICATION_NEVER');
   const coverage = { status: 'unobserved', corpus: manifest ? manifest.corpus : null,
@@ -609,8 +960,8 @@ function opaque(stage, result) {
 
 function runPsql(env, sql, { psql = 'psql', snapshot = null } = {}) {
   const input = snapshot
-    ? `begin isolation level repeatable read read only;\nset transaction snapshot ${sqlLiteral(snapshot)};\n${sql};\ncommit;\n`
-    : `${sql};\n`;
+    ? `begin isolation level repeatable read read only;\nset transaction snapshot ${sqlLiteral(snapshot)};\nset local timezone = 'UTC';\n${sql};\ncommit;\n`
+    : `set timezone = 'UTC';\n${sql};\n`;
   const result = spawnSync(psql, ['--no-psqlrc', '--quiet', '--tuples-only', '--no-align', '--set=ON_ERROR_STOP=1'], { input, encoding: 'utf8', env, maxBuffer: 64 * 1024 * 1024 });
   if (result.error || result.status !== 0) throw opaque('Track-B recovery catalog query', result);
   return result.stdout.trim();
@@ -647,6 +998,32 @@ function requiredExtensions(extensions) {
   return (extensions || []).filter(item => REQUIRED_EXTENSION_ALLOWLIST.includes(item.name) && ['public', 'extensions'].includes(item.schema));
 }
 
+// Resolve the callable contract against the source catalog inside the snapshot.
+function resolveCallableContract(query, evaluatedTexts, edges, requiredExtensionNames) {
+  const references = {};
+  const visited = new Set();
+  const pending = new Set();
+  for (const item of evaluatedTexts) for (const name of callNamesIn(item.text)) pending.add(name);
+  const resolveBody = body => { for (const name of callNamesIn(body)) if (!references[name]) pending.add(name); };
+  while (pending.size) {
+    const batch = [...pending].filter(name => !references[name]); pending.clear();
+    if (!batch.length) break;
+    const hits = JSON.parse(query(callableResolutionSql(batch)));
+    for (const token of batch) {
+      const own = hits.filter(hit => hit.token === token).map(hit => ({ ...hit, body: hit.body_sha256 ? null : null }));
+      // Bodies are needed for purity; fetch them for public hits only.
+      const withBodies = own.map(hit => hit);
+      references[token] = classifyCallable(token, withBodies, requiredExtensionNames, visited, resolveBody);
+    }
+  }
+  for (const edge of edges) {
+    const bare = edge.function.split('.')[1];
+    const known = Object.values(references).find(item => item.name === bare && item.class !== 'not_a_function');
+    if (!known) throw new Error(`Track-B recovery capture found a catalog dependency the expression scan did not resolve (${edge.kind})`);
+  }
+  return references;
+}
+
 async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sourceUrl, generatedAt = new Date().toISOString(), sourceCommit = clean(process.env.GITHUB_SHA) || null, psql = 'psql', pgDump = 'pg_dump', tempDir = null, hooks = {} }) {
   const corpus = backup.resolveCorpus(corpusName);
   const key = backup.parseHmacKey(hmacInput);
@@ -656,12 +1033,19 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
   const dir = tempDir || fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), 'track-b-recovery-'));
   const files = { pre: path.join(dir, 'pre-data.sql'), post: path.join(dir, 'post-data.sql'), data: path.join(dir, 'data.sql') };
   const session = await openSnapshotSession(env, psql);
-  let fingerprintBefore; let inventory; let sequences; let prerequisites;
+  let fingerprintBefore; let inventory; let sequences; let prerequisites; let digests; let references;
   try {
-    fingerprintBefore = runPsql(env, fingerprintSql(), { psql, snapshot: session.snapshot });
-    inventory = JSON.parse(runPsql(env, inventorySql(), { psql, snapshot: session.snapshot }));
-    sequences = JSON.parse(runPsql(env, sequencesSql(), { psql, snapshot: session.snapshot }));
-    prerequisites = JSON.parse(runPsql(env, prerequisitesSql(), { psql, snapshot: session.snapshot }));
+    const query = sql => runPsql(env, sql, { psql, snapshot: session.snapshot });
+    fingerprintBefore = query(fingerprintSql());
+    inventory = JSON.parse(query(inventorySql()));
+    prerequisites = JSON.parse(query(prerequisitesSql()));
+    sequences = (inventory.sequences || []).map(name => JSON.parse(query(sequenceStateSql(name))));
+    digests = Object.fromEntries(corpus.tables.map(config => [config.name, query(dataDigestSql(config.name))]));
+    const requiredExtensionNames = new Set(requiredExtensions(prerequisites.extensions).map(item => item.name));
+    const evaluatedTexts = JSON.parse(query(evaluatedSourceTextsSql()));
+    const edges = JSON.parse(query(dependencyEdgesSql()));
+    // Bodies for purity checks travel with the resolution query.
+    references = resolveCallableContract(sql => query(sql.replace("'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex')", "'body_sha256', encode(pg_catalog.sha256(convert_to(prosrc,'UTF8')),'hex'), 'body', prosrc")), evaluatedTexts, edges, requiredExtensionNames);
     for (const section of ['pre-data', 'data', 'post-data']) {
       const target = section === 'pre-data' ? files.pre : section === 'post-data' ? files.post : files.data;
       const result = spawnSync(pgDump, pgDumpSectionArgs(section, target, corpus.name, session.snapshot), { encoding: 'utf8', env, maxBuffer: 16 * 1024 * 1024 });
@@ -680,8 +1064,10 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
   const pre = validateSchemaSection(preData.toString('utf8'), roles);
   const post = validateSchemaSection(postData.toString('utf8'), roles);
   const inspected = backup.inspectPlainDump(data, corpus.name);
+  for (const name of Object.keys(inspected)) inspected[name].digest_sha256 = digests[name];
   const corpusNames = new Set(corpus.tables.map(config => config.name));
   const omitted = (inventory.tables || []).filter(name => !corpusNames.has(name));
+  const strippedReferences = Object.fromEntries(Object.entries(references).map(([token, item]) => [token, { class: item.class, name: item.name, ...(item.extension ? { extension: item.extension, schema: item.schema } : {}), ...(item.body_sha256 ? { body_sha256: item.body_sha256 } : {}) }]));
   const manifest = {
     format: RECOVERY_FORMAT,
     recovery_version: RECOVERY_VERSION,
@@ -691,11 +1077,11 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     completed_at: new Date().toISOString(),
     source_project_ref: sourceRef,
     source_commit: sourceCommit,
-    snapshot_isolation: 'repeatable read read only; exported snapshot shared by catalog reads and all three dumps',
+    snapshot_isolation: 'repeatable read read only; exported snapshot shared by catalog reads, digests and all three dumps; sequence state read inside the window (non-MVCC)',
     pg_dump_version: clean((spawnSync(pgDump, ['--version'], { encoding: 'utf8' }).stdout || '').replace(/^pg_dump \(PostgreSQL\) /, '')) || null,
     schema: {
       fingerprint: fingerprintBefore,
-      inventory: { ...inventory, tables: (inventory.tables || []).length },
+      inventory: { ...inventory, tables: (inventory.tables || []).length, sequences: (inventory.sequences || []).length },
       pre_data: { statements: pre.statements.length, skipped_platform_statements: pre.skipped },
       post_data: { statements: post.statements.length, skipped_platform_statements: post.skipped },
       statement_inventory: Object.fromEntries(Object.entries({ ...pre.inventory }).concat(Object.entries(post.inventory).map(([k, v]) => [k, (pre.inventory[k] || 0) + v]))),
@@ -704,12 +1090,14 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     data: { table_count: corpus.tables.length, tables: inspected },
     omitted_data_tables: omitted,
     sequences,
+    callable_references: strippedReferences,
     prerequisites: {
       server_version: prerequisites.server_version,
       server_version_num: prerequisites.server_version_num,
       roles,
       required_extensions: requiredExtensions(prerequisites.extensions),
       observed_extensions: prerequisites.extensions,
+      extension_function_contract: [...EXTENSION_FUNCTION_CONTRACT],
       schemas: prerequisites.schemas,
       realtime_publication: prerequisites.realtime_publication,
       foreign_servers: prerequisites.foreign_servers,
@@ -724,9 +1112,11 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
 }
 
 function summarize(manifest, bytes = null) {
+  const references = Object.values(manifest.callable_references || {});
   return {
     ok: true,
     format: manifest.format,
+    recovery_version: manifest.recovery_version,
     corpus: manifest.corpus,
     generated_at: manifest.generated_at,
     package_sha256: bytes ? sha256(bytes) : undefined,
@@ -734,6 +1124,8 @@ function summarize(manifest, bytes = null) {
     schema_statements: manifest.schema.pre_data.statements + manifest.schema.post_data.statements,
     data_table_count: manifest.data.table_count,
     omitted_data_table_count: (manifest.omitted_data_tables || []).length,
+    sequence_count: (manifest.sequences || []).length,
+    callable_classes: references.reduce((acc, item) => { acc[item.class] = (acc[item.class] || 0) + 1; return acc; }, {}),
     egress_capable_functions: manifest.schema.egress_capable_functions,
     required_extension_count: (manifest.prerequisites.required_extensions || []).length,
     role_count: (manifest.prerequisites.roles || []).length,
@@ -768,19 +1160,33 @@ if (require.main === module) {
 }
 
 module.exports = {
+  BODY_WRITE_KEYWORDS,
+  DANGEROUS_CATALOG_FUNCTIONS,
+  DANGEROUS_ROLE_MEMBERSHIPS,
   EGRESS_EXTENSIONS,
+  EXTENSION_FUNCTION_CONTRACT,
+  LEGACY_RECOVERY_VERSIONS,
   PLATFORM_ROLES,
   RECOVERY_FILE_PREFIX,
   RECOVERY_FORMAT,
   RECOVERY_MAGIC,
   RECOVERY_VERSION,
   REQUIRED_EXTENSION_ALLOWLIST,
+  VOLATILE_EXTENSION_ALLOWLIST,
   bindingDigest,
+  callNamesIn,
+  callableResolutionSql,
   captureRecoveryPackage,
+  classifyCallable,
   classifySchemaStatement,
   createdTables,
+  dataDigestSql,
+  dependencyEdgesSql,
   evaluateRecoveryWatch,
+  evaluatedExpressionTexts,
   fingerprintSql,
+  functionPurity,
+  inTransactionVerificationSql,
   inventorySql,
   packRecoveryPackage,
   parseVerification,
@@ -791,14 +1197,16 @@ module.exports = {
   recoveryName,
   requiredExtensions,
   runPsql,
+  sequenceStateSql,
   sequenceValueSql,
-  sequencesSql,
   sourcePreflightSql,
   splitSqlStatements,
   stripDollarQuoted,
   summarize,
   targetPrerequisiteSql,
   validateSchemaSection,
+  validateSequenceState,
   verificationSql,
+  verifyCallableContract,
   verifyReconstruction,
 };

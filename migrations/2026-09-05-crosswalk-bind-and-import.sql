@@ -83,6 +83,19 @@
 --     detached and its status left alone. Each eviction is written to
 --     `deliverable_events` as `crosswalk_occupant_evicted` and returned in the
 --     receipt;
+--   * THE CANCEL CARRIES THE F27 AUTHORITY BINDER. Live has the F27 outbox
+--     closure installed (2026-08-02): `track_b_f27_hold_guard` refuses any
+--     pending intent whose `authority_generation` is not the team's current
+--     fence, and the F27 `mirror_outbox_enqueue` reads that generation from
+--     the reserved payload key `_f27_authority_generation` (absent -> -1 ->
+--     refused as `f27_authority_generation_stale`). The first live apply on
+--     2026-09-05 bound 89 slots and lost exactly the 11 whose eviction
+--     cancelled a live shell, because this function enqueued without the
+--     binder and the rehearsal chain predated F27. It now mints the binder
+--     the gateway mints (`track_b_f27_write_authorization`), asserts
+--     authority the way the gateway does, and -- if the occupant's team is
+--     not SyncView-authoritative -- DETACHES ONLY (`detached_authority_linear`)
+--     rather than cancelling natively a status Linear owns;
 --   * an occupant that names the SAME Linear issue as the card is NOT an
 --     occupant that lost -- it is a second projection of one issue
 --     (`ambiguous_projection_rows`), and evicting it would cancel the issue the
@@ -147,6 +160,8 @@ declare
   v_current_card text;
   v_occ record;
   v_occ_mode text;
+  v_occ_team text;
+  v_auth jsonb;
   v_evicted jsonb := '[]'::jsonb;
   v_prev_flag text;
   v_comment jsonb;
@@ -286,6 +301,21 @@ begin
       when lower(btrim(coalesce(v_occ.status, ''))) in ('approved', 'posted', 'canceled', 'duplicate') then 'detached'
       else 'canceled'
     end;
+    v_occ_team := coalesce(nullif(btrim(coalesce(v_occ.team, '')), ''), v_expected_team);
+    v_auth := null;
+    if v_occ_mode = 'canceled' then
+      -- F27: the authority binder the outbound fence compares, minted exactly
+      -- as the gateway mints it. Raises f27_write_authorization_unavailable if
+      -- the fence is missing -- a refusal, not a guess.
+      v_auth := public.track_b_f27_write_authorization(v_occ_team);
+      if lower(coalesce(v_auth->>'authority', '')) <> 'syncview' then
+        -- Linear owns this team's status: a native cancel could not reach it
+        -- and the fence would refuse the intent. Detach only.
+        v_occ_mode := 'detached_authority_linear';
+      else
+        perform public.production_assert_authority(v_client_slug, v_occ_team, false, false);
+      end if;
+    end if;
     perform set_config('app.event_written', '1', true);
     update public.deliverables d
     set card_id = null,
@@ -308,12 +338,15 @@ begin
         'kept_deliverable_id', v_deliverable_id,
         'kept_linear_identifier', v_card_ident,
         'occupant_linear_identifier', v_occ.ident,
+        'authority', v_auth->>'authority',
+        'authority_generation', v_auth->>'generation',
         'ruling', 'owner 2026-09-05: the card wins'
       )
     );
     perform set_config('app.event_written', v_prev_flag, true);
     -- The cancel reaches Linear through the lane every other status change
-    -- uses. A shell that never got a Linear issue has nothing to cancel there.
+    -- uses, carrying the F27 binder that lane requires. A shell that never got
+    -- a Linear issue has nothing to cancel there.
     if v_occ_mode = 'canceled' and nullif(btrim(coalesce(v_occ.linear_issue_uuid, '')), '') is not null then
       perform public.mirror_outbox_enqueue(
         p_entity := 'deliverable',
@@ -323,12 +356,13 @@ begin
           'status', 'canceled',
           'reason', 'crosswalk_occupant_evicted',
           'card_id', v_card_id,
-          'kept_deliverable_id', v_deliverable_id
+          'kept_deliverable_id', v_deliverable_id,
+          '_f27_authority_generation', (v_auth->>'generation')::bigint
         ),
         p_dedup_key := 'crosswalk-evict:' || v_occ.id || ':canceled',
         p_source_edited_at := now(),
         p_client_slug := v_client_slug,
-        p_team := coalesce(nullif(btrim(coalesce(v_occ.team, '')), ''), v_expected_team),
+        p_team := v_occ_team,
         p_actor := 'crosswalk-bind-and-import',
         p_role := 'system',
         p_deliverable_id := v_occ.id,

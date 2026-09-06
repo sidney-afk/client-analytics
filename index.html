@@ -49504,7 +49504,7 @@
            the old link until something unrelated invalidates it. The row that
            was just written is left alone: its caller re-reads it immediately
            and dropping it here would race that read. */
-        function _prodInvalidateBatchAssetReads(issue, writtenId) {
+        function _prodInvalidateBatchAssetReads(issue, writtenId, slot, url) {
             if (!issue) return;
             const keep = String(writtenId || '');
             /* THE POST, NOT THE BATCH ID (2026-09-05).
@@ -49521,11 +49521,34 @@
                alone because its caller re-reads it immediately, and dropping it
                here would race that read. */
             const rows = _prodPostRows(issue);
+            const writtenSlot = String(slot || '');
+            const writtenUrl = String(url || '').trim();
             rows.forEach(row => {
                 if (!row || String(row.id) === keep) return;
                 const state = _prodState.assets.get(String(row.id));
                 if (!state || state.editing || state.saving) return;
-                _prodState.assets.delete(String(row.id));
+                /* Stale, not gone (2026-09-05). These rows used to be deleted,
+                   which walked each of them through the skeleton on its next
+                   open for a value this browser already knows. The value that
+                   just landed is written into the cached slot instead, marked
+                   `checking` because the gateway has not yet said what it
+                   resolves to, and the state goes idle so the next render
+                   re-reads it -- which is when the origin chip and the write
+                   target for the slot are learned properly. The other slots
+                   did not change and keep saying what they said. */
+                if (writtenSlot && state.assets && state.assets[writtenSlot]) {
+                    state.assets[writtenSlot] = Object.assign({}, state.assets[writtenSlot], {
+                        url: writtenUrl,
+                        state: 'checking',
+                        checked_at: '',
+                        http_status: null,
+                        guidance: ''
+                    });
+                }
+                state.status = 'idle';
+                state.complete = false;
+                state.error = '';
+                state.remoteChanged = true;
             });
         }
         /* Every row of the post `issue` belongs to: its parent (or itself, when
@@ -49609,15 +49632,39 @@
                     record.status = 'error';
                     return record;
                 }
+                const kept = new Set();
                 json.files.forEach(file => {
                     const id = String(file && file.id || '');
                     const url = String(file && file.url || '').trim();
                     if (!id || !url) return;
+                    kept.add(id);
                     _prodState.batchFiles.set(id, {
                         url,
                         source: ['deliverable','calendar_card','samples_card'].includes(String(file.source || ''))
-                            ? String(file.source) : ''
+                            ? String(file.source) : '',
+                        /* The batch row and scope this pill was answered for,
+                           so _prodBatchFileFor can refuse it once the row it
+                           is drawn on has moved. Entries survive a refresh now
+                           (2026-09-05); this is what makes that safe. */
+                        batchId,
+                        scope: clientSlug
                     });
+                });
+                /* EVICT what this batch no longer names (Codex P1 on #1305).
+                   Entries survive a refresh now, so this read is the only
+                   thing that can take a pill DOWN -- and batch_files_read
+                   deliberately omits a deliverable whose file was cleared.
+                   Upserting the returned rows alone left the cleared file's
+                   pill up for the rest of the session, pointing at a link the
+                   row no longer holds. So every entry this batch and scope
+                   answered for earlier, and which this answer does not name,
+                   goes. Entries answered for another batch are not this
+                   read's to judge; a row that moved batches is caught here
+                   too, because its old batch stops naming it. */
+                _prodState.batchFiles.forEach((entry, id) => {
+                    if (entry && entry.batchId === batchId && entry.scope === clientSlug && !kept.has(id)) {
+                        _prodState.batchFiles.delete(id);
+                    }
                 });
                 record.status = 'ready';
                 _prodRefreshAssetSurfaces();
@@ -49627,9 +49674,25 @@
                 return record;
             }
         }
-        function _prodBatchFileFor(id) {
+        function _prodBatchFileFor(id, row) {
             const entry = _prodState.batchFiles.get(String(id || ''));
-            return entry && entry.url ? entry : null;
+            if (!entry || !entry.url) return null;
+            /* THE USE-TIME GATE FOR PILLS, the same one _prodAssetState applies
+               to the panel. Entries survive a refresh now, so the question "is
+               this still the file for this row" is asked where it can be
+               answered: against the row as it is drawn. A row that left the
+               batch it was answered for, or whose declared scope is no longer
+               the one the read was made under, gets no pill until the re-ask
+               lands. A row declaring no scope, or a sentinel, was never the
+               scope the request carried and is judged on the batch alone. */
+            const live = row || _prodIssue(id);
+            if (live) {
+                if (entry.batchId && String(live.batchId || '').trim() !== entry.batchId) return null;
+                const scope = String(live.authorityProject || live.storedClientSlug || '').trim();
+                if (entry.scope && scope && scope !== PROD_ATTRIBUTION_NEEDS
+                    && scope !== PROD_ATTRIBUTION_CONFLICT && scope !== entry.scope) return null;
+            }
+            return entry;
         }
         /* The scope an authenticated per-row read is answered under: the client
            the row is attributed to, and the team that attribution runs through.
@@ -49673,11 +49736,12 @@
             // callers that must stay silent, but the visible Refresh access
             // press needs an acknowledgement like every other manual refresh.
             _prodToast('Rechecking asset access\u2026');
-            _prodEnsureAssets(id, true);
+            _prodEnsureAssets(id, true, { recheck: true });
             return false;
         }
-        async function _prodEnsureAssets(id, force) {
+        async function _prodEnsureAssets(id, force, opts) {
             id = String(id || '');
+            const recheck = !!(opts && opts.recheck);
             const issue = _prodIssue(id);
             if (!issue) return null;
             if (issue.syntheticBatchParent === true) {
@@ -49726,6 +49790,22 @@
             const current = _prodAssetState(id);
             if (_prodState.writes.has(id + ':attachment')) return current;
             if (!force && (current.status === 'loading' || current.status === 'ready' || current.status === 'error')) return current;
+            /* NOT WHILE A PROJECTION LOAD IS IN FLIGHT (2026-09-05).
+               A tab return runs _prodRefresh, which marks every stamped read
+               idle and starts _prodLoadData; the swap at the end of that load
+               marks them idle AGAIN and bumps every request token. A read
+               started between the two is refused on landing by
+               requestStillCurrent() -- a gateway round trip, four provider
+               probes and a "Checking…" button, all for an answer that is
+               thrown away -- and the render after the swap starts the one that
+               counts. So a row that already holds a stamped answer waits for
+               the swap. A row that has never been read does not, because a
+               first paint should not queue behind a background refresh, and a
+               forced press never does. `refreshing` is cleared on both the
+               success and the failure path of _prodLoadData, so this cannot
+               wedge; the worst a stale flag could cost is one refresh's worth
+               of not re-reading, which Refresh access overrides. */
+            if (!force && _prodState.refreshing && current.scopeSignature) return current;
             const staffIdentity = _syncviewStaffIdentityForHeaders();
             if (!staffIdentity) {
                 current.status = 'error';
@@ -49780,7 +49860,15 @@
                         action: 'asset_access_read',
                         surface: 'production',
                         id,
-                        client_slug: clientSlug
+                        client_slug: clientSlug,
+                        /* Only the Refresh access button sends this. The
+                           gateway reuses a verdict it recorded for the same
+                           URL within the last few minutes rather than probing
+                           the provider on every read; the button is pressed
+                           AFTER someone fixes sharing on a folder, and the held
+                           verdict is exactly what they need to get past. An
+                           older gateway ignores the field and probes anyway. */
+                        ...(recheck ? { recheck: true } : {})
                     })
                 });
                 const json = await response.json().catch(() => ({}));
@@ -50035,7 +50123,7 @@
                         ? _prodAssetSlotLabel(issue, slot) + ' updated for the whole post'
                         : _prodAssetSlotLabel(issue, slot) + ' cleared for the whole post')
                     : 'Canonical deliverable attached');
-                if (operation === 'batch_asset') _prodInvalidateBatchAssetReads(issue, id);
+                if (operation === 'batch_asset') _prodInvalidateBatchAssetReads(issue, id, slot, value);
                 await _prodEnsureAssets(id, true);
             } catch (error) {
                 state.saving = false;
@@ -55348,12 +55436,18 @@
             return token;
         }
         function _prodInvalidateScopedReads() {
-            /* The file-pill cache is keyed by deliverable id and refreshed per
-               projection generation, so a swap that removes or re-parents rows
-               would otherwise leave pills pointing at files for issues that are
-               no longer in the list. _prodEnsureBatchFiles re-asks on the next
-               render of a parent, which is the only place they are drawn. */
-            _prodState.batchFiles.clear();
+            /* THE PILLS STAY UP WHILE THEY RE-ASK (2026-09-05).
+               The file-pill cache used to be cleared here outright, so every
+               refresh -- and a tab return runs one -- took every sub-issue pill
+               off the parent's list and put it back a second later when
+               _prodEnsureBatchFiles answered again. Owner: "the open link
+               button disappears and reappears ... two or three times". Only
+               the per-generation STATUS is dropped now, which is what makes
+               the next render of a parent re-ask; the entries themselves stay,
+               each stamped with the batch row and the scope it was answered
+               for, and _prodBatchFileFor refuses one whose row has since
+               moved. Same shape as the asset states below: keep what is on
+               screen, revalidate underneath, refuse at the moment of use. */
             _prodState.batchFilesStatus.clear();
             _prodState.assetRequestTokens.forEach((token, id) => {
                 _prodState.assetRequestTokens.set(id, Number(token || 0) + 1);
@@ -55410,8 +55504,22 @@
                    A pending attachment write is preserved on its own terms:
                    _prodRefresh used to filter for those separately, one line
                    after calling this, which is what silently undid the whole
-                   preservation on the real refresh path. */
-                const preservable = (state.complete && state.scopeSignature)
+                   preservation on the real refresh path.
+
+                   STAMPED, not COMPLETE (2026-09-05). The rule used to require
+                   both, and that was the flicker the owner still saw after
+                   the 2026-08-31 change. A tab return runs this TWICE -- once
+                   from _prodRefresh to quarantine held responses, once from
+                   _prodLoadData after the projection swap -- and any render
+                   between the two starts a re-read, which sets `complete`
+                   false while it is in flight. The second pass then met a
+                   stamped, incomplete state, dropped it, and the next render
+                   reseeded from nothing: skeleton, read, link, for a link that
+                   had not moved. The stamp alone is what the use-time gate
+                   needs; `complete` only says whether the LATEST read landed,
+                   which has nothing to do with whether the values already on
+                   screen are safe to keep showing. */
+                const preservable = !!state.scopeSignature
                     || state.editing
                     || state.saving
                     || _prodState.writes.has(String(id || '') + ':attachment');
@@ -57985,18 +58093,18 @@
                    the double refresh stays gone, and exactly the leaking rows
                    pay for a recheck when there are any.
 
-                   The file pills ARE cleared unconditionally, because a
+                   The file-pill STATUS is cleared unconditionally, because a
                    terminal row joining a batch legitimately changes which pills
-                   that batch draws -- and that cache is re-asked on the next
-                   render of a parent, with no visible state of its own to
-                   churn. */
+                   that batch draws, and dropping the status is what makes the
+                   next render of a parent re-ask. The entries stay: they are
+                   the pills on screen, and _prodBatchFileFor refuses one whose
+                   row has moved (2026-09-05, with the asset-state change). */
                 const rescoped = [];
                 const scopeAfter = _prodScopeSignatures(_prodState.adapter);
                 scopeBefore.forEach((signature, id) => {
                     if (scopeAfter.get(id) !== signature) rescoped.push(id);
                 });
                 if (rescoped.length) _prodInvalidateScopedReadsFor(rescoped);
-                _prodState.batchFiles.clear();
                 _prodState.batchFilesStatus.clear();
                 _prodState.terminalTailLoadedAt = Date.now();
                 /* The row set is only now COMPLETE, so this is the first moment
@@ -58825,8 +58933,17 @@
                 _prodState.events.delete(id);
                 _prodState.linearRaw.delete(id);
                 const asset = _prodState.assets.get(id);
-                if (asset && !asset.editing && !asset.saving) _prodState.assets.delete(id);
-                else if (asset) { asset.status = 'idle'; asset.complete = false; asset.error = ''; asset.remoteChanged = true; }
+                /* Marked stale, never deleted (2026-09-05). This is the delta
+                   tick's invalidation, and deleting here was one of the "two
+                   or three times" the owner counted a link vanish and come
+                   back on a single tab return: the row's projection changed,
+                   its cached read was dropped, and the next render reseeded a
+                   skeleton for values about to be read back identical. The
+                   stamped values stay on screen while _prodEnsureAssets
+                   re-reads, and _prodAssetState refuses them at use time if
+                   the row's scope is what changed. The open-editor branch
+                   already worked this way; now there is one rule. */
+                if (asset) { asset.status = 'idle'; asset.complete = false; asset.error = ''; asset.remoteChanged = true; }
                 const label = _prodState.labels.get(id);
                 if (label && !label.saving) _prodState.labels.delete(id);
                 const description = _prodState.descriptions.get(id);
@@ -59690,7 +59807,7 @@
                 ? { info: 'Due ' + _prodFmtDateFull(k.dueRaw) + _prodRowOverdueText(k) }
                 : { tip: 'Set due date' });
             const assigneeWriteAttrs = _prodWriteGateAttrs(k, 'assignee', { info: assigneeTip });
-            const kFile = _prodBatchFileFor(k.id);
+            const kFile = _prodBatchFileFor(k.id, k);
             return '<div class="prod-subrow prod-subissue-row' + (selected ? ' selected' : '') + '" data-prod-subrow="' + _calEscAttr(k.id) + '" data-prod-attribution-state="' + _calEscAttr(k.attribution && k.attribution.state || '') + '" onclick="return _prodRowClick(event,' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">'
                 + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(k.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(k.id) + ', false, event)" aria-hidden="true"></span>'
                 + _prodStatusIcon(k.status, k.id)
@@ -59883,6 +60000,24 @@
             const isHierarchyParent = !!d.isHierarchyParent;
             const batchAssetSource = _prodBatchAssetSource(d);
             const subSection = d.parent ? '' : _prodSubIssuesSectionHTML(kids);
+            /* A REAL hierarchy parent is a container too (owner, 2026-09-05:
+               "I don't think we need a deliverable file row on the parent
+               issue asset grid because there is no deliverable file for
+               that"). The videos are the sub-issues, and the file belongs on
+               each of them; an empty slot on the parent was a prompt to attach
+               one in the wrong place. The Linear parent IS imported as a
+               deliverable row, though, so it can carry a file_url from before
+               this rule -- and a value that exists is never hidden. The row is
+               dropped only while it has nothing to show. The synthetic batch
+               parent keeps its own branch below, which decides the same three
+               slots for a different reason and adds read-only. */
+            const parentAsset = isHierarchyParent && d.syntheticBatchParent !== true
+                ? _prodAssetState(d.id, d).assets.deliverable_file
+                : null;
+            const parentSlots = isHierarchyParent && d.syntheticBatchParent !== true
+                ? ['filming_plan', 'raw_footage', 'delivery_folder']
+                    .concat(String(parentAsset && parentAsset.url || '').trim() ? ['deliverable_file'] : [])
+                : null;
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-attribution-state="' + _calEscAttr(d.attribution && d.attribution.state || '') + '" data-prod-hierarchy-parent="' + (isHierarchyParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div>'
                 + _prodSubIssueContextHTML(d, parent)
@@ -59908,7 +60043,7 @@
                        so it stays uneditable on every surface without needing
                        to be named here. */
                     ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: !batchAssetSource }
-                    : undefined)
+                    : parentSlots ? { slots: parentSlots } : undefined)
                 + subSection
                 + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>'

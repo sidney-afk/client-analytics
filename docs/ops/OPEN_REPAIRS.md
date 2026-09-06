@@ -11957,7 +11957,7 @@ would have to change are the ones that will survive.**
 
 ---
 
-## 148. [2026-09-05, SOURCE WRITTEN, NOT APPLIED — updates item 147's state] The Phase 2 RPC exists in source, and it refuses two things item 147 did not think to refuse
+## 148. [2026-09-05, SOURCE WRITTEN; APPLIED LIVE AND RUN LATER THE SAME DAY, see item 156 — updates item 147's state] The Phase 2 RPC exists in source, and it refuses two things item 147 did not think to refuse
 
 Item 147 §4 named the blocker: `production_comment_card_import` validates the
 crosswalk *before* it copies, so it refuses precisely while the crosswalk is
@@ -11977,8 +11977,11 @@ imply more than that:
   rehearsal; it SKIPS where the server binaries are absent, which is an
   environment fact, and CI's unit lane pins postgres:16.
 
-**NOT APPLIED. No live row has been repaired through it.** Written and applied
-are different states and item 147's phase table now separates them
+~~**NOT APPLIED. No live row has been repaired through it.**~~ *(Superseded
+later the same day: applied live by the owner twice and run to completion —
+100 slots repaired through it, 7 left for a person; item 156, "First live
+apply" and "Second live apply".)* Written and applied are different states
+and item 147's phase table separates them
 (`docs/ops/CROSSWALK_REPAIR_STRATEGY.md`, status block).
 
 ### The card pointer is not authority on its own
@@ -12571,7 +12574,81 @@ because #1294 was held open for its review after #1288 merged six seconds after
 opening. The self-review that produced the truncation guard also produced its
 overclaim; a second reader found it in four minutes.
 
-## 156. [2026-09-05, RULED AND WRITTEN, NOT APPLIED — updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
+### Addendum, same day, later: the grid still blinked, and the wait was the probe
+
+Owner, with the fix above live on VID-13513: "whenever it refreshes the link the
+open link button disappears and reappears ... two or three times ... do we
+really need to refresh access every single time? ... 99% of the time the asset
+links are not gonna change ... it's weird to always have to wait for the asset
+to load." Two different things, and a third small ruling.
+
+**The blink (browser; live on merge).** The 2026-08-31 revalidate-in-place rule
+preserved a cached asset read only when `state.complete && state.scopeSignature`.
+A tab return runs `_prodInvalidateScopedReads` TWICE: once from `_prodRefresh`,
+synchronously, to quarantine held responses; once from `_prodLoadData` after
+the projection swap. Any render between the two starts a re-read, which sets
+`complete` false while it is in flight, so the second pass met a stamped,
+incomplete state, dropped it, and the next render reseeded a skeleton for a link
+that had not moved. The same shape sat in three more places: the delta tick's
+`_prodInvalidateScopedReadsFor` deleted a changed row's read outright; the pill
+cache (`batchFiles`) was cleared outright on every invalidation and in the
+terminal tail; and a `batch_asset` write deleted every other row of the post.
+
+Now: what is STAMPED stays (`preservable = !!state.scopeSignature`; `complete`
+only says whether the latest read landed), the delta tick marks stale instead
+of deleting, a batch write writes the new value into each sibling's cached slot
+as `checking` and marks it stale, and pill entries survive with a `batchId` and
+`scope` stamp that `_prodBatchFileFor(id, row)` refuses at use time when the row
+moved. One more: `_prodEnsureAssets` no longer STARTS a read for a stamped row
+while `_prodState.refreshing` is true, because that read is refused on landing
+by `requestStillCurrent()` anyway (token bump plus generation change); the
+render after the swap starts the one that counts. First paints and the Refresh
+access button are never deferred. `test/prod-asset-refresh-holds.js` executes
+the double invalidation against the lifted functions.
+
+**The wait (gateway; needs a Section 4 dispatch).** Every `asset_access_read`
+probed every slot live, up to `ASSET_PROBE_TIMEOUT_MS` per URL with redirects,
+so opening a sub-issue seconds after its parent paid four provider round trips
+to learn what the parent's read had just recorded in
+`production_asset_access_checks`. `heldAssetEvidence` now asks that ledger
+first, by `(slot, url_sha256)` across every deliverable, newest first, and a
+verdict within `ASSET_EVIDENCE_MAX_AGE_MS` (five minutes, the same window the
+approval gate already trusts) is reused in place of the network step. The
+checks that depend on the clock or the slot (`invalid`, signed-URL `expired`,
+unsigned Linear upload) still run first; an `unavailable` WITHOUT an
+`http_status` is a probe that threw and is never reused; the ledger row for the
+reading deliverable is still written, carrying the ORIGINAL `checked_at` so a
+copy cannot outlive the window; the approval gate
+(`assertGraphicsApprovalArtifact`) is untouched and still probes live. The
+Refresh access button sends `recheck: true`, which skips the ledger; an older
+gateway ignores the field. `test/asset-evidence-reuse.js` executes both
+functions with a fake ledger and a fetch that counts calls. It caught one bug
+before it shipped: `Number(null)` is `0` and `Number.isInteger(0)` is true, so
+the first draft would have reused a timed-out probe as a status-0 verdict.
+
+`migrations/2026-09-05-asset-evidence-by-url.sql` adds an index on
+`(slot, url_sha256, checked_at desc)`; the table's key and its one index both
+lead with `deliverable_id`. Optional: the lookup is correct without it.
+
+**The parent grid.** Owner: "I don't think we need a deliverable file row on the
+parent issue asset grid because there is no deliverable file for that." A real
+hierarchy parent now draws the three post-level slots and shows the Deliverable
+file row only when a value actually exists on it (the Linear parent is imported
+as a deliverable row and could carry one from before this rule), never as an
+empty prompt to attach one in the wrong place.
+
+**What this does not decide.** The reuse window is five minutes because that is
+the window the approval gate already accepts. A longer read-side window would be
+safe for approvals (the gate probes on its own) and would cost only this: a
+folder unshared inside the window keeps showing green until Refresh access or
+the window lapses. Whether that trade is worth making is the owner's call; the
+constant is `ASSET_EVIDENCE_MAX_AGE_MS`.
+
+Pin: `PRODUCTION_WRITE_SOURCE_SHA256` re-pinned with this change. Live is still
+`d2914ac2…` (v67, deployed from `a05e1126`); the repo had already moved to
+`6a39a2bc…` (the exclusivity truncation guard). The next dispatch carries both.
+
+## 156. [2026-09-05, RULED, WRITTEN, APPLIED LIVE TWICE AND RUN — 100 of 100, 7 for a person; updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
 
 Item 148's RPC required a deliverable's `kind` to match the card slot ("team is
 too coarse: team='video' covers kind='video' and kind='other'"). Measured
@@ -12614,7 +12691,7 @@ seven. Two shells had been **canceled by hand and resurrected by the sync**
 the card's status, so cancelling in Linear alone did not stick. The six at
 Kasper approval are phantom items in his queue today.
 
-### What changed in source (all in one PR, migration still NOT applied)
+### What changed in source (all in one PR; ~~migration still NOT applied~~ applied live later the same day — "First live apply" and "Second live apply" below)
 
 `migrations/2026-09-05-crosswalk-bind-and-import.sql`,
 `scripts/f42-linkage-defect-repair.js` (`classAObjections`),
@@ -12666,6 +12743,24 @@ unattended; 7 for a person, as before.
   the auto-made row when the card is pointed elsewhere — a separate change,
   not attempted here.
 * Applying the migration and running the 100 calls is the owner's dispatch.
+* **The RPC's events do not carry a before-image.** `crosswalk_bound`
+  records only `kind_before` while the RPC overwrites five fields
+  (`card_id`, `client_slug`, `origin`, `team`, `kind`); and on every row it
+  updates — kept and evicted alike — the touch trigger
+  `track_b_deliverable_touch_timestamps` moves `updated_at`, and `status_at`
+  on the 11 it canceled, with neither prior value recorded in
+  `crosswalk_bound` or `crosswalk_occupant_evicted`. So neither the 100 kept
+  rows nor the 18 occupants can be restored to their exact pre-apply state from
+  the ledger alone; the canonical comment rows and links can. Found by Codex on
+  #1307, twice. The fix would be an Epoch 3 of the function that stores the
+  five binding fields plus `updated_at` and `status_at` as they were, in both
+  events — **planned, not written**: no migration, rehearsal case or test for
+  it exists yet, and it is not needed for the 7 slots that remain (none is
+  bindable). When written it is source-only until the owner applies it. Both EXECUTION_LOG entries for
+  2026-09-05 say what is and is not recoverable.
+* ~~Applying the migration and running the 100 calls is the owner's dispatch~~
+  — done 2026-09-05, twice (Epoch 1 at 19:3x, 89 of 100; Epoch 2 at 20:53, the
+  remaining 11). See "Second live apply" below.
 
 ### The runner (same day, later)
 
@@ -12735,3 +12830,74 @@ of an accepted comment edit without a duplicate. Still not proven: private
 Drive storage and readback, installed-schema parity with a real project,
 asset bytes, key custody, retention and alert delivery. No schedule, upload,
 alert, install or production action exists or occurred.
+### First live apply (same day, 19:3x UTC) — 89 of 100, and the 11 that were refused
+
+The owner applied the migration, ran `plan` (the forecast to the number), then
+`apply`. Result: **89 slots bound, 7 occupants detached, 97 comments imported,
+23 already linked, 11 refused** — precisely the 11 evictions whose occupant was
+still live (6 Kasper approval, 4 scheduled, 1 tweak), i.e. every call that took
+the *cancel* branch. Nothing was half-written: each refused call rolled back
+whole, and the 11 slots are still bindable.
+
+The refusal was `f27_authority_generation_stale:video` from
+`track_b_f27_hold_guard` — the F27 outbox fence installed live on 2026-08-02.
+The F27 `mirror_outbox_enqueue` reads the team's authority generation from the
+reserved payload key `_f27_authority_generation` and stores -1 when it is
+absent; the BEFORE INSERT guard then refuses any pending intent whose
+generation is not the team fence. The RPC's cancel branch enqueued without the
+binder, and the rehearsal chain (eight migrations, none of them F27) could not
+see it. The runner's receipt made it worse by keeping only the SQLSTATE
+("P0001 11") and dropping the message.
+
+Fixed, all in one PR: the RPC mints the binder exactly as the gateway does
+(`track_b_f27_write_authorization(team)` → `generation`), asserts authority
+with `production_assert_authority` before enqueueing, and — if the occupant's
+team is not SyncView-authoritative — detaches only
+(`detached_authority_linear`) instead of cancelling natively a status Linear
+owns. The rehearsal now installs the F27 outbox closure **verbatim from the
+migration by anchor** (rollback tables, outbox columns, the F27 enqueue, the
+hold guard and its trigger; the cut asserts the tokens it depends on) and adds
+the 2026-07-28 write-authorization migration to its chain, so it reproduces the
+live refusal for an intent without the binder and proves the fixed path passes
+with generation 0 carried and the key stripped. The runner now keeps the raise
+name, the SQLSTATE and the bounded message on every refusal. Re-applying the
+migration (SQL Editor, `create or replace`) and re-dispatching plan → apply at
+https://github.com/sidney-afk/client-analytics/actions/workflows/crosswalk-phase2-repair.yml
+finishes the 11. Logged in `EXECUTION_LOG.md` (2026-09-05, Crosswalk Phase 2).
+
+### Second live apply (same day, 20:53 UTC) — 11 of 11, 0 refused; the rule has done everything it can
+
+The owner re-applied the same migration file (Epoch 2, as merged in #1301,
+`5b9c0720`), dispatched `plan` under run id `crosswalk-phase2-2026-09-05-b`
+— 1,214 slots, 1,196 clean, 18 mismatching → **11 calls, every one with an
+eviction**, 4 carrying a legacy thread (12 comments), 7 skipped for a person:
+the exact residue the first apply left — then `apply` against that plan's
+digest. Result: **11 bound, 11 occupants evicted, all `canceled`, 12 comments
+imported, 0 already linked, 0 refused.** After: 7 mismatching slots remain, 0
+bindable (already_bound_elsewhere 5, client_mismatch 1,
+linear_identity_unproven 1).
+
+Read back minutes later with the publishable key: `deliverable_events` holds
+100 `crosswalk_bound` rows for the day (89 + 11; 47 video slots, 53 graphic;
+14 clients; 100 distinct deliverables) and 18 `crosswalk_occupant_evicted` (7
+`detached` from the first apply, 11 `canceled` from this one). The 11 cancels
+carry `authority=syncview` and `authority_generation=0` — the binder the first
+apply lacked; the occupants' statuses before eviction were Kasper approval 6,
+scheduled 4, tweak 1, the same 11 the fence refused at 19:3x. All 11 kept rows
+hold their card (`origin=calendar`, kind `video`); all 11 occupants have
+`card_id` null and `status=canceled`. The occupants are the duplicate shells
+SyncView Mirror created and that were verified empty in Linear earlier in the
+day, so no editor's work was closed. The 11 native cancels reach Linear through
+the outbound drain (`linear-outbound-drain.yml`, every 10 minutes); the outbox
+is not readable with the publishable key (42501), so delivery was confirmed
+against Linear itself: the drain ran at 21:00:35Z (run `33991760541`) and at
+21:02Z exactly 11 issues in the VID team had changed in the preceding 15
+minutes, all `Canceled` (21:00:46Z → 21:01:14Z, in outbox order), and they are
+the 11 `occupant_linear_identifier` values the eviction events carry. Nothing
+else in the team moved. Details in `EXECUTION_LOG.md` (2026-09-05, Crosswalk
+Phase 2, second apply, addendum).
+
+That closes the repair set the rule can close: every slot the runner examines
+is either clean or one of the 7 named for a person, and the runner's plan
+summary lists those 7 by reason on every run. Item 147's residue and the "Still
+open" list above are the whole of what is left.

@@ -281,7 +281,10 @@ jobs:
       # only: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      PRODUCTION_WRITE_SOURCE_SHA256: d7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a
+      # Integration candidate on captured main 99d31; source only, NOT deployed.
+      # Includes native intake/eligibility/editor projection. Native SQL must
+      # precede this gateway even while all native admission epochs are disabled.
+      PRODUCTION_WRITE_SOURCE_SHA256: 5d9807aaa5fa52653a29d3dc5be6157d21e4d4bdd3899d86b57dc5f9d016e41b
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -1,8 +1,8 @@
 name: Calendar unit tests
 
 # Fast, dependency-free logic/wiring checks (test/*.js). Most are hermetic
-# source/logic checks; F63 additionally exercises only a disposable PostgreSQL
-# 16 service. No test in this job reaches a live backend or browser.
+# source/logic checks; database lanes, including native Workload, use only the
+# disposable PostgreSQL 16 service. No test reaches a live backend or browser.
 # `push` is restricted to main ON PURPOSE. With `branches: ['**']` a commit on
 # an open pull request's branch matched BOTH triggers and ran this suite twice
 # on the same source. Measured on fc068d15 (2026-08-26): run #3499 (push) passed
@@ -19,7 +19,10 @@ on:
 jobs:
   unit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Bound the full suite plus required disposable SQL rehearsals. The expanded
+    # local integration already exceeds ten minutes; individual SQL calls also
+    # retain their shorter process/query timeouts. No retry or failure bypass.
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -43,6 +46,9 @@ jobs:
       # trigger against this same disposable PostgreSQL. Both attach defects it
       # covers are invisible to source-only assertions.
       ARTIFACT_REQUIRE_POSTGRES: '1'
+      # Explicitly opt the discovered Calendar recovery integration proof into
+      # this disposable service; its wrapper refuses an unbound CI invocation.
+      CALENDAR_RECOVERY_INTEGRATED: LOCAL_DISPOSABLE_ONLY
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,6 +58,70 @@ jobs:
           node-version: '22'
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
+      - name: Install PostgreSQL snapshot client for history proof
+        shell: bash
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Rehearse private card history in disposable PostgreSQL
+        env:
+          CARD_HISTORY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_HISTORY_PGHOST: 127.0.0.1
+          CARD_HISTORY_PGPORT: '5432'
+          CARD_HISTORY_PGUSER: postgres
+          CARD_HISTORY_PGPASSWORD: postgres
+        run: node scripts/card-change-journal-rehearsal.js
+      - name: Read pinned unmerged manifest prerequisite for local history backup proof
+        shell: bash
+        run: |
+          git fetch --no-tags origin 5418ab5618595d9469f0527bd94623e9229a637e
+          git show 5418ab5618595d9469f0527bd94623e9229a637e:migrations/2026-09-05-native-intake-root-manifest.sql > "$RUNNER_TEMP/card-history-manifest.sql"
+      - name: Prove full private history corpus in disposable PostgreSQL
+        env:
+          CARD_HISTORY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_HISTORY_PGHOST: 127.0.0.1
+          CARD_HISTORY_PGPORT: '5432'
+          CARD_HISTORY_PGUSER: postgres
+          CARD_HISTORY_PGPASSWORD: postgres
+          CARD_HISTORY_MANIFEST_SQL: ${{ runner.temp }}/card-history-manifest.sql
+        run: node scripts/card-history-backup-rehearsal.js
+      - name: Prove closed history corpus against real dependency DDL locally
+        env:
+          CARD_HISTORY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_HISTORY_PGHOST: 127.0.0.1
+          CARD_HISTORY_PGPORT: '5432'
+          CARD_HISTORY_PGUSER: postgres
+          CARD_HISTORY_PGPASSWORD: postgres
+          CARD_HISTORY_MANIFEST_SQL: ${{ runner.temp }}/card-history-manifest.sql
+        run: node scripts/card-history-closed-corpus-rehearsal.js
+      - name: Restore native Workload plans with combined recording and recovery tables
+        env:
+          CARD_HISTORY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_HISTORY_PGHOST: 127.0.0.1
+          CARD_HISTORY_PGPORT: '5432'
+          CARD_HISTORY_PGUSER: postgres
+          CARD_HISTORY_PGPASSWORD: postgres
+          CARD_HISTORY_PSQL: /usr/lib/postgresql/17/bin/psql
+          CARD_HISTORY_PG_DUMP: /usr/lib/postgresql/17/bin/pg_dump
+          CARD_HISTORY_WORKLOAD_OUTPUT: ${{ runner.temp }}/workload-history-private
+        run: node test/workload-history-integrated.js
+      - name: Prove native Workload snapshot and plan aliases against disposable SQL
+        env:
+          WORKLOAD_TEST_REQUIRE: '1'
+          WORKLOAD_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          WORKLOAD_TEST_PORT: '5432'
+          # Synthetic credential for this job's existing loopback service only.
+          WORKLOAD_TEST_PASSWORD: postgres
+        run: |
+          set -euo pipefail
+          workload_psql="$(command -v psql)"
+          test -x "$workload_psql"
+          WORKLOAD_TEST_PSQL="$workload_psql" node test/workload-native-postgres.js
 
   identity-exposure:
     # THIS REPOSITORY IS PUBLIC AND THE ROSTER IS IN IT. Measured 2026-09-02:

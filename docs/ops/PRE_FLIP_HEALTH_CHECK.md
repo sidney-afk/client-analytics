@@ -230,6 +230,18 @@ written as placeholders; read the live values and compare.
      is a separate, announced decision, not the wave-2 rollback.
 10. **F40 workload readiness** — `node scripts/f40-workload-readiness.js
     --team=graphics`; report the number every time.
+    - **SOURCE AMENDMENT 2026-09-06 — native-default census unsupported.**
+      The new Workload browser uses the atomic native snapshot and active native
+      client membership. F40 still computes the historical provider-mirror/UUID
+      cohort, which can omit native-only work. It now exits **UNPROVEN**, nonzero,
+      before any request when the active browser contract is unsupported. Do not
+      interpret that refusal as missing client work or replace it with an empty
+      healthy result. A new native completeness census is required; source and
+      native-browser tests do not replace it. The historical cohort computation,
+      exclusion accounting and zero-floor checks remain intact for its supported
+      older browser contract. This correction adds no current workflow or live
+      read and does not close G5 or Decision A. The dated rulings below remain
+      historical evidence.
     - *AMENDED 2026-08-18 — CONTEXT for graphics, no longer gating.* The gate
       logic inverted at the flip: F40 counted rows a pre-flip B1 refresh could
       still repair, and that repair lane closed the moment graphics became

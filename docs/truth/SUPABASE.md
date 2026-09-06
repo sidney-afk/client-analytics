@@ -1,5 +1,25 @@
 # Supabase — current truth
 
+**2026-09-05 draft-only reconcile addition (stacked on PR1302, unapplied):**
+`migrations/2026-09-05-native-intake-reconcile.sql` adds service-role-only
+functions that complete ACCEPTED native intake work from the immutable manifest:
+recover missing native children through the unchanged deliverable writer, then
+bind an empty-since-creation Calendar/Samples card slot; a missing card is held
+as visible debt, never created here. Adds one append-only card provenance table
+and one fact-recording AFTER trigger per card table that alters no write.
+Read-only backlog and summary readers included. No flag or frozen writer
+changes; no scheduler. Scope,
+proof, release order and rollback: `docs/audits/2026-09-05-native-intake-reconcile.md`.
+
+**2026-09-05 draft-only native intake addition:**
+`migrations/2026-09-05-native-only-intake.sql` depends on PR1293 and adds a disabled
+per-team intake flag, immutable manifest epoch provenance and terminal native
+outbox receipts, with append/fill native-parent compatibility. It is unapplied
+and is not a production-state update or full retired epoch. Scope, service/SQL
+roles, release order and retained-data rollback:
+`docs/audits/2026-09-05-native-only-intake.md`. Installed/full serving and
+materialization prerequisites remain held.
+
 > Last verified: 2026-08-24 @ c7f088a + scoped kasper_ad_performance v2 and v3 additions (see
 > callouts below) + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 read path LIVE
 > (`migrations/2026-07-25-slice5-production-read-path.sql` applied 2026-07-26 ~23:45Z pinned to
@@ -62,6 +82,18 @@
 > deltas keep the one-shot receipt and state transitions fail-closed.
 
 ## Tables
+
+**Scoped comment receipt candidate (2026-09-05; source only):** on base
+`ce63c74d0333138f862cef5637bb7532fe059b74`, an identical accepted comment add
+failed `production-write.reconcileEntityOperation` because its fingerprint
+omitted the accepted add's action and explicit null lifecycle CAS fields.
+The shared `commentAddFingerprint` now reconstructs those exact bytes without
+changing accepted fingerprints, scope checks or lifecycle hashes. The full
+handler's offline RPC-shaped matrix proves baseline false conflicts and
+candidate exact readback, including receipts created by baseline source; it
+does not prove PostgreSQL, deployment or missing Calendar source-copy repair.
+See `qa/comment-receipt-fingerprint/README.md`. Frozen client writers, database
+objects, frontend and deploy pins are unchanged; the manual release gate is held.
 
 See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
@@ -216,6 +248,15 @@ See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 ## Workload internal plan-date contract (live)
 
+**New source-only candidate:** `2026-09-05-workload-native-membership.sql` adds service-only
+`workload_native_snapshot_v1`, `workload_native_plan_target_v1` and
+`workload_native_plan_set_v1`. No table or stored key is migrated. The snapshot uses one database
+statement snapshot/exact population count; the setter locks exact native ownership/current
+authority and retains old UUID/native plan storage across flips. The staff-only Edge adapter
+projects aliases onto the current card and preserves old list callers. Installed schema/grants,
+schema-aware restore and deliberate-manual serving proof are required before browser release;
+see `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. This does not refresh the live evidence below.
+
 - In the current live release, Linear `due_date` remains display-only in Workload. The
   `workload_plan.plan_date` is an
   independent Admin/SMM-owned scheduling value keyed by the exact sub-issue id; clearing it restores
@@ -352,6 +393,30 @@ returns aggregate counts only. Repository variable `THUMBNAIL_REVISION_SCAN_ENAB
 `true`; first scheduled run `29370658087` completed green with 239 checked and 0 failed.
 
 ## Backup and capacity truth
+
+**2026-09-05 source-only addition:** `docs/ops/CARD_CHANGE_HISTORY.md` owns the
+draft private atomic INSERT/UPDATE/DELETE journal for `calendar_posts`,
+`sample_reviews`, `batches`, `deliverables`, `production_comments` and
+`workload_plan`. It is not installed by a merge and changes no frozen writer or
+anonymous access policy. It preserves complete old/new rows independently of
+best-effort activity events. The expanded private backup corpus must explicitly
+include both source cards/events, Workload, the journal and the separate PR #1293
+intake manifest prerequisite. Existing 14-table packages remain limited history;
+they cannot prove this new corpus or a 30-day guarantee. See that runbook for
+staged install, retained-data rollback and the 90-day/no-auto-prune proposal.
+Journal installation is additionally blocked by a currently **failing**
+comment-refusal/reopen conservation proof; the separate browser repairs must
+pass before mandatory capture can expose users to an additional save refusal.
+The dated capacity/provider statements below are not refreshed by this draft.
+
+**Restore correction, still unapplied:** the prior 21-table corpus omits actual
+incoming FK dependencies. Explicit `history-v5` preparation covers 33 relations,
+including comment crosswalk/mutation receipts, intake recovery payloads and F27
+rollback/generation state. Legacy v3/v4 packages retain their limited meanings.
+`TRACK_B_BACKUP.md` holds activation on a missing authenticated schema artifact
+and actual empty-target reconstruction proof; local dependency-shaped tests do
+not clear that gate or establish installed/live coverage. No writer/capture SQL
+or anonymous policy changed in this correction.
 
 - The live project is on **Pro**, not Free. The 2026-07-13 readback showed seven completed daily
   physical backups spanning the included seven-day retention window; the newest completed that day.

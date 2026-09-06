@@ -2,6 +2,42 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Combined Workload/history-v6 proof; test-only preparation
+
+On integration `688947308c96e6f00b09a495a1f16f939fde479d`, 17 finite
+actual-handler/disposable-PostgreSQL groups passed using `service_role` calls.
+Old UUID/native plan identities and dates survive alias writes, journal failure
+and exact35-table dump/restore; conflicting aliases refuse without changing
+current or historical rows. Private snapshot RPC access remains denied to
+anonymous/authenticated SQL roles. See `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`
+for command and proof limits. The first successful rehearsal preceded explicit
+service-role adapter execution; the final rerun establishes that narrower
+privilege proof. Node warnings are retained. No product, migration, corpus,
+workflow, deployment, live data or frozen writer change occurred. Schema/cloud
+restore, serving and integrated browser gates remain open.
+
+## 2026-09-05 — Source candidate: native Workload membership and compatible plans
+
+Base `99d31c815de3e1a46deeb01c45c09bf2937040ad`. Native-default normal/forced/background
+snapshot, exact authority/membership/weights and bidirectional saved-plan aliases implemented
+locally. Additive manual SQL + deliberate-manual `workload-plan` closure; no production operation.
+Focused real-source browser, disposable SQL and full-handler proofs are recorded in
+`docs/ops/WORKLOAD_NATIVE_SOURCE.md`. CON/STR and source-only feedback remain explicit gaps.
+Current source/serving/rollback limits there supersede earlier default-reader proposals;
+no G5/Decision A, serving, or integrated-release completion is claimed.
+
+## 2026-09-06 — Read-only native card compatibility boundary
+
+At 01:40Z inspected only the two published Calendar/Samples upsert fallback graphs:
+both active, sameAsDraft,17 nodes each; direct card-table writes with native child IDs
+and source markers stripped before persistence. No execution or mutation was invoked.
+`docs/audits/2026-09-06-native-card-compatibility.md` records exact source/version/hash
+evidence and a proposed manifest/receipt amendment for both HTTP paths. No RPC, ingress
+ledger or workflow amendment was implemented; automatic card creation remains held.
+The proposal preserves anonymous writes and requires durable handling of old jobs whose
+browser recovery copy can expire. Original workflow restore alone is unsafe once the
+new automatic-created cards exist; a compatible inverse is a separate release gate.
+
 ## 2026-09-05 — Built: paste an image into a SyncLinear description (awaits migration + first deploy)
 
 Owner: *"let's do it."* The storage decision in `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`
@@ -12,6 +48,214 @@ Not a Section 4 closure, so no capture; the lane auto-runs on merge. Owner appli
 migration in the SQL Editor the same day. Codex review added a fail-closed runtime flag
 (`description_image_upload_enabled`, one-statement kill in `ROLLBACK.md`), a reserve-then-count
 rate limit, and keyboard activation for the full-size view. OPEN_REPAIRS 157.
+
+## 2026-09-05 — Native Create Post editor projection; local source only
+
+On exact PR1309 `69ae5d338486bd8084e6bbdbe65be1c44f63dbe1`, Create Post still
+hid native-eligible editors without a Linear mapping. A staff-only
+`intake_editor_options` read now uses the existing native admission-epoch RPC
+and native eligibility policy. The browser uses its minimal complete response
+or, only after an explicit provider decision, the unchanged provider loader.
+The intake writer and accepted-request replay remain unchanged. Forty-seven
+focused handler/disposable-SQL assertions passed, including six intercepted
+Chromium checks and exact baseline controls; 37 offline browser/source checks
+passed. See `docs/audits/2026-09-05-native-intake-editor-projection.md` for the
+fixture, scope, failure and release limits. No deployment, flag, migration on
+a service, live data, provider or n8n operation occurred.
+
+## 2026-09-05 — Draft native assignee eligibility on PR1302, no live action
+
+Built on PR1302 `8cb5cba91bc33fb17599b8f2a38625ae07f7743d` (over PR1293
+`5418ab5618595d9469f0527bd94623e9229a637e`) in the isolated branch
+`claude/native-assignee-eligibility-q8o1jd`; remote main recorded at
+`3d534cfa5598ef16e61c5ee7dc8072afaa9963c7` and not merged. Assignment eligibility
+and automatic selection now follow the server-resolved native epoch: a native
+lane consults neither `production_assignee_eligibility` nor Linear; the explicit
+provider path keeps its pre-existing flag behaviour and the automatic provider
+path keeps its original stored-mapping contract with no flag read. Same-day
+correction after an independent handler review: the native automatic pool now
+applies the exact creative-role contract (an SMM default is never a native
+graphics default) and shares one pool with the readiness aggregate; the first
+draft's flag-routed automatic filter is withdrawn. Real-handler lane on disposable
+PostgreSQL with denied provider transport and a PR1302-head negative control;
+exact counts and run stamps in the audit note. No merge, deploy, flag
+update, live read or write, n8n change or credential use. Scope, evidence, gates
+and inverse: `docs/audits/2026-09-05-native-assignee-eligibility.md`.
+
+## 2026-09-05, draft server-owned native intake completion, no live action
+
+Built on PR1302 `8cb5cba91bc33fb17599b8f2a38625ae07f7743d` in an isolated branch;
+remote main recorded at `3d534cfa5598ef16e61c5ee7dc8072afaa9963c7`, not merged in.
+Adds the additive reconcile migration (two stages, two readers), a dry-run runner,
+a manual-only workflow definition and a 47-check proof on disposable PostgreSQL
+with the real gateway. No merge, deploy, migration apply, flag update, live data
+mutation, dispatch or n8n change occurred. Scope, evidence and limits:
+`docs/audits/2026-09-05-native-intake-reconcile.md`. Not Decision A.
+
+## 2026-09-05 — Draft disabled native-only intake, no live action
+
+Built on PR1293 `5418ab5618595d9469f0527bd94623e9229a637e` in an isolated worktree.
+The additive native epoch/terminal receipt contract removes provider reads for
+explicit native intake and adds native-parent append/fill compatibility. Original
+manifest and real PostgreSQL/F27 write-fence tests are retained. No merge, deploy,
+flag update, live data mutation or n8n change occurred. Exact scope, mixed-lane
+limits, evidence and retained-data rollback are in
+`docs/audits/2026-09-05-native-only-intake.md`. Full serving and materialization
+readiness remain held; this is not Decision A or B5 activation.
+
+## 2026-09-05 — Draft mapped component feedback reader
+
+Isolated from captured main `731e7c248fd8c055a577e7c7f40a81236532250c`.
+Adds authorized exact-component source reads beside canonical comments, safe
+display metadata and explicit incomplete states. No migration, writer, flag,
+provider, import, deploy or merge. Finite actual-handler and
+fictional browser coverage, compatibility and rollback are recorded in
+`docs/features/COMPONENT_FEEDBACK.md`; live serving/history/zero loss remain open.
+Required house verification used its existing locked read-only observation lanes.
+Its structure/readiness and Project-menu comparator failures were corrected in
+tests, preserving mutation assertions; behavior passed 168/168 and full pixel
+checks passed in light/dark. No live business mutation occurred.
+
+## 2026-09-05 — Draft correction: history restore corpus
+
+Separate local branch from preserved PR #1299 `85018bf8`; review source
+`af929858` and one captured remote-main pin `ab636613` are recorded in
+`docs/audits/2026-09-05-card-history-restore-correction.md`. Actual dependency
+DDL proves the 21-table corpus omits incoming FK and comment/intake replay
+state. New explicit v5 preparation covers 33 relations while old packages and
+the default v3 schedule retain their meaning. No live action occurred.
+The authenticated schema artifact and empty-target reconstruction remain a
+release blocker. Journal/rollback SQL, writers, website and auth are unchanged.
+
+## 2026-09-05 — Draft preparation: private committed card history
+
+Source-only work from `287c16cd1c46da18c9d6e302e9a8d7c66c746e50`; remote main
+observed at `731e7c248fd8c055a577e7c7f40a81236532250c` without incorporating
+unrelated drift. The owner's durable-history request is implemented as an
+additive private six-owner database journal and explicit versioned backup
+preparation. No live data, migration, grant, trigger, Edge Function, frozen
+writer access, flag, n8n workflow, backup setting or provider state was changed.
+See `docs/ops/CARD_CHANGE_HISTORY.md` for exact scope, local SQL proof, the
+separate PR #1293 manifest prerequisite and still-owed deployment/restore gates.
+This entry records preparation, not installation or a live retention guarantee.
+
+## 2026-09-05 — Samples integration of pinned ab636 main; local only
+
+Created an isolated validation branch from #1295
+`e665ba77f95d832029c7b0c028c3011b249ea3a0` and merged only captured main
+`ab6366136c03239965c97b050ab5cf7c9763a228`, without conflicts, as
+`dd702412f7a36a46f610ea05ecad8ac06469ba73`. All 308 named Samples functions,
+monitor/recovery helpers and frozen writers retain the reviewed release bytes;
+all Edge sources/migrations retain the captured main bytes. The inherited main
+delta is asset display/access reuse, its tests, optional lookup index and docs.
+The original release and its recovery pair remain preserved. The packet records
+the new paired hashes, exact-source focused checks and still-open release gates.
+No push or #1295 update is authorized by this checkpoint. Named review of the
+final commit must finish before advancing; prior review and CI are historical.
+No production read or write, merge to main, deployment, migration, workflow
+dispatch, flag change or alert delivery was performed. This is local source and
+synthetic proof only; `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` owns the receipts.
+
+## 2026-09-06 — Independent Calendar recovery corrections; local source only
+
+Preserved author head `a9d798e6120ddf13c6461bec496715dc06c4bcef` passed its
+original 621 handler / 266 browser assertions but independently reproduced
+three false-completion cases and a root-note refusal text-loss case. The bounded
+correction binds a new tweak status identity to its exact accepted comment,
+constrains component/status/approval fields, rejects missing source bodies, and
+retains ordinary draft text on precommit refusal. Corrected proof: 855 actual
+handler/SQL assertions, 276 actual-browser assertions, separate 6-assertion
+refusal browser case, 238 fingerprint assertions, 15 ownership cases and the
+existing mock hold/race controls. See the
+[independent correction report](docs/audits/2026-09-06-calendar-feedback-recovery-independent-corrections.md)
+for source hashes, preserved baseline evidence and concurrency limits. All
+database work used an owned disposable PostgreSQL cluster, now stopped. Frozen
+writers and shared fingerprint bytes are unchanged. No push, merge, installation,
+deployment, live call or flag change. Combined recovery-corpus integration and
+serving remain held; older unbound attempts remain visibly unresolved.
+
+## 2026-09-06 — Calendar feedback recovery slice 1; local candidate, nothing applied or deployed
+
+On base `7e5a743cce8a1552bc822e0e560896451f983cdf`, an owned client Calendar
+root note or tweak whose native comment was accepted but whose source-card save
+was refused or lost its response can now be finished by the offered `Retry card
+sync` control: the browser captures the original source revision, the owned
+fields and the reserved companion status identity before sending; the gateway's
+additive `recover_source` modifier rebuilds the exact add and status identities
+with the shared fingerprint helpers; the new service-only RPC proves receipts
+and canonical lifecycle under lock, applies the copy and owned fields under an
+original-source-row CAS, and records idempotent evidence. Frozen writers,
+readers, flags, authority and n8n untouched. Proof ran locally against the
+actual handlers and the frozen writer over a disposable PostgreSQL 16: handler
+matrix 19 groups / 621 checks; browser matrix 11 groups / 266 checks through the
+actual client controls for both components, notes and tweaks, response loss, lifecycle races,
+unrelated edits, wrong client and legacy attempts; the exact base document and
+handler proven to keep holding. No live call, write, migration apply, deploy or
+flag change happened. Serving parity and live TEST journeys remain gates.
+
+## 2026-09-05 — Comment add receipt fingerprint; local source candidate
+
+On base `ce63c74d0333138f862cef5637bb7532fe059b74`, accepted comment adds include
+an action and null lifecycle CAS values that receipt reconstruction omitted.
+Shared `commentAddFingerprint` preserves the accepted bytes and lets exact
+receipts read back. The complete-handler offline matrix passes 238 assertion
+groups across Calendar/Samples VIDEO/GRAPHIC note/tweak and staff compatibility
+cases, preserving baseline false-conflict controls and changed-request refusal.
+Non-add readback explicitly refuses the unsupported operation rather than
+mistaking a lifecycle request for an earlier add; lifecycle writers are unchanged.
+Persistence is an explicit synthetic RPC-shaped seam, not SQL or serving proof.
+See `qa/comment-receipt-fingerprint/README.md`. No frontend, frozen writer,
+schema, flag, deployment pin or source-copy/status recovery changes; no live
+calls, writes or deployment. Complete Calendar recovery remains unproven.
+
+## 2026-09-04 — Samples G1 reader candidate; draft, release held
+
+**Targeted review correction:** #1269 was verified draft/unmerged at reviewed head
+`c10ebc8465b5fc95976014e21184a6c2076d8d96`. Draft creation now stamps the originating
+client; refresh merges retain unfinished work and defer paint while typing even
+when a draft is created during a foreground read. The coordinator's fallback
+decision supersedes the initial fail-closed fallback design below: valid scoped
+nonempty fallback may appear on a cold open with incomplete/outdated feedback,
+but never replaces existing content/cache or clears its warning. Only primary
+recovery stamps cache verification; recently verified caches refresh quietly.
+The Production comments fixture's missing-count timeout was reproduced, then its
+scoped empty/nonempty receipts and CORS exposure were corrected. Unexpected writes
+are blocked before network I/O; the intercepted comments writer assertions remain.
+Local regression also executes actual draft promotion, held save and HTTP failure,
+followed by refresh and client switch. No backend/writer-route/auth change.
+Validation: 48 isolated Samples cases, the affected Production comments browser
+suite (including counted empty and nonempty Samples), and 24 mocked boot groups
+pass. The 397-suite run passes 395; only the same two baseline Windows environment
+failures remain. Comments writes are intercepted and unexpected writes blocked;
+the staff portion may observe live read-only lists. No live persistence or release
+proof is claimed. Monitoring and client-continuity release gates remain held.
+Local writer cache checkpoints do not inherit a full-read verification stamp;
+only an authoritative primary snapshot may certify a cache as recently verified.
+
+**Initial implementation evidence (superseded fallback design):**
+
+Isolated worktree from remote main `13e187a7d0043ed110b486feb50502758a026229`.
+Analysis draft #1268 remained at `c1aa4d934d1a1532632842295cddaf0b176c1b73`;
+its operative G1 and Samples evidence were read, and `index.html` had no drift.
+An offline actual-source probe reproduced HTTP 500 / `ok:false` / empty fallback
+as Samples empty success while Calendar v2 refused those fixtures.
+
+The candidate requires counted, client-scoped primary pages and validates fallback
+HTTP/envelope/rows/completeness before replacement. A fallback without a completeness
+receipt is unavailable; an empty fallback never proves emptiness. Failed refreshes
+keep useful scoped rows/cache visibly stale with retry; a complete primary empty result
+may clear the board. Cache authority and source-repair rules remain intact.
+
+Local proof: 49 isolated Samples cases; 24 fully mocked browser groups, including
+stale/retry at 360/768/1280 in light/dark; Calendar fallback and writer durability
+regressions pass. The 397-suite run initially had three failures: two Windows
+environment failures reproduced on untouched baseline (ESM absolute-path import and
+hard-coded `/tmp`), plus a cache sandbox missing the new validator/client field,
+which was corrected and rerun successfully. Disposable database lanes were skipped
+locally; hosted CI remains required. No live persistence, deployed-byte, monitoring
+or client-continuity release proof is claimed. No live data, writer/auth, EF, n8n,
+flag, migration, notification or deployment changed. Rollback: the Samples G1 entry
+in `ROLLBACK.md`; coordinator monitoring/client-continuity gates hold production release.
 
 ## 2026-08-31 — Deploy: a card can be completed from the card
 
@@ -6388,3 +6632,23 @@ in the owner's SQL Editor history and in the session record. The prior
 slots, 1,207 clean, 7 mismatching, 0 bindable, the same three reason counts as
 before (5 / 1 / 1). All 7 carry a recorded ruling (OPEN_REPAIRS 156). Phase 3
 (b) closed; (c) open.
+
+## 2026-09-05 ? Local reciprocal native intake completion correction
+
+Independent PR1314 review at `42452cdbf5c36ba74b08885a152943ff827c9aa3` reproduced forward-only false completion on both card owners. The shared state predicate now requires the exact expected child to point back. Original source/head and failing proof are retained; no installed schema or production state was changed. Current evidence and remaining holds: `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.
+
+# 2026-09-05 — Review composer preservation (draft, not deployed)
+
+Bounded follow-up from integrated Samples `343446aa435e07222b60455ca9bb603a31e82e67`.
+Reproduced lost review feedback, added scoped unsent/captured revision ownership,
+and preserved the existing Samples queue plus native/source repair receipts.
+Independent review identified and corrected exact-body acknowledgement loss and
+outgoing-actor optimistic feedback visibility during storage-event replacement.
+Local evidence: 13 ownership groups, 18 visible browser conservation cells,
+15 behavior groups, 3 real BFCache groups. Existing suite results accompany the
+draft PR. No live mutations, notifications, deployment, auth/flag or n8n changes.
+Recovery and proof limits: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.
+
+## 2026-09-06 ? Local combined recovery corpus
+
+From integration `6b306f473524b8f4759d6f03f09df45e8ba0aaf7`, added explicit history-v6 for both FK-free recovery ledgers. Twelve new offline checks and ten finite combined SQL checks pass; old formats remain readable and default schedule unchanged. Evidence and held schema/feedback-RPC/integration boundaries: `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`. No production action.

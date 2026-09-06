@@ -1,0 +1,24 @@
+{
+  "enabled": false,
+  "deliveryEnabled": false,
+  "releaseSha": "OWNER_APPROVED_COMBINED_HEAD",
+  "pageSha256": "SHA256_OF_APPROVED_INDEX_BYTES",
+  "outputDirectoryEnv": "CONTINUITY_OUTPUT_DIR",
+  "backendOriginEnv": "CONTINUITY_BACKEND_ORIGIN",
+  "fallbackOriginEnv": "CONTINUITY_READER_FALLBACK_ORIGIN",
+  "censusKeyEnv": "CONTINUITY_CENSUS_READ_KEY",
+  "readOriginsEnv": "CONTINUITY_READ_ORIGINS_JSON",
+  "lanes": {
+    "calendar": { "linkEnv": "CONTINUITY_CALENDAR_LINK", "scopeEnv": "CONTINUITY_CALENDAR_SCOPE", "requiredVisibleIdsEnv": "CONTINUITY_CALENDAR_CANARIES_JSON" },
+    "samples": { "linkEnv": "CONTINUITY_SAMPLES_LINK", "scopeEnv": "CONTINUITY_SAMPLES_SCOPE", "requiredVisibleIdsEnv": "CONTINUITY_SAMPLES_CANARIES_JSON" }
+  },
+  "delivery": {
+    "independenceConfirmed": false,
+    "recipientsConfirmed": false,
+    "primaryUrlEnv": "SLACK_ALERT_WEBHOOK",
+    "fallbackUrlEnv": "CONTINUITY_FALLBACK_URL",
+    "fallbackTokenEnv": "CONTINUITY_FALLBACK_TOKEN",
+    "n8nApiKeyEnv": "N8N_API_KEY",
+    "n8nBaseUrlEnv": "CONTINUITY_N8N_ORIGIN"
+  }
+}

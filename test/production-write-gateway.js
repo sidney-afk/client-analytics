@@ -39,12 +39,14 @@ function ok(condition, message) {
  * The convention of writing apostrophe-free comments works right up until
  * someone does not know it. Understanding comments costs eight lines and stops
  * relying on that. */
-function extractFunction(name) {
+function extractFunction(name, bodyMarker = '{') {
   const marker = 'function ' + name + '(';
   let start = edge.indexOf(marker);
   if (start < 0) throw new Error('missing ' + name);
   if (edge.slice(start - 6, start) === 'async ') start -= 6;
-  const brace = edge.indexOf('{', start);
+  const bodyStart = edge.indexOf(bodyMarker, start);
+  if (bodyStart < 0) throw new Error('missing body marker for ' + name);
+  const brace = bodyStart + bodyMarker.length - 1;
   let depth = 0, quote = '', escaped = false, comment = '';
   for (let index = brace; index < edge.length; index++) {
     const char = edge[index], next = edge[index + 1];
@@ -552,9 +554,13 @@ function extractFunction(name) {
   const createAssignees = extractFunction('mappedCreateAssignees');
   const createParentRoute = extractFunction('productionCreateParentRoute');
   const createHandler = extractFunction('handleProductionCreate');
-  const createReplayStart = edge.indexOf('async function productionCreateReplay(');
-  const createReplayEnd = edge.indexOf('\nasync function handleCreateOptions(', createReplayStart);
-  const createReplay = edge.slice(createReplayStart, createReplayEnd);
+  // The inline intent type has braces, and unrelated picker declarations may
+  // follow replay. Bound the actual function body, not a later neighbor.
+  const createReplay = extractFunction('productionCreateReplay', '): Promise<Response | null> {');
+  ok(createReplay.endsWith('}') && createReplay.includes('mirror_pending: !acknowledged')
+    && !createReplay.includes('function completeIntakeEditorRows(')
+    && !createReplay.includes('function handleIntakeEditorOptions('),
+  'replay inspection contains its complete body and excludes adjacent picker functions');
   const createFieldsStart = edge.indexOf('const PRODUCTION_CREATE_FIELDS = new Set([');
   const createFieldsEnd = edge.indexOf(']);', createFieldsStart);
   const createFields = edge.slice(createFieldsStart, createFieldsEnd);
@@ -1068,7 +1074,7 @@ function extractFunction(name) {
     && /default_for_team/.test(edge)
     && /intake_assignee_override_not_allowed/.test(edge)
     && /normalizeTeam\(item\.team\) !== "video"/.test(edge)
-    && /await assertEligibleAssignee\(supabase, requestedByTeam\[team\], team\)/.test(edge),
+    && /await assertEligibleAssignee\(supabase, requestedByTeam\[team\], team, nativeEpochByTeam\[team\]\)/.test(edge),
   'intake balances on OPEN video work and accepts a validated video editor override, graphics refused');
   // ONE PARENT PER CARD (owner ruling 2026-08-18). The batch row is still
   // nullable-team for a mixed card, but it mints a single Linear parent owned
@@ -1085,8 +1091,10 @@ function extractFunction(name) {
   'mixed intake creates one nullable-team batch whose single primary-team parent every child depends on');
   ok(/const appendParentTeam = teamList\.includes\("video"\) \? "video" : teamList\[0\];/.test(edge)
     && /const ownsDistinctParent = ownIds\.length === 1 && !sharedParentIds\.includes\(ownIds\[0\]\);/.test(edge)
-    && /parentRouteByTeam\[team\] = ownsDistinctParent/.test(edge),
-  'an append hangs under the same single parent, except on a legacy batch that already owns a distinct one for that team');
+    && /parentRouteByTeam\[team\] = nativeEpochByTeam\[team\]/.test(edge)
+    && /: ownsDistinctParent \|\| !!nativeEpochByTeam\[appendParentTeam\][\s\S]{0,70}\? await parentRouteForAppend/.test(edge)
+    && /: sharedAppendRoute;/.test(edge),
+  'provider append retains the single or distinct legacy parent; a native epoch uses its native batch and cannot supply a provider parent');
   ok(/post-linkage version/.test(edge)
     && /currentItemsById/.test(edge)
     && /items: currentResponseItems/.test(edge),

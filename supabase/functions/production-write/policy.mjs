@@ -405,6 +405,165 @@ export function eligibleAssigneeProjection(members, team, options = {}) {
       || clean(left.id).localeCompare(clean(right.id)));
 }
 
+/*
+ * NATIVE ASSIGNEE ELIGIBILITY (2026-09-05, draft, disabled by default).
+ *
+ * THE DEFECT. Every assignment lane shares assertEligibleAssignee, and its
+ * context read the `production_assignee_eligibility` flag: missing, unreadable
+ * or strict meant "provider mapping required", which meant one Linear
+ * `users(id, active)` read per invocation. That is the right contract while
+ * the write is provider work -- an unmirrorable target would commit natively
+ * and fail asynchronously in linear-outbound -- but it is the wrong contract on
+ * a lane the server has already admitted as native: the outbox receipt is
+ * terminal there, nothing drains to Linear, and the provider read only decided
+ * whether an unreachable provider could refuse native work. PR1302's
+ * actual-handler control recorded exactly that: an explicit VIDEO editor on a
+ * native-admitted intake still reached the provider and was refused with zero
+ * partial commit while Linear was down.
+ *
+ * THE LANE IS THE SERVER'S DECISION, NEVER THE BROWSER'S. `nativeEpoch` is the
+ * per-team epoch the gateway resolved through production_intake_epoch_read
+ * (an accepted manifest/receipt first, the `native_intake_epochs` flag only
+ * for new admission). A non-empty epoch is the one fact that makes a request
+ * native; an empty one is provider work and keeps the provider-era contract
+ * byte for byte, including its "absence means strictest" default. So a
+ * missing, unreadable or malformed `production_assignee_eligibility` read can
+ * never re-introduce a provider call on a native lane: that lane does not
+ * consult the flag at all. Provider lanes keep consulting it exactly as before.
+ *
+ * WHAT NATIVE ELIGIBILITY STILL REQUIRES. The native authorities are the
+ * roster row itself: `team_members.active`, the exact per-team creative role
+ * (CREATIVE_ROLE_BY_TEAM) and `team_members.team`. None of those is relaxed.
+ * The only requirement dropped is the provider mapping and its live provider
+ * verification, because on a native lane a `linear_user_id` is an optional
+ * identifier, not a prerequisite for the work to exist. Four situations that
+ * used to collapse are kept apart, because each wants a different remedy:
+ *   - missing native membership (no roster row)        -> assignee_not_found
+ *   - intentionally ineligible (inactive / wrong role /
+ *     wrong team)                                       -> those exact reasons
+ *   - absent optional provider id on a native lane      -> eligible
+ *   - unreadable policy on a provider lane              -> strictest, as before
+ */
+export const ASSIGNEE_LANES = Object.freeze(["provider", "native"]);
+
+export function assigneeLaneFor(nativeEpoch) {
+  return clean(nativeEpoch) ? "native" : "provider";
+}
+
+// `flag` is the raw `production_assignee_eligibility` value and `flagState`
+// how the read went: "read" (a row came back), "missing" (no row) or
+// "unreadable" (the read failed or threw). The provider branch is the
+// pre-existing assigneeEligibilityPolicy contract, unchanged.
+export function assigneeLanePolicy(nativeEpoch, flag, flagState = "read") {
+  const lane = assigneeLaneFor(nativeEpoch);
+  if (lane === "native") {
+    return Object.freeze({
+      lane,
+      nativeEpoch: clean(nativeEpoch),
+      providerMappingRequired: false,
+      providerVerificationRequired: false,
+      policySource: "native_epoch",
+    });
+  }
+  const state = lower(flagState);
+  const strict = state !== "read";
+  const parsed = strict ? { providerMappingRequired: true } : assigneeEligibilityPolicy(flag);
+  return Object.freeze({
+    lane,
+    nativeEpoch: "",
+    providerMappingRequired: parsed.providerMappingRequired,
+    providerVerificationRequired: parsed.providerMappingRequired,
+    policySource: state === "missing" ? "flag_missing"
+      : state === "unreadable" ? "flag_unreadable"
+      : parsed.providerMappingRequired ? "flag_strict" : "flag_retired",
+  });
+}
+
+/*
+ * THE NATIVE INTAKE POOL. One function, consumed by the gateway's automatic
+ * choice on a native lane AND by the readiness aggregate, so the two cannot
+ * disagree: active, exact team, exact creative role, mapping optional, ordered
+ * by name then id. It is the explicit path's assigneeEligibility verdict with
+ * the provider requirement switched off, applied to a roster instead of one
+ * candidate.
+ */
+export function nativeIntakePool(members, team) {
+  return (Array.isArray(members) ? members : [])
+    .filter(member => assigneeEligibility(member, team, { providerMappingRequired: false, providerActive: null }).eligible)
+    .sort((left, right) =>
+      clean(left.name).localeCompare(clean(right.name))
+      || clean(left.id).localeCompare(clean(right.id)));
+}
+
+/*
+ * NATIVE CATALOG READINESS. The gateway refuses per request when the roster
+ * cannot support an assignment (video_assignee_pool_unavailable,
+ * graphics_default_assignee_unavailable); this is the same rule applied to the
+ * whole roster at once, so an operator can see BEFORE enabling a native epoch
+ * whether the native catalog is complete for automatic and explicit
+ * assignment on each team. Counts only: it never returns a name or an id, so
+ * its output is safe to paste into a public ledger.
+ *
+ * "Ready" here means the native lane can assign. It is NOT provider readiness:
+ * unmapped rows are reported because they are the exact rows a provider lane
+ * would still refuse, which is the population an operator has to know about
+ * before the two lanes can disagree.
+ */
+export function nativeAssigneeCatalogReadiness(members) {
+  const rows = (Array.isArray(members) ? members : [])
+    .filter(row => row && typeof row === "object");
+  const totals = {
+    rows: rows.length,
+    active: 0,
+    inactive: 0,
+    teamless: 0,
+    unknown_team: 0,
+    unknown_role: 0,
+  };
+  const known = new Set(["admin", "smm", "editor", "designer"]);
+  for (const row of rows) {
+    if (row.active === true) totals.active += 1; else totals.inactive += 1;
+    if (!clean(row.team)) totals.teamless += 1;
+    else if (!normalizeTeam(row.team)) totals.unknown_team += 1;
+    if (!known.has(lower(row.role))) totals.unknown_role += 1;
+  }
+  const teams = {};
+  for (const team of Object.keys(CREATIVE_ROLE_BY_TEAM)) {
+    const role = CREATIVE_ROLE_BY_TEAM[team];
+    const onTeam = rows.filter(row => normalizeTeam(row.team) === team);
+    // The same pool the gateway's native automatic choice draws from.
+    const creatives = nativeIntakePool(onTeam, team);
+    const mapped = creatives.filter(row => canonicalLinearUserId(row.linear_user_id));
+    const defaults = onTeam.filter(row => row.default_for_team === true);
+    const activeDefaults = creatives.filter(row => row.default_for_team === true);
+    const reasons = [];
+    if (!creatives.length) reasons.push("no_active_creative");
+    if (team === "graphics") {
+      if (!defaults.length) reasons.push("no_default_designer");
+      else if (activeDefaults.length !== 1) {
+        reasons.push(activeDefaults.length > 1 ? "ambiguous_default_designer" : "default_designer_ineligible");
+      }
+    }
+    teams[team] = {
+      ready: reasons.length === 0,
+      reasons,
+      active_creatives: creatives.length,
+      mapped_creatives: mapped.length,
+      unmapped_creatives: creatives.length - mapped.length,
+      inactive_creatives: onTeam.filter(row => row.active !== true && lower(row.role) === role).length,
+      role_incompatible_active: onTeam.filter(row => row.active === true && lower(row.role) !== role).length,
+      defaults: defaults.length,
+      eligible_defaults: activeDefaults.length,
+      provider_lane_would_refuse: creatives.length - mapped.length,
+    };
+  }
+  return {
+    ready: Object.values(teams).every(team => team.ready),
+    totals,
+    teams,
+  };
+}
+
 /* ANY staff principal may READ a deliverable's assets and description, on
    either team.
 
@@ -1278,4 +1437,15 @@ export async function intentFingerprint(value) {
   const encoded = new TextEncoder().encode(JSON.stringify(stableValue(value)));
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoded));
   return [...digest].map(byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+// Preserve the existing accepted-add bytes in both write and receipt readback.
+// An add has no lifecycle CAS; omission and explicit null hash differently.
+// Call only for adds. Lifecycle actions retain their own action and CAS input.
+export async function commentAddFingerprint(value) {
+  return intentFingerprint({
+    ...value,
+    action: "add",
+    comment: { ...value.comment, expected_version: null, expected_updated_at: null },
+  });
 }

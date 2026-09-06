@@ -1,0 +1,24 @@
+{
+  "base_commit": "5e6095bc025ce819ae701f69828ca48cd9abe161",
+  "hosted_failure": {
+    "run": 34006314735,
+    "job": 101414057161,
+    "code": "pwg_calendar_native_intake"
+  },
+  "classification": "ISOLATED_CHROMIUM_MOCKED_GATEWAY",
+  "baseline": {
+    "status": "EXPECTED_FAIL",
+    "reason": "new_batch_wait_woken_by_editor_read",
+    "source_sha256": "9c7b196de1e98258ae59da75dfc1072cfbd3ff85bcb558732ab6b066aefb0899",
+    "full_log_sha256": "b18e22d3c8ace8ef5759e737920eca7349487c58654aeffa0e718aa07a6f3a52"
+  },
+  "candidate": {
+    "status": "PASS",
+    "source_sha256": "6a31cbe345a4abbf3118076593a0da1273a394b6a7e2f8fcb255d39900b17c04",
+    "full_log_sha256": "5f62838718cfc81ebe7b2889fb7ee1022475153db35e226d2cbf0e7b275e0821",
+    "calendar_phase_log_sha256": "bec98f69e8689a95a273a96f1e501de8f540625149ee690ae367fe882af75420"
+  },
+  "index_html_sha256": "64f197a0a451329925c3c51a231c79af05fc5f425bf1b241ade2af15917c7d6c",
+  "private_harness_driver_sha256": "6deb71ddbddbddbc7d347c3ff472479070c7c783ab3c8c18986e701b0c94b9fa",
+  "limits": "Actual full gateway-browser suite and isolated Calendar phase; synthetic HTTP mocks with unmatched HTTP aborted. No real backend handler/SQL, live write, deployment, full aggregate polish or updated hosted CI proof."
+}

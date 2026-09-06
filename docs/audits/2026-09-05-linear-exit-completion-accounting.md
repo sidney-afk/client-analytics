@@ -12,7 +12,19 @@ This is an accounting of the existing G0–G10 plan, based only on the September
 - Codex (`provider_retirement`) — intake-aligned Create Post native editor projection, starting from PR #1309 `69ae5d3`.
 - Codex (`backend_paths`) — bounded native label read/validation dependency removal from pinned main `ab6366136c03239965c97b050ab5cf7c9763a228`. Its trace found no complete native catalog owner; the coordinator authorized a single dormant versioned catalog foundation and staged read/validation contract. Live completeness and a provider fallback are not assumed.
 
-Both Codex lanes are restricted to local/synthetic work and cannot be pushed before coordinator review.
+Both Codex lanes were restricted to local/synthetic work and publication only after coordinator review. Their subsequent outcomes are recorded below; the original assignment list above is historical.
+
+## September 6 UTC outcome update
+
+The owner delivered the card-history result and confirms the native-completion and Calendar-feedback Claude tasks are still running. Their corrections have not been assumed complete. The history package is now PR #1313 at `8fa163b79475f50474c092eafa6e6db446d2241e`, stacked on PR #1311 `aab2acd23112f7bdff849a9c0b68306d41bbf62c`; three exact-head hosted checks pass, while independent reconstruction review remains release-held. See the [independent review](2026-09-06-recovery-package-independent-review.md) and [bounded correction handoff](../independence/LINEAR_EXIT_HANDOFF_SCHEMA_RESTORE_CORRECTIONS_2026-09-06.md).
+
+The native Create Post editor projection is published as [draft PR #1315](https://github.com/sidney-afk/client-analytics/pull/1315), exact head `bf959479bec8262389d5460dc66b5fe58430973d`, stacked on PR #1309 `69ae5d338486bd8084e6bbdbe65be1c44f63dbe1`. Named review closed after publication. Author evidence is 47 actual-handler/disposable-SQL checks including six intercepted Chromium cases and 37 offline checks; independent review separately ran 34 offline checks and four context-mutation controls. Its single publication CI snapshot was unavailable due to a network timeout, not classified as success or code failure. Integration, the pinned Deno typecheck and serving remain unproved. General pickers and existing-work reassignment remain outside this slice.
+
+The native label foundation at `f0e77a47a1e26a1e2a97b514ee06cec824c31b90`, based on `ab6366136c03239965c97b050ab5cf7c9763a228`, passed independent review: 48 actual SQL checks, 20 unchanged-handler checks with modeled RPC persistence, and 28 additional SQL negatives. It stages immutable versions only; activation and active reads always refuse. It adds `production_label_catalog_versions`, outside the history-v5 33-table data corpus. Whole-schema capture alone would restore that table empty. Private staged-data coverage, exact schema/privileges/triggers and a trigger-aware restore must be integrated before installation. This does not close native label dependency removal.
+
+The label foundation is published as [draft PR #1316](https://github.com/sidney-afk/client-analytics/pull/1316), at that exact `f0e77a47` head. Its publication target main is `99d31c815de3e1a46deeb01c45c09bf2937040ad`; that drift was recorded, not integrated. Named post-publication review closed at 00:18:01 UTC; the single exact-head CI snapshot at 00:18:15 UTC returned zero check runs and zero classic statuses, so no hosted pass is claimed. Publication is not a deployment.
+
+No product release, migration, flag, provider action or watcher activation follows from these drafts. G0-G10 production gates and observation clocks remain open as recorded below. Product watchers remain inactive; the coordinator's follow-up automation is not production monitoring.
 
 “Unassigned” below means no active implementation owner is identified in this checkpoint and ownership update. The canonical accountable role remains listed; this does not assert that no related work exists elsewhere.
 

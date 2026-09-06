@@ -1,0 +1,146 @@
+{
+  "reviewed_commit": "8fa163b79475f50474c092eafa6e6db446d2241e",
+  "base_commit": "aab2acd23112f7bdff849a9c0b68306d41bbf62c",
+  "decision": "CHANGES_REQUIRED_NO_RELEASE",
+  "sql_evidence": {
+    "head": "8fa163b79475f50474c092eafa6e6db446d2241e",
+    "started_at": "2026-09-06T00:20:25.144Z",
+    "live": false,
+    "checks": [
+      {
+        "case": "bigint",
+        "capture_ok": true,
+        "reconstruction_ok": true,
+        "schema_fingerprint_match": true,
+        "egress_capable_functions": 0,
+        "source_next": "9007199254740994",
+        "restored_next": "9007199254740993",
+        "exact_next_preserved": false
+      },
+      {
+        "case": "uncalled",
+        "capture_ok": true,
+        "reconstruction_ok": true,
+        "schema_fingerprint_match": true,
+        "egress_capable_functions": 0,
+        "source_next": "9000",
+        "restored_next": "1",
+        "exact_next_preserved": false
+      },
+      {
+        "case": "check_mutation",
+        "capture_ok": true,
+        "reconstruction_ok": true,
+        "schema_fingerprint_match": true,
+        "egress_capable_functions": 0,
+        "typed_content_preserved": false
+      }
+    ],
+    "windows_harness_adapter": "external psql -w to return passwordless refusals without interactive prompt; repository SQL and assertions unchanged",
+    "original_rehearsal_exit": 0,
+    "original_rehearsal": {
+      "passed": 16,
+      "status": "PASS",
+      "server_version": "16.14"
+    },
+    "owned_server_stopped": true,
+    "finished_at": "2026-09-06T00:21:15.742Z",
+    "classification": "ISOLATED_POSTGRESQL_SOURCE_EXECUTION",
+    "receipt_sha256": "8dca9011c4513d684bff702992208a434e9a7111166df8d1e2163d70ed29a00b",
+    "private_driver_sha256": "7a5543f72af75d67190c500b0bb70f185ce0fce6e760a47f8408d0327f9cfe9c",
+    "comparison_scope": {
+      "typed_content_preserved": "Producer field retained verbatim: compares md5(string_agg(team_members.name, comma ORDER BY id)); proves an ordered fixture text-field mismatch, not whole-row or whole-corpus equality"
+    }
+  },
+  "independent_permission_review": {
+    "reviewed_commit": "8fa163b79475f50474c092eafa6e6db446d2241e",
+    "base_commit": "aab2acd23112f7bdff849a9c0b68306d41bbf62c",
+    "classification": "OFFLINE_TEST_AND_SOURCE_ONLY",
+    "database_execution": false,
+    "live_access": false,
+    "existing_offline_groups": {
+      "passed": 10,
+      "failed": 0
+    },
+    "classifier_probes": [
+      {
+        "name": "check_calls_restored_writer",
+        "action": "execute",
+        "kind": "table"
+      },
+      {
+        "name": "writer_body_deletes_rows",
+        "action": "execute",
+        "kind": "function",
+        "egress": false
+      },
+      {
+        "name": "index_calls_function",
+        "action": "execute",
+        "kind": "index"
+      },
+      {
+        "name": "external_schema_check",
+        "action": "execute",
+        "kind": "constraint"
+      },
+      {
+        "name": "cross_schema_acl",
+        "action": "execute",
+        "kind": "acl"
+      },
+      {
+        "name": "builtin_program_body",
+        "action": "execute",
+        "kind": "function",
+        "egress": true
+      }
+    ],
+    "target_guard": {
+      "bypassrls_rechecked": false,
+      "membership_checked": false,
+      "nonpublic_function_capabilities_checked": false
+    },
+    "verification": {
+      "commit_before_verification": true,
+      "verification_uses_separate_process": true,
+      "automatic_database_rollback_after_verification_failure": false
+    },
+    "source_sha256": {
+      "scripts/track-b-recovery-package.js": "7e06c99cbd1567a2652733af6b5025891d2c090c1366ab6ad747f7d67f859453",
+      "scripts/track-b-recovery-reconstruct.js": "30a559719cd3a8d47fa223f7bba12cbb8546fadfcc603d4015da6568a1942754",
+      "scripts/track-b-recovery-prerequisites.sql": "7c61f3ab52280149c26554a820eb6128f73ee7a514c2ca35882ea41a8660f477",
+      "test/track-b-recovery-package.js": "0a8b927b49d2706e044c2849619b1045fd68097213450972f2af84dc98040ead"
+    }
+  },
+  "hosted_checks": {
+    "head": "8fa163b79475f50474c092eafa6e6db446d2241e",
+    "passed": 3,
+    "names": [
+      "unit",
+      "identity-exposure",
+      "f27-team-rollback-proof"
+    ],
+    "scope": "Hosted source checks; no installed or serving proof"
+  },
+  "prior_attempts": [
+    {
+      "kind": "SETUP_FAILURE",
+      "meaning": "Incomplete portable runtime path refused before server start; no product conclusion"
+    },
+    {
+      "kind": "HARNESS_CONFIGURATION_FAILURE",
+      "meaning": "Explicit hash-bound PR1293 manifest input missing; no product conclusion"
+    },
+    {
+      "kind": "HARNESS_BLOCKED",
+      "meaning": "Unadapted Windows passwordless negative probe prompted; its owned parent and child were stopped after identity checks. No PASS claimed for this attempt."
+    }
+  ],
+  "limits": [
+    "Synthetic migration-shaped source and local platform prerequisites only",
+    "No live data, network egress attempt, deployment, grant installation, cloud readback or alert",
+    "Logical replication inactive in disposable fixture; warning retained; realtime remains unproven",
+    "Product watchers remain inactive"
+  ]
+}

@@ -67,6 +67,8 @@ All referenced from `index.html` by **relative URL**; moving them breaks the liv
 
 The September 5 execution checkpoint is `docs/audits/2026-09-05-linear-exit-execution-evidence.md`; `docs/audits/2026-09-05-linear-exit-completion-accounting.md` separates each remaining gate's engineering and operational evidence from its active or unassigned owner. Exact GitHub states are retained in `docs/audits/2026-09-05-linear-exit-github-checkpoint.md` and `docs/audits/2026-09-05-linear-exit-github-checkpoint.json`; the independent held-completion review is `docs/audits/2026-09-05-native-completion-independent-review.md` with `docs/audits/2026-09-05-native-completion-independent-review.json`. The bounded handoffs, subsequently confirmed running by the owner, are `docs/independence/LINEAR_EXIT_HANDOFF_NATIVE_COMPLETION_2026-09-05.md`, `docs/independence/LINEAR_EXIT_HANDOFF_FEEDBACK_RECOVERY_2026-09-05.md` and `docs/independence/LINEAR_EXIT_HANDOFF_SCHEMA_RESTORE_2026-09-05.md`. These are evidence and assignments under the same checklist, not alternative exit plans or release authorization.
 
+The September 6 UTC follow-up is `docs/audits/2026-09-06-recovery-package-independent-review.md`, with aggregate proof in `docs/audits/2026-09-06-recovery-package-independent-review.json` and the bounded existing-session correction at `docs/independence/LINEAR_EXIT_HANDOFF_SCHEMA_RESTORE_CORRECTIONS_2026-09-06.md`. The completion accounting records the two reviewed Codex draft outcomes and the two still-running Claude tasks. These extend the same G0-G10 sequence and do not authorize a release.
+
 ## Test & automation entry points
 
 | Command / trigger | What runs | Notes |

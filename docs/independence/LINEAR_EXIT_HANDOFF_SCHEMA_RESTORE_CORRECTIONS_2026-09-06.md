@@ -1,0 +1,43 @@
+# PR1313: finite recovery-package correction handoff
+
+Continue in the existing Claude recovery-package session and isolated draft branch. Preserve reviewed PR1313 commit `8fa163b79475f50474c092eafa6e6db446d2241e`, based on PR1311 `aab2acd23112f7bdff849a9c0b68306d41bbf62c`, together with its original evidence. This is a correction to that bounded schema-and-data recovery slice, not a new audit or broader recovery redesign.
+
+Read current applicable AGENTS and `docs/ops/TRACK_B_BACKUP.md`. Keep implementation unapplied and draft. Do not access production, TEST or providers; execute installed grants/migrations; merge; deploy; dispatch workflows; change flags, frozen writers or schedules; or make live data mutations. Any SQL rehearsal must use only your own independently identified disposable database and fixture roles. Do not manage another session's server. No grant approval is requested by this handoff.
+
+## Evidence authority and completed coordinator probes
+
+The independent permission review inspected exact 8fa source and passed its existing **10/10 offline groups**. Six additional actual-source classifier probes confirmed acceptance of callable CHECK/index expressions, a cross-schema CHECK, a multi-target cross-schema grant, and function bodies with writes or a program primitive. They prove filter acceptance, **not executed database side effects or network egress**. Preserve the author's original **16 SQL rehearsal groups** and all original refusal/negative controls as separately attributed evidence.
+
+**Coordinator SQL results are complete at exact 8fa.** The original 16-group rehearsal passes on PostgreSQL 16.14 with an external Windows psql noninteractive-refusal adapter; repository assertions and SQL are unchanged. Preserve the blocked unadapted attempt separately. All three extra full capture/reconstruct probes return success and matching schema fingerprints despite losing state:
+
+- Large sequence: source next 9007199254740994; restored next 9007199254740993.
+- Uncalled sequence: source next 9000; restored next 1.
+- Executing CHECK: restored ordered fixture text-field digest differs after a routine changes another copied corpus row; no network action attempted.
+
+SQL receipt SHA256: `8dca9011c4513d684bff702992208a434e9a7111166df8d1e2163d70ed29a00b`. Full source pins, proof limits and exact results are in [the independent review](../audits/2026-09-06-recovery-package-independent-review.md) and paired aggregate JSON.
+
+Use those completed receipts as baseline controls. Do not silently replace an original failure with a corrected result.
+
+## Corrections and finite acceptance
+
+1. **Exact sequence state.** Repair `sequencesSql`, `sequenceValueSql` and reconstruction verification in `scripts/track-b-recovery-package.js` (8fa lines 300, 484 and 543). Represent full-width sequence values as validated decimal strings end to end, without conversion through JavaScript Number, and preserve the actual boolean `is_called`. Read the necessary sequence state rather than equating a nullable catalog last-value projection with its complete state. Reject malformed/out-of-range data. Establish explicit package-version/legacy compatibility or a clear refusal; do not invent absent historical state. Prove both supplied values, called/uncalled and fresh sequences, and the next allocation on isolated restored targets. Keep sequence/snapshot coherence limits explicit.
+
+2. **Executable dependencies and effective permissions.** At 8fa, `classifySchemaStatement` (lines 157-189) permits callable expressions and SQL/PLpgSQL bodies; `reconstructSql` (502-505) emits them around COPY. Postponing triggers does not prevent a CHECK or expression from executing. Keyword counting at line 171 is not an execution boundary. Establish a positively bounded callable dependency contract for constraints, defaults/generated expressions, indexes, views/materialized views and their referenced routines. Unknown or unsafe dependencies must refuse before target mutation; do not silently discard schema objects or weaken preservation checks.
+
+   The manual prerequisite script grants EXECUTE on all functions in `extensions` (lines 67-69). Replace broad assumptions with the narrowly required, verified function/privilege contract. The actual connecting role must be rechecked immediately before reconstruction: include the manual setup's no-BYPASSRLS requirement, inherited dangerous capabilities and relevant pre-existing callable privileges. Never substitute an administrator. The extension-name blacklist and absence of foreign servers alone do not prove no execution or egress.
+
+   Validate **every** ACL target and permitted role. The actual classifier currently accepts `GRANT SELECT ON TABLE public.review_card, auth.users TO anon` (lines 186-189). This is a confirmed parser boundary gap; no claim is made that ordinary pg_dump currently emits that form. Preserve valid platform dependencies only through an explicit contract. Add safe disposable canaries for side effects, role drift after setup and cross-schema/multiple-target grants. Prove unchanged restored content using exact private comparisons or digests, not row counts alone. Retain public-safe counts/digests and zero real egress.
+
+3. **Precommit versus postcommit failure recovery.** `reconstructSql` commits at line 506; `scripts/track-b-recovery-reconstruct.js` runs verification separately at lines 56-58. A verification failure leaves committed target state and makes ordinary retry fail the empty-target guard. Correct the runbook rollback claim at lines 240-242. Prefer preventing commit on detectable mismatches where safely achievable. In every case, distinguish transaction rollback, committed-but-unverified and verified outcomes; preserve a failed target and its private diagnostic receipt, quarantine it and document a fresh-empty-target recovery path. Never automatically erase a failed target or describe deletion of the package as database rollback. Test an in-transaction failure and a postcommit verification/transport failure separately.
+
+4. **Native catalog integration: schema AND staged data.** PR #1316 publishes the explicitly pinned dependency. Incorporate that dependency `f0e77a47a1e26a1e2a97b514ee06cec824c31b90` (parent `ab6366136c03239965c97b050ab5cf7c9763a228`) through a recorded integration tree; do not chase moving main. Its migration is `migrations/2026-09-05-native-label-catalog-foundation.sql`, SHA256 `ba19247491e2f809aaf211fb517838eeda9d1edb246cb1698943e70a14e1aa1a`. Consult `docs/ops/NATIVE_LABEL_CATALOG_FOUNDATION.md` for the owning contract.
+
+   The new `public.production_label_catalog_versions` table has a UUID primary key, seven columns, no foreign key or sequence; the foundation also adds seven functions, two immutable triggers covering UPDATE/DELETE and TRUNCATE, RLS with no policies and explicit ACLs. Current history-v5/PR1313's 33 selected data tables do **not** cover this staged catalog data. Whole-public schema capture must not be described as its data restoration.
+
+   Before installation, prove authenticated schema coverage plus an explicitly versioned staged-data corpus and narrowly owned, trigger-aware retained-data restore. Preserve existing v3/v4/v5 artifact meanings and evidence. Prove staged content/fingerprints/identity and immutable behavior survive recovery; account for the table's UPDATE/DELETE/TRUNCATE protections rather than bypassing all triggers or reusing an incompatible destructive restore. Keep activation/read_active, runtime callers, provider completeness and live-import gates held. Do not build catalog activation or another importer here.
+
+## Finish and stop
+
+Run the original 16-group disposable rehearsal, existing targeted format/classifier checks, supplied baseline probes and finite corrected controls against the final pinned source. Preserve failures and executed-versus-skipped status. Update only directly affected recovery scripts, prerequisite source, tests, compatibility/rollback documentation and required registration. No full product audit or repeated unrelated suite.
+
+Return the exact clean candidate head, base/dependency tree, changed file list, public-safe aggregate receipts with source/evidence hashes, baseline/candidate results and remaining explicit holds for independent review. Do not declare full schema reconstruction, installed parity, cloud retrieval, key custody, retention, serving or release readiness from these local results. If a safe executable-dependency or retained-data contract cannot be established within this slice, identify that precise blocker and keep reconstruction/installation held rather than substituting a content heuristic or a misleading green result.

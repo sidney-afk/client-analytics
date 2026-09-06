@@ -1,5 +1,12 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Recovery stable-view classifier, uninstalled:** source withdrawal changes no
+clients or database. Retain packages and a compatible verified reader: older
+engines refuse the new `public_stable_view` class. Do not relabel those functions
+IMMUTABLE or discard packages to bypass a refusal. Existing empty-target and
+committed-unverified retention rules below remain in force. This correction
+does not activate v8 capture/restoration or the separate cutoff reader change.
+
 **Native card HTTP adapter, uninstalled:** source withdrawal before any real
 acceptance changes no clients. After any future acceptance, hold new creation
 and retain compatible receipt replay and both durable owners. Reinstating the

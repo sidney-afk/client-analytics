@@ -25,7 +25,10 @@
  *             source catalog and must be pg_catalog (not denylisted), a
  *             stable/immutable function of a pinned extension, or a PURE public
  *             function (immutable, invoker, sql/plpgsql, no writing statement,
- *             transitively resolvable). Anything else refuses the capture; the
+ *             transitively resolvable). Ordinary VIEW expressions alone may
+ *             use a separately classified STABLE invoker read-only closure;
+ *             materialized views and load expressions retain immutable-only
+ *             public functions. Anything else refuses the capture; the
  *             reader and the target re-verify the same contract;
  *   coherence = pre-data, data and post-data dumps import ONE exported
  *             repeatable-read snapshot; a catalog fingerprint taken inside
@@ -307,7 +310,7 @@ function evaluatedExpressionTexts(statements) {
     } else if (/^CREATE (?:UNIQUE )?INDEX /i.test(head)) {
       texts.push({ kind: 'index', text: head.replace(/^CREATE (?:UNIQUE )?INDEX \S+ ON public\.\S+ USING \S+ /i, '') });
     } else if (/^CREATE (?:OR REPLACE )?VIEW public\./i.test(head) || /^CREATE MATERIALIZED VIEW public\./i.test(head)) {
-      texts.push({ kind: 'view', text: head.replace(/^CREATE (?:OR REPLACE )?(?:MATERIALIZED )?VIEW public\.\S+/i, '') });
+      texts.push({ kind: /^CREATE MATERIALIZED VIEW /i.test(head) ? 'materialized_view' : 'view', text: text.replace(/^CREATE\s+(?:OR\s+REPLACE\s+)?(?:MATERIALIZED\s+)?VIEW\s+public\.\S+/i, '') });
     } else if (/^ALTER DOMAIN public\.\S+ ADD CONSTRAINT /i.test(head) || /^CREATE DOMAIN public\./i.test(head)) {
       texts.push({ kind: 'domain', text: head });
     }
@@ -316,7 +319,7 @@ function evaluatedExpressionTexts(statements) {
 }
 
 // Purity contract for a public function an expression may execute.
-function functionPurity(statementText) {
+function functionPurity(statementText, { allowStableView = false } = {}) {
   const tokens = sqlTokens(statementText);
   const headTokens = tokens.map(token => token.kind === 'dollar' ? { kind: 'body_placeholder', raw: '$BODY$' } : token);
   const head = headTokens.map(token => ['line_comment', 'block_comment'].includes(token.kind) ? ' ' : token.raw).join('').replace(/\s+/g, ' ');
@@ -326,12 +329,22 @@ function functionPurity(statementText) {
   if (!name) reasons.push('not_a_public_function');
   const language = (modifiers.match(/\blanguage\s+([a-z_]+)/) || [])[1];
   if (!language || !/^(sql|plpgsql)$/i.test(language)) reasons.push('language');
-  if (!/\bimmutable\b/.test(modifiers)) reasons.push('not_immutable');
+  const volatilityWords = modifiers.match(/\b(immutable|stable|volatile)\b/g) || [];
+  const volatility = volatilityWords.length === 1 ? ({ immutable: 'i', stable: 's', volatile: 'v' })[volatilityWords[0]] : 'unknown';
+  if (volatility !== 'i' && !(allowStableView && volatility === 's')) reasons.push('not_immutable');
   if (/\bsecurity definer\b/.test(modifiers)) reasons.push('security_definer');
   if (/\bAS\s+'/i.test(head)) reasons.push('quoted_body');
   const body = tokens.filter(token => token.kind === 'dollar').map(token => token.value).join('\n');
   if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(body))) reasons.push('writing_statement');
-  return { pure: reasons.length === 0, reasons, name: name ? unquote(name) : null, calls: [...callNamesIn(body)] };
+  if (allowStableView && volatility === 's' && stableBodyUnsafe(body, language)) reasons.push('locking_or_sql_into');
+  return { pure: reasons.length === 0, reasons, name: name ? unquote(name) : null, volatility, stable_body_safe: !stableBodyUnsafe(body, language), calls: [...callNamesIn(body)] };
+}
+
+function stableBodyUnsafe(body, language) {
+  const text = stripSqlNoise(body);
+  // SQL SELECT INTO creates a relation; PL/pgSQL SELECT INTO a local variable
+  // is required by the admitted reader. Neither language may acquire row locks.
+  return /\bfor\s+(?:(?:no\s+)?key\s+)?(?:share|update)\b/i.test(text) || (language === 'sql' && /\binto\b/i.test(text));
 }
 
 // Read-time contract: every callable name in evaluated expressions and in the
@@ -343,39 +356,51 @@ function verifyCallableContract(statements, manifest) {
   const pureFunctions = new Map();
   for (const text of statements) {
     if (/^CREATE (?:OR REPLACE )?FUNCTION public\./i.test(text)) {
-      const purity = functionPurity(text);
-      if (purity.name) pureFunctions.set(purity.name, purity);
+      const purity = functionPurity(text, { allowStableView: true });
+      if (purity.name) pureFunctions.set(purity.name, [...(pureFunctions.get(purity.name) || []), purity]);
     }
   }
-  const visited = new Set();
-  const require = (name, origin) => {
+  const visited = new Set(); const pureNames = new Set(); const stableNames = new Set();
+  const require = (name, origin, stableAllowed = false, readOnlyClosure = false) => {
     const entry = references[name];
     if (!entry) throw new Error(`Track-B recovery callable reference is outside the manifest contract (${origin})`);
     if (entry.class === 'pg_catalog') {
       if (DANGEROUS_CATALOG_FUNCTIONS.includes(entry.name)) throw new Error('Track-B recovery callable contract names a denylisted catalog function');
+      if (readOnlyClosure && (!['i', 's'].includes(entry.volatility) || entry.security_definer !== false)) throw new Error('Track-B recovery stable view closure lacks a nonvolatile invoker catalog callable');
       return;
     }
     if (entry.class === 'extension') {
       if (!(manifest.prerequisites.required_extensions || []).some(item => item.name === entry.extension)) throw new Error('Track-B recovery callable contract references an unpinned extension');
+      if (readOnlyClosure && (!['i', 's'].includes(entry.volatility) || entry.security_definer !== false)) throw new Error('Track-B recovery stable view closure lacks a nonvolatile invoker extension callable');
       return;
     }
     if (entry.class === 'not_a_function' || entry.class === 'keyword') return;
-    if (entry.class === 'public_pure') {
-      if (visited.has(entry.name)) return;
-      visited.add(entry.name);
-      const purity = pureFunctions.get(entry.name);
-      if (!purity) throw new Error('Track-B recovery package lacks a pure function the contract requires');
-      if (!purity.pure) throw new Error(`Track-B recovery public function violates the purity contract (${purity.reasons.join(',')})`);
-      for (const call of purity.calls) require(call, 'function body');
+    if (entry.class === 'public_pure' || entry.class === 'public_stable_view') {
+      const stable = entry.class === 'public_stable_view';
+      if (stable && !stableAllowed) throw new Error('Track-B recovery stable public callable is allowed only in an ordinary view');
+      const purities = pureFunctions.get(entry.name);
+      if (!purities) throw new Error('Track-B recovery package lacks a pure function the contract requires');
+      for (const purity of purities) {
+        if (!purity.pure) throw new Error(`Track-B recovery public function violates the purity contract (${purity.reasons.join(',')})`);
+      }
+      if (stable !== purities.some(purity => purity.volatility === 's')) throw new Error('Track-B recovery public callable volatility disagrees with its manifest class');
+      // A view visit cannot authorize the same name in a later load expression,
+      // nor bypass the stricter builtin closure after a legacy immutable visit.
+      const closure = readOnlyClosure || stable;
+      if (closure && purities.some(purity => !purity.stable_body_safe)) throw new Error('Track-B recovery stable view closure contains locking or SQL INTO');
+      const key = `${entry.name}:${stableAllowed}:${closure}`;
+      if (visited.has(key)) return;
+      visited.add(key); (stable ? stableNames : pureNames).add(entry.name);
+      for (const purity of purities) for (const call of purity.calls) require(call, 'function body', stableAllowed, closure);
       return;
     }
     throw new Error('Track-B recovery callable contract has an unsupported class');
   };
   let evaluated = 0;
   for (const item of evaluatedExpressionTexts(statements)) {
-    for (const name of callNamesIn(item.text)) { evaluated += 1; require(name, item.kind); }
+    for (const name of callNamesIn(item.text)) { evaluated += 1; require(name, item.kind, item.kind === 'view'); }
   }
-  return { evaluated_references: evaluated, pure_functions: [...visited].sort() };
+  return { evaluated_references: evaluated, pure_functions: [...pureNames].sort(), stable_view_functions: [...stableNames].sort() };
 }
 
 // ---------------------------------------------------------------------------
@@ -638,13 +663,13 @@ function evaluatedSourceTextsSql() {
   select 'check' kind, pg_get_constraintdef(oid) expr from pg_catalog.pg_constraint where contype='c' and connamespace='public'::regnamespace
   union all select 'default', pg_get_expr(adbin, adrelid) from pg_catalog.pg_attrdef where adrelid in (select oid from pg_catalog.pg_class where relnamespace='public'::regnamespace)
   union all select 'index', regexp_replace(pg_get_indexdef(indexrelid), '^CREATE (UNIQUE )?INDEX \\S+ ON \\S+ USING \\S+ ', '') from pg_catalog.pg_index where indrelid in (select oid from pg_catalog.pg_class where relnamespace='public'::regnamespace)
-  union all select 'view', pg_get_viewdef(c.oid) from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('v','m')
+  union all select case c.relkind when 'v' then 'view' else 'materialized_view' end, pg_get_viewdef(c.oid) from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('v','m')
   union all select 'domain', pg_get_constraintdef(oid) from pg_catalog.pg_constraint where contype='c' and contypid in (select oid from pg_catalog.pg_type where typnamespace='public'::regnamespace and typtype='d')
 ) x`;
 }
 
 // Classify one resolved token. Returns {class, ...} or throws for unsafe ones.
-function classifyCallable(token, hits, requiredExtensionNames, visited, resolveBody) {
+function classifyCallable(token, hits, requiredExtensionNames, visited, resolveBody, { allowStableView = false } = {}) {
   const bare = token.includes('.') ? token.split('.')[1] : token;
   if (!hits.length) {
     if (token.includes('.')) throw new Error('Track-B recovery capture found a qualified callable that does not resolve');
@@ -662,21 +687,31 @@ function classifyCallable(token, hits, requiredExtensionNames, visited, resolveB
   if (publicHits.length && (token.includes('.') ? token.startsWith('public.') : true)) {
     if (!token.includes('.') && hits.some(hit => hit.schema === 'pg_catalog')) throw new Error(`Track-B recovery capture found a public callable shadowing pg_catalog (${bare})`);
     for (const hit of publicHits) {
-      if (hit.volatility !== 'i' || hit.security_definer || !['sql', 'plpgsql'].includes(hit.language)) throw new Error(`Track-B recovery capture found an impure public callable (${bare})`);
+      if ((hit.volatility !== 'i' && !(allowStableView && hit.volatility === 's')) || hit.security_definer !== false || !['sql', 'plpgsql'].includes(hit.language)) throw new Error(`Track-B recovery capture found an impure public callable (${bare})`);
       if (typeof hit.body !== 'string') throw new Error('Track-B recovery capture lacks a public callable body');
       if (BODY_WRITE_KEYWORDS.test(stripSqlNoise(hit.body))) throw new Error(`Track-B recovery capture found a public callable with a writing statement (${bare})`);
+      if (hit.volatility === 's' && stableBodyUnsafe(hit.body, hit.language)) throw new Error('Track-B recovery capture found a stable callable with locking or SQL INTO');
     }
     if (!visited.has(bare)) { visited.add(bare); for (const hit of publicHits) resolveBody(hit.body); }
-    return { class: 'public_pure', name: bare, body_sha256: publicHits.map(hit => hit.body_sha256).sort() };
+    return { class: publicHits.some(hit => hit.volatility === 's') ? 'public_stable_view' : 'public_pure', name: bare, body_sha256: publicHits.map(hit => hit.body_sha256).sort() };
   }
   if (extensionHits.length && (token.includes('.') ? !token.startsWith('pg_catalog.') : !hits.some(hit => hit.schema === 'pg_catalog'))) {
     for (const hit of extensionHits) {
       if (!requiredExtensionNames.has(hit.extension)) throw new Error(`Track-B recovery capture found a callable from an unpinned extension (${hit.extension})`);
       if (hit.volatility === 'v' && !VOLATILE_EXTENSION_ALLOWLIST.includes(bare)) throw new Error(`Track-B recovery capture found a volatile extension callable (${bare})`);
     }
-    return { class: 'extension', name: bare, extension: extensionHits[0].extension, schema: extensionHits[0].schema };
+    return { class: 'extension', name: bare, extension: extensionHits[0].extension, schema: extensionHits[0].schema, ...callableMetadata(extensionHits) };
   }
-  return { class: 'pg_catalog', name: bare };
+  return { class: 'pg_catalog', name: bare, ...callableMetadata(hits.filter(hit => hit.schema === 'pg_catalog')) };
+}
+
+// All overloads must be nonvolatile invokers before the new stable-view closure
+// can consume them. Legacy immutable/default classifications are unchanged.
+function callableMetadata(hits) {
+  return {
+    volatility: !hits.length || hits.some(hit => !['i', 's', 'v'].includes(hit.volatility)) ? 'unknown' : hits.some(hit => hit.volatility === 'v') ? 'v' : hits.some(hit => hit.volatility === 's') ? 's' : 'i',
+    security_definer: hits.length > 0 && hits.every(hit => hit.security_definer === false) ? false : true,
+  };
 }
 
 function sourcePreflightSql(corpusName) {
@@ -832,6 +867,10 @@ function targetPrerequisiteSql(manifest) {
   const absentNames = [...new Set(references.filter(item => item.class === 'not_a_function').map(item => safeName(item.name, /^[a-z_][a-z0-9_]{0,62}$/, 'callable name')))];
   const extensionCalls = references.filter(item => item.class === 'extension').map(item => ({
     name: safeName(item.name, /^[a-z_][a-z0-9_]{0,62}$/, 'callable name'), schema: safeName(item.schema, /^[a-z_][a-z0-9_]{0,62}$/, 'callable schema') }));
+  const metadataCalls = references.filter(item => ['pg_catalog', 'extension'].includes(item.class) && Object.hasOwn(item, 'volatility')).map(item => {
+    if (!['i', 's', 'v'].includes(item.volatility) || typeof item.security_definer !== 'boolean') throw new Error('Track-B recovery callable metadata is malformed');
+    return { name: safeName(item.name, /^[a-z_][a-z0-9_]{0,62}$/, 'callable name'), schema: item.class === 'pg_catalog' ? 'pg_catalog' : safeName(item.schema, /^[a-z_][a-z0-9_]{0,62}$/, 'callable schema'), volatility: item.volatility, security_definer: item.security_definer };
+  });
   const array = values => (values.length ? `array[${values.map(sqlLiteral).join(',')}]::text[]` : 'array[]::text[]');
   return `do $recovery_target$ declare v_count integer; v_role text; v_ext record; v_name text; v_sig text; begin
   select count(*) into v_count from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('r','p','v','m','S','f','c','i','I','t');
@@ -875,6 +914,17 @@ function targetPrerequisiteSql(manifest) {
       if exists(select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where p.proname=v_ext.name and n.nspname=v_ext.schema and not has_function_privilege(current_user, p.oid, 'execute')) then
         raise exception 'Track-B recovery role lacks EXECUTE on a contract callable'; end if;
     end if;
+  end loop;
+  -- New captures retain aggregate overload volatility/invoker metadata. Recheck
+  -- it before DDL; older packages without stable-view classes retain their
+  -- original contract, while a new stable closure requires this metadata.
+  for v_ext in select * from (values ${metadataCalls.map(item => `(${sqlLiteral(item.name)},${sqlLiteral(item.schema)},${sqlLiteral(item.volatility)},${item.security_definer})`).join(',') || '(null::text,null::text,null::text,false)'}) v(name, schema, volatility, security_definer) loop
+    if v_ext.name is not null and not exists(
+      select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace
+      where p.proname=v_ext.name and n.nspname=v_ext.schema
+      having count(*) > 0 and (case when bool_or(p.provolatile='v') then 'v' when bool_or(p.provolatile='s') then 's' else 'i' end)=v_ext.volatility
+        and bool_or(p.prosecdef)=v_ext.security_definer
+    ) then raise exception 'Track-B recovery target callable metadata differs from source'; end if;
   end loop;
   foreach v_name in array ${array(absentNames)} loop
     if exists(select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where p.proname=v_name and n.nspname in ('pg_catalog','public','extensions')) then raise exception 'Track-B recovery target resolves a name the source did not'; end if;
@@ -1099,7 +1149,7 @@ function resolveCallableContract(query, seedTokens, edges, requiredExtensionName
     if (!batch.length) break;
     const hits = JSON.parse(query(callableResolutionSql(batch)));
     for (const token of batch) {
-      references[token] = classifyCallable(token, hits.filter(hit => hit.token === token), requiredExtensionNames, visited, resolveBody);
+      references[token] = classifyCallable(token, hits.filter(hit => hit.token === token), requiredExtensionNames, visited, resolveBody, { allowStableView: true });
     }
   }
   for (const edge of edges) {
@@ -1166,7 +1216,7 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
   for (const name of Object.keys(inspected)) inspected[name].digest_sha256 = digests[name];
   const corpusNames = new Set(corpus.tables.map(config => config.name));
   const omitted = (inventory.tables || []).filter(name => !corpusNames.has(name));
-  const strippedReferences = Object.fromEntries(Object.entries(references).map(([token, item]) => [token, { class: item.class, name: item.name, ...(item.extension ? { extension: item.extension, schema: item.schema } : {}), ...(item.body_sha256 ? { body_sha256: item.body_sha256 } : {}) }]));
+  const strippedReferences = Object.fromEntries(Object.entries(references).map(([token, item]) => [token, { class: item.class, name: item.name, ...(item.extension ? { extension: item.extension, schema: item.schema } : {}), ...(item.body_sha256 ? { body_sha256: item.body_sha256 } : {}), ...(item.volatility ? { volatility: item.volatility, security_definer: item.security_definer } : {}) }]));
   const manifest = {
     format: RECOVERY_FORMAT,
     recovery_version: RECOVERY_VERSION,
@@ -1203,6 +1253,9 @@ async function captureRecoveryPackage({ env, corpusName, output, hmacInput, sour
     },
   };
   if (Number(prerequisites.foreign_servers) > 0) throw new Error('Track-B recovery source has a foreign server; capture refused');
+  // Resolve STABLE candidates provisionally, but reject non-view uses and an
+  // unsafe transitive closure before publishing any authenticated package.
+  verifyCallableContract([...pre.statements, ...post.statements], manifest);
   const packed = packRecoveryPackage({ preData, postData, data, manifest }, key.toString('base64'));
   fs.mkdirSync(path.dirname(path.resolve(output)), { recursive: true });
   fs.writeFileSync(path.resolve(output), packed.bytes, { mode: 0o600 });

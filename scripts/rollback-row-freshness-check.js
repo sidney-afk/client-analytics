@@ -509,6 +509,10 @@ const OTHER_ATTEMPT = new RegExp(
        any word standing between the determiner and the noun, unless it says
        the occurrence is this one (Codex, fifty-eighth round on #1306). */
     + '|\\b(?:the|a|an|that|its|their|our|some)\\s+(?!(?:current|latest|newest|same|very|only|present)\\b)(?:[a-z]+-[a-z]+|[a-z]+er|next|new|second|third|fourth|final|repeat|extra)\\s+(?:attempts?|runs?|dispatch(?:es)?|tr(?:y|ies)|jobs?|executions?|passes|pass|rounds?|cycles?|goes|go)\\b'
+    /* And the same thing said the other way round: "the attempt before it",
+       "the run after that", "the dispatch preceding this one" put the pointer
+       AFTER the noun (Codex, fifty-ninth round on #1306). */
+    + '|\\b(?:attempts?|runs?|dispatch(?:es)?|tr(?:y|ies)|jobs?|executions?|passes|pass|rounds?|cycles?)\\s+(?:before|after|preceding|following|prior to|ahead of|behind|either side of)\\b'
     + '|\\b(?:retry|re-?run|redo)\\b', 'i');
 
 function laneDispatchesSince(log, sinceDate, exemptAt, sinceRun) {

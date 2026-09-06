@@ -2592,6 +2592,19 @@ const laneCheckVerdictRun = run(fixture('lane-check-verdict', appended(laneCheck
 ok(laneCheckVerdictRun.code === 0,
     'while "the `lane` check passed (run `X`)" is a check verdict and asks for nothing, so a routine note cannot block a correct row');
 
+/* ---- 8bh. the pointer can follow the noun (round 59) ---- */
+const attemptBeforeIt = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the attempt before it deployed nothing.',
+    '',
+].join('\n');
+const attemptBeforeItRun = run(fixture('attempt-before-it', appended(attemptBeforeIt), realRb));
+ok(attemptBeforeItRun.code === 1 && attemptBeforeItRun.json
+    && attemptBeforeItRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'THE POINTER CAN FOLLOW THE NOUN: "the attempt before it deployed nothing" is another attempt\'s evidence, said the other way round');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

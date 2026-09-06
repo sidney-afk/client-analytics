@@ -11,6 +11,7 @@ const cp = require('child_process');
 const { LocalDatabase } = require('./card-change-journal-rehearsal');
 const { setup } = require('./card-history-integrated-rehearsal');
 const backup = require('./track-b-backup');
+const dataRestore = require('./track-b-restore-rehearsal');
 const recovery = require('./track-b-recovery-package');
 const { reconstruct, OUTCOMES } = require('./track-b-recovery-reconstruct');
 const ROOT = path.resolve(__dirname, '..');
@@ -35,6 +36,7 @@ const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recover
   'migrations/2026-09-05-card-change-journal.sql', 'migrations/2026-09-05-calendar-feedback-recovery.sql',
   'migrations/2026-09-05-crosswalk-bind-and-import.sql', 'migrations/2026-09-06-native-card-materialization-boundary.sql',
   ...(CORPUS === 'history-v8' ? [
+  'scripts/track-b-history-v8-backup-prerequisites.sql',
   'migrations/2026-09-05-native-label-catalog-foundation.sql', 'migrations/2026-09-06-native-label-writes.sql',
   'migrations/2026-09-06-linear-outbound-cutoff.sql', 'migrations/2026-09-06-native-existing-assignment.sql'] : [])];
 // Platform-only prerequisites. No public application table/function/type is
@@ -88,6 +90,14 @@ function grants(cfg, db, role, mode) {
     '-v', 'confirmation=' + (mode === 'capture' ? 'RECOVERY_CAPTURE_GRANTS_ONLY' : 'EMPTY_SCRATCH_TARGET_ONLY'),
     '-v', 'scratch_project_ref=abcdefghijklmnopqrst', '-f', path.join(ROOT, 'scripts/track-b-recovery-prerequisites.sql')], {
     encoding: 'utf8', timeout: 60000, windowsHide: true, env: cleanEnv(cfg.password) });
+}
+function dataGrants(cfg, db, role, mode) {
+  const result = cp.spawnSync(cfg.psql, ['-w', ...db.args(), '-v', 'mode=' + mode, '-v', 'existing_role=' + role,
+    '-v', 'confirmation=' + (mode === 'backup' ? 'HISTORY_V8_BACKUP_GRANTS_ONLY' : 'DISPOSABLE_SCRATCH_ONLY'),
+    '-v', 'scratch_project_ref=abcdefghijklmnopqrst', '-f', path.join(ROOT, 'scripts/track-b-history-v8-backup-prerequisites.sql')], {
+    encoding: 'utf8', timeout: 60000, windowsHide: true, env: cleanEnv(cfg.password) });
+  fs.writeFileSync(path.join(cfg.output, 'data-grants-' + mode + '.private.log'), result.stderr || '');
+  assert.equal(result.status, 0, 'actual v8 data role prerequisite');
 }
 function publicCount(db) { return db.query("select (select count(*) from pg_class where relnamespace='public'::regnamespace)+(select count(*) from pg_proc where pronamespace='public'::regnamespace)+(select count(*) from pg_type where typnamespace='public'::regnamespace and typtype in('e','d','r','c'))"); }
 function captureSequences(db) {
@@ -344,6 +354,23 @@ async function run() {
       assert.deepEqual(unionImages(quarantine), before); assert.ok(fs.existsSync(error.receipt.diagnostic_file));
       assert.throws(() => reconstruct(pkg, env, { psql: cfg.psql, diagnosticDir }), /reconstruction failed/);
       assert.deepEqual(unionImages(quarantine), before);
+    });
+    if (CORPUS === 'history-v8') check('distinct v8 backup and scratch grant artifacts restore all39 images with retained triggers', () => {
+      const dataRole = target.name + '_data', dataPassword = crypto.randomBytes(24).toString('hex');
+      target.query(`create role ${dataRole} login nosuperuser nocreatedb nocreaterole noinherit bypassrls password ${quote(dataPassword)};`);
+      dataGrants(cfg, source, captureRole, 'backup'); dataGrants(cfg, target, dataRole, 'scratch');
+      const dataTarget = new DB({ ...cfg, user: dataRole, password: dataPassword }); dataTarget.name = target.name;
+      const triggers = db => db.rows("select c.relname,t.tgname,t.tgenabled from pg_trigger t join pg_class c on c.oid=t.tgrelid where c.relnamespace='public'::regnamespace and not t.tgisinternal order by c.relname,t.tgname");
+      const beforeTriggers = triggers(target);
+      const oldFormat = target.raw("begin;" + backup.corpusBoundarySql('history-v7') + "rollback;");
+      assert.notEqual(oldFormat.status, 0); assert.match(oldFormat.stderr, /omits catalog or cutoff/);
+      // A full data restore uses its own reviewed39-table trigger helper,
+      // distinct from empty-schema reconstruction and its stricter target role.
+      dataTarget.query(dataRestore.restoreSql(pkg.data, CORPUS));
+      assert.deepEqual(unionImages(target), before); assert.deepEqual(triggers(target), beforeTriggers);
+      assert.deepEqual(JSON.parse(target.query(labelReplaySql)), labelCurrent);
+      assert.equal(target.query(`set role service_role;select (public.linear_outbound_claim_v1(${cutoffReceipt.id},'pending',600) is null)::text;`), 'true');
+      assert.deepEqual(unionImages(target), before);
     });
     const report = { status: 'PASS', classification: 'ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY', passed: checks.length, checks,
       corpus: CORPUS, table_count: backup.resolveCorpus(CORPUS).tables.length, package_sha256: sha(bytes), source_sha256: pins,

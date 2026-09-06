@@ -90,10 +90,20 @@ begin
       join pg_attribute a on a.attrelid=i.indrelid and a.attnum=k.attnum
       where i.indrelid=to_regclass('public.' || relation_name) and i.indisprimary;
     if actual_keys is distinct from expected_keys then raise exception 'History corpus primary key mismatch'; end if;
-    if relation_name = any(array['production_card_materialization_receipts','production_card_materialization_ingress','production_label_catalog_versions'])
+    if relation_name = any(array['production_card_materialization_receipts','production_card_materialization_ingress'])
       and not exists(select 1 from pg_attribute a where a.attrelid=to_regclass('public.' || relation_name)
         and a.attname='id' and not a.attisdropped and format_type(a.atttypid,a.atttypmod)='uuid') then
       raise exception 'Materialization owner requires UUID id primary key';
+    end if;
+    if relation_name='production_label_catalog_versions' and not exists(
+      select 1 from pg_attribute a where a.attrelid=to_regclass('public.' || relation_name)
+        and a.attname='version_id' and not a.attisdropped and format_type(a.atttypid,a.atttypmod)='uuid') then
+      raise exception 'Catalog owner requires UUID version_id primary key';
+    end if;
+    if relation_name='linear_outbound_cutoff_control' and not exists(
+      select 1 from pg_attribute a where a.attrelid=to_regclass('public.' || relation_name)
+        and a.attname='lane' and not a.attisdropped and format_type(a.atttypid,a.atttypmod)='text') then
+      raise exception 'Cutoff owner requires text lane primary key';
     end if;
     if has_table_privilege(role_name,'public.' || relation_name,'UPDATE')
       or has_table_privilege(role_name,'public.' || relation_name,'DELETE')
@@ -117,7 +127,7 @@ begin
       raise exception 'History identity sequence missing';
     end if;
     if relation_name = any(array['production_card_materialization_receipts','production_card_materialization_ingress','production_label_catalog_versions'])
-      and pg_get_serial_sequence('public.' || relation_name,'id') is not null then
+      and pg_get_serial_sequence('public.' || relation_name,case when relation_name='production_label_catalog_versions' then 'version_id' else 'id' end) is not null then
       raise exception 'Materialization owner must not use an identity sequence';
     end if;
   end loop;

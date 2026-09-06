@@ -2,6 +2,17 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Recovery ordinary-view classifier, source only
+
+Added a separately classified STABLE invoker read-only closure for ordinary
+views. Public callables in materialized views and load expressions remain
+immutable-only; writing/definer/volatile/transitive negatives stay red. The
+cutoff reader metadata correction is an explicit separate dependency. No SQL,
+corpus, writer, grants, workflow or live action changed. New 52 offline groups
+and unchanged 18 package/33 lexer groups pass; actual combined v8 restoration is
+still a separate gate. See `docs/ops/RECOVERY_SCHEMA_V7.md` for exact source pins,
+format compatibility and proof limits.
+
 ## 2026-09-06 — Native card HTTP source adapter, uninstalled
 
 **Bounded review correction:** preserve `e4b56f582` and its 66 offline controls.

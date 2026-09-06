@@ -1,5 +1,17 @@
 # Linear removal: completion accounting
 
+## September 6 UTC: combined candidate published
+
+The current validation candidate is [draft PR #1318](https://github.com/sidney-afk/client-analytics/pull/1318), exact source `5e6095bc025ce819ae701f69828ca48cd9abe161`, based on rechecked main `99d31c815de3e1a46deeb01c45c09bf2937040ad`. It is open, draft and unmerged. This checkpoint supersedes the older running/unassigned statements below; it does not close a production gate or create a second plan.
+
+- Corrected native intake/editor, Calendar feedback, Samples recovery, history-v6 and native Workload are now assembled with their original histories. The [integration record](https://github.com/sidney-afk/client-analytics/blob/5e6095bc025ce819ae701f69828ca48cd9abe161/docs/audits/2026-09-06-linear-exit-runtime-integration.md) contains the exact inputs, failures, corrections and required staged release order.
+- Combined isolated proof now includes Calendar recovery (7 groups / 81 assertions) and Workload plan/journal/exact 35-table restore (17 groups). Full-HTML Chromium exercised five Workload scenarios; the paired Samples inverse passed thirteen groups. These are distinct synthetic/disposable proofs, not live customer journeys.
+- Monitoring's local release-object check was corrected after a partial-clone lookup attempted an implicit fetch. The real local-repository regression proves baseline fetches and corrected zero fetches. The cancelled full run remains explicitly incomplete; a replacement runs on an immutable checkout. GitHub checks were in progress when this checkpoint was written.
+- Current published n8n graph evidence confirms both legacy card transports bypass the EF path and strip native markers/linkage. Automatic card creation therefore remains held behind the [two-transport compatibility contract](https://github.com/sidney-afk/client-analytics/blob/5e6095bc025ce819ae701f69828ca48cd9abe161/docs/audits/2026-09-06-native-card-compatibility.md). No workflow edit was made. Unknown/pre-manifest jobs need durable preservation, not merely another refusal.
+- Remaining engineering includes that compatibility path, authenticated schema recovery, existing-work reassignment/labels, additional provider-dependent routes, historical assets and provider cutoff. Serving/schema proofs, live TEST journeys and active independent monitoring remain execution gates. The source tests do not establish any of these by implication.
+
+The final privacy scan checked 51 roster terms and found zero added identities. Frozen anonymous writer/shared-auth source is unchanged from captured main. Product watchers remain inactive; no merge, deployment, migration installation, live/TEST write, flag, provider, billing or new alert action occurred. G9's 72 hours and G10's later minimum 14 days remain unchanged. The owner's new allowance is to last at least a week; coordination uses bounded tasks and reuses exact evidence instead of repeating broad audits.
+
 ## September 6 UTC resumed implementation checkpoint
 
 The owner delivered both remaining reports and explicitly requested continued implementation. This update supersedes the earlier running/unassigned ownership statements below; earlier evidence remains chronological.

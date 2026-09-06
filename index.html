@@ -26559,6 +26559,33 @@
             title: 'Write not saved',
             text: 'This client link needs a current review token. Ask your SMM for a fresh link, then try again.'
         },
+        /* Calendar feedback recovery (Retry card sync). These reach a CLIENT
+           whose feedback was already accepted natively; every one of them says
+           the feedback is safe and that nothing was written by the retry. */
+        recovery_held: {
+            title: 'Card copy held',
+            text: 'Your feedback is saved, but its Calendar copy could not be completed safely. Your original text is kept; this needs review.'
+        },
+        companion_status_unreserved: {
+            title: 'Card copy held',
+            text: 'Your feedback is saved, but its status change was never reserved, so retrying will not change that. Your original text is kept; this needs review.'
+        },
+        calendar_feedback_recovery_forbidden: {
+            title: 'Card copy refused',
+            text: 'This card is no longer bound to the work item your feedback was accepted on, so every retry will refuse. Your original text is kept; ask your SMM to review it, quoting this code.'
+        },
+        recover_source_unsupported: {
+            title: 'Card copy refused',
+            text: 'This kind of feedback cannot be finished from here, and retrying will not change that. Your original text is kept; ask your SMM to review it, quoting this code.'
+        },
+        invalid_recover_source: {
+            title: 'Card copy refused',
+            text: 'The saved recovery context for this feedback is incomplete, so every retry will refuse. Your original text is kept; ask your SMM to review it, quoting this code.'
+        },
+        recovery_result_invalid: {
+            title: 'Card copy unconfirmed',
+            text: 'The write service answered in a shape this page does not recognise. Nothing else was written; your original text is kept. Send this code to the owner.'
+        },
         /* The three public-submission refusals. These reach a CLIENT or a
            VIDEOGRAPHER on the Submit link, never staff, so they say what to do
            in plain words and never name a role, a flag or a gateway. All three

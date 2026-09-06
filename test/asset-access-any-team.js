@@ -31,6 +31,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 const ROOT = path.resolve(__dirname, '..');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -47,7 +48,7 @@ function ok(condition, message) {
 }
 
 (async () => {
-  const policy = await import(path.join(ROOT, 'supabase/functions/production-write/policy.mjs'));
+  const policy = await import(pathToFileURL(path.join(ROOT, 'supabase/functions/production-write/policy.mjs')).href);
   const R = policy.staffAssetReadAllowed;
   const S = policy.staffOperationAllowed;
 

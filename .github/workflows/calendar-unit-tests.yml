@@ -134,6 +134,19 @@ jobs:
           TRACK_B_RECOVERY_TEST_PG_DUMP: /usr/lib/postgresql/17/bin/pg_dump
           TRACK_B_RECOVERY_TEST_OUTPUT: ${{ runner.temp }}/schema-v7-private
         run: node scripts/track-b-recovery-rehearsal.js
+      - name: Reconstruct v8 catalog and cutoff with accepted native replay in an empty disposable target
+        env:
+          TRACK_B_RECOVERY_TEST_CORPUS: history-v8
+          TRACK_B_RECOVERY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          TRACK_B_RECOVERY_TEST_PGHOST: 127.0.0.1
+          TRACK_B_RECOVERY_TEST_PGPORT: '5432'
+          TRACK_B_RECOVERY_TEST_PGUSER: postgres
+          # Synthetic credential for this job's existing loopback service only.
+          TRACK_B_RECOVERY_TEST_PGPASSWORD: postgres
+          TRACK_B_RECOVERY_TEST_PSQL: /usr/lib/postgresql/17/bin/psql
+          TRACK_B_RECOVERY_TEST_PG_DUMP: /usr/lib/postgresql/17/bin/pg_dump
+          TRACK_B_RECOVERY_TEST_OUTPUT: ${{ runner.temp }}/schema-v8-private
+        run: node scripts/track-b-recovery-rehearsal.js
       - name: Prove native Workload snapshot and plan aliases against disposable SQL
         env:
           WORKLOAD_TEST_REQUIRE: '1'

@@ -1,5 +1,47 @@
 # Schema recovery integration: selected37, local preparation
 
+## 2026-09-06 successor: ordinary-view callable boundary
+
+This narrow engine correction starts from `71b4647ba1a4d873008a732dbe1cdd20d6f69825`.
+It changes no selected-data corpus, SQL owner, application, Edge Function, grants,
+schedule or live state. The v8 owner rehearsal remains separate; historical v7
+proof below retains its original source pins and limits.
+
+The old classifier correctly refused the debt reader's original default-VOLATILE,
+SECURITY DEFINER declaration. Changing that table reader to IMMUTABLE would be
+incorrect. Its separately reviewed metadata-only correction is cutoff commit
+`33bfd23a51c388008531ec8ecba58e3152a115e0`, migration SHA-256
+`e78ae3db4da8bee59515d5200c7ab5565fd59ac6e074e471fe7106d4cc2a05e5`.
+That source is a dependency to integrate; this engine patch does not alter it.
+
+New `public_stable_view` references permit STABLE SQL/PLpgSQL SECURITY INVOKER
+functions only through ordinary VIEW expressions. Defaults, CHECKs, generated
+columns, domains, indexes and materialized views retain immutable-only public
+callables. Every use is checked independently, including shared/transitive
+functions and all observed overload bodies. Writing/dynamic statements, row
+locks, SQL SELECT INTO, volatile or definer callees, unpinned extensions and
+unknown qualified calls remain refused. PLpgSQL SELECT INTO a local variable and
+missing-control exceptions remain supported. This is a conservative lexical and
+catalog contract, not a general SQL semantic proof.
+
+The new closure requires nonvolatile invoker metadata for builtin/extension
+callees; target prerequisites recheck recorded aggregate overload metadata.
+Legacy direct defaults such as sequence `nextval` retain their prior contract,
+but cannot enter the new read-only closure. Capture checks the context contract
+before writing an output package. Recovery-version 2 and all existing data-corpus
+identities remain unchanged. Older engine readers reject the new class; they do
+not silently treat it as immutable. Retain compatible readers and packages if
+withdrawing this source.
+
+`node test/track-b-recovery-stable-view-callables.js` has 52 passing offline
+groups against actual classifier exports and authenticated synthetic packages;
+the unchanged package/lexer suites retain 18/33 groups. The original classifier
+refusal of a STABLE invoker reader is preserved as the baseline control. No SQL,
+live catalog, source/target permissions, serving revision, client journey or
+successful v8 restoration is proved by these controls. The combined actual
+schema/data/replay rehearsal, named source review, and installed recovery gates
+remain required before any activation.
+
 This is a held implementation slice under
 [`GO_LIVE_CHECKLIST.md`](../independence/GO_LIVE_CHECKLIST.md), not a second
 execution plan. Base `bbe030766e595fccd88adaa98d97ca5177f2226e` preserves the

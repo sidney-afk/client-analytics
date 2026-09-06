@@ -54,6 +54,17 @@ provider independence.
 
 ### Evidence and release gates
 
+- Integration base `688947308c96e6f00b09a495a1f16f939fde479d`:
+  `test/workload-history-integrated.js` adds **17 actual-handler/PostgreSQL
+  groups PASS** with the real six-owner journal and history-v6 restore. It
+  preserves UUID/native saved-plan aliases and days, refuses dual aliases,
+  proves plan/journal failure atomicity, restores all35 row images and trigger
+  state, and re-reads exact aliases/dates through the handler after restore.
+  SQL calls use `service_role`; anonymous/authenticated RPC execution refuses.
+  The SDK transport is replaced with SQL and external fetch is denied. See
+  `docs/ops/INTEGRATED_RECOVERY_CORPUS.md` for the opt-in command and limits;
+  this does not prove installed schema, browser/serving, CON/STR data recovery,
+  or execute the native intake/Calendar recovery RPCs in this lane.
 - `test/workload-native-membership.js`: 47 isolated real-source reader/adoption
   checks, including exact-base forced-provider negative control. No network.
 - `test/workload-native-postgres.js` plus `qa/workload-native/handler.mjs`:

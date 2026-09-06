@@ -78,11 +78,16 @@ rollback. A test-only module transport seam forwards real reconstruction SQL and
 refuses only the independent post-commit verification subprocess; the resulting
 committed target must remain quarantined and an in-place retry must refuse.
 
-**This combined schema/replay lane has not been executed in this preparation.**
-The previous data-only 12-group v7 proof and fa4's author-reported schema proof
-do not prove this combination. There is no current authenticated-schema PASS,
-capture approval, installed-role evidence, restore-duration result, retention
-duration proof, or recovery activation claim.
+The initial preparation was unexecuted. The coordinator subsequently ran exact
+`26691a9da9e685a4e43be7516ee6e58b34f2fcd0`: **16 actual schema/data/replay groups
+passed** on owned PostgreSQL16. A separate final target-state correction has
+three actual SQL observation/outcome groups with a pre-DDL renderer seam and
+seven offline groups; it is not relabeled as another full37 run. See the
+[exact evidence and failures](../audits/2026-09-06-schema-v7-recovery.md).
+The previous data-only12/37 proof and fa4's author-reported30 schema groups stay
+separate. No installed-role, live capture, cloud restore, retention-duration or
+activation claim follows. A new disposable CI step will run the combined schema
+lane on the published final head; source configuration is not hosted execution.
 
 ## Next isolated run, after combined source review
 
@@ -137,4 +142,7 @@ reproduces both false permissions in preserved `26691a9da9e685a4e43be7516ee6e58b
 source (SHA-256 `73a688109b77cf44d9733fdcb226e4909bf2ac950ba7c50d4464097a7d752ba6`).
 Command: `node test/track-b-recovery-empty-target.js`. These controls do not claim
 real SQL execution or equality of target data from equal object counts. The
-existing eight local-target/CLI preparation groups also remain passing.
+coordinator's separate three actual SQL groups at integrated `985ec992` reproduce
+both false permissions and prove the corrected refusals plus empty-target
+positive, under the declared pre-DDL renderer seam. The existing eight
+local-target/CLI preparation groups also remain passing.

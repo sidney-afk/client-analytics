@@ -1,5 +1,13 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Selected37 schema recovery, unapplied:** retain authenticated packages and
+current/historical rows. Retry a failed reconstruction in place only when all
+public relation, function and type counters prove the target was and remains
+empty. Unknown or committed targets stay quarantined; use a fresh target after
+review. Source withdrawal changes no clients. The local16-group proof and
+separate3-group outcome delta do not authorize production restoration; see
+[`RECOVERY_SCHEMA_V7.md`](docs/ops/RECOVERY_SCHEMA_V7.md).
+
 **Dormant G3 card materialization:** hold fresh admission and retain both materialization
 owners, intake/outbox receipts, provenance, journal and compatible current-row replay.
 Never drop the evidence or restore old full-row materializers over accepted cards.

@@ -8,6 +8,9 @@ commit as any structural change.
 
 ## Top level
 
+Selected37 authenticated schema/data proof: `docs/audits/2026-09-06-schema-v7-recovery.md`
+and `docs/audits/2026-09-06-schema-v7-recovery-evidence.json`.
+
 Dormant G3 native card SQL boundary: `migrations/2026-09-06-native-card-materialization-boundary.sql`,
 `scripts/native-card-materialization/` (actual gateway/browser fixture and finite SQL overlaps),
 `test/native-card-materialization.js`, and `docs/ops/NATIVE_CARD_MATERIALIZATION_BOUNDARY.md`.

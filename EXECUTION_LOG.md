@@ -2,6 +2,18 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Canonical37 schema reconstruction and outcome correction
+
+Combined proof `26691a9d` passed16 actual schema/data/replay groups with all37
+selected tables (106 synthetic rows;18 populated and19 empty). The original
+`2dcafbf1` retention-fixture failure remains recorded. The separately reviewed
+target-state fix is integrated as `985ec992`; seven offline and three actual SQL
+observation/outcome controls close the function/type-only false-retry case.
+The latter uses a pre-DDL renderer seam, not another full37 restore. A disposable
+CI schema step is added; hosted execution is pending publication. No live change,
+provider call, frozen-writer edit, schedule activation or product watcher follows.
+See [exact evidence and limits](docs/audits/2026-09-06-schema-v7-recovery.md).
+
 ## 2026-09-06 — Source-only callable and failure-guidance integration
 
 After initial `b554db97a`, copied the exact reviewed lexer runtime/test/audit from

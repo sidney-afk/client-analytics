@@ -2625,6 +2625,37 @@ ok(captureHeadingRun.code === 1 && captureHeadingRun.json
     && /34000000000/.test(JSON.stringify(captureHeadingRun.json.failures)),
     'AN ANCHOR MUST SAY IT RECORDS A DEPLOY: "Capture run `X`" names no deployment, so the table below it takes the parent deploy heading\'s run and no list of check words has to know the word "capture"');
 
+/* ---- 8bj. a check-led heading; adjectival failure wording (round 61) ---- */
+const checkLedHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Check deployed functions — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const checkLedHeadingRun = run(fixture('check-led-heading', appended(checkLedHeading), realRb));
+ok(checkLedHeadingRun.code === 1 && checkLedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(checkLedHeadingRun.json.failures)),
+    'A CHECK-LED HEADING IS A CHECK, WHATEVER ITS OBJECT SAYS: "Check deployed functions — run `X`" carries the deploy word in its object, so it is not an anchor');
+
+const failedDeploymentAdjective = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The failed deployment deployed nothing.',
+    '',
+].join('\n');
+const failedDeploymentAdjectiveRun = run(fixture('failed-deployment-adjective', appended(failedDeploymentAdjective), realRb));
+ok(failedDeploymentAdjectiveRun.code === 0,
+    'while "failed" describes a state, not an order: "the failed deployment deployed nothing" is this run describing itself and asks for nothing');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

@@ -243,6 +243,12 @@ function deployAnchors(log) {
            says deploy, release, ship, rollout or cutover, or names Section 4;
            anything else is some other activity, whether or not this guard has
            a word for it. */
+        /* A CHECK-LED HEADING IS A CHECK, WHATEVER ITS OBJECT SAYS. "Check
+           deployed functions — run `X`" carries a deploy word in its object,
+           not in what the heading records (Codex, sixty-first round on #1306),
+           so the leading verb decides before any deploy word is read. */
+        const leads = named.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
+        if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
         const saysDeploy = /\bdeploy|releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(named)
             || /(Section 4|§4)/i.test(named);
         if (!saysDeploy) continue;
@@ -504,7 +510,10 @@ function otherOwningLanes() {
    modifier that points elsewhere counts, and a claim is read as this run's
    only when it names this run or points nowhere else at all. */
 const OTHER_ATTEMPT = new RegExp(
-    '\\b(?:the|a|an|that|its|their|our)\\s+(?:previous|earlier|prior|first|second|third|last|original|preceding|failed|aborted|repeat|another|other|subsequent|later|initial)\\s+[a-z][\\w-]*\\b'
+    /* "failed" and "aborted" describe a state, not an order: "the failed
+       deployment deployed nothing" is this run describing itself (Codex,
+       sixty-first round on #1306), so they are not pointers on their own. */
+    '\\b(?:the|a|an|that|its|their|our)\\s+(?:previous|earlier|prior|first|second|third|last|original|preceding|repeat|another|other|subsequent|later|initial)\\s+[a-z][\\w-]*\\b'
     /* Without a determiner, a word that is also a verb is not a modifier:
        "the dispatch failed without deploying any function" describes THIS
        run, so `failed` and `aborted` are read as pointers elsewhere only

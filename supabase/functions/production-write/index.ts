@@ -7612,9 +7612,19 @@ async function handleIntakeCreate(
       ? { item_index: item.item_index, video_number: Number(item.video_number), ...publicRow(current) }
       : item;
   });
+  // Browser routing metadata only. The epoch was resolved server-side from
+  // the accepted manifest/receipt before any provider read; absent metadata
+  // intentionally leaves existing provider-era browser jobs unchanged.
+  const cardMaterialization = teamList.length > 0
+    && currentResponseItems.length === plannedItems.length
+    && teamList.every(team => !!clean(nativeEpochByTeam[team]))
+    && currentResponseItems.every(item => !!clean(nativeEpochByTeam[normalizeTeam(item.team)]))
+    ? { version: 1, native_epochs: Object.fromEntries(teamList.map(team => [team, nativeEpochByTeam[team]])) }
+    : null;
   return json({
     ok: true,
     native_committed: true,
+    ...(cardMaterialization ? { card_materialization: cardMaterialization } : {}),
     authority: authorityByTeam,
     legacy_parity: parityByTeam,
     mirror_pending: mirrorPending,

@@ -133,12 +133,13 @@ try{
         for(const[k,v]of Object.entries(patch))if(k==='video_tweaks')assert.ok(current[k].includes(JSON.parse(v)[0].id));else assert.equal(current[k],v);
       }assert.equal(events.calls.filter(x=>x.name==='production_card_materialize').length,nativeAt);
     });
-  await check('actual retained browser pins accepted job to EF before marking completed',async()=>{
+  await check('actual retained browser routes only projected native admission before marking completed',async()=>{
     const c=cases[2],ctx={console,_isIntake:true,_linearIntakeCheckpointOrSuspend:()=>{},_calCacheRead:()=>null,_sxrCacheRead:()=>null,_calCacheWrite:()=>{},_calRenderBody:()=>{},calClientSlug:x=>x,
-      calState:{client:c.body.client,posts:[]},_linearIntakeRead:()=>ctx.__job,_calUpsertFetchPinned:async(_client,body,source,transport)=>{
-        assert.equal(transport,'supabase');assert.equal(source,'submission-native');const r=await send(routes.calendar.route,body,header(source));return new Response(r.raw,{status:r.status});}};
+      calState:{client:c.body.client,posts:[]},_linearIntakeRead:()=>ctx.__job,
+      _calUpsertFetch:async(_client,body,source)=>{const r=await send(routes.calendar.route,body,header(source));return new Response(r.raw,{status:r.status});},
+      _calUpsertFetchPinned:async(_client,body,source,transport)=>{assert.equal(transport,'supabase');const r=await send(routes.calendar.route,body,header(source));return new Response(r.raw,{status:r.status});}};
     vm.createContext(ctx);const html=fs.readFileSync(path.join(sourceRoot,'index.html'),'utf8');
-    vm.runInContext(['async '+extractFunction(html,'_writeNativeSubmissionCardsToCalendar'),extractFunction(html,'_nativeAcceptedCardTransport'),extractFunction(html,'_linearIntakeValidateResult'),extractFunction(html,'_linearIntakeRequireActor'),extractFunction(html,'_linearIntakeJobId')].join('\n'),ctx);
+    vm.runInContext(['async '+extractFunction(html,'_writeNativeSubmissionCardsToCalendar'),extractFunction(html,'_nativeAcceptedCardTransport'),extractFunction(html,'_nativeAcceptedCurrentCard'),extractFunction(html,'_linearIntakeValidateResult'),extractFunction(html,'_linearIntakeRequireActor'),extractFunction(html,'_linearIntakeJobId')].join('\n'),ctx);
     const job={version:3,payload:c.intake_body,result:c.response.json,context:{surface:c.intake_body.surface,materialization_source:c.source},completed_card_ids:[]};ctx.__job=job;await ctx._writeNativeSubmissionCardsToCalendar(job);
     assert.deepEqual(JSON.parse(JSON.stringify(job.completed_card_ids)),[c.body.post.id]);assert.deepEqual(JSON.parse(JSON.stringify(ctx.calState.posts[0])),await row(c));
   });

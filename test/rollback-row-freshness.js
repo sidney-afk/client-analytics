@@ -664,10 +664,2730 @@ ok(lanes.some(l => l.base === 'deploy-onboarding-edge-functions'),
 ok(!lanes.some(l => l.base.indexOf('section4') >= 0),
     'while the §4 lane itself is excluded, because its receipts are exactly what this guard reads');
 
+/* Both phrasings the unreadable-entry sweep uses: a table it could not parse
+   ("cannot read") and a deploy heading with nothing readable under it ("no
+   receipt this guard can read"). A negative that matched only one would pass
+   vacuously on the other. */
+const UNREADABLE = /no receipt this guard can read|this guard cannot read/;
+
+/* ---- 8b. a deploy entry the guard cannot read is NAMED, not skipped ------ */
+/* Codex P1 on #1306. The two 2026-09-05 deploys were logged with unquoted slugs,
+   no run id in the heading and no attestation block; none of the three receipt
+   parsers saw them, so the guard compared against the 2026-09-02 receipt and the
+   Live State row sat two releases stale with this check green. The fixtures
+   below append exactly that shape to the REAL files. */
+const realLog = fs.readFileSync(path.join(ROOT, 'EXECUTION_LOG.md'), 'utf8');
+const realRb = fs.readFileSync(path.join(ROOT, 'ROLLBACK.md'), 'utf8');
+/* WHERE FIXTURE TEXT LANDS in the real log. Text that opens its own `##`
+   entry is appended after the last entry. Text that is a subsection or a
+   bare block is written INSIDE the v68 deploy entry, immediately before
+   whatever entry follows it, because the cases below say "under the v68
+   entry" and main keeps gaining entries after it: the 2026-09-05 crosswalk
+   apply landed there mid-review and moved every end-of-file fixture under a
+   heading that is not a deploy. */
+const v68At = realLog.indexOf('\n## 2026-09-05 — F27 Section 4 deploy, run `33991332628`');
+ok(v68At > 0, 'the real log has the v68 deploy entry the next cases write under');
+const afterV68 = (() => { const n = realLog.indexOf('\n## ', v68At + 1); return n < 0 ? realLog.length : n; })();
+const appended = text => (/^\s*## /.test(text) ? realLog + text : realLog.slice(0, afterV68) + '\n' + text + realLog.slice(afterV68));
+const malformed = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run #40: production-write 68 → 69',
+    '',
+    'Deployed from commit `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| deliverable-write | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| linear-outbound | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| **production-write** | **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const unread = run(fixture('unreadable-entry', appended(malformed), realRb));
+ok(unread.code === 1 && unread.json
+    && unread.json.failures.some(f => /section at line \d+ \("2026-09-06 — F27 Section 4 deploy, run #40/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'THE SHAPE THAT BLINDED THE GUARD: a Section 4 deploy entry with unquoted slugs, no run id and no attestation is named as unreadable, by line and heading, instead of being silently skipped');
+ok(unread.json && unread.json.live && unread.json.live.run === '33991332628',
+    'and the verdict still shows the last receipt it COULD read, so the writer sees both what it saw and what it could not');
+const headless = malformed.replace(
+    '## 2026-09-06 — F27 Section 4 deploy, run #40: production-write 68 → 69',
+    '## 2026-09-06 — production-write 68 → 69 shipped');
+const headlessRun = run(fixture('unreadable-table', appended(headless), realRb));
+ok(headlessRun.code === 1 && headlessRun.json
+    && headlessRun.json.failures.some(f => /section at line \d+ \("2026-09-06 — production-write 68 → 69 shipped/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'a four-function versions table the guard cannot read is caught even when the heading never says Section 4');
+const readable = malformed
+    .replace('run #40', 'run `33999999999`')
+    .replace('Deployed from commit', 'Dispatched from')
+    .replace('| batch-write |', '| `batch-write` |')
+    .replace('| deliverable-write |', '| `deliverable-write` |')
+    .replace('| linear-outbound |', '| `linear-outbound` |')
+    .replace('| **production-write** | **69** |', '| `production-write` | 68 → **69** |');
+const readableRun = run(fixture('readable-entry', appended(readable), realRb));
+ok(readableRun.code === 1 && readableRun.json
+    && !readableRun.json.failures.some(f => UNREADABLE.test(f))
+    && readableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'the same entry in the parsed shape is READ: the unreadable finding goes away and the stale-row finding takes its place, which is the one the row is then fixed for');
+
+/* ---- 8c. per SECTION, not per entry (Codex, second round on #1306) ------- */
+/* One `##` entry legitimately holds several deploys as `###` subsections (the
+   2026-08-05 entry carries six). A sweep that accepted a whole entry because
+   some receipt sat inside it let a malformed subsection ride on a readable
+   sibling: Codex appended the v69 reproduction as a `###` under the v68 entry
+   and the guard stayed green. The real log's last entry IS the v68 entry, so
+   appending to the file appends inside it. */
+const subsection = malformed.replace(
+    '## 2026-09-06 — F27 Section 4 deploy, run #40: production-write 68 → 69',
+    '### Later the same day, deploy #40: production-write 68 → 69');
+const subRun = run(fixture('unreadable-subsection', appended(subsection), realRb));
+ok(subRun.code === 1 && subRun.json
+    && subRun.json.failures.some(f => /section at line \d+ \("Later the same day, deploy #40/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'THE RIDE-ALONG: a malformed deploy written as a ### subsection under an entry that already holds a readable receipt is named on its own, by its own heading');
+const sameBlock = malformed.split('\n').filter(l => !/^## /.test(l) && !/^Deployed from commit/.test(l)).join('\n');
+const sameBlockRun = run(fixture('unreadable-same-block', appended(sameBlock), realRb));
+ok(sameBlockRun.code === 1 && sameBlockRun.json
+    && sameBlockRun.json.failures.some(f => /section at line \d+ \("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'and a malformed table appended to the readable entry with no heading at all is caught in the same block, because unreadable rows are counted against parsed rows rather than excused by a neighbour');
+const container = [
+    '',
+    '## 2026-09-07 — F27 Section 4 deploys #40–#41: two in one day',
+    '',
+    'Both dispatched by the owner; each subsection carries its own receipt.',
+    '',
+    '### Deploy #40, run `33999999901`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+    '### Deploy #41, run `33999999902`',
+    '',
+    'Dispatched from `89abcdef0123456789abcdef0123456789abcdef`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 69 → **70** | `' + 'f'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const containerRun = run(fixture('container-heading', appended(container), realRb));
+ok(containerRun.json && !containerRun.json.failures.some(f => UNREADABLE.test(f))
+    && containerRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v70/.test(f)),
+    'a container heading that names Section 4 deploys over two READABLE subsections is not flagged -- the receipts under it count for it -- and the guard moves on to the row, which is stale');
+
+/* ---- 8d. a nested deploy heading needs its OWN receipt (Codex, third round) -- */
+/* A `### Deploy #40` under a Section 4 container, with only prose beneath it,
+   does not repeat "Section 4" in its own heading; judged on its own text alone
+   it looked like commentary, and the container passed on its sibling's receipt.
+   Section 4 context is inherited from ancestor headings now. */
+const nestedProse = [
+    '',
+    '### Deploy #40 — RECORDED',
+    '',
+    'Deployed v69 by hand after the row above; the attestation will follow.',
+    '',
+].join('\n');
+const nestedRun = run(fixture('nested-deploy-heading', appended(nestedProse), realRb));
+ok(nestedRun.code === 1 && nestedRun.json
+    && nestedRun.json.failures.some(f => /section at line \d+ \("Deploy #40 — RECORDED"\) reads as a Section 4 deploy \(under a Section 4 heading\) but holds no receipt/.test(f)),
+    'THE NESTED RIDE-ALONG: a ### heading that names a deploy under a Section 4 entry, with only prose beneath it, is required to carry its own receipt and is named when it does not');
+const nestedCommentary = nestedProse.replace('### Deploy #40 — RECORDED', '### What the first attempt taught');
+const commentaryRun = run(fixture('nested-commentary', appended(nestedCommentary), realRb));
+ok(commentaryRun.json && !commentaryRun.json.failures.some(f => UNREADABLE.test(f)),
+    'while a nested heading under the same entry that does not name a deploy is commentary, and asks for nothing');
+const supersedes = nestedProse.replace('### Deploy #40 — RECORDED', '### Deploy #40 — supersedes run `33991332628`');
+const supersedesRun = run(fixture('nested-mention', appended(supersedes), realRb));
+ok(supersedesRun.code === 1 && supersedesRun.json
+    && supersedesRun.json.failures.some(f => /\("Deploy #40 — supersedes run `33991332628`"\) reads as a Section 4 deploy/.test(f)),
+    'A MENTION IS NOT AN IDENTITY (Codex, fifth round): a nested deploy heading that names a receipted run it merely SUPERSEDES is still unreadable -- there is no readable-by-reference softening, because no text rule can tell "this is run X" from "this comes after run X"');
+/* Mixed ordering: the log is reverse-chronological at the top and forward
+   further down, so a new entry can legitimately be written after an older one.
+   The entry date has to come from the section's OWN heading; a slice that stops
+   short of it reads the previous entry's date and softens a brand-new deploy
+   into history. Codex reproduced exactly that with 2026-08-31 before 2026-09-06. */
+const olderAt = realLog.indexOf('\n## 2026-08-31');
+const afterOlder = realLog.indexOf('\n## ', olderAt + 1);
+ok(olderAt > 0 && afterOlder > olderAt, 'the real log has a 2026-08-31 entry followed by another entry, which the next case needs');
+const misordered = realLog.slice(0, afterOlder) + '\n' + malformed.replace('2026-09-06 — F27 Section 4 deploy, run #40', '2026-09-06 — F27 Section 4 deploy, run #41') + realLog.slice(afterOlder);
+const misorderedRun = run(fixture('misordered-new-entry', misordered, realRb));
+ok(misorderedRun.code === 1 && misorderedRun.json
+    && misorderedRun.json.failures.some(f => /\("2026-09-06 — F27 Section 4 deploy, run #41/.test(f) && UNREADABLE.test(f))
+    && !misorderedRun.json.notes.some(n => /run #41/.test(n)),
+    'a brand-new unreadable `##` deploy entry written after an OLDER entry is dated by its own heading (2026-09-06) and FAILS -- it is not softened into history by the 2026-08-31 entry above it');
+
+/* ---- 8e. the concise-prose layout (Codex, sixth round) ------------------- */
+/* The top of this log records deploys under generic "Deploy: ..." headings and
+   names Section 4 only in the body: "**Section 4 forward from `<sha>`, run
+   `<id>`, PASS.**". A heading-only rule never saw such an entry, so one written
+   with an unparseable run id vanished. Section 4 in the BODY now counts. */
+const conciseEntry = [
+    '',
+    '## 2026-09-06 — Deploy: the reuse window widened',
+    '',
+    '**Section 4 forward from `0123456789abcdef`, run #40, PASS.** `production-write`',
+    '68 → **69**, closure `' + 'e'.repeat(64) + '`. The other',
+    'three were byte-identical redeploys.',
+    '',
+].join('\n');
+const conciseRun = run(fixture('concise-unreadable', appended(conciseEntry), realRb));
+ok(conciseRun.code === 1 && conciseRun.json
+    && conciseRun.json.failures.some(f => /\("2026-09-06 — Deploy: the reuse window widened"\) reads as a Section 4 deploy \(Section 4 named in its body\)/.test(f) && UNREADABLE.test(f)),
+    'THE CONCISE LAYOUT: a generic "Deploy" heading whose body claims a Section 4 forward with an unparseable run id is named as unreadable, because Section 4 in the body counts');
+const unrelated = conciseEntry
+    .replace('## 2026-09-06 — Deploy: the reuse window widened', '## 2026-09-06 — Deploy notes for the website')
+    .replace(/\*\*Section 4 forward[^\n]*\n[^\n]*\n[^\n]*\n/, 'Pages redeployed the site from main; nothing about the four functions.\n');
+const unrelatedRun = run(fixture('unrelated-deploy-heading', appended(unrelated), realRb));
+ok(unrelatedRun.json && !unrelatedRun.json.failures.some(f => UNREADABLE.test(f)),
+    'while a "Deploy" heading whose body never names Section 4 is some other lane\'s business and asks for nothing');
+
+/* ---- 8f. body-defined Section 4 context reaches the children (round seven) -- */
+/* A generic "Deploys" container that names F27 Section 4 only in its body, over
+   a readable ### Deploy #39 and an unreceipted ### Deploy #40. The context has
+   to travel down from the body, not only from heading text, or #40 rides on
+   #39's receipt through the parent. */
+const bodyContext = [
+    '',
+    '## 2026-09-06 — Deploys: two in one evening',
+    '',
+    'Both through the F27 Section 4 lane, dispatched by the owner.',
+    '',
+    '### Deploy #39, run `33999999901`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+    '### Deploy #40 — RECORDED',
+    '',
+    'Deployed v70 an hour later; the attestation will follow.',
+    '',
+].join('\n');
+const bodyContextRun = run(fixture('body-context-children', appended(bodyContext), realRb));
+ok(bodyContextRun.code === 1 && bodyContextRun.json
+    && bodyContextRun.json.failures.some(f => /\("Deploy #40 — RECORDED"\) reads as a Section 4 deploy \(under a Section 4 heading\)/.test(f) && UNREADABLE.test(f)),
+    'THE BODY CONTEXT TRAVELS DOWN: under a generic "Deploys" container that names Section 4 only in its body, an unreceipted ### Deploy #40 is named even though a readable ### Deploy #39 sits beside it');
+ok(bodyContextRun.json && !bodyContextRun.json.failures.some(f => /\("Deploy #39, run `33999999901`"\)/.test(f) && UNREADABLE.test(f)),
+    'and the readable ### Deploy #39 beside it is not');
+
+/* ---- 8g. nested sections are dated by themselves; abbreviated closures ----- */
+/* Codex, eighth round. The real 2026-08-05 container holds deploy subsections
+   dated through 2026-08-19, so an unreadable "### Deploy #40 (run `34000000000`,
+   2026-09-06)" written inside it took the container's date and was softened
+   into history. A nested section is dated by its own heading only, and a run
+   id at or past the newest receipt's is newer by construction. Separately, the
+   candidate-row detector required a 64-hex closure, so a table whose closures
+   were abbreviated was invisible to it. */
+const containerAt = realLog.indexOf('\n## 2026-08-05 — F27 Section 4 four-function deploy');
+const afterContainer = realLog.indexOf('\n## ', containerAt + 1);
+ok(containerAt > 0 && afterContainer > containerAt, 'the real log has the 2026-08-05 container the next cases write into');
+const insertInto = text => realLog.slice(0, afterContainer) + '\n' + text + realLog.slice(afterContainer);
+const nestedDated = ['### Deploy #40 — RECORDED (run `34000000000`, 2026-09-06)', '', 'Deployed v69 by hand; the attestation will follow.', ''].join('\n');
+const nestedDatedRun = run(fixture('nested-own-date', insertInto(nestedDated), realRb));
+ok(nestedDatedRun.code === 1 && nestedDatedRun.json
+    && nestedDatedRun.json.failures.some(f => /\("Deploy #40 — RECORDED \(run `34000000000`, 2026-09-06\)"\)/.test(f) && UNREADABLE.test(f))
+    && !nestedDatedRun.json.notes.some(n => /Deploy #40/.test(n)),
+    'A NESTED SECTION IS DATED BY ITSELF: an unreadable dated ### deploy inside the 2026-08-05 container FAILS on its own 2026-09-06, not softened by the container\'s date');
+const nestedRunOnly = ['### Deploy #41 — RECORDED (run `34000000001`)', '', 'Deployed later the same night.', ''].join('\n');
+const nestedRunOnlyRun = run(fixture('nested-newer-run', insertInto(nestedRunOnly), realRb));
+ok(nestedRunOnlyRun.code === 1 && nestedRunOnlyRun.json
+    && nestedRunOnlyRun.json.failures.some(f => /\("Deploy #41 — RECORDED \(run `34000000001`\)"\)/.test(f) && UNREADABLE.test(f)),
+    'and one with no date of its own but a run id past the newest receipt\'s is newer by construction and FAILS');
+const nestedUndated = ['### Deploy #42 — RECORDED', '', 'Deployed; details to follow.', ''].join('\n');
+const nestedUndatedRun = run(fixture('nested-undated', insertInto(nestedUndated), realRb));
+ok(nestedUndatedRun.code === 1 && nestedUndatedRun.json
+    && nestedUndatedRun.json.failures.some(f => /\("Deploy #42 — RECORDED"\)/.test(f) && UNREADABLE.test(f)),
+    'and one with neither a date nor a run id of its own cannot be placed in time and FAILS -- the container\'s date is not inherited');
+const abbreviated = [
+    '',
+    '## 2026-09-06 — production-write 68 → 69 shipped',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | `86f9f187...` | verify_jwt=false |',
+    '| deliverable-write | 35 | `78df060b...` | verify_jwt=false |',
+    '| linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
+    '| **production-write** | **69** | `eeeeeeee...` | verify_jwt=false |',
+    '',
+].join('\n');
+const abbreviatedRun = run(fixture('abbreviated-closures', appended(abbreviated), realRb));
+ok(abbreviatedRun.code === 1 && abbreviatedRun.json
+    && abbreviatedRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'ABBREVIATED CLOSURES: a four-function table whose closures are shortened is still a table, and one the guard cannot read, so it is named -- a 64-hex closure is not a precondition for being counted');
+
+/* ---- 8h. "accepted by the parser", not "looks strict" (round nine) --------- */
+/* A row with a quoted slug and a full closure but a version cell of "unknown"
+   is rejected by receiptsFromTables (it needs a number), yet a lookalike regex
+   in the detector called it strict and excused the whole group. The detector
+   now asks the parser which rows it accepted, by position. */
+const unknownVersion = [
+    '',
+    '## 2026-09-06 — production-write 68 → 69 shipped',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `production-write` | unknown | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '| batch-write | 35 | `86f9f187...` | verify_jwt=false |',
+    '| deliverable-write | 35 | `78df060b...` | verify_jwt=false |',
+    '| linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
+    '',
+].join('\n');
+const unknownVersionRun = run(fixture('unknown-version-row', appended(unknownVersion), realRb));
+ok(unknownVersionRun.code === 1 && unknownVersionRun.json
+    && unknownVersionRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'ACCEPTED, NOT LOOKALIKE: a group whose one strict-looking row the parser actually rejected (version "unknown") is wholly unreadable and named -- the detector defers to the parser by position');
+
+/* ---- 8i. one accepted row does not excuse three rejected ones (round ten) --- */
+/* A second table in the v68 entry with one parser-accepted production-write
+   row and three abbreviated rows: the accepted row inherits the entry's run id,
+   folds into that run's JSON receipt at deduplication, and disappears, so
+   "some row accepted" excused a table nobody could read. Every row has to be
+   accepted; the rejected ones are counted. */
+const mixedGroup = [
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `production-write` | 69 | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '| batch-write | 35 | `86f9f187...` | verify_jwt=false |',
+    '| deliverable-write | 35 | `78df060b...` | verify_jwt=false |',
+    '| linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
+    '',
+].join('\n');
+const mixedRun = run(fixture('mixed-group', appended(mixedGroup), realRb));
+ok(mixedRun.code === 1 && mixedRun.json
+    && mixedRun.json.failures.some(f => /\("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /carries 3 versions-table row\(s\) this guard cannot read/.test(f)),
+    'ONE ACCEPTED ROW EXCUSES NOTHING: a second table under the v68 entry with one parsed row and three abbreviated ones is named for its three unreadable rows');
+
+/* ---- 8j. indented tables (round eleven) ------------------------------------ */
+/* Markdown tables inside list content are routinely indented by a space or
+   more. Both the strict parser and the candidate-row sweep required the pipe
+   in column 1, so an indented table was invisible to both. */
+const indentedMalformed = [
+    '',
+    '## 2026-09-06 — production-write 68 → 69 shipped',
+    '',
+    ' | function | active version | source closure SHA-256 | JWT |',
+    ' |---|---|---|---|',
+    ' | batch-write | 35 | `86f9f187...` | verify_jwt=false |',
+    ' | deliverable-write | 35 | `78df060b...` | verify_jwt=false |',
+    ' | linear-outbound | 47 | `1489a4c2...` | verify_jwt=false |',
+    ' | **production-write** | **69** | `eeeeeeee...` | verify_jwt=false |',
+    '',
+].join('\n');
+const indentedMalformedRun = run(fixture('indented-malformed', appended(indentedMalformed), realRb));
+ok(indentedMalformedRun.code === 1 && indentedMalformedRun.json
+    && indentedMalformedRun.json.failures.some(f => /\("2026-09-06 — production-write 68 → 69 shipped"\) carries 4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'INDENTATION HIDES NOTHING: a malformed four-function table indented by one space is still counted, four rows, under a heading with no Section 4 signal of its own');
+const indentedReadable = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `33999999903`: production-write 68 → 69',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '  | function | active version | source closure SHA-256 | JWT |',
+    '  |---|---|---|---|',
+    '  | `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '  | `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '  | `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '  | `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const indentedReadableRun = run(fixture('indented-readable', appended(indentedReadable), realRb));
+ok(indentedReadableRun.json && !indentedReadableRun.json.failures.some(f => UNREADABLE.test(f))
+    && indentedReadableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'and a well-formed table indented by two spaces is READ by the strict parser, so the entry becomes the newest receipt and the row is what fails');
+
+/* ---- 8k. parsed rows that fold away; nested receipts dated by themselves --- */
+/* Codex, twelfth round. (1) A second, syntactically valid one-row v69 table
+   appended to the v68 entry: every row parses, the row inherits the entry's run
+   id and folds into that run's attestation at deduplication. Two guards now:
+   a candidate group must name all four functions once each, and two receipts
+   for one run must agree. (2) A READABLE nested deploy dated by its own heading
+   inside the 2026-08-05 container was dated by the container, so the newest
+   deploy by run id failed chronology instead of comparing against the row. */
+const oneRowValid = [
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `production-write` | 69 | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const oneRowRun = run(fixture('one-row-valid', appended(oneRowValid), realRb));
+ok(oneRowRun.code === 1 && oneRowRun.json
+    && oneRowRun.json.failures.some(f => /\("2026-09-05 — F27 Section 4 deploy, run `33991332628`/.test(f) && /1 versions table\(s\) that do not name all four functions/.test(f))
+    && oneRowRun.json.failures.some(f => /two receipts claim run 33991332628 but disagree on production-write: the attestation block says v68, a summary table .* says v69/.test(f)),
+    'A PARSED ROW THAT FOLDS AWAY IS CAUGHT TWICE: a valid one-row v69 table under the v68 entry is a truncated table, and its inherited run id disagrees with the surviving attestation');
+const fullValidNoHeading = [
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 69 | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const fullNoHeadingRun = run(fixture('full-valid-no-heading', appended(fullValidNoHeading), realRb));
+ok(fullNoHeadingRun.code === 1 && fullNoHeadingRun.json
+    && fullNoHeadingRun.json.failures.some(f => /two receipts claim run 33991332628 but disagree on production-write/.test(f)),
+    'and a COMPLETE valid table appended under the v68 entry without its own heading is still caught, by the disagreement alone -- the table is well-formed, its identity is borrowed');
+const nestedReadable = [
+    '### 2026-09-06 — Deploy #40, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+    'sealed_bundle_sha256 = `' + 'f'.repeat(64) + '`, sealed_bundle_byte_length = `1`.',
+    '',
+].join('\n');
+const nestedReadableRun = run(fixture('nested-readable-dated', insertInto(nestedReadable), realRb));
+ok(nestedReadableRun.json && nestedReadableRun.json.live && nestedReadableRun.json.live.run === '34000000000'
+    && !nestedReadableRun.json.failures.some(f => /not the newest by\s+date|chronology signals disagree|carries no receipt/.test(f))
+    && nestedReadableRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'A READABLE NESTED DEPLOY IS DATED BY ITS OWN HEADING: inserted into the 2026-08-05 container it becomes the newest receipt on 2026-09-06 with no chronology complaint, and the row is what fails');
+
+/* ---- 8l. truncated attestations; deeper headings (round thirteen) ------------ */
+const shortAttestation = [
+    '',
+    'Later the same evening `production-write` 68 → **69** shipped; attestation:',
+    '',
+    '```json',
+    JSON.stringify({
+        schema: 'syncview_f27_section4_deployed_versions_v1',
+        deploy_commit: '3d534cfa5598ef16e61c5ee7dc8072afaa9963c7',
+        github_run_id: '33991332628',
+        functions: [
+            { slug: 'batch-write', active_version: '35', source_closure_sha256: H.bw, verify_jwt: false },
+            { slug: 'deliverable-write', active_version: '35', source_closure_sha256: H.dw, verify_jwt: false },
+            { slug: 'linear-outbound', active_version: '47', source_closure_sha256: H.lo47, verify_jwt: false },
+        ],
+    }, null, 2),
+    '```',
+    '',
+].join('\n');
+const shortRun = run(fixture('short-attestation', appended(shortAttestation), realRb));
+ok(shortRun.code === 1 && shortRun.json
+    && shortRun.json.failures.some(f => /an attestation block at character \d+ .*\(run 33991332628\) names 3 of the four functions and omits production-write/.test(f))
+    && shortRun.json.failures.some(f => /two receipts claim run 33991332628 but disagree on production-write: the attestation block says v68, an attestation block .* does not name it/.test(f)),
+    'A TRUNCATED ATTESTATION IS CAUGHT TWICE: a three-function block under the v68 run is named for the function it omits, and its keyset disagreement with the complete block is a conflict');
+const deepHeading = nestedReadable.replace('### 2026-09-06 — Deploy #40, run `34000000000`', '##### 2026-09-06 — Deploy #40, run `34000000000`');
+const deepRun = run(fixture('deep-heading', insertInto(deepHeading), realRb));
+ok(deepRun.json && deepRun.json.live && deepRun.json.live.run === '34000000000'
+    && !deepRun.json.failures.some(f => /not the newest by\s+date|chronology signals disagree|carries no receipt/.test(f))
+    && deepRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'and a receipt under a level-five heading is dated by that heading, so it is the newest on 2026-09-06 with no chronology complaint and the row is what fails');
+
+/* ---- 8m. no borrowed dates (round fourteen) ------------------------------ */
+const nestedReadableUndated = nestedReadable.replace('### 2026-09-06 — Deploy #40, run `34000000000`', '### Deploy #40, run `34000000000`');
+const undatedNestedRun = run(fixture('nested-readable-undated', insertInto(nestedReadableUndated), realRb));
+ok(undatedNestedRun.code === 1 && undatedNestedRun.json && undatedNestedRun.json.live && undatedNestedRun.json.live.run === '34000000000'
+    && undatedNestedRun.json.live.date === '2026-08-05'
+    && undatedNestedRun.json.failures.some(f => /newest receipt by run id \(34000000000, 2026-08-05\) is not the newest by date/.test(f))
+    && !undatedNestedRun.json.failures.some(f => /\(34000000000, 2026-08-19\)/.test(f)),
+    'A RECEIPT DOES NOT BORROW A SIBLING\'S DATE: a readable, undated Deploy #40 written after the dated Deploy #15 in the 2026-08-05 container takes its ancestor container\'s 2026-08-05, not the closed sibling\'s 2026-08-19, and the chronology check fails it against the container\'s later-dated deploys');
+const nestedReadableDeeper = nestedReadable.replace('Dispatched from `0123456789abcdef0123456789abcdef01234567`.\n\n| function', 'Dispatched from `0123456789abcdef0123456789abcdef01234567`.\n\n#### Versions\n\n| function');
+const deeperRun = run(fixture('nested-readable-deeper', insertInto(nestedReadableDeeper), realRb));
+ok(deeperRun.json && deeperRun.json.live && deeperRun.json.live.run === '34000000000' && deeperRun.json.live.date === '2026-09-06'
+    && deeperRun.json.live.commit === '0123456789abcdef0123456789abcdef01234567'
+    && !deeperRun.json.failures.some(f => /not the newest by\s+date|usable YYYY-MM-DD date|carries no run id/.test(f))
+    && deeperRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'but it DOES inherit from its actual ancestors: the same receipt under an undated "#### Versions" subheading takes the date, run id and commit of the "### 2026-09-06 — Deploy #40" above it, and the row is what fails');
+
+/* ---- 8n. lane dispatches: no slug needed, own block only, plans are not dispatches (round fifteen) */
+const conciseLane = [
+    '',
+    '## 2026-09-06 — Cutover companions',
+    '',
+    '- **Companions merged/dispatched the same day:** cutover PR #1173 (B1',
+    '  stray-catcher standing mode); `deploy-onboarding-edge-functions` dispatch',
+    '  (archive comment ordering EF goes live; fresh §4 rollback capture owed per',
+    '  FLIP_BUG_LEDGER §2-G5).',
+    '',
+].join('\n');
+const conciseLaneRun = run(fixture('lane-concise', appended(conciseLane), realRb));
+ok(conciseLaneRun.code === 1 && conciseLaneRun.json
+    && conciseLaneRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'A LANE DISPATCH NEED NOT REPEAT A SLUG: the log\'s own concise companion form, naming the onboarding lane and none of the four functions, records a dispatch at or after the newest receipt and FAILS');
+const laneFollowUp = [
+    '',
+    '### Follow-up, 21:40Z',
+    '',
+    'The `deploy-onboarding-edge-functions` lane was then dispatched (run `33995000000`)',
+    'and carried `production-write` v69; the Track-B step redeployed `linear-outbound` too.',
+    '',
+].join('\n');
+const laneFollowUpRun = run(fixture('lane-followup', appended(laneFollowUp), realRb));
+ok(laneFollowUpRun.code === 1 && laneFollowUpRun.json
+    && laneFollowUpRun.json.failures.some(f => /the 2026-09-05 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'THE EXEMPTION IS THE RECEIPT\'S OWN BLOCK: a follow-up subsection under the v68 entry recording an onboarding dispatch is not excused by sharing the entry with the receipt, and FAILS');
+const laneOwnBlock = [
+    '',
+    'For the record, `deploy-onboarding-edge-functions` had been dispatched earlier in the',
+    'day (run `33980000000`) for the archive comment ordering EF; this Section 4 deploy is the',
+    'newer one and supersedes it for `production-write`.',
+    '',
+].join('\n');
+const laneOwnBlockRun = run(fixture('lane-own-block', appended(laneOwnBlock), realRb));
+ok(laneOwnBlockRun.code === 0,
+    'while the same words in the receipt\'s OWN block with an OLDER run id are a dispatch the §4 deploy superseded, and ask for nothing');
+const lanePlan = [
+    '',
+    '## 2026-09-06 — Gateway follow-up merged',
+    '',
+    'The gateway half is inert until a `deploy-onboarding-edge-functions` dispatch',
+    'carries the merged closure; until then live behavior is exactly the attested v68 state.',
+    '',
+].join('\n');
+const lanePlanRun = run(fixture('lane-planned', appended(lanePlan), realRb));
+ok(lanePlanRun.code === 0,
+    'A PLAN IS NOT A DISPATCH: "inert until a `deploy-onboarding-edge-functions` dispatch carries the merged closure", the wording the log already uses, records nothing that happened and asks for nothing');
+
+/* ---- 8o. a lane reference is judged by its own list item (round sixteen) ---- */
+const laneAdjacent = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch completed successfully; it carried',
+    '  `production-write` and `linear-outbound` in its Track-B step.',
+    '- Follow-up smoke probe: NOT DISPATCHED (the runner was busy).',
+    '',
+].join('\n');
+const laneAdjacentRun = run(fixture('lane-adjacent-bullets', appended(laneAdjacent), realRb));
+ok(laneAdjacentRun.code === 1 && laneAdjacentRun.json
+    && laneAdjacentRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'A LANE REFERENCE IS JUDGED BY ITS OWN LIST ITEM: a completed onboarding dispatch is not silenced by the NEXT bullet saying NOT DISPATCHED about something else, and FAILS');
+const laneAdjacentInverse = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- Cutover PR #1173 merged and deployed; the B1 dispatch completed successfully.',
+    '- `deploy-onboarding-edge-functions` dispatch: NOT DISPATCHED, deferred to Monday.',
+    '',
+].join('\n');
+const laneAdjacentInverseRun = run(fixture('lane-adjacent-inverse', appended(laneAdjacentInverse), realRb));
+ok(laneAdjacentInverseRun.code === 0,
+    'and the other way round: a NOT DISPATCHED lane item does not borrow "completed successfully" from the bullet above it, and asks for nothing');
+const laneHeldProse = [
+    '',
+    '## 2026-09-06 — Held',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch was prepared, then NOT DISPATCHED;',
+    'the merged closure stays inert until Monday.',
+    '',
+].join('\n');
+const laneHeldProseRun = run(fixture('lane-held-prose', appended(laneHeldProse), realRb));
+ok(laneHeldProseRun.code === 0,
+    'while outside a list the paragraph is still the scope, and a NOT DISPATCHED paragraph asks for nothing');
+
+/* ---- 8p. a list item spans its continuation paragraphs (round seventeen) ---- */
+const laneTwoParagraphs = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch:',
+    '',
+    '  Completed successfully at 20:31Z; the Track-B step carried `production-write`',
+    '  and `linear-outbound`.',
+    '',
+].join('\n');
+const laneTwoParagraphsRun = run(fixture('lane-two-paragraphs', appended(laneTwoParagraphs), realRb));
+ok(laneTwoParagraphsRun.code === 1 && laneTwoParagraphsRun.json
+    && laneTwoParagraphsRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AN ITEM SPANS ITS CONTINUATION PARAGRAPHS: a bullet naming the lane whose indented second paragraph says "Completed successfully" is one item, and FAILS');
+const laneTwoParagraphsHeld = laneTwoParagraphs.replace('Completed successfully at 20:31Z; the Track-B step carried `production-write`', 'NOT DISPATCHED; the runner was busy, deferred to Monday for `production-write`');
+const laneTwoParagraphsHeldRun = run(fixture('lane-two-paragraphs-held', appended(laneTwoParagraphsHeld), realRb));
+ok(laneTwoParagraphsHeldRun.code === 0,
+    'and the same shape whose second paragraph says NOT DISPATCHED asks for nothing');
+const laneItemThenParagraph = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch: prepared, credentials checked.',
+    '',
+    'The B1 stray-catcher dispatch completed successfully the same evening.',
+    '',
+].join('\n');
+const laneItemThenParagraphRun = run(fixture('lane-item-then-paragraph', appended(laneItemThenParagraph), realRb));
+ok(laneItemThenParagraphRun.code === 0,
+    'while a column-zero paragraph after the list is not part of the item: its "completed successfully" is about another dispatch, and the lane item asks for nothing');
+
+/* ---- 8q. the verdict belongs to the lane's own clause (round eighteen) ------- */
+const laneRunThenProbe = [
+    '',
+    '## 2026-09-06 — Onboarding lane day',
+    '',
+    '- `deploy-onboarding-edge-functions` completed successfully (run `33995000000`),',
+    '  carrying `production-write` v69 and `linear-outbound` v48.',
+    '',
+    '  Follow-up smoke probe: NOT DISPATCHED (runner busy); it runs Monday.',
+    '',
+].join('\n');
+const laneRunThenProbeRun = run(fixture('lane-run-then-probe', appended(laneRunThenProbe), realRb));
+ok(laneRunThenProbeRun.code === 1 && laneRunThenProbeRun.json
+    && laneRunThenProbeRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'THE VERDICT BELONGS TO THE LANE\'S OWN CLAUSE: a completed onboarding dispatch with its run id is not silenced by a NOT DISPATCHED about a smoke probe in the same item\'s next paragraph, and FAILS');
+const lanePlanAfterRun = [
+    '',
+    '## 2026-09-06 — Planning',
+    '',
+    'After run `33991332628`, the next `deploy-onboarding-edge-functions` dispatch will',
+    'carry the merged closure.',
+    '',
+].join('\n');
+const lanePlanAfterRunRun = run(fixture('lane-plan-after-run', appended(lanePlanAfterRun), realRb));
+ok(lanePlanAfterRunRun.code === 0,
+    'A RUN ID BEFORE THE REFERENCE IS SOME OTHER RUN: "After run `X`, the next `lane` dispatch will carry ..." is a plan and asks for nothing');
+const laneShippedThenPlanned = [
+    '',
+    '## 2026-09-06 — Notes',
+    '',
+    'Run `33991332628` shipped v68; a `deploy-onboarding-edge-functions` dispatch is planned',
+    'for Monday.',
+    '',
+].join('\n');
+const laneShippedThenPlannedRun = run(fixture('lane-shipped-then-planned', appended(laneShippedThenPlanned), realRb));
+ok(laneShippedThenPlannedRun.code === 0,
+    'and "shipped" in the clause before the semicolon is about the §4 run, not the planned lane dispatch after it, which asks for nothing');
+const laneLeadIn = [
+    '',
+    '## 2026-09-06 — Cutover companions',
+    '',
+    '- **Dispatched the same day:** cutover PR #1173; `deploy-onboarding-edge-functions`',
+    '  (archive comment ordering EF); the B1 full-window run.',
+    '',
+].join('\n');
+const laneLeadInRun = run(fixture('lane-lead-in', appended(laneLeadIn), realRb));
+ok(laneLeadInRun.code === 1 && laneLeadInRun.json
+    && laneLeadInRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'while a colon-terminated lead-in that opens the item ("Dispatched the same day:") governs every clause it introduces, so the bare lane clause after it FAILS');
+
+/* ---- 8r. a lane dispatch is dated by its own section (round nineteen) ------- */
+const laneNestedDated = [
+    '### 2026-09-06 — companion release',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch completed successfully (run `33995000000`); the',
+    'Track-B step carried `production-write` v69.',
+    '',
+].join('\n');
+const laneNestedDatedRun = run(fixture('lane-nested-dated', insertInto(laneNestedDated), realRb));
+ok(laneNestedDatedRun.code === 1 && laneNestedDatedRun.json
+    && laneNestedDatedRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A LANE DISPATCH IS DATED BY ITS OWN SECTION: a "### 2026-09-06 — companion release" inside the 2026-08-05 container is a 2026-09-06 record, at or after the newest receipt, and FAILS');
+const laneNestedNewerRun = laneNestedDated.replace('### 2026-09-06 — companion release', '### Companion release');
+const laneNestedNewerRunRun = run(fixture('lane-nested-newer-run', insertInto(laneNestedNewerRun), realRb));
+ok(laneNestedNewerRunRun.code === 1 && laneNestedNewerRunRun.json
+    && laneNestedNewerRunRun.json.failures.some(f => /the 2026-08-05 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f) && /its run id is newer than the receipt's/.test(f)),
+    'and an UNDATED subsection there, which inherits the container\'s 2026-08-05, still FAILS when the dispatch\'s run id is newer than the receipt\'s: newer by construction, whatever heading it sits under');
+const laneNestedOlderRun = laneNestedNewerRun.replace('33995000000', '33980000000');
+const laneNestedOlderRunRun = run(fixture('lane-nested-older-run', insertInto(laneNestedOlderRun), realRb));
+ok(laneNestedOlderRunRun.code === 0,
+    'while the same undated subsection with a run id OLDER than the receipt\'s is a dispatch the §4 deploy already superseded, and asks for nothing');
+
+/* ---- 8s. run ids order dispatches, the receipt's own block included (round twenty) */
+const laneOwnNewer = [
+    '',
+    'After the attestation the companion `deploy-onboarding-edge-functions` dispatch went out',
+    'too (run `33995000000`), redeploying `production-write` and `linear-outbound`.',
+    '',
+].join('\n');
+const laneOwnNewerRun = run(fixture('lane-own-newer', appended(laneOwnNewer), realRb));
+ok(laneOwnNewerRun.code === 1 && laneOwnNewerRun.json
+    && laneOwnNewerRun.json.failures.some(f => /the 2026-09-05 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f) && /its run id is newer than the receipt's/.test(f)),
+    'THE RECEIPT\'S OWN BLOCK IS NOT A BLANKET EXEMPTION: a companion onboarding dispatch recorded there with a run id newer than the receipt\'s FAILS');
+const laneOwnUnplaced = [
+    '',
+    'The companion `deploy-onboarding-edge-functions` dispatch went out the same evening.',
+    '',
+].join('\n');
+const laneOwnUnplacedRun = run(fixture('lane-own-unplaced', appended(laneOwnUnplaced), realRb));
+ok(laneOwnUnplacedRun.code === 1 && laneOwnUnplacedRun.json
+    && laneOwnUnplacedRun.json.failures.some(f => /the newest §4 receipt's own entry records a `deploy-onboarding-edge-functions` dispatch(?: \("[^"]*"\))? with no run id, which cannot be placed before or after the receipt \(run 33991332628\)/.test(f)),
+    'and one recorded there WITHOUT a run id cannot be placed before or after the receipt, and FAILS asking for the run id');
+const laneSameDayOlder = [
+    '',
+    '## 2026-09-05 — Companion dispatch',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch completed successfully (run `33980000000`); it',
+    'carried `production-write`.',
+    '',
+].join('\n');
+const laneSameDayOlderRun = run(fixture('lane-same-day-older', appended(laneSameDayOlder), realRb));
+ok(laneSameDayOlderRun.code === 0,
+    'RUN IDS OUTRANK THE DAY: a separately headed companion dispatch on the receipt\'s own date with an OLDER run id is one the §4 deploy superseded, and asks for nothing');
+
+/* ---- 8t. a plan can name the run it expects (round twenty-one) ------------- */
+const laneWillRun = [
+    '',
+    '## 2026-09-06 — Approval pending',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch will run `33995000000` after approval.',
+    '',
+].join('\n');
+const laneWillRunRun = run(fixture('lane-will-run', appended(laneWillRun), realRb));
+ok(laneWillRunRun.code === 0,
+    'A PLAN CAN NAME THE RUN IT EXPECTS: "the `lane` dispatch will run `X` after approval" is a plan, the forward word sits before the run id, and it asks for nothing');
+const laneRanThenWill = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch went out (run `33995000000`), which will',
+    'need a fresh §4 capture before Monday.',
+    '',
+].join('\n');
+const laneRanThenWillRun = run(fixture('lane-ran-then-will', appended(laneRanThenWill), realRb));
+ok(laneRanThenWillRun.code === 1 && laneRanThenWillRun.json
+    && laneRanThenWillRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while a forward word AFTER the run id ("went out (run `X`), which will need a fresh capture") changes nothing: the dispatch happened, and it FAILS');
+
+/* ---- 8u. a broken attestation paste is a candidate (round twenty-one) -------- */
+const brokenJson = [
+    '```json',
+    '{',
+    '  "schema": "syncview_f27_section4_deployed_versions_v1",',
+    '  "deploy_commit": "0123456789abcdef0123456789abcdef01234567",',
+    '  "github_run_id": "34000000000",',
+    '  "functions": [',
+    '    { "slug": "batch-write", "active_version": "35",',
+];
+const brokenClosed = ['', '## 2026-09-06 — production-write 68 → 69 shipped', ''].concat(brokenJson, ['```', '']).join('\n');
+const brokenClosedRun = run(fixture('broken-attestation-closed', appended(brokenClosed), realRb));
+ok(brokenClosedRun.code === 1 && brokenClosedRun.json
+    && brokenClosedRun.json.failures.some(f => /section at line \d+ \("2026-09-06 — production-write 68 → 69 shipped"\)/.test(f) && /carries 1 attestation block\(s\) this guard cannot read/.test(f)),
+    'A BROKEN ATTESTATION PASTE IS A CANDIDATE: a generic heading followed only by a truncated JSON block that names the schema is named for that block, and FAILS');
+const brokenOpen = ['', '## 2026-09-06 — production-write 68 → 69 shipped', ''].concat(brokenJson, ['']).join('\n');
+const brokenOpenRun = run(fixture('broken-attestation-open', appended(brokenOpen), realRb));
+ok(brokenOpenRun.code === 1 && brokenOpenRun.json
+    && brokenOpenRun.json.failures.some(f => /"2026-09-06 — production-write 68 → 69 shipped"/.test(f) && /carries 1 attestation block\(s\) this guard cannot read/.test(f)),
+    'and so is one whose closing fence is missing altogether');
+const brokenMid = ['### 2026-09-06 — companion release', ''].concat(brokenJson, ['```', '']).join('\n');
+const brokenMidRun = run(fixture('broken-attestation-mid-file', insertInto(brokenMid), realRb));
+ok(brokenMidRun.code === 1 && brokenMidRun.json && brokenMidRun.json.receipts === 19
+    && brokenMidRun.json.failures.some(f => /"2026-09-06 — companion release"/.test(f) && /carries 1 attestation block\(s\) this guard cannot read/.test(f)),
+    'and a broken paste in the MIDDLE of the log (inside the 2026-08-05 container) is named without swallowing the attestation blocks that follow it: every one of the 19 real receipts is still read');
+
+/* ---- 8v. "without errors" is not "without a dispatch" (round twenty-two) ---- */
+const laneWithoutErrors = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` completed without errors (run `33995000000`), carrying',
+    '`production-write` v69.',
+    '',
+].join('\n');
+const laneWithoutErrorsRun = run(fixture('lane-without-errors', appended(laneWithoutErrors), realRb));
+ok(laneWithoutErrorsRun.code === 1 && laneWithoutErrorsRun.json
+    && laneWithoutErrorsRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    '"WITHOUT ERRORS" IS A COMPLETION, NOT A PLAN: a companion run recorded as completed without errors, with its run id, FAILS');
+const laneWithoutDispatch = [
+    '',
+    '## 2026-09-06 — Quiet day',
+    '',
+    'The day closed without a `deploy-onboarding-edge-functions` dispatch; the merged closure',
+    'stays inert until Monday.',
+    '',
+].join('\n');
+const laneWithoutDispatchRun = run(fixture('lane-without-dispatch', appended(laneWithoutDispatch), realRb));
+ok(laneWithoutDispatchRun.code === 0,
+    'while "without a `lane` dispatch" is the negation it looks like, and asks for nothing');
+
+/* ---- 8w. completion before follow-up plans; checks are not deployments (round twenty-three) */
+const laneDoneThenWill = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` completed successfully and will be smoke-tested',
+    'tomorrow (run `33995000000`).',
+    '',
+].join('\n');
+const laneDoneThenWillRun = run(fixture('lane-done-then-will', appended(laneDoneThenWill), realRb));
+ok(laneDoneThenWillRun.code === 1 && laneDoneThenWillRun.json
+    && laneDoneThenWillRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'PLANNING THE FOLLOW-UP IS NOT PLANNING THE DISPATCH: "completed successfully and will be smoke-tested tomorrow (run `X`)" is a completion, the completion word comes first, and it FAILS with its run id');
+const laneDryRun = [
+    '',
+    '## 2026-09-06 — Pre-deploy notes',
+    '',
+    'The `deploy-onboarding-edge-functions` dry-run passed; no deployment was performed.',
+    '',
+].join('\n');
+const laneDryRunRun = run(fixture('lane-dry-run', appended(laneDryRun), realRb));
+ok(laneDryRunRun.code === 0,
+    'A CHECK IS NOT A DEPLOYMENT: "the `lane` dry-run passed" asks for nothing, whatever the next clause says');
+const laneDryRunId = laneDryRun.replace('dry-run passed;', 'dry-run passed (run `33995000000`);');
+const laneDryRunIdRun = run(fixture('lane-dry-run-id', appended(laneDryRunId), realRb));
+ok(laneDryRunIdRun.code === 0,
+    'and a run id after "dry-run passed" is the check\'s run, not a deployment\'s: still nothing');
+const laneAfterDryRun = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch went out (run `33995000000`) after the dry-run',
+    'passed an hour earlier.',
+    '',
+].join('\n');
+const laneAfterDryRunRun = run(fixture('lane-after-dry-run', appended(laneAfterDryRun), realRb));
+ok(laneAfterDryRunRun.code === 1 && laneAfterDryRunRun.json
+    && laneAfterDryRunRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while a dispatch that went out, with its run id, is not excused by the dry-run mentioned after it, and FAILS');
+
+/* ---- 8x. the run id belongs to the nearest predicate (round twenty-four) ---- */
+const laneCheckThenDispatch = [
+    '### Companion',
+    '',
+    '`deploy-onboarding-edge-functions` dry-run passed, then the dispatch completed (run `33995000000`),',
+    'carrying `production-write` v69.',
+    '',
+].join('\n');
+const laneCheckThenDispatchRun = run(fixture('lane-check-then-dispatch', insertInto(laneCheckThenDispatch), realRb));
+ok(laneCheckThenDispatchRun.code === 1 && laneCheckThenDispatchRun.json
+    && laneCheckThenDispatchRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f) && /its run id is newer than the receipt's/.test(f)),
+    'THE RUN ID BELONGS TO THE NEAREST PREDICATE: "dry-run passed, then the dispatch completed (run `X`)" keeps the dispatch\'s run id, so even in an undated subsection of the 2026-08-05 container it is newer by construction and FAILS');
+const laneValidationSuccessfully = [
+    '',
+    '## 2026-09-06 — Pre-deploy notes',
+    '',
+    'The `deploy-onboarding-edge-functions` validation completed successfully; no deployment',
+    'was performed.',
+    '',
+].join('\n');
+const laneValidationSuccessfullyRun = run(fixture('lane-validation-successfully', appended(laneValidationSuccessfully), realRb));
+ok(laneValidationSuccessfullyRun.code === 0,
+    'and "validation completed successfully" is consumed whole as the check\'s verdict, leaving no "successfully" to read as the dispatch\'s: it asks for nothing');
+
+/* ---- 8y. passive check verdicts (round twenty-five) -------------------------- */
+const lanePassiveCheck = [
+    '',
+    '## 2026-09-06 — Pre-deploy notes',
+    '',
+    'The `deploy-onboarding-edge-functions` validation was completed successfully; no deployment',
+    'was performed.',
+    '',
+].join('\n');
+const lanePassiveCheckRun = run(fixture('lane-passive-check', appended(lanePassiveCheck), realRb));
+ok(lanePassiveCheckRun.code === 0,
+    'A PASSIVE CHECK VERDICT IS STILL THE CHECK\'S: "validation was completed successfully" is consumed whole, auxiliary included, and asks for nothing');
+const lanePassiveDispatch = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch was completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const lanePassiveDispatchRun = run(fixture('lane-passive-dispatch', appended(lanePassiveDispatch), realRb));
+ok(lanePassiveDispatchRun.code === 1 && lanePassiveDispatchRun.json
+    && lanePassiveDispatchRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while "the dispatch was completed successfully (run `X`)" is the dispatch\'s own verdict, passive or not, and FAILS');
+
+/* ---- 8z. a negated verdict is no verdict (round twenty-six) ------------------ */
+const laneNegatedCheck = [
+    '',
+    '## 2026-09-06 — Pre-deploy notes',
+    '',
+    'The `deploy-onboarding-edge-functions` validation was not completed successfully; no',
+    'deployment was performed.',
+    '',
+].join('\n');
+const laneNegatedCheckRun = run(fixture('lane-negated-check', appended(laneNegatedCheck), realRb));
+ok(laneNegatedCheckRun.code === 0,
+    'A NEGATED CHECK VERDICT IS STILL THE CHECK\'S: "validation was not completed successfully" is consumed whole and asks for nothing');
+const laneNegatedDispatch = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch was not completed; the runner died before',
+    'the first function.',
+    '',
+].join('\n');
+const laneNegatedDispatchRun = run(fixture('lane-negated-dispatch', appended(laneNegatedDispatch), realRb));
+ok(laneNegatedDispatchRun.code === 0,
+    'and a negated dispatch verdict with no run id, "the dispatch was not completed", is no completion either and asks for nothing');
+
+/* ---- 8aa. a heading that awaits its deploy is not a deploy record ------------ */
+/* Surfaced by the merge of #1310 into this branch: its entry is headed
+   "Built: ... (awaits migration + first deploy)", names Section 4 in its body
+   to say which lane will carry the gateway half, and holds no receipt because
+   nothing shipped. The sweep read "deploy" in the heading and demanded one. */
+const awaitsDeploy = [
+    '',
+    '## 2026-09-06 — Built: a new gateway half (awaits migration + first deploy)',
+    '',
+    'The browser half is merged. The gateway half rides the F27 Section 4 lane on its next',
+    'dispatch and is inert until then; no edge function was deployed today.',
+    '',
+].join('\n');
+const awaitsDeployRun = run(fixture('awaits-deploy-heading', appended(awaitsDeploy), realRb));
+ok(awaitsDeployRun.code === 0,
+    'A HEADING THAT AWAITS ITS DEPLOY IS NOT A DEPLOY RECORD: "Built: ... (awaits migration + first deploy)" with Section 4 named in its body and no receipt asks for nothing');
+const shippedDeploy = awaitsDeploy.replace('Built: a new gateway half (awaits migration + first deploy)', 'F27 Section 4 deploy: a new gateway half, first deploy');
+const shippedDeployRun = run(fixture('shipped-deploy-heading', appended(shippedDeploy), realRb));
+ok(shippedDeployRun.code === 1 && shippedDeployRun.json && shippedDeployRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy: a new gateway half, first deploy"/.test(f) && UNREADABLE.test(f)),
+    'while the same entry headed as a deploy, with no forward-looking word before "deploy", is still asked for its receipt');
+
+/* ---- 8ab. a negated verdict outranks its run id (round twenty-seven) --------- */
+const laneNegatedRunAfter = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch was not completed (run `33995000000`); the',
+    'runner died before the first function.',
+    '',
+].join('\n');
+const laneNegatedRunAfterRun = run(fixture('lane-negated-run-after', appended(laneNegatedRunAfter), realRb));
+ok(laneNegatedRunAfterRun.code === 0,
+    'A NEGATED VERDICT OUTRANKS ITS RUN ID: "the dispatch was not completed (run `X`)" deployed nothing and asks for nothing');
+const laneNegatedRunBefore = laneNegatedRunAfter.replace('dispatch was not completed (run `33995000000`);', 'dispatch (run `33995000000`) was not completed;');
+const laneNegatedRunBeforeRun = run(fixture('lane-negated-run-before', appended(laneNegatedRunBefore), realRb));
+ok(laneNegatedRunBeforeRun.code === 0,
+    'and so does "the dispatch (run `X`) was not completed", with the run id ahead of the negation');
+const laneDoneProbeNot = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch completed (run `33995000000`), but the smoke probe',
+    'was not completed.',
+    '',
+].join('\n');
+const laneDoneProbeNotRun = run(fixture('lane-done-probe-not', appended(laneDoneProbeNot), realRb));
+ok(laneDoneProbeNotRun.code === 1 && laneDoneProbeNotRun.json
+    && laneDoneProbeNotRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while a positive verdict beside a negated one about something else ("completed (run `X`), but the smoke probe was not completed") stands, and FAILS');
+
+/* ---- 8ac. "deployed" is not "deploy"; a failed run is a negated one (round twenty-eight) */
+const pendingFixesDeployed = [
+    '',
+    '## 2026-09-06 — Pending fixes deployed via F27 Section 4, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`; the four functions moved.',
+    '',
+].join('\n');
+const pendingFixesDeployedRun = run(fixture('pending-fixes-deployed', appended(pendingFixesDeployed), realRb));
+ok(pendingFixesDeployedRun.code === 1 && pendingFixesDeployedRun.json
+    && pendingFixesDeployedRun.json.failures.some(f => /"2026-09-06 — Pending fixes deployed via F27 Section 4, run `34000000000`"/.test(f) && UNREADABLE.test(f)),
+    '"DEPLOYED" IS NOT "DEPLOY": "Pending fixes deployed via F27 Section 4" records a deploy that happened, is not excused by the word "pending", and is asked for its receipt');
+const notYetDeployed = awaitsDeploy.replace('Built: a new gateway half (awaits migration + first deploy)', 'Built: a new gateway half (not yet deployed)');
+const notYetDeployedRun = run(fixture('not-yet-deployed', appended(notYetDeployed), realRb));
+ok(notYetDeployedRun.code === 0,
+    'while "(not yet deployed)" is the future form and asks for nothing');
+const laneFailedNoDeploy = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed without deploying any function',
+    '(run `33995000000`).',
+    '',
+].join('\n');
+const laneFailedNoDeployRun = run(fixture('lane-failed-no-deploy', appended(laneFailedNoDeploy), realRb));
+ok(laneFailedNoDeployRun.code === 0,
+    'A FAILED RUN IS A NEGATED ONE: "the dispatch failed without deploying any function (run `X`)" asks for nothing');
+const laneDoneProbeFailed = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '`deploy-onboarding-edge-functions` dispatch completed (run `33995000000`) but the post-deploy',
+    'probe failed.',
+    '',
+].join('\n');
+const laneDoneProbeFailedRun = run(fixture('lane-done-probe-failed', appended(laneDoneProbeFailed), realRb));
+ok(laneDoneProbeFailedRun.code === 1 && laneDoneProbeFailedRun.json
+    && laneDoneProbeFailedRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while "completed (run `X`) but the post-deploy probe failed" is a completed dispatch beside an unrelated failure, and FAILS');
+
+/* ---- 8ad. a bare label takes the next sentence; "scheduled" is a plan (round twenty-nine) */
+const laneLabelThenDone = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch. Completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneLabelThenDoneRun = run(fixture('lane-label-then-done', appended(laneLabelThenDone), realRb));
+ok(laneLabelThenDoneRun.code === 1 && laneLabelThenDoneRun.json
+    && laneLabelThenDoneRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A BARE LABEL TAKES THE SENTENCE THAT FOLLOWS IT: "- `lane` dispatch. Completed successfully (run `X`)." is one record and FAILS with its run id');
+const laneLabelThenProbe = laneLabelThenDone.replace('dispatch. Completed successfully', 'dispatch. Smoke probe completed successfully');
+const laneLabelThenProbeRun = run(fixture('lane-label-then-probe', appended(laneLabelThenProbe), realRb));
+ok(laneLabelThenProbeRun.code === 0,
+    'while a following sentence with a subject of its own ("Smoke probe completed successfully") is about the probe, not the label, and asks for nothing');
+const laneLabelThenNot = laneLabelThenDone.replace('Completed successfully (run `33995000000`).', 'NOT DISPATCHED (runner busy).');
+const laneLabelThenNotRun = run(fixture('lane-label-then-not', appended(laneLabelThenNot), realRb));
+ok(laneLabelThenNotRun.code === 0,
+    'and "- `lane` dispatch. NOT DISPATCHED (runner busy)." asks for nothing');
+const laneScheduled = [
+    '',
+    '## 2026-09-06 — Approval pending',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch is scheduled for run `33995000000` after',
+    'approval.',
+    '',
+].join('\n');
+const laneScheduledRun = run(fixture('lane-scheduled', appended(laneScheduled), realRb));
+ok(laneScheduledRun.code === 0,
+    '"SCHEDULED" IS A PLAN: "the dispatch is scheduled for run `X` after approval" asks for nothing');
+
+/* ---- 8ae. a child bullet is its parent's result (round thirty) --------------- */
+const laneChildDone = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    '- `deploy-onboarding-edge-functions` dispatch:',
+    '  - Completed successfully (run `33995000000`).',
+    '- Smoke probe: NOT DISPATCHED.',
+    '',
+].join('\n');
+const laneChildDoneRun = run(fixture('lane-child-done', appended(laneChildDone), realRb));
+ok(laneChildDoneRun.code === 1 && laneChildDoneRun.json
+    && laneChildDoneRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A CHILD BULLET IS ITS PARENT\'S RESULT: "- `lane` dispatch:" with "  - Completed successfully (run `X`)." beneath it is one record and FAILS, while the sibling bullet after it is not part of it');
+const laneChildNot = laneChildDone.replace('  - Completed successfully (run `33995000000`).', '  - NOT DISPATCHED (runner busy).').replace('- Smoke probe: NOT DISPATCHED.', '- Smoke probe completed successfully.');
+const laneChildNotRun = run(fixture('lane-child-not', appended(laneChildNot), realRb));
+ok(laneChildNotRun.code === 0,
+    'and a NOT DISPATCHED child is its parent\'s verdict too, unmoved by the sibling bullet that completed, so it asks for nothing');
+
+/* ---- 8af. links, the binding form, postpositive plans (round thirty-one) ----- */
+const laneLink = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    '[deploy-onboarding-edge-functions workflow](https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml)',
+    'completed successfully (run `33995000000`); it carried `production-write`.',
+    '',
+].join('\n');
+const laneLinkRun = run(fixture('lane-link', appended(laneLink), realRb));
+ok(laneLinkRun.code === 1 && laneLinkRun.json
+    && laneLinkRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A MARKDOWN LINK NAMES THE LANE: the repository\'s own direct-workflow-link convention is a lane reference, and a completed dispatch recorded that way FAILS');
+const laneUrl = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The companion lane <https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml>',
+    'completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneUrlRun = run(fixture('lane-url', appended(laneUrl), realRb));
+ok(laneUrlRun.code === 1 && laneUrlRun.json
+    && laneUrlRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'and so does the bare canonical workflow URL');
+const laneBind = [
+    '### Companion release',
+    '',
+    'Run `33995000000` of `deploy-onboarding-edge-functions` completed successfully; it carried `production-write` v69.',
+    '',
+].join('\n');
+const laneBindRun = run(fixture('lane-bind', insertInto(laneBind), realRb));
+ok(laneBindRun.code === 1 && laneBindRun.json
+    && laneBindRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f) && /its run id is newer/.test(f)),
+    'THE BINDING FORM KEEPS ITS RUN: "Run `X` of `lane` completed successfully" in an undated subsection of the 2026-08-05 container is the lane\'s run, newer by construction, and FAILS');
+const laneBindOlder = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'Run `33980000000` of `deploy-onboarding-edge-functions` completed successfully earlier in the week.',
+    '',
+].join('\n');
+const laneBindOlderRun = run(fixture('lane-bind-older', appended(laneBindOlder), realRb));
+ok(laneBindOlderRun.code === 0,
+    'while the same form with a run id OLDER than the receipt\'s is a dispatch the §4 deploy superseded, whatever the entry\'s date, and asks for nothing');
+const laneBindPlanned = [
+    '',
+    '## 2026-09-06 — Plan',
+    '',
+    'Run `33995000000` of `deploy-onboarding-edge-functions` is scheduled for tomorrow after approval.',
+    '',
+].join('\n');
+const laneBindPlannedRun = run(fixture('lane-bind-planned', appended(laneBindPlanned), realRb));
+ok(laneBindPlannedRun.code === 0,
+    'and "Run `X` of `lane` is scheduled for tomorrow" is a plan whose verdict follows the lane, and asks for nothing');
+const planHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deployment plan approved for tomorrow',
+    '',
+    'No deployment has occurred; the plan names the four closures and the order they ship in.',
+    '',
+].join('\n');
+const planHeadingRun = run(fixture('plan-heading', appended(planHeading), realRb));
+ok(planHeadingRun.code === 0,
+    'A PLAN NOUN AFTER THE DEPLOYMENT NOUN IS STILL A PLAN: "F27 Section 4 deployment plan approved for tomorrow" with no receipt asks for nothing');
+
+/* ---- 8ag. push runs of a dispatch-gated lane; failed attempts (round 32) ----- */
+const lanePush = [
+    '',
+    '## 2026-09-06 — Staff functions',
+    '',
+    'The `deploy-onboarding-edge-functions` push run `33995000000` completed successfully',
+    'when the onboarding readers merged.',
+    '',
+].join('\n');
+const lanePushRun = run(fixture('lane-push-run', appended(lanePush), realRb));
+ok(lanePushRun.code === 0,
+    'A PUSH RUN OF A DISPATCH-GATED LANE MOVES NOTHING HERE: the onboarding lane carries `production-write` only in a step gated on workflow_dispatch, so a run the entry calls a push run asks for nothing');
+const laneTerse = [
+    '',
+    '## 2026-09-06 — Staff functions',
+    '',
+    'The `deploy-onboarding-edge-functions` lane completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneTerseRun = run(fixture('lane-terse', appended(laneTerse), realRb));
+ok(laneTerseRun.code === 1 && laneTerseRun.json
+    && laneTerseRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while a record that names no trigger at all still FAILS -- requiring positive dispatch evidence would blind this guard to a terse record of a real deploy, so the exemption needs the entry to SAY it was a push');
+const failedNothing = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `33995000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`; the lane refused before any',
+    'mutation on a fingerprint mismatch. No deployment occurred and the live set did not move.',
+    '',
+].join('\n');
+const failedNothingRun = run(fixture('failed-nothing', appended(failedNothing), realRb));
+ok(failedNothingRun.code === 0,
+    'A FAILED ATTEMPT THAT DEPLOYED NOTHING NEEDS NO RECEIPT: "deploy failed" with "no deployment occurred" in its body is legitimate history and asks for nothing');
+const failedPartial = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `33995000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`; the lane deployed',
+    '`production-write` and then failed on the readback of `linear-outbound`.',
+    '',
+].join('\n');
+const failedPartialRun = run(fixture('failed-partial', appended(failedPartial), realRb));
+ok(failedPartialRun.code === 1 && failedPartialRun.json
+    && failedPartialRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `33995000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'while a PARTIAL failure, which did move a live version, still fails closed and is asked for its receipt');
+
+/* ---- 8ah. subset no-deployment claims; push beside a dispatch (round 33) ----- */
+const failedSubset = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `33995000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`. `production-write` deployed,',
+    'then the lane failed on the provider readback. No deployment of the remaining three',
+    'functions occurred.',
+    '',
+].join('\n');
+const failedSubsetRun = run(fixture('failed-subset', appended(failedSubset), realRb));
+ok(failedSubsetRun.code === 1 && failedSubsetRun.json
+    && failedSubsetRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `33995000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A SUBSET NO-DEPLOYMENT CLAIM IS NOT A WHOLE-RUN ONE: "No deployment of the remaining three functions occurred" beside a `production-write` that shipped is a PARTIAL deploy, and it is still asked for its receipt');
+const failedNamesOne = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `33995000000`',
+    '',
+    'The lane deployed `production-write` and then aborted. No deployment occurred afterwards.',
+    '',
+].join('\n');
+const failedNamesOneRun = run(fixture('failed-names-one', appended(failedNamesOne), realRb));
+ok(failedNamesOneRun.code === 1 && failedNamesOneRun.json
+    && failedNamesOneRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `33995000000`"/.test(f)),
+    'and an entry that names one of the four as deployed is a partial deploy whatever else it claims, so an unqualified "no deployment occurred" beside it does not exempt it');
+const laneDispatchAfterPush = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch completed successfully (run `33995000000`)',
+    'after the previous push run failed.',
+    '',
+].join('\n');
+const laneDispatchAfterPushRun = run(fixture('lane-dispatch-after-push', appended(laneDispatchAfterPush), realRb));
+ok(laneDispatchAfterPushRun.code === 1 && laneDispatchAfterPushRun.json
+    && laneDispatchAfterPushRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A PUSH MENTIONED BESIDE A DISPATCH DOES NOT EXEMPT IT: the manual dispatch that completed is the run recorded, and the failed push run beside it changes nothing -- it FAILS');
+const lanePushThenPlan = [
+    '',
+    '## 2026-09-06 — Staff functions',
+    '',
+    'The `deploy-onboarding-edge-functions` push run `33995000000` completed successfully.',
+    'A manual dispatch is scheduled for Monday.',
+    '',
+].join('\n');
+const lanePushThenPlanRun = run(fixture('lane-push-then-plan', appended(lanePushThenPlan), realRb));
+ok(lanePushThenPlanRun.code === 0,
+    'while a push run in its own sentence is still exempt when the dispatch mentioned nearby is a separate, later sentence');
+
+/* ---- 8ai. verification anchors and post-deploy commentary (round 34) -------- */
+const verifyAnchor = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '##### Verification run 33000000000',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const verifyAnchorRun = run(fixture('verify-anchor', appended(verifyAnchor), realRb));
+ok(verifyAnchorRun.code === 1 && verifyAnchorRun.json && verifyAnchorRun.json.live
+    && verifyAnchorRun.json.live.run === '34000000000'
+    && verifyAnchorRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'A VERIFICATION HEADING IS NOT A DEPLOY ANCHOR: a table under "##### Verification run 33000000000" takes the identity of the deploy heading above it, not the check\'s, so the newest deploy is run 34000000000 and the stale row FAILS');
+const postDeploy = [
+    '',
+    '##### Post-deploy verification',
+    '',
+    'The four functions read back at their attested versions; the browser half was',
+    'spot-checked on the live page.',
+    '',
+].join('\n');
+const postDeployRun = run(fixture('post-deploy-note', appended(postDeploy), realRb));
+ok(postDeployRun.code === 0,
+    'and "##### Post-deploy verification" under a Section 4 entry is commentary about a deploy, not a record of one, so it is not asked for a receipt');
+const postDeployNamed = [
+    '',
+    '## 2026-09-06 — F27 Section 4 post-deploy notes and Deploy #41',
+    '',
+    'Deploy #41 shipped `production-write` v69 from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+].join('\n');
+const postDeployNamedRun = run(fixture('post-deploy-named', appended(postDeployNamed), realRb));
+ok(postDeployNamedRun.code === 1 && postDeployNamedRun.json
+    && postDeployNamedRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 post-deploy notes and Deploy #41"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'while a heading that names a deploy alongside its post-deploy notes is still a deploy record, and is asked for its receipt');
+
+/* ---- 8aj. release headings; "as planned" looks back (round 35) -------------- */
+const releaseHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 release, run `33995000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567` and completed successfully.',
+    '',
+].join('\n');
+const releaseHeadingRun = run(fixture('release-heading', appended(releaseHeading), realRb));
+ok(releaseHeadingRun.code === 1 && releaseHeadingRun.json
+    && releaseHeadingRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 release, run `33995000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A SECTION 4 RELEASE IS A DEPLOY: "F27 Section 4 release, run `X`" ships the same four functions without the word deploy, and a receipt-less entry headed that way is asked for one');
+const releaseNested = [
+    '### Companion release',
+    '',
+    'The graphics lane shipped its own bundle; nothing in Section 4 moved.',
+    '',
+].join('\n');
+const releaseNestedRun = run(fixture('release-nested', insertInto(releaseNested), realRb));
+ok(releaseNestedRun.code === 0,
+    'while a nested "### Companion release" under a Section 4 entry is another lane\'s business: release wording counts only where the heading itself names Section 4');
+const releasePlanned = [
+    '',
+    '## 2026-09-06 — F27 Section 4 release planned for Monday',
+    '',
+    'The four closures are pinned; nothing has shipped.',
+    '',
+].join('\n');
+const releasePlannedRun = run(fixture('release-planned', appended(releasePlanned), realRb));
+ok(releasePlannedRun.code === 0,
+    'and a Section 4 release that is planned rather than done asks for nothing, the same as a planned deploy');
+const laneAsPlanned = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'As planned, the `deploy-onboarding-edge-functions` manual dispatch completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneAsPlannedRun = run(fixture('lane-as-planned', appended(laneAsPlanned), realRb));
+ok(laneAsPlannedRun.code === 1 && laneAsPlannedRun.json
+    && laneAsPlannedRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    '"AS PLANNED" LOOKS BACK: it says the dispatch went the way it was meant to, not that it is still to come, so the completed dispatch beside it FAILS');
+const lanePlannedAhead = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'A `deploy-onboarding-edge-functions` dispatch is planned for Monday (run `33995000000` reserved).',
+    '',
+].join('\n');
+const lanePlannedAheadRun = run(fixture('lane-planned-ahead', appended(lanePlannedAhead), realRb));
+ok(lanePlannedAheadRun.code === 0,
+    'while a genuine "is planned for Monday" is still a plan and asks for nothing');
+
+/* ---- 8ak. an introductory clause does not govern the dispatch (round 36) ---- */
+const laneIntroSchedule = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'Originally scheduled for Monday, the `deploy-onboarding-edge-functions` manual dispatch',
+    'completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneIntroScheduleRun = run(fixture('lane-intro-schedule', appended(laneIntroSchedule), realRb));
+ok(laneIntroScheduleRun.code === 1 && laneIntroScheduleRun.json
+    && laneIntroScheduleRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'AN INTRODUCTORY CLAUSE DOES NOT GOVERN THE DISPATCH: "Originally scheduled for Monday, the `lane` manual dispatch completed successfully (run `X`)" records a deploy and FAILS');
+const laneIntroDelayed = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'Delayed from Friday and pending a second approval, the `deploy-onboarding-edge-functions`',
+    'dispatch went out (run `33995000000`).',
+    '',
+].join('\n');
+const laneIntroDelayedRun = run(fixture('lane-intro-delayed', appended(laneIntroDelayed), realRb));
+ok(laneIntroDelayedRun.code === 1 && laneIntroDelayedRun.json
+    && laneIntroDelayedRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'and so does any other leading phrase about how the run came to be, however it is worded');
+const laneApposition = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch, scheduled for Monday, will run then.',
+    '',
+].join('\n');
+const laneAppositionRun = run(fixture('lane-apposition', appended(laneApposition), realRb));
+ok(laneAppositionRun.code === 0,
+    'while the reference coming FIRST keeps its forward reading: "The `lane` dispatch, scheduled for Monday, will run then" is a plan and asks for nothing');
+
+/* ---- 8al. a planning adjective is not a forward predicate (round 37) -------- */
+const laneAdjective = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The planned `deploy-onboarding-edge-functions` manual dispatch completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const laneAdjectiveRun = run(fixture('lane-adjective', appended(laneAdjective), realRb));
+ok(laneAdjectiveRun.code === 1 && laneAdjectiveRun.json
+    && laneAdjectiveRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A PLANNING ADJECTIVE IS NOT A FORWARD PREDICATE: "The planned `lane` manual dispatch completed successfully (run `X`)" describes a run that has happened, and it FAILS');
+const laneNextAdjective = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The next `deploy-onboarding-edge-functions` dispatch (run `33995000000` reserved) carries the merged closure.',
+    '',
+].join('\n');
+const laneNextAdjectiveRun = run(fixture('lane-next-adjective', appended(laneNextAdjective), realRb));
+ok(laneNextAdjectiveRun.code === 0,
+    'while "the NEXT `lane` dispatch" keeps its forward reading: next says the run is still to come, and it asks for nothing');
+
+/* ---- 8am. a broken receipt is dated by the run it carries (round 38) -------- */
+const brokenNewerRun = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy notes',
+    '',
+    '```json',
+    '{',
+    '  "schema": "syncview_f27_section4_deployed_versions_v1",',
+    '  "github_run_id": "34000000000",',
+    '  "functions": [',
+    '    { "slug": "production-write", "active_version": "69",',
+    '```',
+    '',
+].join('\n');
+const brokenNewerRunRun = run(fixture('broken-newer-run', appended(brokenNewerRun), realRb));
+ok(brokenNewerRunRun.code === 1 && brokenNewerRunRun.json
+    && brokenNewerRunRun.json.failures.some(f => /"2026-09-04 — F27 Section 4 deploy notes"/.test(f) && /attestation block\(s\) this guard cannot read/.test(f)),
+    'A BROKEN RECEIPT IS DATED BY THE RUN IT CARRIES: a truncated attestation naming run 34000000000 under a 2026-09-04 heading is NOT softened to history by its date, because the run it names is newer than the live receipt\'s');
+const brokenOlderRun = brokenNewerRun.replace('34000000000', '33000000000');
+const brokenOlderRunRun = run(fixture('broken-older-run', appended(brokenOlderRun), realRb));
+ok(brokenOlderRunRun.code === 0 && brokenOlderRunRun.json
+    && brokenOlderRunRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy notes"/.test(n)),
+    'while the same block naming an OLDER run stays a note: it predates the newest receipt by both its date and the run it carries');
+
+/* ---- 8an. temporal headings; failures that shipped something (round 39) ----- */
+const headBeforeLunch = [
+    '',
+    '## 2026-09-06 — Before lunch, F27 Section 4 deployment completed, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+].join('\n');
+const headBeforeLunchRun = run(fixture('head-before-lunch', appended(headBeforeLunch), realRb));
+ok(headBeforeLunchRun.code === 1 && headBeforeLunchRun.json
+    && headBeforeLunchRun.json.failures.some(f => /Before lunch, F27 Section 4 deployment completed/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A LEADING TEMPORAL PHRASE DOES NOT MAKE A HEADING FORWARD-LOOKING: "Before lunch, F27 Section 4 deployment completed, run `X`" records a deploy and is asked for its receipt');
+const headBeforeDeploy = [
+    '',
+    '## 2026-09-06 — Gateway half merged, before the F27 Section 4 deploy',
+    '',
+    'The closure is pinned; nothing has shipped yet.',
+    '',
+].join('\n');
+const headBeforeDeployRun = run(fixture('head-before-deploy', appended(headBeforeDeploy), realRb));
+ok(headBeforeDeployRun.code === 0,
+    'while a "before" that really does govern the deploy still marks the heading forward-looking, and asks for nothing');
+const laneFailedAfterOne = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed after deploying `production-write` (run `33995000000`).',
+    '',
+].join('\n');
+const laneFailedAfterOneRun = run(fixture('lane-failed-after-one', appended(laneFailedAfterOne), realRb));
+ok(laneFailedAfterOneRun.code === 1 && laneFailedAfterOneRun.json
+    && laneFailedAfterOneRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'A FAILURE THAT NAMES WHAT IT DEPLOYED IS NOT "NOTHING SHIPPED": the lane deploys its functions one after another, so a run that failed after `production-write` went out left a guarded function live, and it FAILS');
+const laneFailedNothingAtAll = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed without deploying any function (run `33995000000`).',
+    '',
+].join('\n');
+const laneFailedNothingAtAllRun = run(fixture('lane-failed-nothing-at-all', appended(laneFailedNothingAtAll), realRb));
+ok(laneFailedNothingAtAllRun.code === 0,
+    'while a failure that names no function it deployed still asks for nothing');
+
+/* ---- 8ao. a failed run is silent only if it shipped nothing (round 40) ------ */
+const laneFailedMidSequence = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed while deploying `production-comments` (run `34000000000`).',
+    '',
+].join('\n');
+const laneFailedMidSequenceRun = run(fixture('lane-failed-mid-sequence', appended(laneFailedMidSequence), realRb));
+ok(laneFailedMidSequenceRun.code === 1 && laneFailedMidSequenceRun.json
+    && laneFailedMidSequenceRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'A FAILURE PAST THE GUARDED STEPS IS NOT SILENT: the lane deploys `linear-outbound` and `production-write` before `production-comments`, so a run that died on the latter left both live, and naming a guarded slug was too narrow a test');
+const laneFailedBare = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed (run `34000000000`).',
+    '',
+].join('\n');
+const laneFailedBareRun = run(fixture('lane-failed-bare', appended(laneFailedBare), realRb));
+ok(laneFailedBareRun.code === 1 && laneFailedBareRun.json
+    && laneFailedBareRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'and a bare "failed" says nothing about how far the sequence got, so it FAILS rather than being taken on trust');
+const laneFailedProven = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed on the ancestry check; no deployment occurred (run `34000000000`).',
+    '',
+].join('\n');
+const laneFailedProvenRun = run(fixture('lane-failed-proven', appended(laneFailedProven), realRb));
+ok(laneFailedProvenRun.code === 0,
+    'while a failure that says the whole run deployed nothing is silent, which is the only shape that proves it');
+
+/* ---- 8ap. post-deploy anchors; a source commit is not a trigger (round 41) -- */
+const postDeployAnchor = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '##### Post-deploy verification run 33000000000',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 | `' + H.bw + '` | verify_jwt=false |',
+    '| `deliverable-write` | 35 | `' + H.dw + '` | verify_jwt=false |',
+    '| `linear-outbound` | 47 | `' + H.lo47 + '` | verify_jwt=false |',
+    '| `production-write` | 68 → **69** | `' + 'e'.repeat(64) + '` | verify_jwt=false |',
+    '',
+].join('\n');
+const postDeployAnchorRun = run(fixture('post-deploy-anchor', appended(postDeployAnchor), realRb));
+ok(postDeployAnchorRun.code === 1 && postDeployAnchorRun.json && postDeployAnchorRun.json.live
+    && postDeployAnchorRun.json.live.run === '34000000000'
+    && postDeployAnchorRun.json.failures.some(f => /production-write: ROLLBACK says v68, live is v69/.test(f)),
+    'A POST-DEPLOY CHECK IS NOT AN ANCHOR EITHER: "##### Post-deploy verification run 33000000000" names a check, and its "deploy" belongs to the phrase, so the table below it takes the deploy heading\'s run 34000000000 and the stale row FAILS');
+const laneFromCommit = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` completed successfully from commit',
+    '`0123456789abcdef0123456789abcdef01234567`.',
+    '',
+].join('\n');
+const laneFromCommitRun = run(fixture('lane-from-commit', appended(laneFromCommit), realRb));
+ok(laneFromCommitRun.code === 1 && laneFromCommitRun.json
+    && laneFromCommitRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'THE COMMIT A RUN DEPLOYED FROM IS NOT ITS TRIGGER: manual dispatches are pinned to a commit, so "completed successfully from commit `<sha>`" is not a push run and it FAILS');
+const laneFromPush = [
+    '',
+    '## 2026-09-06 — Staff functions',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` completed successfully on a push to main.',
+    '',
+].join('\n');
+const laneFromPushRun = run(fixture('lane-from-push', appended(laneFromPush), realRb));
+ok(laneFromPushRun.code === 0,
+    'while push and merge wording still exempts the run, because that is what says the guarded step was skipped');
+
+/* ---- 8aq. duplicate slugs; planning after a run id (round 42) --------------- */
+const dupSlug = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'Dispatched from `0123456789abcdef0123456789abcdef01234567`.',
+    '',
+    '```json',
+    JSON.stringify({
+        schema: 'syncview_f27_section4_deployed_versions_v1',
+        deploy_commit: '0123456789abcdef0123456789abcdef01234567',
+        github_run_id: '34000000000',
+        functions: [
+            { slug: 'batch-write', active_version: '35', source_closure_sha256: H.bw, verify_jwt: false },
+            { slug: 'deliverable-write', active_version: '35', source_closure_sha256: H.dw, verify_jwt: false },
+            { slug: 'linear-outbound', active_version: '47', source_closure_sha256: H.lo47, verify_jwt: false },
+            { slug: 'production-write', active_version: '69', source_closure_sha256: 'e'.repeat(64), verify_jwt: false },
+            { slug: 'production-write', active_version: '68', source_closure_sha256: 'd7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a', verify_jwt: false },
+        ],
+    }, null, 2),
+    '```',
+    '',
+].join('\n');
+const dupSlugRun = run(fixture('dup-slug', appended(dupSlug), realRb));
+ok(dupSlugRun.code === 1 && dupSlugRun.json
+    && dupSlugRun.json.failures.some(f => /attestation block\(s\) this guard cannot read/.test(f)),
+    'A SLUG NAMED TWICE IS NOT A RECEIPT: a five-row block whose duplicate `production-write` row carries the stale version is unreadable, so it cannot certify the row it disagrees with');
+const lanePlanTrailing = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` is scheduled for tomorrow after approval.',
+    '',
+].join('\n');
+const lanePlanTrailingRunCheck = run(fixture('lane-plan-after-run', appended(lanePlanTrailing), realRb));
+ok(lanePlanTrailingRunCheck.code === 0,
+    'PLANNING AFTER THE RUN ID STILL COUNTS: "run `X` is scheduled for tomorrow after approval" is a plan, because no completion precedes the run id');
+const laneDoneThenFuture = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch went out (run `34000000000`), which will need a fresh capture.',
+    '',
+].join('\n');
+const laneDoneThenFutureRun = run(fixture('lane-done-then-future', appended(laneDoneThenFuture), realRb));
+ok(laneDoneThenFutureRun.code === 1 && laneDoneThenFutureRun.json
+    && laneDoneThenFutureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'while a completion BEFORE the run id keeps the dispatch: "went out (run `X`), which will need a fresh capture" still FAILS');
+
+/* ---- 8ar. order after the run id; intervening means between (round 43) ------ */
+const laneDoneThenNextPlan = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` completed successfully, while the next',
+    'dispatch is scheduled for tomorrow.',
+    '',
+].join('\n');
+const laneDoneThenNextPlanRun = run(fixture('lane-done-then-next-plan', appended(laneDoneThenNextPlan), realRb));
+ok(laneDoneThenNextPlanRun.code === 1 && laneDoneThenNextPlanRun.json
+    && laneDoneThenNextPlanRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'ORDER DECIDES AFTER THE RUN ID TOO: "run `X` completed successfully, while the next dispatch is scheduled for tomorrow" completes THIS run and plans another, so it FAILS');
+const lanePlanThenDone = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` run `34000000000` is scheduled for tomorrow, after the',
+    'graphics bundle completed today.',
+    '',
+].join('\n');
+const lanePlanThenDoneRun = run(fixture('lane-plan-then-done', appended(lanePlanThenDone), realRb));
+ok(lanePlanThenDoneRun.code === 0,
+    'while a forward word FIRST is still a plan, whatever completed afterwards belongs to something else');
+
+/* ---- 8as. the failure must be this deploy's; colon binding (round 45) ------- */
+const successWithOldFailure = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'Completed successfully. The previous attempt failed; no deployment occurred in run `33999999999`.',
+    '',
+].join('\n');
+const successWithOldFailureRun = run(fixture('success-with-old-failure', appended(successWithOldFailure), realRb));
+ok(successWithOldFailureRun.code === 1 && successWithOldFailureRun.json
+    && successWithOldFailureRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'THE FAILURE MUST BE THIS DEPLOY\'S: an entry that completed successfully and keeps an earlier attempt\'s failure in its body cannot exempt itself with another run\'s failure, and is asked for its receipt');
+const failureOwnRun = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The lane refused on the ancestry check; no deployment occurred in run `34000000000`.',
+    '',
+].join('\n');
+const failureOwnRunRun = run(fixture('failure-own-run', appended(failureOwnRun), realRb));
+ok(failureOwnRunRun.code === 0,
+    'while a failure naming its OWN run, with no completion claimed anywhere in the entry, is still legitimate history and asks for nothing');
+const laneColonBind = [
+    '',
+    '## 2026-09-04 — Companion release',
+    '',
+    'Run `34000000000`: the `deploy-onboarding-edge-functions` manual dispatch completed successfully.',
+    '',
+].join('\n');
+const laneColonBindRun = run(fixture('lane-colon-bind', appended(laneColonBind), realRb));
+ok(laneColonBindRun.code === 1 && laneColonBindRun.json
+    && laneColonBindRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'PUNCTUATION BINDS A LEADING RUN ID TOO: "Run `X`: the `lane` manual dispatch completed successfully" under an OLDER date is newer by its run id, and FAILS');
+
+/* ---- 8au. formatting must not decide the exemption; undated intervening runs (round 46) ---- */
+const partialBareSlug = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The lane failed after deploying production-write. No deployment occurred after that point.',
+    '',
+].join('\n');
+const partialBareSlugRun = run(fixture('partial-bare-slug', appended(partialBareSlug), realRb));
+ok(partialBareSlugRun.code === 1 && partialBareSlugRun.json
+    && partialBareSlugRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'THE SHIPPED FUNCTION COUNTS HOWEVER IT IS WRITTEN: "failed after deploying production-write" is a partial deploy even unquoted, so a later blanket "no deployment occurred" cannot exempt it');
+
+const undatedBetween = [
+    '',
+    '## Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch, run `33600000000`, completed successfully.',
+    '',
+].join('\n');
+const undatedBetweenRun = run(fixture('undated-between', LOG + undatedBetween, rollback({ captures: '64' })));
+ok(undatedBetweenRun.code === 0 && undatedBetweenRun.json
+    && undatedBetweenRun.json.notes.some(n => /run `33600000000` entry records a `deploy-onboarding-edge-functions` dispatch between the two/.test(n)),
+    'AN UNDATED INTERVENING DISPATCH IS STILL INTERVENING: a run id between the two receipts places the entry even with no date on its heading, so the captured version is a NOTE rather than a two-step failure');
+
+/* ---- 8av. a function-scoped denial is not whole-run evidence (round 47) ---- */
+const namedDenial = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed while deploying',
+    'production-comments (run `34000000000`), and did not deploy production-comments.',
+    '',
+].join('\n');
+const namedDenialRun = run(fixture('named-denial', appended(namedDenial), realRb));
+ok(namedDenialRun.code === 1 && namedDenialRun.json
+    && namedDenialRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'A DENIAL THAT NAMES A FUNCTION IS NOT WHOLE-RUN EVIDENCE: the lane deploys two guarded functions before `production-comments`, so "did not deploy production-comments" cannot silence the run');
+
+/* ---- 8aw. appositive schedules; partial deploys stated as going live (round 48) ---- */
+const laneAppositiveSchedule = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch, scheduled for Monday, completed',
+    'successfully (run `34000000000`).',
+    '',
+].join('\n');
+const laneAppositiveScheduleRun = run(fixture('lane-appositive-schedule', appended(laneAppositiveSchedule), realRb));
+ok(laneAppositiveScheduleRun.code === 1 && laneAppositiveScheduleRun.json
+    && laneAppositiveScheduleRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AN APPOSITIVE DATES THE PLAN, NOT THE FUTURE: "the dispatch, scheduled for Monday, completed successfully" is a completed dispatch, so it FAILS');
+
+const partialWentLive = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The lane failed after the first function went live. No deployment occurred after that point.',
+    '',
+].join('\n');
+const partialWentLiveRun = run(fixture('partial-went-live', appended(partialWentLive), realRb));
+ok(partialWentLiveRun.code === 1 && partialWentLiveRun.json
+    && partialWentLiveRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'GOING LIVE IS DEPLOYING: "failed after the first function went live" is a partial deploy, so a later blanket no-deployment sentence cannot exempt it');
+
+/* ---- 8ax. numbered deploys; the no-deployment claim must be this run's (round 49) ---- */
+const numberedDeployed = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The first function was deployed, then the run failed. No deployment occurred after that point.',
+    '',
+].join('\n');
+const numberedDeployedRun = run(fixture('numbered-deployed', appended(numberedDeployed), realRb));
+ok(numberedDeployedRun.code === 1 && numberedDeployedRun.json
+    && numberedDeployedRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A COUNTED FUNCTION COUNTS DEPLOYED TOO: "the first function was deployed, then the run failed" is a partial deploy, so the blanket sentence after it cannot exempt the entry');
+
+const borrowedNothing = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'The current attempt failed (run `34000000000`). The previous attempt deployed nothing',
+    '(run `33999999999`).',
+    '',
+].join('\n');
+const borrowedNothingRun = run(fixture('borrowed-nothing', appended(borrowedNothing), realRb));
+ok(borrowedNothingRun.code === 1 && borrowedNothingRun.json
+    && borrowedNothingRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'AND THE NO-DEPLOYMENT CLAIM MUST BE THIS RUN\'S: a failed entry cannot borrow a previous attempt\'s "deployed nothing" as proof of its own');
+
+/* ---- 8ay. verification headings; the claim must be this attempt's (round 50) ---- */
+const deploymentVerificationHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Deployment verification run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const deploymentVerificationHeadingRun = run(fixture('deployment-verification-heading', appended(deploymentVerificationHeading), realRb));
+ok(deploymentVerificationHeadingRun.code === 1 && deploymentVerificationHeadingRun.json
+    && /34000000000/.test(JSON.stringify(deploymentVerificationHeadingRun.json.failures)),
+    'A DEPLOYMENT VERIFICATION IS STILL A VERIFICATION: the table below it takes the parent deploy heading\'s run 34000000000, not the check\'s, so the stale row FAILS');
+
+const otherAttemptClause = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` current run `34000000000` failed, while the previous',
+    'attempt deployed nothing.',
+    '',
+].join('\n');
+const otherAttemptClauseRun = run(fixture('other-attempt-clause', appended(otherAttemptClause), realRb));
+ok(otherAttemptClauseRun.code === 1 && otherAttemptClauseRun.json
+    && otherAttemptClauseRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND A CLAIM HANDED TO ANOTHER ATTEMPT DOES NOT SILENCE THIS ONE: "the current run failed, while the previous attempt deployed nothing" still FAILS');
+
+/* ---- 8az. completion after a failure; verb-led checks (round 51) ---- */
+const rerunAfterFailure = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    'The initial job failed but the re-run completed successfully. No deployment occurred during',
+    'the failed attempt.',
+    '',
+].join('\n');
+const rerunAfterFailureRun = run(fixture('rerun-after-failure', appended(rerunAfterFailure), realRb));
+ok(rerunAfterFailureRun.code === 1 && rerunAfterFailureRun.json
+    && rerunAfterFailureRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A COMPLETION AFTER A FAILURE STILL COUNTS: "the initial job failed but the re-run completed successfully" claims a deploy, so the entry is asked for its receipt');
+
+const verbLedCheckHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Verify deployment run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const verbLedCheckHeadingRun = run(fixture('verb-led-check-heading', appended(verbLedCheckHeading), realRb));
+ok(verbLedCheckHeadingRun.code === 1 && verbLedCheckHeadingRun.json
+    && /34000000000/.test(JSON.stringify(verbLedCheckHeadingRun.json.failures)),
+    'AND A VERB-LED CHECK IS A CHECK: "Verify deployment run `X`" is not an anchor, so the table below it takes the parent deploy heading\'s run');
+
+/* ---- 8ba. an unnumbered other-attempt claim; validation headings (round 52) ---- */
+const otherAttemptNoRun = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current attempt failed (run `34000000000`). The previous attempt deployed nothing.',
+    '',
+].join('\n');
+const otherAttemptNoRunRun = run(fixture('other-attempt-no-run', appended(otherAttemptNoRun), realRb));
+ok(otherAttemptNoRunRun.code === 1 && otherAttemptNoRunRun.json
+    && otherAttemptNoRunRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'NAMING NO RUN IS NOT DESCRIBING THIS ONE: "The previous attempt deployed nothing" is another attempt\'s evidence, so the failed entry is still asked for its receipt');
+
+const validationHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Deployment validation run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const validationHeadingRun = run(fixture('validation-heading', appended(validationHeading), realRb));
+ok(validationHeadingRun.code === 1 && validationHeadingRun.json
+    && /34000000000/.test(JSON.stringify(validationHeadingRun.json.failures)),
+    'AND A VALIDATION IS A CHECK TOO: "Deployment validation run `X`" is not an anchor, so the table below it takes the parent deploy heading\'s run');
+
+/* ---- 8bb. any other-attempt label; test-led checks (round 53) ---- */
+const retryClaim = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current attempt failed, while the retry deployed nothing.',
+    '',
+].join('\n');
+const retryClaimRun = run(fixture('retry-claim', appended(retryClaim), realRb));
+ok(retryClaimRun.code === 1 && retryClaimRun.json
+    && retryClaimRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'ANY OTHER-ATTEMPT LABEL COUNTS, NOT A CHOSEN FEW: "while the retry deployed nothing" is the retry\'s evidence, so the current failure is still asked for its receipt');
+
+const testLedHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '### Test the deployment — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const testLedHeadingRun = run(fixture('test-led-heading', appended(testLedHeading), realRb));
+ok(testLedHeadingRun.code === 1 && testLedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(testLedHeadingRun.json.failures)),
+    'AND A TEST-LED CHECK IS A CHECK: "Test the deployment — run `X`" is not an anchor, so the readback below it takes the parent deploy heading\'s run');
+
+/* ---- 8bc. confirmation headings; one other-attempt rule for both readers (round 54) ---- */
+const confirmHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Confirm deployment — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const confirmHeadingRun = run(fixture('confirm-heading', appended(confirmHeading), realRb));
+ok(confirmHeadingRun.code === 1 && confirmHeadingRun.json
+    && /34000000000/.test(JSON.stringify(confirmHeadingRun.json.failures)),
+    'A CONFIRMATION IS A CHECK TOO: "Confirm deployment — run `X`" is not an anchor, so the table below it takes the parent deploy heading\'s run');
+
+const laneRetryClaim = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` current run `34000000000` failed, while the retry',
+    'deployed nothing.',
+    '',
+].join('\n');
+const laneRetryClaimRun = run(fixture('lane-retry-claim', appended(laneRetryClaim), realRb));
+ok(laneRetryClaimRun.code === 1 && laneRetryClaimRun.json
+    && laneRetryClaimRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND BOTH READERS USE THE SAME OTHER-ATTEMPT RULE: the retry\'s no-op claim cannot silence the lane run\'s own failure either');
+
+/* ---- 8bd. a check verdict in prose is not a dispatch (round 55) ---- */
+const laneVerificationVerdict = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` verification passed (run `34000000000`).',
+    '',
+].join('\n');
+const laneVerificationVerdictRun = run(fixture('lane-verification-verdict', appended(laneVerificationVerdict), realRb));
+ok(laneVerificationVerdictRun.code === 0,
+    'A VERIFICATION VERDICT IS A CHECK, NOT A DEPLOYMENT: "the `lane` verification passed (run `X`)" asks for nothing, so recording a routine check cannot block a correct row');
+
+/* ---- 8be. the modifier points elsewhere, whatever the noun (round 56) ---- */
+const earlierExecution = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the earlier execution deployed nothing.',
+    '',
+].join('\n');
+const earlierExecutionRun = run(fixture('earlier-execution', appended(earlierExecution), realRb));
+ok(earlierExecutionRun.code === 1 && earlierExecutionRun.json
+    && earlierExecutionRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'THE MODIFIER POINTS ELSEWHERE, WHATEVER THE NOUN: "the earlier execution deployed nothing" is not this run\'s evidence, and no list of nouns decides it');
+
+const failedVerbNotModifier = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed without deploying any function',
+    '(run `33995000000`).',
+    '',
+].join('\n');
+const failedVerbNotModifierRun = run(fixture('failed-verb-not-modifier', appended(failedVerbNotModifier), realRb));
+ok(failedVerbNotModifierRun.code === 0,
+    'while a bare verb is not a modifier: "the dispatch failed without deploying any function" still describes THIS run and asks for nothing');
+
+/* ---- 8bf. "this" claims the attempt as the current one (round 57) ---- */
+const thisInitialAttempt = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'This initial attempt failed without deploying any function.',
+    '',
+].join('\n');
+const thisInitialAttemptRun = run(fixture('this-initial-attempt', appended(thisInitialAttempt), realRb));
+ok(thisInitialAttemptRun.code === 0,
+    '"THIS" CLAIMS THE ATTEMPT AS THE CURRENT ONE: "this initial attempt failed without deploying any function" is the run describing itself, and a zero-deploy failure has no receipt to give');
+
+const theInitialAttempt = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the initial attempt deployed nothing.',
+    '',
+].join('\n');
+const theInitialAttemptRun = run(fixture('the-initial-attempt', appended(theInitialAttempt), realRb));
+ok(theInitialAttemptRun.code === 1 && theInitialAttemptRun.json
+    && theInitialAttemptRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'while the SAME modifier without "this" still points elsewhere, so the borrowed claim is refused');
+
+/* ---- 8bg. a modified occurrence noun; the generic word "check" (round 58) ---- */
+const followUpAttempt = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current attempt failed, while the follow-up attempt deployed nothing.',
+    '',
+].join('\n');
+const followUpAttemptRun = run(fixture('follow-up-attempt', appended(followUpAttempt), realRb));
+ok(followUpAttemptRun.code === 1 && followUpAttemptRun.json
+    && followUpAttemptRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A MODIFIED OCCURRENCE NOUN POINTS ELSEWHERE: "the follow-up attempt deployed nothing" is not this run\'s evidence, whatever the modifier is');
+
+const checkHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Deployment check run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const checkHeadingRun = run(fixture('check-heading', appended(checkHeading), realRb));
+ok(checkHeadingRun.code === 1 && checkHeadingRun.json
+    && /34000000000/.test(JSON.stringify(checkHeadingRun.json.failures)),
+    'AND THE PLAIN WORD IS ENOUGH: "Deployment check run `X`" is not an anchor either, so the table below it takes the parent deploy heading\'s run');
+
+const laneCheckVerdict = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` check passed (run `34000000000`).',
+    '',
+].join('\n');
+const laneCheckVerdictRun = run(fixture('lane-check-verdict', appended(laneCheckVerdict), realRb));
+ok(laneCheckVerdictRun.code === 0,
+    'while "the `lane` check passed (run `X`)" is a check verdict and asks for nothing, so a routine note cannot block a correct row');
+
+/* ---- 8bh. the pointer can follow the noun (round 59) ---- */
+const attemptBeforeIt = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the attempt before it deployed nothing.',
+    '',
+].join('\n');
+const attemptBeforeItRun = run(fixture('attempt-before-it', appended(attemptBeforeIt), realRb));
+ok(attemptBeforeItRun.code === 1 && attemptBeforeItRun.json
+    && attemptBeforeItRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'THE POINTER CAN FOLLOW THE NOUN: "the attempt before it deployed nothing" is another attempt\'s evidence, said the other way round');
+
+/* ---- 8bi. an anchor must SAY it records a deploy (round 60) ---- */
+const captureHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Capture run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const captureHeadingRun = run(fixture('capture-heading', appended(captureHeading), realRb));
+ok(captureHeadingRun.code === 1 && captureHeadingRun.json
+    && /34000000000/.test(JSON.stringify(captureHeadingRun.json.failures)),
+    'AN ANCHOR MUST SAY IT RECORDS A DEPLOY: "Capture run `X`" names no deployment, so the table below it takes the parent deploy heading\'s run and no list of check words has to know the word "capture"');
+
+/* ---- 8bj. a check-led heading; adjectival failure wording (round 61) ---- */
+const checkLedHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Check deployed functions — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const checkLedHeadingRun = run(fixture('check-led-heading', appended(checkLedHeading), realRb));
+ok(checkLedHeadingRun.code === 1 && checkLedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(checkLedHeadingRun.json.failures)),
+    'A CHECK-LED HEADING IS A CHECK, WHATEVER ITS OBJECT SAYS: "Check deployed functions — run `X`" carries the deploy word in its object, so it is not an anchor');
+
+const failedDeploymentAdjective = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The failed deployment deployed nothing.',
+    '',
+].join('\n');
+const failedDeploymentAdjectiveRun = run(fixture('failed-deployment-adjective', appended(failedDeploymentAdjective), realRb));
+ok(failedDeploymentAdjectiveRun.code === 0,
+    'while "failed" describes a state, not an order: "the failed deployment deployed nothing" is this run describing itself and asks for nothing');
+
+/* ---- 8bk. "deployed" as an adjective describes the object (round 62) ---- */
+const inspectDeployedHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Inspect deployed functions — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const inspectDeployedHeadingRun = run(fixture('inspect-deployed-heading', appended(inspectDeployedHeading), realRb));
+ok(inspectDeployedHeadingRun.code === 1 && inspectDeployedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(inspectDeployedHeadingRun.json.failures)),
+    '"DEPLOYED" AS AN ADJECTIVE DESCRIBES THE OBJECT: "Inspect deployed functions — run `X`" is not an anchor, and no list of check verbs has to know the word "inspect"');
+
+/* ---- 8bl. a deployment noun used as an object (round 63) ---- */
+const inspectConfigHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Inspect deployment configuration — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const inspectConfigHeadingRun = run(fixture('inspect-config-heading', appended(inspectConfigHeading), realRb));
+ok(inspectConfigHeadingRun.code === 1 && inspectConfigHeadingRun.json
+    && /34000000000/.test(JSON.stringify(inspectConfigHeadingRun.json.failures)),
+    'A DEPLOYMENT NOUN USED AS AN OBJECT NAMES A THING: "Inspect deployment configuration — run `X`" is not an anchor, in any form of the word');
+
+/* ---- 8bm. a qualified pointer; every shipping word as an object (round 64) ---- */
+const qualifiedPointer = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the attempt immediately before it deployed nothing.',
+    '',
+].join('\n');
+const qualifiedPointerRun = run(fixture('qualified-pointer', appended(qualifiedPointer), realRb));
+ok(qualifiedPointerRun.code === 1 && qualifiedPointerRun.json
+    && qualifiedPointerRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A QUALIFIER DOES NOT BREAK THE POINTER: "the attempt immediately before it deployed nothing" still belongs to that attempt');
+
+const inspectReleasedHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Inspect released functions — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const inspectReleasedHeadingRun = run(fixture('inspect-released-heading', appended(inspectReleasedHeading), realRb));
+ok(inspectReleasedHeadingRun.code === 1 && inspectReleasedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(inspectReleasedHeadingRun.json.failures)),
+    'AND EVERY SHIPPING WORD NAMES A THING THE SAME WAY: "Inspect released functions — run `X`" is not an anchor either');
+
+/* ---- 8bn. leading verbs, two digests, and a claim that names a run (round 65) ---- */
+const transitiveDeployHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '### Deploy production functions — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const transitiveDeployHeadingRun = run(fixture('transitive-deploy-heading', appended(transitiveDeployHeading), realRb));
+ok(transitiveDeployHeadingRun.code === 1 && transitiveDeployHeadingRun.json
+    && /34000000000/.test(JSON.stringify(transitiveDeployHeadingRun.json.failures)),
+    'A SHIPPING VERB THAT LEADS THE HEADING GOVERNS ITS OBJECT: "Deploy production functions — run `X`" is still an anchor and its v69 table is read');
+
+const twoBundles = run(fixture('two-bundles', LOG
+    + '\n**Superseded bundle**: `sealed_bundle_sha256 = 1111111111111111111111111111111111111111111111111111111111111111`,\n'
+    + '`byte_length = 111111`.\n', rollback()));
+ok(twoBundles.code === 1,
+    'AND TWO DIGESTS IN ONE ENTRY NAME TWO BUNDLES: with no statement of which is this deploy\'s, the entry has no readable bundle and the row is asked to prove it');
+
+const claimNamesAnotherRun = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` current run `34000000000` failed, while run',
+    '`33900000000` deployed nothing.',
+    '',
+].join('\n');
+const claimNamesAnotherRunRun = run(fixture('claim-names-another-run', appended(claimNamesAnotherRun), realRb));
+ok(claimNamesAnotherRunRun.code === 1 && claimNamesAnotherRunRun.json
+    && claimNamesAnotherRunRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND A CLAIM THAT NAMES A RUN BELONGS TO THAT RUN: "run `Y` deployed nothing" says nothing about the failure of run `X`');
+
+/* ---- 8bo. a bare shipping noun as an object; a numbered claim (round 66) ---- */
+const inspectBareHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy, run `34000000000`',
+    '',
+    '##### Inspect deployment — run `33000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const inspectBareHeadingRun = run(fixture('inspect-bare-heading', appended(inspectBareHeading), realRb));
+ok(inspectBareHeadingRun.code === 1 && inspectBareHeadingRun.json
+    && /34000000000/.test(JSON.stringify(inspectBareHeadingRun.json.failures)),
+    'A BARE SHIPPING NOUN IS STILL AN OBJECT: "Inspect deployment — run `X`" is not an anchor, with no noun of its own after it');
+
+const numberedClaimUnnumberedFailure = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` current run failed, while run `33900000000`',
+    'deployed nothing.',
+    '',
+].join('\n');
+const numberedClaimUnnumberedFailureRun = run(fixture('numbered-claim-unnumbered-failure', appended(numberedClaimUnnumberedFailure), realRb));
+ok(numberedClaimUnnumberedFailureRun.code === 1 && numberedClaimUnnumberedFailureRun.json
+    && numberedClaimUnnumberedFailureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AND A NUMBERED CLAIM CANNOT ANSWER AN UNNUMBERED FAILURE: "the current run failed, while run `Y` deployed nothing" leaves this run unaccounted for');
+
+/* ---- 8bp. a redeploy is a deploy (round 67) ---- */
+const redeployHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '### Redeploy production functions — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const redeployHeadingRun = run(fixture('redeploy-heading', appended(redeployHeading), realRb));
+ok(redeployHeadingRun.code === 1 && redeployHeadingRun.json
+    && /34000000000/.test(JSON.stringify(redeployHeadingRun.json.failures)),
+    'A REDEPLOY IS A DEPLOY: "Redeploy production functions — run `X`" anchors its own run, so the v69 table below it is not filed under the older parent');
+
+/* ---- 8bq. a predicate is not an object; an unnumbered failure by any noun (round 68) ---- */
+const hotfixDeployedHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Hotfix deployed — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const hotfixDeployedHeadingRun = run(fixture('hotfix-deployed-heading', appended(hotfixDeployedHeading), realRb));
+ok(hotfixDeployedHeadingRun.code === 1 && hotfixDeployedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(hotfixDeployedHeadingRun.json.failures)),
+    'A PREDICATE IS NOT AN OBJECT: "Hotfix deployed — run `X`" records the act and anchors its own run, while "Inspect deployed functions" still names a thing');
+
+const unnumberedDeploymentFailure = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` current deployment failed, while run `33900000000`',
+    'deployed nothing.',
+    '',
+].join('\n');
+const unnumberedDeploymentFailureRun = run(fixture('unnumbered-deployment-failure', appended(unnumberedDeploymentFailure), realRb));
+ok(unnumberedDeploymentFailureRun.code === 1 && unnumberedDeploymentFailureRun.json
+    && unnumberedDeploymentFailureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AND AN UNNUMBERED FAILURE IS UNNUMBERED WHATEVER NOUN IT USES: "the current deployment failed" is no more answered by another run\'s no-op claim than "the current run failed" was');
+
+/* ---- 8br. an adverb is not an object; an unnumbered partial failure (round 69) ---- */
+const adverbPredicateHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Hotfix deployed successfully — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const adverbPredicateHeadingRun = run(fixture('adverb-predicate-heading', appended(adverbPredicateHeading), realRb));
+ok(adverbPredicateHeadingRun.code === 1 && adverbPredicateHeadingRun.json
+    && /34000000000/.test(JSON.stringify(adverbPredicateHeadingRun.json.failures)),
+    'AN ADVERB IS NOT AN OBJECT: "Hotfix deployed successfully — run `X`" is still a predicate and anchors its own run');
+
+const unnumberedPartialFailure = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed after deploying `production-write`.',
+    '',
+].join('\n');
+const unnumberedPartialFailureRun = run(fixture('unnumbered-partial-failure', appended(unnumberedPartialFailure), realRb));
+ok(unnumberedPartialFailureRun.code === 1 && unnumberedPartialFailureRun.json
+    && unnumberedPartialFailureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AND A FAILURE THAT SAYS WHAT IT DEPLOYED IS STILL A DISPATCH: with no run id it is placed by its date, not dropped for having no completion word');
+
+/* ---- 8bs. pre-deploy failures; counted partial progress (round 70) ---- */
+const failedBeforeDeploying = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The run failed before it could deploy any function.',
+    '',
+].join('\n');
+const failedBeforeDeployingRun = run(fixture('failed-before-deploying', appended(failedBeforeDeploying), realRb));
+ok(failedBeforeDeployingRun.code === 0,
+    'A PRE-DEPLOY FAILURE SHIPPED NOTHING: "the run failed before it could deploy any function" is whole-run evidence, so the entry asks for no receipt');
+
+const countedPartialNoRun = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed after deploying the first function.',
+    '',
+].join('\n');
+const countedPartialNoRunRun = run(fixture('counted-partial-no-run', appended(countedPartialNoRun), realRb));
+ok(countedPartialNoRunRun.code === 1 && countedPartialNoRunRun.json
+    && countedPartialNoRunRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AND COUNTED PROGRESS IS THE SAME EVIDENCE AS NAMING IT: "failed after deploying the first function" with no run id is still a dispatch');
+
+/* ---- 8bt. the heading ends a sentence; a heading's result paragraph (round 71) ---- */
+const claimUnderHeading = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    'The previous attempt deployed nothing.',
+    '',
+].join('\n');
+const claimUnderHeadingRun = run(fixture('claim-under-heading', appended(claimUnderHeading), realRb));
+ok(claimUnderHeadingRun.code === 1 && claimUnderHeadingRun.json
+    && claimUnderHeadingRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'A HEADING ENDS A SENTENCE: a body claim on the very next line cannot borrow the heading\'s run id to answer for it');
+
+const laneHeadingResult = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions`',
+    '',
+    'Completed successfully (run `34000000000`).',
+    '',
+].join('\n');
+const laneHeadingResultRun = run(fixture('lane-heading-result', appended(laneHeadingResult), realRb));
+ok(laneHeadingResultRun.code === 1 && laneHeadingResultRun.json
+    && laneHeadingResultRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND A HEADING\'S RESULT IS THE PARAGRAPH BELOW IT: a lane named in the heading with its verdict underneath is one record, not a heading with no verdict');
+
+/* ---- 8bu. a completed deployment noun is still a deploy (round 72) ---- */
+const deploymentCompleteHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment complete — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const deploymentCompleteHeadingRun = run(fixture('deployment-complete-heading', appended(deploymentCompleteHeading), realRb));
+ok(deploymentCompleteHeadingRun.code === 1 && deploymentCompleteHeadingRun.json
+    && /34000000000/.test(JSON.stringify(deploymentCompleteHeadingRun.json.failures)),
+    'A COMPLETED DEPLOYMENT NOUN IS STILL A DEPLOY: "Deployment complete — run `X`" states an outcome, not an inspection object, so it anchors its own run');
+
+/* ---- 8bv. an auxiliary outcome; receipts must agree on the commit (round 73) ---- */
+const auxiliaryOutcomeHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment was successful — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const auxiliaryOutcomeHeadingRun = run(fixture('auxiliary-outcome-heading', appended(auxiliaryOutcomeHeading), realRb));
+ok(auxiliaryOutcomeHeadingRun.code === 1 && auxiliaryOutcomeHeadingRun.json
+    && /34000000000/.test(JSON.stringify(auxiliaryOutcomeHeadingRun.json.failures)),
+    'AN AUXILIARY DOES NOT HIDE THE OUTCOME: "Deployment was successful — run `X`" anchors its own run just as "Deployment complete" does');
+
+const commitDisagreement = run(fixture('commit-disagreement', LOG + [
+    '',
+    '## 2026-09-02 — F27 Section 4 deploy, run `33684111985`',
+    '',
+    'Run `33684111985`, dispatched from `9999999999999999999999999999999999999999`.',
+    '',
+    '```json',
+    '{"schema":"' + 'syncview_f27_section4_deployed_versions_v1' + '","run_id":"33684111985",',
+    '"commit":"9999999999999999999999999999999999999999","functions":[',
+    '{"slug":"batch-write","version":35},{"slug":"deliverable-write","version":35},',
+    '{"slug":"linear-outbound","version":47},{"slug":"production-write","version":66}]}',
+    '```',
+    '',
+].join('\n'), rollback()));
+ok(commitDisagreement.code === 1 && commitDisagreement.json
+    && commitDisagreement.json.failures.some(f => /disagree on deploy commit/.test(f)),
+    'AND TWO RECEIPTS FOR ONE RUN MUST AGREE ON THE COMMIT: preferring the attestation used to discard the disagreement silently');
+
+/* ---- 8bw. an adverb-led deploy heading; "ago" points backwards (round 74) ---- */
+const adverbLedHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Successfully deployed production functions — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const adverbLedHeadingRun = run(fixture('adverb-led-heading', appended(adverbLedHeading), realRb));
+ok(adverbLedHeadingRun.code === 1 && adverbLedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(adverbLedHeadingRun.json.failures)),
+    'AN ADVERB IN FRONT DOES NOT STOP THE VERB LEADING: "Successfully deployed production functions — run `X`" still records the act');
+
+const agoPointer = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The current run failed, while the attempt two runs ago deployed nothing.',
+    '',
+].join('\n');
+const agoPointerRun = run(fixture('ago-pointer', appended(agoPointer), realRb));
+ok(agoPointerRun.code === 1 && agoPointerRun.json
+    && agoPointerRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'AND "AGO" POINTS BACKWARDS AS PLAINLY AS "BEFORE": "the attempt two runs ago deployed nothing" is that attempt\'s evidence, not this run\'s');
+
+/* ---- 8bx. abbreviated commits; adverbs inside the outcome (round 75) ---- */
+const abbreviatedCommit = run(fixture('abbreviated-commit',
+    LOG.replace('`152c050e0179ee127e02d0ea50853960d9019eab`', '`152c050e`') + [
+        '',
+        '```json',
+        '{ "schema": "syncview_f27_section4_deployed_versions_v1",',
+        '  "deploy_commit": "152c050e0179ee127e02d0ea50853960d9019eab",',
+        '  "github_run_id": "33684111985",',
+        '  "functions": [',
+        '    { "slug": "batch-write", "active_version": "35", "source_closure_sha256": "' + H.bw + '" },',
+        '    { "slug": "deliverable-write", "active_version": "35", "source_closure_sha256": "' + H.dw + '" },',
+        '    { "slug": "linear-outbound", "active_version": "47", "source_closure_sha256": "' + H.lo47 + '" },',
+        '    { "slug": "production-write", "active_version": "66", "source_closure_sha256": "' + H.pw66 + '" }',
+        '  ] }',
+        '```',
+        '',
+    ].join('\n'), rollback()));
+ok(abbreviatedCommit.code === 0,
+    'AN ABBREVIATED SHA IS THE SAME COMMIT: a prose receipt naming `152c050e` does not conflict with the attestation carrying the full sha');
+
+const adverbInOutcomeHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment is now complete — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const adverbInOutcomeHeadingRun = run(fixture('adverb-in-outcome-heading', appended(adverbInOutcomeHeading), realRb));
+ok(adverbInOutcomeHeadingRun.code === 1 && adverbInOutcomeHeadingRun.json
+    && /34000000000/.test(JSON.stringify(adverbInOutcomeHeadingRun.json.failures)),
+    'AND AN ADVERB INSIDE THE OUTCOME KEEPS IT: "Deployment is now complete — run `X`" anchors its own run');
+
+/* ---- 8by. going live is an outcome (round 76) ---- */
+const nowLiveHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment is now live — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const nowLiveHeadingRun = run(fixture('now-live-heading', appended(nowLiveHeading), realRb));
+ok(nowLiveHeadingRun.code === 1 && nowLiveHeadingRun.json
+    && /34000000000/.test(JSON.stringify(nowLiveHeadingRun.json.failures)),
+    'GOING LIVE IS AN OUTCOME: "Deployment is now live — run `X`" anchors its own run, like "complete" and "successful" before it');
+
+/* ---- 8bz. "went live" is the same outcome (round 77) ---- */
+const wentLiveHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Deployment went live — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const wentLiveHeadingRun = run(fixture('went-live-heading', appended(wentLiveHeading), realRb));
+ok(wentLiveHeadingRun.code === 1 && wentLiveHeadingRun.json
+    && /34000000000/.test(JSON.stringify(wentLiveHeadingRun.json.failures)),
+    '"WENT LIVE" IS THE SAME OUTCOME AS "IS LIVE": the verb in front of it does not change what the heading records');
+
+/* ---- 8ca. plain adverbs lead too; the direct pre-deploy form (round 78) ---- */
+const nowDeployedHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Now deployed production functions — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const nowDeployedHeadingRun = run(fixture('now-deployed-heading', appended(nowDeployedHeading), realRb));
+ok(nowDeployedHeadingRun.code === 1 && nowDeployedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(nowDeployedHeadingRun.json.failures)),
+    'A PLAIN ADVERB LEADS AS WELL AS AN -LY ONE: "Now deployed production functions — run `X`" still records the act');
+
+const failedBeforeDeployingDirect = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The run failed before deploying any function.',
+    '',
+].join('\n');
+const failedBeforeDeployingDirectRun = run(fixture('failed-before-deploying-direct', appended(failedBeforeDeployingDirect), realRb));
+ok(failedBeforeDeployingDirectRun.code === 0,
+    'AND THE DIRECT PRE-DEPLOY FORM IS THE SAME EVIDENCE: "failed before deploying any function" asks for no receipt either');
+
+/* ---- 8cb. the section is the scope; a check is not a deploy step (round 79) ---- */
+const laneHeadingLaterResult = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions`',
+    '',
+    'The staff functions were re-pinned after the schema change, which is why this ran',
+    'outside the usual window.',
+    '',
+    'Completed successfully (run `34000000000`).',
+    '',
+].join('\n');
+const laneHeadingLaterResultRun = run(fixture('lane-heading-later-result', appended(laneHeadingLaterResult), realRb));
+ok(laneHeadingLaterResultRun.code === 1 && laneHeadingLaterResultRun.json
+    && laneHeadingLaterResultRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'THE SECTION IS THE SCOPE: a heading, a paragraph of context, then "Completed successfully (run `X`)" is one record, not a heading with no verdict');
+
+const beforeVerification = [
+    '',
+    '## 2026-09-06 — F27 Section 4 deploy failed, run `34000000000`',
+    '',
+    'The run failed before any function verification.',
+    '',
+].join('\n');
+const beforeVerificationRun = run(fixture('before-verification', appended(beforeVerification), realRb));
+ok(beforeVerificationRun.code === 1 && beforeVerificationRun.json
+    && beforeVerificationRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
+    'AND A CHECK IS NOT A DEPLOY STEP: "failed before any function verification" says when the checking stopped, not that nothing shipped');
+
+/* ---- 8cc. a run bound to prose, and context before the result (round 80) ---- */
+
+/* THE RUN A BROKEN ENTRY NAMES ONLY IN PROSE STILL DATES IT. Round 38 taught
+   the sweep to read a `github_run_id` out of a truncated attestation, but an
+   unreadable entry that states its outcome in a sentence -- "Completed
+   successfully (run `X`)" -- carries the id nowhere the heading or a JSON block
+   can see. Its older heading date then softened a NEWER deploy to a note while
+   four malformed rows went unread, and the guard exited 0 against the stale
+   run. */
+const proseRunUnreadable = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'Completed successfully (run `34000000000`).',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const proseRunUnreadableRun = run(fixture('prose-run-unreadable', appended(proseRunUnreadable), realRb));
+ok(proseRunUnreadableRun.code === 1 && proseRunUnreadableRun.json
+    && proseRunUnreadableRun.json.failures.some(f => /"2026-09-04 — F27 Section 4 deploy"/.test(f)
+        && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'A RESULT SENTENCE DATES A BROKEN ENTRY: an unreadable section whose prose names a run NEWER than the live receipt is a failure, not history softened by its older heading date');
+
+/* And the sentence must still say THIS deploy finished. A planned run, a
+   check's run and another attempt's run named the same way stay out of it, so
+   the entry is still placed by its heading date. */
+const proseRunNotOurs = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'The dry-run passed (run `34000000000`). The previous attempt completed on run',
+    '`34000000001`. The follow-up smoke test will run `34000000002` tomorrow.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const proseRunNotOursRun = run(fixture('prose-run-not-ours', appended(proseRunNotOurs), realRb));
+ok(proseRunNotOursRun.code === 0 && proseRunNotOursRun.json
+    && proseRunNotOursRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy"/.test(n)
+        && /is dated by its own heading/.test(n)),
+    'while a check\'s run, another attempt\'s run and a planned run in the same prose do not date it, and it stays a note');
+
+/* CONTEXT MAY STAND BETWEEN A LABEL AND ITS RESULT. Round 79 made the section
+   the scope; the reader still took only the FIRST sentence after the reference,
+   so two sentences of context dropped the record of a lane that can move
+   `production-write`, and the stale row exited 0. */
+const twoContextSentences = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'The onboarding stack needed the new applicant columns. The lane also carries',
+    'the staff-sensitive functions in its set. Completed successfully (run',
+    '`34000000000`).',
+    '',
+].join('\n');
+const twoContextSentencesRun = run(fixture('two-context-sentences', appended(twoContextSentences), realRb));
+ok(twoContextSentencesRun.code === 1 && twoContextSentencesRun.json
+    && twoContextSentencesRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND THE SCAN RUNS PAST CONTEXT: two descriptive sentences between a lane label and "Completed successfully (run `X`)" do not drop the record');
+
+/* But a later sentence with a subject of its own is still about that subject,
+   however far down it sits: the probe's verdict is not the dispatch's. */
+const probeAfterContext = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'The onboarding stack needed the new applicant columns. The lane also carries',
+    'the staff-sensitive functions in its set. Smoke probe completed successfully',
+    '(run `34000000000`).',
+    '',
+].join('\n');
+const probeAfterContextRun = run(fixture('probe-after-context', appended(probeAfterContext), realRb));
+ok(probeAfterContextRun.code === 0,
+    'while a sentence that opens with a subject of its own ("Smoke probe completed successfully") is still that subject\'s verdict, not the label\'s');
+
+/* ---- 8cd. an aside is not a plan; a trailing check is not the owner (round 81) ---- */
+
+/* A FORWARD-LOOKING WORD IN AN ASIDE IS NOT A PLAN FOR THE DISPATCH. A note
+   about what the deploy is for sits between the label and its result, and its
+   "will" preceded the completion, so the whole record read as a plan and the
+   lane went unseen. */
+const asideBeforeResult = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'This will support the new applicant columns. Completed successfully (run',
+    '`34000000000`).',
+    '',
+].join('\n');
+const asideBeforeResultRun = run(fixture('aside-before-result', appended(asideBeforeResult), realRb));
+ok(asideBeforeResultRun.code === 1 && asideBeforeResultRun.json
+    && asideBeforeResultRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AN ASIDE IS NOT A PLAN: "This will support the new applicant columns" before the completion does not turn a finished dispatch into a plan');
+
+/* And a forward-looking sentence that IS about the dispatch still ends it. */
+const planAboutDispatch = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'Will be dispatched tomorrow once the capture lands.',
+    '',
+].join('\n');
+const planAboutDispatchRun = run(fixture('plan-about-dispatch', appended(planAboutDispatch), realRb));
+ok(planAboutDispatchRun.code === 0,
+    'while "Will be dispatched tomorrow" is about the dispatch itself and still reads as a plan, asking for no receipt');
+
+/* A CHECK WORD AFTER THE RUN ID DOES NOT TAKE IT. The completion precedes and
+   owns the id; discarding the sentence for containing "validation" anywhere
+   softened a malformed NEWER receipt back to a note. */
+const trailingCheckWord = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'Completed successfully (run `34000000000`) after validation.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const trailingCheckWordRun = run(fixture('trailing-check-word', appended(trailingCheckWord), realRb));
+ok(trailingCheckWordRun.code === 1 && trailingCheckWordRun.json
+    && trailingCheckWordRun.json.failures.some(f => /"2026-09-04 — F27 Section 4 deploy"/.test(f)),
+    'A TRAILING CHECK WORD DOES NOT OWN THE RUN: "Completed successfully (run `X`) after validation" still dates the entry by that run');
+
+/* But a check that owns the run outright still does, so the entry stays a note. */
+const checkOwnsTheRun = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'The validation passed (run `34000000000`).',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const checkOwnsTheRunRun = run(fixture('check-owns-the-run', appended(checkOwnsTheRun), realRb));
+ok(checkOwnsTheRunRun.code === 0 && checkOwnsTheRunRun.json
+    && checkOwnsTheRunRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy"/.test(n)),
+    'while "The validation passed (run `X`)" is the check\'s run and does not date the entry, which stays a note');
+
+/* ---- 8ce. an outcome word is not an outcome; an adjunct owns nothing (round 82) ---- */
+
+/* CONTAINING AN OUTCOME WORD IS NOT OPENING WITH ONE. An impact statement kept
+   itself alive past the aside filter because "client success" matches the
+   completion vocabulary, and its "will" then made the whole record a plan. */
+const outcomeWordAside = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'This will improve client success. Completed successfully (run `34000000000`).',
+    '',
+].join('\n');
+const outcomeWordAsideRun = run(fixture('outcome-word-aside', appended(outcomeWordAside), realRb));
+ok(outcomeWordAsideRun.code === 1 && outcomeWordAsideRun.json
+    && outcomeWordAsideRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AN OUTCOME WORD IS NOT AN OUTCOME: "This will improve client success" is an impact statement, not a verdict, and does not keep the aside alive');
+
+/* A CHECK NAMED AS AN ADJUNCT OWNS NOTHING. "after validation" has no predicate
+   of its own; only a check that binds the id takes it. */
+const trailingAdjunct = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'Completed successfully after validation (run `34000000000`).',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const trailingAdjunctRun = run(fixture('trailing-adjunct', appended(trailingAdjunct), realRb));
+ok(trailingAdjunctRun.code === 1 && trailingAdjunctRun.json
+    && trailingAdjunctRun.json.failures.some(f => /"2026-09-04 — F27 Section 4 deploy"/.test(f)),
+    'AN ADJUNCT OWNS NOTHING: "Completed successfully after validation (run `X`)" still dates the entry by that run');
+
+/* while a check that BINDS the id still takes it. */
+const readbackOwnsRun = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'The deploy completed. The readback for run `34000000000` follows.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const readbackOwnsRunRun = run(fixture('readback-owns-run', appended(readbackOwnsRun), realRb));
+ok(readbackOwnsRunRun.code === 0 && readbackOwnsRunRun.json
+    && readbackOwnsRunRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy"/.test(n)),
+    'while "the readback for run `X`" binds the id to the check and does not date the entry, which stays a note');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);
 ok(real.code === 0, 'and the repository as it stands right now is consistent');
+ok(real.json && real.json.notes.some(n => /Deploy: batch folder links, after two blockers on one call stack/.test(n) && /1 versions-table row\(s\)/.test(n) && /before the newest readable receipt/.test(n)),
+    'the 2026-08-31 entry, whose table abbreviates one closure beside three full ones (its receipt is the concise prose), is a NOTE for that one row rather than a failure, because it predates the newest receipt');
+ok(real.json && real.json.notes.some(n => /Deploys #9-#13 — GAP/.test(n) && /before the newest readable receipt/.test(n)),
+    'the historical "Deploys #9-#13 — GAP" section, whose four un-receipted runs can never be read, is a NOTE rather than a failure because its entry predates the newest receipt -- an old gap cannot make the row stale, and a guard that failed on it forever would be ignored');
+ok(real.json && !real.json.failures.some(f => UNREADABLE.test(f)),
+    'and every Section 4 deploy entry in the real log is one the guard can read, today included');
 
 fs.rmSync(tmp, { recursive: true, force: true });
 

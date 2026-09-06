@@ -379,8 +379,8 @@ const CANDIDATES = new Map([
     // empty slot (43 of 1,567 buckets hold more than one post; one holds
     // seven). One extra client-pinned read, asked only when the post spans
     // more than one bucket.
-    // Re-pinned 2026-09-05 (thirtieth release, NOT YET DEPLOYED at time of
-    // writing -- v67 carries the twenty-ninth): the exclusivity read treats a
+    // Re-pinned 2026-09-05 (thirtieth release; deployed as v68 the same day,
+    // together with the thirty-first below): the exclusivity read treats a
     // result that came back at exactly its limit as UNKNOWN. Exclusivity is
     // decided by absence, so a truncated page could hide the row that makes a
     // bucket shared and the bucket would be offered as a write target for
@@ -388,9 +388,9 @@ const CANDIDATES = new Map([
     // "offer the wrong row" rather than "offer nothing". Unreachable on today's
     // data (largest bucket 60 rows, largest split post's candidates 33, limit
     // 800). One comparison; no new query, no new import, file count 5.
-    // Re-pinned 2026-09-05 (thirty-first release, NOT YET DEPLOYED at time of
-    // writing -- v67 still carries the twenty-ninth, so the next dispatch takes
-    // the thirtieth and this together): asset_access_read reuses a verdict the
+    // Re-pinned 2026-09-05 (thirty-first release; deployed as v68 the same
+    // day, run 33991332628, together with the thirtieth): asset_access_read
+    // reuses a verdict the
     // evidence ledger already holds for the same (slot, url_sha256) within
     // ASSET_EVIDENCE_MAX_AGE_MS in place of the live probe, and `recheck: true`
     // from the Refresh access button skips the ledger. One new read on

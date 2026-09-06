@@ -329,3 +329,15 @@ the cost is real, but it is a bigger number than this file first said.
 
 Nothing else is blocked. Everything in §3 is the same either way and can be
 written the moment the first answer lands.
+
+## Addendum (2026-09-06): the visual editor
+
+The description now edits in place (WIRED-PARITY 39). A paste or drop into
+the visual editor takes the same path as the textarea: the placeholder line
+`![Uploading image N…]()` is inserted into the Markdown draft on its own
+line, so every guard above holds unchanged (Save refuses a draft carrying
+one; a failed upload removes the line). What differs is only what the writer
+sees: the placeholder renders as an "Uploading image…" chip and, when the
+URL comes back, as the image itself, swapped in the DOM without a rebuild so
+the caret stays put. The Markdown textarea remains available behind the
+Markdown toggle and behaves exactly as documented above.

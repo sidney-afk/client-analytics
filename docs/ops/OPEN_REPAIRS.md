@@ -12657,6 +12657,30 @@ Pin: `PRODUCTION_WRITE_SOURCE_SHA256` re-pinned with this change. Live is still
 `d2914ac2…` (v67, deployed from `a05e1126`); the repo had already moved to
 `6a39a2bc…` (the exclusivity truncation guard). The next dispatch carries both.
 
+**Closed out, same day.** Deployed as `production-write` v68 (closure
+`d7fc8348…`) from `3d534cfa…`, run 33991332628, green on the first attempt with
+the capture, the Drive upload and the dispatch in the order CLAUDE.md now
+states; the truncation guard from #1294 shipped with it. Codex found one real
+hole in review (a cleared file's pill would have stayed up for the session once
+entries survived a refresh) and it was fixed before merge. The owner applied the
+optional index before dispatching. The five-minute window decision above stays
+open.
+
+**And one more finding out of the deploy record, Codex P1 on #1306.**
+`ROLLBACK.md`'s Live State row still said `production-write` v66 with bundle
+`3010578b…` (v65) as the one-step restore, through both of today's deploys. The
+freshness guard (`scripts/rollback-row-freshness-check.js`) never disagreed
+because neither deploy entry was written in a shape it parses (slugs unquoted in
+the table, no run id in the heading, no attestation block), so it kept comparing
+the row against the 2026-09-02 receipt. A restore by that row would have stepped
+back three releases. Fixed in the same PR: both entries rewritten in the parsed
+shape, the row moved to v68 / `fc9f12f7…` (captures v67), and the guard itself
+now refuses a Section 4 deploy entry it cannot read (Codex's second round: a
+real-file run alone would have stayed green on the next malformed entry, and the
+guard's suite already ran one). Three fixtures prove it: the exact shape that
+blinded it is named by line, a table without the heading is still caught, and
+the same entry in the parsed shape is read and fails for the row instead.
+
 ## 156. [2026-09-05, RULED, WRITTEN, APPLIED LIVE TWICE AND RUN — 100 of 100, 7 for a person; updates items 147/148] The crosswalk repair's kind guard refused 40 slots that were right; the card wins, in source
 
 Item 148's RPC required a deliverable's `kind` to match the card slot ("team is
@@ -13100,7 +13124,86 @@ success, the original bytes travel untouched. [P2] Typing during an upload
 re-enabled Save through the draft-input path; both paths now respect the
 upload state.
 
-## 158. [2026-09-05, DRAFT — unmerged, disabled by default, on PR1302; numbered 157 in the source draft] Explicit and automatic assignment still asked Linear on a native-admitted intake
+## 158. [2026-09-06, BUILT — owner decisions listed] The description edits in place, like Linear's
+
+**Owner (2026-09-06, with three screenshots of the Source editor):** *"can you
+make the description ... the same size as the description ... when we edit a
+description I would like it to behave like linear ... when we click edit it
+shouldn't change the way we are viewing things ... not a small box where we
+need to scroll down ... for the links we shouldn't see those weird brackets
+and parentheses ... if we hover over a link we can change the name of the
+hyperlink or the link ... when we paste an image we shouldn't see that weird
+thing that says pasted image, we should just see the actual image ... that
+applies for every kind of description of work ... slight bug: when I click
+edit and scroll down, it scrolls back up."*
+
+**What was there.** Edit replaced the rendered description with a boxed
+textarea (190px min, 520px max, its own scrollbar) carrying Source/Preview
+tabs and the raw Markdown: `[label](url)`, `![Pasted image 1](https://…)`.
+
+**What shipped.** The rule behind the five observations, applied to the
+surface: a description of work edits IN PLACE, in its rendered form. Details
+and the module are in `docs/syncview-design/WIRED-PARITY.md` item 39. In one
+line each: the editor is the read view made editable (same classes, same
+box, grows with the text); links are links, hover for a card that opens or
+edits text and URL; a pasted image is the image, a chip while it uploads;
+`- `, `# `, `---` shape the line as typed; Ctrl/Cmd+K links; a URL pasted
+over a selection becomes its link; clicking the read text starts editing at
+the click; Markdown is one toggle away and is what opens, with a reason,
+when the text would not survive the visual editor byte for byte.
+
+**The scroll report.** Mechanism, from the code rather than a live
+reproduction (no backend in the sandbox): every render rebuilds the pane and
+restores focus plus caret; Chrome reveals a restored caret by scrolling its
+container, so a reader who had scrolled past the editor was pulled back to
+the caret line on the next 30-second tick. Every focus/caret restore now runs
+under a scroll lock that puts the pane and window offsets back, and the
+editor no longer has an inner scroll box to fight. Proven in the browser
+lane: a render while editing keeps focus and the pane offset.
+
+**Found on the way.** The read renderer joined every line with `<br>`, which
+after a block (heading, rule, bullet, image) drew a spare empty line the
+source did not have; laying the editor over the read view exposed it. Fixed
+in `_prodLinkify`; the read view is tighter by one line after each of those.
+
+**Sweep (rule: every surface that edits Markdown rendered by
+`_prodLinkify`).** A1 deliverable description panel, also the batch parent
+through the same panel: FIXED here. A2 create-issue dialog description
+textarea and A3 comment composer: same rule applies, not built in this round,
+owner decisions below. C1/C2 Submit-tab intake notes feed the same field
+from another tab: owner decision. Captions, creative direction, review
+comments, onboarding answers, templates, agreements, PTO, credentials are not
+Markdown surfaces (escaped pre-wrap renderers): the rule does not apply.
+Stated as a claim.
+
+**Owner decisions.**
+1. Autosave on blur (the artifact does it; Linear autosaves). Kept explicit
+   Save/Cancel because a blur here writes to Linear. Recommend: keep explicit
+   for one more round, revisit once the editor has been lived in.
+2. Hide the Markdown toggle (Linear has none). Recommend: keep it; it is the
+   only honest path for the descriptions the visual editor cannot reproduce.
+3. Rich composer in the create-issue dialog (A2). Recommend: yes, next round,
+   same module.
+4. Rich comment composer (A3), link-only as comments are today. Recommend:
+   yes, after A2.
+5. Submit-tab notes (C1/C2). Recommend: no; they are typed once and land in
+   this panel, where they are editable in place.
+
+**Round one (Codex on #1320): three taken.** [P1] Tab was swallowed by the
+editor and trapped keyboard focus; it is left to the browser now. [P1]
+Remove link detached the anchor before the card's hide routine looked for
+the editor through it, so focus stayed on the hidden card; the root and
+caret are taken first and given back. [P2] A link text with `]` or an
+address with `)` serialized to Markdown the parser could not read back;
+addresses that the plain forms cannot carry now go out in the angle form,
+and the card refuses `[ ]` in text and `< >` in an address with a visible
+note. The lane also gained per-section phase markers after the first CI
+red reported under an assignee phase.
+
+
+Integration numbering: the four draft-only rows formerly 158-161 are now 159-162 after preserving current main's description-editor row 158. Original source-draft labels and commit-pinned historical citations remain unchanged.
+
+## 159. [2026-09-05, DRAFT — unmerged, disabled by default, on PR1302; numbered 157 in the source draft] Explicit and automatic assignment still asked Linear on a native-admitted intake
 
 Numbered against current main (156 is its last item); this branch is based on
 PR1302, so check for a duplicate header at integration.
@@ -13185,7 +13288,7 @@ still a RELEASE BLOCKER. See `TRACK_B_BACKUP.md` and the dated restore correctio
 audit. Default schedule, journal SQL, frozen writers and live configuration stay
 unchanged by source preparation.
 
-## 159. [2026-09-05, DRAFT REPAIR — source and synthetic proof; release held; numbered 157 in the source draft] Samples could turn a failed or incomplete read into an empty board, and unfinished local work needed an owned recovery path
+## 160. [2026-09-05, DRAFT REPAIR — source and synthetic proof; release held; numbered 157 in the source draft] Samples could turn a failed or incomplete read into an empty board, and unfinished local work needed an owned recovery path
 
 **Owner and scope.** First Samples release #1295, coordinated under the
 Linear-exit plan #1268. This entry records the existing #1269 reader/local-work
@@ -13228,7 +13331,7 @@ infer a live fix, full comment history or zero-loss guarantee from the offline
 checks. Close this entry only with the reviewed release, serving and bounded
 journey/recovery receipts, or an explicit owner decision to abandon it.
 
-## 160. [2026-09-05, IMPLEMENTATION DRAFT, unapplied, disabled; numbered 156 in its source draft] Native intake child recovery and visible card-completion debt
+## 161. [2026-09-05, IMPLEMENTATION DRAFT, unapplied, disabled; numbered 156 in its source draft] Native intake child recovery and visible card-completion debt
 
 **2026-09-06 bounded compatibility evidence — still held:** retained native jobs have
 distinct HTTP source markers, but both freshly read published n8n fallback graphs strip
@@ -13380,7 +13483,7 @@ completion is not declared and Decision A is not ready.
 
 **Item 160 independent follow-up, local/unapplied (formerly 156):** shared state completion now requires reciprocal manifest-child identity, so a moved or cleared child remains visible debt even if the old card slot still names it. The baseline false green reproduced on both Calendar and Samples. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md` for current proof and the held creation protocol. No authorization to re-gate anonymous writers is inferred.
 
-## 161. [2026-09-06, CANDIDATE — source-only; numbered 156 in its source draft] Accepted Calendar feedback recovery with exact companion receipts
+## 162. [2026-09-06, CANDIDATE — source-only; numbered 156 in its source draft] Accepted Calendar feedback recovery with exact companion receipts
 
 **Defect class.** A client's Calendar tweak/note writes twice: the native
 canonical comment (accepted, receipted) and the source card cell through the

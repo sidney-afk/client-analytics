@@ -1,6 +1,6 @@
 # Bounded Linear outbound cutoff prerequisite (G8)
 
-**Status (2026-09-06): SOURCE + OFFLINE checks; disposable PostgreSQL rehearsal is opt-in. NOT installed, enabled, deployed, or global G8 proof.**
+**Status (2026-09-06): 13 actual disposable PostgreSQL/gateway/worker-helper groups and 12 offline controls pass after independent correction. NOT installed, enabled, deployed, or global G8 proof.**
 
 ## Problem and bounded result
 
@@ -8,17 +8,17 @@ The `linear-outbound` worker currently claims and completes `mirror_outbox` rows
 
 `2026-09-06-linear-outbound-cutoff.sql` adds one inactive singleton control, generation and authorization fields, an enqueue-generation trigger, service-only claim/authorize/activate RPCs, and a stale-worker update guard. The Edge Function uses the claim RPC and obtains server authorization immediately before its provider mutation. Activation increments the generation and records the exact `max(id)` high-water observation while holding the same control row used by enqueue, claim, and authorization.
 
-This is deliberately not a writer freeze. A native staff/client transaction that already owns an outbox receipt continues to commit during cutoff. Its receipt remains `pending`, is stamped `accepted_after_cutoff`, and cannot be claimed. It is classified debt, not deleted and not converted to `written`, `skipped`, or any invented success. Existing dedup keys remain the durable retry identities.
+Native-only gateway receipts remain terminal `skipped` with their original identities and are not counted as outstanding provider debt. A client feedback transaction that still emits a provider mirror receipt commits its native comment/mutation receipt; its mirror remains `pending`, is classified `accepted_after_cutoff`, and cannot be claimed. No debt is deleted or converted to invented success. Generation stamping runs after the native receipt classifiers.
 
 ## Exact covered roots
 
 | Root | Coverage |
 |---|---|
 | `linear-outbound` ordinary `mirror_outbox` claim | Replaced by `linear_outbound_claim_v1`; active/missing/drifted control refuses. |
-| `linear-outbound` provider mutation | `linear_outbound_authorize_dispatch_v1` runs immediately before the mutation. A claim that serialized before cutoff is marked `claimed_before_cutoff`; if it already obtained dispatch authorization it is instead marked `authorized_before_cutoff`. Later authorization is refused. |
+| `linear-outbound` provider mutation | `linear_outbound_authorize_dispatch_v1` runs immediately before the mutation. The service-only debt census derives `claimed_before_cutoff` or `authorized_before_cutoff` from retained facts. Activation changes only control, preserving every accepted queue row. Later authorization is refused. |
 | Direct checkpoint/release updates by that worker | The row trigger refuses a lease from an older generation after cutoff, including delayed application/unlock. |
 | Production comment outbox | Covered only because `production_comment_write` durably enqueues comments in the same `mirror_outbox` lane. Native `production_comments` storage remains independent and accepted. |
-| Native deliverable/batch outbox receipts | Enqueue stays durable and idempotent; post-cutoff rows are held/classified instead of dispatched. |
+| Native deliverable/batch outbox receipts | Native-only terminal receipts and exact retries stay unchanged; any still-provider mirror intent remains explicit pending debt. |
 
 A provider response lost after a pre-cutoff authorization is not called success by the cutoff. If its terminal database receipt committed, replay sees the existing terminal/dedup identity. If it did not commit, the row remains `authorized_before_cutoff` pending debt and stale application is refused; provider-side outcome reconciliation remains required before any later release.
 
@@ -37,8 +37,16 @@ No n8n/workflow/scheduler, credential, runtime flag, F27 fence generation, autho
 
 ## Installation, rehearsal, and recovery dependencies
 
-Installation is held until the exact migration and matching `linear-outbound` source are reviewed, installed/deployed as one release window, source/readback verified, and the existing F27 install/recovery contract is reconciled with the added table, columns, triggers, and changed function dependency. Deploying only the Edge Function fails closed at claim; installing only SQL leaves the old direct claimant able to bypass the claim RPC, although the stale-worker guard still blocks post-cutoff application. Neither partial state is releasable.
+Installation is held until the exact migration and matching `linear-outbound` source are reviewed, installed/deployed as one release window, source/readback verified, and the existing F27 install/recovery contract is reconciled with the added table, columns, triggers, and changed function dependency. Deploying only the Edge Function fails closed at claim. With SQL installed, the corrected update guard also refuses a fresh lease from the unchanged old direct claimant after cutoff; this bounded control does not make a partial release ready. The new control owner is outside selected37 recovery and must be included in an explicit compatible recovery extension before installation. Source closure pins must be recomputed on the combined release candidate.
 
 The primitive starts inactive (`cutoff_enabled=false`, generation zero). There is intentionally no public or automatic re-enable RPC. Recovery must first reconcile every `authorized_before_cutoff` row against provider truth and classify every `accepted_after_cutoff` receipt without deleting it or manufacturing success. A later reviewed recovery delta may advance from an exact generation only after that debt manifest and compatible accepted-work rollback exist.
 
-Run `node scripts/linear-outbound-cutoff-rehearsal.js` normally for an honest `UNPROVEN` skip. Against an explicitly owner-started disposable loopback PostgreSQL instance, set `G8_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY`, `G8_TEST_PSQL` to an absolute `psql`, and `G8_TEST_PORT`. The rehearsal creates and removes one random database; it never starts/stops a server or reaches external services. It proves two workers contending around cutoff, stale application refusal, lost-response replay behavior, native and feedback receipt survival, unavailable-control refusal, and exact receipt/debt conservation.
+Run `node scripts/linear-outbound-cutoff-rehearsal.js` normally for an explicit skip. With an owned disposable loopback PostgreSQL instance, set `G8_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY`, `G8_TEST_PSQL` to an absolute `psql`, `G8_TEST_PORT`, and its synthetic password. The rehearsal creates and retains one random database and private evidence; it never starts/stops a server or reaches external services. The discovered unit wrapper requires this actual lane under CI's existing explicit F63 binding. No hosted result is anticipated.
+
+## Correction evidence and monitoring obligation
+
+Imported cloud source is preserved at `7514281aad4cef7f5baebdc47fa54cbec5a57d96`. Its replacement real-schema proof produced 9 PASS / 2 FAIL: the old worker could obtain a new lease after cutoff, and native terminal receipts were classified as provider debt. The correction also removes activation's transaction-local exception and its queue-row updates. An independent review found table/control lock-order and missing-control false-empty census gaps; explicit table locks now precede control in claim/authorize/activation, and the census function raises when control is absent, including instead of returning an empty result.
+
+Final actual result: 13 PASS / 0 FAIL with zero external requests. SQL SHA-256 `a706c7107d935e98f8520b98e1acaa6b648c07077fce1b964d421e0e0686709e`; worker source `ade50181c0bf79bc1bf81a774b0bff5b641213347b601a69cb2679a75cd13f28`; private report `12f1a405b539d2f904fb76682a50e05e1b55acc0d37ff25fb770b1723f281dee`. Actual concurrent sessions observe blocked table and enqueue locks, prove unchanged queue images across activation, retain native gateway acceptance/retry and client-comment receipts, and reject unavailable control. The lock-order cases use an F27-shaped table lock; they are not a full F27 rollback drill. A prior 10/1 correction run contains a fixture-only nested `SET ROLE` syntax error and is retained separately.
+
+Before activation, an independent scheduled service reader must compare the census with the full outbox population, monitor receipt/debt growth and serving version, and deliver a deliberately failed-check notification to the owner's SyncViewbot Slack DM plus a separately verified missed-run fallback. It must treat a census error or missing control as failure, never zero debt, and publish counts/codes only. This requires operational scheduling/delivery work and is INACTIVE here. The census cannot prove absence of provider reads, other queues, other runtimes or a previously authorized network request; global egress evidence remains separate. Clients see no change while this draft is unapplied.

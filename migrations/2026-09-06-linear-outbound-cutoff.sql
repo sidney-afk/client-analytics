@@ -48,15 +48,32 @@ begin
   where lane = 'mirror_outbox' for share;
   if not found then raise exception 'linear_cutoff_control_unavailable'; end if;
   new.outbound_generation := v_control.generation;
-  if v_control.cutoff_enabled then
+  if v_control.cutoff_enabled and new.status not in ('written', 'skipped') then
     new.cutoff_disposition := 'accepted_after_cutoff';
+  else
+    new.cutoff_disposition := null;
   end if;
   return new;
 end $fn$;
 
 drop trigger if exists linear_outbound_stamp_generation_v1 on public.mirror_outbox;
-create trigger linear_outbound_stamp_generation_v1 before insert on public.mirror_outbox
+-- Run after the native receipt classifiers, which terminalize native-only
+-- intents on INSERT. Their receipts are not outstanding provider debt.
+create trigger zzzz_linear_outbound_stamp_generation_v1 before insert on public.mirror_outbox
 for each row execute function public.linear_outbound_stamp_generation_v1();
+
+-- Ordinary direct-table workers also acquire this shared control lock before
+-- locking a queue row. Activation touches only the control row, so all worker
+-- paths use one lock order without rewriting accepted queue history.
+create function public.linear_outbound_control_lock_v1()
+returns trigger language plpgsql security definer set search_path=public as $fn$
+begin
+  perform 1 from public.linear_outbound_cutoff_control where lane='mirror_outbox' for share;
+  if not found then raise exception 'linear_cutoff_control_unavailable'; end if;
+  return null;
+end $fn$;
+create trigger linear_outbound_control_lock_v1 before insert or update on public.mirror_outbox
+for each statement execute function public.linear_outbound_control_lock_v1();
 
 -- Only this RPC may acquire a new worker lease. A missing control row, active
 -- cutoff, generation mismatch, or stale candidate produces no claim.
@@ -70,6 +87,7 @@ begin
   if p_lock_timeout_seconds < 1 or p_lock_timeout_seconds > 3600 then
     raise exception 'linear_cutoff_invalid_lock_timeout';
   end if;
+  lock table public.mirror_outbox in row exclusive mode;
   select * into v_control from public.linear_outbound_cutoff_control
   where lane = 'mirror_outbox' for share;
   if not found then raise exception 'linear_cutoff_control_unavailable'; end if;
@@ -99,6 +117,7 @@ declare
   v_auth uuid := gen_random_uuid();
   v_row public.mirror_outbox%rowtype;
 begin
+  lock table public.mirror_outbox in row exclusive mode;
   select * into v_control from public.linear_outbound_cutoff_control
   where lane = 'mirror_outbox' for share;
   if not found then raise exception 'linear_cutoff_control_unavailable'; end if;
@@ -121,10 +140,15 @@ create or replace function public.linear_outbound_stale_worker_guard_v1()
 returns trigger language plpgsql security definer set search_path = public as $fn$
 declare v_control public.linear_outbound_cutoff_control%rowtype;
 begin
-  if old.lock_token is null then return new; end if;
-  if current_setting('app.linear_cutoff_operator', true) = 'activate' then return new; end if;
+  -- Also cover an old worker acquiring its first lease after cutoff. Looking
+  -- only at OLD.lock_token misses exactly that ordinary update path.
+  if old.lock_token is null and new.lock_token is null
+    and new.locked_at is not distinct from old.locked_at
+    and new.dispatch_authorization is not distinct from old.dispatch_authorization
+    and new.dispatch_authorized_at is not distinct from old.dispatch_authorized_at
+    and new.status is not distinct from old.status then return new; end if;
   select * into v_control from public.linear_outbound_cutoff_control
-  where lane = 'mirror_outbox';
+  where lane = 'mirror_outbox' for share;
   if not found then raise exception 'linear_cutoff_control_unavailable'; end if;
   if v_control.cutoff_enabled or old.outbound_generation is distinct from v_control.generation then
     raise exception 'linear_cutoff_stale_worker_refused';
@@ -144,6 +168,7 @@ create or replace function public.linear_outbound_cutoff_activate_v1(
 declare v_control public.linear_outbound_cutoff_control%rowtype;
 begin
   if nullif(btrim(coalesce(p_actor, '')), '') is null then raise exception 'linear_cutoff_actor_required'; end if;
+  lock table public.mirror_outbox in access share mode;
   select * into v_control from public.linear_outbound_cutoff_control
   where lane = 'mirror_outbox' for update;
   if not found then raise exception 'linear_cutoff_control_unavailable'; end if;
@@ -155,18 +180,39 @@ begin
     high_water_id = (select max(id) from public.mirror_outbox),
     activated_at = now(), activated_by = btrim(p_actor), updated_at = now()
   where lane = 'mirror_outbox' returning * into v_control;
-  perform set_config('app.linear_cutoff_operator', 'activate', true);
-  update public.mirror_outbox set cutoff_disposition = case
-    when dispatch_authorized_at is not null then 'authorized_before_cutoff'
-    else 'claimed_before_cutoff' end
-  where lock_token is not null
-    and outbound_generation = p_expected_generation and cutoff_disposition is null;
+  -- Debt disposition is a derived view of retained facts. Do not update queue
+  -- rows here: doing so conflicts with existing F27/receipt retention guards.
   return jsonb_build_object('lane', v_control.lane, 'generation', v_control.generation,
     'high_water_id', v_control.high_water_id, 'cutoff_enabled', true);
 end $fn$;
 
+create function public.linear_outbound_cutoff_debt_rows_v1()
+returns table(id bigint,status text,outbound_generation bigint,disposition text)
+language plpgsql security definer set search_path=public as $fn$
+declare c public.linear_outbound_cutoff_control%rowtype;
+begin
+  select * into c from public.linear_outbound_cutoff_control where lane='mirror_outbox';
+  if not found then raise exception 'linear_cutoff_control_unavailable'; end if;
+  return query select o.id, o.status, o.outbound_generation,
+  case
+    when o.status in ('written','skipped') then 'terminal_receipt'
+    when not c.cutoff_enabled then 'cutoff_inactive'
+    when o.outbound_generation=c.generation then 'accepted_after_cutoff'
+    when o.dispatch_authorization is not null then 'authorized_before_cutoff'
+    when o.lock_token is not null then 'claimed_before_cutoff'
+    else 'unclaimed_before_cutoff'
+  end as disposition
+  from public.mirror_outbox o;
+end $fn$;
+create view public.linear_outbound_cutoff_debt_v1 with (security_invoker=true) as
+select * from public.linear_outbound_cutoff_debt_rows_v1();
+
 revoke all on table public.linear_outbound_cutoff_control from public, anon, authenticated, service_role;
 grant select on table public.linear_outbound_cutoff_control to service_role;
+revoke all on public.linear_outbound_cutoff_debt_v1 from public, anon, authenticated, service_role;
+grant select on public.linear_outbound_cutoff_debt_v1 to service_role;
+revoke all on function public.linear_outbound_cutoff_debt_rows_v1() from public, anon, authenticated, service_role;
+grant execute on function public.linear_outbound_cutoff_debt_rows_v1() to service_role;
 revoke all on function public.linear_outbound_claim_v1(bigint,text,integer) from public, anon, authenticated;
 revoke all on function public.linear_outbound_authorize_dispatch_v1(bigint,uuid,bigint) from public, anon, authenticated;
 revoke all on function public.linear_outbound_cutoff_activate_v1(bigint,text) from public, anon, authenticated;

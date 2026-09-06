@@ -32,6 +32,16 @@ Exact source/evidence handoff: `docs/audits/2026-09-06-native-card-materializati
 Combined recovery proof: `docs/audits/2026-09-06-native-card-materialization-recovery.md`
 and `docs/audits/2026-09-06-native-card-materialization-recovery-evidence.json`.
 
+Existing-card native assignment (separate default-disabled capability):
+`migrations/2026-09-06-native-existing-assignment.sql`,
+`scripts/native-intake-manifest/existing-assignment-lane.mjs`,
+`scripts/native-intake-manifest/existing-assignment-journeys.mjs`,
+`test/native-existing-assignment.js`, `test/native-existing-assignment-preinstall.js`,
+`docs/ops/NATIVE_EXISTING_ASSIGNMENT.md`,
+and `docs/audits/2026-09-06-native-existing-assignment-evidence.json`.
+Reuses existing outbox identities; native receipt retention and schema/restore
+integration remain explicit release prerequisites. No intake or frozen writer change.
+
 Native card creation compatibility evidence and proposed boundary:
 `docs/audits/2026-09-06-native-card-compatibility.md` and
 `docs/audits/2026-09-06-native-card-compatibility-evidence.json`.

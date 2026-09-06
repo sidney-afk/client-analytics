@@ -84,6 +84,25 @@ for exact hashes, earlier red receipts and the separate v7 recovery checkpoint.
 HTTP/fallback compatibility, authenticated schema/data recovery and activation
 remain held under canonical G3.
 
+## 2026-09-06 — Existing-card native assignment, isolated draft only
+
+Follow-up on PR1322's first hosted run `34012555030` at `6b4c213`: 437/440
+unit suites, including the new 46 SQL and 28 offline controls passing. The
+three failures are preserved in the owning document. A scoped browser refusal
+classification and two outdated source-test boundaries are corrected locally;
+the three affected suites pass. Gateway/SQL/F27 pins are unchanged, no live
+action occurred, and full hosted re-verification remains pending.
+
+From integration `38f29bc6d3159ddda4b698819626f1efbd37c0b3`, a distinct
+default-disabled assignment capability now owns the existing SyncLinear
+assignment/picker lane. The original provider contract and receipt identities
+remain; native writes validate membership and terminalize the same receipt
+atomically. `hold` preserves authorized accepted-native replay without new
+admission or provider fallback. See `docs/ops/NATIVE_EXISTING_ASSIGNMENT.md`
+for finite local proof and still-held schema, retained-target restore,
+drainer/F27 and serving gates. No source merge, install, deployment, flag,
+provider, n8n, frozen writer or live-data action occurred.
+
 ## 2026-09-06 — Combined Workload/history-v6 proof; test-only preparation
 
 On integration `688947308c96e6f00b09a495a1f16f939fde479d`, 17 finite

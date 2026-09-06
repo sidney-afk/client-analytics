@@ -7,11 +7,25 @@ const c=require('../qa/workload-consistency/native-capture');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'workload-capture-test-'));
 let checks=0;const check=(name,fn)=>{fn();checks++;};
 const cfg={confirmation:'LOCAL_DISPOSABLE_ONLY',host:'127.0.0.1',port:'55567',database:'card_history_synthetic',user:'postgres',password:'synthetic-fixture-password',psql:process.execPath};
+async function run(){
 try{
  check('explicit fixture config',()=>assert.equal(c.config(cfg),cfg));
  for(const [field,value] of [['confirmation',''],['host','db.example.invalid'],['host','localhost'],['host','127.0.0.1?host=remote'],['port','5432;'],['port',0],['port',65536],['database','postgres'],['database','card_history_x;'],['user','service_role'],['password',''],['psql','psql']])
   check('reject '+field,()=>assert.throws(()=>c.config({...cfg,[field]:value})));
  check('psql is noninteractive and explicitly bound',()=>{const a=c.args(cfg);assert.ok(a.includes('-w'));for(const key of ['-h','-p','-U','-d'])assert.ok(a.includes(key));assert.ok(a.includes('ON_ERROR_STOP=1'));});
+ const {EventEmitter}=require('node:events');
+ const zeroExitAfterOverflow=()=>{
+  const child=new EventEmitter();child.stdout=new EventEmitter();child.stderr=new EventEmitter();child.stdin=new EventEmitter();
+  child.kill=()=>{child.emit('close',0);};
+  child.stdin.end=()=>queueMicrotask(()=>{child.stdout.emit('data',Buffer.from('{"synthetic":true}\n'));child.stdout.emit('data',Buffer.alloc(64*1024*1024+1));});
+  return child;
+ };
+ await assert.rejects(()=>c.runSqlText(cfg,'synthetic',zeroExitAfterOverflow),/capture_output_limit/);checks++;
+ const {Module}=require('node:module'),implementation=path.join(c.ROOT,'qa/workload-consistency/native-capture.js');
+ const actual=fs.readFileSync(implementation,'utf8'),sabotaged=actual.replace('if(refusal)return reject(Error(refusal));','');
+ assert.notEqual(actual,sabotaged);const control=new Module(implementation,module);control.filename=implementation;control.paths=module.paths;
+ control._compile(sabotaged,implementation);
+ assert.equal(await control.exports.runSqlText(cfg,'synthetic',zeroExitAfterOverflow),'{"synthetic":true}\n');checks++;
  const overrides={PGHOSTADDR:'remote',PgService:'remote',PGSERVICEFILE:'remote',PGOPTIONS:'remote',PGPASSWORD:'remote',GIT_DIR:'fake',GIT_OBJECT_DIRECTORY:'fake'};
  const old=Object.fromEntries(Object.keys(overrides).map(k=>[k,process.env[k]]));Object.assign(process.env,overrides);
  try{
@@ -55,3 +69,5 @@ try{
  assert.ok(resolved.startsWith(temp+path.sep)&&path.basename(resolved).startsWith('workload-capture-test-'));
  fs.rmSync(resolved,{recursive:true,force:true});
 }
+}
+run().catch(error=>{console.error(error);process.exitCode=1;});

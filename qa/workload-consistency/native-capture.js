@@ -65,12 +65,12 @@ function config(value) {
 function args(value) {
   return ['-X','-w','-q','-A','-t','-v','ON_ERROR_STOP=1','-h',value.host,'-p',String(value.port),'-U',value.user,'-d',value.database];
 }
-function runSqlText(value, sql) {
+function runSqlText(value, sql, spawnProcess=spawn) {
   config(value);
   return new Promise((resolve,reject) => {
-    const child = spawn(value.psql,args(value), {windowsHide:true,env:safeEnv(value.password),stdio:['pipe','pipe','pipe']});
-    const chunks=[]; let size=0, done=false, reason='capture_query_failed';
-    const stop=code => {reason=code;child.kill();};
+    const child = spawnProcess(value.psql,args(value), {windowsHide:true,env:safeEnv(value.password),stdio:['pipe','pipe','pipe']});
+    const chunks=[]; let size=0, done=false, refusal=null;
+    const stop=code => {refusal=refusal||code;child.kill();};
     const timer=setTimeout(() => stop('capture_timeout'), 45000);
     child.stdout.on('data',data => {size+=data.length;if(size>MAX_BYTES)stop('capture_output_limit');else chunks.push(data);});
     // Database diagnostics may contain private values, SQL, or connection data.
@@ -79,7 +79,8 @@ function runSqlText(value, sql) {
     child.on('error',() => {if(!done){done=true;clearTimeout(timer);reject(Error('capture_process_failed'));}});
     child.on('close',code => {
       if(done)return;done=true;clearTimeout(timer);
-      if(code !== 0) return reject(Error(code === 3 && reason === 'capture_query_failed' ? 'capture_query_or_catalog_refused' : reason));
+      if(refusal)return reject(Error(refusal));
+      if(code !== 0) return reject(Error(code === 3 ? 'capture_query_or_catalog_refused' : 'capture_query_failed'));
       resolve(Buffer.concat(chunks).toString('utf8'));
     });
     child.stdin.on('error',() => {});
@@ -275,4 +276,4 @@ async function main(argv=process.argv.slice(2)) {
 if(require.main===module)main().catch(error=>{process.stdout.write(JSON.stringify({capture_valid:false,populationVerdict:'UNPROVEN',code:
   /^[a-z][a-z0-9_]+$/.test(error.message)?error.message:'capture_refused'})+'\n');process.exitCode=1;});
 module.exports={ROOT,LIMIT,SECTIONS,SOURCE_FILES,config,args,safeEnv,gitEnv,privatePath,sourceBinding,catalogSql,validateCatalog,
-  inspectCatalog,captureSql,validateBody,seal,verify,capture,runSql,sha,digest,stable};
+  inspectCatalog,captureSql,validateBody,seal,verify,capture,runSql,runSqlText,sha,digest,stable};

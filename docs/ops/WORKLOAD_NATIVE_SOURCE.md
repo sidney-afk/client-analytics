@@ -193,9 +193,12 @@ readiness fields. No raw SQL diagnostics, private paths, row identifiers or
 credentials are printed. All ambient libpq overrides are removed (including
 case variants on Windows); only the explicit fixture password is forwarded.
 
-`test/workload-native-capture.js` provides 28 offline guards, including real Git
+`test/workload-native-capture.js` provides 30 offline guards, including real Git
 replacement/missing-object controls and a local transport trap proving the
-unguarded missing-object control would try acquisition. The separate explicit
+unguarded missing-object control would try acquisition. Subprocess timeout and
+output refusals stay latched even if the child exits zero afterward; a fake-child
+regression and the same source with that latch removed prove the output-limit
+negative. The separate explicit
 `qa/workload-consistency/native-capture-rehearsal.js` uses existing migration-shaped
 fixture setup and the actual native RPC/view/label helper. Its finite controls
 cover native-only work with an empty mirror, exact bytes and counts, no capture

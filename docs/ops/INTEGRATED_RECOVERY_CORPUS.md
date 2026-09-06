@@ -13,6 +13,42 @@ The additive `history-v6` package contains the existing v5's exact33 tables plus
 
 Run the finite local probe only against an explicitly owned disposable server using `CARD_HISTORY_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY`, the existing `CARD_HISTORY_PG*` connection variables, `CARD_HISTORY_FEEDBACK_SQL` pointing to the reviewed corrected migration and `CARD_HISTORY_FEEDBACK_SHA256` matching its exact bytes; invoke `node scripts/card-history-integrated-rehearsal.js`. It never starts/stops a server. It retains its uniquely named databases and private output directory, including synthetic dump/package, for review; do not publish those files. `CARD_HISTORY_INTEGRATED_OUTPUT` may name an explicit private output directory. The normal offline command is `node test/track-b-backup-integrated-corpus.js`.
 
+### Combined Workload proof, 2026-09-06
+
+Integration base `688947308c96e6f00b09a495a1f16f939fde479d`: **17 isolated
+PostgreSQL/actual-handler groups PASS**. This separate finite lane installs the
+actual Workload view/membership migrations into the same history-v6 fixture.
+`workload_plan` is already one of the journal's six owners; no recorder was
+invented or changed. The complete Workload handler and shared auth run with an
+in-process Supabase-to-SQL adapter; reads and RPCs explicitly use `service_role`.
+Old UUID and native-key callers retain the same stored plan day. Conflicting
+aliases refuse without row changes; an injected journal insert failure refuses
+the plan write and rolls back all35 current/historical tables. A private backup
+role dumps all35 and a private scratch role restores exact row images and
+trigger state. Both actual handler read forms return the same aliases/dates
+after restore, and the next plan save resumes journal capture. Anonymous and
+authenticated SQL roles cannot execute the private snapshot RPC. External
+fetch and legacy mutation transports are refused and their call counts are zero.
+
+Run `node test/workload-history-integrated.js` with
+`CARD_HISTORY_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY`, explicit loopback
+`CARD_HISTORY_PGHOST`, `CARD_HISTORY_PGPORT`, `CARD_HISTORY_PGUSER`,
+`CARD_HISTORY_PGPASSWORD`, and absolute `CARD_HISTORY_PSQL` /
+`CARD_HISTORY_PG_DUMP` paths. `CARD_HISTORY_WORKLOAD_OUTPUT` may name a private
+artifact directory. Opted-in missing setup fails; normal offline invocation
+prints an explicit SKIP. The harness neither manages servers nor drops its
+uniquely named databases. Inherited libpq connection overrides are removed;
+SQL travels over UTF-8 stdin with password prompting disabled.
+
+This is a synthetic migration-shaped fixture, not an installed-schema capture.
+The legacy `workload_issues` relation is empty and outside35: no CON/STR or
+provider-population recovery claim follows. Native intake and Calendar recovery
+RPCs are installed but not invoked by this Workload lane. Node type-stripping
+and module warnings remain recorded. This does not prove browser behavior,
+serving, capacity, schema artifacts or cloud restore. Runtime, corpus membership,
+workflow configuration and frozen anonymous writers are unchanged; clients see
+no change. This test-only delta can be reverted without changing saved work.
+
 ## Release and integration holds
 
 1. Install required native manifest/epoch RPCs before the new production-write serving revision: provider-default intake also calls `production_intake_epoch_read`. Then prove exact gateway/feedback-reader serving revisions before exposing dependent frontend flows. Never redeploy or re-gate the frozen anonymous writers to accomplish this.

@@ -2,6 +2,20 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Combined Workload/history-v6 proof; test-only preparation
+
+On integration `688947308c96e6f00b09a495a1f16f939fde479d`, 17 finite
+actual-handler/disposable-PostgreSQL groups passed using `service_role` calls.
+Old UUID/native plan identities and dates survive alias writes, journal failure
+and exact35-table dump/restore; conflicting aliases refuse without changing
+current or historical rows. Private snapshot RPC access remains denied to
+anonymous/authenticated SQL roles. See `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`
+for command and proof limits. The first successful rehearsal preceded explicit
+service-role adapter execution; the final rerun establishes that narrower
+privilege proof. Node warnings are retained. No product, migration, corpus,
+workflow, deployment, live data or frozen writer change occurred. Schema/cloud
+restore, serving and integrated browser gates remain open.
+
 ## 2026-09-05 — Source candidate: native Workload membership and compatible plans
 
 Base `99d31c815de3e1a46deeb01c45c09bf2937040ad`. Native-default normal/forced/background

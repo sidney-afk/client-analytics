@@ -1,5 +1,12 @@
 # Linear removal: completion accounting
 
+## G4 first native/archive identity comparison - September 6, 23:34Z
+
+LIVE_READ_IDENTITY_PRESENCE_ONLY: one read-only database query at23:31:50Z returned6,334 deliverables,1,678 batches and18,072 archive rows; each array length equals its in-query count. Compared the saved19,233-issue provider census against selected native direct UUID/identifier/raw-issue keys, batch-parent IDs normalized by the actual batchParentEntries helper in candidate d144 scripts/linear-deliverables-reconcile.js, and archive UUID/identifier keys. All19,233 have at least one match:5,268 native-and-archive,1,314 native-only,12,651 archive-only,0 unmatched. Thus6,582 have native identity presence. Creative team counts: graphics6,686 =2,500 native +4,186 archive-only; video12,248 =4,082 native +8,166 archive-only. Other visible teams contribute299 archive-only.
+
+This is identity presence, not matching content, status, assignment, comment history, attachments or client-visible historical access. The provider and database snapshots differ in time; aliases were not expanded. Matching an archive row does not prove the row has complete payload or remains reachable through a client reader. No missing-work or completed-conservation claim follows. Private structural extracts and comparison remain outside the repository. Next check archive-only reader/content/comment/asset coverage, prioritizing client-visible work; do not refetch the completed census or mutate records. G4 remains open.
+
+
 ## G4 connector-visible issue census - September 6, 23:18Z
 
 LIVE_READ: completed77 cursor pages with includeArchived:true, orderBy:createdAt and structural fields only. Returned19,233 issues with19,233 unique UUIDs; terminal hasNextPage:false. Six visible teams,110 distinct referenced project IDs;4,857 roots and14,376 children;8,483 archived and12,731 with a project. Status types: completed15,151, canceled1,297, started1,098, backlog934, unstarted688, triage62, duplicate3. Every returned child resolves to a returned parent using the connector's parentId -> id identifier join; UUID is a different field and is not the parent join key.

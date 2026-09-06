@@ -140,7 +140,7 @@ async function run() {
       assert.equal(source.query("select (public.linear_outbound_cutoff_activate_v1(0,'synthetic-operator')->>'cutoff_enabled')"), 'true');
       assert.notEqual(source.raw("select public.linear_outbound_claim_v1(0,'synthetic-claim',0)").status,0);
       const labelRow=source.rows("select id,client_slug,team,updated_at from public.deliverables where team='video' order by id limit 1")[0]; assert.ok(labelRow);
-      source.query(`update public.deliverables set linear_raw=${quote(JSON.stringify({issue:{labelIds:[],labels:{nodes:[node],pageInfo:{hasNextPage:false,endCursor:null}}}}))}::jsonb where id=${quote(labelRow.id)};`);
+      source.query(`update public.deliverables set linear_raw=${quote(JSON.stringify({issue:{labelIds:[node.id],labels:{nodes:[node],pageInfo:{hasNextPage:false,endCursor:null}}}}))}::jsonb where id=${quote(labelRow.id)};`);
       const current=source.rows(`select * from public.deliverables where id=${quote(labelRow.id)}`)[0], generation=Number(source.query("select generation from public.track_b_f27_team_fences where team='video'"));
       const labelEvent={surface:'production',auth_kind:'staff',source:'ui',action:'labels_change',actor:'synthetic-operator',role:'admin',expected_updated_at:current.updated_at,outbound:{operation:'labels',entity:'deliverable',entity_id:current.id,test_only:false,legacy_parity:false,dedup_key:'write-ui:labels:deliverable:'+current.id+':v8',payload:{_intent_fingerprint:'v8-native-label-receipt',_native_label_catalog_version:labelVersion,_f27_authority_generation:generation}}};
       source.query(`set role service_role;select public.production_labels_write(${quote(JSON.stringify(current))}::jsonb,${quote(JSON.stringify(labelEvent))}::jsonb);`);

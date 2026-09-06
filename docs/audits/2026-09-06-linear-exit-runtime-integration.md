@@ -1,0 +1,43 @@
+# Linear-exit runtime integration: validation candidate, release held
+
+This record belongs to the single G0–G10 program in draft PR1268. It does not replace `GO_LIVE_CHECKLIST.md`, authorize a deployment, or declare any production exit gate complete. Captured main is `99d31c815de3e1a46deeb01c45c09bf2937040ad`. Historical branches and reports remain intact. All new work in this record is source preparation or isolated testing.
+
+## What is assembled
+
+| Component | Exact retained input | Result and limit |
+|---|---|---|
+| Native intake, assignment and Create Post editor projection | PR1315 `bf959479bec8262389d5460dc66b5fe58430973d`, including PR1293/1302/1309 ancestry | Disabled native admission epochs, accepted manifest and receipt preservation, native eligibility and matching picker. Existing-work reassignment and general label writes remain outside this slice. |
+| Dedicated component feedback reader | PR1297 `ce86295ba3fc892ce1ad63a9065beed3ab3b603f` | Canonical comments in the exact mapped component panel; does not import all historical source feedback. |
+| Six-owner atomic history and closed data corpus | PR1311 `aab2acd23112f7bdff849a9c0b68306d41bbf62c` | Preserves accepted business writes, semantic events and receipts together. Schema recovery PR1313 remains held on independently reproduced false successes. New recovery tables also require explicit data-corpus coverage. |
+| Samples reader and owned local recovery | PR1295 `56fad300638094e268d2f10dabaf0ffc5661ec6d` | Failed reads preserve scoped content and unfinished local work. Existing writers/authentication retained. Historical rollback hashes do not certify this new combined HTML. |
+| Dormant monitoring and initial-read contract | PR1303 `92d261c45ab9bacef38829c0fc7c9597e344ca61` | Monitoring source and isolated containment evidence. Scheduling, live client journeys, independent fallback and human acknowledgement remain unproven. |
+| Native child recovery and conservative card binding | PR1314 `42452cdbf5c36ba74b08885a152943ff827c9aa3` plus reviewed correction `00c4ebc8639bf6330bb73ee100021381e904edcf` | Shared completion now requires reciprocal child identity. Moved/cleared children remain visible debt. Automatic card creation stays held; indistinguishable old full-row job replays are not solved. |
+
+Further active corrections and final combined test results will be appended before publication. Intermediate passing tests must retain their actual source revision. No source fingerprint is serving evidence for a manual or pinned function.
+
+## Integration decisions
+
+The captured main's asset-evidence reuse, description-image feature, existing authorization and deployment ownership are retained. Independent appended documentation is kept from both parents. Main's later live crosswalk evidence supersedes the earlier draft's pending-dispatch sentence. Colliding draft repair numbers become native assignment **158**, Samples **159**, native completion **160**; historical source draft numbers remain identified explicitly. Pre-existing older ledger collisions are not silently rewritten.
+
+The integrated monitor uses the exact reviewed PR1303 versions of observer, transport, view and operations contracts; the newer Samples repair remains intact. Section 4 source pins must be regenerated from the completed runtime tree, then verified again at the published head. Frozen `calendar-upsert` and `sample-review-upsert` source must remain byte-identical to captured main; this does not prove their serving bodies.
+
+## Required release order
+
+This branch is an integration/validation input. **Merging it as one ordinary frontend release is not the rollout procedure.** Before owner approval, split the reviewed result into the existing backend and browser release paths without changing the tested runtime bytes.
+
+1. **Finish offline integration, backup and compatibility proof.** Include new provenance and feedback-recovery facts in a versioned data corpus and test co-installed triggers, save refusal and restore. Repair PR1313's exact sequence, content and executable/privilege boundary defects. Clients see the existing deployed site; no draft code or SQL is installed. Abort on data or receipt mismatch, unpreserved drafts, hidden completion debt, or unaccounted schema/table coverage.
+2. **Capture the actual serving/schema/queue state and recovery point for owner review.** Verify populated designated TEST context privately. This is necessary because manual function source, synthetic schemas and author reports are not installed evidence. Preserve complete before-images and all accepted receipts. Clients continue on the existing serving code. Missing credentials or evidence hold this step; do not infer equivalence.
+3. **Prepare native SQL prerequisites before any gateway that calls them.** In particular, the integrated `production-write` reads `production_intake_epoch_read` even on provider/default intake. Deploying it first would break intake. Keep native epochs disabled. Rehearse provider intake, anonymous card writes and rollback on the exact installed schema. Owner migration and manual deployment actions remain unapproved. Abort on changed provider admission, receipt replay or anonymous-write behavior.
+4. **Serve the reviewed feedback recovery and Workload contracts before their browser callers.** Verify exact function closures, permissions and success/refusal contracts. Preserve the anonymous frozen writer authentication. A ready source branch is insufficient. During the backend preparation the old browser must retain existing reads/writes; prove old callers against the new handlers, including failures, before shipping. Roll back function code only when its predecessor remains compatible with installed additive schema and accepted receipts; retain the data.
+5. **Release reviewed browser repairs with the paired recovery document and active observation.** Before ship: real intercepted card journeys, owned drafts on failed saves, stale tabs, scoped caches, valid authoritative emptiness, invalid fallback and provider-denied native paths. After ship: served bytes, designated anonymous viewing/approval/comment/tweak plus authoritative persistence, staff creation/assignment/date/status/calendar/workload. Clients should retain content and text through transient failure and see bounded stale/retry feedback. Failed persistence, false emptiness, scope crossing or missing alert delivery stops progression. An old whole-page build that cannot read the new owned debt is not a safe inverse.
+6. **Activate only a fully proven native cohort, then observe before expanding.** Inventory external creators, both outboxes, inbound/parity writers, old bundles and credentials; establish server cutoff/generation and exact conservation. Automatic card-creation debt, existing assignment/labels, CON/STR authority and legacy compatibility cannot be flattened into a green readiness flag. Provider revocation and the canonical 72-hour observation begin only after every required G0–G8 gate is satisfied. Owner/provider/billing actions remain separate; retain Linear through the later export/restore and minimum observation window.
+
+## Monitoring is still an execution prerequisite
+
+The coordinator heartbeat is not a product monitor. New product workflows remain dormant. Two historical Slack drill deliveries do not prove human acknowledgement, ongoing scheduling or an observer outside the scheduler's own failure domain. Before release, prove the owner's existing bot DM route, acknowledgement, independent missed-run detection and fallback delivery without sensitive payloads.
+
+Monitor anonymous reader failures and unexpected emptiness, actual accepted action persistence, serving closures, failed flag reads, missing native children/cards, oldest debt, retries and both outboxes, evidence/receipt loss and external provider egress. Reproduce at least one failure and recovery per activated watcher. Record recipient/channel, interval, threshold, blind spots and a successful alert receipt; code existence or an initial-read-only green cannot certify the full journey.
+
+## Decision
+
+**Decision A is not ready.** Code integration is advancing; no client-wide independence, zero-loss history, automatic completion or active monitoring is claimed. Decisions B and C remain later retention/export and owner billing/deletion decisions. The target for this implementation push is a concrete reviewed release candidate; the required observation periods still apply.

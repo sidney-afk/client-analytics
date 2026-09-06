@@ -8,6 +8,10 @@ commit as any structural change.
 
 ## Top level
 
+Linear-exit combined runtime preparation and release-order holds:
+`docs/audits/2026-09-06-linear-exit-runtime-integration.md`. Retains the canonical
+G0–G10 plan in PR1268, exact component inputs and separate source/serving proof.
+
 Native Create Post editor projection (stacked on PR1309):
 `scripts/native-intake-manifest/editor-projection-lane.mjs`,
 `scripts/native-intake-manifest/editor-projection-journeys.mjs`,
@@ -32,7 +36,7 @@ output carries no identifier), `.github/workflows/native-intake-reconcile.yml`
 (manual-only, no schedule) and `docs/audits/2026-09-05-native-intake-reconcile.md`.
 Includes the card provenance table and one fact-recording trigger per card table;
 automatic card creation is structurally held (`card_creation_held`). Stacked on
-PR1302; ledger item 156 and its two corrections.
+PR1302; integrated ledger item 160 (formerly 156) and its corrections.
 
 Disabled native-only intake draft: `migrations/2026-09-05-native-only-intake.sql`,
 `scripts/native-intake-manifest/native-only-lane.mjs`, `test/native-only-intake.js`,

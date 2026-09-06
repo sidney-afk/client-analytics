@@ -381,16 +381,19 @@ or live write path. The existing weekly private backup continues independently.
 `production_card_materialization_ingress`, each with UUID `id` primary keys.
 The scheduled default remains v3. v6 and earlier recovery paths refuse a target
 that already contains either retained owner before the applicable source
-preflight can proceed or restore can disable triggers/truncate data. This source-only package does
+preflight can proceed or restore can disable triggers/truncate data. This unapplied package does
 not install either table, grant an operational role, capture production data or
-prove an authenticated schema reconstruction, restored writer behavior, or
-live recovery. A future owner-run v7 grant artifact and an independently owned
-scratch proof remain required before selecting v7 for any capture.
+prove an authenticated schema reconstruction or live recovery. The final
+[local recovery proof](../audits/2026-09-06-native-card-materialization-recovery.md)
+restores all37 synthetic row images under the dedicated scratch role and replays
+four actual accepted creation envelopes through the new SQL boundary. It does
+not exercise deployed HTTP writers. Live capture remains held for the separately
+authenticated schema artifact and installed-schema/role checks.
 An initial disposable prerequisite attempt stopped at SQL parsing before any
 grant or restore action because this artifact omitted the required parentheses
-around its confirmation `CASE` expression. The source is corrected; the owner
-must still re-run the prerequisites and complete the separate scratch restore
-proof before v7 receives any recovery claim.
+around its confirmation `CASE` expression. That failed receipt remains historical.
+Corrected prerequisites and the finite final scratch restore now pass locally;
+this is a data-corpus proof, not a general disaster-recovery claim.
 
 For a privately owned disposable PostgreSQL server only, the portable v7 proof
 is `node scripts/card-materialization-history-rehearsal.js`. Set
@@ -400,4 +403,7 @@ is `node scripts/card-materialization-history-rehearsal.js`. Set
 paths, and an absolute private `CARD_MATERIALIZATION_HISTORY_OUTPUT` outside
 the repository. It retains synthetic databases and private raw outputs for
 review, never starts/stops/drops a server or database, and prints only an
-aggregate result. It is not a workflow step or a production procedure.
+aggregate result. The combined draft invokes it in the existing disposable CI
+PostgreSQL job with a private temporary output directory. Hosted execution must
+be verified on the published head; no raw artifacts are uploaded. This is not
+a production procedure or an active product watcher.

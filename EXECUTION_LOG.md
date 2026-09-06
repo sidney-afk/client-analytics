@@ -2,6 +2,19 @@
 
 All times are UTC unless noted.
 
+## 2026-09-06 — Combined dormant card boundary and history-v7 recovery
+
+Preserved SQL handoff `198b42bb` and recovery history through `96719f8d` in one
+draft from PR1318. Final integrated `66e823da` passed 12 actual local recovery
+groups using SQL `c0d8257b`: exact37-table restore, four gateway/browser creation
+envelopes, later human edits, retained raw input, non-UTC hold replay and late-COPY
+rollback. Original 56-check SQL evidence and historical 22-check recovery evidence
+remain separately pinned. Earlier configuration, CASE syntax and invalid fixture
+mode failures are retained as failures. A dedicated disposable CI step is added;
+hosted execution is pending publication. No product watcher was activated and no
+installed/serving/client-journey claim follows. See the
+[recovery audit](docs/audits/2026-09-06-native-card-materialization-recovery.md).
+
 ## 2026-09-06 ? Dormant native card materialization SQL
 
 From preserved integration `38f29bc6d3159ddda4b698819626f1efbd37c0b3`, added a

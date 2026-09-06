@@ -1,6 +1,6 @@
 # Native card materialization SQL — finite source handoff
 
-Base: `38f29bc6d3159ddda4b698819626f1efbd37c0b3` (preserved integration PR1318). Scope: additive dormant SQL, synthetic proof and owning documentation only. Existing browser, gateway, frozen card writers, binder, reconciler, workflows and authentication files are unchanged.
+Base: `38f29bc6d3159ddda4b698819626f1efbd37c0b3` (preserved integration PR1318). Original SQL handoff: `198b42bbdc0ce0a8cf661389da66213150d13658`. Scope: additive dormant SQL, synthetic proof and owning documentation. Existing browser, gateway, frozen card writers, binder, reconciler and authentication files are unchanged. The subsequent combined draft adds versioned data recovery and one disposable CI proof step.
 
 The [owning contract](../ops/NATIVE_CARD_MATERIALIZATION_BOUNDARY.md) describes two new private retained owners and one service-only `production_card_materialize(text,text,text)` RPC. Fresh admission starts held. Successful calls atomically establish a full card, journal/provenance and its accepted creation receipt; matching retries return the full current row without restoring initial values. Refusals retain the supplied text outside the inner mutation rollback block. Failure of that retention aborts the whole call and cannot claim conservation.
 
@@ -24,7 +24,7 @@ The exact SQL and final proof sources completed **56 checks, 0 failures** using 
 
 Earlier failing receipts are preserved separately: missing extension-schema digest function (replaced with built-in SHA-256), absent-child empty-string FK storage (converted to SQL NULL while raw projection remains exact), and missing-child refusal classification before provisional insertion (early refusal plus authoritative post-lock validation). None is converted into historical green evidence. A private diagnostic SQL copy used only to expose the FK error is absent from final source and is not a proof subject.
 
-The coordinator separately owns versioned recovery integration. Its earlier 22-group real v7 rehearsal used SQL `041b5ca31aa389c47b19ec33fc2adade154c4ca387e72fb9d84ea312988944e1`; it cannot be relabeled as this final SQL. The table DDL is unchanged, but the single-component FK conversion, fresh lifecycle check, UTC serialization and early incomplete-child refusal require a narrow final delta recovery check.
+The earlier 22-group real v7 rehearsal used SQL `041b5ca31aa389c47b19ec33fc2adade154c4ca387e72fb9d84ea312988944e1`; it cannot be relabeled as this final SQL. The [separate final recovery record](2026-09-06-native-card-materialization-recovery.md) now records 12 actual groups at integrated `66e823da9cae9c0517d2053a6463f8a3b007d0b1`, using final SQL `c0d8257b`, single-component cases and same-session non-UTC replay. It does not replace the original 56-check SQL lane or prove an installed schema.
 
 ## Held gates
 

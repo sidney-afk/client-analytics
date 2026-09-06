@@ -14,6 +14,8 @@ Dormant G3 native card SQL boundary: `migrations/2026-09-06-native-card-material
 Two private retained owners; default hold; HTTP/n8n routing and versioned recovery remain installation gates.
 Exact source/evidence handoff: `docs/audits/2026-09-06-native-card-materialization-sql.md` and
 `docs/audits/2026-09-06-native-card-materialization-sql-evidence.json`.
+Combined recovery proof: `docs/audits/2026-09-06-native-card-materialization-recovery.md`
+and `docs/audits/2026-09-06-native-card-materialization-recovery-evidence.json`.
 
 Native card creation compatibility evidence and proposed boundary:
 `docs/audits/2026-09-06-native-card-compatibility.md` and

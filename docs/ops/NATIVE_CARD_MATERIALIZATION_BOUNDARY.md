@@ -1,6 +1,6 @@
 # Native card materialization boundary — dormant G3 prerequisite
 
-This implements one SQL boundary under the existing [G0–G10 plan](../independence/GO_LIVE_CHECKLIST.md), from exact integration base `38f29bc6d3159ddda4b698819626f1efbd37c0b3`. It consumes the [accepted compatibility contract](../audits/2026-09-06-native-card-compatibility.md). Automatic card creation remains held. No Edge Function, browser, n8n, workflow, writer authentication or live setting changes in this slice.
+This implements one SQL boundary under the existing [G0–G10 plan](../independence/GO_LIVE_CHECKLIST.md), from exact integration base `38f29bc6d3159ddda4b698819626f1efbd37c0b3`. It consumes the [accepted compatibility contract](../audits/2026-09-06-native-card-compatibility.md). Automatic card creation remains held. No Edge Function, browser, n8n, writer authentication or live setting changes in this slice. The combined draft adds one disposable PostgreSQL recovery step to CI; it does not install or schedule product behavior.
 
 ## Authority and storage contract
 
@@ -38,5 +38,7 @@ SQL-only dormancy does **not** close G3: frozen EF and both n8n writers still ne
 ## Recovery and rollback
 
 Installation is held until an explicit versioned corpus covers the existing 35 owners plus these two owners, with separately authenticated schema and data artifacts, trigger-aware restore, receipt/provenance/journal conservation, and actual replay after restoration. Older backup formats keep their original promises and must not silently omit the new records.
+
+The combined draft supplies explicit `history-v7` data coverage and a [12-group actual local restore/replay proof](../audits/2026-09-06-native-card-materialization-recovery.md) on the final SQL. This closes that bounded data-corpus proof only. Authenticated schema reconstruction, installed equality and live recovery remain held.
 
 First hold fresh admission. Retain the tables, compatible receipt reader, original intake manifests, outbox receipts, card provenance and journal. Do not drop or truncate either new table. Do not restore an old full-row materializer over cards created by this boundary: that reopens late browser overwrite. This slice is additive and unapplied; it supplies no blind inverse migration or deployment command. A failed installation transaction changes nothing; a successful future installation needs the retained-data rollback above.

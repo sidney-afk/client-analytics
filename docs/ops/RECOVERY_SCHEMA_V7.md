@@ -124,3 +124,17 @@ A committed-unverified target is preserved/quarantined; use a fresh empty target
 for another attempt. Deleting the package is never a database rollback. No
 automatic source or target cleanup, production privilege change or writer
 re-gate is authorized here.
+
+**Empty-target outcome correction (source, separate from schema execution).**
+The prior outcome probe counted only tables/views/sequences, so a target holding
+only a public function or type could refuse admission yet incorrectly receive
+retry-in-place permission. The probe now observes the exact relation categories,
+functions and types checked by admission, with separate receipt counters; missing
+or malformed observations remain unknown. Retry requires a confirmed all-zero
+target before and after the failed attempt. Seven actual outcome-module groups
+pass with intercepted subprocesses; an additional optional private control
+reproduces both false permissions in preserved `26691a9da9e685a4e43be7516ee6e58b34f2fcd0`
+source (SHA-256 `73a688109b77cf44d9733fdcb226e4909bf2ac950ba7c50d4464097a7d752ba6`).
+Command: `node test/track-b-recovery-empty-target.js`. These controls do not claim
+real SQL execution or equality of target data from equal object counts. The
+existing eight local-target/CLI preparation groups also remain passing.

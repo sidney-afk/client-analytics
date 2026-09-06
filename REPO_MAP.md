@@ -360,3 +360,5 @@ Combined Workload recovery proof: `scripts/card-history-workload-rehearsal.js`, 
 Held selected37 schema recovery: `docs/ops/RECOVERY_SCHEMA_V7.md`, `scripts/track-b-recovery-package.js`, `scripts/track-b-recovery-reconstruct.js`, `scripts/track-b-recovery-prerequisites.sql`, `scripts/track-b-recovery-rehearsal.js`, `test/track-b-recovery-package.js`, and `test/track-b-recovery-v7-preparation.js` integrate the separate authenticated schema engine with canonical v3-v7 meanings. The combined real schema/data/replay proof remains held; the reviewed lexer source is included. Label data and active scheduling are excluded.
 
 The separately reviewed lexer correction is preserved in `test/track-b-recovery-callable-lexer.js`, `docs/audits/2026-09-06-recovery-callable-lexer.md`, and `docs/audits/2026-09-06-recovery-callable-lexer-evidence.json`. Its offline source closure does not establish actual combined schema execution.
+
+`test/track-b-recovery-empty-target.js` checks actual outcome-module empty-target and retry guidance against all public object categories, with intercepted SQL.

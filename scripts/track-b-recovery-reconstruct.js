@@ -17,8 +17,9 @@
  * THREE OUTCOMES, never conflated:
  *   rolled_back         the transaction failed (prerequisites, DDL, COPY,
  *                       sequence or the IN-TRANSACTION verification). Nothing
- *                       committed; the target is as empty as it was found and
- *                       may be retried directly.
+ *                       committed according to the observed object counts;
+ *                       retry in place additionally requires a proven empty
+ *                       public target before and after the attempt.
  *   committed_unverified the transaction committed but the independent
  *                       post-commit read failed or could not be transported.
  *                       The target now HOLDS DATA: it is quarantined, must not
@@ -66,10 +67,20 @@ function outcomeError(outcome, stage, result, extra = {}) {
 // the verification query is never reported as an empty rollback.
 function observeTargetState(env, psql) {
   const probe = spawnSync(psql, ['--no-psqlrc', '--quiet', '--tuples-only', '--no-align', '--set=ON_ERROR_STOP=1', '--command',
-    "select count(*) from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('r','p','v','m','S')"],
+    "select json_build_object('public_relations',(select count(*) from pg_catalog.pg_class c where c.relnamespace='public'::regnamespace and c.relkind in ('r','p','v','m','S','f','c','i','I','t')),'public_functions',(select count(*) from pg_catalog.pg_proc p where p.pronamespace='public'::regnamespace),'public_types',(select count(*) from pg_catalog.pg_type t where t.typnamespace='public'::regnamespace and t.typtype in ('e','d','r','c')))"],
   { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1024 * 1024 });
-  if (probe.error || probe.status !== 0) return { known: false, public_relations: null };
-  return { known: true, public_relations: Number(String(probe.stdout).trim()) };
+  const unknown = { known: false, public_relations: null, public_functions: null, public_types: null };
+  if (probe.error || probe.status !== 0) return unknown;
+  try {
+    const counts = JSON.parse(probe.stdout);
+    if (!counts || typeof counts !== 'object' || Array.isArray(counts) ||
+      !['public_relations', 'public_functions', 'public_types'].every(key => Number.isSafeInteger(counts[key]) && counts[key] >= 0)) return unknown;
+    return { known: true, public_relations: counts.public_relations, public_functions: counts.public_functions, public_types: counts.public_types };
+  } catch (_) { return unknown; }
+}
+
+function emptyTarget(state) {
+  return state.known && state.public_relations === 0 && state.public_functions === 0 && state.public_types === 0;
 }
 
 // Private diagnostic receipt for a failed attempt. Public-safe: counts, digests,
@@ -108,12 +119,14 @@ function reconstruct(pkg, env, { psql = 'psql', tempDir = null, diagnosticDir = 
       // rolled back. Confirm that by comparing with the pre-attempt observation
       // rather than assuming, so a transport failure is never read as a rollback.
       const state = observeTargetState(env, psql);
-      const rolledBack = state.known && stateBefore.known && state.public_relations === stateBefore.public_relations;
+      const rolledBack = state.known && stateBefore.known && ['public_relations', 'public_functions', 'public_types'].every(key => state[key] === stateBefore[key]);
       const receipt = { ...base, ok: false, outcome: rolledBack ? OUTCOMES.ROLLED_BACK : OUTCOMES.COMMITTED_UNVERIFIED,
         stage: 'reconstruction', target_state_known: state.known && stateBefore.known,
         target_public_relations_before: stateBefore.public_relations, target_public_relations: state.public_relations,
-        target_was_empty_before: stateBefore.known && stateBefore.public_relations === 0,
-        retry_in_place_allowed: rolledBack && stateBefore.public_relations === 0,
+        target_public_functions_before: stateBefore.public_functions, target_public_functions: state.public_functions,
+        target_public_types_before: stateBefore.public_types, target_public_types: state.public_types,
+        target_was_empty_before: emptyTarget(stateBefore),
+        retry_in_place_allowed: rolledBack && emptyTarget(stateBefore) && emptyTarget(state),
         quarantine_required: !rolledBack, elapsed_seconds: Math.round((Date.now() - started) / 1000) };
       receipt.diagnostic_file = writeDiagnostic(diagnosticDir, receipt);
       throw outcomeError(receipt.outcome, 'Track-B recovery reconstruction', applied, { receipt });

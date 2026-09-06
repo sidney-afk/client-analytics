@@ -53,6 +53,15 @@ function pgBin(name) {
   return candidates.find(c => c === name || fs.existsSync(c));
 }
 
+function fixtureEnv() {
+  // libpq's hostaddr can override the validated host's network destination;
+  // a service file can supply it indirectly. Strip these case-insensitively
+  // (Windows environment keys are case-insensitive), retaining fixture auth.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
+    !['PGHOSTADDR', 'PGSERVICE', 'PGSERVICEFILE'].includes(key.toUpperCase())));
+  return { ...env, PGOPTIONS: '-c client_min_messages=warning' };
+}
+
 function lit(value) {
   if (value === null || value === undefined) return 'NULL';
   if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'NULL';
@@ -72,7 +81,7 @@ class Db {
     const args = ['-X', '-v', `ON_ERROR_STOP=${stopOnError ? 1 : 0}`, '-At', '-h', this.conn.host, '-p', String(this.conn.port),
       '-U', this.conn.user, '-d', this.database, '-c', sql];
     if (quiet) args.unshift('-q');
-    const result = spawnSync(pgBin('psql'), args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, PGOPTIONS: '-c client_min_messages=warning' } });
+    const result = spawnSync(pgBin('psql'), args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: fixtureEnv() });
     if (result.status !== 0) {
       const error = new Error((result.stderr || result.stdout || 'psql failed').trim());
       error.stderr = result.stderr; throw error;
@@ -82,10 +91,10 @@ class Db {
   file(file, { stopOnError = true } = {}) {
     const args = ['-X', '-v', `ON_ERROR_STOP=${stopOnError ? 1 : 0}`, '-q', '-h', this.conn.host, '-p', String(this.conn.port),
       '-U', this.conn.user, '-d', this.database, '-f', file];
-    const result = spawnSync(pgBin('psql'), args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, PGOPTIONS: '-c client_min_messages=warning' } });
+    const result = spawnSync(pgBin('psql'), args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: fixtureEnv() });
     const errors = (result.stderr || '').split('\n').filter(line => /ERROR:/.test(line));
     if (stopOnError && result.status !== 0) throw new Error(result.stderr);
-    return { errors, status: result.status };
+    return { errors, status: result.status, stdout: result.stdout };
   }
   run(sql) { return this.psql(sql); }
   rows(sql) {
@@ -144,7 +153,7 @@ class Cluster {
         try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
       } };
     for (let attempt = 0; attempt < 50; attempt++) {
-      const probe = spawnSync(pgBin('psql'), ['-X', '-At', '-h', dir, '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-c', 'select 1'], { encoding: 'utf8' });
+      const probe = spawnSync(pgBin('psql'), ['-X', '-At', '-h', dir, '-p', String(port), '-U', 'postgres', '-d', 'postgres', '-c', 'select 1'], { encoding: 'utf8', env: fixtureEnv() });
       if (probe.status === 0) return cluster;
       execFileSync('sleep', ['0.2']);
     }

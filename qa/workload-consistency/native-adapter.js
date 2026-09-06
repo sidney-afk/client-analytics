@@ -7,7 +7,8 @@ const capture=require('./native-capture'),exact=require('./lossless-json');
 const {compare}=require('./compare'),harness=require('./source-harness');
 const ROOT=capture.ROOT,own=(x,k)=>Object.hasOwn(x,k),obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&!(x instanceof exact.ExactNumber);
 const fail=code=>{throw Error(code);};
-const trim=x=>typeof x==='string'?x.trim():'';
+// PostgreSQL btrim(text) removes ASCII spaces by default, not JS whitespace.
+const trim=x=>typeof x==='string'?x.replace(/^ +| +$/g,''):'';
 const TEAM={video:['VID','Video','editor'],graphics:['GRA','Graphics','designer']};
 const STATUS={triage:['Triage','triage'],backlog:['Backlog','backlog'],todo:['Todo','unstarted'],in_progress:['In Progress','started'],
  smm_approval:['For SMM approval','started'],kasper_approval:['For Kasper approval','started'],client_approval:['For Client approval','started'],

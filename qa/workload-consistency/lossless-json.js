@@ -24,10 +24,16 @@ function canonical(value){
   return [typeof value,value];
 }
 function equal(a,b){return JSON.stringify(canonical(a))===JSON.stringify(canonical(b));}
+function stringify(value){
+  if(value instanceof ExactNumber)return value.raw;
+  if(Array.isArray(value))return '['+value.map(stringify).join(',')+']';
+  if(value&&typeof value==='object')return '{'+Object.keys(value).map(k=>JSON.stringify(k)+':'+stringify(value[k])).join(',')+'}';
+  return JSON.stringify(value);
+}
 function browserValue(value){
   if(value instanceof ExactNumber){const n=Number(value.raw);if(!Number.isSafeInteger(n)||!/^[-]?\d+$/.test(value.raw))throw Error('UNSAFE_BROWSER_NUMBER');return n;}
   if(Array.isArray(value))return value.map(browserValue);
   if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,k==='native_sort_key'&&v instanceof ExactNumber?v.raw:browserValue(v)]));
   return value;
 }
-module.exports={parse,ExactNumber,equal,browserValue};
+module.exports={parse,ExactNumber,equal,browserValue,stringify};

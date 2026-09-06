@@ -630,10 +630,12 @@ const DISPATCH_DONE = new RegExp('\\b(' + DONE_WORDS + ')\\b', 'i');
 const DISPATCH_AHEAD = new RegExp('\\b(' + AHEAD_WORDS + ')\\b', 'i');
 const CHECK_ONLY = new RegExp('\\b(' + CHECK_WORDS + ')\\b', 'i');
 /* A check's completion phrase, with every completion modifier that follows it
-   ("validation completed successfully", "dry-run ran green"), so nothing of
-   the check's verdict is left to read as the dispatch's (Codex, twenty-fourth
-   round on #1306). */
-const CHECK_DONE = new RegExp('\\b(?:' + CHECK_WORDS + ')\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*'
+   ("validation completed successfully", "dry-run ran green") and any auxiliary
+   between the noun and its verdict ("validation was completed successfully",
+   "dry-run has passed"), so nothing of the check's verdict is left to read as
+   the dispatch's (Codex, twenty-fourth and twenty-fifth rounds on #1306). */
+const AUX_WORDS = 'was|were|is|are|has|had|have|been|got|also|then|all|both';
+const CHECK_DONE = new RegExp('\\b(?:' + CHECK_WORDS + ')\\b(?:\\s+(?:' + AUX_WORDS + ')\\b)*\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*'
     + '|\\b(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*\\s+(?:the |its |a |all )?(?:' + CHECK_WORDS + ')\\b', 'gi');
 function firstIndex(re, text) {
     const m = text.match(re);

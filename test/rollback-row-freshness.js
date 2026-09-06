@@ -1471,6 +1471,30 @@ const laneValidationSuccessfullyRun = run(fixture('lane-validation-successfully'
 ok(laneValidationSuccessfullyRun.code === 0,
     'and "validation completed successfully" is consumed whole as the check\'s verdict, leaving no "successfully" to read as the dispatch\'s: it asks for nothing');
 
+/* ---- 8y. passive check verdicts (round twenty-five) -------------------------- */
+const lanePassiveCheck = [
+    '',
+    '## 2026-09-06 — Pre-deploy notes',
+    '',
+    'The `deploy-onboarding-edge-functions` validation was completed successfully; no deployment',
+    'was performed.',
+    '',
+].join('\n');
+const lanePassiveCheckRun = run(fixture('lane-passive-check', appended(lanePassiveCheck), realRb));
+ok(lanePassiveCheckRun.code === 0,
+    'A PASSIVE CHECK VERDICT IS STILL THE CHECK\'S: "validation was completed successfully" is consumed whole, auxiliary included, and asks for nothing');
+const lanePassiveDispatch = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch was completed successfully (run `33995000000`).',
+    '',
+].join('\n');
+const lanePassiveDispatchRun = run(fixture('lane-passive-dispatch', appended(lanePassiveDispatch), realRb));
+ok(lanePassiveDispatchRun.code === 1 && lanePassiveDispatchRun.json
+    && lanePassiveDispatchRun.json.failures.some(f => /the 2026-09-06 entry records a `deploy-onboarding-edge-functions` dispatch \(run 33995000000\)/.test(f)),
+    'while "the dispatch was completed successfully (run `X`)" is the dispatch\'s own verdict, passive or not, and FAILS');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

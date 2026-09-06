@@ -56,6 +56,7 @@ type OutboxRow = JsonMap & {
   depends_on_id?: number | null;
   linear_result?: JsonMap | null;
   lock_token?: string | null;
+  outbound_generation: number;
   f27_drill_rollback_id?: string | null;
 };
 
@@ -643,17 +644,26 @@ function isUnsendableRow(row: OutboxRow): boolean {
 }
 
 async function claimRow(supabase: SupabaseClient, row: OutboxRow): Promise<OutboxRow | null> {
-  const token = crypto.randomUUID();
-  const cutoff = new Date(Date.now() - LOCK_TIMEOUT_MS).toISOString();
-  const { data, error } = await supabase.from("mirror_outbox")
-    .update({ lock_token: token, locked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq("id", row.id)
-    .eq("status", row.status)
-    .or("lock_token.is.null,locked_at.lt." + cutoff)
-    .select("*")
-    .maybeSingle();
-  if (error || !data) return null;
-  return data as OutboxRow;
+  const { data, error } = await supabase.rpc("linear_outbound_claim_v1", {
+    p_id: Number(row.id),
+    p_status: row.status,
+    p_lock_timeout_seconds: Math.floor(LOCK_TIMEOUT_MS / 1_000),
+  });
+  if (error) throw new Error("outbound cutoff claim unavailable");
+  const claimed = parseJson(data);
+  return Number(claimed.id) === Number(row.id) ? claimed as OutboxRow : null;
+}
+
+async function authorizeProviderDispatch(supabase: SupabaseClient, row: OutboxRow): Promise<void> {
+  const { data, error } = await supabase.rpc("linear_outbound_authorize_dispatch_v1", {
+    p_id: Number(row.id),
+    p_lock_token: clean(row.lock_token),
+    p_generation: Number(row.outbound_generation),
+  });
+  const receipt = parseJson(data);
+  if (error || receipt.authorized !== true || Number(receipt.outbox_id) !== Number(row.id)) {
+    throw new Error("outbound cutoff dispatch refused");
+  }
 }
 
 async function checkpointLinearResult(
@@ -1793,6 +1803,7 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
+      await authorizeProviderDispatch(supabase, row);
       if (mutation.kind === "commentDelete") {
         // This durable pre-attempt receipt closes the external delete crash
         // window. If Linear deletes the marker and the worker dies before its

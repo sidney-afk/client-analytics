@@ -721,3 +721,6 @@ executes these files (see `README.md` › Repository layout).
   `qa/calendar-feedback-recovery/`; contract in
   `docs/ops/CALENDAR_FEEDBACK_RECOVERY_CONTRACT.md`. Rollback block at the
   bottom of the file (drop the two functions; keep the evidence table).
+
+
+- **`2026-09-06-linear-outbound-cutoff.sql`** is the unapplied, default-inactive G8 prerequisite for only the ordinary `mirror_outbox` claim/provider-mutation lane. It adds a server generation/high-water control, classifies accepted post-cutoff receipts without terminalizing them, and refuses stale worker application. It does not close inbound/reconciliation/browser/n8n/F27/provider-control coverage; see `docs/ops/LINEAR_OUTBOUND_CUTOFF.md`.

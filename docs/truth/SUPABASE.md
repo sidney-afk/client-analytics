@@ -83,6 +83,18 @@ materialization prerequisites remain held.
 
 ## Tables
 
+**Scoped comment receipt candidate (2026-09-05; source only):** on base
+`ce63c74d0333138f862cef5637bb7532fe059b74`, an identical accepted comment add
+failed `production-write.reconcileEntityOperation` because its fingerprint
+omitted the accepted add's action and explicit null lifecycle CAS fields.
+The shared `commentAddFingerprint` now reconstructs those exact bytes without
+changing accepted fingerprints, scope checks or lifecycle hashes. The full
+handler's offline RPC-shaped matrix proves baseline false conflicts and
+candidate exact readback, including receipts created by baseline source; it
+does not prove PostgreSQL, deployment or missing Calendar source-copy repair.
+See `qa/comment-receipt-fingerprint/README.md`. Frozen client writers, database
+objects, frontend and deploy pins are unchanged; the manual release gate is held.
+
 See `docs/truth/ENDPOINTS.md` for the access inventory. Highlights:
 
 > **READ-ACCESS BLOCKER (F88; pre-thumbnail-remediation live census 2026-07-14).** Of 37 exposed table paths, 20

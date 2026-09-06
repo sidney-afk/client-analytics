@@ -48,6 +48,37 @@ No writer restore, table drop, queue replay, flag or frozen-writer change belong
 to this slice. The existing multi-function onboarding dispatch is not a
 reader-only rollback. See `docs/features/COMPONENT_FEEDBACK.md`.
 
+**2026-09-06 independent Calendar recovery corrections (source only):**
+Do not restore the unsafe `a9d798e` recovery handler as an operational inverse:
+it can accept unrelated status receipts, arbitrary allowed field values and
+bodyless source copies. A later reviewed rollback must disable recovery through
+the gateway before removing its RPC, retain the owned-draft UI and all accepted
+comments/status receipts/materialization evidence, and verify visible holds.
+Old unbound reservations are unresolved debt, not migrated or resent statuses.
+The new evidence table needs schema AND selected-data recovery coverage before
+installation. No operational rollback or installation was executed here.
+
+**2026-09-06 Calendar feedback recovery slice 1 (source-only candidate):**
+nothing is applied or deployed. Local rollback reverts the browser half, the
+gateway `recover_source` modifier and the migration file; none of them changes
+an existing object. Once applied, the migration's rollback is the two `drop
+function` statements at its foot; keep `calendar_feedback_materializations`,
+which is evidence of source changes that already happened. A deployed
+`production-write` rolls back through the existing reviewed captured closure on
+the manual Section 4 lane, never a whole-branch revert. Do not restore a whole
+historical frontend or re-gate the frozen anonymous writers for this change:
+owned attempts now carry `recoverySource` / `statusReservation` fields that an
+older document ignores but must not erase.
+
+**2026-09-05 source-only comment receipt candidate:** the shared add fingerprint
+repair in `qa/comment-receipt-fingerprint/README.md` has not been deployed.
+Local rollback reverts its gateway/helper changes, restoring the old false
+receipt conflict; it neither removes accepted comments nor rewrites their
+fingerprints. A later serving rollback must use its reviewed captured closure
+through the existing manual lane. Do not restore a whole historical frontend or
+re-gate the frozen anonymous writers for this change. Complete Calendar
+source-copy/status recovery is separate and remains held.
+
 For the first Samples continuity release, use the paired draft-preserving reader
 inverse in `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` and
 `docs/ops/SAMPLES_RECOVERY_REHEARSAL.md`. Historical whole-document revert notes
@@ -722,3 +753,15 @@ it. Rollback is `drop index if exists
 public.production_asset_access_checks_by_url_idx;`.
 
 **Unapplied reciprocal completion correction:** no schema object, browser or writer/auth change. Withdrawing its state-reader change restores the known false green, so hold the runner and retain unresolved accounting rather than treating old output as completion. Keep accepted rows, receipts and provenance. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.
+
+## 2026-09-05 review feedback draft compatibility (unreleased)
+
+Do not raw-revert the full HTML while owned review drafts remain. The prior
+document cannot display `syncview_review_draft_v1:` records. Preserve those
+bytes, the composer ownership/display bridge, and existing Samples/native/source
+repair queues. The Samples reader-only inverse can retain all of this code;
+its exact-head builder refuses other writer/schema drift. Removing the feedback
+implementation itself still requires a separately verified compatibility bridge
+or per-owner reconciliation. It is an explicit release blocker, not a safe
+whole-file revert. Procedure: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.
+The frozen anonymous client writers must never be re-gated as recovery.

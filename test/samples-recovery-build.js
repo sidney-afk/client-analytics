@@ -28,6 +28,11 @@ async function main() {
   assert.throws(() => build(source.replace('const SXR_WORK_PREFIX =', 'const CHANGED_WORK_PREFIX ='), source, source), /compatibility drift/);
   assert.throws(() => build(source.replace('const sep = baseUrl.indexOf', 'const sep = altered.indexOf'), source, source), /paginator drift/);
   assert.throws(() => build(source.replace('async function _sxrFetchPosts(slug, signal) {', 'async function _sxrFetchPosts(slug, signal) { /* drift */'), source, source), /reader drift/);
+  const observer = "            if (typeof _reviewDraftSourceAck === 'function') _reviewDraftSourceAck('samples', _saveSlug, wirePost, owner.principal);\n";
+  assert.ok(source.includes(observer));
+  const beforeObserver = source.replace(observer, '');
+  assert.equal(build(source, beforeObserver, beforeObserver).recovery, recovery, 'exact receipt observer survives recovery unchanged');
+  assert.throws(() => build(source.replace(observer, observer.replace('owner.principal', "'foreign-owner'")), beforeObserver, beforeObserver), /compatibility drift/);
   let cases = 0;
   for (const [primary, fallback, expected] of [
     [response([row()]), null, 'available'],

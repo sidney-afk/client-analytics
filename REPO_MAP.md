@@ -55,6 +55,43 @@ component renderer, loader and focus behavior with fictional transport.
 `test/prod-context-menu-pixel-contract.js` preserves the pixel comparator's
 icon, shortcut and explicit submenu/refusal contracts.
 
+Comment add receipt reconstruction: `qa/comment-receipt-fingerprint/README.md`
+documents the source-only repair and limits; `run.mjs` in that folder loads the
+complete gateway handler with synthetic RPC-shaped persistence.
+`test/comment-receipt-fingerprint.js` runs the baseline/candidate exact-receipt,
+unchanged accepted-hash and changed-request refusal matrix offline.
+
+Review composer preservation: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md` owns the
+schema/authority/recovery limits. `test/review-draft-ownership.js` executes the
+actual helpers through `test/helpers/review-draft-source.js`.
+`qa/feedback-drafts/` contains complete-document failure/retry/identity and real
+BFCache tests with fictional intercepted transports; its README states the
+server assumptions and local-only proof limits.
+The blocked Calendar visibility experiment and its red fresh-page prerequisite
+are recorded in `docs/ops/CALENDAR_FEEDBACK_RECOVERY_ACCESS_BLOCKER.md`;
+`qa/feedback-drafts/calendar-recovery-access.js` is its intercepted regression.
+The bounded frontend extension and legacy-debt limits live in
+`docs/ops/CALENDAR_FEEDBACK_RECONCILIATION.md`.
+`qa/feedback-drafts/calendar-recovery-races.js` preserves nullable-cell, alias and
+native/source race acceptance controls, including unresolved failures.
+`qa/feedback-drafts/calendar-recovery-contract.js` verifies visible safe holds
+(missing metadata or context, unreserved/unproven companion status, changed row).
+
+Calendar feedback recovery slice 1: `docs/ops/CALENDAR_FEEDBACK_RECOVERY_CONTRACT.md`
+is the executable contract; `migrations/2026-09-05-calendar-feedback-recovery.sql`
+adds the service-only `calendar_feedback_recovery_apply_v1` RPC and its
+insert-only evidence table; `production-write` gains the additive
+`recover_source` modifier. `qa/calendar-feedback-recovery/` (README, `pg.js`
+disposable PostgreSQL loader, `seam.js` psql-backed Supabase seam, `edge.mjs`
+in-process handler loader, `handler.mjs` matrix, `browser.js` actual-control
+matrix) is the decisive proof; `test/calendar-feedback-recovery-handler.js` and
+`test/calendar-feedback-recovery-browser.js` are its unit entry points (they
+skip loudly without PostgreSQL 16 / Chromium).
+The bounded independent corrections and preserved negative controls are in
+`docs/audits/2026-09-06-calendar-feedback-recovery-independent-corrections.md`:
+accepted-comment-bound status receipts, constrained fields, missing-body holds,
+and refused root-note draft retention; no frozen writer changes.
+
 First Samples release composition and held live gates:
 `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts
 `SAMPLES_RECOVERY_TARGET_SHA` and records the exact integrated document tested.

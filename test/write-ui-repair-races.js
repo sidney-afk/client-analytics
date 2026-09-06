@@ -433,6 +433,7 @@ async function resumeExactRefBindingCase() {
   let receiptReads = 0;
   let mutationCalls = 0;
   const ctx = {
+    _isClientLink: false,
     calState: { client: 'fixture', posts: [calPost] },
     sxrState: { client: 'fixture', posts: [sxrPost] },
     calClientSlug: () => 'fixture',

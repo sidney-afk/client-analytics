@@ -1438,3 +1438,14 @@ export async function intentFingerprint(value) {
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoded));
   return [...digest].map(byte => byte.toString(16).padStart(2, "0")).join("");
 }
+
+// Preserve the existing accepted-add bytes in both write and receipt readback.
+// An add has no lifecycle CAS; omission and explicit null hash differently.
+// Call only for adds. Lifecycle actions retain their own action and CAS input.
+export async function commentAddFingerprint(value) {
+  return intentFingerprint({
+    ...value,
+    action: "add",
+    comment: { ...value.comment, expected_version: null, expected_updated_at: null },
+  });
+}

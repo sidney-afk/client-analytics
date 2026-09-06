@@ -120,6 +120,58 @@ No production read or write, merge to main, deployment, migration, workflow
 dispatch, flag change or alert delivery was performed. This is local source and
 synthetic proof only; `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md` owns the receipts.
 
+## 2026-09-06 — Independent Calendar recovery corrections; local source only
+
+Preserved author head `a9d798e6120ddf13c6461bec496715dc06c4bcef` passed its
+original 621 handler / 266 browser assertions but independently reproduced
+three false-completion cases and a root-note refusal text-loss case. The bounded
+correction binds a new tweak status identity to its exact accepted comment,
+constrains component/status/approval fields, rejects missing source bodies, and
+retains ordinary draft text on precommit refusal. Corrected proof: 855 actual
+handler/SQL assertions, 276 actual-browser assertions, separate 6-assertion
+refusal browser case, 238 fingerprint assertions, 15 ownership cases and the
+existing mock hold/race controls. See the
+[independent correction report](docs/audits/2026-09-06-calendar-feedback-recovery-independent-corrections.md)
+for source hashes, preserved baseline evidence and concurrency limits. All
+database work used an owned disposable PostgreSQL cluster, now stopped. Frozen
+writers and shared fingerprint bytes are unchanged. No push, merge, installation,
+deployment, live call or flag change. Combined recovery-corpus integration and
+serving remain held; older unbound attempts remain visibly unresolved.
+
+## 2026-09-06 — Calendar feedback recovery slice 1; local candidate, nothing applied or deployed
+
+On base `7e5a743cce8a1552bc822e0e560896451f983cdf`, an owned client Calendar
+root note or tweak whose native comment was accepted but whose source-card save
+was refused or lost its response can now be finished by the offered `Retry card
+sync` control: the browser captures the original source revision, the owned
+fields and the reserved companion status identity before sending; the gateway's
+additive `recover_source` modifier rebuilds the exact add and status identities
+with the shared fingerprint helpers; the new service-only RPC proves receipts
+and canonical lifecycle under lock, applies the copy and owned fields under an
+original-source-row CAS, and records idempotent evidence. Frozen writers,
+readers, flags, authority and n8n untouched. Proof ran locally against the
+actual handlers and the frozen writer over a disposable PostgreSQL 16: handler
+matrix 19 groups / 621 checks; browser matrix 11 groups / 266 checks through the
+actual client controls for both components, notes and tweaks, response loss, lifecycle races,
+unrelated edits, wrong client and legacy attempts; the exact base document and
+handler proven to keep holding. No live call, write, migration apply, deploy or
+flag change happened. Serving parity and live TEST journeys remain gates.
+
+## 2026-09-05 — Comment add receipt fingerprint; local source candidate
+
+On base `ce63c74d0333138f862cef5637bb7532fe059b74`, accepted comment adds include
+an action and null lifecycle CAS values that receipt reconstruction omitted.
+Shared `commentAddFingerprint` preserves the accepted bytes and lets exact
+receipts read back. The complete-handler offline matrix passes 238 assertion
+groups across Calendar/Samples VIDEO/GRAPHIC note/tweak and staff compatibility
+cases, preserving baseline false-conflict controls and changed-request refusal.
+Non-add readback explicitly refuses the unsupported operation rather than
+mistaking a lifecycle request for an earlier add; lifecycle writers are unchanged.
+Persistence is an explicit synthetic RPC-shaped seam, not SQL or serving proof.
+See `qa/comment-receipt-fingerprint/README.md`. No frontend, frozen writer,
+schema, flag, deployment pin or source-copy/status recovery changes; no live
+calls, writes or deployment. Complete Calendar recovery remains unproven.
+
 ## 2026-09-04 — Samples G1 reader candidate; draft, release held
 
 **Targeted review correction:** #1269 was verified draft/unmerged at reviewed head
@@ -6548,3 +6600,15 @@ before (5 / 1 / 1). All 7 carry a recorded ruling (OPEN_REPAIRS 156). Phase 3
 ## 2026-09-05 ? Local reciprocal native intake completion correction
 
 Independent PR1314 review at `42452cdbf5c36ba74b08885a152943ff827c9aa3` reproduced forward-only false completion on both card owners. The shared state predicate now requires the exact expected child to point back. Original source/head and failing proof are retained; no installed schema or production state was changed. Current evidence and remaining holds: `docs/audits/2026-09-05-native-intake-reciprocal-review.md`.
+
+# 2026-09-05 — Review composer preservation (draft, not deployed)
+
+Bounded follow-up from integrated Samples `343446aa435e07222b60455ca9bb603a31e82e67`.
+Reproduced lost review feedback, added scoped unsent/captured revision ownership,
+and preserved the existing Samples queue plus native/source repair receipts.
+Independent review identified and corrected exact-body acknowledgement loss and
+outgoing-actor optimistic feedback visibility during storage-event replacement.
+Local evidence: 13 ownership groups, 18 visible browser conservation cells,
+15 behavior groups, 3 real BFCache groups. Existing suite results accompany the
+draft PR. No live mutations, notifications, deployment, auth/flag or n8n changes.
+Recovery and proof limits: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.

@@ -2047,6 +2047,40 @@ const laneFailedNothingAtAllRun = run(fixture('lane-failed-nothing-at-all', appe
 ok(laneFailedNothingAtAllRun.code === 0,
     'while a failure that names no function it deployed still asks for nothing');
 
+/* ---- 8ao. a failed run is silent only if it shipped nothing (round 40) ------ */
+const laneFailedMidSequence = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` dispatch failed while deploying `production-comments` (run `34000000000`).',
+    '',
+].join('\n');
+const laneFailedMidSequenceRun = run(fixture('lane-failed-mid-sequence', appended(laneFailedMidSequence), realRb));
+ok(laneFailedMidSequenceRun.code === 1 && laneFailedMidSequenceRun.json
+    && laneFailedMidSequenceRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'A FAILURE PAST THE GUARDED STEPS IS NOT SILENT: the lane deploys `linear-outbound` and `production-write` before `production-comments`, so a run that died on the latter left both live, and naming a guarded slug was too narrow a test');
+const laneFailedBare = [
+    '',
+    '## 2026-09-06 — Companion release',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed (run `34000000000`).',
+    '',
+].join('\n');
+const laneFailedBareRun = run(fixture('lane-failed-bare', appended(laneFailedBare), realRb));
+ok(laneFailedBareRun.code === 1 && laneFailedBareRun.json
+    && laneFailedBareRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'and a bare "failed" says nothing about how far the sequence got, so it FAILS rather than being taken on trust');
+const laneFailedProven = [
+    '',
+    '## 2026-09-06 — Companion notes',
+    '',
+    'The `deploy-onboarding-edge-functions` manual dispatch failed on the ancestry check; no deployment occurred (run `34000000000`).',
+    '',
+].join('\n');
+const laneFailedProvenRun = run(fixture('lane-failed-proven', appended(laneFailedProven), realRb));
+ok(laneFailedProvenRun.code === 0,
+    'while a failure that says the whole run deployed nothing is silent, which is the only shape that proves it');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

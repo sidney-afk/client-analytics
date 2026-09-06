@@ -764,15 +764,19 @@ function recordsADispatch(log, k, len) {
        (Codex, thirty-fifth round on #1306). Removed before the clause is read
        so it can neither make a plan nor hide one. */
     const RETROSPECTIVE = /\b(?:just |exactly |right )?as (?:planned|scheduled|expected|intended|arranged|agreed)\b/gi;
-    /* A FAILURE THAT NAMES WHAT IT DEPLOYED IS NOT "NOTHING SHIPPED". The
-       onboarding lane deploys its functions one after another, so "failed
-       after deploying `production-write` (run `X`)" left a guarded function
-       live (Codex, thirty-ninth round on #1306). Failure wording is read as a
-       negation only when the text does not also say one of the four went out. */
-    const SHIPPED_ONE = new RegExp('\\bdeploy(?:ed|ing|s)?\\b[^.\\n]{0,40}`(?:' + SLUGS.join('|') + ')`', 'i');
+    /* A FAILED RUN IS SILENT ONLY WHEN IT PROVES IT SHIPPED NOTHING. The
+       onboarding lane deploys its functions one after another, so a run that
+       "failed after deploying `production-write`" or "failed while deploying
+       `production-comments`" is past both guarded functions and left them live
+       (Codex, thirty-ninth and fortieth rounds on #1306: naming a guarded slug
+       was too narrow a test, because the step it died on need not be one of
+       the four). Failure wording is a negation only where the record says the
+       whole run deployed nothing; otherwise the run is read like any other and
+       its dispatch stands. */
+    const NOTHING_SHIPPED = /\b(no deployment|nothing (?:was )?deployed|deployed nothing|no function(?:s)? (?:were|was) deployed|without deploying|did not deploy|never deployed|before any (?:mutation|deploy))\b(?![^.\n]{0,40}\b(?:of the |for the )?(?:remaining|other|rest|further|additional|subsequent|later|three|two|second)\b)/i;
     const norm = text => {
         const t = text.replace(RETROSPECTIVE, ' ').replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ');
-        return SHIPPED_ONE.test(t) ? t : t.replace(FAILED_RUN, ' NEGATED ');
+        return NOTHING_SHIPPED.test(t) ? t.replace(FAILED_RUN, ' NEGATED ') : t;
     };
     /* PLANNING THE DISPATCH IS NOT PLANNING THE FOLLOW-UP. A forward-looking
        word makes a plan only when no completion word precedes it in the text

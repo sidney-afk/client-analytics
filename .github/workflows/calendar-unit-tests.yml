@@ -99,6 +99,17 @@ jobs:
           CARD_HISTORY_PGPASSWORD: postgres
           CARD_HISTORY_MANIFEST_SQL: ${{ runner.temp }}/card-history-manifest.sql
         run: node scripts/card-history-closed-corpus-rehearsal.js
+      - name: Restore native Workload plans with combined recording and recovery tables
+        env:
+          CARD_HISTORY_TEST_CONFIRM: LOCAL_DISPOSABLE_ONLY
+          CARD_HISTORY_PGHOST: 127.0.0.1
+          CARD_HISTORY_PGPORT: '5432'
+          CARD_HISTORY_PGUSER: postgres
+          CARD_HISTORY_PGPASSWORD: postgres
+          CARD_HISTORY_PSQL: /usr/lib/postgresql/17/bin/psql
+          CARD_HISTORY_PG_DUMP: /usr/lib/postgresql/17/bin/pg_dump
+          CARD_HISTORY_WORKLOAD_OUTPUT: ${{ runner.temp }}/workload-history-private
+        run: node test/workload-history-integrated.js
       - name: Prove native Workload snapshot and plan aliases against disposable SQL
         env:
           WORKLOAD_TEST_REQUIRE: '1'

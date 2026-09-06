@@ -24,6 +24,16 @@ The replacement full run at exact immutable `688947308c96e6f00b09a495a1f16f939fd
 
 ## Integration decisions
 
+Latest bounded integration evidence:
+
+- Actual Calendar handler/RPC with native, journal and provenance schema: **7 groups / 81 assertions**, independently rerun at `e2dde9b2c97f5e41a0f5bde80f78ce0a63ea6892`. Accepted notes/tweaks, lost responses, lifecycle holds and injected recorder failures preserve exact row images. See [combined Calendar proof](2026-09-06-calendar-feedback-combined-proof.md).
+- Actual service-role Workload handler with the same recovery corpus: **17 groups**, source `92d1641e4e78e216b2cb0054c9a478df61c7623a`. Old/native plan aliases, journal refusal and exact 35-table restore pass. This does not prove provider/CON/STR population restoration.
+- Full-HTML Chromium Workload: **5 groups** at `688947308c96e6f00b09a495a1f16f939fde479d`, HTML SHA256 `64f197a0a451329925c3c51a231c79af05fc5f425bf1b241ade2af15917c7d6c`. Native cards, saved dates, failed refresh and post-flight receipt retry use actual product code with synthetic endpoints. This browser driver now runs in the existing visible-boot job.
+- Real local-promisor Git regression: **25 assertions**, with five baseline implicit fetches to an empty local origin and zero after the fix. Existing view **57** and independently rerun reconciler **37** assertions pass. See [local-object proof](2026-09-06-continuity-local-object-proof.md).
+- The public privacy scanner initially exceeded Node's default output buffer on this combined diff. Its finite limit is now 32 MiB with a 60-second command timeout; overflow still refuses the scan. The repaired actual scan checked **51** roster terms against captured main and found **zero** added identity matches. It never prints the terms or matching raw lines.
+
+These results close their named isolated-proof gaps only. Full final-source and hosted checks, installed schema, serving behavior, live journeys and watcher activation retain separate statuses. The CI unit job now requires the Calendar combined lane, runs Workload's 57-check SQL/handler lane explicitly, and runs the combined Workload restore after installing the pinned PostgreSQL client. Its 20-minute deadline is finite; a timeout remains a failure.
+
 The captured main's asset-evidence reuse, description-image feature, existing authorization and deployment ownership are retained. Independent appended documentation is kept from both parents. Main's later live crosswalk evidence supersedes the earlier draft's pending-dispatch sentence. Colliding draft repair numbers become native assignment **158**, Samples **159**, native completion **160**; historical source draft numbers remain identified explicitly. Pre-existing older ledger collisions are not silently rewritten.
 
 The integrated monitor uses the exact reviewed PR1303 versions of observer, transport, view and operations contracts; the newer Samples repair remains intact. Section 4 source pins must be regenerated from the completed runtime tree, then verified again at the published head. Frozen `calendar-upsert` and `sample-review-upsert` source must remain byte-identical to captured main; this does not prove their serving bodies.

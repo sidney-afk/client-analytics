@@ -1,5 +1,15 @@
 # Linear removal: completion accounting
 
+## G6 bounded follow-up: legacy card outcome uncertainty (September 6, 21:38Z)
+
+SOURCE_ONLY at candidate `9e75f4dcd3d5680da9d1c962498d6a79ed497922`, `index.html`:
+
+- Real Submit chain: `submitLinearForm:47819` -> `_submitLinearFormRoutedOnce:48076` -> `_submitLinearFormLegacy:48072` -> `_submitLinearFormOnce:47832` -> `_writeLinearVideoCardsToCalendar:48034`. Existing legacy receipts, unreadable storage, absent routing helper or a false gateway decision select the legacy branch; it is conditional, not dead code or an always-called dependency. Successful confirmed legacy submission can launch the writer; its catch at48036 still suggests Create Post.
+- Existing queued work also reaches the writer through `_resumePendingCalCardJobs:48940`, dispatch48968, when required authority is Linear and age/run/heartbeat guards permit it. New retention does not alter that eligible path or an already-running writer.
+- `_writeLinearVideoCardsToCalendar:48674` polls `loadLinearIssues(true)`, then writes through `_calUpsertFetch`. At48806 onward, missing provider-derived identity falls back to `mintId()` rather than retaining a preassigned card ID. At48838 onward only a parsed `json.ok` adds the video number to `doneSet`; a lost response or unreadable successful response does not establish absence. The incomplete notice at48859 reports writes as a known count and suggests recreation, although this count only reflects acknowledged checkpoints.
+- Consequence inferred from those branches: provider lookup failure plus repeated unacknowledged writes can use different IDs; provider-linked retries can also resend initial fields. This turn did not execute a failure-injection or live reproduction. Actual live population, installed trigger protection, duplicate occurrence and provider reachability remain UNPROVEN. Do not label the green suite as covering this case.
+
+Next finite implementation gate: reproduce accepted-write/lost-response with failed provider lookup using the existing isolated actual-writer harness; establish how legacy jobs retain any already-attempted card identity and how late replay preserves human fields before changing retry behavior. Jobs without provable prior identity need reconciliation, not a freshly invented native identity or a blanket requeue. Replace the two unsafe notices as part of that reviewed recovery slice. Keep completed9e75 source and hosted458 evidence intact until a new candidate is independently reviewed. No production action, n8n edit, writer-auth change or new monitoring activation is authorized by this note; global G6 remains open.
 ## CURRENT - September 6 UTC: candidate integration and held release gates
 
 This replaces the former current accounting table and next-assignment note. Dated checkpoints below remain historical evidence. No production exit gate is complete: product watchers are **INACTIVE**, Decision A is **NOT READY**, and neither the 72-hour nor 14-day observation clock has started.

@@ -10,8 +10,8 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 
 | Coverage | Count |
 | --- | ---: |
-| Deployable function slugs | 35 |
-| Main-push plus manual-dispatch paths | 11 |
+| Deployable function slugs | 36 |
+| Main-push plus manual-dispatch paths | 12 |
 | Manual-dispatch-only paths | 7 |
 | No CI deploy path | 14 |
 | Deliberate-manual subset of no-CI paths | 3 |
@@ -29,6 +29,7 @@ A workflow-dispatch-only entry has a CI deploy path but never deploys from a mer
 | `client-review-link` | [deploy-client-review-link](../../.github/workflows/deploy-client-review-link.yml) | workflow_dispatch | `_shared/browser-write-auth-policy.mjs`<br>`_shared/browser-write-auth.ts`<br>`_shared/client-review-token-policy.mjs`<br>`_shared/staff-role-auth.ts` | - |
 | `client-token-verify` | NONE | **NO CI DEPLOY PATH - DELIBERATE-MANUAL.** Strict client-entry v1 is deliberate-manual: deploy and read back the exact reviewed function source before serving its matching browser caller; no runtime-flag change is part of this release. | - | - |
 | `deliverable-write` | [deploy-f27-section4](../../.github/workflows/deploy-f27-section4-closures.yml) | workflow_dispatch only (pinned SHA guard) | `_shared/b4-write.ts` | - |
+| `description-image-upload` | [deploy-description-image-upload](../../.github/workflows/deploy-description-image-upload.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | `description-image-upload/policy.mjs` |
 | `filming-plans` | [deploy-onboarding](../../.github/workflows/deploy-onboarding-edge-functions.yml) | main push + workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `hiring-applications` | [deploy-hiring-applications](../../.github/workflows/deploy-hiring-applications.yml) | workflow_dispatch | `_shared/staff-role-auth.ts` | - |
 | `hiring-automation` | [deploy-hiring-automation](../../.github/workflows/deploy-hiring-automation.yml) | workflow_dispatch | - | - |

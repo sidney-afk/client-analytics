@@ -3161,6 +3161,92 @@ ok(beforeVerificationRun.code === 1 && beforeVerificationRun.json
     && beforeVerificationRun.json.failures.some(f => /"2026-09-06 — F27 Section 4 deploy failed, run `34000000000`"/.test(f) && /holds no receipt this guard can read/.test(f)),
     'AND A CHECK IS NOT A DEPLOY STEP: "failed before any function verification" says when the checking stopped, not that nothing shipped');
 
+/* ---- 8cc. a run bound to prose, and context before the result (round 80) ---- */
+
+/* THE RUN A BROKEN ENTRY NAMES ONLY IN PROSE STILL DATES IT. Round 38 taught
+   the sweep to read a `github_run_id` out of a truncated attestation, but an
+   unreadable entry that states its outcome in a sentence -- "Completed
+   successfully (run `X`)" -- carries the id nowhere the heading or a JSON block
+   can see. Its older heading date then softened a NEWER deploy to a note while
+   four malformed rows went unread, and the guard exited 0 against the stale
+   run. */
+const proseRunUnreadable = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'Completed successfully (run `34000000000`).',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const proseRunUnreadableRun = run(fixture('prose-run-unreadable', appended(proseRunUnreadable), realRb));
+ok(proseRunUnreadableRun.code === 1 && proseRunUnreadableRun.json
+    && proseRunUnreadableRun.json.failures.some(f => /"2026-09-04 — F27 Section 4 deploy"/.test(f)
+        && /4 versions-table row\(s\) this guard cannot read/.test(f)),
+    'A RESULT SENTENCE DATES A BROKEN ENTRY: an unreadable section whose prose names a run NEWER than the live receipt is a failure, not history softened by its older heading date');
+
+/* And the sentence must still say THIS deploy finished. A planned run, a
+   check's run and another attempt's run named the same way stay out of it, so
+   the entry is still placed by its heading date. */
+const proseRunNotOurs = [
+    '',
+    '## 2026-09-04 — F27 Section 4 deploy',
+    '',
+    'The dry-run passed (run `34000000000`). The previous attempt completed on run',
+    '`34000000001`. The follow-up smoke test will run `34000000002` tomorrow.',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| batch-write | 35 | nope | verify_jwt=false |',
+    '| deliverable-write | 30 | nope | verify_jwt=false |',
+    '| linear-outbound | 49 | nope | verify_jwt=false |',
+    '| production-write | 69 | nope | verify_jwt=false |',
+    '',
+].join('\n');
+const proseRunNotOursRun = run(fixture('prose-run-not-ours', appended(proseRunNotOurs), realRb));
+ok(proseRunNotOursRun.code === 0 && proseRunNotOursRun.json
+    && proseRunNotOursRun.json.notes.some(n => /"2026-09-04 — F27 Section 4 deploy"/.test(n)
+        && /is dated by its own heading/.test(n)),
+    'while a check\'s run, another attempt\'s run and a planned run in the same prose do not date it, and it stays a note');
+
+/* CONTEXT MAY STAND BETWEEN A LABEL AND ITS RESULT. Round 79 made the section
+   the scope; the reader still took only the FIRST sentence after the reference,
+   so two sentences of context dropped the record of a lane that can move
+   `production-write`, and the stale row exited 0. */
+const twoContextSentences = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'The onboarding stack needed the new applicant columns. The lane also carries',
+    'the staff-sensitive functions in its set. Completed successfully (run',
+    '`34000000000`).',
+    '',
+].join('\n');
+const twoContextSentencesRun = run(fixture('two-context-sentences', appended(twoContextSentences), realRb));
+ok(twoContextSentencesRun.code === 1 && twoContextSentencesRun.json
+    && twoContextSentencesRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch \(run 34000000000\)/.test(f)),
+    'AND THE SCAN RUNS PAST CONTEXT: two descriptive sentences between a lane label and "Completed successfully (run `X`)" do not drop the record');
+
+/* But a later sentence with a subject of its own is still about that subject,
+   however far down it sits: the probe's verdict is not the dispatch's. */
+const probeAfterContext = [
+    '',
+    '## 2026-09-06 — `deploy-onboarding-edge-functions` dispatch',
+    '',
+    'The onboarding stack needed the new applicant columns. The lane also carries',
+    'the staff-sensitive functions in its set. Smoke probe completed successfully',
+    '(run `34000000000`).',
+    '',
+].join('\n');
+const probeAfterContextRun = run(fixture('probe-after-context', appended(probeAfterContext), realRb));
+ok(probeAfterContextRun.code === 0,
+    'while a sentence that opens with a subject of its own ("Smoke probe completed successfully") is still that subject\'s verdict, not the label\'s');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

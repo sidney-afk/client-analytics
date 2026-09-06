@@ -839,6 +839,13 @@ const AUX_WORDS = 'was|were|is|are|has|had|have|been|got|also|then|all|both|not|
    twenty-eighth round on #1306). A positive verdict beside it still stands
    ("completed (run `X`) but the post-deploy probe failed"). */
 const FAILED_RUN = /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out|deployed nothing|deploying nothing|no deployment|without deploying|did not deploy|never deployed)\b/gi;
+/* "AS PLANNED" LOOKS BACK, NOT FORWARD. "As planned, the LANE manual
+   dispatch completed successfully (run `X`)" records a deploy that happened;
+   the planning word only says it went the way it was meant to (Codex,
+   thirty-fifth round on #1306). Removed before a clause is read so it can
+   neither make a plan nor hide one. Module scope because the unreadable-entry
+   sweep reads result sentences the same way (eightieth round). */
+const RETROSPECTIVE = /\b(?:just |exactly |right )?as (?:planned|scheduled|expected|intended|arranged|agreed)\b/gi;
 const NEGATED_DONE = new RegExp('\\b(?:not|never|no longer|isn\'t|wasn\'t|hasn\'t|hadn\'t|didn\'t|weren\'t|haven\'t)\\b(?:\\s+(?:was|were|been|be|get|got))*\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*', 'gi');
 const CHECK_DONE = new RegExp('\\b(?:' + CHECK_WORDS + ')\\b(?:\\s+(?:' + AUX_WORDS + ')\\b)*\\s+(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*'
     + '|\\b(?:' + DONE_WORDS + ')\\b(?:\\s+(?:' + DONE_WORDS + ')\\b)*\\s+(?:the |its |a |all )?(?:' + CHECK_WORDS + ')\\b', 'gi');
@@ -903,12 +910,6 @@ function recordsADispatch(log, k, len) {
     const before = span.slice(cStart, rel);
     const after = span.slice(rel + len, cEnd);
     /* Completion words about a check are not about the dispatch. */
-    /* "AS PLANNED" LOOKS BACK, NOT FORWARD. "As planned, the LANE manual
-       dispatch completed successfully (run `X`)" records a deploy that
-       happened; the planning word only says it went the way it was meant to
-       (Codex, thirty-fifth round on #1306). Removed before the clause is read
-       so it can neither make a plan nor hide one. */
-    const RETROSPECTIVE = /\b(?:just |exactly |right )?as (?:planned|scheduled|expected|intended|arranged|agreed)\b/gi;
     /* A FAILED RUN IS SILENT ONLY WHEN IT PROVES IT SHIPPED NOTHING. The
        onboarding lane deploys its functions one after another, so a run that
        "failed after deploying `production-write`" or "failed while deploying
@@ -1098,11 +1099,25 @@ function recordsADispatch(log, k, len) {
        item or paragraph, opens with a verdict rather than a subject of its own
        ("Smoke probe completed successfully" is about the probe). */
     if (!/\bNEGATED\b/.test(norm(whole)) && !CHECK_ONLY.test(whole)) {
-        const rest = span.slice(cEnd + 1);
-        const nm = rest.match(/[.;!?](?=\s|$)/);
-        const next = (nm ? rest.slice(0, nm.index) : rest).replace(/^\s*(?:Result|Outcome|Status|Verdict)\s*:\s*/i, '').trim();
         const opensWithVerdict = new RegExp('^(?:(?:it|this|that|which|was|were|is|has|had|been|also|then|all|not|never)\\s+)*(?:' + DONE_WORDS + '|NOT DISPATCHED|' + AHEAD_WORDS.replace(/LANE /g, '') + '|failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\\b', 'i');
-        if (next && opensWithVerdict.test(next)) {
+        /* AND CONTEXT MAY STAND BETWEEN THE LABEL AND ITS RESULT. Reading only
+           the FIRST sentence after the reference dropped the record whenever
+           two sentences of context preceded "Completed successfully (run `X`)",
+           so a lane that can move `production-write` went unseen and the stale
+           row exited 0 (Codex, eightieth round on #1306). The scan runs on
+           through the section to the first sentence that OPENS with a verdict,
+           which is what makes it this label's result rather than a statement
+           about something else -- "Smoke probe completed successfully" still
+           opens with a subject of its own and is still passed over. */
+        let rest = span.slice(cEnd + 1);
+        let next = '';
+        while (rest.trim()) {
+            const nm = rest.match(/[.;!?](?=\s|$)/);
+            const cand = (nm ? rest.slice(0, nm.index) : rest).replace(/^\s*(?:Result|Outcome|Status|Verdict)\s*:\s*/i, '').trim();
+            rest = nm ? rest.slice(nm.index + 1) : '';
+            if (cand && opensWithVerdict.test(cand)) { next = cand; break; }
+        }
+        if (next) {
             if (/\bNOT DISPATCHED\b/i.test(next)) return null;
             const nrm = next.match(/\brun\s+`?#?(\d{6,})/i);
             if (nrm && !plans(next.slice(0, nrm.index)) && !/\bNEGATED\b/.test(norm(next))) return { run: nrm[1] };
@@ -1521,8 +1536,26 @@ function unreadableDeployEntries(log, receiptPositions, newestDate, newestRun) {
            date soften it to a note while it proved a newer deploy may be
            invisible (Codex, thirty-eighth round on #1306). The newest run the
            section names anywhere, heading or block, decides. */
+        /* AND SO DOES THE RUN ITS RESULT SENTENCE NAMES. An unreadable entry
+           often states its outcome in prose alone -- "Completed successfully
+           (run `X`)" -- so neither the heading nor a JSON block carries the id,
+           and an older heading date softened a NEWER deploy to a note while its
+           four malformed rows went unread (Codex, eightieth round on #1306). A
+           run id counts when its own sentence says this deploy finished: not a
+           plan, not a check, not a negation, not another attempt's, and not one
+           the entry already binds to a failure. */
+        const proseRuns = entryText.split(/(?<=[.!?])\s|\n{2,}/).flatMap(sentence => {
+            const t = sentence.replace(RETROSPECTIVE, ' ').replace(CHECK_DONE, ' ').replace(NEGATED_DONE, ' NEGATED ');
+            if (!DISPATCH_DONE.test(t) || /\bNEGATED\b/.test(t)) return [];
+            if (CHECK_ONLY.test(t) || OTHER_ATTEMPT.test(sentence)) return [];
+            const ahead = firstIndex(DISPATCH_AHEAD, t);
+            const done = firstIndex(DISPATCH_DONE, t);
+            if (ahead >= 0 && (done < 0 || ahead < done)) return [];
+            return [...sentence.matchAll(/\brun\s+`?#?(\d{6,})`?/gi)].map(m => m[1]);
+        }).filter(r => !failureRuns.includes(r));
         const runsHere = [(h.text.match(/[Rr]un\s+`?(\d{6,})`?/) || [])[1] || '']
             .concat([...block.matchAll(/"github_run_id"\s*:\s*"?(\d{6,})/g)].map(x => x[1]))
+            .concat(proseRuns)
             .filter(Boolean);
         const ownRun = runsHere.sort((a, b) => Number(b) - Number(a))[0] || '';
         const runNewer = !!(ownRun && newestRun && Number(ownRun) >= Number(newestRun));

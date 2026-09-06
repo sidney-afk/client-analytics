@@ -114,6 +114,9 @@ try{
  });
  await check('unavailable control refuses rather than silently treating empty claim as healthy',async()=>{
   const debtRows=JSON.parse(query("set role service_role;select coalesce(json_agg(t),'[]'::json) from (select * from public.linear_outbound_cutoff_debt_v1 order by id) t"));
+  assert.equal(query("set role service_role;select count(*) from public.linear_outbound_cutoff_debt_rows_v1()"),String(debtRows.length));
+  assert.throws(()=>query("set role authenticated;select count(*) from public.linear_outbound_cutoff_debt_rows_v1()"),/permission denied/);
+  assert.throws(()=>query("set role authenticated;select count(*) from public.linear_outbound_cutoff_debt_v1"),/permission denied/);
   assert.equal(debtRows.length,Number(query('select count(*) from public.mirror_outbox')));
   assert.equal(debtRows.find(x=>Number(x.id)===debt).disposition,'unclaimed_before_cutoff');
   assert.equal(debtRows.find(x=>Number(x.id)===claimed).disposition,'claimed_before_cutoff');

@@ -11,6 +11,10 @@ ok(!/update\s+public\.mirror_outbox[\s\S]*?status\s*=\s*'(?:written|skipped|stal
 ok(sql.includes("for share")&&sql.includes("for update"),'enqueue/claim/authorize serialize with activation');
 ok(!sql.includes('app.linear_cutoff_operator'),'activation leaves no transaction-local worker bypass');
 ok(sql.includes('linear_outbound_cutoff_debt_v1'),'retained queue debt has a service-only derived census');
+const debtReader=sql.slice(sql.indexOf('create function public.linear_outbound_cutoff_debt_rows_v1'),sql.indexOf('create view public.linear_outbound_cutoff_debt_v1'));
+ok(/language plpgsql stable security invoker/i.test(debtReader)
+  && debtReader.includes("raise exception 'linear_cutoff_control_unavailable'"),
+  'debt reader is a stable invoker-only census that still refuses a missing control');
 ok(sql.includes("outbound_generation is distinct from v_control.generation"),'stale worker apply fails closed');
 ok(sql.includes("i.row_sha256 = encode(") && sql.includes("f27_drill_replay_terminal"),'post-cutoff F27 exceptions bind an immutable rollback intent and permit only the SQL-only drill terminal');
 ok(sql.includes("r.is_drill = true") && sql.includes("if not v_drill_claim then return null; end if;"),'only a classified F27 drill can lease after cutoff; ordinary replay remains held');

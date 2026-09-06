@@ -315,7 +315,7 @@ end $fn$;
 
 create function public.linear_outbound_cutoff_debt_rows_v1()
 returns table(id bigint,status text,outbound_generation bigint,disposition text)
-language plpgsql security definer set search_path=public as $fn$
+language plpgsql stable security invoker set search_path=public as $fn$
 declare c public.linear_outbound_cutoff_control%rowtype;
 begin
   select * into c from public.linear_outbound_cutoff_control where lane='mirror_outbox';

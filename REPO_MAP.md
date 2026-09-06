@@ -224,6 +224,9 @@ Inactive first-Samples-repair monitoring preparation:
 `qa/client-continuity.js` and `qa/client-continuity-fixtures.js` (intercepted boot harness reuse),
 `qa/client-continuity-transport.js` (independent loopback transport escape regressions),
 `test/client-continuity-view.js` and `test/helpers/client-continuity-source.js` (census/launcher/source coverage), and
+`test/client-continuity-local-objects.js` (real local promisor Git negative controls;
+no external transport), with exact source/trace digest evidence in
+`docs/audits/2026-09-06-continuity-local-object-proof.md` and its `.json` receipt, and
 `docs/ops/CLIENT_CONTINUITY_PREPARATION.md` (activation/recovery requirements).
 
 Separate disabled initial Samples read: `scripts/samples-read-subscriptions.js`

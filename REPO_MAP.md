@@ -96,6 +96,14 @@ The bounded independent corrections and preserved negative controls are in
 `docs/audits/2026-09-06-calendar-feedback-recovery-independent-corrections.md`:
 accepted-comment-bound status receipts, constrained fields, missing-body holds,
 and refused root-note draft retention; no frozen writer changes.
+The separately opted-in `qa/calendar-feedback-recovery/integrated.mjs` lane,
+through `test/calendar-feedback-recovery-integrated.js`, tests actual recovery
+with the journal/native/provenance migration fixture and exact35-table row
+conservation. `test/calendar-feedback-recovery-local-target.js` checks local
+target parsing and intercepted libpq environment isolation without a connection.
+`docs/audits/2026-09-06-calendar-feedback-combined-proof.md` and its `.json`
+receipt record exact-source combined execution, guard negative controls and
+the separate required CI environment binding.
 
 First Samples release composition and held live gates:
 `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts

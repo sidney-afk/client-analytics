@@ -264,7 +264,14 @@ function deployAnchors(log) {
            #1306). So the object rule runs only on what does not lead. */
         const bare = named.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         const leadsShipping = /^(?:re-?)?(?:deploy|deployed|deploying|deploys|releas(?:e|ed|ing|es)|ship|shipped|shipping|rollout|roll out|rolled out|cut ?over)\b/i.test(bare);
-        const objectless = leadsShipping ? named : named.replace(/\b(?:deploy(?:ment|ed|s|ing)?|releas(?:e|ed|es|ing)|shipp?(?:ed|ing|s)?|rollout|rolled out|cut ?over)\b(?!\s+(?:via|from|to|by|on|at|in|into|through|with|as|after|before|during|the|this|run)\b)(?:\s+[a-z]+\b)?/gi, ' ');
+        const objectless = leadsShipping ? named : named
+            /* A NOUN FORM NAMES A THING: "Inspect deployment", "deployment
+               configuration". A PARTICIPLE IS A PREDICATE unless it takes an
+               object of its own: "Hotfix deployed — run `X`" records the act,
+               "Inspect deployed functions" does not (Codex, sixty-eighth round
+               on #1306). */
+            .replace(/\b(?:deployment|deploy|rollout|release|cut ?over)\b(?!\s+(?:completed|succeeded|finished|done|failed|via|from|to|by|on|at|in|into|through|with|as|after|before|during|the|this|run)\b)(?:\s+[a-z]+\b)?/gi, ' ')
+            .replace(/\b(?:deployed|released|shipped|rolled out)\s+(?!via\b|from\b|to\b|by\b|on\b|at\b|in\b|into\b|through\b|with\b|as\b|after\b|before\b|during\b|the\b|this\b|run\b)[a-z]+\b/gi, ' ');
         const leads = objectless.replace(/^#+\s*/, '').replace(/^\d{4}-\d{2}-\d{2}\s*[—–-]*\s*/, '').trimStart();
         if (/^(?:re-?)?(?:check|checking|checked|verify|verifying|verified|validate|validating|validated|confirm|confirming|confirmed|test|testing|tested|audit|auditing|probe|probing|read[- ]?back|smoke[- ]?test)\b/i.test(leads)) continue;
         const saysDeploy = /\b(?:re-?)?deploy|\b(?:re-?)?releas(?:e|ed|es|ing)\b|\bshipp?(?:ed|ing|s)?\b|\brollout\b|\broll(?:ed|ing)? out\b|\bcut ?over\b/i.test(objectless)
@@ -902,7 +909,14 @@ function recordsADispatch(log, k, len) {
        all, and the second clause is about `Y` (Codex, sixty-fifth round on
        #1306), so run ids decide where the words do not. */
     const wholeRunSilent = t => {
-        const clauses = t.split(/[.;]\s|,\s*(?:while|whereas|although|though|but)\s/);
+        /* A CONTRAST CLAUSE IS ABOUT SOMETHING ELSE. The pieces are marked so a
+           claim that follows "while", "but" or "whereas" can be held to a
+           stricter test than one continuing the same sentence (Codex,
+           sixty-eighth round on #1306). */
+        const marked = t.replace(/,\s*(?:while|whereas|although|though|but)\s/g, '\u0001');
+        const pieces = marked.split(/[.;]\s/).flatMap(sent => sent.split('\u0001')
+            .map((c, i) => ({ text: c, contrast: i > 0 })));
+        const clauses = pieces.map(p => p.text);
         const runIn = c => (c.match(/\brun\s+`?#?(\d{6,})`?/) || [])[1] || '';
         /* The failure VERBS only: FAILED_RUN also carries the no-deployment
            wording, and a clause matching itself would make every claim its own
@@ -911,7 +925,7 @@ function recordsADispatch(log, k, len) {
             .filter(c => /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\b/i.test(c))
             .map(runIn)
             .filter(Boolean);
-        return clauses.some(clause => {
+        return pieces.some(({ text: clause, contrast }) => {
             if (!NOTHING_SHIPPED.test(clause) || OTHER_ATTEMPT.test(clause)) return false;
             const said = runIn(clause);
             if (!said) return true;
@@ -920,8 +934,14 @@ function recordsADispatch(log, k, len) {
                about `Y` (Codex, sixty-sixth round on #1306). */
             const unnumberedFailure = clauses.some(c =>
                 /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\b/i.test(c)
-                && /\brun\b/i.test(c) && !runIn(c));
-            if (unnumberedFailure) return false;
+                && !runIn(c));
+            /* An unnumbered failure is unnumbered whatever noun it uses -- "the
+               current deployment failed" as much as "the current run failed"
+               (Codex, sixty-eighth round) -- but only a CONTRAST clause is
+               about something else: "refused on the ancestry check; no
+               deployment occurred in run `X`" continues the same sentence about
+               the same run. */
+            if (contrast && unnumberedFailure) return false;
             return !failedRuns.length || failedRuns.includes(said);
         });
     };
@@ -991,9 +1011,12 @@ function recordsADispatch(log, k, len) {
            would file this failure under an older dispatch and hide it (Codex,
            sixty-sixth round on #1306). With no id of its own the record is
            judged by its date, which is what an unplaceable dispatch deserves. */
-        const failedBefore = /\brun\b/i.test(pre)
-            && /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\b/i.test(pre)
-            && !/\d{6,}/.test(pre);
+        const failedBefore = /\b(failed|aborted|cancell?ed|refused|rejected|errored|crashed|timed out)\b/i.test(pre)
+            && !/\d{6,}/.test(pre)
+            /* Only across a contrast: "failed after deploying `production-write`
+               (run `X`)" keeps its own id, while "the current deployment failed,
+               while run `Y` ..." does not own `Y`. */
+            && /,\s*(?:while|whereas|although|though|but)\s/i.test(pre);
         if (lastCheck < 0 || lastIndex(DISPATCH_DONE, marked) > lastCheck) return { run: failedBefore ? '' : runId };
         return undefined;
     };

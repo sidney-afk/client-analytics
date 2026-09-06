@@ -2820,6 +2820,39 @@ ok(redeployHeadingRun.code === 1 && redeployHeadingRun.json
     && /34000000000/.test(JSON.stringify(redeployHeadingRun.json.failures)),
     'A REDEPLOY IS A DEPLOY: "Redeploy production functions — run `X`" anchors its own run, so the v69 table below it is not filed under the older parent');
 
+/* ---- 8bq. a predicate is not an object; an unnumbered failure by any noun (round 68) ---- */
+const hotfixDeployedHeading = [
+    '',
+    '## 2026-08-30 — F27 Section 4 deploy, run `33500000000`',
+    '',
+    '##### Hotfix deployed — run `34000000000`',
+    '',
+    '| function | active version | source closure SHA-256 | JWT |',
+    '|---|---|---|---|',
+    '| `batch-write` | 35 → **36** | `' + H.bw + '` | `verify_jwt=false` |',
+    '| `deliverable-write` | 35 → **36** | `' + H.dw + '` | `verify_jwt=false` |',
+    '| `linear-outbound` | 47 → **48** | `' + H.lo47 + '` | `verify_jwt=false` |',
+    '| `production-write` | 68 → **69** | `' + H.pw66 + '` | `verify_jwt=false` |',
+    '',
+].join('\n');
+const hotfixDeployedHeadingRun = run(fixture('hotfix-deployed-heading', appended(hotfixDeployedHeading), realRb));
+ok(hotfixDeployedHeadingRun.code === 1 && hotfixDeployedHeadingRun.json
+    && /34000000000/.test(JSON.stringify(hotfixDeployedHeadingRun.json.failures)),
+    'A PREDICATE IS NOT AN OBJECT: "Hotfix deployed — run `X`" records the act and anchors its own run, while "Inspect deployed functions" still names a thing');
+
+const unnumberedDeploymentFailure = [
+    '',
+    '## 2026-09-06 — Companion',
+    '',
+    'The `deploy-onboarding-edge-functions` current deployment failed, while run `33900000000`',
+    'deployed nothing.',
+    '',
+].join('\n');
+const unnumberedDeploymentFailureRun = run(fixture('unnumbered-deployment-failure', appended(unnumberedDeploymentFailure), realRb));
+ok(unnumberedDeploymentFailureRun.code === 1 && unnumberedDeploymentFailureRun.json
+    && unnumberedDeploymentFailureRun.json.failures.some(f => /records a `deploy-onboarding-edge-functions` dispatch/.test(f)),
+    'AND AN UNNUMBERED FAILURE IS UNNUMBERED WHATEVER NOUN IT USES: "the current deployment failed" is no more answered by another run\'s no-op claim than "the current run failed" was');
+
 /* ---- 9. the real repository -------------------------------------------- */
 
 const real = run(ROOT);

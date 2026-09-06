@@ -28,7 +28,18 @@ The bounded frontend extension and legacy-debt limits live in
 `qa/feedback-drafts/calendar-recovery-races.js` preserves nullable-cell, alias and
 native/source race acceptance controls, including unresolved failures.
 `qa/feedback-drafts/calendar-recovery-contract.js` verifies visible safe holds
-under the current server receipt-fingerprint incompatibility.
+(missing metadata or context, unreserved/unproven companion status, changed row).
+
+Calendar feedback recovery slice 1: `docs/ops/CALENDAR_FEEDBACK_RECOVERY_CONTRACT.md`
+is the executable contract; `migrations/2026-09-05-calendar-feedback-recovery.sql`
+adds the service-only `calendar_feedback_recovery_apply_v1` RPC and its
+insert-only evidence table; `production-write` gains the additive
+`recover_source` modifier. `qa/calendar-feedback-recovery/` (README, `pg.js`
+disposable PostgreSQL loader, `seam.js` psql-backed Supabase seam, `edge.mjs`
+in-process handler loader, `handler.mjs` matrix, `browser.js` actual-control
+matrix) is the decisive proof; `test/calendar-feedback-recovery-handler.js` and
+`test/calendar-feedback-recovery-browser.js` are its unit entry points (they
+skip loudly without PostgreSQL 16 / Chromium).
 
 First Samples release composition and held live gates:
 `docs/ops/FIRST_SAMPLES_RELEASE_PACKET.md`. The recovery browser runner accepts

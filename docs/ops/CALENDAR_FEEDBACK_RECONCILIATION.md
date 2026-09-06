@@ -1,5 +1,54 @@
 # Calendar feedback reconciliation: local candidate
 
+## 2026-09-06 slice 1 candidate: atomic owned-attempt materialization (supersedes the hold below)
+
+The blocker recorded below (no atomic expected-native-comment identity /
+version / lifecycle check WITH source insertion) now has a bounded server
+capability: `migrations/2026-09-05-calendar-feedback-recovery.sql` adds the
+service-only `calendar_feedback_recovery_apply_v1(jsonb)` plus an insert-only
+evidence table, and `production-write` gains the additive `recover_source`
+modifier on the client comment operation behind its existing client-token
+authorization and front-door card binding. The frozen writers,
+`calendar_merge_comments`, readers, flags and authority are untouched.
+Contract: `docs/ops/CALENDAR_FEEDBACK_RECOVERY_CONTRACT.md`.
+
+What the browser now captures (additively, inside the existing owned attempt,
+before anything is sent): the exact native request (`recoveryPayload`, as
+before), the original source row revision and ONLY the owned scalar fields the
+failed source save would have carried (`recoverySource`), and, for a tweak,
+the exact companion status request reserved BEFORE it is sent and receipted
+afterwards, including a lost response (`statusReservation`). A client's root
+note posted from the Sheet notes overlay on a linked video/graphic slot is now
+an owned attempt too. `Retry card sync` re-sends the byte-equivalent original
+comment request with `recover_source`; the RPC proves the add by its mutation
+receipt and canonical identity under lock (no outbox required), proves the
+companion status by its reserved outbox receipt, checks the reciprocal
+client/card/deliverable binding and an original-source-row CAS, appends the
+entry built from the verified canonical comment beside every existing entry
+and tombstone, applies only the owned fields, ledgers events, records
+idempotent evidence, and returns the row. Holds are visible sentences with no
+write: unrelated source change, native edit/delete/resolve, unproven companion
+status, malformed or divergent cells, a comment copy whose fields still differ.
+Old attempts without `recoveryPayload` or `recoverySource` stay visible and
+unresolved with a precise notice.
+
+Proof: `qa/calendar-feedback-recovery/` runs the actual handlers and the
+frozen writer in-process over a disposable PostgreSQL 16 built from the
+migrations (handler matrix 19 groups / 621 checks; browser matrix through the
+actual offered client controls 11 groups / 266 checks; exact-base document +
+handler proven to keep holding, 1 group / 10 checks). The browser-only mock lanes below were re-pointed at the same
+declared contract: `calendar-recovery-access.js` 16 groups,
+`calendar-recovery-races.js` 10 groups (its seven previously red complete-repair
+requirements now pass because the mock models the atomic lifecycle check the
+RPC performs), `calendar-recovery-contract.js` five visible holds.
+
+Not established here: serving parity (deploying `production-write`, applying
+the migration), live TEST journeys, Samples, legacy-alias reconciliation,
+replay of a missing native status, or permanent source/native synchronization
+after later lifecycle changes. The text below is retained as the historical
+record of the hold this slice closes.
+
+
 **BLOCKED: native/source atomicity is not established.** The non-racing controls
 below pass, but the added native edit/delete/resolve-before-source-commit controls
 all fail on the experimental copy path. The second read only detects the race

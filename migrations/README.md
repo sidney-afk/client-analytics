@@ -686,3 +686,20 @@ executes these files (see `README.md` › Repository layout).
   once. `native_assignee_id` carries the other one. Because two columns moved,
   `create or replace view` cannot re-apply over an earlier branch build — the
   file's header says to drop it first.
+- **`2026-09-05-calendar-feedback-recovery.sql`** adds the service-role-only
+  `calendar_feedback_recovery_apply_v1(jsonb)` and the insert-only evidence
+  table `calendar_feedback_materializations`. In one transaction it proves an
+  accepted client comment add by its mutation receipt and canonical identity
+  under `FOR UPDATE` (no outbox required), proves the reserved companion status
+  by its outbox receipt, checks the reciprocal client/card/deliverable binding
+  and an original-source-row `updated_at` CAS, appends the verified entry to
+  the component cell beside every existing entry and tombstone, applies only
+  the allowlisted owned scalar fields, ledgers `calendar_post_events`, and
+  records idempotent evidence; every hold returns without writing. It touches
+  no existing object, flag, grant or writer. **SOURCE-ONLY until applied.**
+  Apply this first, then deploy `production-write`, then the browser half.
+  Exercised end to end on a disposable PostgreSQL 16 by
+  `qa/calendar-feedback-recovery/`; contract in
+  `docs/ops/CALENDAR_FEEDBACK_RECOVERY_CONTRACT.md`. Rollback block at the
+  bottom of the file (drop the two functions; keep the evidence table).
+

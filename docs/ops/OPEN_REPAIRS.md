@@ -12500,3 +12500,54 @@ three-level tree resolves as two posts, and a link on the middle row's bucket is
 not shared with its children's bucket unless they happen to coincide. Not
 regressed by this change (nothing shared across levels before either), not
 reported by anyone, and not fixed here.
+
+## 156. [2026-09-06, CANDIDATE — source-only, nothing applied or deployed] An accepted client comment whose card save failed can now be finished, atomically, from the button the client already has
+
+**Defect class.** A client's Calendar tweak/note writes twice: the native
+canonical comment (accepted, receipted) and the source card cell through the
+frozen `calendar-upsert`. When the second write is refused or loses its
+response, the client keeps an owned attempt but nothing could safely insert the
+missing copy: `calendar_merge_comments` merges by id/stamp and never checks
+`production_comments`, so a native edit/delete/resolve between a browser
+readback and the source insert could resurrect stale feedback (the BLOCKED hold
+in `CALENDAR_FEEDBACK_RECONCILIATION.md`). The repaired readback also refused
+an accepted add that had a mutation receipt but no outbox row.
+
+**What ships in the candidate.** `migrations/2026-09-05-calendar-feedback-recovery.sql`
+(service-only `calendar_feedback_recovery_apply_v1`, insert-only evidence
+table), the additive `recover_source` modifier in `production-write` behind the
+existing client-token authorization and front-door binding, and the browser
+half: the owned attempt now carries the original source revision, the owned
+fields (`<comp>_status`, `status`, cleared approval stamps for a tweak; nothing
+for a note) and the exact companion status request reserved before it is sent
+and receipted afterwards, lost responses included. `Retry card sync` re-sends
+the byte-equivalent original comment request plus that context; one RPC
+transaction proves the add by receipt + canonical identity under `FOR UPDATE`,
+proves the status by its reserved outbox receipt, checks reciprocal
+client/card/deliverable binding and an original-source-row CAS, appends the
+verified entry beside every existing entry and tombstone, applies only the
+owned fields, ledgers events, records evidence. Holds are visible and
+write-free. Root notes from the Sheet notes overlay are owned attempts now.
+
+**Proof.** Actual handlers + frozen writer over a disposable PostgreSQL 16:
+handler matrix 19 groups / 621 checks; browser matrix 11 groups / 266 checks
+through the offered controls (both components, notes and tweaks, response loss, lifecycle races,
+unrelated edits, wrong client, legacy attempts); exact-base document and handler
+proven to keep holding. Mock lanes re-pointed at the same declared contract;
+the seven previously red complete-repair requirements in
+`calendar-recovery-races.js` pass because the mock now models the atomic
+lifecycle check the RPC performs.
+
+**Explicitly not done, by design (first slice).** A missing native status is
+never replayed (`companion_status_unproven` holds). An unrelated source change
+since capture holds (`source_row_changed`) rather than guessing. A comment copy
+already on the card with differing status fields holds
+(`source_fields_diverged`); the card, not the copy, is the debt. Divergent
+legacy `tweaks` aliases hold. Attempts captured before this candidate (no
+`recoverySource`) stay visible and unresolved with a precise notice. No
+permanent source/native synchronization is promised after later lifecycle
+changes.
+
+**Gates left open.** Apply the migration; deploy `production-write` through
+the manual Section 4 lane with a fresh capture; a live TEST-client drill of
+the exact button path; Samples is out of scope.

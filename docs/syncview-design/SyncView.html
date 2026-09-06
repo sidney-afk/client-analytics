@@ -235,6 +235,25 @@ a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 .d-desctext.empty{color:var(--faint)}
 .d-desctext:hover{background:var(--menu-hover)}
 .d-descedit{width:100%;border:1px solid var(--accent);border-radius:8px;padding:8px 10px;font:inherit;font-size:15px;line-height:24px;letter-spacing:-.1px;color:var(--text-strong);background:var(--surface);outline:none;resize:none;margin:0 0 10px;display:block;overflow:hidden}
+/* In-place editor (2026-09-06): the editing surface keeps the read view's box, type and spacing; only a hairline ring says it is live. */
+.d-descrich{position:relative;cursor:text;border-radius:6px;margin:0 -6px 10px;padding:3px 6px;min-height:26px;white-space:pre-wrap;word-break:break-word;outline:none;box-shadow:0 0 0 1px var(--accent);background:var(--surface)}
+.d-descrich.is-empty::before{content:"Add description…";position:absolute;color:var(--faint);pointer-events:none}
+.d-desc .md-heading{display:block;margin:14px 0 2px;color:var(--text);font-size:14px;line-height:22px;font-weight:650}
+.d-desc .md-rule{border:0;border-top:1px solid var(--divider);margin:14px 0}
+.d-desc .md-bullet{display:flex;align-items:flex-start;gap:8px}.d-desc .md-bullet-mark{flex:none;color:var(--faint)}.d-desc .md-bullet-text{flex:1 1 auto;min-width:0}
+.d-desc .md-gap{display:none}
+.d-desc .desc-image{display:block;max-width:100%;max-height:360px;width:auto;height:auto;object-fit:contain;margin:8px 0;border-radius:6px;border:1px solid var(--border-soft);background:var(--hover);cursor:zoom-in}
+.d-desc .desc-uploading{display:inline-flex;align-items:center;padding:0 8px;border-radius:6px;background:var(--hover);color:var(--muted);font-size:12px;line-height:20px}
+.d-desc a{color:var(--link,var(--accent));text-decoration:none}.d-desc a:hover{text-decoration:underline}
+.linkpop{position:fixed;z-index:10000;min-width:220px;max-width:min(380px,calc(100vw - 16px));padding:5px;border:1px solid var(--border-soft);border-radius:9px;background:var(--surface);color:var(--text);box-shadow:var(--shadow-pop);font-size:12px;line-height:18px}
+.linkpop-view{display:flex;align-items:center;gap:4px}
+.linkpop-url{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 6px;color:var(--link,var(--accent));text-decoration:none}.linkpop-url:hover{text-decoration:underline}
+.linkpop-btn{min-height:26px;border:0;border-radius:6px;padding:0 8px;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}.linkpop-btn:hover{background:var(--hover);color:var(--text)}
+.linkpop-apply{background:var(--accent);color:#fff}.linkpop-apply:hover{background:var(--accent);color:#fff;filter:brightness(.96)}
+.linkpop-form{display:none;flex-direction:column;gap:6px;padding:2px}.linkpop.is-editing .linkpop-form{display:flex}.linkpop.is-editing .linkpop-view{display:none}
+.linkpop-field{display:flex;align-items:center;gap:8px}.linkpop-field span{width:30px;color:var(--muted)}
+.linkpop-field input{flex:1 1 auto;min-width:0;min-height:26px;border:1px solid var(--border-soft);border-radius:6px;padding:0 7px;font:inherit;font-size:12px;background:var(--surface);color:var(--text);outline:none}.linkpop-field input:focus{border-color:var(--accent)}
+.linkpop-note{padding:0 2px;color:var(--danger,#eb5757);font-size:11px;line-height:16px}.linkpop-actions{display:flex;align-items:center;gap:4px}.linkpop-spacer{flex:1 1 auto}
 .d-desc .d-file{margin-top:0}
 .d-addsub{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:var(--muted);flex:none}
 .d-addsub:hover{background:var(--hover);color:var(--text)}
@@ -536,7 +555,7 @@ function renderDetail(){const i=byId(S.open);if(!i)return renderList();const st=
   const comments=i.comments.map((c,ci)=>c.sys?'<div class="act-sys"><span class="act-sysav">'+avatar(c.a,18)+'</span><div class="act-sysln"><b>'+(c.a==="sl"?"You":(EDITORS[c.a]?EDITORS[c.a].name:c.a))+'</b> '+esc(c.label)+' · '+(c.t==="now"?"just now":c.t+" ago")+'</div></div>':'<div class="act"><span>'+avatar(c.a,18)+'</span><div class="act-b"><div class="act-meta"><b>'+(c.a==="sl"?"You":EDITORS[c.a].name)+'</b> · '+(c.t==="now"?"just now":c.t+" ago")+(c.edited?' <span style="color:var(--faint)">(edited)</span>':"")+'</div>'+(ci===S.editComment?'<textarea class="c-editbox" id="cedit"></textarea><div class="c-editactions"><button class="c-cancel" data-ceditcancel>Cancel</button><button class="btn-primary" data-ceditsave>Save</button></div>':'<div class="act-text">'+linkify(c.x)+'</div>')+'</div>'+((c.a==="sl"&&ci!==S.editComment)?'<button class="act-menu" data-commentmenu="'+ci+'" data-tip="Edit or delete">'+I.dots+'</button>':'')+'</div>').join("");
   return '<div class="main"><div class="topbar"><button class="tb-ico" data-act="back" data-tip="Back">'+I.back+'</button><div class="crumb-detail"><span class="clk" data-crumbclient="'+i.project+'" style="display:flex;align-items:center;gap:6px"><span style="font-size:12px">'+proj.emoji+'</span><span>'+esc(proj.name)+'</span></span>'+(parent?'<span class="sep">'+I.chevR+'</span><span class="clk" data-goparent="'+parent.id+'">'+esc(parent.title)+'</span>':"")+'<span class="sep">'+I.chevR+'</span><b>'+i.id+'</b><span class="crumb-ttl" data-fulltitle="'+esc(i.title)+'">'+esc(i.title)+'</span></div><div class="tb-right"><button class="crumb-star'+(i.fav?' on':'')+'" data-fav="'+i.id+'" data-tip="'+(i.fav?"Unfavorite":"Favorite")+'">'+I.star+'</button><button class="tb-ico" data-more="1" data-tip="More options">'+I.dots+'</button></div></div>'+
     '<div class="detail"><div class="detail-main"><div class="detail-inner">'+(parent?'<div class="detail-context"><span>Sub-issue of</span><span class="clk detail-context-link" data-goparent="'+parent.id+'" data-tip="Open parent">'+statusSVG(parent.status)+'<b>'+parent.id+' '+esc(parent.title)+'</b></span>'+(subProg(parent)?'<span class="subchip" data-tip="'+subProg(parent).done+' of '+subProg(parent).total+' sub-issues done">'+statusSVG(subProg(parent).done===subProg(parent).total&&subProg(parent).total>0?"approved":"todo")+subProg(parent).done+'/'+subProg(parent).total+'</span>':'')+'<span class="rspacer"></span><span class="chip clk context-project" data-crumbclient="'+i.project+'" data-tip="Open project"><span class="cdot">'+proj.emoji+'</span><span>'+esc(proj.name)+'</span></span></div>':'')+'<h1 class="d-title">'+esc(i.title)+'</h1>'+
-      '<div class="d-desc" id="descblock"><div class="d-desctext'+(i.desc?"":" empty")+'" data-editdesc="1">'+(i.desc?linkify(i.desc):"Add description…")+'</div><p class="d-file"><b>Delivered file:</b> <a href="'+i.file+'" target="_blank" rel="noopener">'+i.file+'</a></p></div>'+
+      '<div class="d-desc" id="descblock"><div class="d-desctext'+(i.desc?"":" empty")+'" data-editdesc="1" data-desc-click-edit="1">'+(i.desc?descRichBuild(i.desc):"Add description…")+'</div><p class="d-file"><b>Delivered file:</b> <a href="'+i.file+'" target="_blank" rel="noopener">'+i.file+'</a></p></div>'+
       (kids.length?'<div class="d-sub"><div class="d-sub-hd">'+I.issues+' Sub-issues <span style="color:var(--faint);font-weight:500">'+(subProg(i)?subProg(i).done+'/'+subProg(i).total:kids.length)+'</span><span class="rspacer"></span>'+(!i.parent?'<button class="d-addsub" data-addsub="'+i.id+'" data-tip="Add sub-issue">'+I.plus+'</button>':"")+'</div>'+kids.map(k=>'<div class="d-subrow" data-row="'+k.id+'"><span data-st="'+k.id+'" style="display:inline-flex;cursor:pointer">'+statusSVG(k.status)+'</span><span class="sid">'+k.id+'</span><span class="stt">'+esc(k.title)+'</span><span class="rspacer"></span>'+(k.due?'<span class="due '+(overdue(k.due)?"over":"")+'" data-due="'+k.id+'" data-tip="Due '+k.due+overdueText(k.due)+'">'+I.cal+k.due+'</span>':'<span class="due due-empty" data-due="'+k.id+'" data-tip="Set due date">'+I.cal+'</span>')+'<span data-assign="'+k.id+'" data-tip="'+(k.assignee?"Assignee: "+EDITORS[k.assignee].name:"Unassigned")+'" style="width:18px;display:flex;justify-content:center;cursor:pointer">'+avatar(k.assignee,18)+'</span></div>').join("")+'<div id="subcomposer"></div></div>':(!i.parent?'<div class="d-sub d-sub-empty"><button class="d-addsub-inline" data-addsub="'+i.id+'" data-tip="Add sub-issue">'+I.plus+' Add sub-issues</button><div id="subcomposer"></div></div>':""))+
       '<div class="d-activity"><div class="d-act-hd">Activity</div>'+(comments||'<div style="color:var(--faint);font-size:12.5px;margin-bottom:12px">No comments yet — this is where feedback and delivered file links live.</div>')+'<div class="composer"><span>'+avatar("sl",18)+'</span><div class="composer-box"><textarea id="cinput" placeholder="Leave a comment…" rows="1"></textarea><div class="composer-actions"><span class="composer-hint"><span class="kbd">⌘↵</span> to comment</span><button class="btn-primary" id="csend" disabled>Comment</button></div></div></div></div></div></div>'+
       '<div class="detail-side"><button class="ds-back" data-act="close-detail">'+I.back+' Back to list</button>'+
@@ -559,15 +578,787 @@ function sameLoc(a,b){return !!a&&!!b&&JSON.stringify(a)===JSON.stringify(b);}
 function pushLoc(){if(popping)return;const s=snapshot();if(sameLoc(history.state,s))return;history.pushState(s,"");}
 function replaceLoc(){if(popping)return;history.replaceState(snapshot(),"");}
 function nextVid(){let mx=0;ISSUES.forEach(x=>{const n=+String(x.id).replace(/\D/g,"");if(n>mx)mx=n;});return "VID-"+(mx+1);}
-function wireDesc(){const host=$("#descblock");if(!host)return;const tgt=host.querySelector("[data-editdesc]");if(!tgt)return;
-  tgt.addEventListener("click",e=>{if(e.target.closest("a"))return;const i=byId(S.open);if(!i)return;
-    tgt.outerHTML='<textarea class="d-descedit" id="descedit" placeholder="Add description…"></textarea>';
+/* ---- In-place description editor (2026-09-06) --------------------------
+   Owner: "when we click edit it shouldn't change the way we are viewing
+   things ... like linear ... links ... we shouldn't see those weird brackets
+   ... when we paste an image we should just see the actual image."
+
+   The editing surface IS the rendered surface: a contenteditable built from
+   the Markdown with the same classes the read view uses, one block per source
+   line, and a serializer that walks it back to Markdown. Every block and every
+   inline mark carries the exact source form it came from (`data-md`,
+   `data-md-prefix`, `data-md-raw`), so an untouched description serializes
+   byte-for-byte to what was loaded. descRichRoundTrips() proves that before
+   the editor is offered; a description it cannot keep opens in Markdown.
+
+   No library. The block model is deliberately small: paragraph, heading,
+   bullet, rule. Inline: bold, italic, code, link (three source forms), image,
+   and the upload placeholder. Anything else is text and stays text. */
+const DESC_RICH_PLACEHOLDER_RE = /!\[Uploading image (\d+)…\]\(\)/;
+const DESC_RICH_BLOCK_TYPES = ['p', 'h', 'ul', 'hr'];
+function descRichAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').split('"').join('&quot;');
+}
+function descRichInline(s) {
+  s = descRichAttr(s);
+  const st = [];
+  const keep = h => { st.push(h); return 'XMDTOK' + (st.length - 1) + 'ENDMDTOK'; };
+  /* Marker attributes carry no `*` or `_`, so the bold and italic passes
+     below cannot match inside a tag they already produced. */
+  const label = l => String(l || '')
+    .replace(/^\*\*([^*]+)\*\*$/, '<strong data-md="bb">$1</strong>')
+    .replace(/^__([^_]+)__$/, '<strong data-md="uu">$1</strong>')
+    .replace(/^`([^`]+)`$/, '<code>$1</code>');
+  const anchor = (l, u, form) => '<a href="' + u + '" data-md="' + form + '" target="_blank" rel="noopener noreferrer">' + (form === 'bare' ? u : label(l)) + '</a>';
+  const image = (l, u, form) => '<img class="desc-image" src="' + u + '" alt="' + l + '" data-md="' + form + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">';
+  const placeholder = n => '<span class="desc-uploading" data-md-placeholder="' + n + '" contenteditable="false">Uploading image…</span>';
+  const trimLinkTail = u => {
+    let suffix = '';
+    while (u) {
+      if (u.endsWith('**')) { suffix = '**' + suffix; u = u.slice(0, -2); }
+      else if (u.endsWith('*')) { suffix = '*' + suffix; u = u.slice(0, -1); }
+      else if (u.endsWith('&gt;')) { suffix = '&gt;' + suffix; u = u.slice(0, -4); }
+      else if (/[)\].,!?;]$/.test(u)) { suffix = u.slice(-1) + suffix; u = u.slice(0, -1); }
+      else break;
+    }
+    return { url: u, suffix };
+  };
+  s = s.replace(/`([^`]+)`/g, (m, c) => keep('<code>' + c + '</code>'));
+  s = s.replace(/!\[Uploading image (\d+)…\]\(\)/g, (m, n) => keep(placeholder(n)));
+  s = s.replace(/!\[([^\]]*)\]\(&lt;(https:\/\/.*?)&gt;\)/g, (m, l, u) => keep(image(l, u, 'angle')));
+  s = s.replace(/!\[([^\]]*)\]\((https:\/\/[^\s)]+)\)/g, (m, l, u) => keep(image(l, u, 'plain')));
+  s = s.replace(/\[([^\]]+)\]\(&lt;(https?:\/\/.*?)&gt;\)/g, (m, l, u) => keep(anchor(l, u, 'angle')));
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, l, u) => keep(anchor(l, u, 'named')));
+  s = s.replace(/(https?:\/\/[^\s<]+)/g, (m, u) => { const out = trimLinkTail(u); return keep(anchor(out.url, out.url, 'bare')) + out.suffix; });
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong data-md="bb">$1</strong>');
+  s = s.replace(/\*([^*\n]+)\*/g, '<em data-md="s">$1</em>');
+  s = s.replace(/(^|\s)__([^_]+)__(?=\s|$|[.,!?])/g, '$1<strong data-md="uu">$2</strong>');
+  s = s.replace(/(^|\s)_([^_\n]+)_(?=\s|$|[.,!?])/g, '$1<em data-md="u">$2</em>');
+  return s.replace(/XMDTOK(\d+)ENDMDTOK/g, (m, i) => st[+i]);
+}
+function descRichBlockHTML(kind, prefix, inner, raw) {
+  if (kind === 'hr') return '<div class="md-hr" data-md="hr" data-md-raw="' + descRichAttr(raw || '---') + '" contenteditable="false"><hr class="md-rule"></div>';
+  const body = inner || '<br>';
+  if (kind === 'h') return '<div class="md-heading" data-md="h" data-md-prefix="' + descRichAttr(prefix || '# ') + '">' + body + '</div>';
+  if (kind === 'ul') return '<div class="md-bullet" data-md="ul" data-md-prefix="' + descRichAttr(prefix || '- ') + '"><span class="md-bullet-mark" contenteditable="false">•</span><span class="md-bullet-text">' + body + '</span></div>';
+  return '<div class="md-p" data-md="p"' + (raw ? ' data-md-raw="' + descRichAttr(raw) + '"' : '') + '>' + body + '</div>';
+}
+function descRichBuild(markdown) {
+  const lines = String(markdown == null ? '' : markdown).replace(/\r\n?/g, '\n').split('\n');
+  const blocks = lines.map(line => {
+    let m;
+    if (!line.trim()) return { kind: 'blank', html: descRichBlockHTML('p', '', '', line) };
+    if ((m = /^(-{3,})\s*$/.exec(line))) return { kind: 'hr', html: descRichBlockHTML('hr', '', '', line) };
+    if ((m = /^(#{1,4}\s+)(.*)$/.exec(line))) return { kind: 'h', html: descRichBlockHTML('h', m[1], descRichInline(m[2])) };
+    if ((m = /^([-*]\s+)(.*)$/.exec(line))) return { kind: 'ul', html: descRichBlockHTML('ul', m[1], descRichInline(m[2])) };
+    return { kind: 'p', html: descRichBlockHTML('p', '', descRichInline(line)) };
+  });
+  /* The read view draws no blank line beside a heading or rule. The editor
+     keeps every line in the model and collapses those on screen, so the
+     first paint already sits exactly where the read view sat. */
+  const blockish = b => !!b && (b.kind === 'h' || b.kind === 'hr');
+  return blocks.map((b, i) => (b.kind === 'blank' && (blockish(blocks[i - 1]) || blockish(blocks[i + 1])))
+    ? b.html.replace('class="md-p"', 'class="md-p md-gap"')
+    : b.html).join('');
+}
+function descRichContainer(block) {
+  if (!block) return null;
+  if (block.getAttribute('data-md') === 'ul') return block.querySelector('.md-bullet-text') || block;
+  return block;
+}
+function descRichSerializeInline(el) {
+  let out = '';
+  Array.from(el.childNodes).forEach(n => {
+    if (n.nodeType === 3) { out += n.nodeValue; return; }
+    if (n.nodeType !== 1) return;
+    const tag = n.tagName;
+    if (tag === 'BR') return;
+    if (tag === 'IMG') {
+      const alt = n.getAttribute('alt') || '';
+      const src = n.getAttribute('src') || '';
+      out += n.getAttribute('data-md') === 'angle' ? '![' + alt + '](<' + src + '>)' : '![' + alt + '](' + src + ')';
+      return;
+    }
+    if (n.hasAttribute('data-md-placeholder')) { out += '![Uploading image ' + n.getAttribute('data-md-placeholder') + '…]()'; return; }
+    if (n.classList && n.classList.contains('md-bullet-mark')) return;
+    const inner = descRichSerializeInline(n);
+    if (tag === 'A') {
+      const href = n.getAttribute('href') || '';
+      const form = n.getAttribute('data-md') || 'named';
+      /* A URL with whitespace or a `)` in it, or one ending in the
+         punctuation a bare link sheds, cannot survive the plain forms: it
+         goes out as `[label](<url>)`, which the parser reads back exactly
+         (Codex on #1310's follow-up, #1320). */
+      const fragile = /[\s)]/.test(href) || /[)\].,!?;*]$/.test(href);
+      if (form === 'bare' && inner === href && !fragile) { out += href; return; }
+      if (form === 'angle' || fragile) { out += '[' + (inner || href) + '](<' + href + '>)'; return; }
+      out += '[' + (inner || href) + '](' + href + ')';
+      return;
+    }
+    if (tag === 'STRONG' || tag === 'B') { const mk = n.getAttribute('data-md') === 'uu' ? '__' : '**'; out += inner ? mk + inner + mk : ''; return; }
+    if (tag === 'EM' || tag === 'I') { const mk = n.getAttribute('data-md') === 'u' ? '_' : '*'; out += inner ? mk + inner + mk : ''; return; }
+    if (tag === 'CODE') { out += inner ? '`' + inner + '`' : ''; return; }
+    out += inner;
+  });
+  return out;
+}
+function descRichSerialize(root) {
+  const lines = [];
+  Array.from(root.childNodes).forEach(node => {
+    if (node.nodeType !== 1) { const t = String(node.textContent || ''); if (t.trim()) lines.push(t); return; }
+    const kind = node.getAttribute('data-md') || 'p';
+    if (kind === 'hr') { lines.push(node.getAttribute('data-md-raw') || '---'); return; }
+    const inline = descRichSerializeInline(descRichContainer(node));
+    if (kind === 'h') { lines.push((node.getAttribute('data-md-prefix') || '# ') + inline); return; }
+    if (kind === 'ul') { lines.push((node.getAttribute('data-md-prefix') || '- ') + inline); return; }
+    lines.push(inline || node.getAttribute('data-md-raw') || '');
+  });
+  return lines.join('\n');
+}
+/* The one honesty check: can this Markdown come back out unchanged? */
+function descRichRoundTrips(markdown) {
+  const source = String(markdown == null ? '' : markdown).replace(/\r\n?/g, '\n');
+  const probe = document.createElement('div');
+  probe.innerHTML = descRichBuild(source);
+  return descRichSerialize(probe) === source;
+}
+function descRichBlockOf(root, node) {
+  while (node && node !== root) {
+    if (node.parentNode === root) return node.nodeType === 1 ? node : null;
+    node = node.parentNode;
+  }
+  return null;
+}
+function descRichMakeBlock(kind, prefix) {
+  const host = document.createElement('div');
+  host.innerHTML = descRichBlockHTML(kind, prefix, '', '');
+  return host.firstChild;
+}
+function descRichIsEmpty(container) {
+  if (!container) return true;
+  if (container.querySelector && container.querySelector('img,[data-md-placeholder]')) return false;
+  return !String(container.textContent || '').length;
+}
+/* An empty container must hold exactly one <br>: an empty text node left
+   behind by a split gives the caret nowhere to be, and Chrome then drops it
+   to the start of the editable root on the next key. */
+function descRichSettle(container) {
+  if (!container) return;
+  if (descRichIsEmpty(container)) {
+    Array.from(container.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.tagName === 'BR')) n.remove(); });
+    if (!container.firstChild) container.appendChild(document.createElement('br'));
+    while (container.childNodes.length > 1) container.lastChild.remove();
+    return;
+  }
+  Array.from(container.childNodes).forEach(n => { if (n.nodeType === 3 && !n.nodeValue) n.remove(); });
+}
+/* Browser edits leave <b>, <i>, styled spans, nested divs and stray <br>s
+   behind. Fold every one of them back into the block model so the serializer
+   only ever sees shapes it knows. Idempotent. */
+function descRichNormalize(root) {
+  const unwrap = el => { while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el); el.remove(); };
+  const clean = el => {
+    Array.from(el.querySelectorAll('*')).forEach(n => {
+      if (!n.isConnected) return;
+      if (n.hasAttribute('style')) n.removeAttribute('style');
+      const tag = n.tagName;
+      if (tag === 'B' || (tag === 'STRONG' && !n.hasAttribute('data-md'))) {
+        const s = document.createElement('strong'); s.setAttribute('data-md', 'bb');
+        while (n.firstChild) s.appendChild(n.firstChild);
+        n.replaceWith(s);
+        return;
+      }
+      if (tag === 'I' || (tag === 'EM' && !n.hasAttribute('data-md'))) {
+        const e = document.createElement('em'); e.setAttribute('data-md', 's');
+        while (n.firstChild) e.appendChild(n.firstChild);
+        n.replaceWith(e);
+        return;
+      }
+      if (tag === 'A') { if (!n.hasAttribute('data-md')) n.setAttribute('data-md', 'named'); n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener noreferrer'); return; }
+      if (tag === 'IMG') { if (String(n.getAttribute('src') || '').indexOf('https://') !== 0) n.remove(); else n.classList.add('desc-image'); return; }
+      if (tag === 'STRONG' || tag === 'EM' || tag === 'CODE' || tag === 'BR' || tag === 'HR') return;
+      if (tag === 'SPAN' && (n.hasAttribute('data-md-placeholder') || n.classList.contains('md-bullet-mark') || n.classList.contains('md-bullet-text'))) return;
+      if (tag === 'DIV') return;
+      unwrap(n);
+    });
+  };
+  /* 1. Stray top-level inline nodes become paragraphs. */
+  let run = [];
+  const flush = () => {
+    if (!run.length) return;
+    const p = descRichMakeBlock('p');
+    p.innerHTML = '';
+    root.insertBefore(p, run[0]);
+    run.forEach(n => p.appendChild(n));
+    run = [];
+  };
+  Array.from(root.childNodes).forEach(n => {
+    const block = n.nodeType === 1 && n.tagName === 'DIV';
+    if (block) { flush(); if (!DESC_RICH_BLOCK_TYPES.includes(n.getAttribute('data-md') || '')) { n.className = 'md-p'; n.setAttribute('data-md', 'p'); } return; }
+    run.push(n);
+  });
+  flush();
+  /* 2. Inline cleanup, nested divs hoisted, blocks split at <br>. */
+  clean(root);
+  let guard = 0;
+  Array.from(root.children).forEach(block => {
+    const kind = block.getAttribute('data-md');
+    if (kind === 'hr') { block.innerHTML = '<hr class="md-rule">'; block.setAttribute('contenteditable', 'false'); return; }
+    if (kind === 'ul' && !block.querySelector('.md-bullet-text')) {
+      const text = document.createElement('span'); text.className = 'md-bullet-text';
+      Array.from(block.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.classList.contains('md-bullet-mark'))) text.appendChild(n); });
+      block.appendChild(text);
+    }
+    if (kind === 'ul' && !block.querySelector('.md-bullet-mark')) {
+      const mark = document.createElement('span'); mark.className = 'md-bullet-mark'; mark.setAttribute('contenteditable', 'false'); mark.textContent = '•';
+      block.insertBefore(mark, block.firstChild);
+    }
+    let current = block;
+    while (guard++ < 10000) {
+      const container = descRichContainer(current);
+      const boundary = Array.from(container.querySelectorAll('br,div')).find(b => !(b.tagName === 'BR' && b === container.lastChild && container.childNodes.length > 1) && !(b.tagName === 'BR' && container.childNodes.length === 1));
+      if (!boundary) break;
+      const range = document.createRange();
+      range.setStartAfter(boundary);
+      range.setEnd(container, container.childNodes.length);
+      const tail = range.extractContents();
+      const nested = boundary.tagName === 'DIV' ? boundary : null;
+      boundary.remove();
+      const next = descRichMakeBlock('p');
+      next.innerHTML = '';
+      if (nested) { while (nested.firstChild) next.appendChild(nested.firstChild); }
+      next.appendChild(tail);
+      if (nested && !next.firstChild && !tail.childNodes.length) { /* an empty nested div: a blank line */ }
+      current.after(next);
+      current = next;
+    }
+  });
+  /* 3. Every block is focusable: an empty container holds one <br>, a
+     filled one holds no trailing <br> and no empty text nodes. */
+  Array.from(root.children).forEach(block => {
+    const kind = block.getAttribute('data-md');
+    if (kind === 'hr') return;
+    const container = descRichContainer(block);
+    descRichSettle(container);
+    if (container.childNodes.length > 1) {
+      const last = container.lastChild;
+      if (last.nodeType === 1 && last.tagName === 'BR') last.remove();
+    }
+    if (kind === 'p' && !descRichIsEmpty(container)) block.removeAttribute('data-md-raw');
+  });
+  /* 4. Same rule as descRichBuild: a blank line beside a heading or rule is
+     kept in the model and collapsed on screen. */
+  const blocks = Array.from(root.children);
+  blocks.forEach((block, i) => {
+    const kind = block.getAttribute('data-md');
+    const blank = kind === 'p' && descRichIsEmpty(descRichContainer(block));
+    const blockish = b => !!b && ['h', 'hr'].includes(b.getAttribute('data-md'));
+    block.classList.toggle('md-gap', blank && (blockish(blocks[i - 1]) || blockish(blocks[i + 1])));
+  });
+  root.classList.toggle('is-empty', blocks.length <= 1 && (!blocks[0] || descRichIsEmpty(descRichContainer(blocks[0]))));
+  return root;
+}
+/* Caret as (block index, character offset in the block), which survives a
+   rebuild of the same Markdown. */
+function descRichCaret(root) {
+  const sel = window.getSelection && window.getSelection();
+  if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return null;
+  const block = descRichBlockOf(root, sel.focusNode);
+  if (!block) return { block: 0, offset: 0 };
+  const container = descRichContainer(block);
+  const range = document.createRange();
+  range.selectNodeContents(container);
+  if (container.contains(sel.focusNode)) range.setEnd(sel.focusNode, sel.focusOffset);
+  return { block: Array.prototype.indexOf.call(root.children, block), offset: range.toString().length };
+}
+function descRichSetCaret(root, pos) {
+  const sel = window.getSelection && window.getSelection();
+  if (!sel) return false;
+  const blocks = root.children;
+  if (!blocks.length) return false;
+  let block = blocks[Math.min(Math.max(0, Number(pos && pos.block) || 0), blocks.length - 1)];
+  /* A rule holds no caret and a collapsed blank line draws no box: settle
+     on the nearest block that can show one. */
+  const holds = b => !!b && b.getAttribute('data-md') !== 'hr' && !b.classList.contains('md-gap');
+  if (!holds(block)) {
+    let next = block.nextElementSibling;
+    while (next && !holds(next)) next = next.nextElementSibling;
+    let prev = block.previousElementSibling;
+    while (prev && !holds(prev)) prev = prev.previousElementSibling;
+    block = next || prev || block;
+  }
+  const container = descRichContainer(block);
+  const range = document.createRange();
+  let remaining = Math.max(0, Number(pos && pos.offset) || 0);
+  let placed = false;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let text;
+  while ((text = walker.nextNode())) {
+    const len = text.nodeValue.length;
+    if (remaining <= len) { range.setStart(text, remaining); placed = true; break; }
+    remaining -= len;
+  }
+  if (!placed) range.setStart(container, container.childNodes.length);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  return true;
+}
+function descRichConvert(block, kind, prefix) {
+  const next = descRichMakeBlock(kind, prefix);
+  const from = descRichContainer(block);
+  const to = descRichContainer(next);
+  to.innerHTML = '';
+  while (from.firstChild) to.appendChild(from.firstChild);
+  descRichSettle(to);
+  block.replaceWith(next);
+  return next;
+}
+function descRichCaretAtStart(container, range) {
+  const probe = document.createRange();
+  probe.selectNodeContents(container);
+  probe.setEnd(range.startContainer, range.startOffset);
+  if (probe.toString().length) return false;
+  const frag = probe.cloneContents();
+  return !frag.querySelector || !frag.querySelector('img,[data-md-placeholder]');
+}
+function descRichCaretAtEnd(container, range) {
+  const probe = document.createRange();
+  probe.selectNodeContents(container);
+  probe.setStart(range.endContainer, range.endOffset);
+  if (probe.toString().length) return false;
+  const frag = probe.cloneContents();
+  return !frag.querySelector || !frag.querySelector('img,[data-md-placeholder]');
+}
+/* Enter: split the block at the caret. A bullet continues as a bullet, an
+   empty bullet leaves the list, a heading is followed by a paragraph, and a
+   paragraph reading `---` becomes a rule. Returns true when handled. */
+function descRichSplitBlock(root) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return false;
+  const range = sel.getRangeAt(0);
+  if (!root.contains(range.startContainer)) return false;
+  if (!range.collapsed) range.deleteContents();
+  let block = descRichBlockOf(root, range.startContainer);
+  if (!block) return false;
+  const kind = block.getAttribute('data-md');
+  const place = target => { const r = document.createRange(); r.setStart(target, 0); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); };
+  if (kind === 'hr') { const p = descRichMakeBlock('p'); block.after(p); place(p); return true; }
+  const container = descRichContainer(block);
+  if (kind === 'p' && /^-{3,}$/.test(String(container.textContent || '').trim()) && descRichCaretAtEnd(container, range)) {
+    const hr = descRichMakeBlock('hr'); hr.setAttribute('data-md-raw', String(container.textContent || '').trim());
+    const p = descRichMakeBlock('p');
+    block.replaceWith(hr); hr.after(p); place(p); return true;
+  }
+  if (kind === 'ul' && descRichIsEmpty(container)) { place(descRichContainer(descRichConvert(block, 'p'))); return true; }
+  const tail = document.createRange();
+  tail.setStart(range.startContainer, range.startOffset);
+  tail.setEnd(container, container.childNodes.length);
+  const frag = tail.extractContents();
+  const next = descRichMakeBlock(kind === 'ul' ? 'ul' : 'p', block.getAttribute('data-md-prefix'));
+  const nextContainer = descRichContainer(next);
+  nextContainer.innerHTML = '';
+  nextContainer.appendChild(frag);
+  descRichSettle(nextContainer);
+  descRichSettle(container);
+  block.after(next);
+  place(nextContainer);
+  return true;
+}
+/* Backspace at the start of a block: a bullet or heading becomes a
+   paragraph first; a paragraph joins the block above (a rule above is
+   simply removed). Returns true when handled. */
+function descRichJoinBack(root) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return false;
+  const range = sel.getRangeAt(0);
+  if (!range.collapsed || !root.contains(range.startContainer)) return false;
+  const block = descRichBlockOf(root, range.startContainer);
+  if (!block) return false;
+  const kind = block.getAttribute('data-md');
+  const container = descRichContainer(block);
+  if (kind !== 'hr' && !descRichCaretAtStart(container, range)) return false;
+  const place = (target, offset) => { descRichSetCaret(root, { block: Array.prototype.indexOf.call(root.children, target), offset }); };
+  if (kind === 'ul' || kind === 'h') { place(descRichConvert(block, 'p'), 0); return true; }
+  const prev = block.previousElementSibling;
+  if (!prev) return true;
+  if (prev.getAttribute('data-md') === 'hr') { prev.remove(); place(block, 0); return true; }
+  const prevContainer = descRichContainer(prev);
+  const last = prevContainer.lastChild;
+  if (last && last.nodeType === 1 && last.tagName === 'BR') last.remove();
+  const offset = String(prevContainer.textContent || '').length;
+  Array.from(container.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.tagName === 'BR' && descRichIsEmpty(container))) prevContainer.appendChild(n); });
+  descRichSettle(prevContainer);
+  block.remove();
+  place(prev, offset);
+  return true;
+}
+/* Delete at the end of a block: the block below joins this one. */
+function descRichJoinForward(root) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return false;
+  const range = sel.getRangeAt(0);
+  if (!range.collapsed || !root.contains(range.startContainer)) return false;
+  const block = descRichBlockOf(root, range.startContainer);
+  if (!block) return false;
+  const container = descRichContainer(block);
+  if (block.getAttribute('data-md') === 'hr' || !descRichCaretAtEnd(container, range)) return false;
+  const next = block.nextElementSibling;
+  if (!next) return true;
+  if (next.getAttribute('data-md') === 'hr') { next.remove(); return true; }
+  const offset = String(container.textContent || '').length;
+  const last = container.lastChild;
+  if (last && last.nodeType === 1 && last.tagName === 'BR') last.remove();
+  const nextContainer = descRichContainer(next);
+  Array.from(nextContainer.childNodes).forEach(n => { if (!(n.nodeType === 1 && n.tagName === 'BR' && descRichIsEmpty(nextContainer))) container.appendChild(n); });
+  descRichSettle(container);
+  next.remove();
+  descRichSetCaret(root, { block: Array.prototype.indexOf.call(root.children, block), offset });
+  return true;
+}
+/* Typing `- `, `* ` or `# ` at the start of an empty line turns the line
+   into that block, the way Linear does. Called after input. */
+function descRichShortcut(root) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return false;
+  const block = descRichBlockOf(root, sel.focusNode);
+  if (!block || block.getAttribute('data-md') !== 'p') return false;
+  const text = String(block.textContent || '');
+  let kind = '';
+  if (/^[-*] $/.test(text)) kind = 'ul';
+  else if (/^#{1,4} $/.test(text)) kind = 'h';
+  if (!kind) return false;
+  const next = descRichMakeBlock(kind, text);
+  block.replaceWith(next);
+  descRichSetCaret(root, { block: Array.prototype.indexOf.call(root.children, next), offset: 0 });
+  return true;
+}
+/* Plain text at the caret; each newline starts a new block. */
+function descRichInsertText(root, text) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return false;
+  const lines = String(text == null ? '' : text).replace(/\r\n?/g, '\n').split('\n');
+  let range = sel.getRangeAt(0);
+  if (!range.collapsed) range.deleteContents();
+  const put = value => {
+    if (!value) return;
+    const node = document.createTextNode(value);
+    range = sel.getRangeAt(0);
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  };
+  put(lines[0]);
+  for (let i = 1; i < lines.length; i++) {
+    if (!descRichSplitBlock(root)) break;
+    put(lines[i]);
+  }
+  return true;
+}
+/* Wrap the selection in a link (or drop a link at the caret). Returns the
+   anchor, so the popover can open on it. */
+function descRichMakeLink(root, url, label) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return null;
+  const range = sel.getRangeAt(0);
+  const a = document.createElement('a');
+  a.setAttribute('data-md', 'named');
+  a.setAttribute('target', '_blank');
+  a.setAttribute('rel', 'noopener noreferrer');
+  a.setAttribute('href', url || '');
+  if (range.collapsed) { a.textContent = label || url || 'link'; if (!label && !url) a.setAttribute('data-md-new', '1'); }
+  else a.appendChild(range.extractContents());
+  range.insertNode(a);
+  range.selectNodeContents(a);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  return a;
+}
+function descRichAnchorAtCaret(root) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !root.contains(sel.focusNode)) return null;
+  let node = sel.focusNode;
+  while (node && node !== root) { if (node.nodeType === 1 && node.tagName === 'A') return node; node = node.parentNode; }
+  return null;
+}
+/* Keys the block model owns. Everything else is the browser's. */
+function descRichKeydown(event, root) {
+  if (!event || !root) return false;
+  if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    if (descRichSplitBlock(root)) { event.preventDefault(); return true; }
+    return false;
+  }
+  if (event.key === 'Backspace' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    if (descRichJoinBack(root)) { event.preventDefault(); return true; }
+    return false;
+  }
+  if (event.key === 'Delete' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    if (descRichJoinForward(root)) { event.preventDefault(); return true; }
+    return false;
+  }
+  /* Tab is deliberately NOT taken: there is no indentation to perform, and
+     a keyboard user has to be able to reach Markdown, Cancel and Save
+     (Codex on #1320). */
+  return false;
+}
+/* ---- Link popover ------------------------------------------------------
+   Hover a link in a description and a small card shows where it goes, with
+   Open, and -- where the description is editable -- Edit (text and URL) and
+   Remove. One body-mounted element, shared by every description on the page.
+   Ctrl/Cmd+K in the editor opens the same card for the link at the caret, or
+   makes one from the selection. */
+const DESC_LINK_SCOPE = '.d-desc';
+const descLinkPop = { el: null, anchor: null, timer: 0, editing: false };
+function descLinkPopEnsure() {
+  if (descLinkPop.el && descLinkPop.el.isConnected) return descLinkPop.el;
+  const el = document.createElement('div');
+  el.id = 'descLinkPop';
+  el.className = 'linkpop';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', 'Link');
+  el.hidden = true;
+  el.innerHTML = '<div class="linkpop-view"><a class="linkpop-url" data-linkpop="open" target="_blank" rel="noopener noreferrer"></a>'
+    + '<button type="button" class="linkpop-btn" data-linkpop="edit">Edit</button></div>'
+    + '<form class="linkpop-form" data-linkpop-form>'
+    + '<label class="linkpop-field"><span>Text</span><input data-linkpop-text autocomplete="off" spellcheck="false"></label>'
+    + '<label class="linkpop-field"><span>URL</span><input data-linkpop-href autocomplete="off" spellcheck="false" placeholder="https://"></label>'
+    + '<div class="linkpop-note" data-linkpop-note hidden></div>'
+    + '<div class="linkpop-actions"><button type="button" class="linkpop-btn" data-linkpop="remove">Remove link</button><span class="linkpop-spacer"></span>'
+    + '<button type="button" class="linkpop-btn" data-linkpop="cancel">Cancel</button><button type="submit" class="linkpop-btn linkpop-apply">Apply</button></div></form>';
+  document.body.appendChild(el);
+  el.addEventListener('mouseenter', () => { clearTimeout(descLinkPop.timer); });
+  el.addEventListener('mouseleave', () => { if (!descLinkPop.editing) descLinkPopHideSoon(); });
+  el.addEventListener('click', event => {
+    const btn = event.target.closest('[data-linkpop]');
+    if (!btn) return;
+    const action = btn.getAttribute('data-linkpop');
+    if (action === 'open') return;
+    event.preventDefault();
+    if (action === 'edit') descLinkPopEdit();
+    else if (action === 'cancel') descLinkPopHide(true);
+    else if (action === 'remove') descLinkPopRemove();
+  });
+  el.querySelector('[data-linkpop-form]').addEventListener('submit', event => { event.preventDefault(); descLinkPopApply(); });
+  el.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); descLinkPopHide(true); }
+  });
+  descLinkPop.el = el;
+  return el;
+}
+function descLinkPopEditable(anchor) {
+  const root = anchor && anchor.closest ? anchor.closest('[contenteditable="true"]') : null;
+  if (root) return { root, read: false };
+  const body = anchor && anchor.closest ? anchor.closest('[data-desc-click-edit]') : null;
+  return body ? { root: body, read: true } : null;
+}
+function descLinkPopPlace(anchor) {
+  const el = descLinkPop.el;
+  const rect = anchor.getBoundingClientRect();
+  el.hidden = false;
+  const width = el.offsetWidth || 260;
+  const height = el.offsetHeight || 40;
+  let left = rect.left;
+  let top = rect.bottom + 6;
+  if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - width);
+  if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - 6 - height);
+  el.style.left = Math.round(left) + 'px';
+  el.style.top = Math.round(top) + 'px';
+}
+function descLinkPopShow(anchor, edit) {
+  if (!anchor || !anchor.isConnected) return false;
+  const el = descLinkPopEnsure();
+  clearTimeout(descLinkPop.timer);
+  descLinkPop.anchor = anchor;
+  descLinkPop.editing = false;
+  const href = anchor.getAttribute('href') || '';
+  const url = el.querySelector('.linkpop-url');
+  url.setAttribute('href', href);
+  url.textContent = href.replace(/^https?:\/{2}/, '').replace(/\/$/, '') || 'No URL yet';
+  const editable = descLinkPopEditable(anchor);
+  el.querySelector('[data-linkpop="edit"]').hidden = !editable;
+  el.classList.remove('is-editing');
+  descLinkPopPlace(anchor);
+  if (edit) descLinkPopEdit();
+  return true;
+}
+function descLinkPopEdit() {
+  const anchor = descLinkPop.anchor;
+  const editable = descLinkPopEditable(anchor);
+  if (!anchor || !editable) return false;
+  if (editable.read) {
+    /* A read view: hand the request to whoever owns the editor. It begins
+       editing and re-opens this card on the same link. */
+    const index = Array.prototype.indexOf.call(editable.root.querySelectorAll('a'), anchor);
+    descLinkPopHide(true);
+    editable.root.dispatchEvent(new CustomEvent('desc-link-edit', { bubbles: true, detail: { index } }));
+    return true;
+  }
+  const el = descLinkPop.el;
+  descLinkPop.editing = true;
+  el.classList.add('is-editing');
+  el.querySelector('[data-linkpop-text]').value = anchor.hasAttribute('data-md-new') ? '' : (anchor.textContent || '');
+  el.querySelector('[data-linkpop-note]').hidden = true;
+  el.querySelector('[data-linkpop-href]').value = anchor.getAttribute('href') || '';
+  descLinkPopPlace(anchor);
+  const focus = el.querySelector(anchor.getAttribute('href') ? '[data-linkpop-text]' : '[data-linkpop-href]');
+  focus.focus();
+  focus.select();
+  return true;
+}
+function descLinkPopNotify(anchorOrRoot) {
+  const root = anchorOrRoot && anchorOrRoot.closest ? anchorOrRoot.closest('[contenteditable="true"]') : null;
+  if (root) root.dispatchEvent(new Event('input', { bubbles: true }));
+}
+function descLinkPopApply() {
+  const anchor = descLinkPop.anchor;
+  const el = descLinkPop.el;
+  if (!anchor || !anchor.isConnected || !el) { descLinkPopHide(true); return false; }
+  const text = String(el.querySelector('[data-linkpop-text]').value || '').trim();
+  let href = String(el.querySelector('[data-linkpop-href]').value || '').trim();
+  const note = el.querySelector('[data-linkpop-note]');
+  const refuse = (field, why) => { note.textContent = why; note.hidden = false; el.querySelector(field).focus(); return false; };
+  if (href && !/^https?:\/{2}/i.test(href)) href = 'https://' + href;
+  if (!/^https?:\/{2}\S+$/i.test(href)) return refuse('[data-linkpop-href]', 'Enter a full https:// address.');
+  /* The Markdown forms cannot carry these: a `]` ends the label and `<`
+     or `>` end the angle URL. Said here, not lost at the next render. */
+  if (/[\[\]]/.test(text)) return refuse('[data-linkpop-text]', 'Link text cannot contain [ or ].');
+  if (/[<>]/.test(href)) return refuse('[data-linkpop-href]', 'The address cannot contain < or >.');
+  note.hidden = true;
+  anchor.setAttribute('href', href);
+  anchor.textContent = text || href;
+  anchor.setAttribute('data-md', text && text !== href ? 'named' : 'bare');
+  anchor.removeAttribute('data-md-new');
+  const root = anchor.closest('[contenteditable="true"]');
+  descLinkPopHide(true);
+  descLinkPopNotify(root);
+  return true;
+}
+function descLinkPopRemove() {
+  const anchor = descLinkPop.anchor;
+  if (!anchor || !anchor.isConnected) { descLinkPopHide(true); return false; }
+  const root = anchor.closest('[contenteditable="true"]');
+  /* The root and the caret are taken BEFORE the anchor goes, because the
+     hide routine finds them through the anchor (Codex on #1320). */
+  let last = null;
+  while (anchor.firstChild) { last = anchor.firstChild; anchor.parentNode.insertBefore(last, anchor); }
+  const parent = anchor.parentNode;
+  anchor.remove();
+  descLinkPop.anchor = null;
+  descLinkPopHide(true);
+  if (root) {
+    try { root.focus({ preventScroll: true }); } catch (e) {}
+    const sel = window.getSelection && window.getSelection();
+    if (sel && parent) {
+      const r = document.createRange();
+      if (last && last.parentNode) r.setStartAfter(last); else r.setStart(parent, 0);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+  }
+  descLinkPopNotify(root);
+  return true;
+}
+function descLinkPopHide(now) {
+  clearTimeout(descLinkPop.timer);
+  const el = descLinkPop.el;
+  if (!el) return;
+  const done = () => {
+    const wasEditing = descLinkPop.editing;
+    el.hidden = true;
+    el.classList.remove('is-editing');
+    /* A link that was created empty and then abandoned is not a link. */
+    const anchor = descLinkPop.anchor;
+    const root = anchor && anchor.isConnected && anchor.closest ? anchor.closest('[contenteditable="true"]') : null;
+    if (anchor && root && !anchor.getAttribute('href')) {
+      if (!anchor.hasAttribute('data-md-new')) { while (anchor.firstChild) anchor.parentNode.insertBefore(anchor.firstChild, anchor); }
+      anchor.remove();
+      descLinkPopNotify(root);
+    }
+    /* The card's inputs had the focus; the writer was in the editor and
+       goes back there, just after the link. */
+    if (wasEditing && root) {
+      try { root.focus({ preventScroll: true }); } catch (e) {}
+      const sel = window.getSelection && window.getSelection();
+      if (sel && anchor && anchor.isConnected) {
+        const r = document.createRange();
+        r.setStartAfter(anchor);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+    }
+    descLinkPop.anchor = null;
+    descLinkPop.editing = false;
+  };
+  if (now) done(); else descLinkPop.timer = setTimeout(done, 250);
+}
+function descLinkPopHideSoon() { descLinkPopHide(false); }
+function descLinkPopWire() {
+  if (descLinkPop.wired || typeof document === 'undefined') return;
+  descLinkPop.wired = true;
+  document.addEventListener('mouseover', event => {
+    const anchor = event.target && event.target.closest ? event.target.closest(DESC_LINK_SCOPE + ' a') : null;
+    if (!anchor) return;
+    if (descLinkPop.editing) return;
+    clearTimeout(descLinkPop.timer);
+    descLinkPop.timer = setTimeout(() => descLinkPopShow(anchor, false), 120);
+  });
+  document.addEventListener('mouseout', event => {
+    const anchor = event.target && event.target.closest ? event.target.closest(DESC_LINK_SCOPE + ' a') : null;
+    if (!anchor) return;
+    clearTimeout(descLinkPop.timer);
+    if (descLinkPop.anchor === anchor && !descLinkPop.editing) descLinkPopHideSoon();
+    else if (!descLinkPop.anchor) descLinkPop.timer = 0;
+  });
+  document.addEventListener('focusin', event => {
+    const anchor = event.target && event.target.closest ? event.target.closest(DESC_LINK_SCOPE + ' a') : null;
+    if (anchor && !descLinkPop.editing) descLinkPopShow(anchor, false);
+  });
+  document.addEventListener('mousedown', event => {
+    if (!descLinkPop.el || descLinkPop.el.hidden) return;
+    if (descLinkPop.el.contains(event.target)) return;
+    if (descLinkPop.anchor && descLinkPop.anchor.contains(event.target)) return;
+    descLinkPopHide(true);
+  });
+  /* Inside the editor a plain click places the caret; Ctrl/Cmd+click opens. */
+  document.addEventListener('click', event => {
+    const anchor = event.target && event.target.closest ? event.target.closest('[contenteditable="true"] a') : null;
+    if (!anchor) return;
+    if (event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+  });
+  document.addEventListener('scroll', () => { if (descLinkPop.el && !descLinkPop.el.hidden && !descLinkPop.editing) descLinkPopHide(true); }, true);
+}
+descLinkPopWire();
+function wireDescMarkdown(i,tgt){tgt.outerHTML='<textarea class="d-descedit" id="descedit" placeholder="Add description…"></textarea>';
     const ta=$("#descedit");if(!ta)return;ta.value=i.desc||"";
     const grow=()=>{ta.style.height="auto";ta.style.height=ta.scrollHeight+"px";};grow();
     ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);
     let done=false;const finish=save=>{if(done)return;done=true;if(save)i.desc=ta.value.trim();render();};
     ta.oninput=grow;ta.onblur=()=>finish(true);
-    ta.onkeydown=ev=>{ev.stopPropagation();if(ev.key==="Escape"){ev.preventDefault();finish(false);}else if(ev.key==="Enter"&&(ev.metaKey||ev.ctrlKey)){ev.preventDefault();finish(true);}};});}
+    ta.onkeydown=ev=>{ev.stopPropagation();if(ev.key==="Escape"){ev.preventDefault();finish(false);}else if(ev.key==="Enter"&&(ev.metaKey||ev.ctrlKey)){ev.preventDefault();finish(true);}};}
+function wireDesc(){const host=$("#descblock");if(!host)return;const tgt=host.querySelector("[data-editdesc]");if(!tgt)return;
+  const open=(point,linkIndex)=>{const i=byId(S.open);if(!i)return;if(!descRichRoundTrips(i.desc||""))return wireDescMarkdown(i,tgt);
+    tgt.outerHTML='<div class="d-desc-text d-descrich" id="descedit" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Description"></div>';
+    const ed=$("#descedit");if(!ed)return;ed.innerHTML=descRichBuild(i.desc||"");descRichNormalize(ed);
+    ed.focus({preventScroll:true});
+    const atEnd=()=>descRichSetCaret(ed,{block:ed.children.length-1,offset:1e9});
+    if(point&&document.caretRangeFromPoint){const r=document.caretRangeFromPoint(point.x,point.y);if(r&&ed.contains(r.startContainer)){const sl=getSelection();sl.removeAllRanges();sl.addRange(r);}else atEnd();}else atEnd();
+    if(linkIndex!=null){const a=ed.querySelectorAll("a")[linkIndex];if(a)descLinkPopShow(a,true);}
+    let done=false;const finish=save=>{if(done)return;done=true;if(save)i.desc=descRichSerialize(descRichNormalize(ed)).trim();render();};
+    ed.oninput=()=>{descRichShortcut(ed);descRichNormalize(ed);};
+    ed.onblur=()=>{setTimeout(()=>{if(done)return;if(descLinkPop.el&&!descLinkPop.el.hidden)return;if(document.activeElement===ed)return;finish(true);},0);};
+    ed.onpaste=ev=>{const t=ev.clipboardData?ev.clipboardData.getData("text/plain"):"";if(!t)return;ev.preventDefault();const sl=getSelection();if(sl&&!sl.isCollapsed&&/^https?:\/\/\S+$/.test(t.trim()))descRichMakeLink(ed,t.trim());else descRichInsertText(ed,t);
+      const c=descRichCaret(ed);ed.innerHTML=descRichBuild(descRichSerialize(descRichNormalize(ed)));descRichNormalize(ed);descRichSetCaret(ed,c);};
+    ed.onkeydown=ev=>{ev.stopPropagation();if(ev.key==="Escape"){ev.preventDefault();finish(false);return;}if(ev.key==="Enter"&&(ev.metaKey||ev.ctrlKey)){ev.preventDefault();finish(true);return;}
+      if((ev.ctrlKey||ev.metaKey)&&String(ev.key).toLowerCase()==="k"){ev.preventDefault();const a=descRichAnchorAtCaret(ed)||descRichMakeLink(ed,"","");if(a)descLinkPopShow(a,true);return;}
+      descRichKeydown(ev,ed);};};
+  tgt.addEventListener("click",e=>{if(e.target.closest("a")||e.target.closest("img"))return;open({x:e.clientX,y:e.clientY});});
+  host.addEventListener("desc-link-edit",e=>{open(null,e.detail?e.detail.index:null);});}
 function wireCommentEdit(){if(S.editComment==null)return;const ta=$("#cedit");if(!ta){S.editComment=null;return;}const it=byId(S.open);const c=it&&it.comments[S.editComment];if(!c){S.editComment=null;return;}ta.value=c.x;const grow=()=>{ta.style.height="auto";ta.style.height=ta.scrollHeight+"px";};grow();ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);ta.oninput=grow;
   const save=()=>{const v=ta.value.trim();if(!v){toast("Comment can't be empty");return;}c.x=v;c.edited=true;S.editComment=null;render();};const cancel=()=>{S.editComment=null;render();};
   ta.onkeydown=ev=>{ev.stopPropagation();if(ev.key==="Escape"){ev.preventDefault();cancel();}else if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();save();}};

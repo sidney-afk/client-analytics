@@ -85,6 +85,9 @@ vm.runInContext([
   grabFunc('function _prodDescriptionReplaceInDraft('),
   'function _prodDescriptionState() { return state; }',
   'function _prodDescriptionSourceInput() { return textarea; }',
+  /* The visual editor is absent in this world: the textarea paths are what
+     is under test here; the visual twin has its own browser-backed suite. */
+  'function _prodDescriptionRichRoot() { return null; }',
   'function _prodDescriptionInsertImages(id, input, files) { this.inserted = files; }',
   'function _prodDescriptionDraftInput(id, value) { state.draft = value; }',
   'function _prodRender() { renders++; }',

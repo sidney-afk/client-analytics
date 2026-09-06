@@ -8,6 +8,11 @@ commit as any structural change.
 
 ## Top level
 
+Native card creation compatibility evidence and proposed boundary:
+`docs/audits/2026-09-06-native-card-compatibility.md` and
+`docs/audits/2026-09-06-native-card-compatibility-evidence.json`.
+Published n8n graphs are read-only evidence; automatic creation and all amendments remain held.
+
 Linear-exit combined runtime preparation and release-order holds:
 `docs/audits/2026-09-06-linear-exit-runtime-integration.md`. Retains the canonical
 G0–G10 plan in PR1268, exact component inputs and separate source/serving proof.

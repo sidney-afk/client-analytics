@@ -12,6 +12,18 @@ Focused real-source browser, disposable SQL and full-handler proofs are recorded
 Current source/serving/rollback limits there supersede earlier default-reader proposals;
 no G5/Decision A, serving, or integrated-release completion is claimed.
 
+## 2026-09-06 — Read-only native card compatibility boundary
+
+At 01:40Z inspected only the two published Calendar/Samples upsert fallback graphs:
+both active, sameAsDraft,17 nodes each; direct card-table writes with native child IDs
+and source markers stripped before persistence. No execution or mutation was invoked.
+`docs/audits/2026-09-06-native-card-compatibility.md` records exact source/version/hash
+evidence and a proposed manifest/receipt amendment for both HTTP paths. No RPC, ingress
+ledger or workflow amendment was implemented; automatic card creation remains held.
+The proposal preserves anonymous writes and requires durable handling of old jobs whose
+browser recovery copy can expire. Original workflow restore alone is unsafe once the
+new automatic-created cards exist; a compatible inverse is a separate release gate.
+
 ## 2026-09-05 — Built: paste an image into a SyncLinear description (awaits migration + first deploy)
 
 Owner: *"let's do it."* The storage decision in `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md`

@@ -13221,6 +13221,14 @@ journey/recovery receipts, or an explicit owner decision to abandon it.
 
 ## 160. [2026-09-05, IMPLEMENTATION DRAFT, unapplied, disabled; numbered 156 in its source draft] Native intake child recovery and visible card-completion debt
 
+**2026-09-06 bounded compatibility evidence — still held:** retained native jobs have
+distinct HTTP source markers, but both freshly read published n8n fallback graphs strip
+those markers/native child IDs and write card tables directly. An EF-only creation
+receipt cannot fence that path. The [finite amendment contract](../audits/2026-09-06-native-card-compatibility.md)
+preserves anonymous UI writes, requires both transports to adopt one manifest/receipt
+meaning, and explicitly holds unknown pre-manifest recovery, browser-expiry conservation,
+trigger-aware backups and the compatible inverse. No workflow or runtime changed.
+
 **Current integrated scope:** child recovery plus conservative existing-card binding only. Automatic card creation remains held. The chronological entries below retain superseded creation/guard claims; the final correction and reciprocal review govern the candidate. Installing even an AFTER provenance recorder can reject a save if recording fails, so failure-preservation testing remains required.
 
 Owner-directed continuation of item 155's neighbour on the same day, the

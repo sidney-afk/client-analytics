@@ -1,5 +1,7 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Saved intake disappears after repeated failures / Retry saved post → [bounded v3 retention evidence](audits/2026-09-06-native-intake-retention.md). Existing slot and exact request retained; v1 queues, sign-out and complete G6 remain held.
+
 Ordinary Linear worker viewer/read egress after cutoff → [bounded transport correction](audits/2026-09-06-outbound-read-cutoff.md) and [G8 owner contract](ops/LINEAR_OUTBOUND_CUTOFF.md). Actual isolated proof; old-worker quiescence and global egress remain held.
 
 Current native label catalog/save and recovery hold: [contract](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md), [correction evidence](audits/2026-09-06-native-label-writes.md). Default-disabled source; no activation/serving claim.

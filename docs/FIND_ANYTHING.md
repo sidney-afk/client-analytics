@@ -1,5 +1,7 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Legacy card accepted but response lost / duplicate retry / caption overwrite → [uncertain-attempt retention](audits/2026-09-06-legacy-card-outcome-uncertainty.md). Actual browser-source/model receiver proof; exact fragments held without automatic replay or inferred native identity. Serving, actorless recovery and old bundles remain held.
+
 Old Calendar submission queue disappears after authority change or expiry → [v1 retention boundary](audits/2026-09-06-legacy-calendar-job-retention.md). No inferred native identity, durable quarantine or automatic recovery.
 
 Saved intake disappears after repeated failures / Retry saved post → [bounded v3 retention evidence](audits/2026-09-06-native-intake-retention.md). Existing slot and exact request retained; v1 queues, sign-out and complete G6 remain held.

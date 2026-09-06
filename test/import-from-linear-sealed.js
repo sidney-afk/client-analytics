@@ -17,8 +17,7 @@
  * In-app copy also recommended this tool as the fix for a failed background
  * calendar-card write, in three places -- text made reachable by the flip,
  * pointing users at a tool that would just mint them more broken cards.
- * Two legacy writer notices still recommend Create Post. The retained-job
- * notice instead requires review: unknown completion is not proof of absence.
+ * All three notices require review: unknown completion is not proof of absence.
  */
 const fs = require('fs');
 const path = require('path');
@@ -89,13 +88,15 @@ ok(/if \(importSeal\.sealed\) \{[\s\S]*?return;\s*\}/.test(importFn),
 
 ok(!/"Import from Linear"/.test(INDEX),
   'no in-app message still quotes "Import from Linear" as a recommended recovery action');
-ok(/or open the calendar and use Create Post to add them now\./.test(INDEX),
-  'the post-submit background-write-failure notice now points at Create Post');
-ok(/or use Create Post on the calendar to add the rest now\./.test(INDEX),
-  'the partial-write-count notice now points at Create Post');
+const backgroundNotice = grabFunc('_submitLinearFormOnce').match(/showNotify\('Calendar sync issue',([\s\S]*?)\);/);
+const partialNotice = grabFunc('_writeLinearVideoCardsToCalendar').match(/showNotify\('Calendar sync incomplete',([\s\S]*?)\);/);
+ok(!!backgroundNotice && safeRetentionNotice(backgroundNotice[1]),
+  'the actual post-submit failure notice states uncertainty and requires review');
+ok(!!partialNotice && safeRetentionNotice(partialNotice[1]) && /acknowledged/.test(partialNotice[1]),
+  'the actual partial-write notice counts acknowledgements without promising recreation');
 const retainedNotice = grabFunc('_calCardJobRetain');
 function safeRetentionNotice(source) {
-  return /completion is unconfirmed/.test(source)
+  return /completion is unconfirmed/i.test(source)
     && /before recreating the work/.test(source)
     && !/Create Post|Import from Linear|They have not been created/.test(source);
 }
@@ -105,6 +106,12 @@ ok(!safeRetentionNotice(retainedNotice.replace('completion is unconfirmed', 'The
   'negative control rejects a false claim that retained work was never created');
 ok(!safeRetentionNotice(retainedNotice.replace('before recreating the work', 'use Create Post')),
   'negative control rejects recreate guidance for uncertain retained work');
+for (const [name, match] of [['background', backgroundNotice], ['partial', partialNotice]]) {
+  ok(!!match && !safeRetentionNotice(match[1].replace(/completion is unconfirmed/i, 'They have not been created')),
+    name + ' negative rejects a false non-acceptance claim');
+  ok(!!match && !safeRetentionNotice(match[1].replace('before recreating the work', 'use Create Post')),
+    name + ' negative rejects blind recreation advice');
+}
 
 console.log(failures === 0
   ? '\nImport-from-Linear seal checks passed'

@@ -2,7 +2,11 @@
 
 This bounded G6 correction extends the one [execution checklist](../independence/GO_LIVE_CHECKLIST.md). Base `a0c10ccd01414f07536e0f177818bfa1c3f8ab34` remains the previously reviewed and hosted-green candidate. No production behavior is changed by an unmerged draft.
 
-## Behavior and evidence
+## Later source correction: uncertain attempts
+
+The subsequent [outcome-uncertainty correction](2026-09-06-legacy-card-outcome-uncertainty.md) changes the eligible writer and job persistence helpers. Attempted/unconfirmed v1 work no longer resumes after authority reversal; only provably fresh unfinished cards may send. It adds exact write-ahead fragments, verified checkpoints and current-record comparisons, without inferring an actor or server receipt. The unchanged-writer and authority-reversal statements below describe the earlier checkpoint. Its two remaining unsafe writer notices are corrected there. Both checkpoints retain G6 and serving holds.
+
+## Historical behavior and evidence
 
 The actual `_resumePendingCalCardJobs` deletes version1 records when a required team is no longer Linear-authoritative, after48 hours, after five attempts, or for a known invalid job shape. These removals are not proof that work was never accepted. Its previous notice encouraged Create Post, risking duplicate work when the provider outcome is unknown.
 

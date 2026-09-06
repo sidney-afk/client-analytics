@@ -1,5 +1,9 @@
 # SyncView Independence Execution Log
 
+## 2026-09-06 - Legacy v1 uncertain-attempt retention, uninstalled
+
+The actual base9e browser writer with a modeled accepting receiver reproduces duplicate retry IDs and initial-caption overwrite. The correction preserves exact write-ahead card fragments and stops automatic replay of unconfirmed/old attempted jobs, including after authority reversal. Verified storage, Web Locks and expected-record comparisons conserve concurrent replacements; missing locks fail closed. New23 source/model groups and focused existing suites pass; no server/trigger/browser/serving proof or G6 closure. [Evidence and rollback limits](docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md) preserve the distinction between registration failure and a later background acknowledgement-checkpoint failure. The next entry is the earlier retention checkpoint.
+
 ## 2026-09-06 — Legacy Calendar job retention, uninstalled
 
 Version1 refused/expired/attempt-exhausted or known-invalid jobs retain their exact local records instead of being deleted. Twenty-three actual-source groups include four preserved baseline deletions; eligible provider behavior and completed checkpoints remain compatible. Generic notices avoid identities and unsafe recreation advice. No durable quarantine, native identity, serving or G6 completion is claimed. [Proof and authority-reversal limits](docs/audits/2026-09-06-legacy-calendar-job-retention.md).

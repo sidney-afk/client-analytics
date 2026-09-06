@@ -1,5 +1,7 @@
 # Repo map
 
+Legacy card outcome uncertainty: `test/legacy-card-outcome-uncertainty.js` runs actual browser-source/model-receiver controls with preserved base duplicate/overwrite payload failures. `docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md` and `docs/audits/2026-09-06-legacy-card-outcome-uncertainty.json` pin verified write-ahead fragments, current-record checks, uncertainty holds and no server/actor/durable-backup claim. The next v1 entry describes its earlier checkpoint.
+
 Legacy Calendar v1 retention: `test/legacy-calendar-job-retention.js` executes actual queue functions with four pinned deletion controls; `docs/audits/2026-09-06-legacy-calendar-job-retention.md` records unchanged provider eligibility, retained fragments, authority-reversal risk and no durable-quarantine claim.
 
 Browser v3 refusal retention: `test/native-intake-retained-refusals.js` executes actual saved-job/lock/retry functions and an optional finite Chromium helper check. `docs/audits/2026-09-06-native-intake-retention.md` and `docs/audits/2026-09-06-native-intake-retention.json` preserve baseline deletions, source pins and the remaining v1/sign-out/provider/serving holds. No new storage or server owner.

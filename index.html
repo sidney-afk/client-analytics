@@ -48030,10 +48030,10 @@
             const title = payload.title;
             mode = completedMode;
             if (!hasReceived) {
-                const cardJob = _calCardJobCreate(client, videos, title, mode);
+                const cardJob = await _calCardJobCreate(client, videos, title, mode);
                 _writeLinearVideoCardsToCalendar(client, videos, title, { mode, job: cardJob }).catch(error => {
                     console.warn('[SyncView] Background calendar write failed:', error);
-                showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. SyncView will retry automatically next time the app is opened — or open the calendar and use Create Post to add them now.');
+                    showNotify('Calendar sync issue', 'Calendar completion is unconfirmed. Keep the saved details in this browser and contact your workspace administrator before recreating the work.');
                 });
             }
 
@@ -48660,17 +48660,10 @@
         return _nativeIntakeResumePromise;
     }
 
-    /* After the Linear form is submitted, write a calendar card per video.
-       Runs in the background. Each card is written via /calendar-upsert-post
-       using a DETERMINISTIC id derived from the Linear sub-issue
-       (p_lin_<identifier>), so re-running the import — a double-fire, a manual
-       re-import, or a retry — updates the same row instead of appending a
-       second one. This is what prevents duplicate rows that share a
-       linear_issue_id: two such rows collapse to a single card in the UI, so
-       archiving one would leave the other behind and the card would reappear
-       on the next refresh. Waits ~15s after submit so Linear has time to
-       create the sub-issues, then matches them by title and writes each card
-       with its Linear URL pre-filled. */
+    /* After legacy submission, retain the existing provider discovery and
+       first-card payload. Provider-derived IDs can still overwrite a current
+       row, and an unlinked retry can mint another ID. Only unfinished cards
+       with no attempted transport may run; uncertain attempts need review. */
     async function _writeLinearVideoCardsToCalendar(clientName, videos, formTitle, opts) {
         const slug = wlNormalizeClient(clientName);
         if (!slug || !Array.isArray(videos) || !videos.length) return;
@@ -48681,10 +48674,26 @@
         // video numbers whose card write already returned ok, so a resumed
         // run only writes the missing ones. The heartbeat tells other tabs
         // this job is actively being worked and shouldn't be double-run.
-        const job = (opts && opts.job) || null;
+        const suppliedJob = (opts && opts.job) || null;
+        if (!suppliedJob || !suppliedJob.id) { _calCardJobRetain('missing_job'); return; }
+        return _calCardJobWithLock('run:' + suppliedJob.id, async () => {
+        const job = _calCardJobsRead().find(row => row && row.id === suppliedJob.id);
+        if (!job || job.clientName !== clientName || job.formTitle !== formTitle || job.mode !== mode
+            || JSON.stringify(job.videos) !== JSON.stringify(videos.map((v, i) => ({ number: Number(v && v.number) || i + 1 })))) {
+            _calCardJobRetain('job_changed'); return;
+        }
+        if (_calCardJobUncertain(job)) { _calCardJobRetain('uncertain_attempt'); return; }
+        let persistedJob = JSON.stringify(job);
+        job.card_attempt_protocol = 1;
+        job.card_attempts = job.card_attempts || [];
         const doneSet = new Set(job && Array.isArray(job.done) ? job.done : []);
-        const beat = () => { if (job) { job.heartbeatAt = Date.now(); _calCardJobSave(job); } };
-        if (job) { job.runs = (job.runs || 0) + 1; beat(); }
+        const beat = async () => {
+            job.heartbeatAt = Date.now();
+            if (!await _calCardJobSave(job, false, persistedJob)) throw new Error('legacy_card_storage_unavailable');
+            persistedJob = JSON.stringify(job);
+        };
+        job.runs = (job.runs || 0) + 1;
+        await beat();
 
         // 1. Highest existing order_index → new cards land AFTER any cards
         //    the user already organized.
@@ -48719,7 +48728,7 @@
             const maxAttempts = 20;
             const attemptDelayMs = 5000;
             for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                beat();
+                await beat();
                 // Fetch failures are per-attempt: one transient linear-issues
                 // error used to abort the whole poll loop and downgrade every
                 // card to the unlinked/random-id path.
@@ -48767,6 +48776,7 @@
                 if (attempt + 1 < maxAttempts) await new Promise(r => setTimeout(r, attemptDelayMs));
             }
         } catch (e) {
+            if (String(e && e.message || '') === 'legacy_card_storage_unavailable') throw e;
             console.warn('[SyncView] Linear lookup for calendar linking failed:', e);
         }
         if (wantVideo && videoSubs.length < videos.length) {
@@ -48834,15 +48844,23 @@
             };
             if (post.linear_issue_id) linkedVideo++;
             if (post.graphic_linear_issue_id) linkedGraphic++;
+            // Persist the exact proposed card before any transport. A missing
+            // acknowledgement is not permission to resend its initial fields.
+            const attempt = { number: n, payload: { client: slug, post }, startedAt: Date.now(), outcome: 'unconfirmed' };
+            job.card_attempts.push(attempt);
+            await beat();
             try {
-                const resp = await _calUpsertFetch(slug, { client: slug, post });
+                const resp = await _calUpsertFetch(slug, attempt.payload);
                 const json = await resp.json().catch(() => ({}));
-                if (json && json.ok) {
+                if (resp.ok && json && json.ok === true) {
                     succeeded++;
                     doneSet.add(n);
-                    if (job) { job.done = Array.from(doneSet); beat(); }
+                    job.done = Array.from(doneSet);
+                    attempt.outcome = 'acknowledged';
+                    await beat();
                 }
             } catch (e) {
+                if (String(e && e.message || '') === 'legacy_card_storage_unavailable') throw e;
                 console.warn('[SyncView] calendar write failed for video', n, e);
             }
             if (i + 1 < videos.length) await new Promise(r => setTimeout(r, 200));
@@ -48850,16 +48868,14 @@
         console.log('[SyncView] Calendar cards written:', succeeded, '/', videos.length,
             'for', slug, '(video linked:', linkedVideo + '/' + videos.length,
             ', graphic linked:', linkedGraphic + '/' + videos.length + ')');
-        // Settle the durable job: complete jobs are dropped, incomplete ones
-        // stay queued for the next app load — and the shortfall is surfaced
-        // instead of living only in this console.
+        // Complete acknowledged jobs can be removed with an exact checkpoint
+        // comparison. Unconfirmed attempts remain held for staff review.
         if (doneSet.size >= videos.length) {
-            if (job) _calCardJobRemove(job.id);
+            if (!await _calCardJobRemove(job.id, persistedJob)) _calCardJobRetain('cleanup_unconfirmed');
         } else {
             showNotify('Calendar sync incomplete', 'Only ' + doneSet.size + ' of ' + videos.length
-                + ' calendar cards for ' + clientName + ' were written.'
-                + (job ? ' SyncView will retry the rest automatically next time the app is opened' : '')
-                + ' — or use Create Post on the calendar to add the rest now.');
+                + ' card saves were acknowledged. Completion is unconfirmed for the remaining cards.'
+                + ' Keep the saved details in this browser and contact your workspace administrator before recreating the work.');
         }
         // If the user is already viewing this client's calendar, refresh
         // so the new cards show up without a manual reload.
@@ -48869,6 +48885,7 @@
                 loadCalendarPosts();
             }
         } catch (e) {}
+        });
     }
 
     /* ── Durable calendar-card write jobs ──
@@ -48878,9 +48895,8 @@
        card silently — Linear issues created, zero calendar cards (Jesse
        Israel, 2026-06-30). Each submission now records a job in localStorage,
        marks video numbers off as their cards land, and any unfinished job is
-       resumed on the next app load. Resumes can't duplicate cards: numbers in
-       done are skipped, and matched cards use deterministic p_lin_ ids so a
-       re-send updates the same row. */
+       resumed only with evidence that no unfinished card was attempted.
+       A deterministic provider ID does not make initial-field replay safe. */
     const CAL_CARD_JOBS_KEY = 'syncview_calCardJobs_v1';
     const CAL_CARD_JOB_MAX_AGE_MS = 48 * 60 * 60 * 1000;    // stop automatic retry after 2 days…
     const CAL_CARD_JOB_MAX_RUNS = 5;                        // …or 5 attempts; retain the record
@@ -48893,17 +48909,46 @@
         } catch { return []; }
     }
     function _calCardJobsWrite(list) {
-        try { localStorage.setItem(CAL_CARD_JOBS_KEY, JSON.stringify(list)); } catch {}
+        try {
+            const raw = JSON.stringify(list);
+            localStorage.setItem(CAL_CARD_JOBS_KEY, raw);
+            return localStorage.getItem(CAL_CARD_JOBS_KEY) === raw;
+        } catch { return false; }
     }
-    function _calCardJobSave(job) {
-        const list = _calCardJobsRead().filter(j => j && j.id !== job.id);
-        list.push(job);
-        _calCardJobsWrite(list);
+    function _calCardJobWithLock(name, callback) {
+        if (typeof navigator === 'undefined' || !navigator.locks || typeof navigator.locks.request !== 'function') {
+            return Promise.reject(new Error('legacy_card_lock_unavailable'));
+        }
+        return navigator.locks.request('syncview-legacy-calendar-cards:' + name, { mode: 'exclusive' }, callback);
     }
-    function _calCardJobRemove(jobId) {
-        _calCardJobsWrite(_calCardJobsRead().filter(j => j && j.id !== jobId));
+    function _calCardJobSave(job, allowCreate, expected) {
+        return _calCardJobWithLock('store', () => {
+            try {
+                const list = JSON.parse(localStorage.getItem(CAL_CARD_JOBS_KEY) || '[]');
+                if (!Array.isArray(list)) return false;
+                const found = list.filter(row => row && row.id === job.id);
+                if (found.length !== (allowCreate === true ? 0 : 1)) return false;
+                if (typeof expected === 'string' && JSON.stringify(found[0]) !== expected) return false;
+                const next = list.filter(row => !row || row.id !== job.id);
+                next.push(job);
+                return _calCardJobsWrite(next);
+            } catch { return false; }
+        });
     }
-    function _calCardJobCreate(clientName, videos, formTitle, mode) {
+    function _calCardJobRemove(jobId, expected) {
+        return _calCardJobWithLock('store', () => {
+            try {
+                const list = JSON.parse(localStorage.getItem(CAL_CARD_JOBS_KEY) || '[]');
+                if (!Array.isArray(list)) return false;
+                if (typeof expected === 'string') {
+                    const found = list.filter(row => row && row.id === jobId);
+                    if (found.length !== 1 || JSON.stringify(found[0]) !== expected) return false;
+                }
+                return _calCardJobsWrite(list.filter(row => !row || row.id !== jobId));
+            } catch { return false; }
+        });
+    }
+    async function _calCardJobCreate(clientName, videos, formTitle, mode) {
         const job = {
             id: 'ccj_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
             clientName,
@@ -48911,12 +48956,32 @@
             mode,
             videos: videos.map((v, i) => ({ number: Number(v && v.number) || (i + 1) })),
             done: [],
+            card_attempt_protocol: 1,
+            card_attempts: [],
             runs: 0,
             createdAt: Date.now(),
             heartbeatAt: 0
         };
-        _calCardJobSave(job);
+        if (!await _calCardJobSave(job, true)) throw new Error('legacy_card_storage_unavailable');
         return job;
+    }
+    function _calCardJobUncertain(job) {
+        const done = job && job.done;
+        if (!Array.isArray(done)) return true;
+        if (!Object.prototype.hasOwnProperty.call(job, 'card_attempt_protocol')) {
+            return job.runs !== 0 || job.heartbeatAt !== 0 || done.length !== 0;
+        }
+        if (job.card_attempt_protocol !== 1 || !Array.isArray(job.card_attempts)) return true;
+        const seen = new Set();
+        const numbers = new Set((Array.isArray(job.videos) ? job.videos : []).map((v, i) => Number(v && v.number) || i + 1));
+        for (const attempt of job.card_attempts) {
+            if (!attempt || !Number.isInteger(attempt.number) || !numbers.has(attempt.number) || seen.has(attempt.number)
+                || attempt.outcome !== 'acknowledged' || !done.includes(attempt.number)
+                || !attempt.payload || attempt.payload.client !== wlNormalizeClient(job.clientName)
+                || !attempt.payload.post || typeof attempt.payload.post.id !== 'string' || !attempt.payload.post.id) return true;
+            seen.add(attempt.number);
+        }
+        return done.some(number => !seen.has(number));
     }
     let _calCardJobsResumePromise = null;
     let _calCardJobsRetentionNotified = false;
@@ -48943,31 +49008,35 @@
         authority = authority || await _writeUiRefreshAuthority();
         if (!authority) return; // fail closed and preserve the queue for a later live read
         const now = Date.now(), runs = [];
-        _calCardJobsRead().forEach(job => {
-            if (!job || !job.clientName || !Array.isArray(job.videos) || !job.videos.length) {
+        for (const job of _calCardJobsRead()) {
+            if (!job || !job.clientName || !Array.isArray(job.videos) || !job.videos.length || !Array.isArray(job.done)) {
                 _calCardJobRetain('invalid');
-                return;
+                continue;
             }
             const remaining = job.videos.filter(v => !(job.done || []).includes(v.number));
-            if (!remaining.length) { _calCardJobRemove(job.id); return; }
+            if (!remaining.length && (!Object.prototype.hasOwnProperty.call(job, 'card_attempt_protocol') || !_calCardJobUncertain(job))) {
+                if (!await _calCardJobRemove(job.id, JSON.stringify(job))) _calCardJobRetain('cleanup_unconfirmed');
+                continue;
+            }
+            if (_calCardJobUncertain(job)) { _calCardJobRetain('uncertain_attempt'); continue; }
             const teams = _calCardJobTeams(job);
             if (teams.some(team => authority[team] !== 'linear')) {
                 // A closed provider lane is not proof that work is absent.
                 // Retain original fragments without inventing a native owner.
                 _calCardJobRetain('authority');
-                return;
+                continue;
             }
             if ((now - job.createdAt) > CAL_CARD_JOB_MAX_AGE_MS || (job.runs || 0) >= CAL_CARD_JOB_MAX_RUNS) {
                 _calCardJobRetain((now - job.createdAt) > CAL_CARD_JOB_MAX_AGE_MS ? 'expired' : 'retry_limit');
-                return;
+                continue;
             }
             // A fresh heartbeat means another open tab is mid-run on this job.
-            if (job.heartbeatAt && (now - job.heartbeatAt) < CAL_CARD_JOB_LIVE_HEARTBEAT_MS) return;
+            if (job.heartbeatAt && (now - job.heartbeatAt) < CAL_CARD_JOB_LIVE_HEARTBEAT_MS) continue;
             console.log('[SyncView] Resuming calendar card job', job.id, 'for', job.clientName,
                 '(' + remaining.length + '/' + job.videos.length + ' cards outstanding)');
             runs.push(_writeLinearVideoCardsToCalendar(job.clientName, job.videos, job.formTitle, { mode: job.mode, job })
-                .catch(e => console.warn('[SyncView] Resumed calendar card job failed:', e)));
-        });
+                .catch(e => { console.warn('[SyncView] Resumed calendar card job failed:', e); _calCardJobRetain('attempt_failed'); }));
+        }
         await Promise.all(runs);
         })().finally(() => { _calCardJobsResumePromise = null; });
         return _calCardJobsResumePromise;

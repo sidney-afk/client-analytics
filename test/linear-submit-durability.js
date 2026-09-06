@@ -49,7 +49,7 @@ function functionStart(name) {
 }
 
 const FUNCTION_STARTS = FUNCTION_NAMES.map(functionStart);
-const LAST_FUNCTION_END = INDEX.indexOf('\n\n    /* After the Linear form is submitted', FUNCTION_STARTS.at(-1));
+const LAST_FUNCTION_END = INDEX.indexOf('\n\n    /* After legacy submission, retain the existing provider discovery', FUNCTION_STARTS.at(-1));
 if (LAST_FUNCTION_END < 0) throw new Error('last submit function boundary not found');
 const FUNCTIONS = FUNCTION_NAMES.map((name, index) => INDEX.slice(
   FUNCTION_STARTS[index],
@@ -214,6 +214,7 @@ function makeHarness(fetchImpl, options = {}) {
       return saved;
     },
     calCardJobCreate: (...args) => {
+      if (options.failCardRegistration) return Promise.reject(new Error('legacy_card_storage_unavailable'));
       const job = { id: 'job-' + (calls.calendarJobs.length + 1) };
       calls.calendarJobs.push({ args, job });
       return job;
@@ -699,6 +700,17 @@ function ok(condition, label) {
     ok(createBody && createBody.idempotency_key === 'linear-intake-v1:video:' + createBody.payload_hash, 'idempotency key is deterministic from team and canonical hash');
   }
 
+  console.log('\nF44: failed calendar registration preserves accepted parent recovery');
+  {
+    const h = makeHarness(async (url, options) => url === LOG_URL ? response({ ok: true }) : createdResponse(options), { failCardRegistration: true });
+    const result = await h.api.submitLinearForm('video');
+    ok(result.ok === false && h.storage.has(LINEAR_FORM_KEY) && h.storage.has(LAST_LINK_KEY),
+      'registration failure leaves the actual submitted form and link intact');
+    ok(h.storage.has(LINEAR_RECEIPTS_KEY) && h.calls.calendarWrites.length === 0 && h.calls.nav.length === 0,
+      'accepted provider receipts remain and no unpersisted calendar job is dispatched');
+    ok(/Confirm the work before retrying/.test(h.status.textContent) && !/No create request was sent/.test(h.status.textContent),
+      'post-provider storage refusal does not falsely claim no work was accepted');
+  }
   console.log('\n' + (failed ? `${failed} failed, ${passed} passed` : `All ${passed} checks passed`));
   process.exit(failed ? 1 : 0);
 })().catch(error => {

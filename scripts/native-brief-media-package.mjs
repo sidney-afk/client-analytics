@@ -42,21 +42,75 @@ function newDirectory(value) {
   fs.mkdirSync(value, { mode: 0o700 });
   return privateFile(value);
 }
-async function imageFile(file, declared, expected) {
+async function imageFile(file, declared, expected, cache, urlHash) {
   const resolved = privateFile(file);
   const stat = fs.statSync(resolved);
   assert.ok(stat.isFile() && stat.size > 0 && stat.size <= 52428800, 'image_size_held');
   const bytes = fs.readFileSync(resolved);
-  const checked = await verifyExistingMedia(declared, bytes);
   const sha = await briefMediaHash(bytes);
   assert.equal(sha, expected, 'source_content_mismatch');
+  let checked;
+  if (cache) {
+    assert.ok(['image/png', 'image/jpeg', 'image/gif', 'image/webp', ...downloadTypes].includes(declared));
+    const prior = cache.rows.get(urlHash);
+    assert.ok(prior?.ok === true && prior.content_sha256 === sha && prior.byte_length === bytes.length
+      && prior.mime_type === declared, 'pinned_validation_mismatch');
+    checked = { mime: declared };
+  } else checked = await verifyExistingMedia(declared, bytes);
   return { bytes, mime: checked.mime, sha };
+}
+async function pinnedValidation(binding, files) {
+  if (!binding) return null;
+  const receiptPath = privateFile(binding.path), bytes = fs.readFileSync(receiptPath);
+  assert.equal(await briefMediaHash(bytes), binding.sha256, 'validation_receipt_pin_mismatch');
+  const receipt = JSON.parse(bytes), rows = new Map();
+  assert.equal(receipt.classification, 'OFFLINE_LOCAL_CORPUS_VALIDATION_NOT_STORAGE_ADMISSION');
+  assert.equal(receipt.validator_sha256, await validatorPin());
+  files['receipts/' + binding.sha256 + '.json'] = bytes;
+  for (const batch of receipt.batches) {
+    assert.match(batch.file, /^batch-[0-9]{4}\.private\.json$/);
+    const data = fs.readFileSync(privateFile(path.join(path.dirname(receiptPath), 'validation-final-batches', batch.file)));
+    assert.equal(await briefMediaHash(data), batch.sha256, 'validation_batch_pin_mismatch');
+    const parsed = JSON.parse(data); assert.equal(parsed.validator_sha256, receipt.validator_sha256);
+    for (const item of parsed.results) { assert.ok(!rows.has(item.url_sha256)); rows.set(item.url_sha256, item); }
+    files['receipts/' + batch.sha256 + '.json'] = data;
+  }
+  assert.equal(rows.size, receipt.files);
+  return { rows, sourceSha: receipt.source_sha256, receiptSha: binding.sha256 };
+}
+async function collectionEvidence(doc, receipt, files, cache) {
+  if (!receipt.generated_binding) return;
+  assert.equal(receipt.provenance?.contract, 'native_brief_media_collection_binding_v1');
+  for (const [key, value] of Object.entries({ id: doc.row.id, client_slug: doc.row.client_slug, team: doc.row.team,
+    source_updated_at: doc.row.updated_at, brief_sha256: await briefMediaHash(doc.row.brief) })) assert.equal(receipt[key], value);
+  for (const evidence of doc.evidence_files || []) {
+    const bytes = fs.readFileSync(privateFile(evidence.path));
+    assert.equal(await briefMediaHash(bytes), evidence.sha256);
+    files['receipts/' + evidence.sha256 + '.json'] = bytes;
+  }
+  const sourceSha = receipt.provenance.collection_source_sha256;
+  assert.ok(files['receipts/' + sourceSha + '.json'], 'collection_source_missing');
+  if (cache) assert.equal(cache.sourceSha, sourceSha, 'validation_collection_mismatch');
+  const source = JSON.parse(files['receipts/' + sourceSha + '.json']);
+  const matching = source.documents.filter(x => x.row.id === doc.row.id && x.row.client_slug === doc.row.client_slug && x.row.team === doc.row.team);
+  assert.equal(matching.length, 1); assert.deepEqual(matching[0].row, doc.row);
+  assert.equal(matching[0].brief_sha256, receipt.brief_sha256);
+  for (const ref of receipt.occurrences) {
+    const original = matching[0].occurrences.filter(x => x.offset === ref.offset && x.url_sha256 === ref.original_url_sha256);
+    assert.equal(original.length, 1, 'captured_occurrence_mismatch');
+    if (ref.owner_deferred) continue;
+    const bytes = files['receipts/' + ref.read_receipt_sha256 + '.json']; assert.ok(bytes, 'collection_read_receipt_missing');
+    const read = JSON.parse(bytes);
+    assert.equal(read.ok, true); assert.equal(read.http_status, 200);
+    assert.equal(read.url_sha256, ref.original_url_sha256); assert.equal(read.content_sha256, ref.content_sha256);
+  }
 }
 export async function stage(inputFile, output) {
   const input = JSON.parse(fs.readFileSync(privateFile(inputFile), 'utf8'));
   assert.equal(input.contract, 'native_brief_media_ingress_v1');
   assert.ok(Array.isArray(input.documents) && input.documents.length > 0);
-  const ledger = [], objects = [], files = {}, receipts = [];
+  const ledger = [], objects = [], files = {}, receipts = [], ownerDeferred = [];
+  const cache = await pinnedValidation(input.validated_corpus, files);
   for (const doc of input.documents) {
     const row = doc.row;
     assert.ok(row && typeof row.brief === 'string' && row.id && row.client_slug && row.team && Number.isFinite(Date.parse(row.updated_at)));
@@ -70,13 +124,29 @@ export async function stage(inputFile, output) {
     assert.equal(receipt.occurrences.length, refs.length);
     const receiptSha = await briefMediaHash(receiptBytes);
     receipts.push(receiptSha); files['receipts/' + receiptSha + '.json'] = receiptBytes;
+    await collectionEvidence(doc, receipt, files, cache);
     for (const ref of refs) {
       const matches = doc.files.filter(x => x.offset === ref.offset);
       const sources = receipt.occurrences.filter(x => x.offset === ref.offset);
       assert.ok(matches.length === 1 && sources.length === 1, 'exact_occurrence_required');
       const copy = matches[0], source = sources[0];
       assert.equal(source.original_url_sha256, await briefMediaHash(ref.url));
-      const img = await imageFile(copy.path, copy.mime_type, source.content_sha256);
+      if (copy.disposition === 'owner_deferred') {
+        assert.equal(source.owner_deferred, true);
+        const bytes = fs.readFileSync(privateFile(copy.owner_receipt_path)), decision = JSON.parse(bytes);
+        assert.equal(decision.source_entity_id, row.id); assert.equal(decision.team, row.team);
+        assert.equal(String(decision.source_status_at_decision).toLowerCase(), 'posted');
+        assert.equal(decision.original_url_sha256, source.original_url_sha256); assert.equal(decision.content_sha256, source.content_sha256);
+        assert.equal(decision.copy_complete, true); assert.equal(decision.website_restoration_required_before_operational_exit, false);
+        assert.ok(HEX.test(decision.content_sha256) && Number.isSafeInteger(decision.byte_length) && decision.byte_length > 52428800);
+        const decisionSha = await briefMediaHash(bytes); files['receipts/' + decisionSha + '.json'] = bytes;
+        ownerDeferred.push({ contract: 'native_brief_owner_deferred_v1', id: row.id, client_slug: row.client_slug, team: row.team,
+          source_status: 'posted', original_url_sha256: source.original_url_sha256, content_sha256: source.content_sha256,
+          byte_length: decision.byte_length, owner_receipt_sha256: decisionSha, source_receipt_sha256: receiptSha, source_offset: ref.offset });
+        continue;
+      }
+      assert.notEqual(source.owner_deferred, true);
+      const img = await imageFile(copy.path, copy.mime_type, source.content_sha256, cache, source.original_url_sha256);
       const id = randomUUID(), storage_path = img.sha + '/' + id;
       files['objects/' + storage_path] = img.bytes;
       objects.push({ storage_path, content_sha256: img.sha, byte_length: img.bytes.length, mime_type: img.mime,
@@ -94,6 +164,7 @@ export async function stage(inputFile, output) {
   const manifest = { contract: 'native_brief_media_package_v1', kind: 'INGRESS_STAGED', bucket: BRIEF_MEDIA_BUCKET,
     validation_contract: 'native_brief_existing_media_v1', validator_sha256: await validatorPin(),
     audience: 'staff', admission: 'UNVERIFIED_STORAGE', recovery_base_sha256: null, objects, receipts,
+    owner_deferred_references: ownerDeferred, cached_validation_receipt_sha256: cache?.receiptSha || null,
     files: Object.fromEntries(await Promise.all(Object.entries(files).map(async ([name, bytes]) => [name, await briefMediaHash(bytes)]))) };
   const dir = newDirectory(output);
   for (const [name, bytes] of Object.entries(files)) {
@@ -101,7 +172,7 @@ export async function stage(inputFile, output) {
     fs.writeFileSync(target, bytes, { flag: 'wx', mode: 0o600 });
   }
   fs.writeFileSync(path.join(dir, 'manifest.private.json'), JSON.stringify(manifest), { flag: 'wx', mode: 0o600 });
-  return { classification: 'OFFLINE_STAGED_UNVERIFIED_STORAGE', occurrences: ledger.length };
+  return { classification: 'OFFLINE_STAGED_UNVERIFIED_STORAGE', occurrences: ledger.length, owner_deferred: ownerDeferred.length };
 }
 export async function verify(directory) {
   const dir = privateFile(directory);
@@ -120,6 +191,30 @@ export async function verify(directory) {
   }
   assert.equal(manifest.files['schema.sql'], await briefMediaHash(fs.readFileSync(path.join(ROOT, SCHEMA))), 'schema_pin_mismatch');
   assert.ok(manifest.files['ledger.private.json']);
+  const evidenceFiles = {};
+  for (const name of Object.keys(manifest.files).filter(x => x.startsWith('receipts/')))
+    evidenceFiles[name] = fs.readFileSync(path.join(dir, name));
+  for (const bytes of Object.values(evidenceFiles)) {
+    const receipt = JSON.parse(bytes);
+    if (receipt.contract === 'native_brief_media_source_v1' && receipt.generated_binding) {
+      const collection = JSON.parse(evidenceFiles['receipts/' + receipt.provenance.collection_source_sha256 + '.json']);
+      const documents = collection.documents.filter(x => x.row.id === receipt.id && x.row.client_slug === receipt.client_slug && x.row.team === receipt.team);
+      assert.equal(documents.length, 1);
+      await collectionEvidence({ row: documents[0].row }, receipt, evidenceFiles, null);
+    }
+  }
+  for (const entry of manifest.owner_deferred_references || []) {
+    const decision = JSON.parse(evidenceFiles['receipts/' + entry.owner_receipt_sha256 + '.json']);
+    const source = JSON.parse(evidenceFiles['receipts/' + entry.source_receipt_sha256 + '.json']);
+    assert.equal(entry.contract, 'native_brief_owner_deferred_v1'); assert.equal(entry.source_status, 'posted');
+    assert.equal(source.id, entry.id); assert.equal(source.client_slug, entry.client_slug); assert.equal(source.team, entry.team);
+    assert.equal(decision.source_entity_id, entry.id); assert.equal(decision.team, entry.team);
+    assert.equal(String(decision.source_status_at_decision).toLowerCase(), 'posted');
+    assert.equal(decision.copy_complete, true); assert.equal(decision.website_restoration_required_before_operational_exit, false);
+    for (const key of ['original_url_sha256', 'content_sha256', 'byte_length']) assert.equal(decision[key], entry[key]);
+    const occurrence = source.occurrences.filter(x => x.offset === entry.source_offset && x.original_url_sha256 === entry.original_url_sha256);
+    assert.equal(occurrence.length, 1); assert.equal(occurrence[0].owner_deferred, true); assert.equal(occurrence[0].content_sha256, entry.content_sha256);
+  }
   const rows = JSON.parse(fs.readFileSync(path.join(dir, 'ledger.private.json'), 'utf8'));
   assert.ok(Array.isArray(rows));
   if (manifest.kind === 'RECOVERY_CAPTURE') assert.equal(rows.length, manifest.row_count, 'recovery_row_count_mismatch');

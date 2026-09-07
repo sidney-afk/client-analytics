@@ -13578,15 +13578,26 @@ an alias must never steal a canonical match, in either row order.
    row existed here. SyncView cannot do this: `team` is not in
    `production-write`'s `OPERATIONS`, so the only place an issue changes team
    is Linear itself.
-2. **The popover's "parent" link is usually not a parent.** `wlApplyData` builds
-   `parentById` from `!i.isSubIssue` rows only, so a rollup whose parent is
-   missing from that map falls back to `subs[0].identifier` — which is how a
-   client-level chip came to link at a single thumbnail. Measured over the 1,672
-   active sub-issues: **680** have a parent that is not in the map — 638 because
-   the parent row is not in the active snapshot at all, 42 because the parent is
-   itself a sub-issue (a three-level family: *Episode 08* → *Youtube Thumbnails*
-   → `01/02/03`, which is exactly the owner's case). So the fallback is the
-   NORM, not an edge case, and which node a client chip should open (the post,
-   the container, or the first item) is a product decision. Left as it is,
-   deliberately: with the resolution fixed, every one of those links now lands
-   on a real row.
+2. **The popover's "parent" link was usually not a parent — CLOSED BY #1331 AND
+   #1338 while this PR was open, and re-checked here rather than left as
+   written.** `wlApplyData` builds `parentById` from `!i.isSubIssue` rows only,
+   so a rollup whose parent was missing from that map fell back to
+   `subs[0].identifier`, the sub-issue itself — which is how a client chip came
+   to link at a single thumbnail. Measured over the 1,672 active sub-issues:
+   **680** have a parent that is not in the map — 638 because the parent row is
+   not in the active snapshot at all, 42 because the parent is itself a
+   sub-issue (a three-level family: post → container → `01/02/03`, the owner's
+   case). So the fallback was the NORM, not an edge case.
+
+   It is no longer that fallback. `parentIdent` now reads
+   `parentRow?.identifier || String(subs[0]?.parentIdentifier || '')` (#1331),
+   and a group of exactly one sub-issue opens THAT sub-issue with the button
+   relabelled, because a pill is a video and the status the chip asserts lives
+   on the sub (#1338). Re-measured with the shipped key: all **680** of those
+   rows carry a `parent_identifier`, and zero active sub-issues carry neither a
+   parent row nor a parent identifier — so every rollup now names either its
+   real parent or, for a single-video group, the video itself. Nothing is left
+   pointing at an arbitrary sibling. Recorded here because this entry claimed
+   otherwise for the hour the two PRs and this one overlapped (Codex on #1333);
+   the identifier resolution above is what makes those links RESOLVE, and
+   #1331/#1338 are what make them point at the right row.

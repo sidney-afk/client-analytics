@@ -156,21 +156,77 @@ ok(!/row\.identifier \|\| row\.linear_identifier/.test(notice),
 
 /* ---- 5. The caller this exists for ------------------------------------- */
 
-/* Pinned by SHAPE, not by variable name. #1338 renamed the header's target
-   from `parentIdent` to `openIdent` (a one-video group opens that video), which
-   broke a name-matching assertion here while the property this suite depends on
-   was untouched: the link still carries a LINEAR IDENTIFIER and never a row id.
-   `wlSyncLinearUrl` from #1331 is a third caller of the same shape. */
+/* TRACED, not spelled. Two rounds of this assertion were wrong in opposite
+   directions. Matching the variable NAME (`parentIdent`) failed when #1338
+   renamed the target to `openIdent` while its value was untouched; matching
+   names that merely END in `Ident` or `.identifier` would fail the same way on
+   the next rename (Codex on #1333). So the expression is EXPANDED through its
+   local `const` definitions until it either reads a `.identifier` property or
+   stops growing. A rename cannot break that; substituting a row id for the
+   identifier still does, which is the property this whole suite exists for. */
 const popover = INDEX.slice(INDEX.indexOf('const parentUrl   = clientName'),
   INDEX.indexOf('No upcoming sub-issues.'));
-const identLinks = popover.match(/'\?prod=1&d=' \+ encodeURIComponent\(([A-Za-z0-9_.?]+)\)/g) || [];
-ok(identLinks.length >= 2,
+
+function expandLocals(block, expr, hops) {
+  let out = expr;
+  for (let i = 0; i < hops; i++) {
+    if (/\.identifier\b/.test(out)) return out;
+    let grew = false;
+    for (const name of new Set(out.match(/[A-Za-z_$][A-Za-z0-9_$]*/g) || [])) {
+      // Only a local const, and never the name currently being defined, so a
+      // self-referential expansion cannot loop.
+      const def = block.match(new RegExp('const\\s+' + name + '\\s*=\\s*([^;]+);'));
+      if (!def || new RegExp('\\b' + name + '\\b').test(def[1])) continue;
+      out = out.replace(new RegExp('\\b' + name + '\\b', 'g'), '(' + def[1] + ')');
+      grew = true;
+    }
+    if (!grew) break;
+  }
+  return out;
+}
+
+/* The detector, proved on synthetic blocks before it is trusted on the real
+   one. A tracer that silently answers "yes" to everything would make every
+   assertion below vacuous, and a tracer that answers "no" to a rename is the
+   bug this replaces. */
+const traces = (block, expr) => {
+  const t = expandLocals(block, expr, 6);
+  return /\.identifier\b/.test(t) && !/\.id\b/.test(t.replace(/\.identifier\b/g, ''));
+};
+const SHAPE = `
+  const parentIdent = clientName ? (parentRow?.identifier || String(subs[0]?.parentIdentifier || '')) : '';
+  const soleSubIdent = String(soleSub?.identifier || '');
+  const openIdent = soleSubIdent || parentIdent;
+`;
+ok(traces(SHAPE, 'openIdent'),
+  'the tracer follows a two-hop identifier through its own consts');
+ok(traces(SHAPE.replace(/openIdent/g, 'targetIdentifier'), 'targetIdentifier')
+  && traces(SHAPE.replace(/openIdent/g, 'x').replace(/soleSubIdent/g, 'y').replace(/parentIdent\b/g, 'z'), 'x'),
+  'and survives a rename of every name involved, which is the false failure this replaced');
+ok(!traces(`const openIdent = parentRow?.id || '';`, 'openIdent'),
+  'while a canonical row id in place of the identifier FAILS');
+ok(!traces(`
+  const soleSubIdent = String(soleSub?.id || '');
+  const parentIdent = parentRow?.identifier || '';
+  const openIdent = soleSubIdent || parentIdent;
+`, 'openIdent'),
+  'and so does a link where only ONE branch drops to a row id');
+
+const builders = [...popover.matchAll(/'\?prod=1&d=' \+ encodeURIComponent\(([^)]+(?:\)[^)]*)*?)\)/g)]
+  .map(m => m[1].trim());
+ok(builders.length >= 2,
   'the Workload popover still builds ?prod=1&d= links — the header and every row — which is why the row must answer to a Linear identifier');
-ok(identLinks.every(link => /Ident\)|\.identifier\)/.test(link)),
-  'and every one of them carries an IDENTIFIER rather than a canonical row id, which is the whole reason this resolution path exists');
+builders.forEach(expr => {
+  const traced = expandLocals(popover, expr, 6);
+  ok(/\.identifier\b/.test(traced),
+    'the link built from `' + expr + '` resolves to a Linear identifier, traced through its own definitions rather than read off its name');
+  ok(!/\.id\b/.test(traced.replace(/\.identifier\b/g, '')),
+    'and to nothing else: `' + expr + '` never carries a canonical row id, which the Production tab resolves by a different path');
+});
 const helper = grabFunc('function wlSyncLinearUrl(');
-ok(/'\?prod=1&d=' \+ encodeURIComponent\(ident\)/.test(helper),
-  'and the shared helper the loose strips use is the same shape');
+ok(/'\?prod=1&d=' \+ encodeURIComponent\(ident\)/.test(helper)
+  && /String\(identifier \|\| ''\)/.test(helper),
+  'and the shared helper the loose strips use takes an identifier and builds the same link');
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nProduction deep-link Linear-identifier checks passed.');

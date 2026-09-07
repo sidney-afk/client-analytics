@@ -35,6 +35,7 @@ async function loadFunction(slug, relatives, revision, tag) {
   const file = `supabase/functions/${slug}/index.ts`;
   let text = readSource(file, revision);
   const sourceSha = sha(text);
+  if (text.includes('from "../_shared/native-brief-media.mjs";')) relatives = [...relatives, '../_shared/native-brief-media.mjs'];
   const shim = 'data:text/javascript,' + encodeURIComponent('export class SupabaseClient {} export function createClient(){return globalThis.__cfrClientFactory();}');
   text = rewriteOnce(text, SUPABASE_IMPORT, `import { createClient, SupabaseClient } from "${shim}";`);
   const dir = path.join(tmp, tag);

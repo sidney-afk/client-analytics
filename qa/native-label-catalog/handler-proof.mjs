@@ -91,6 +91,7 @@ try{
   let source=fs.readFileSync(path.join(ROOT,EDGE),'utf8');assert.notEqual(source,baseline,'G2 must integrate the dormant owner into the actual handler');pass('candidate gateway deliberately differs from pinned provider-only baseline');
   const sourceHash=sha(source);
   function once(a,b){assert.equal(source.split(a).length,2);source=source.replace(a,b);}
+  if(source.includes('from "../_shared/native-brief-media.mjs";'))once('from "../_shared/native-brief-media.mjs";',`from "${pathToFileURL(path.join(ROOT,'supabase/functions/_shared/native-brief-media.mjs')).href}";`);
   const shim='data:text/javascript,'+encodeURIComponent('export class SupabaseClient {} export function createClient(){return globalThis.__labelClient();}');
   once('import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";',`import { createClient, SupabaseClient } from "${shim}";`);
   for(const relative of ['../_shared/staff-role-auth.ts','./selected-label-pages.mjs','../_shared/linear-create-id.mjs','./policy.mjs'])once(`from "${relative}";`,`from "${pathToFileURL(path.resolve(ROOT,'supabase/functions/production-write',relative)).href}";`);

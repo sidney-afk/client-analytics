@@ -39,6 +39,21 @@ async function check(name, fn) { await fn(); groups++; console.log('PASS ' + nam
 (async () => { try {
   const media = await import(pathToFileURL(path.join(root, 'supabase/functions/_shared/native-brief-media.mjs')).href);
   const pkg = await import(pathToFileURL(path.join(root, 'scripts/native-brief-media-package.mjs')).href);
+  await check('actual intake fixture loaders resolve the new shared module before any SQL journey', async () => {
+    for (const name of ['gateway-lane', 'native-only-lane', 'assignee-lane']) {
+      const file = path.join(root, 'scripts/native-intake-manifest', name + '.mjs');
+      let source = fs.readFileSync(file, 'utf8');
+      const end = "if (typeof handler !== 'function') throw new Error('Deno.serve handler was not captured');";
+      assert.equal(source.split(end).length, 2); source = source.slice(0, source.indexOf(end) + end.length);
+      source = source.replace('const HERE = path.dirname(fileURLToPath(import.meta.url));', 'const HERE = ' + JSON.stringify(path.dirname(file)) + ';');
+      source = source.replace(/from '(\.\.?\/[^']+)'/g, (_, relative) => 'from ' + JSON.stringify(pathToFileURL(path.resolve(path.dirname(file), relative)).href));
+      source += "\nif(path.dirname(scratch)!==os.tmpdir()||!path.basename(scratch).startsWith('nir-'))throw Error('scratch_scope');fs.rmSync(scratch,{recursive:true,force:true});console.log('fixture_import_passed');";
+      const probe = path.join(temp, name + '.mjs'); fs.writeFileSync(probe, source);
+      const run = spawnSync(process.execPath, ['--experimental-strip-types', '--no-warnings', probe], { encoding: 'utf8', windowsHide: true,
+        env: { ...process.env, INTAKE_MANIFEST_NEGATIVE_CONTROL: '0', ASSIGNEE_LANE_NEGATIVE_CONTROL: '0' } });
+      assert.equal(run.status, 0, run.stderr); assert(run.stdout.includes('fixture_import_passed'));
+    }
+  });
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
   const contentHash = await media.briefMediaHash(png), refs = media.briefMediaOccurrences(brief), digest = await media.briefMediaHash(brief);
   const copies = await Promise.all(refs.map(async (ref, i) => ({ id: '11111111-1111-4111-8111-11111111111' + i,

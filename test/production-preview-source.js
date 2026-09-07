@@ -163,7 +163,8 @@ check('preview distinguishes pending descriptions from authoritative empty value
   && /projectionGeneration === _prodState\.projectionGeneration/.test(prodBlock)
   && /state\.status = 'error'/.test(prodBlock)
   && /state\.status = 'stale'/.test(prodBlock)
-  && /_prodDescriptionHTML\(state\.value, state\.hasValue, 'No description\.', true\)/.test(prodBlock));
+  && /_prodBriefMediaReadHTML\(state, id\)/.test(prodBlock)
+  && /_prodDescriptionHTML\(original, state\.hasValue, 'No description\.', true\)/.test(prodBlock));
 check('preview maps project and batch descriptions through the shared loaded-state renderer',
   /descField = _prodHasOwn\(c, 'board_desc'\)/.test(prodBlock)
   && /_prodDescriptionHTML\(c\.desc, !!c\.descLoaded, 'No project description\.', false\)/.test(prodBlock)

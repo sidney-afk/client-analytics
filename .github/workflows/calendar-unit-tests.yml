@@ -1,8 +1,9 @@
 name: Calendar unit tests
 
-# Fast, dependency-free logic/wiring checks (test/*.js). Most are hermetic
+# Logic/wiring checks (test/*.js). Most are hermetic
 # source/logic checks; database lanes, including native Workload, use only the
-# disposable PostgreSQL 16 service. No test reaches a live backend or browser.
+# disposable PostgreSQL 16 service. Media uses a finite synthetic Chromium
+# fragment and offline Python decoders; no test reaches a live backend.
 # `push` is restricted to main ON PURPOSE. With `branches: ['**']` a commit on
 # an open pull request's branch matched BOTH triggers and ran this suite twice
 # on the same source. Measured on fc068d15 (2026-08-26): run #3499 (push) passed
@@ -49,6 +50,9 @@ jobs:
       # Explicitly opt the discovered Calendar recovery integration proof into
       # this disposable service; its wrapper refuses an unbound CI invocation.
       CALENDAR_RECOVERY_INTEGRATED: LOCAL_DISPOSABLE_ONLY
+      # The mandatory media-browser job owns real Chromium; keep optional
+      # browser discovery in this existing unit/SQL job unchanged.
+      NATIVE_BRIEF_MEDIA_BROWSER_LANE: dedicated-job
     steps:
       - uses: actions/checkout@v4
         with:
@@ -56,6 +60,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned offline media decoders
+        run: python -m pip install Pillow==12.3.0 PyMuPDF==1.28.0 defusedxml==0.7.1 av==16.1.0
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
       - name: Install PostgreSQL snapshot client for history proof
@@ -268,3 +277,27 @@ jobs:
           name: f27-team-rollback-proof
           path: f27-proof/
           retention-days: 30
+
+  media-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned offline media decoders
+        run: python -m pip install Pillow==12.3.0 PyMuPDF==1.28.0 defusedxml==0.7.1 av==16.1.0
+      - name: Install locked browser dependencies
+        run: npm ci
+      - name: Install the locked Playwright Chromium runtime
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Prove private media rendering and real save refresh
+        run: |
+          node test/native-brief-media-browser.js
+          node test/native-brief-media.js --browser-save

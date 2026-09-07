@@ -51464,9 +51464,45 @@
                         : attribution.state === 'conflict'
                             ? PROD_ATTRIBUTION_CONFLICT
                             : PROD_ATTRIBUTION_NEEDS;
+                /* WHICH IDENTIFIER NAMES THIS ROW, and which one merely used to.
+
+                   `identifier` is a SNAPSHOT. The b1 import writes it and
+                   `linear_identifier` from the same Linear value
+                   (scripts/b1-linear-backfill.js), and nothing maintains it
+                   afterwards: native creation writes it null, and linear-inbound
+                   refreshes `linear_identifier` -- and `team` -- on every webhook
+                   while never touching it. So a Linear TEAM MOVE re-keys the
+                   issue (VID-13553 becomes GRA-7197) and the snapshot keeps the
+                   retired number for ever.
+
+                   Reading the snapshot FIRST is what made those rows
+                   unreachable. The Workload popover links every row as
+                   ?prod=1&d=<Linear identifier> -- the one deep link that
+                   carries no row id -- so ?d=GRA-7197 asked for a row this tab
+                   called VID-13553, _prodIssue matched neither field, and the
+                   deep-link fallback published "has no row in Production" over a
+                   row the page had already fetched (_prodDeepLinkRowQuery reads
+                   all three columns). The command palette could not find it by
+                   its Linear number either, and the list printed a VID number on
+                   a Graphics row. Owner report 2026-09-07, opening a client
+                   rollup on the Workload calendar.
+
+                   Measured 2026-09-07 across all 6,369 browser-visible rows with
+                   the keys this adapter uses: 7 disagree, every one a graphics
+                   row still carrying a VID- snapshot; no row has an `identifier`
+                   without a `linear_identifier`, so nothing else moves; and no
+                   string is one row's displayId and another row's
+                   linear_identifier, so the alias below cannot collide.
+
+                   The maintained column wins, and the snapshot stays resolvable
+                   as an ALIAS so a link or bookmark holding the retired number
+                   still opens the row rather than being told it does not exist. */
+                const linearIdent = String(d.linear_identifier || '');
+                const importIdent = String(d.identifier || '');
                 const issue = {
                     id: String(d.id || ''),
-                    displayId: d.identifier || d.linear_identifier || d.id || '',
+                    displayId: linearIdent || importIdent || String(d.id || ''),
+                    aliasId: importIdent && importIdent !== linearIdent ? importIdent : '',
                     rawId: String(d.id || ''),
                     team: d.team || (batch && batch.team) || '',
                     project,
@@ -51523,6 +51559,9 @@
                     ISSUES.push({
                         id: node.nodeId,
                         displayId: node.identifier || node.nodeId,
+                        // A synthetic parent is minted from the batch row, which
+                        // carries no retired identifier to alias.
+                        aliasId: '',
                         rawId: node.nodeId,
                         team: node.team,
                         project: resolvedClient ? slug : PROD_ATTRIBUTION_NEEDS,
@@ -51624,7 +51663,19 @@
         function _prodEditors() { return _prodData().EDITORS || {}; }
         function _prodIssue(id) {
             const sid = String(id || '');
-            return _prodIssues().find(i => i.id === sid || i.displayId === sid) || null;
+            if (!sid) return null;
+            const rows = _prodIssues();
+            /* TWO PASSES, and the order is the point. `aliasId` holds the
+               identifier a row carried before a Linear team move re-keyed it
+               (see the adapter), so it is a real name for the row and must
+               resolve -- but a canonical match anywhere in the set has to beat
+               an alias match, or a retired number that some other row has since
+               been given would open the wrong deliverable. No such collision
+               exists in the live set today; this is what keeps that from being
+               load-bearing. */
+            return rows.find(i => i.id === sid || i.displayId === sid)
+                || rows.find(i => i.aliasId && i.aliasId === sid)
+                || null;
         }
         /* The CANONICAL row id for whatever is open, which is not always what
            `_prodState.openId` holds.
@@ -59399,10 +59450,16 @@
                credential to check with, and a button that re-asks a question
                already answered is the dead end this notice exists to replace. */
             const kind = String(_prodState.deepLinkMissingKind || '');
+            /* BOTH identifier columns, tested independently. `identifier` is
+               the b1 import's snapshot and `linear_identifier` is the value
+               Linear maintains; a team move leaves them different (see the
+               adapter's displayId note), so `identifier || linear_identifier`
+               asked only about the retired number and answered "never imported"
+               for an archived row linked by its current one. */
             const archived = kind === 'issue' && (_prodState.deliverables || []).some(row => {
-                const id = String(row && row.id || '');
-                const identifier = String(row && (row.identifier || row.linear_identifier) || '');
-                return (id === missing || identifier === missing) && !_prodDeliverableLive(row);
+                const names = [row && row.id, row && row.identifier, row && row.linear_identifier]
+                    .map(v => String(v || ''));
+                return names.includes(missing) && !_prodDeliverableLive(row);
             });
             const guidance = archived
                 ? ' It is archived, so it is hidden here on purpose — nothing needs importing.'
@@ -59517,12 +59574,14 @@
         /* The one-row filter, shared by the boot-time fast paint and the
            post-phase-one catch-up so the two cannot drift apart.
 
-           THREE columns, not two. Review on PR 1242 caught the third: the
-           adapter reads `displayId: d.identifier || d.linear_identifier ||
-           d.id`, so a link copied off a row whose `identifier` is null carries
-           the LINEAR identifier and matched nothing here -- the one case this
-           shortcut exists for, silently falling back to the four-thousand-row
-           wait it was written to skip. Returns '' for an id the filter grammar
+           THREE columns, not two. Review on PR 1242 caught the third: a link
+           copied off a row whose `identifier` is null carries the LINEAR
+           identifier and matched nothing here -- the one case this shortcut
+           exists for, silently falling back to the four-thousand-row wait it
+           was written to skip. All three stay, and they are the same three
+           `_prodIssue` resolves (canonical id, displayId, retired alias), which
+           is what keeps a row this fetches from being called missing once it
+           lands -- the 2026-09-07 report. Returns '' for an id the filter grammar
            cannot carry safely, and the callers then leave it to the tail. */
         function _prodDeepLinkRowQuery(wanted) {
             /* \x22 and \x27 are the two quote characters; spelled as escapes so

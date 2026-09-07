@@ -1,6 +1,6 @@
 # Linear — current truth
 
-> Last verified: 2026-08-25 @ 61a1d5f6 — live re-read of the claims below that can be
+> Last verified: 2026-09-07 @ 4e57e744 — live re-read of the claims below that can be
 > checked against Linear directly: team list, the 14-user count and the house identity, the
 > exact `2× Workload` / `3× Workload` label names (unchanged by the owner's 2026-08-25 rename;
 > the `×` is still U+00D7), and both teams' full state-name sets. ONE DRIFT FOUND and corrected
@@ -170,6 +170,10 @@ real TEST drills remain gated). Real teams remain read-only while
 authority is Linear; the bounded active-TEST drill stays service-only and is the sole path allowed
 to seed a missing pre-F201 native selection from a complete Linear snapshot. The visible **Submit** tab retains internal key
 `linear` and route `#linear`; its native reroute landed through PR #850 / `9968bd9` and is
-dark-gated behind `write_ui_reroute_clients` (last verified TEST-only allowlist; a missing/unreadable flag
-deliberately fails to the LEGACY lane), while the serving legacy intake for non-enrolled clients
-remains caller-unauthenticated (F91).
+gated behind `write_ui_reroute_clients` — measured 2026-09-07 as the FULL roster: 43 enrolled slugs
+against 43 `active=true` clients, an exact 1:1 match with no unenrolled active client and no enrolled
+slug lacking a `clients` row. A missing/unreadable flag no longer falls to the LEGACY lane for ROUTING
+(owner decision 2026-09-07, LX-C / OPEN_REPAIRS 175): `_writeUiRerouteUseGatewayFailClosed` routes such
+a write NATIVE, because after 2026-09-15 the legacy lane is a dead URL that fails silently while the
+native lane can refuse out loud. The allowlist itself still answers factually for the outbox drain.
+The serving legacy intake for non-enrolled clients remains caller-unauthenticated (F91).

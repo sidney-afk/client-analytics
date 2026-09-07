@@ -25464,9 +25464,17 @@
             _clientCommentGatewaySetFlagValue(commentGatewayRow && commentGatewayRow.value ? commentGatewayRow.value : null);
             _writeUiRerouteFlagFailed = false;
         } catch (e) {
-            // A missing/unreadable rollout flag is deliberately dark: every
-            // client stays on the pre-#813 n8n transports, and client comments
-            // stay on the legacy lane (fail-legacy, never fail-open).
+            // A missing/unreadable rollout flag leaves the ALLOWLIST empty, and
+            // the allowlist is still the factual answer the outbox drain needs.
+            // What changed on 2026-09-07 (owner decision, LX-C) is what an empty
+            // allowlist means for ROUTING a live write: _writeUiRerouteFlagFailed
+            // is set here, and _writeUiRerouteUseGatewayFailClosed reads it to
+            // send status changes and comments NATIVE instead of to
+            // LINEAR_SET_STATUS_URL / LINEAR_ADD_COMMENT_URL. This comment used
+            // to say "fail-legacy, never fail-open", which was correct while
+            // Linear was the safe destination and is backwards once it is not.
+            // Client comments are unaffected: they are routed legacy by
+            // principal, not by enrollment (see _calPostLinearComment).
             // The dark fallback stays bare: the roster is empty on this path
             // both at boot and on a failed heal, so there is never a roster
             // CHANGE for options.refreshProjects to act on.
@@ -25594,6 +25602,30 @@
         let slug = '';
         try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
         return !!slug && _writeUiRerouteClients.has(slug);
+    }
+    /* ROUTING A LIVE WRITE FAILS CLOSED AGAINST LINEAR (owner decision, 2026-09-07).
+       _writeUiRerouteUseGateway above answers a FACTUAL question — is this slug
+       in the allowlist — and two callers need exactly that answer and must keep
+       it: the outbox drain (index.html ~32320 / ~68380), where a genuinely
+       unenrolled client's legacy item is legitimate traffic and quarantining it
+       is the item-63 defect, and the project-source filter at ~13866.
+       Routing a live write is a different question. Its unreadable-flag answer
+       used to be "legacy": _writeUiFetchRerouteFlagOnce falls back to
+       {clients:[]} on any failure or on the two-second timeout, so ONE slow
+       moment at boot sent every client's status changes to LINEAR_SET_STATUS_URL
+       and every comment to LINEAR_ADD_COMMENT_URL. The comment there calls that
+       "fail-legacy, never fail-open". That was correct while Linear was the safe
+       destination and is exactly backwards once it is not: after 2026-09-15 the
+       legacy lane is a dead URL that fails silently, while the native lane is an
+       authority that can refuse out loud — which is the permissive-client rule in
+       AGENTS.md ("let the authority that can see it decide"), not an exception to it.
+       Measured 2026-09-07 against the live flag: all 43 active clients are
+       enrolled, and the allowlist holds exactly those 43 with no ghosts. So this
+       changes the destination for NO client that works today — only for the
+       failure case, which is the only case it was ever wrong in. */
+    function _writeUiRerouteUseGatewayFailClosed(clientOrSlug) {
+        if (_writeUiRerouteFlagFailed) return true;
+        return _writeUiRerouteUseGateway(clientOrSlug);
     }
     window.peekWriteUiRerouteClients = function () { return Array.from(_writeUiRerouteClients); };
     function _calUpsertUrlForClient(clientOrSlug) {
@@ -25876,7 +25908,7 @@
     async function _writeUiRerouteUseGatewayWhenReady(clientOrSlug) {
         const clientSlug = wlNormalizeClient(clientOrSlug && clientOrSlug.name ? clientOrSlug.name : clientOrSlug);
         await _writeUiPrimeRerouteFlag();
-        return _writeUiRerouteUseGateway(clientSlug);
+        return _writeUiRerouteUseGatewayFailClosed(clientSlug);
     }
     async function _writeUiUseGatewayWhenReady(surface, meta) {
         // Freeze the initiating card/client before the runtime flag wait. A tab
@@ -25884,7 +25916,7 @@
         // intent using mutable Calendar/SXR selection state.
         const clientSlug = _writeUiSourceClientSlug(surface, meta);
         await _writeUiPrimeRerouteFlag();
-        return _writeUiRerouteUseGateway(clientSlug);
+        return _writeUiRerouteUseGatewayFailClosed(clientSlug);
     }
     async function _writeUiClassifyTargetless(surface, component, meta) {
         const authority = await _writeUiRefreshAuthority();
@@ -65011,7 +65043,25 @@
         _sxrMoveLink(mv.oldPid, pid, mv.which, mv.val);
     }
     async function _sxrMoveLink(oldPid, newPid, which, val) {
-        if (_isClientLink) return;
+        if (_isClientLink) return;   // moving a Linear link is SMM-only
+        /* The calendar twin `_calMoveLink` gates here and says exactly why:
+           "a guard which lives only on the surface that usually calls it is a
+           guard with a hole in it." THIS TWIN WAS THAT HOLE. `_sxrLinearCommit`
+           does check the seal before `applyCommit`, but the conflict flow does
+           not go through it -- `_sxrMoveLinkConfirm` is a different surface and
+           reaches this function directly. So a staff member could move a Linear
+           link onto a samples card on a syncview-authoritative team, and the
+           move also fires `_sxrSyncStatusFromLinear`, which POSTs
+           `linear-subissues` and will hang once that endpoint is gone.
+           Seal FIRST, before the old card's link is cleared: a refusal that has
+           already mutated the source card is the item-66 shape, where the tool
+           refuses and still leaves the user worse off than before they clicked. */
+        const moveSeal = await _writeUiLinkSlotSealedLive(which);
+        if (moveSeal.sealed) {
+            const notice = _writeUiLinkSlotSealedNotice(which, moveSeal.reason);
+            showNotify(notice[0], notice[1]);
+            return;
+        }
         const slug = sxrClientSlug(sxrState.client);
         const key = _sxrLinkKey(val);
         const newFld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';

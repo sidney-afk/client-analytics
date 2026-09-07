@@ -73,7 +73,21 @@ assert(sourceClient.includes('post.client_slug') && sourceClient.includes('post.
 const readyRoute = extract('_writeUiUseGatewayWhenReady');
 assert(readyRoute.indexOf('const clientSlug = _writeUiSourceClientSlug') < readyRoute.indexOf('await _writeUiPrimeRerouteFlag()'),
   'routing must capture the initiating client before the allowlist wait');
-assert(readyRoute.includes('return _writeUiRerouteUseGateway(clientSlug)'));
+/* 2026-09-07 (LX-C / OPEN_REPAIRS 175): this used to pin the plain predicate,
+   which returned false whenever the flag read failed -- and false here means
+   LINEAR_SET_STATUS_URL / LINEAR_ADD_COMMENT_URL, for all four legacy writers
+   asserted below. That was 'fail-legacy, never fail-open', correct while Linear
+   was the safe destination and backwards once it is not. The routing decision
+   now fails CLOSED against Linear. The assertion is not weakened: it still pins
+   an exact call, and the two checks under it pin that the flip is real and that
+   the allowlist is still honoured whenever the read actually succeeded. */
+assert(readyRoute.includes('return _writeUiRerouteUseGatewayFailClosed(clientSlug)'),
+  'live-write routing must go through the fail-closed predicate');
+const failClosed = extract('_writeUiRerouteUseGatewayFailClosed');
+assert(failClosed.includes('if (_writeUiRerouteFlagFailed) return true'),
+  'an unreadable flag must route native, not to the dead Linear webhook');
+assert(failClosed.includes('return _writeUiRerouteUseGateway(clientOrSlug)'),
+  'and a healthy flag read must still be answered by the allowlist itself');
 
 for (const [wrapper, legacy, surface] of [
   ['_calPushStatusToLinear', '_calLegacyPushStatusToLinear', 'calendar'],
@@ -328,13 +342,24 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     'let _writeUiRerouteFlagFailed = false;',
     extract('_writeUiFetchRerouteFlagOnce'),
     extract('_writeUiPrimeRerouteFlag'),
+    extract('_writeUiRerouteUseGatewayFailClosed'),
     extract('_writeUiRerouteUseGatewayWhenReady'),
   ].join('\n'), timeoutRouteContext);
   const timedRoute = await Promise.race([
     timeoutRouteContext._writeUiRerouteUseGatewayWhenReady('real-client'),
     new Promise((_, reject) => setTimeout(() => reject(new Error('flag timeout fallback did not settle')), 100)),
   ]);
-  assert.strictEqual(timedRoute, false, 'never-settling flag read must resolve to the legacy lane');
+  /* THIS ASSERTION WAS INVERTED ON 2026-09-07 (LX-C / OPEN_REPAIRS 175), and it
+     is the whole point of the change. It used to read `false` -- "never-settling
+     flag read must resolve to the legacy lane" -- which is precisely the branch
+     that sent every write to LINEAR_SET_STATUS_URL / LINEAR_ADD_COMMENT_URL after
+     one slow moment at boot. After 2026-09-15 that lane is a dead URL that fails
+     silently, so a bounded read that never settles must now resolve NATIVE, where
+     an authority can refuse out loud. What is still pinned, and still matters, is
+     that the read stays BOUNDED and aborts its fetch: the assertion below. */
+  assert.strictEqual(timedRoute, true, 'never-settling flag read must resolve to the NATIVE lane, not the dead Linear webhook');
+  assert.strictEqual(timeoutRouteContext._writeUiRerouteClients.size, 0,
+    'and the allowlist itself is still emptied, so the outbox drain keeps its factual answer');
   assert(observedSignal && observedSignal.aborted, 'bounded flag read must abort its fetch');
 
   // A Calendar switch while the allowlist is pending cannot change the route
@@ -374,6 +399,10 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     // own (caption/title). Real predicate, not a stub. OPEN_REPAIRS 127.
     extract('_writeUiComponentHasWorkItem'),
     extract('_writeUiSourceClientSlug'),
+    // Healthy read in this scenario: the flip is not what is under test here,
+    // so the fail-closed predicate must fall through to the allowlist stub.
+    'let _writeUiRerouteFlagFailed = false;',
+    extract('_writeUiRerouteUseGatewayFailClosed'),
     extract('_writeUiUseGatewayWhenReady'),
     extract('_calLegacyPushStatusToLinear'),
     extract('_calPushStatusToLinear'),

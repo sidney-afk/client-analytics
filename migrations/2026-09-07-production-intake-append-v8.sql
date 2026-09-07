@@ -557,16 +557,24 @@ commit;
 -- That is the whole procedure. This migration SUPERSEDES a live function
 -- rather than installing a new one, so the rollback is not a drop either.
 --
--- FOR EVERY BATCH THAT HOLDS NO NAMED CHILD, v8 is backward compatible with
--- the older gateway: it still accepts the bare `Video N` / `Thumbnail N`
--- titles that gateway composes, so those batches go on appending exactly as
--- they did before this migration was applied.
+-- v8 still accepts the bare `Video N` / `Thumbnail N` titles the older gateway
+-- composes, so most batches go on appending exactly as they did before this
+-- migration was applied.
 --
--- A BATCH THAT ALREADY HOLDS A NAMED CHILD STOPS ACCEPTING APPENDS under the
--- older gateway, and that is the intended failure rather than a surprise. v8
--- counts the named row and expects the next number; the older gateway reads
--- BARE titles only and proposes one already in use; the RPC refuses it with
--- invalid_intake_append_order.
+-- THE ONE SHAPE THAT STOPS is a batch whose HIGHEST ordinal is carried by a
+-- NAMED child -- that is, where the highest named number exceeds the highest
+-- bare one. The two sides count differently: v8 reads both spellings and
+-- expects the next number after ALL of them, while the older gateway reads
+-- BARE titles only and proposes the next number after those. When they
+-- disagree the RPC refuses with invalid_intake_append_order, which is the
+-- intended failure rather than a surprise.
+--
+-- IT IS NOT "ANY NAMED CHILD", because post names are optional and a later
+-- unnamed post puts a bare title back on top: a batch holding
+-- 'Video 1 — Launch' and then 'Video 2' has both sides counting 2, so they
+-- agree and the append succeeds. Naming the condition precisely matters --
+-- told "every named batch stops", an operator mid-incident would expect a far
+-- bigger blast radius than this has.
 --
 -- THE ONLY SUPPORTED WAY TO CLEAR THAT REFUSAL IS TO PUT THE GATEWAY BACK AT
 -- v69. There is no title writer to rename the children with: `production-write`
@@ -580,13 +588,16 @@ commit;
 -- agree on 4 and write a SECOND 'Video 4' with no error at all. A rollback
 -- should fail in the direction that stops, not the one that duplicates.
 --
--- CORRECTED THREE TIMES, 2026-09-07, after this file was applied and deployed
--- (Codex on #1340, three rounds; comment only, nothing executable moved).
+-- CORRECTED FOUR TIMES, 2026-09-07, after this file was applied and deployed
+-- (Codex on #1340, four rounds; comment only, nothing executable moved).
 -- Round three removed a "rename those children" containment step that no
 -- supported surface can carry out -- the same dead end the browser message was
 -- corrected for one round earlier, written back in as an instruction -- and
 -- narrowed a compatibility claim that said EVERY batch keeps appending when
--- the paragraph below it already said otherwise.
+-- the paragraph below it already said otherwise. Round four corrected the
+-- narrowed claim in turn: it had swung to "any named child stops the batch",
+-- which over-states the blast radius, when the condition is the highest
+-- ordinal being held by a named child.
 -- The first correction was APPENDED BELOW an instruction to re-run the older
 -- RPC, which still stood at the top of this block, so an operator reading it
 -- top-down followed the unsafe path several paragraphs before reaching the

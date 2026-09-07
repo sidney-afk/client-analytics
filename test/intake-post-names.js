@@ -238,9 +238,16 @@ function extract(name) {
   ok(rollbackBlock.indexOf('Restore `production-write`') < rollbackBlock.indexOf('HISTORY, NOT AN INSTRUCTION')
     && rollbackBlock.indexOf('Restore `production-write`') < rollbackBlock.indexOf('RE-RUNNING v7'),
   'the procedure comes FIRST -- before the rationale and before the history, which is what the second finding was about');
+  /* Round four: the scoping swung too far the other way. "Any named child
+     stops the batch" over-states it, because post names are optional and a
+     later unnamed post puts a bare title back on top -- 'Video 1 — Launch'
+     then 'Video 2' has both sides counting 2, so they agree. The condition is
+     the HIGHEST ordinal being held by a named child. An operator told the
+     broader version would expect a far bigger blast radius than this has. */
   ok(/LEAVE THIS MIGRATION APPLIED/.test(rollbackBlock)
-    && /FOR EVERY BATCH THAT HOLDS NO NAMED CHILD/.test(rollbackBlock),
-  'it says v8 stays applied, and scopes the compatibility claim to the batches it is actually true of');
+    && /THE ONE SHAPE THAT STOPS is a batch whose HIGHEST ordinal is carried by a/.test(rollbackBlock)
+    && /IT IS NOT "ANY NAMED CHILD"/.test(rollbackBlock),
+  'it says v8 stays applied, and states the refusal condition as the highest ordinal rather than the mere presence of a name');
   /* Round three: the block had offered "rename those children" as containment,
      which no supported surface can carry out -- the same dead end the browser
      message was corrected for one round earlier. The only actionable route is

@@ -6284,8 +6284,13 @@ The BROWSER shipped first, on merge, because `index.html` goes out via Pages and
 cannot wait for anything; then the migration was applied; then the gateway
 deployed as v69. The safety-critical ordering is the one that did hold and is
 the only one that had to: **the migration preceded the gateway.** Reverse those
-two and every append raises `invalid_intake_append_order`, because a gateway
-composing named titles in front of a v7 function is refused by it.
+two and every NAMED append raises `invalid_intake_append_order`, because a
+gateway composing named titles in front of a v7 function is refused by it.
+Unnamed appends would have gone on working: v69 leaves the unnamed path
+byte-identical and still composes a bare `Video N`, which v7 accepts, and no
+named row could exist to disagree about the ordinal because v7 would have
+refused writing one. So the cost of getting that order wrong is the feature
+itself, not the surface.
 
 The browser being early is safe by construction rather than by luck: between
 merge and the gateway deploy a typed name was simply ignored by the old
@@ -6615,7 +6620,10 @@ This deploy carries post naming (#1336) and nothing else. Its migration,
 `2026-09-07-production-intake-append-v8.sql`, was applied by the owner before
 the dispatch, which is the order that release required: the RPC refuses a named
 title until it is applied, so a gateway composing named titles in front of a v7
-function would have raised `invalid_intake_append_order` on every append.
+function would have raised `invalid_intake_append_order` on every NAMED append.
+Unnamed ones would have kept working -- the unnamed path is unchanged in v69 and
+still composes a bare `Video N` that v7 accepts -- so the reversed order breaks
+the feature rather than the surface.
 
 The sealed capture read `production-write` at v68 / `d7fc8348…` — the code that
 was live before this release, which is the check that proves a bundle sealed the

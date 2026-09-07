@@ -1,5 +1,9 @@
 # Repo map
 
+`qa/card-lifecycle/matrix.js` and `qa/card-lifecycle/scenarios.js` include the finite `editor-smm-handoff` case: visible Kasper -> video editor -> SMM handoff, refused-save retention and second-context evidence. `qa/card-lifecycle/README.md` and `qa/card-lifecycle/coverage.md` distinguish this source-only browser fixture from actual backend/role/media proof and preserved older failures.
+
+`qa/card-lifecycle/feedback-reader.js` is the comments-cell-only adapter for the selected source's actual protected feedback reader, with finite synthetic Supabase transport. Its missing-feedback negative, source-note/read-only assertions and preserved earlier failures are documented in `qa/card-lifecycle/README.md`.
+
 The one-page guide to where everything lives. **This file is enforced**: the
 offline unit suite (`test/repo-map-sync.js`, run by `npm test` and by CI on
 every push) fails if a top-level path or `docs/` subdirectory is added,

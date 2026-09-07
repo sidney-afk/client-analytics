@@ -22,12 +22,12 @@ function toolingProvenance() {
   const files = fs.readdirSync(__dirname).filter(f => f.endsWith('.js')).sort();
   return { head: git(ROOT, ['rev-parse', 'HEAD']), files: Object.fromEntries(files.map(f => [f, hash(fs.readFileSync(path.join(__dirname, f)))])) };
 }
-function transportInit({ persona }) {
+function transportInit({ persona, staffRoleFamily }) {
   // Fixture identity bootstrap follows PTO; no review state or handlers replaced.
   if (persona) {
     localStorage.setItem('syncview_auth_v1', 'ok');
     localStorage.setItem('syncview_staff_identity_v1', JSON.stringify({
-      key: 'fictional-lifecycle-key', role: persona.role, member: persona, verified_at: new Date().toISOString(),
+      key: 'fictional-lifecycle-key', role: staffRoleFamily || persona.role, member: persona, verified_at: new Date().toISOString(),
     }));
     sessionStorage.setItem('syncview_kasper_unlocked', 'ok');
     sessionStorage.setItem('syncview_staff_prompted_v1', '1');
@@ -97,7 +97,8 @@ class Harness {
       }
       return backend.handle(route, role, this.origin);
     });
-    await context.addInitScript(transportInit, { persona: MEMBERS.find(m => m.role === role) || null });
+    await context.addInitScript(transportInit, { persona: MEMBERS.find(m => m.role === role) || null,
+      staffRoleFamily: backend.staffKeyFamilies && ['editor', 'designer'].includes(role) ? 'creative' : null });
     const page = await context.newPage(); s.page = page; s.pages.push(page);
     page.setDefaultTimeout(7000);
     page.on('pageerror', error => s.errors.push(error.message));

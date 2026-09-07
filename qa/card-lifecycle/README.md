@@ -1,5 +1,92 @@
 # Isolated card lifecycle browser lane
 
+## September 7 combined runtime verification
+
+The two focused cells `editor-smm-handoff,comments` passed all eight steps on
+combined runtime `59bdb8037f7939d38a33f3b375047343de361590`, using tooling
+`bddd4b8b8ef455f1c45b397201ec9058776a2cde`. All20 served documents matched HTML
+SHA256 `22d9c060f000c2c4fecf310e13d92cb5b1343b1de09ab89cbb49bea28a9d2d0f`.
+The editor's expected synthetic403 console error remains recorded; zero
+unexpected blocked requests, page errors or sockets. The private summary hash
+is `ce525740cb751684e964e29f4347277caa431246388bcbb6246b50116567e42a`.
+No other cells were rerun. This remains synthetic-transport ISOLATED_BROWSER
+evidence, with the server, media-editing and live-state limits below unchanged.
+
+## September 7 normal editor-to-SMM handoff
+
+The new `editor-smm-handoff` cell exercises the owner-confirmed video route:
+Kasper requests a change, a video editor reads it and sends **For SMM Approval**,
+then a separate SMM reviews the outstanding request and explicitly sends
+**Kasper Approval**. Every transition uses visible controls in the unchanged
+product document. New contexts verify each persisted stage and the corresponding
+Kasper/client queues. Accepted native requests must belong, in order, to the
+admin acting as Kasper, the editor, and the SMM; no direct backend transition is
+inserted to make the path work. The editor does not perform the SMM resolution.
+
+Only this cell was run against clean unchanged product
+`b60a9705492002830eed60ece874e0686fc4b538`: **1 cell / 4 steps PASS**.
+Latest finite receipt: `.codex-tmp/card-lifecycle/2026-09-07T15-23-51-258Z/`.
+Zero unexpected blocked requests, page errors or sockets. One console resource
+error is retained: the deliberately injected HTTP403. The visible card must show
+**Save failed / Retry**, both stored rows must remain unchanged, and a fresh
+context must still see Tweaks Needed before the separate successful attempt.
+Anonymous clients have no staff status controls. The editor uses the Creative
+key family with an active editor roster member, and the outgoing status request
+must retain that family. This correct family mapping is opt-in for this new cell;
+older receipts and role fixtures are preserved as their own historical evidence.
+
+Run `node qa/card-lifecycle/run.js --source <local-b60-checkout> --case editor-smm-handoff`.
+This is **ISOLATED_BROWSER** with fictional transport, identities and persistence.
+The injected refusal proves browser handling, not actual server authorization or
+role-policy enforcement. It tests handing off a fixture with existing video
+content; it does not evaluate whether an editor actually made the requested
+media change, file upload/recovery, other teams, mobile or live backend behavior.
+No full matrix, Reopen control or product source was changed. The older
+`undo-reopen` edge remains red with unresolved relevance/contract; the older
+SMM-resolution journeys retain their original narrower meaning. The earlier
+feedback fixture failure and its separately recorded correction remain intact.
+
+## September 7 bounded feedback-reader fixture correction
+
+Only the `comments` cell was rerun against unchanged product source
+`b60a9705492002830eed60ece874e0686fc4b538`: **1 cell / 4 steps PASS**,
+with zero unexpected blocked requests, page errors, socket attempts or console
+errors. Private artifacts: `.codex-tmp/card-lifecycle/2026-09-07T15-07-10-283Z/`.
+The earlier unchanged-tooling run at `2026-09-07T15-00-21-034Z` in the original
+tooling checkout remains **2 PASS / 2 FAIL**; its failed record is not rewritten.
+
+The old synthetic `production-comments` response omitted `feedback` despite the
+browser requesting `include_feedback:true`. The `.prod-comment` selector remains
+valid for source notes. `feedback-reader.js` now executes the selected product
+source's actual TypeScript handler, staff authorization and feedback projection
+in a bounded child process. Supabase tables, rate/allow-audit RPC results and
+role secrets remain synthetic. Only the handler's feedback response is added;
+the existing canonical-comment response and write transport remain modeled.
+No application code is changed and no text-matching import is introduced.
+
+The finite source read uses the current synthetic Calendar row and exact
+deliverable/card/client linkage. Assertions require the original note under
+**From the original card**, read-only source guidance, no source-note action
+buttons and byte-identical canonical storage. The missing-feedback negative
+control still requires incomplete feedback and absence of the note. This is a
+response-contract repair, not evidence of installed feedback, real SQL grants,
+durable audit persistence or complete multi-page/real-population behavior.
+Unsupported cursor reads and table writes fail explicitly. Child-process fetch
+is refused; temporary handler copies are cleaned in `finally`.
+
+Reproduce with `node qa/card-lifecycle/run.js --source <local-b60-checkout> --case comments`.
+Existing source/serving hashes and tooling file hashes bind the run; the source
+remained clean and unchanged. Do not replace the older failure with this result
+or infer a full lifecycle pass. The original `undo-reopen` edge remains red as a
+Comments-history control whose relevance/contract is still undetermined; it is
+not an owner decision blocking the normal workflow.
+
+The owner clarified the normal video path: Kasper requests a change, the video
+editor fixes it and sends **For SMM Approval**, then the SMM sends **Kasper
+Approval**. Existing journey cells use an SMM for resolution and do not prove
+that full editor-to-SMM path. This comments-only run adds no proof of it and
+does not change reopening policy.
+
 ## Run
 
 ```sh
@@ -108,9 +195,10 @@ archived rows are refused under declared browser assumptions.
   repository copy or change its anonymous access to satisfy this lane.
 - The controls cell explicitly delivers one status projection to Calendar.
   That assumption needs independent real native-to-card mirror evidence.
-- The client-note/Production projection check retains a red assertion under
-  shallow Calendar patch persistence: no implicit native import is fabricated.
-  Whether the frozen serving writer supplies that import is **UNPROVEN**.
+- The original client-note/Production projection failure is preserved as dated
+  evidence. The September 7 correction above exercises the actual source-feedback
+  reader over synthetic rows; it requires no native import. Installed reader,
+  frozen writer persistence and real database access remain **UNPROVEN**.
 - Source locations describe repository contracts only. The
   [deploy manifest](../../docs/ops/EF_DEPLOY_MANIFEST.md) does not prove serving
   function revisions. No LIVE_WRITE_DRILL is available here.

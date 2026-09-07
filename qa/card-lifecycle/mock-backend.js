@@ -80,6 +80,7 @@ class Backend {
     if (p.startsWith('/webhook/') ? url.hostname !== this.webhookHost : url.hostname !== this.apiHost) return block();
     const record = (action, outcome = 'read') => {
       const r = { session, action, body: clone(body), outcome, revision: this.revision };
+      if (this.staffKeyFamilies) r.staff_key_role = req.headers()['x-syncview-role'] || null;
       this.records.push(r); return r;
     };
     if (method === 'GET' && p.startsWith('/rest/v1/')) {
@@ -112,7 +113,8 @@ class Backend {
     }
     if (method === 'POST' && p === '/functions/v1/key-verify') {
       const member = MEMBERS.find(m => m.id === body.member?.id) || MEMBERS.find(m => m.role === session);
-      record('key-verify'); return send({ ok: true, role: member?.role, member, mode: 'strict' });
+      record('key-verify'); return send({ ok: true,
+        role: this.staffKeyFamilies && ['editor', 'designer'].includes(member?.role) ? 'creative' : member?.role, member, mode: 'strict' });
     }
     if (method === 'POST' && p === '/functions/v1/client-token-verify') {
       const client = CLIENTS.find(c => c.slug === body.slug);
@@ -121,8 +123,18 @@ class Backend {
         display_name: client?.display_name, view: body.view, strict: true, active: true, protocol: 'syncview-client-entry-v1' });
     }
     if (p === '/functions/v1/production-comments' && method === 'POST') {
-      record('comments-read'); return send({ ok: true, comments: clone(this.comments.filter(c => c.deliverable_id === body.deliverable_id
-        && (session !== 'client' || c.audience === 'client'))), has_more: false, next_cursor: null });
+      const r = record('comments-read');
+      const reply = { ok: true, comments: clone(this.comments.filter(c => c.deliverable_id === body.deliverable_id
+        && (session !== 'client' || c.audience === 'client'))), has_more: false, next_cursor: null };
+      if (body.include_feedback === true && this.feedbackReader && !this.omitFeedback) {
+        const actual = require('./feedback-reader').readFeedback({ source: this.source, session, body, headers: req.headers(),
+          tables: { team_members: MEMBERS, deliverables: this.native, calendar_posts: this.rows,
+            sample_reviews: [], production_comment_card_links: [], production_comments: this.comments } });
+        r.feedback_reader = { status: actual.status, reads: actual.reads };
+        if (actual.status !== 200) return send(actual.body, actual.status);
+        reply.feedback = actual.body.feedback;
+      }
+      return send(reply);
     }
     if (p === '/functions/v1/production-write' && method === 'POST') {
       if (body.action) {

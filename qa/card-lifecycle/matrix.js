@@ -3,6 +3,7 @@ const journey = ['resolve-last-to-kasper', 'kasper-request', 'staff-resolve-kasp
   'kasper-approve-to-client', 'client-plain-note', 'client-request-invalidates-approval',
   'staff-return-to-client', 'client-final-approve'];
 module.exports = {
+  'editor-smm-handoff': ['kasper-requests-editor-change', 'editor-send-refused', 'editor-sends-smm', 'smm-reviews-sends-kasper'],
   'journey-video': journey, 'journey-graphic': journey,
   controls: ['status-due-assignee', 'role-and-anonymous-controls'],
   'stale-version': ['stale-status-rejected'],

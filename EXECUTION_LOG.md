@@ -6242,6 +6242,49 @@ owner re-applies the same migration file (Epoch 2) and re-dispatches plan →
 apply. Expected: 11 calls, 11 cancels queued for the outbound drain, 0 refused,
 7 slots left for a person. OPEN_REPAIRS 156; CROSSWALK_REPAIR_STRATEGY §5.
 
+## 2026-09-07 — naming the batch and naming each post from Create Post
+
+Owner: "when they create a new batch, they should be able to choose the name,
+which would change the name in sync linear ... so that will be the name of the
+parent issue and if they add to a previous batch so they will be adding a
+sub-issue they should be able to name that sub-issue also."
+
+**The batch half needed no server change.** `batch.name` has always travelled
+from the browser to `batches.name` and into the parent create payload verbatim;
+it was hard-coded to `<Client> · <date>` only because nothing asked for
+anything else. The dialog now offers the field, falls back to the generated
+title when it is left empty, and appends ` · Samples` to a typed Samples name
+so the 2026-08-19 ruling that a samples parent must say so is not silently
+dropped.
+
+**The post half ended at the database.** A sub-issue title is now
+`Video 4 — Launch hook` / `Thumbnail 4 — Launch hook`, and the exact shape
+`[Sample ]Video N` was built into three layers. It is a SUFFIX rather than a
+free title for two structural reasons: the number is the only record of a
+post's ordinal (`deliverables` has no column for it, and both
+`planAppendIntakeItems` and `production_intake_append` re-derive the next
+number by reading it back out of the titles already in the batch), and the kind
+has to stay visible (2026-08-17: two identically-titled halves read as "two
+video sub-issues").
+
+**Migration `2026-09-07-production-intake-append-v8.sql` — SOURCE ONLY, not yet
+applied.** It widens exactly two title predicates in the append RPC and moves no
+table, column, index, policy or grant. Executed before handover against a
+disposable PostgreSQL 16 built from the baseline plus deltas, not merely
+compiled: a named append commits, the append after it allocates the FOLLOWING
+ordinal, an unnamed append is unchanged, a wrong ordinal and a bare trailing
+separator both still raise `invalid_intake_append_order`, and the same named
+call against v7 is refused.
+
+Browser half live on merge. Gateway half re-pins `production-write` to
+`ccbdd136…` (file count 5, entrypoint unchanged) and waits for the next Section
+4 dispatch. **Apply the migration BEFORE that dispatch** — the deployed RPC
+refuses a named title until it is applied, and the migration alone changes
+nothing anyone sees because the deployed gateway still composes bare numbered
+titles. Because `index.html` cannot wait for either, Create Post compares the
+names it asked for against the titles that came back and says so in the
+notification when a name did not land.
+
 ## 2026-09-05 — the asset grid stops blinking; the gateway reuses a verdict it already holds
 
 Owner, with the post-level fix live on the reported parent: the Open link pill

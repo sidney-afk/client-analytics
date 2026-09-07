@@ -156,11 +156,21 @@ ok(!/row\.identifier \|\| row\.linear_identifier/.test(notice),
 
 /* ---- 5. The caller this exists for ------------------------------------- */
 
+/* Pinned by SHAPE, not by variable name. #1338 renamed the header's target
+   from `parentIdent` to `openIdent` (a one-video group opens that video), which
+   broke a name-matching assertion here while the property this suite depends on
+   was untouched: the link still carries a LINEAR IDENTIFIER and never a row id.
+   `wlSyncLinearUrl` from #1331 is a third caller of the same shape. */
 const popover = INDEX.slice(INDEX.indexOf('const parentUrl   = clientName'),
   INDEX.indexOf('No upcoming sub-issues.'));
-ok(/'\?prod=1&d=' \+ encodeURIComponent\(parentIdent\)/.test(popover)
-  && /'\?prod=1&d=' \+ encodeURIComponent\(s\.identifier\)/.test(popover),
-  'the Workload popover still links by Linear identifier — the header and every row — which is why the row must answer to it');
+const identLinks = popover.match(/'\?prod=1&d=' \+ encodeURIComponent\(([A-Za-z0-9_.?]+)\)/g) || [];
+ok(identLinks.length >= 2,
+  'the Workload popover still builds ?prod=1&d= links — the header and every row — which is why the row must answer to a Linear identifier');
+ok(identLinks.every(link => /Ident\)|\.identifier\)/.test(link)),
+  'and every one of them carries an IDENTIFIER rather than a canonical row id, which is the whole reason this resolution path exists');
+const helper = grabFunc('function wlSyncLinearUrl(');
+ok(/'\?prod=1&d=' \+ encodeURIComponent\(ident\)/.test(helper),
+  'and the shared helper the loose strips use is the same shape');
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nProduction deep-link Linear-identifier checks passed.');

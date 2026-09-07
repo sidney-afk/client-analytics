@@ -2,7 +2,7 @@
 /*
  * The 2026-09-07 data repair, held to the shape it was reviewed at.
  *
- * OPEN_REPAIRS 160. `deliverables.identifier` is a snapshot the b1 import took
+ * OPEN_REPAIRS 161. `deliverables.identifier` is a snapshot the b1 import took
  * and nothing maintains; a Linear team move re-keys the issue, so seven rows
  * carry a VID- number for work that lives on the Graphics team. The browser
  * already ignores the snapshot (test/prod-deep-link-linear-identifier.js);
@@ -47,7 +47,7 @@ function ok(condition, message) {
   else { failures++; console.error('FAIL  ' + message); }
 }
 
-ok(fs.existsSync(FILE), 'the repair file is where OPEN_REPAIRS 160 says it is');
+ok(fs.existsSync(FILE), 'the repair file is where OPEN_REPAIRS 161 says it is');
 const SQL = fs.readFileSync(FILE, 'utf8');
 const code = SQL.split('\n').filter(line => !/^\s*--/.test(line)).join('\n');
 ok(code.trim().length > 0,

@@ -661,7 +661,7 @@ it is independent of the function version.
 
 **Two halves, independently reversible, and safe in either order.** Neither
 deploys an Edge Function, neither moves a runtime flag, and neither writes to
-Linear. OPEN_REPAIRS 160.
+Linear. OPEN_REPAIRS 161.
 
 **1. The browser half** (`index.html`, `docs/syncview-design/ADAPTER.md`). Ships
 with the ordinary Pages deploy on push to `main`. `_prodAdapter` names a row by

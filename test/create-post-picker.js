@@ -113,6 +113,10 @@ const PICKER_SOURCES = [
      threshold, so leaving it out throws a ReferenceError before a single
      assertion runs — which is how it announced itself. */
   extractConstBlock('const CAL_NATIVE_BATCH_FILTER_MIN =', ';'),
+  // Post naming (2026-09-07): read from index.html rather than restated,
+  // so the separator this suite asserts is the one the app actually uses.
+  extractConstBlock('const CAL_NATIVE_TITLE_SEPARATOR =', ';'),
+  extractConstBlock('const CAL_NATIVE_NAME_MAX =', ';'),
   /* 2026-08-26: "How many posts?" stopped being a hand-rolled stepper and
      became the shared `sv-stepper` primitive, so the render now calls
      _svStepperHtml and that pulls in its two attribute escapers. Same trap as
@@ -150,6 +154,14 @@ const PICKER_SOURCES = [
   extract('_svTone'),
   extract('_svSelectHtml'),
   extract('_calNativeEditorDisclaimer'),
+  // Post/batch naming (2026-09-07). The renderer calls all four, so the vm
+  // needs them or every picker assertion fails on a ReferenceError instead of
+  // on what it is actually checking.
+  extract('_calNativeCleanName'),
+  extract('_calNativePostNamesFor'),
+  extract('_calNativeBatchNameFor'),
+  extract('_calNativePostNameHint'),
+  extract('_calNativePostNamesHtml'),
   extract('_calRenderNativePostChoice'),
   extract('_calNativePrevBatchPick'),
 ].join('\n');

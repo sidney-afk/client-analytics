@@ -153,6 +153,11 @@ ok(!!payloadRe && payloadRe.test('ERROR:  invalid_component_fill_payload')
     ['Video 3', 'graphics', 'samples', 'Sample Thumbnail 3'],
     ['Sample Video 3', 'graphics', 'samples', 'Sample Thumbnail 3'],
     ['Video 3', 'graphics', 'calendar', 'Thumbnail 3'],
+    // A NAMED sibling (2026-09-07) hands its name over with its number: the
+    // two halves are one post, and 'Video 4 — Launch hook' beside a bare
+    // 'Thumbnail 4' reads as two unrelated pieces of work.
+    ['Video 4 — Launch hook', 'graphics', 'calendar', 'Thumbnail 4 — Launch hook'],
+    ['Thumbnail 4 — Launch hook', 'video', 'samples', 'Sample Video 4 — Launch hook'],
     // Refusals.
     ['', 'graphics', 'calendar', ''],
     ['Video 9', 'marketing', 'calendar', ''],

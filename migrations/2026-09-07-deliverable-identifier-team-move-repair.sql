@@ -1,5 +1,5 @@
 -- Repair: `deliverables.identifier` still names the team the row has left.
--- OPEN_REPAIRS 160. Owner-applied, SQL Editor. Data only: no schema change,
+-- OPEN_REPAIRS 161. Owner-applied, SQL Editor. Data only: no schema change,
 -- no function, no grant, nothing to deploy. Rollback entry: ROLLBACK.md,
 -- "2026-09-07 — identifier team-move repair (data) + deep-link resolution
 -- (browser)".

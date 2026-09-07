@@ -1037,7 +1037,7 @@ links are not gonna change."
 
 Owner, from the Workload calendar: a rollup's **Open SyncView →** answered
 "GRA-7197 has no row in Production ... Showing the full list instead" for a row
-that exists, is not archived, and had already been fetched. OPEN_REPAIRS 160.
+that exists, is not archived, and had already been fetched. OPEN_REPAIRS 161.
 
 -   **Candidate behaviour.** `_prodAdapter` named every row
     `displayId: d.identifier || d.linear_identifier || d.id`, and `_prodIssue`

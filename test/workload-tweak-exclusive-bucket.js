@@ -1401,13 +1401,22 @@ const popoverSource = grabFunc('wlOpenRollupPopover');
 /* 2026-08-21: the popover's primary link-out moved to the Production tab
    (?prod=1&d=<identifier>) at the owner's request -- post-flip, the designers'
    work lives in SyncView. Linear stays reachable: a secondary header link and
-   a per-row icon, because video is still Linear-authoritative. */
+   a per-row icon, because video is still Linear-authoritative.
+
+   2026-09-07 (OPEN_REPAIRS 160): that link-out targeted the PARENT, and the
+   owner reported being sent there instead of to the video whose status the
+   chip had just asserted. The identifier is now `openIdent` -- the sole
+   sub-issue when the group holds exactly one, the parent otherwise -- and
+   "Open parent →" is the DELIBERATE label for that second case, so it is
+   asserted here rather than forbidden. Which of the two is chosen, and that
+   the parent branch never silently substitutes a child, is executed in
+   test/workload-syncview-links.js; this file pins only the shape. */
 check(popoverSource.includes('Open SyncView →')
     && !popoverSource.includes('Open Linear →')
-    && popoverSource.includes("'?prod=1&d=' + encodeURIComponent(parentIdent)")
+    && popoverSource.includes("'?prod=1&d=' + encodeURIComponent(openIdent)")
     && popoverSource.includes('workload-popover-parent-linear')
     && popoverSource.includes('workload-popover-item-linear')
-    && !popoverSource.includes('Open parent')
+    && popoverSource.includes('Open parent →')
     && !popoverSource.includes('workload-popover-item-due')
     && !popoverSource.includes('workload-popover-plan-arrow')
     && !popoverSource.includes('workload-popover-plan-due')

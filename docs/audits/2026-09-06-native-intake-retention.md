@@ -26,6 +26,8 @@ The old baseline remains pinned. Two early test-only failures are retained priva
 
 ## Remaining release holds and rollback
 
+The later [September7 live-click correction](2026-09-07-intake-live-refusal-retention.md) addresses the unheld Calendar/Samples 4xx deletion in source and repairs the related test helper extraction. The checkpoint below remains historical; sign-out, storage and broader G6 are still held.
+
 G6 remains incomplete: the separate actorless `CAL_CARD_JOBS_KEY` v1 queue, its five-run/48-hour expiry and authority-switch loss, unaccepted sign-out purge, unheld live-click 4xx removal, storage eviction/quota, previously deleted jobs, and old deployed tabs are outside this bounded correction. The existing single v3 slot still blocks a different request until recovery completes; this patch does not offer an unverified discard or pretend to solve permanent server refusal. Browser-local retention is not a durable server backup or a 30-day retention guarantee. Provider in-flight uncertainty and both n8n bypasses remain unresolved by this UI change.
 
 Source review, combined browser verification, hosted checks and exact serving evidence remain separate gates. No live calls, writes, deployments, flags, n8n edits or public publication were performed for this local proof.

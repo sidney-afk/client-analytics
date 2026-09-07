@@ -68,11 +68,19 @@ async function scenario(kind) {
     const result = await assess(H, O, { releaseSha: sha, activatedAt: now - 3600000 }, { GH_TOKEN: 'synthetic' }, temp, binding, { fetchImpl, download, now: () => now });
     const expected = kind === 'healthy';
     assert.equal(result.ok, expected, kind);
+    const requests = [];
     const wrapped = await run({ CONTINUITY_HEARTBEAT_ACTIVATION: 'OWNER_APPROVED_SENTINEL_HEARTBEAT',
       CONTINUITY_CHECKOUT: checkout, CONTINUITY_HEALTHCHECKS_PING_URL: 'https://hc-ping.com/11111111-1111-4111-8111-111111111111' }, {
       execute: () => ({ status: result.ok ? 0 : 2, stdout: JSON.stringify(result) }),
-      fetchImpl: async () => { pings++; return { status: 200, text: async () => 'OK' }; },
+      fetchImpl: async (url, options) => {
+        requests.push({ url, options });
+        if (!url.endsWith('/fail')) pings++;
+        return { status: 200, text: async () => 'OK' };
+      },
     });
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, 'https://hc-ping.com/11111111-1111-4111-8111-111111111111' + (expected ? '' : '/fail'));
+    assert.equal(requests[0].options.body, ''); assert.equal(requests[0].options.redirect, 'error');
     assert.equal(wrapped.ok, expected, kind);
     assert.equal(pings, expected ? 1 : 0, kind + ': no healthy ping on unknown/failed evidence');
     assert.ok(reads > 0); if (kind !== 'github_api_down') assert.ok(downloads > 0);

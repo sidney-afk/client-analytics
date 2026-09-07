@@ -2,6 +2,8 @@
 
 Native urgent video without provider lookup: [inactive protected handoff](ops/NATIVE_URGENT_HANDOFF.md). Existing staff authentication, current editor resolution, purpose-bound JWT and explicit delivery uncertainty; installation and delivery remain held.
 Native urgent video ping / missing Linear link / unknown delivery: [four-caller native urgent UI preparation](audits/2026-09-07-native-urgent-ui.md).
+Native urgent receiver / JWT credentials / preserved Slack roster and bot:
+[review-only graph preparation](ops/NATIVE_URGENT_N8N_DRAFT.md). No workflow or credential activation.
 
 Native intake post names / append ordinals / atomic migration composition: [native named append contract](ops/NATIVE_INTAKE_NAMED_APPEND.md). Separate restored-target SQL proof; first native-column installation held.
 

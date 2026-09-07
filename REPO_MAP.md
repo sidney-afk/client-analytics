@@ -1,5 +1,7 @@
 # Repo map
 
+Current bounded Linear exit release preparation: `docs/independence/LINEAR_EXIT_RELEASE_PACKET_2026-09-07.md` records completed source pins, remaining engineering, held actions/inverses, required media, TEST proof, access extension and independent alarms. `docs/independence/GO_LIVE_CHECKLIST.md` remains canonical.
+
 The one-page guide to where everything lives. **This file is enforced**: the
 offline unit suite (`test/repo-map-sync.js`, run by `npm test` and by CI on
 every push) fails if a top-level path or `docs/` subdirectory is added,

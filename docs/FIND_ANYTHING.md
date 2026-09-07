@@ -1,5 +1,8 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Linear exit current fixes, remaining engineering, access extension or release approval
+-> [bounded release packet](independence/LINEAR_EXIT_RELEASE_PACKET_2026-09-07.md), under the canonical G0-G10 checklist.
+
 > **The rule this doc keeps: any documented fact in ≤2 opens from here.**
 > Draft shipped by the 2026-07-19 vault audit (P4 proposal — owner ratifies by
 > merging). If this router ever fails to route you, add the missing row in the

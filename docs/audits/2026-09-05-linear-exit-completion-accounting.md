@@ -1,3 +1,11 @@
+## G4 comment identity discrepancy - 2026-09-07 00:23 UTC
+
+LIVE_READ normalized production_comments snapshot at 00:23:25Z (14,726 rows; in-query total equals returned identity array) compared with the preceding 14,119 provider comment IDs. 13,966 match linear_comment_id; 153 do not. No duplicate native matches. Five matched IDs have no corresponding native row with the same issue UUID. 6,081 matched provider comments have only native rows marked deleted: this is NOT authorization to resurrect them, nor proof of accidental deletion.
+
+Of the 153 unmatched IDs, 152 reference issues in the saved archive census, none reference the selected deliverable UUID keys, and one has no provider issue link. Those classifications use the earlier structural snapshot; they do not exclude native batch ownership, aliases, JSON card comments or other stores. Missing normalized identity is a reconciliation gap, not a proven lost comment body. Cross-snapshot movement, credential visibility, intentional tombstones, body/thread/audience parity and client reader behavior remain unproven.
+
+Private identities and read-only scripts are retained off-repository. No body, URL, client identity or mutation was involved. Next: inspect the existing backfill ownership/tombstone rules and classify the five issue mismatches before proposing a bounded recovery package. Do not blindly replay deleted comments or run an apply operation. Candidate unchanged; Decision A and watcher activation held.
+
 ## G4 provider discussion identities - 2026-09-07 00:12 UTC
 
 LIVE_READ via existing local Linear API credential: global comments connection completed 57 pages with 14,119 unique IDs, 14,118 issue-linked; attachment connection completed one page with 185 unique IDs, all issue-linked. includeArchived true, terminal cursors checked, bounded page budget and duplicate detection. Window 00:11:26-00:11:45 UTC. Only IDs, issue IDs and timestamps fetched; private receipts retained off-repository.

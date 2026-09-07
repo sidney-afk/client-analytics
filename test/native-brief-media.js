@@ -23,8 +23,8 @@ const sdk = {
         return Promise.resolve({ data: single ? structuredClone(rows[0] || null) : structuredClone(rows), error: table === failTable ? { message: 'synthetic' } : null }).then(resolve, reject); } };
     return q;
   },
-  storage: { from(bucket) { assert.equal(bucket, 'syncview-native-brief-media'); return { async createSignedUrl(name, ttl) {
-    signed++; if (signHook) signHook(); assert.equal(ttl, 300); return signFail ? { error: {} } : { error: null, data: { signedUrl: env.SUPABASE_URL + '/storage/v1/object/sign/' + bucket + '/' + name + '?token=synthetic' } };
+  storage: { from(bucket) { assert.equal(bucket, 'syncview-native-brief-media'); return { async createSignedUrl(name, ttl, options) {
+    signed++; if (signHook) signHook(); assert.equal(ttl, 300); return signFail ? { error: {} } : { error: null, data: { signedUrl: env.SUPABASE_URL + '/storage/v1/object/sign/' + bucket + '/' + name + '?token=synthetic' + (options?.download ? '&download=' + options.download : '') } };
   } }; } },
 };
 globalThis.__briefMediaSdk = sdk;
@@ -126,6 +126,35 @@ async function check(name, fn) { await fn(); groups++; console.log('PASS ' + nam
     }
     assert.equal(s.value, brief);
   });
+  await check('actual reader renders PDF SVG and video image-markdown as private downloads, never images', async () => {
+    for (const mime of ['application/pdf', 'image/svg+xml', 'video/mp4', 'video/quicktime']) {
+      reset(); tables.native_brief_media_occurrences.forEach(x => { x.mime_type = mime; });
+      const result = await call(), m = result.body.media;
+      assert.equal(result.body.row.brief, brief); assert.equal(m.complete, true);
+      assert(m.images.every(x => x.display === 'download' && x.url.includes('&download=original.')));
+      const rendered = ctx._prodDescriptionHTML(m.render_brief, true, '', true);
+      assert(!rendered.includes('<img')); assert(!rendered.includes('uploads.linear.app')); assert(rendered.includes('Download original'));
+    }
+  });
+  await check('existing large raster decodes; new upload ceiling remains; typed PDF SVG video admit download-only and malformed files refuse', async () => {
+    const generation = `import sys,random,io,fitz,av\nfrom PIL import Image\np=sys.argv[1]\nImage.frombytes('RGB',(1200,1200),random.Random(7).randbytes(1200*1200*3)).save(p+'/large.png')\nd=fitz.open(); d.new_page(); d.save(p+'/sample.pdf'); d.close()\nwith av.open(p+'/sample.mp4','w') as c:\n s=c.add_stream('mpeg4',rate=1); s.width=16; s.height=16; s.pix_fmt='yuv420p'\n for packet in s.encode(av.VideoFrame.from_image(Image.new('RGB',(16,16)))): c.mux(packet)\n for packet in s.encode(): c.mux(packet)\n`;
+    execFileSync(process.env.NATIVE_BRIEF_MEDIA_PYTHON || 'python', ['-c', generation, temp], { windowsHide: true });
+    const large = fs.readFileSync(path.join(temp, 'large.png')); assert(large.length > 4194304);
+    assert.equal((await pkg.verifyExistingMedia('image/png', large)).storage_mime_type, 'image/png');
+    const upload = await import(pathToFileURL(path.join(root, 'supabase/functions/description-image-upload/policy.mjs')).href);
+    assert.equal((await upload.verifyImage('image/png', large)).ok, false);
+    const examples = [
+      ['application/pdf', fs.readFileSync(path.join(temp, 'sample.pdf'))],
+      ['image/svg+xml', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>throw 1</script><image href="https://blocked.invalid/x"/></svg>')],
+      ['video/mp4', fs.readFileSync(path.join(temp, 'sample.mp4'))],
+      ['video/quicktime', fs.readFileSync(path.join(temp, 'sample.mp4'))],
+    ];
+    for (const [mime, bytes] of examples) assert.equal((await pkg.verifyExistingMedia(mime, bytes)).storage_mime_type, 'application/octet-stream');
+    for (const [mime, bytes] of [['image/png', large.subarray(0, 100)], ['image/jpeg', large],
+      ['application/pdf', Buffer.from('%PDF-1.7\nnot a PDF\n%%EOF')], ['image/svg+xml', Buffer.from('<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///private">]><svg>&x;</svg>')],
+      ['image/svg+xml', Buffer.from('<html/>')], ['video/mp4', Buffer.from('0000ftypbroken')]]) await assert.rejects(() => pkg.verifyExistingMedia(mime, bytes));
+    await assert.rejects(() => pkg.verifyExistingMedia('image/png', Buffer.alloc(52428801)));
+  });
   await check('local source receipt -> byte-checked private staging -> object reconstruction; corrupt bytes refuse', async () => {
     const image = path.join(temp, 'source.png'); fs.writeFileSync(image, png);
     const receipt = { contract: 'native_brief_media_source_v1', id: row.id, client_slug: row.client_slug, team: row.team,
@@ -137,8 +166,11 @@ async function check(name, fn) { await fn(); groups++; console.log('PASS ' + nam
     const readbackFile = path.join(temp, 'readback.json');
     const readback = { contract: 'native_brief_media_storage_readback_v1', bucket: 'syncview-native-brief-media', public: false,
       observed_at: row.updated_at, recovery_base_sha256: 'a'.repeat(64), documents: [{ ...row, updated_at: '2026-09-02T00:00:00Z' }],
-      objects: verified.rows.map(x => ({ storage_path: x.storage_path, path: image })) };
+      objects: verified.rows.map(x => ({ storage_path: x.storage_path, path: image, storage_mime_type: 'image/png' })) };
     fs.writeFileSync(readbackFile, JSON.stringify(readback));
+    const wrongMetadata = structuredClone(readback); wrongMetadata.objects[0].storage_mime_type = 'text/html';
+    const wrongFile = path.join(temp, 'wrong-content-type.json'); fs.writeFileSync(wrongFile, JSON.stringify(wrongMetadata));
+    await assert.rejects(() => pkg.admission(staged, wrongFile, path.join(temp, 'bad-content-type')));
     const proposal = path.join(temp, 'proposal'); assert.equal((await pkg.admission(staged, readbackFile, proposal)).installed, false);
     const proposed = await pkg.verify(proposal); assert(proposed.rows.every(x => x.state === 'verified'));
     const extension = { contract: 'native_brief_media_recovery_v1', complete: true, recovery_base_sha256: 'a'.repeat(64),

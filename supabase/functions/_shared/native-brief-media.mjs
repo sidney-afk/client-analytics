@@ -11,7 +11,8 @@ export function briefMediaOccurrences(brief) {
     .map(m => { const url = m[1] || m[2]; return { offset: m.index + (m[1] ? 1 : 0), length: url.length, url }; });
 }
 const hash = x => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x);
-const mime = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const downloads = { 'application/pdf': 'original.pdf', 'image/svg+xml': 'original.svg', 'video/mp4': 'original.mp4', 'video/quicktime': 'original.mov' };
+const mime = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', ...Object.keys(downloads)]);
 export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()) {
   const brief = typeof row.brief === 'string' ? row.brief : '';
   const refs = briefMediaOccurrences(brief);
@@ -66,14 +67,18 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
     }
     const replacements = [];
     for (const { ref, copy } of mapped) {
-      const signed = await db.storage.from(BRIEF_MEDIA_BUCKET).createSignedUrl(copy.storage_path, 300);
+      const download = downloads[copy.mime_type] || null;
+      const signed = await db.storage.from(BRIEF_MEDIA_BUCKET).createSignedUrl(copy.storage_path, 300,
+        download ? { download } : undefined);
       if (signed.error || typeof signed.data?.signedUrl !== 'string') return result;
       const url = new URL(signed.data.signedUrl);
       // Enforce the configured Storage origin here; the browser consumes this
       // authenticated, scope-bound response (it does not independently sign).
       if (url.protocol !== 'https:' || url.origin !== new URL(storageOrigin).origin || url.username || url.password || url.hash
-          || !url.pathname.includes('/storage/v1/object/sign/' + BRIEF_MEDIA_BUCKET + '/')) return result;
-      replacements.push({ ...ref, original_url: ref.url, content_sha256: copy.content_sha256, url: url.href });
+          || !url.pathname.includes('/storage/v1/object/sign/' + BRIEF_MEDIA_BUCKET + '/')
+          || (download && url.searchParams.get('download') !== download)) return result;
+      replacements.push({ ...ref, original_url: ref.url, content_sha256: copy.content_sha256, url: url.href,
+        display: download ? 'download' : 'inline', mime_type: copy.mime_type });
     }
     // A row may move or change while URLs are signed. Never label that stale
     // projection current; canonical text remains governed by its original read.
@@ -83,7 +88,22 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
         || current.data.updated_at !== row.updated_at || current.data.brief !== brief
         || current.data.deleted_at || current.data.tombstoned_at || current.data.is_deleted === true) return result;
     let rendered = brief;
-    for (const ref of [...replacements].reverse()) rendered = rendered.slice(0, ref.offset) + ref.url + rendered.slice(ref.offset + ref.length);
+    for (const ref of [...replacements].reverse()) {
+      let offset = ref.offset, length = ref.length, value = ref.url;
+      if (ref.display === 'download') {
+        // Match the same simple/angle image syntax accepted by the description
+        // renderer. Remove only its image marker, keeping the label and source
+        // text in the canonical brief. Never put PDF/SVG into an image element.
+        const before = brief.slice(0, offset), image = /!\[([^\]\n]*)\]\((<?)$/.exec(before);
+        if (image) {
+          const close = image[2] ? '>)' : ')';
+          if (!brief.slice(offset + length).startsWith(close)) return result;
+          offset = image.index; length = ref.offset + ref.length + close.length - offset;
+          value = '[Download original ' + downloads[ref.mime_type].split('.').pop().toUpperCase() + ': ' + image[1] + '](' + ref.url + ')';
+        }
+      }
+      rendered = rendered.slice(0, offset) + value + rendered.slice(offset + length);
+    }
     return { ...result, complete: true, unresolved: 0, render_brief: rendered,
       expires_at: new Date(now + 285000).toISOString(), images: replacements, reason: null };
   } catch { return result; }

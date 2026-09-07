@@ -36,6 +36,15 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     });
     assert.equal(edited, 'Edited before ![private](https://uploads.linear.app/synthetic/image.png) after');
     assert(!edited.includes('fixture.invalid'));
+    const download = await page.evaluate(() => {
+      state.briefMedia.images[0].display = 'download';
+      state.briefMedia.images[0].url = 'https://fixture.invalid/file?download=original.svg';
+      const root = document.getElementById('editor'); root.innerHTML = _prodDescRichBuild(original, _prodBriefMediaPreviews(state));
+      _prodDescRichNormalize(root);
+      return { original: _prodDescRichSerialize(root), images: root.querySelectorAll('img').length, href: root.querySelector('a').href, text: root.textContent };
+    });
+    assert.equal(download.original, await page.evaluate(() => original)); assert.equal(download.images, 0);
+    assert(download.href.includes('download=original.svg')); assert(download.text.includes('Download original file'));
     const expired = await page.evaluate(() => {
       state.briefMedia.expires_at = '2000-01-01T00:00:00Z';
       const root = document.getElementById('editor'); root.innerHTML = _prodDescRichBuild(original, _prodBriefMediaPreviews(state));

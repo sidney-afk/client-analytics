@@ -5,11 +5,28 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { briefMediaOccurrences, briefMediaHash, BRIEF_MEDIA_BUCKET } from '../supabase/functions/_shared/native-brief-media.mjs';
-import { verifyImage } from '../supabase/functions/description-image-upload/policy.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEMA = 'migrations/2026-09-07-native-brief-media.sql';
 const HEX = /^[a-f0-9]{64}$/;
+const VALIDATOR = path.join(ROOT, 'scripts/native-brief-media-validate.py');
+const validatorPin = () => briefMediaHash(fs.readFileSync(VALIDATOR));
+const validated = new Set();
+const downloadTypes = new Set(['application/pdf', 'image/svg+xml', 'video/mp4', 'video/quicktime']);
+export async function verifyExistingMedia(declared, bytes) {
+  assert.ok(bytes.length > 0 && bytes.length <= 52428800, 'existing_media_size_held');
+  const mime = String(declared || '').split(';')[0].trim().toLowerCase();
+  const key = mime + ':' + await briefMediaHash(bytes);
+  if (!validated.has(key)) {
+    const result = spawnSync(process.env.NATIVE_BRIEF_MEDIA_PYTHON || 'python',
+      [VALIDATOR, mime],
+      { input: bytes, windowsHide: true, timeout: 120000, maxBuffer: 4096 });
+    assert.ok(result.status === 0 && JSON.parse(result.stdout.toString()).ok === true, 'existing_media_bytes_held');
+    validated.add(key);
+  }
+  return { mime, storage_mime_type: downloadTypes.has(mime) ? 'application/octet-stream' : mime };
+}
 export function privateFile(value) {
   assert.ok(path.isAbsolute(value || ''), 'absolute_private_path_required');
   const actual = fs.realpathSync(value);
@@ -28,10 +45,9 @@ function newDirectory(value) {
 async function imageFile(file, declared, expected) {
   const resolved = privateFile(file);
   const stat = fs.statSync(resolved);
-  assert.ok(stat.isFile() && stat.size > 0 && stat.size <= 4194304, 'image_size_held');
+  assert.ok(stat.isFile() && stat.size > 0 && stat.size <= 52428800, 'image_size_held');
   const bytes = fs.readFileSync(resolved);
-  const checked = await verifyImage(declared, bytes);
-  assert.ok(checked.ok, 'image_bytes_held');
+  const checked = await verifyExistingMedia(declared, bytes);
   const sha = await briefMediaHash(bytes);
   assert.equal(sha, expected, 'source_content_mismatch');
   return { bytes, mime: checked.mime, sha };
@@ -63,7 +79,8 @@ export async function stage(inputFile, output) {
       const img = await imageFile(copy.path, copy.mime_type, source.content_sha256);
       const id = randomUUID(), storage_path = img.sha + '/' + id;
       files['objects/' + storage_path] = img.bytes;
-      objects.push({ storage_path, content_sha256: img.sha, byte_length: img.bytes.length, mime_type: img.mime });
+      objects.push({ storage_path, content_sha256: img.sha, byte_length: img.bytes.length, mime_type: img.mime,
+        storage_mime_type: downloadTypes.has(img.mime) ? 'application/octet-stream' : img.mime });
       ledger.push({ id, deliverable_id: row.id, client_slug: row.client_slug, team: row.team,
         source_kind: 'native_brief', source_entity_id: row.id,
         source_updated_at: row.updated_at, source_sha256: digest, source_offset: ref.offset, source_length: ref.length,
@@ -75,6 +92,7 @@ export async function stage(inputFile, output) {
   files['ledger.private.json'] = Buffer.from(JSON.stringify(ledger));
   files['schema.sql'] = fs.readFileSync(path.join(ROOT, SCHEMA));
   const manifest = { contract: 'native_brief_media_package_v1', kind: 'INGRESS_STAGED', bucket: BRIEF_MEDIA_BUCKET,
+    validation_contract: 'native_brief_existing_media_v1', validator_sha256: await validatorPin(),
     audience: 'staff', admission: 'UNVERIFIED_STORAGE', recovery_base_sha256: null, objects, receipts,
     files: Object.fromEntries(await Promise.all(Object.entries(files).map(async ([name, bytes]) => [name, await briefMediaHash(bytes)]))) };
   const dir = newDirectory(output);
@@ -89,6 +107,8 @@ export async function verify(directory) {
   const dir = privateFile(directory);
   const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.private.json'), 'utf8'));
   assert.equal(manifest.contract, 'native_brief_media_package_v1');
+  assert.equal(manifest.validation_contract, 'native_brief_existing_media_v1');
+  assert.equal(manifest.validator_sha256, await validatorPin(), 'validator_pin_mismatch');
   assert.equal(manifest.bucket, BRIEF_MEDIA_BUCKET); assert.equal(manifest.audience, 'staff');
   assert.ok(['INGRESS_STAGED', 'ADMISSION_PROPOSAL', 'RECOVERY_CAPTURE'].includes(manifest.kind));
   if (manifest.kind !== 'INGRESS_STAGED') assert.ok(HEX.test(manifest.recovery_base_sha256), 'versioned_base_recovery_required');
@@ -138,6 +158,9 @@ export async function admission(directory, readbackFile, output) {
   for (const row of rows) {
     const matches = evidence.objects.filter(x => x.storage_path === row.storage_path);
     assert.equal(matches.length, 1);
+    assert.equal(matches[0].storage_mime_type,
+      downloadTypes.has(row.mime_type) ? 'application/octet-stream' : row.mime_type,
+      'storage_content_type_required');
     const readback = await imageFile(matches[0].path, row.mime_type, row.content_sha256);
     assert.equal(readback.bytes.length, row.byte_length);
     const current = evidence.documents.filter(x => x.id === row.deliverable_id && x.client_slug === row.client_slug && x.team === row.team);
@@ -179,6 +202,7 @@ export async function capture(inputFile, output) {
     assert.equal(await briefMediaHash(files[file.name]), file.sha256);
   }
   const manifest = { contract: 'native_brief_media_package_v1', kind: 'RECOVERY_CAPTURE', bucket: BRIEF_MEDIA_BUCKET,
+    validation_contract: 'native_brief_existing_media_v1', validator_sha256: await validatorPin(),
     audience: 'staff', recovery_contract: input.contract, recovery_base_sha256: input.recovery_base_sha256,
     admission: 'RESTORE_NOT_SERVING', row_count: input.row_count,
     files: Object.fromEntries(await Promise.all(Object.entries(files).map(async ([n, b]) => [n, await briefMediaHash(b)]))) };

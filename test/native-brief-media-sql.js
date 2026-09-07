@@ -24,6 +24,7 @@ function bootstrap(db) {
 try {
   bootstrap(original);
   assert.equal(original.query("select public from storage.buckets"), 'f');
+  assert.equal(original.query("select 'application/octet-stream'=any(allowed_mime_types) and not ('image/svg+xml'=any(allowed_mime_types)) and not ('application/pdf'=any(allowed_mime_types)) from storage.buckets"), 't');
   assert.equal(original.query("select value->>'mode' from syncview_runtime_flags where key='native_brief_media'"), 'off');
   const id = '11111111-1111-4111-8111-111111111111', hash = 'a'.repeat(64);
   const row = { id, deliverable_id: 'fixture', client_slug: 'fixture', team: 'video', source_updated_at: '2026-09-01T00:00:00Z',
@@ -35,11 +36,17 @@ try {
   assert.throws(() => original.query(insert({ ...row, readback_sha256: 'b'.repeat(64) })));
   assert.throws(() => original.query(insert({ ...row, audience: 'public' })));
   original.query('set role service_role;' + insert(row));
+  for (const [i, mime] of ['application/pdf','image/svg+xml','video/mp4','video/quicktime'].entries()) {
+    const extraId = '33333333-3333-4333-8333-33333333333' + i;
+    original.query('set role service_role;' + insert({ ...row, id: extraId, storage_path: hash + '/' + extraId, source_offset: 40 + i, mime_type: mime }));
+  }
+  assert.throws(() => original.query(insert({ ...row, byte_length: 52428801 })));
+  assert.throws(() => original.query(insert({ ...row, mime_type: 'text/html' })));
   for (const role of ['anon','authenticated']) assert.throws(() => original.query('set role ' + role + '; select * from native_brief_media_occurrences'));
   for (const statement of ["delete from native_brief_media_occurrences", "update native_brief_media_occurrences set state='held'"]) assert.throws(() => original.query('set role service_role;' + statement));
   assert.throws(() => original.query(insert({ ...row, source_updated_at: '2026-09-02T00:00:00Z', id: '22222222-2222-4222-8222-222222222222', storage_path: hash + '/22222222-2222-4222-8222-222222222222' })));
   const exported = original.rows('select * from native_brief_media_occurrences');
-  bootstrap(restored); restored.query(insert(exported[0]));
+  bootstrap(restored); for (const record of exported) restored.query(insert(record));
   assert.deepEqual(restored.rows('select * from native_brief_media_occurrences'), exported);
   assert.equal(restored.query("select relrowsecurity from pg_class where oid='native_brief_media_occurrences'::regclass"), 't');
   assert.throws(() => restored.query('set role anon;select * from native_brief_media_occurrences'));

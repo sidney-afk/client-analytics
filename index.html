@@ -56595,7 +56595,7 @@
                 const key = _prodDescRichAttr(image.original_url);
                 const previous = previews.get(key);
                 if (previous && previous.hash !== image.content_sha256) ambiguous.add(key);
-                previews.set(key, { url: _prodDescRichAttr(image.url), hash: image.content_sha256 });
+                previews.set(key, { url: _prodDescRichAttr(image.url), hash: image.content_sha256, display: image.display });
             });
             ambiguous.forEach(key => previews.delete(key));
             return previews;
@@ -57512,11 +57512,18 @@
             .replace(/^\*\*([^*]+)\*\*$/, '<strong data-md="bb">$1</strong>')
             .replace(/^__([^_]+)__$/, '<strong data-md="uu">$1</strong>')
             .replace(/^`([^`]+)`$/, '<code>$1</code>');
-          const anchor = (l, u, form) => '<a href="' + u + '" data-md="' + form + '" target="_blank" rel="noopener noreferrer">' + (form === 'bare' ? u : label(l)) + '</a>';
+          const anchor = (l, u, form) => {
+            const privateRef = /^https?:\/\/uploads\.linear\.app\//i.test(u) && !(previews && previews.allowOriginal);
+            const copy = privateRef && previews && previews.get(u);
+            return '<a' + (privateRef ? ' data-md-original-link="' + u + '"' : '')
+              + (privateRef && !copy ? '' : ' href="' + (copy ? copy.url : u) + '"')
+              + ' data-md="' + form + '" target="_blank" rel="noopener noreferrer">' + (form === 'bare' ? u : label(l)) + '</a>';
+          };
           const image = (l, u, form) => {
             if (/^https?:\/\/uploads\.linear\.app\//i.test(u) && !(previews && previews.allowOriginal)) {
               const copy = previews && previews.get(u);
               const original = ' data-md-private-image="1" data-md-original-src="' + u + '" data-md-alt="' + l + '" data-md="' + form + '"';
+              if (copy && copy.display === 'download') return '<span' + original + ' contenteditable="false"><a href="' + copy.url + '" target="_blank" rel="noopener noreferrer">Download original file: ' + l + '</a></span>';
               return copy ? '<img class="prod-desc-image" src="' + copy.url + '" alt="' + l + '"' + original + ' loading="lazy" decoding="async" referrerpolicy="no-referrer">'
                 : '<span' + original + ' contenteditable="false">Image preview unavailable (original preserved)</span>';
             }
@@ -57599,7 +57606,7 @@
             if (n.classList && n.classList.contains('prod-md-bullet-mark')) return;
             const inner = _prodDescRichSerializeInline(n);
             if (tag === 'A') {
-              const href = n.getAttribute('href') || '';
+              const href = n.getAttribute('data-md-original-link') || n.getAttribute('href') || '';
               const form = n.getAttribute('data-md') || 'named';
               /* A URL with whitespace or a `)` in it, or one ending in the
                  punctuation a bare link sheds, cannot survive the plain forms: it

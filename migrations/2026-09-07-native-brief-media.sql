@@ -4,10 +4,10 @@
 begin;
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 values ('syncview-native-brief-media','syncview-native-brief-media',false,52428800,
-  array['image/png','image/jpeg','image/webp','image/gif']) on conflict (id) do nothing;
+  array['image/png','image/jpeg','image/webp','image/gif','application/octet-stream']) on conflict (id) do nothing;
 do $$ begin
   if not exists(select 1 from storage.buckets where id='syncview-native-brief-media' and public=false
-    and file_size_limit=52428800 and allowed_mime_types=array['image/png','image/jpeg','image/webp','image/gif'])
+    and file_size_limit=52428800 and allowed_mime_types=array['image/png','image/jpeg','image/webp','image/gif','application/octet-stream'])
   then raise exception 'native brief media bucket contract mismatch'; end if;
 end $$;
 create table public.native_brief_media_occurrences (
@@ -35,7 +35,7 @@ create table public.native_brief_media_occurrences (
   check(state <> 'verified' or (content_sha256 is not null and readback_sha256 is not null
     and storage_path is not null and byte_length is not null and mime_type is not null and readback_sha256=content_sha256
     and storage_path=content_sha256||'/'||id::text and byte_length between 1 and 52428800
-    and mime_type in ('image/png','image/jpeg','image/webp','image/gif') and verified_at is not null))
+    and mime_type in ('image/png','image/jpeg','image/webp','image/gif','application/pdf','image/svg+xml','video/mp4','video/quicktime') and verified_at is not null))
 );
 create unique index native_brief_media_verified_occurrence on public.native_brief_media_occurrences
   (source_kind,source_entity_id,deliverable_id,client_slug,team,source_sha256,source_offset) where state='verified';

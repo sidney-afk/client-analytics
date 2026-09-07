@@ -93,7 +93,7 @@ serving/cutover proof; this source does not assert they have stopped egress.
 `scripts/native-brief-media-package.mjs` has **no network client, upload, SQL
 executor or credential discovery**. Its default command verifies local files.
 All inputs/output directories resolve outside Git, and outputs must be new.
-Only synthetic fixtures were exercised here. Keep source capture, source receipt,
+Synthetic fixtures and six bounded local samples were exercised. Keep source capture, source receipt,
 object readback and staged output separate in private custody.
 
 Commands (absolute private paths; no default input discovery):
@@ -117,11 +117,53 @@ bytes were acquired. Authorized acquisition must retain the original URL and
 exact source/retrieval receipt privately, without leaking auth or making URLs
 public. No broad archive census is substituted for this current-product scope.
 
-The shared existing image validator checks real format structure, MIME agreement,
-dimensions and PNG pixel stream. Its current limit is **4 MiB and 8000 pixels**;
-larger/unsupported images are held, never resized or silently dropped. The bucket
-has a 50 MiB hard ceiling, which does not widen that validated admission limit.
-JPEG/GIF/WebP structural checking is not independent decoder/render proof.
+Existing required media uses a separate `native_brief_existing_media_v1`
+validator (`scripts/native-brief-media-validate.py`), hash-pinned in each package.
+The new-upload validator remains unchanged at 4 MiB/8000 pixels. Existing raster
+bytes up to 50 MiB are format-checked and every frame decoded with Pillow;
+limits are 100 million pixels per frame, 250 million cumulative decoded pixels,
+32768 pixels per side and 1000 frames. No resize or byte replacement occurs.
+PDF uses PyMuPDF structural/page parsing (encrypted, repaired or invalid files
+hold); SVG uses defusedxml with DTD/entities/external expansion forbidden.
+MP4/QuickTime uses PyAV local container/packet parsing and first-frame decoding,
+which does not certify every video frame or playback. No linked resource is
+fetched, and PDF/SVG scripts are never executed. Limits/refusals remain visible.
+
+These four non-raster MIME types are **download-only**. Their original bytes are
+stored as `application/octet-stream`; admission readback requires exact
+`storage_mime_type` on each object (raster types must match their actual MIME).
+The private bucket allows octet-stream but does not allow active SVG/PDF/video
+MIME serving. Signing requests and verifies `download=original.<extension>`.
+Image Markdown for these types becomes an explicit download link in the separate
+read projection; the rich editor shows a download control with reversible
+original attributes. Canonical Markdown and original bytes remain untouched.
+Restore plans must apply the same derived storage MIME and independently verify
+attachment disposition and private access before any cutover; no Storage server
+or wire-level delivery is certified by local SDK/SQL models.
+
+Local prerequisite: Python with Pillow, PyMuPDF, defusedxml and PyAV; set
+`NATIVE_BRIEF_MEDIA_PYTHON` to an explicit executable if `python` is unavailable.
+The focused environment used Pillow 12.3.0, PyMuPDF 1.28.0, defusedxml 0.7.1
+and PyAV 16.1.0.
+Missing dependencies/timeouts refuse. Earlier staged package/schema pins must
+be regenerated and reviewed; this remains an unapplied migration, not a live
+alteration of an installed bucket. Files over 50 MiB remain held.
+Stage bounded document batches: this preparer retains a batch's object bytes in
+memory until validation completes; it is not a streaming multi-gigabyte exporter.
+
+September 7 correction validation: 32 focused actual-handler/model groups with
+the finite Chromium save/fresh-read case passed; the separate rich-editor browser
+fragment passed, including reversible download controls with no image request.
+The actual disposable SQL lane admitted all four download-only logical MIME
+types, rejected over-cap/HTML rows, preserved private bucket MIME restrictions,
+and reconstructed all five test rows under the same ACLs. No live SQL ran.
+Six local files already acquired under separate read-only authority (largest
+captured sample of each PNG/JPEG/PDF/SVG/MP4/QuickTime type) passed this validator.
+The private sample receipt SHA-256 is
+`d34e9ab59b3ef256333060dcc345445fca3a39e6726f15c5b7862930f1589da2`.
+This is sample evidence, not validation of all current occurrences. Full required
+coverage remains held, including one separately identified over-50-MiB original;
+the global Storage ceiling is not changed by this preparation.
 
 Staging emits only `pending` proposals; these are **not installed ledger rows**.
 After separately authorized private upload, capture an independent object GET
@@ -188,7 +230,7 @@ Setting off restores provider dependence and therefore cannot be the rollback
 after provider access is lost. Recover forward or retain a held read view; never
 publicize the bucket, erase receipts, or rewrite original descriptions.
 
-Focused evidence after the editing correction: 29 full-handler/model, renderer
+Earlier `ff20a4e5b` editing-correction evidence: 29 full-handler/model, renderer
 and local byte groups, plus an optional actual-browser Save/fresh-read group
 (`node test/native-brief-media.js --browser-save`, **30 total**). The browser uses
 the actual save, rich serializer, scoped refresh/adoption and full description

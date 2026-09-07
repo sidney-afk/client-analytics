@@ -48,7 +48,7 @@ synthetic transport also validates actual generated claims/body with the actual
 receiver envelope validator. Exact captured draft preserves9 nodes and adds9
 isolated native nodes, with retries disabled. Gateway six-file closure is
 `663e7e423dfe150449f820ecb1e7aa3f2506d6c55c3770cfdc65b556d1311e14`.
-Its hosted checks are running; parent green proof does not certify this source.
+Exact1e9 hosted result:7 applicable jobs pass,2 optional jobs skipped, and1 of479 unit suites fails in test/write-ui-failure-messages.js because9 new urgent refusal codes lack standard user guidance. Later SQL/recovery steps were not reached. Preserve this failure; repair guidance and run the focused suite first. Parent green proof does not certify this source.
 It is default-off/uninstalled, with no new secret or message. Credential binding,
 actual engine/sandbox/mapping/Slack response and complete installed delivery
 remain held. Local unknown-delivery holds are not global replay prevention or

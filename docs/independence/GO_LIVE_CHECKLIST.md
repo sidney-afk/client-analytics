@@ -23,7 +23,7 @@ not installed or live workflow proof.
 DraftPR1341 `1e9bb39668925ec8381b50aedab0f8c224b73ad5` separately combines native
 urgent UI, protected current-editor resolution and a credential-authenticated
 receiver draft. Focused40/28/31 groups and combined envelope checks pass; current
-hosted checks are running. No secret, live message or installation occurred.
+Exact1e9 hosted result:7 applicable jobs pass,2 optional jobs skipped, and1 of479 unit suites fails in test/write-ui-failure-messages.js because9 new urgent refusal codes lack standard user guidance. Later SQL/recovery steps were not reached. Preserve this failure; repair guidance and run the focused suite first. Parent green proof does not certify this source. No secret, live message or installation occurred.
 Unknown delivery/replay/reassignment limits remain explicit in its runbook.
 
 Current automation inventory is complete:129 current workflows/93 active

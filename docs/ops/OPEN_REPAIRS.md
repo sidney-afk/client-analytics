@@ -13919,3 +13919,150 @@ red against the code that preceded them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
+
+## 169. [2026-09-07, BUILT AND TESTED, NOT MEASURED — the release gate is closed in source; the item-95/160 acceptance measurement is NOT taken and needs a live read] Workload reads native data, and the first post created after the outbound flip no longer blanks the board
+
+Lane A of the Linear exit. Branch `claude/lx-a-workload-native`, draft PR, not
+merged. This entry records what is proven, what is not, and the two numbers a
+later session would otherwise get wrong.
+
+### The release gate, and why it is not the defect the brief described
+
+`workload_native_snapshot_v1` publishes `pv.workload_labels_complete` into
+`native_metadata`. That column is
+`(production_workload_label_projection(d.linear_raw)->>'complete')::boolean`, and
+that projection answers `complete:false` for ANY `linear_raw` without a
+well-formed `issue.labels` relation
+(`migrations/2026-07-23-f34-f53-production-attachments.sql:64-165`; read, and the
+`jsonb_typeof(v_issue) is distinct from 'object'` early return is the branch that
+fires).
+
+The intake paths write `linear_raw: { attribution: … }` with no `issue` at all --
+`handleComponentFill` (`supabase/functions/production-write/index.ts:6069`) and
+`handleIntakeCreate` (`:6657`, whose own comment says *"No Linear issue exists
+yet; `linear-outbound` adds `issue` alongside this on drain"*). `linear-outbound`
+is what stamps the labels relation. **So the trigger is the outbound flip, not
+2026-09-15** — the same correction item 163 makes about readable names, and for
+the same reason: the thing that dies first is under our own hand and is earlier
+than the cancellation date.
+
+Two corrections to how this was scoped, both verified rather than read:
+
+1. **It is NOT every new deliverable.** `handleProductionCreate` builds
+   `linearIssue.labels = { nodes: selectedLabels, pageInfo: { hasNextPage: false,
+   endCursor: null } }` (`:3663-3667`) and writes `linear_raw: { issue:
+   linearIssue, attribution }` (`:3689`). That path stays complete. The
+   attribution-only rows are the INTAKE paths — which are the volume path for new
+   posts, so the gate stands.
+2. **It is a REGRESSION the integration candidate introduces, not a defect it
+   inherits.** On `origin/main` an unprovable row returns null from
+   `wlNativeMetadataRow` and joins `unavailableIssueIds`
+   (`index.html:14890-14892`), which blanks that row's due date and withholds its
+   weight — one row. The candidate replaced that with a `throw` inside
+   `wlFetchNativeSnapshot`, which fails the WHOLE read for everyone.
+
+**Fixed at both ends, deliberately.** `workload_native_label_state_absent(jsonb)`
+separates *"no provider label state was ever stamped"* (answered complete, with an
+empty label array) from *"a relation exists but is malformed or paginated"* (still
+refused). And the browser degrades the single unprovable row through the
+`partialFailure` channel that already exists, with `partitionFailed:false`, so the
+banner says the true thing and every other row stays fully editable.
+
+**The accepted cost, stated plainly:** a row with no provider label state weighs
+**1x, permanently**. `2× Workload` and `3× Workload` are provider labels and
+nothing native mints one. So after the outbound flip, weighting stops being
+settable for new work until a native label write exists. The owner has been told.
+That is a real functional loss, not a rounding error, and it should not be
+rediscovered as a bug.
+
+### Two numbers, so a later session does not call a working harness broken
+
+- **Item 95's acceptance reading is ~195, not 40.** `_wlNativeDiffReport`
+  (`index.html`, the `?wlnative=1` harness) applies **no client filter** — it keys
+  purely on `linear_id` presence — while item 95 decomposes 195 rows as 116 TEST
+  client + 39 one former off-roster client + **40 active-roster**. The 40 is the
+  subset that matters to a human and the harness cannot separate it; it must be
+  re-derived by joining against the client roster. Item 95 also says 31 of the 40
+  carry a `mirror_in_delete` and the remaining 9 are undecomposed — 40 is not one
+  fix.
+- **`workload_issues` does not empty when Linear dies, it FREEZES.** The n8n
+  reconcile returns `[]` on a bad read and its safety gate keeps the old rows, so
+  ~2,000 rows stay `active=true` with a `synced_at` that stops advancing.
+  Stale-and-plausible is worse than blank, and it is the whole reason this lane
+  must be observed before the reconcile is stopped.
+
+### NOT DONE, and each is blocked on something this session does not have
+
+- **The item-95 / item-160 acceptance measurement is NOT TAKEN.** `?wlnative=1` /
+  `window.wlNativeDiff()` compares the native view against `workload_issues` and
+  needs (a) the view applied and (b) a browser against the live backend. This
+  session has neither. **It stops being runnable the moment the reconcile stops**,
+  so it must be taken while Linear is still connected. Items 95 and 160 therefore
+  stay open, and no number has been written into them.
+- **The `native_assignee_eligible` census (A8) is NOT TAKEN**, for the same
+  reason. `native_assignee_eligible = tm.active and tm.team = d.team and tm.role =
+  ('editor'|'designer')` REPLACES a hardcoded name allowlist under which graphics
+  designers passed with no allowlist at all, so a graphics row assigned to
+  someone whose role is `smm`/`admin`, or whose `team` disagrees with the
+  deliverable's, silently leaves the board. Nobody has counted those rows against
+  live data. The same is true of the CLIENT half: `native_client_active` is
+  `clients.active`, and the TEST client `sidneylaruel` is active, so 116 TEST rows
+  may arrive on the live board at cutover. **Both are counts, and both need one
+  live read.**
+- **`scripts/f40-workload-readiness.js` was left alone.** It audits the
+  `workload_issues`-era population and still works while the reconcile lives. It
+  is NOT the tool for the acceptance measurement, and it needs revisiting when the
+  reconcile stops — at which point it audits a population nothing rebuilds.
+- **A9 (deleting the legacy Workload code) is not done and is blocked on an owner
+  decision.** The snapshot's legacy `union all` arm still emits `workload_issues`
+  rows whose `team_key` is not VID/GRA — the view's own header records 8 such
+  parent rows on Linear teams CON and STR — so `legacy_teams` is never empty and
+  the "Some teams still use the legacy Workload source" banner is permanent and
+  unclearable. Those 8 are parents with no sub-issues and render nothing today.
+
+### Found while doing this, and belonging to somebody else
+
+- **`## 162.` is claimed twice.** `origin/main` now carries
+  `## 162. … The samples card could not complete itself` (merged after item 168
+  was written), while commit `8483498` on the unmerged audit branch carries
+  `## 162. … Every human-readable task name in the estate is minted by Linear`.
+  Item 168 recorded the highest number on main as `161`, which was true when it
+  was written and is not now. This is a NEW collision from concurrent branches,
+  not one of the four pre-existing duplicates (`## 13.`, `## 14.`, `## 22.`,
+  `## 23.`) that item 168 says to leave alone. **The coordinator owns the
+  renumber; lane A did not touch either entry.**
+- **The native deep-link projection is stranded in lane D's region.** The
+  candidate's `?prod=1&batch=<bat_…>` popover header and its
+  `s.nativeId || s.identifier` row links live at `index.html:19472` and `:19540`,
+  inside the 19270-19600 block assigned exclusively to lane D. Lane A did not
+  edit them. The consequence while they are missing: on the Workload popover a
+  native row still links by `identifier`, so a post-cutoff row with no
+  `linear_identifier` falls through to `s.url`, which native rows now serve as
+  `''` — a dead link rather than a wrong one. `test/workload-syncview-links.js`
+  is deliberately left at main's version; the candidate's version carries the
+  three assertions that prove the fix and should be lifted in the same change
+  that lifts the two hunks.
+- **`test/workload-linear-cutoff.js` needs
+  `migrations/2026-09-06-linear-outbound-cutoff.sql`**, which is lane F's. Not
+  lifted.
+- **`qa/workload-consistency/native-adapter-rehearsal.js` and
+  `native-capture-rehearsal.js` need `scripts/card-change-journal-rehearsal.js`
+  and `scripts/card-history-integrated-rehearsal.js`**, which are shared
+  infrastructure several other lanes' work also requires. The five files those two
+  rehearsals sit on top of ARE lifted and their offline suites pass; the two
+  rehearsals and `test/workload-history-integrated.js` (a 10-line shim onto a
+  `scripts/` file that does not exist here) are not.
+
+### What is proven, and by what
+
+Executed, not pattern-matched: `test/workload-native-postgres.js` applies
+`2026-07-05-b0`, `2026-07-06-b1`, `2026-07-19-workload-plan`, the native view and
+this migration to a disposable PostgreSQL 16 database and runs 36 checks against
+it, including the four label-state shapes (`{"attribution":…}`, `null`, an
+`issue` with no `labels`, and a paginated relation) and the alias/refusal/
+snapshot-isolation cases. `test/workload-native-membership.js` extracts the real
+browser readers into an isolated realm — 52 checks — and its A3 cases were
+confirmed to FAIL against the candidate's throw before the fix went in.
+`test/workload-native-realtime.js` pins the channel's table set and executes the
+debounce. Nothing here is deployment, live-population or serving proof, and the
+PR body says so.

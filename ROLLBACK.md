@@ -1,5 +1,7 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**G4 raw export foundation, unserved:** withdraw the source/injected caller without changing clients or services. Preserve any future authorized raw pages and manifests, including failed runs; code rollback is not evidence deletion. No live transport, actual Windows ACL verifier, occurrence inventory or HMAC is provided. [Collection and certification holds](docs/ops/LINEAR_RAW_EXPORT_FOUNDATION.md) remain explicit.
+
 **Legacy v1 uncertainty, unapplied:** retain exact attempted payloads, completed checkpoints and compatible hold handling. Returning to the old writer after an unknown outcome can remint IDs or overwrite current fields. Do not strip attempt metadata, clear storage, infer a native request or reverse authority to retry. Staff reconciliation requires acceptance/current-card evidence; localStorage is not a backup. [The bounded source correction](docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md) supersedes the next historical paragraph's authority-reversal behavior, with old-bundle and serving limits still held.
 
 **Legacy Calendar v1 retention, unapplied:** preserve and reconcile retained records before reversing authority or restoring a deletion-capable bundle. Authority reversal can resume otherwise eligible provider-era work; retention is not durable quarantine. Do not clear storage or recreate an unknown outcome. [Evidence and limits](docs/audits/2026-09-06-legacy-calendar-job-retention.md).

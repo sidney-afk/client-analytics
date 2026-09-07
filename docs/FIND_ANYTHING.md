@@ -1,5 +1,7 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Independent raw Linear export / F34 source inventory prerequisite → [raw export foundation](ops/LINEAR_RAW_EXPORT_FOUNDATION.md), then [F34 certification contract](ops/F34_LINEAR_ASSET_RESCUE.md). Synthetic source proof only; no live collection, exhaustive export or HMAC/inventory certification.
+
 Legacy card accepted but response lost / duplicate retry / caption overwrite → [uncertain-attempt retention](audits/2026-09-06-legacy-card-outcome-uncertainty.md). Actual browser-source/model receiver proof; exact fragments held without automatic replay or inferred native identity. Serving, actorless recovery and old bundles remain held.
 
 Old Calendar submission queue disappears after authority change or expiry → [v1 retention boundary](audits/2026-09-06-legacy-calendar-job-retention.md). No inferred native identity, durable quarantine or automatic recovery.

@@ -1,0 +1,47 @@
+{
+    "contract":  "linear_raw_export_foundation_source_evidence_v1",
+    "base_commit":  "d1442f65c4da6dc4e5ef8f155e1465f564cafa5e",
+    "classification":  "SYNTHETIC_TRANSPORT_ONLY",
+    "source_sha256":  {
+                          "scripts/linear-raw-export.js":  "6048479aaaf6b3288ed1a57371fdca0ab86242c2e60f646b1877b95e8aab97df",
+                          "test/linear-raw-export.js":  "19df221b4e2a095140627811557bd2e4b7e5149d589f736883f311328f3c3b25"
+                      },
+    "focused_test":  {
+                         "command":  "node test/linear-raw-export.js",
+                         "passed":  37,
+                         "external_requests":  0
+                     },
+    "export_complete":  false,
+    "inventory_certified":  false,
+    "runtime_changed":  false,
+    "query_scope":  [
+                        "organization identity before and after",
+                        "global issues including archived requested",
+                        "global comments including archived requested with issue ID",
+                        "global attachment selected metadata including archived requested with issue ID"
+                    ],
+    "membership_gaps":  "Retain null and unobserved issue links as private scope-gap entries and aggregate counts",
+    "collection_efficiency":  "Three independently paginated global collections; no per-issue fanout",
+    "saved_query_source_sha256":  "ced691963b328e204a4a6ca37828813620bde8204e5ec981d8855bfde4c54d24",
+    "saved_query_evidence":  "Source inspected only; existing coordinator capture is not refreshed by this task",
+    "review_correction":  "Windows now refuses before collection without canonical-root-bound injected ACL-verifier evidence. Synthetic verifier is fixture-only, not an implementation for real data",
+    "private_output":  "Outside Git, new run directories, exclusive hash-addressed raw bytes and final manifest",
+    "held":  [
+                 "Real endpoint/credential/stream-limited transport and physical abort",
+                 "Actual Windows effective/inherited ACL verifier",
+                 "Full selected live schema/permission/archive/order semantics",
+                 "Concurrent provider changes and invisible/deleted records",
+                 "Other source families, attachment bytes and source-to-occurrence adapter",
+                 "Owner-held independent inventory certification/HMAC and all F34/G4 release gates"
+             ],
+    "repository_checks":  [
+                              {
+                                  "command":  "node test/repo-map-sync.js",
+                                  "passed":  506
+                              },
+                              {
+                                  "command":  "node test/truth-sync.js",
+                                  "passed":  542
+                              }
+                          ]
+}

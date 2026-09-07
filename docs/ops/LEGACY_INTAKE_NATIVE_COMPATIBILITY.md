@@ -143,7 +143,8 @@ Only the exact native source header is added; the destination remains tokenless.
 n8n decompresses gzip/deflate before exposing rawBody. Marked compressed input
 therefore refuses visibly before forwarding, as do missing binary and over-1-MiB
 bodies. Native input requires application/json, case-insensitively, with absent
-or UTF-8 charset; other media/charsets refuse before forwarding. There is no reconstruction or stringify of native bytes. Full current
+or one UTF-8 charset parameter; unknown, empty and duplicate parameters, other
+media and other charsets refuse before forwarding. There is no reconstruction or stringify of native bytes. Full current
 rows must retain client/card/both child-slot identity; later human edits are
 returned. Refused/held/unknown statuses preserve their conservation meaning;
 malformed, conflicting, redirect and lost responses become visible unknowns.
@@ -152,19 +153,20 @@ offered. Unsupported media types and malformed root values are not certified;
 invalid JSON already fails in n8n's parser, while multipart follows its separate
 existing handler. Native creation's contract is JSON.
 
-Validation: **18 hosted synthetic groups** run with
-`node test/n8n-native-card-adapter.js`; no private input is acquired. Separately,
-**31 private offline groups** execute extracted exact-tag parser/Webhook/binary
+Validation: **19 local synthetic groups**, suitable for hosted CI, run with
+`node test/n8n-native-card-adapter.js`; no private input is acquired and no hosted CI run is claimed here. Separately,
+**32 private offline groups** execute extracted exact-tag parser/Webhook/binary
 request/text-response routines and the actual two captured ordinary builders
 with synthetic contexts. They prove raw-byte preservation, ordinary JSON builder
 equivalence, terminal topology, and visible errors. Running that private suite
 against the promoted module passed again. Its emitted bytes exactly match the
-two current private v3 drafts: Calendar SHA-256
-`2a4ff3e181306618dee9d59a1e18a5fb14b04f34c1f2cf8303694aac5702c889`, Samples
-`aa00a8d768fcbd400dd016baf97d84e8d6d0198da50e2da0b2050c4291353b0c`.
-The prior v2 receipts remain superseded proof. Exact upstream form-urlencoded
-and multipart conversion tests demonstrate their Buffer-rewriting counterexample;
-v3 adds only native JSON/UTF-8 preflight refusal. Text MIME refuses; ordinary
+two current private v4 drafts: Calendar SHA-256
+`7b17bf8293b62464b971590fb2002293e05606f10957741e2076a7bc7f93e2f4`, Samples
+`d10c1c7c11d22a07bf3d06f149d659e89df59a3a2516a5ca547b9dc159b0a183`.
+The prior v2/v3 receipts remain superseded proof. Exact upstream form-urlencoded,
+multipart and adversarial multipart-parameter conversion tests demonstrate the
+Buffer-rewriting counterexamples; v4 changes only native JSON/UTF-8 preflight
+from v2. Text MIME and unknown/empty/duplicate parameters refuse; ordinary
 requests remain unchanged. The pinned official dependency catalog supplies the
 private qs/form-data versions used in those conversion tests.
 These are extracted-source/model checks, not an installed n8n-engine execution,

@@ -16,8 +16,8 @@ const contentParts = String(item.json.headers?.['content-type'] || '').split(';'
 const contentType = contentParts.shift().toLowerCase();
 // n8n's form request converter can re-encode Buffer input. Native creation is JSON.
 if (contentType !== 'application/json') return refuse('content_type_unsupported');
-if (contentParts.filter(value => /^charset(?:\\s*=|$)/i.test(value))
-    .some(value => !/^charset\\s*=\\s*(?:"utf-?8"|utf-?8)$/i.test(value))) return refuse('encoding_unsupported');
+if (contentParts.length > 1 || contentParts.some(value =>
+    !/^charset\\s*=\\s*(?:"utf-?8"|utf-?8)$/i.test(value))) return refuse('content_type_unsupported');
 try {
   const raw = await this.helpers.getBinaryDataBuffer(0, 'data');
   if (!Buffer.isBuffer(raw) || !raw.length) return refuse('raw_body_unavailable');

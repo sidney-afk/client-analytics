@@ -553,12 +553,20 @@ commit;
 -- OWNER-ONLY ROLLBACK.
 --
 -- This migration SUPERSEDES a live function rather than installing a new one,
--- so the rollback is NOT a drop. Re-run v6:
+-- so the rollback is NOT a drop. Re-run v7 -- the version this one replaces:
 --
---     migrations/2026-08-19-production-intake-append-v6.sql
+--     migrations/2026-08-26-production-intake-append-v7.sql
 --
 -- and redeploy the prior Edge version. That restores the exact-title rule and
 -- leaves every caller working.
+--
+-- NOT v6, which is what this block said until Codex caught it on #1336. This
+-- file inherited v7's rollback text verbatim, where "re-run v6" was correct.
+-- Re-running v6 from HERE would undo v7 as well, and v7 exists to REMOVE the
+-- `batch_team_mismatch` clause that refused a mixed-team append to any batch
+-- carrying a `team` stamp -- measured at 143 of 397 active batches, reported by
+-- two SMMs on 2026-08-26 as batches "not appearing in the list". A rollback
+-- that reintroduces a defect the owner already had fixed is not a rollback.
 --
 -- v8 note: re-running v7 makes this function refuse a NAMED append again, so
 -- roll the gateway back with it. Rows already written with named titles are

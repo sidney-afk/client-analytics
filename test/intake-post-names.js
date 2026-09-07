@@ -270,6 +270,17 @@ function extract(name) {
     && submit.includes("title.endsWith(CAL_NATIVE_TITLE_SEPARATOR + name)")
     && /but the names were not applied/.test(submit),
   'the dialog checks the response and says so out loud when a name did not land');
+  /* And it prescribes NOTHING the reader could act on wrongly. Codex caught
+     "rename in Linear" on #1336: both teams are SyncView-authoritative, so
+     linear-inbound takes its detect-only branch and returns BEFORE the title
+     write -- the rename never reaches `deliverables.title`, the column this
+     surface reads -- and `production-write` has no title operation either, so
+     there is no SyncView-side rename to point at instead. */
+  /* Read the CODE, not the prose: the comment above the check in index.html
+     explains the mistake by quoting it, and an explanation is not a use --
+     the same distinction test/comment-strip-is-honest.js draws about itself. */
+  ok(!/[Rr]ename in Linear|\bLinear\b[^']{0,40}rename/i.test(stripComments(submit, ' ')),
+    'and it never sends the reader to a rename that cannot reach the row');
 
   console.log(failures === 0
     ? '\nintake post-name checks passed'

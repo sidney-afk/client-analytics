@@ -41589,6 +41589,19 @@
              * that was asked for has to appear in some returned title. It
              * costs nothing once the gateway is deployed, and it keeps
              * working afterwards as a regression alarm.
+             *
+             * IT NAMES NO REMEDY THE READER CAN CARRY OUT, because there is
+             * not one. An earlier draft said "rename in Linear" -- Codex
+             * caught it on #1336 and it is wrong twice over. Both teams are
+             * SyncView-authoritative (`prod_authority` video/graphics =
+             * syncview since the 2026-08-28 video flip), so linear-inbound
+             * takes the detect-only branch and RETURNS before the
+             * `row.title = clean(issue.title)` write: the rename is recorded
+             * as a detection and never reaches `deliverables.title`, which is
+             * the column this surface reads. And there is no SyncView-side
+             * rename either -- `production-write` has no title operation at
+             * all. The only thing that fixes it is the deploy, so the message
+             * says what happened, that nothing is lost, and who to tell.
              */
             const askedNames = postNames.filter(Boolean);
             const writtenTitles = result && Array.isArray(result.items)
@@ -41596,7 +41609,7 @@
             const namesLanded = !askedNames.length || askedNames.every(name =>
                 writtenTitles.some(title => title.endsWith(CAL_NATIVE_TITLE_SEPARATOR + name)));
             showNotify(surface === 'sxr' ? 'Sample created' : 'Post created', !namesLanded
-                ? savedWhat + ', but the names were not applied - this workspace still runs a production-write that predates post naming. Rename in Linear, or ask for the gateway to be deployed.'
+                ? savedWhat + ', but the names were not applied - this workspace still runs a production-write that predates post naming. The posts are saved and numbered correctly; tell the owner the gateway needs deploying.'
                 : result && result.mirror_pending === true
                     ? savedWhat + '; the Linear mirror is still draining.'
                     : savedWhat + ' in the selected batch.');

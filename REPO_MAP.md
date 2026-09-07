@@ -11,6 +11,18 @@ Native brief media: `supabase/functions/_shared/native-brief-media.mjs` owns the
 `scripts/native-brief-media-validate.py` validates existing private raster bytes and download-only PDF/SVG/video locally; it does not change the new-upload policy.
 `test/native-brief-media-browser.js` runs a finite Chromium fragment with synthetic copied-image bytes, original-URL rich-editor serialization and reversible expired previews; it does not boot the full app.
 
+Offline F44 Submit forwarding: `scripts/n8n-f44-native-adapter.js` prepares two
+terminal entry routes from one private published capture; `test/n8n-f44-native-adapter.js`
+checks original identity, exact browser receipt responses and unrelated-route
+preservation. `docs/ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md` owns the source
+dependency pins, private binding and held installation limits.
+
+Offline n8n CARD compatibility: `scripts/n8n-native-card-adapter.js` transforms
+hash-pinned private published captures into a new private terminal native draft;
+`test/n8n-native-card-adapter.js` covers synthetic graphs and transport contracts.
+`docs/ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md` owns the private binding,
+exact-version evidence and held release order. No workflow is activated.
+
 Independent continuity preparation: `scripts/client-continuity-independent.js`
 reads exact pinned receipts and delivery state through existing owners;
 `scripts/client-continuity-heartbeat.js` sends only a combined healthy heartbeat.

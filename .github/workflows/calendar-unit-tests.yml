@@ -64,7 +64,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install pinned offline media decoders
-        run: python -m pip install Pillow==12.3.0 PyMuPDF==1.28.0 defusedxml==0.7.1 av==16.1.0
+        run: python -m pip install Pillow==12.3.0 PyMuPDF==1.28.0 defusedxml==0.7.1 av==16.1.0 fonttools==4.60.1
       - name: Run unit suite (test/*.js)
         run: node test/run-all.js
       - name: Install PostgreSQL snapshot client for history proof
@@ -292,12 +292,15 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install pinned offline media decoders
-        run: python -m pip install Pillow==12.3.0 PyMuPDF==1.28.0 defusedxml==0.7.1 av==16.1.0
-      - name: Install locked browser dependencies
-        run: npm ci
-      - name: Install the locked Playwright Chromium runtime
+        run: python -m pip install Pillow==12.3.0 PyMuPDF==1.28.0 defusedxml==0.7.1 av==16.1.0 fonttools==4.60.1
+      # This repository intentionally has no tracked npm lockfile. Match the
+      # existing browser lanes and use the exact package.json Playwright pin.
+      - name: Install pinned browser dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Install the pinned Playwright Chromium runtime
         run: npx --no-install playwright install --with-deps chromium
       - name: Prove private media rendering and real save refresh
         run: |
           node test/native-brief-media-browser.js
           node test/native-brief-media.js --browser-save
+          node test/native-comment-media.js --browser

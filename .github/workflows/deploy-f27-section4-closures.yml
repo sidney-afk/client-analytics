@@ -75,7 +75,7 @@ jobs:
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
-      PRODUCTION_WRITE_FILE_COUNT: '5'
+      PRODUCTION_WRITE_FILE_COUNT: '6'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
       # calendar-surface and unlinked-samples client comments under the
@@ -294,7 +294,8 @@ jobs:
       # Admission, schema/recovery, serving/client and alert gates remain held.
       # Source-only F44 completion9a33: same five-file closure/entrypoint path.
       # Native triage SQL/recovery and exact old-route proof precede installation.
-      PRODUCTION_WRITE_SOURCE_SHA256: 809eb5fd0538454fd5a89c36d83b831201183f46273e30417c8be2a660ef4bce
+      # Combined uninstalled intake completion and private-media reader closure.
+      PRODUCTION_WRITE_SOURCE_SHA256: 431fa10451b397c4673eb2cf239d11da54b18f640ccd291dd1cf3b01a4e96ffb
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

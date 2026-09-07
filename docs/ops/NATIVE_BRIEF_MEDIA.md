@@ -355,10 +355,22 @@ run completes.
 
 Calendar unit CI explicitly installs Python 3.11 with Pillow 12.3.0,
 PyMuPDF 1.28.0, defusedxml 0.7.1 and PyAV 16.1.0. Its separate required
-`media-browser` job installs the lockfile's Playwright/Chromium and runs both
+`media-browser` job installs the exact package.json Playwright/Chromium pin and runs
 `node test/native-brief-media-browser.js` and
 `node test/native-brief-media.js --browser-save`; missing dependencies and
 failed assertions fail that job. Only the existing unit job's media fragment
 entry delegates to it, preserving unrelated optional browser discovery.
 No product behavior, validator bytes, schema or private staged package changes
 are part of this CI correction; HTML additions only document port differences.
+
+Combined-release correction: the first hosted browser job failed before executing
+tests because this repository has no tracked npm lockfile. The job now uses the
+same `npm install --no-package-lock --ignore-scripts` convention as existing
+browser lanes. It also installs fonttools 4.60.1 and runs the current-comment
+`--browser` proof. The initial failure remains recorded separately from reruns.
+The generated deploy manifest now includes both media helpers where imported;
+the combined production-write closure has six files and SHA-256
+`431fa10451b397c4673eb2cf239d11da54b18f640ccd291dd1cf3b01a4e96ffb`.
+The production-comments six-file closure is
+`ac85ae775789fafc809fdd69e961b1c06aa83f32a83adb970cb460cb78e86c9c`.
+These are candidate source pins, not installed-source or deployment approval.

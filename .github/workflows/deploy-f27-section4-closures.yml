@@ -292,7 +292,9 @@ jobs:
       # Uninstalled candidate d906e5aab55d771b1f2801c52119b55cccc91fea:
       # combines current main, accepted-card routing, native labels/assignment.
       # Admission, schema/recovery, serving/client and alert gates remain held.
-      PRODUCTION_WRITE_SOURCE_SHA256: ae528a869f8c09022282785b983e94cde40a02b4e679eb03a1282bef725f6cac
+      # Source-only F44 completion9a33: same five-file closure/entrypoint path.
+      # Native triage SQL/recovery and exact old-route proof precede installation.
+      PRODUCTION_WRITE_SOURCE_SHA256: 809eb5fd0538454fd5a89c36d83b831201183f46273e30417c8be2a660ef4bce
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -70,6 +70,15 @@ does not claim those old browser continuations are provider independent.
 
 ## Proof and recovery boundary
 
+Hosted review at9a33 found four failing suites: two stale deploy-closure pins,
+an older byte-preservation test missing the exact new native-only seam, and
+missing plain-language guidance for13 new refusal codes. The correction adds
+guidance, checks the exact new seam and its disabled/enabled behavior while
+preserving byte equality elsewhere, and binds the unchanged five-file gateway
+closure. No gateway/SQL behavior changed in this correction; the24-group SQL
+receipt below remains its original evidence. Focused46 editor and11 failure
+message checks pass. Historical hosted failure is retained, not relabeled.
+
 Final focused result: **24 actual-handler/disposable-SQL groups pass, with zero
 provider/drainer requests; 13 isolated Chromium inbox checks pass**. The exact
 original nine-key body, including leading/trailing whitespace, is exercised at

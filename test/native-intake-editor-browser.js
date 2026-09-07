@@ -33,8 +33,24 @@ const materializationBlock=`  // Browser routing metadata only. The epoch was re
 const materializationField='    ...(cardMaterialization ? { card_materialization: cardMaterialization } : {}),\n';
 assert.equal(currentIntake.split(materializationBlock).length,2);
 assert.equal(currentIntake.split(materializationField).length,2);
-assert.equal(currentIntake.replace(materializationBlock,'').replace(materializationField,''),extractFunction(oldGateway,'handleIntakeCreate'));
-pass('intake authorization, commits and original response remain exact around accepted native routing metadata');
+const legacyParameter='  requireNativeCompletion = false,\n';
+const legacyGuard=`  // Server-owned legacy triage may NEVER fall back to provider preparation.
+  // The existing epoch RPC binds prior acceptance and fails closed on drift.
+  if (requireNativeCompletion && teamList.some(team => !nativeEpochByTeam[team])) {
+    throw new GatewayError(409, "legacy_intake_native_epoch_required");
+  }
+`;
+assert.equal(currentIntake.split(legacyParameter).length,2);
+assert.equal(currentIntake.split(legacyGuard).length,2);
+assert.equal(currentIntake.replace(materializationBlock,'').replace(materializationField,'')
+ .replace(legacyParameter,'').replace(legacyGuard,''),extractFunction(oldGateway,'handleIntakeCreate'));
+assert.ok(currentIntake.indexOf(legacyGuard)<currentIntake.indexOf('await projectForIntake('));
+for(const [required,epochs,refused]of [[false,{},false],[true,{},true],[true,{video:'native'},false]]) {
+ const invoke=()=>vm.runInNewContext(legacyGuard,{requireNativeCompletion:required,teamList:['video'],nativeEpochByTeam:epochs,
+  GatewayError:class extends Error {constructor(status,code){super(code);this.status=status;}}});
+ if(refused)assert.throws(invoke,error=>error.status===409&&error.message==='legacy_intake_native_epoch_required');else assert.doesNotThrow(invoke);
+}
+pass('intake remains exact around native routing metadata and the explicit native-only legacy completion guard');
 const metadataSource=currentIntake.slice(currentIntake.indexOf(materializationBlock),currentIntake.indexOf(materializationBlock)+materializationBlock.length);
 function metadata(teams,epochs,items,plannedCount=items.length) {
  return JSON.parse(JSON.stringify(vm.runInNewContext(metadataSource+'\n({'+materializationField+'})',{

@@ -33519,39 +33519,97 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const issue = String(post.linear_issue_id || '').trim();
-        if (!issue) {
+        if (!issue && !String(post.video_deliverable_id || '').trim()) {
             showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
             return;
         }
-        _calUrgentSlackDispatch(btn, issue, String(calState.client || '').trim(), post.name, {
-            persist: (ping) => _calPersistUrgentSentForPost(calState.client, post, ping)
+        const sourceClient = calState.client;
+        _calUrgentSlackDispatch(btn, issue, String(sourceClient || '').trim(), post.name, {
+            native: String(post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: calClientSlug(calState.client),
+                deliverable_id: _writeUiNativeId(post, 'video'), card_id: String(post.id), surface: 'calendar', video_status_at: String(post.video_status_at || '') } : null,
+            currentClientSlug: () => calClientSlug(calState.client),
+            currentPost: () => calState.posts.find(p => p.id === pid),
+            persist: (ping) => _calPersistUrgentSentForPost(sourceClient, post, ping)
         });
     }
-    /* Shared confirm → POST → button-latch for the URGENT ping. Used by BOTH the
-       SMM calendar button (_calSendUrgentSlack) and Kasper's review-card button
-       (_kasperSendUrgentSlack). The front-end only ever sends the video
-       sub-issue URL + client name; the send-urgent-slack workflow resolves the
-       editor from Linear and posts to #video-editing, so the message is byte-for
-       -byte identical no matter who triggers it. `btn` may be null (no element to
-       latch). */
+    /* Four staff surfaces share confirmation and delivery handling. Native
+       identity goes only to the authenticated gateway; legacy URL-only cards
+       retain their existing webhook. A local hold prevents blind resubmission
+       after uncertain native delivery. It is not a global delivery receipt. */
     function _calUrgentSlackDispatch(btn, issue, client, name, opts) {
+        const native = opts && opts.native;
+        const roundTime = native ? Date.parse(native.video_status_at) : NaN;
+        const attemptKey = native ? 'syncview-native-urgent:v1:' + JSON.stringify(Object.assign({}, native,
+            { video_status_at: Number.isFinite(roundTime) ? new Date(roundTime).toISOString() : native.video_status_at })) : '';
+        let storageUnavailable = false;
+        const retainedAttempt = () => {
+            if (!native) return false;
+            try { return !!localStorage.getItem(attemptKey); } catch (e) { storageUnavailable = true; return true; }
+        };
+        const showUnknown = () => {
+            if (btn) { btn.disabled = true; btn.textContent = 'Check delivery'; }
+            showNotify(storageUnavailable ? 'Delivery status unavailable' : 'Check delivery', storageUnavailable
+                ? 'This browser cannot read its saved delivery status. Nothing new was sent. Check #video-editing manually before sending another message.'
+                : 'An urgent ping may already have been sent for this round. Check #video-editing manually before sending another message.');
+        };
+        if (native && (typeof _isClientLink !== 'undefined' && _isClientLink)) {
+            showNotify('Staff sign-in required', 'Sign in as staff to send an urgent ping.'); return;
+        }
+        if (retainedAttempt()) { showUnknown(); return; }
         showConfirm(
             'Send urgent tweak ping?',
-            'This posts an “URGENT TWEAKS NEEDED” message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
+            native
+                ? 'This posts an “URGENT TWEAKS NEEDED” message in #video-editing and tags the currently assigned editor. Only use it for tweaks that need attention today.'
+                : 'This posts an “URGENT TWEAKS NEEDED” message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
             () => {
+                if (retainedAttempt()) { showUnknown(); return; }
                 if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
                 (async () => {
+                    let attempted = false, knownNotSent = false, holdWritten = false, holdValue = '';
+                    const releaseOwnHold = () => {
+                        try {
+                            if (holdWritten && localStorage.getItem(attemptKey) === holdValue) localStorage.removeItem(attemptKey);
+                        } catch (ignore) {}
+                    };
                     try {
-                        const resp = await fetch(URGENT_SLACK_URL, {
+                        let resp;
+                        if (native) {
+                            // Retain before transport. This is a local recovery hold,
+                            // not a cross-device delivery or exactly-once receipt.
+                            holdValue = JSON.stringify({ state: 'delivery_unknown', attempt_id: crypto.randomUUID() });
+                            localStorage.setItem(attemptKey, holdValue);
+                            holdWritten = true;
+                            const headers = _syncviewEfHeaders({ 'Content-Type': 'application/json',
+                                apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }, WRITE_UI_PRODUCTION_WRITE_URL);
+                            const request = { method: 'POST', headers, body: JSON.stringify(native), signal: AbortSignal.timeout(30000) };
+                            attempted = true;
+                            resp = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, request);
+                        } else resp = await fetch(URGENT_SLACK_URL, {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ issue, client, name: String(name || '') })
                         });
                         let j = null;
                         try { j = await resp.json(); } catch {}
+                        if (native) {
+                            knownNotSent = !!(j && j.ok === false && j.delivery === 'not_sent' && j.retry_safe === true);
+                            if (!(resp.ok && j && j.ok === true && j.delivery === 'sent'
+                                && typeof j.dispatch_id === 'string' && j.dispatch_id.trim()
+                                && typeof j.slack_ts === 'string' && j.slack_ts.trim())) throw new Error('native_urgent_unconfirmed');
+                        }
                         if (!resp.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('http ' + (resp && resp.status)));
                         let persistFailed = false;
                         const sentAt = new Date().toISOString();
-                        if (opts && typeof opts.persist === 'function') {
+                        const current = native && opts.currentPost ? opts.currentPost() : null;
+                        const sameRound = !native || !!(current && opts.currentClientSlug && opts.currentClientSlug() === native.client_slug
+                            && String(current.id) === native.card_id
+                            && _writeUiNativeId(current, 'video') === native.deliverable_id
+                            && String(current.video_status_at || '') === native.video_status_at
+                            && _calNormStatus(current.video_status || '') === 'Tweaks Needed');
+                        if (!sameRound) {
+                            if (btn) { btn.disabled = true; btn.textContent = 'Earlier round sent'; }
+                            showNotify('Urgent ping sent', 'The ping was sent for the original video round. The current card changed, so its Sent marker was not updated.'); return;
+                        }
+                        if (sameRound && opts && typeof opts.persist === 'function') {
                             try {
                                 await opts.persist({ sentAt, issue, editor: (j && j.editor) || '' });
                             } catch (persistErr) {
@@ -33563,6 +33621,13 @@
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
                         showNotify('Urgent ping sent', 'Posted to #video-editing' + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
+                        if (native && attempted && !knownNotSent) { showUnknown(); return; }
+                        if (native && !attempted) {
+                            releaseOwnHold();
+                            if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                            showNotify('Could not prepare urgent ping', 'Nothing was sent. This browser could not retain the delivery attempt. Check browser storage before trying again.'); return;
+                        }
+                        if (native && knownNotSent) releaseOwnHold();
                         if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                         showNotify('Could not send', 'The urgent ping failed to send. Try again, or post in #video-editing manually.');
                     }
@@ -47422,7 +47487,7 @@
         if (!p || c !== 'video') return false;
         if (_calNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
         const link = String(p[c === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id'] || '').trim();
-        return !!link;
+        return !!(link || String(p.video_deliverable_id || '').trim());
     }
     /* Refresh just the status chip/dropdown on a card without re-rendering
        the whole calendar — used after an auto-status change so the card
@@ -66569,7 +66634,7 @@
     function _sxrShowUrgent(p, c) {
         if (!p || c !== 'video') return false;
         if (_sxrNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
-        return !!String(p.linear_issue_id || '').trim();
+        return !!(String(p.linear_issue_id || '').trim() || String(p.video_deliverable_id || '').trim());
     }
     async function _sxrPersistUrgentSentForPost(clientOrSlug, post, ping) {
         if (!post || !post.id) return null;
@@ -66600,9 +66665,14 @@
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
         const issue = String(post.linear_issue_id || '').trim();
-        if (!issue) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
-        _calUrgentSlackDispatch(btn, issue, String(sxrState.client || '').trim(), post.name, {
-            persist: (ping) => _sxrPersistUrgentSentForPost(sxrState.client, post, ping)
+        if (!issue && !String(post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        const sourceClient = sxrState.client;
+        _calUrgentSlackDispatch(btn, issue, String(sourceClient || '').trim(), post.name, {
+            native: String(post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: sxrClientSlug(sxrState.client),
+                deliverable_id: _writeUiNativeId(post, 'video'), card_id: String(post.id), surface: 'samples', video_status_at: String(post.video_status_at || '') } : null,
+            currentClientSlug: () => sxrClientSlug(sxrState.client),
+            currentPost: () => sxrState.posts.find(p => p.id === pid),
+            persist: (ping) => _sxrPersistUrgentSentForPost(sourceClient, post, ping)
         });
     }
     function _sxrRenderInlineCard(p, isBlank, isCurrent) {
@@ -71535,9 +71605,13 @@
         if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', 'An urgent ping for this video was already sent in this session.'); return; }
         const it = _sxrKasperFindItem(pid); if (!it || !it.post) return;
         const issue = String(it.post.linear_issue_id || '').trim();
-        if (!issue) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        if (!issue && !String(it.post.video_deliverable_id || '').trim()) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
         const client = String(it.client || wlCanonicalClient(it.slug) || '').trim();
         _calUrgentSlackDispatch(btn, issue, client, it.post.name, {
+            native: String(it.post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: String(it.slug || sxrClientSlug(client)),
+                deliverable_id: _writeUiNativeId(it.post, 'video'), card_id: String(it.post.id), surface: 'samples', video_status_at: String(it.post.video_status_at || '') } : null,
+            currentClientSlug: () => String((_sxrKasperFindItem(pid) || {}).slug || ''),
+            currentPost: () => (_sxrKasperFindItem(pid) || {}).post,
             persist: (ping) => _sxrPersistUrgentSentForPost(it.slug || client, it.post, ping)
         });
     }
@@ -78459,12 +78533,16 @@
                   || (_kasperState.replies || []).find(x => x && x.post && x.post.id === pid);
         if (!item || !item.post) return;
         const issue = String(item.post.linear_issue_id || '').trim();
-        if (!issue) {
+        if (!issue && !String(item.post.video_deliverable_id || '').trim()) {
             showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
             return;
         }
         const client = String(item.client || wlCanonicalClient(item.slug) || '').trim();
         _calUrgentSlackDispatch(btn, issue, client, item.post.name, {
+            native: String(item.post.video_deliverable_id || '').trim() ? { action: 'native_urgent_dispatch', client_slug: String(item.slug || calClientSlug(client)),
+                deliverable_id: _writeUiNativeId(item.post, 'video'), card_id: String(item.post.id), surface: 'calendar', video_status_at: String(item.post.video_status_at || '') } : null,
+            currentClientSlug: () => String(((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).slug || ''),
+            currentPost: () => ((_kasperState.items || []).concat(_kasperState.replies || []).find(x => x && x.post && x.post.id === pid) || {}).post,
             persist: (ping) => _calPersistUrgentSentForPost(item.slug || client, item.post, ping)
         });
     }

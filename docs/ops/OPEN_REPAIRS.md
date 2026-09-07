@@ -13243,3 +13243,132 @@ never-against-capacity).
 Untouched on purpose: the Production tab's `_prodOverdue`, which mirrors what
 Linear itself calls overdue on a row and is a different surface with a
 different job.
+
+---
+
+## 160. [2026-09-07, MEASURED — 12 live rows, 8 real clients, oldest drifted 5 weeks; the status twin of item 95] Workload and SyncLinear show two different statuses for the same deliverable, and neither is lying
+
+**[owner]** — the repair is a scope decision, not a patch. Reported by the owner
+against `VID-13679` (Video 1, Dr. Sonia Chopra, Iara): the Workload board put it
+in Iara's **In progress** column, clicking through to SyncLinear said **For SMM
+approval**, and Linear said **In Progress**.
+
+### What actually happened, read out of `deliverable_events` rather than guessed
+
+```
+15:08:18  deliverables.status → smm_approval          (status_at)
+15:09:01  status_change  actor=Iara  role=editor  src=ui  todo → smm_approval
+15:11:10  foreign_write_detected  actor=Linear webhook  src=mirror
+15:35:12  foreign_write_detected  actor=Linear webhook  src=mirror
+17:00:38  foreign_write_detected  actor=Linear webhook  src=mirror
+```
+
+Against Linear's own `stateHistory` for the same issue:
+
+| time | Linear state | who |
+|---|---|---|
+| 15:08:21 | Todo → For SMM approval | SyncView Mirror (outbound — Iara's 15:09 SyncView write) |
+| 15:11:10 | → Todo | in Linear — **discarded** |
+| 15:35:11 | → In Progress | in Linear — **discarded** |
+| 17:00:36 | → For SMM approval | in Linear — **discarded** |
+
+**SyncView was never wrong.** Iara set For SMM approval *in SyncView* at 15:09;
+outbound mirrored it into Linear, which is the activity line the owner read as
+"SyncView changed it on its own". She then did her three real status moves *in
+Linear*, and `linear-inbound` refused all three — correctly, because
+`prod_authority.video = syncview` makes `isDetectOnlyTeam()` true, so the handler
+records `foreign_write_detected` and returns before the status write
+(`supabase/functions/linear-inbound/index.ts`). The flip working as designed.
+
+**So why did the board disagree with itself?** Because the two surfaces read two
+different sources with opposite authority:
+
+```
+SyncLinear  ──▶ deliverables (native, AUTHORITATIVE)      → smm_approval
+Workload    ──▶ workload_issues (rebuilt FROM Linear)     → In Progress
+```
+
+`workload_issues` has no idea a write was refused; it is rebuilt from a Linear
+query, so it faithfully reproduces the drift SyncView just rejected. Same root
+cause as item 95 — Workload never reads native data — but the **status** twin of
+it rather than the deletion twin, and not previously recorded.
+
+**It self-heals only by coincidence.** The reconcile picked up Iara's 17:00
+Linear move at 17:10:17, which happened to equal what SyncView had held since
+15:08. The two agreed again with nothing repaired. That is what the owner saw as
+"now they appear to be synced".
+
+### The measurement
+
+Joining `production_deliverables_browser_v1` against active `workload_issues` on
+`linear_identifier`, mapping Linear display names through the same
+`statusFromName` vocabulary `linear-inbound` uses, excluding the 87-row
+`native=backlog` bulk backfill of 2026-09-05 (an artifact, not drift):
+
+| bucket | rows |
+|---|---|
+| video | 7 |
+| graphics | 5 |
+| **total live drift** | **12** |
+| distinct clients | 8 |
+| TEST client (`sidneylaruel`) | **0** |
+
+`edwardmannix`, `jennaphillipsballard`, `lilybaker`, `lukecutting`,
+`nataliemacneil`, `nikomercuris`, `roccopiazza`, `soniachopra`. Every one is real
+client work. The oldest three (`GRA-6660`, `GRA-6659`, `GRA-6951`) have disagreed
+since **3 and 11 August** — five weeks of an editor's Tweaks-needed move sitting
+in the Workload board while SyncLinear showed For SMM approval, or the reverse.
+
+Do not quote 12 as a fixed backlog: it moves every reconcile, in both directions,
+and a row leaves it whenever Linear happens to drift back into agreement.
+
+### The part nobody can see
+
+`foreign_write_detected` is the only record that a person's edit was thrown away,
+and **no UI reads `deliverable_events`**. An editor moves a card in Linear, the
+product silently declines it, and the only feedback is that the status they set
+is not the one they later see. This is item 101's complaint (a refused write
+leaves no trace the reporter can reach) in a case where the trace *does* exist
+server-side and is simply never surfaced.
+
+### Options, in ascending cost — owner picks
+
+1. **Surface the refusal.** Read `foreign_write_detected` and show, on the
+   SyncLinear row and in Workload, "changed in Linear on <date> — not applied".
+   Contained, additive, read-only, fixes nobody-knows without moving authority.
+   Does not make the two surfaces agree.
+2. **Status-only native overlay on Workload.** Keep `workload_issues` as the row
+   source; overlay native `status`/`status_type` where a `linear_identifier`
+   matches. Makes the two surfaces agree and re-buckets Overdue / In progress /
+   Tweaks accordingly — which is the point, and is also a visible change to what
+   every editor sees. One field of the twenty in `WORKLOAD_NATIVE_SOURCE.md` §2,
+   so it does NOT need that document's four hard parts.
+3. **The full cutover.** `WORKLOAD_NATIVE_SOURCE.md`. Closes this, item 95, and
+   the Linear-relay dependency together. Four hard parts, plus the n8n tweak
+   comments webhook and the plan-day writes.
+
+Not doing option 2 or 3 leaves the contradiction the owner reported in place.
+Reverting `prod_authority.video` to `linear` is **not** on this list: it would
+re-open two-way sync and undo the 2026-08-28 flip.
+
+Done when: an owner decision picks 1, 2 or 3 and this entry links the PR.
+
+### The other half of the same report
+
+The owner also flagged the click-through itself: from the **In progress** chip
+("Dr. Sonia Chopra · 1") the popover offers *two* destinations, and they land in
+different places —
+
+- header **Open SyncView →** → `?prod=1&d=VID-13678`, the parent;
+- the row title **Video 1** → `?prod=1&d=VID-13679`, the sub-issue.
+
+Both resolve. But `VID-13678` has **no deliverable row** — SyncView hangs the
+child off a *synthetic batch parent* minted from `bat_3d82ce2c…`, whose
+`displayId` is the Linear identifier while its title is the batch name and its
+status is hardcoded `todo` (`_prodResolveBatchParentNodes`, index.html). So the
+parent reads **"VID-13678 Dr. Sonia Chopra · 31 Aug 2026"** in SyncLinear and
+**"VID-13678 Dr. Sonia Chopra | E-School Launch reel"** in Linear: same issue,
+two names, and a status the code comment already admits nothing ever updates.
+Whichever of the two links the owner took, the destination does not look like the
+chip he clicked. Awaiting his answer on which one he pressed before this is
+repaired.

@@ -28,8 +28,10 @@ URL, child output, retry, failure ping or auto-provisioning is emitted. Inactive
 failed, timed-out, malformed and unknown results never send a healthy ping.
 
 The owner has acknowledged the two September 5 DRILL messages. Preserve that
-historical acknowledgement; it neither activates recurring messages nor defines
-the still-unselected backup recipient or ten-minute acknowledgement escalation.
+historical acknowledgement; it does not activate recurring messages. The owner
+has now selected an owner-controlled backup email, stored only in private
+coordination records. An additional person's receipt and ten-minute incident
+acknowledgement escalation remain separate unresolved operations contracts.
 This addition corrects the earlier hosted-option accounting: a wrapper and
 independent receipt consumer are now source-prepared; no host, check, recipient,
 subscription, secret or schedule has been provisioned.

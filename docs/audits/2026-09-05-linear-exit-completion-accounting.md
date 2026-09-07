@@ -1,3 +1,11 @@
+## G4 existing backfill planner boundary - 2026-09-07 00:36 UTC
+
+OFFLINE_TEST of exported planBackfill from candidate d1442f65c4da6dc4e5ef8f155e1465f564cafa5e, scripts/b4-linear-comment-backfill.js:661-752, using fictional rows only. A same-run backfill row with deleted_at set and a newer provider timestamp with deleted_at null produces one proposed update clearing the marker. A different import run correctly produces backfill_run_mismatch. A non-backfill stored row with matching provider comment ID/body/author but a different issue UUID produces a noop because safelyLinked (:710) does not require issue equality and the non-backfill noop branch (:738) accepts it.
+
+These are planner outcomes, not executed writes, deployed behavior, or proof that the 6,081 marked rows were incorrectly deleted. Existing historical provider reconciliation semantics must not be changed blindly. The five measured issue mismatches are not classified by source yet. Do not use the current planner as a general native-history recovery authority: a bounded recovery proposal needs explicit ownership/tombstone disposition, issue-link mismatch refusal, current-state compare-and-set, and a dry-run proof before any separately authorized apply. No live apply or runtime edit occurred.
+
+Private reproducible probe and result retained in linear-census-20260906. This refines G4 under the same plan; no new release or monitoring gate closed.
+
 ## G4 comment identity discrepancy - 2026-09-07 00:23 UTC
 
 LIVE_READ normalized production_comments snapshot at 00:23:25Z (14,726 rows; in-query total equals returned identity array) compared with the preceding 14,119 provider comment IDs. 13,966 match linear_comment_id; 153 do not. No duplicate native matches. Five matched IDs have no corresponding native row with the same issue UUID. 6,081 matched provider comments have only native rows marked deleted: this is NOT authorization to resurrect them, nor proof of accidental deletion.

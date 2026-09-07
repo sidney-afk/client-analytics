@@ -135,49 +135,52 @@ const resolveLinks = new Function('wlState', 'parentId', 'clientName', 'subs', '
   + '   openLinearUrl: typeof openLinearUrl === "undefined" ? undefined : g(openLinearUrl),'
   + '   openIsParent:  typeof openIsParent  === "undefined" ? undefined : g(openIsParent) };');
 
-const PARENT_ID = 'c96ac1d0-38ce-4446-80c5-d279771c6bb6';
-const CHILD = { identifier: 'VID-13679', url: 'https://linear.app/x/issue/VID-13679',
-                parentIdentifier: 'VID-13678' };
-const SIBLING = { identifier: 'VID-13680', url: 'https://linear.app/x/issue/VID-13680',
-                  parentIdentifier: 'VID-13678' };
+/* Synthetic throughout. The fixture exercises the resolution rule, not any
+   real row, so no live client, colleague or issue identifier appears here
+   (Codex P1 on #1338, and the public-repo rule in CLAUDE.md). */
+const PARENT_ID = '00000000-0000-4000-8000-00000000beef';
+const CHILD = { identifier: 'VID-9001', url: 'https://linear.app/x/issue/VID-9001',
+                parentIdentifier: 'VID-9000' };
+const SIBLING = { identifier: 'VID-9002', url: 'https://linear.app/x/issue/VID-9002',
+                  parentIdentifier: 'VID-9000' };
 const loc = { pathname: '/' };
-const PARENT_ROW = { identifier: 'VID-13678', url: 'https://linear.app/x/issue/VID-13678',
-                     title: 'E-School Launch reel' };
+const PARENT_ROW = { identifier: 'VID-9000', url: 'https://linear.app/x/issue/VID-9000',
+                     title: 'A Parent Issue' };
 const withParent = { parentById: new Map([[PARENT_ID, PARENT_ROW]]) };
 const noParent = { parentById: new Map() };
 
 // A. one sub-issue in the group: the pill IS that video.
 const one = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD], loc);
-ok(one.parentSyncUrl === '/?prod=1&d=VID-13679',
+ok(one.parentSyncUrl === '/?prod=1&d=VID-9001',
   "a single-video pill opens the SUB-ISSUE, the row carrying the status the chip asserted");
-ok(one.parentSyncUrl !== '/?prod=1&d=VID-13678',
+ok(one.parentSyncUrl !== '/?prod=1&d=VID-9000',
   'a single-video pill does NOT open the parent -- the exact reported defect');
 ok(one.openLabel === 'Open SyncView →' && one.openIsParent === false,
   'and the button still reads Open SyncView, because a video is what it opens');
-ok(one.openLinearUrl === 'https://linear.app/x/issue/VID-13679',
+ok(one.openLinearUrl === 'https://linear.app/x/issue/VID-9001',
   'the Linear escape hatch follows the primary target instead of pointing elsewhere');
 
 // A. several sub-issues: no single row is "the video", so guessing is refused.
 const many = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);
-ok(many.parentSyncUrl === '/?prod=1&d=VID-13678' && many.openIsParent === true,
+ok(many.parentSyncUrl === '/?prod=1&d=VID-9000' && many.openIsParent === true,
   'a multi-video pill keeps the parent as the group destination rather than picking one child');
 ok(many.openLabel === 'Open parent →',
   'and it SAYS parent, so it is not mistaken for the video');
-ok(many.openLinearUrl === 'https://linear.app/x/issue/VID-13678',
+ok(many.openLinearUrl === 'https://linear.app/x/issue/VID-9000',
   'the multi-video Linear link matches the parent it sits beside');
 
 // B. the parent branch never substitutes a child.
 const missMany = resolveLinks(noParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);
-ok(missMany.parentIdent === 'VID-13678',
+ok(missMany.parentIdent === 'VID-9000',
   "parent missing from the snapshot: the sub's own parentIdentifier answers");
-ok(missMany.parentSyncUrl === '/?prod=1&d=VID-13678',
+ok(missMany.parentSyncUrl === '/?prod=1&d=VID-9000',
   'parent missing: the group link still opens the parent, not an arbitrary child');
 ok(missMany.openLinearUrl === '',
   'parent missing: Linear ↗ is dropped rather than aimed at a child -- no parent URL is recoverable');
 
 const orphan = resolveLinks(noParent, PARENT_ID, 'A Client',
-  [{ identifier: 'VID-13679', url: 'https://linear.app/x/issue/VID-13679' },
-   { identifier: 'VID-13680', url: 'https://linear.app/x/issue/VID-13680' }], loc);
+  [{ identifier: 'VID-9001', url: 'https://linear.app/x/issue/VID-9001' },
+   { identifier: 'VID-9002', url: 'https://linear.app/x/issue/VID-9002' }], loc);
 ok(orphan.parentIdent === '' && orphan.parentSyncUrl === '',
   'nothing names a parent and no single video is meant: the button is OMITTED, not aimed at a child');
 

@@ -51494,9 +51494,24 @@
                    string is one row's displayId and another row's
                    linear_identifier, so the alias below cannot collide.
 
-                   The maintained column wins, and the snapshot stays resolvable
-                   as an ALIAS so a link or bookmark holding the retired number
-                   still opens the row rather than being told it does not exist. */
+                   The maintained column wins, and a disagreeing snapshot stays
+                   resolvable as an ALIAS, so a reference to the retired number
+                   opens the row rather than being told it does not exist.
+
+                   WHAT THE ALIAS IS ACTUALLY FOR, since the data repair
+                   (migrations/2026-09-07-deliverable-identifier-team-move-repair.sql)
+                   makes the two columns agree and therefore empties it for
+                   today's seven. Raised by review on #1333. No surface in the
+                   product has ever EMITTED a link carrying the snapshot --
+                   _prodSetQuery writes the canonical row id, and every Workload
+                   link carries the current Linear identifier -- so the alias
+                   covers a reference held OUTSIDE the product, and the window
+                   before that SQL is applied. It also covers the next
+                   divergence: linear-inbound still does not re-stamp
+                   `identifier` on a team move, so any row moved between teams
+                   while Linear is still connected lands here again, and this
+                   resolves it without a second repair. The retired value is
+                   preserved in `deliverable_events` by the repair itself. */
                 const linearIdent = String(d.linear_identifier || '');
                 const importIdent = String(d.identifier || '');
                 const issue = {

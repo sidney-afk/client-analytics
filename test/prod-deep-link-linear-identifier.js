@@ -36,8 +36,16 @@
  * rows carry an `identifier` without a `linear_identifier`; and no string is
  * one row's displayId and another row's `linear_identifier`.
  *
- * The maintained column wins, and the snapshot keeps resolving as an alias so
- * an older link is opened rather than denied.
+ * The maintained column wins, and a disagreeing snapshot keeps resolving as an
+ * alias so a reference to the old number is opened rather than denied.
+ *
+ * The alias survives the DATA repair being applied, but its population does not:
+ * once identifier and linear_identifier agree, aliasId is empty for those rows.
+ * Raised by review on #1333. That is the intended end state -- no surface in the
+ * product ever emitted a link carrying the snapshot -- and the alias remains the
+ * resolver for the next team move, because linear-inbound still does not
+ * re-stamp identifier. So the assertions below fix the BEHAVIOUR (an alias
+ * resolves, and never beats a canonical match) rather than the seven rows.
  */
 const fs = require('fs');
 const path = require('path');

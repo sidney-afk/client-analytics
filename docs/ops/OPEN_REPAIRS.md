@@ -13289,10 +13289,23 @@ Verified by hand on GRA-7197, and the four rows the owner's popover listed
 popover was dead, not just the header one.
 
 **Fixed (browser only).** The maintained column names the row —
-`displayId: linearIdent || importIdent || id` — and the snapshot survives as
-`aliasId`, which `_prodIssue` resolves in a SECOND pass so a canonical match
-anywhere in the set always beats an alias. A link or bookmark holding the
-retired number therefore still opens the row instead of being denied. Three
+`displayId: linearIdent || importIdent || id` — and a disagreeing snapshot
+survives as `aliasId`, which `_prodIssue` resolves in a SECOND pass so a
+canonical match anywhere in the set always beats an alias. A reference to the
+retired number therefore still opens the row instead of being denied.
+
+**What the alias is for, given that the repair below empties it.** Codex on
+#1333, correctly: after the SQL the two columns agree, so `aliasId` is empty for
+these seven and the retired number stops resolving in the tab — while this entry
+promised the opposite. The promise was the wrong half. No surface in the product
+has ever EMITTED a link carrying the snapshot (`_prodSetQuery` writes the
+canonical row id; every Workload link carries the current Linear identifier), so
+the alias covers references held outside the product and the window before the
+SQL is applied. It also covers the NEXT divergence, because `linear-inbound`
+still does not re-stamp `identifier` on a team move: any row moved between teams
+while Linear is still connected lands here again and resolves without a second
+repair. And the repair no longer erases the old name — it writes each retired
+identifier into `deliverable_events` in the same transaction first. Three
 consequences beyond the report: the row now prints its real Graphics number in
 the list instead of a VID one, the command palette finds it by that number, and
 the missing-notice's archived branch tests both identifier columns

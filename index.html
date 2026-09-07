@@ -19372,9 +19372,37 @@
         wlState.popoverAnchor = rollupEl;
         rollupEl.setAttribute('aria-expanded', 'true');
 
-        const parentUrl   = clientName
-            ? ((parentId && wlState.parentById.get(parentId)?.url) || subs[0]?.url || '')
-            : '';
+        /* A PARENT BUTTON MAY NEVER RESOLVE TO A CHILD.
+
+           Both link-outs below used to end `|| subs[0]?.url` / `||
+           subs[0]?.identifier`. That fallback reads as harmless -- "open
+           something rather than nothing" -- and is the one thing these two
+           controls must not do: they are labelled and positioned as the
+           PARENT, so substituting the first sub-issue does not degrade the
+           button, it makes it lie. Owner report 2026-09-07, pressing
+           "Open SyncView ->" on the In progress chip for one client and
+           landing on the sub-issue `VID-13679` instead of its parent
+           `VID-13678`, with nothing on the page saying a substitution had
+           happened.
+
+           `parentById` only holds parents that came back in THIS snapshot,
+           and the board has several ways to hold fewer: the Linear-derived
+           read pages `active = true` only, so a parent whose own row went
+           inactive is absent while its children are still live, and the
+           n8n `linear-issues` fallback (taken whenever the Supabase read
+           throws) answers a different row set again. The sub itself carries
+           `parentIdentifier` from `workload_issues` for exactly this case --
+           which is all the SyncLinear deep link needs -- so that is the
+           fallback, the same one `wlLooseParentInfo` already uses for the
+           loose strips. It was added there on 2026-09-07 and never carried
+           back here.
+
+           When neither source can name the parent, the button is NOT
+           rendered. An absent control is honest; one pointing at a child
+           is not. The per-row links below still open each sub-issue, so
+           nothing becomes unreachable -- only unlabelled-as-parent. */
+        const parentRow   = parentId ? wlState.parentById.get(parentId) : null;
+        const parentUrl   = clientName ? (parentRow?.url || '') : '';
         /* SyncView-first link-outs (owner request 2026-08-21: "it opens the
            original linear... make it so it opens our sync linear"). Post-flip
            the designers' work lives in the Production tab, so the popover's
@@ -19389,12 +19417,41 @@
            either way, so the extra icon is still worth less than removing a
            working escape hatch. */
         const parentIdent = clientName
-            ? ((parentId && wlState.parentById.get(parentId)?.identifier) || subs[0]?.identifier || '')
+            ? (parentRow?.identifier || String(subs[0]?.parentIdentifier || ''))
             : '';
-        const parentSyncUrl = parentIdent
-            ? (location.pathname + '?prod=1&d=' + encodeURIComponent(parentIdent))
+        /* A PILL IS VIDEOS, SO THE PRIMARY ACTION OPENS A VIDEO.
+
+           Owner, 2026-09-07, after being sent to the parent and having to
+           drill down himself to read the status he came for: "when you open
+           a pill, you're opening a video, so you're supposed to go to that
+           sub-issue, which has the status In progress."
+
+           He is describing what the chip MEANS. A client chip reading "1"
+           in the In progress column is not a statement about the client or
+           the parent, it is one video that is in progress, and the status the
+           chip just asserted lives on that sub-issue. The parent cannot
+           carry it: for a native card the parent is a SYNTHETIC batch node
+           whose status is hardcoded `todo` and never updated
+           (_prodResolveBatchParentNodes), so sending the reader there
+           answered his question with the one value guaranteed to be wrong.
+
+           So when the group is ONE sub-issue there is no ambiguity about
+           which video is meant, and the primary button opens it. With more
+           than one, no single row is "the video" -- picking one would be a
+           guess -- so the button stays on the parent and says so, and the
+           rows below remain the way to each individual video. */
+        const soleSub = subs.length === 1 ? subs[0] : null;
+        const soleSubIdent = String(soleSub?.identifier || '');
+        const openIdent = soleSubIdent || parentIdent;
+        const openIsParent = !soleSubIdent && !!parentIdent;
+        const parentSyncUrl = openIdent
+            ? (location.pathname + '?prod=1&d=' + encodeURIComponent(openIdent))
             : '';
-        const parentTitle = (parentId && wlState.parentById.get(parentId)?.title) || clientName || editorName || '';
+        const openLabel = openIsParent ? 'Open parent →' : 'Open SyncView →';
+        // The Linear escape hatch follows the primary target rather than
+        // silently pointing somewhere else than the button beside it.
+        const openLinearUrl = soleSub ? String(soleSub.url || '') : parentUrl;
+        const parentTitle = parentRow?.title || clientName || editorName || '';
         const headerTitle = clientName || editorName || parentTitle;
         pop.setAttribute('aria-label', headerTitle ? ('Workload details for ' + headerTitle) : 'Workload details');
 
@@ -19417,8 +19474,8 @@
                 <span class="workload-popover-head-title">${wlEscape(headerTitle)}</span>
                 ${templatesLink}
             </div>
-            ${parentSyncUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentSyncUrl)}" target="_blank" rel="noopener noreferrer">Open SyncView →</a>` : ''}
-            ${parentUrl ? `<a class="workload-popover-parent workload-popover-parent-linear" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Linear ↗</a>` : ''}
+            ${parentSyncUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentSyncUrl)}" target="_blank" rel="noopener noreferrer">${wlEscape(openLabel)}</a>` : ''}
+            ${openLinearUrl ? `<a class="workload-popover-parent workload-popover-parent-linear" href="${wlEscape(openLinearUrl)}" target="_blank" rel="noopener noreferrer">Linear ↗</a>` : ''}
             <button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
         </div>`;
         // When the popover spans multiple clients (editor-total badge), label

@@ -1,5 +1,17 @@
 # Isolated card lifecycle browser lane
 
+## September 7 combined runtime verification
+
+The two focused cells `editor-smm-handoff,comments` passed all eight steps on
+combined runtime `59bdb8037f7939d38a33f3b375047343de361590`, using tooling
+`bddd4b8b8ef455f1c45b397201ec9058776a2cde`. All20 served documents matched HTML
+SHA256 `22d9c060f000c2c4fecf310e13d92cb5b1343b1de09ab89cbb49bea28a9d2d0f`.
+The editor's expected synthetic403 console error remains recorded; zero
+unexpected blocked requests, page errors or sockets. The private summary hash
+is `ce525740cb751684e964e29f4347277caa431246388bcbb6246b50116567e42a`.
+No other cells were rerun. This remains synthetic-transport ISOLATED_BROWSER
+evidence, with the server, media-editing and live-state limits below unchanged.
+
 ## September 7 normal editor-to-SMM handoff
 
 The new `editor-smm-handoff` cell exercises the owner-confirmed video route:

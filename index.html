@@ -3521,8 +3521,6 @@
         .workload-exception-section.is-collapsed .workload-section-toggle { margin-bottom: 0; }
         .workload-exception-rollups[hidden] { display: none; }
         @media (prefers-reduced-motion: reduce) { .workload-section-toggle-chevron { transition: none; } }
-        .workload-section-hint { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
-        .workload-section-hint strong { color: var(--text-secondary); font-weight: 700; }
         .workload-weekend-notice { position: relative; margin-left: auto; text-transform: none; letter-spacing: 0; }
         .workload-weekend-notice[hidden] { display: none; }
         .workload-weekend-notice summary { min-height: 28px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--text-secondary); font-size: 0.62rem; font-weight: 750; cursor: pointer; list-style: none; white-space: nowrap; }
@@ -16218,12 +16216,10 @@
             </section>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>
-                <div class="workload-section-hint">Grouped by client, then by parent issue. Open a parent in SyncLinear to assign all of its sub-issues in one place.</div>
                 <div class="workload-chips wl-loose-clients" id="wlUnassignedChips"></div>
             </div>
             <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
                 <div class="workload-section-label">Needs a work day or deadline</div>
-                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists. Grouped by client, then by parent issue.</div>
                 <div class="workload-chips wl-loose-clients" id="wlUndatedChips"></div>
             </div>
             <div class="workload-legend">

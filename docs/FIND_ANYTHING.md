@@ -1,5 +1,45 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Native intake post names / append ordinals / atomic migration composition: [native named append contract](ops/NATIVE_INTAKE_NAMED_APPEND.md). Separate restored-target SQL proof; first native-column installation held.
+
+
+Native continuity backup / public intake provenance / F44 triage / media ledger ? [explicit history-v9 recovery](ops/RECOVERY_SCHEMA_V9.md).42 selected tables; media object and owner-receipt bytes require separate custody.
+
+F44 received submission needs staff team confirmation / native completion / old
+unresolved receipt inbox → [protected website triage](audits/2026-09-07-f44-native-triage.md).
+Source-only capture, claim fence, immutable native completion and separate recovery extension.
+Current comment files still open Linear links → [protected native comment downloads](ops/NATIVE_COMMENT_MEDIA.md). Reuses private brief custody with explicit comment/audience ownership; all files download-only, default off, global storage ceiling and combined recovery rebind held.
+
+Native brief inline images still depend on Linear → [dormant private media reader and custody](ops/NATIVE_BRIEF_MEDIA.md). Exact occurrence/revision projection, one new private bucket/ledger and a separate recovery extension; other required media and serving remain held.
+
+Independent monitoring / backup alert beyond SyncViewbot →
+[inactive receipt and heartbeat recipe](ops/CLIENT_CONTINUITY_OPERATIONS.md#independent-receipt-and-heartbeat-preparation--september-7).
+Exact receipt evaluation is prepared; independent hosting and backup recipient remain unconfigured.
+
+Saved native Submit falls back to legacy / remaining F44 and n8n card exit work
+→ [owned routing and exact legacy adapter contract](ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md).
+Bounded source correction; original identities and offered ordinary writes retained.
+The same owner now includes the offline n8n CARD draft generator, private input
+binding and exact-version byte-forwarding evidence; installation remains held.
+It also owns the two-entry F44 Submit forwarding generator, exact original
+receipt preservation and its separate gateway/native-triage source dependency.
+
+Old/direct Workload provider requests after cutoff → [staged endpoint admission](audits/2026-09-07-workload-cutoff.md). Existing G8 control is required at every provider fetch; installation, CON/STR continuity and in-flight/old-isolate proof remain held.
+
+Frozen anonymous writer native deployment composition → [private staged source feasibility](audits/2026-09-07-frozen-native-composition.md). Exact Calendar v48/Samples v49 inputs preserve tokenless ordinary behavior; repository copies remain unchanged and undeployable as-is.
+
+Legacy card accepted but response lost / duplicate retry / caption overwrite → [uncertain-attempt retention](audits/2026-09-06-legacy-card-outcome-uncertainty.md). Actual browser-source/model receiver proof; exact fragments held without automatic replay or inferred native identity. Serving, actorless recovery and old bundles remain held.
+
+Old Calendar submission queue disappears after authority change or expiry → [v1 retention boundary](audits/2026-09-06-legacy-calendar-job-retention.md). No inferred native identity, durable quarantine or automatic recovery.
+
+Saved intake disappears after repeated failures / Retry saved post → [bounded v3 retention evidence](audits/2026-09-06-native-intake-retention.md). Existing slot and exact request retained; v1 queues, sign-out and complete G6 remain held.
+
+Ordinary Linear worker viewer/read egress after cutoff → [bounded transport correction](audits/2026-09-06-outbound-read-cutoff.md) and [G8 owner contract](ops/LINEAR_OUTBOUND_CUTOFF.md). Actual isolated proof; old-worker quiescence and global egress remain held.
+
+Current native label catalog/save and recovery hold: [contract](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md), [correction evidence](audits/2026-09-06-native-label-writes.md). Default-disabled source; no activation/serving claim.
+
+Native label catalog / Linear label prerequisite / staged import and recovery coverage → [dormant catalog owner contract](ops/NATIVE_LABEL_CATALOG_FOUNDATION.md). This is a held G2 foundation under the existing go-live checklist, not an activation or a second execution plan.
+
 > **The rule this doc keeps: any documented fact in ≤2 opens from here.**
 > Draft shipped by the 2026-07-19 vault audit (P4 proposal — owner ratifies by
 > merging). If this router ever fails to route you, add the missing row in the
@@ -36,6 +76,8 @@
 | Where does file/folder X live? | `REPO_MAP.md` |
 | Which n8n webhooks / Edge Functions does the app call? | `docs/truth/ENDPOINTS.md` |
 | Supabase tables, flags, write contracts | `docs/truth/SUPABASE.md` |
+| Private durable card changes, original values, retention and complete backup rollout | `docs/ops/CARD_CHANGE_HISTORY.md` (draft/unapplied; separate from the activity feed) |
+| Held schema reconstruction with canonical37 data and accepted receipt replay | `docs/ops/RECOVERY_SCHEMA_V7.md` (local source preparation; authenticated-schema proof remains held) |
 | n8n workflow inventory & state | `docs/truth/N8N.md` |
 | Google Sheets tabs, roster truth | `docs/truth/SHEETS.md` |
 | Linear teams/states/what syncs | `docs/truth/LINEAR.md` |
@@ -69,6 +111,8 @@
 | Production/Graphics full-day gap audit (F200–F205) | `docs/audits/2026-07-23-production-tab-graphics-gap-audit.md` | `rg 'One ranked punch list|F200|Owner-reproduced'` |
 
 ## For the owner (no session running)
+
+Calendar/Samples saved request disappears after a live refusal: [live-click retention correction](audits/2026-09-07-intake-live-refusal-retention.md). Exact-base lost-response/4xx counterexamples, locked owner-bound hold and existing saved retry; sign-out privacy and full G6 remain held.
 
 Bookmark two GitHub pages: **the Atlas** (`docs/ATLAS.md` in `synchrosocial`)
 and **this router**. On any GitHub repo page, press `t` and type a filename to

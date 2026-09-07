@@ -378,7 +378,7 @@ const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
     vm.runInContext(attachmentPagerSource[0]
       .replace(
         /async function readAttachmentRevisionPresent\([^]*?\): Promise<boolean> \{/,
-        'async function readAttachmentRevisionPresent(issueId, issue, payload) {',
+        'async function readAttachmentRevisionPresent(issueId, issue, payload, dispatch) {',
       )
       .replace('let after: string | null', 'let after'), attachmentPagerContext);
     const definitiveAbsent = await attachmentPagerContext.readAttachmentRevisionPresent(

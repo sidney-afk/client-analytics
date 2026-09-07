@@ -5,16 +5,10 @@
 // while the owning team's exact current prod_authority value remains `linear`;
 // the workload_issues update after a confirmed Linear mutation is best-effort only.
 //
-// OPEN_REPAIRS item 79: as of the 2026-08-28 video flip, BOTH teams read
-// syncview from requireLinearAuthority (line ~446 below), so the deadline
-// writer 409s on every call -- permanently, not intermittently -- and the
-// browser's own routing (wlDueWriteRoute) never reaches WORKLOAD_LINEAR_URL
-// while both teams are syncview. This function is currently dead on both
-// ends. Whether to delete it or keep it as a rollback path is an owner call
-// still open in the ledger; this comment only corrects what used to describe
-// a world (Linear as an active, reachable authority for some team) that no
-// longer occurs, so the next reader isn't misled into thinking this path is
-// live.
+// Retained/direct callers can still reach metadata and team reads. Every
+// provider request now observes the existing G8 cutoff control, including each
+// metadata batch. This is an admission check, not durable outbox authorization:
+// a read admitted before activation can remain in flight after activation.
 
 import {
   createClient,
@@ -151,9 +145,13 @@ function linearKey(): string {
 }
 
 async function linearRequest(
+  db: SupabaseClient,
   query: string,
   variables: JsonMap,
 ): Promise<{ data: JsonMap; hasErrors: boolean }> {
+  // Required dependency: the reviewed G8 SQL control and service SELECT grant.
+  // Never cache this observation across a provider request or metadata batch.
+  await requireProviderAdmission(db);
   let response: Response;
   try {
     response = await fetch(LINEAR_URL, {
@@ -175,6 +173,28 @@ async function linearRequest(
     data: parseJson(body.data),
     hasErrors: graphqlResponseHasErrors(body),
   };
+}
+
+async function requireProviderAdmission(db: SupabaseClient): Promise<void> {
+  let result;
+  try {
+    result = await db.from("linear_outbound_cutoff_control")
+      .select("lane,generation,cutoff_enabled")
+      .eq("lane", "mirror_outbox")
+      .maybeSingle();
+  } catch (_error) {
+    throw new WorkloadLinearError(503, "linear_cutoff_control_unavailable");
+  }
+  const row = result.data;
+  if (result.error || !row || Array.isArray(row)
+      || row.lane !== "mirror_outbox"
+      || !Number.isSafeInteger(row.generation) || row.generation < 0
+      || typeof row.cutoff_enabled !== "boolean") {
+    throw new WorkloadLinearError(503, "linear_cutoff_control_unavailable");
+  }
+  if (row.cutoff_enabled) {
+    throw new WorkloadLinearError(410, "workload_linear_retired");
+  }
 }
 
 async function requireActiveSubIssues(
@@ -248,11 +268,12 @@ async function requireLinearAuthority(
 }
 
 async function requireCurrentLinearTeam(
+  db: SupabaseClient,
   issueId: string,
   mirroredTeam: "video" | "graphics",
 ): Promise<"video" | "graphics"> {
   const query = "query WorkloadLinearIssueTeam($id: String!) { issue(id: $id) { id team { key name } } }";
-  const result = await linearRequest(query, { id: issueId });
+  const result = await linearRequest(db, query, { id: issueId });
   if (result.hasErrors) {
     throw new WorkloadLinearError(503, "linear_team_unavailable");
   }
@@ -284,7 +305,7 @@ function metadataQuery(issueIds: string[]): { query: string; variables: JsonMap 
   };
 }
 
-async function metadataRows(issueIds: string[]): Promise<{
+async function metadataRows(db: SupabaseClient, issueIds: string[]): Promise<{
   rows: MetadataRow[];
   missingIssueIds: string[];
   incompleteIssueIds: string[];
@@ -297,8 +318,13 @@ async function metadataRows(issueIds: string[]): Promise<{
     const request = metadataQuery(batch);
     let result: { data: JsonMap; hasErrors: boolean };
     try {
-      result = await linearRequest(request.query, request.variables);
-    } catch (_error) {
+      result = await linearRequest(db, request.query, request.variables);
+    } catch (error) {
+      // A retired/unavailable admission boundary holds the whole request;
+      // do not turn it into a successful partial response or try later batches.
+      if (error instanceof WorkloadLinearError
+          && (error.code === "workload_linear_retired"
+            || error.code === "linear_cutoff_control_unavailable")) throw error;
       batch.forEach((issueId) => {
         missing.add(issueId);
         incomplete.add(issueId);
@@ -333,11 +359,12 @@ async function metadataRows(issueIds: string[]): Promise<{
 }
 
 async function setLinearDueDate(
+  db: SupabaseClient,
   issueId: string,
   dueDate: string | null,
 ): Promise<{ issueId: string; dueDate: string | null; updatedAt: string }> {
   const query = "mutation WorkloadLinearSetDueDate($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success issue { id dueDate updatedAt } } }";
-  const result = await linearRequest(query, {
+  const result = await linearRequest(db, query, {
     id: issueId,
     input: { dueDate },
   });
@@ -414,7 +441,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       requestedCount = parsed.issueIds.length;
       const db = serviceClient();
       await requireActiveSubIssues(db, parsed.issueIds);
-      const metadata = await metadataRows(parsed.issueIds);
+      const metadata = await metadataRows(db, parsed.issueIds);
       const receipt = metadataSuccessReceipt(
         parsed.issueIds,
         metadata.rows,
@@ -450,12 +477,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const target = await requireWritableSubIssue(db, issueId, client);
+    // Native-authority requests refuse before any provider team lookup. Keep
+    // the post-lookup recheck to catch authority changes during that request.
+    await requireLinearAuthority(db, target.team);
     // Resolve the issue's current Linear team rather than trusting the mirror's
     // potentially stale team. A move fails closed until the mirror reconciles;
     // only then do we choose and re-read that exact team's current authority.
-    const currentTeam = await requireCurrentLinearTeam(issueId, target.team);
+    const currentTeam = await requireCurrentLinearTeam(db, issueId, target.team);
     await requireLinearAuthority(db, currentTeam);
-    const committed = await setLinearDueDate(issueId, dueDate);
+    const committed = await setLinearDueDate(db, issueId, dueDate);
     linearCommitted = true;
 
     // Never turn a confirmed external commit into a failure. A missed local
@@ -481,6 +511,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     if (error instanceof WorkloadLinearError) {
       outcome = error.status === 401 || error.status === 403 ? "denied" : "error";
+      if (error.code === "workload_linear_retired") {
+        return json({ ok: false, error: error.code,
+          message: "This Linear Workload route is retired. Refresh SyncView. If work remains unavailable, contact an administrator.",
+        }, error.status);
+      }
       return json({ ok: false, error: error.code }, error.status);
     }
     return json({ ok: false, error: "request_failed" }, 500);

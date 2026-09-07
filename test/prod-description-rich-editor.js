@@ -80,12 +80,14 @@ const panel = grabFunc(INDEX, 'function _prodDescriptionPanelHTML(');
 ok(/data-prod-description-control="rich" contenteditable="' \+ \(state\.saving \? 'false' : 'true'\) \+ '" role="textbox" aria-multiline="true" aria-label="Description"/.test(panel),
   'the visual editor is a contenteditable textbox, read-only while a save is in flight');
 ok(/class="prod-description-rich prod-desc' \+/.test(panel), 'it carries the read view\'s own class, so it is typeset identically');
-ok(/_prodDescRichBuild\(state\.draft\)/.test(panel), 'and is built from the draft on every render');
+ok(/_prodDescRichBuild\(state\.draft, _prodBriefMediaPreviews\(state\)\)/.test(panel), 'and is built from the original draft with display-only image previews on every render');
 ok(/data-prod-description-control="markdown-tab" aria-pressed="' \+ \(source \? 'true' : 'false'\)/.test(panel), 'the Markdown toggle is a pressed/unpressed button');
 ok(/data-prod-description-source-notice/.test(panel), 'a description that opened as Markdown says why');
 ok(/data-prod-desc-click-edit="1" onclick="return _prodDescriptionBodyClick\(event,/.test(panel) && /const clickEdit = writable && state\.status === 'ready' && !state\.refreshing;/.test(panel),
   'the read view is click-to-edit only where the write gate is open and the text is current');
-ok(/'No description\.'/.test(panel) && !/Add a description…'/.test(panel.slice(panel.indexOf('const body'))), 'the empty read state keeps its contracted copy');
+ok(/_prodBriefMediaReadHTML\(state, id\)/.test(panel)
+  && /'No description\.'/.test(grabFunc(INDEX, 'function _prodBriefMediaReadHTML('))
+  && !/Add a description…'/.test(panel.slice(panel.indexOf('const body'))), 'the empty read state keeps its contracted copy through the media projection');
 ok(/data-prod-description-edit="1"/.test(panel), 'the Edit button stays, for the keyboard and for the gate\'s refusal copy');
 ok(/data-prod-description-count-quiet="1"/.test(panel) && /\.prod-description-count\.is-quiet \{ display: none; \}/.test(INDEX),
   'the character count is silent until it matters');

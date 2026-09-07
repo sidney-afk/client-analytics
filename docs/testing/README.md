@@ -5,6 +5,14 @@ only remember one file about testing, remember this one.
 
 ## The three safety contracts (never confuse them)
 
+Mapped component feedback adds the offline actual-handler suite
+`test/component-feedback-read.js` and the fictional Chromium component suite
+`docs/syncview-design/tests/prod-feedback-browser.js` (fast Production gate).
+Scope, limits and deployment dependencies: `docs/features/COMPONENT_FEEDBACK.md`.
+`test/prod-context-menu-pixel-contract.js` executes the actual pixel comparator;
+its negative controls keep icon and submenu regressions red while respecting the
+existing unsupported Project action.
+
 | Contract | Applies to | Rule | Canonical text |
 |---|---|---|---|
 | **Live-backend QA** | `test/`, `qa/` (probes, scenarios, master) | Mutating the backend is *expected* — but ONLY the test client `sidneylaruel`, unique ids, archive on exit, Linear always mocked, 0 app JS errors | `HEADLESS-TESTING-GUIDE.md` §5 (+ the mocked-Linear / 0-JS-errors clauses in `qa/MASTER_TESTER.md` → Safety) |
@@ -31,6 +39,22 @@ no design-kit suite may send a live mutation.
   (`docs/syncview-design/`) and the polish gate.
 
 ## Suites and gates
+
+First Samples repair preparation: `node test/client-continuity-monitor.js`
+tests detection, isolated persisted TEST actions, relay fallback and liveness;
+`node qa/client-continuity.js` reuses the intercepted boot harness.
+`node qa/client-continuity-transport.js` uses independent loopback receivers to
+prove Beacon/keepalive, popup/blank-realm, WebSocket and redirect refusal before
+delivery, including native isolated-world bypasses and late/teardown verdicts.
+Negative controls must demonstrate receiver delivery without the guard; allowed
+read controls must stay healthy. No live endpoint or alert recipient is used.
+`node test/client-continuity-monitor.js --strict-source` must also pass on the
+combined repaired product before release. It exercises repaired dependencies and
+also proves detection against the recorded original source; incidental exceptions
+never establish a passing defect check. The existing boot CI adds this suite,
+real-browser continuity and the fixture launcher without live credentials. See
+[`../ops/CLIENT_CONTINUITY_PREPARATION.md`](../ops/CLIENT_CONTINUITY_PREPARATION.md)
+for the inactive/manual-only posture and integration prerequisites.
 
 | Command | What it runs | When |
 |---|---|---|

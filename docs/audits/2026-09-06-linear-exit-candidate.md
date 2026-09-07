@@ -1,0 +1,164 @@
+# Combined Linear-exit candidate
+
+## September 7 final source integration (supersedes older current-head wording)
+
+Source integration `2f007c00fb06173dc34031de03b0ead2b8675d23` includes current main
+`70715496a44e7120f0b819deafdb84cd62d78f9b`, rechecked after the host restart.
+It retains the owner's Workload grouping, To Do overdue rule, single-video links
+and new batch/post names. Native children still route by deliverable ID and
+native groups by batch ID. Original accepted native intent now retains a
+supplied item name without adding fields to unnamed requests.
+
+It also combines the frozen anonymous-writer composition tooling, exact legacy
+F44/CARD adapter preparation, F44 native completion, required brief/comment
+media readers and custody tooling, immediate backup failure signaling, and
+explicit 42-table history-v9 recovery. Repository anonymous writer copies are
+still NOT deployable as-is; their separately captured tokenless composition
+remains the approved preparation path.
+
+Main post-name v8 and native-only intake replace the same append RPC. The new
+[named native append](../ops/NATIVE_INTAKE_NAMED_APPEND.md) preserves both
+contracts. Its atomic source composer passes seven controls; the separate
+restored-target SQL lane passes eight groups. First compound installation is
+unproven. [V9 recovery](../ops/RECOVERY_SCHEMA_V9.md) retains the older timeout
+and interrupted continuation, then five passing cold-resume checks against the
+exact saved 42-table package. Later naming/runtime changes are explicitly
+outside that package; final installed recovery and separate media-byte recovery
+remain required.
+
+Focused combined checks cover actual named/unnamed intake-field extraction,
+Workload native child/group/loose-parent links, the owner's unchanged naming
+tests and overdue behavior, refused-save media paths, and isolated Chromium
+brief/comment rendering. The historical editor-fidelity fixture initially
+failed after main gained naming fields; exact pinned-main additions were
+accounted for and all 47 assertions then passed. At the integrated source,
+composition seven controls, repository map and truth checks pass. These results
+reuse earlier independent source and disposable SQL evidence; they do not
+claim current installed or live workflow proof.
+
+Production-write's six-file closure is
+`3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95`.
+Production-comments' six-file closure is
+`6083e53a630f9c9faf9ad997884dd28a1066e51b732385243bc42e4bfbfd31b5`.
+The generated manifest, expected-only provenance and F27 pins agree. A mandatory
+hosted Chromium media job fixes the earlier media PR's missing-lockfile setup;
+the earlier three closure failures and pre-test browser failure remain recorded.
+The first combined hosted run on `34ded6cb` passes the mandatory media browser,
+visible boot, synthetic browser, Production polish, identity and F27 rollback
+checks. Its type ratchet found six new comment-media errors. Source correction
+`43db19a93b68d201d6b24a1509a79f216052c027` changes only TypeScript annotations,
+keeps all runtime guards and the existing baseline, and passes the targeted
+official Deno2.5.2 ratchet plus35 focused comment-media controls. The comment
+closure above includes that correction; its earlier hash is historical. Unit
+and exact corrected-head hosted outcomes remain separate pending proof.
+
+The34ded unit run completed with3 of476 suites failing, before its later SQL
+steps: the retained-refusal VM omitted new naming helpers, a tombstone assertion
+still expected direct linkification, and the preview POST allowlist omitted the
+protected media refresh. The current fixture correction loads the actual naming
+helpers, retains all59 prior refusal controls and adds two original-name retry
+cases (61 PASS). The two source suites now pass, preserving the exact12-POST
+allowlist with refresh authentication/identity/current-version guards and
+executing the actual deleted-comment renderer to prove no media invocation.
+No product runtime changed in these three test repairs. The intermediate535f
+hosted type gate passed; its duplicate unit workflow was deliberately cancelled
+once the earlier failures were known. Cancellation is not a successful unit run.
+
+All required captured brief and current linked staff-comment files have private
+validated bytes and staged occurrence packages. The owner's one historical
+large-video website deferral remains exact and private. No upload, source-body
+rewrite, installed mapping, global Storage change or delivery claim follows.
+Six file-bearing comments exposed only through Archive asset repair await the owner's usage
+classification; comprehensive historical export remains optional and paused.
+
+No merge to main, deployment, live/TEST write, n8n change, flag, credential,
+billing, cancellation or new alert is authorized. Watchers remain inactive;
+neither observation clock has started. The canonical release packet owns the
+remaining installation, custody, workflow, alarm and provider-cutoff gates.
+
+## September 7 operational corrections combined
+
+Runtime parent `59bdb8037f7939d38a33f3b375047343de361590` preserves d144 and
+combines the reviewed live-click refusal retention from PR1328, saved native
+Submit ownership routing, and retained Workload cutoff admission. Integration
+resolved only the two documentation-router conflicts, keeping both entries.
+The later documentation commit does not change runtime bytes.
+
+Coordinator review and focused combined checks passed: retained refusals59,
+owned Submit selector16, existing F44 durability72 and complete Workload
+handler58. Map507 and truth542 pass; the identity exposure growth check remains
+at its existing baseline. Two initially mistyped documentation-test filenames
+did not execute tests; their correct scripts then passed. No repeated full
+local suite. The historical459-suite hosted result below remains tied to d144;
+new-head hosted checks are pending publication.
+
+Tooling `bddd4b8b8ef455f1c45b397201ec9058776a2cde` exercised this combined runtime:
+`editor-smm-handoff,comments`, **2 cells / 8 steps PASS**, twenty served documents
+matching HTML SHA256 `22d9c060f000c2c4fecf310e13d92cb5b1343b1de09ab89cbb49bea28a9d2d0f`.
+The real visible role sequence is Kasper request -> editor sends For SMM Approval
+-> separate SMM sends Kasper Approval. The editor's synthetic403 remains recorded
+with visible Save failed/Retry and unchanged modeled state. Source feedback is
+read-only, missing feedback stays incomplete, and canonical comments are not
+implicitly imported. Zero unexpected blocked requests, page errors or sockets.
+Private summary SHA256 `ce525740cb751684e964e29f4347277caa431246388bcbb6246b50116567e42a`.
+These are ISOLATED_BROWSER results with synthetic transport, not installed
+authorization, media editing, real persistence or a live release. Older failures,
+including the separate Comments-history Reopen expectation, remain historical
+evidence; no Reopen policy changed.
+
+The [legacy route contract](../ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md) and
+[Workload adapter prerequisites](2026-09-07-workload-cutoff.md) are still release
+holds. Native recovery no longer falls into F44 when a helper is missing, but
+fresh old callers still need compatible serving adapters. Workload requires the
+existing cutoff table/grant and cannot prove that old or already admitted
+requests have stopped. No frozen anonymous writer, SQL, n8n or live state changed.
+
+This is implementation evidence for the one G0-G10 execution sequence in [draft PR1268](https://github.com/sidney-afk/client-analytics/pull/1268). It does not replace that sequence or authorize a release. Decision A remains **NOT READY**; product watchers are inactive and neither observation clock has started.
+
+## What is combined
+
+The candidate preserves the independently tested HTTP adapter in [PR1325](https://github.com/sidney-afk/client-analytics/pull/1325), native Workload capture/comparison in PR1319/1321, existing-work assignment in PR1322, and their retained parent histories. Main `5ed005c32732f415ea1868951fb42a132ddf045a` is merged so the recent description editor and asset work are preserved.
+
+Native labels now use an immutable, operator-attested catalog version and an atomic native receipt. An exact already-accepted native label retry can read its current result after authority changes, while new requests still obey authentication, scope, authority, CAS and F27 gates. The combined gateway excludes both native labels and native assignment from provider draining; one feature cannot restore the other's mirror.
+
+Accepted native intake carries server-derived routing metadata. Compatible retained browser jobs use the receipt-aware Calendar/Samples adapter despite generic routing-flag failures. Same-actor sign-in durably resumes suspended work. Repeated failures retain the accepted native job and give honest recovery guidance; a blocked job can still prevent another post in that browser until recovery finishes. Older unmarked jobs and n8n transports remain a separate G6 obligation.
+
+The v3 queue correction `c1c5e6be6cc591192d213f749d0f212aa9430309`, integrated at `bf710ee3fc2b203b561ce452969c1e967741a6e6`, now retains even metadata-absent pending/recovery requests at the existing automatic retry limits. It pauses automatic attempts and offers exact-owner **Retry saved post** in the existing Calendar, Samples and Submit error areas. Request identity, accepted state and partial completion are preserved, with current-view/client/actor/record rechecks under the existing Web Lock. Its35 actual-source groups include three preserved baseline-deletion controls; six Chromium helper/DOM cases cover keyboard, mouse/touch, themes and fit. Independent source review passed. This is browser-local retention, not server backup, provider-idempotency or whole-form/client proof. The separate v1 expiry, sign-out, unheld live-click4xx and n8n paths remain G6 obligations.
+
+The bounded outbound cutoff orders queue/control locks, prevents old workers from taking new leases, preserves terminal native receipts and exposes classified queue debt. F27 snapshot and classification require persisted intent evidence; only the reserved SQL-only drill may claim after cutoff. The reviewed worker now moves viewer reads after claim and reauthorizes the row lease/generation before every provider read, pagination request and mutation. Old deployed isolates, preauthorized in-flight requests, normal emergency provider replay, other queues, inbound, n8n, external credentials and global egress remain outside this bounded proof.
+
+## Evidence, with its boundaries
+
+| Source / evidence | Result | What it does not prove |
+|---|---|---|
+| PR1325 `4bb6c0745b615ddc4a19e09fb0ef0ee441ffd119`, hosted run `34049309334` | All 445 unit suites; dedicated history/v7 data and schema reconstruction; F27, identity and types passed. Earlier 442/445 loader failure is preserved in that PR. | Serving anonymous writers or new catalog/cutoff data recovery. |
+| Combined `d2d3747a1646c9356c7d10bfc19181a0807666f1` | 42 local HTTP/database groups, 64 requests, zero external attempts; includes six dated anonymous-source fixture groups. | Live anonymous journeys. Later label integration is tested separately. |
+| Combined `4195d0ac19a0eafde1d5d3a3693da121650971ff` | 40 actual-handler label groups plus 46 assignment groups; both native trigger families installed in both disposable fixtures. Gateway SHA256 `fed25744b07b9bc1825019fd7e5b4b69079d866b25f3ead4b81faaf9f849d1da`. Independent combined guard review passed. | Installed schema, live roster/catalog completeness, provider-wide independence. |
+| Cutoff `33bfd23a51c388008531ec8ecba58e3152a115e0` | 14 actual database/gateway/worker-helper groups and 16 source checks passed. Service debt readers work; authenticated readers refuse; missing control remains an error. | Actual external in-flight completion, normal emergency provider replay, other egress roots. |
+| Worker `6784f1f8f671c55439ad0aed03d0f35a98a43f2d`, integrated at `5f89b89e15b788fa902ba78d641f5b640e7c8bee` | 34 disposable whole-handler/SQL groups and 33 offline checks; zero external requests. Includes preserved old-worker negative controls, cutoff races, paginated reads and malformed/missing authorization. Independent exact-source/receipt review passed. | Old serving workers, an authorization already granted before cutoff, other provider roots or live alerting. |
+| Browser retention `67745a6b2` | 11 extracted routing/resume/retention controls and existing intake/Samples controls passed. Older extraction loaders now load the real new helpers; assertions are retained. | A full browser/client lifecycle or server admission. |
+| [Fresh read-only boundary](2026-09-06-linear-exit-live-boundary.json) | Live production-write v68 and outbound v47 match captured main; anonymous writer v48/v49 closures still match their preserved September4 versions. All eight named new tables, seven new RPCs and four new flags were absent at the query time. | Whole-schema completeness, client functionality or authorization to install anything. |
+
+Private receipt digests: combined HTTP `70ec30d04288433d550512201a872b43f1129804d51c4e9e2db331ee7187d271`; combined labels/assignment `c72c03fb0fffc93c317abad25ca7deff1633035f02f7fbeaa45cb4a5ea899353`; cutoff `857ae44815589714af1784fc8fec583a4e3dd0c694021575349729635a992a6d`. Private files and database rows are not published.
+
+Recovery successor `d3d70baf0613184f5983fa7c00dbad36c7b5cb05` is now integrated. Its runtime proof at `6343d0ea3903b09e602d47fc7960e091c48cbb1c` passed20 actual schema/data/replay groups across39 owners, including the separate v8 grant/trigger-helper data restore, retained label replay and valid cutoff lease refusal. The default v7 path separately passed16/37 at `f023f553341e93563116789d6cc64380c69a6122`. Named independent source/receipt review closed. [Exact evidence and earlier failures](../ops/RECOVERY_SCHEMA_V8.md) preserve the scope of each run. No scheduled format or production state changed.
+
+The first combined hosted run `34051779861` at `dd831df58` passed452 of454 unit suites; both failures were outdated test contracts for the additive intake response metadata and native label catalog version. All browser, type, F27 and identity checks passed; the newly wired actual native-label handler lane passed40. Later restore steps were skipped after the unit failure. Correction `e7c0c965c3d414fc633b01de291e1342c68f6bd2` changes tests/docs only and preserves46 picker,72 Production UI and11 routing checks, with three injected regression controls still failing. Successor `e5206d248b0235fe19a19c74dd6c9093d1eed3fe` passed all455 unit suites in hosted run `34053522104`, plus the dedicated Workload17/35, native data12/37, v7 schema16/37 and v8 schema/data/replay20/39 steps; all applicable browser, identity, F27 and type checks passed. That completed milestone is retained. The subsequent worker integration and declarative re-pin require their own exact-head hosted result.
+
+The source-only four-closure calculation at `5f89b89e15b788fa902ba78d641f5b640e7c8bee` changes only outbound to `43329cdf65d87d20dffa16e5711a3deb0f1902acceae652cd5c5f5d255adcde9` (five files). Batch, deliverable and production closures remain identical to the preceding candidate. Both Section4 carriers are updated; this neither dispatches the workflow nor proves deployment. The worker's private receipt digest is `8de6bc39c9a030ae0f76c00d3bcbd604c1c3bcf08b06a31bb6f69f9db03a1f88`.
+
+Hosted run `34055217417` at `16a701a318eaf829a6357bb0352ff7babd51b1c6` passed455/456 unit suites, including the new33 offline and34 actual worker/SQL groups. The sole failure was `test/write-ui-outbox-parity.js` expecting old one-argument team lookup calls. The correction requires the exact added `{ supabase, row }` context on both UUID and team-key paths and retains every routing predicate. Separate negative controls remove each binding and must fail. No runtime or closure changes are made by this correction. Later dedicated history/restore steps were skipped in this failed run; the preceding e520 restore success remains its own exact evidence. Browser, types, F27 and privacy passed.
+
+Successor `ef4f16e791c4a93e24891d76510b19de033111d8` passed all456 hosted unit suites in run `34055960286`, including the33 offline/34 actual worker groups and the later dedicated history/Workload, v7 data/schema and v8 schema/data/replay20/39 checks. Named post-push review passed. The subsequent browser-retention integration requires its own current-head hosted result. All four Edge Function closures and SQL are unchanged by that browser correction.
+
+## Release holds and client behavior
+
+Preparation changes no client experience: this is an unmerged candidate, new database owners/capabilities are absent, and no deployment, flag, n8n or provider action occurred. The compatible frozen anonymous serving composition must be separately reviewed; deploying the repository authentication paths would violate the client contract.
+
+Before installation, verify the latest combined hosted result and then independently prove installed schema/custody, compatible v8 backup selection and observation. Canonical v7 remains exactly37 tables; its older proof cannot certify the two new owners. Full-population work/comment/asset conservation, both old n8n transports, stale browser and endpoint paths, and all provider execution roots remain open under G4-G8. The ordinary outbound worker's pre-claim provider reads are now repaired in source; deployed-worker quiescence remains required. The September6 read-only Linear workspace lookup returned UNAUTHORIZED, holding fresh provider inventory/export until the owner reconnects the integration. That connection failure does not establish the health of the product's separate runtime credentials.
+
+Before any client-facing release, current reserved TEST/staff journeys must pass with provider access denied, the served source and installed schema must match the reviewed candidate, and the existing watcher design must be activated and drilled. Delivery and human acknowledgement must be proven through SyncViewbot plus an independent missed-run/fallback observer; no new messages or alert activation are performed by this candidate. Existing owner questions remain pending.
+
+Before any accepted native work, an uninstalled source change is reversible. Afterwards preserve native rows, manifests, catalog versions, journal, receipts, ingress and cutoff state, and hold new admission through compatible controls. Reverting to an old full-row materializer or requeuing terminal native receipts is not a safe rollback. Stop progression on lost/duplicated work, unexplained queue debt, unexpected provider traffic, anonymous 401s, false empty readers, incompatible recovery or an undelivered alarm.
+
+G9 still requires 72 continuous hours after access removal; G10 requires at least 14 days after Decision A. Engineering work cannot satisfy those elapsed-time gates in one day. The September15 cancellation must be reconciled with that retention window by the owner.

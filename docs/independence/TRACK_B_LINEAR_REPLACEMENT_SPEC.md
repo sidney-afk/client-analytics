@@ -1624,6 +1624,19 @@ miss; it prevents the current fail-open success branch from surviving the cutove
 
 ## 13. Cutover & teardown (B5)
 
+**2026-09-05 assignment draft:** `docs/audits/2026-09-05-native-assignee-eligibility.md`
+removes the provider eligibility read for server-admitted native intake only
+(explicit and automatic assignment, both teams), keeps native role/team/activity
+checks, and leaves SyncLinear assignee/create pickers on the provider lane. It
+does not activate any epoch and is not the full retired-mode assignment contract.
+
+**2026-09-05 bounded draft:** `docs/audits/2026-09-05-native-only-intake.md`
+records the PR1293-dependent, disabled intake epoch slice. It retains terminal
+outbox rows as replay receipts and does not implement this section's full
+zero-outbox retired epoch, materializer, server freeze or serving readiness.
+F32/F61/F92 and the activation gates below remain open; no step is authorized
+by that source/local PostgreSQL evidence.
+
 0. **Build and TEST-prove the Linear-free retired epoch without activating it for real teams
    (F32):** under an isolated service-only TEST override, native intake/mutations no longer require
    Linear validation, project/assignee eligibility, or identifiers, and new mirror-outbox enqueue is

@@ -1,0 +1,240 @@
+{
+  "base_commit": "8e3d0865041a26010bc2d2f6ee78346357eb2aa3",
+  "classification": "DISPOSABLE_SQL_WHOLE_HANDLER_RECORDING_FETCH",
+  "passed": 34,
+  "failed": 0,
+  "recorded_provider_attempts": 10,
+  "external_requests": 0,
+  "source_sha256": {
+    "supabase/functions/linear-outbound/index.ts": "f54c13ac962e4c0b991bd975a53a63905a30d34453417dfae5022f272362a249",
+    "migrations/2026-09-06-linear-outbound-cutoff.sql": "e78ae3db4da8bee59515d5200c7ab5565fd59ac6e074e471fe7106d4cc2a05e5",
+    "scripts/linear-outbound-read-seam.mjs": "4c3a5493fd3e8bc2749f66e68a5085f0e1ec5ffadc5dab7592ce93e1fe8a19c5",
+    "scripts/linear-outbound-read-lane.mjs": "cae1be41d0b36b220276f7864ab3501abccce82b03d42eefed9ce2383c23ca5a",
+    "scripts/linear-outbound-cutoff-rehearsal.js": "25ae05835195449df2e1468cb368026c5b39833675fc567f804ee743955bb1fb"
+  },
+  "report_sha256": "8de6bc39c9a030ae0f76c00d3bcbd604c1c3bcf08b06a31bb6f69f9db03a1f88",
+  "source_symbols": [
+    {
+      "symbol": "linearGraphql",
+      "line": 198
+    },
+    {
+      "symbol": "readViewer",
+      "line": 230
+    },
+    {
+      "symbol": "readIssue",
+      "line": 239
+    },
+    {
+      "symbol": "readLinearComment",
+      "line": 296
+    },
+    {
+      "symbol": "readCommentByMarker",
+      "line": 314
+    },
+    {
+      "symbol": "readAttachmentRevisionPresent",
+      "line": 346
+    },
+    {
+      "symbol": "readTeam",
+      "line": 377
+    },
+    {
+      "symbol": "readTeamByRowTeam",
+      "line": 389
+    },
+    {
+      "symbol": "authorizeProviderDispatch",
+      "line": 671
+    }
+  ],
+  "checks": [
+    {
+      "name": "generation zero rejects malformed null authorization before transport",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "generation zero rejects malformed  authorization before transport",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "generation zero rejects malformed false authorization before transport",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "generation zero rejects malformed 0 authorization before transport",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "generation zero rejects malformed undefined authorization before transport",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "generation zero rejects malformed -1 authorization before transport",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "generation zero rejects malformed 0.5 authorization before transport",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "missing synthetic provider key refuses without an authorization or transport attempt",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "unchanged base empty invocation attempts viewer despite active cutoff",
+      "pass": true,
+      "recorded_provider_attempts": 1
+    },
+    {
+      "name": "candidate ordinary empty invocation makes no provider attempt after cutoff",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "inactive positive actual handler retains viewer issue mutation checkpoint and terminal receipt",
+      "pass": true,
+      "recorded_provider_attempts": 3
+    },
+    {
+      "name": "post-cutoff queued/new debt cannot claim and remains retained without provider attempts",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "failed runtime flag read refuses before any provider attempt",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "cutoff committed after claim but before first read refuses without relabeling success",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "unchanged base retained lease makes an issue read after cutoff",
+      "pass": true,
+      "recorded_provider_attempts": 1
+    },
+    {
+      "name": "actual viewer transport rejects old generation lease before fetch",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "actual issue transport rejects old generation lease before fetch",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "actual comment transport rejects old generation lease before fetch",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "actual comment marker transport rejects old generation lease before fetch",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "actual team transport rejects old generation lease before fetch",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "actual team catalog transport rejects old generation lease before fetch",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "actual attachment page transport rejects old generation lease before fetch",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "actual mutation transport rejects old generation lease before fetch",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "Comments pagination reauthorizes each next page",
+      "pass": true,
+      "recorded_provider_attempts": 1
+    },
+    {
+      "name": "Attachments pagination reauthorizes each next page",
+      "pass": true,
+      "recorded_provider_attempts": 1
+    },
+    {
+      "name": "cutoff between issue read and mutation refuses mutation and leaves prior authorization debt",
+      "pass": true,
+      "recorded_provider_attempts": 2
+    },
+    {
+      "name": "grant before activation is explicitly in flight; next provider request refuses",
+      "pass": true,
+      "recorded_provider_attempts": 1
+    },
+    {
+      "name": "malformed authorization receipt cannot reach provider",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "malformed authorization receipt cannot reach provider",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "malformed authorization receipt cannot reach provider",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "malformed authorization receipt cannot reach provider",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "missing cutoff control refuses before fetch and preserves queued intent",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "real native gateway accept and replay after cutoff remain terminal without provider intent",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    },
+    {
+      "name": "reserved F27 actual SQL-only handler stays provider-free after active cutoff",
+      "pass": true,
+      "recorded_provider_attempts": 0
+    }
+  ],
+  "limits": [
+    "Provider responses are synthetic; SQL and complete worker handler are actual source",
+    "Fixture administrator reopens control between independent cases only; no product re-enable API",
+    "Baseline old isolate can still read; exact deployment and old-worker quiescence required",
+    "A grant committed before activation is in flight, not atomically network-revoked",
+    "Other provider runtimes, webhook and credential cutoff remain held; no serving or installation proof"
+  ],
+  "offline_checks": 33,
+  "hosted": "UNPROVEN",
+  "serving": "UNPROVEN",
+  "activation": "HELD",
+  "f27_expected_closure": "HELD_FOR_COMBINED_REPIN",
+  "local_typecheck": "UNPROVEN: Deno unavailable",
+  "full_suite": "NOT_RUN: focused scope"
+}

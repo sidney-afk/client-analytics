@@ -76,13 +76,13 @@ const pop = source.slice(source.indexOf('const parentRow   = parentId'),
   source.indexOf('No upcoming sub-issues.'));
 ok(/const parentIdent = clientName/.test(pop),
   'the header derives a Linear IDENTIFIER for the SyncView deep link');
-ok(/parentSyncUrl = openIdent\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(openIdent\)\)/.test(pop),
+ok(/openIdent\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(openIdent\)\)/.test(pop),
   'the header link is the ?prod=1&d= deep link Production already resolves by identifier');
 ok(/Open SyncView →/.test(pop), 'the primary header action now reads Open SyncView');
 ok(/workload-popover-parent-linear[^>]*href="\$\{wlEscape\(openLinearUrl\)\}/.test(pop)
   && /Linear ↗/.test(pop),
 'Linear stays reachable from the header as a secondary link, aimed at whatever the primary button opens');
-ok(/const rowSyncUrl = s\.identifier\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(s\.identifier\)\)\s*:\s*\(s\.url \|\| ''\);/.test(pop),
+ok(/const rowSyncUrl = \(s\.nativeId \|\| s\.identifier\)\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(s\.nativeId \|\| s\.identifier\)\)\s*:\s*\(s\.url \|\| ''\);/.test(pop),
   'each sub-issue row links to its own SyncView detail, falling back to Linear only when no identifier exists');
 ok(/workload-popover-item-main" href="\$\{wlEscape\(rowSyncUrl\)\}/.test(pop),
   'the row MAIN click goes to SyncView');
@@ -192,6 +192,17 @@ ok(!/subs\[0\]\?\.identifier/.test(resolveBlock) && !/subs\[0\]\?\.url/.test(res
 const noClient = resolveLinks(withParent, PARENT_ID, '', [CHILD], loc);
 ok(noClient.parentIdent === '' && noClient.parentUrl === '',
   'the editor-total badge spans clients, so it claims no parent');
+
+const nativeChild = {...CHILD, identifier:'Repeated display name', nativeId:'native-video-1', workloadSource:'native', url:''};
+const nativeSibling = {...SIBLING, identifier:'Repeated display name', nativeId:'native-video-2', workloadSource:'native', url:''};
+const nativeOne = resolveLinks(noParent, 'native-batch-1', 'A Client', [nativeChild], loc);
+ok(nativeOne.parentSyncUrl === '/?prod=1&d=native-video-1' && !nativeOne.openIsParent,
+  'native single-video pill uses the actual deliverable identity, never a repeated display name');
+const nativeMany = resolveLinks(noParent, 'native-batch-1', 'A Client', [nativeChild,nativeSibling], loc);
+ok(nativeMany.parentSyncUrl === '/?prod=1&batch=native-batch-1' && nativeMany.openIsParent,
+  'native multi-video pill opens the batch route even when the parent is absent from the snapshot');
+ok(nativeOne.openLinearUrl === '' && nativeMany.openLinearUrl === '',
+  'native destinations introduce no provider escape link');
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nWorkload SyncView-link and credentials-label checks passed.');

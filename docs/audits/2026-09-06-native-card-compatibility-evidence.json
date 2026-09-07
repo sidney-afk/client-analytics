@@ -1,0 +1,294 @@
+{
+  "browser_source_sha": "df0cc8db384ed7bb0ada84469a5103062a7611f0",
+  "document_base_sha": "d07d06d843c0a0b61d1d26b1eb2aec00d9dddf26",
+  "classification": "LIVE_READ graph and SOURCE_ONLY browser/EF inspection; no execution",
+  "workflows": [
+    {
+      "surface": "calendar",
+      "observed_at": "2026-09-06T01:40:22.819Z",
+      "active": true,
+      "published_same_as_draft": true,
+      "active_version_id": "7ef44971-5c6b-46d7-b7d1-68a504913d28",
+      "updated_at": "2026-06-26T20:33:38.707Z",
+      "mcp_returned_graph_sha256": "2482a9ab5e8725c487f5d747d89a9b6bae5d13e94db09174750b0b1bd978020f",
+      "build_row_code_sha256": "a467b9adca553e44821dd284add68d7621b9e10c7f37e715a69b7a1d814938c5",
+      "hash_meaning": "Exact JSON.stringify of MCP-returned published nodes/connections; provider-sanitized representation, not raw n8n export.",
+      "node_count": 17,
+      "reachable_node_count": 17,
+      "raw_native_source_read_nodes": 0,
+      "native_deliverable_fields_whitelisted": false,
+      "frozen_ef_forward_nodes": 0,
+      "direct_row_writer_ordinals": [
+        {
+          "ordinal": 11,
+          "table": "calendar_posts",
+          "operation": "update"
+        },
+        {
+          "ordinal": 12,
+          "table": "calendar_posts",
+          "operation": "create-default-UNPROVEN"
+        }
+      ],
+      "sheet_write_ordinals": [
+        5
+      ],
+      "edges": [
+        [
+          1,
+          [
+            2
+          ]
+        ],
+        [
+          2,
+          [
+            13
+          ]
+        ],
+        [
+          3,
+          [
+            8
+          ]
+        ],
+        [
+          4,
+          [
+            5,
+            9
+          ]
+        ],
+        [
+          5,
+          []
+        ],
+        [
+          6,
+          [
+            7
+          ]
+        ],
+        [
+          7,
+          []
+        ],
+        [
+          8,
+          [
+            7,
+            4
+          ]
+        ],
+        [
+          9,
+          [
+            10
+          ]
+        ],
+        [
+          10,
+          [
+            15,
+            12
+          ]
+        ],
+        [
+          11,
+          [
+            6
+          ]
+        ],
+        [
+          12,
+          [
+            6
+          ]
+        ],
+        [
+          13,
+          [
+            14
+          ]
+        ],
+        [
+          14,
+          [
+            3
+          ]
+        ],
+        [
+          15,
+          [
+            16
+          ]
+        ],
+        [
+          16,
+          [
+            17
+          ]
+        ],
+        [
+          17,
+          [
+            11
+          ]
+        ]
+      ]
+    },
+    {
+      "surface": "samples",
+      "observed_at": "2026-09-06T01:40:22.820Z",
+      "active": true,
+      "published_same_as_draft": true,
+      "active_version_id": "b139f56e-e6ea-474f-bf3a-87ac80e88d91",
+      "updated_at": "2026-06-25T20:04:46.534Z",
+      "mcp_returned_graph_sha256": "fdad94b4d808c7586485c062bb8a2c3580236e67d4ed5f574b89a8dfb27fed13",
+      "build_row_code_sha256": "684d2c54b5ba2e3a28f1dc6cc9fa9d99a6697d31a7f8fc86fb379d3a2f206473",
+      "hash_meaning": "Exact JSON.stringify of MCP-returned published nodes/connections; provider-sanitized representation, not raw n8n export.",
+      "node_count": 17,
+      "reachable_node_count": 17,
+      "raw_native_source_read_nodes": 0,
+      "native_deliverable_fields_whitelisted": false,
+      "frozen_ef_forward_nodes": 0,
+      "direct_row_writer_ordinals": [
+        {
+          "ordinal": 13,
+          "table": "sample_reviews",
+          "operation": "update"
+        },
+        {
+          "ordinal": 14,
+          "table": "sample_reviews",
+          "operation": "create"
+        }
+      ],
+      "sheet_write_ordinals": [],
+      "edges": [
+        [
+          1,
+          [
+            2
+          ]
+        ],
+        [
+          2,
+          [
+            3
+          ]
+        ],
+        [
+          3,
+          [
+            4
+          ]
+        ],
+        [
+          4,
+          [
+            5
+          ]
+        ],
+        [
+          5,
+          [
+            6,
+            7
+          ]
+        ],
+        [
+          6,
+          []
+        ],
+        [
+          7,
+          [
+            8
+          ]
+        ],
+        [
+          8,
+          [
+            9
+          ]
+        ],
+        [
+          9,
+          [
+            10,
+            14
+          ]
+        ],
+        [
+          10,
+          [
+            11
+          ]
+        ],
+        [
+          11,
+          [
+            12
+          ]
+        ],
+        [
+          12,
+          [
+            13
+          ]
+        ],
+        [
+          13,
+          [
+            15,
+            16
+          ]
+        ],
+        [
+          14,
+          [
+            15,
+            16
+          ]
+        ],
+        [
+          15,
+          [
+            6
+          ]
+        ],
+        [
+          16,
+          [
+            17
+          ]
+        ],
+        [
+          17,
+          []
+        ]
+      ]
+    }
+  ],
+  "limits": [
+    "MCP graph is provider-sanitized, not an authenticated raw export.",
+    "Static published reachability does not prove frequency, credential success, receipt acceptance or delivery.",
+    "Calendar subworkflow is not traversed: direct scalar writer is independently reachable after it, and the create branch bypasses it.",
+    "No workflow, client, provider or database mutation; no event/alert/test dispatch."
+  ],
+  "prior_frozen_capture_indexes": [
+    {
+      "function": "calendar-upsert",
+      "prior_reported_version": 48,
+      "index_sha256": "414976024b7651afd03ddd9bc6b18eba3b97951fa3ed6bc98c05c0fc3256e389",
+      "scope": "Prior private serving capture; index hash only. No fresh serving lookup/closure comparison in this pass."
+    },
+    {
+      "function": "sample-review-upsert",
+      "prior_reported_version": 49,
+      "index_sha256": "d95eb9760a77305397ad045556cd160b2b12f125b23b1ca92f97acfa225b71c6",
+      "scope": "Prior private serving capture; index hash only. No fresh serving lookup/closure comparison in this pass."
+    }
+  ]
+}

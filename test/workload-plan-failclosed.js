@@ -608,6 +608,7 @@ function ok(condition, message) {
     let failuresMarked = 0;
     const context = {
       _wlPlanLoadGeneration: 0,
+      _wlPlanSessionGeneration: 0,
       wlState: {
         planByIssueId: new Map(),
         planHasSnapshot: false,
@@ -646,12 +647,12 @@ function ok(condition, message) {
     vm.runInContext(extract('wlLoadSnapshot'), context);
     const older = context.wlLoadSnapshot(true, null);
     const newer = context.wlLoadSnapshot(true, null);
-    newIssues.resolve({ issues: [{ id: 'newer' }], fetchedAt: 2 });
+    newIssues.resolve({ issues: [{ id: 'newer' }], fetchedAt: 2, plans: { marker: 'newer' }, metadata: { marker: 'newer', weight: 3 }, legacyTeams: [] });
     newPlans.resolve({ marker: 'newer' });
     newMetadata.resolve({ marker: 'newer', weight: 3 });
     await newer;
-    oldIssues.resolve({ issues: [{ id: 'older' }], fetchedAt: 1 });
-    oldPlans.reject(new Error('older failed'));
+    oldIssues.reject(new Error('older failed'));
+    oldPlans.resolve({ marker: 'unused' });
     oldMetadata.resolve({ marker: 'older', weight: 2 });
     await older;
     ok(adopted.join(',') === 'newer'
@@ -729,7 +730,8 @@ function ok(condition, message) {
       },
       _wlV2Ready: () => true,
       _syncviewStaffIdentityForHeaders: () => ({ role: 'admin' }),
-      _wlV2FetchIssues: async () => staleIssues,
+      loadLinearIssues: () => { metadataIssueIds = staleIssues.map(row => row.id); metadataStarted.resolve(); return metadata.promise.then(rows => ({ issues: staleIssues, metadata: rows, plans: { rows: [], readGeneration: 0 }, fetchedAt: 2, legacyTeams: [] })); },
+      _wlV2FetchIssues: () => { throw new Error('unexpected legacy snapshot'); },
       wlFetchPlanRows: async () => ({
         rows: [{ issue_id: issue.id, plan_date: '2026-07-29' }],
         readGeneration: 0,
@@ -782,6 +784,7 @@ function ok(condition, message) {
     vm.runInContext(extract('wlValidRfc3339Timestamp'), context);
     vm.runInContext(extract('wlApplyDueLocal'), context);
     vm.runInContext(extract('wlSetDueDate'), context);
+    vm.runInContext(extract('wlLoadSnapshot'), context);
     vm.runInContext(extract('wlRefetchSilent'), context);
 
     const background = context.wlRefetchSilent();

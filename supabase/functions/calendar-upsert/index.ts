@@ -13,6 +13,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
+import { nativeCardSource, readNativeCardRequest, materializeNativeCard, nativeCardUnretained, nativeCardUnknown } from "../_shared/native-card-materialization.mjs";
 import {
   authorizeBrowserWrite,
   browserWriteAuthResponse,
@@ -478,9 +479,19 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method" }, 405);
 
+  const nativeSource = nativeCardSource(req);
+  let nativeRawText = "";
+  let nativeAttempted = false;
   let body: JsonMap;
-  try { body = JSON.parse(await req.text()) as JsonMap; }
-  catch (_e) { return json({ ok: false, error: "invalid body" }, 400); }
+  if (nativeSource) {
+    const read = await readNativeCardRequest(req);
+    if ("status" in read) return json(read.body, read.status);
+    nativeRawText = read.rawText;
+    body = read.body;
+  } else {
+    try { body = JSON.parse(await req.text()) as JsonMap; }
+    catch (_e) { return json({ ok: false, error: "invalid body" }, 400); }
+  }
 
   const now = isoNow();
   let actor: Actor = { actor: null, role: null, source: "calendar-upsert" };
@@ -499,6 +510,13 @@ Deno.serve(async (req: Request) => {
     client = built.client;
     id = clean(built.row.id);
     actor = await authorizeBrowserWrite(supabase, req, client, "calendar-upsert");
+    if (nativeSource) {
+      nativeAttempted = true;
+      const native = await materializeNativeCard({ supabase, surface: "calendar", source: nativeSource,
+        rawText: nativeRawText, client, cardId: id });
+      outcome = native.body.outcome;
+      return json(native.body, native.status);
+    }
     const existingRead = await readExisting(supabase, client, id);
     const incomingLink = has(built.row, "linear_issue_id") ? clean(built.row.linear_issue_id) : "";
     const twins = await readLinkTwins(supabase, client, incomingLink);
@@ -555,11 +573,16 @@ Deno.serve(async (req: Request) => {
       outcome = "denied";
       return json({ ok: false, error: auth.code }, auth.status);
     }
+    if (nativeSource) {
+      const refused = nativeAttempted ? nativeCardUnknown() : nativeCardUnretained();
+      return json(refused.body, refused.status);
+    }
     const msg = e instanceof Error ? e.message : "request failed";
     const status = msg.indexOf("phantom-row guard") === 0 ? 400 : 500;
     return json({ ok: false, error: msg }, status);
   } finally {
-    console.log(JSON.stringify({
+    if (nativeSource) console.log(JSON.stringify({ fn: "calendar-upsert", action: "native-card", outcome, ms: Date.now() - started }));
+    else console.log(JSON.stringify({
       fn: "calendar-upsert",
       action: "upsert",
       client,

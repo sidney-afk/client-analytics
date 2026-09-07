@@ -176,7 +176,11 @@ async function roster() {
    never re-thrown, so nothing downstream can ever see the original message. */
 function git(args, { termInArgs = false } = {}) {
   try {
-    return execFileSync('git', ['-C', ROOT, ...args], { encoding: 'utf8' });
+    // A combined validation diff can exceed Node's 1 MiB default. Keep an
+    // explicit finite bound; overflow must still refuse the scan, never clip it.
+    return execFileSync('git', ['-C', ROOT, ...args], {
+      encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 60000, windowsHide: true,
+    });
   } catch (err) {
     if (err && err.status === 1) return null;      // grep/diff: no match is a result
     const code = err && (err.status !== undefined ? err.status : err.code);

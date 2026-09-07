@@ -47,7 +47,7 @@ function ok(condition, message) {
 }
 
 (async () => {
-  const policy = await import(path.join(ROOT, 'supabase/functions/production-write/policy.mjs'));
+  const policy = await import(require('url').pathToFileURL(path.join(ROOT, 'supabase/functions/production-write/policy.mjs')).href);
   const R = policy.staffAssetReadAllowed;
   const S = policy.staffOperationAllowed;
 

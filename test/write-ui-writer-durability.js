@@ -182,7 +182,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     && sxrFlush.includes("_writeUiJournalCoversRepairRefs(retryPost, 'sxr', 'card'")
     && calFlush.includes('_writeUiHeldSourceEdits') && sxrFlush.includes('_writeUiHeldSourceEdits'),
   'normal retries require exact journal-ref coverage and quarantine cache-only edits');
-  assert(calFlush.includes('return _calAwaitCardSave(pid)') && sxrFlush.includes('return _sxrAwaitCardSave(pid)'), 'review acknowledgements wait through any trailing serialized save');
+  assert(calFlush.includes('return _calAwaitCardSave(pid)') && sxrFlush.includes('return _sxrAwaitCardSave(pid, owner)'), 'review acknowledgements wait through the originating owner trailing serialized save');
   assert(calFlush.indexOf('checkpointCommittedSource()') < calFlush.indexOf('await _calUpsertFetch'), 'Calendar checkpoints native acknowledgement before source IO');
   assert(sxrFlush.indexOf('checkpointCommittedSource()') < sxrFlush.indexOf('await _sxrUpsertFetch'), 'Samples checkpoints native acknowledgement before source IO');
   assert(calFlush.includes('_writeUiDeferLegacyStatusUntilSourceSave')
@@ -199,7 +199,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     && extract('_sxrUpsertFetchPinned').includes('SXR_UPSERT_N8N_URL'),
   'source-gated legacy actions write through the exact source transport recorded before staging');
   assert(calFlush.includes('_writeUiAdoptReplayStatus') && sxrFlush.includes('_writeUiAdoptReplayStatus'), 'source retries project the current native row, not a stale cached status');
-  assert(calFlush.includes('_calCacheWrite(_saveSlug, calState.posts)') && sxrFlush.includes('_sxrCacheWrite(_saveSlug, sxrState.posts)'), 'source-repair checkpoints are crash-durable in the v2 caches');
+  assert(calFlush.includes('_calCacheWrite(_saveSlug, calState.posts)') && sxrFlush.includes('_sxrCacheWrite(_saveSlug, ownedRows())'), 'source-repair checkpoints persist the captured owner rows in the v2 caches');
 
   const calReview = extract('_calReviewRequestTweak');
   const sxrReview = extract('_sxrReviewRequestTweak');
@@ -257,7 +257,8 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   ]) {
     const targetAt = fixture.handler.indexOf('_writeUiLegacyTargetWithLock(');
     const freshPostAt = fixture.handler.indexOf(fixture.freshPost, targetAt);
-    const mintAt = fixture.handler.indexOf(fixture.mint, freshPostAt);
+    const captureAt = fixture.handler.indexOf('_reviewDraftTake(');
+    const mintAt = fixture.handler.indexOf('attemptId = draftAttempt.id', freshPostAt);
     const inspectAt = fixture.handler.indexOf('await _writeUiLegacyInspectTargetTweak', mintAt);
     const inspectionCommittedAt = fixture.handler.indexOf("if (inspection.state === 'committed')", inspectAt);
     const listAt = fixture.handler.indexOf(fixture.comments, inspectAt);
@@ -269,7 +270,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     const sourceAt = fixture.handler.indexOf(fixture.sourceSave, stagedCommittedAt);
     const settledAt = fixture.handler.indexOf(')).then(async outcome =>', sourceAt);
     const sourceErrorAt = fixture.handler.indexOf(fixture.sourceError, settledAt);
-    assert(targetAt >= 0
+    assert(captureAt >= 0 && captureAt < targetAt
       && fixture.handler.slice(targetAt, targetAt + 120).includes(`'${fixture.surface}'`)
       && freshPostAt > targetAt
       && mintAt > freshPostAt
@@ -283,9 +284,9 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       && stageAt < stagedCommittedAt
       && stagedCommittedAt < sourceAt
       && sourceAt < settledAt,
-    fixture.label + ' holds the exact target from fresh action identity/snapshot construction through source commit');
-    assert(fixture.handler.includes('const body = rawDraft.trim()')
-      && fixture.handler.includes(`${fixture.state}.drafts[key] = rawDraft`)
+    fixture.label + ' captures the durable identity first, then holds the exact target from fresh snapshot through source commit');
+    assert(fixture.handler.includes('body = rawDraft.trim()')
+      && fixture.handler.includes("_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')")
       && fixture.handler.includes('deferLegacyUntilSourceSave: true')
       && fixture.handler.includes(fixture.activeBypass)
       && fixture.handler.includes('|| inspection.rearmed_team_delivery === true')
@@ -367,7 +368,8 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       surface + ' stages the exact inspected action and approval clears from its committed source edits');
     const reviewState = surface === 'Samples' ? '_sxrReviewState' : '_calReviewState';
     const surfaceKey = surface === 'Samples' ? 'sxr' : 'calendar';
-    assert(handler.includes(`attemptId = String(${reviewState}.draftActionIds[key] || '')`)
+    assert(handler.includes('const draftAttempt = _reviewDraftTake(')
+      && handler.includes('attemptId = draftAttempt.id')
       && handler.includes(`inspection = await _writeUiLegacyRefreshActiveTweak('${surfaceKey}', inspection)`),
     surface + ' reuses only the preserved action id and rechecks active ownership before retrying source');
     assert(handler.includes('deferredLegacySourceOnly = staged.source_only === true')
@@ -438,7 +440,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     const conflictOutcome = fixture.handler.slice(conflictOutcomeAt, conflictOutcomeEnd);
     const rollbackAt = fixture.handler.indexOf(`_writeUiRollbackRequestTweak('${fixture.surface}'`, stageAt);
     const reconcileAt = fixture.handler.indexOf('_writeUiLegacyReconcileCommittedTweak', conflictOutcomeAt);
-    const restoredDraftAt = fixture.handler.indexOf(`${fixture.state}.drafts[key] = rawDraft`, conflictOutcomeAt);
+    const restoredDraftAt = fixture.handler.indexOf("_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')", conflictOutcomeAt);
     const restoredErrorAt = fixture.handler.indexOf(
       `${fixture.state}.errors[key] = ${fixture.conflictName}.source_superseded`,
       restoredDraftAt
@@ -464,7 +466,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
       && committedTeamAt > committedOutcomeAt
       && savedTeamAt > Math.max(conflictOutcomeAt, committedOutcomeAt),
     fixture.label + ' resolves ownership and staging inside the target lock, then flushes team debt only after target release');
-    assert(conflictOutcome.includes(`${fixture.state}.drafts[key] = rawDraft`)
+    assert(conflictOutcome.includes("_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')")
       && conflictOutcome.includes(`${fixture.state}.errors[key] = ${fixture.conflictName}.source_superseded`)
       && conflictOutcome.includes(`${fixture.conflictName}.source_superseded !== true`)
       && conflictOutcome.includes(`${fixture.state}.draftActionIds[key] = failedActionId`)
@@ -1258,14 +1260,14 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     const sourceError = handler.indexOf('if (current._saveError)');
     const resolvedRollback = handler.indexOf(`_writeUiRollbackRequestTweak('${surface}'`, sourceError);
     const sourceDraft = handler.indexOf(
-      `${surface === 'sxr' ? '_sxrReviewState' : '_calReviewState'}.drafts[key] = rawDraft`,
+      "_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')",
       sourceError
     );
     const rejectedCatch = handler.lastIndexOf('.catch(');
     const rejectedRollback = handler.indexOf(`_writeUiRollbackRequestTweak('${surface}'`, rejectedCatch);
     const rejectedConfirmation = handler.indexOf('_writeUiLegacyCommittedTweak(', rejectedCatch);
     const rejectedDraft = handler.indexOf(
-      `${surface === 'sxr' ? '_sxrReviewState' : '_calReviewState'}.drafts[key] = rawDraft`,
+      "_reviewDraftFinish(draftAttempt, current._writeUiRetrySourceAt ? 'native' : 'failed')",
       rejectedCatch
     );
     assert(sourceError >= 0
@@ -1282,9 +1284,9 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     assert(handler.includes("inspection.state === 'active'")
       && handler.includes("inspection.state === 'committed'")
       && handler.includes('String(retryGate.comment_id || \'\')')
-      && handler.indexOf(surface === 'sxr' ? '_sxrMintCommentId()' : '_calMintCommentId()')
+      && handler.indexOf('attemptId = draftAttempt.id;', handler.indexOf('_writeUiLegacyTargetWithLock('))
         > handler.indexOf('_writeUiLegacyTargetWithLock('),
-    `${surface} inspects ownership and mints/adopts its action identity only after acquiring the target lock`);
+    `${surface} inspects ownership and adopts the durably captured action identity only after acquiring the target lock`);
     const actionBinding = 'String(action && action.comment_id || attemptId)';
     const reviewState = surface === 'sxr' ? '_sxrReviewState' : '_calReviewState';
     const draftBindings = handler.split(`${reviewState}.draftActionIds[key] = ${actionBinding}`).length - 1
@@ -4175,6 +4177,7 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
     _writeUiAuthoritySnapshot: () => liveAuthority,
     _writeUiFilterCachedPosts: posts => posts,
     _sxrNormStatus: status => status,
+    _sxrWorkOwners: new WeakMap(),
     localStorage: {
       get length() { return storage.size; },
       key: index => Array.from(storage.keys())[index] || null,
@@ -4194,21 +4197,23 @@ for (const name of ['_writeUiComponentHasWorkItem', '_calPushStatusToLinear', '_
   vm.runInContext(exactBetween('function _calCacheKey', 'function _calCacheRead'), cacheContext);
   vm.runInContext(exactBetween('function _calCacheRead', 'function _calCacheWrite'), cacheContext);
   vm.runInContext(exactBetween('function _calCacheWrite', '/* ============================================================'), cacheContext);
+  vm.runInContext(extract('_sxrValidateReadRows'), cacheContext);
+  vm.runInContext(extract('_sxrIsBlankId'), cacheContext);
   vm.runInContext(exactBetween('function _sxrCacheRead', 'function _sxrCacheWrite'), cacheContext);
   vm.runInContext(exactBetween('function _sxrCacheWrite', 'function _sxrIsArchivedRef'), cacheContext);
-  const repair = { id: 'repair-1', video_status: 'Approved', _writeUiRetrySourceAt: '2026-07-12T00:00:00Z', _writeUiRetryEdits: { video_status: 'Approved' } };
+  const repair = { id: 'repair-1', client: 'fixture', video_status: 'Approved', _writeUiRetrySourceAt: '2026-07-12T00:00:00Z', _writeUiRetryEdits: { video_status: 'Approved' } };
   assert(cacheContext._calCacheWrite('fixture', [repair]));
   assert(cacheContext._sxrCacheWrite('fixture', [repair]));
   liveAuthority = null;
   assert.strictEqual(cacheContext._calCacheRead('fixture'), null, 'authority outage does not paint a cache');
   assert.strictEqual(cacheContext._sxrCacheRead('fixture'), null, 'authority outage does not paint a Samples cache');
   cacheContext._calCacheWrite('fixture', [{ id: 'repair-1', video_status: 'In Progress' }]);
-  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', video_status: 'In Progress' }]);
+  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', client: 'fixture', video_status: 'In Progress' }]);
   liveAuthority = { video: 'linear', graphics: 'linear' };
   assert.strictEqual(cacheContext._calCacheRead('fixture').posts[0].video_status, 'Approved', 'Calendar network revalidation cannot erase a committed repair during an authority outage');
   assert.strictEqual(cacheContext._sxrCacheRead('fixture').posts[0].video_status, 'Approved', 'Samples network revalidation cannot erase a committed repair during an authority outage');
   cacheContext._calCacheWrite('fixture', [{ id: 'repair-1', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
-  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
+  cacheContext._sxrCacheWrite('fixture', [{ id: 'repair-1', client: 'fixture', video_status: 'Approved' }], { clearRepairIds: ['repair-1'] });
   assert(!cacheContext._calCacheRead('fixture').posts[0]._writeUiRetrySourceAt && !cacheContext._sxrCacheRead('fixture').posts[0]._writeUiRetrySourceAt,
     'source acknowledgement explicitly clears both durable repair checkpoints');
 

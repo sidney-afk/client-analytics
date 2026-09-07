@@ -1,0 +1,42 @@
+{
+  "schema": "browser-v3-refusal-retention-evidence-v1",
+  "base": "16a701a318eaf829a6357bb0352ff7babd51b1c6",
+  "classification": [
+    "SOURCE_ONLY",
+    "OFFLINE_ACTUAL_SOURCE",
+    "ISOLATED_BROWSER_HELPER"
+  ],
+  "source_sha256": {
+    "index.html": "acda953c3b7a035e17fef5bbe0b0a23e71817fcb6e646db1e947c7b1730400bc",
+    "test/native-intake-retained-refusals.js": "fe6a23e554f86d6590ec2b7c931bc0231d92f92a362690aeade6fc511555c5a2",
+    "test/native-intake-ui-source.js": "f50877aa5fba6756bb92c2b5f15b7a8eab2942f069ccce30dcfaa3806b19f4b9"
+  },
+  "proof": {
+    "offline_groups": 35,
+    "expected_baseline_deletions": 3,
+    "candidate_and_invariance_groups": 32,
+    "chromium_helper_groups": 6,
+    "external_browser_attempts": 0,
+    "affected_existing_suites": 7,
+    "extractor_integrity": "PASS"
+  },
+  "unchanged": [
+    "Edge Functions",
+    "SQL",
+    "workflows",
+    "actual intake and card runner",
+    "actor authorization",
+    "sign-out purge",
+    "provider versus native transport"
+  ],
+  "holds": [
+    "serving and combined full-app journey unproven",
+    "v1 actorless queue and expiry",
+    "unaccepted sign-out purge",
+    "unheld live-click 4xx removal",
+    "browser eviction and unknown provider acceptance",
+    "n8n bypasses",
+    "global G6 and server retention"
+  ],
+  "production_actions": 0
+}

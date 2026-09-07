@@ -138,7 +138,8 @@ const rows = [
      they are on. PARENT_AWARE excludes batch-parent rows; EXEMPT does not,
      with the reason it does not need to. */
   const PARENT_AWARE = {
-    _calNativeVideoEditorPool: [2, 'freest-editor suggestion — the count read plus the parent-uuid read it excludes with'],
+    _calLegacyVideoEditorPool: [2, 'provider freest-editor suggestion — unchanged count and parent exclusion reads'],
+    handleIntakeEditorOptions: [2, 'native intake editor suggestion — complete count and parent exclusion reads'],
     _calFetchNativeBatchPostCounts: [1, 'empty-batch ranking — excludes parents via the batch parent map'],
     autoAssigneeForIntake: [2, 'gateway auto-assign — the load read plus its parent-uuid read, symmetric with the browser'],
   };

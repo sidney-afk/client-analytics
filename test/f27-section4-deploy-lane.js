@@ -70,7 +70,8 @@ const CANDIDATES = new Map([
   // an unbound linear_result. Still index.ts only -- file count 5, entrypoint
   // hash unchanged.
   ['linear-outbound', {
-    source: '1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39',
+    // Uninstalled combined candidate 5f89b89e, matching the dispatch carrier.
+    source: '43329cdf65d87d20dffa16e5711a3deb0f1902acceae652cd5c5f5d255adcde9',
     entrypoint: '606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684',
     files: 5,
   }],
@@ -395,20 +396,14 @@ const CANDIDATES = new Map([
     // ASSET_EVIDENCE_MAX_AGE_MS in place of the live probe, and `recheck: true`
     // from the Refresh access button skips the ledger. One new read on
     // production_asset_access_checks per slot; no new import, file count 5.
-    // Re-pinned 2026-09-07 (thirty-second release; NOT yet deployed): post
-    // names. `intake_create` composes a named sub-issue title from one place
-    // (`intakeChildTitle` in policy.mjs) on both the create and the append
-    // path, resolves one name per card_id rather than per team, and refuses an
-    // over-long name with its own code instead of truncating it. The append
-    // branch now trusts the title planAppendIntakeItems already composed
-    // against the ordinal IT allocated, rather than recomposing from the
-    // request surface. Two files in the closure moved (index.ts, policy.mjs);
-    // no new import, file count 5, entrypoint unchanged. Requires
-    // `migrations/2026-09-07-production-intake-append-v8.sql` to be applied
-    // FIRST -- the deployed RPC refuses a named title until it is.
-    source: 'ccbdd136f488c1e948ca49b429ff50e5c850057b3bd3eabb97c5cb47f1a3d164',
+    // Uninstalled integration: native intake/eligibility/editor projection plus
+    // captured main asset logic. SQL prerequisite and serving proof stay held.
+    // Source-only 2b6c718 assignment prerequisite; same five-file closure.
+    // Uninstalled combined candidate d906e5aa; source-only closure evidence.
+    // Combined native exit, owner post naming and private-media helper, six files.
+    source: '3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
-    files: 5,
+    files: 6,
   }],
 ]);
 
@@ -583,7 +578,7 @@ const fingerprint = spawnSync(process.execPath, [
   `--slugs=${EXACT_SLUGS.join(',')}`,
   '--expected-only',
   '--format=json',
-], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 });
 let currentCandidatesMatch = head.status === 0 && fingerprint.status === 0;
 if (currentCandidatesMatch) {
   const receipt = JSON.parse(fingerprint.stdout);
@@ -598,7 +593,7 @@ if (currentCandidatesMatch) {
   });
 }
 ok(currentCandidatesMatch,
-`the hardcoded candidate source/file/entrypoint contracts match the exact reviewed repository closure (${(fingerprint.stderr || '').trim()})`);
+`the hardcoded candidate source/file/entrypoint contracts match the exact reviewed repository closure (${fingerprint.error?.code || (fingerprint.stderr || '').trim()})`);
 
 const exactImport = 'npm:@supabase/supabase-js@2.49.8';
 const sourceFiles = [

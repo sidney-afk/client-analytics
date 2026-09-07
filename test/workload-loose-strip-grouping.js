@@ -217,5 +217,15 @@ ok(!/<script>/.test(dom.nodes.wlUnassignedChips.innerHTML)
   && !/<img src=x>/.test(dom.nodes.wlUnassignedChips.innerHTML),
 'client names and titles are still escaped in the new group headers and chips');
 
+sandbox.render('wlUnassigned', 'wlUnassignedChips', [
+  sub({id:'native-video-1', nativeId:'native-video-1', workloadSource:'native',
+    parentId:'native-batch-1', parentIdentifier:'Repeated name', identifier:'Repeated name', url:''}),
+], false);
+const nativeMarkup = dom.nodes.wlUnassignedChips.innerHTML;
+ok(nativeMarkup.includes('/index.html?prod=1&amp;batch=native-batch-1'),
+  'native loose-group parent uses the batch identity and batch route, not its display name');
+ok(nativeMarkup.includes('/index.html?prod=1&amp;d=native-video-1'),
+  'native loose-strip chip uses its exact deliverable identity');
+
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nWorkload loose-strip client/parent grouping checks passed.');

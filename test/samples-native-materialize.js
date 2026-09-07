@@ -88,7 +88,8 @@ async function run(surface) {
     },
   };
   const names = Object.keys(scope);
-  const fn = new Function(...names, extract('_writeNativeSubmissionCardsToCalendar')
+  const fn = new Function(...names, extract('_nativeAcceptedCardTransport') + '\n'
+    + extract('_nativeAcceptedCurrentCard') + '\n' + extract('_writeNativeSubmissionCardsToCalendar')
     + ' return _writeNativeSubmissionCardsToCalendar;')(...names.map(n => scope[n]));
   await fn({ payload: { surface, client_slug: 'dougcartwright' }, result: {}, completed_card_ids: [] });
   return { calls, state };

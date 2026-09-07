@@ -111,6 +111,11 @@ async function pickerInventory(page, selector) {
       dres: (el.querySelector('.dres')?.textContent || '').trim(),
       cursor: cs.cursor,
       paths: Array.from(el.querySelectorAll('svg path')).map(p => (p.getAttribute('d') || '').replace(/\s+/g, ' ').trim()).filter(Boolean),
+      leadingPaths: Array.from(el.querySelectorAll('.mic svg path')).map(p => (p.getAttribute('d') || '').replace(/\s+/g, ' ').trim()).filter(Boolean),
+      chevronPaths: Array.from(el.querySelectorAll('.chev svg path')).map(p => (p.getAttribute('d') || '').replace(/\s+/g, ' ').trim()).filter(Boolean),
+      hasChevron: !!el.querySelector('.chev'),
+      disabled: el.classList.contains('disabled'),
+      action: el.getAttribute('data-prod-ctx') || el.getAttribute('data-ctx') || '',
     };
   }));
 }
@@ -164,6 +169,25 @@ function compareMenuInventory(gaps, state, artifactRows, wiredRows) {
     if (a.label !== w.label) gaps.push({ rank: 1, state, message: `row ${i} label artifact=${a.label} wired=${w.label}` });
     if (a.kbd !== w.kbd) gaps.push({ rank: 1, state, message: `row ${i} kbd artifact=${a.kbd || '(empty)'} wired=${w.kbd || '(empty)'}` });
     if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state, message: `row ${i} icon path drift for ${a.label}` });
+  });
+}
+
+function compareContextMenuInventory(gaps, artifactRows, wiredRows) {
+  const state = 'row context menu inventory';
+  // An icon and a submenu promise are separate contracts. Project deliberately
+  // has no submenu in the shipped UI because cross-client moving is unsupported.
+  const icons = rows => rows.map(row => ({ ...row, paths: row.leadingPaths }));
+  compareMenuInventory(gaps, state, icons(artifactRows), icons(wiredRows));
+  artifactRows.forEach((a, i) => {
+    const w = wiredRows[i];
+    if (!w) return; // The exact row-count assertion already fails above.
+    if (a.label === 'Project') {
+      if (!a.hasChevron || w.hasChevron || w.chevronPaths.length || !w.disabled || w.action) {
+        gaps.push({ rank: 1, state, message: 'Project must retain its disabled, no-submenu contract' });
+      }
+    } else if (a.hasChevron !== w.hasChevron || a.chevronPaths.join('|') !== w.chevronPaths.join('|')) {
+      gaps.push({ rank: 1, state, message: `row ${i} submenu affordance drift` });
+    }
   });
 }
 
@@ -296,6 +320,10 @@ async function runTheme(port, browser, theme) {
     await artifact.waitForSelector('.row', { timeout: 30000 });
     await wired.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
     if (await wired.locator('.prod-error').count()) throw new Error('wired Production tab rendered error state');
+    // A first paint can precede the tail that rebuilds rows and their ancestry.
+    // Wait for the existing read phases before screenshots or no-mutation checks.
+    await wired.waitForFunction(() => _prodState.loaded && !_prodState.loading
+      && !_prodState.refreshing && !_prodState.terminalTailPending, null, { timeout: 30000 });
     await shot(artifact, 'artifact-list');
     await shot(wired, 'wired-list');
 
@@ -507,7 +535,7 @@ async function runTheme(port, browser, theme) {
     await wired.waitForSelector('#prodLayer .prod-pop [data-prod-ctx], #prodLayer .prod-pop [data-prod-disabled]');
     await shotElement(artifact, '#layer .pop', 'artifact-crop-row-context-menu');
     await shotElement(wired, '#prodLayer .prod-pop', 'wired-crop-row-context-menu');
-    compareMenuInventory(gaps, 'row context menu inventory', await pickerInventory(artifact, '#layer .pop .mi'), await pickerInventory(wired, '#prodLayer .prod-pop .prod-mi'));
+    compareContextMenuInventory(gaps, await pickerInventory(artifact, '#layer .pop .mi'), await pickerInventory(wired, '#prodLayer .prod-pop .prod-mi'));
     await artifact.locator('#layer .pop [data-ctx="status"]').hover();
     await artifact.waitForSelector('#layer .pop [data-i]');
     const contextGuard = await signedOutGuardState(
@@ -522,6 +550,19 @@ async function runTheme(port, browser, theme) {
     await shot(wired, 'wired-context-status-signin-guard');
     await shotElement(wired, '#prodToast', 'wired-crop-context-status-signin-guard');
     await artifact.keyboard.press('Escape');
+    await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
+
+    await wired.locator('.prod-row').first().click({ button: 'right' });
+    const projectEntry = wired.locator('#prodLayer [data-prod-disabled="context-project"]');
+    const projectReason = await wired.evaluate(() => PROD_PROJECT_MOVE_UNSUPPORTED);
+    const projectAffordance = await projectEntry.evaluate((el, reason) =>
+      el.classList.contains('disabled') && !el.hasAttribute('data-prod-ctx') && !el.querySelector('.chev')
+      && el.getAttribute('title') === reason && el.getAttribute('data-prod-tip') === reason, projectReason);
+    if (!projectAffordance) gaps.push({ rank: 1, state: 'project unsupported guard', message: 'Project must explain the unsupported action without a submenu promise' });
+    const projectGuard = await signedOutGuardState(wired, () => projectEntry.dispatchEvent('click'));
+    if (!projectGuard.signedOut || projectGuard.toast !== projectReason || !projectGuard.same || projectGuard.pickerCount) {
+      gaps.push({ rank: 1, state: 'project unsupported guard', message: 'Project refusal must preserve all issue fields and open no picker' });
+    }
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
 
     await artifact.evaluate(() => {

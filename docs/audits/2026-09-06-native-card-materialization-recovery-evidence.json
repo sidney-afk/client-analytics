@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "classification": "ISOLATED_ACTUAL_GATEWAY_BROWSER_SQL_AND_PRIVATE_RESTORE",
+  "passed": 12,
+  "table_count": 37,
+  "source_sha256": {
+    "migrations/2026-09-06-native-card-materialization-boundary.sql": "c0d8257b0d28a7ba4db3bfb50a03e795a82add394d077c9b426b1ad9f12e6a50",
+    "scripts/track-b-history-v7-backup-prerequisites.sql": "e6799c2140e30ca4abb2aaf1ee78c86607194207d7aae26f4e7db8082708b8fe",
+    "scripts/card-materialization-history-rehearsal.js": "082f421193fd7c3220911fbd582aadbe531a81db702e3297b93aa919a15864af",
+    "scripts/native-card-materialization/recovery-v7-phase.mjs": "9120ea833c5bb63bd1172eb97e737e7c077df0fe0e7e33056757dc2e649fe377",
+    "scripts/native-card-materialization/fixture.mjs": "7957feb460b2142d365ee5f76916bbc8b7464824bcc392a1e67967013782f3e4",
+    "scripts/track-b-backup.js": "42b2fa4ae5b8ad4f4331fbec2245d58c8039bd4c5abeb41936a0cbe414883613",
+    "scripts/track-b-restore-rehearsal.js": "6a9a2fb153f1d640db4c58d2459ede67dbc1fdf10e16bcac9cf258e6f3713740",
+    ".github/workflows/calendar-unit-tests.yml": "178f9da75c803112a150eea2c0ba9433a6a5c765192355d355a8c11339e6dc92"
+  },
+  "limits": [
+    "Synthetic migration-shaped fixture only",
+    "No installed schema or authenticated schema reconstruction",
+    "No serving adapter, client journey, provider, alert, workflow, or live action"
+  ],
+  "proof_commit": "66e823da9cae9c0517d2053a6463f8a3b007d0b1",
+  "started_at": "2026-09-06T05:34:30.839Z",
+  "receipt_written_at": "2026-09-06T05:35:14.179Z",
+  "private_receipt_sha256": "132e6a4556d75dc48fdc5f84e214fdfabb0e0b27c3a95376b2e20f3b01ec0f57",
+  "warning_count": 2,
+  "warning_class": "pg_dump circular foreign-key constraints; private logs retained",
+  "independent_review_sha256": "3afb354feaae8752e0fc61d1ac79cc31d242363336974e1b95f75525eb84eb93"
+}

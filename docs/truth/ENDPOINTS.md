@@ -141,6 +141,13 @@ Other:
   production 2026-08-24 (`--no-verify-jwt`); `quiz_intake_enabled` is still `{"enabled": false}`
   pending an end-to-end test, so the live endpoint currently fails closed.
 - `functions/v1/workload-plan` — staff-authenticated Workload sidecar projection/writer. Candidate
+  now adds `native_snapshot`: exact native/explicit-legacy population, current authority and saved
+  plans from one SQL snapshot. Existing `list` includes compatible UUID/native aliases; `set`
+  preserves the real stored key and rechecks its owner/authority in SQL. Both reads retain the
+  existing staff role-key gate; only Admin/SMM write. Three manual SQL prerequisites and the
+  complete function closure must be installed/read back before this browser is released.
+  Source-only scope/recovery limits: `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. Earlier evidence below
+  is historical and does not establish that this candidate serves. Previous candidate
   source allows Admin/SMM/Creative to list the same global plan projection while retaining
   Admin/SMM-only per-issue mutations. Creative's plan controls render read-only/disabled and its
   drag handles are absent. The function
@@ -200,6 +207,14 @@ Other:
   last-write-wins (F36). Do not claim end-to-end CAS until every mutation sends the version, stale
   requests create no intent, and 409 compare/reapply UX is proved. Successful accepted operations
   commit through the ledger/outbox RPCs before the UI updates.
+  **2026-09-05 source candidate, not serving evidence:** `intake_editor_options`
+  previews video editor choices for Calendar/SXR Create Post using existing
+  Admin/SMM staff authentication and an active client. It returns either a
+  strict complete native projection or an explicit provider decision that
+  selects the unchanged legacy browser loader. Unreadable admission/roster
+  refuses; anonymous/public-intake exceptions do not grant this read. The
+  unchanged writer remains authoritative at submission and replay. See
+  [bounded proof and rollout](../audits/2026-09-05-native-intake-editor-projection.md).
   Slice 5 (introduced by the 2026-07-26 `production-write` v26 deploy; current F27 closure v27) adds one protected read
   action, `assignee_options`, and changes no operation name. It resolves the target deliverable's own team
   and returns the same eligible-assignee projection the commit enforces (F94), gated by the same

@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "base_commit": "9e75f4dcd3d5680da9d1c962498d6a79ed497922",
+  "classification": "ACTUAL_BROWSER_SOURCE_MODELED_RECEIVER",
+  "status": "LOCAL_SOURCE_ONLY",
+  "source_sha256": {
+    "index.html": "427004bdf692f9f95cb17cc6bec15e22755ec4dec3d408f0e811f05a9e67455d",
+    "test/legacy-card-outcome-uncertainty.js": "bee933454bacaa215c7aadc0da3bb26cc940230104ce83b6db4b266f33374044",
+    "test/calendar-card-write-jobs.js": "e9f77e1f1c76c3fce47548f362422c5f269cb7044d206dcbd10d73dce15809aa",
+    "test/legacy-calendar-job-retention.js": "4428f85fd4808fb89b7078a60f3fcff489f84b0baaa8fb659eaf49c4598f9160",
+    "test/linear-submit-durability.js": "810d619bb4f7e235c41234022add55816b6c64e045187ad60f5b5ea5b331db13",
+    "test/import-from-linear-sealed.js": "fe3a685d453c433fee10cdacf627953346035f4dc80a66bcccf205e8de832549"
+  },
+  "checks": [
+    {
+      "command": "node test/legacy-card-outcome-uncertainty.js",
+      "passed": 23,
+      "preserved_base_controls": 2,
+      "comparison_removal_negative": 1
+    },
+    {
+      "command": "node test/calendar-card-write-jobs.js",
+      "passed": 41
+    },
+    {
+      "command": "node test/legacy-calendar-job-retention.js",
+      "passed": 23,
+      "preserved_base_controls": 4
+    },
+    {
+      "command": "node test/linear-submit-durability.js",
+      "passed": 72
+    },
+    {
+      "command": "node test/import-from-linear-sealed.js",
+      "passed": 14
+    },
+    {
+      "command": "node test/native-intake-ui-source.js",
+      "result": "PASS"
+    },
+    {
+      "command": "node test/cutover-fix-pack-ui.js",
+      "result": "PASS"
+    },
+    {
+      "command": "node test/extract-function-integrity.js",
+      "result": "PASS"
+    },
+    {
+      "command": "node test/native-intake-retained-refusals.js",
+      "passed": 35
+    },
+    {
+      "command": "node test/repo-map-sync.js",
+      "passed": 502
+    },
+    {
+      "command": "node test/truth-sync.js",
+      "passed": 542
+    }
+  ],
+  "external_requests": 0,
+  "new_storage_owners": 0,
+  "runtime_files": [
+    "index.html"
+  ],
+  "modeled_base_outcomes": [
+    {
+      "provider_id_present": false,
+      "requests": 2,
+      "modeled_rows": 2
+    },
+    {
+      "provider_id_present": true,
+      "requests": 2,
+      "modeled_rows": 1,
+      "initial_caption_overwrite": true
+    }
+  ],
+  "candidate_each_outcome": {
+    "requests": 1,
+    "modeled_rows": 1,
+    "unconfirmed_attempt_retained": true,
+    "replay_after_authority_reversal": false
+  },
+  "reviewer_correction": "Expected full-record comparison before checkpoint and cleanup; failed cleanup reports retention",
+  "preserved_test_failure": "Final Submit fixture initially failed before execution because the writer comment boundary changed; exact anchor corrected, all 72 checks then passed",
+  "proof_limits": [
+    "Receiver acceptance, storage and Web Lock scheduling are modeled; no server or real multi-tab proof",
+    "Existing version1 actorless record remains incomplete; no inferred native identity or safe manual retry",
+    "No atomic localStorage exclusion from old/nonparticipating bundles",
+    "Pre-send registration failure preserves the form; later background checkpoint failure retains saved card work but does not promise the entire original form",
+    "Eviction/corruption, old callers, in-flight work, n8n, serving and complete G6 remain held",
+    "No full-suite, hosted-CI, deployment or live action in this slice"
+  ],
+  "source_hash_basis": "Git staged bytes; working-tree byte hashes retained privately"
+}

@@ -38,7 +38,12 @@ function grabFunc(name) {
 // audience/role/comment plumbing below is the REAL extracted code.
 const HARNESS = `
 let _isClientLink = false;
-const calState = { posts: [], view: 'smmreview' };
+const calState = { posts: [], view: 'smmreview', client: 'fixture' };
+const draftStorage = new Map();
+const localStorage = { getItem: k => draftStorage.get(k) || null, setItem: (k,v) => draftStorage.set(k,v) };
+const document = { querySelectorAll: () => [] };
+function _writeUiPrincipalKey(){ return _isClientLink ? 'client:fixture' : 'staff:fixture:smm'; }
+function calClientSlug(value){ return value; }
 const _calReviewState = {
   expanded: new Set(),
   drafts: Object.create(null),
@@ -85,8 +90,8 @@ function _calRenderBody(){}
 function showToast(){}
 function _calV2Log(){}
 function setClient(b){ _isClientLink = b; }
-function addPost(p){ calState.posts.push(p); return p; }
-function setDraft(pid, comp, val){ _calReviewState.drafts[pid + '|' + comp] = val; _calReviewState.saving[pid + '|' + comp] = false; }
+function addPost(p){ p.client = 'fixture'; calState.posts.push(p); return p; }
+function setDraft(pid, comp, val){ _calReviewState.drafts[pid + '|' + comp] = val; _calReviewState.saving[pid + '|' + comp] = false; _reviewDraftInput('calendar', calState.posts.find(p => p.id === pid), comp, val); }
 function isSaving(pid, comp){ return _calReviewState.saving[pid + '|' + comp] === true; }
 `;
 
@@ -103,7 +108,7 @@ const REAL = [
   grabFunc('_calReviewRequestTweak'),
 ].join('\n\n');
 
-const mod = new Function(HARNESS + '\n' + REAL +
+const mod = new Function(HARNESS + '\n' + require('./helpers/review-draft-source')(INDEX) + '\n' + REAL +
   ';return { _calReviewRequestTweak, _calReviewComment, _calCommentsForView, _calMsgAudience, _calCommentRole, setClient, addPost, setDraft, isSaving };')();
 
 let failures = 0;

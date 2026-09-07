@@ -16,6 +16,13 @@ surface.
 
 ## Coverage
 
+- Samples G1: fully intercepted read failures preserve visible cards and cache,
+  expose keyboard retry at 360/768/1280 in light/dark, recover through the real
+  retry button, and show an honest load error without cached content. Nonempty
+  unproven fallback preserves prior cache/content or appears on a cold open with
+  an incomplete/outdated warning; repeated fallback never clears that warning or
+  creates a cache. Mock REST
+  replies include exact-count headers, including browser CORS exposure.
 - staff client-profile history reload: Calendar and Brief own first paint;
 - client Calendar and Brief links: neutral verification, then a route-owned
   loader, then the requested tab, on first navigation and reload;

@@ -1,0 +1,249 @@
+{
+  "base_commit": "38f29bc6d3159ddda4b698819626f1efbd37c0b3",
+  "classification": "ACTUAL_GATEWAY_SQL_EXTRACTED_BROWSER_SYNTHETIC",
+  "passed": 56,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "default hold conserves exact received body without card/receipt mutation",
+      "pass": true
+    },
+    {
+      "name": "ingress stores supplied raw text and SHA256",
+      "pass": true
+    },
+    {
+      "name": "calendar video exact creation owns full current row",
+      "pass": true
+    },
+    {
+      "name": "calendar thumbnail exact creation owns full current row",
+      "pass": true
+    },
+    {
+      "name": "calendar both exact creation owns full current row",
+      "pass": true
+    },
+    {
+      "name": "samples video exact creation owns full current row",
+      "pass": true
+    },
+    {
+      "name": "samples thumbnail exact creation owns full current row",
+      "pass": true
+    },
+    {
+      "name": "samples both exact creation owns full current row",
+      "pass": true
+    },
+    {
+      "name": "lost response replay returns full later human content without mutation",
+      "pass": true
+    },
+    {
+      "name": "changed body retains refusal and cannot adopt receipt",
+      "pass": true
+    },
+    {
+      "name": "changed client retains refusal and cannot adopt receipt",
+      "pass": true
+    },
+    {
+      "name": "changed children retains refusal and cannot adopt receipt",
+      "pass": true
+    },
+    {
+      "name": "changed extra field retains refusal and cannot adopt receipt",
+      "pass": true
+    },
+    {
+      "name": "unknown raw text survives returned refusal byte for byte",
+      "pass": true
+    },
+    {
+      "name": "malformed JSON retained with typed non-success",
+      "pass": true
+    },
+    {
+      "name": "ordinary ui remains outside native adapter",
+      "pass": true
+    },
+    {
+      "name": "blank marker cannot authorize creation",
+      "pass": true
+    },
+    {
+      "name": "archived replay remains held",
+      "pass": true
+    },
+    {
+      "name": "human reopen returns current row without inferred original state",
+      "pass": true
+    },
+    {
+      "name": "deleted accepted card never resurrects",
+      "pass": true
+    },
+    {
+      "name": "reused card ID cannot adopt old accepted receipt",
+      "pass": true
+    },
+    {
+      "name": "missing provenance is held",
+      "pass": true
+    },
+    {
+      "name": "retention production_card_materialization_receipts update",
+      "pass": true
+    },
+    {
+      "name": "retention production_card_materialization_receipts delete",
+      "pass": true
+    },
+    {
+      "name": "retention production_card_materialization_receipts truncate",
+      "pass": true
+    },
+    {
+      "name": "anonymous cannot read production_card_materialization_receipts",
+      "pass": true
+    },
+    {
+      "name": "authenticated cannot read production_card_materialization_receipts",
+      "pass": true
+    },
+    {
+      "name": "service cannot directly insert production_card_materialization_receipts",
+      "pass": true
+    },
+    {
+      "name": "retention production_card_materialization_ingress update",
+      "pass": true
+    },
+    {
+      "name": "retention production_card_materialization_ingress delete",
+      "pass": true
+    },
+    {
+      "name": "retention production_card_materialization_ingress truncate",
+      "pass": true
+    },
+    {
+      "name": "anonymous cannot read production_card_materialization_ingress",
+      "pass": true
+    },
+    {
+      "name": "authenticated cannot read production_card_materialization_ingress",
+      "pass": true
+    },
+    {
+      "name": "service cannot directly insert production_card_materialization_ingress",
+      "pass": true
+    },
+    {
+      "name": "anonymous cannot execute service adapter",
+      "pass": true
+    },
+    {
+      "name": "authenticated cannot execute service adapter",
+      "pass": true
+    },
+    {
+      "name": "card_change_journal failure rolls back card/provenance/journal/receipt but retains refusal",
+      "pass": true
+    },
+    {
+      "name": "production_card_provenance failure rolls back card/provenance/journal/receipt but retains refusal",
+      "pass": true
+    },
+    {
+      "name": "production_card_materialization_receipts failure rolls back card/provenance/journal/receipt but retains refusal",
+      "pass": true
+    },
+    {
+      "name": "ingress failure cannot acknowledge acceptance or leave untracked card",
+      "pass": true
+    },
+    {
+      "name": "two real gateways accept one immutable request",
+      "pass": true
+    },
+    {
+      "name": "overlapping materializers wait then create once and replay once",
+      "pass": true
+    },
+    {
+      "name": "real binder and replay serialize card-first without mutation or deadlock",
+      "pass": true
+    },
+    {
+      "name": "real binder retains its verified provider-identity positive path",
+      "pass": true
+    },
+    {
+      "name": "complete child set is rechecked after actual lock wait",
+      "pass": true
+    },
+    {
+      "name": "original gateway interruption commits manifest and only child1",
+      "pass": true
+    },
+    {
+      "name": "two-item incomplete root cannot masquerade as complete smaller request",
+      "pass": true
+    },
+    {
+      "name": "complete one-item root remains independently acceptable",
+      "pass": true
+    },
+    {
+      "name": "current F27 authority refuses fresh card without provider fallback",
+      "pass": true
+    },
+    {
+      "name": "admission hold preserves exact accepted current-row replay",
+      "pass": true
+    },
+    {
+      "name": "admission hold refuses fresh accepted work visibly",
+      "pass": true
+    },
+    {
+      "name": "changed coverage epoch does not reinterpret original receipt",
+      "pass": true
+    },
+    {
+      "name": "session timezone cannot change immutable manifest receipt identity",
+      "pass": true
+    },
+    {
+      "name": "later native lifecycle change holds fresh initial card",
+      "pass": true
+    },
+    {
+      "name": "accepted request older than proven coverage stays held",
+      "pass": true
+    },
+    {
+      "name": "provider and drainer requests remain absent in this lane",
+      "pass": true
+    }
+  ],
+  "migration_sha256": "c0d8257b0d28a7ba4db3bfb50a03e795a82add394d077c9b426b1ad9f12e6a50",
+  "source_sha256": {
+    "supabase/functions/production-write/index.ts": "d11b271202c9e17c28b9c45c3e3b50339109b9820c1024b31fe99080a9acefd6",
+    "index.html": "64f197a0a451329925c3c51a231c79af05fc5f425bf1b241ade2af15917c7d6c",
+    "scripts/native-card-materialization/fixture.mjs": "7957feb460b2142d365ee5f76916bbc8b7464824bcc392a1e67967013782f3e4",
+    "scripts/native-card-materialization/overlap.mjs": "b1315c56f236946c7be46afe982c76817866965d5d993ea92228975e2aaafd3e",
+    "scripts/native-card-materialization/lane.mjs": "838fc4f865e0041b0263dbc1045505e5a9b65c24ea3c4a13ca3071c1a1bee87e",
+    "test/native-card-materialization.js": "19e0a1c7782027a74d7178311b80441bd073befda31dcbed6fa2bd76b2a0bf5d"
+  },
+  "receipt_sha256": "aec4ecf4316740751072675187264e0e7705577fb20871d117dd972b6a1a3133",
+  "private_log_sha256": "41ff09290abd2a594b13bef2c133fb2339d42a32b35ec8874629aa0f46b7b1b7",
+  "limits": [
+    "Synthetic SQL/actual-source proof only; no deployed or live proof.",
+    "No HTTP/n8n adapter or full original-byte capture proof.",
+    "Partial-root envelope uses declared manifest-row browser-test seam; missing child is never reported accepted.",
+    "New schema/data recovery and all transport coverage remain installation gates."
+  ]
+}

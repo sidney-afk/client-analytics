@@ -74,10 +74,12 @@ const { pathToFileURL } = require('url');
     && /continue;/.test(drillBranch)
     && !/readViewer|entityRow|readIssue|linearGraphql|currentControl/.test(drillBranch),
   'post-claim drill branch terminates before viewer, entity, issue, control, or Linear calls');
-  const viewerCall = source.indexOf('mirrorActor = await readViewer()');
-  const viewerGuard = source.slice(source.lastIndexOf('if (f27ReplayRequestValue', viewerCall), viewerCall);
-  ok(viewerCall > 0 && /f27ReplayRequestValue\?\.isDrill !== true/.test(viewerGuard),
-    'pre-loop viewer lookup is excluded for drill replay');
+  const viewerCall = source.indexOf('mirrorActor = await readViewer(dispatch)');
+  const loopStart = source.indexOf('for (const candidate of rows)');
+  ok(viewerCall > normalControlStart && normalControlStart > loopStart
+    && source.indexOf('const row = await claimRow(supabase, candidate)', loopStart) < drillBranchStart
+    && /continue;/.test(drillBranch),
+    'viewer lookup follows a claimed row and the terminal SQL-only drill branch');
   const normalTarget = source.match(/async function targetResult\([^]*?\n\}/);
   const f27Target = source.match(/async function f27TargetResult\([^]*?\n\}/);
   ok(normalTarget && f27Target

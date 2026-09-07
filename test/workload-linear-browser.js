@@ -13,6 +13,7 @@ const vm = require('vm');
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 function extract(name) {
+  const prefix = ['wlFetchLinearMetadata', 'wlRenderableIssueProjection', 'wlApplyData'].includes(name) ? extract('wlIssueClientAllowed') + '\n' + extract('wlIssueEditorAllowed') + '\n' : '';
   const marker = 'function ' + name + '(';
   let start = source.indexOf(marker);
   assert(start >= 0, 'missing ' + name);
@@ -28,7 +29,7 @@ function extract(name) {
     if (ch === '/' && next === '*') { blockComment = true; index++; continue; }
     if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
     if (ch === '{') depth++;
-    else if (ch === '}' && --depth === 0) return source.slice(start, index + 1);
+    else if (ch === '}' && --depth === 0) return prefix + source.slice(start, index + 1);
   }
   throw new Error('unclosed ' + name);
 }
@@ -183,6 +184,10 @@ function harness(reply, role = 'admin', manualPlanDate = null, authority = 'line
 
 function backgroundIssue(overrides = {}) {
   return Object.assign({
+    workloadSource: 'native',
+    nativeId: '11111111-1111-4111-8111-111111111111',
+    nativeClientActive: true,
+    nativeAssigneeEligible: true,
     id: 'issue-a',
     identifier: 'VID-1',
     title: 'Video 1',
@@ -230,6 +235,7 @@ function backgroundHarness(options = {}) {
     workload: { label: '2× Workload', weight: 2, color: '#ff0000' },
   }];
   const counters = {
+    snapshots: 0,
     watermark: 0,
     mirror: 0,
     plans: 0,
@@ -242,7 +248,6 @@ function backgroundHarness(options = {}) {
     identityClear: 0,
   };
   const renderStates = [];
-  const metadataIssueSets = [];
   const storedIdentity = options.staffIdentity === undefined ? {
     key: 'synthetic-key',
     role: 'admin',
@@ -302,29 +307,23 @@ function backgroundHarness(options = {}) {
       context._syncviewStaffIdentityVerified ? context._syncviewStaffIdentityMem : null
     ),
     _wlV2Ready: () => options.v2Ready !== false,
+    _wlNativeDiffEnabled: () => false,
     _wlV2FetchLatestWatermark: async () => {
       counters.watermark++;
       return options.latestWatermark || '2026-07-22T12:01:00.000Z';
     },
     _wlV2FetchIssues: async () => {
       counters.mirror++;
-      if (options.fail === 'issues') throw new Error('mirror unavailable');
-      if (options.fetchIssues) return options.fetchIssues(counters.mirror);
-      return freshIssues.map(issue => ({ ...issue }));
+      throw new Error('native refresh called the retired mirror reader');
     },
-    wlFetchPlanRows: async () => {
+    fixturePlans: async () => {
       counters.plans++;
       if (options.fail === 'plans') throw new Error('plans unavailable');
       if (options.fetchPlans) return options.fetchPlans(counters.plans);
       return { rows: planRows.map(row => ({ ...row })), readGeneration: 0 };
     },
-    wlFetchLinearMetadata: async issues => {
+    fixtureMetadata: async issues => {
       counters.metadata++;
-      metadataIssueSets.push(issues
-        .filter(issue => issue && issue.isSubIssue
-          && context.wlIsActiveStatus(issue)
-          && context.wlIsAllowedClient(issue.clientName))
-        .map(issue => issue.id));
       if (options.fail === 'metadata') throw new Error('metadata unavailable');
       if (options.fetchMetadata) return options.fetchMetadata(counters.metadata, issues);
       return metadataRows.map(row => ({
@@ -364,8 +363,23 @@ function backgroundHarness(options = {}) {
     },
     wlPurgePlanSensitiveState: () => {},
     wlClosePopover: () => {},
-    loadLinearIssues: () => { counters.n8n++; throw new Error('background called n8n'); },
-    wlLoadSnapshot: () => { counters.n8n++; throw new Error('background entered foreground loader'); },
+    // One complete server response feeds the actual atomic loader below. The
+    // plan/metadata hooks control fixture response readiness, not independent
+    // browser requests. Real native HTTP/decoder coverage lives in the native
+    // membership suite; no retired mirror or provider loader is exercised here.
+    loadLinearIssues: async () => {
+      counters.snapshots++;
+      if (options.snapshotError) throw options.snapshotError;
+      const issues = freshIssues.map(issue => ({ ...issue }));
+      const [rows, plans, metadata] = await Promise.all([
+        options.fail === 'issues' ? Promise.reject(new Error('snapshot unavailable'))
+          : options.fetchIssues ? options.fetchIssues(counters.snapshots) : issues,
+        context.fixturePlans(),
+        context.fixtureMetadata(issues),
+      ]);
+      return { issues: rows, plans, metadata, fetchedAt: counters.snapshots + 1,
+        legacyTeams: options.legacyTeams || [] };
+    },
     wlCanonicalClient: value => String(value || '').trim().toLowerCase(),
     wlIsActiveStatus: issue => !['completed', 'canceled', 'cancelled'].includes(String(issue && issue.statusType || '').toLowerCase()),
     wlIsAllowedClient: client => String(client || '') !== 'Disallowed Client',
@@ -397,6 +411,7 @@ function backgroundHarness(options = {}) {
     'wlValidRfc3339Timestamp',
     'wlAdoptLinearMetadata',
     'wlPurgePlanSensitiveState',
+    'wlLoadSnapshot',
     'wlRefetchSilent',
     'wlRefreshSensitiveStateSilent',
     'wlParseNativeDueReceipt',
@@ -408,10 +423,12 @@ function backgroundHarness(options = {}) {
     '_wlOnNativeDueReceiptStorage',
     '_wlV2CheckWatermark',
     '_wlOnVisibilityChange',
+    '_syncviewStaffIdentitySignature',
+    '_syncviewStaffIdentityLoad',
     '_syncviewStaffIdentitySave',
     'initWorkloadView',
   ]) vm.runInContext(extract(name), context);
-  return { context, counters, renderStates, metadataIssueSets };
+  return { context, counters, renderStates };
 }
 
 async function run() {
@@ -1615,7 +1632,7 @@ async function run() {
   // A warm internal route switch paints synchronously from memory. It neither
   // re-enters the foreground loader nor calls the n8n-backed issue helper.
   {
-    const paints = [];
+    const paints = [], diagnosticWarnings = [];
     let cacheReads = 0, foregroundLoads = 0, watermarkChecks = 0;
     const warmContext = {
       wlState: {
@@ -1649,26 +1666,34 @@ async function run() {
       wlWireClientSearch: () => {},
       _wlV2EnsureSubscribed: () => {},
       _wlV2EnsureWatermarkPoll: () => {},
+      _wlNativeDiffEnabled: () => false,
       wlScheduleNativeDueReceiptRetry: () => false,
       _wlV2CheckWatermark: () => { watermarkChecks++; },
       wlLoadSnapshot: () => { foregroundLoads++; throw new Error('warm entry loaded'); },
-      Array, Date, console,
+      Array, Date, URLSearchParams, location: { search: '' },
+      console: { ...console, warn: (...args) => diagnosticWarnings.push(args) },
     };
     warmContext.globalThis = warmContext;
     vm.createContext(warmContext);
+    vm.runInContext(extract('_wlNativeDiffEnabled'), warmContext);
+    warmContext.location.search = '?wlnative=1';
+    assert.strictEqual(warmContext._wlNativeDiffEnabled(), true, 'actual diagnostic flag helper is present');
+    warmContext.location.search = '';
+    assert.strictEqual(warmContext._wlNativeDiffEnabled(), false, 'warm fixture leaves the optional diagnostic inactive');
     vm.runInContext(extract('initWorkloadView'), warmContext);
     const pending = warmContext.initWorkloadView();
     assert.strictEqual(paints.length, 1, 'warm Workload paints synchronously before yielding');
     assert.deepStrictEqual(paints[0], { loading: false, refreshing: false, planStatus: 'ready' });
     await pending;
+    assert.deepStrictEqual(diagnosticWarnings, [], 'missing helpers cannot masquerade as a successful warm mount');
     assert.strictEqual(cacheReads, 0, 'warm entry does not consult the persisted issue cache');
-    assert.strictEqual(foregroundLoads, 0, 'warm entry never reaches the n8n-capable foreground loader');
-    assert.strictEqual(watermarkChecks, 1, 'warm entry schedules only the cheap watermark check');
+    assert.strictEqual(foregroundLoads, 0, 'warm entry does not block first paint on a foreground load');
+    assert.strictEqual(watermarkChecks, 1, 'warm entry schedules the background native refresh gate');
   }
 
   // Sign-out deliberately purges role-sensitive maps while retaining the
   // already-painted issue calendar. A later verified sign-in rehydrates only
-  // plans and metadata; it never re-reads the mirror or enters the n8n loader.
+  // one complete native snapshot; it never reads the mirror or n8n loader.
   {
     const signedBackIn = backgroundHarness({
       staffIdentity: null,
@@ -1697,7 +1722,7 @@ async function run() {
     assert.ok(hydration, 'verified sign-in starts sensitive-state hydration');
     assert.strictEqual(signedBackIn.counters.render, 0, 'sign-in does not blank or pre-emptively repaint the warm calendar');
     await hydration;
-    assert.strictEqual(signedBackIn.counters.mirror, 0, 'sign-in hydration reuses the warm issue snapshot');
+    assert.strictEqual(signedBackIn.counters.mirror, 0, 'sign-in hydration has no mirror fallback');
     assert.strictEqual(signedBackIn.counters.n8n, 0, 'sign-in hydration has no n8n fallback');
     assert.strictEqual(signedBackIn.counters.plans, 1);
     assert.strictEqual(signedBackIn.counters.metadata, 1);
@@ -1707,13 +1732,13 @@ async function run() {
     assert.strictEqual(
       signedBackIn.context.wlIssueBusinessFingerprint(signedBackIn.context.wlState.issueSnapshot),
       issueBefore,
-      'sensitive hydration leaves the visible mirror snapshot untouched',
+      'identical complete native data preserves the visible business values',
     );
   }
 
   // The same post-purge recovery happens on a warm route remount. The first
   // paint is synchronous, then plans/metadata arrive non-destructively before
-  // the ordinary cheap watermark check.
+  // the ordinary background native refresh gate.
   {
     const remount = backgroundHarness({
       initialPlans: [],
@@ -1738,18 +1763,19 @@ async function run() {
     await route;
     await hydration;
     await Promise.resolve();
+    if (remount.context._wlBackgroundRefreshPromise) await remount.context._wlBackgroundRefreshPromise;
     assert.strictEqual(remount.counters.mirror, 0, 'warm remount does not refetch the issue mirror');
     assert.strictEqual(remount.counters.n8n, 0, 'warm remount does not enter the foreground loader');
-    assert.strictEqual(remount.counters.plans, 1);
-    assert.strictEqual(remount.counters.metadata, 1);
+    assert.strictEqual(remount.counters.snapshots, 2, 'hydration and the subsequent ordinary poll both read complete snapshots');
+    assert.strictEqual(remount.counters.plans, 2);
+    assert.strictEqual(remount.counters.metadata, 2);
     assert.strictEqual(remount.counters.render, 2, 'warm remount adds exactly one atomic hydration repaint');
     assert.strictEqual(remount.context.wlState.planByIssueId.get('issue-a'), '2026-08-05');
     assert.strictEqual(remount.context.wlState.workloadByIssueId.get('issue-a').weight, 2);
   }
 
-  // Sensitive-only hydration must not make an old issue snapshot look newly
-  // fetched. It updates the private maps while preserving the mirror's original
-  // in-memory freshness timestamp and never republishes the issue snapshot.
+  // Legacy sensitiveOnly callers now receive a complete atomic snapshot, so
+  // freshness can advance only with the newly read issue population as well.
   {
     const sensitive = backgroundHarness({
       initialPlans: [],
@@ -1760,15 +1786,14 @@ async function run() {
     sensitive.context.wlState.linearMetadataStatus = 'unknown';
     const fetchedAt = sensitive.context.wlState.fetchedAt;
     assert.strictEqual(await sensitive.context.wlRefetchSilent({ sensitiveOnly: true }), true);
-    assert.strictEqual(sensitive.context.wlState.fetchedAt, fetchedAt, 'sensitive hydration preserves issue freshness');
+    assert.ok(sensitive.context.wlState.fetchedAt > fetchedAt, 'complete snapshot advances issue freshness');
+    assert.strictEqual(sensitive.counters.applyData, 1, 'freshness and issue population publish together');
     assert.strictEqual(sensitive.counters.cacheWrite, 0, 'sensitive hydration does not renew the persisted issue-cache timestamp');
     assert.strictEqual(sensitive.counters.mirror, 0);
     assert.strictEqual(sensitive.counters.n8n, 0);
   }
 
-  // The private Edge projections do not depend on the optional wl2 mirror
-  // flag. They can rehydrate a retained calendar while a full mirror refresh
-  // still fails closed when Supabase Workload v2 is unavailable.
+  // All native refresh callers are independent of the retired wl2 mirror flag.
   {
     const noMirror = backgroundHarness({
       v2Ready: false,
@@ -1778,13 +1803,13 @@ async function run() {
     });
     noMirror.context.wlState.planStatus = 'unknown';
     noMirror.context.wlState.linearMetadataStatus = 'unknown';
-    assert.strictEqual(await noMirror.context.wlRefetchSilent(), false, 'full background refresh requires Workload v2');
-    assert.strictEqual(noMirror.counters.mirror, 0);
-    assert.strictEqual(noMirror.counters.plans, 0);
-    assert.strictEqual(await noMirror.context.wlRefetchSilent({ sensitiveOnly: true }), true, 'sensitive hydration works with wl2 off');
+    assert.strictEqual(await noMirror.context.wlRefetchSilent(), true, 'full native refresh works with wl2 off');
     assert.strictEqual(noMirror.counters.mirror, 0);
     assert.strictEqual(noMirror.counters.plans, 1);
-    assert.strictEqual(noMirror.counters.metadata, 1);
+    assert.strictEqual(await noMirror.context.wlRefetchSilent({ sensitiveOnly: true }), true, 'sensitive hydration works with wl2 off');
+    assert.strictEqual(noMirror.counters.mirror, 0);
+    assert.strictEqual(noMirror.counters.plans, 2);
+    assert.strictEqual(noMirror.counters.metadata, 2);
     assert.strictEqual(noMirror.counters.n8n, 0);
   }
 
@@ -1829,9 +1854,8 @@ async function run() {
     assert.strictEqual(raced.context._wlBackgroundRefreshPromise, null);
   }
 
-  // A full mirror refresh requested behind a sensitive-only single-flight must
-  // wait, then execute its own mirror lane. Returning the sensitive result
-  // directly would let an advanced watermark be consumed without reading it.
+  // Legacy sensitiveOnly and ordinary callers share the same complete native
+  // single-flight. Neither can publish an independently stale population.
   {
     const firstPlans = deferred();
     const queuedFull = backgroundHarness({
@@ -1841,13 +1865,14 @@ async function run() {
     });
     const sensitiveCall = queuedFull.context.wlRefetchSilent({ sensitiveOnly: true });
     const fullCall = queuedFull.context.wlRefetchSilent();
-    assert.strictEqual(queuedFull.counters.mirror, 0, 'full lane waits while sensitive hydration owns the flight');
+    assert.strictEqual(queuedFull.counters.snapshots, 1, 'overlapping callers share the pending complete response');
     firstPlans.resolve({ rows: [{ issue_id: 'issue-a', plan_date: '2026-08-07' }], readGeneration: 0 });
     assert.strictEqual(await sensitiveCall, true);
     assert.strictEqual(await fullCall, true);
-    assert.strictEqual(queuedFull.counters.mirror, 1, 'queued full lane fetches the mirror after sensitive hydration');
-    assert.strictEqual(queuedFull.counters.plans, 2);
-    assert.strictEqual(queuedFull.counters.metadata, 2);
+    assert.strictEqual(queuedFull.counters.mirror, 0, 'neither caller enters the mirror lane');
+    assert.strictEqual(queuedFull.counters.snapshots, 1);
+    assert.strictEqual(queuedFull.counters.plans, 1);
+    assert.strictEqual(queuedFull.counters.metadata, 1);
     assert.strictEqual(queuedFull.counters.n8n, 0);
   }
 
@@ -1869,35 +1894,38 @@ async function run() {
     assert.strictEqual(recovered.counters.n8n, 0);
   }
 
-  // Visibility return uses the same watermark-only gate. Hidden events and an
-  // unchanged cursor perform no full fetch, repaint, skeleton, or n8n call.
+  // Visibility return reads a complete native snapshot. Hidden events do no
+  // work, and unchanged business data performs no repaint or skeleton.
   {
     const visibility = backgroundHarness({ latestWatermark: '2026-07-22T12:00:00.000Z' });
     visibility.context._wlOnVisibilityChange();
-    await Promise.resolve();
-    assert.strictEqual(visibility.counters.watermark, 1);
+    await visibility.context._wlBackgroundRefreshPromise;
+    assert.strictEqual(visibility.counters.snapshots, 1);
+    assert.strictEqual(visibility.counters.watermark, 0);
     assert.strictEqual(visibility.counters.mirror, 0);
     assert.strictEqual(visibility.counters.render, 0);
     assert.strictEqual(visibility.counters.n8n, 0);
     visibility.context.document.hidden = true;
     visibility.context._wlOnVisibilityChange();
-    assert.strictEqual(visibility.counters.watermark, 1, 'hidden visibility events are ignored');
+    assert.strictEqual(visibility.counters.snapshots, 1, 'hidden visibility events are ignored');
   }
 
-  // An advanced reconcile cursor whose normalized business data is identical
-  // is consumed once. syncedAt and Edge audit timestamp churn cannot repaint
-  // the board or make every poll refetch the complete mirror forever.
+  // Every ordinary poll reads native data. Timestamp-only churn does not
+  // repaint; no provider watermark can suppress or trigger native freshness.
   {
     const noDiff = backgroundHarness();
     await noDiff.context._wlV2CheckWatermark();
-    assert.strictEqual(noDiff.counters.mirror, 1, 'advanced watermark reads the Supabase mirror once');
+    assert.strictEqual(noDiff.counters.snapshots, 1);
+    assert.strictEqual(noDiff.counters.mirror, 0);
     assert.strictEqual(noDiff.counters.plans, 1);
     assert.strictEqual(noDiff.counters.metadata, 1);
     assert.strictEqual(noDiff.counters.render, 0, 'syncedAt-only change does not repaint');
     assert.strictEqual(noDiff.counters.n8n, 0, 'background compare has no n8n fallback');
-    assert.strictEqual(noDiff.context.wlState.sourceSyncedAt, '2026-07-22T12:01:00.000Z', 'no-diff success consumes the watermark');
+    assert.strictEqual(noDiff.context.wlState.sourceSyncedAt, '2026-07-22T12:00:00.000Z', 'native success does not adopt an unused provider watermark');
     await noDiff.context._wlV2CheckWatermark();
-    assert.strictEqual(noDiff.counters.mirror, 1, 'consumed no-diff watermark is not refetched');
+    assert.strictEqual(noDiff.counters.snapshots, 2, 'next poll independently reads native freshness');
+    assert.strictEqual(noDiff.counters.mirror, 0);
+    assert.strictEqual(noDiff.counters.render, 0);
     assert.ok(noDiff.renderStates.every(state => state.loading === false
       && state.refreshing === false
       && state.planStatus === 'ready'
@@ -1960,14 +1988,14 @@ async function run() {
         backgroundIssue(),
         backgroundIssue({
           id: 'issue-hidden', identifier: 'VID-2', parentId: 'parent-hidden',
-          title: 'Disallowed old', clientName: 'Disallowed Client',
+          title: 'Disallowed old', clientName: 'Disallowed Client', nativeClientActive: false,
         }),
       ],
       freshIssues: [
         backgroundIssue({ syncedAt: '2026-07-22T12:01:00.000Z' }),
         backgroundIssue({
           id: 'issue-hidden', identifier: 'VID-2', parentId: 'parent-hidden',
-          title: 'Disallowed changed', clientName: 'Disallowed Client',
+          title: 'Disallowed changed', clientName: 'Disallowed Client', nativeClientActive: false,
           syncedAt: '2026-07-22T12:01:00.000Z',
         }),
       ],
@@ -2015,7 +2043,7 @@ async function run() {
       'disallowed to allowed',
       backgroundIssue({
         id: 'issue-b', identifier: 'VID-2', parentId: 'parent-b',
-        clientName: 'Disallowed Client',
+        clientName: 'Disallowed Client', nativeClientActive: false,
       }),
       backgroundIssue({
         id: 'issue-b', identifier: 'VID-2', parentId: 'parent-b',
@@ -2040,8 +2068,7 @@ async function run() {
     assert.strictEqual(transition.counters.n8n, 0);
   }
 
-  // Metadata must be derived from the mirror result just fetched. Reusing the
-  // previous ID set would make the all-or-nothing Edge read fail with 409.
+  // A newly visible issue and its metadata publish from one complete response.
   {
     const freshIds = backgroundHarness({
       freshIssues: [
@@ -2054,39 +2081,39 @@ async function run() {
       ],
     });
     await freshIds.context.wlRefetchSilent();
-    assert.deepStrictEqual(freshIds.metadataIssueSets[0], ['issue-a', 'issue-b'], 'metadata receives the fresh active issue set');
+    assert.deepStrictEqual(Array.from(freshIds.context.wlState.issueSnapshot, issue => issue.id),
+      ['issue-a', 'issue-b'], 'the atomic loader adopts the newly visible population');
+    assert.strictEqual(freshIds.context.wlState.dueAuthorityByIssueId.get('issue-b').authority,
+      'linear', 'the new issue gets the authority supplied in the same response');
     assert.strictEqual(freshIds.counters.render, 1);
   }
 
   // Failure in any background component is atomic: the visible calendar and
-  // all role-sensitive maps remain exactly as they were, while only the small
-  // non-destructive freshness warning is updated. The cursor stays retryable.
+  // visible plan/label values remain, while stale write authority is revoked
+  // and a non-destructive freshness warning is shown.
   {
     const failed = backgroundHarness({
       fail: 'metadata',
       freshIssues: [backgroundIssue({ title: 'Must not publish', syncedAt: '2026-07-22T12:01:00.000Z' })],
       planRows: [{ issue_id: 'issue-a', plan_date: '2026-08-09' }],
     });
+    failed.context.wlState.dueAuthorityByIssueId.set('issue-a', { authority: 'syncview' });
     const before = failed.context.wlBackgroundBusinessFingerprint();
     await failed.context._wlV2CheckWatermark();
     assert.strictEqual(failed.context.wlBackgroundBusinessFingerprint(), before, 'failed background work publishes no partial state');
     assert.strictEqual(failed.counters.render, 0, 'failure preserves the visible calendar DOM');
     assert.strictEqual(failed.counters.status, 1, 'failure updates only the freshness warning');
-    assert.match(failed.context.wlState.backgroundError, /metadata unavailable/);
-    assert.strictEqual(failed.context.wlState.sourceSyncedAt, '2026-07-22T12:00:00.000Z', 'failed snapshot leaves the watermark retryable');
+    assert.match(failed.context.wlState.backgroundError, /could not refresh.*Previously loaded work/);
+    assert.strictEqual(failed.context.wlState.dueAuthorityByIssueId.size, 0, 'failed refresh revokes stale write routing');
+    assert.strictEqual(failed.context.wlState.planStatus, 'stale');
+    assert.strictEqual(failed.context.wlState.linearMetadataStatus, 'stale');
   }
 
-  // Auth denial wins over an unrelated concurrent network failure. Otherwise
-  // a rejected plan read can mask a metadata 401/403 and leave private maps
-  // mounted after the server has revoked access.
+  // A denial of the complete native read purges all private maps. There are no
+  // independently settled client-side siblings that can mask this response.
   for (const status of [401, 403]) {
     const denied = backgroundHarness({
-      fetchPlans: async () => { throw new Error('plan network unavailable'); },
-      fetchMetadata: async () => {
-        const error = new Error(`metadata ${status}`);
-        error.status = status;
-        throw error;
-      },
+      snapshotError: Object.assign(new Error(`snapshot ${status}`), { status }),
     });
     const sessionBefore = denied.context._wlPlanSessionGeneration;
     assert.strictEqual(await denied.context.wlRefetchSilent({ sensitiveOnly: true }), false);
@@ -2098,24 +2125,18 @@ async function run() {
     assert.strictEqual(denied.counters.identityClear, status === 401 ? 1 : 0, `${status} uses the correct auth purge path`);
   }
 
-  // Foreground loading has the same all-or-nothing private boundary. An auth
-  // failure from either settled projection is handled before either fulfilled
-  // sibling can be adopted; the non-sensitive issue payload remains usable.
+  // Foreground loading has the same atomic private boundary. The incoming
+  // population itself is held on denial; only already visible rows remain.
   {
     const authError = (status, message) => Object.assign(new Error(message), { status });
-    const genericError = message => new Error(message);
-    const goodPlan = { rows: [{ issue_id: 'issue-a', plan_date: '2026-08-08' }], readGeneration: 0 };
-    const goodMetadata = [{ issue_id: 'issue-a', due_date: '2026-08-10', workload: null }];
-    for (const [label, planOutcome, metadataOutcome, expectedIdentityClears] of [
-      ['plan 401 with fulfilled metadata', authError(401, 'plan expired'), goodMetadata, 1],
-      ['metadata 401 with fulfilled plan', goodPlan, authError(401, 'metadata expired'), 1],
-      ['plan 403 with generic metadata failure', authError(403, 'plan forbidden'), genericError('metadata offline'), 0],
-      ['metadata 403 with generic plan failure', genericError('plan offline'), authError(403, 'metadata forbidden'), 0],
+    for (const [label, snapshotError, expectedIdentityClears] of [
+      ['expired identity', authError(401, 'snapshot expired'), 1],
+      ['revoked permission', authError(403, 'snapshot forbidden'), 0],
     ]) {
       const counts = { identityClear: 0, purge: 0, planAdopt: 0, metadataAdopt: 0, issueApply: 0 };
-      const freshIssue = backgroundIssue({ title: `Fresh ${label}` });
       const foreground = {
         _wlPlanLoadGeneration: 0,
+        _wlPlanSessionGeneration: 0,
         wlState: {
           planHasSnapshot: true,
           planStatus: 'ready',
@@ -2129,15 +2150,7 @@ async function run() {
         },
         document: { querySelector: () => ({}) },
         renderWorkloadAll: () => {},
-        loadLinearIssues: async () => ({ issues: [freshIssue], fetchedAt: 2, usedFallback: false }),
-        wlFetchPlanRows: async () => {
-          if (planOutcome instanceof Error) throw planOutcome;
-          return planOutcome;
-        },
-        wlFetchLinearMetadata: async () => {
-          if (metadataOutcome instanceof Error) throw metadataOutcome;
-          return metadataOutcome;
-        },
+        loadLinearIssues: async () => { throw snapshotError; },
         wlPurgePlanSensitiveState: () => {
           counts.purge++;
           foreground.wlState.planByIssueId.clear();
@@ -2165,9 +2178,9 @@ async function run() {
       foreground.globalThis = foreground;
       vm.createContext(foreground);
       vm.runInContext(extract('wlLoadSnapshot'), foreground);
-      const payload = await foreground.wlLoadSnapshot(true, null);
-      assert.strictEqual(payload.issues[0].title, freshIssue.title, `${label} retains public issue data`);
-      assert.strictEqual(counts.issueApply, 1);
+      await assert.rejects(foreground.wlLoadSnapshot(true, null), error => error === snapshotError);
+      assert.strictEqual(foreground.wlState.issueSnapshot[0].title, 'Old issue', `${label} retains only the previous visible population`);
+      assert.strictEqual(counts.issueApply, 0);
       assert.strictEqual(counts.planAdopt, 0, `${label} cannot adopt a fulfilled plan sibling`);
       assert.strictEqual(counts.metadataAdopt, 0, `${label} cannot adopt a fulfilled metadata sibling`);
       assert.strictEqual(foreground.wlState.planByIssueId.size, 0);
@@ -2178,8 +2191,8 @@ async function run() {
   }
 
   // Manual Refresh remains the deliberate foreground exception: it marks the
-  // board refreshing (the renderer's skeleton condition) and forces the direct
-  // no-cache Linear/n8n lane.
+  // board refreshing (the renderer's skeleton condition) and forces the native
+  // snapshot loader. It must never rebase or read the retired mirror.
   {
     let forced = null;
     let cursorDuringLoad = 'not-called';
@@ -2225,7 +2238,6 @@ async function run() {
     };
     manualContext.globalThis = manualContext;
     vm.createContext(manualContext);
-    vm.runInContext(extract('wlRebaseMirrorWatermarkAfterDirectRefresh'), manualContext);
     vm.runInContext(extract('wlManualRefresh'), manualContext);
     await manualContext.wlManualRefresh();
     assert.strictEqual(forced, null, 'manual refresh does not start while a due save is active');
@@ -2239,65 +2251,39 @@ async function run() {
 
     manualContext._wlDueWriteInFlight.clear();
     await manualContext.wlManualRefresh();
-    assert.deepStrictEqual(forced, [true, null], 'manual refresh keeps the forced direct path');
+    assert.deepStrictEqual(forced, [true, null], 'manual refresh keeps the forced native snapshot path');
     assert.deepStrictEqual(duringLoad, [true], 'manual refresh enters the skeleton-producing refreshing state');
-    assert.strictEqual(cursorDuringLoad, null, 'successful direct refresh starts with the old mirror cursor cleared');
-    assert.strictEqual(watermarkReads, 1, 'manual refresh establishes one cheap Supabase watermark baseline');
-    assert.strictEqual(mirrorReads, 0, 'manual baselining never applies mirror issue data');
-    assert.strictEqual(manualContext.wlState.sourceSyncedAt, '2026-07-22T12:05:00.000Z');
+    assert.strictEqual(cursorDuringLoad, '2026-07-22T12:00:00.000Z', 'native refresh does not rebase the unused mirror cursor');
+    assert.strictEqual(watermarkReads, 0, 'native refresh never reads a provider watermark');
+    assert.strictEqual(mirrorReads, 0, 'native refresh never applies mirror issue data');
+    assert.strictEqual(manualContext.wlState.sourceSyncedAt, '2026-07-22T12:00:00.000Z');
     assert.strictEqual(manualContext.wlState.refreshing, false);
     assert.strictEqual(manualContext.wlState.backgroundError, null);
   }
 
-  // If that cheap baseline request fails, the cursor remains empty. The next
-  // ordinary watermark check establishes a baseline and returns; it cannot
-  // mistake an older mirror snapshot for an advanced change and apply it.
+  // A failed native read keeps the warm board and remains retryable. A later
+  // complete response recovers it without any provider baseline or fallback.
   {
-    let watermarkReads = 0, mirrorReads = 0, fullRefreshes = 0;
-    const failedBaseline = {
-      _wlV2WatermarkBusy: false,
-      _wlDueWriteInFlight: new Map(),
-      wlState: {
-        refreshing: false,
-        loading: false,
-        planStatus: 'ready',
-        error: null,
-        backgroundError: null,
-        sourceSyncedAt: '2026-07-22T12:00:00.000Z',
+    const retry = backgroundHarness({
+      freshIssues: [backgroundIssue({ title: 'Fresh native title' })],
+      fetchIssues: async call => {
+        if (call === 1) throw new Error('native snapshot unavailable');
+        return [backgroundIssue({ title: 'Fresh native title' })];
       },
-      document: { hidden: false, querySelector: () => ({}) },
-      _wlV2Ready: () => true,
-      _wlV2FetchLatestWatermark: async () => {
-        watermarkReads++;
-        if (watermarkReads === 1) throw new Error('baseline unavailable');
-        return '2026-07-22T12:06:00.000Z';
-      },
-      _wlV2FetchIssues: () => { mirrorReads++; throw new Error('baseline path fetched mirror'); },
-      wlRefetchSilent: () => { fullRefreshes++; throw new Error('baseline path entered full refresh'); },
-      wlClearBackgroundRefreshFailure: () => { failedBaseline.wlState.backgroundError = null; },
-      wlMarkBackgroundRefreshFailure: error => { failedBaseline.wlState.backgroundError = error.message; },
-      wlSpinnerOn: () => {},
-      wlSpinnerOff: () => {},
-      wlLoadSnapshot: async () => ({ usedFallback: false }),
-      wlScheduleNativeDueReceiptRetry: () => false,
-      renderWorkloadAll: () => {},
-      console: { warn: () => {}, error: console.error, log: console.log },
-      Date, Promise, Error,
-    };
-    failedBaseline.globalThis = failedBaseline;
-    vm.createContext(failedBaseline);
-    vm.runInContext(extract('wlRebaseMirrorWatermarkAfterDirectRefresh'), failedBaseline);
-    vm.runInContext(extract('wlManualRefresh'), failedBaseline);
-    vm.runInContext(extract('_wlV2CheckWatermark'), failedBaseline);
-    await failedBaseline.wlManualRefresh();
-    assert.strictEqual(failedBaseline.wlState.sourceSyncedAt, null, 'failed manual baseline leaves the cursor empty');
-    assert.match(failedBaseline.wlState.backgroundError, /baseline unavailable/);
-    await failedBaseline._wlV2CheckWatermark();
-    assert.strictEqual(failedBaseline.wlState.sourceSyncedAt, '2026-07-22T12:06:00.000Z');
-    assert.strictEqual(watermarkReads, 2);
-    assert.strictEqual(mirrorReads, 0, 'the next check establishes a cursor without reading mirror rows');
-    assert.strictEqual(fullRefreshes, 0, 'the next check does not adopt an older mirror snapshot');
-    assert.strictEqual(failedBaseline.wlState.backgroundError, null);
+    });
+    const oldTitle = retry.context.wlState.issueSnapshot[0].title;
+    await retry.context._wlV2CheckWatermark();
+    assert.strictEqual(retry.context.wlState.issueSnapshot[0].title, oldTitle);
+    assert.match(retry.context.wlState.backgroundError, /could not refresh/);
+    assert.strictEqual(retry.counters.applyData, 0, 'no partial response publishes');
+    await retry.context._wlV2CheckWatermark();
+    assert.strictEqual(retry.context.wlState.issueSnapshot[0].title, 'Fresh native title');
+    assert.strictEqual(retry.counters.snapshots, 2);
+    assert.strictEqual(retry.counters.applyData, 1);
+    assert.strictEqual(retry.counters.watermark, 0);
+    assert.strictEqual(retry.counters.mirror, 0);
+    assert.strictEqual(retry.counters.n8n, 0);
+    assert.strictEqual(retry.context.wlState.backgroundError, null);
   }
 
   /*

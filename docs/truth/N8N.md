@@ -23,6 +23,13 @@
 
 ## Inventory
 
+Scoped 2026-09-06 01:40Z published-graph read: Calendar and Samples upsert fallbacks
+still write card tables directly. Both Build Row whitelists discard native child IDs;
+neither routes to the frozen upsert EF or preserves the native source marker.
+This proves a reachable bypass, not recent executions or failed user actions.
+See [exact evidence and proposed narrow amendment](../audits/2026-09-06-native-card-compatibility.md).
+No n8n edits were made; same-request owner approval remains required before either amendment.
+
 The app-facing webhook surface (55 endpoints) is enumerated and machine-enforced in
 `docs/truth/ENDPOINTS.md`. A 2026-08-20 live census found **99 workflows, 83 active** (16 inactive),
 superseding the 2026-07-14 count of 92/77; seven were added since, none deleted — the three

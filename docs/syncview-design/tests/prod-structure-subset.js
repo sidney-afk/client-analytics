@@ -72,7 +72,9 @@ async function assertNoWriteRequests(requests) {
     try { body = JSON.parse(r.postData || 'null'); } catch (e) { return false; }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
     const keys = Object.keys(body).sort();
-    if (keys.join(',') !== 'before,deliverable_id,limit') return false;
+    const shape = keys.join(',');
+    if (shape !== 'before,deliverable_id,limit'
+      && !(shape === 'before,deliverable_id,include_feedback,limit' && body.include_feedback === true)) return false;
     return typeof body.deliverable_id === 'string'
       && body.deliverable_id.length > 0
       && body.limit === 50
@@ -818,8 +820,10 @@ async function assertNoWriteRequests(requests) {
     }
     await expectCount(page, '[data-prod-detail-card="properties"]', 1, 'Properties detail card');
     await expectCount(page, '[data-prod-detail-card="project"]', 1, 'Project detail card');
-    if (!(await text(page, '.prod-activity')).includes('Comments')) throw new Error('Comments section missing');
-    await page.waitForSelector('.prod-activity [data-prod-comments-state], .prod-activity .prod-comment-loading', { timeout: 10000 });
+    if (!(await text(page, '.prod-activity')).includes('Feedback & tweaks')) throw new Error('Feedback section missing');
+    // An empty canonical feed precedes the visible incomplete-feedback notice.
+    // Require a visible state, rather than stopping at that hidden empty feed.
+    await page.waitForSelector('.prod-activity [data-prod-comments-state]:visible, .prod-activity [data-prod-feedback-state]:visible, .prod-activity .prod-comment-loading:visible', { timeout: 10000 });
     const commentRowsAreBodyFirst = await page.evaluate(() => {
       const row = document.querySelector('.prod-comment');
       return !row || (!!row.querySelector('.prod-comment-author') && !!row.querySelector('.prod-comment-body'));

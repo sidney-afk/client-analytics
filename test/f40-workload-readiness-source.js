@@ -16,6 +16,10 @@
  */
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
+const vm = require('node:vm');
+const { spawnSync, execFileSync } = require('node:child_process');
+const { extractFunction } = require('./helpers/extract-function');
 
 let failures = 0;
 function ok(condition, message) {
@@ -88,13 +92,24 @@ ok(!/\['video', 'graphics'\]\.includes\(String\(row\.team \|\| ''\)\)/.test(scri
 ok(/nativeTeam !== team/.test(app),
   'the browser really does reject a cross-team native target — the rule being mirrored is real');
 
-/* The audited population must be the one the page loads. wlFetchLinearMetadata
- * filters through wlIsActiveStatus and wlIsAllowedClient before anything
- * reaches the native reader, so counting a parked or off-roster issue produces
- * a permanent nonzero reading for work no designer can see — a gate nobody can
- * satisfy, which is exactly what PRE_FLIP_HEALTH_CHECK.md exists to prevent. */
-ok(/wlIsActiveStatus\(issue\)/.test(app) && /wlIsAllowedClient\(issue\.clientName\)/.test(app),
-  'the browser really does apply both pre-fetch filters — the population being mirrored is real');
+/* Native population ownership has changed. Preserve the historical cohort
+ * assertions, but require a fail-closed CLI guard instead of pretending a
+ * mirror/UUID census covers native-only work. Test the real delegated client
+ * predicate, including its retained legacy branch, rather than dead code. */
+const metadataReader = extractFunction(app, 'wlFetchLinearMetadata');
+const nativeReader = extractFunction(app, 'wlFetchNativeSnapshot');
+ok([metadataReader, nativeReader].every(body => /wlIsActiveStatus\(issue\)/.test(body) && /wlIssueClientAllowed\(issue\)/.test(body)),
+  'actual readers retain active-status and authority-aware client filters');
+const clientContext = { wlIsAllowedClient: name => name === 'synthetic-legacy-allowed' };
+vm.createContext(clientContext);
+vm.runInContext(extractFunction(app, 'wlIssueClientAllowed'), clientContext);
+ok(clientContext.wlIssueClientAllowed({ workloadSource: 'native', nativeClientActive: true, clientName: 'synthetic-unmapped' }) === true,
+  'native active-client membership does not require the historical name allowlist');
+ok(clientContext.wlIssueClientAllowed({ workloadSource: 'native', nativeClientActive: false, clientName: 'synthetic-legacy-allowed' }) === false,
+  'the legacy allowlist cannot rescue an inactive native client');
+ok(clientContext.wlIssueClientAllowed({ workloadSource: 'legacy', clientName: 'synthetic-legacy-allowed' }) === true
+  && clientContext.wlIssueClientAllowed({ workloadSource: 'legacy', clientName: 'synthetic-unmapped' }) === false,
+  'legacy membership still enforces the original allowlist');
 ok(/WL_PARKED_STATUSES/.test(script) && /WL_CLIENT_NAMES/.test(script),
   'the gate reads both filter lists out of the shipped app rather than restating them');
 /* Pin the ASSIGNMENTS, not the predicates. Both predicates also appear in the
@@ -102,9 +117,9 @@ ok(/WL_PARKED_STATUSES/.test(script) && /WL_CLIENT_NAMES/.test(script),
  * so a substring pin stayed green when the real filter was deleted. Verified by
  * mutation: removing either filter must fail here. */
 ok(/const working = onTeam\.filter\(row => isActiveStatus\(row\.status_type, row\.status\)\);/.test(script),
-  'the audited set is filtered to non-parked, non-terminal issues, as the page filters them');
+  'the retained historical cohort excludes parked and terminal issues');
 ok(/const mine = working\.filter\(row => allowedClients\.has\(normalizeClient\(row\.client_name\)\)\);/.test(script),
-  'the audited set is filtered to roster clients, as the page filters them');
+  'the retained historical cohort is still filtered to roster clients');
 ok(/const ids = \[\.\.\.new Set\(mine\./.test(script),
   'the audited ids come from the filtered set, so neither filter can be computed and then ignored');
 ok(/excluded_parked_or_terminal/.test(script) && /excluded_off_roster/.test(script),
@@ -146,6 +161,61 @@ ok(/unprovable_total > \(ACCEPTED_FLOORS\[result\.team\] \|\| 0\)/.test(script),
   'the FAILING filter compares against the floor — above it is red, at or under it is not');
 ok(/GRA-4260/.test(script),
   'the floor names its five accepted identifiers, so a DIFFERENT set of 5 failures cannot hide under it by count alone (public-safe: Linear IDs only, per F64)');
+
+// --- 6. Full CLI controls, with every fetch replaced before module startup --
+// The old full entry is compiled at its original path; no function is extracted
+// or rewritten for that baseline. Fixture logs store only a request counter.
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'f40-contract-'));
+try {
+  const originalPath = path.join(ROOT, 'scripts/f40-workload-readiness.js');
+  const preload = path.join(scratch, 'preload.cjs');
+  const calls = path.join(scratch, 'calls');
+  const legacyApp = path.join(scratch, 'legacy.html');
+  const baselineScript = path.join(scratch, 'baseline.cjs');
+  const baselineDriver = path.join(scratch, 'baseline-driver.cjs');
+  fs.writeFileSync(legacyApp, execFileSync('git', ['show', '99d31c815de3e1a46deeb01c45c09bf2937040ad:index.html'], { cwd: ROOT, maxBuffer: 8e6 }));
+  // This main-ancestor file is byte-identical to the failing integration's
+  // checker; avoid depending on an eventual squashed draft commit for replay.
+  fs.writeFileSync(baselineScript, execFileSync('git', ['show', '99d31c815de3e1a46deeb01c45c09bf2937040ad:scripts/f40-workload-readiness.js'], { cwd: ROOT, maxBuffer: 1e6 }));
+  fs.writeFileSync(preload, `const fs=require('node:fs'),path=require('node:path');
+const read=fs.readFileSync.bind(fs);
+if(process.env.F40_TEST_APP)fs.readFileSync=function(file,...rest){return read(path.resolve(String(file))===process.env.F40_TEST_INDEX?process.env.F40_TEST_APP:file,...rest);};
+globalThis.fetch=async url=>{fs.appendFileSync(process.env.F40_TEST_CALLS,'x');
+ const target=new URL(url), table=target.pathname.split('/').pop();
+ if(target.hostname!=='fixture.invalid')throw Error('Non-fixture transport refused');
+ let rows=[];if(table==='syncview_runtime_flags')rows=[{value:['Synthetic F40 Fixture']}];
+ else if(table==='workload_issues')rows=process.env.F40_TEST_MISSING==='1'?[{id:'synthetic-f40',identifier:'F40-SYNTHETIC',team_key:'VID',team_name:'Video',client_name:'Synthetic F40 Fixture',status:'Todo',status_type:'unstarted'}]:[];
+ else if(table!=='production_deliverables_browser_v1')throw Error('Unexpected fixture endpoint');
+ return {ok:true,status:200,json:async()=>rows};};
+`);
+  fs.writeFileSync(baselineDriver, `const fs=require('node:fs'),path=require('node:path'),Module=require('node:module');const name=process.env.F40_TEST_ORIGINAL;const entry=new Module(name,module);entry.filename=name;entry.paths=Module._nodeModulePaths(path.dirname(name));entry._compile(fs.readFileSync(process.env.F40_TEST_BASELINE,'utf8'),name);`);
+  const run = (entry, extra = {}) => {
+    fs.writeFileSync(calls, '');
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^F40_TEST_/.test(key)));
+    const result = spawnSync(process.execPath, ['--require', preload, entry, '--json', '--team=video'], {
+      cwd: ROOT, env: { ...env, SUPABASE_URL: 'https://fixture.invalid', SUPABASE_ANON_KEY: 'synthetic-publishable',
+        F40_TEST_CALLS: calls, F40_TEST_INDEX: path.join(ROOT, 'index.html'), F40_TEST_ORIGINAL: originalPath,
+        F40_TEST_BASELINE: baselineScript, ...extra }, encoding: 'utf8', timeout: 10000, windowsHide: true,
+    });
+    return { ...result, calls: fs.readFileSync(calls, 'utf8').length };
+  };
+  const current = run(originalPath);
+  ok(current.status === 2 && /UNPROVEN: F40 covers only/.test(current.stderr) && current.calls === 0,
+    'actual current CLI refuses unsupported native population before every request');
+  const baseline = run(baselineDriver);
+  ok(baseline.status === 0 && baseline.calls > 0 && /every active sub-issue/.test(baseline.stdout),
+    'exact baseline negative control falsely certifies an empty mirror on native-default source');
+  const legacyEmpty = run(originalPath, { F40_TEST_APP: legacyApp });
+  ok(legacyEmpty.status === 0 && legacyEmpty.calls > 0 && /every audited legacy mirror sub-issue/.test(legacyEmpty.stdout),
+    'the exact older browser contract retains its historical cohort computation');
+  const legacyMissing = run(originalPath, { F40_TEST_APP: legacyApp, F40_TEST_MISSING: '1' });
+  ok(legacyMissing.status === 1 && /"unprovable_total": 1/.test(legacyMissing.stdout),
+    'a missing legacy projection still fails against the unchanged zero floor');
+} finally {
+  const resolved = fs.realpathSync(scratch);
+  if (path.dirname(resolved) !== fs.realpathSync(os.tmpdir()) || !path.basename(resolved).startsWith('f40-contract-')) throw new Error('Refusing cleanup outside owned temporary child');
+  fs.rmSync(resolved, { recursive: true, force: true });
+}
 
 if (failures) {
   console.error(`\n${failures} F40 readiness-gate source check(s) failed`);

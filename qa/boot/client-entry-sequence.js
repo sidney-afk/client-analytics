@@ -748,7 +748,10 @@ function installBfcacheSyntheticNetwork(config) {
         }
         read.signalAbortedAfterHold = Boolean(init && init.signal && init.signal.aborted);
         state.sampleResponsesCompleted += 1;
-        return jsonResponse(config.sampleRows);
+        return new Response(JSON.stringify(config.sampleRows), { headers: {
+          'content-type': 'application/json',
+          'content-range': config.sampleRows.length ? `0-${config.sampleRows.length - 1}/${config.sampleRows.length}` : '*/0',
+        } });
       }
     }
 
@@ -1245,7 +1248,10 @@ async function installSyntheticNetwork(context, origin, config = {}) {
         state.sampleReads.push(read);
         state.sensitiveClientReads.push(Object.assign({ kind: 'sample_reviews' }, read));
         await sleep(80);
-        await fulfillJson(route, SAMPLE_ROWS);
+        await route.fulfill({ status: 200, contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'content-range',
+            'content-range': `0-${SAMPLE_ROWS.length - 1}/${SAMPLE_ROWS.length}` },
+          body: JSON.stringify(SAMPLE_ROWS) });
         return;
       }
     }
@@ -3184,6 +3190,84 @@ async function runPendingSamplesBfcacheScenario(browser, server) {
   }
 }
 
+async function runSamplesReadFailureChecks(run) {
+  const page = run.page;
+  await page.evaluate(() => {
+    const interceptedFetch = window.fetch;
+    window.__samplesReadFailure = true;
+    window.__samplesFallbackRows = JSON.parse(JSON.stringify(sxrState.posts));
+    window.fetch = (input, init) => {
+      const url = String(input && input.url || input);
+      if (window.__samplesReadFailure && (/\/rest\/v1\/sample_reviews\?/.test(url) || /\/sample-review-get\?/.test(url))) {
+        const payload = window.__samplesReadFallback && /\/sample-review-get\?/.test(url)
+          ? { ok: true, items: window.__samplesFallbackRows }
+          : { ok: false };
+        return Promise.resolve(new Response(JSON.stringify(payload), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        }));
+      }
+      return interceptedFetch(input, init);
+    };
+    window.__samplesCacheBeforeFailure = localStorage.getItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client));
+  });
+  for (const width of [360, 768, 1280]) {
+    for (const theme of ['light', 'dark']) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(async value => {
+        document.documentElement.setAttribute('data-theme', value);
+        await loadSxrCards({ skipCache: true });
+      }, theme);
+      const retry = page.locator('#sxrStaleNotice');
+      await retry.waitFor({ state: 'visible' });
+      assert.match(await page.locator('#sxrView').innerText(), /Synthetic review card A/);
+      assert.equal(await page.evaluate(() => sxrState.loading), false);
+      assert.equal(await page.evaluate(() => localStorage.getItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client)) === window.__samplesCacheBeforeFailure), true);
+      const box = await retry.boundingBox();
+      assert.ok(box && box.height >= 44 && box.x >= 0 && box.x + box.width <= width + 1, 'stale retry fits viewport with touch target');
+      await retry.focus();
+      assert.equal(await retry.evaluate(el => el === document.activeElement), true);
+      await retry.press('Enter');
+      await retry.waitFor({ state: 'visible' });
+      if (width === 360 && theme === 'dark') await page.screenshot({ path: path.join(ROOT, '..', 'samples-stale-360-dark.png') });
+    }
+  }
+  await page.evaluate(() => { window.__samplesReadFailure = false; });
+  await page.locator('#sxrStaleNotice').click();
+  await page.locator('#sxrStaleNotice').waitFor({ state: 'hidden' });
+  await waitForReviewSettled(page);
+  await page.evaluate(async () => {
+    window.__samplesReadFailure = true;
+    window.__samplesReadFallback = true;
+    window.__samplesCacheBeforeFallback = localStorage.getItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client));
+    await loadSxrCards({ skipCache: true });
+  });
+  assert.equal(await page.evaluate(() => localStorage.getItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client)) === window.__samplesCacheBeforeFallback), true);
+  await page.locator('#sxrStaleNotice').waitFor({ state: 'visible' });
+  await page.evaluate(async () => {
+    sxrState.posts = [];
+    localStorage.removeItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client));
+    await loadSxrCards({ skipCache: true });
+  });
+  await waitForReviewSettled(page);
+  await page.locator('#sxrStaleNotice').waitFor({ state: 'visible' });
+  assert.match(await page.locator('#sxrStaleNotice').innerText(), /Incomplete or outdated/);
+  assert.equal(await page.evaluate(() => localStorage.getItem(SXR_CACHE_PREFIX + sxrClientSlug(sxrState.client))), null);
+  await page.locator('#sxrStaleNotice').click();
+  await page.waitForFunction(() => !_sxrBgLoadInFlight);
+  await page.locator('#sxrStaleNotice').waitFor({ state: 'visible' });
+  await page.evaluate(() => { window.__samplesReadFallback = false; });
+  await page.evaluate(async () => {
+    window.__samplesReadFailure = true;
+    sxrState.posts = [];
+    await loadSxrCards({ skipCache: true });
+  });
+  assert.match(await page.locator('#sxrBody').innerText(), /Couldn't load sample reviews/);
+  await page.evaluate(() => { window.__samplesReadFailure = false; });
+  await page.locator('#sxrBody .cal-error button').click();
+  await waitForReviewSettled(page);
+  passGroup('G1 Samples stale/cache/error/retry at 360/768/1280 in light/dark (fully mocked)');
+}
+
 async function runLegacySamplesScenario(browser, server) {
   const label = 'F117 legacy Samples exact-client boot/reload/Back-Forward';
   const traceOptions = { clientOwned: true, samplesOwned: true, expectedClient: CLIENT_A };
@@ -3363,6 +3447,7 @@ async function runLegacySamplesScenario(browser, server) {
       );
       assert.equal(read.url.includes('residualfixtureclient'), false, `${label}: residual client must not reach the transport`);
     }
+    await runSamplesReadFailureChecks(run);
     assertHealthyHarness(run, label);
     passGroup(label);
   } finally {
@@ -4513,7 +4598,7 @@ async function main() {
     await runLegacySamplesScenario(browser, server);
     await runStaffCalendarOwnedTailAndBfcacheScenario(browser, server);
     await runClientLegacyResumeLeaseScenario(browser, server);
-    assert.equal(passedGroups, 23, 'visible client-entry boot lane must run exactly 23 scenario groups');
+    assert.equal(passedGroups, 24, 'visible client-entry boot lane must run exactly 24 scenario groups');
     console.log(`SUMMARY ${passedGroups} scenario groups passed (${Date.now() - startedAt} ms, one attempt per navigation)`);
   } finally {
     if (browser) await browser.close();
@@ -4521,7 +4606,10 @@ async function main() {
   }
 }
 
-main().catch(error => {
+module.exports = { installBootObserver, installSyntheticNetwork, startStreamServer, openCase, streamedNavigation, waitForCalendarSettled,
+  waitForReviewSettled, runClientTabScenario, runLegacySamplesScenario, assertHealthyHarness };
+
+if (require.main === module) main().catch(error => {
   console.error(error && error.stack || error);
   process.exitCode = 1;
 });

@@ -11,60 +11,11 @@ function ok(value, label) {
   if (value) console.log('  ok  ' + label);
   else { failures++; console.error('FAIL  ' + label); }
 }
-/*
- * Slice one function out of the shipped file by balancing its braces.
- *
- * It tracks quotes AND comments. Comments matter: an apostrophe in a `//` line
- * -- "the dialog's own subtitle" -- used to open a string that never closed, so
- * brace tracking ran off the end and `extract` returned a MILLION characters
- * instead of the function. That is worse than a crash. A negative assertion
- * ("this function must not mention X") then scans the whole file and fails for
- * the wrong reason, and a positive one ("this function must contain Y") passes
- * for the wrong reason -- silently, across every assertion built from it. Found
- * 2026-08-22 when one added comment turned a green suite red.
- *
- * The size guard refuses an extraction that swallowed the file, so this can
- * never again degrade quietly into a whole-file scan.
- *
- * Honest note on coverage: NEITHER comment branch is load-bearing against the
- * source as it stands, because the apostrophe that exposed this was in a
- * comment that has since been reverted for unrelated reasons. Removing either
- * branch leaves this suite green today. That is a fact about today's source,
- * not about the hazard -- the failure was real, observed, and cost a red run
- * before it was understood, and plenty of functions in the shipped file carry
- * both comment styles. It stays, and this note says plainly that it is
- * defensive rather than implying a proof that no longer holds.
- */
+// Use the shared comment/string/regex-aware extractor; retain the runaway size guard.
 function extract(name) {
-  const match = new RegExp(`function\\s+${name}\\s*\\(`).exec(source);
-  if (!match) throw new Error(`missing ${name}`);
-  const start = match.index;
-  const brace = source.indexOf('{', start);
-  let depth = 0, quote = '', escaped = false, lineComment = false, blockComment = false;
-  for (let i = brace; i < source.length; i++) {
-    const ch = source[i];
-    const next = source[i + 1];
-    if (lineComment) { if (ch === '\n') lineComment = false; continue; }
-    if (blockComment) { if (ch === '*' && next === '/') { blockComment = false; i++; } continue; }
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (ch === '\\') escaped = true;
-      else if (ch === quote) quote = '';
-      continue;
-    }
-    if (ch === '/' && next === '/') { lineComment = true; i++; continue; }
-    if (ch === '/' && next === '*') { blockComment = true; i++; continue; }
-    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
-    if (ch === '{') depth++;
-    else if (ch === '}' && --depth === 0) {
-      const body = source.slice(start, i + 1);
-      if (body.length > source.length / 4) {
-        throw new Error(`${name} extraction ran away (${body.length} chars) -- brace tracking lost its place`);
-      }
-      return body;
-    }
-  }
-  throw new Error(`unclosed ${name}`);
+  const body = require('./helpers/extract-function').extractFunction(source, name);
+  if (body.length > source.length / 4) throw new Error(`${name} extraction ran away (${body.length} chars)`);
+  return body;
 }
 
 function extractConst(name) {
@@ -272,10 +223,10 @@ ok(/const verificationEpoch = _syncviewStaffVerificationEpoch/.test(extract('_pr
 ok(/_prodState\.writes\.has\(id \+ ':labels'\)/.test(extract('_prodEnsureLabels'))
   && /_prodState\.labels = new Map\(\[\.\.\._prodState\.labels\]\.filter/.test(extract('_prodRefresh')),
 'Production refreshes preserve a pending label write and do not race it with an older protected read');
-ok(/_prodGatewayWrite\(issue, 'labels', \{ label_ids: labelIds \}\)/.test(source)
-  && /payload\.expected_updated_at = issue\.updatedRaw/.test(source)
+ok(/_prodGatewayWrite\(issue, 'labels', \{ label_ids: labelIds,\s*\.\.\.\(state\.catalogVersion \? \{ catalog_version: state\.catalogVersion \} : \{\}\) \}\)/.test(extract('_prodRunLabelsWrite'))
+  && /payload\.expected_updated_at = issue\.updatedRaw/.test(extract('_prodGatewayWrite'))
   && /_prodWriteRequestId\(operation\)/.test(extract('_prodGatewayWrite')),
-'label toggles send one full selected-id set through the existing CAS/idempotency envelope');
+'label toggles send one full selected-id set and the available native catalog version through the existing CAS/idempotency envelope');
 ok(/data-prod-label-search-input/.test(source)
   && /role="checkbox"/.test(source)
   && /_prodLabelColorStyle\(label\)/.test(source)
@@ -535,6 +486,53 @@ ok(/_prodWriteGateAttrs\(issue, 'status'/.test(extract('_prodStatusIcon'))
 'status icons and detail properties reuse the shared write-gate attribute helper');
 
 (async () => {
+  // Run the actual label writer AND authenticated gateway payload constructor.
+  // Only transport/render/identity providers are synthetic; no network or SQL.
+  for (const [lane, catalogVersion, labelIds] of [
+    ['native selection', '00000000-0000-4000-8000-000000000701', ['label-one', 'label-two']],
+    ['native clear', '00000000-0000-4000-8000-000000000701', []],
+    ['provider selection', '', ['label-one', 'label-two']],
+    ['provider clear', '', []],
+  ]) {
+    const requests = []; const adopted = [];
+    const issue = { id: 'synthetic-issue', authorityProject: 'synthetic-scope', updatedRaw: '2026-09-06T12:00:00Z' };
+    const state = { status: 'ready', saving: false, catalogVersion, catalog: [] };
+    const writes = new Map(); const labelRequestTokens = new Map(); let identities = 0;
+    const labelsContext = {
+      Map, Date, String, Object, Error, JSON,
+      _prodState: { writes, labels: new Map([[issue.id, state]]), labelRequestTokens },
+      _prodIssue: () => issue, _prodLabelState: () => state, _prodCanWrite: () => true,
+      _syncviewStaffIdentityForHeaders: () => ({ key: 'synthetic-staff' }),
+      _syncviewStaffIdentitySignature: identity => identity.key, _syncviewStaffVerificationEpoch: 1,
+      _prodNextLabelRequestToken: id => { const value = (labelRequestTokens.get(id) || 0) + 1; labelRequestTokens.set(id, value); return value; },
+      _prodWriteRequestId: operation => { identities++; return 'intent:' + operation; },
+      _prodRefreshLabelSurfaces: () => {}, _prodRender: () => {}, _prodToast: () => {},
+      _prodApplyGatewayRow: () => {}, _prodAdoptLabelPayload: (id, payload) => adopted.push({ id, payload }),
+      _prodEnsureLabels: () => { throw new Error('successful fixture must not require recovery'); },
+      _prodWriteErrorText: () => 'unexpected-fixture-refusal',
+      _syncviewEfHeaders: headers => ({ ...headers, 'X-Syncview-Key': 'synthetic-staff' }),
+      PROD_WRITE_EF_URL: 'https://synthetic.invalid/production-write', CAL_SUPABASE_ANON_KEY: 'synthetic-public-key',
+      document: { getElementById: () => null },
+      fetch: async (url, init) => {
+        requests.push({ url, ...init, body: JSON.parse(init.body) });
+        return { ok: true, status: 200, json: async () => ({ ok: true, native_committed: true, row: { id: issue.id } }) };
+      },
+    };
+    vm.createContext(labelsContext);
+    vm.runInContext('async ' + extract('_prodGatewayWrite') + '\nasync ' + extract('_prodRunLabelsWrite'), labelsContext);
+    await labelsContext._prodRunLabelsWrite(issue.id, labelIds);
+    const request = requests[0]; const payload = request && request.body;
+    ok(requests.length === 1 && request.url === labelsContext.PROD_WRITE_EF_URL
+      && request.method === 'POST' && request.headers['X-Syncview-Key'] === 'synthetic-staff'
+      && payload.operation === 'labels' && payload.surface === 'production' && payload.entity === 'deliverable'
+      && payload.id === issue.id && payload.client_slug === issue.authorityProject
+      && JSON.stringify(payload.label_ids) === JSON.stringify(labelIds)
+      && (catalogVersion ? payload.catalog_version === catalogVersion : !Object.hasOwn(payload, 'catalog_version'))
+      && payload.expected_updated_at === issue.updatedRaw && payload.request_id === 'intent:labels'
+      && Number.isFinite(Date.parse(payload.source_edited_at)) && identities === 1
+      && adopted.length === 1 && writes.size === 0,
+    lane + ' sends exact complete selection/catalog/CAS/intent through one authenticated gateway request');
+  }
   const draft = {
     action: 'edit',
     commentId: 'comment-fixture',

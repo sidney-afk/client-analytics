@@ -90,7 +90,21 @@ ok(/preserveDeepCursor \? current\.cursor : nextCursor/.test(source) && /priorPa
 ok(/\(append \|\| refreshing\) && current \? current\.items : \[\]/.test(source), 'newest-page refresh merges into already-loaded comments');
 ok(/Load older comments/.test(source), 'older-page control is rendered');
 ok(/c\.parent_id \? ' is-reply' : ''/.test(source), 'replies receive indentation');
-ok(/c\.deleted \? 'Comment deleted\.' : _prodLinkify\(c\.body\)/.test(source), 'tombstones cannot render deleted bodies');
+const commentHTML = extract('_prodCommentHTML');
+ok(/c\.deleted \? 'Comment deleted\.' : _prodCommentMediaHTML\(c\)/.test(commentHTML), 'tombstones bypass the guarded media renderer');
+let mediaRenderCalls = 0;
+Object.assign(context, {
+  _prodCommentTime: () => ({ text: 'just now', raw: '' }),
+  _calEsc: value => String(value || '').replace(/[&<>"']/g, ''),
+  _calEscAttr: value => String(value || ''),
+  _prodAvatar: () => '',
+  _prodState: { openId: 'fixture-deliverable' },
+  _prodCommentMediaHTML: () => { mediaRenderCalls++; throw new Error('deleted media must not render'); },
+});
+vm.runInContext(commentHTML + `\nresult = _prodCommentHTML({ id:'deleted-media', body:'deleted-secret',
+  deleted_at:'2026-09-07T00:00:00Z', attachments:[{ title:'deleted-file', url:'https://fixture.invalid/private' }] });`, context);
+ok(context.result.includes('Comment deleted.') && !/deleted-secret|deleted-file|fixture\.invalid|Refresh downloads/.test(context.result)
+  && mediaRenderCalls === 0, 'actual tombstone rendering exposes neither body nor files and never invokes media rendering');
 ok(/prod-comment-edited/.test(source) && /prod-comment-pill">Resolved/.test(source), 'edited and resolved states render');
 ok(/target="_blank" rel="noopener noreferrer"/.test(source), 'linkified bodies isolate new tabs');
 ok(/function _prodComposerHTML\(issue\)/.test(source)
@@ -175,8 +189,32 @@ ok(/retryCursor && retryCursor\.rebased === true/.test(cardLifecycle)
 ok(/A newer version was loaded\. Your draft was preserved; Retry applies it to the current comment\./.test(source),
 'conflict copy tells the user the newer version is loaded and the preserved draft will apply to current state');
 
-if (failures) {
-  console.error(`\n${failures} Production comment UI source check(s) failed`);
-  process.exit(1);
-}
-console.log('\nProduction comment UI source checks passed');
+(async () => {
+  // Exercise each real house-suite mutation guard, not a duplicate predicate.
+  for (const script of ['prod-structure-subset.js', 'prod-readonly-smoke.js']) {
+    const suite = fs.readFileSync(path.join(__dirname, '..', 'docs/syncview-design/tests', script), 'utf8');
+    const guardSource = suite.slice(suite.indexOf('async function assertNoWriteRequests'), suite.indexOf('\n(async () =>'));
+    const guard = vm.runInNewContext(guardSource + '\nassertNoWriteRequests;', { URL });
+    const base = { before: null, deliverable_id: 'fictional-deliverable', limit: 50 };
+    const request = body => ({ method: 'POST', url: 'https://fixture.invalid/functions/v1/production-comments', postData: JSON.stringify(body) });
+    await guard([request(base), request({ ...base, include_feedback: true }),
+      request({ ...base, include_feedback: true, before: { id: 'fictional-comment', created_at: '2026-09-01T00:00:00Z' } })]);
+    ok(true, script + ' allows only the supported legacy and feedback read shapes');
+    const refused = [false, 'true', 1, null].map(include_feedback => request({ ...base, include_feedback }));
+    refused.push(request({ ...base, include_feedback: true, action: 'comment_edit' }),
+      request({ ...base, include_feedback: true, patch: { body: 'fictional' } }),
+      request({ ...base, extra: true }), request({ ...base, limit: 500 }), request({ ...base, deliverable_id: '' }),
+      { ...request({ ...base, include_feedback: true }), method: 'PATCH' },
+      { ...request({ ...base, include_feedback: true }), url: 'https://fixture.invalid/functions/v1/other-writer' });
+    for (const [i, attempt] of refused.entries()) {
+      let denied = false;
+      try { await guard([attempt]); } catch (_) { denied = true; }
+      ok(denied, script + ' rejects unsupported/write-shaped request ' + (i + 1));
+    }
+  }
+  if (failures) {
+    console.error(`\n${failures} Production comment UI source check(s) failed`);
+    process.exit(1);
+  }
+  console.log('\nProduction comment UI source checks passed');
+})().catch(error => { console.error(error); process.exit(1); });

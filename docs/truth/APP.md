@@ -1,5 +1,11 @@
 # App logic (`index.html`) — current truth
 
+Source-only draft addition (2026-09-05): SyncLinear's **Feedback & tweaks** view
+keeps all canonical comments and adds staff-only read-only notes from the exact
+mapped Calendar/Samples component. Missing or partial source coverage is explicit;
+client permissions, writers and lifecycle ownership remain unchanged. Contract,
+mixed-version behavior and proof limits: `docs/features/COMPONENT_FEEDBACK.md`.
+
 > Last verified: 2026-08-24 @ c7f088a + scoped Kasper Ad Performance panel v2 addition (see below)
 > + scoped F27 verification 2026-08-02 @ 968a895 + Slice 5 LIVE (F37/F94/F136 assignment and transition
 > policy introduced in `production-write` v26 and now served by F27 closure v27; F95
@@ -285,6 +291,18 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 
 ## Samples (SXR + legacy)
 
+- G1 bounded reader repair (candidate, local proof only): per-client Samples requires
+  exact-count, scoped keyset pages before replacing cards/cache. A scoped nonempty
+  fallback preserves existing content/cache; on a cold open it may display available
+  rows with incomplete/outdated feedback and retry, without caching or claiming
+  authoritative recovery. Empty, failed or malformed fallback cannot establish
+  emptiness. Only complete primary recovery clears that warning and stamps cache
+  verification time. Recent verified cache refreshes quietly; expired/unverified
+  cache remains warned. Drafts carry their originating client and the existing
+  merge retains blank/pending/saving/failed-new cards, including mid-refresh typing.
+  Calendar v2/shared pagination, the cross-client Kasper queue, and all writers are
+  unchanged. `test/samples-authoritative-read.js` holds isolated regression coverage;
+  coordinator PR #1268 G1 monitoring/client-continuity release gates remain held.
 - Logic map: `docs/audits/2026-07-05-logic-samples.md`.
 - SXR rejects pushing Scheduled/Posted to Linear (unlike calendar).
 - `_sxrReassertLinearStatus()` is **defined but never called** (dead drift-protection). Samples
@@ -517,6 +535,14 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
   overrides as absent. Authentication or authorization denial instead purges the private projection
   immediately. Reads and writes are bounded, and only the newest overlapping refresh may publish
   plan state.
+- **2026-09-05 source candidate (serving unproven):** `wlFetchNativeSnapshot` is the common
+  normal/forced/background Workload reader. One service-only SQL snapshot selects native VID/GRA
+  under actual `prod_authority`, explicit legacy CON/STR/provider teams, and compatible saved plans.
+  Native IDs and both-direction exact aliases preserve stored plan keys; native failures retain
+  prior work with a warning and hold edits, without Linear fallback. Native active-client/assignee
+  eligibility, direct native links and canonical feedback previews are described in
+  `docs/ops/WORKLOAD_NATIVE_SOURCE.md`. That section owns the migration/manual-function/browser
+  deployment order and limits; the historical deployed descriptions here are not proof it serves.
 - Candidate `workload-linear` uses the shared browser-write authenticator and the existing
   `LINEAR_MIRROR_API_KEY`; it has no n8n, frozen-writer, runtime-flag, schema, or `workload-plan`
   fallback. Metadata requests contain at most 100 unique active sub-issue ids and use bounded
@@ -655,6 +681,19 @@ reported by `scripts/calendar-native-link-gap-check.js`.
   pointing at inactive members and 7 cross-team, and zero unmapped — the strict role default
   excludes nobody who is currently eligible, because every admin/SMM roster row carries no team.
   Candidate source only; not merged and dark behind team authority.
+  **2026-09-05 draft (unmerged, on PR1302):** eligibility is lane-aware. The server-resolved
+  native intake epoch makes a request native; on that lane the flag is not read and no provider
+  call is made, while active membership, exact per-team role and team stay required and a
+  missing `linear_user_id` is an optional identifier. Provider lanes keep the contract above.
+  `docs/audits/2026-09-05-native-assignee-eligibility.md`.
+  **Bounded follow-up, source only:** Calendar/SXR staff Create Post reads
+  `intake_editor_options` before choosing its editor loader. Native options use
+  the same eligibility and work-count rules; an explicit provider response
+  keeps the original mapped loader. Errors are unavailable reads, not native
+  empty lists or provider fallback. The preview reserves nothing; submit still
+  validates current membership and its own accepted/new admission epoch.
+  Existing-work reassignment and Production create/options are unchanged.
+  `docs/audits/2026-09-05-native-intake-editor-projection.md` records the proof limits.
 - F95: operational data loaded at mount and on focus/visibility/pageshow return; the repeating timer
   refreshed only authority, so a continuously foreground Production tab could remain stale
   indefinitely with no last-success age, degraded state, or Refresh control. Slice 5 candidate

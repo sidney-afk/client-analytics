@@ -6267,8 +6267,9 @@ number by reading it back out of the titles already in the batch), and the kind
 has to stay visible (2026-08-17: two identically-titled halves read as "two
 video sub-issues").
 
-**Migration `2026-09-07-production-intake-append-v8.sql` — SOURCE ONLY, not yet
-applied.** It widens exactly two title predicates in the append RPC and moves no
+**Migration `2026-09-07-production-intake-append-v8.sql` — APPLIED by the owner
+in the SQL Editor, 2026-09-07, "Success. No rows returned", before the dispatch
+below.** It widens exactly two title predicates in the append RPC and moves no
 table, column, index, policy or grant. Executed before handover against a
 disposable PostgreSQL 16 built from the baseline plus deltas, not merely
 compiled: a named append commits, the append after it allocates the FOLLOWING
@@ -6276,14 +6277,13 @@ ordinal, an unnamed append is unchanged, a wrong ordinal and a bare trailing
 separator both still raise `invalid_intake_append_order`, and the same named
 call against v7 is refused.
 
-Browser half live on merge. Gateway half re-pins `production-write` to
-`ccbdd136…` (file count 5, entrypoint unchanged) and waits for the next Section
-4 dispatch. **Apply the migration BEFORE that dispatch** — the deployed RPC
-refuses a named title until it is applied, and the migration alone changes
-nothing anyone sees because the deployed gateway still composes bare numbered
-titles. Because `index.html` cannot wait for either, Create Post compares the
-names it asked for against the titles that came back and says so in the
-notification when a name did not land.
+Browser half live on merge. Gateway half re-pinned `production-write` to
+`ccbdd136…` (file count 5, entrypoint unchanged) and shipped the same day as
+v69 — see the deploy receipt at the end of this file. The three-step order held:
+migration, then gateway, then the browser (which was already live and cannot
+wait for either, which is why Create Post compares the names it asked for
+against the titles that came back and says so in the notification when a name
+did not land). All three are now in place, so a typed name reaches the row.
 
 ## 2026-09-05 — the asset grid stops blinking; the gateway reuses a verdict it already holds
 
@@ -6539,3 +6539,75 @@ in the owner's SQL Editor history and in the session record. The prior
 slots, 1,207 clean, 7 mismatching, 0 bindable, the same three reason counts as
 before (5 / 1 / 1). All 7 carry a recorded ruling (OPEN_REPAIRS 156). Phase 3
 (b) closed; (c) open.
+
+## 2026-09-07 — F27 Section 4 deploy, run `34151869293`: production-write 68 → 69
+
+Dispatched from `70715496a44e7120f0b819deafdb84cd62d78f9b`.
+
+| function | active version | source closure SHA-256 | JWT |
+|---|---|---|---|
+| `batch-write` | 35 | `86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a` | verify_jwt=false |
+| `deliverable-write` | 35 | `78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575` | verify_jwt=false |
+| `linear-outbound` | 47 | `1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39` | verify_jwt=false |
+| `production-write` | 68 → **69** | `ccbdd136f488c1e948ca49b429ff50e5c850057b3bd3eabb97c5cb47f1a3d164` | verify_jwt=false |
+
+```json
+{
+  "schema": "syncview_f27_section4_deployed_versions_v1",
+  "deploy_commit": "70715496a44e7120f0b819deafdb84cd62d78f9b",
+  "github_run_id": "34151869293",
+  "functions": [
+    {
+      "slug": "batch-write",
+      "active_version": "35",
+      "source_closure_sha256": "86f9f187b39e187512886c0d33f4702ce3a766ee0cb4b0777d665917b3d83d6a",
+      "entrypoint_sha256": "15a369f856a363f5c2926b3f251b1e154da805d5489d31432d07bfde145e8cf5",
+      "provider_bundle_sha256": "ccc36ce94f39efbb8db84a554eeaef6b5ce013547be5d2349ee8adbdddc2fda5",
+      "verify_jwt": false
+    },
+    {
+      "slug": "deliverable-write",
+      "active_version": "35",
+      "source_closure_sha256": "78df060b7dd5b611e77b5427d7ab9a6cab1d0a18664f2e15562e098880074575",
+      "entrypoint_sha256": "74da8449a9f753a09cdf00326449df31664d18449c866b81923725aa6bad1e68",
+      "provider_bundle_sha256": "3868706acd8e86632c960a6d08cc8ed94e3e8787237a530b135c6e5a05a1f3dd",
+      "verify_jwt": false
+    },
+    {
+      "slug": "linear-outbound",
+      "active_version": "47",
+      "source_closure_sha256": "1489a4c276ca343554df2f4840c4f4b8ac77c33914098ee59a5d8b5cdec6ce39",
+      "entrypoint_sha256": "606628504ec4614a22e9d16c7671dc5d9ef73bfc57b69ecaa08065a5d14f3684",
+      "provider_bundle_sha256": "b72429af7131bc954c8140f8f15c0c437c1fa4568f300bb3134a4f2752f8d626",
+      "verify_jwt": false
+    },
+    {
+      "slug": "production-write",
+      "active_version": "69",
+      "source_closure_sha256": "ccbdd136f488c1e948ca49b429ff50e5c850057b3bd3eabb97c5cb47f1a3d164",
+      "entrypoint_sha256": "7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5",
+      "provider_bundle_sha256": "f67d8f183863d1d17b630ad105204c280b309bbef6cc5785683565e02b952525",
+      "verify_jwt": false
+    }
+  ]
+}
+```
+
+Capture receipt: sealed_bundle_sha256 = `4e3ed4681c768fae71d9959f891f768a19fff0b255e49cea6310882c571473a7`,
+sealed_bundle_byte_length = `553951`, sealing `production-write` v68 / `d7fc8348…`.
+
+Only `production-write` moved; the other three redeployed at their existing
+closures. Forward deployment PASS, strict serial provider readbacks PASS, final
+four-function source/entrypoint/JWT/version/provider comparison PASS. Green on
+the first attempt, from the script path rather than the alias, in the order
+CLAUDE.md states: capture, Drive upload, dispatch.
+
+This deploy carries post naming (#1336) and nothing else. Its migration,
+`2026-09-07-production-intake-append-v8.sql`, was applied by the owner before
+the dispatch, which is the order that release required: the RPC refuses a named
+title until it is applied, so a gateway composing named titles in front of a v7
+function would have raised `invalid_intake_append_order` on every append.
+
+The sealed capture read `production-write` at v68 / `d7fc8348…` — the code that
+was live before this release, which is the check that proves a bundle sealed the
+LIVE set rather than the release being deployed.

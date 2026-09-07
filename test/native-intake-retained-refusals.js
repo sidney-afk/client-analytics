@@ -13,8 +13,10 @@ const base = '16a701a318eaf829a6357bb0352ff7babd51b1c6';
 const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key)));
 gitEnv.GIT_NO_LAZY_FETCH = '1';
 const old = execFileSync('git', ['--no-replace-objects', 'show', base + ':index.html'], { cwd: root, env: gitEnv, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+const clickBase = 'd1442f65c4da6dc4e5ef8f155e1465f564cafa5e';
+const clickOld = execFileSync('git', ['--no-replace-objects', 'show', clickBase + ':index.html'], { cwd: root, env: gitEnv, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
 const functions = ['_linearIntakeRead', '_linearIntakeWrite', '_linearIntakeJobId', '_linearIntakeRemoveIfCurrent',
-  '_linearIntakeWithLock', '_linearIntakeActorError', '_linearIntakeRequireActor', '_linearIntakeRecoveryCopy',
+  '_linearIntakeWithLock', '_linearIntakeActorContext', '_linearIntakeActorError', '_linearIntakeRequireActor', '_linearIntakeRecoveryCopy',
   '_linearIntakePersistRecovery', '_linearIntakeCheckpointOrSuspend', '_linearIntakePending', '_linearIntakePurgeSensitiveState',
   '_linearIntakeValidateResult', '_nativeAcceptedCardTransport', '_nativeAcceptedCurrentCard',
   '_writeNativeSubmissionCardsToCalendar', '_runNativeIntakeJob', '_linearIntakeDiscardTerminallyRefused',
@@ -24,6 +26,7 @@ function extract(source, name) {
   return (source.includes('async ' + body) ? 'async ' : '') + body;
 }
 const script = functions.map(name => extract(html, name)).join('\n') + '\nvar _nativeIntakeResumePromise = null;';
+const clickBaseline = functions.map(name => extract(clickOld, name)).join('\n') + '\nvar _nativeIntakeResumePromise = null;';
 let passed = 0;
 const pass = name => { passed++; console.log('PASS ' + name); };
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -62,6 +65,7 @@ function world(source = script) {
     PROD_WRITE_EF_URL: 'https://gateway.invalid/write', CAL_SUPABASE_ANON_KEY: 'synthetic', _syncviewEfHeaders: x => x,
     fetch: async (url, opts) => { sent.push({ lane: 'gateway', url, body: opts.body });
       if (ctx.gatewayWait) await ctx.gatewayWait;
+      if (ctx.gatewayLost) { ctx.modeledAcceptedId = JSON.parse(opts.body).request_id; throw Error('synthetic_lost_response'); }
       const status = ctx.gatewayStatus || 200;
       return { ok: status === 200, status, json: async () => status === 200 ? clone(ctx.gatewayResult || result()) : ({ ok: false, error: 'synthetic_refusal' }) }; },
     _calCacheRead: () => null, _sxrCacheRead: () => null,
@@ -84,7 +88,77 @@ function world(source = script) {
     locks: () => locks };
 }
 async function rejection(promise, code) { await assert.rejects(promise, error => error.code === code); }
+function liveClickWorld(surface, source = script) {
+  const w = world(source), saved = job(surface);
+  saved.signature = JSON.stringify({ surface, choice: 'new', mode: 'video', post_count: 1, client_slug: 'fixture',
+    video_assignee_id: '', batch_id: '', expected_batch_updated_at: '', actor_id: 'actor-a' });
+  w.save(saved); w.ctx._calNativePostState.surface = surface;
+  return { ...w, saved };
+}
 async function main() {
+  for (const surface of ['calendar', 'sxr']) {
+    const before = liveClickWorld(surface, clickBaseline); before.ctx.gatewayLost = true;
+    await before.ctx._calSubmitNativePost(); assert.deepEqual(before.read(), before.saved);
+    assert.equal(before.ctx.modeledAcceptedId, before.saved.payload.request_id);
+    before.ctx.gatewayLost = false; before.ctx.gatewayStatus = 409;
+    await before.ctx._calSubmitNativePost();
+    assert.equal(before.sent.length, 2); assert.equal(before.sent[0].body, JSON.stringify(before.saved.payload));
+    assert.equal(before.sent[1].body, before.sent[0].body);
+    assert.equal(before.read(), null);
+    pass('BASELINE actual ' + surface + ' lost-response then unheld refusal erases modeled accepted request identity');
+    for (const status of [400, 401, 403, 409, 422]) {
+      const w = liveClickWorld(surface); w.ctx.gatewayStatus = status;
+      await w.ctx._calSubmitNativePost();
+      assert.equal(w.sent.length, 1); assert.equal(w.sent[0].body, JSON.stringify(w.saved.payload));
+      const held = w.read(); assert.equal(held.resume_held, true); delete held.resume_held; assert.deepEqual(held, w.saved);
+      assert.equal(w.box.children.length, 1); assert.match(w.box.textContent, /unconfirmed/);
+      assert.equal(w.overlay.dataset.busy, '0'); assert.equal(w.create.disabled, false);
+      assert.equal(w.notices.length, 0);
+      await rejection(w.ctx._resumeNativeIntakeJob('startup'), 'native_intake_recovery_held');
+      assert.equal(w.sent.length, 1);
+      w.ctx.gatewayStatus = 200; await w.box.children[0].click();
+      assert.equal(w.sent[1].body, JSON.stringify(w.saved.payload)); assert.equal(w.read(), null);
+      assert.equal(w.sent.filter(x => x.lane !== 'gateway').length, 1); assert.match(w.box.textContent, /completed/);
+      pass(surface + ' initial unheld ' + status + ' retains exact identity, pauses auto recovery and explicitly retries original payload');
+    }
+  }
+  for (const surface of ['calendar', 'sxr']) {
+    const w = liveClickWorld(surface); w.ctx.gatewayLost = true;
+    await w.ctx._calSubmitNativePost(); assert.deepEqual(w.read(), w.saved);
+    w.ctx.gatewayLost = false; w.ctx.gatewayStatus = 409; await w.ctx._calSubmitNativePost();
+    assert.equal(w.ctx.modeledAcceptedId, w.saved.payload.request_id);
+    assert.deepEqual(w.read(), { ...w.saved, resume_held: true });
+    assert.equal(w.sent.length, 2); assert.equal(w.sent[0].body, w.sent[1].body);
+    pass(surface + ' lost-response followed by live refusal preserves modeled accepted identity');
+  }
+  for (const mutation of ['replaced-id', 'same-id-payload', 'same-id-context', 'accepted-result', 'actor', 'role', 'quota', 'missing-lock']) {
+    const w = liveClickWorld('calendar'); w.ctx.gatewayStatus = 409;
+    let expected;
+    w.ctx.beforeLock = count => {
+      if (count !== 3) return; // Existing resume failure bookkeeping, before the live-click catch.
+      const changed = clone(w.saved);
+      if (mutation === 'replaced-id') changed.payload.request_id = 'replacement';
+      if (mutation === 'same-id-payload') changed.payload.batch.name = 'Newer fictional brief';
+      if (mutation === 'same-id-context') changed.context.materialization_source = 'replacement-source';
+      if (mutation === 'accepted-result') changed.result = result();
+      if (mutation === 'actor') w.ctx.identity.member.id = 'actor-b';
+      if (mutation === 'role') w.ctx.identity.role = 'editor';
+      if (mutation === 'quota') w.ctx.quota = true;
+      if (mutation === 'missing-lock') delete w.ctx.navigator.locks;
+      w.save(changed); expected = w.store.get('pending');
+    };
+    await w.ctx._calSubmitNativePost();
+    assert.ok(expected); assert.equal(w.store.get('pending'), expected); assert.equal(w.sent.length, 1);
+    assert.equal(w.box.children.length, 0); assert.equal(w.notices.length, 0);
+    pass('live refusal preserves replacement or prior record without false hold: ' + mutation);
+  }
+  for (const status of [503, 200]) {
+    const w = liveClickWorld('calendar'); w.ctx.gatewayStatus = status;
+    if (status === 200) w.ctx.gatewayResult = { ok: false, error: 'synthetic_unconfirmed' };
+    await w.ctx._calSubmitNativePost(); assert.deepEqual(w.read(), w.saved); assert.equal(w.sent.length, 1);
+    assert.equal(w.box.children.length, 0); assert.equal(w.notices.length, 0);
+    pass('non-4xx ' + status + ' keeps original refusal semantics and request');
+  }
   for (const [accepted, status, count] of [[true, undefined, 4], [false, 503, 6], [false, 409, 2]]) {
     const before = world(['_linearIntakeRead', '_linearIntakeJobId', '_linearIntakeWrite', '_linearIntakeRemoveIfCurrent', '_linearIntakeDiscardTerminallyRefused'].map(n => extract(old, n)).join('\n'));
     before.save(job('calendar', accepted));
@@ -178,10 +252,13 @@ async function main() {
   for (const name of ['_linearIntakeRequireActor', '_linearIntakePurgeSensitiveState', '_runNativeIntakeJob', '_writeNativeSubmissionCardsToCalendar', '_nativeAcceptedCardTransport', '_linearIntakeWithLock']) {
     assert.equal(extract(html, name), extract(old, name));
   }
+  for (const name of ['_resumeNativeIntakeJob', '_linearIntakeDiscardTerminallyRefused', '_linearIntakeOfferSavedRetry', '_linearIntakePending']) {
+    assert.equal(extract(html, name), extract(clickOld, name));
+  }
   assert.match(extract(html, '_submitLinearFormRoutedOnce'), /_linearIntakeOfferSavedRetry\(status, client.slug, 'submission', selectionStillCurrent\)/);
   pass('writer, transport, actor, shared-device and lock contracts remain byte-identical; Submit action is wired');
   if (process.argv.includes('--browser')) await browser();
-  console.log(JSON.stringify({ passed, baseline_deletions: 3, classification: 'OFFLINE_ACTUAL_SOURCE', real_backend: false }));
+  console.log(JSON.stringify({ passed, baseline_deletions: 5, classification: 'OFFLINE_ACTUAL_SOURCE', real_backend: false }));
 }
 async function browser() {
   const { chromium } = require('playwright'); const browser = await chromium.launch({ headless: true });

@@ -84,6 +84,8 @@ Native label catalog / Linear label prerequisite / staged import and recovery co
 
 ## For the owner (no session running)
 
+Calendar/Samples saved request disappears after a live refusal: [live-click retention correction](audits/2026-09-07-intake-live-refusal-retention.md). Exact-base lost-response/4xx counterexamples, locked owner-bound hold and existing saved retry; sign-out privacy and full G6 remain held.
+
 Bookmark two GitHub pages: **the Atlas** (`docs/ATLAS.md` in `synchrosocial`)
 and **this router**. On any GitHub repo page, press `t` and type a filename to
 fuzzy-find it; press `/` to search text across the repo. Atlas floor → linked

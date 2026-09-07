@@ -41619,10 +41619,21 @@
                 : savedWhat + ' in the selected batch.');
         } catch (error) {
             console.warn('[SyncView] Calendar native Create Post failed:', error);
-            const saved = _linearIntakeRead();
-            if (Number(error && error.status) >= 400 && Number(error && error.status) < 500 && !(saved && saved.result)
-                && !(saved && saved.resume_held === true)) {
-                _linearIntakeRemoveIfCurrent(pending && pending.payload && pending.payload.request_id);
+            if (Number(error && error.status) >= 400 && Number(error && error.status) < 500) {
+                // A refusal cannot establish the outcome of an earlier attempt.
+                // Hold only this exact owned request under the existing lock.
+                try {
+                    await _linearIntakeWithLock(() => {
+                        const saved = _linearIntakeRead();
+                        if (!saved || saved.result || saved.resume_held === true
+                            || _linearIntakeJobId(saved) !== _linearIntakeJobId(pending)
+                            || JSON.stringify(saved.payload) !== JSON.stringify(pending.payload)
+                            || JSON.stringify(saved.context) !== JSON.stringify(pending.context)) return;
+                        _linearIntakeRequireActor(saved);
+                        saved.resume_held = true;
+                        if (!_linearIntakeWrite(saved)) throw new Error('native_intake_checkpoint_failed');
+                    });
+                } catch (checkpointError) {} // Keep the prior record if the hold cannot be saved.
             }
             overlay.dataset.busy = '0';
             if (button) { button.disabled = false; button.textContent = 'Create post'; }

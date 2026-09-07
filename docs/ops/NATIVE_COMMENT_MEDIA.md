@@ -132,6 +132,13 @@ receipt SHA-256: `a10cccd886084770f5c420dd5d89c7bd26b6358fc7657f834f800b2aa2fc69
 It pins both validator files and each checked content hash, size and logical MIME.
 It does not prove destination admission or live delivery.
 
+The separately leased disposable PostgreSQL check also passed: **12 constraint
+refusals, 4 ACL refusals and 3 exactly reconstructed mixed brief/comment rows**,
+with private bucket and both reader flags off. Private SQL receipt SHA-256:
+`7363c71886e405f6a8e724501aa060959f57908308d2de47b6361b277162a5a7`.
+This proves the additive migration on an owned empty local target, not the full
+combined recovery or a production installation.
+
 Focused evidence is local actual-handler/model plus extracted Chromium controls;
 SQL runs only with an explicitly owned disposable loopback binding. Hosted CI,
 live SQL and Storage delivery are not claimed by local tests. Withdrawal before

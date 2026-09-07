@@ -36,7 +36,13 @@ try{
   if(captures)for(const surface of ['calendar','samples']){
     const c=captures[surface];assert.equal(sha(fs.readFileSync(c.path)),c.sha256,'exact dated capture');
     const slug=surface==='calendar'?'calendar-upsert':'sample-review-upsert';
-    captureProof.push({surface,baseline:await load(slug,{capture:c.path}),candidate:await load(slug,{capture:c.path,derived:true})});
+    if(c.staged){
+      assert.ok(path.isAbsolute(c.staged.path),'explicit staged closure path required');
+      assert.equal(sha(fs.readFileSync(c.staged.path)),c.staged.sha256,'exact staged composition');
+    }
+    captureProof.push({surface,baseline:await load(slug,{capture:c.path}),candidate:c.staged
+      ?await load(slug,{capture:c.staged.path,staged:true})
+      :await load(slug,{capture:c.path,derived:true})});
   }
   await start();
   await check('repository source retains unauthenticated refusal before native RPC',async()=>{

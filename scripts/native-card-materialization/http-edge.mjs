@@ -28,9 +28,10 @@ const sources={},handlers=new Map(),pending=[];
 export function sourcePins(){return {...sources};}
 function pinned(file){const bytes=fs.readFileSync(file);sources[file]=sha(bytes);return bytes.toString('utf8');}
 function once(text,needle,replacement){assert.equal(text.split(needle).length,2,'exact loader seam');return text.replace(needle,replacement);}
-export async function load(slug,{capture=null,derived=false}={}){
+export async function load(slug,{capture=null,derived=false,staged=false}={}){
+  assert.ok(!staged||(capture&&!derived),'staged closure must be an exact file, never a derived graft');
   const file=capture||path.join(sourceRoot,'supabase/functions',slug,'index.ts');let text=pinned(file);
-  const originalHash=sha(text);let scope=capture?'DATED_CAPTURE_SOURCE':'REPOSITORY_AUTH_SOURCE';
+  const originalHash=sha(text);let scope=staged?'EXACT_STAGED_FROZEN_COMPOSITION':capture?'DATED_CAPTURE_SOURCE':'REPOSITORY_AUTH_SOURCE';
   if(derived){
     // Graft only adapter-specific parse/terminal branch from the actual candidate.
     // Captured actorFrom/auth behavior remains unchanged; no deployed claim.
@@ -47,7 +48,7 @@ export async function load(slug,{capture=null,derived=false}={}){
   const shim='data:text/javascript,'+encodeURIComponent('export class SupabaseClient{};export function createClient(){return globalThis.__cardHttpClient();}');
   text=once(text,'import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";',`import { createClient, SupabaseClient } from "${shim}";`);
   text=text.replace(/from "(\.\.?\/[^\"]+)";/g,(_all,relative)=>{
-    const target=relative.endsWith('native-card-materialization.mjs')?path.join(sourceRoot,'supabase/functions/_shared/native-card-materialization.mjs')
+    const target=!staged&&relative.endsWith('native-card-materialization.mjs')?path.join(sourceRoot,'supabase/functions/_shared/native-card-materialization.mjs')
       :path.resolve(path.dirname(file),relative);pinned(target);return `from "${pathToFileURL(target).href}";`;
   });
   const target=path.join(scratch,slug+'-'+handlers.size+'.ts');fs.writeFileSync(target,text);

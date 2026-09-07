@@ -74,3 +74,33 @@ Disabling this lane cannot undo sent messages. Recovery retains separately
 approved gateway/n8n configuration and credential custody outside source.
 Activation needs reviewed serving closures, matching credentials and dedicated
 native webhook, exact roster mapping and scoped real delivery drill. All held.
+
+## Combined preparation checkpoint
+
+This slice combines the protected gateway, four existing staff UI callers and
+the [isolated JWT receiver draft](NATIVE_URGENT_N8N_DRAFT.md) on green parent
+`5bcc03bd7d286f437ad51d4cc86a5ce80b7b63ea`. The parent passed all476 unit suites
+and all8 applicable hosted jobs; those results are not inherited by this slice.
+Its six-file production-write closure is
+`663e7e423dfe150449f820ecb1e7aa3f2506d6c55c3770cfdc65b556d1311e14`.
+The deployment preparation pin changes with that source; this authorizes no
+deployment or secret configuration.
+
+Coordinator source review found and corrected two real fixture omissions:
+calendar/sample cards store `client`, and the shared UI must use global
+`WRITE_UI_PRODUCTION_WRITE_URL`, not the private Production closure constant.
+Corrected actual-handler fixtures use the real card shape; the UI fixture loads
+the actual global declaration and keeps the private constant undefined. A known
+pretransport failure releases only its own local hold. Unknown/replaced holds
+remain, and an old-round acknowledgement cannot mark a changed round Sent.
+
+On the combined source,40 actual-handler groups pass with the actual receiver
+envelope validator inserted at the synthetic transport seam: generated JWT
+claims and exact emitted body satisfy the receiver's purpose/audience/expiry/
+body-digest contract. This is not n8n authentication or engine execution.
+The28 actual-VM UI checks and31 receiver controls also pass. Deno2.5.2 previously
+checked these unchanged gateway bytes with no new type errors. The private
+exact captured graph has9 original nodes plus9 isolated native nodes; inverse,
+old-reference exclusion, expiry boundary and no-retry controls pass. Current
+credential binding, code sandbox capability, actual Slack response and complete
+installed browser-to-delivery behavior remain unproven. No messages were sent.

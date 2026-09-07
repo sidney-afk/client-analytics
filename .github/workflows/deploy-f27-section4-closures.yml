@@ -296,7 +296,7 @@ jobs:
       # Native triage SQL/recovery and exact old-route proof precede installation.
       # Combined native exit, current owner post naming and private media.
       # Final hybrid named-append SQL must precede this uninstalled gateway.
-      PRODUCTION_WRITE_SOURCE_SHA256: 3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95
+      PRODUCTION_WRITE_SOURCE_SHA256: 663e7e423dfe150449f820ecb1e7aa3f2506d6c55c3770cfdc65b556d1311e14
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

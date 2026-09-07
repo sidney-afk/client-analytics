@@ -56647,6 +56647,44 @@
             if (!loaded) return '<span class="prod-skeleton prod-desc-loading" data-prod-desc-loading="1" role="status" aria-label="Loading description"></span>';
             return '<span class="prod-desc-empty">' + _calEsc(emptyText) + '</span>';
         }
+        function _prodBriefMediaReadHTML(state, id) {
+            const original = String(state.value || '');
+            if (!/https?:\/\/uploads\.linear\.app\//i.test(original)) return _prodDescriptionHTML(original, state.hasValue, 'No description.', true);
+            const media = state.briefMedia;
+            const bound = media && state.briefMediaValue === original && state.briefMediaRevision === state.sourceUpdatedAt;
+            if (bound && media.mode === 'off' && !state.briefMediaRequired) return _prodDescriptionHTML(original, state.hasValue, 'No description.', true);
+            const fresh = bound && media.contract === 'native_brief_media_v1' && media.mode === 'required'
+                && media.complete === true && media.unresolved === 0 && typeof media.render_brief === 'string'
+                && !/https?:\/\/uploads\.linear\.app\//i.test(media.render_brief)
+                && Date.parse(media.expires_at) > Date.now();
+            if (fresh) return _prodDescriptionHTML(media.render_brief, true, 'No description.', true);
+            // Retain every source character visibly on refusal/expiry; no broken
+            // provider image request or silent text/image loss is called complete.
+            return '<div class="prod-description-state is-error" data-prod-brief-media-held>Images are not ready. The original description is preserved below. '
+                + '<button type="button" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')">Retry images</button></div>'
+                + '<pre class="prod-description-source-notice">' + _calEsc(original) + '</pre>';
+        }
+        function _prodBriefMediaPreviews(state) {
+            const media = state.briefMedia;
+            const previews = new Map(), ambiguous = new Set();
+            if (media && media.mode === 'off' && !state.briefMediaRequired
+                && state.briefMediaValue === state.value && state.briefMediaRevision === state.sourceUpdatedAt) {
+                previews.allowOriginal = true;
+                return previews;
+            }
+            if (!media || media.complete !== true || Date.parse(media.expires_at) <= Date.now()
+                || state.briefMediaValue !== state.value || state.briefMediaRevision !== state.sourceUpdatedAt) return previews;
+            // Drafts may move an image. Reuse only unambiguous original URL +
+            // content identity; canonical attributes never contain signed URLs.
+            (media.images || []).forEach(image => {
+                const key = _prodDescRichAttr(image.original_url);
+                const previous = previews.get(key);
+                if (previous && previous.hash !== image.content_sha256) ambiguous.add(key);
+                previews.set(key, { url: _prodDescRichAttr(image.url), hash: image.content_sha256, display: image.display });
+            });
+            ambiguous.forEach(key => previews.delete(key));
+            return previews;
+        }
         function _prodDescriptionText(value) {
             return value == null ? '' : String(value);
         }
@@ -57307,6 +57345,21 @@
                    text just adopted wiped back out. */
                 const adopted = _prodState.descriptions.get(id);
                 if (adopted) adopted.scopeSignature = scopeSignature;
+                if (adopted) {
+                    const media = json.media;
+                    adopted.briefMedia = media && media.id === id && media.client_slug === clientSlug
+                        && _prodWriteTeam(media.team) === issueTeam && media.source_updated_at === row.updated_at ? media : null;
+                    adopted.briefMediaValue = _prodDescriptionText(row.brief);
+                    adopted.briefMediaRevision = row.updated_at;
+                    if (adopted.briefMedia && adopted.briefMedia.mode === 'required') adopted.briefMediaRequired = true;
+                    clearTimeout(adopted.briefMediaTimer);
+                    if (adopted.briefMedia && adopted.briefMedia.complete === true && adopted.briefMedia.expires_at) {
+                        const delay = Date.parse(adopted.briefMedia.expires_at) - Date.now() - 15000;
+                        if (delay > 0 && delay <= 300000) adopted.briefMediaTimer = setTimeout(() => {
+                            if (requestStillCurrent() && _prodState.openId === id && !adopted.editing) _prodEnsureDescription(id, true);
+                        }, delay);
+                    }
+                }
                 if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
                 return state;
             } catch (error) {
@@ -57534,7 +57587,7 @@
         function _prodDescRichAttr(s) {
           return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').split('"').join('&quot;');
         }
-        function _prodDescRichInline(s) {
+        function _prodDescRichInline(s, previews) {
           s = _prodDescRichAttr(s);
           const st = [];
           const keep = h => { st.push(h); return 'XMDTOK' + (st.length - 1) + 'ENDMDTOK'; };
@@ -57544,8 +57597,24 @@
             .replace(/^\*\*([^*]+)\*\*$/, '<strong data-md="bb">$1</strong>')
             .replace(/^__([^_]+)__$/, '<strong data-md="uu">$1</strong>')
             .replace(/^`([^`]+)`$/, '<code>$1</code>');
-          const anchor = (l, u, form) => '<a href="' + u + '" data-md="' + form + '" target="_blank" rel="noopener noreferrer">' + (form === 'bare' ? u : label(l)) + '</a>';
-          const image = (l, u, form) => '<img class="prod-desc-image" src="' + u + '" alt="' + l + '" data-md="' + form + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">';
+          const anchor = (l, u, form) => {
+            const privateRef = /^https?:\/\/uploads\.linear\.app\//i.test(u) && !(previews && previews.allowOriginal);
+            const copy = privateRef && previews && previews.get(u);
+            return '<a' + (privateRef ? ' data-md-original-link="' + u + '"' : '')
+              + (privateRef && (!copy || copy.display === 'deferred') ? '' : ' href="' + (copy ? copy.url : u) + '"')
+              + ' data-md="' + form + '" target="_blank" rel="noopener noreferrer">' + (form === 'bare' ? u : label(l)) + '</a>';
+          };
+          const image = (l, u, form) => {
+            if (/^https?:\/\/uploads\.linear\.app\//i.test(u) && !(previews && previews.allowOriginal)) {
+              const copy = previews && previews.get(u);
+              const original = ' data-md-private-image="1" data-md-original-src="' + u + '" data-md-alt="' + l + '" data-md="' + form + '"';
+              if (copy && copy.display === 'deferred') return '<span' + original + ' contenteditable="false">This older file has not been restored here yet.</span>';
+              if (copy && copy.display === 'download') return '<span' + original + ' contenteditable="false"><a href="' + copy.url + '" target="_blank" rel="noopener noreferrer">Download original file: ' + l + '</a></span>';
+              return copy ? '<img class="prod-desc-image" src="' + copy.url + '" alt="' + l + '"' + original + ' loading="lazy" decoding="async" referrerpolicy="no-referrer">'
+                : '<span' + original + ' contenteditable="false">Image preview unavailable (original preserved)</span>';
+            }
+            return '<img class="prod-desc-image" src="' + u + '" alt="' + l + '" data-md="' + form + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">';
+          };
           const placeholder = n => '<span class="prod-desc-uploading" data-md-placeholder="' + n + '" contenteditable="false">Uploading image…</span>';
           const trimLinkTail = u => {
             let suffix = '';
@@ -57578,15 +57647,15 @@
           if (kind === 'ul') return '<div class="prod-md-bullet" data-md="ul" data-md-prefix="' + _prodDescRichAttr(prefix || '- ') + '"><span class="prod-md-bullet-mark" contenteditable="false">•</span><span class="prod-md-bullet-text">' + body + '</span></div>';
           return '<div class="prod-md-p" data-md="p"' + (raw ? ' data-md-raw="' + _prodDescRichAttr(raw) + '"' : '') + '>' + body + '</div>';
         }
-        function _prodDescRichBuild(markdown) {
+        function _prodDescRichBuild(markdown, previews) {
           const lines = String(markdown == null ? '' : markdown).replace(/\r\n?/g, '\n').split('\n');
           const blocks = lines.map(line => {
             let m;
             if (!line.trim()) return { kind: 'blank', html: _prodDescRichBlockHTML('p', '', '', line) };
             if ((m = /^(-{3,})\s*$/.exec(line))) return { kind: 'hr', html: _prodDescRichBlockHTML('hr', '', '', line) };
-            if ((m = /^(#{1,4}\s+)(.*)$/.exec(line))) return { kind: 'h', html: _prodDescRichBlockHTML('h', m[1], _prodDescRichInline(m[2])) };
-            if ((m = /^([-*]\s+)(.*)$/.exec(line))) return { kind: 'ul', html: _prodDescRichBlockHTML('ul', m[1], _prodDescRichInline(m[2])) };
-            return { kind: 'p', html: _prodDescRichBlockHTML('p', '', _prodDescRichInline(line)) };
+            if ((m = /^(#{1,4}\s+)(.*)$/.exec(line))) return { kind: 'h', html: _prodDescRichBlockHTML('h', m[1], _prodDescRichInline(m[2], previews)) };
+            if ((m = /^([-*]\s+)(.*)$/.exec(line))) return { kind: 'ul', html: _prodDescRichBlockHTML('ul', m[1], _prodDescRichInline(m[2], previews)) };
+            return { kind: 'p', html: _prodDescRichBlockHTML('p', '', _prodDescRichInline(line, previews)) };
           });
           /* The read view draws no blank line beside a heading or rule. The editor
              keeps every line in the model and collapses those on screen, so the
@@ -57607,6 +57676,11 @@
             if (n.nodeType === 3) { out += n.nodeValue; return; }
             if (n.nodeType !== 1) return;
             const tag = n.tagName;
+            if (n.hasAttribute('data-md-private-image')) {
+              const alt = n.getAttribute('data-md-alt') || '', src = n.getAttribute('data-md-original-src') || '';
+              out += n.getAttribute('data-md') === 'angle' ? '![' + alt + '](<' + src + '>)' : '![' + alt + '](' + src + ')';
+              return;
+            }
             if (tag === 'BR') return;
             if (tag === 'IMG') {
               const alt = n.getAttribute('alt') || '';
@@ -57618,7 +57692,7 @@
             if (n.classList && n.classList.contains('prod-md-bullet-mark')) return;
             const inner = _prodDescRichSerializeInline(n);
             if (tag === 'A') {
-              const href = n.getAttribute('href') || '';
+              const href = n.getAttribute('data-md-original-link') || n.getAttribute('href') || '';
               const form = n.getAttribute('data-md') || 'named';
               /* A URL with whitespace or a `)` in it, or one ending in the
                  punctuation a bare link sheds, cannot survive the plain forms: it
@@ -57712,7 +57786,7 @@
               if (tag === 'A') { if (!n.hasAttribute('data-md')) n.setAttribute('data-md', 'named'); n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener noreferrer'); return; }
               if (tag === 'IMG') { if (String(n.getAttribute('src') || '').indexOf('https://') !== 0) n.remove(); else n.classList.add('prod-desc-image'); return; }
               if (tag === 'STRONG' || tag === 'EM' || tag === 'CODE' || tag === 'BR' || tag === 'HR') return;
-              if (tag === 'SPAN' && (n.hasAttribute('data-md-placeholder') || n.classList.contains('prod-md-bullet-mark') || n.classList.contains('prod-md-bullet-text'))) return;
+              if (tag === 'SPAN' && (n.hasAttribute('data-md-private-image') || n.hasAttribute('data-md-placeholder') || n.classList.contains('prod-md-bullet-mark') || n.classList.contains('prod-md-bullet-text'))) return;
               if (tag === 'DIV') return;
               unwrap(n);
             });
@@ -58722,8 +58796,20 @@
             window.open(src, '_blank', 'noopener,noreferrer');
             return true;
         }
+        function _prodBriefMediaImageError(event) {
+            const image = event && event.target;
+            if (!image || !image.matches || !image.matches('img.prod-desc-image')) return;
+            const panel = image.closest('[data-prod-description]');
+            const id = panel && panel.getAttribute('data-prod-description');
+            const state = id && _prodState.descriptions.get(id);
+            if (!state || !state.briefMedia || state.briefMedia.mode !== 'required') return;
+            state.briefMedia.complete = false;
+            clearTimeout(state.briefMediaTimer);
+            if (_prodState.openId === id) _prodRender();
+        }
         if (typeof document !== 'undefined' && document.addEventListener) {
             document.addEventListener('click', _prodDescriptionImageOpen);
+            document.addEventListener('error', _prodBriefMediaImageError, true);
             /* Enter and Space on the focused image, so the full-size view is
                not mouse-only. Raised by Codex on #1310. */
             document.addEventListener('keydown', function (event) {
@@ -58826,6 +58912,12 @@
                 state.sourceUpdatedAt = committedRow.updated_at || state.sourceUpdatedAt;
                 if (batchParent) _prodSyncBatchDescriptionRow(id, committed, committedRow.updated_at);
                 else _prodSyncDescriptionRow(id, committedRow.brief, committedRow.updated_at);
+                if (!batchParent && /https?:\/\/uploads\.linear\.app\//i.test(committed)) {
+                    // Saving text or moving an existing image changes the brief
+                    // digest. Obtain a new scoped display projection immediately;
+                    // never save or blindly reuse the previous signed markup.
+                    _prodEnsureDescription(id, true);
+                }
                 _prodToast('Description updated');
                 _prodRender();
                 _prodFocusDescriptionControl(id, 'edit');
@@ -58922,7 +59014,7 @@
                         + ' oninput="_prodDescriptionRichInput(' + _jsAttrArg(id) + ',this)"'
                         + ' onkeyup="_prodDescriptionRememberCaret(' + _jsAttrArg(id) + ',this)"'
                         + ' onclick="_prodDescriptionRememberCaret(' + _jsAttrArg(id) + ',this)"'
-                        + handlers + '>' + _prodDescRichBuild(state.draft) + '</div>'
+                        + handlers + '>' + _prodDescRichBuild(state.draft, _prodBriefMediaPreviews(state)) + '</div>'
                         + '<div class="prod-description-footer prod-description-footer-rich"><span class="prod-description-hint" data-prod-description-hint>Paste or drop an image to add it</span>'
                         + '<span class="prod-description-count' + (count > 100000 ? ' is-invalid' : '') + (count < 90000 ? ' is-quiet' : '') + '" data-prod-description-count data-prod-description-count-quiet="1">' + count.toLocaleString() + ' / 100,000</span>'
                         + '</div>';
@@ -58950,7 +59042,7 @@
             const clickEdit = writable && state.status === 'ready' && !state.refreshing;
             const body = state.status === 'error'
                 ? ''
-                : '<div class="prod-description-body prod-desc"' + (clickEdit ? ' data-prod-desc-click-edit="1" onclick="return _prodDescriptionBodyClick(event,' + _jsAttrArg(id) + ')"' : '') + '>' + _prodDescriptionHTML(state.value, state.hasValue, 'No description.', true) + '</div>';
+                : '<div class="prod-description-body prod-desc"' + (clickEdit ? ' data-prod-desc-click-edit="1" onclick="return _prodDescriptionBodyClick(event,' + _jsAttrArg(id) + ')"' : '') + '>' + _prodBriefMediaReadHTML(state, id) + '</div>';
             const readState = state.status === 'error'
                 ? '<div class="prod-description-state is-error" data-prod-description-error>' + _calEsc(state.error || 'Description could not load.')
                     + '<button type="button" onclick="return _prodRefreshDescription(' + _jsAttrArg(id) + ')">Retry</button></div>'

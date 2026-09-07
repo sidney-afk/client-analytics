@@ -4,6 +4,8 @@ F44 received submission needs staff team confirmation / native completion / old
 unresolved receipt inbox → [protected website triage](audits/2026-09-07-f44-native-triage.md).
 Source-only capture, claim fence, immutable native completion and separate recovery extension.
 
+Native brief inline images still depend on Linear → [dormant private media reader and custody](ops/NATIVE_BRIEF_MEDIA.md). Exact occurrence/revision projection, one new private bucket/ledger and a separate recovery extension; other required media and serving remain held.
+
 Independent monitoring / backup alert beyond SyncViewbot →
 [inactive receipt and heartbeat recipe](ops/CLIENT_CONTINUITY_OPERATIONS.md#independent-receipt-and-heartbeat-preparation--september-7).
 Exact receipt evaluation is prepared; independent hosting and backup recipient remain unconfigured.

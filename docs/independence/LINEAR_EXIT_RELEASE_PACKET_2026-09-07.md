@@ -40,6 +40,15 @@ Staged operations [PR1332](https://github.com/sidney-afk/client-analytics/pull/1
 `cfb042aca6394edc0f6f9c4ebab928b1e223f806`, contains the separate frozen-writer
 builder and independent receipt/heartbeat consumer. Named source review and root
 focused checks pass. It installs nothing; hosted publication checks are pending.
+All four applicable PR1332 cfb hosted jobs subsequently passed. Those results
+remain preparation evidence, with private captured-handler tests explicitly
+separate from hosted execution.
+
+Current legacy Workload scope was narrowed September7 16:36:43Z: the actual
+retained handler's active/subissue gate finds VID1261 and GRA409 only,1670total,
+zero eligible CON/STR/other mirror rows. Do not build unrelated category support
+from a hypothetical dependency. Recheck at cutoff and preserve any new work;
+this dated mirror read is not provider-completeness or UI-membership proof.
 
 | Stage | Concrete preparation still needed | Approval action and required readback | Recovery / stop condition |
 |---|---|---|---|

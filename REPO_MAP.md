@@ -1,5 +1,8 @@
 # Repo map
 
+Native brief media: `supabase/functions/_shared/native-brief-media.mjs` owns the dormant exact-occurrence reader projection; `migrations/2026-09-07-native-brief-media.sql` prepares its private bucket and service-only ledger. `scripts/native-brief-media-package.mjs` stages/verifies local private ingress and versioned recovery object packages. `test/native-brief-media.js` executes the actual handler/model boundary, renderer and local byte reconstruction; `test/native-brief-media-sql.js` requires an explicit owned disposable SQL binding. `docs/ops/NATIVE_BRIEF_MEDIA.md` owns scope, reader/editor behavior, custody, recovery and held release prerequisites.
+`test/native-brief-media-browser.js` runs a finite Chromium fragment with synthetic copied-image bytes, original-URL rich-editor serialization and reversible expired previews; it does not boot the full app.
+
 Independent continuity preparation: `scripts/client-continuity-independent.js`
 reads exact pinned receipts and delivery state through existing owners;
 `scripts/client-continuity-heartbeat.js` sends only a combined healthy heartbeat.

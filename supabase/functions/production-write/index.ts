@@ -15,6 +15,7 @@
    allowlist stop trusting every sibling export rather than only the imported
    ones. The guard earned itself on its first run. */
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
+import { projectBriefMedia } from "../_shared/native-brief-media.mjs";
 import {
   matchingRoleForKey,
   timingSafeEqual,
@@ -5299,6 +5300,7 @@ async function handleDescriptionRead(
     ok: true,
     complete: true,
     row: publicDescriptionRow(existing),
+    media: await projectBriefMedia(supabase, existing, Deno.env.get("SUPABASE_URL")),
   });
 }
 

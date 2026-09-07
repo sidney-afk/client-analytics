@@ -1,5 +1,39 @@
 # Isolated card lifecycle browser lane
 
+## September 7 normal editor-to-SMM handoff
+
+The new `editor-smm-handoff` cell exercises the owner-confirmed video route:
+Kasper requests a change, a video editor reads it and sends **For SMM Approval**,
+then a separate SMM reviews the outstanding request and explicitly sends
+**Kasper Approval**. Every transition uses visible controls in the unchanged
+product document. New contexts verify each persisted stage and the corresponding
+Kasper/client queues. Accepted native requests must belong, in order, to the
+admin acting as Kasper, the editor, and the SMM; no direct backend transition is
+inserted to make the path work. The editor does not perform the SMM resolution.
+
+Only this cell was run against clean unchanged product
+`b60a9705492002830eed60ece874e0686fc4b538`: **1 cell / 4 steps PASS**.
+Latest finite receipt: `.codex-tmp/card-lifecycle/2026-09-07T15-23-51-258Z/`.
+Zero unexpected blocked requests, page errors or sockets. One console resource
+error is retained: the deliberately injected HTTP403. The visible card must show
+**Save failed / Retry**, both stored rows must remain unchanged, and a fresh
+context must still see Tweaks Needed before the separate successful attempt.
+Anonymous clients have no staff status controls. The editor uses the Creative
+key family with an active editor roster member, and the outgoing status request
+must retain that family. This correct family mapping is opt-in for this new cell;
+older receipts and role fixtures are preserved as their own historical evidence.
+
+Run `node qa/card-lifecycle/run.js --source <local-b60-checkout> --case editor-smm-handoff`.
+This is **ISOLATED_BROWSER** with fictional transport, identities and persistence.
+The injected refusal proves browser handling, not actual server authorization or
+role-policy enforcement. It tests handing off a fixture with existing video
+content; it does not evaluate whether an editor actually made the requested
+media change, file upload/recovery, other teams, mobile or live backend behavior.
+No full matrix, Reopen control or product source was changed. The older
+`undo-reopen` edge remains red with unresolved relevance/contract; the older
+SMM-resolution journeys retain their original narrower meaning. The earlier
+feedback fixture failure and its separately recorded correction remain intact.
+
 ## September 7 bounded feedback-reader fixture correction
 
 Only the `comments` cell was rerun against unchanged product source

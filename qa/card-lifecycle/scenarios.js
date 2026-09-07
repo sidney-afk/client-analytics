@@ -9,6 +9,70 @@ async function production(h, b, role = 'admin') {
   await s.page.locator('[data-prod-prop="status"]').waitFor(); return s;
 }
 module.exports = function register(add) {
+  add('editor-smm-handoff', 'video', 'Kasper Approval', false, async (h, b, step) => {
+    b.staffKeyFamilies = true;
+    const chooseSmm = async page => {
+      await ui.sheet(page);
+      await ui.card(page).locator('[data-substatus-comp="video"] .cal-fld-substatus-trigger').click();
+      const choice = page.locator('.cal-fld-status-menu.open').getByRole('button', { name: 'For SMM Approval', exact: true });
+      assert.equal(await choice.isEnabled(), true, 'editor has a visible enabled SMM handoff');
+      await choice.click();
+    };
+    await step('kasper-requests-editor-change', async () => {
+      const k = await ui.reviewer(h, b, 'video'); const panel = await ui.review(k.page, 'video', true), start = b.records.length;
+      await panel.locator('.cal-review-textarea').fill('Fictional change for the video editor');
+      await panel.locator('.cal-review-tweak-btn').click(); await ui.accepted(b, start);
+      assert.equal(b.rows[0].video_status, 'Tweaks Needed');
+      assert.equal(b.native[0].status, 'tweak');
+      await ui.fresh(h, b, 'video', 'Tweaks Needed', { kasper: true, client: false });
+      const client = await h.session(b, 'client'); await h.open(client);
+      await client.page.locator('.cal-review-wrap').waitFor();
+      assert.equal(await client.page.locator('.cal-fld-substatus-trigger:visible,[data-prod-prop]:visible').count(), 0,
+        'client cannot use staff status handoffs');
+      await client.context.close();
+    });
+    await step('editor-send-refused', async () => {
+      const editor = await h.session(b, 'editor'); await h.open(editor); await ui.pill(editor.page, 'video', 'Tweaks Needed');
+      await ui.notes(editor.page); await editor.page.getByText('Fictional change for the video editor', { exact: true }).waitFor();
+      await ui.closeNotes(editor.page);
+      const identity = await editor.page.evaluate(() => JSON.parse(localStorage.getItem('syncview_staff_identity_v1')));
+      assert.equal(identity.role, 'creative'); assert.equal(identity.member.role, 'editor');
+      const before = clone(b.rows[0]), nativeBefore = clone(b.native[0]), start = b.records.length;
+      b.arm('reject', 'status'); await chooseSmm(editor.page);
+      await ui.until(() => b.records.slice(start).some(r => r.session === 'editor' && r.action === 'status' && r.outcome === 'rejected'), 'editor refusal recorded');
+      const failedSave = ui.card(editor.page).locator('.cal-card-saving.is-error');
+      await failedSave.waitFor(); assert.match(await failedSave.textContent(), /Save failed.*Retry/);
+      assert.equal(b.records.slice(start).find(r => r.session === 'editor' && r.action === 'status').staff_key_role, 'creative');
+      await editor.context.close();
+      assert.deepEqual(b.rows[0], before); assert.deepEqual(b.native[0], nativeBefore);
+      await ui.fresh(h, b, 'video', 'Tweaks Needed');
+      step.observe({ editor_identity: 'creative-key/editor-member', refused_editor_handoff: 'PRESERVED' });
+    });
+    await step('editor-sends-smm', async () => {
+      const editor = await h.session(b, 'editor'); await h.open(editor); const start = b.records.length;
+      await chooseSmm(editor.page); await ui.accepted(b, start, 'status'); await ui.accepted(b, start);
+      await ui.pill(editor.page, 'video', 'For SMM Approval');
+      assert(b.records.slice(start).some(r => r.session === 'editor' && r.action === 'status' && r.outcome === 'accepted'));
+      assert.equal(b.records.slice(start).find(r => r.session === 'editor' && r.action === 'status').staff_key_role, 'creative');
+      assert.equal(b.native[0].status, 'smm_approval');
+      await ui.fresh(h, b, 'video', 'For SMM Approval', { kasper: false, client: false });
+    });
+    await step('smm-reviews-sends-kasper', async () => {
+      const smm = await h.session(b, 'smm'); await h.open(smm); const panel = await ui.review(smm.page, 'video'), start = b.records.length;
+      await panel.locator('.cal-review-approve-main').click();
+      await smm.page.locator('#resolveDestOverlay.active').waitFor();
+      const checklist = smm.page.locator('#resolveDestChecklist input[type="checkbox"]');
+      for (let i = 0; i < await checklist.count(); i++) await checklist.nth(i).check();
+      await smm.page.locator('#resolveDestKasper').click();
+      await ui.accepted(b, start); await ui.queue(smm.page, 'client', false);
+      assert.equal(b.rows[0].video_status, 'Kasper Approval'); assert.equal(b.native[0].status, 'kasper_approval');
+      assert(b.records.slice(start).some(r => r.session === 'smm' && r.outcome === 'accepted'));
+      await ui.fresh(h, b, 'video', 'Kasper Approval', { kasper: true, client: false });
+      assert.deepEqual(b.records.filter(r => r.action === 'status' && r.outcome === 'accepted').map(r => [r.session, r.body.status]),
+        [['admin', 'tweak'], ['editor', 'smm_approval'], ['smm', 'kasper_approval']], 'exact actors own the accepted native handoff sequence');
+      step.observe({ normal_handoff: 'EDITOR_TO_SMM_TO_KASPER', second_context_persistence: true, media_fix_quality: 'NOT_EVALUATED' });
+    });
+  });
   add('controls', 'video', 'In Progress', false, async (h, b, step) => {
     const s = await production(h, b), p = s.page;
     await step('status-due-assignee', async () => {

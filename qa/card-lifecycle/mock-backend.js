@@ -80,6 +80,7 @@ class Backend {
     if (p.startsWith('/webhook/') ? url.hostname !== this.webhookHost : url.hostname !== this.apiHost) return block();
     const record = (action, outcome = 'read') => {
       const r = { session, action, body: clone(body), outcome, revision: this.revision };
+      if (this.staffKeyFamilies) r.staff_key_role = req.headers()['x-syncview-role'] || null;
       this.records.push(r); return r;
     };
     if (method === 'GET' && p.startsWith('/rest/v1/')) {
@@ -112,7 +113,8 @@ class Backend {
     }
     if (method === 'POST' && p === '/functions/v1/key-verify') {
       const member = MEMBERS.find(m => m.id === body.member?.id) || MEMBERS.find(m => m.role === session);
-      record('key-verify'); return send({ ok: true, role: member?.role, member, mode: 'strict' });
+      record('key-verify'); return send({ ok: true,
+        role: this.staffKeyFamilies && ['editor', 'designer'].includes(member?.role) ? 'creative' : member?.role, member, mode: 'strict' });
     }
     if (method === 'POST' && p === '/functions/v1/client-token-verify') {
       const client = CLIENTS.find(c => c.slug === body.slug);

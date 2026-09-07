@@ -1,5 +1,17 @@
 # Card lifecycle coverage ledger
 
+## September 7 bounded normal workflow successor
+
+Product `b60a9705492002830eed60ece874e0686fc4b538` passed the new
+`editor-smm-handoff` cell's four steps, including an editor status refusal and
+fresh-context persistence, at `2026-09-07T15-23-51-258Z`. The actual visible actor
+sequence is Kasper/admin -> video editor -> SMM, ending at Kasper Approval.
+The editor sends For SMM Approval; the SMM performs review/resolution. Identity
+bootstrap uses Creative key family plus editor member. This is browser evidence
+over synthetic transport, not real authentication/role enforcement, media-fix
+quality or serving proof. See `README.md` for the finite boundaries. Existing
+red outcomes below remain historical evidence and were not rerun or relabeled.
+
 This lane is **ISOLATED_BROWSER**. All application bytes are local; all backend
 rows and identities are fictional. Live writers, authentication, RPC atomicity,
 deployed functions and GitHub Pages propagation are **UNPROVEN**.

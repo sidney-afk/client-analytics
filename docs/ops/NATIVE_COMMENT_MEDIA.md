@@ -132,6 +132,10 @@ edit reuse, scoped refresh success/failure/concurrent-edit and identity-loss cas
 actual Chromium refresh/expired-click controls with zero external requests, and
 private synthetic staging/readback proposals. The shared brief suite also passed
 **32 groups** after signer extraction and exact object-path checking.
+The actual comment-reader fixture loaders resolve both media modules from their
+real source paths. The receipt-fingerprint fixture additionally resolves the
+candidate's brief helper while preserving its older baseline; **238 receipt
+checks** and **26 comment-reader checks** passed without substitute media modules.
 
 All **75** already preserved current files passed the final validators, totaling
 **547252015 bytes**, including all five larger videos and both fonts. This was an

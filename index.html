@@ -22339,7 +22339,6 @@
     const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
     const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
     const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
-    const EDITORS_WEEK_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/editors-week';
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
@@ -73472,7 +73471,7 @@
         smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
         error: null,
         lastLoaded: 0,
-        editorsData: null,    // { weekLabel, editors[], … } from /webhook/editors-week
+        editorsData: null,    // { weekLabel, editors[], … } from _kedFetchNativeWeek
         editorsLoading: false,
         editorsError: null,
         editorsLoadedAt: 0,
@@ -78101,9 +78100,10 @@
 
 
     /* ── Editors (weekly labor) ─────────────────────────────────────
-       Reads /webhook/editors-week — every VID-team sub-issue with activity
-       in the previous calendar week (Mon→Sun, America/Chicago), grouped per
-       assignee, each carrying its full within-week transition history.
+       Reads public.deliverable_events — every video deliverable with a status
+       transition in the previous calendar week (Mon→Sun, America/Chicago),
+       grouped per current assignee, each carrying its within-week history.
+       See _kedFetchNativeWeek for the shaper and its two correctness traps.
        Work is measured client-side as DELIVERIES (see _kedSplitVideos): the
        editor handing a video off for review (into For SMM / Kasper / Client
        approval) from a state they were holding it in — a first cut (from In
@@ -78202,6 +78202,219 @@
         try { localStorage.setItem(KASPER_EDITORS_CACHE_KEY, JSON.stringify({ data, fetchedAt: Date.now() })); } catch (e) {}
     }
 
+    /* ── editors-week, natively ──────────────────────────────────────
+       Replaces the retired editors-week n8n call (Linear-backed) with a
+       direct read of public.deliverable_events, the installed status-transition
+       ledger (migrations/2026-07-06-b1-linear-data-model.sql:87, anon-readable
+       per its policy at :683). The panel's maths is UNCHANGED: this shaper
+       emits exactly the payload _kedPaint/_kedSplitVideos/_kedVideoCourt
+       already consume, so every number keeps its existing definition.
+
+       Two things it must get right, both of which silently corrupt the week
+       if they are wrong:
+
+       1. dayKey MUST be an America/Chicago calendar date. _kedVideoDeliveries
+          falls back to `String(t.at).slice(0,10)` — a UTC date — when dayKey
+          is absent, but _kedWeekDateKeys builds the seven bar buckets in
+          America/Chicago. Anything after ~19:00 Chicago would land on the next
+          day's bar, and Sunday-evening work would fall outside the week's keys
+          entirely: counted in the totals, invisible in the bars.
+       2. Native status values are not the Linear labels the _ked* predicates
+          match on. `tweak` in particular must become 'Tweak Needed' or it
+          matches neither _kedIsTweakState (so a tweak round is miscounted as
+          a first cut) nor _kedStatusSlug (so the timeline strip loses its
+          colour). The map below is the whole translation layer. */
+    const _KED_NATIVE_TZ = 'America/Chicago';
+    // deliverables.status domain (migrations/2026-07-06-b1-linear-data-model.sql:39-41)
+    // → the Linear-shaped label the existing predicates already understand.
+    // 'scheduled' has no Linear equivalent and deliberately matches no
+    // predicate: it is a post-approval publishing state, not editor work.
+    const _KED_NATIVE_STATUS_LABEL = {
+        triage:           'Triage',
+        backlog:          'Backlog',
+        todo:             'Todo',
+        in_progress:      'In Progress',
+        smm_approval:     'For SMM Approval',
+        kasper_approval:  'For Kasper Approval',
+        client_approval:  'For Client Approval',
+        tweak:            'Tweak Needed',
+        approved:         'Approved',
+        scheduled:        'Scheduled',
+        posted:           'Posted',
+        canceled:         'Canceled',
+        duplicate:        'Duplicate'
+    };
+    function _kedNativeLabel(status) {
+        const raw = String(status == null ? '' : status).trim();
+        if (!raw) return '';
+        return _KED_NATIVE_STATUS_LABEL[raw.toLowerCase()] || raw;
+    }
+
+    // Minutes that America/Chicago is offset from UTC at a given instant
+    // (-300 on CDT, -360 on CST). Derived from Intl rather than hard-coded so
+    // the DST boundary inside a week cannot shift a day.
+    function _kedTzOffsetMinutes(date) {
+        const dtf = new Intl.DateTimeFormat('en-US', {
+            timeZone: _KED_NATIVE_TZ, hour12: false,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+        const p = {};
+        for (const part of dtf.formatToParts(date)) { if (part.type !== 'literal') p[part.type] = part.value; }
+        const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+        return Math.round((asUTC - date.getTime()) / 60000);
+    }
+    // The UTC instant of 00:00 America/Chicago on a YYYY-MM-DD date. Two
+    // passes so a date whose naive-UTC guess lands on the other side of a DST
+    // transition still resolves to the right wall-clock midnight.
+    function _kedChicagoMidnightMs(dateStr) {
+        const naive = Date.parse(String(dateStr) + 'T00:00:00Z');
+        if (isNaN(naive)) return NaN;
+        let ms = naive - _kedTzOffsetMinutes(new Date(naive)) * 60000;
+        ms = naive - _kedTzOffsetMinutes(new Date(ms)) * 60000;
+        return ms;
+    }
+    const _kedDayKeyFmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: _KED_NATIVE_TZ, year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+    // The same key _kedWeekDateKeys stamps on the seven buckets.
+    function _kedChicagoDayKey(iso) {
+        const ms = Date.parse(iso);
+        if (isNaN(ms)) return '';
+        return _kedDayKeyFmt.format(new Date(ms));
+    }
+    function _kedWeekLabel(startMs, endMs) {
+        const f = new Intl.DateTimeFormat('en-US', { timeZone: _KED_NATIVE_TZ, month: 'short', day: 'numeric' });
+        return f.format(new Date(startMs)) + ' – ' + f.format(new Date(endMs - 1));
+    }
+
+    // PostgREST paging. The window routinely exceeds the 1000-row default,
+    // and a truncated read is indistinguishable from a quiet week.
+    async function _kedRestPage(path) {
+        const out = [];
+        const PAGE = 1000;
+        for (let offset = 0; offset < 20000; offset += PAGE) {
+            const url = CAL_SUPABASE_URL + '/rest/v1/' + path
+                + (path.indexOf('?') === -1 ? '?' : '&') + 'limit=' + PAGE + '&offset=' + offset;
+            const resp = await fetch(url, {
+                headers: {
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json'
+                }
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows) || !rows.length) break;
+            for (const r of rows) out.push(r);
+            if (rows.length < PAGE) break;
+        }
+        return out;
+    }
+    // `id=in.(...)` has a URL-length ceiling, so ids go out in chunks.
+    async function _kedRestIn(table, select, column, ids) {
+        const out = [];
+        const CHUNK = 120;
+        for (let i = 0; i < ids.length; i += CHUNK) {
+            const slice = ids.slice(i, i + CHUNK).filter(Boolean);
+            if (!slice.length) continue;
+            const list = slice.map(v => '"' + String(v).split('"').join('\\"') + '"').join(',');
+            const rows = await _kedRestPage(table + '?select=' + select
+                + '&' + column + '=in.(' + encodeURIComponent(list) + ')');
+            for (const r of rows) out.push(r);
+        }
+        return out;
+    }
+
+    /* Build the editors-week payload from public.deliverable_events.
+       Shape returned is byte-compatible with what the retired n8n endpoint
+       returned, so nothing downstream changes:
+         { weekLabel, weekStart, weekEnd, source, editors:[
+             { id, name, email, avatarUrl, videos:[
+                 { id, title, clientName, url, transitions:[{at,dayKey,from,status}] } ] } ] } */
+    async function _kedFetchNativeWeek() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('native_source_unavailable');
+        const mondayDate = _kedExpectedLastWeekMondayDate();
+        const weekStartMs = _kedChicagoMidnightMs(mondayDate);
+        if (isNaN(weekStartMs)) throw new Error('week_window_unresolved');
+        // Exclusive end: 00:00 Chicago on the following Monday. Derived from
+        // the date seven days on rather than +7*86400000 so a DST week keeps
+        // its wall-clock boundary.
+        const nextMondayDate = _kedDayKeyFmt.format(new Date(weekStartMs + 7 * 86400000 + 12 * 3600000));
+        const weekEndMs = _kedChicagoMidnightMs(nextMondayDate);
+        const startISO = new Date(weekStartMs).toISOString();
+        const endISO = new Date(weekEndMs).toISOString();
+
+        const events = await _kedRestPage(
+            'deliverable_events?select=deliverable_id,ts,from_status,to_status'
+            + '&action=eq.status_change'
+            + '&ts=gte.' + encodeURIComponent(startISO)
+            + '&ts=lt.' + encodeURIComponent(endISO)
+            + '&order=ts.asc');
+
+        const byDeliverable = new Map();
+        for (const ev of events) {
+            const did = ev && ev.deliverable_id;
+            if (!did) continue;
+            if (!byDeliverable.has(did)) byDeliverable.set(did, []);
+            byDeliverable.get(did).push({
+                at: ev.ts,
+                dayKey: _kedChicagoDayKey(ev.ts),
+                from: _kedNativeLabel(ev.from_status),
+                status: _kedNativeLabel(ev.to_status)
+            });
+        }
+        const ids = Array.from(byDeliverable.keys());
+        if (!ids.length) {
+            return { weekLabel: _kedWeekLabel(weekStartMs, weekEndMs), weekStart: startISO,
+                     weekEnd: endISO, source: 'native', editors: [] };
+        }
+
+        // Only video deliverables: the panel counts videos, and graphics work
+        // would inflate every headline number.
+        const deliverables = (await _kedRestIn(
+            'deliverables', 'id,title,client_slug,assignee_id,kind,linear_issue_url', 'id', ids))
+            .filter(d => d && d.kind === 'video' && d.assignee_id);
+        if (!deliverables.length) {
+            return { weekLabel: _kedWeekLabel(weekStartMs, weekEndMs), weekStart: startISO,
+                     weekEnd: endISO, source: 'native', editors: [] };
+        }
+
+        const memberIds = Array.from(new Set(deliverables.map(d => d.assignee_id)));
+        const members = await _kedRestIn('team_members', 'id,name,email,role,active', 'id', memberIds);
+        const memberById = new Map(members.map(m => [m.id, m]));
+        const clientSlugs = Array.from(new Set(deliverables.map(d => d.client_slug).filter(Boolean)));
+        const clients = clientSlugs.length
+            ? await _kedRestIn('clients', 'slug,display_name', 'slug', clientSlugs)
+            : [];
+        const clientBySlug = new Map(clients.map(c => [c.slug, c.display_name]));
+
+        const byEditor = new Map();
+        for (const d of deliverables) {
+            const m = memberById.get(d.assignee_id);
+            if (!m) continue;
+            if (!byEditor.has(m.id)) {
+                byEditor.set(m.id, { id: m.id, name: m.name, email: m.email, avatarUrl: null, videos: [] });
+            }
+            byEditor.get(m.id).videos.push({
+                id: d.id,
+                title: d.title,
+                clientName: clientBySlug.get(d.client_slug) || '',
+                url: d.linear_issue_url || '',
+                transitions: (byDeliverable.get(d.id) || [])
+                    .slice()
+                    .sort((a, b) => String(a.at).localeCompare(String(b.at)))
+            });
+        }
+        return {
+            weekLabel: _kedWeekLabel(weekStartMs, weekEndMs),
+            weekStart: startISO,
+            weekEnd: endISO,
+            source: 'native',
+            editors: Array.from(byEditor.values())
+        };
+    }
+
     async function _kasperLoadEditors(forceRefresh) {
         const body = document.getElementById('kedBody');
         const btn  = document.getElementById('kedRefresh');
@@ -78219,17 +78432,11 @@
         }
 
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
-        if (body && (forceRefresh || !_kasperState.editorsData)) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: forceRefresh ? 'Refreshing editor work' : "Loading last week's work from Linear" });
+        if (body && (forceRefresh || !_kasperState.editorsData)) body.innerHTML = _svLoadingSkeletonHtml('kasper', { label: forceRefresh ? 'Refreshing editor work' : "Loading last week's work" });
         _kasperState.editorsLoading = true;
         _kasperState.editorsError = null;
         try {
-            const resp = await fetch(EDITORS_WEEK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
-            });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const json = await resp.json();
+            const json = await _kedFetchNativeWeek();
             if (!json || json.ok === false) throw new Error((json && json.error) || 'Unknown error');
             _kasperState.editorsData = json;
             _kasperState.editorsLoadedAt = Date.now();

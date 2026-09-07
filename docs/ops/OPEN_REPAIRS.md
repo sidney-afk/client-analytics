@@ -13919,3 +13919,112 @@ red against the code that preceded them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
+
+---
+
+## 171. [2026-09-07, BUILT, live on merge with no deploy and no migration; lane LX-C] Kasper's editor week, rebuilt off Linear — and the two ways a shaper corrupts a week without erroring
+
+Lane C's reserved ledger number. This entry covers the **editors-week** item
+only; the rest of lane C is tracked in the same PR body and will be appended
+here as it lands.
+
+**What changed.** `_kasperLoadEditors` POSTed the `editors-week` n8n webhook,
+which read Linear. It dies with Linear access on 2026-09-15. `_kedFetchNativeWeek`
+now builds the identical payload from `public.deliverable_events` — the
+status-transition ledger already installed and already anon-readable
+(`migrations/2026-07-06-b1-linear-data-model.sql`, table at line 87, anon select
+policy at line 683). **No migration and no Edge Function deploy is required**;
+this is live the moment `index.html` merges. The `EDITORS_WEEK_URL` constant is
+deleted and `docs/truth/ENDPOINTS.md` drops the row in the same commit, which is
+what `test/truth-sync.js` checks.
+
+Every `_ked*` consumer is **unchanged** — `_kedPaint`, `_kedRow`,
+`_kedSplitVideos`, `_kedVideoDeliveries`, `_kedVideoCourt`, `_kedWeekDateKeys`,
+`_kedStatusSlug`. The shaper emits the shape they already consume, so every
+number keeps the definition it had. That was the whole design goal: the owner
+said a simpler native version is fine, and the simplest version that is also
+*correct* is the one that changes no arithmetic.
+
+**THE TWO FAILURES THAT DO NOT ERROR.** Both are pinned in
+`test/editors-week-native.js` with counterexamples that go red against the naive
+shaper.
+
+1. **The dayKey must be an America/Chicago calendar date.**
+   `_kedVideoDeliveries` falls back to `String(t.at).slice(0,10)` — a **UTC**
+   date — when a transition carries no `dayKey`, but `_kedWeekDateKeys` builds
+   the seven bar buckets with `TZ = 'America/Chicago'`. Every delivery after
+   ~19:00 Chicago would land on the **next day's** bar, and Sunday-evening work
+   would fall outside the week's seven keys **entirely**: counted in the
+   headline totals, invisible in the bars, with nothing anywhere reporting a
+   problem. Kasper's week would silently shift a day.
+
+2. **`tweak` must be shaped to `Tweak Needed`.** `deliverables.status` uses
+   `tweak`; every `_ked*` predicate matches Linear's label. The raw value
+   matches neither `_kedIsTweakState` — so a tweak round is recounted as a
+   **first cut**, which is the exact split the headline row exists to show —
+   nor `_kedStatusSlug`, which needs `/tweak\s*needed/`, so the timeline strip
+   also loses its colour.
+
+**THE STATUS DOMAIN IS 13 VALUES, NOT 7.**
+`migrations/2026-07-06-b1-linear-data-model.sql` lines 39-41 is
+`check (status in (...))` over `triage, backlog, todo, in_progress,
+smm_approval, kasper_approval, client_approval, tweak, approved, scheduled,
+posted, canceled, duplicate`. The mapping was incomplete in **both** directions:
+`todo` and `backlog` already match `_kedIsWorkState` verbatim with no
+normalisation, and `triage`, `scheduled`, `canceled`, `duplicate` match no
+predicate at all — deliberately, since none of them is editor work.
+
+**Reads are paged.** The window routinely exceeds PostgREST's 1000-row default:
+measured 2026-09-07, the Aug 31 – Sep 6 window holds more than 1000
+`status_change` rows on its own. A truncated read is indistinguishable from a
+quiet week, so `_kedRestPage` pages and `_kedRestIn` chunks the `in.(…)` lists.
+
+**MEASURED AGAINST LIVE DATA, 2026-09-07** (read-only, publishable key, the same
+key and grouping the shipped code uses). Window resolved to
+`2026-08-31T05:00:00Z → 2026-09-07T05:00:00Z`, the seven bucket keys came out
+`2026-08-31 … 2026-09-06`, and **zero** `perDay` keys fell outside them. Four
+editors returned; 60 first cuts, 56 tweak rounds, 53 finishes, 4 still in
+progress, 85 videos on plates. One of the four returned 15 videos and a plate of
+0 — its in-window transitions were all reviewer/pipeline moves, which is the
+existing definition working, not a gap.
+
+**WHAT CHANGES MEANING, AND WHAT DOES NOT.** One claim I had to correct against
+the repo's own evidence before publishing it:
+
+- **Assignee attribution is UNCHANGED.** I had this down as a meaning change —
+  that grouping by `deliverables.assignee_id` newly attributes a mid-week
+  reassignment wholly to the new editor. It is not new.
+  `docs/independence/SYSTEM_MAP.md` (F48) records that the retired endpoint
+  already did exactly this: *"past transitions are attributed to the current
+  assignee."* The native rebuild carries the caveat forward rather than
+  introducing it, so there is nothing here for the owner to weigh that was not
+  already true last week.
+- **Completeness went UP, not down.** The retired endpoint paged its issue
+  connection 50 at a time and **silently stopped after 30 pages / 1,500
+  issues**, with each issue history unpaged at `first:250`. The native reads
+  page to exhaustion. A week that quietly hit those caps was under-reported
+  before and is not now.
+- **The one genuine discontinuity: pre-cutover Linear-only issues were never
+  written to `deliverable_events`.** Any week reaching back before native filing
+  shows less than the Linear panel did. This is a data-coverage fact, not a
+  performance one, and it is the only reason to look before trusting a
+  historical week.
+
+**AND IT CLOSES F48.** The retired webhook was unauthenticated and served
+confidential people/client/work metadata to anyone who called it, with an
+arbitrary range. Retiring it removes that surface entirely; the replacement
+reads run under the browser's existing publishable key and RLS.
+
+Recommended before this is trusted for a real judgement: put one real week side
+by side against the current panel while both still exist — only possible
+**before 2026-09-15**.
+
+**Test:** `test/editors-week-native.js`, 33 checks, offline, no git dependency.
+It extracts the shipped `_kedFetchNativeWeek` and the unchanged `_ked*`
+consumers out of `index.html` into a `vm` and drives them through a stubbed
+PostgREST, so it exercises the source rather than a copy that can drift. It
+includes the two counterexamples above, a full delivery/tweak/finish/WIP parity
+case, the graphics-and-unassigned exclusion, a 1400-row paging case, the empty
+week, and a failed read (which must throw, so the panel shows its error state
+rather than painting an empty week as fact). Fixtures are synthetic: the repo is
+public.

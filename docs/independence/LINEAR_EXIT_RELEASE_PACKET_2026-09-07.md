@@ -1,3 +1,126 @@
+## Latest coordinated checkpoint: September 7, after host recovery
+
+This section supersedes older current-head, pending-source and audit-coverage
+statements below. Older receipts and failures remain evidence for their exact
+versions. **Operational release is NOT READY.** No live change is authorized.
+
+Draft [PR1326](https://github.com/sidney-afk/client-analytics/pull/1326) now contains
+combined candidate `5bcc03bd7d286f437ad51d4cc86a5ce80b7b63ea`. It integrates main
+`70715496a44e7120f0b819deafdb84cd62d78f9b`, checked again after the PC shutdown.
+The owner's latest Workload grouping/overdue/video-link behavior and batch/post
+names are preserved alongside native intake, assignments, labels, feedback,
+cutoff containment, frozen-writer composition, F44/CARD adapters, required media
+readers, independent alarm preparation and explicit history-v9 recovery.
+
+Independent review of the final named append/atomic composer/recovery extension
+found no source-blocking issue. Focused owner-naming and native-intent extraction
+checks pass47 assertions; affected Workload routing/naming/overdue checks pass.
+The separately restored SQL lane passes8 groups; atomic source composition
+passes7. Cold recovery passes5 checks against the exact saved42-table package.
+The first combined hosted run on34ded passes required media Chromium, visible
+boot, synthetic browser, Production polish, identity and F27 rollback checks.
+Its unit step finished with3 of476 suites failing: retained-refusal VM omitted
+the new naming helper; a tombstone test expected direct linkification; the
+preview POST contract omitted protected media refresh. Later SQL steps were not
+reached. Current5bcc fixture repairs preserve59 prior refusal controls plus2
+original-name retry cases (61 PASS), actually exercise deleted-comment rendering
+without media, and retain the exact12-POST allowlist with protected read guards.
+The two source suites pass. The duplicate535f
+unit workflow was deliberately stopped to avoid rerunning those known failures.
+Its six new comment-media type errors are corrected in43db with annotations
+only: targeted official Deno2.5.2 ratchet and35 comment-media checks pass, with
+the baseline unchanged. Hosted535f type checking also passed. Exact5bcc hosted
+checks are pending; green
+d12 or d144 results are not transferred. PR1339 fc20's three closure failures
+and pre-test missing-lock browser failure remain historical.
+
+The named append migration has SHA256
+`2b26c56fbbefa70e06e16aab4feb652aa2a83f81a4dd4ffade18f23f780e0c52`.
+Its reviewed compound native-only + named append artifact has SHA256
+`2571a909971f2bc52ef270400b7666c2b529d36ab4f6a56044f00d1b2ecf61ec`.
+It preserves one transaction and stops on error. Both predecessors replace the
+same RPC; exposing the old native-only function would temporarily break names.
+First compound installation remains unproven. Existing-column SQL proof does
+not establish first-install readiness. The older authenticated recovery package
+excludes later names/runtime and separate object/owner-receipt bytes.
+
+The final source inventory against main contains15 additive migrations,
+14 changed function files,7 affected entrypoints and24 local closure files
+(including8 shared files). All literal relative imports resolve. This is source
+coverage, not installed definitions, grants or execution order. The two media
+gateway closures each contain6 files; production-write is
+`3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95`
+and production-comments is
+`6083e53a630f9c9faf9ad997884dd28a1066e51b732385243bc42e4bfbfd31b5`.
+Never deploy repository Calendar/Samples writer entrypoints as-is: retain the
+separate private captured tokenless compositions and existing client links.
+
+One fresh management READ_ONLY catalog query at19:16:30Z finds33 of44 targeted
+relations present and11 absent;52 of108 lexical routine-name targets present
+and56 absent. These include a baseline superset, not a claim that52 functions
+are compatible. All11 missing relations are exit additions. Exact definitions,
+constraints and ACLs are retained privately; normalized equality remains
+unproven. Capture/scratch custom roles remain unknown. No application function,
+row, grant, schema or role was changed. Private response SHA256
+`046ac46e86e8558bcb4f79eb22fe208d718aed625972f7c0b033cbdd8b1903f5`.
+
+All1166 required captured brief URLs and75 current linked staff-comment URLs
+have validated private bytes and staged occurrence packages. Brief packages
+cover1337 copies plus the owner's single exact deferred historical reference;
+comment packages cover79 occurrences across49 documents. Cold-restart custody
+verification passed. This is not Storage upload, installed mapping or independent
+website delivery. Five current comment videos still require preparation of an
+approved global Storage increase from50 to100MiB; brief50MiB and new-image4MiB
+limits remain. Six file-bearing comments offered only by Archive asset repair
+await owner usage classification; this is not a blanket historical-export gate.
+
+A fresh read-only current published automation inventory covers129/129 current
+IDs,93 active/36 inactive, with all93 active published-version bindings verified
+and no active-state/updatedAt drift from its preview. Four bounded pages included
+216 physical records because87 were archived. The earlier API cap-overrun
+failure remains retained. Complete current ID coverage supersedes the old32
+missing-read gap without inventing a mapping to historical anonymous row labels.
+Private final inventory receipt SHA256
+`59e4b6b136901cf347d021399249e0edd3acc437aaae792a7782bc0602f04aea`.
+There are15 direct-provider node candidates across8 workflows,12 literal workflow
+edges with captured current targets, and48 dynamic candidates. Offline source
+classification resolves31 to fixed non-Linear destinations,10 to overlapping
+direct-provider reads/calls,1 to a scheduled indirect Workload provider reader,
+4 to scraper-media destinations and2 to signed third-party upload destinations.
+The last two categories need bounded destination provenance; they are not six
+proven Linear integrations. All three retained F44/CARD published graphs match.
+Inventory completeness does not prove zero provider traffic or full execution.
+
+The remaining automation work is seven finite groups: F44 submit forwarding and
+native project picker; native Workload/tweak scope and scheduled mirror
+replacement/retirement; native urgent editor lookup; weekly editor statistics
+(owner usage answer pending); linked-card status/metadata/adoption and explicit
+provider import; conserved comment/status queues with refusal BEFORE provider
+lookup; and the two bounded external-destination checks. Preserve the31 healthy
+non-Linear destinations. Two legacy write fences currently query Linear before
+refusing mutation, so native authority alone does not eliminate their reads.
+Urgent-change alerts are an offered current staff action. Do not classify weekly
+statistics as optional solely because they describe last week. Disposition
+receipt SHA256 `cd5762b6efb98c5dfd5cc4c51050126258fa3ae2c535158f0d9e404af4f816a5`.
+
+### Exact remaining gates and decisions
+
+| Gate | Preparation or proof still required | Owner action required later |
+|---|---|---|
+| Compatible installation and recovery | Reconcile current installed catalog/grants with the15 migrations and baseline dependencies; prove first atomic native/name installation and recovery of final schema plus separate media/receipt bytes. Bind exact staged anonymous closures and every served shared import. | Approve the exact reviewed installation/custody steps; owner-held sealed capture remains separate. |
+| Required files in the website | Fresh source/audience admission, private destination inventory, every byte readback, actual reader access/rendering with Linear denied. Resolve only the6 archive-reader comments' current use. | Approve bounded Storage/copy/mapping actions after their exact manifests and recovery steps are ready. One old video's website deferral is already settled. |
+| Old callers and automation cutoff | Existing adapter source is prepared; actual n8n-engine old-payload rehearsal, published root disposition, inbound/both-outbox debt, old isolates and pre-admitted requests remain. | Approve exact graph/scheduler/CAS actions only after review; preserve unknown work and existing tokenless saves. |
+| Real staff/client workflows and alarms | Final compatible reserved TEST journeys, reload/refusal/stale/lost-response paths and independent provider-denial observation; always-on host, actual delivery, acknowledgement, missed-run and recovery drills. | Approve the finite TEST window and separate monitor activation. SyncViewbot and private backup recipient are already selected; no further infrastructure design decision is delegated to the owner. |
+| Observation and account time | Both clocks unstarted.72 hours follow product credential removal, then owner Decision A and at least14 days controlled retention. Actual account renewal/cost still unverified. | Review short extension proposal targeting October15; September15 cancellation remains scheduled. Billing, credentials and cancellation are not authorized. |
+
+The normal editor -> SMM -> Kasper path is settled; no new Reopen policy.
+The owner has seen both September5 bot drills; future recurring monitoring and
+incident acknowledgement remain unproven. Watchers are inactive. Exporter PR1327
+and comprehensive unused history remain optional and paused. Delete nothing.
+At20% weekly usage remaining, finish the active bounded step and package the
+private Claude handoff; this supersedes the earlier15% reserve.
+
+### Earlier receipts and checkpoints (historical)
 # Linear exit: bounded release preparation
 
 This packet implements the current owner scope in [the canonical checklist](GO_LIVE_CHECKLIST.md).

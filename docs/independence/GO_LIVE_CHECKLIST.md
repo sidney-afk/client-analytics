@@ -1,3 +1,38 @@
+## Current coordinated status after September 7 restart
+
+**NOT READY for live release or Linear cancellation.** The owner's scope is
+current client/staff operational independence; unused historical export remains
+optional. Latest draft PR1326 is `5bcc03bd7d286f437ad51d4cc86a5ce80b7b63ea`,
+including main70715496a's post names and Workload changes. See the
+[current release packet](LINEAR_EXIT_RELEASE_PACKET_2026-09-07.md) for exact pins, custody, evidence and
+action boundaries. Its latest section supersedes older checkpoints below.
+
+Combined source includes native workflows, legacy adapters, required media,
+42-table recovery and the native/name atomic correction. Focused source,
+browser, SQL and cold-resume proofs have explicit version limits. The first
+combined hosted run passed its required media/browser jobs but found6 comment
+type errors; these are corrected and pass the targeted ratchet with no baseline
+change; hosted535f type checking also passed. The34ded unit run failed3 of476
+suites due to stale naming/tombstone/scoped-read fixtures;5bcc corrects all3,
+retains prior controls and passes focused checks, including61 refusal/retry
+cases. The duplicate535f unit workflow was deliberately cancelled. Exact5bcc
+hosted proof remains pending.
+
+Current automation inventory is complete:129 current workflows/93 active
+published bindings. The old32 missing-read gap is closed. Bounded classification
+identifies specific staff/legacy/provider routes still needing replacement or
+cutoff; it does not establish zero traffic. Fresh installed read confirms11
+targeted exit relations absent and retains exact definitions/ACLs privately.
+Final installation/recovery, required-file delivery, urgent editor lookup,
+linked metadata/queues, reserved TEST journeys and independent alarms remain.
+Owner usage of weekly editor stats and6 archive-reader comments is pending.
+
+Keep existing tokenless client writers. No main merge, deployment, live/TEST
+write, n8n edit, flag, credential, billing/cancellation or new alert is authorized.
+Both clocks remain unstarted; prepare the already selected short access
+extension. Finish and package a Claude handoff at20% weekly remaining.
+
+### Earlier receipts and checkpoints (historical)
 # SyncView Go-Live Checklist — current Linear exit sequence
 
 **Decision, 2026-09-04: NOT READY for Decision A. Do not revoke the product's Linear access yet.** Both teams are already SyncLinear-authoritative. Remaining provider reads, stale writers, incomplete card/work coverage, recovery debt and unproved client/alert drills prevent a safe shutdown.

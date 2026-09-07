@@ -55641,6 +55641,7 @@
                 created_at: createdAt,
                 updated_at: updatedAt,
                 row_updated_at: String(row.row_updated_at || row.updated_at || '').trim(),
+                media: row.media && typeof row.media === 'object' ? row.media : null,
                 version: Number.isInteger(Number(row.version)) ? Number(row.version) : 1,
                 attachments,
                 component: String(row.component || '').trim(),
@@ -55676,6 +55677,11 @@
             const byId = new Map();
             const absorb = list => (Array.isArray(list) ? list : []).forEach((row, index) => {
                 const normalized = _prodCommentNormalize(row, index);
+                const prior = byId.get(normalized.id);
+                if (prior && prior.media && prior.media.mode === 'required'
+                    && (!normalized.media || normalized.media.mode !== 'required')) {
+                    normalized.media = { ...prior.media, complete: false, render_body: null, expires_at: null };
+                }
                 if (normalized.id) byId.set(normalized.id, normalized);
             });
             absorb(existing);
@@ -55701,6 +55707,25 @@
             if (days < 7) return { text: days + 'd ago', raw };
             return { text: new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }), raw };
         }
+        function _prodCommentMediaHTML(c) {
+            const media = c.media || {};
+            if (!/https?:\/\/uploads\.linear\.app\//i.test(c.body)) return _prodLinkify(c.body);
+            if (media.mode === 'off' || (typeof _isClientLink !== 'undefined' && _isClientLink)) return _prodLinkify(c.body);
+            const usable = media.contract === 'native_comment_media_v1' && media.complete === true
+                && media.id === c.id && media.source_body === c.body && media.source_version === c.version
+                && media.source_audience === c.audience && media.source_updated_at === c.row_updated_at
+                && typeof media.render_body === 'string' && Date.parse(media.expires_at) > Date.now();
+            const action = '_prodComments.refreshMedia(' + _jsAttrArg(media.deliverable_id || _prodState.openId)
+                + ',' + _jsAttrArg(c.id) + ')';
+            const refresh = '<button type="button" class="prod-comment-state-action" onclick="' + action + '">Refresh downloads</button>';
+            if (!usable) return '<span>' + _calEsc(c.body) + '</span><div class="prod-comment-state">'
+                + 'File downloads need a fresh check. ' + refresh + '</div>';
+            // No image opt-in. An expired link is intercepted even if the panel
+            // stayed open without a rerender; refresh uses current staff scope.
+            return '<span onclick="if(event.target.closest(\'a\') &amp;&amp; Date.now() &gt;= '
+                + Date.parse(media.expires_at) + '){event.preventDefault();' + action + ';}">'
+                + _prodLinkify(media.render_body) + '</span><div>' + refresh + '</div>';
+        }
         function _prodCommentHTML(comment) {
             const c = _prodCommentNormalize(comment);
             if (c.hidden) return '';
@@ -55715,7 +55740,7 @@
                 + (c.tweak_known && c.is_tweak ? '<span class="prod-comment-pill">Tweak' + (c.round > 0 ? ' · Round ' + _calEsc(String(c.round)) : '') + '</span>' : '')
                 + (c.done ? '<span class="prod-comment-pill">Resolved</span>' : c.tweak_known && c.is_tweak ? '<span class="prod-comment-pill">Open</span>' : '');
             const edited = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
-            const body = c.deleted ? 'Comment deleted.' : _prodLinkify(c.body);
+            const body = c.deleted ? 'Comment deleted.' : _prodCommentMediaHTML(c);
             const attachments = c.deleted || !c.attachments.length ? '' : '<div class="prod-comment-assets">'
                 + c.attachments.map(asset => '<div class="prod-comment-asset"><span class="prod-asset-label">' + _calEsc(asset.title) + '</span>'
                     + (asset.url ? '<a href="' + _calEscAttr(asset.url) + '" target="_blank" rel="noopener noreferrer">' + _calEsc(_prodFileLinkLabel(asset.url)) + '</a>' : '<span class="prod-asset-value">No usable link</span>')
@@ -56125,6 +56150,32 @@
                 repaint();
                 return stateFor(id);
             }
+            async function refreshMedia(id, commentId) {
+                const current = stateFor(id), original = find(id, commentId), epoch = generation;
+                if (!current || !original || _isClientLink) return;
+                const identity = JSON.stringify(_syncviewStaffIdentityForHeaders() || null);
+                const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
+                try {
+                    const response = await fetch(PROD_COMMENTS_EF_URL, { method:'POST', headers:authHeaders(), signal:controller.signal,
+                        body:JSON.stringify({deliverable_id:id,media_comment_id:commentId}) });
+                    const result = await response.json();
+                    if (generation !== epoch || stateFor(id) !== current
+                        || identity !== JSON.stringify(_syncviewStaffIdentityForHeaders() || null)) return;
+                    const latest = find(id, commentId);
+                    if (!latest || ['version','body','audience','row_updated_at'].some(key => latest[key] !== original[key])) return;
+                    if (!response.ok || result.ok !== true || !Array.isArray(result.comments) || result.comments.length !== 1
+                        || result.comments[0].id !== commentId) throw Error('media_refresh_failed');
+                    if (Number(result.comments[0].version) < Number(latest.version)) return;
+                    adopt(id,result.comments[0]);
+                } catch (error) {
+                    if (generation !== epoch || stateFor(id) !== current
+                        || identity !== JSON.stringify(_syncviewStaffIdentityForHeaders() || null)) return;
+                    const latest = find(id, commentId);
+                    if (!latest || ['version','body','audience','row_updated_at'].some(key => latest[key] !== original[key])) return;
+                    adopt(id,{...original,media:{...original.media,mode:'required',complete:false,render_body:null,expires_at:null}});
+                    _prodToast('Downloads could not refresh. Please try again.');
+                } finally { clearTimeout(timer); }
+            }
             function ensure(id) {
                 if (!stateFor(id)) load(id);
             }
@@ -56201,7 +56252,7 @@
                 const moreError = state.moreError ? '<div class="prod-comment-state is-error">' + _calEsc(state.moreError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
                 return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more + feedback;
             }
-            return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical };
+            return { clear, ensure, refresh, refreshMedia, retry, loadOlder, signIn, render, find, adopt, readCanonical };
         })();
         function _prodCanonicalCardComment(row) {
             const c = _prodCommentNormalize(row);

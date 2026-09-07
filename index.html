@@ -3528,8 +3528,6 @@
         .workload-exception-section.is-collapsed .workload-section-toggle { margin-bottom: 0; }
         .workload-exception-rollups[hidden] { display: none; }
         @media (prefers-reduced-motion: reduce) { .workload-section-toggle-chevron { transition: none; } }
-        .workload-section-hint { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
-        .workload-section-hint strong { color: var(--text-secondary); font-weight: 700; }
         .workload-weekend-notice { position: relative; margin-left: auto; text-transform: none; letter-spacing: 0; }
         .workload-weekend-notice[hidden] { display: none; }
         .workload-weekend-notice summary { min-height: 28px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--text-secondary); font-size: 0.62rem; font-weight: 750; cursor: pointer; list-style: none; white-space: nowrap; }
@@ -3671,8 +3669,10 @@
         .wl-now-client-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         /* Overdue strip — same shape as In progress now / Tweaks needed,
            but red. An overdue sub-issue is the most urgent signal on the
-           page (the editor has missed the deadline and the item still sits
-           with them), so the strip lives above In progress now. */
+           page (still in To Do, deadline already gone, and it still sits
+           with them), so the strip lives above In progress now. Work that
+           has started, or moved on to any other live status, is counted by
+           that status instead — see the partition loop's 2026-09-07 ruling. */
         .workload-overdue { border: 1.5px solid var(--wl-overdue-border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--wl-overdue-section-bg); }
         .workload-overdue.empty { display: none; }
         .workload-overdue .workload-section-label { color: var(--wl-overdue-label); display: flex; align-items: center; gap: 8px; }
@@ -3766,12 +3766,39 @@
             .workload-overview-capacity { max-width: 220px; }
         }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-        .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .workload-chip { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); font-size: 0.71rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
         .workload-chip:hover { border-color: var(--sv-border-aaa); background: var(--white); }
-        .workload-chip .chip-client { color: var(--text-muted); font-weight: 500; }
-        .workload-loose-item { display: inline-flex; align-items: center; gap: 5px; }
-        .workload-loose-plan { min-height: 30px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.66rem; font-weight: 700; cursor: pointer; }
-        .workload-loose-plan:hover { border-color: var(--sv-border-6c5ce7); color: var(--sv-fg-6c5ce7); }
+        .workload-loose-item { display: inline-flex; align-items: center; gap: 3px; }
+        /* Loose strips are grouped client then parent issue, so the chip row
+           stops being one flat wrap and becomes a column of client cards.
+           Kept deliberately dense: these two strips are a queue someone scans
+           top to bottom, so every row of padding is a row of scrolling. */
+        .wl-loose-clients { flex-direction: column; align-items: stretch; gap: 7px; }
+        .wl-loose-client { border: 1px solid var(--border); border-radius: 7px; background: var(--bg); padding: 6px 8px; }
+        .workload-undated .wl-loose-client { background: var(--white); }
+        .wl-loose-client-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+        .wl-loose-client-name { font-size: 0.75rem; font-weight: 800; color: var(--text-primary); }
+        .wl-loose-client-count { border-radius: 4px; padding: 0 5px; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.04em; background: var(--border); color: var(--text-secondary); }
+        .wl-loose-parents { display: flex; flex-direction: column; gap: 5px; }
+        .wl-loose-parent { border-left: 2px solid var(--border); padding-left: 8px; }
+        .wl-loose-parent-head { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+        .wl-loose-parent-ident { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.03em; color: var(--sv-fg-6c5ce7); }
+        .wl-loose-parent-title { font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
+        .wl-loose-parent-title-none { font-style: italic; color: var(--text-muted); font-weight: 500; }
+        .wl-loose-parent-count { border-radius: 4px; padding: 0 5px; font-size: 0.6rem; font-weight: 800; background: var(--white); border: 1px solid var(--border); color: var(--text-muted); }
+        .workload-undated .wl-loose-parent-count { background: var(--bg); }
+        .wl-loose-parent-chips { gap: 4px; }
+        .wl-loose-open { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--sv-border-6c5ce7); border-radius: 5px; padding: 2px 7px; background: var(--white); color: var(--sv-fg-6c5ce7); font-size: 0.63rem; font-weight: 800; text-decoration: none; transition: all 0.13s; }
+        .wl-loose-open svg { width: 9px; height: 9px; flex-shrink: 0; }
+        .wl-loose-open:hover { background: var(--bg); border-color: var(--sv-fg-6c5ce7); }
+        /* Linear stays reachable but visually subordinate: a bare glyph, no
+           pill of its own, so the escape hatch costs a click and not a row. */
+        .wl-loose-open-linear { border-color: transparent; background: none; color: var(--text-muted); padding: 2px; }
+        .wl-loose-open-linear svg { width: 12px; height: 12px; }
+        .wl-loose-open-linear:hover { background: none; border-color: var(--border); color: var(--text-secondary); }
+        .workload-chip-linear { display: inline-flex; align-items: center; justify-content: center; padding: 2px; border-radius: 5px; border: 1px solid transparent; color: var(--text-muted); text-decoration: none; flex-shrink: 0; transition: all 0.13s; }
+        .workload-chip-linear svg { width: 12px; height: 12px; }
+        .workload-chip-linear:hover { border-color: var(--sv-border-aaa); color: var(--text-secondary); }
         .workload-calendar-module { overflow: visible; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
         .workload-calendar-heading { position: relative; min-height: 34px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
         .workload-calendar-heading h2 { margin: 0; color: var(--text-primary); font-size: 1.45rem; font-weight: 850; letter-spacing: -0.025em; text-align: center; }
@@ -4512,6 +4539,37 @@
         .cal-native-editor-row { margin-top: 14px; }
         .cal-native-editor-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
         .cal-native-editor-hint { margin: 6px 0 0; font-size: 0.74rem; line-height: 1.45; color: var(--text-muted); }
+        /* POST NAMES (owner request 2026-09-07: "they should be able to name
+           that sub-issue also"). One field per post, because a single press can
+           mint up to 50 of them and one shared name would defeat the point.
+
+           The name is a SUFFIX -- 'Video 4 - Launch hook' -- so the 2026-08-17
+           ruling survives it: the owner read his own test post as "two video
+           sub-issues" when both halves were called the same thing, and a
+           free-form title would rebuild exactly that. The kind and the number
+           stay in front of whatever anyone types.
+
+           The list scrolls rather than growing the dialog past the viewport;
+           at the 50-post ceiling it would otherwise be taller than the screen
+           and push Create out of reach. */
+        .cal-native-name-row { margin-top: 14px; }
+        .cal-native-name-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+        .cal-native-name-optional { margin-left: 6px; font-size: 0.72rem; font-weight: 600; color: var(--sv-fg-aaa); }
+        .cal-native-name-list { display: grid; gap: 8px; max-height: 216px; overflow-y: auto; }
+        .cal-native-name-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: center; }
+        .cal-native-name-item.is-numbered { grid-template-columns: 22px minmax(0, 1fr); }
+        .cal-native-name-index { font-size: 0.74rem; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
+        .cal-native-name-input { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 500; box-sizing: border-box; }
+        .cal-native-name-input::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
+        .cal-native-name-input:hover { border-color: var(--text-muted); }
+        .cal-native-name-input:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-name-hint { margin: 6px 0 0; font-size: 0.74rem; line-height: 1.45; color: var(--text-muted); }
+        /* The batch name lives INSIDE the "Start a new batch" card, so the name
+           and the decision to create it are one control rather than two. */
+        .cal-native-batch-name { width: 100%; height: 38px; margin-top: 8px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 600; box-sizing: border-box; }
+        .cal-native-batch-name::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
+        .cal-native-batch-name:hover { border-color: var(--text-muted); }
+        .cal-native-batch-name:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
         .cal-import-drop svg { width: 34px; height: 34px; color: var(--text-muted); }
@@ -13937,7 +13995,7 @@
         planned: [],                               // assigned non-tweak sub-issues with a manual or automatic work day
         nowWorking: [],                            // assigned sub-issues currently "In Progress"
         tweaksNeeded: [],                          // assigned sub-issues currently "Tweaks Needed"
-        overdue: [],                               // assigned sub-issues whose dueDate is before today (active status, any non-parked status)
+        overdue: [],                               // assigned sub-issues in To Do whose dueDate is before today (any other live status overrides overdue)
         undated: [],                               // assigned active sub-issues with neither manual day nor deadline
         unassigned: [],                            // sub-issues with no assignee (and In Progress OR has dueDate)
         parentById: new Map(),                     // parent issue lookup for rollup link-outs
@@ -16350,12 +16408,11 @@
             </section>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>
-                <div class="workload-chips" id="wlUnassignedChips"></div>
+                <div class="workload-chips wl-loose-clients" id="wlUnassignedChips"></div>
             </div>
             <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
                 <div class="workload-section-label">Needs a work day or deadline</div>
-                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists.</div>
-                <div class="workload-chips" id="wlUndatedChips"></div>
+                <div class="workload-chips wl-loose-clients" id="wlUndatedChips"></div>
             </div>
             <div class="workload-legend">
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--sv-bg-6c5ce7)"></span>Video</span>
@@ -16887,17 +16944,39 @@
                 tweaksNeeded.push(s);
                 continue;
             }
-            // Past-due non-tweak work always appears in Overdue. Automatic
-            // placement leaves the calendar, but an explicit manual pin keeps
-            // its exact work day: changing the Linear deadline must not move a
-            // plan that a person deliberately placed.
-            const isOverdue = hasDue && s.dueDate < todayISO;
-            if (isOverdue) {
-                overdue.push(s);
-                if (inProg) nowWorking.push(s);
-                if (!hasManualPlan) continue;
-            }
-            if (inProg && !isOverdue) nowWorking.push(s);
+            // OWNER RULING 2026-09-07, narrowing the 2026-08-27 one: Overdue is
+            // a TO DO lane. Every other live status already says something
+            // truer about where the row is -- In Progress says somebody has it
+            // open right now, Tweak Needed says it is back with the editor for
+            // a named change -- and that status wins over the date. So a status
+            // other than To Do OVERRIDES overdue rather than doubling into it,
+            // and the only thing left in this lane is work nobody has started
+            // whose deadline has already passed. (Approval-wait and Approved
+            // rows never reached this loop at all: wlIsActiveStatus parks them
+            // upstream, so they were never in Overdue to begin with.)
+            //
+            // What this ruling did NOT change is where past-due work sits on
+            // the work-day calendar. A past-due In Progress row used to be
+            // counted in BOTH strips; it is now counted only in In progress,
+            // and it leaves the calendar exactly as it did before. Letting it
+            // fall through to `planned` would floor its automatic day at today
+            // (wlAutoPlanDate) and spend that editor's capacity on a day nobody
+            // planned it for, inflating the over-capacity badges on the one
+            // cell that is already the fullest. The row stays visible where it
+            // always was: the In progress strip, and that editor's yellow pill
+            // on today's cell.
+            const isPastDue  = hasDue && s.dueDate < todayISO;
+            const isOverdue  = isPastDue && wlIsToDo(s);
+            if (isOverdue) overdue.push(s);
+            if (inProg) nowWorking.push(s);
+            // Past-due work leaves the calendar only when a strip above is
+            // already carrying it -- an explicit manual pin still keeps its
+            // exact work day, because changing the Linear deadline must not
+            // move a plan that a person deliberately placed. A past-due row in
+            // some other live status (one WL_PARKED_STATUSES does not know, or
+            // a column added later) is in NO strip, so it stays on the calendar
+            // rather than dropping off the page entirely.
+            if (isPastDue && (isOverdue || inProg) && !hasManualPlan) continue;
             if (!workDate) {
                 undated.push(s);
                 continue;
@@ -18795,6 +18874,65 @@
         renderLooseIssueStrip('wlUnassigned', 'wlUnassignedChips', wlState.unassigned, false);
     }
 
+    /* SyncLinear deep link for a Linear identifier.
+
+       Same shape the workload popover has used since the 2026-08-21 owner
+       request ("it opens the original linear... make it so it opens our sync
+       linear"): ?prod=1&d=<identifier>, which the Production tab resolves by
+       displayId and falls back to its own list view for anything it cannot
+       find. Read-only navigation, never a write. */
+    function wlSyncLinearUrl(identifier) {
+        const ident = String(identifier || '').trim();
+        return ident ? (location.pathname + '?prod=1&d=' + encodeURIComponent(ident)) : '';
+    }
+
+    /* The parent a loose sub-issue hangs off, as far as this board can see it.
+
+       `parentById` only holds parents that came back in THIS snapshot, and a
+       sub whose parent is filtered out of the snapshot still carries
+       `parentIdentifier` from workload_issues -- which is all the SyncLinear
+       deep link needs. So the identifier falls back to the sub's own copy and
+       a group is still openable when the parent row itself is absent; only the
+       human-readable title and the Linear escape hatch degrade. */
+    function wlLooseParentInfo(sub) {
+        const parentId = String(sub && sub.parentId || '');
+        const parent = parentId ? wlState.parentById.get(parentId) : null;
+        const identifier = String((parent && parent.identifier) || (sub && sub.parentIdentifier) || '');
+        if (!parentId && !identifier) return null;
+        return {
+            key: parentId || identifier,
+            nativeBatchId: sub && sub.workloadSource === 'native' ? parentId : '',
+            identifier,
+            title: String((parent && parent.title) || ''),
+            url: String((parent && parent.url) || ''),
+        };
+    }
+
+    /* Loose sub-issues, grouped CLIENT then PARENT ISSUE.
+
+       Owner request 2026-09-07, looking at a flat 30-chip "Needs assignment"
+       wall: the two loose strips are where someone goes to hand work out, and
+       a flat list makes them re-derive by eye which chips belong to the same
+       client and the same parent. Sub-issues under one parent are almost
+       always assigned together, so the parent gets ONE button that opens it in
+       SyncLinear -- where the assigning actually happens -- instead of thirty
+       chips each opening Linear one sub-issue at a time.
+
+       Sub-issues with no parent still render; they group under their client
+       with no parent button of their own, each chip opening its own SyncLinear
+       row. Linear stays one small click away on every group and every chip: it
+       is a reference and the rollback path, and removing a working escape
+       hatch costs more than the extra icon.
+
+       `applyEditorFilter` is the only thing that still separates the two
+       strips. The undated strip used to pair every chip with a "Set work day"
+       button opening the plan popover; the owner pulled it on 2026-09-07 ("for
+       now") once the strips became a scan-and-hand-out queue rather than a
+       place to plan, and dropping ~25 buttons is most of what made the block
+       compact. Nothing else changed with it: the popover, wlSetPlanDate and
+       the delegated [data-wl-issue-open] handler are all untouched and still
+       reached from the calendar, so restoring the button is re-rendering it,
+       not rebuilding a path. */
     function renderLooseIssueStrip(stripId, chipsId, source, applyEditorFilter) {
         const stripEl = document.getElementById(stripId);
         const chipsEl = document.getElementById(chipsId);
@@ -18811,16 +18949,83 @@
             return;
         }
         stripEl.classList.remove('empty');
-        chipsEl.innerHTML = filtered.map(s => {
-            const team = wlTeamBucket(s.teamKey, s.teamName);
-            const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? 'var(--sv-misc-d97706)' : 'var(--sv-misc-6c5ce7)'}"></span>`;
-            const planButton = applyEditorFilter
-                ? `<button type="button" class="workload-loose-plan" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(s.id || '')}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="">Set work day</button>`
-                : '';
-            const accessible = [s.identifier || '', s.title || '', s.clientName || ''].filter(Boolean).join(' · ');
-            return `<span class="workload-loose-item"><a class="workload-chip" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape(accessible)}">
-                ${dot}<span>${wlEscape(s.title)}</span><span class="chip-client">${wlEscape(s.clientName || '')}</span>
-            </a>${planButton}</span>`;
+
+        const byClient = new Map();
+        for (const s of filtered) {
+            const clientName = s.clientName || '';
+            // Leading space keys cannot collide with a real client name,
+            // Linear id or identifier, so the two fallback buckets below stay
+            // distinct from every genuine group.
+            const clientKey = clientName || ' noclient';
+            if (!byClient.has(clientKey)) byClient.set(clientKey, { clientName, total: 0, groups: new Map() });
+            const client = byClient.get(clientKey);
+            client.total++;
+            const parent = wlLooseParentInfo(s);
+            const groupKey = parent ? parent.key : ' noparent';
+            if (!client.groups.has(groupKey)) client.groups.set(groupKey, { parent, subs: [] });
+            client.groups.get(groupKey).subs.push(s);
+        }
+
+        const clients = [...byClient.values()].sort((a, b) =>
+            (a.clientName || '').localeCompare(b.clientName || ''));
+
+        const externalMark = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 2.4h3v3"/><path d="M9.6 2.4 5.2 6.8"/><path d="M9.6 6.6v3h-7v-7h3"/></svg>`;
+        const linearMark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/></svg>`;
+
+        chipsEl.innerHTML = clients.map(client => {
+            const clientLabel = client.clientName || 'No client';
+            const groups = [...client.groups.values()].sort((a, b) => {
+                // Parentless subs sink to the bottom of their client; the rest
+                // hold a stable identifier order so a refresh does not reshuffle
+                // the block someone is reading.
+                if (!a.parent !== !b.parent) return a.parent ? -1 : 1;
+                if (!a.parent) return 0;
+                return (a.parent.identifier || '').localeCompare(b.parent.identifier || '', undefined, { numeric: true });
+            });
+            const groupsHtml = groups.map(group => {
+                const parent = group.parent;
+                const subs = wlSortSubIssues(group.subs);
+                const syncUrl = parent && parent.nativeBatchId
+                    ? location.pathname + '?prod=1&batch=' + encodeURIComponent(parent.nativeBatchId)
+                    : parent ? wlSyncLinearUrl(parent.identifier) : '';
+                const parentName = parent ? (parent.identifier || 'the parent issue') : '';
+                const openBtn = syncUrl
+                    ? `<a class="wl-loose-open" href="${wlEscape(syncUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape('Open ' + parentName + ' in SyncLinear to assign its sub-issues')}"><span>Open in SyncLinear</span>${externalMark}</a>`
+                    : '';
+                const parentLinearBtn = parent && parent.url
+                    ? `<a class="wl-loose-open wl-loose-open-linear" href="${wlEscape(parent.url)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape('Open ' + parentName + ' in Linear')}" data-tip="Open in Linear">${linearMark}</a>`
+                    : '';
+                const parentHead = parent
+                    ? `<span class="wl-loose-parent-ident">${wlEscape(parent.identifier || 'Parent')}</span>${parent.title ? `<span class="wl-loose-parent-title">${wlEscape(parent.title)}</span>` : ''}`
+                    : `<span class="wl-loose-parent-title wl-loose-parent-title-none">No parent issue</span>`;
+                const chips = subs.map(s => {
+                    const team = wlTeamBucket(s.teamKey, s.teamName);
+                    const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? 'var(--sv-misc-d97706)' : 'var(--sv-misc-6c5ce7)'}"></span>`;
+                    const accessible = [s.identifier || '', s.title || '', s.clientName || ''].filter(Boolean).join(' · ');
+                    const subSyncUrl = wlSyncLinearUrl(s.nativeId || s.identifier) || s.url || '';
+                    const subLinearBtn = s.url
+                        ? `<a class="workload-chip-linear" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape((s.identifier || s.title || 'Sub-issue') + ' in Linear')}" data-tip="Open in Linear">${linearMark}</a>`
+                        : '';
+                    return `<span class="workload-loose-item"><a class="workload-chip" href="${wlEscape(subSyncUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape(accessible)}">
+                        ${dot}<span>${wlEscape(s.title)}</span>
+                    </a>${subLinearBtn}</span>`;
+                }).join('');
+                return `<div class="wl-loose-parent${parent ? '' : ' is-orphan'}">
+                    <div class="wl-loose-parent-head">
+                        ${parentHead}
+                        <span class="wl-loose-parent-count">${subs.length}</span>
+                        ${openBtn}${parentLinearBtn}
+                    </div>
+                    <div class="workload-chips wl-loose-parent-chips">${chips}</div>
+                </div>`;
+            }).join('');
+            return `<section class="wl-loose-client" aria-label="${wlEscape(clientLabel)}">
+                <div class="wl-loose-client-head">
+                    <span class="wl-loose-client-name">${wlEscape(clientLabel)}</span>
+                    <span class="wl-loose-client-count">${client.total}</span>
+                </div>
+                <div class="wl-loose-parents">${groupsHtml}</div>
+            </section>`;
         }).join('');
     }
 
@@ -19452,9 +19657,37 @@
         wlState.popoverAnchor = rollupEl;
         rollupEl.setAttribute('aria-expanded', 'true');
 
-        const parentUrl   = clientName
-            ? ((parentId && wlState.parentById.get(parentId)?.url) || subs[0]?.url || '')
-            : '';
+        /* A PARENT BUTTON MAY NEVER RESOLVE TO A CHILD.
+
+           Both link-outs below used to end `|| subs[0]?.url` / `||
+           subs[0]?.identifier`. That fallback reads as harmless -- "open
+           something rather than nothing" -- and is the one thing these two
+           controls must not do: they are labelled and positioned as the
+           PARENT, so substituting the first sub-issue does not degrade the
+           button, it makes it lie. Owner report 2026-09-07, pressing
+           "Open SyncView ->" on the In progress chip for one client and
+           landing on the sub-issue `VID-13679` instead of its parent
+           `VID-13678`, with nothing on the page saying a substitution had
+           happened.
+
+           `parentById` only holds parents that came back in THIS snapshot,
+           and the board has several ways to hold fewer: the Linear-derived
+           read pages `active = true` only, so a parent whose own row went
+           inactive is absent while its children are still live, and the
+           n8n `linear-issues` fallback (taken whenever the Supabase read
+           throws) answers a different row set again. The sub itself carries
+           `parentIdentifier` from `workload_issues` for exactly this case --
+           which is all the SyncLinear deep link needs -- so that is the
+           fallback, the same one `wlLooseParentInfo` already uses for the
+           loose strips. It was added there on 2026-09-07 and never carried
+           back here.
+
+           When neither source can name the parent, the button is NOT
+           rendered. An absent control is honest; one pointing at a child
+           is not. The per-row links below still open each sub-issue, so
+           nothing becomes unreachable -- only unlabelled-as-parent. */
+        const parentRow   = parentId ? wlState.parentById.get(parentId) : null;
+        const parentUrl   = clientName ? (parentRow?.url || '') : '';
         /* SyncView-first link-outs (owner request 2026-08-21: "it opens the
            original linear... make it so it opens our sync linear"). Post-flip
            the designers' work lives in the Production tab, so the popover's
@@ -19469,13 +19702,43 @@
            either way, so the extra icon is still worth less than removing a
            working escape hatch. */
         const parentIdent = clientName
-            ? ((parentId && wlState.parentById.get(parentId)?.identifier) || subs[0]?.identifier || '')
+            ? (parentRow?.identifier || String(subs[0]?.parentIdentifier || ''))
             : '';
-        const parentTarget = subs[0]?.workloadSource === 'native' ? subs[0]?.nativeId : parentIdent;
-        const parentSyncUrl = parentTarget
-            ? (location.pathname + '?prod=1&d=' + encodeURIComponent(parentTarget))
-            : '';
-        const parentTitle = (parentId && wlState.parentById.get(parentId)?.title) || clientName || editorName || '';
+        /* A PILL IS VIDEOS, SO THE PRIMARY ACTION OPENS A VIDEO.
+
+           Owner, 2026-09-07, after being sent to the parent and having to
+           drill down himself to read the status he came for: "when you open
+           a pill, you're opening a video, so you're supposed to go to that
+           sub-issue, which has the status In progress."
+
+           He is describing what the chip MEANS. A client chip reading "1"
+           in the In progress column is not a statement about the client or
+           the parent, it is one video that is in progress, and the status the
+           chip just asserted lives on that sub-issue. The parent cannot
+           carry it: for a native card the parent is a SYNTHETIC batch node
+           whose status is hardcoded `todo` and never updated
+           (_prodResolveBatchParentNodes), so sending the reader there
+           answered his question with the one value guaranteed to be wrong.
+
+           So when the group is ONE sub-issue there is no ambiguity about
+           which video is meant, and the primary button opens it. With more
+           than one, no single row is "the video" -- picking one would be a
+           guess -- so the button stays on the parent and says so, and the
+           rows below remain the way to each individual video. */
+        const soleSub = subs.length === 1 ? subs[0] : null;
+        const soleSubIdent = String(soleSub?.nativeId || soleSub?.identifier || '');
+        const parentNativeId = clientName && subs.length && subs.every(s => s.workloadSource === 'native')
+            ? String(parentId || '') : '';
+        const openIdent = soleSubIdent || parentIdent;
+        const openIsParent = !soleSubIdent && !!(parentNativeId || parentIdent);
+        const parentSyncUrl = !soleSubIdent && parentNativeId
+            ? (location.pathname + '?prod=1&batch=' + encodeURIComponent(parentNativeId))
+            : openIdent ? (location.pathname + '?prod=1&d=' + encodeURIComponent(openIdent)) : '';
+        const openLabel = openIsParent ? 'Open parent →' : 'Open SyncView →';
+        // The Linear escape hatch follows the primary target rather than
+        // silently pointing somewhere else than the button beside it.
+        const openLinearUrl = soleSub ? String(soleSub.url || '') : parentUrl;
+        const parentTitle = parentRow?.title || clientName || editorName || '';
         const headerTitle = clientName || editorName || parentTitle;
         pop.setAttribute('aria-label', headerTitle ? ('Workload details for ' + headerTitle) : 'Workload details');
 
@@ -19498,8 +19761,8 @@
                 <span class="workload-popover-head-title">${wlEscape(headerTitle)}</span>
                 ${templatesLink}
             </div>
-            ${parentSyncUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentSyncUrl)}" target="_blank" rel="noopener noreferrer">Open SyncView →</a>` : ''}
-            ${parentUrl ? `<a class="workload-popover-parent workload-popover-parent-linear" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Linear ↗</a>` : ''}
+            ${parentSyncUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentSyncUrl)}" target="_blank" rel="noopener noreferrer">${wlEscape(openLabel)}</a>` : ''}
+            ${openLinearUrl ? `<a class="workload-popover-parent workload-popover-parent-linear" href="${wlEscape(openLinearUrl)}" target="_blank" rel="noopener noreferrer">Linear ↗</a>` : ''}
             <button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
         </div>`;
         // When the popover spans multiple clients (editor-total badge), label
@@ -26831,6 +27094,13 @@
                act on, because there is nothing for them to do differently. */
             'batch_asset_slot_unsupported',
             'invalid_intake_item', 'invalid_intake_payload', 'invalid_intake_teams',
+            /* The Create Post name fields carry maxlength, and the state
+               normaliser slices at the same number, so the dialog cannot
+               build an over-long name. Reaching this is a payload this UI
+               did not send -- but it carries its own sentence below all the
+               same, because the one thing a person could do about it is
+               obvious and worth saying. */
+            'invalid_intake_item_name',
             /* Two items of one team naming different editors. The dialog sends
                a single choice, so this is a malformed submission rather than a
                race the person can resolve by retrying. */
@@ -26859,6 +27129,10 @@
        the messages this notification already carried; they stay word for word,
        and only gain the code suffix every other message now carries. */
     const WRITE_UI_FAILURE_CODE_TEXT = {
+        invalid_intake_item_name: {
+            title: 'Post name too long',
+            text: 'One of the post names is longer than a sub-issue title can carry. Shorten it, then create the post again.'
+        },
         client_credentials_required: {
             title: 'Write not saved',
             text: 'This client link needs a current review token. Ask your SMM for a fresh link, then try again.'
@@ -40845,6 +41119,117 @@
         if (per === 1) return posts + ' \u2192 ' + subsText;
         return posts + ' \u2192 ' + subsText + ' (' + count + ' video, ' + count + ' thumbnail)';
     }
+    /*
+     * NAMING WHAT YOU JUST MADE (owner request 2026-09-07).
+     *
+     * Two names, and they are not the same kind of thing:
+     *
+     *   * The BATCH name is the Linear PARENT issue title. The gateway has
+     *     always taken it from the browser verbatim (`batch.name`), so this
+     *     half is a dialog change and nothing else -- it was only ever
+     *     hard-coded because nothing asked.
+     *   * A POST name is a SUFFIX on both of its sub-issue titles:
+     *     'Video 4 — Launch hook' and 'Thumbnail 4 — Launch hook'.
+     *
+     * The suffix shape is deliberate and is the owner's own earlier ruling
+     * defending itself. On 2026-08-17 he read a test post as "two video
+     * sub-issues" because both halves were titled the same; a free-form title
+     * rebuilds that the first time somebody names a post "Morning routine".
+     * The number is load-bearing too -- it is the ONLY record of a post's
+     * ordinal (there is no column for it), and both planAppendIntakeItems and
+     * production_intake_append re-derive the next number by reading it back
+     * out of the titles already in the batch. Keeping kind and number in front
+     * keeps every one of those readers working; the name rides behind.
+     *
+     * THE SERVER COMPOSES THE TITLE, not this file. The browser sends `name`
+     * and the gateway builds 'Video N — name' from the ordinal it allocates,
+     * because on an append the browser does not know N -- the batch does.
+     */
+    const CAL_NATIVE_TITLE_SEPARATOR = ' — ';
+    /* Titles are capped at 500 by the gateway and the kind/number/separator
+       eat a dozen of those. 160 leaves the cap unreachable by a name alone
+       while being longer than anything a person types into one of these. */
+    const CAL_NATIVE_NAME_MAX = 160;
+    /* Newlines and runs of whitespace are flattened rather than refused: a
+       name pasted out of a filming plan carries both, and refusing the paste
+       would teach people to stop pasting rather than teach them to tidy. */
+    function _calNativeCleanName(value) {
+        return String(value == null ? '' : value)
+            .replace(/[\s\u00a0]+/g, ' ')
+            .trim()
+            .slice(0, CAL_NATIVE_NAME_MAX);
+    }
+    /* The per-post names, normalised to exactly `count` entries. Held long so
+       that stepping 3 -> 1 -> 3 gives the third name back rather than losing
+       it; only what is submitted is clamped. */
+    function _calNativePostNamesFor(state, count) {
+        const held = Array.isArray(state && state.postNames) ? state.postNames : [];
+        return Array.from({ length: Math.max(0, count) }, (unused, index) =>
+            _calNativeCleanName(held[index]));
+    }
+    /* The batch title the parent issue will actually carry: what was typed, or
+       the generated default when the field is untouched. The default is not
+       written into the input -- it is its placeholder -- so an SMM who clears
+       the box gets the default back instead of an empty parent. */
+    function _calNativeBatchNameFor(state) {
+        const typed = _calNativeCleanName(state && state.batchName);
+        const surface = state && state.surface;
+        if (!typed) return _linearIntakeBatchTitle(state && state.clientName, surface);
+        /* A SAMPLES parent still has to say it is a sample -- owner ruling
+           2026-08-19, which is why the generated title carries ' · Samples · '
+           in the middle where truncation cannot reach it. A typed name would
+           silently drop that, so the marker is added back unless the name
+           already carries the word. It is appended rather than injected, and
+           the preview line under the field shows the result, so nobody is
+           surprised by what the parent ends up called. */
+        if (surface === 'sxr' && !/sample/i.test(typed)) return typed + ' · Samples';
+        return typed;
+    }
+    function _calNativePostNamesHtml(state, count, mode) {
+        const names = _calNativePostNamesFor(state, count);
+        const numbered = count > 1;
+        const rows = names.map((name, index) => `
+                        <div class="cal-native-name-item${numbered ? ' is-numbered' : ''}">
+                            ${numbered ? `<span class="cal-native-name-index" aria-hidden="true">${index + 1}</span>` : ''}
+                            <input type="text" class="cal-native-name-input" maxlength="${CAL_NATIVE_NAME_MAX}"
+                                value="${_calEscAttr(name)}" placeholder="${_calEscAttr(numbered ? 'Name for post ' + (index + 1) : 'Name this post')}"
+                                aria-label="${_calEscAttr('Optional name for post ' + (index + 1))}" autocomplete="off"
+                                oninput="_calSetNativePostName(${index}, this.value)">
+                        </div>`).join('');
+        return `<div class="cal-native-name-list">${rows}</div>
+                    <p class="cal-native-name-hint">${_calEsc(_calNativePostNameHint(mode))}</p>`;
+    }
+    function _calNativePostNameHint(mode) {
+        const example = mode === 'thumbnail' ? 'Thumbnail 4' : 'Video 4';
+        return 'Optional. It goes after the number: a post named “Launch hook” becomes “'
+            + example + CAL_NATIVE_TITLE_SEPARATOR + 'Launch hook”, and one left blank stays “'
+            + example + '”.'
+            + (mode === 'both' ? ' Both sub-issues of a post share the name.' : '');
+    }
+    /* State only -- never a re-render. Every keystroke runs through here, and
+       rebuilding the modal body would drop focus and the caret on each one. */
+    function _calSetNativePostName(index, value) {
+        const state = _calNativePostState;
+        const slot = Math.floor(Number(index));
+        if (!state || !Number.isFinite(slot) || slot < 0) return;
+        if (!Array.isArray(state.postNames)) state.postNames = [];
+        state.postNames[slot] = String(value == null ? '' : value);
+    }
+    function _calSetNativeBatchName(value) {
+        const state = _calNativePostState;
+        if (!state) return;
+        state.batchName = String(value == null ? '' : value);
+        const meta = document.getElementById('calNativeNewBatchMeta');
+        if (meta) meta.textContent = '"' + _calNativeBatchNameFor(state) + '" · adds this post to it';
+    }
+    /* A label does not forward a click on an interactive descendant to its
+       radio, so typing a batch name would otherwise leave "Add to a previous
+       batch" selected and the name unused. Same explicit hook the batch
+       dropdown beside it already needs. */
+    function _calNativeNewBatchPick() {
+        const radio = document.getElementById('calNativeNewBatchRadio');
+        if (radio) radio.checked = true;
+    }
     /* Which teams a batch can actually PARENT, read from linear_parent_ids
        with the same key vocabulary the gateway's parentIdsForTeam accepts. */
     function _calNativeBatchParentTeams(batch) {
@@ -41011,6 +41396,17 @@
         state.postCount = (!Number.isFinite(parsed) || parsed < 1) ? 1 : Math.min(parsed, max);
         const hint = document.getElementById('calNativePostCountHint');
         if (hint) hint.textContent = _calNativePostCountHint(mode, state.postCount);
+        /* One field per post, so the list has to follow the count. This is a
+           surgical rebuild rather than _calRenderNativePostChoice() because the
+           stepper can be held down: a full re-render per repeat would throw the
+           dialog away under the pointer. Typed names survive it -- they live in
+           state.postNames, and _calNativePostNamesFor keeps the ones the count
+           has stepped past, so 3 -> 1 -> 3 gives the third name back. */
+        const namesLabel = document.getElementById('calNativePostNamesLabel');
+        if (namesLabel) namesLabel.innerHTML = (state.postCount === 1 ? 'Post name' : 'Post names')
+            + '<span class="cal-native-name-optional">optional</span>';
+        const names = document.getElementById('calNativePostNames');
+        if (names) names.innerHTML = _calNativePostNamesHtml(state, state.postCount, mode);
         const input = document.getElementById('calNativePostCount');
         if (input && String(state.postCount) !== String(input.value) && document.activeElement !== input) {
             input.value = String(state.postCount);
@@ -41335,11 +41731,20 @@
                     })}
                     <span class="cal-native-count-hint" id="calNativePostCountHint">${_calEsc(_calNativePostCountHint(mode, postCount))}</span>
                 </div>
+                <div class="cal-native-name-row" role="group" aria-labelledby="calNativePostNamesLabel">
+                    <div class="cal-native-name-label" id="calNativePostNamesLabel">${postCount === 1 ? 'Post name' : 'Post names'}<span class="cal-native-name-optional">optional</span></div>
+                    <div id="calNativePostNames">${_calNativePostNamesHtml(state, postCount, mode)}</div>
+                </div>
                 ${editorPickerHtml}
                 <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch" style="margin-top: 14px;">
                     <label class="cal-native-batch-option">
-                        <input type="radio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'}>
-                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta">"${_calEsc(_linearIntakeBatchTitle(state.clientName, state.surface))}" · adds this post to it</span></span>
+                        <input type="radio" id="calNativeNewBatchRadio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'}>
+                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta" id="calNativeNewBatchMeta">"${_calEsc(_calNativeBatchNameFor(state))}" · adds this post to it</span>
+                            <input type="text" class="cal-native-batch-name" id="calNativeBatchName" maxlength="${CAL_NATIVE_NAME_MAX}"
+                                value="${_calEscAttr(_calNativeCleanName(state.batchName))}" placeholder="${_calEscAttr(_linearIntakeBatchTitle(state.clientName, state.surface))}"
+                                aria-label="Name for the new batch" autocomplete="off"
+                                oninput="_calSetNativeBatchName(this.value)" onfocus="_calNativeNewBatchPick()" onmousedown="_calNativeNewBatchPick(); event.stopPropagation();">
+                        </span>
                     </label>${prevBatchHtml}
                 </div>
                 <div class="cal-native-batch-error" id="calNativePostError" hidden></div>
@@ -41370,6 +41775,7 @@
         const code = String(error && (error.code || error.message) || '');
         if (code === 'intake_assignee_override_not_allowed') return 'Choosing a different editor is not live on this workspace yet. Leave the suggested editor selected to create the post now, or reassign it in Production afterwards.';
         if (code === 'intake_assignee_override_conflict') return 'This post asked for two different editors at once. Reopen Create Post and choose one.';
+        if (code === 'invalid_intake_item_name') return 'One of the post names is longer than a sub-issue title can carry. Shorten it and try again.';
         if (code === 'assignee_not_eligible' || code === 'assignee_ineligible') return 'That editor cannot take this work right now. Choose someone else.';
         if (code === 'native_intake_pending_conflict') return 'Finish the previously saved intake before starting a different one.';
         if (code === 'native_card_recovery_pending') return 'An earlier post is saved, but its card still needs recovery. Retry; if it remains blocked, contact your workspace administrator.';
@@ -41471,6 +41877,7 @@
         document.body.classList.add('cal-modal-open');
         _calNativePostState = {
             clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null, batchFilter: '',
+            batchName: '', postNames: [],
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
         };
         const editorState = _calNativePostState;
@@ -41606,8 +42013,15 @@
             ? chosenEditorId
             : '';
         const dueISO = wlAddWorkingDays(todayISO, 5);
+        /* One optional name per post (owner 2026-09-07). Normalised here and
+           not merely read off the inputs: the fields are user-editable, and a
+           name is part of the intent, so it rides the signature below too --
+           a saved job named one thing must not resume under another. */
+        const postNames = _calNativePostNamesFor(state, postCount);
+        const batchName = _calNativeBatchNameFor(state);
         const videos = Array.from({ length: postCount }, (unused, index) => ({
-            number: index + 1, main_cam: '', side_cam: '', audio: '', dueDate: dueISO
+            number: index + 1, main_cam: '', side_cam: '', audio: '', dueDate: dueISO,
+            name: postNames[index] || ''
         }));
         // The mode is part of the intent: a saved "both" job and a new
         // "thumbnail" attempt are different work, and must conflict rather
@@ -41617,6 +42031,7 @@
         const signature = JSON.stringify({
             surface, choice, mode, post_count: postCount, client_slug: state.clientSlug,
             video_assignee_id: videoAssigneeId,
+            post_names: postNames, batch_name: choice === 'new' ? batchName : '',
             batch_id: choice === 'latest' ? String(latest.id || '') : '',
             expected_batch_updated_at: choice === 'latest' ? String(latest.updated_at || '') : '',
             actor_id: identity && identity.member && identity.member.id
@@ -41633,7 +42048,7 @@
                     payload.batch_id = String(latest.id || '');
                     payload.expected_batch_updated_at = String(latest.updated_at || '');
                 } else {
-                    payload.batch = { name: _linearIntakeBatchTitle(state.clientName, surface), description: null };
+                    payload.batch = { name: batchName, description: null };
                 }
                 return payload;
             }, {
@@ -41667,9 +42082,44 @@
             const savedWhat = mode === 'video' ? 'The video is saved'
                 : mode === 'thumbnail' ? 'The thumbnail is saved'
                     : 'Video and Graphics are saved';
-            showNotify(surface === 'sxr' ? 'Sample created' : 'Post created', result && result.mirror_pending === true
-                ? savedWhat + '; the Linear mirror is still draining.'
-                : savedWhat + ' in the selected batch.');
+            /*
+             * DID THE NAMES LAND? Asked of the response, not assumed.
+             *
+             * The gateway composes every sub-issue title, and a gateway that
+             * predates post naming ignores `name` silently rather than
+             * refusing it -- so between this file shipping (GitHub Pages, on
+             * merge) and production-write being deployed by hand, a typed name
+             * would vanish with the dialog and nothing would say so. An
+             * absence is the one failure nobody can report accurately.
+             *
+             * So the check is against what was actually written: every name
+             * that was asked for has to appear in some returned title. It
+             * costs nothing once the gateway is deployed, and it keeps
+             * working afterwards as a regression alarm.
+             *
+             * IT NAMES NO REMEDY THE READER CAN CARRY OUT, because there is
+             * not one. An earlier draft said "rename in Linear" -- Codex
+             * caught it on #1336 and it is wrong twice over. Both teams are
+             * SyncView-authoritative (`prod_authority` video/graphics =
+             * syncview since the 2026-08-28 video flip), so linear-inbound
+             * takes the detect-only branch and RETURNS before the
+             * `row.title = clean(issue.title)` write: the rename is recorded
+             * as a detection and never reaches `deliverables.title`, which is
+             * the column this surface reads. And there is no SyncView-side
+             * rename either -- `production-write` has no title operation at
+             * all. The only thing that fixes it is the deploy, so the message
+             * says what happened, that nothing is lost, and who to tell.
+             */
+            const askedNames = postNames.filter(Boolean);
+            const writtenTitles = result && Array.isArray(result.items)
+                ? result.items.map(item => String(item && item.title || '')) : [];
+            const namesLanded = !askedNames.length || askedNames.every(name =>
+                writtenTitles.some(title => title.endsWith(CAL_NATIVE_TITLE_SEPARATOR + name)));
+            showNotify(surface === 'sxr' ? 'Sample created' : 'Post created', !namesLanded
+                ? savedWhat + ', but the names were not applied - this workspace still runs a production-write that predates post naming. The posts are saved and numbered correctly; tell the owner the gateway needs deploying.'
+                : result && result.mirror_pending === true
+                    ? savedWhat + '; the Linear mirror is still draining.'
+                    : savedWhat + ' in the selected batch.');
         } catch (error) {
             console.warn('[SyncView] Calendar native Create Post failed:', error);
             if (Number(error && error.status) >= 400 && Number(error && error.status) < 500) {
@@ -47608,6 +48058,14 @@
         (Array.isArray(videos) ? videos : []).forEach((video, index) => {
             const number = Number(video && (video.number || video.videoNumber) || index + 1);
             const cardId = 'p_native_' + safeRequest + '_' + number;
+            /* The post name (owner 2026-09-07) rides on BOTH halves as `name`,
+               and the gateway composes each title from it plus the ordinal it
+               allocates. The video `title` below stays a full string only
+               because the Submit tab has always sent one and the create path
+               still honours it; on an append the gateway overwrites it, which
+               is correct -- the batch owns the number, not this file. */
+            const postName = String(video && video.name || '').trim();
+            const named = suffix => postName ? suffix + CAL_NATIVE_TITLE_SEPARATOR + postName : suffix;
             /* The chosen editor rides on the VIDEO item only. Graphics assigns
                by its single default designer and the gateway refuses an
                override there, so sending one would fail the whole submission.
@@ -47615,15 +48073,17 @@
                byte-identical to the pre-picker shape. */
             const chosenEditor = String(videoAssigneeId || '');
             if (mode === 'video' || mode === 'both') items.push({
-                team: 'video', videoNumber: number, title: titlePrefix + 'Video ' + number,
+                team: 'video', videoNumber: number, title: named(titlePrefix + 'Video ' + number),
                 brief: _linearVideoBrief(video || {}), due_date: video && video.dueDate || null,
                 status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index,
+                ...(postName ? { name: postName } : {}),
                 ...(chosenEditor ? { assignee_id: chosenEditor } : {})
             });
             if (mode === 'thumbnail' || mode === 'both') items.push({
                 team: 'graphics', videoNumber: number, brief: _linearThumbnailBrief(video || {}),
                 due_date: video && video.dueDate || null,
-                status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index
+                status: PROD_CREATED_STATUS, card_id: cardId, sort_key: index,
+                ...(postName ? { name: postName } : {})
             });
         });
         return items;

@@ -411,7 +411,15 @@ const result = {
     && createPost.includes('_calNativeBatchCompatible(latest, mode)')
     && createPost.includes("payload.batch_id = String(latest.id || '')")
     && createPost.includes("payload.expected_batch_updated_at = String(latest.updated_at || '')")
-    && createPost.includes('payload.batch = { name: _linearIntakeBatchTitle(state.clientName, surface), description: null }'),
+    /* 2026-09-07: the new-batch name is now whatever the SMM typed, falling
+       back to the generated title when the field is untouched -- so the pin
+       moved from the generator call to the resolver that wraps it. The
+       generator is still the default and _calNativeBatchNameFor is still the
+       only thing that decides, which is what this holds in place. */
+    && createPost.includes('payload.batch = { name: batchName, description: null }')
+    && createPost.includes('const batchName = _calNativeBatchNameFor(state);')
+    && /if \(!typed\) return _linearIntakeBatchTitle\(state && state\.clientName, surface\);/
+      .test(extract('_calNativeBatchNameFor')),
   'latest append carries batch CAS while new-batch Calendar intake reuses intake_create');
   // The resume reason is now chosen by surface so a recovered job resumes onto
   // its own tab; the calendar half of that ternary is the original string.

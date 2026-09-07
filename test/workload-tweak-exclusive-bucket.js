@@ -296,13 +296,18 @@ check(wlState.overdue.map(row => row.id).includes('ordinary-overdue')
     && ![...wlState.calendarByDate.values()].flat().map(row => row.id).includes('ordinary-overdue'),
   'past-due work leaves the work-day calendar and appears in Overdue');
 
+// Owner ruling 2026-09-07: Overdue is a To Do lane. A past-due row somebody
+// has already started is described by In Progress, not by the date, so it is
+// counted there ONCE and nowhere else. The ruling moved that count and nothing
+// else: the row still leaves the work-day calendar, so it never lands on a day
+// nobody planned it for and never spends that editor's capacity.
 const pastDueInProgress = issue('In Progress', 'in-progress-overdue', '2026-07-14');
 wlApplyData([pastDueInProgress], '2026-07-15T12:00:00Z');
-check(wlState.overdue.map(row => row.id).includes('in-progress-overdue')
+check(!wlState.overdue.map(row => row.id).includes('in-progress-overdue')
     && wlState.nowWorking.map(row => row.id).includes('in-progress-overdue')
     && !wlState.planned.map(row => row.id).includes('in-progress-overdue')
     && ![...wlState.calendarByDate.values()].flat().map(row => row.id).includes('in-progress-overdue'),
-  'past-due In Progress work appears in both exception strips but not on the calendar');
+  'past-due In Progress work is in-progress only — never overdue, never on the calendar, never against capacity');
 
 const manuallyPlannedPastDue = issue('To Do', 'manual-overdue', '2026-07-14');
 wlState.planByIssueId.set(manuallyPlannedPastDue.id, '2026-07-18');
@@ -1395,13 +1400,22 @@ const popoverSource = grabFunc('wlOpenRollupPopover');
 /* 2026-08-21: the popover's primary link-out moved to the Production tab
    (?prod=1&d=<identifier>) at the owner's request -- post-flip, the designers'
    work lives in SyncView. Linear stays reachable: a secondary header link and
-   a per-row icon, because video is still Linear-authoritative. */
+   a per-row icon, because video is still Linear-authoritative.
+
+   2026-09-07 (OPEN_REPAIRS 160): that link-out targeted the PARENT, and the
+   owner reported being sent there instead of to the video whose status the
+   chip had just asserted. The identifier is now `openIdent` -- the sole
+   sub-issue when the group holds exactly one, the parent otherwise -- and
+   "Open parent →" is the DELIBERATE label for that second case, so it is
+   asserted here rather than forbidden. Which of the two is chosen, and that
+   the parent branch never silently substitutes a child, is executed in
+   test/workload-syncview-links.js; this file pins only the shape. */
 check(popoverSource.includes('Open SyncView →')
     && !popoverSource.includes('Open Linear →')
-    && popoverSource.includes("'?prod=1&d=' + encodeURIComponent(parentTarget)")
+    && popoverSource.includes("'?prod=1&d=' + encodeURIComponent(openIdent)")
     && popoverSource.includes('workload-popover-parent-linear')
     && popoverSource.includes('workload-popover-item-linear')
-    && !popoverSource.includes('Open parent')
+    && popoverSource.includes('Open parent →')
     && !popoverSource.includes('workload-popover-item-due')
     && !popoverSource.includes('workload-popover-plan-arrow')
     && !popoverSource.includes('workload-popover-plan-due')

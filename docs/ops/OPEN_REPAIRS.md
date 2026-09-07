@@ -13201,9 +13201,238 @@ note. The lane also gained per-section phase markers after the first CI
 red reported under an assignee phase.
 
 
-Integration numbering: the four draft-only rows formerly 158-161 are now 159-162 after preserving current main's description-editor row 158. Original source-draft labels and commit-pinned historical citations remain unchanged.
+## 159. [2026-09-07, RULED AND SHIPPED — narrows item 51] Overdue is a To Do lane; every other live status overrides the date
 
-## 159. [2026-09-05, DRAFT — unmerged, disabled by default, on PR1302; numbered 157 in the source draft] Explicit and automatic assignment still asked Linear on a native-admitted intake
+The owner, reading the Workload calendar's Overdue column: *"if it's approved
+it shouldn't be there, if it's for Kasper it shouldn't be there ... but if it's
+To Do and the due date is in the past then it should be overdue."*
+
+Two halves, and only one of them was a change.
+
+**Already true, nothing to do.** Approved, Posted, `For SMM approval`, `For
+Kasper approval`, `For Client Approval` and `Tweak Applied` are parked by name
+in `WL_PARKED_STATUSES` before any bucketing — they reach no strip on this page
+at all, Overdue included — and `Tweak Needed` is short-circuited into the NEEDED
+lane before the past-due check runs. That was item 51's closure and it still
+holds.
+
+**The change.** Item 51 (2026-08-27) ruled that to-do **or in-progress** work
+past its date counts as the editor's overdue. The 2026-09-07 ruling narrows
+that: the lane is `To Do` only. A past-due `In Progress` row was being counted
+in Overdue **and** in In progress simultaneously — one row, two red-and-yellow
+totals — and In Progress is the truer statement about where that row is. So the
+past-due test is now gated on `wlIsToDo`, the double-push into `nowWorking` is
+gone, and any live status that is not To Do keeps its own strip instead.
+
+**A COUNT moved, not a PLACEMENT.** The first cut of this let a past-due In
+Progress row fall through to `planned`, where `wlAutoPlanDate` floors its
+automatic day at today — so it landed on today's column and spent that editor's
+capacity there. The owner caught it on review the same day: the work-day
+calendar's per-editor pills already surface overdue / in progress / tweaks and
+deliberately do **not** feed the capacity total, and a row nobody planned for
+today has no business inflating the over-capacity badge on the fullest cell on
+the board. Reverted. Past-due work leaves the calendar exactly as it did
+before; the row stays visible where it always was, in the In progress strip and
+that editor's yellow pill on today's cell.
+
+The revert is gated on a strip actually carrying the row
+(`isPastDue && (isOverdue || inProg)`), not on `isPastDue` alone. A past-due row
+in some *other* live status — a column `WL_PARKED_STATUSES` has never heard of,
+or one added to Linear later — is claimed by no strip, so it keeps falling
+through to the calendar rather than dropping off the page entirely, which is
+what a blanket `isPastDue` short-circuit would now do.
+
+Pinned by: `test/workload-overdue-ruling.js` (rewritten — the late Todo is the
+whole of Overdue, the late In Progress is in-progress-only and still off the
+calendar, with an inversion proof for both the To Do gate and the tweak
+short-circuit) and `test/workload-tweak-exclusive-bucket.js` (the past-due
+In Progress fixture asserts never-overdue, never-on-the-calendar,
+never-against-capacity).
+
+Untouched on purpose: the Production tab's `_prodOverdue`, which mirrors what
+Linear itself calls overdue on a row and is a different surface with a
+different job.
+
+---
+
+## 160. [2026-09-07, ONE HALF FIXED, ONE OWNER DECISION — 12 live rows, 8 real clients, oldest drifted 5 weeks; the status twin of item 95] Workload and SyncLinear show two different statuses for the same deliverable, and neither is lying
+
+**[owner]** — the repair is a scope decision, not a patch. Reported by the owner
+against `VID-13679` (one video sub-issue, one client, one editor): the Workload
+board put it in that editor's **In progress** column, clicking through to
+SyncLinear said **For SMM approval**, and Linear said **In Progress**.
+
+### What actually happened, read out of `deliverable_events` rather than guessed
+
+```
+15:08:18  deliverables.status → smm_approval          (status_at)
+15:09:01  status_change  actor=<editor>  role=editor  src=ui  todo → smm_approval
+15:11:10  foreign_write_detected  actor=Linear webhook  src=mirror
+15:35:12  foreign_write_detected  actor=Linear webhook  src=mirror
+17:00:38  foreign_write_detected  actor=Linear webhook  src=mirror
+```
+
+Against Linear's own `stateHistory` for the same issue:
+
+| time | Linear state | who |
+|---|---|---|
+| 15:08:21 | Todo → For SMM approval | SyncView Mirror (outbound, the 15:09 SyncView write) |
+| 15:11:10 | → Todo | in Linear — **discarded** |
+| 15:35:11 | → In Progress | in Linear — **discarded** |
+| 17:00:36 | → For SMM approval | in Linear — **discarded** |
+
+**SyncView was never wrong.** The editor set For SMM approval *in SyncView* at 15:09;
+outbound mirrored it into Linear, which is the activity line the owner read as
+"SyncView changed it on its own". She then did her three real status moves *in
+Linear*, and `linear-inbound` refused all three — correctly, because
+`prod_authority.video = syncview` makes `isDetectOnlyTeam()` true, so the handler
+records `foreign_write_detected` and returns before the status write
+(`supabase/functions/linear-inbound/index.ts`). The flip working as designed.
+
+**So why did the board disagree with itself?** Because the two surfaces read two
+different sources with opposite authority:
+
+```
+SyncLinear  ──▶ deliverables (native, AUTHORITATIVE)      → smm_approval
+Workload    ──▶ workload_issues (rebuilt FROM Linear)     → In Progress
+```
+
+`workload_issues` has no idea a write was refused; it is rebuilt from a Linear
+query, so it faithfully reproduces the drift SyncView just rejected. Same root
+cause as item 95 — Workload never reads native data — but the **status** twin of
+it rather than the deletion twin, and not previously recorded.
+
+**It self-heals only by coincidence.** The reconcile picked up the editor's 17:00
+Linear move at 17:10:17, which happened to equal what SyncView had held since
+15:08. The two agreed again with nothing repaired. That is what the owner saw as
+"now they appear to be synced".
+
+### The measurement
+
+Joining `production_deliverables_browser_v1` against active `workload_issues` on
+`linear_identifier`, mapping Linear display names through the same
+`statusFromName` vocabulary `linear-inbound` uses, excluding the 87-row
+`native=backlog` bulk backfill of 2026-09-05 (an artifact, not drift):
+
+| bucket | rows |
+|---|---|
+| video | 7 |
+| graphics | 5 |
+| **total live drift** | **12** |
+| distinct clients | 8 |
+| TEST client (`sidneylaruel`) | **0** |
+
+Eight distinct active-roster slugs, none of them the TEST client, so every one is
+real client work; the slugs are deliberately not listed here, because this repo is
+public and `scripts/repo-identity-exposure-check.js` counts a client slug as an
+identity. Reproduce the list locally with the query in the paragraph above. The
+oldest three (`GRA-6660`, `GRA-6659`, `GRA-6951`) have disagreed since
+**3 and 11 August** — five weeks of an editor's Tweaks-needed move sitting
+in the Workload board while SyncLinear showed For SMM approval, or the reverse.
+
+Do not quote 12 as a fixed backlog: it moves every reconcile, in both directions,
+and a row leaves it whenever Linear happens to drift back into agreement.
+
+### The part nobody can see
+
+`foreign_write_detected` is the only record that a person's edit was thrown away,
+and **no UI reads `deliverable_events`**. An editor moves a card in Linear, the
+product silently declines it, and the only feedback is that the status they set
+is not the one they later see. This is item 101's complaint (a refused write
+leaves no trace the reporter can reach) in a case where the trace *does* exist
+server-side and is simply never surfaced.
+
+### Options, in ascending cost — owner picks
+
+1. **Surface the refusal.** Read `foreign_write_detected` and show, on the
+   SyncLinear row and in Workload, "changed in Linear on <date> — not applied".
+   Contained, additive, read-only, fixes nobody-knows without moving authority.
+   Does not make the two surfaces agree.
+2. **Status-only native overlay on Workload.** Keep `workload_issues` as the row
+   source; overlay native `status`/`status_type` where a `linear_identifier`
+   matches. Makes the two surfaces agree and re-buckets Overdue / In progress /
+   Tweaks accordingly — which is the point, and is also a visible change to what
+   every editor sees. One field of the twenty in `WORKLOAD_NATIVE_SOURCE.md` §2,
+   so it does NOT need that document's four hard parts.
+3. **The full cutover.** `WORKLOAD_NATIVE_SOURCE.md`. Closes this, item 95, and
+   the Linear-relay dependency together. Four hard parts, plus the n8n tweak
+   comments webhook and the plan-day writes.
+
+Not doing option 2 or 3 leaves the contradiction the owner reported in place.
+Reverting `prod_authority.video` to `linear` is **not** on this list: it would
+re-open two-way sync and undo the 2026-08-28 flip.
+
+Done when: an owner decision picks 1, 2 or 3 and this entry links the PR.
+
+### The other half of the same report — FIXED
+
+The click-through itself. The owner pressed the header **Open SyncView →** on
+the In progress chip and was taken to the PARENT, then had to drill into the
+sub-issue himself to read the status. His rule, in his words:
+
+> "when you open a pill, you're opening a video, so you're supposed to go to
+> that sub-issue, which has the status In progress."
+
+He is describing what the chip MEANS. A client chip reading "· 1" in the In
+progress column is not a claim about the client or about the parent. It is one video that
+is in progress, and the status the chip just asserted lives on that sub-issue.
+
+**The parent is structurally unable to answer it.** `VID-13678` has no
+deliverable row; SyncView hangs the child off a *synthetic batch parent* minted
+from `bat_3d82ce2c…` (`_prodResolveBatchParentNodes`), whose title is the batch
+name and whose status is **hardcoded `todo` and never updated** — the code
+comment already says so. So the destination was guaranteed to contradict the
+chip that sent him there, and to show a different name for the same issue:
+**"VID-13678 <client> · 31 Aug 2026"** (the batch name) in SyncLinear against
+**"VID-13678 <client> | <reel name>"** (the Linear title) in Linear.
+
+**Fixed.** The primary button now resolves to `openIdent`:
+
+- **one sub-issue in the group** → it opens THAT sub-issue. No ambiguity about
+  which video is meant, and it is the row that carries the status.
+- **more than one** → no single row is "the video", so guessing is refused. It
+  stays on the parent and the label changes to **"Open parent →"** so it cannot
+  be mistaken for the video. Each row below still opens its own sub-issue.
+
+The Linear ↗ escape hatch follows the primary target rather than pointing
+somewhere else than the button beside it.
+
+**A second defect found in the same expression and also fixed.** Both header
+link-outs ended in a first-CHILD fallback:
+
+```js
+const parentUrl   = (parentById.get(parentId)?.url)        || subs[0]?.url        || '';
+const parentIdent = (parentById.get(parentId)?.identifier) || subs[0]?.identifier || '';
+```
+
+`parentById` holds only parents returned in the current snapshot, and the board
+has more than one way to hold fewer: the Linear-derived read pages
+`active = true` only, so a parent whose own row went inactive is absent while
+its children are live, and the n8n `linear-issues` fallback (taken whenever the
+Supabase read throws) answers a different row set again. Reachable in normal
+operation, and a control labelled *parent* must not silently hand back a child.
+The parent branch now falls back to the sub's own `parentIdentifier` from
+`workload_issues` — the fallback `wlLooseParentInfo` already uses for the loose
+strips (#1331) and which was never carried back here — and when neither source
+names a parent the button is **omitted** rather than aimed at a child.
+
+Pinned by `test/workload-syncview-links.js`, which EXECUTES the resolution block
+across single-video, multi-video, parent-missing and nothing-resolves states
+rather than pattern-matching it. Its previous version asserted
+`|| subs[0]?.identifier` as if it were the contract, so it pinned the defect;
+10 of the new checks go red against the old code, including "a single-video pill
+does NOT open the parent". `test/workload-tweak-exclusive-bucket.js` had two
+stale pins on the same expression (the old `parentIdent` deep link, and a
+prohibition on the string "Open parent") and now pins the new shape.
+
+Still open here: the synthetic batch parent's wrong title and permanently-`todo`
+status. `batches.linear_parent_ids` stores `{uuid, identifier, url}` and no
+title, so the real name is not recoverable in the browser today. It needs a
+schema or gateway change and is recorded rather than fixed.
+
+Integration numbering: retain current main items 159-160; the four exit-draft rows are now 161-164. Earlier commit-pinned labels remain historical.
+
+## 161. [2026-09-05, DRAFT — unmerged, disabled by default, on PR1302; numbered 157 in the source draft] Explicit and automatic assignment still asked Linear on a native-admitted intake
 
 Numbered against current main (156 is its last item); this branch is based on
 PR1302, so check for a duplicate header at integration.
@@ -13288,7 +13517,7 @@ still a RELEASE BLOCKER. See `TRACK_B_BACKUP.md` and the dated restore correctio
 audit. Default schedule, journal SQL, frozen writers and live configuration stay
 unchanged by source preparation.
 
-## 160. [2026-09-05, DRAFT REPAIR — source and synthetic proof; release held; numbered 157 in the source draft] Samples could turn a failed or incomplete read into an empty board, and unfinished local work needed an owned recovery path
+## 162. [2026-09-05, DRAFT REPAIR — source and synthetic proof; release held; numbered 157 in the source draft] Samples could turn a failed or incomplete read into an empty board, and unfinished local work needed an owned recovery path
 
 **Owner and scope.** First Samples release #1295, coordinated under the
 Linear-exit plan #1268. This entry records the existing #1269 reader/local-work
@@ -13331,7 +13560,7 @@ infer a live fix, full comment history or zero-loss guarantee from the offline
 checks. Close this entry only with the reviewed release, serving and bounded
 journey/recovery receipts, or an explicit owner decision to abandon it.
 
-## 161. [2026-09-05, IMPLEMENTATION DRAFT, unapplied, disabled; numbered 156 in its source draft] Native intake child recovery and visible card-completion debt
+## 163. [2026-09-05, IMPLEMENTATION DRAFT, unapplied, disabled; numbered 156 in its source draft] Native intake child recovery and visible card-completion debt
 
 **2026-09-06 bounded compatibility evidence — still held:** retained native jobs have
 distinct HTTP source markers, but both freshly read published n8n fallback graphs strip
@@ -13483,7 +13712,7 @@ completion is not declared and Decision A is not ready.
 
 **Item 160 independent follow-up, local/unapplied (formerly 156):** shared state completion now requires reciprocal manifest-child identity, so a moved or cleared child remains visible debt even if the old card slot still names it. The baseline false green reproduced on both Calendar and Samples. See `docs/audits/2026-09-05-native-intake-reciprocal-review.md` for current proof and the held creation protocol. No authorization to re-gate anonymous writers is inferred.
 
-## 162. [2026-09-06, CANDIDATE — source-only; numbered 156 in its source draft] Accepted Calendar feedback recovery with exact companion receipts
+## 164. [2026-09-06, CANDIDATE — source-only; numbered 156 in its source draft] Accepted Calendar feedback recovery with exact companion receipts
 
 **Defect class.** A client's Calendar tweak/note writes twice: the native
 canonical comment (accepted, receipted) and the source card cell through the

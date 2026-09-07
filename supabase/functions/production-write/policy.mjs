@@ -61,14 +61,81 @@ export function batchAssetColumn(slot) {
 // sibling's spelling: the first live samples batch predates the 2026-08-19
 // ruling and its children read 'Video 1', so reading the prefix off the
 // sibling would keep reproducing the old spelling forever.
+/*
+ * POST NAMES -- owner request 2026-09-07: "they should be able to name that
+ * sub-issue also."
+ *
+ * A name is a SUFFIX on the numbered title, never a replacement for it:
+ *
+ *     Video 4 — Launch hook        Thumbnail 4 — Launch hook
+ *
+ * Two things depend on that and both are load-bearing.
+ *
+ * THE NUMBER IS THE ONLY RECORD OF THE ORDINAL. `deliverables` has no column
+ * for it -- planAppendIntakeItems and production_intake_append both re-derive
+ * the next number by reading it back out of the titles already in the batch.
+ * A free-form title would erase it, and the append after it would reissue a
+ * number already in use.
+ *
+ * THE KIND HAS TO STAY VISIBLE. Owner ruling 2026-08-17: the graphics child
+ * used to be titled `Video N` like its sibling and he read his own test post
+ * as "two video sub-issues". Letting one typed name become both titles
+ * rebuilds that on the first named post.
+ *
+ * So the regex is the old exact one plus an optional suffix, and it is built
+ * from the separator constant rather than restating it -- the separator has no
+ * regex metacharacters, and a drift between the two would silently stop every
+ * named title counting toward the next ordinal.
+ */
+export const INTAKE_TITLE_SEPARATOR = " \u2014 ";
+/*
+ * Titles are capped at 500 by the gateway; kind, number and separator take a
+ * dozen of those. 160 leaves that cap unreachable by a name alone and matches
+ * CAL_NATIVE_NAME_MAX in index.html, which is what the dialog enforces with
+ * `maxlength`. A caller that exceeds it is refused rather than truncated: a
+ * silently shortened name is a lie about what was asked for.
+ */
+export const INTAKE_NAME_MAX = 160;
+const INTAKE_TITLE_RE = new RegExp(
+  "^(?:Sample )?(Video|Thumbnail) ([1-9][0-9]*)(?:" + INTAKE_TITLE_SEPARATOR + "(.+))?$",
+);
+
+// Newlines and whitespace runs are flattened, not refused: a name pasted out
+// of a filming plan carries both, and refusing the paste would only teach
+// people to stop pasting. Length is judged by the caller, after this.
+export function intakeChildName(value) {
+  return clean(String(value == null ? "" : value).replace(/[\s\u00a0]+/g, " "));
+}
+
+// The ordinal, kind and name carried by a numbered child title, or null when
+// the title is not one of ours (a Linear-era human title, a zero-padded
+// number). Callers that get null must not renumber from it.
+export function intakeTitleParts(title) {
+  const match = INTAKE_TITLE_RE.exec(clean(title));
+  if (!match) return null;
+  return { kind: match[1], ordinal: Number(match[2]), name: clean(match[3]) };
+}
+
+// The one composer. Every numbered child title in the estate comes from here,
+// on both the create and the append path, so the shape cannot differ between
+// them. The `Sample ` prefix rides the BATCH purpose, never the caller.
+export function intakeChildTitle(purpose, team, ordinal, name) {
+  const prefix = clean(purpose) === "samples" ? "Sample " : "";
+  const kind = normalizeTeam(team) === "graphics" ? "Thumbnail" : "Video";
+  const suffix = intakeChildName(name);
+  return `${prefix}${kind} ${ordinal}${suffix ? INTAKE_TITLE_SEPARATOR + suffix : ""}`;
+}
+
 export function componentFillTitle(siblingTitle, targetTeam, purpose) {
   const title = clean(siblingTitle);
   const team = normalizeTeam(targetTeam);
   if (!title || (team !== "video" && team !== "graphics")) return "";
-  const numbered = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(title);
-  if (!numbered) return title;
-  const prefix = clean(purpose) === "samples" ? "Sample " : "";
-  return `${prefix}${team === "graphics" ? "Thumbnail" : "Video"} ${numbered[1]}`;
+  const parts = intakeTitleParts(title);
+  if (!parts) return title;
+  // A named sibling hands its name to the half being filled: the two are one
+  // post, and 'Video 4 — Launch hook' beside a bare 'Thumbnail 4' reads as
+  // two unrelated pieces of work.
+  return intakeChildTitle(purpose, team, parts.ordinal, parts.name);
 }
 
 export const MAX_DESCRIPTION_LENGTH = 100_000;
@@ -1329,7 +1396,6 @@ export function parentOwnerTeamFor(value, wantedTeam) {
  * so a strict per-purpose count would restart at 1 and reuse the number.
  */
 export function planAppendIntakeItems(existingRows, requestItems, requestIds, purpose) {
-  const titlePrefix = clean(purpose) === "samples" ? "Sample " : "";
   if (!Array.isArray(existingRows) || !Array.isArray(requestItems)
       || !Array.isArray(requestIds) || requestItems.length !== requestIds.length
       || requestItems.length < 1) {
@@ -1367,8 +1433,11 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds, pu
     if (Number.isFinite(sort)) maxSort = Math.max(maxSort, sort);
     // Thumbnail titles advance the ordinal too (production_intake_append v2),
     // and the optional 'Sample ' prefix counts as well (transition batches).
-    const match = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
-    if (match) maxOrdinal = Math.max(maxOrdinal, Number(match[1]));
+    // v8 (2026-09-07): a NAMED title counts too. intakeTitleParts reads the
+    // ordinal out from in front of the name, so 'Video 4 — Launch hook' is
+    // still a used number -- otherwise the next append reissues 4.
+    const parts = intakeTitleParts(row.title);
+    if (parts) maxOrdinal = Math.max(maxOrdinal, parts.ordinal);
   }
 
   const planned = requestItems.map(item => ({ ...item }));
@@ -1384,8 +1453,8 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds, pu
       // (2026-08-17 title ruling), so an exact retry of a committed append
       // must recognise both spellings or it conflicts with its own result.
       const ordinals = new Set(prior.map(row => {
-        const match = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)$/.exec(clean(row.title));
-        return match ? Number(match[1]) : 0;
+        const parts = intakeTitleParts(row.title);
+        return parts ? parts.ordinal : 0;
       }));
       const sorts = new Set(prior.map(row => Number(row.sort_key)));
       const teams = new Set(prior.map(row => normalizeTeam(row.team)));
@@ -1401,11 +1470,18 @@ export function planAppendIntakeItems(existingRows, requestItems, requestIds, pu
       sortKey = maxSort + nextGroup;
     }
     for (const entry of entries) {
+      /* One name per CARD, not per team: the video and the thumbnail are two
+         halves of one post and read as unrelated work when only one carries
+         it. The first non-empty name in the group wins, so a caller that
+         names only one half still names the pair. */
+      const groupName = entries
+        .map(other => intakeChildName(planned[other.index] && planned[other.index].name))
+        .find(Boolean) || "";
       planned[entry.index] = {
         ...planned[entry.index],
         videoNumber: ordinal,
         number: ordinal,
-        title: entry.team === "graphics" ? `${titlePrefix}Thumbnail ${ordinal}` : `${titlePrefix}Video ${ordinal}`,
+        title: intakeChildTitle(purpose, entry.team, ordinal, groupName),
         sort_key: sortKey,
         _intake_ordinal: ordinal,
       };

@@ -50,6 +50,9 @@ import {
   componentFillTitle,
   credentialMode,
   deterministicNativeId,
+  INTAKE_NAME_MAX,
+  intakeChildName,
+  intakeChildTitle,
   intentFingerprint,
   legacyParityAllowed,
   lower,
@@ -6912,6 +6915,13 @@ async function handleIntakeCreate(
     if (clean(item.assignee_id) && normalizeTeam(item.team) !== "video") {
       throw new GatewayError(400, "intake_assignee_override_not_allowed", { item_index: index });
     }
+    /* The optional post name (owner 2026-09-07). Refused rather than
+       truncated when it is too long: the name becomes a title people read and
+       search by, and a silently shortened one is a lie about what was asked
+       for. The dialog caps the field at the same number. */
+    if (intakeChildName(item.name).length > INTAKE_NAME_MAX) {
+      throw new GatewayError(400, "invalid_intake_item_name", { item_index: index });
+    }
     if ((!appendToBatch && videoTitle && videoTitle.length > 500)
         || !validDateOrNull(item.due_date)
         || (priority != null && (!Number.isInteger(priority) || priority < 0 || priority > 4))
@@ -7200,6 +7210,24 @@ async function handleIntakeCreate(
           : await autoAssigneeForIntake(supabase, team, nativeEpochByTeam[team]);
   }
 
+  /*
+   * ONE NAME PER CARD (owner 2026-09-07), resolved before the loop.
+   *
+   * A post is one card and two sub-issues, and a name that landed on only one
+   * of them would read as two unrelated pieces of work -- the same complaint
+   * the 2026-08-17 title ruling came from. The dialog already sends the name
+   * on both halves; taking the first non-empty one per card_id makes that a
+   * property of the gateway rather than a habit of one caller, and matches
+   * what planAppendIntakeItems does on the append path.
+   */
+  const intakeNameByCard = new Map<string, string>();
+  for (const item of items) {
+    const cardKey = clean(item.card_id);
+    const named = intakeChildName(item.name);
+    if (!named) continue;
+    if (!intakeNameByCard.has(cardKey)) intakeNameByCard.set(cardKey, named);
+  }
+
   const plannedItems: JsonMap[] = [];
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
@@ -7232,7 +7260,28 @@ async function handleIntakeCreate(
     // never disagree with the batch it lands in.
     const intakeTitlePrefix = intakePurpose === "samples" ? "Sample " : "";
     const fallbackTitle = `${intakeTitlePrefix}Video ${videoNumber}`;
-    const title = team === "graphics" ? `${intakeTitlePrefix}Thumbnail ${videoNumber}` : clean(item.title) || fallbackTitle;
+    /*
+     * v8 (2026-09-07): a NAMED post composes both halves here, from the one
+     * composer, so 'Video 4 — Launch hook' and 'Thumbnail 4 — Launch hook'
+     * cannot come out in two different shapes.
+     *
+     * An UNNAMED post takes the byte-identical path it always did, including
+     * the caller-supplied video title the Submit tab has always sent. That is
+     * deliberate rather than tidy: this file ships to production by hand while
+     * index.html ships on merge, and an unnamed submission from either surface
+     * must behave exactly as it did before this change.
+     */
+    const intakeName = intakeNameByCard.get(clean(item.card_id)) || "";
+    const title = appendToBatch
+      /* On an append the title is already composed, by planAppendIntakeItems,
+         against the ordinal IT allocated and the BATCH's purpose -- which is
+         also exactly what production_intake_append re-derives and compares.
+         Recomposing it here from `intakePurpose` would be a second opinion on
+         a question the batch has already answered. */
+      ? clean(item.title)
+      : intakeName
+        ? intakeChildTitle(intakePurpose, team, videoNumber, intakeName)
+        : (team === "graphics" ? `${intakeTitlePrefix}Thumbnail ${videoNumber}` : clean(item.title) || fallbackTitle);
     const sourceBrief = clean(item.brief);
     const existingBrief = clean(existingById.get(deliverableIds[index])?.brief);
     // The generated line is LAST, so a prior attempt's brief and a

@@ -121,8 +121,18 @@ class Backend {
         display_name: client?.display_name, view: body.view, strict: true, active: true, protocol: 'syncview-client-entry-v1' });
     }
     if (p === '/functions/v1/production-comments' && method === 'POST') {
-      record('comments-read'); return send({ ok: true, comments: clone(this.comments.filter(c => c.deliverable_id === body.deliverable_id
-        && (session !== 'client' || c.audience === 'client'))), has_more: false, next_cursor: null });
+      const r = record('comments-read');
+      const reply = { ok: true, comments: clone(this.comments.filter(c => c.deliverable_id === body.deliverable_id
+        && (session !== 'client' || c.audience === 'client'))), has_more: false, next_cursor: null };
+      if (body.include_feedback === true && this.feedbackReader && !this.omitFeedback) {
+        const actual = require('./feedback-reader').readFeedback({ source: this.source, session, body, headers: req.headers(),
+          tables: { team_members: MEMBERS, deliverables: this.native, calendar_posts: this.rows,
+            sample_reviews: [], production_comment_card_links: [], production_comments: this.comments } });
+        r.feedback_reader = { status: actual.status, reads: actual.reads };
+        if (actual.status !== 200) return send(actual.body, actual.status);
+        reply.feedback = actual.body.feedback;
+      }
+      return send(reply);
     }
     if (p === '/functions/v1/production-write' && method === 'POST') {
       if (body.action) {

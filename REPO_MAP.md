@@ -1,5 +1,7 @@
 # Repo map
 
+`qa/card-lifecycle/feedback-reader.js` is the comments-cell-only adapter for the selected source's actual protected feedback reader, with finite synthetic Supabase transport. Its missing-feedback negative, source-note/read-only assertions and preserved earlier failures are documented in `qa/card-lifecycle/README.md`.
+
 The one-page guide to where everything lives. **This file is enforced**: the
 offline unit suite (`test/repo-map-sync.js`, run by `npm test` and by CI on
 every push) fails if a top-level path or `docs/` subdirectory is added,

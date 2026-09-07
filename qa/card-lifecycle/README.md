@@ -1,5 +1,46 @@
 # Isolated card lifecycle browser lane
 
+## September 7 bounded feedback-reader fixture correction
+
+Only the `comments` cell was rerun against unchanged product source
+`b60a9705492002830eed60ece874e0686fc4b538`: **1 cell / 4 steps PASS**,
+with zero unexpected blocked requests, page errors, socket attempts or console
+errors. Private artifacts: `.codex-tmp/card-lifecycle/2026-09-07T15-07-10-283Z/`.
+The earlier unchanged-tooling run at `2026-09-07T15-00-21-034Z` in the original
+tooling checkout remains **2 PASS / 2 FAIL**; its failed record is not rewritten.
+
+The old synthetic `production-comments` response omitted `feedback` despite the
+browser requesting `include_feedback:true`. The `.prod-comment` selector remains
+valid for source notes. `feedback-reader.js` now executes the selected product
+source's actual TypeScript handler, staff authorization and feedback projection
+in a bounded child process. Supabase tables, rate/allow-audit RPC results and
+role secrets remain synthetic. Only the handler's feedback response is added;
+the existing canonical-comment response and write transport remain modeled.
+No application code is changed and no text-matching import is introduced.
+
+The finite source read uses the current synthetic Calendar row and exact
+deliverable/card/client linkage. Assertions require the original note under
+**From the original card**, read-only source guidance, no source-note action
+buttons and byte-identical canonical storage. The missing-feedback negative
+control still requires incomplete feedback and absence of the note. This is a
+response-contract repair, not evidence of installed feedback, real SQL grants,
+durable audit persistence or complete multi-page/real-population behavior.
+Unsupported cursor reads and table writes fail explicitly. Child-process fetch
+is refused; temporary handler copies are cleaned in `finally`.
+
+Reproduce with `node qa/card-lifecycle/run.js --source <local-b60-checkout> --case comments`.
+Existing source/serving hashes and tooling file hashes bind the run; the source
+remained clean and unchanged. Do not replace the older failure with this result
+or infer a full lifecycle pass. The original `undo-reopen` edge remains red as a
+Comments-history control whose relevance/contract is still undetermined; it is
+not an owner decision blocking the normal workflow.
+
+The owner clarified the normal video path: Kasper requests a change, the video
+editor fixes it and sends **For SMM Approval**, then the SMM sends **Kasper
+Approval**. Existing journey cells use an SMM for resolution and do not prove
+that full editor-to-SMM path. This comments-only run adds no proof of it and
+does not change reopening policy.
+
 ## Run
 
 ```sh

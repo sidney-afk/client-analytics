@@ -100,8 +100,23 @@ module.exports = function register(add) {
       step.observe({ client_note_calendar_visible: true,
         client_note_native_requests: b.records.slice(start).filter(r => r.session === 'client' && r.action === 'comment').length,
         projection_assumption: 'NO_IMPLICIT_SERVER_IMPORT', backend_projection: 'UNPROVEN' });
+      const canonicalBefore = JSON.stringify(b.comments);
+      b.source = h.source; b.feedbackReader = true; b.omitFeedback = true;
+      const missing = await production(h, b);
+      await missing.page.locator('[data-prod-feedback-state="incomplete"]').waitFor();
+      assert.equal(await missing.page.locator('.prod-comment').filter({ hasText: 'Fictional client plain note' }).count(), 0,
+        'negative control: missing feedback still fails note visibility');
+      b.omitFeedback = false;
       const mirror = await production(h, b);
-      await mirror.page.locator('.prod-comment').filter({ hasText: 'Fictional client plain note' }).waitFor();
+      const sourceNote = mirror.page.locator('.prod-feedback-source .prod-comment').filter({ hasText: 'Fictional client plain note' });
+      await sourceNote.waitFor();
+      await mirror.page.getByText('From the original card', { exact: true }).waitFor();
+      assert.match(await sourceNote.textContent(), /Read-only here; manage on the original Calendar card/);
+      assert.equal(await sourceNote.getByRole('button').count(), 0, 'source note has no canonical write actions');
+      assert.equal(JSON.stringify(b.comments), canonicalBefore, 'reader imports no canonical comments');
+      assert(b.records.some(r => r.feedback_reader?.status === 200 && r.feedback_reader.reads.includes('calendar_posts')));
+      step.observe({ projection_assumption: 'NO_IMPLICIT_SERVER_IMPORT', backend_projection: 'ACTUAL_HANDLER_SYNTHETIC_TRANSPORT',
+        missing_feedback_negative: 'PASS', source_note_read_only: true, canonical_imports: 0 });
     });
   });
   for (const [id, fault] of [['rejected-save', 'reject'], ['lost-response', 'lost'], ['duplicate-click', 'hold']]) {

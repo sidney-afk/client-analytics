@@ -557,23 +557,36 @@ commit;
 -- That is the whole procedure. This migration SUPERSEDES a live function
 -- rather than installing a new one, so the rollback is not a drop either.
 --
--- v8 is backward compatible with the older gateway: it still accepts the bare
--- `Video N` / `Thumbnail N` titles that gateway composes, so every batch goes
--- on appending exactly as it did before this migration was applied.
+-- FOR EVERY BATCH THAT HOLDS NO NAMED CHILD, v8 is backward compatible with
+-- the older gateway: it still accepts the bare `Video N` / `Thumbnail N`
+-- titles that gateway composes, so those batches go on appending exactly as
+-- they did before this migration was applied.
 --
--- RE-RUNNING v7 IS THE UNSAFE DIRECTION, AND IT FAILS SILENTLY. v7 and a
--- pre-v69 gateway both read the next ordinal from BARE titles only, so on a
--- batch holding 'Video 4 — Launch hook' they agree on 4 and write a SECOND
--- 'Video 4' with no error at all. Keeping v8 fails CLOSED on that same batch
--- instead: v8 counts the named row, expects 5, and refuses the gateway's 4
--- with invalid_intake_append_order. A rollback should fail in that direction.
+-- A BATCH THAT ALREADY HOLDS A NAMED CHILD STOPS ACCEPTING APPENDS under the
+-- older gateway, and that is the intended failure rather than a surprise. v8
+-- counts the named row and expects the next number; the older gateway reads
+-- BARE titles only and proposes one already in use; the RPC refuses it with
+-- invalid_intake_append_order.
 --
--- Containment for a batch that already holds named rows: put the gateway back
--- at v69, or rename those children to their bare 'Video N' form. A batch with
--- no named rows is unaffected either way.
+-- THE ONLY SUPPORTED WAY TO CLEAR THAT REFUSAL IS TO PUT THE GATEWAY BACK AT
+-- v69. There is no title writer to rename the children with: `production-write`
+-- has no title operation at all, and a rename made in Linear is recorded
+-- detect-only and never reaches `deliverables.title` while both teams are
+-- SyncView-authoritative. Do not send an operator after one.
 --
--- CORRECTED TWICE, 2026-09-07, after this file was applied and deployed
--- (Codex P1 on #1340, both rounds; comment only, nothing executable moved).
+-- RE-RUNNING v7 IS STILL NOT THE ANSWER, AND IT FAILS SILENTLY where the
+-- refusal above fails closed. v7 and a pre-v69 gateway both read the ordinal
+-- from BARE titles only, so on a batch holding 'Video 4 — Launch hook' they
+-- agree on 4 and write a SECOND 'Video 4' with no error at all. A rollback
+-- should fail in the direction that stops, not the one that duplicates.
+--
+-- CORRECTED THREE TIMES, 2026-09-07, after this file was applied and deployed
+-- (Codex on #1340, three rounds; comment only, nothing executable moved).
+-- Round three removed a "rename those children" containment step that no
+-- supported surface can carry out -- the same dead end the browser message was
+-- corrected for one round earlier, written back in as an instruction -- and
+-- narrowed a compatibility claim that said EVERY batch keeps appending when
+-- the paragraph below it already said otherwise.
 -- The first correction was APPENDED BELOW an instruction to re-run the older
 -- RPC, which still stood at the top of this block, so an operator reading it
 -- top-down followed the unsafe path several paragraphs before reaching the

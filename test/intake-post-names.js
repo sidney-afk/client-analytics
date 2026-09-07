@@ -236,11 +236,20 @@ function extract(name) {
   ok(!/\bRe-run v7\b/.test(rollbackBlock) && !/\bRe-run v6\b/.test(rollbackBlock),
     'and carries no surviving imperative to re-run an older RPC version');
   ok(rollbackBlock.indexOf('Restore `production-write`') < rollbackBlock.indexOf('HISTORY, NOT AN INSTRUCTION')
-    && rollbackBlock.indexOf('Restore `production-write`') < rollbackBlock.indexOf('UNSAFE DIRECTION'),
+    && rollbackBlock.indexOf('Restore `production-write`') < rollbackBlock.indexOf('RE-RUNNING v7'),
   'the procedure comes FIRST -- before the rationale and before the history, which is what the second finding was about');
   ok(/LEAVE THIS MIGRATION APPLIED/.test(rollbackBlock)
-    && /backward compatible with the older gateway/.test(rollbackBlock),
-  'and it says v8 stays applied, with the reason a v68 gateway runs correctly in front of it');
+    && /FOR EVERY BATCH THAT HOLDS NO NAMED CHILD/.test(rollbackBlock),
+  'it says v8 stays applied, and scopes the compatibility claim to the batches it is actually true of');
+  /* Round three: the block had offered "rename those children" as containment,
+     which no supported surface can carry out -- the same dead end the browser
+     message was corrected for one round earlier. The only actionable route is
+     the gateway, and the block has to say why rather than leave a reader to
+     discover it. */
+  ok(/THE ONLY SUPPORTED WAY TO CLEAR THAT REFUSAL IS TO PUT THE GATEWAY BACK AT/.test(rollbackBlock)
+    && /There is no title writer to rename the children with/.test(rollbackBlock)
+    && /has no title operation at all/.test(rollbackBlock),
+  'and the containment step is the gateway alone, with the reason no rename can stand in for it');
   ok(!/\(\?: — \.\+\)\?/.test(v7),
     'and v7 genuinely lacks the suffix, so the migration is required rather than cosmetic');
 

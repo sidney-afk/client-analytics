@@ -1,3 +1,9 @@
+## G4 provider discussion identities - 2026-09-07 00:12 UTC
+
+LIVE_READ via existing local Linear API credential: global comments connection completed 57 pages with 14,119 unique IDs, 14,118 issue-linked; attachment connection completed one page with 185 unique IDs, all issue-linked. includeArchived true, terminal cursors checked, bounded page budget and duplicate detection. Window 00:11:26-00:11:45 UTC. Only IDs, issue IDs and timestamps fetched; private receipts retained off-repository.
+
+These are provider-visible identities, not content exports or parity proof. Credential visibility equivalence with the earlier reconnected connector remains UNPROVEN. Attachment objects do not inventory images/files embedded in descriptions or comment text. Next compare installed normalized comment provider IDs and attachment ownership; do not infer missing counts from different populations. Candidate and release holds unchanged.
+
 ## G4 archive payload measurement — 2026-09-06 23:58 UTC
 
 LIVE_READ, aggregate-only read-only Management queries: 18,072 archive rows; all 18,072 have SQL-null legacy comments; zero have comments or attachments keys at raw root/raw.issue. 7,611 have a nonempty description at those locations. This is the entire archive, not the 12,651 provider issues previously classified archive-only.

@@ -141,6 +141,22 @@ before the mint lands means every new card loses its readable name.
 - Do not claim a live system state you did not read. Unverified goes in the PR body as
   unverified.
 
+## Two test failures you WILL see, and neither is yours
+
+Verified on a clean `origin/main` checkout in this environment, 2026-09-07.
+
+1. **`test/truth-sync.js` fails 14 of 529** — seven `docs/truth/*.md` files each fail
+   "freshness commit resolves" and "is an ancestor of HEAD". The session clone is
+   **shallow** (`git rev-parse --is-shallow-repository` = true, 348 commits), so the
+   commits those freshness stamps name are simply not present. Baseline is
+   **515 passed, 14 failed**. If you see exactly that, you changed nothing. If the
+   count moves, you did.
+2. **`npm run test:prod-polish` cannot pass here at all** — all 8 lanes fail
+   identically on `origin/main` because there is no route to the live backend.
+
+Do not "fix" either one. Do not deepen the clone to make a stamp resolve. Record the
+baseline count in your PR body so the coordinator can tell your delta from the noise.
+
 ## What every PR body must state
 
 - what is done and proven, with the test names

@@ -1,3 +1,15 @@
+## Refusal-guidance follow-up (latest source)
+
+Urgent draft PR1341 is now at672cb50997aaeed7399b1299bafe8cecb4a4fb3c.
+The previous1e9 failure below is retained. Nine urgent messages now have shared
+guidance, and known-not-sent responses use it on all four staff surfaces instead
+of a blanket retry. Unknown delivery still retains its hold and asks for manual
+Slack verification. Gateway bytes and the six-file closure are unchanged.
+The original failure-message suite passes for40 browser/185 gateway codes;
+32 actual-VM urgent groups and the three existing urgent badge/Kasper/persistence
+suites pass. Exact new hosted validation and independent review remain pending.
+This does not change the green5bcc main candidate or any live system.
+Kasper weekly Editors remains a required unfinished replacement.
 ## Latest coordinated checkpoint: September 7, after host recovery
 
 This section supersedes older current-head, pending-source and audit-coverage

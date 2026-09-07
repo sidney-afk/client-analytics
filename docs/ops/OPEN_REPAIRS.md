@@ -13191,3 +13191,46 @@ and the card refuses `[ ]` in text and `< >` in an address with a visible
 note. The lane also gained per-section phase markers after the first CI
 red reported under an assignee phase.
 
+
+## 159. [2026-09-07, RULED AND SHIPPED — narrows item 51] Overdue is a To Do lane; every other live status overrides the date
+
+The owner, reading the Workload calendar's Overdue column: *"if it's approved
+it shouldn't be there, if it's for Kasper it shouldn't be there ... but if it's
+To Do and the due date is in the past then it should be overdue."*
+
+Two halves, and only one of them was a change.
+
+**Already true, nothing to do.** Approved, Posted, `For SMM approval`, `For
+Kasper approval`, `For Client Approval` and `Tweak Applied` are parked by name
+in `WL_PARKED_STATUSES` before any bucketing — they reach no strip on this page
+at all, Overdue included — and `Tweak Needed` is short-circuited into the NEEDED
+lane before the past-due check runs. That was item 51's closure and it still
+holds.
+
+**The change.** Item 51 (2026-08-27) ruled that to-do **or in-progress** work
+past its date counts as the editor's overdue. The 2026-09-07 ruling narrows
+that: the lane is `To Do` only. A past-due `In Progress` row was being counted
+in Overdue **and** in In progress simultaneously — one row, two red-and-yellow
+totals — and In Progress is the truer statement about where that row is. So the
+past-due test is now gated on `wlIsToDo`, the double-push into `nowWorking` is
+gone, and any live status that is not To Do keeps its own strip instead.
+
+**The knock-on, taken deliberately.** A past-due In Progress row no longer
+short-circuits out of the calendar. It flows into `planned`, where
+`wlAutoPlanDate` floors its automatic day at today, so it lands on today's
+column and consumes that editor's capacity there. That is the point: work
+genuinely under way should not disappear from the work week because its
+deadline slipped, and the same floor keeps any *other* non-parked live status
+(a renamed or newly added column that `WL_PARKED_STATUSES` does not know)
+visible rather than silently in no lane at all — which is what a narrower fix
+that kept "past-due leaves the calendar" would have produced.
+
+Pinned by: `test/workload-overdue-ruling.js` (rewritten — the late Todo is the
+whole of Overdue, the late In Progress is in-progress-only and stays on the
+calendar, with an inversion proof for both the To Do gate and the tweak
+short-circuit) and `test/workload-tweak-exclusive-bucket.js` (the past-due
+In Progress fixture now asserts the new placement).
+
+Untouched on purpose: the Production tab's `_prodOverdue`, which mirrors what
+Linear itself calls overdue on a row and is a different surface with a
+different job.

@@ -3664,8 +3664,10 @@
         .wl-now-client-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         /* Overdue strip — same shape as In progress now / Tweaks needed,
            but red. An overdue sub-issue is the most urgent signal on the
-           page (the editor has missed the deadline and the item still sits
-           with them), so the strip lives above In progress now. */
+           page (still in To Do, deadline already gone, and it still sits
+           with them), so the strip lives above In progress now. Work that
+           has moved on to any other live status is counted by that status
+           instead — see the partition loop's 2026-09-07 ruling. */
         .workload-overdue { border: 1.5px solid var(--wl-overdue-border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--wl-overdue-section-bg); }
         .workload-overdue.empty { display: none; }
         .workload-overdue .workload-section-label { color: var(--wl-overdue-label); display: flex; align-items: center; gap: 8px; }
@@ -13930,7 +13932,7 @@
         planned: [],                               // assigned non-tweak sub-issues with a manual or automatic work day
         nowWorking: [],                            // assigned sub-issues currently "In Progress"
         tweaksNeeded: [],                          // assigned sub-issues currently "Tweaks Needed"
-        overdue: [],                               // assigned sub-issues whose dueDate is before today (active status, any non-parked status)
+        overdue: [],                               // assigned sub-issues in To Do whose dueDate is before today (any other live status overrides overdue)
         undated: [],                               // assigned active sub-issues with neither manual day nor deadline
         unassigned: [],                            // sub-issues with no assignee (and In Progress OR has dueDate)
         parentById: new Map(),                     // parent issue lookup for rollup link-outs
@@ -16698,17 +16700,33 @@
                 tweaksNeeded.push(s);
                 continue;
             }
-            // Past-due non-tweak work always appears in Overdue. Automatic
-            // placement leaves the calendar, but an explicit manual pin keeps
-            // its exact work day: changing the Linear deadline must not move a
-            // plan that a person deliberately placed.
-            const isOverdue = hasDue && s.dueDate < todayISO;
+            // OWNER RULING 2026-09-07, narrowing the 2026-08-27 one: Overdue is
+            // a TO DO lane. Every other live status already says something
+            // truer about where the row is -- In Progress says somebody has it
+            // open right now, Tweak Needed says it is back with the editor for
+            // a named change -- and that status wins over the date. So a status
+            // other than To Do OVERRIDES overdue rather than doubling into it,
+            // and the only thing left in this lane is work nobody has started
+            // whose deadline has already passed. (Approval-wait and Approved
+            // rows never reached this loop at all: wlIsActiveStatus parks them
+            // upstream, so they were never in Overdue to begin with.)
+            //
+            // The In Progress strip is the visible cost: a past-due In Progress
+            // row used to be counted in BOTH strips, and now appears only in
+            // the one its status names. Its automatic work day still floors to
+            // today (wlAutoPlanDate), so it stays on the calendar and keeps
+            // consuming that editor's capacity -- work that is genuinely under
+            // way is not hidden just because its deadline slipped.
+            const isOverdue = wlIsToDo(s) && hasDue && s.dueDate < todayISO;
             if (isOverdue) {
+                // Automatic placement leaves the calendar, but an explicit
+                // manual pin keeps its exact work day: changing the Linear
+                // deadline must not move a plan that a person deliberately
+                // placed.
                 overdue.push(s);
-                if (inProg) nowWorking.push(s);
                 if (!hasManualPlan) continue;
             }
-            if (inProg && !isOverdue) nowWorking.push(s);
+            if (inProg) nowWorking.push(s);
             if (!workDate) {
                 undated.push(s);
                 continue;

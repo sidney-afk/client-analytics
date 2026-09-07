@@ -294,13 +294,17 @@ check(wlState.overdue.map(row => row.id).includes('ordinary-overdue')
     && ![...wlState.calendarByDate.values()].flat().map(row => row.id).includes('ordinary-overdue'),
   'past-due work leaves the work-day calendar and appears in Overdue');
 
+// Owner ruling 2026-09-07: Overdue is a To Do lane. A past-due row that
+// somebody has already started is described by In Progress, not by the date,
+// so it is counted there once and nowhere else. Its automatic work day floors
+// to today, so it stays visible on the calendar instead of vanishing.
 const pastDueInProgress = issue('In Progress', 'in-progress-overdue', '2026-07-14');
 wlApplyData([pastDueInProgress], '2026-07-15T12:00:00Z');
-check(wlState.overdue.map(row => row.id).includes('in-progress-overdue')
+check(!wlState.overdue.map(row => row.id).includes('in-progress-overdue')
     && wlState.nowWorking.map(row => row.id).includes('in-progress-overdue')
-    && !wlState.planned.map(row => row.id).includes('in-progress-overdue')
-    && ![...wlState.calendarByDate.values()].flat().map(row => row.id).includes('in-progress-overdue'),
-  'past-due In Progress work appears in both exception strips but not on the calendar');
+    && wlState.planned.map(row => row.id).includes('in-progress-overdue')
+    && (wlState.calendarByDate.get('2026-07-15') || []).map(row => row.id).includes('in-progress-overdue'),
+  'past-due In Progress work is in-progress only, floored onto today, never overdue');
 
 const manuallyPlannedPastDue = issue('To Do', 'manual-overdue', '2026-07-14');
 wlState.planByIssueId.set(manuallyPlannedPastDue.id, '2026-07-18');

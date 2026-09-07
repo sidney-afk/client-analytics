@@ -89,6 +89,14 @@ offset/original URL hash/content hash. Retain its original acquisition evidence
 privately; constructing a matching receipt alone is not acquisition proof.
 
 Staging emits pending rows only and pins both validator files and both migrations.
+It validates and writes one object's original bytes at a time, keeps only digest
+metadata between objects, and atomically renames a private preparation directory
+after the final manifest is written. A failed/interrupted preparation directory
+is not a completed package. The 100 MiB individual-video ceiling remains enforced.
+Ordinary batches stay at or below 128 MiB of object bytes; the one complete
+seven-file comment intentionally uses a **455577580-byte disk package** so its
+document binding is not fragmented. This is not a 128 MiB process-memory promise:
+Python/native decoder buffers and garbage collection add independent overhead.
 Admission requires `native_comment_media_storage_readback_v1`: exact private
 bucket/global limits, `public:false`, independent `objects[]` with original byte
 readback path, `storage_mime_type:application/octet-stream`,

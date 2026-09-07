@@ -107,6 +107,10 @@ async function check(name,fn){reset();await fn();console.log('PASS '+name);group
   fs.writeFileSync(receiptFile,JSON.stringify(receipt));const input=path.join(tmp,'ingress.json');
   fs.writeFileSync(input,JSON.stringify({contract:'native_comment_media_ingress_v1',documents:[{row,source_receipt_path:receiptFile,files:refs.map(r=>({offset:r.offset,path:file,mime_type:'image/png'}))}]}));
   const staged=path.join(tmp,'staged');assert.equal((await pkg.stage(input,staged)).occurrences,2);const pack=await pkg.verify(staged);
+  assert.equal(pack.manifest.staging_mode,'sequential_objects_atomic_directory');
+  const broken=JSON.parse(fs.readFileSync(input));broken.documents[0].files[1].path=path.join(tmp,'missing.png');
+  const badInput=path.join(tmp,'bad-ingress.json'),badOutput=path.join(tmp,'never-finalized');fs.writeFileSync(badInput,JSON.stringify(broken));
+  await assert.rejects(pkg.stage(badInput,badOutput));assert.equal(fs.existsSync(badOutput),false);
   assert(pack.rows.every(r=>r.state==='pending'&&r.source_entity_id===row.id&&r.source_audience==='internal'));
   const evidence={contract:'native_comment_media_storage_readback_v1',bucket:'syncview-native-brief-media',public:false,global_limit_bytes:104857600,bucket_limit_bytes:104857600,
    recovery_base_sha256:'a'.repeat(64),observed_at:stamp,documents:[row],objects:pack.rows.map(r=>({storage_path:r.storage_path,path:file,storage_mime_type:'application/octet-stream',content_disposition:'attachment'}))};

@@ -46,6 +46,12 @@ export async function stage(inputFile,output) {
   const input=JSON.parse(fs.readFileSync(privateFile(inputFile)));
   assert.equal(input.contract,'native_comment_media_ingress_v1');
   assert(Array.isArray(input.documents) && input.documents.length>0 && input.documents.length<=100);
+  assert(path.isAbsolute(output) && !fs.existsSync(output),'new_private_directory_required');
+  privateFile(path.dirname(output));
+  // Retain only one validated object's bytes at a time. The final directory
+  // appears atomically after every file and manifest is complete. Interrupted
+  // .preparing directories remain private evidence, never a completed package.
+  const dir=mkdir(output+'.preparing-'+randomUUID());
   const files=new Map(),ledger=[];
   for (const doc of input.documents) {
     const owner=scope(doc.row), bodyHash=await sha(doc.row.body), refs=occurrences(doc.row.body);
@@ -54,14 +60,15 @@ export async function stage(inputFile,output) {
     assert.equal(receipt.contract,'native_comment_media_source_v1');
     for (const [k,v] of Object.entries({...owner,body_sha256:bodyHash})) assert.equal(receipt[k],v,'source_binding_mismatch');
     assert.equal(receipt.occurrences.length,refs.length);
-    files.set('receipts/'+receiptHash+'.json',bytes);
+    const receiptName='receipts/'+receiptHash+'.json';
+    if(!files.has(receiptName)){write(dir,receiptName,bytes);files.set(receiptName,receiptHash);}
     for (const ref of refs) {
       const sources=receipt.occurrences.filter(x=>x.offset===ref.offset), matches=doc.files.filter(x=>x.offset===ref.offset);
       assert(sources.length===1 && matches.length===1,'exact_occurrence_required');
       assert.equal(sources[0].original_url_sha256,await sha(ref.url));
       const copy=await verifyCommentFile(matches[0].path,matches[0].mime_type,sources[0].content_sha256);
       const id=randomUUID(), storage_path=copy.content_sha256+'/'+id;
-      files.set('objects/'+storage_path,copy.bytes);
+      write(dir,'objects/'+storage_path,copy.bytes);files.set('objects/'+storage_path,copy.content_sha256);
       ledger.push({id,source_kind:'native_comment',source_entity_id:owner.id,deliverable_id:owner.deliverable_id,
         client_slug:owner.client_slug,team:owner.team,source_audience:owner.source_audience,source_version:owner.source_version,
         source_updated_at:owner.source_updated_at,source_sha256:bodyHash,source_offset:ref.offset,source_length:ref.length,
@@ -69,12 +76,14 @@ export async function stage(inputFile,output) {
         readback_sha256:null,storage_path,byte_length:copy.byte_length,mime_type:copy.mime_type,verified_at:null,source_receipt_sha256:receiptHash});
     }
   }
-  files.set('ledger.private.json',Buffer.from(JSON.stringify(ledger)));
+  const ledgerBytes=Buffer.from(JSON.stringify(ledger));
+  write(dir,'ledger.private.json',ledgerBytes);files.set('ledger.private.json',await sha(ledgerBytes));
   const manifest={contract:'native_comment_media_package_v1',kind:'INGRESS_STAGED',bucket:BRIEF_MEDIA_BUCKET,
-    installed:false,storage_mime_type:'application/octet-stream',source_pins:await pins(),
-    files:Object.fromEntries(await Promise.all([...files].map(async([n,b])=>[n,await sha(b)])))};
-  const dir=mkdir(output); for (const [name,bytes] of files) write(dir,name,bytes);
+    installed:false,staging_mode:'sequential_objects_atomic_directory',storage_mime_type:'application/octet-stream',source_pins:await pins(),
+    files:Object.fromEntries(files)};
   write(dir,'manifest.private.json',JSON.stringify(manifest));
+  assert(!fs.existsSync(output),'final_destination_appeared');
+  fs.renameSync(dir,output);
   return {classification:'OFFLINE_COMMENT_STAGED',occurrences:ledger.length,installed:false};
 }
 export async function verify(directory) {

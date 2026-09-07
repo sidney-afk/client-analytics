@@ -1,5 +1,9 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Independent monitoring / backup alert beyond SyncViewbot →
+[inactive receipt and heartbeat recipe](ops/CLIENT_CONTINUITY_OPERATIONS.md#independent-receipt-and-heartbeat-preparation--september-7).
+Exact receipt evaluation is prepared; independent hosting and backup recipient remain unconfigured.
+
 Saved native Submit falls back to legacy / remaining F44 and n8n card exit work
 → [owned routing and exact legacy adapter contract](ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md).
 Bounded source correction; original identities and offered ordinary writes retained.

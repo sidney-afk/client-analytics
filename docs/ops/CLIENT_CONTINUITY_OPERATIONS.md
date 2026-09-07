@@ -1,5 +1,80 @@
 # Continuity operations: inactive review package
 
+## Independent receipt and heartbeat preparation — September 7
+
+Under canonical G7/W10, `scripts/client-continuity-independent.js` reuses the
+existing `collect`, `receipts`, `evaluate` and `sentinel` routines. It reads
+protected GitHub artifacts, never starts another delivery observer or sends a
+Slack/n8n request. The exact clean local Git release and immutable document blob
+are checked before network access. Every collected start/terminal must carry the
+approved document pins; historical unbound receipts remain history, not current
+proof. Missing artifacts, orphan starts, failed reads and contradictory denial
+receipts stay non-green. Its bounded recent window is the existing six viewing
+runs selected from twenty workflow entries, not all-history completeness.
+
+The same newest observer artifact must contain fresh successful terminal evidence
+and no pending, prepared, ambiguous or unrecovered notification. A fresh healthy
+view cannot conceal known n8n/Slack delivery failure. The helper then rechecks both
+workflow histories. It does not proactively probe an idle notification route or
+infer human acknowledgement; those remain separate delivery/operations proofs.
+Downloaded aggregate artifacts live only in its generated private temporary
+directory. No observer state is changed, uploaded or automatically recovered.
+
+`scripts/client-continuity-heartbeat.js` runs that helper under a hard deadline,
+then sends one empty success POST only for the combined receipt/liveness result.
+The sole allowed destination is the private UUID interface at `hc-ping.com`, over
+HTTPS without redirects, queries or URL credentials. No diagnostic body, private
+URL, child output, retry, failure ping or auto-provisioning is emitted. Inactive,
+failed, timed-out, malformed and unknown results never send a healthy ping.
+
+The owner has acknowledged the two September 5 DRILL messages. Preserve that
+historical acknowledgement; it neither activates recurring messages nor defines
+the still-unselected backup recipient or ten-minute acknowledgement escalation.
+This addition corrects the earlier hosted-option accounting: a wrapper and
+independent receipt consumer are now source-prepared; no host, check, recipient,
+subscription, secret or schedule has been provisioned.
+
+The smallest arrangement using these existing scripts keeps the GitHub viewing
+job, one GitHub delivery observer, protected artifact history and SyncViewbot
+primary. An independently scheduled reader outside GitHub/n8n runs the new
+heartbeat command. A separately hosted missed-ping check emails the owner and
+chosen backup if those successes stop. Direct SyncViewbot can bypass n8n, but
+shares Slack/bot failure and is not that independent email fallback.
+
+Concrete unprovisioned candidates are [Render scheduled jobs](https://render.com/docs/cronjobs)
+for the reader and [Healthchecks missed-ping alerts](https://healthchecks.io/docs/)
+for independent email. Keep a built complete Git checkout of the approved release
+with Node 22, Git and GitHub CLI; no browser is launched by this helper. Disable
+automatic release drift and prove the built job still starts when GitHub is
+unreachable. [Supabase scheduled functions](https://supabase.com/docs/guides/functions/schedule-functions)
+are an existing-service alternative, but require reviewed adaptation of the
+Node/git/gh/file interfaces and an outside check for their own stoppage; they are
+not an already configured equivalent. No purchase or service setup is authorized
+by this document.
+
+After separate exact-release/setup approval, the independent job's private inputs
+are `CONTINUITY_CHECKOUT` (this same executable checkout), read-only `GH_TOKEN`,
+`CONTINUITY_OPERATIONS_JSON` (exact release, original `activatedAt`, sentinel
+enablement, recovery disabled), and `CONTINUITY_PRIVATE_VIEW_JSON` (same release
+and approved document pins). It needs no client link, census, Slack or n8n secret.
+Add the pre-created `CONTINUITY_HEALTHCHECKS_PING_URL` only in its secret store;
+then set `CONTINUITY_HEARTBEAT_ACTIVATION=OWNER_APPROVED_SENTINEL_HEARTBEAT` for the
+approved invocation of `node scripts/client-continuity-heartbeat.js`. The wrapper
+supplies the helper's existing sentinel activation string, not product flags.
+Default invocation refuses before execution or network. Configure a five-minute
+job and ten-minute missed-success threshold only in the approved later setup;
+measure actual delays. The [ping API](https://healthchecks.io/docs/http_api/)
+response alone cannot prove alarm configuration or recipient delivery.
+
+Source proof is 20 actual-routine/synthetic-artifact groups plus 14 wrapper groups,
+with zero external calls or messages. Before activation, prove missing artifacts,
+missing terminal, failed primary delivery, GitHub/API outage, stopped independent
+job and missed heartbeat with scoped faults and actual backup delivery/readback.
+Do not disable shared relays for a drill. Keep the full browser transport and live
+journey limitations below red until independently resolved. Disabling this new
+job stops only its future reads/pings; preserve original artifacts and unresolved
+incidents, and explicitly record intentional monitor shutdown. G7 remains held.
+
 This is a separate continuation of preserved draft #1270 at
 `83de7ae397ae4c69d04811582798a5668312d8ce` (tree
 `ea09c55f46de9273b7c683f2b6ad57cc816c161d`). That combined commit contains monitor

@@ -1,5 +1,12 @@
 # Repo map
 
+Independent continuity preparation: `scripts/client-continuity-independent.js`
+reads exact pinned receipts and delivery state through existing owners;
+`scripts/client-continuity-heartbeat.js` sends only a combined healthy heartbeat.
+Focused tests are `test/client-continuity-independent.js` and
+`test/client-continuity-heartbeat.js`; the owning recipe is
+`docs/ops/CLIENT_CONTINUITY_OPERATIONS.md`. No infrastructure is activated.
+
 Owned Submit routing: `test/submit-owned-intake-routing.js` preserves two exact-base
 counterexamples and checks native recovery before optional cohort routing.
 `docs/ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md` maps the remaining F44 and card

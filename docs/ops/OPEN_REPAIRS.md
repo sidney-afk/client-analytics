@@ -13601,3 +13601,49 @@ an alias must never steal a canonical match, in either row order.
    otherwise for the hour the two PRs and this one overlapped (Codex on #1333);
    the identifier resolution above is what makes those links RESOLVE, and
    #1331/#1338 are what make them point at the right row.
+
+## 162. [2026-09-07, FOUND — the exit's own anchor stops being maintained on the day of the exit] Every human-readable task name in the estate is minted by Linear, and nothing else mints one
+
+**Mechanism, read out of the source rather than inferred.**
+`deliverables.linear_identifier` (the `VID-13553` / `GRA-7197` name a human reads)
+has exactly one writer: `supabase/functions/linear-inbound/index.ts:810`, and that
+line only runs on a Linear webhook. `production-write` copies the column
+(`index.ts:1576`) and reads it (`index.ts:5013`); it never mints one. So the name
+on a card is minted by Linear, echoed back through the inbound webhook, and stored.
+
+**Therefore:** a deliverable created natively AFTER the provider is gone has no
+`linear_identifier` at all. `index.html:51816` resolves
+`displayId: linearIdent || importIdent || String(d.id || '')`, so such a row
+displays as its raw row id (`b1_d_188ba4ad…`) everywhere a name is shown. Nothing
+errors. The estate simply stops generating readable names, quietly, starting with
+the first card created after the cutoff.
+
+**Why this is filed today rather than at the cutoff.** `main` merged #1333 hours
+ago and it deliberately re-anchored the Production deep link on `linear_identifier`,
+*because* that is the column Linear keeps current. That was the correct fix for the
+bug it closed (a team move re-keys an issue and the b1 import's `identifier`
+snapshot names the team the row has left). It is also the third recent change to
+deepen reliance on a Linear-maintained value while a program to remove Linear is
+in flight. The two are not in conflict on 2026-09-07 and are in direct conflict on
+2026-09-15. Recording the collision now is the point of this entry.
+
+**The replacement exists and is not installed.** Candidate `5bcc03bd7` carries
+`migrations/2026-09-07-native-intake-named-append.sql`, which composes `main`'s
+`2026-09-07-production-intake-append-v8.sql` (the ordinal/name predicates) with
+`2026-09-05-native-only-intake.sql` (native admission and receipts). Both
+predecessors replace the SAME `public.production_intake_append` RPC, so installing
+either alone after the other silently reverts half of it.
+
+**That hazard fails closed, which is worth stating because it is the good news
+here.** The composed migration opens with a `do $$` block that raises
+`native_intake_named_append_prerequisite_missing` unless
+`public.production_native_intake_epochs()` exists AND the
+`zz_native_intake_receipt_guard` trigger on `public.mirror_outbox` is enabled. A
+wrong install order therefore refuses rather than exposing an interim append body.
+Verified by reading the migration head at `5bcc03bd7`; NOT verified against a live
+install, because none of the fifteen candidate migrations are installed.
+
+**Still open.** Whether native naming covers every surface that shows a name
+(Workload rows, SyncLinear cards, deep links, Slack alert text), or only the intake
+path. Nobody has walked that list.
+

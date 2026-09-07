@@ -655,3 +655,73 @@ restores live probes on every read, not a broken control.
 owner the same day, before the dispatch. Its rollback is unchanged
 (`drop index if exists public.production_asset_access_checks_by_url_idx;`) and
 it is independent of the function version.
+
+
+## 2026-09-07 — identifier team-move repair (data) + deep-link resolution (browser)
+
+**Two halves, independently reversible, and safe in either order.** Neither
+deploys an Edge Function, neither moves a runtime flag, and neither writes to
+Linear. OPEN_REPAIRS 160.
+
+**1. The browser half** (`index.html`, `docs/syncview-design/ADAPTER.md`). Ships
+with the ordinary Pages deploy on push to `main`. `_prodAdapter` names a row by
+`linear_identifier` (the column `linear-inbound` maintains) instead of
+`identifier` (the b1 import's snapshot, which a Linear team move retires), keeps
+a disagreeing snapshot as `aliasId`, and `_prodIssue` resolves that alias in a
+second pass behind any canonical match. Read-path only: no control, no gate, no
+write. **To reverse without a revert**, restore the two adapter lines to
+`displayId: d.identifier || d.linear_identifier || d.id` and `aliasId: ''`; the
+resolver's second pass then matches nothing and the tab behaves exactly as it
+did before. `git revert` of the merge commit is equivalent and preferred.
+The visible effect of reverting is the one it fixed: 7 of 6,369 rows print a
+VID- number on a Graphics row again, and a Workload deep link at their current
+Linear identifier answers "has no row in Production".
+
+**2. The data half**
+(`migrations/2026-09-07-deliverable-identifier-team-move-repair.sql`).
+**Owner-applied in the Supabase SQL Editor — SQL only, no function deploy, no
+lane dispatch.** One statement in one transaction: it locks the cohort of rows
+whose `identifier` and `linear_identifier` are both present and disagree,
+writes one `deliverable_events` row per row carrying `retired_identifier` and
+`current_identifier`, and then sets `identifier` from `linear_identifier`,
+gated on the ledger insert having covered the whole cohort. Seven rows today.
+`updated_at` moves on them; `status_at`, status, client, batch, card linkage
+and every Linear column do not.
+
+**Restoration, executable.** The repair records what it replaced, so the
+reversal reads its own evidence rather than depending on anyone having kept the
+look-first output:
+
+```sql
+begin;
+update public.deliverables d
+   set identifier = e.retired
+  from (select distinct on (deliverable_id)
+               deliverable_id,
+               payload->>'retired_identifier' as retired,
+               payload->>'current_identifier' as current_ident
+          from public.deliverable_events
+         where payload->>'op' = 'identifier_team_move_repair'
+         order by deliverable_id, ts desc) e
+ where d.id = e.deliverable_id
+   and d.identifier = e.current_ident
+   and e.retired is not null;
+commit;
+```
+
+It restores only rows still holding the value the repair wrote (`d.identifier =
+e.current_ident`), so a row that has moved on since is left alone, and re-running
+it is a no-op. Verify with the same three queries in step 3 of the migration,
+read backwards: the disagreeing count returns to the number of rows restored.
+
+**The two halves do not depend on each other, in either direction.** The browser
+half was written to tolerate the divergence and keeps working whether or not the
+SQL has run; the SQL repairs the column whether or not the browser is on the new
+build, because nothing in the old build reads `linear_identifier` for naming.
+The one coupling worth stating: after the SQL, `aliasId` is empty for the
+repaired rows, so the retired number no longer resolves in the tab — intended,
+since no surface in the product ever emitted a link carrying it, and the value
+survives in the ledger event.
+
+**Nothing to reseal.** No Edge Function fingerprint moves, so neither F27 lane
+is involved and no bundle needs capturing.

@@ -1,6 +1,8 @@
 -- Repair: `deliverables.identifier` still names the team the row has left.
 -- OPEN_REPAIRS 160. Owner-applied, SQL Editor. Data only: no schema change,
--- no function, no grant, nothing to deploy.
+-- no function, no grant, nothing to deploy. Rollback entry: ROLLBACK.md,
+-- "2026-09-07 — identifier team-move repair (data) + deep-link resolution
+-- (browser)".
 --
 -- WHAT IS WRONG. A row carries two identifier columns. `linear_identifier` is
 -- refreshed by `linear-inbound` on every webhook. `identifier` is a SNAPSHOT
@@ -21,8 +23,8 @@
 -- WHO IS AFFECTED. Measured 2026-09-07 over all 6,369 browser-visible rows:
 -- exactly 7 disagree, all graphics rows still carrying a VID- snapshot (5 on
 -- one client, 2 on another at status `duplicate`). No row carries an
--- `identifier` without a `linear_identifier`, so the predicate below cannot
--- reach the 374 native rows that legitimately have none.
+-- `identifier` without a `linear_identifier`, so the cohort below cannot reach
+-- the 374 native rows that legitimately have none.
 --
 -- THE BROWSER NO LONGER DEPENDS ON THIS. `_prodAdapter` reads
 -- `linear_identifier` first and keeps a disagreeing snapshot as a resolvable
@@ -32,17 +34,17 @@
 -- the page: reconcilers, audits, and whatever names a SyncView-native card once
 -- Linear is retired, which is the column that would inherit these leftovers.
 --
--- WHY STEP 2 WRITES A LEDGER ROW BEFORE IT WRITES THE COLUMN. Raised by review
--- on PR #1333, and correct: after the update the two columns agree, so the
--- browser's `aliasId` for these rows becomes empty and the retired number stops
--- resolving in the tab. That is acceptable -- no surface in the product has
--- ever EMITTED a link carrying the snapshot (`_prodSetQuery` writes the
--- canonical row id, and every Workload link carries the current Linear
--- identifier), so the alias covers external references and the window before
--- this is applied, not a link the product hands out -- but it must not also be
--- the moment the value stops existing anywhere. The insert puts each retired
--- identifier in `deliverable_events.payload` in the SAME transaction, so the
--- old name survives a run whether or not anyone kept Step 1's output.
+-- WHY THE RETIRED NAME IS RECORDED FIRST. Raised by review on PR #1333, and
+-- correct: after the update the two columns agree, so the browser's `aliasId`
+-- for these rows becomes empty and the retired number stops resolving in the
+-- tab. That is acceptable -- no surface in the product has ever EMITTED a link
+-- carrying the snapshot (`_prodSetQuery` writes the canonical row id, and every
+-- Workload link carries the current Linear identifier) -- but it must not also
+-- be the moment the value stops existing anywhere. Nothing else stores it:
+-- `linear_aliases.identifier` was overwritten by the first webhook after the
+-- move, and its `history` begins at that webhook, already carrying the new
+-- number. So each retired identifier goes into `deliverable_events.payload`
+-- before the column moves.
 --
 -- It goes to the event ledger rather than to `linear_aliases` deliberately.
 -- `scripts/b3-linkage-backfill.js` flattens every string in `linear_aliases`
@@ -52,17 +54,24 @@
 -- ledger and the detail panel already carry, so this adds no new rendering
 -- surface.
 --
+-- WHY ONE STATEMENT AND NOT TWO. Raised by the same review. Under READ
+-- COMMITTED, two statements in one transaction take two snapshots, so a
+-- `linear-inbound` write landing between them could leave the update writing a
+-- value the ledger row does not describe, or repairing a row that has no ledger
+-- row at all -- which is the evidence loss this is here to prevent. The cohort
+-- is therefore selected ONCE, `for update`, and both the insert and the update
+-- read from that fixed, locked set. The count guard on the update is the same
+-- promise stated mechanically: no row's column moves unless its record was
+-- written in this statement.
+--
 -- SAFETY.
---   * Bounded: only rows where BOTH columns are present and disagree. Seven
---     today, and it can never widen to a row with a null on either side. The
---     insert and the update share one predicate, so the ledger cannot record a
---     row the update did not touch.
---   * Idempotent: after it runs the predicate matches nothing, so a second run
---     writes 0 events and updates 0 rows. `event_key` carries the retired
---     value, so a row that diverges AGAIN later is a new key rather than a
---     unique-index collision.
---   * Atomic: one transaction. Either the ledger row and the repair both land
---     or neither does.
+--   * Bounded: the cohort is rows where BOTH columns are present and disagree.
+--     Seven today, and it can never widen to a row with a null on either side.
+--     The insert and the update read the same cohort, so they cannot diverge.
+--   * Idempotent: after it runs the cohort is empty, so a second run writes 0
+--     events and updates 0 rows.
+--   * Atomic and serialized: one statement, one snapshot, rows locked `for
+--     update` in id order, inside an explicit transaction.
 --   * Fails closed: `identifier` is `text unique`, so if the target value were
 --     already held by another row the whole transaction aborts rather than
 --     half-applying. Step 1 shows that before you run step 2.
@@ -71,20 +80,35 @@
 --     created and nothing is mirrored back to Linear.
 --
 -- EXPECTED SIDE EFFECTS, all three harmless and deliberate:
---   * `updated_at` moves to now() on those 7 rows (touch trigger). `status_at`
---     does not, because the status does not change.
+--   * `updated_at` moves to now() on the repaired rows (touch trigger).
+--     `status_at` does not, because the status does not change.
 --   * `track_b_deliverable_ledger_guard` writes its own `deliverable_events`
 --     row per updated row: action `update`, source `system`, payload
 --     {"op":"UPDATE","reason":"rpc_bypass_guard"}. That is the audit trail for
 --     a direct statement and is expected here, beside the explicit row above.
 --   * Each repaired deliverable gains one `identifier_team_move_repair` event.
+--     Its `event_key` carries the retired value, the value replacing it, and
+--     the moment of the repair, so an issue that cycles between teams and is
+--     repaired more than once gets a distinct key each time rather than
+--     colliding with its own earlier repair (also review #1333).
 --
--- REVERSAL. Per row, set `identifier` back to the `retired_identifier` in its
--- own repair event:
---   select deliverable_id, payload->>'retired_identifier'
---     from public.deliverable_events
---    where payload->>'op' = 'identifier_team_move_repair';
--- Step 1's output says the same thing before the fact; the event says it after.
+-- REVERSAL. Executable, and in ROLLBACK.md as well:
+--   begin;
+--   update public.deliverables d
+--      set identifier = e.retired
+--     from (select distinct on (deliverable_id)
+--                  deliverable_id,
+--                  payload->>'retired_identifier' as retired,
+--                  payload->>'current_identifier' as current_ident
+--             from public.deliverable_events
+--            where payload->>'op' = 'identifier_team_move_repair'
+--            order by deliverable_id, ts desc) e
+--    where d.id = e.deliverable_id
+--      and d.identifier = e.current_ident
+--      and e.retired is not null;
+--   commit;
+-- It restores only rows still holding the value this repair wrote, so a row
+-- that has moved on since is left alone.
 
 -- ---- Step 1: look first. Expect 7 rows, and `collides_with` empty on all. ---
 select d.id,
@@ -103,31 +127,45 @@ select d.id,
    and d.identifier <> d.linear_identifier
  order by d.client_slug, d.identifier;
 
--- ---- Step 2: record the retired name, then repair. One transaction. -------
+-- ---- Step 2: one locked cohort; record the retired name, then repair. -----
 begin;
 
-insert into public.deliverable_events
-       (deliverable_id, batch_id, client_slug, action, source, payload, event_key)
-select d.id,
-       d.batch_id,
-       d.client_slug,
-       'update',
-       'backfill',
-       jsonb_build_object(
-         'op', 'identifier_team_move_repair',
-         'retired_identifier', d.identifier,
-         'current_identifier', d.linear_identifier),
-       'identifier-team-move-repair:' || d.id || ':' || d.identifier
-  from public.deliverables d
- where d.identifier is not null
-   and d.linear_identifier is not null
-   and d.identifier <> d.linear_identifier;
-
+with cohort as (
+    select d.id,
+           d.batch_id,
+           d.client_slug,
+           d.identifier,
+           d.linear_identifier
+      from public.deliverables d
+     where d.identifier is not null
+       and d.linear_identifier is not null
+       and d.identifier <> d.linear_identifier
+     order by d.id
+       for update
+),
+recorded as (
+    insert into public.deliverable_events
+           (deliverable_id, batch_id, client_slug, action, source, payload, event_key)
+    select c.id,
+           c.batch_id,
+           c.client_slug,
+           'update',
+           'backfill',
+           jsonb_build_object(
+             'op', 'identifier_team_move_repair',
+             'retired_identifier', c.identifier,
+             'current_identifier', c.linear_identifier),
+           'identifier-team-move-repair:' || c.id
+             || ':' || c.identifier || '->' || c.linear_identifier
+             || ':' || to_char(clock_timestamp() at time zone 'utc', 'YYYYMMDD"T"HH24MISSUS')
+      from cohort c
+    returning deliverable_id
+)
 update public.deliverables d
-   set identifier = d.linear_identifier
- where d.identifier is not null
-   and d.linear_identifier is not null
-   and d.identifier <> d.linear_identifier;
+   set identifier = c.linear_identifier
+  from cohort c
+ where d.id = c.id
+   and (select count(*) from recorded) = (select count(*) from cohort);
 
 commit;
 

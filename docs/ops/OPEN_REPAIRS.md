@@ -13327,6 +13327,21 @@ an alias must never steal a canonical match, in either row order.
    `test/identifier-team-move-repair.js`, because nothing else in the
    repository reads that file. **Not applied at the time of writing.**
 
+   **Round two on #1333 took three more, all on that SQL.** [P2] Two
+   statements in one transaction take two snapshots under READ COMMITTED, so a
+   `linear-inbound` write landing between them could repair a row the ledger
+   does not describe: the cohort is now selected ONCE, `for update`, and the
+   insert and the update both read it, with the update gated on
+   `count(recorded) = count(cohort)` so "no column moves without its record" is
+   a mechanism rather than a sentence. [P2] The event key repeated for an issue
+   that cycles between teams and is repaired twice, which the unique index would
+   abort; it now carries both identifiers and the moment. [P1] `ROLLBACK.md` was
+   untouched while this both changes SyncLinear behaviour and mutates production
+   data, and an inline note that only SELECTs the old values is not a
+   restoration procedure: the entry is written, with the reversal statement,
+   and it reads the repair's own events rather than depending on anyone having
+   kept the look-first output.
+
    The PRODUCER fix is `linear-inbound`, which already detects the move
    (`eventPayload.team_move`) and rewrites `team` while leaving `identifier`
    alone. Recommend NOT building it: the owner is removing Linear, so the

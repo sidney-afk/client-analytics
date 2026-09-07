@@ -1,5 +1,11 @@
 # Repo map
 
+Offline F44 Submit forwarding: `scripts/n8n-f44-native-adapter.js` prepares two
+terminal entry routes from one private published capture; `test/n8n-f44-native-adapter.js`
+checks original identity, exact browser receipt responses and unrelated-route
+preservation. `docs/ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md` owns the source
+dependency pins, private binding and held installation limits.
+
 Offline n8n CARD compatibility: `scripts/n8n-native-card-adapter.js` transforms
 hash-pinned private published captures into a new private terminal native draft;
 `test/n8n-native-card-adapter.js` covers synthetic graphs and transport contracts.

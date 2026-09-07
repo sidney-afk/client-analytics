@@ -182,6 +182,89 @@ proof still precede applying and publishing these graph drafts. Restoring the
 old graph after native admission reopens unsafe tails; recovery must keep native
 paths terminal and debt visible while ordinary writes remain offered.
 
+### September 7 offline F44 Submit forwarding
+
+`scripts/n8n-f44-native-adapter.js` prepares exactly the `video-form` and
+`graphic-form` POST entry paths from a fresh private published 142-node graph.
+The capture is hash-checked against its explicit private binding, active version
+and published nodes/connections. Only those two Webhook v2.1 nodes gain rawBody;
+only their two original edges change. Ten added nodes form two terminal branches.
+Inverse validation preserves all original node values, credentials, settings and
+unrelated routes. No n8n API, execution, import, publish or activation is included.
+
+Each entry requires its actual original body team, canonical payload hash,
+receipt key, equal idempotency key and all five original payload fields. Route
+and body team must agree. Nothing fills a missing identity from the route,
+current client authority or a generated request. Canonical payload correctness
+remains the endpoint/SQL owner's check. Nonqualifying input visibly refuses
+before forwarding and makes no durable-capture claim. The caller must retain
+its original request; this source cannot restore a missing old-browser draft.
+
+The original JSON/UTF-8 bytes go to
+`production-write?action=legacy_intake_receive` without adding action to the
+body. The existing public intake transport binding supplies only apikey and
+Bearer headers; no staff/actor headers or new credentials are created. Binding
+permits an existing public publishable key or legacy JWT with role `anon`, and
+rejects service/secret keys. Existing public-intake flag, unique active-client
+resolution and rate capability remain the gateway's authority. JSON MIME,
+single optional UTF-8 charset, no compression, raw byte availability and size
+checks reuse the pinned CARD transport guard. No redirect, retry or old-tail
+fallback occurs on failure.
+
+The generated response checker contains the pinned actual browser
+`_linearUuid`, `_linearResponseParentId`, `_linearConfirmedCreate` and
+`_linearConfirmedReceived` functions. Only an exact received receipt with real
+durable capture, required triage, pending/failed/partial ledger and safe reason
+codes returns 202. Historical created returns 200 only with matching original
+identity, valid parent and exact expected unique child set. Error JSON/status
+remains terminal; timeout, redirect or malformed success becomes an unconfirmed
+503 with no false capture claim. No branch reaches the old receipt/provider/
+notification/discovery tails.
+
+This binds the separate gateway/native-triage source lane (through
+`9a33d95c3171b99419cd6b2f4c5d3a54a0b3f749`), not a deployed endpoint:
+
+| Required source | SHA-256 |
+|---|---|
+| `production-write/index.ts`, `handleLegacyIntake` and query-action dispatch | `c82489a8710a08d0df7a0fd79d904d31e8b3b803876b409241ca8219686a59ad` |
+| `2026-09-07-legacy-intake-native-triage.sql`, including the provider-INSERT advisory fence | `1faf9a28114124ac5631db4d7561c514e19615ad60806afdd902ba335d484831` |
+| Actual browser receipt validators | `ccb973dfe1e8f4f30a39c3eda323e9a347ed97f92185b9ea96281e316119ffb4` |
+
+Use `N8N_F44_ADAPTER_BINDING` for an absolute private JSON file and
+`N8N_F44_ADAPTER_OUTPUT` for a new private output directory, then run
+`node scripts/n8n-f44-native-adapter.js`. Binding fields are `sourceBase`
+(`2fdf2b8a188411d0fbfba776bba7156b496d102b`), `browserValidatorsSha256`,
+`verifiedN8nVersion` (`2.37.7`), absolute `capturePath`, `captureSha256`,
+`expectedActiveVersion`, `endpointContract` (`legacy_intake_receive-v1`), the
+two endpoint source hashes above, `destinationOrigin` and existing `anonKey`.
+The source hash field names are `endpointSourceSha256` and
+`endpointMigrationSha256`. All private paths and generated graphs stay outside
+every enclosing Git repository. Output is `f44.draft.json` plus a hash receipt,
+with `activationAllowed:false`. No public workflow IDs, endpoint values, keys,
+raw captures or execution data are published by this preparation.
+
+Validation: **19 local synthetic controls**, suitable for CI, pass via
+`node test/n8n-f44-native-adapter.js`. **17 separate private extracted-source
+controls** pass against the exact published graph and pinned n8n parser/Webhook/
+binary request/text-response code with synthetic contexts. Both captured F44
+normalizers accept the original nine-key envelope with exact canonical video
+fields (`number`, `main_cam`, `side_cam`, `audio`, nullable `dueDate`) and refuse
+missing receipt identity. Whitespace/multibyte bytes, MIME rewriting negatives,
+strict browser responses and terminal errors are covered. The final SQL binding
+changed metadata only; exact graph equality preserves that 17-control proof.
+Final private draft SHA-256:
+`c94407d70e63e4ae37c76ca810ab4818e3fcd20665c020a35186011d56b10467`.
+No hosted CI, installed n8n engine, gateway/SQL or live acceptance proof is
+claimed by these graph tests; the separate endpoint lane owns its SQL evidence.
+
+Installation remains held until the exact gateway/SQL/native-triage source is
+reviewed, deployed and verified, both published route/version bindings are
+refreshed, and authorized old-caller/inbox/ordinary-flow tests pass. Existing
+historical `created` receipts retain the old browser's provider-discovery
+continuation; this adapter neither invents a native replacement identity nor
+closes that remaining compatibility limit. Reverting these two entries to old
+provider tails is not a safe post-cutoff recovery.
+
 ## Release and rollback boundary
 
 G6 remains held until these serving adapters and actual old-caller tests exist.

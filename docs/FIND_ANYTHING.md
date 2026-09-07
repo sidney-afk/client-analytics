@@ -9,6 +9,8 @@ Saved native Submit falls back to legacy / remaining F44 and n8n card exit work
 Bounded source correction; original identities and offered ordinary writes retained.
 The same owner now includes the offline n8n CARD draft generator, private input
 binding and exact-version byte-forwarding evidence; installation remains held.
+It also owns the two-entry F44 Submit forwarding generator, exact original
+receipt preservation and its separate gateway/native-triage source dependency.
 
 Old/direct Workload provider requests after cutoff → [staged endpoint admission](audits/2026-09-07-workload-cutoff.md). Existing G8 control is required at every provider fetch; installation, CON/STR continuity and in-flight/old-isolate proof remain held.
 

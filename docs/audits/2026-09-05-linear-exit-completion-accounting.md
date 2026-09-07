@@ -1,3 +1,11 @@
+## Owner priority correction - 2026-09-07
+
+The owner clarified that preserving all old Linear history/files is not the objective and requested a fresh coordinator focused on making SyncView operationally independent quickly. Pause optional historical archive/export expansion. No data deletion, provider cancellation, or blanket acceptance of client-visible content loss is authorized by that clarification.
+
+Release-critical scope: identify which currently offered client/staff workflows and visible cards actually require Linear access, including files/comments still used there. Preserve or replace those dependencies. Whole-workspace forensic export and unused historical assets are a separate optional track, not automatically a Decision A gate. Any exception to an older blanket G4 gate must be reconciled with this explicit owner priority, while retaining proof for current product use.
+
+Exporter checkpoint: PR1327 remains draft; local transport/privacy6268737878178c846c0bb07a203aab625b712d86 unpushed,42 modeled tests pass,37 foundation pass. Native folder scan refuses writable ancestor; no live export or ACL modification. Author/reviewer instructed to checkpoint and stop expansion. Next coordinator should produce a finite operational blocker list from G0-G10 and existing evidence; do not launch another blanket audit or finish optional export before tracing actual active dependencies. No release authorized.
+
 ## G4 exporter hosted validation - 2026-09-07 02:49 UTC
 
 PR1327 exact cbf714c hosted run34076144086 completed success. Latest-attempt jobs identity-exposure101602529159, unit101602529331 and F27 rollback101602529540 all succeeded. The unit job's named private-history, full corpus, closed-DDL, Workload, v7-data, v7-schema and v8-schema/replay steps each completed success; none is inferred from a skipped step. No numeric full-suite assertion count claimed from job metadata. This remains hosted disposable/source proof, not a live export, installed change or asset-rescue certification.

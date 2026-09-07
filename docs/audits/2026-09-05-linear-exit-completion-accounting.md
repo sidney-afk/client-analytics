@@ -1,3 +1,11 @@
+## G4 occurrence mapping requirement - 2026-09-07 02:37 UTC
+
+OFFLINE_COMPARISON of saved private discovery: 5,934 occurrences represent 1,973 distinct URL hashes: 4,271 issue-description occurrences, 1,338 operational-brief occurrences and 325 normalized-comment-body occurrences. Unique URL hashes are not unique file bytes or independently rescued assets.
+
+SOURCE_ONLY d144 scripts/f34-linear-asset-rescue.js:64-72 binds identity to issue UUID, source kind, source location and URL hash. Locations at :91-143 can include native comment/deliverable IDs and archive JSON paths. An independent provider exporter therefore needs a separately validated source-to-native location crosswalk, preserving one-to-many copies and unknown ownership; it cannot merely emit provider URLs or deduplicate away locations. Do not derive completeness by copying the SyncView discovery set. Keep raw provider collection, occurrence reconciliation, owner certification and asset download/readback as separate proof stages.
+
+PR1327 post-push source independently confirmed exact cbf714c; reviewer did not retrieve the remote PR body under the no-live-read instruction, so no independent body attestation claimed. Next stacked implementation assigned: fixed-host bounded HTTPS adapter and read-only Windows ACL verifier, synthetic/local tests only. No live collection/ACL mutation/certification. Weekly allowance observed50percent remaining; no reset credits or reset action.
+
 ## G4 raw-export foundation published - 2026-09-07 02:24 UTC
 
 Draft PR1327 (https://github.com/sidney-afk/client-analytics/pull/1327) is open/unmerged at cbf714c01712818a02d476f226287be282b4bc39, stacked on candidate d144. Nine tooling/test/docs files, no runtime/EF/SQL/workflow changes. Three global paginated collections avoid per-issue fanout; raw private artifacts are hash-bound; every output remains complete:false. Named exact-source review PASS; coordinator independently reran all37 synthetic controls. Author map506/truth542 pass; no hosted result or full-suite result claimed at publication.

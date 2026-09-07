@@ -213,9 +213,50 @@ function extract(name) {
   ok(!/\balter table\b|\bcreate table\b|\bdrop (table|column|policy)\b/i.test(migration)
     && !/syncview_runtime_flags|prod_authority\s*=|linear_outbound_enabled\s*=/.test(migration),
   'v8 moves no table, column or runtime flag');
-  ok(/SUPERSEDES migrations\/2026-08-26-production-intake-append-v7\.sql/.test(migration)
-    && /v8 note: re-running v7/.test(migration),
-  'v8 names what it supersedes and what rolling back to v7 costs');
+  ok(/SUPERSEDES migrations\/2026-08-26-production-intake-append-v7\.sql/.test(migration),
+    'v8 names what it supersedes');
+
+  /* ---- 8b. THE ROLLBACK BLOCK IS SAFE FROM ITS FIRST LINE ---------------- */
+  /*
+   * Codex raised this twice on #1340, and the second time was because of how
+   * the first fix was written. The correction ("do not re-run v7") had been
+   * APPENDED BELOW a "Re-run v7 ... and redeploy the prior Edge version"
+   * instruction that still stood at the top of the block -- so an operator
+   * reading top-down follows the unsafe path several paragraphs before
+   * reaching the warning. A warning under the fold is not a fix.
+   *
+   * The first assertion here was also vacuous: it searched the WHOLE file for
+   * `DO NOT RE-RUN v7`, which passed happily while the instruction it was
+   * meant to retire sat above it. These read the block itself, and where in
+   * it each thing appears.
+   */
+  const rollbackBlock = migration.slice(migration.indexOf('-- OWNER-ONLY ROLLBACK'));
+  ok(/^-- OWNER-ONLY ROLLBACK: ROLL THE GATEWAY BACK\. DO NOT RE-RUN v7\./m.test(rollbackBlock),
+    'the block states the safe procedure in its own heading, where a reader cannot miss it');
+  ok(!/\bRe-run v7\b/.test(rollbackBlock) && !/\bRe-run v6\b/.test(rollbackBlock),
+    'and carries no surviving imperative to re-run an older RPC version');
+  ok(rollbackBlock.indexOf('Restore `production-write`') < rollbackBlock.indexOf('HISTORY, NOT AN INSTRUCTION')
+    && rollbackBlock.indexOf('Restore `production-write`') < rollbackBlock.indexOf('RE-RUNNING v7'),
+  'the procedure comes FIRST -- before the rationale and before the history, which is what the second finding was about');
+  /* Round four: the scoping swung too far the other way. "Any named child
+     stops the batch" over-states it, because post names are optional and a
+     later unnamed post puts a bare title back on top -- 'Video 1 — Launch'
+     then 'Video 2' has both sides counting 2, so they agree. The condition is
+     the HIGHEST ordinal being held by a named child. An operator told the
+     broader version would expect a far bigger blast radius than this has. */
+  ok(/LEAVE THIS MIGRATION APPLIED/.test(rollbackBlock)
+    && /THE ONE SHAPE THAT STOPS is a batch whose HIGHEST ordinal is carried by a/.test(rollbackBlock)
+    && /IT IS NOT "ANY NAMED CHILD"/.test(rollbackBlock),
+  'it says v8 stays applied, and states the refusal condition as the highest ordinal rather than the mere presence of a name');
+  /* Round three: the block had offered "rename those children" as containment,
+     which no supported surface can carry out -- the same dead end the browser
+     message was corrected for one round earlier. The only actionable route is
+     the gateway, and the block has to say why rather than leave a reader to
+     discover it. */
+  ok(/THE ONLY SUPPORTED WAY TO CLEAR THAT REFUSAL IS TO PUT THE GATEWAY BACK AT/.test(rollbackBlock)
+    && /There is no title writer to rename the children with/.test(rollbackBlock)
+    && /has no title operation at all/.test(rollbackBlock),
+  'and the containment step is the gateway alone, with the reason no rename can stand in for it');
   ok(!/\(\?: — \.\+\)\?/.test(v7),
     'and v7 genuinely lacks the suffix, so the migration is required rather than cosmetic');
 

@@ -13826,6 +13826,46 @@ restored, because re-queuing it is exactly the insert-as-new-row defect this
 exists to avoid; the store is capped at 50 cards per client, and every drop is
 recorded. `peekSxrParkedEdits()` reads it, beside `peekWriteUiQueueDiagnostics()`.
 
+**THE FIFTH PASS FOUND FOUR, THREE OF THEM IN THE PARKING ITSELF** (Codex on
+PR 1342, on `88a35cf`). Two are fixed; two are refused, on the record.
+
+**FIXED. Whose edit it is, kept with it.** Staff identity is shared through
+localStorage, so the account can change before that client is opened again, and
+a restored bucket is flushed with whoever is signed in THEN. A parked status
+edit would have reached the native gateway attributed to somebody who never
+made it. The principal is recorded at park time and compared on the way out; a
+mismatch discards it, records it, and says so.
+
+**FIXED. Newer input wins.** Returning to a client paints from cache first, so
+somebody can be typing in the same card while the background load that triggers
+the restore is still in flight. `Object.assign(pending, parked)` put the older
+value last, overwriting what was just typed and flushing it straight to the
+server. The merge is `Object.assign({}, parked, pending)` now: a field both
+carry keeps the newer value, a field only the parked bucket carries is still
+restored.
+
+**REFUSED, AND THE MESSAGE CORRECTED INSTEAD: durability across a reload.** The
+review is right that the map is in memory and a refresh loses it. What was
+actually wrong was the promise: the notification said the edit "saves itself",
+which a page refresh breaks. It now says the edit is not saved, that opening
+that client again in this tab will save it, and to retype it after a reload.
+Persisting the queue would mean a durable local write store with its own quota
+handling, staleness policy, cross-tab races on one key, and a principal binding
+that has to survive a session, which is a sub-system and not a line. It is not
+built here, and the honest message is what stands in for it.
+
+**REFUSED HERE, BECAUSE IT CANNOT BE VERIFIED FROM THIS SESSION: a nightly
+probe.** The review is right on the house rule and right on the fact: no probe
+in `qa/` drives this control or sends `component_fill` from `surface: sxr`, and
+AGENTS.md wants the harness updated when the road moves. Two things about it.
+The calendar's fill button has had the same gap since it shipped 2026-08-31, so
+this is a standing gap rather than one opened here, and nothing existing goes
+red. And a probe written from this sandbox could not be RUN: there is no route
+to the live backend and no `SYNCVIEW_STAFF_KEY`, so it would first execute at
+06:00 UTC against the live TEST client, which is exactly the unverified push
+AGENTS.md warns about. Recorded as the immediate follow-up, covering both
+surfaces, to be written where it can be run.
+
 **THE CALENDAR TWIN HAS BOTH OF THESE, AND IS LEFT ALONE HERE.**
 `_calFillComponent` reads authority once before its dialog and hands
 `_calFillComponentSubmit` an `identity` argument that function never reads, so a
@@ -13864,8 +13904,9 @@ rollback, the account change, the lapsed verification, the client switch and a
 peer's fill are each proven to stop the write. The fourth pass adds the park round trip end to end: parked
 with the edit intact, refused while the view is elsewhere, restored through the
 engine when that client returns, dropped when the card is gone, capped, and
-silent on an empty bucket. Eighteen checks across the four rounds go red
-against the code that preceded them. A watchdog and an
+silent on an empty bucket. The fifth pass adds the principal
+binding and the merge precedence. Twenty-one checks across the five rounds go
+red against the code that preceded them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.

@@ -171,10 +171,10 @@ const restoreSrc = grabFunc('function _sxrRestoreParkedEdits(');
 function parkHarness(posts) {
   const seen = { diagnostics: [], notified: [], flushed: [] };
   const pending = Object.create(null);
-  const state = { client: 'testclient', posts: posts || [] };
+  const state = { client: 'testclient', posts: posts || [], principal: 'staff:1:admin' };
   const made = new Function(
     '_sxrPendingEdits', '_writeUiQueueDiagnostic', 'showNotify', 'sxrClientSlug', 'sxrState',
-    '_sxrFlushCardSave',
+    '_sxrFlushCardSave', '_writeUiPrincipalKey',
     'const _sxrParkedEdits = Object.create(null); const SXR_PARKED_EDIT_MAX_CARDS = 50;'
     + parkSrc + restoreSrc
     + '; return { park: _sxrParkEditsForClient, restore: _sxrRestoreParkedEdits, parked: _sxrParkedEdits };',
@@ -185,6 +185,7 @@ function parkHarness(posts) {
     () => state.client,
     state,
     pid => { seen.flushed.push({ pid, edits: Object.assign({}, pending[pid]) }); },
+    () => state.principal,
   );
   return { seen, pending, state, ...made };
 }
@@ -198,10 +199,14 @@ function parkChecks() {
   h.park('testclient', 'sr_1');
   ok(h.pending.sr_1 === undefined,
     'the bucket leaves the pending map, so nothing can flush it under another client');
-  ok(h.parked.testclient && h.parked.testclient.sr_1.name === 'typed before the switch',
+  ok(h.parked.testclient && h.parked.testclient.sr_1.edits.name === 'typed before the switch',
     'and it is held against the client and card it was typed on, with the edit intact');
-  ok(h.seen.notified.some(n => /waiting for its client/i.test(n.title)),
-    'and the person is told, because an edit that is safe but unsaved is still not saved');
+  ok(h.parked.testclient.sr_1.principal === 'staff:1:admin',
+    'and with the principal who typed it, because a restored bucket is flushed under whoever is signed in later');
+  ok(h.seen.notified.some(n => /not saved yet/i.test(n.title)),
+    'and the person is told, because an edit that is held but unsaved is still not saved');
+  ok(h.seen.notified.some(n => /reload/i.test(n.message)),
+    'and told accurately: the bucket lives in this tab only, so the message never promises it survives a refresh');
   ok(h.seen.diagnostics.some(row => row.outcome === 'queued_edit_parked_off_client'),
     'and it is recorded for diagnostics');
 
@@ -217,6 +222,34 @@ function parkChecks() {
     'through the normal engine flush, with the edit it was holding, so the status machinery and Linear pushes run as they would have');
   ok(h.parked.testclient === undefined,
     'and the parking slot is emptied rather than left to be replayed twice');
+
+  /* A DIFFERENT ACCOUNT MUST NOT SEND IT. Staff identity is shared through
+     localStorage, and a restored bucket is flushed with whoever is signed in
+     then, so a parked status edit would reach the native gateway attributed to
+     somebody who never made it. */
+  const swappedPark = parkHarness([{ id: 'sr_4' }]);
+  swappedPark.pending.sr_4 = { video_status: 'Approved' };
+  swappedPark.park('testclient', 'sr_4');
+  swappedPark.state.principal = 'staff:2:smm';
+  ok(swappedPark.restore('testclient') === 0 && swappedPark.seen.flushed.length === 0,
+    'a parked edit is not restored under a different signed-in account, so no one is recorded sending an edit they never made');
+  ok(swappedPark.seen.diagnostics.some(row => row.outcome === 'parked_edit_principal_changed')
+    && swappedPark.seen.notified.some(n => /discarded/i.test(n.title)),
+    'and that discard is recorded and said out loud rather than being silent');
+
+  /* NEWER INPUT WINS. Returning to a client paints from cache first, so someone
+     can be typing in this card while the background load that triggers the
+     restore is still in flight. */
+  const newer = parkHarness([{ id: 'sr_5' }]);
+  newer.pending.sr_5 = { name: 'older, typed before the switch', asset_url: 'https://old' };
+  newer.park('testclient', 'sr_5');
+  newer.pending.sr_5 = { name: 'newer, typed after coming back' };
+  ok(newer.restore('testclient') === 1,
+    'a parked edit merges with what is already queued rather than replacing it');
+  ok(newer.seen.flushed[0].edits.name === 'newer, typed after coming back',
+    'and the NEWER value wins on a field they both carry, so a restore cannot silently revert what was just typed');
+  ok(newer.seen.flushed[0].edits.asset_url === 'https://old',
+    'while a field only the parked bucket carries is still restored');
 
   /* A card the load did not return must NOT be re-queued: the engine would
      insert it as a new row, which is the defect parking exists to avoid. */

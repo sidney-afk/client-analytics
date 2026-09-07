@@ -64463,13 +64463,25 @@
                 { kind: 'component_fill' }, { code: 'parked_edit_cap' });
             return;
         }
-        forClient[pid] = Object.assign(forClient[pid] || {}, edits);
+        /* WHOSE EDIT IT IS, kept with it (Codex P1 on PR 1342, fifth pass).
+           Staff identity is shared through localStorage, so the account can
+           change before that client is opened again -- and a restored bucket is
+           flushed with whoever is signed in THEN. A parked status edit would go
+           through the native gateway attributed to somebody who never made it.
+           The principal is recorded here and compared on the way out. */
+        const previous = forClient[pid];
+        forClient[pid] = {
+            principal: _writeUiPrincipalKey(),
+            edits: Object.assign({}, previous && previous.edits, edits)
+        };
         _writeUiQueueDiagnostic('sxr', 'queued_edit_parked_off_client',
             { kind: 'component_fill' }, { code: 'client_changed_during_fill' });
-        /* SAID OUT LOUD. The edit is safe but it is not saved yet, and a person
-           who typed something and switched tabs has no other way to learn that. */
-        showNotify('That edit is waiting for its client',
-            'A change you typed could not be saved while the client changed, so nothing was written to the wrong one. Open ' + key + ' again and it saves itself.');
+        /* SAID OUT LOUD, AND SAID ACCURATELY. The edit is held in this tab and
+           nowhere else: it does not survive a reload, and promising that it
+           "saves itself" would be a promise a page refresh breaks (Codex P1,
+           fifth pass). So it says what is true and what to do about it. */
+        showNotify('That edit is not saved yet',
+            'A change you typed could not be saved while the client changed, so nothing was written to the wrong one. Open ' + key + ' again in this tab and it will save. If you reload first, retype it.');
     }
     /* Called after a successful load for `slug`, where `sxrState` finally
        describes the client these edits belong to. A card the load did not
@@ -64481,14 +64493,32 @@
         if (!forClient) return 0;
         if (sxrClientSlug(sxrState.client) !== key) return 0;
         let restored = 0;
+        const principalNow = _writeUiPrincipalKey();
         for (const pid of Object.keys(forClient)) {
+            const entry = forClient[pid] || {};
             if (!(sxrState.posts || []).some(post => post && post.id === pid)) {
                 delete forClient[pid];
                 _writeUiQueueDiagnostic('sxr', 'parked_edit_card_gone',
                     { kind: 'component_fill' }, { code: 'card_absent_on_restore' });
                 continue;
             }
-            _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, forClient[pid]);
+            // Not this person's edit to send. Dropped rather than replayed under
+            // a principal that never typed it, and said out loud.
+            if (!principalNow || entry.principal !== principalNow) {
+                delete forClient[pid];
+                _writeUiQueueDiagnostic('sxr', 'parked_edit_principal_changed',
+                    { kind: 'component_fill' }, { code: 'principal_changed_before_restore' });
+                showNotify('An unsaved edit was discarded',
+                    'A change typed here before the signed-in account changed was not saved, because it is not this account\u2019s to send. Nothing was written.');
+                continue;
+            }
+            /* NEWER INPUT WINS (Codex P1 on PR 1342, fifth pass). Returning to a
+               client paints from cache first, so somebody can be typing in this
+               very card while the background load that triggers this restore is
+               still in flight. Assigning the parked bucket LAST would overwrite
+               what they just typed and flush the older value straight to the
+               server. */
+            _sxrPendingEdits[pid] = Object.assign({}, entry.edits, _sxrPendingEdits[pid] || {});
             delete forClient[pid];
             restored += 1;
             _sxrFlushCardSave(pid);

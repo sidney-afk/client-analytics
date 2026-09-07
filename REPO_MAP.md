@@ -5,6 +5,8 @@ counterexamples and checks native recovery before optional cohort routing.
 `docs/ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md` maps the remaining F44 and card
 adapter contracts; installed compatibility and complete G6 remain held.
 
+Retained Workload cutoff adapter: `test/workload-linear-cutoff.js` exercises the actual staff handler with modeled provider/control boundaries; `docs/audits/2026-09-07-workload-cutoff.md` records exact-base counterexamples, 58 checks, the existing SQL dependency, CON/STR continuity and old-isolate/in-flight limits.
+
 Calendar/Samples live-click refusal retention: `docs/audits/2026-09-07-intake-live-refusal-retention.md` records the exact-base unknown-request deletion and its bounded locked hold correction, using the expanded `test/native-intake-retained-refusals.js`. Sign-out and server durability remain unchanged and held.
 
 Legacy card outcome uncertainty: `test/legacy-card-outcome-uncertainty.js` runs actual browser-source/model-receiver controls with preserved base duplicate/overwrite payload failures. `docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md` and `docs/audits/2026-09-06-legacy-card-outcome-uncertainty.json` pin verified write-ahead fragments, current-record checks, uncertainty holds and no server/actor/durable-backup claim. The next v1 entry describes its earlier checkpoint.

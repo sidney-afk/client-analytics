@@ -146,9 +146,10 @@ ok(/metadataSuccessReceipt\([\s\S]{0,180}metadata\.missingIssueIds,[\s\S]{0,80}m
 const mutationAt = EDGE.indexOf('mutation WorkloadLinearSetDueDate');
 const targetCallAt = EDGE.indexOf('const target = await requireWritableSubIssue(db, issueId, client)');
 const teamQueryAt = EDGE.indexOf('query WorkloadLinearIssueTeam');
-const teamCallAt = EDGE.indexOf('const currentTeam = await requireCurrentLinearTeam(issueId, target.team)');
+const earlyAuthorityCallAt = EDGE.indexOf('await requireLinearAuthority(db, target.team)');
+const teamCallAt = EDGE.indexOf('const currentTeam = await requireCurrentLinearTeam(db, issueId, target.team)');
 const authorityCallAt = EDGE.indexOf('await requireLinearAuthority(db, currentTeam)');
-const mutationCallAt = EDGE.indexOf('const committed = await setLinearDueDate(issueId, dueDate)');
+const mutationCallAt = EDGE.indexOf('const committed = await setLinearDueDate(db, issueId, dueDate)');
 const commitAt = EDGE.indexOf('linearCommitted = true');
 const mirrorCallAt = EDGE.indexOf('mirrorUpdated = await updateMirrorAfterCommit');
 ok(mutationAt >= 0
@@ -164,13 +165,14 @@ ok(teamQueryAt >= 0
   && /issue\(id: \$id\) \{ id team \{ key name \} \}/.test(EDGE)
   && /linearIssueTeamDecision\([\s\S]{0,100}result\.data\.issue,[\s\S]{0,80}mirroredTeam/.test(EDGE)
   && /issue_team_changed/.test(POLICY)
-  && teamCallAt > targetCallAt
+  && earlyAuthorityCallAt > targetCallAt
+  && teamCallAt > earlyAuthorityCallAt
   && authorityCallAt > teamCallAt
   && mutationCallAt > authorityCallAt
   && /\.from\("syncview_runtime_flags"\)[\s\S]{0,120}\.select\("value"\)[\s\S]{0,80}\.eq\("key", "prod_authority"\)[\s\S]{0,80}\.maybeSingle\(\)/.test(EDGE)
   && /linearAuthorityDecision\([\s\S]{0,100}team/.test(EDGE)
   && /team_is_syncview_authoritative/.test(POLICY),
- 'set_due_date resolves and validates the current Linear team before choosing its exact current authority and mutating');
+ 'set_due_date refuses native authority before provider lookup, then validates the current Linear team and rechecks authority before mutating');
 ok(commitAt > mutationAt && mirrorCallAt > commitAt
   && /async function updateMirrorAfterCommit[\s\S]*?catch \(_error\) \{[\s\S]*?return 0;/.test(EDGE)
   && /return json\(dueDateSuccessReceipt\(/.test(EDGE),

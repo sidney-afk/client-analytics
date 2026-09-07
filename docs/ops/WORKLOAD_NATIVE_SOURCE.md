@@ -1,5 +1,13 @@
 # Workload native membership — implementation and retained scope
 
+**Sept7 retained-endpoint containment, SOURCE_ONLY:** the old
+`workload-linear` provider transport now requires the existing G8 cutoff
+control for each metadata batch/team read/deadline write, and native-authority
+deadline calls refuse before contacting the provider. Open-control CON/STR
+metadata remains supported. [Bounded evidence and deployment/recovery prerequisites](../audits/2026-09-07-workload-cutoff.md)
+do not close G5, supply CON/STR native replacement, cancel pre-admitted work,
+or prove installed/old-isolate containment.
+
 ## 2026-09-05 candidate: native default and compatible saved plans
 
 **SOURCE_ONLY; not deployed, not G5 closed.** Base is remote main

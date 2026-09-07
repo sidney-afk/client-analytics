@@ -1,5 +1,9 @@
 # SyncView Independence Execution Log
 
+## 2026-09-07 - Retained Workload cutoff adapter, uninstalled
+
+Exact b60 handler controls reproduce closed-cutoff metadata egress and provider team reads before native-authority refusal. The sole provider transport now observes the existing G8 control before every request; metadata propagates the held/retired response and the writer prechecks native authority while retaining its post-lookup check.58 actual-handler/model-boundary checks plus existing Workload source/policy/browser checks pass. [Evidence and release/recovery limits](docs/audits/2026-09-07-workload-cutoff.md) retain CON/STR, pre-admitted requests, old isolates and installed-control prerequisites. No live actions or G8 promotion.
+
 ## 2026-09-06 - Legacy v1 uncertain-attempt retention, uninstalled
 
 The actual base9e browser writer with a modeled accepting receiver reproduces duplicate retry IDs and initial-caption overwrite. The correction preserves exact write-ahead card fragments and stops automatic replay of unconfirmed/old attempted jobs, including after authority reversal. Verified storage, Web Locks and expected-record comparisons conserve concurrent replacements; missing locks fail closed. New23 source/model groups and focused existing suites pass; no server/trigger/browser/serving proof or G6 closure. [Evidence and rollback limits](docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md) preserve the distinction between registration failure and a later background acknowledgement-checkpoint failure. The next entry is the earlier retention checkpoint.

@@ -1,5 +1,14 @@
 # Bounded Linear outbound cutoff prerequisite (G8)
 
+**Sept7 staged Workload adapter, SOURCE_ONLY:** retained/direct
+`workload-linear` calls now observe this existing control immediately before
+each provider fetch, refuse closed/missing/malformed control, and refuse native
+deadline authority before provider team lookup. Open CON/STR metadata remains
+compatible. [Exact source/model evidence and release holds](../audits/2026-09-07-workload-cutoff.md)
+include 58 checks and pre-admitted in-flight completion. This is a control
+observation, not the outbox's durable authorization or global egress proof;
+installation, old isolates, CON/STR continuity and other roots remain held.
+
 **Sept6 source follow-up:** the ordinary worker now authorizes every provider read and mutation at its single transport boundary, and an empty queue never resolves the provider viewer. Exact evidence and limits: [read cutoff correction](../audits/2026-09-06-outbound-read-cutoff.md), 34 actual handler/SQL groups plus 33 offline checks. This supersedes the historical read-path gap below only for the new source. Old deployed isolates can still read and must quiesce; a grant preceding cutoff remains in flight. Installation, serving and global G8 remain held. The retained sections below describe the earlier SQL/mutation prerequisite and its dated proofs.
 
 **Status (2026-09-06): 13 actual disposable PostgreSQL/gateway/worker-helper groups and 12 offline controls pass after independent correction. NOT installed, enabled, deployed, or global G8 proof.**

@@ -4,6 +4,8 @@ Saved native Submit falls back to legacy / remaining F44 and n8n card exit work
 → [owned routing and exact legacy adapter contract](ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md).
 Bounded source correction; original identities and offered ordinary writes retained.
 
+Old/direct Workload provider requests after cutoff → [staged endpoint admission](audits/2026-09-07-workload-cutoff.md). Existing G8 control is required at every provider fetch; installation, CON/STR continuity and in-flight/old-isolate proof remain held.
+
 Legacy card accepted but response lost / duplicate retry / caption overwrite → [uncertain-attempt retention](audits/2026-09-06-legacy-card-outcome-uncertainty.md). Actual browser-source/model receiver proof; exact fragments held without automatic replay or inferred native identity. Serving, actorless recovery and old bundles remain held.
 
 Old Calendar submission queue disappears after authority change or expiry → [v1 retention boundary](audits/2026-09-06-legacy-calendar-job-retention.md). No inferred native identity, durable quarantine or automatic recovery.

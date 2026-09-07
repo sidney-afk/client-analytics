@@ -6277,13 +6277,22 @@ ordinal, an unnamed append is unchanged, a wrong ordinal and a bare trailing
 separator both still raise `invalid_intake_append_order`, and the same named
 call against v7 is refused.
 
-Browser half live on merge. Gateway half re-pinned `production-write` to
-`ccbdd136…` (file count 5, entrypoint unchanged) and shipped the same day as
-v69 — see the deploy receipt at the end of this file. The three-step order held:
-migration, then gateway, then the browser (which was already live and cannot
-wait for either, which is why Create Post compares the names it asked for
-against the titles that came back and says so in the notification when a name
-did not land). All three are now in place, so a typed name reaches the row.
+**The real order, which is not the order the plan wanted** (Codex P2 on #1340,
+against an earlier draft of this paragraph that claimed migration → gateway →
+browser and then said the browser was already live, which cannot both be true).
+The BROWSER shipped first, on merge, because `index.html` goes out via Pages and
+cannot wait for anything; then the migration was applied; then the gateway
+deployed as v69. The safety-critical ordering is the one that did hold and is
+the only one that had to: **the migration preceded the gateway.** Reverse those
+two and every append raises `invalid_intake_append_order`, because a gateway
+composing named titles in front of a v7 function is refused by it.
+
+The browser being early is safe by construction rather than by luck: between
+merge and the gateway deploy a typed name was simply ignored by the old
+gateway, and Create Post compares the names it asked for against the titles
+that came back and says so in the notification when one did not land. That
+window is now closed — all three layers are in place, so a typed name reaches
+the row.
 
 ## 2026-09-05 — the asset grid stops blinking; the gateway reuses a verdict it already holds
 

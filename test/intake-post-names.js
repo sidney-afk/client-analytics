@@ -214,8 +214,13 @@ function extract(name) {
     && !/syncview_runtime_flags|prod_authority\s*=|linear_outbound_enabled\s*=/.test(migration),
   'v8 moves no table, column or runtime flag');
   ok(/SUPERSEDES migrations\/2026-08-26-production-intake-append-v7\.sql/.test(migration)
-    && /v8 note: re-running v7/.test(migration),
-  'v8 names what it supersedes and what rolling back to v7 costs');
+    /* The note must keep saying that re-running v7 is the UNSAFE direction
+       once a named row exists -- it fails silently (v7 and a v68 gateway agree
+       on an ordinal a named row already holds), where keeping v8 fails closed.
+       Codex P1 on #1340 corrected the opposite advice. */
+    && /DO NOT RE-RUN v7/.test(migration)
+    && /roll the GATEWAY back to v68 and\n-- leave v8 in place/.test(migration),
+  'v8 names what it supersedes, and its rollback note points at the gateway rather than at v7');
   ok(!/\(\?: — \.\+\)\?/.test(v7),
     'and v7 genuinely lacks the suffix, so the migration is required rather than cosmetic');
 

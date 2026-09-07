@@ -568,11 +568,20 @@ commit;
 -- two SMMs on 2026-08-26 as batches "not appearing in the list". A rollback
 -- that reintroduces a defect the owner already had fixed is not a rollback.
 --
--- v8 note: re-running v7 makes this function refuse a NAMED append again, so
--- roll the gateway back with it. Rows already written with named titles are
--- untouched and stay correct -- v7 reads the ordinal out of a bare numbered
--- title only, so a batch that already holds a named child would renumber from
--- the highest BARE title in it. Check that batch before appending to it again.
+-- v8 note, CORRECTED 2026-09-07 after this file was applied and deployed
+-- (Codex P1 on #1340; the correction is a comment, nothing executable moved).
+-- The paragraph above is the rollback for a v8 that has never written a named
+-- row. ONCE ONE EXISTS, DO NOT RE-RUN v7: roll the GATEWAY back to v68 and
+-- leave v8 in place. v8 still accepts the bare `Video N` titles a v68 gateway
+-- composes, so it is backward compatible; v7 is not merely stricter, it is
+-- WRONG in the silent direction. v7 and a v68 gateway both read the next
+-- ordinal from BARE titles only, so on a batch holding 'Video 4 — Launch hook'
+-- they agree on 4 and write a second 'Video 4' with no error. Keeping v8 fails
+-- CLOSED on the same batch instead -- v8 counts the named row, expects 5, and
+-- refuses the gateway's 4 with invalid_intake_append_order -- which is the
+-- direction a rollback should fail in. Containment for such a batch: restore
+-- the gateway to v69, or rename its named children to their bare form. Batches
+-- with no named rows append normally under either combination.
 --
 -- The drop block that shipped with earlier versions is deliberately NOT carried
 -- forward here: dropping `production_intake_append` while a deployed

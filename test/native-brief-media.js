@@ -136,6 +136,26 @@ async function check(name, fn) { await fn(); groups++; console.log('PASS ' + nam
       assert(!rendered.includes('<img')); assert(!rendered.includes('uploads.linear.app')); assert(rendered.includes('Download original'));
     }
   });
+  await check('one exact owner-deferred Posted reference preserves other images and original text; mismatches remain held', async () => {
+    const url = 'https://uploads.linear.app/synthetic/older.mov', value = brief + '\n![Older file](' + url + ')';
+    const disposition = { contract: 'native_brief_owner_deferred_v1', id: row.id, client_slug: row.client_slug, team: row.team,
+      original_url_sha256: await media.briefMediaHash(url), content_sha256: 'c'.repeat(64), byte_length: 900000000,
+      owner_receipt_sha256: 'd'.repeat(64), source_status: 'posted' };
+    const prepare = () => { reset(); tables.deliverables[0].brief = value; tables.deliverables[0].status = 'posted';
+      tables.syncview_runtime_flags[0].value.owner_deferred_references = [structuredClone(disposition)]; };
+    prepare(); const r = await call(); assert.equal(r.body.row.brief, value); assert.equal(r.body.media.complete, true);
+    assert.equal(r.body.media.deferred, 1); assert.equal(r.body.media.copied, 2); assert.equal(signed, 2);
+    const rendered = ctx._prodDescriptionHTML(r.body.media.render_brief, true, '', true);
+    assert.equal((rendered.match(/<img /g) || []).length, 2); assert(!rendered.includes('uploads.linear.app'));
+    assert(rendered.includes('This older file has not been restored here yet.'));
+    for (const alter of [() => { tables.deliverables[0].status = 'In Progress'; },
+      () => { tables.syncview_runtime_flags[0].value.owner_deferred_references[0].owner_receipt_sha256 = ''; },
+      () => { tables.syncview_runtime_flags[0].value.owner_deferred_references[0].id = 'other'; },
+      () => { tables.syncview_runtime_flags[0].value.owner_deferred_references.push(disposition); },
+      () => { tables.syncview_runtime_flags[0].value.owner_deferred_references = []; }]) {
+      prepare(); alter(); assert.equal((await call()).body.media.complete, false);
+    }
+  });
   await check('existing large raster decodes; new upload ceiling remains; typed PDF SVG video admit download-only and malformed files refuse', async () => {
     const generation = `import sys,random,io,fitz,av\nfrom PIL import Image\np=sys.argv[1]\nImage.frombytes('RGB',(1200,1200),random.Random(7).randbytes(1200*1200*3)).save(p+'/large.png')\nd=fitz.open(); d.new_page(); d.save(p+'/sample.pdf'); d.close()\nwith av.open(p+'/sample.mp4','w') as c:\n s=c.add_stream('mpeg4',rate=1); s.width=16; s.height=16; s.pix_fmt='yuv420p'\n for packet in s.encode(av.VideoFrame.from_image(Image.new('RGB',(16,16)))): c.mux(packet)\n for packet in s.encode(): c.mux(packet)\n`;
     execFileSync(process.env.NATIVE_BRIEF_MEDIA_PYTHON || 'python', ['-c', generation, temp], { windowsHide: true });
@@ -154,6 +174,8 @@ async function check(name, fn) { await fn(); groups++; console.log('PASS ' + nam
       ['application/pdf', Buffer.from('%PDF-1.7\nnot a PDF\n%%EOF')], ['image/svg+xml', Buffer.from('<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///private">]><svg>&x;</svg>')],
       ['image/svg+xml', Buffer.from('<html/>')], ['video/mp4', Buffer.from('0000ftypbroken')]]) await assert.rejects(() => pkg.verifyExistingMedia(mime, bytes));
     await assert.rejects(() => pkg.verifyExistingMedia('image/png', Buffer.alloc(52428801)));
+    const boundary = `import importlib.util,sys,socket,subprocess\nspec=importlib.util.spec_from_file_location('media',sys.argv[1]); m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\nfor op in [lambda:socket.socket(),lambda:subprocess.run(['never-launch']),lambda:m.refuse_external_io('https://refused.invalid'),lambda:m.refuse_external_io('file:///private')]:\n try: op()\n except RuntimeError: pass\n else: raise RuntimeError('offline boundary failed')\nprint('offline guards passed')`;
+    assert(execFileSync(process.env.NATIVE_BRIEF_MEDIA_PYTHON || 'python', ['-B', '-c', boundary, path.join(root, 'scripts/native-brief-media-validate.py')], { windowsHide: true }).toString().includes('offline guards passed'));
   });
   await check('local source receipt -> byte-checked private staging -> object reconstruction; corrupt bytes refuse', async () => {
     const image = path.join(temp, 'source.png'); fs.writeFileSync(image, png);

@@ -57516,13 +57516,14 @@
             const privateRef = /^https?:\/\/uploads\.linear\.app\//i.test(u) && !(previews && previews.allowOriginal);
             const copy = privateRef && previews && previews.get(u);
             return '<a' + (privateRef ? ' data-md-original-link="' + u + '"' : '')
-              + (privateRef && !copy ? '' : ' href="' + (copy ? copy.url : u) + '"')
+              + (privateRef && (!copy || copy.display === 'deferred') ? '' : ' href="' + (copy ? copy.url : u) + '"')
               + ' data-md="' + form + '" target="_blank" rel="noopener noreferrer">' + (form === 'bare' ? u : label(l)) + '</a>';
           };
           const image = (l, u, form) => {
             if (/^https?:\/\/uploads\.linear\.app\//i.test(u) && !(previews && previews.allowOriginal)) {
               const copy = previews && previews.get(u);
               const original = ' data-md-private-image="1" data-md-original-src="' + u + '" data-md-alt="' + l + '" data-md="' + form + '"';
+              if (copy && copy.display === 'deferred') return '<span' + original + ' contenteditable="false">This older file has not been restored here yet.</span>';
               if (copy && copy.display === 'download') return '<span' + original + ' contenteditable="false"><a href="' + copy.url + '" target="_blank" rel="noopener noreferrer">Download original file: ' + l + '</a></span>';
               return copy ? '<img class="prod-desc-image" src="' + copy.url + '" alt="' + l + '"' + original + ' loading="lazy" decoding="async" referrerpolicy="no-referrer">'
                 : '<span' + original + ' contenteditable="false">Image preview unavailable (original preserved)</span>';

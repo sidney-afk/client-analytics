@@ -5,6 +5,18 @@ import sys
 import warnings
 
 
+def offline_audit(event, _args):
+    if event.startswith(('socket.', 'subprocess.', 'os.exec', 'os.spawn')) or event in ('os.system', 'os.posix_spawn'):
+        raise RuntimeError('offline_external_operation_refused')
+
+
+sys.addaudithook(offline_audit)
+
+
+def refuse_external_io(*_args, **_kwargs):
+    raise RuntimeError('offline_external_media_reference_refused')
+
+
 def validate(data, mime):
     if not 0 < len(data) <= 50 * 1024 * 1024:
         raise ValueError('size')
@@ -13,12 +25,12 @@ def validate(data, mime):
         Image.MAX_IMAGE_PIXELS = 100_000_000
         warnings.simplefilter('error', Image.DecompressionBombWarning)
         expected = {'image/png': 'PNG', 'image/jpeg': 'JPEG', 'image/gif': 'GIF', 'image/webp': 'WEBP'}[mime]
-        with Image.open(io.BytesIO(data)) as image:
+        with Image.open(io.BytesIO(data), formats=[expected]) as image:
             if image.format != expected:
                 raise ValueError('format')
             image.verify()
         # Decode every frame, preserving the original bytes (no lossy conversion).
-        with Image.open(io.BytesIO(data)) as image:
+        with Image.open(io.BytesIO(data), formats=[expected]) as image:
             frames = getattr(image, 'n_frames', 1)
             if frames > 1000:
                 raise ValueError('frames')
@@ -54,7 +66,8 @@ def validate(data, mime):
         import av
         if len(data) < 12 or data[4:8] != b'ftyp':
             raise ValueError('video container')
-        with av.open(io.BytesIO(data), format='mov') as video:
+        with av.open(io.BytesIO(data), format='mov', io_open=refuse_external_io,
+                     options={'protocol_whitelist': '', 'enable_drefs': '0', 'use_absolute_path': '0'}) as video:
             if not video.streams.video:
                 raise ValueError('video stream')
             # Parse the container and all local packets; decode one video frame.

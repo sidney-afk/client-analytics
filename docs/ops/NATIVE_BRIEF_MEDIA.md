@@ -165,6 +165,49 @@ This is sample evidence, not validation of all current occurrences. Full require
 coverage remains held, including one separately identified over-50-MiB original;
 the global Storage ceiling is not changed by this preparation.
 
+The owner subsequently deferred website restoration of exactly one older posted
+reference video while retaining its complete private original. This is recorded
+as a private `native_brief_owner_deferred_v1` disposition in the existing
+`native_brief_media` flag's `owner_deferred_references` array, bound to exact
+deliverable/client/team, original URL hash, content hash, byte length and hashed
+owner receipt. `source_status` is canonical lowercase `posted`; the reader
+normalizes the current database status and rechecks the full row after signing.
+No generic historical-file exception exists. Missing/duplicate/malformed records,
+changed ownership/status, or a different original URL remain held.
+
+The read projection shows “This older file has not been restored here yet.”
+without a provider request or delivery promise; every other required reference
+must still resolve. The response reports `deferred` separately from `copied`.
+`complete` means the current required projection is available with its explicit
+owner-deferred notice; it does not mean that deferred bytes are hosted. Rich
+editing preserves the original URL/Markdown. The deferred file's private copy
+and owner receipt remain separate custody, and the existing runtime-flag recovery
+owner must retain the disposition byte-for-byte. The SQL schema is unchanged.
+
+Offline boundary: the validator refuses Python socket/subprocess operations,
+restricts raster decoders to the declared allowlisted format, disables MOV
+external data references and absolute paths, uses an empty FFmpeg protocol
+whitelist and refuses every secondary `io_open`. PDF is parsed from memory only,
+never rendered or scripted; SVG has entity/DTD/external expansion disabled and
+is never rendered. These application-level controls are not an OS sandbox or a
+claim that third-party native parsers are vulnerability-free. Focused checks
+exercise denied socket/process/secondary-file and URL opens; synthetic SVG links
+and scripts are retained as download-only bytes without execution.
+
+Final local corpus check: all **1166** already acquired in-cap URL files passed
+the final validator in 24 bounded batches, covering **1141** content hashes and
+**2463560336 bytes**. Display classification: **1154 inline raster**, **12
+download-only**; **0 validation failures**. The separately preserved over-cap
+video remains explicitly owner-deferred. Each file was rechecked against its
+captured content hash and size; no downloads or uploads occurred in this check.
+Private aggregate receipt SHA-256:
+`883ce0bdce33ae492e92a2a290d519e5319230e706bc3e94b95bdeae1399f752`.
+It pins all 24 batch receipts and validator bytes. This validates local source
+files, not occurrence admission, private Storage headers/access or live delivery.
+The final focused handler/model plus browser-save suite passed **33 groups**;
+the separate browser fragment preserves deferred originals without a link/image
+request. SQL was not rerun because this correction changes no migration.
+
 Staging emits only `pending` proposals; these are **not installed ledger rows**.
 After separately authorized private upload, capture an independent object GET
 readback and fresh native scope as `native_brief_media_storage_readback_v1`:

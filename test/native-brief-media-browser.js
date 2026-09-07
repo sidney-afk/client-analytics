@@ -45,6 +45,14 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     });
     assert.equal(download.original, await page.evaluate(() => original)); assert.equal(download.images, 0);
     assert(download.href.includes('download=original.svg')); assert(download.text.includes('Download original file'));
+    const deferred = await page.evaluate(() => {
+      state.briefMedia.images[0].display = 'deferred'; state.briefMedia.images[0].url = null;
+      const root = document.getElementById('editor'); root.innerHTML = _prodDescRichBuild(original, _prodBriefMediaPreviews(state));
+      _prodDescRichNormalize(root);
+      return { original: _prodDescRichSerialize(root), images: root.querySelectorAll('img,a[href]').length, text: root.textContent };
+    });
+    assert.equal(deferred.original, await page.evaluate(() => original)); assert.equal(deferred.images, 0);
+    assert(deferred.text.includes('This older file has not been restored here yet.'));
     const expired = await page.evaluate(() => {
       state.briefMedia.expires_at = '2000-01-01T00:00:00Z';
       const root = document.getElementById('editor'); root.innerHTML = _prodDescRichBuild(original, _prodBriefMediaPreviews(state));

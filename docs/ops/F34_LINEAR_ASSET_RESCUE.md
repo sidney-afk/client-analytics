@@ -2,6 +2,8 @@
 
 ## Status and authority
 
+**September6 source foundation:** [independent raw collection tooling](LINEAR_RAW_EXPORT_FOUNDATION.md) now provides fixed injected read queries and private, hash-bound response pages. It makes no live calls by itself, always marks the export incomplete and produces neither occurrences nor HMAC certification. Actual transport/ACL verification, complete source coverage and the final independent occurrence adapter remain held. Its raw manifest cannot satisfy the certified v3 inventory contract below.
+
 This is the operator contract for the source-only F34 rescue path. The migration,
 Edge Function deploy, rescue configuration, discovery, copy, disposition, and
 retrieval drill are **not authorized by this source session**. They require a

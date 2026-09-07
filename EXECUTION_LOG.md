@@ -1,5 +1,9 @@
 # SyncView Independence Execution Log
 
+## 2026-09-06 - G4 raw export foundation, source only
+
+Added injected read-only GraphQL query traversal for organization, archived-requested issues, comments and selected attachment metadata. Thirty-seven synthetic controls pass; raw bytes and partial failures remain in private hash-addressed artifacts, always incomplete and uncertified. Independent review caught Windows boolean-only privacy admission; absent/malformed/root-mismatched verifier evidence now refuses before output/transport. Real ACL checker, live transport/schema/scope and the source-to-occurrence adapter remain held. [Owning contract](docs/ops/LINEAR_RAW_EXPORT_FOUNDATION.md). No app/EF/SQL/workflow, live/provider or asset-rescue action.
+
 ## 2026-09-06 - Legacy v1 uncertain-attempt retention, uninstalled
 
 The actual base9e browser writer with a modeled accepting receiver reproduces duplicate retry IDs and initial-caption overwrite. The correction preserves exact write-ahead card fragments and stops automatic replay of unconfirmed/old attempted jobs, including after authority reversal. Verified storage, Web Locks and expected-record comparisons conserve concurrent replacements; missing locks fail closed. New23 source/model groups and focused existing suites pass; no server/trigger/browser/serving proof or G6 closure. [Evidence and rollback limits](docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md) preserve the distinction between registration failure and a later background acknowledgement-checkpoint failure. The next entry is the earlier retention checkpoint.

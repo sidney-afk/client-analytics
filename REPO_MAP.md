@@ -1,5 +1,7 @@
 # Repo map
 
+Independent raw Linear export foundation: `scripts/linear-raw-export.js` offers injected fixed read queries, bounded private raw-response collection and an always-incomplete hash-addressed manifest. `test/linear-raw-export.js` provides synthetic pagination/privacy/limits controls. `docs/ops/LINEAR_RAW_EXPORT_FOUNDATION.md` and `docs/audits/2026-09-06-linear-raw-export-foundation.json` record exact scope and held real transport/ACL/occurrence/certification prerequisites; no product runtime or certified inventory changes.
+
 Legacy card outcome uncertainty: `test/legacy-card-outcome-uncertainty.js` runs actual browser-source/model-receiver controls with preserved base duplicate/overwrite payload failures. `docs/audits/2026-09-06-legacy-card-outcome-uncertainty.md` and `docs/audits/2026-09-06-legacy-card-outcome-uncertainty.json` pin verified write-ahead fragments, current-record checks, uncertainty holds and no server/actor/durable-backup claim. The next v1 entry describes its earlier checkpoint.
 
 Legacy Calendar v1 retention: `test/legacy-calendar-job-retention.js` executes actual queue functions with four pinned deletion controls; `docs/audits/2026-09-06-legacy-calendar-job-retention.md` records unchanged provider eligibility, retained fragments, authority-reversal risk and no durable-quarantine claim.

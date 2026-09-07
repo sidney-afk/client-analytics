@@ -4,7 +4,8 @@ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8'),{extract
 const names=['_calUrgentSlackDispatch','_calSendUrgentSlack','_sxrSendUrgentSlack','_sxrKasperSendUrgentSlack','_kasperSendUrgentSlack','_calShowUrgent','_sxrShowUrgent','_writeUiComponentHasWorkItem','_writeUiNativeId','_syncviewEfHeaders'];
 const gatewayDeclaration=html.match(/^\s*const WRITE_UI_PRODUCTION_WRITE_URL = [^;]+;/m);
 assert.ok(gatewayDeclaration, 'actual shared gateway URL declaration exists');
-const source=gatewayDeclaration[0]+'\n'+names.map(n=>extractFunction(html,n)).join('\n'),round='2030-01-01T00:00:00.000Z';let passed=0;
+const failureTables=html.slice(html.indexOf('const WRITE_UI_FAILURE_CLASS_TEXT'),html.indexOf('function _writeUiReportFailure('));
+const source=gatewayDeclaration[0]+'\n'+failureTables+'\n'+names.map(n=>extractFunction(html,n)).join('\n'),round='2030-01-01T00:00:00.000Z';let passed=0;
 function world(surface='calendar',store=new Map()){
  const post={id:'card-1',video_deliverable_id:'native-video-1',video_status:'Tweaks Needed',video_status_at:round,name:'Synthetic card'},sent=[],persisted=[],notices=[],confirms=[];
  const button=()=>({disabled:false,textContent:'URGENT',dataset:{},classList:{add(){}}});
@@ -27,6 +28,13 @@ async function check(label,fn){await fn();passed++;console.log('PASS '+label);}
   await check(surface+' legacy webhook never receives staff credentials',async()=>{const w=world(surface);delete w.post.video_deliverable_id;w.post.linear_issue_id='https://linear.invalid/issue/1';w.ctx.reply={ok:true,editor:'Synthetic editor'};w.click();await w.confirm();assert.equal(w.sent[0].url,w.ctx.URGENT_SLACK_URL);assert.deepEqual(Object.keys(w.sent[0].options.headers),['Content-Type']);assert.equal(w.sent[0].body.issue,w.post.linear_issue_id);assert.equal(w.persisted.length,1);});
  }
  for(const scenario of ['lost','invalid_json','ok_without_sent','sent_missing_receipt','unknown'])await check(scenario+' holds without Sent, persistence or retry after reload',async()=>{const w=world(),b=w.click();if(scenario==='lost')w.ctx.lost=true;if(scenario==='invalid_json')w.ctx.invalidJson=true;if(scenario==='ok_without_sent')w.ctx.reply={ok:true};if(scenario==='sent_missing_receipt')w.ctx.reply={ok:true,delivery:'sent'};if(scenario==='unknown'){w.ctx.status=502;w.ctx.reply={ok:false,delivery:'unknown',retry_safe:false};}await w.confirm();assert.equal(w.sent.length,1);assert.equal(w.persisted.length,0);assert.equal(b.textContent,'Check delivery');assert.notEqual(b.dataset.urgentSent,'1');const reload=world('calendar',w.store);reload.click();assert.equal(reload.confirms.length,0);assert.equal(reload.sent.length,0);assert.match(reload.notices[0][1],/manually/);});
+ for(const surface of ['calendar','samples','samples_queue','calendar_queue'])await check(surface+' deterministic urgent refusals show actionable guidance without blanket retry',async()=>{
+  for(const code of ['invalid_urgent_request','native_urgent_not_configured','urgent_assignment_unavailable','urgent_context_unavailable','urgent_editor_unavailable','urgent_round_unavailable','urgent_target_changed']){
+   const w=world(surface),b=w.click();w.ctx.status=409;w.ctx.reply={ok:false,delivery:'not_sent',retry_safe:true,error:code};await w.confirm();
+   assert.equal(w.sent.length,1);assert.equal(w.persisted.length,0);assert.equal(w.store.size,0);assert.equal(b.disabled,false);
+   assert.match(w.notices[0][1],new RegExp('code: '+code));assert.doesNotMatch(w.notices[0][1],/try again|trying again/i);
+  }
+ });
  for(const storage of ['readFailure','writeFailure'])await check(storage+' refuses before network',async()=>{const w=world();w.ctx[storage]=true;w.click();if(w.confirms.length)await w.confirm();assert.equal(w.sent.length,0);assert.equal(w.persisted.length,0);assert.match(w.notices[0][1],/Nothing (new )?was sent/);});
  await check('equivalent timestamp formatting cannot bypass a retained round',async()=>{const w=world();w.ctx.lost=true;w.click();await w.confirm();const reload=world('calendar',w.store);reload.post.video_status_at='2030-01-01T00:00:00+00:00';reload.click();assert.equal(reload.sent.length,0);assert.equal(reload.confirms.length,0);});
  await check('two confirmation callbacks still issue one native attempt',async()=>{const w=world();w.click();const confirm=w.confirms.shift();confirm();confirm();await new Promise(r=>setImmediate(r));assert.equal(w.sent.length,1);});

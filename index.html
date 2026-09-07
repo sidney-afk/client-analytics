@@ -27129,6 +27129,42 @@
        the messages this notification already carried; they stay word for word,
        and only gain the code suffix every other message now carries. */
     const WRITE_UI_FAILURE_CODE_TEXT = {
+        delivery_unknown: {
+            title: 'Check delivery',
+            text: 'The urgent ping may already have been sent. Check #video-editing manually before sending another message.'
+        },
+        invalid_urgent_request: {
+            title: 'Urgent ping not sent',
+            text: 'This page sent an unsupported urgent request. Send this code to the owner; repeating the same request will not fix it.'
+        },
+        native_urgent_not_configured: {
+            title: 'Urgent ping not sent',
+            text: 'Urgent alerts are not enabled for this video yet. Ask the owner to check the setup, or post in #video-editing manually.'
+        },
+        urgent_assignment_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The current editor assignment could not be confirmed. Ask your social media manager to check the assignment before sending a ping.'
+        },
+        urgent_context_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The video, card or editor details could not be confirmed. Ask your social media manager to check this card and send this code to the owner.'
+        },
+        urgent_editor_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The assigned editor is not available for this alert. Ask your social media manager to check the active video editor and their email address.'
+        },
+        urgent_lookup_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The current video details could not be checked. Nothing was sent. Wait a moment before trying again, or post in #video-editing manually.'
+        },
+        urgent_round_unavailable: {
+            title: 'Urgent ping not sent',
+            text: 'The current tweaks request could not be identified. Ask your social media manager to check this card and send this code to the owner.'
+        },
+        urgent_target_changed: {
+            title: 'Urgent ping not sent',
+            text: 'The video, assignment or tweaks request changed. Refresh the card and check its current status and editor before deciding whether a ping is still needed.'
+        },
         invalid_intake_item_name: {
             title: 'Post name too long',
             text: 'One of the post names is longer than a sub-issue title can carry. Shorten it, then create the post again.'
@@ -33594,7 +33630,11 @@
                             knownNotSent = !!(j && j.ok === false && j.delivery === 'not_sent' && j.retry_safe === true);
                             if (!(resp.ok && j && j.ok === true && j.delivery === 'sent'
                                 && typeof j.dispatch_id === 'string' && j.dispatch_id.trim()
-                                && typeof j.slack_ts === 'string' && j.slack_ts.trim())) throw new Error('native_urgent_unconfirmed');
+                                && typeof j.slack_ts === 'string' && j.slack_ts.trim())) {
+                                const refusal = new Error('native_urgent_unconfirmed');
+                                if (knownNotSent) { refusal.code = String(j.error || 'native_urgent_unconfirmed'); refusal.status = resp.status; }
+                                throw refusal;
+                            }
                         }
                         if (!resp.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('http ' + (resp && resp.status)));
                         let persistFailed = false;
@@ -33627,7 +33667,14 @@
                             if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                             showNotify('Could not prepare urgent ping', 'Nothing was sent. This browser could not retain the delivery attempt. Check browser storage before trying again.'); return;
                         }
-                        if (native && knownNotSent) releaseOwnHold();
+                        if (native && knownNotSent) {
+                            releaseOwnHold();
+                            if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                            const code = e.code || 'native_urgent_unconfirmed';
+                            const guidance = _writeUiFailureText('urgent ping', code, e.status);
+                            showNotify(guidance.title, guidance.text + ' (code: ' + code + ')');
+                            return;
+                        }
                         if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                         showNotify('Could not send', 'The urgent ping failed to send. Try again, or post in #video-editing manually.');
                     }

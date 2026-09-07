@@ -104,3 +104,21 @@ exact captured graph has9 original nodes plus9 isolated native nodes; inverse,
 old-reference exclusion, expiry boundary and no-retry controls pass. Current
 credential binding, code sandbox capability, actual Slack response and complete
 installed browser-to-delivery behavior remain unproven. No messages were sent.
+
+### Final refusal-guidance correction
+
+Hosted run34157272824 on `1e9bb39668925ec8381b50aedab0f8c224b73ad5`
+failed one of479 unit suites: `write-ui-failure-messages` found nine urgent
+codes without shared guidance. Later SQL/recovery did not run; that failed
+receipt remains evidence, not a green run.
+
+The correction supplies all nine messages and connects known-not-sent responses
+to that shared resolver in all four staff callers. Configuration, assignment
+and stale-round refusals explain what to check instead of offering a blanket
+retry. Unknown delivery still retains the local hold and asks for manual Slack
+verification. The gateway and its six-file closure are unchanged.
+
+The unchanged total-coverage failure-message suite passes (40 browser and185
+gateway codes), and the actual-VM urgent suite passes32 groups, including all
+four surfaces with deterministic refusal guidance. This is focused offline
+proof; the new commit still needs its own hosted outcome and review.

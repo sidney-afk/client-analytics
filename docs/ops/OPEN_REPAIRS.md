@@ -13919,3 +13919,120 @@ red against the code that preceded them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
+
+---
+
+## 174. [2026-09-07, lane LX-F, PART 1 SHIPPED — the dead-man's switch survives the Linear cutoff; the cutoff itself is prepared separately] Four of the eight monitored lanes die with Linear, and the switch's second host dies with them
+
+`174` is the number the exit reserved for lane F. Item 168 on the coordinator
+branch says `172`; `docs/independence/LINEAR_EXIT_LANES.md` on the same branch
+says `174` and is the later of the two. Verified free before writing: A took
+`169`, C took `171`/`175`/`176`, D took `172`, E took `173`.
+
+**The finding.** `scripts/monitoring-watchdog.js` registered eight lanes. Four
+of them — `reconciler_pager`, `production_write_drill`, `production_shadow_audit`
+and `b1_incremental_refresh` — are hosted by workflows whose "require secrets"
+step demands `LINEAR_API_KEY` (`linear-deliverables-reconcile.yml:72`,
+`production-write-drill.yml:73`, `production-shadow-audit.yml:37`,
+`b1-linear-incremental-refresh.yml:61`). Each writes its heartbeat under
+`if: always()`. So on the day the credential dies they do not go quiet, which
+the switch is built to catch — they RUN, fail at the secrets gate, beat
+`ok:false`, latch a `failing` incident that can never clear because nothing can
+un-latch a lane that can never pass again, and leave a red run behind every day.
+That is the estate training its owner to ignore the one channel that would have
+told him about a real failure.
+
+**The finding underneath the finding, which is worse.** The dead-man's switch is
+a two-host design — "a checker cannot report its own death", so `--check` runs
+from two independent workflows that read each other's `monitoring_watchdog`
+heartbeat. The second host was `linear-deliverables-reconcile.yml`
+(`:124-126`), one of the four. Disabling it as part of the cutoff would have
+silently reduced the switch to a single host, at which point a dead
+`monitoring-deadman.yml` becomes undetectable — on the exact day the estate
+needs it most. Nothing anywhere asserted the host count, so nothing would have
+said a word.
+
+**Shipped in this PR.**
+
+1. The second host is re-homed to `.github/workflows/monitoring-crosscheck.yml`
+   (`*/20`), which holds no Linear credential and survives 2026-09-15 untouched.
+   Until the reconciler is disabled there are three hosts, not two; that is
+   harmless (a stale lane latches once regardless of how many hosts observe it)
+   and it is why the re-home could merge well ahead of the cutoff instead of
+   racing it.
+2. Every lane now declares `hosts`, and the four doomed ones declare
+   `retires_with: 'linear'`. Retirement is `retired: {at, reason}`; the lane
+   stays in the registry and every `--check` reports its watched and its retired
+   set by name, so a retirement is never a lane quietly vanishing.
+3. `test/monitoring-watchdog.js` enforces the registry against the workflow
+   files in **both** directions: an active lane must have at least one
+   actively-scheduled host, and a retired lane must have none. **Disabling a
+   Linear workflow and retiring its lane are therefore one change, welded
+   together by the suite, instead of two that can drift** — which is what the
+   lane brief asked for as a note and is now a machine check. It also asserts
+   that at least two actively-scheduled Linear-free hosts run `--check`, and
+   that every scheduled workflow needing a `LINEAR_*` secret is on the cutoff
+   inventory (after the cutoff that assertion becomes "there are none", checked
+   rather than grepped once).
+
+Mutation-verified, five ways, each confirmed to go red against the shipped code:
+retiring a lane whose host still runs; unscheduling the four Linear workflows
+without retiring their lanes; removing the crosscheck host's schedule; adding a
+new scheduled Linear-credentialed workflow that no lane claims; and moving a
+heartbeat step out from under `if: always()`. The positive control — retire all
+four lanes AND comment out their crons, i.e. the actual cutoff — passes and
+leaves four watched lanes and four dated, reasoned retirements.
+
+**What this PR deliberately does NOT do.** It does not disable a single
+workflow, retire a single lane, or change any runtime flag. Every lane is still
+watched and every cron still runs; the behaviour on merge day is identical to
+the behaviour before it. The cutoff is prepared, not executed — F turns things
+off only after A/B/C/D are live and observed, and the outbound-off flip is gated
+on lane B's native naming mint (item 163). The rest of lane F —
+`docs/ops/LINEAR_CUTOFF_RUNBOOK.md`, the outbox-debt census, the native write
+drill, the workload-source freshness watcher, the client-continuity lift, the
+alarm-proof lane, the Linear-dead rehearsal, and the `ROLLBACK.md` Live State
+rows — ships in a later PR that merges LAST of the six lanes.
+
+**Correction to the lane brief, for whoever reads it next.** The brief warns
+that `test/monitoring-watchdog.js` "will pin the current 8-lane LANES list" and
+that changing LANES is a build break. It does not pin a count — it derives
+everything from the imported `LANES`. What actually broke was four fixtures that
+named `reconciler_pager` as a literal, and the wiring block that named three
+retiring workflow files by hand. Both are now derived (`WATCHED[0]`,
+`WATCHED[1]`, and the registry's own `hosts`), so no future retirement can
+force an assertion to be deleted to get the suite green — which is precisely how
+a lane would stop being watched without anyone deciding that it should.
+
+**Found while shipping this, and it is a trap for the later PR.**
+`scripts/monitoring-watchdog.js` is a **pinned member of the F27 reconciler
+closure** (`scripts/f27-reconciler-closure.js`: `EXPECTED_CLOSURE_PATHS` and
+`REVIEWED_BLOB_SHA256`, entered 2026-08-04 when the reconcile workflow gained
+the heartbeat and `--check` steps). Editing it drifts the pin and
+`test/f27-reconciler-closure.js` fails `REVIEWED_CLOSURE_BLOB_DRIFT` — but ONLY
+after the edit is committed, because that suite reads closure files from git
+HEAD, not the working tree. A pre-commit `npm test` reports green and the
+failure appears on the push. That is exactly how it surfaced here: the baseline
+and the first post-edit run were both clean, and the confirming run on the
+committed tree was not. The suite says so in a comment at
+`test/f27-reconciler-closure.js:77-90`; nothing in the exit briefs does.
+
+Re-pinned in this PR to `cc2b4324…` (previous `5df8340c…`) with the review note
+the file's own discipline requires. Only one pin site exists — verified by
+grepping the old digest across the tree.
+
+**The trap:** `WORKFLOW_PATH` for that closure is
+`.github/workflows/linear-deliverables-reconcile.yml`, which F4 **unschedules**.
+So the cutoff PR drifts this pin twice — once for its own edit to
+`monitoring-watchdog.js` (retiring the four lanes) and once for the workflow
+blob — and it must re-pin both. More than a chore: the entire F27
+reconciler-closure capture/rollback apparatus is defined over a workflow the
+cutoff turns off. Whether that apparatus should be retired with it, kept as a
+frozen historical capture, or re-pointed is an owner decision this PR does not
+take and the exit briefs never raise. Flagged for the coordinator.
+
+**Lane G fold-in.** G6 is the same rewrite with the same intent and is covered
+here in full. G11 (the `docs/ops/MONITORING.md` and `docs/CLIENT_LIFECYCLE_MAP.md`
+rows that overlap F12) is not: only the dead-man's-switch row of
+`docs/ops/MONITORING.md` is touched in this PR, because it is the only row this
+PR makes untrue. The remaining G11 rows move with F12.

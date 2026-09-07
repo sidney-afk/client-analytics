@@ -6539,3 +6539,48 @@ in the owner's SQL Editor history and in the session record. The prior
 slots, 1,207 clean, 7 mismatching, 0 bindable, the same three reason counts as
 before (5 / 1 / 1). All 7 carry a recorded ruling (OPEN_REPAIRS 156). Phase 3
 (b) closed; (c) open.
+
+
+## 2026-09-07 — identifier team-move repair applied (7 rows)
+
+**DB mutation, owner-applied, SQL Editor, evening UTC.** Seven rows of
+`public.deliverables`, one column: `identifier` set from `linear_identifier`
+for exactly the rows where both were present and disagreed. This is the data
+half of OPEN_REPAIRS 161, merged as #1333 (`d2495eb`); the statement is
+`migrations/2026-09-07-deliverable-identifier-team-move-repair.sql` and the
+rollback entry is ROLLBACK.md, "2026-09-07".
+
+**Why those seven existed.** `identifier` is the snapshot the b1 import took;
+nothing maintains it, while `linear_identifier` is refreshed by every webhook.
+Linear re-keys an issue when its team changes, so seven graphics rows across
+two clients still carried a VID- number. Read from `deliverable_events`, the
+import photographed five of them 40 seconds into a team move and two of them
+eleven minutes into one; no `team_move` event exists on any of them because
+the move landed before the row existed here.
+
+**What ran.** The look-first step returned 7 rows with `collides_with` empty on
+all of them, matching the count measured from the browser projection before the
+PR was written. Step 2 then ran as one statement in one transaction: the cohort
+selected once `for update`, one `deliverable_events` row written per row
+carrying `retired_identifier` and `current_identifier`, and the update gated on
+that insert having covered the whole cohort.
+
+**Verified after, read-only through the browser projection** (which is
+`public.deliverables` unfiltered, 6,369 rows): **0** rows still disagreeing,
+**0** duplicate identifiers, and each of the seven now carries its Graphics
+number with `identifier` and `linear_identifier` in agreement. The repair
+receipt reads back seven `identifier_team_move_repair` events, one per row,
+their retired/current pairs identical to the look-first output.
+
+**What changed, and reversal.** Only `identifier` and, via the touch trigger,
+`updated_at`; status was unchanged so `status_at` did not move. No Linear
+write, no outbox intent, no card linkage touched. Each repaired row also gained
+the ledger guard's own bare `update` event (`rpc_bypass_guard`) beside the
+explicit repair event, both expected. Reversal is in ROLLBACK.md and reads the
+repair's own events rather than the look-first output, restoring only rows
+still holding the value this repair wrote. Not exercised.
+
+**Owner ruling, same day.** The retired numbers stop resolving in SyncLinear
+now that the two columns agree, and the owner ruled to leave it that way rather
+than add a `retired_identifier` column, a browser-view migration and an adapter
+read. Recorded in OPEN_REPAIRS 161; that decision is now closed.

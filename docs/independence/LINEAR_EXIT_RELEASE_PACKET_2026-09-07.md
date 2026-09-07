@@ -17,6 +17,10 @@ flag, credential, billing, cancellation, deletion or new alert is authorized.
   This does not prove recurring monitoring or future incident acknowledgement.
 - Prepare a short extension of Linear access. September15 remains scheduled;
   nothing in Billing has changed. No observation clock has started.
+- September7 owner exception: one historical Posted reference video's website
+  link may wait as optional archive work. Keep its completed private source copy.
+  The exception is bound to one privately recorded reference; it excludes neither
+  the other media in that brief nor historical content generally. Delete nothing.
 
 ## Pinned completed work
 
@@ -94,7 +98,25 @@ client and literal Linear upload references in `brief`, across all statuses:
 486rows,1338occurrences,1167 distinct URL hashes. Private receipt SHA256
 `8ed45da9de45b188022df2626735c4c6644d9c1e3c3af2cde7570426c6d208b2`.
 Only row/body/URL fingerprints and metadata were saved, no raw bodies or URLs.
-Nothing was downloaded/copied or rewritten. URL hashes are not file-byte hashes.
+At that first observation nothing was downloaded/copied or rewritten. URL hashes
+are not file-byte hashes. The later bounded collection below supersedes only
+that collection status.
+
+A separate September7 17:13-17:19Z source collection saved1166 of1167 distinct
+references privately:1141 unique contents and2,463,560,336 downloaded bytes
+(including repeated content across distinct URLs). MIME counts are1088 PNG,
+66 JPEG,5 PDF,2 SVG,4 MP4 and1 QuickTime. Its original over-limit failure remains
+recorded; collection receipt SHA256
+`c79474a55065f60edf98ca2ec622785c4169587c129468ada8d4f9293cb88121`.
+The one remaining929,315,893-byte video was then preserved by a separate bounded
+streaming read, completed17:27:03Z; receipt SHA256
+`38406a6b297bd526d94c60b8a9bfb3310af9434494e280523006cf97b5af019a`.
+The owner explicitly deferred only that video's website restoration. All1167
+source references now have private bytes; independent website delivery and
+complete format validation remain unproven. No upload or live rewrite occurred.
+The current Storage global maximum was read as50MiB, receipt SHA256
+`1c567d29ed837f297b55323cf2ae410d4f20a660627939e65bd5e741047ef2e2`.
+Do not raise it to accommodate the deferred historical video.
 
 The actual `description_read` -> `_prodEnsureDescription` -> `_prodDescriptionHTML`
 path returns native brief text and renders its original image/link URLs. Existing

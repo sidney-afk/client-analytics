@@ -22694,6 +22694,7 @@
         return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || 'S').slice(0, 2)).toUpperCase();
     }
     function _syncviewStaffPurgeSensitiveState() {
+        try { if (typeof _legacyTriagePurge === 'function') _legacyTriagePurge(); } catch (e) {}
         try { if (typeof _reviewDraftSuspend === 'function') _reviewDraftSuspend(); } catch (e) {}
         try { if (typeof _sxrWorkSuspend === 'function') _sxrWorkSuspend(); } catch (e) {}
         try { if (typeof wlPurgePlanSensitiveState === 'function') wlPurgePlanSensitiveState(); } catch (e) {}
@@ -47047,6 +47048,7 @@
 
         return `<div class="linear-view">
             ${successBanner}
+            ${_legacyTriageCanRead() ? '<details class="linear-form" id="legacyTriagePanel"><summary style="min-height:44px;cursor:pointer">Submissions needing team confirmation</summary><p>Review the original submission and confirm its intended teams. Work is complete only when its native deliverables and Calendar cards are saved.</p><button type="button" class="linear-submit-btn secondary" onclick="_legacyTriageLoad()">Open protected inbox</button><div id="legacyTriageStatus" role="status" aria-live="polite"></div><div id="legacyTriageRows"></div></details>' : ''}
             <div class="linear-form-title">Create production work</div>
             <div class="linear-form-sub">Create native video and graphics deliverables</div>
             <div class="linear-form">
@@ -47435,6 +47437,89 @@
     /* The per-video Notes box (owner request 2026-08-21) is the human half of
        the brief and leads, because the editor reads the ask before the assets.
        The footage lines follow unchanged. */
+    let _legacyTriageEpoch = 0;
+    function _legacyTriageCanRead() {
+        const identity = _syncviewStaffIdentityForHeaders();
+        return !!identity && ['admin', 'smm'].includes(_syncviewStaffRoleValue(identity));
+    }
+    function _legacyTriagePurge() {
+        _legacyTriageEpoch++;
+        const panel = document.getElementById('legacyTriagePanel');
+        if (panel) panel.remove();
+    }
+    async function _legacyTriageRequest(body) {
+        if (!_legacyTriageCanRead()) throw new Error('Sign in as an administrator or SMM to open this inbox.');
+        const epoch = _legacyTriageEpoch;
+        const identity = _syncviewStaffIdentityForHeaders();
+        const response = await fetch(PROD_WRITE_EF_URL, { method: 'POST', cache: 'no-store',
+            headers: _syncviewEfHeaders({ apikey: CAL_SUPABASE_ANON_KEY,
+                Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' }, PROD_WRITE_EF_URL),
+            body: JSON.stringify(body) });
+        const result = await response.json().catch(() => ({}));
+        const current = _syncviewStaffIdentityForHeaders();
+        if (epoch !== _legacyTriageEpoch || !_legacyTriageCanRead()
+            || String(current.member.id) !== String(identity.member.id)) throw new Error('Staff access changed. Reopen the inbox.');
+        if (!response.ok || result.ok !== true) throw new Error(String(result.reason || result.error || 'The inbox could not be updated.'));
+        return result;
+    }
+    async function _legacyTriageLoad(after) {
+        const host = document.getElementById('legacyTriageRows');
+        const status = document.getElementById('legacyTriageStatus');
+        if (!host || !status) return;
+        const epoch = ++_legacyTriageEpoch;
+        host.replaceChildren(); status.textContent = 'Loading submissions…';
+        try {
+            const result = await _legacyTriageRequest({ action: 'legacy_intake_triage_list', after: after || '' });
+            if (epoch !== _legacyTriageEpoch) return;
+            if (!Array.isArray(result.rows)) throw new Error('The inbox returned an incomplete response.');
+            status.textContent = result.rows.length ? 'Confirm every intended team, including any team whose original send was interrupted.' : 'No submissions on this page.';
+            for (const row of result.rows) {
+                const item = document.createElement('section'); item.className = 'linear-field';
+                const original = JSON.parse(row.payload_json);
+                const heading = document.createElement('h3'); heading.textContent = String(original.title || original.clientName); item.appendChild(heading);
+                const state = document.createElement('p'); state.textContent = String(row.state) + ' · ' + String(row.reason)
+                    + ' · received: ' + Object.keys(row.received || {}).join(', '); item.appendChild(state);
+                const details = document.createElement('details'); const summary = document.createElement('summary');
+                summary.textContent = 'Read the complete original submission'; summary.style.minHeight = '44px'; details.appendChild(summary);
+                const text = document.createElement('pre'); text.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;font:inherit';
+                text.textContent = JSON.stringify(original, null, 2); details.appendChild(text); item.appendChild(details);
+                const fieldset = document.createElement('fieldset'); fieldset.style.cssText = 'border:0;padding:0;margin:12px 0';
+                const legend = document.createElement('legend'); legend.textContent = 'Intended teams'; fieldset.appendChild(legend);
+                const checks = [];
+                for (const team of ['video', 'graphics']) {
+                    const label = document.createElement('label'); label.style.cssText = 'display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-right:16px';
+                    const input = document.createElement('input'); input.type = 'checkbox'; input.value = team;
+                    input.checked = Array.isArray(row.intended_teams) && row.intended_teams.includes(team);
+                    input.disabled = !!row.native_request || row.state === 'held';
+                    label.append(input, document.createTextNode(team === 'video' ? 'Video' : 'Graphics')); fieldset.appendChild(label); checks.push(input);
+                }
+                item.appendChild(fieldset);
+                if (row.state !== 'held' && row.state !== 'complete') {
+                    const button = document.createElement('button'); button.type = 'button'; button.className = 'linear-submit-btn secondary';
+                    button.textContent = row.native_request ? 'Resume native completion' : 'Confirm teams and complete';
+                    button.onclick = async () => {
+                        const teams = checks.filter(input => input.checked).map(input => input.value);
+                        if (!teams.length || Object.keys(row.received || {}).some(team => !teams.includes(team))) {
+                            state.textContent = 'Select every intended team. A received team cannot be removed.'; return;
+                        }
+                        button.disabled = true; state.textContent = 'Completing native deliverables and Calendar cards…';
+                        try {
+                            await _legacyTriageRequest({ action: 'legacy_intake_triage_complete', payload_hash: row.payload_hash,
+                                revision: row.revision, intended_teams: teams, confirm: 'CONFIRM_ORIGINAL_SUBMISSION_TEAMS' });
+                            await _legacyTriageLoad(after);
+                        } catch (error) { state.textContent = String(error.message || error); button.disabled = false; }
+                    };
+                    item.appendChild(button);
+                }
+                host.appendChild(item);
+            }
+            if (result.next_after) {
+                const next = document.createElement('button'); next.type = 'button'; next.className = 'linear-submit-btn secondary';
+                next.textContent = 'Next page'; next.onclick = () => _legacyTriageLoad(result.next_after); host.appendChild(next);
+            }
+        } catch (error) { if (epoch === _legacyTriageEpoch) status.textContent = String(error.message || error); }
+    }
+
     function _linearVideoBrief(video) {
         const notes = String(video && video.notes || '').trim();
         const assets = [

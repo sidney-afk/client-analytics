@@ -6848,6 +6848,7 @@ async function handleIntakeCreate(
   surface: string,
   requestId: string,
   sourceEditedAt: string,
+  requireNativeCompletion = false,
 ): Promise<Response> {
   /*
    * One value drives BOTH the batch's `purpose` and every row's `origin`
@@ -6971,6 +6972,11 @@ async function handleIntakeCreate(
     dedupKey("create", "deliverable", await deterministicNativeId("del", requestId, `${normalizeTeam(item.team)}:${index}`), requestId)));
   const nativeEpochByTeam = await intakeEpochs(supabase, principal, requestId,
     appendToBatch ? "" : await deterministicNativeId("bat", requestId, "submission"), teamList, epochDedups);
+  // Server-owned legacy triage may NEVER fall back to provider preparation.
+  // The existing epoch RPC binds prior acceptance and fails closed on drift.
+  if (requireNativeCompletion && teamList.some(team => !nativeEpochByTeam[team])) {
+    throw new GatewayError(409, "legacy_intake_native_epoch_required");
+  }
   // This read-only validation happens before the first native row write.
   const projectByTeam: Record<string, string> = {};
   const authorityByTeam: Record<string, "linear" | "syncview"> = {};
@@ -7886,6 +7892,115 @@ async function handleIntakeCreate(
   }, targetedFailure ? 202 : 201);
 }
 
+function legacyIntakeStableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(legacyIntakeStableJson).join(",")}]`;
+  const row = value as JsonMap;
+  return `{${Object.keys(row).sort().map(key => `${JSON.stringify(key)}:${legacyIntakeStableJson(row[key])}`).join(",")}}`;
+}
+
+async function legacyIntakeStaff(supabase: SupabaseClient, req: Request, body: JsonMap): Promise<JsonMap> {
+  // No client/public/test override principal can read this inbox or confirm intent.
+  const principal = await authenticate(supabase, req, { ...body, test_override: false }, "");
+  if (principal.kind !== "staff" || !["admin", "smm"].includes(principal.keyRole)
+      || !["admin", "smm"].includes(principal.actorRole)) throw new GatewayError(403, "operation_forbidden");
+  return { kind: "staff", key: principal.actorKey, role: principal.actorRole, name: principal.actorName };
+}
+
+async function legacyIntakeRpc(supabase: SupabaseClient, name: string, args: JsonMap): Promise<JsonMap> {
+  const { data, error } = await supabase.rpc(name, args);
+  if (error) {
+    const code = String(error.message || "").match(/\blegacy_intake_[a-z_]+\b/)?.[0];
+    throw new GatewayError(code ? 409 : 503, code || "legacy_intake_storage_unavailable");
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new GatewayError(503, "legacy_intake_storage_unavailable");
+  return data as JsonMap;
+}
+
+async function handleLegacyIntake(supabase: SupabaseClient, req: Request, body: JsonMap, raw: string): Promise<Response> {
+  if (body.action === "legacy_intake_receive") {
+    if (new TextEncoder().encode(raw).byteLength > 1048576) throw new GatewayError(413, "legacy_intake_too_large");
+    const allowed = ["action", "clientName", "filmingPlans", "notes", "title", "videos", "team", "payload_hash", "receipt_key", "idempotency_key"];
+    if (Object.keys(body).some(key => !allowed.includes(key)) || !["video", "graphics"].includes(String(body.team))
+      || !Array.isArray(body.videos) || !body.videos.length || body.videos.length > MAX_PUBLIC_INTAKE_ITEMS
+      || ["clientName", "filmingPlans", "notes", "title"].some(key => typeof body[key] !== "string")) {
+      throw new GatewayError(400, "legacy_intake_payload_conflict");
+    }
+    // This exact public intake capability already exists. Invalid supplied
+    // credentials are refused; the old credentialless F44 shape remains valid.
+    const { data: clients, error } = await supabase.from("clients").select("*")
+      .eq("display_name", clean(body.clientName)).eq("active", true);
+    if (error) throw new GatewayError(503, "client_lookup_unavailable");
+    if (!Array.isArray(clients) || clients.length !== 1) throw new GatewayError(409, "legacy_intake_client_not_unique");
+    const client = clients[0] as ClientRow;
+    if (clean(req.headers.get("x-syncview-key")) || clean(req.headers.get("x-syncview-client-token"))) {
+      await authenticate(supabase, req, {}, client.slug);
+    }
+    if (!await publicIntakeEnabled(supabase)) throw new GatewayError(403, "public_intake_disabled");
+    await assertPublicIntakeWithinRate(supabase, client.slug);
+    const payload = Object.fromEntries(["clientName", "filmingPlans", "notes", "title", "videos"].map(key => [key, body[key]]));
+    const { error: logError } = await supabase.from("public_intake_log").insert({
+      client_slug: client.slug, request_id: clean(body.receipt_key), item_count: body.videos.length,
+    });
+    if (logError) throw new GatewayError(503, "public_intake_rate_unavailable");
+    const receipt = await legacyIntakeRpc(supabase, "legacy_intake_native_receive", {
+      p_payload: legacyIntakeStableJson(payload), p_team: body.team, p_raw: raw, p_client: client.slug,
+    });
+    return json(receipt, receipt.status === "created" ? 200 : 202);
+  }
+  const actor = await legacyIntakeStaff(supabase, req, body);
+  if (body.action === "legacy_intake_triage_list") {
+    // Keyset pagination includes holds and completions; never silently call a
+    // truncated first page the complete backlog.
+    const after = clean(body.after);
+    if (after && !/^[a-f0-9]{64}$/.test(after)) throw new GatewayError(400, "invalid_cursor");
+    return json(await legacyIntakeRpc(supabase, "legacy_intake_native_inbox", { p_after: after }));
+  }
+  if (body.action !== "legacy_intake_triage_complete") throw new GatewayError(400, "unsupported_action");
+  const hash = clean(body.payload_hash);
+  const teams = body.intended_teams;
+  if (!/^[a-f0-9]{64}$/.test(hash) || !Number.isSafeInteger(body.revision) || !Array.isArray(teams)
+    || !["[\"video\"]", "[\"graphics\"]", "[\"video\",\"graphics\"]"].includes(JSON.stringify(teams))
+    || body.confirm !== "CONFIRM_ORIGINAL_SUBMISSION_TEAMS") throw new GatewayError(400, "legacy_intake_confirmation_required");
+  const { data: stored, error } = await supabase.from("legacy_intake_native_triage").select("*").eq("payload_hash", hash).maybeSingle();
+  if (error) throw new GatewayError(503, "legacy_intake_inbox_unavailable");
+  if (!stored) throw new GatewayError(404, "legacy_intake_missing");
+  const original = JSON.parse(stored.payload_json) as JsonMap;
+  const requestId = `submission:${crypto.randomUUID()}`;
+  const items: JsonMap[] = [];
+  for (const [index, value] of (original.videos as JsonMap[]).entries()) {
+    const number = Number(value.number);
+    // The complete immutable original is also kept on the parent. No attempt
+    // to reverse-parse aggregate legacy notes into invented per-video notes.
+    const brief = [`Original submission notes:\n${original.notes}`, `Video ${number}`,
+      `Main camera: ${value.main_cam}`, `Side camera: ${value.side_cam}`, `Audio: ${value.audio}`].join("\n\n");
+    for (const team of teams) items.push({ team, videoNumber: number,
+      ...(team === "video" ? { title: `Video ${number}` } : {}), brief,
+      due_date: value.dueDate || null, status: INTAKE_CREATED_STATUS,
+      card_id: `p_native_${requestId.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(-28)}_${number}`, sort_key: index });
+  }
+  const plan = { operation: "intake_create", surface: "submission", client_slug: stored.client_slug,
+    request_id: requestId, source_edited_at: new Date().toISOString(),
+    batch: { name: original.title, description: stored.payload_json, notes: original.notes,
+      filming_doc_url: original.filmingPlans || null }, items };
+  const prepared = await legacyIntakeRpc(supabase, "legacy_intake_native_prepare", {
+    p_hash: hash, p_revision: body.revision, p_teams: teams, p_request: plan, p_actor: actor,
+  });
+  const acceptedRequest = parseJson(prepared.native_request);
+  const { data: manifest, error: manifestError } = await supabase.from("production_intake_manifests")
+    .select("request_id").eq("request_id", acceptedRequest.request_id).maybeSingle();
+  if (manifestError) throw new GatewayError(503, "legacy_intake_acceptance_unavailable");
+  if (!manifest) {
+    if (parseJson(prepared.completion_actor).key !== actor.key) throw new GatewayError(409, "legacy_intake_original_staff_required");
+    const response = await handleIntakeCreate(supabase, req, acceptedRequest, "submission",
+      requestIdFor(acceptedRequest), sourceTimestamp(acceptedRequest.source_edited_at), true);
+    const result = await response.json();
+    if (!response.ok || result.native_committed !== true) return json(result, response.status);
+  }
+  const finished = await legacyIntakeRpc(supabase, "legacy_intake_native_finish", { p_hash: hash, p_actor: actor });
+  return json(finished, finished.ok === true ? 200 : 409);
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405);
@@ -7896,8 +8011,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
   try {
+    const rawRequest = req.clone();
     const body = await req.json().catch(() => null) as JsonMap | null;
     if (!body || Array.isArray(body)) throw new GatewayError(400, "invalid_json");
+    // Reviewed F44 forwarders can preserve the original request bytes exactly.
+    // The query selects a protocol only; public admission remains below.
+    if (new URL(req.url).searchParams.get("action") === "legacy_intake_receive") {
+      if (body.action !== undefined && body.action !== "legacy_intake_receive") throw new GatewayError(400, "unsupported_action");
+      body.action = "legacy_intake_receive";
+    }
+    if (["legacy_intake_receive", "legacy_intake_triage_list", "legacy_intake_triage_complete"].includes(String(body.action))) {
+      let raw: string;
+      try { raw = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(await rawRequest.arrayBuffer()); }
+      catch { throw new GatewayError(400, "legacy_intake_invalid_utf8"); }
+      return await handleLegacyIntake(supabase, req, body, raw);
+    }
     if (lower(body.action) === "labels_read") {
       return await handleLabelsRead(supabase, req, body);
     }

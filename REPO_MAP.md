@@ -1,5 +1,12 @@
 # Repo map
 
+F44 website triage source: `migrations/2026-09-07-legacy-intake-native-triage.sql`
+owns receipt capture, provider admission fences and native completion;
+`scripts/f44-native-recovery-extension.js` supplies a separate recovery inventory.
+Focused proof: `test/f44-native-triage-sql.js`, `scripts/f44-native-triage-lane.mjs`,
+and `test/f44-native-triage-browser.js`. Contract and release limits:
+`docs/audits/2026-09-07-f44-native-triage.md`.
+
 Independent continuity preparation: `scripts/client-continuity-independent.js`
 reads exact pinned receipts and delivery state through existing owners;
 `scripts/client-continuity-heartbeat.js` sends only a combined healthy heartbeat.

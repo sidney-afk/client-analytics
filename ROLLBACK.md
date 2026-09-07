@@ -879,3 +879,11 @@ restores live probes on every read, not a broken control.
 owner the same day, before the dispatch. Its rollback is unchanged
 (`drop index if exists public.production_asset_access_checks_by_url_idx;`) and
 it is independent of the function version.
+# 2026-09-07 — F44 native triage (uninstalled source)
+
+Before serving, withdraw the staged change. After capture, retain
+`legacy_intake_native_triage`, original F44 receipts/raw bodies, public rate log,
+native manifests, provider admission guards and a compatible completion reader.
+Never drop the new owner or restore provider creation to undo a deployment.
+Review the successor recovery closure before installation; v8 is unchanged and
+does not cover this new state. See `docs/audits/2026-09-07-f44-native-triage.md`.

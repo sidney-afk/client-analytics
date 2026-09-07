@@ -1,5 +1,9 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+F44 received submission needs staff team confirmation / native completion / old
+unresolved receipt inbox → [protected website triage](audits/2026-09-07-f44-native-triage.md).
+Source-only capture, claim fence, immutable native completion and separate recovery extension.
+
 Independent monitoring / backup alert beyond SyncViewbot →
 [inactive receipt and heartbeat recipe](ops/CLIENT_CONTINUITY_OPERATIONS.md#independent-receipt-and-heartbeat-preparation--september-7).
 Exact receipt evaluation is prepared; independent hosting and backup recipient remain unconfigured.

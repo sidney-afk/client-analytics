@@ -1,5 +1,13 @@
 # Remaining legacy intake and card compatibility
 
+September 7 follow-up at PR1332 base: [F44 website triage and native completion](../audits/2026-09-07-f44-native-triage.md)
+now prepares the server-owned capture/completion adapter described below.
+Its protected inbox includes current unresolved legacy debt, and staff confirms
+missing team intent before one native root is completed. Provider ownership,
+exact forwarder installation, old-worker quiescence and successor recovery
+closure remain explicit release holds. The earlier routing evidence below is
+retained with its original scope; this is not an installed compatibility claim.
+
 Bounded source preparation at base `b60a9705492002830eed60ece874e0686fc4b538`.
 The execution authority remains G6 in the canonical PR1268 checklist at
 `74765c2308b56419afe9ccf46de06577ee4c20a4`; this is a route contract, not a new

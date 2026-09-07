@@ -6919,3 +6919,12 @@ Recovery and proof limits: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.
 ## 2026-09-06 ? Local combined recovery corpus
 
 From integration `6b306f473524b8f4759d6f03f09df45e8ba0aaf7`, added explicit history-v6 for both FK-free recovery ledgers. Twelve new offline checks and ten finite combined SQL checks pass; old formats remain readable and default schedule unchanged. Evidence and held schema/feedback-RPC/integration boundaries: `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`. No production action.
+# 2026-09-07 — F44 website triage preparation (source only)
+
+Prepared immutable public-origin legacy capture and real admin/SMM website
+completion through the native gateway, accepted-manifest reconciliation and
+Calendar materializer. Provider receipt admission is fenced for native owners;
+historical unresolved receipts remain visible holds. Exact source, finite SQL
+and isolated browser proof, recovery extension and activation limits are in
+`docs/audits/2026-09-07-f44-native-triage.md`. No live or TEST writes, deployment,
+workflow edits, flags, credentials or push.

@@ -1,5 +1,38 @@
 ## Combined operational corrections - September 7, 15:35 UTC
 
+**Latest integration checkpoint, September7 18:25Z:** PR1337 now publishes
+`9a24b3ab053a856be4e5fa1408bb26a17da28c27`; all seven applicable hosted checks
+pass, with two optional skips. Its previous four-suite failure remains historical.
+PR1339 now publishes `fc20e960e6560946511d6fd030dc7fc2639202f6` with corrected
+real handler fixture imports and focused source assertions. Its new browser job
+failed before tests because the repository has no tracked npm lockfile; the unit
+job was still running at this checkpoint. The local combined release
+`ed6a69d48a8670544e696915d561d6715c19ad01` corrects that setup, adds required
+comment browser coverage, and pins the actual six-file production-write and
+production-comments closures. Generated manifest, pin-drift and F27 deploy-lane
+checks pass locally. Combined source is unpublished and not a release certificate.
+
+All75 required current-comment files passed offline validation, including the
+five larger videos and two fonts:547252015 bytes; receipt
+`a10cccd886084770f5c420dd5d89c7bd26b6358fc7657f834f800b2aa2fc69d4`.
+The additive comment migration passed12 constraint refusals,4 ACL refusals and
+3 exactly reconstructed mixed rows in disposable SQL; receipt
+`7363c71886e405f6a8e724501aa060959f57908308d2de47b6361b277162a5a7`.
+This narrow proof does not complete the separately running42-table recovery.
+No upload, global-limit change, reader activation or live write occurred.
+
+Two bounded reader-scope reads narrow further work. At18:09:29Z,5264 active-owned
+nondeleted comments had no attachment rows and no literal Linear-upload references
+in client-audience bodies/attachments; receipt
+`7c8cf04bd54ca0ef82ebbbb1453eb54f45d147c58706962e3e9c941dce8d76ba`.
+At18:19:31Z,6 of82 unlinked nondeleted linked-file comments matched the actual
+archive reader's UUID/active-client scope; zero were client audience and zero
+deleted linked-file comments matched. Receipt
+`d141b7cc8c5c54c9e5edde21d7e1a165066e201b0fbbb2f950e1ea9c3d76961d`.
+The other76 are not offered by that reader under this snapshot. Archive eligibility
+alone does not establish current business use; the owner has been asked whether
+Archive asset repair is used. No broad historical-export requirement is inferred.
+
 **Later hosted integration findings, September7:** new draftPR1335 forwardingf3ad passed all three applicable hosted checks. DraftPR1337 completion9a33 and draftPR1339 briefmedia451766 passed their six other applicable checks but their unit jobs failed (four and25 suites respectively; two optional polish skips each). Failures remain red. F44 needs refusal guidance, exact test-seam accounting and release pins; media needs transitive fixture/deployment closures, source assertions and explicit test dependencies. Corrections are in progress and must pass focused checks before the final combined hosted run. Root local combination898f660e5 is unpushed and is not a release certificate. Brief corpus validation1166/1166 and private27-package census1338/1338 are separate completed preservation evidence. Current49 comment rows now have all75 source URLs preserved privately, including five required58-94MB videos; no Storage upload, configuration or serving change. See the release packet for exact hashes and the held100MiB comment-storage proposal.
 
 **Later September7 source preservation and owner exception:** all1167 distinct references in the bounded486 native-brief set now have private bytes. The first collection saved1166 references (1141 unique contents;2,463,560,336 bytes including aliases), preserving its one over-limit failure. A separate929,315,893-byte streaming read completed with receipt `38406a6b297bd526d94c60b8a9bfb3310af9434494e280523006cf97b5af019a`. Owner explicitly deferred only that historical Posted reference video's website link; keep the private copy, original text and all other media. No status-wide exclusion, upload or live rewrite. Full format validation, independent delivery and49 current linked comment bodies remain open. Details and private receipt digests are in the release packet. PR1334 `2fdf2b8a188411d0fbfba776bba7156b496d102b` now publishes the reviewed two-card n8n raw-body preparation; all three applicable hosted checks SUCCESS. Its19 synthetic and32 private extracted-source controls do not constitute n8n engine execution or activation.

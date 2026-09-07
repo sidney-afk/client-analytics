@@ -163,7 +163,24 @@ historical brief exception does not apply. Prepare private download-only serving
 under a100MiB comment-file limit. A global Storage increase from50 to100MiB is a
 separate later approval/readback action, with existing bucket policies and new
 upload4MiB/brief50MiB limits retained. No setting has changed. Font files also
-remain required downloads; complete comment validation/reader proof is pending.
+remain required downloads. All75 required files subsequently passed offline
+validation (547252015 bytes), receipt
+`a10cccd886084770f5c420dd5d89c7bd26b6358fc7657f834f800b2aa2fc69d4`.
+The prepared staff reader keeps images off, binds downloads to the exact comment,
+audience and original file, and refreshes expired links without overwriting a
+concurrent edit. Focused actual-handler/model/Chromium proof passes36 groups;
+separate disposable SQL passes12 constraint and4 ACL refusals with3 exactly
+restored mixed rows. These are local proofs; destination admission, combined
+recovery and live delivery remain open.
+
+The18:09 bounded read found no attachment rows or client-audience body/file
+references among5264 active-owned nondeleted comments. The18:19 follow-up matched
+6 of82 unlinked nondeleted file comments to the offered active-client archive
+reader, all staff audience; the other76 and all115 deleted linked-file comments
+were outside that reader's exact UUID/active-client scope. Whether the team uses
+that archive-only surface is being clarified. Do not infer use from eligibility,
+discard originals, or turn this question into a comprehensive historical export.
+Exact query/receipt hashes are in the dated accounting.
 
 ## Minimum reserved TEST window
 

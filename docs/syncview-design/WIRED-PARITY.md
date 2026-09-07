@@ -1031,3 +1031,54 @@ links are not gonna change."
     placement over the read view, caret from the click, typing, paste-to-link,
     the link card, render-while-editing keeps focus and pane offset, Escape
     discards, Save writes the exact Markdown).
+
+
+## The identifier a row answers to, and the alias behind it (2026-09-07)
+
+Owner, from the Workload calendar: a rollup's **Open SyncView →** answered
+"GRA-7197 has no row in Production ... Showing the full list instead" for a row
+that exists, is not archived, and had already been fetched. OPEN_REPAIRS 161.
+
+-   **Candidate behaviour.** `_prodAdapter` named every row
+    `displayId: d.identifier || d.linear_identifier || d.id`, and `_prodIssue`
+    matched on `id` or `displayId` only. `identifier` is the b1 import's
+    SNAPSHOT: native creation writes it null, and `linear-inbound` refreshes
+    `linear_identifier` (and `team`) on every webhook while never touching it.
+    Linear re-keys an issue when its team changes, so a row moved from Video to
+    Graphics keeps a retired VID number in the snapshot. Reading the snapshot
+    first made the tab the only system calling that row by its retired name,
+    while Linear, `workload_issues`, the Workload calendar and every person
+    used the current one. The one deep link in the product that carries no row
+    id is exactly the one that asks by Linear identifier — the Workload popover
+    header, each popover row, and `wlSyncLinearUrl` — so those links resolved
+    nothing and the fallback published a missing-row notice over a row the page
+    was holding. Measured over all 6,369 browser-visible rows: 7 diverge, all
+    graphics rows carrying a VID- snapshot.
+-   **Wired behaviour.** The maintained column names the row
+    (`displayId: linearIdent || importIdent || id`) and a disagreeing snapshot
+    survives as `aliasId`. `_prodIssue` resolves `id` or `displayId` in a first
+    pass and `aliasId` only in a second, so a canonical match anywhere in the
+    set always beats an alias — no collision exists in the live set today, and
+    the ordering is what keeps that from being load-bearing. The row prints its
+    real Graphics number, the command palette finds it by that number, and the
+    missing-notice's archived branch tests both identifier columns
+    independently instead of `identifier || linear_identifier`.
+-   **The alias has a LIFETIME, not permanence.** It resolves a divergence for
+    as long as the data carries one. The data repair
+    (`migrations/2026-09-07-deliverable-identifier-team-move-repair.sql`) makes
+    the two columns agree, so it empties for those seven and the retired number
+    stops resolving here — the intended end state, since no surface in the
+    product has ever EMITTED a link carrying the snapshot (`_prodSetQuery`
+    writes the canonical row id) and a re-keyed number names nothing in Linear
+    either. What it still covers is the window between a team move and its
+    repair, and every future move while Linear is connected, because
+    `linear-inbound` still does not re-stamp `identifier`. Keeping retired
+    numbers resolvable for ever is an owner decision recorded in OPEN_REPAIRS
+    161, recommended against, and would take a new browser-readable column plus
+    a view migration.
+-   **Deep-link state is unchanged.** `_prodState.openId` still holds the
+    string the URL asked for, so `_prodApplyDeepLinkFallback` compares it
+    literally and `_prodOpenRowId` normalises only the read keys, exactly as
+    `test/prod-deep-link-open-id-key.js` pins. Suites:
+    `test/prod-deep-link-linear-identifier.js` (resolver, executed) and
+    `test/identifier-team-move-repair.js` (the repair's shape).

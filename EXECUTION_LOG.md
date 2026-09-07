@@ -25,7 +25,7 @@ Left open on purpose, 3 cards, one owner decision: the RPC picks the card table 
 children carry `origin='samples'`, so those three refuse `component_fill_card_missing`.
 The refusal now says what is actually true instead of inheriting the calendar's
 evict-the-cache-and-reload advice, which is right there and false here. Browser-only,
-no deploy. OPEN_REPAIRS 161.
+no deploy. OPEN_REPAIRS 162.
 
 ## 2026-09-06 — Built: the description edits in place, like Linear's
 

@@ -1,5 +1,14 @@
 # SyncView Independence Execution Log
 
+## 2026-09-07 - Native named append, isolated preparation
+
+Prepared the additive hybrid without changing historical migrations. Eight actual restored-target SQL groups and seven exact composition controls pass. First native-column installation and final merged handler/recovery remain unproven; no live changes. [Proof and installation order](docs/ops/NATIVE_INTAKE_NAMED_APPEND.md).
+
+
+## 2026-09-07 - Explicit42-owner native continuity recovery, uninstalled
+
+Actual isolated cold resume passed five checks against the retained authenticated 42-table package after host shutdown; the prior full run remains timed out and later main integration is excluded. Prepared authenticated history-v9 adds public intake provenance, F44 triage and native media ledger while retaining earlier formats/defaults. Exact schema/data, trigger and sequence rehearsal is recorded in [the v9 recovery contract](docs/ops/RECOVERY_SCHEMA_V9.md). Media object and private owner-receipt bytes remain separate custody. No live changes or activation.
+
 ## 2026-09-07 - Retained Workload cutoff adapter, uninstalled
 
 Exact b60 handler controls reproduce closed-cutoff metadata egress and provider team reads before native-authority refusal. The sole provider transport now observes the existing G8 control before every request; metadata propagates the held/retired response and the writer prechecks native authority while retaining its post-lookup check.58 actual-handler/model-boundary checks plus existing Workload source/policy/browser checks pass. [Evidence and release/recovery limits](docs/audits/2026-09-07-workload-cutoff.md) retain CON/STR, pre-admitted requests, old isolates and installed-control prerequisites. No live actions or G8 promotion.

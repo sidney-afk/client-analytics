@@ -1,5 +1,10 @@
 # ROLLBACK.md — the "back to a working website in one step" runbook
 
+**Native named append, uninstalled:** after acceptance retain native receipts, names and ordinals; hold admission and repair forward. Do not restore either incompatible old append replacement. [Atomic preparation and proof scope](docs/ops/NATIVE_INTAKE_NAMED_APPEND.md).
+
+
+**Native continuity v9, uninstalled:** source withdrawal changes no installed data. After future acceptance, retain all42 selected owners and compatible schema/packages plus separate media and private receipt bytes; hold new admission and repair forward. Never downgrade to an older corpus or provider worker to recreate native-owned receipts. Quarantine committed/unknown restores. [Exact v9 recovery contract](docs/ops/RECOVERY_SCHEMA_V9.md).
+
 **Retained Workload cutoff adapter, uninstalled:** source withdrawal changes no installed work. Before cutoff, exact captured source can restore the prior provider behavior; after cutoff, preserve admission or stop the endpoint and repair forward. Do not restore the unfenced handler, reset/delete cutoff control or reverse authority to recover availability. Pre-admitted requests and unknown provider outcomes still need quiescence/reconciliation. [Staged dependency and CON/STR continuity holds](docs/audits/2026-09-07-workload-cutoff.md).
 
 **Frozen anonymous composition, uninstalled:** discard unused generated staging only; preserve captured source and private receipts. After future native acceptance, retain the terminal materialization/receipt reader and hold fresh admission while repairing forward. An older full-row upsert can overwrite current edits on replay; regating client links or deleting receipts is not recovery. [Exact composition and held release dependencies](docs/audits/2026-09-07-frozen-native-composition.md).

@@ -395,7 +395,18 @@ const CANDIDATES = new Map([
     // ASSET_EVIDENCE_MAX_AGE_MS in place of the live probe, and `recheck: true`
     // from the Refresh access button skips the ledger. One new read on
     // production_asset_access_checks per slot; no new import, file count 5.
-    source: 'd7fc8348d114b17a86de8ac82f6e7a14041f2c2cfe60f6931482292c9f45016a',
+    // Re-pinned 2026-09-07 (thirty-second release; NOT yet deployed): post
+    // names. `intake_create` composes a named sub-issue title from one place
+    // (`intakeChildTitle` in policy.mjs) on both the create and the append
+    // path, resolves one name per card_id rather than per team, and refuses an
+    // over-long name with its own code instead of truncating it. The append
+    // branch now trusts the title planAppendIntakeItems already composed
+    // against the ordinal IT allocated, rather than recomposing from the
+    // request surface. Two files in the closure moved (index.ts, policy.mjs);
+    // no new import, file count 5, entrypoint unchanged. Requires
+    // `migrations/2026-09-07-production-intake-append-v8.sql` to be applied
+    // FIRST -- the deployed RPC refuses a named title until it is.
+    source: 'ccbdd136f488c1e948ca49b429ff50e5c850057b3bd3eabb97c5cb47f1a3d164',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

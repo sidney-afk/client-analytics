@@ -13776,3 +13776,64 @@ CLAUDE.md says to check for duplicate `## N.` headers after any merge because co
 
 Items 95, 160, 72, 63, 75, 76, 78 and 79 close as part of this program; each gets a one-line reason appended under its own heading, not a rewrite.
 
+
+## 176. [2026-09-07, MEASURED LIVE — the lane-A acceptance number, and two things the exit scoping had wrong] 37 live tasks exist natively and are invisible on today's Workload board; the native view was already applied
+
+**Taken read-only against the live backend** with the browser publishable key, at
+2026-09-07 late evening UTC, while the n8n Workload reconcile is still running.
+That timing is the point: this comparison is only possible while
+`public.workload_issues` is still being rebuilt from Linear, and it becomes
+unrunnable the moment lane F stops that reconcile.
+
+| | rows |
+|---|---|
+| active rows in `workload_issues_native_v1` (task arm) | 5,056 |
+| of those, live status (not completed/canceled/duplicate/triage/backlog) | 961 |
+| active rows in `workload_issues` (what the board reads today) | 2,059 |
+| **live tasks present natively and ABSENT from the board** | **37** |
+| of those, active-roster client work | **33**, across 11 clients |
+| of those, the TEST client `sidneylaruel` | 4 |
+| of those, never mirrored to the provider at all | **0** |
+
+Split: 27 VID / 10 GRA; 21 video / 16 thumbnail. Statuses: 30 `Todo`,
+5 `In Progress`, 1 `For SMM approval`, 1 `Tweak Needed`.
+
+**Every one of the 37 carries a `linear_id`.** So none of them is a native row
+the mirror never reached. Each was created, mirrored out, and then lost on the
+provider side — the exact mechanism items 95 and 110 established, still
+producing new rows a week later. Item 95 measured 40 active-roster rows on
+2026-09-01; this reads 33 on 2026-09-07. The population is real, it is
+persistent, and going native ends it rather than repairing it once.
+
+### Two corrections to the exit scoping, both load-bearing
+
+1. **`migrations/2026-09-02-workload-native-view.sql` IS APPLIED.** The scoping
+   asserted it had never been applied, on the evidence that it appears nowhere
+   in `EXECUTION_LOG.md`, and lane A was told to verify exactly that. The
+   inference was wrong: `GET /rest/v1/workload_issues_native_v1` returns 200 with
+   rows. Absence from the execution log is absence of a *record*, not absence of
+   the *change* — which is the same shape of error `ROLLBACK.md`'s Live State
+   table has been caught in twice. **An owner migration window is already spent
+   and nobody knew it.** Whoever applied it did not log it; that gap is the
+   follow-up owed here.
+2. **The predicted acceptance number (~195) does not describe this measurement.**
+   ~195 comes from `_wlNativeDiffReport`, which keys purely on `linear_id`
+   presence and applies no status or client filter. Both numbers are correct
+   about different questions. The number that answers *"what work is invisible to
+   the people who owe it"* is **37**, and a session told to expect 195 from a
+   status-filtered read would call a working harness broken.
+
+**A trap this measurement fell into first, recorded so the next reader does not.**
+The view is two `union all` arms: one row per deliverable, one per batch carrying
+at least one. The batch arm emits `native_kind`, `status`, `status_type` and
+`native_sync_state` all NULL, by design — those rows are parents, not tasks. A
+naive "live status" test reads NULL as "not in the inactive set" and therefore as
+live, which admits all 1,366 batch rows and reports **1,403** instead of 37.
+Filter on `native_kind is not null` before filtering status. The first run of this
+measurement reported 1,403 and it was wrong.
+
+**Not proven here.** This is a REST-level comparison of two sources. It is not a
+browser render, so it does not prove the board paints these 37 rows, nor that
+`wlFetchNativeSnapshot` survives them. Lane A's own suite covers that; this
+answers only the population question the merge gate asked.
+

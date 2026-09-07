@@ -64335,7 +64335,7 @@
        or the other component.
      *
      * IT RUNS INSIDE THE PER-CARD SAVE QUEUE, and that is the whole safety of
-     * it (Codex P1 on #1342). Awaiting the in-flight save once was not enough:
+     * it (Codex P1 on PR 1342). Awaiting the in-flight save once was not enough:
      * that save's `finally` starts a REPLACEMENT `_sxrSaveInFlight[pid]` for
      * any edit queued while it was draining, so the continuation resumed
      * beside a save this write had never waited for. The follow-on save is
@@ -64368,7 +64368,7 @@
             // it as a local write so the strip is not rebuilt underneath the
             // person who just pressed the button, as every samples write does.
             _sxrLastLocalWriteAt = Date.now();
-            /* THE VIEW MAY HAVE MOVED ON (Codex P2 on #1342). Staff switch client
+            /* THE VIEW MAY HAVE MOVED ON (Codex P2 on PR 1342). Staff switch client
                tabs while a request is in flight, and `sxrState.posts` then holds
                the NEW client's rows while `clientSlug` still names the old one.
                Writing that array under the old slug's cache key would leave one
@@ -64397,7 +64397,33 @@
         } finally {
             delete _sxrSaveInFlight[pid];
             if (releaseSave) releaseSave();
-            if (_sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
+            /* THE QUEUED EDIT BELONGS TO THE CLIENT IT WAS TYPED ON (Codex P1
+               on PR 1342, second pass). `_sxrFlushCardSave` derives `_saveSlug`
+               and the row from `sxrState` AT FLUSH TIME, and a card absent from
+               `sxrState.posts` is treated as a new row and INSERTED --
+               `sample_reviews` is keyed by (client, id), so a flush that lands
+               after a client switch writes one client's edit as a brand-new
+               sample under another. Holding the lock is what opens that window
+               twice over: `onSxrClientChange` calls `_sxrFlushAllPending`
+               first, but every flush it starts hits
+               `if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and
+               defers behind THIS write, then wakes after the switch.
+
+               So when the view has moved on, the bucket is dropped rather than
+               flushed, and dropping it is what also stops that deferred
+               `_sxrAwaitCardSave` -- it re-reads `_sxrPendingEdits[pid]`, finds
+               nothing, and returns instead of writing to the wrong client. The
+               cost is a local edit on a card nobody is looking at any more,
+               recorded in the diagnostics ring; the alternative is a phantom
+               sample row under a client who never had one. */
+            if (_sxrPendingEdits[pid]) {
+                if (sxrClientSlug(sxrState.client) === clientSlug) _sxrFlushCardSave(pid);
+                else {
+                    delete _sxrPendingEdits[pid];
+                    _writeUiQueueDiagnostic('sxr', 'queued_edit_dropped_off_client',
+                        { kind: 'component_fill' }, { code: 'client_changed_during_fill' });
+                }
+            }
         }
     }
     async function _sxrFillComponent(pid, which) {
@@ -64415,6 +64441,7 @@
         }
         const clientSlug = sxrClientSlug(sxrState.client);
         if (!clientSlug) return;
+        const cardName = String((post && post.name) || '').trim();
         let identity;
         try { identity = await _syncviewRequireStaffIdentity('intake'); }
         catch (error) {
@@ -64428,13 +64455,44 @@
             showNotify(notice[0], notice[1]);
             return;
         }
+        /* THE VIEW CAN MOVE UNDER BOTH AWAITS ABOVE (Codex P1 on PR 1342, second
+           pass). The identity read and the live authority read are network
+           round trips, and staff switch Samples client tabs during them. The
+           captured `clientSlug`, `post` and `siblingId` still describe the
+           client that was on screen when the button was pressed, so a dialog
+           that opened afterwards would sit over the NEW client while carrying
+           the old one's identifiers -- and confirming it would mint real
+           Production and Linear work for a client the person is no longer
+           looking at. Re-checked here, and AGAIN inside the callback, because
+           the dialog itself is a wait: it can sit open across a tab switch. */
+        if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
+            showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
+            return;
+        }
         showConfirm(
             'Add the missing ' + label + '?',
-            'This creates the ' + label + ' for this sample, in the same batch as its '
+            'This creates the ' + label + ' for ' + (cardName ? '“' + cardName + '”' : 'this sample')
+                + ' on ' + clientSlug + ', in the same batch as its '
                 + (target === 'graphic' ? 'video' : 'thumbnail')
-                + ', and attaches it to this card. It appears in Production and mirrors to Linear.',
-            () => { _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug, identity); },
+                + ', and attaches it to that card. It appears in Production and mirrors to Linear.',
+            () => {
+                if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
+                    showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
+                    return;
+                }
+                _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug, identity);
+            },
             'Add ' + label);
+    }
+    /* Is the card this fill was started for still the card on screen, and still
+       missing the same component with the same sibling? Every asynchronous step
+       between the press and the write re-asks it, so a client switch, a peer's
+       fill or a reload that lands in between stops the write rather than
+       redirecting it. */
+    function _sxrFillStillCurrent(pid, target, clientSlug, siblingId) {
+        if (sxrClientSlug(sxrState.client) !== clientSlug) return false;
+        const current = sxrState.posts.find(item => item && item.id === pid);
+        return !!current && _sxrFillSiblingId(current, target) === siblingId;
     }
     async function _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug, identity) {
         const requestId = _sxrFillRequestId(pid, team);
@@ -64480,6 +64538,8 @@
             if (existing && existing.id) {
                 try {
                     await _sxrFillWriteCardLink(clientSlug, pid, team, String(existing.id), existing.linear_issue_url);
+                    // The row somebody else made may itself still be draining.
+                    if (!String(existing.linear_issue_url || '').trim()) _sxrAdoptLinksAfterCreate(clientSlug);
                     showNotify('Already there', 'This sample already had a ' + label + '. The card is linked to it now.');
                     return;
                 } catch (repairError) { failure = repairError; }
@@ -64527,6 +64587,19 @@
                 'It is in Production, but this card could not be linked to it just yet. Press the button again in a moment and it will finish the job.');
             return;
         }
+        /* THE LINEAR URL IS USUALLY NOT IN THAT RESPONSE (Codex P2 on PR 1342,
+           second pass). On a live fill the gateway schedules the outbound drain
+           and answers `mirror_pending: true` before the issue exists, so the
+           card is written with the deliverable id and an EMPTY Linear url. That
+           is enough to retire the fill button, which means nothing on the card
+           asks for the link any more and it would sit empty until an unrelated
+           reload happened to run the adopter. This is the same hole a freshly
+           created sample had, and `_sxrAdoptLinksAfterCreate` is the answer
+           already written for it: four guarded polls across the window the
+           mirror actually takes (measured 15s on the 2026-08-20 create), each
+           one abandoning if the view moved on, skipping any slot already
+           filled, and refusing a row whose card_id binds elsewhere. */
+        if (!String(item.linear_issue_url || '').trim()) _sxrAdoptLinksAfterCreate(clientSlug);
         showNotify('Added', result && result.mirror_pending === true
             ? 'The ' + label + ' is on this sample; the Linear mirror is still draining.'
             : 'The ' + label + ' is on this sample.');

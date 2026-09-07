@@ -13735,6 +13735,57 @@ network read lands. The server write is correct and stays; the local state, the
 cache write and the repaint are now skipped when the view has moved on, and the
 next load of that client reads the link back off the row.
 
+**THE SECOND PASS FOUND THREE MORE, ALL ABOUT THE VIEW MOVING MID-FLIGHT**
+(Codex on #1342, on `7fdd41d`). Every fill has three waits in it, and staff
+switch Samples client tabs during all of them.
+
+**P1: the confirmation could open over a client it did not belong to.** The
+client, the card and the sibling are captured before two network round trips
+(the staff identity read and the live authority read), and the dialog said only
+"this sample". A switch during either one left a dialog sitting over the NEW
+client while carrying the OLD one's identifiers, and confirming it minted real
+Production and Linear work for a client nobody was looking at. `_sxrFillStillCurrent`
+now re-asks the whole question (same client, same card present, same sibling
+still missing the same component) after the awaits AND inside the confirm
+callback, because the dialog is itself a wait that can sit open across a tab
+switch. It also catches a peer who filled the slot first. The dialog now names
+the client and the card.
+
+**P1: a queued edit could be flushed under the wrong client.** The lock added
+in the first round opens this twice over. `onSxrClientChange` calls
+`_sxrFlushAllPending` before switching, but every flush it starts hits
+`if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and DEFERS behind the
+fill; the release-time flush is the other trigger. Either way
+`_sxrFlushCardSave` derives `_saveSlug` and the row from `sxrState` at flush
+time, and a card it cannot find is treated as a new row and INSERTED. Since
+`sample_reviews` is keyed by (client, id), one client's edit lands as a brand-new
+sample under another. The bucket is now dropped rather than flushed when the
+view has moved on, with a diagnostic; dropping it is also what stops the
+deferred `_sxrAwaitCardSave`, which re-reads `_sxrPendingEdits[pid]`, finds
+nothing and returns. The cost is a local edit on a card nobody is looking at any
+more; the alternative was a phantom row under a client who never had one.
+
+**P2: the Linear url is usually not in the fill response.** On a live fill the
+gateway schedules the outbound drain and answers `mirror_pending: true` before
+the issue exists, so the card is written with the deliverable id and an EMPTY
+url. That is enough to retire the fill button, so nothing on the card asks for
+the link any more and it sat empty until an unrelated reload happened to run the
+adopter. This is the hole a freshly created sample already had, and
+`_sxrAdoptLinksAfterCreate` is the answer written for it (four guarded polls
+across the window the mirror actually takes, measured at 15s on the 2026-08-20
+create). It now runs after a fill whose response carries no url, and after the
+repair arm, since a peer's fill can be mid-drain just as easily.
+
+**STILL OPEN, AND IT IS NOT THIS CHANGE'S:** `_sxrFlushCardSave` deriving its
+slug and row from `sxrState` at flush time is a property of the samples save
+engine, not of the fill. Any in-flight save plus a client switch reaches it
+without this feature, through the same deferred `_sxrAwaitCardSave`. The fill
+no longer contributes a path to it, and the fix above is local to the fill
+rather than to the engine, deliberately: binding a queued edit to its
+originating slug means stamping it at a dozen queue sites or adding a guard
+whose blast radius covers the cross-client Kasper queue, which is not a change
+to make inside a samples-feature PR. Recorded here for its own change.
+
 Pinned by `test/samples-component-fill.js`, which EXECUTES the gate against the
 live card shapes (both halves, neither, blank, archived, client view, legacy
 half-link, rolled-back team) rather than pattern-matching it, proves the request
@@ -13744,7 +13795,11 @@ findings are pinned by EXECUTION rather than by source-matching, as the reviewer
 asked: a stub flush started beside the write proves it reads the link and not
 the emptiness before it, a refused write proves the lock is released and the
 queued edit flushed, and a mid-flight client switch proves the departed cache is
-left alone. All four go red against the pre-review code. A watchdog and an
+left alone. The second pass is executed the same way, the whole submit function
+included, so the mirror-pending branch, the repair arm and the drifted-batch
+refusal are chosen from real response shapes rather than matched in source.
+Eleven checks across the two rounds go red against the code that preceded
+them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.

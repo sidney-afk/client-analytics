@@ -156,6 +156,39 @@ ok(/_sxrSaveInFlight\[pid\]/.test(writeSrc),
 ok(!/json\.sample/.test(writeSrc),
   'and applies only the columns it wrote, never the whole echo over a card someone may be editing');
 
+/* ---- 3c. EXECUTED: the fill cannot follow the view to another client ----
+ *
+ * Second-pass review findings, all three about what happens when the Samples
+ * view moves while a fill is mid-flight. Executed, because "which client does
+ * this write land on" is a question about ordering and state, and the previous
+ * round proved that source-matching answers it wrongly. */
+
+const stillCurrentSrc = grabFunc('function _sxrFillStillCurrent(');
+const stillCurrent = new Function(
+  'sxrClientSlug', 'sxrState', '_isClientLink', '_sxrIsBlankId', '_writeUiLinkSlotSealed',
+  gateSrc + stillCurrentSrc + '; return _sxrFillStillCurrent;',
+);
+const currentFor = (slug, posts) => stillCurrent(
+  () => slug, { client: slug, posts }, false, blankId, sealedAll);
+
+ok(currentFor('testclient', [thumbOnly])('sr_mrfd5wbb_gzui9', 'video', 'testclient', 'b1_d_81d7') === true,
+  'the card that was on screen when the button was pressed is still the one the write may go to');
+ok(currentFor('anotherclient', [thumbOnly])('sr_mrfd5wbb_gzui9', 'video', 'testclient', 'b1_d_81d7') === false,
+  'a client switch during the identity or authority read stops the fill, so a dialog opened over one client cannot mint work for another');
+ok(currentFor('testclient', [])('sr_mrfd5wbb_gzui9', 'video', 'testclient', 'b1_d_81d7') === false,
+  'and a card that is no longer in the loaded set stops it too');
+ok(currentFor('testclient', [Object.assign({}, thumbOnly, { video_deliverable_id: 'del_peer' })])(
+  'sr_mrfd5wbb_gzui9', 'video', 'testclient', 'b1_d_81d7') === false,
+  'and a peer who filled the same slot first stops it, because the sibling no longer answers');
+
+const handlerSrcNow = grabFunc('async function _sxrFillComponent(');
+ok((handlerSrcNow.match(/_sxrFillStillCurrent\(/g) || []).length >= 2,
+  'the handler re-asks that question twice: after the awaits, and again inside the confirm callback, because the dialog is itself a wait');
+ok(/showConfirm\([\s\S]*?_sxrFillStillCurrent\(/.test(handlerSrcNow),
+  'specifically inside the callback, so a tab switch with the dialog open cannot be confirmed into the wrong client');
+ok(/on ' \+ clientSlug \+ '/.test(handlerSrcNow) && /cardName/.test(handlerSrcNow),
+  'and the dialog names the client and the card it will act on, rather than saying only "this sample"');
+
 /* ---- 3b. EXECUTED: the write holds the per-card save queue -------------
  *
  * Codex P1 on #1342, and it was right. Awaiting the in-flight save once is not
@@ -174,6 +207,7 @@ const writeFn = new Function(
   '_sxrAwaitCardSave', '_sxrSaveInFlight', '_sxrUpsertFetch', 'sxrClientSlug', 'sxrState',
   '_sxrCacheWrite', '_sxrRenderBody', '_sxrIsBusy', '_sxrSchedulePendingRender',
   '_sxrPendingBackgroundRender', '_sxrPendingEdits', '_sxrFlushCardSave', '_sxrLastLocalWriteAt',
+  '_writeUiQueueDiagnostic',
   writeSrc + '; return _sxrFillWriteCardLink;',
 );
 
@@ -183,7 +217,7 @@ function harness(options = {}) {
     pendingEdits: options.pendingEdits || Object.create(null),
     posts: options.posts || [{ id: 'sr_1', name: 'Sample 1', graphic_deliverable_id: 'b1_d_1' }],
     slug: 'testclient',
-    awaited: 0, cached: [], rendered: 0, flushed: [], sent: null,
+    awaited: 0, cached: [], rendered: 0, flushed: [], sent: null, diagnostics: [],
   };
   const awaitCardSave = async pid => {
     state.awaited += 1;
@@ -211,6 +245,7 @@ function harness(options = {}) {
     state.pendingEdits,
     pid => { state.flushed.push(pid); },
     0,
+    (surface, outcome) => { state.diagnostics.push({ surface, outcome }); },
   );
   return { state, fn };
 }
@@ -279,6 +314,33 @@ async function orderingChecks() {
     'and the newly selected view is not repainted by a write that belongs to the one before it');
   ok(switched.state.saveInFlight.sr_1 === undefined,
     'and the lock is still released');
+
+  /* A QUEUED EDIT MUST NOT FOLLOW THE VIEW. `_sxrFlushCardSave` derives its
+     slug and its row from `sxrState` at flush time and INSERTS a card it
+     cannot find, and `sample_reviews` is keyed by (client, id) -- so a flush
+     released after a client switch writes one client's edit as a brand-new
+     sample under another. Dropping the bucket is also what stops the
+     `_sxrAwaitCardSave` that `onSxrClientChange` deferred behind this very
+     lock: it re-reads `_sxrPendingEdits[pid]`, finds nothing, and returns. */
+  const switchedWithEdit = harness({
+    pendingEdits: { sr_1: { name: 'typed before the switch' } },
+    duringWrite: async state => {
+      state.slug = 'anotherclient';
+      state.posts = [];
+    },
+  });
+  await switchedWithEdit.fn('testclient', 'sr_1', 'video', 'del_new', '');
+  ok(switchedWithEdit.state.flushed.length === 0,
+    'an edit queued during the fill is NOT flushed once the view has moved to another client');
+  ok(switchedWithEdit.state.pendingEdits.sr_1 === undefined,
+    'and its bucket is dropped, so the deferred flush that onSxrClientChange started finds nothing to write under the wrong client');
+  ok(switchedWithEdit.state.diagnostics.some(row => row.surface === 'sxr' && row.outcome === 'queued_edit_dropped_off_client'),
+    'and the drop is recorded rather than silent, because a lost local edit nobody can see is the hardest kind of bug here');
+
+  const stayedWithEdit = harness({ pendingEdits: { sr_1: { name: 'typed during the fill' } } });
+  await stayedWithEdit.fn('testclient', 'sr_1', 'video', 'del_new', '');
+  ok(stayedWithEdit.state.flushed.includes('sr_1'),
+    'while on the same client it is flushed as before, so a normal edit made during a fill is never lost');
 }
 
 /* ---- 4. It asks the gateway for a samples fill, and cannot create a card */
@@ -313,6 +375,88 @@ ok(/component_fill_card_missing/.test(submitSrc)
   'a card the RPC looked for in the wrong table is answered with what is actually true, and still recorded for diagnostics');
 ok(submitSrc.indexOf('component_fill_card_missing') < submitSrc.indexOf("_writeUiReportFailure('sxr', 'component_fill', failure)"),
   'and that answer runs BEFORE the shared handler, so no display cache is swept and no reload is advised');
+
+
+/* ---- 3d. EXECUTED: a live fill answers before Linear exists -------------
+ *
+ * Codex P2, second pass. On a non-TEST fill `production-write` schedules the
+ * outbound drain and answers `mirror_pending: true` BEFORE the issue exists,
+ * so the card is written with the deliverable id and an EMPTY Linear url. That
+ * is enough to retire the fill button, so nothing on the card asks for the link
+ * any more and it would sit empty until an unrelated reload happened to run the
+ * adopter. Executed through the real submit function, because the branch that
+ * matters is chosen from a response shape. */
+
+const submitFn = new Function(
+  '_sxrFillRequestId', 'fetch', '_syncviewEfHeaders', 'CAL_SUPABASE_ANON_KEY', 'PROD_WRITE_EF_URL',
+  '_calFillLookupExisting', '_sxrFillWriteCardLink', 'showNotify', '_writeUiReportFailure',
+  '_writeUiQueueDiagnostic', '_sxrAdoptLinksAfterCreate',
+  submitSrc + '; return _sxrFillComponentSubmit;',
+);
+
+function submitHarness(body, options = {}) {
+  const seen = { adopted: [], linked: [], notified: [], reported: [], diagnostics: [], lookups: 0 };
+  const fn = submitFn(
+    (pid, team) => 'sfill:' + team + ':' + pid,
+    async () => ({ ok: options.httpOk !== false, json: async () => body }),
+    headers => headers,
+    'key', 'https://example.invalid/production-write',
+    async () => { seen.lookups += 1; return options.existing || null; },
+    async (slug, pid, team, id, url) => { seen.linked.push({ slug, pid, team, id, url }); },
+    (title, message) => { seen.notified.push({ title, message }); },
+    (surface, operation, error) => { seen.reported.push({ surface, operation, code: error && error.code }); },
+    (surface, outcome) => { seen.diagnostics.push({ surface, outcome }); },
+    slug => { seen.adopted.push(slug); },
+  );
+  return { seen, fn };
+}
+
+async function mirrorChecks() {
+  const draining = submitHarness({
+    ok: true, native_committed: true, mirror_pending: true,
+    item: { id: 'del_new', linear_issue_url: '' },
+  });
+  await draining.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient', {});
+  ok(draining.seen.linked.length === 1 && draining.seen.linked[0].id === 'del_new',
+    'a live fill links the card to the deliverable the gateway made, before the mirror has drained');
+  ok(draining.seen.adopted.length === 1 && draining.seen.adopted[0] === 'testclient',
+    'and starts the link adopter, so the Linear url arrives on its own instead of waiting for an unrelated reload');
+  ok(/mirror is still draining/.test(draining.seen.notified.map(n => n.message).join(' ')),
+    'and says so, rather than reporting a link that is not there yet');
+
+  const drained = submitHarness({
+    ok: true, native_committed: true,
+    item: { id: 'del_new', linear_issue_url: 'https://linear.app/x/VID-9' },
+  });
+  await drained.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient', {});
+  ok(drained.seen.adopted.length === 0,
+    'a response that already carries the url starts no poll, because there is nothing left to adopt');
+
+  /* The repair arm links the row somebody else made, which may itself still be
+     draining, so it needs the same treatment. */
+  const repaired = submitHarness(
+    { ok: false, error: 'component_fill_team_occupied' },
+    { httpOk: false, existing: { id: 'del_peer', linear_issue_url: '' } });
+  await repaired.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient', {});
+  ok(repaired.seen.lookups === 1 && repaired.seen.linked.length === 1 && repaired.seen.linked[0].id === 'del_peer',
+    'an occupied slot is repaired by linking the component that already exists');
+  ok(repaired.seen.adopted.length === 1,
+    'and that row gets the adopter too, because a peer fill can be mid-drain as easily as this one');
+
+  /* The drifted-batch refusal, executed rather than pattern-matched: it must be
+     answered here and never handed to the shared reload-and-evict handler. */
+  const missing = submitHarness(
+    { ok: false, error: 'component_fill_card_missing' }, { httpOk: false });
+  await missing.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient', {});
+  ok(missing.seen.reported.length === 0,
+    'a card the RPC looked for in the wrong table never reaches the shared handler, so no display cache is swept');
+  ok(missing.seen.diagnostics.some(row => row.surface === 'sxr'),
+    'it is recorded for diagnostics all the same');
+  ok(/recorded as a calendar batch/.test(missing.seen.notified.map(n => n.message).join(' ')),
+    'and the person is told what is actually true, not to reload');
+  ok(missing.seen.linked.length === 0,
+    'and nothing is written to the card, because nothing was created');
+}
 
 /* ---- 5. Live authority, not the render-time guess ---------------------- */
 
@@ -376,7 +520,7 @@ process.on('unhandledRejection', error => {
   process.exit(1);
 });
 
-orderingChecks().then(() => {
+orderingChecks().then(mirrorChecks).then(() => {
   clearTimeout(watchdog);
   console.log(failures === 0
     ? '\nsamples component fill checks passed'

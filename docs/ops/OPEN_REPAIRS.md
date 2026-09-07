@@ -13919,3 +13919,151 @@ red against the code that preceded them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
+
+## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
+
+**The check that settles it, and it changes the lane's priority.** Item 164 ended
+on an open question: `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md:112-114` claims
+`uploads.linear.app` URLs need Linear's own auth and already render broken, and
+nobody had tested it. Tested now, live, read-only, 2026-09-07 22:36–22:42Z.
+
+Linear mints the `?signature=` JWT **on every API read** and gives it a
+**300-second** life (`exp - iat` = 300, decoded from a live description). Fetched
+with a 31-second-old signature the object answers **200** (`image/png`,
+1,045,198 bytes). The same URL 45 seconds after `exp` answers **401**
+`{"error":"unauthorized"}`. With the signature stripped, **401**. Every
+`uploads.linear.app` URL in `deliverables.brief` was written by the mirror months
+ago, so it has been a 401 since five minutes after it landed.
+
+What an editor sees on an affected card today is a broken-image icon labelled
+"Pasted image" — `imageTag`'s fallback alt (`index.html:54983`), because the
+Linear form is `![](url)` with an **empty** alt. No banner, surrounding text
+intact. That is why it has never been reported.
+
+**Consequences.** (a) LX-E is an improvement, not a regression-prevention, and
+its deadline is **soft**; it comes off the 2026-09-15 critical path. (b) What
+2026-09-15 actually removes is narrower than every brief says: not the ability to
+fetch bytes from a stored URL — already gone — but the ability to **mint a fresh
+signature** by reading the issue through the Linear API, the only route to any
+byte the owner's private capture does not already hold. (c) Therefore exactly one
+piece of this lane is time-critical: **confirm the private capture covers the
+active set before 2026-09-15.** Upload, rewrite and SQL can all land later.
+
+**Two corrections to the LX-E brief, both verified rather than reasoned.**
+
+1. **The join key is wrong throughout.** E1 cross-checks "the URL list" against
+   the capture receipt and E2 de-duplicates "by original URL". Reading one issue
+   twice, five minutes apart, returned an **identical path** and a **completely
+   different signature**. Full-URL equality therefore reports capture gaps that
+   are not real and uploads the same bytes once per occurrence. The key is
+   origin + pathname (`mediaKey()`), never the whole URL.
+2. **E1 as written leaks into a public repo.** It says to commit "exact offset,
+   length, original URL, for every occurrence" into
+   `docs/ops/LINEAR_MEDIA_RESCUE.md`, and `done_when` asks for a hand-off list
+   naming "its deliverable id and original URL". Those URLs carry a JWT plus the
+   workspace and per-file UUIDs. `scripts/linear-media-rescue.mjs` now refuses
+   (`assertPrivatePath`) to write a manifest or out-map anywhere inside a git
+   working tree; only counts and `mediaKeyHash()` (SHA-256 of the path) are
+   publishable. Any other lane instructed to commit a captured URL needs the
+   same treatment.
+
+**A third correction, to item 164 line 1 and to the predicate everyone is
+using.** `c.board_status not in ('completed','canceled')` — the clause item 164
+credits with implementing "the owner has ruled: do not rescue old media" —
+currently **excludes zero rows**. Measured live: across all 49 client rows the
+only `board_status` values that exist are `in_progress` (43) and `backlog` (6).
+Neither `completed` nor `canceled` nor `paused` occurs at all. The clause is a
+harmless guard, but **the deliverable `status` list is the entire lever**, and
+the brief's open question about `paused` clients is moot. Of the 49 client rows,
+**42** pass the client half of the predicate (3 removed by `kind <> 'test'`,
+4 by `not active`).
+
+**The counts are NOT in this entry, on purpose.** `deliverables`, `batches`,
+`production_comments` and `description_images` all return **42501** to the
+browser publishable key, so this session could not count the rescue set and will
+not guess it. The exact counting queries are in
+`docs/ops/LINEAR_MEDIA_RESCUE.md` §1 and must be run in the SQL Editor before
+anything is uploaded. CLAUDE.md's "you can READ most tables" does not cover
+these four; that is worth knowing generally.
+
+**What is deliberately NOT rescued.** Extends item 164; every line is the owner's
+to veto.
+
+1. **Everything item 164 already listed** — historical media on completed and
+   canceled work, the two OpenType fonts, over-dimension files,
+   `production_comments.attachments`, the four other free-text columns, and
+   inline rendering for bare-URL occurrences — stands unchanged.
+2. **Work item E4, the bucket ceiling raise, is NOT taken.** Going from 4 MiB to
+   25 MiB costs a hand-applied migration, a `policy.mjs:17` edit, a
+   `test/description-image-upload.js:169-171` edit, a real Edge Function deploy
+   and an owner approval window. With the deadline now soft (above), spending an
+   owner window on it is the wrong trade. Files over 4 MiB are listed as not
+   rescued instead. If the census later says otherwise, the whole change is one
+   statement plus two constants:
+   `update storage.buckets set file_size_limit = 26214400 where id = 'syncview-description-images';`
+   (undo: the same with `4194304`; objects already stored above the old limit
+   stay readable, the limit only gates new writes). `MAX_DIMENSION = 8000` would
+   have to move with it or large captures still refuse.
+3. **The five large Approved-card comment videos, the 115 deleted comments, the
+   82 unlinked comments, the archive-reader question and the 929 MB historical
+   video** stay out, per the owner's ruling. `approved` is not in the status
+   list, `pc.deleted_at is null` excludes the deleted set, and an unlinked
+   comment has no `deliverable_id` to join on.
+4. **Bare-URL occurrences are rewritten but not promoted to image syntax.** A
+   URL-for-URL splice restores a working *link*; `imageTag` fires only for
+   `![alt](…)` and `![alt](<…>)` (`index.html:54988-54989`). Promoting a bare URL
+   to `![Rescued image](url)` is still a pure text edit and would make it draw
+   inline — offered, not taken, because it changes what the editor reads and
+   nobody asked for it. One word from the owner turns it on.
+5. **`client_approval` is IN the active set** and is the one status worth
+   arguing about. An editor is not working a card in client review, but it
+   bounces straight to `tweak` and the brief's reference images are what the
+   tweak is judged against. Kept on the permissive side per AGENTS.md. One word
+   removes it.
+
+**Reuse, which was the corner to cut and it cut.** No new bucket, no new table,
+no new Edge Function, no `index.html` change, no global Storage setting, and
+therefore **no owner window at all** beyond running the SQL. The live
+`syncview-description-images` bucket, the `description_images` ledger and the
+`description_image_upload_enabled` kill switch (all applied by the owner
+2026-09-05, `ROLLBACK.md:106`) are written into as-is, and
+`description-image-upload` is called unchanged — it already returns a plain
+public https URL, which is shape-identical to a pasted one, which is why this
+lane needs zero renderer work.
+
+**Two preconditions the brief did not list.** The kill switch must be on —
+`description-image-upload` reads `description_image_upload_enabled` *before* it
+authenticates anyone (`index.ts:221`, `uploadEnabled` at `:150-160`) and fails
+closed, so a run against a flipped switch 503s with `upload_disabled`. And
+`qa/probes/p96_description_image_upload.js` should be green first; it is red
+until the `SYNCVIEW_STAFF_ACTOR` secret exists, and a red p96 means the upload
+path is unproven.
+
+**Proven.** `node test/linear-media-rescue.js` (68 checks): hand-computed offsets
+for the image form, the angle form and three repeats; the trailing-punctuation
+fix (the lifted scanner captured a sentence's final period into the URL, and
+splicing that offset would have **deleted punctuation out of a client-facing
+brief** — `trimBareTail` now mirrors the renderer's own `trimLinkTail` at
+`index.html:54937`); two differently-signed URLs collapsing to one key and one
+upload; every non-URL byte identical across a rewrite; the compare-and-swap SQL
+shape; forward and rollback proven exact inverses; and the manifest refusing to
+be written inside a git tree. `npm test` on this branch: **413 of 413 unit
+suites passed**.
+
+**Baseline correction for every session in this program.**
+`docs/independence/LINEAR_EXIT_LANES.md` states the truth-sync baseline is
+"515 passed, 14 failed" *because the session clone is shallow*. That is not true
+in these containers. `git rev-parse --is-shallow-repository` returns **false**
+and the clone has **3432** commits, so the freshness stamps resolve and
+`npm test` on a clean `origin/main` checkout is **412 of 412 passed, exit 0**.
+Nobody should treat 515/14 as expected, and any lane reporting it should look
+again. Also: the lane map is anchored on `d2495eb`; `origin/main` is now
+`4e57e744`, so every `index.html` line number in its region-ownership table
+needs re-checking. And `OPEN_REPAIRS.md` on main now tops out at `## 162.`
+(item 165 predicted 161); 173 was free at the moment of writing.
+
+**Not done.** No count of the rescue set (cannot read the tables). No upload, no
+rewrite, no migration, no deploy — every live action is written up with its undo
+in `docs/ops/LINEAR_MEDIA_RESCUE.md` and none was executed. The comment half is
+sequenced after the inbound webhook is off and that sequencing is lane F's call,
+not this lane's.

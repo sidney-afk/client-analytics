@@ -13243,3 +13243,108 @@ never-against-capacity).
 Untouched on purpose: the Production tab's `_prodOverdue`, which mirrors what
 Linear itself calls overdue on a row and is a different surface with a
 different job.
+
+## 160. [2026-09-07, FIXED — browser-only, live on merge] Two names for one row: a Linear team move made a deliverable unreachable from Workload
+
+**Owner (2026-09-07, with two screenshots):** opening the Workload calendar,
+a designer's **Overdue** rollup, a client chip, then **Open SyncView →** —
+and the Production tab answers
+
+> **GRA-7197** has no row in Production. Most often its post could not be
+> resolved here; it may also never have been imported. Ask an Admin to look it
+> up. Showing the full list instead.
+
+**The row exists.** `b1_d_188ba4ad…`, an active client, team `graphics`,
+status `todo`, title `03`, not archived — and the page had already FETCHED
+it: `_prodDeepLinkRowQuery` asks for `id`, `identifier` AND
+`linear_identifier`. The notice fired on a row the tab was holding.
+
+**Two names for one row.** `deliverables.identifier` is a SNAPSHOT.
+`scripts/b1-linear-backfill.js` writes it and `linear_identifier` from the same
+Linear value at import, and nothing maintains it afterwards: native creation
+writes it `null` (`production-write`), and `linear-inbound` refreshes
+`linear_identifier` — and `team` — on every webhook while never touching it. So
+moving an issue between Linear teams re-keys it (Linear turned **VID-13553**
+into **GRA-7197**) and the snapshot keeps the retired number for ever.
+
+The adapter read the snapshot FIRST (`displayId: d.identifier ||
+d.linear_identifier || d.id`), so this tab called the row VID-13553 while
+Linear, `workload_issues`, the Workload calendar and every person called it
+GRA-7197. `_prodIssue` matched `id` or `displayId` only. And the one deep link
+in the product that carries no row id is exactly the one that asks by Linear
+identifier: the Workload popover builds its header link and EVERY row link as
+`?prod=1&d=<identifier>` (item 2 of `test/workload-syncview-links.js`). The
+calendar and samples link by native deliverable id, which is why this never
+showed up there.
+
+**Measured 2026-09-07** across all 6,369 browser-visible rows, with the keys
+the shipped adapter uses: **7 rows disagree**, every one a graphics row still
+carrying a VID- snapshot (5 on one client, 2 on another at status
+`duplicate`). Zero rows carry an `identifier` without a
+`linear_identifier`, so nothing else moves. No string is one row's `displayId`
+and another row's `linear_identifier`, so the alias below cannot collide.
+Verified by hand on GRA-7197, and the four rows the owner's popover listed
+(**03 / 02 / 01 / Square Thumbnail** = GRA-7197 / 7198 / 7199 / 7201, all due
+24 Aug, one assignee) are all four in that set of 7 — every link in that
+popover was dead, not just the header one.
+
+**Fixed (browser only).** The maintained column names the row —
+`displayId: linearIdent || importIdent || id` — and the snapshot survives as
+`aliasId`, which `_prodIssue` resolves in a SECOND pass so a canonical match
+anywhere in the set always beats an alias. A link or bookmark holding the
+retired number therefore still opens the row instead of being denied. Three
+consequences beyond the report: the row now prints its real Graphics number in
+the list instead of a VID one, the command palette finds it by that number, and
+the missing-notice's archived branch tests both identifier columns
+independently instead of `identifier || linear_identifier` (which asked only
+about the retired number). Pinned by `test/prod-deep-link-linear-identifier.js`,
+which executes the resolver on the live row shape, including the negative case:
+an alias must never steal a canonical match, in either row order.
+
+**Not fixed, and named on purpose.**
+
+1. **The data is still divergent — SQL written, owner-applied.**
+   `migrations/2026-09-07-deliverable-identifier-team-move-repair.sql` sets
+   `identifier` from `linear_identifier` for exactly the rows where both are
+   present and disagree: bounded, idempotent, one column, and fail-closed on
+   the `text unique` constraint, with a look-first step whose output is the
+   only reversal material (the ledger guard records op and reason only). It
+   moves `updated_at` on those 7 rows and writes 7 `rpc_bypass_guard` ledger
+   events, both expected. Shape pinned by
+   `test/identifier-team-move-repair.js`, because nothing else in the
+   repository reads that file. **Not applied at the time of writing.**
+
+   The PRODUCER fix is `linear-inbound`, which already detects the move
+   (`eventPayload.team_move`) and rewrites `team` while leaving `identifier`
+   alone. Recommend NOT building it: the owner is removing Linear, so the
+   source of new divergence is being retired anyway, and it would cost a
+   gateway change plus the `deploy-f27-linear-inbound.yml` lane to protect a
+   window that is closing. What matters instead is that `identifier` is the
+   obvious home for a SyncView-native card number after the retirement, and it
+   should not inherit these leftovers.
+
+   **How it actually happened, from `deliverable_events`.** Not a late team
+   move by a person months after import: the import photographed the issues
+   DURING the move. One client's five rows were created in Linear at
+   2026-08-24T14:00:11Z under a Video parent two levels up (VID-13243 →
+   VID-13548 *Youtube Thumbnails*), so Linear numbered them
+   VID-13549…VID-13553; `codex-b1-incremental` imported them at 14:00:51,
+   still under those numbers; the first webhook at 14:01:30 already carried
+   GRA-7197/7198/7199/7201/7202. A 40-second window. A second client's two
+   rows are the same shape on 2026-08-17 with an 11-minute gap. There is no
+   `team_move` event on any of the seven, because the move landed before the
+   row existed here. SyncView cannot do this: `team` is not in
+   `production-write`'s `OPERATIONS`, so the only place an issue changes team
+   is Linear itself.
+2. **The popover's "parent" link is usually not a parent.** `wlApplyData` builds
+   `parentById` from `!i.isSubIssue` rows only, so a rollup whose parent is
+   missing from that map falls back to `subs[0].identifier` — which is how a
+   client-level chip came to link at a single thumbnail. Measured over the 1,672
+   active sub-issues: **680** have a parent that is not in the map — 638 because
+   the parent row is not in the active snapshot at all, 42 because the parent is
+   itself a sub-issue (a three-level family: *Episode 08* → *Youtube Thumbnails*
+   → `01/02/03`, which is exactly the owner's case). So the fallback is the
+   NORM, not an edge case, and which node a client chip should open (the post,
+   the container, or the first item) is a product decision. Left as it is,
+   deliberately: with the resolution fixed, every one of those links now lands
+   on a real row.

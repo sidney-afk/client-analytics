@@ -1,5 +1,63 @@
 # Combined Linear-exit candidate
 
+## September 7 final source integration (supersedes older current-head wording)
+
+Source integration `2f007c00fb06173dc34031de03b0ead2b8675d23` includes current main
+`70715496a44e7120f0b819deafdb84cd62d78f9b`, rechecked after the host restart.
+It retains the owner's Workload grouping, To Do overdue rule, single-video links
+and new batch/post names. Native children still route by deliverable ID and
+native groups by batch ID. Original accepted native intent now retains a
+supplied item name without adding fields to unnamed requests.
+
+It also combines the frozen anonymous-writer composition tooling, exact legacy
+F44/CARD adapter preparation, F44 native completion, required brief/comment
+media readers and custody tooling, immediate backup failure signaling, and
+explicit 42-table history-v9 recovery. Repository anonymous writer copies are
+still NOT deployable as-is; their separately captured tokenless composition
+remains the approved preparation path.
+
+Main post-name v8 and native-only intake replace the same append RPC. The new
+[named native append](../ops/NATIVE_INTAKE_NAMED_APPEND.md) preserves both
+contracts. Its atomic source composer passes seven controls; the separate
+restored-target SQL lane passes eight groups. First compound installation is
+unproven. [V9 recovery](../ops/RECOVERY_SCHEMA_V9.md) retains the older timeout
+and interrupted continuation, then five passing cold-resume checks against the
+exact saved 42-table package. Later naming/runtime changes are explicitly
+outside that package; final installed recovery and separate media-byte recovery
+remain required.
+
+Focused combined checks cover actual named/unnamed intake-field extraction,
+Workload native child/group/loose-parent links, the owner's unchanged naming
+tests and overdue behavior, refused-save media paths, and isolated Chromium
+brief/comment rendering. The historical editor-fidelity fixture initially
+failed after main gained naming fields; exact pinned-main additions were
+accounted for and all 47 assertions then passed. At the integrated source,
+composition seven controls, repository map and truth checks pass. These results
+reuse earlier independent source and disposable SQL evidence; they do not
+claim current installed or live workflow proof.
+
+Production-write's six-file closure is
+`3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95`.
+Production-comments' six-file closure is
+`ac85ae775789fafc809fdd69e961b1c06aa83f32a83adb970cb460cb78e86c9c`.
+The generated manifest, expected-only provenance and F27 pins agree. A mandatory
+hosted Chromium media job fixes the earlier media PR's missing-lockfile setup;
+the earlier three closure failures and pre-test browser failure remain recorded.
+One combined hosted run is pending publication; older green results are not
+transferred to this head.
+
+All required captured brief and current linked staff-comment files have private
+validated bytes and staged occurrence packages. The owner's one historical
+large-video website deferral remains exact and private. No upload, source-body
+rewrite, installed mapping, global Storage change or delivery claim follows.
+Six file-bearing comments exposed only through Archive asset repair await the owner's usage
+classification; comprehensive historical export remains optional and paused.
+
+No merge to main, deployment, live/TEST write, n8n change, flag, credential,
+billing, cancellation or new alert is authorized. Watchers remain inactive;
+neither observation clock has started. The canonical release packet owns the
+remaining installation, custody, workflow, alarm and provider-cutoff gates.
+
 ## September 7 operational corrections combined
 
 Runtime parent `59bdb8037f7939d38a33f3b375047343de361590` preserves d144 and

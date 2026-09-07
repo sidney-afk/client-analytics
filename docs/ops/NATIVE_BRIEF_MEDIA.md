@@ -374,3 +374,14 @@ the combined production-write closure has six files and SHA-256
 The production-comments six-file closure is
 `ac85ae775789fafc809fdd69e961b1c06aa83f32a83adb970cb460cb78e86c9c`.
 These are candidate source pins, not installed-source or deployment approval.
+
+The later current-main integration retains the owner's batch/post naming and
+Workload changes through `70715496a44e7120f0b819deafdb84cd62d78f9b`. The gateway
+also retains an explicitly supplied post `name` in its private first-accepted
+request intent; unnamed intent is unchanged. Its six-file closure supersedes the
+above production-write pin with
+`3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95`.
+Comment closure and both byte validators are unchanged. The original editor
+fidelity test now accounts only for the three exact naming blocks from that
+pinned main plus the explicit intent-field addition; all other intake bytes
+remain compared against its original baseline.47 focused editor/intent checks pass.

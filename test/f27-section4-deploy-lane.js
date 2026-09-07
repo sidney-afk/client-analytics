@@ -400,8 +400,8 @@ const CANDIDATES = new Map([
     // captured main asset logic. SQL prerequisite and serving proof stay held.
     // Source-only 2b6c718 assignment prerequisite; same five-file closure.
     // Uninstalled combined candidate d906e5aa; source-only closure evidence.
-    // Combined F44 completion and reviewed private-media helper, six files.
-    source: '431fa10451b397c4673eb2cf239d11da54b18f640ccd291dd1cf3b01a4e96ffb',
+    // Combined native exit, owner post naming and private-media helper, six files.
+    source: '3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],

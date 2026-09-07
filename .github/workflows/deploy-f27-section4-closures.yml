@@ -294,8 +294,9 @@ jobs:
       # Admission, schema/recovery, serving/client and alert gates remain held.
       # Source-only F44 completion9a33: same five-file closure/entrypoint path.
       # Native triage SQL/recovery and exact old-route proof precede installation.
-      # Combined uninstalled intake completion and private-media reader closure.
-      PRODUCTION_WRITE_SOURCE_SHA256: 431fa10451b397c4673eb2cf239d11da54b18f640ccd291dd1cf3b01a4e96ffb
+      # Combined native exit, current owner post naming and private media.
+      # Final hybrid named-append SQL must precede this uninstalled gateway.
+      PRODUCTION_WRITE_SOURCE_SHA256: 3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

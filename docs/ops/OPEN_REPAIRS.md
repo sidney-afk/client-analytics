@@ -14028,3 +14028,132 @@ case, the graphics-and-unassigned exclusion, a 1400-row paging case, the empty
 week, and a failed read (which must throw, so the panel shows its error state
 rather than painting an empty week as fact). Fixtures are synthetic: the repo is
 public.
+
+---
+
+## 175. [2026-09-07, BUILT, live on merge with no deploy; lane LX-C] The write-UI reroute flag failed to LINEAR, and Linear is the thing that is about to stop existing
+
+Lane C's reserved number is 171 and is spent on the editors-week rebuild.
+`LINEAR_EXIT_LANES.md` sanctions taking more by appending upward from 175, which
+is what this is. 169-174 are the other lanes' reservations and are untouched.
+
+**THE BUG IS THE DEFAULT, NOT THE CODE.** `_writeUiFetchRerouteFlagOnce` falls
+back to `{clients: []}` on any failure and on its two-second timeout, and
+`_writeUiPrimeRerouteFlag` memoises that promise for the life of the page. An
+empty allowlist meant exactly one thing everywhere: **legacy**. So one slow
+moment at boot sent **every** client's status changes to `LINEAR_SET_STATUS_URL`
+and every comment to `LINEAR_ADD_COMMENT_URL`, for as long as that tab stayed
+open. Item 70 already found and healed the *stickiness*; what it did not
+revisit is the *direction*.
+
+The in-code comment called this **"fail-legacy, never fail-open"**. That was
+correct while Linear was the safe destination. It is exactly backwards from the
+moment it is not: after 2026-09-15 the legacy lane is a dead URL that fails
+**silently**, while the native lane is an authority that can refuse **out loud**.
+`AGENTS.md` already prefers that shape — *"do not encode a guess about state the
+client cannot see as a refusal in the browser; let the authority that can see it
+decide, and make its refusal say something useful."*
+
+**MEASURED AGAINST THE LIVE FLAG, 2026-09-07** (read-only, publishable key):
+
+| | count |
+|---|---|
+| slugs in `write_ui_reroute_clients` | 43 |
+| `clients` rows with `active = true` | 43 |
+| **active but NOT enrolled** | **0** |
+| enrolled but not active | 0 |
+| enrolled slugs with no `clients` row | 0 |
+
+An exact 1:1 match with no ghosts in either direction. **So this changes the
+destination for no client that works today** — only for the failure case, which
+is the only case it was ever wrong in. It also answers the question the lane was
+told to ask the owner: there is no unenrolled active client to report.
+
+**THE INVERSION IS DELIBERATELY NARROW.** `_writeUiRerouteUseGateway` answers a
+*factual* question — is this slug in the allowlist — and two kinds of caller
+need exactly that answer and keep it:
+
+- **The outbox drain** (calendar and samples, the two `!_writeUiRerouteUseGateway`
+  sites). A genuinely unenrolled client's queued legacy item is legitimate
+  traffic; flipping its answer would quarantine those items as
+  `legacy_actor_unverifiable` with zero retries, which is **item 63 rebuilt**.
+- **The project-source enrollment filter**, which describes enrollment rather
+  than routing a write.
+
+Only the two "when ready" helpers that gate a **live write** were moved onto the
+new `_writeUiRerouteUseGatewayFailClosed`:
+`_writeUiRerouteUseGatewayWhenReady` (Submit routing) and
+`_writeUiUseGatewayWhenReady` (status + comment routing). The test fails if a
+later edit widens the flip to the drain.
+
+**WHAT IS DELIBERATELY NOT FLIPPED.** The `!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY`
+early return does **not** mark the flag failed, and must not: without Supabase
+config the native gateway is unreachable too, so legacy is the only lane that
+could work there. Routing native from that state routes into nothing. Client
+comments are also unaffected — they are routed legacy by **principal**, not by
+enrollment (see `_calPostLinearComment`), and item 63's `client_link` stamp is
+what the drain reads for them.
+
+**Test:** `test/write-ui-reroute-fail-closed.js`, 15 offline checks over the two
+real predicates extracted from `index.html`, including the counterexample that
+the old predicate answers `false` on the same state — the branch that chose
+Linear. Three of the checks exist only to pin the narrowness.
+
+**Still owed, and NOT done here:** the legacy writers themselves
+(`_calLegacyPushStatusToLinear` / `_calLegacyPostLinearComment` and their Samples
+twins `_sxrLegacyPushStatusToLinear` / `_sxrLegacyPostLinearComment`) still
+exist, and **both** outbox rings still exist — `syncview_linear_outbox_v1`
+(`index.html:30384`) and `syncview_sxr_linear_outbox_v1` (`index.html:63149`).
+This entry changes which lane a NEW write picks; it does not drain what is
+already queued. That is item C9 and it is unstarted.
+
+---
+
+## 176. [2026-09-07, FIXED, live on merge with no deploy; lane LX-C] The Samples "Move it here" was the hole the calendar twin's own comment warned about
+
+Found while scoping C8. **This is a standing seal defect, not only a cutover
+problem** — it is wrong today, on a syncview-authoritative team, with Linear
+still up.
+
+`_calMoveLink` on the calendar carries a live authority seal check, and its
+comment states the rule:
+
+> Moving a link SETS one on the receiving card, so it is the same write the seal
+> refuses — gated here too rather than relying on the commit path having already
+> checked. The repo's own lesson from the sub-issue multi-select bug is that **a
+> guard which lives only on the surface that usually calls it is a guard with a
+> hole in it.**
+
+`_sxrMoveLink`, the Samples twin, had no such check. The near-miss is why it was
+easy to overlook: `_sxrLinearCommit` **does** seal, before it calls
+`applyCommit`. But the link-conflict flow never goes through `_sxrLinearCommit`.
+The "This Linear sub-issue is already linked to …" row renders a **Move it here**
+button wired to `_sxrMoveLinkConfirm`, which calls `_sxrMoveLink` **directly**.
+Its only guard was `if (_isClientLink) return;` — staff-only, and every SMM is
+staff. So the seal covered the surface that usually calls it and not the one
+that bypasses it, which is the sentence above, in the twin.
+
+Two consequences, in order of who is hurt sooner:
+
+1. **Today:** a staff member can move a Linear link onto a samples card on a team
+   where SyncView is authoritative, which is precisely the write the seal exists
+   to refuse.
+2. **After 2026-09-15:** the move also fires `_sxrSyncStatusFromLinear`, which
+   POSTs `linear-subissues` (`index.html:69452`). That endpoint stops answering,
+   so the move hangs.
+
+**THE ORDER IS THE OTHER HALF OF THE FIX.** `_sxrMoveLink` clears the OLD card's
+link before setting the new one. A seal placed after that clearing would refuse
+the move and still have stripped the source card — the **item-66 shape**, where
+a refusal leaves the user worse off than before they clicked. The check goes in
+first, ahead of the clear, the pending-edit write, its flush, and the sync. Both
+twins now order it identically.
+
+**Test:** `test/sxr-move-link-sealed.js`, 11 offline checks. Five of them are
+about ORDER rather than presence, because a seal in the wrong place passes a
+naive "is it gated" grep and still loses the user's link.
+
+**Belongs to C8 and is NOT the whole of it.** C8 still has to remove the Import
+from Linear and Bulk link dialogs, whose open-fetches at `index.html:33769` and
+`:34046` fire `linear-subissues` BEFORE their seal checks — the user opens the
+dialog, SyncView calls Linear, and only Apply refuses. That is unstarted.

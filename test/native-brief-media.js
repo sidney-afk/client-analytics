@@ -3,10 +3,10 @@
 // Actual browser render functions and local byte-package reconstruction; no live I/O.
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os'), vm = require('node:vm');
 const assert = require('node:assert/strict'), { pathToFileURL } = require('node:url');
-const { spawnSync } = require('node:child_process');
+const { spawnSync, execFileSync } = require('node:child_process');
 const { extractFunction } = require('./helpers/extract-function');
 if (!process.execArgv.includes('--experimental-strip-types')) {
-  const r = spawnSync(process.execPath, ['--no-warnings', '--experimental-strip-types', __filename], { encoding: 'utf8', windowsHide: true });
+  const r = spawnSync(process.execPath, ['--no-warnings', '--experimental-strip-types', __filename, ...process.argv.slice(2)], { encoding: 'utf8', windowsHide: true });
   process.stdout.write(r.stdout || ''); process.stderr.write(r.stderr || ''); process.exit(r.status ?? 1);
 }
 const root = path.resolve(__dirname, '..'), temp = fs.mkdtempSync(path.join(os.tmpdir(), 'brief-media-test-'));
@@ -80,9 +80,12 @@ async function check(name, fn) { await fn(); groups++; console.log('PASS ' + nam
   for (const [name, change] of [
     ['missing flag', () => { tables.syncview_runtime_flags = []; }], ['bad flag', () => { tables.syncview_runtime_flags[0].value = {}; }],
     ['missing recovery binding', () => { delete tables.syncview_runtime_flags[0].value.recovery_receipt_sha256; }],
-    ['missing copy', () => { tables.native_brief_media_occurrences.pop(); }], ['duplicate', () => { tables.native_brief_media_occurrences.push(copies[0]); }],
-    ['changed brief', () => { tables.deliverables[0].brief += ' edit'; }], ['wrong offset', () => { tables.native_brief_media_occurrences[0].source_offset++; }],
-    ['wrong URL hash', () => { tables.native_brief_media_occurrences[0].original_url_sha256 = '0'.repeat(64); }],
+    ['new URL', () => { tables.deliverables[0].brief += ' ![new](https://uploads.linear.app/synthetic/unknown.png)'; }], ['duplicate', () => { tables.native_brief_media_occurrences.push(copies[0]); }],
+    ['invalid captured offset', () => { tables.native_brief_media_occurrences[0].source_offset = -1; }],
+    ['unknown URL hashes', () => { tables.native_brief_media_occurrences.forEach(x => { x.original_url_sha256 = '0'.repeat(64); }); }],
+    ['ambiguous copied bytes', () => { const x = tables.native_brief_media_occurrences[1]; x.content_sha256 = 'b'.repeat(64); x.readback_sha256 = x.content_sha256; x.storage_path = x.content_sha256 + '/' + x.id; }],
+    ['tombstoned source', () => { tables.deliverables[0].deleted_at = row.updated_at; }],
+    ['changed ownership', () => { tables.deliverables[0].team = 'graphics'; }],
     ['bad readback', () => { tables.native_brief_media_occurrences[0].readback_sha256 = '0'.repeat(64); }],
     ['public audience', () => { tables.native_brief_media_occurrences[0].audience = 'public'; }],
     ['missing ledger', () => { failTable = 'native_brief_media_occurrences'; }],
@@ -91,6 +94,22 @@ async function check(name, fn) { await fn(); groups++; console.log('PASS ' + nam
   await check('source changes while signing stay held', async () => { reset(); signHook = () => { tables.deliverables[0].brief += ' edited'; }; assert.equal((await call()).body.media.complete, false); });
   await check('status-only timestamp advance retains unchanged copied images', async () => { reset(); tables.deliverables[0].updated_at = '2026-09-02T00:00:00Z'; tables.deliverables[0].status = 'kasper_approval';
     const r = await call(); assert.equal(r.body.media.complete, true); assert.equal(r.body.media.source_updated_at, tables.deliverables[0].updated_at); assert.equal(signed, 2); });
+  await check('text edits, reordering and duplicated known image reuse exact scoped byte identity without ledger mutation', async () => {
+    reset(); const before = JSON.stringify(tables.native_brief_media_occurrences);
+    tables.deliverables[0].brief = 'Edited text\n' + brief.split('\n').reverse().join('\n') + '\n![extra](https://uploads.linear.app/synthetic/image.png)';
+    tables.deliverables[0].updated_at = '2026-09-03T00:00:00Z';
+    const r = await call(); assert.equal(r.body.media.complete, true); assert.equal(r.body.media.occurrences, 3);
+    assert.equal(r.body.media.brief_sha256, await media.briefMediaHash(tables.deliverables[0].brief));
+    assert.equal(JSON.stringify(tables.native_brief_media_occurrences), before); assert.equal(signed, 3);
+  });
+  await check('8f8 baseline reproduces image hold after text-only edit; correction restores independent read', async () => {
+    reset(); tables.deliverables[0].brief = 'Changed text only\n' + brief;
+    const old = execFileSync('git', ['--no-replace-objects', 'show', '8f8ba2c8e60a9a1af4d2a6bb729e1438a8965bf2:supabase/functions/_shared/native-brief-media.mjs'],
+      { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_TERMINAL_PROMPT: '0' } });
+    const baseline = await import('data:text/javascript,' + encodeURIComponent(old));
+    assert.equal((await baseline.projectBriefMedia(sdk, structuredClone(tables.deliverables[0]), env.SUPABASE_URL)).complete, false);
+    assert.equal((await call()).body.media.complete, true);
+  });
   await check('dormant off preserves canonical text but certifies no independence', async () => { reset(); tables.syncview_runtime_flags[0].value.mode = 'off'; const m = (await call()).body.media; assert.equal(m.mode, 'off'); assert.equal(m.complete, false); assert.equal(signed, 0); });
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const ctx = { Date, _calEsc: x => String(x).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;'), _jsAttrArg: x => JSON.stringify(x) };
@@ -134,6 +153,78 @@ async function check(name, fn) { await fn(); groups++; console.log('PASS ' + nam
     await assert.rejects(() => pkg.capture(extensionFile, path.join(temp, 'unbound-capture')));
     const object = path.join(staged, 'objects', verified.rows[0].storage_path); fs.appendFileSync(object, 'corrupt'); await assert.rejects(() => pkg.verify(staged));
     await assert.rejects(() => pkg.stage(input, path.join(root, 'forbidden-output')));
+  });
+  if (process.argv.includes('--browser-save')) await check('actual browser save -> automatic scoped read -> fresh context keeps copied images after text edit/reorder', async () => {
+    const { chromium } = require('playwright'); reset(); let saves = 0, browserReads = 0, denied = 0;
+    const beforeCopies = JSON.stringify(tables.native_brief_media_occurrences);
+    const browser = await chromium.launch({ headless: true });
+    const editorNames = [...new Set([...html.matchAll(/function (_prodDescRich\w+)\(/g)].map(x => x[1]))];
+    const functions = [...editorNames, '_prodNormalizeMarkdownLine', '_prodMarkdownBlockish', '_prodLinkifyInline', '_prodLinkify',
+      '_prodDescriptionHTML', '_prodBriefMediaReadHTML', '_prodBriefMediaPreviews', '_prodDescriptionText', '_prodDescriptionState',
+      '_prodIssueScopeSignature', '_prodNextDescriptionRequestToken', '_prodSyncDescriptionRow', '_prodAdoptDescriptionValue',
+      '_prodEnsureDescription', '_prodSaveDescription'].map(n => (['_prodEnsureDescription','_prodSaveDescription'].includes(n) ? 'async ' : '') + extractFunction(html, n)).join('\n');
+    async function pageFor(fresh) {
+      const context = await browser.newContext();
+      await context.route('**/*', route => {
+        if (route.request().url().startsWith(env.SUPABASE_URL + '/storage/v1/object/sign/syncview-native-brief-media/')) return route.fulfill({ contentType: 'image/png', body: png });
+        denied++; return route.abort();
+      });
+      const page = await context.newPage(); await page.setContent('<div id="prodRoot"></div><button id="save">Save</button>');
+      await page.exposeFunction('__actualDescriptionRead', async () => { browserReads++; return call(); });
+      await page.exposeFunction('__modeledDescriptionWrite', async (issue, operation, payload, requestId) => {
+        assert.equal(operation, 'description'); assert(requestId); assert.equal(issue.updatedRaw, tables.deliverables[0].updated_at);
+        assert(!payload.description.includes('/storage/v1/object/sign/')); saves++;
+        tables.deliverables[0].brief = payload.description; tables.deliverables[0].updated_at = '2026-09-04T00:00:00Z';
+        return { ok: true, row: structuredClone(tables.deliverables[0]) };
+      });
+      const initial = (await call()).body;
+      await page.evaluate(({ functions, initial, fresh }) => {
+        window._prodState = { descriptions: new Map(), descriptionRequestTokens: new Map(), deliverables: [initial.row], projectionGeneration: 1, briefsLoaded: true, openId: initial.row.id };
+        window._prodWriteTeam = x => String(x || '').toLowerCase();
+        window._prodIssue = id => { const r = _prodState.deliverables.find(x => x.id === id); return r && { ...r, authorityProject: r.client_slug, storedClientSlug: r.client_slug, project: r.client_slug, updatedRaw: r.updated_at, desc: r.brief, descLoaded: true }; };
+        window._syncviewStaffVerificationEpoch = 1;
+        window._syncviewStaffIdentityForHeaders = () => ({ role: 'admin' }); window._syncviewStaffIdentitySignature = () => 'fixture-admin';
+        window._syncviewEfHeaders = x => x;
+        window.PROD_WRITE_EF_URL = 'https://fixture.invalid/production-write'; window.CAL_SUPABASE_ANON_KEY = 'synthetic';
+        window.fetch = async () => { const r = await __actualDescriptionRead(); return new Response(JSON.stringify(r.body), { status: r.status }); };
+        window._prodCanWrite = () => true; window._prodDescriptionOperation = () => 'description';
+        window._prodWriteRequestId = () => 'fixture-save'; window._prodGatewayWrite = (...args) => __modeledDescriptionWrite(...args);
+        window._prodToast = () => {}; window._prodFocusDescriptionControl = () => {}; window._prodDescriptionEditorControl = () => 'rich';
+        window._prodWriteErrorText = e => String(e); window.PROD_DESCRIPTION_IMAGE_PLACEHOLDER_RE = /never-match-placeholder/;
+        window.PROD_DESC_RICH_BLOCK_TYPES = ['p','h','ul','hr'];
+        window._calEsc = x => String(x).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;'); window._jsAttrArg = JSON.stringify;
+        (0, eval)(functions);
+        const state = _prodDescriptionState(initial.row.id);
+        Object.assign(state, { briefMedia: initial.media, briefMediaValue: initial.row.brief, briefMediaRevision: initial.row.updated_at, briefMediaRequired: true, editing: !fresh });
+        window._prodRender = () => {
+          const s = _prodDescriptionState(initial.row.id);
+          document.getElementById('prodRoot').innerHTML = s.editing
+            ? '<div id="rich" contenteditable="true">' + _prodDescRichBuild(s.draft, _prodBriefMediaPreviews(s)) + '</div>'
+            : _prodBriefMediaReadHTML(s, initial.row.id);
+        };
+        document.getElementById('save').onclick = event => _prodSaveDescription(event, initial.row.id);
+        _prodRender();
+      }, { functions, initial, fresh });
+      return { page, context };
+    }
+    try {
+      const first = await pageFor(false);
+      await first.page.waitForFunction(() => [...document.images].length === 2 && [...document.images].every(x => x.naturalWidth === 1));
+      const edited = await first.page.evaluate(() => {
+        const s = _prodState.descriptions.get(_prodState.openId), root = document.getElementById('rich');
+        root.insertBefore(root.lastChild, root.firstChild); root.firstChild.insertBefore(document.createTextNode('Edited before '), root.firstChild.firstChild);
+        _prodDescRichNormalize(root); s.draft = _prodDescRichSerialize(root); return s.draft;
+      });
+      await first.page.locator('#save').click();
+      await first.page.waitForFunction(() => { const s = _prodState.descriptions.get(_prodState.openId); return !s.editing && s.briefMediaValue === s.value && s.briefMedia?.complete === true; });
+      assert.equal(saves, 1); assert(browserReads > 0); assert.equal(tables.deliverables[0].brief, edited);
+      await first.context.close();
+      const second = await pageFor(true);
+      await second.page.waitForFunction(() => [...document.images].length === 2 && [...document.images].every(x => x.naturalWidth === 1));
+      assert.equal(await second.page.evaluate(() => _prodState.descriptions.get(_prodState.openId).value), edited);
+      assert.equal(JSON.stringify(tables.native_brief_media_occurrences), beforeCopies); assert.equal(denied, 0);
+      await second.context.close();
+    } finally { await browser.close(); }
   });
   assert.equal(external, 0);
   console.log('PASS ' + groups + ' focused groups; actual handler/synthetic SDK + renderer + local bytes; SQL/serving unproven; external calls 0');

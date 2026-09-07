@@ -29,44 +29,59 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
     if (flag.data.value.recovery_contract !== 'native_brief_media_recovery_v1'
         || !hash(flag.data.value.recovery_receipt_sha256) || !hash(flag.data.value.coverage_receipt_sha256)) return result;
     if (!refs.length) return { ...result, complete: true, unresolved: 0, render_brief: brief, reason: null };
-    if (refs.length > 200 || !row.updated_at || !row.id || !row.client_slug || !row.team) return result;
+    if (refs.length > 200 || !row.updated_at || !row.id || !row.client_slug || !row.team
+        || row.deleted_at || row.tombstoned_at || row.is_deleted === true) return result;
     const read = await db.from('native_brief_media_occurrences').select('*')
       .eq('deliverable_id', row.id).eq('client_slug', row.client_slug).eq('team', row.team)
       .eq('source_kind', 'native_brief').eq('source_entity_id', row.id)
-      .eq('source_sha256', digest).eq('state', 'verified').limit(201);
-    if (read.error || !Array.isArray(read.data) || read.data.length !== refs.length) return result;
+      .eq('state', 'verified').limit(1001);
+    if (read.error || !Array.isArray(read.data) || read.data.length > 1000
+        || new Set(read.data.map(copy => copy.id)).size !== read.data.length) return result;
     const mapped = [];
     for (const ref of refs) {
-      const matches = read.data.filter(x => x.source_offset === ref.offset && x.source_length === ref.length);
-      const copy = matches[0];
-      if (matches.length !== 1 || copy.state !== 'verified' || copy.audience !== 'staff'
+      // A text edit/reorder is not a new image. Reuse only previously verified
+      // copies of this exact original URL within the same source entity/scope,
+      // and only when ALL matching copies agree on byte identity. Original
+      // capture digest/offset/timestamp remain immutable provenance; replacements
+      // below use the newly scanned current offsets and response digest.
+      const originalHash = await briefMediaHash(ref.url);
+      const matches = read.data.filter(x => x.original_url_sha256 === originalHash);
+      if (!matches.length || new Set(matches.map(x => [x.content_sha256, x.byte_length, x.mime_type].join('|'))).size !== 1) return result;
+      for (const copy of matches) {
+      if (copy.state !== 'verified' || copy.audience !== 'staff'
           || !/^[a-f0-9-]{36}$/.test(copy.id) || copy.deliverable_id !== row.id || copy.client_slug !== row.client_slug
           || copy.source_kind !== 'native_brief' || copy.source_entity_id !== row.id
-          || copy.team !== row.team || copy.source_sha256 !== digest
-          || copy.original_url_sha256 !== await briefMediaHash(ref.url)
+          || copy.team !== row.team || !hash(copy.source_sha256)
+          || !Number.isSafeInteger(copy.source_offset) || copy.source_offset < 0 || copy.source_length !== ref.length
+          || !Number.isFinite(Date.parse(copy.source_updated_at))
           || !hash(copy.content_sha256) || copy.readback_sha256 !== copy.content_sha256
           || !mime.has(copy.mime_type) || !Number.isSafeInteger(copy.byte_length) || copy.byte_length < 1
           || copy.byte_length > 52428800 || !Number.isFinite(Date.parse(copy.verified_at))
           || Date.parse(copy.verified_at) > now
           || copy.storage_path !== copy.content_sha256 + '/' + copy.id) return result;
-      mapped.push({ ref, copy });
+      }
+      const exact = matches.filter(copy => copy.source_sha256 === digest && copy.source_offset === ref.offset);
+      if (exact.length > 1) return result;
+      mapped.push({ ref, copy: exact[0] || [...matches].sort((a, b) => a.id.localeCompare(b.id))[0] });
     }
     const replacements = [];
     for (const { ref, copy } of mapped) {
       const signed = await db.storage.from(BRIEF_MEDIA_BUCKET).createSignedUrl(copy.storage_path, 300);
       if (signed.error || typeof signed.data?.signedUrl !== 'string') return result;
       const url = new URL(signed.data.signedUrl);
-      // Service SDK owns host; browser checks exact configured Supabase origin.
+      // Enforce the configured Storage origin here; the browser consumes this
+      // authenticated, scope-bound response (it does not independently sign).
       if (url.protocol !== 'https:' || url.origin !== new URL(storageOrigin).origin || url.username || url.password || url.hash
           || !url.pathname.includes('/storage/v1/object/sign/' + BRIEF_MEDIA_BUCKET + '/')) return result;
       replacements.push({ ...ref, original_url: ref.url, content_sha256: copy.content_sha256, url: url.href });
     }
     // A row may move or change while URLs are signed. Never label that stale
     // projection current; canonical text remains governed by its original read.
-    const current = await db.from('deliverables').select('id,client_slug,team,updated_at,brief')
+    const current = await db.from('deliverables').select('*')
       .eq('id', row.id).eq('client_slug', row.client_slug).maybeSingle();
     if (current.error || !current.data || current.data.team !== row.team
-        || current.data.updated_at !== row.updated_at || current.data.brief !== brief) return result;
+        || current.data.updated_at !== row.updated_at || current.data.brief !== brief
+        || current.data.deleted_at || current.data.tombstoned_at || current.data.is_deleted === true) return result;
     let rendered = brief;
     for (const ref of [...replacements].reverse()) rendered = rendered.slice(0, ref.offset) + ref.url + rendered.slice(ref.offset + ref.length);
     return { ...result, complete: true, unresolved: 0, render_brief: rendered,

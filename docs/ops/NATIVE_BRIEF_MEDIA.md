@@ -37,8 +37,22 @@ URLs remain separate occurrences. The ledger also binds original URL hash,
 content hash, byte length, MIME, source receipt, readback hash and staff audience.
 There is no deletion cascade when a deliverable disappears.
 
-Every required occurrence needs exactly one verified row for that exact content.
-Missing/duplicate/stale rows, mismatched scope or bytes, unsupported MIME and
+The ledger's original capture identity is retained permanently. On each current
+read, every original URL is hashed at its **current** source offset. Prior copies
+may be reused only within the same native source entity/client/team and only when
+all verified copies of that exact URL agree on content hash, byte length and MIME.
+An exact captured occurrence is preferred where available; otherwise a stable
+choice among byte-identical copies supplies the preview. This permits ordinary
+text edits, reordering and additional occurrences of a known image without any
+ledger rewrite or operator remapping. The response always carries the current
+brief digest/revision and current occurrence offsets. Conflicting historical
+bytes are held, never resolved by choosing the newest capture. More than 1000
+candidate rows in the scope also remain held; this is a bounded read, not a
+silently truncated completeness result. A new URL needs separately verified
+custody. A removed source row or explicit deletion marker cannot reuse copies.
+
+Missing copies, duplicate IDs, ambiguous byte identity, mismatched scope,
+unsupported MIME and
 failed signing return `complete:false` with no partial projected description.
 After signing, the helper rereads the current deliverable and refuses a changed
 brief/revision/team. URLs are signed for five minutes; the projection expires
@@ -56,6 +70,9 @@ never certifies independence. Once required mode has been observed, a downgraded
 or absent response cannot silently restore provider rendering in that state.
 
 The existing scoped-read generation/actor guards protect response adoption.
+After a successful description save containing provider references, the browser
+immediately obtains a fresh scoped projection; it does not keep the prior signed
+markup or wait for an operator to remap unchanged image URLs.
 The active read view refreshes before signed URLs expire; a failed image load
 shows the same retained-source state. A hidden/editing panel does not start a
 background refresh loop. Rich editing is preserved: private image nodes store
@@ -171,7 +188,16 @@ Setting off restores provider dependence and therefore cannot be the rollback
 after provider access is lost. Recover forward or retain a held read view; never
 publicize the bucket, erase receipts, or rewrite original descriptions.
 
-Focused evidence: 25 full-handler/model, renderer and local byte groups; a finite
+Focused evidence after the editing correction: 29 full-handler/model, renderer
+and local byte groups, plus an optional actual-browser Save/fresh-read group
+(`node test/native-brief-media.js --browser-save`, **30 total**). The browser uses
+the actual save, rich serializer, scoped refresh/adoption and full description
+read handler; its write transport is explicitly modeled, not a real SQL write.
+It edits text, reorders images, clicks Save, waits for the automatic read, then
+checks another browser context. Original URLs and ledger rows stay unchanged;
+the saved text remains edited and both copied images decode. The frozen `8f8`
+helper reproduces the prior text-edit hold as a retained baseline negative.
+A separate finite
 Chromium fragment decodes the synthetic copied PNG and proves rich edit,
 normalize, original-URL serialization and reversible expired previews with zero
 provider attempts. The local SQL lane passed private/off defaults, seven bad-row

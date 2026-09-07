@@ -58819,6 +58819,12 @@
                 state.sourceUpdatedAt = committedRow.updated_at || state.sourceUpdatedAt;
                 if (batchParent) _prodSyncBatchDescriptionRow(id, committed, committedRow.updated_at);
                 else _prodSyncDescriptionRow(id, committedRow.brief, committedRow.updated_at);
+                if (!batchParent && /https?:\/\/uploads\.linear\.app\//i.test(committed)) {
+                    // Saving text or moving an existing image changes the brief
+                    // digest. Obtain a new scoped display projection immediately;
+                    // never save or blindly reuse the previous signed markup.
+                    _prodEnsureDescription(id, true);
+                }
                 _prodToast('Description updated');
                 _prodRender();
                 _prodFocusDescriptionControl(id, 'edit');

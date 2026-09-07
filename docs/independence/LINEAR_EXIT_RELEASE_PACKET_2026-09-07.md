@@ -116,7 +116,18 @@ source references now have private bytes; independent website delivery and
 complete format validation remain unproven. No upload or live rewrite occurred.
 The current Storage global maximum was read as50MiB, receipt SHA256
 `1c567d29ed837f297b55323cf2ae410d4f20a660627939e65bd5e741047ef2e2`.
-Do not raise it to accommodate the deferred historical video.
+Do not raise it to accommodate the deferred historical video. A separately
+identified current-comment requirement below has a smaller proposed increase.
+
+All1166 required brief source files subsequently passed bounded offline format
+validation (1141 contents;1154 inline and12 download-only). Validation receipt
+SHA256 `883ce0bdce33ae492e92a2a290d519e5319230e706bc3e94b95bdeae1399f752`.
+Twenty-seven private transfer packages cover486 captured briefs and all1338
+occurrences:1337 pending copies plus the single explicit deferral, with no missing
+or duplicate occurrence. Package census SHA256
+`793e7c3585847f7c2dca721cb48498ffd5219416d719424eea7781f249d66c84`.
+These are captured-source packages, not installed mappings or current-scope
+admission; source/audience and Storage byte readback still precede activation.
 
 The actual `description_read` -> `_prodEnsureDescription` -> `_prodDescriptionHTML`
 path returns native brief text and renders its original image/link URLs. Existing
@@ -139,6 +150,20 @@ destinations. The82 unlinked rows need offered-reader classification; the115
 tombstones are not authorization to resurrect or discard anything. No body,
 URL, client identity or file byte was returned. Brief-only replacement cannot
 close this separately identified current comment dependency.
+
+The follow-up current-comment source read at17:40:13Z found79 occurrences and75
+distinct URLs in those49 rows. Seventy files were saved under the50MiB bound;
+five retained over-limit failures were then preserved by separate streaming
+reads. All75 now have private source bytes. Initial receipt SHA256
+`0a2a5456dc102b8c8d0b8b825724491176a3a7b01db9c49393a2fef47aba20bf`;
+five-video completion SHA256
+`fc02237b9e9fc6d2d58904a7f2e4cb5a05eb541363ef83933655c2afff15ba7b`.
+The five58-94MB videos belong to current Approved cards and are required; the
+historical brief exception does not apply. Prepare private download-only serving
+under a100MiB comment-file limit. A global Storage increase from50 to100MiB is a
+separate later approval/readback action, with existing bucket policies and new
+upload4MiB/brief50MiB limits retained. No setting has changed. Font files also
+remain required downloads; complete comment validation/reader proof is pending.
 
 ## Minimum reserved TEST window
 

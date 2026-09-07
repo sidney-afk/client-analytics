@@ -13421,7 +13421,7 @@ status. `batches.linear_parent_ids` stores `{uuid, identifier, url}` and no
 title, so the real name is not recoverable in the browser today. It needs a
 schema or gateway change and is recorded rather than fixed.
 
-## 161. [2026-09-07, FIXED — browser-only, live on merge] Two names for one row: a Linear team move made a deliverable unreachable from Workload
+## 161. [2026-09-07, FIXED AND APPLIED — browser live on merge, the 7 rows repaired the same evening; one owner decision ruled] Two names for one row: a Linear team move made a deliverable unreachable from Workload
 
 **Owner (2026-09-07, with two screenshots):** opening the Workload calendar,
 a designer's **Overdue** rollup, a client chip, then **Open SyncView →** —
@@ -13516,7 +13516,13 @@ an alias must never steal a canonical match, in either row order.
    writes for any direct statement — 14 in total for today's seven, not 7.
    `updated_at` moves on those rows; `status_at` does not. Shape pinned by
    `test/identifier-team-move-repair.js`, because nothing else in the
-   repository reads that file. **Not applied at the time of writing.**
+   repository reads that file. **APPLIED by the owner 2026-09-07, the same
+   evening** (EXECUTION_LOG, "2026-09-07 — identifier team-move repair
+   applied"): look-first returned the expected 7 with no collision, and the
+   read-only check afterwards over all 6,369 browser-visible rows returned 0
+   still disagreeing and 0 duplicate identifiers, with seven
+   `identifier_team_move_repair` events whose retired/current pairs match the
+   look-first output row for row.
 
    **Round two on #1333 took three more, all on that SQL.** [P2] Two
    statements in one transaction take two snapshots under READ COMMITTED, so a
@@ -13534,7 +13540,10 @@ an alias must never steal a canonical match, in either row order.
    kept the look-first output.
 
    **Round three re-raised the first finding, and it is a judgement call, so
-   it is an OWNER DECISION rather than a silent choice.** The reviewer is right
+   it is an OWNER DECISION rather than a silent choice. RULED 2026-09-07: leave
+   it. The owner accepted that the retired numbers stop resolving; no
+   `retired_identifier` column, no view migration, no adapter read. This
+   sub-item is closed.** The reviewer is right
    on the fact: after the SQL, `aliasId` empties for those rows and the retired
    number stops resolving in the tab, and the event ledger does not help because
    the browser never reads it for identity. Keeping it resolvable would take a

@@ -1,5 +1,11 @@
 # Repo map
 
+Native urgent video: `docs/ops/NATIVE_URGENT_HANDOFF.md` owns the inactive protected production-write resolver, exact JWT handoff and delivery-unknown contract. `test/native-urgent-dispatch.js` exercises the actual handler with synthetic scope, signature and transport failures.
+Native urgent receiver draft: `scripts/n8n-native-urgent-draft.js` preserves the
+captured graph and adds an isolated JWT credential-store root; focused offline
+proof is `test/n8n-native-urgent-draft.js`. The private input contract and held
+installation limits are in `docs/ops/NATIVE_URGENT_N8N_DRAFT.md`.
+
 F44 website triage source: `migrations/2026-09-07-legacy-intake-native-triage.sql`
 owns receipt capture, provider admission fences and native completion;
 `scripts/f44-native-recovery-extension.js` supplies a separate recovery inventory.
@@ -468,3 +474,5 @@ Explicit42-owner native continuity recovery: `docs/ops/RECOVERY_SCHEMA_V9.md`, `
 `scripts/track-b-native-continuity-resume.js` authenticates an interrupted retained continuation and verifies its restricted target without repeating capture or reconstruction. `docs/audits/2026-09-07-native-recovery-v9-evidence.json` records the exact older-source cold-resume proof and explicit timeout/shutdown boundaries.
 
 Native named append: `migrations/2026-09-07-native-intake-named-append.sql`, `scripts/native-intake-named-append-compose.js`, `scripts/native-intake-named-append-lane.mjs`, `test/native-intake-named-append.js`, `docs/ops/NATIVE_INTAKE_NAMED_APPEND.md`, and `docs/audits/2026-09-07-native-named-append-evidence.json` preserve native receipt admission with main naming and prepare one atomic installation transaction. The existing restored-target SQL proof is separate from first installation and final combined recovery.
+
+Native urgent UI preparation: `test/native-urgent-ui.js` and `docs/audits/2026-09-07-native-urgent-ui.md` cover the four existing callers and shared authenticated native dispatcher in index.html, strict sent acknowledgement, local unknown-delivery holds and unchanged legacy transport. Actual gateway/browser/delivery integration remains separate.

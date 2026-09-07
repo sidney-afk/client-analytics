@@ -3712,6 +3712,145 @@ async function handleIntakeEditorOptions(
   return json({ ...responseScope, lane: "native", editors: projection });
 }
 
+// Native urgent handoff: no data mutation, provider lookup, or retry.
+const NATIVE_URGENT_AUDIENCE = "syncview:n8n:native-urgent-video:v1";
+const NATIVE_URGENT_URL = "https://synchrosocial.app.n8n.cloud/webhook/native-urgent-video";
+function urgentText(value: unknown, cap = 160): string {
+  if (typeof value !== "string" || !value || value !== value.trim()
+      || value.length > cap || /[\x00-\x1f\x7f]/.test(value)) {
+    throw new GatewayError(409, "urgent_context_unavailable");
+  }
+  return value;
+}
+function urgentRound(value: unknown): string {
+  try {
+    urgentText(value, 40);
+    if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(String(value))) throw new Error();
+    return new Date(sourceTimestamp(value)).toISOString();
+  }
+  catch { throw new GatewayError(409, "urgent_round_unavailable"); }
+}
+async function urgentSnapshot(supabase: SupabaseClient, req: Request, body: JsonMap) {
+  const clientSlug = urgentText(body.client_slug);
+  const id = urgentText(body.deliverable_id), cardId = urgentText(body.card_id);
+  const surface = body.surface;
+  if (surface !== "calendar" && surface !== "samples") throw new GatewayError(400, "invalid_surface");
+  const principal = await authenticate(supabase, req, body, clientSlug);
+  if (principal.kind !== "staff" || !["admin", "smm"].includes(principal.keyRole)) {
+    throw new GatewayError(403, "operation_forbidden");
+  }
+  const client = await clientBySlug(supabase, clientSlug);
+  if (!client || client.active !== true) throw new GatewayError(403, "client_inactive");
+  if (await authorityFor(supabase, "video") !== "syncview") throw new GatewayError(409, "team_is_linear_authoritative");
+  const one = async (table: string, key: string, value: string, cardScope = false): Promise<JsonMap> => {
+    let query = supabase.from(table).select("*").eq(key, value);
+    if (cardScope) query = query.eq("client", clientSlug);
+    const { data, error } = await query.maybeSingle();
+    if (error) throw new GatewayError(503, "urgent_lookup_unavailable");
+    if (!data) throw new GatewayError(409, "urgent_context_unavailable");
+    return data as JsonMap;
+  };
+  const row = await one("deliverables", "id", id);
+  if (row.client_slug !== clientSlug || row.team !== "video" || row.kind !== "video"
+      || row.origin !== surface || row.card_id !== cardId || row.status !== "tweak" || row.deleted_at) {
+    throw new GatewayError(409, "urgent_target_changed");
+  }
+  const assignment = await existingAssignmentContext(supabase, {
+    entity: "deliverable", entity_id: id, operation: "assignee", client_slug: clientSlug, team: "video",
+    actor: principal.actorName, role: principal.actorRole, test_only: false, legacy_parity: false,
+  });
+  if (!clean(assignment.epoch) || assignment.replay !== false) throw new GatewayError(409, "urgent_assignment_unavailable");
+  const batch = await one("batches", "id", urgentText(row.batch_id));
+  if (batch.client_slug !== clientSlug || batch.status !== "active" || batch.deleted_at
+      || (batch.purpose || "calendar") !== surface) {
+    throw new GatewayError(409, "urgent_target_changed");
+  }
+  const card = await one(surface === "calendar" ? "calendar_posts" : "sample_reviews", "id", cardId, true);
+  const round = urgentRound(body.video_status_at);
+  if (card.client !== clientSlug || card.video_deliverable_id !== id
+      || card.video_status !== "Tweaks Needed" || urgentRound(card.video_status_at) !== round || card.deleted_at) {
+    throw new GatewayError(409, "urgent_target_changed");
+  }
+  const editor = await one("team_members", "id", urgentText(row.assignee_id));
+  const email = urgentText(typeof editor.email === "string" ? editor.email.trim().toLowerCase() : editor.email, 254);
+  if (editor.active !== true || editor.team !== "video" || editor.role !== "editor"
+      || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new GatewayError(409, "urgent_editor_unavailable");
+  }
+  const context = {
+    deliverable_id: id, client_slug: clientSlug, client_name: urgentText(client.display_name, 300),
+    card_id: cardId, surface, team: "video", video_status_at: round,
+    assignee_id: urgentText(editor.id), assignee_email: email,
+    assignee_name: urgentText(editor.name, 300), title: urgentText(row.title, 300),
+    actor_member_id: urgentText(principal.memberId),
+  };
+  // Only compare current fields; no client or staff record is returned to caller.
+  const fingerprint = JSON.stringify([context, assignment.epoch, row.updated_at, card.updated_at, batch.updated_at, principal.actorRole, principal.keyRole]);
+  return { context, fingerprint };
+}
+function urgentBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+}
+async function urgentJwt(body: string, dispatchId: string, issued: number, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(body))), b => b.toString(16).padStart(2, "0")).join("");
+  const header = urgentBase64(encoder.encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
+  const claims = urgentBase64(encoder.encode(JSON.stringify({ purpose: "native-urgent-handoff-v1", aud: NATIVE_URGENT_AUDIENCE,
+    jti: dispatchId, iat: issued, exp: issued + 60, body_sha256: digest })));
+  // n8n jwtAuth/passphrase uses the UTF8 secret, NOT hex-decoded bytes.
+  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(header + "." + claims)));
+  return header + "." + claims + "." + urgentBase64(signature);
+}
+async function handleNativeUrgentDispatch(supabase: SupabaseClient, req: Request, body: JsonMap): Promise<Response> {
+  try {
+    // Exact shape rejects browser-supplied recipient/actor/message authority.
+    const fields = ["action", "client_slug", "deliverable_id", "card_id", "surface", "video_status_at"];
+    if (Object.keys(body).some(k => !fields.includes(k))) throw new GatewayError(400, "invalid_urgent_request");
+    const first = await urgentSnapshot(supabase, req, body);
+    const secret = Deno.env.get("NATIVE_URGENT_HANDOFF_KEY_HEX") || "";
+    if (Deno.env.get("NATIVE_URGENT_HANDOFF_ENABLED") !== "true"
+        || Deno.env.get("NATIVE_URGENT_HANDOFF_URL") !== NATIVE_URGENT_URL || !/^[a-f0-9]{64}$/.test(secret)) {
+      throw new GatewayError(503, "native_urgent_not_configured");
+    }
+    const dispatchId = crypto.randomUUID(), issued = Math.floor(Date.now() / 1000);
+    const payload = JSON.stringify({ contract: "native_urgent_video_v1", audience: NATIVE_URGENT_AUDIENCE,
+      dispatch_id: dispatchId, issued_at: issued, expires_at: issued + 60, context: first.context });
+    const token = await urgentJwt(payload, dispatchId, issued, secret);
+    const second = await urgentSnapshot(supabase, req, body);
+    if (second.fingerprint !== first.fingerprint || Math.floor(Date.now() / 1000) >= issued + 60) {
+      throw new GatewayError(409, "urgent_target_changed");
+    }
+    // No asynchronous work between the fresh comparison and the one handoff.
+    // This is not an atomic lock against reassignment after this read.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch(NATIVE_URGENT_URL, { method: "POST", redirect: "error", signal: controller.signal,
+        headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: payload });
+      if (!response.ok) throw new Error("handoff_unconfirmed");
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("handoff_unconfirmed");
+      let text = "", size = 0; const decoder = new TextDecoder();
+      while (true) { const next = await reader.read(); if (next.done) break; size += next.value.length;
+        if (size > 4096) { await reader.cancel(); throw new Error("handoff_unconfirmed"); }
+        text += decoder.decode(next.value, { stream: true }); }
+      const ack = JSON.parse(text + decoder.decode());
+      if (ack.ok !== true || ack.contract !== "native_urgent_video_v1" || ack.dispatch_id !== dispatchId
+          || ack.delivered !== true || typeof ack.slack_ts !== "string" || !/^\d{10,}\.[0-9]{6}$/.test(ack.slack_ts)) {
+        throw new Error("handoff_unconfirmed");
+      }
+      return json({ ok: true, delivery: "sent", dispatch_id: dispatchId, slack_ts: ack.slack_ts });
+    } catch {
+      return json({ ok: false, error: "delivery_unknown", delivery: "unknown", dispatch_id: dispatchId, retry_safe: false }, 502);
+    } finally { clearTimeout(timer); }
+  } catch (error) {
+    if (error instanceof GatewayError) return json({ ok: false, error: error.code, delivery: "not_sent", retry_safe: true }, error.status);
+    // Unknown preflight failures cannot have reached the handoff.
+    return json({ ok: false, error: "urgent_lookup_unavailable", delivery: "not_sent", retry_safe: true }, 503);
+  }
+}
+
 async function handleCreateOptions(
   supabase: SupabaseClient,
   req: Request,
@@ -8097,6 +8236,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     if (lower(body.action) === "assignee_options") {
       return await handleAssigneeOptions(supabase, req, body);
+    }
+    if (lower(body.action) === "native_urgent_dispatch") {
+      return await handleNativeUrgentDispatch(supabase, req, body);
     }
     if (body.action !== undefined) throw new GatewayError(400, "unsupported_action");
     const operation = normalizeOperation(body.operation);

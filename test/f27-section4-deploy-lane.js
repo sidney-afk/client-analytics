@@ -401,7 +401,7 @@ const CANDIDATES = new Map([
     // Source-only 2b6c718 assignment prerequisite; same five-file closure.
     // Uninstalled combined candidate d906e5aa; source-only closure evidence.
     // Combined native exit, owner post naming and private-media helper, six files.
-    source: '3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95',
+    source: '663e7e423dfe150449f820ecb1e7aa3f2506d6c55c3770cfdc65b556d1311e14',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 6,
   }],

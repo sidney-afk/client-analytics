@@ -33565,18 +33565,25 @@
                 if (retainedAttempt()) { showUnknown(); return; }
                 if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
                 (async () => {
-                    let attempted = false, knownNotSent = false;
+                    let attempted = false, knownNotSent = false, holdWritten = false, holdValue = '';
+                    const releaseOwnHold = () => {
+                        try {
+                            if (holdWritten && localStorage.getItem(attemptKey) === holdValue) localStorage.removeItem(attemptKey);
+                        } catch (ignore) {}
+                    };
                     try {
                         let resp;
                         if (native) {
                             // Retain before transport. This is a local recovery hold,
                             // not a cross-device delivery or exactly-once receipt.
-                            localStorage.setItem(attemptKey, 'delivery_unknown');
+                            holdValue = JSON.stringify({ state: 'delivery_unknown', attempt_id: crypto.randomUUID() });
+                            localStorage.setItem(attemptKey, holdValue);
+                            holdWritten = true;
                             const headers = _syncviewEfHeaders({ 'Content-Type': 'application/json',
-                                apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }, PROD_WRITE_EF_URL);
+                                apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY }, WRITE_UI_PRODUCTION_WRITE_URL);
+                            const request = { method: 'POST', headers, body: JSON.stringify(native), signal: AbortSignal.timeout(30000) };
                             attempted = true;
-                            resp = await fetch(PROD_WRITE_EF_URL, { method: 'POST', headers,
-                                body: JSON.stringify(native), signal: AbortSignal.timeout(30000) });
+                            resp = await fetch(WRITE_UI_PRODUCTION_WRITE_URL, request);
                         } else resp = await fetch(URGENT_SLACK_URL, {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ issue, client, name: String(name || '') })
@@ -33616,10 +33623,11 @@
                     } catch (e) {
                         if (native && attempted && !knownNotSent) { showUnknown(); return; }
                         if (native && !attempted) {
+                            releaseOwnHold();
                             if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                             showNotify('Could not prepare urgent ping', 'Nothing was sent. This browser could not retain the delivery attempt. Check browser storage before trying again.'); return;
                         }
-                        if (native && knownNotSent) { try { localStorage.removeItem(attemptKey); } catch (ignore) {} }
+                        if (native && knownNotSent) releaseOwnHold();
                         if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                         showNotify('Could not send', 'The urgent ping failed to send. Try again, or post in #video-editing manually.');
                     }

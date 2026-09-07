@@ -208,6 +208,41 @@ async function check(name, fn) { await fn(); groups++; console.log('PASS ' + nam
     const object = path.join(staged, 'objects', verified.rows[0].storage_path); fs.appendFileSync(object, 'corrupt'); await assert.rejects(() => pkg.verify(staged));
     await assert.rejects(() => pkg.stage(input, path.join(root, 'forbidden-output')));
   });
+  await check('staging pins collected source/read receipts and validation cache; exact deferred occurrence survives without object copy', async () => {
+    const dir = path.join(temp, 'pinned-stage'); fs.mkdirSync(dir); fs.mkdirSync(path.join(dir, 'validation-final-batches'));
+    const write = async (name, data) => { const file = path.join(dir, name), bytes = Buffer.from(JSON.stringify(data)); fs.writeFileSync(file, bytes); return { path: file, sha256: await media.briefMediaHash(bytes) }; };
+    const olderUrl = 'https://uploads.linear.app/synthetic/deferred.mov', sourceRow = { ...row, brief: brief + '\n![Older](' + olderUrl + ')' };
+    const occurrences = await Promise.all(media.briefMediaOccurrences(sourceRow.brief).map(async x => ({ ...x, url_sha256: await media.briefMediaHash(x.url) })));
+    const collected = await write('collection.json', { observed_at: row.updated_at, documents: [{ row: sourceRow, brief_sha256: await media.briefMediaHash(sourceRow.brief), occurrences }] });
+    const read = await write('read.json', { ok: true, http_status: 200, url_sha256: copies[0].original_url_sha256, content_sha256: contentHash, byte_length: png.length, mime_type: 'image/png' });
+    const validatorSha = await media.briefMediaHash(fs.readFileSync(path.join(root, 'scripts/native-brief-media-validate.py')));
+    const batch = await write('validation-final-batches/batch-0000.private.json', { validator_sha256: validatorSha, results: [{ ok: true, url_sha256: copies[0].original_url_sha256, content_sha256: contentHash, byte_length: png.length, mime_type: 'image/png' }] });
+    const cached = await write('validation.json', { classification: 'OFFLINE_LOCAL_CORPUS_VALIDATION_NOT_STORAGE_ADMISSION', files: 1, validator_sha256: validatorSha, source_sha256: collected.sha256, batches: [{ file: 'batch-0000.private.json', sha256: batch.sha256 }] });
+    const decision = await write('decision.json', { source_entity_id: row.id, team: row.team, source_status_at_decision: 'posted', original_url_sha256: occurrences[2].url_sha256,
+      content_sha256: 'f'.repeat(64), byte_length: 900000000, copy_complete: true, website_restoration_required_before_operational_exit: false });
+    const sourceReceipt = await write('derived.json', { contract: 'native_brief_media_source_v1', generated_binding: true,
+      provenance: { contract: 'native_brief_media_collection_binding_v1', collection_source_sha256: collected.sha256 },
+      id: row.id, client_slug: row.client_slug, team: row.team, source_updated_at: row.updated_at, brief_sha256: await media.briefMediaHash(sourceRow.brief),
+      occurrences: occurrences.map((x,i) => ({ offset: x.offset, original_url_sha256: x.url_sha256, content_sha256: i === 2 ? 'f'.repeat(64) : contentHash,
+        ...(i === 2 ? { owner_deferred: true } : { read_receipt_sha256: read.sha256 }) })) });
+    const image = path.join(dir, 'image.png'); fs.writeFileSync(image, png);
+    const input = { contract: 'native_brief_media_ingress_v1', validated_corpus: cached, documents: [{ row: sourceRow, source_receipt_path: sourceReceipt.path,
+      evidence_files: [collected, read], files: occurrences.map((x,i) => i === 2 ? { offset: x.offset, disposition: 'owner_deferred', owner_receipt_path: decision.path }
+        : { offset: x.offset, path: image, mime_type: 'image/png' }) }] };
+    const ingress = await write('ingress.json', input), staged = path.join(dir, 'out');
+    // Fresh child + unavailable decoder proves the pinned stage path avoids decode.
+    const execution = spawnSync(process.execPath, [path.join(root, 'scripts/native-brief-media-package.mjs'), 'stage', ingress.path, staged],
+      { encoding: 'utf8', windowsHide: true, env: { ...process.env, NATIVE_BRIEF_MEDIA_PYTHON: 'not-an-installed-python' } });
+    assert.equal(execution.status, 0, execution.stderr); const verified = await pkg.verify(staged);
+    assert.equal(verified.rows.length, 2); assert.equal(verified.manifest.owner_deferred_references.length, 1); assert.equal(verified.manifest.objects.length, 2);
+    input.validated_corpus = { ...cached, sha256: '0'.repeat(64) }; await write('ingress.json', input);
+    await assert.rejects(() => pkg.stage(ingress.path, path.join(dir, 'bad-cache')));
+    input.validated_corpus = cached; input.documents[0].row.brief += ' forged'; await write('ingress.json', input);
+    await assert.rejects(() => pkg.stage(ingress.path, path.join(dir, 'bad-source')));
+    input.documents[0].row.brief = sourceRow.brief.replace(/ forged$/, ''); await write('ingress.json', input);
+    fs.appendFileSync(batch.path, ' ');
+    await assert.rejects(() => pkg.stage(ingress.path, path.join(dir, 'bad-batch')));
+  });
   if (process.argv.includes('--browser-save')) await check('actual browser save -> automatic scoped read -> fresh context keeps copied images after text edit/reorder', async () => {
     const { chromium } = require('playwright'); reset(); let saves = 0, browserReads = 0, denied = 0;
     const beforeCopies = JSON.stringify(tables.native_brief_media_occurrences);

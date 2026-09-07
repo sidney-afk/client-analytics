@@ -117,6 +117,55 @@ bytes were acquired. Authorized acquisition must retain the original URL and
 exact source/retrieval receipt privately, without leaking auth or making URLs
 public. No broad archive census is substituted for this current-product scope.
 
+Actual collection staging uses `generated_binding:true` and provenance contract
+`native_brief_media_collection_binding_v1`. This is explicitly a derived
+occurrence binding, **not an original provider response**. Its
+`collection_source_sha256` binds the exact retained collection JSON; each
+non-deferred occurrence binds the actual `read_receipt_sha256`. Ingress
+`evidence_files[]` supplies those private files with explicit hashes. Stage and
+package verification compare the native row, captured digest, original offsets
+and URL hashes, successful read status and object hashes across that chain.
+Every underlying receipt is copied byte-for-byte into the private package.
+
+Optional ingress `validated_corpus:{path,sha256}` is an explicit operator pin to
+the completed local validation aggregate. Stage checks that hash, every batch
+hash, current validator hash, collection-source hash and exact URL/content/MIME/
+size verdict; it still reads and hashes each actual object. This avoids repeating
+decoding during bounded staging. A missing/mismatched receipt or failed verdict
+refuses. The aggregate and batches are preserved in the package. This is local
+operator-pinned evidence, not a new provider-authentication claim. Default
+verification, admission and recovery still decode bytes independently.
+
+For the exact owner-deferred occurrence, ingress uses
+`disposition:'owner_deferred'` plus `owner_receipt_path`; its derived source
+occurrence marks `owner_deferred:true` and retains the exact original/content
+hashes. Stage validates the owner decision and emits a separately counted
+`owner_deferred_references` manifest entry with source/decision receipt pins.
+It emits no pending storage row or duplicate large object for that occurrence.
+Other occurrences in the same native brief stage normally. The original private
+large file remains in its separate owner-designated custody, and eventual flag
+installation remains an independent authorized operation.
+
+Actual captured-source preparation produced **27 private ingress packages**,
+bounded to at most 25 documents / 128 MiB object bytes per batch. They account
+for all **486 captured native briefs / 1338 exact occurrences**: **1337 pending
+object occurrences**, **one owner-deferred reference**, **1166 required URL
+hashes / 1141 content hashes**, and **3019099442 staged object bytes** (repeated
+source occurrences retain separate ledger identities). Each written package file
+was read back and hash-checked. An independent tuple census against the retained
+collection source found **zero missing and zero duplicate occurrences**.
+Private summary SHA-256:
+`459ac7a7bc4cc29e9e960c8c125812f3519b8fd58c163ab65e47ba840b642e7b`;
+independent census SHA-256:
+`793e7c3585847f7c2dca721cb48498ffd5219416d719424eea7781f249d66c84`.
+The existing pinned full-corpus validation was reused without decoding those
+1166 files again. No large deferred object was duplicated. **Zero uploads,
+admissions or live changes.** These packages bind a captured source snapshot;
+current scope/content and private Storage readback still precede admission.
+Focused source/package tests passed 33 groups, including a fresh child with an
+unavailable decoder proving stage-only cache reuse, and bad source/cache/batch
+refusals. This correction changes no reader, validator or SQL schema.
+
 Existing required media uses a separate `native_brief_existing_media_v1`
 validator (`scripts/native-brief-media-validate.py`), hash-pinned in each package.
 The new-upload validator remains unchanged at 4 MiB/8000 pixels. Existing raster

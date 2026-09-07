@@ -28,6 +28,9 @@ import {
 } from "./policy.mjs";
 
 type JsonMap = Record<string, unknown>;
+type MediaPublicComment = NonNullable<ReturnType<typeof publicComment>> & {
+  media?: Awaited<ReturnType<typeof projectCommentMedia>>;
+};
 type Member = {
   id: string;
   name: string;
@@ -386,11 +389,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         memberId: principal.member && principal.member.id,
         actorKey: principal.actorKey,
       }))
-      .filter(Boolean);
+      .filter((comment): comment is MediaPublicComment => Boolean(comment));
     if (principal.kind === 'staff') {
       let mediaProjected = false;
       for (const comment of comments) {
-        const original = fetched.find(row => row.id === comment.id);
+        const original = fetched.find(row => (row as unknown as JsonMap).id === comment.id) as unknown as JsonMap | undefined;
         if (original && !original.deleted_at && briefMediaOccurrences(original.body).length) {
           mediaProjected = true;
           comment.media = await projectCommentMedia(supabase, original, target, url);

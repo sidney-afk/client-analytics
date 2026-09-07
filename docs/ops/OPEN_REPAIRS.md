@@ -13355,50 +13355,66 @@ Done when: an owner decision picks 1, 2 or 3 and this entry links the PR.
 
 ### The other half of the same report — FIXED
 
-The owner also flagged the click-through. He confirmed he pressed the header
-**Open SyncView →** on the In progress chip, which targets the PARENT, and
-landed on the sub-issue `VID-13679`.
+The click-through itself. The owner pressed the header **Open SyncView →** on
+the In progress chip and was taken to the PARENT, then had to drill into the
+sub-issue himself to read the status. His rule, in his words:
 
-Both header link-outs ended in a first-CHILD fallback:
+> "when you open a pill, you're opening a video, so you're supposed to go to
+> that sub-issue, which has the status In progress."
+
+He is describing what the chip MEANS. "Dr. Sonia Chopra · 1" in the In progress
+column is not a claim about the client or about the parent. It is one video that
+is in progress, and the status the chip just asserted lives on that sub-issue.
+
+**The parent is structurally unable to answer it.** `VID-13678` has no
+deliverable row; SyncView hangs the child off a *synthetic batch parent* minted
+from `bat_3d82ce2c…` (`_prodResolveBatchParentNodes`), whose title is the batch
+name and whose status is **hardcoded `todo` and never updated** — the code
+comment already says so. So the destination was guaranteed to contradict the
+chip that sent him there, and to show a different name for the same issue:
+**"VID-13678 Dr. Sonia Chopra · 31 Aug 2026"** in SyncLinear against
+**"VID-13678 Dr. Sonia Chopra | E-School Launch reel"** in Linear.
+
+**Fixed.** The primary button now resolves to `openIdent`:
+
+- **one sub-issue in the group** → it opens THAT sub-issue. No ambiguity about
+  which video is meant, and it is the row that carries the status.
+- **more than one** → no single row is "the video", so guessing is refused. It
+  stays on the parent and the label changes to **"Open parent →"** so it cannot
+  be mistaken for the video. Each row below still opens its own sub-issue.
+
+The Linear ↗ escape hatch follows the primary target rather than pointing
+somewhere else than the button beside it.
+
+**A second defect found in the same expression and also fixed.** Both header
+link-outs ended in a first-CHILD fallback:
 
 ```js
 const parentUrl   = (parentById.get(parentId)?.url)        || subs[0]?.url        || '';
 const parentIdent = (parentById.get(parentId)?.identifier) || subs[0]?.identifier || '';
 ```
 
-That reads as harmless — open something rather than nothing — and is the one
-thing these two controls must not do. They are labelled and positioned as the
-parent, so substituting the first sub-issue does not degrade the button, it
-makes it lie, silently.
+`parentById` holds only parents returned in the current snapshot, and the board
+has more than one way to hold fewer: the Linear-derived read pages
+`active = true` only, so a parent whose own row went inactive is absent while
+its children are live, and the n8n `linear-issues` fallback (taken whenever the
+Supabase read throws) answers a different row set again. Reachable in normal
+operation, and a control labelled *parent* must not silently hand back a child.
+The parent branch now falls back to the sub's own `parentIdentifier` from
+`workload_issues` — the fallback `wlLooseParentInfo` already uses for the loose
+strips (#1331) and which was never carried back here — and when neither source
+names a parent the button is **omitted** rather than aimed at a child.
 
-`parentById` holds only parents returned in THIS snapshot, and the board has
-more than one way to hold fewer: the Linear-derived read pages `active = true`
-only, so a parent whose own row went inactive is absent while its children are
-live, and the n8n `linear-issues` fallback (taken whenever the Supabase read
-throws) answers a different row set again. So the fallback is reachable in
-normal operation, not a corner case.
+Pinned by `test/workload-syncview-links.js`, which EXECUTES the resolution block
+across single-video, multi-video, parent-missing and nothing-resolves states
+rather than pattern-matching it. Its previous version asserted
+`|| subs[0]?.identifier` as if it were the contract, so it pinned the defect;
+10 of the new checks go red against the old code, including "a single-video pill
+does NOT open the parent". `test/workload-tweak-exclusive-bucket.js` had two
+stale pins on the same expression (the old `parentIdent` deep link, and a
+prohibition on the string "Open parent") and now pins the new shape.
 
-**Fixed** by taking the fallback `wlLooseParentInfo` already uses for the loose
-strips — the sub's own `parentIdentifier` from `workload_issues`, which is all
-the SyncLinear deep link needs. It was added there on 2026-09-07 (#1331) and
-never carried back to the popover. When neither source can name the parent the
-button is now **omitted**: an absent control is honest, one pointing at a child
-is not, and the per-row links still open every sub-issue.
-
-Pinned by `test/workload-syncview-links.js`, which now EXECUTES the resolution
-block against three states (parent present, parent missing with
-`parentIdentifier`, parent missing without one) rather than pattern-matching it.
-The previous version of that suite asserted `|| subs[0]?.identifier` as if it
-were the contract, so it pinned the defect; 8 of its checks fail against the
-old code.
-
-Not repaired, and separate: `VID-13678` has **no deliverable row**. SyncView
-hangs the child off a *synthetic batch parent* minted from `bat_3d82ce2c…`
-(`_prodResolveBatchParentNodes`), whose `displayId` is the Linear identifier
-while its title is the batch name and its status is hardcoded `todo` — the code
-comment already admits nothing ever updates that status. So the parent reads
-**"VID-13678 Dr. Sonia Chopra · 31 Aug 2026"** in SyncLinear and **"VID-13678
-Dr. Sonia Chopra | E-School Launch reel"** in Linear: one issue, two names.
-`batches.linear_parent_ids` stores `{uuid, identifier, url}` and no title, so
-the real name is not recoverable in the browser today — it needs a schema or
-gateway change, and is listed here rather than fixed.
+Still open here: the synthetic batch parent's wrong title and permanently-`todo`
+status. `batches.linear_parent_ids` stores `{uuid, identifier, url}` and no
+title, so the real name is not recoverable in the browser today. It needs a
+schema or gateway change and is recorded rather than fixed.

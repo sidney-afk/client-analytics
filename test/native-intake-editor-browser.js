@@ -42,8 +42,31 @@ const legacyGuard=`  // Server-owned legacy triage may NEVER fall back to provid
 `;
 assert.equal(currentIntake.split(legacyParameter).length,2);
 assert.equal(currentIntake.split(legacyGuard).length,2);
-assert.equal(currentIntake.replace(materializationBlock,'').replace(materializationField,'')
+// The owner's merged post-naming release is an independently pinned change.
+// Account for its exact three handler additions, retaining the whole-handler
+// equality check around them rather than waiving unrelated intake drift.
+const namingRelease='70715496a44e7120f0b819deafdb84cd62d78f9b';
+const namedGateway=execFileSync('git',['show',namingRelease+':supabase/functions/production-write/index.ts'],{cwd:root,encoding:'utf8',maxBuffer:4*1024*1024});
+const namedIntake=extractFunction(namedGateway,'handleIntakeCreate');
+function pinnedSlice(start,end){const a=namedIntake.indexOf(start),b=namedIntake.indexOf(end,a);assert(a>=0&&b>a);return namedIntake.slice(a,b);}
+let intakeWithoutNaming=currentIntake;
+for(const block of [pinnedSlice('    /* The optional post name','    if ((!appendToBatch'),pinnedSlice('  /*\n   * ONE NAME PER CARD','  const plannedItems: JsonMap[] = [];')]){
+ assert.equal(intakeWithoutNaming.split(block).length,2);intakeWithoutNaming=intakeWithoutNaming.replace(block,'');
+}
+const titleBlock=pinnedSlice('    /*\n     * v8 (2026-09-07)','    const sourceBrief');
+assert.equal(intakeWithoutNaming.split(titleBlock).length,2);
+intakeWithoutNaming=intakeWithoutNaming.replace(titleBlock,'    const title = team === "graphics" ? `${intakeTitlePrefix}Thumbnail ${videoNumber}` : clean(item.title) || fallbackTitle;\n');
+const namedIntent='["team", "title", "name", "brief", "videoNumber", "number", "status", "assignee_id", "due_date", "priority", "card_id", "sort_key"]';
+assert.equal(intakeWithoutNaming.split(namedIntent).length,2);
+intakeWithoutNaming=intakeWithoutNaming.replace(namedIntent,namedIntent.replace('"name", ',''));
+assert.equal(intakeWithoutNaming.replace(materializationBlock,'').replace(materializationField,'')
  .replace(legacyParameter,'').replace(legacyGuard,''),extractFunction(oldGateway,'handleIntakeCreate'));
+const intentSelector=currentIntake.slice(currentIntake.indexOf('  const intakeFields'),currentIntake.indexOf('  const rootManifest'))
+ .replace('(input: JsonMap, keys: string[]): JsonMap','(input, keys)');
+function selected(input){return JSON.parse(JSON.stringify(vm.runInNewContext(intentSelector+'\nintakeFields(input,keys)',{input,keys:JSON.parse(namedIntent)})));}
+assert.deepEqual(selected({team:'video',name:'Launch',card_id:'card',credential:'secret'}),{team:'video',name:'Launch',card_id:'card'});
+assert.deepEqual(selected({team:'video',card_id:'card'}),{team:'video',card_id:'card'});
+pass('original native caller intent preserves a supplied post name, excludes credentials and leaves unnamed shape unchanged');
 assert.ok(currentIntake.indexOf(legacyGuard)<currentIntake.indexOf('await projectForIntake('));
 for(const [required,epochs,refused]of [[false,{},false],[true,{},true],[true,{video:'native'},false]]) {
  const invoke=()=>vm.runInNewContext(legacyGuard,{requireNativeCompletion:required,teamList:['video'],nativeEpochByTeam:epochs,

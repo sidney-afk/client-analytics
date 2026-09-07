@@ -7795,7 +7795,7 @@ async function handleIntakeCreate(
     request_intent: {
       source_timestamp_supplied: !!clean(body.source_edited_at),
       batch: intakeFields(batchInput, ["name", "description", "notes", "filming_doc_url", "footage_folder_url", "delivery_folder_url", "color"]),
-      items: items.map(item => intakeFields(item, ["team", "title", "brief", "videoNumber", "number", "status", "assignee_id", "due_date", "priority", "card_id", "sort_key"])),
+      items: items.map(item => intakeFields(item, ["team", "title", "name", "brief", "videoNumber", "number", "status", "assignee_id", "due_date", "priority", "card_id", "sort_key"])),
     },
     expected_items: plannedItems.map(item => ({
       item_index: item.item_index, video_number: item.video_number,

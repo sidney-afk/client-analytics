@@ -31,8 +31,6 @@ function rewriteOnce(source, needle, value) {
 async function load(version) {
   let text = version === 'baseline' ? git(EDGE) : fs.readFileSync(path.join(ROOT,EDGE),'utf8');
   const originalHash = sha(text);
-  if (text.includes('from "../_shared/native-brief-media.mjs";')) text = rewriteOnce(text,
-    'from "../_shared/native-brief-media.mjs";', `from "${pathToFileURL(path.resolve(ROOT,'supabase/functions/_shared/native-brief-media.mjs')).href}";`);
   const policyText = version === 'baseline' ? git(POLICY) : fs.readFileSync(path.join(ROOT,POLICY),'utf8');
   const policyFile = path.join(tmp,version+'.policy.mjs'); fs.writeFileSync(policyFile,policyText);
   const shim = 'data:text/javascript,' + encodeURIComponent('export class SupabaseClient {} export function createClient(){return globalThis.__commentFixtureClient();}');

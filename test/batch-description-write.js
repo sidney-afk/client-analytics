@@ -56,26 +56,9 @@ function stripJs(src) {
     .split('\n').map(line => line.replace(/\/\/.*$/, '')).join('\n');
 }
 function grabFunc(src, signature) {
-  const start = src.indexOf(signature);
-  if (start < 0) throw new Error('not found: ' + signature);
-  let depth = 0, quote = '', comment = '', escaped = false;
-  for (let i = src.indexOf('{', start); i < src.length; i++) {
-    const c = src[i], n = src[i + 1];
-    if (comment === 'line') { if (c === '\n') comment = ''; continue; }
-    if (comment === 'block') { if (c === '*' && n === '/') { comment = ''; i++; } continue; }
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (c === '\\') escaped = true;
-      else if (c === quote) quote = '';
-      continue;
-    }
-    if (c === '/' && n === '/') { comment = 'line'; i++; continue; }
-    if (c === '/' && n === '*') { comment = 'block'; i++; continue; }
-    if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
-    if (c === '{') depth++;
-    else if (c === '}' && --depth === 0) return src.slice(start, i + 1);
-  }
-  throw new Error('unclosed: ' + signature);
+  const name = /function\s+([A-Za-z0-9_$]+)\(/.exec(signature);
+  if (!name) throw new Error('invalid function signature');
+  return require('./helpers/extract-function').extractFunction(src, name[1]);
 }
 
 const sql = stripSql(SQL);

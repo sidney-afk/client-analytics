@@ -1,4 +1,8 @@
 'use strict';
+if (process.env.NATIVE_BRIEF_MEDIA_BROWSER_LANE === 'dedicated-job') {
+  console.log('DEFER native media Chromium checks to the mandatory media-browser CI job');
+  process.exit(0);
+}
 // Finite real Chromium fragment; synthetic image responses only, no app boot.
 const assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
 const { extractFunction } = require('./helpers/extract-function');

@@ -43,36 +43,8 @@ function ok(condition, message) {
 
 function grabFunc(name) {
   const at = INDEX.indexOf('function ' + name + '(');
-  if (at < 0) throw new Error('function not found: ' + name);
-  let depth = 0, quote = '', escaped = false, comment = '';
-  for (let j = INDEX.indexOf('{', at); j < INDEX.length; j++) {
-    const c = INDEX[j], next = INDEX[j + 1];
-    if (comment) {
-      if (comment === 'line' && c === '\n') comment = '';
-      else if (comment === 'block' && c === '*' && next === '/') { comment = ''; j++; }
-      continue;
-    }
-    if (quote) {
-      if (escaped) escaped = false;
-      else if (c === '\\') escaped = true;
-      else if (c === quote) quote = '';
-      continue;
-    }
-    if (c === '/' && next === '/') { comment = 'line'; j++; continue; }
-    if (c === '/' && next === '*') { comment = 'block'; j++; continue; }
-    if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
-    if (c === '{') depth++;
-    else if (c === '}') {
-      depth--;
-      if (depth === 0) {
-        // Keep the `async` prefix: slicing from the `function` keyword alone
-        // strips it, and every await in the body then fails to parse.
-        const prefix = INDEX.slice(Math.max(0, at - 6), at) === 'async ' ? 'async ' : '';
-        return prefix + INDEX.slice(at, j + 1);
-      }
-    }
-  }
-  throw new Error('unbalanced braces: ' + name);
+  const prefix = INDEX.slice(Math.max(0, at - 6), at) === 'async ' ? 'async ' : '';
+  return prefix + require('./helpers/extract-function').extractFunction(INDEX, name);
 }
 
 /* ---- 1. The synthetic parent's asset states, executed ------------------- */
@@ -432,8 +404,10 @@ const seed = new Function('deps', `
     'neither description header renders a Refresh button any more');
   ok(/function _prodRefreshDescription\(/.test(INDEX),
     'but the handler survives');
-  ok((INDEX.match(/onclick="return _prodRefreshDescription\(/g) || []).length === 2,
+  ok((grabFunc('_prodDescriptionPanelHTML').match(/onclick="return _prodRefreshDescription\(/g) || []).length === 2,
     'because the two error-banner Retry buttons are its real callers -- a failed read must stay recoverable');
+  ok((grabFunc('_prodBriefMediaReadHTML').match(/onclick="return _prodRefreshDescription\(/g) || []).length === 1,
+    'the separate retained-media error offers its own scoped retry without changing the two description error controls');
   ok(/function _prodEnsureDescription\(/.test(INDEX)
     && /description_read/.test(INDEX),
     'and the read itself is untouched: brief is not in the browser grant, so this is the only way a description reaches the page');

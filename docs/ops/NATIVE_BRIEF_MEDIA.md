@@ -340,3 +340,25 @@ reconstruction; object bytes are checked separately. No full suite, authenticate
 full restore, whole-page layout/role journey, provider transfer or live canary is
 implied. The SQL lane was rerun after removing the unrelated row timestamp from
 the verified occurrence's unique identity.
+
+The bounded CI integration correction resolves the actual shared media module
+in relocated intake, Calendar recovery, receipt and label handler fixtures.
+Description source checks use the shared regex-aware function extractor and
+retain their save/refusal assertions; the media Retry has its own assertion.
+Focused local proof passes 34 handler/renderer/package groups, or 35 with the
+actual Chromium save/fresh-context case, plus the separate Chromium fragment.
+Three intake loader prefixes capture their real full handler before any SQL
+journey; this import proof does not rerun or certify their SQL journeys.
+Existing description, parent-panel, port-fidelity, label and receipt checks
+also pass. The earlier hosted failures remain the baseline until a new hosted
+run completes.
+
+Calendar unit CI explicitly installs Python 3.11 with Pillow 12.3.0,
+PyMuPDF 1.28.0, defusedxml 0.7.1 and PyAV 16.1.0. Its separate required
+`media-browser` job installs the lockfile's Playwright/Chromium and runs both
+`node test/native-brief-media-browser.js` and
+`node test/native-brief-media.js --browser-save`; missing dependencies and
+failed assertions fail that job. Only the existing unit job's media fragment
+entry delegates to it, preserving unrelated optional browser discovery.
+No product behavior, validator bytes, schema or private staged package changes
+are part of this CI correction; HTML additions only document port differences.

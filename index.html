@@ -57639,6 +57639,7 @@
         function _prodDescRichAttr(s) {
           return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').split('"').join('&quot;');
         }
+        // PORT-DELTA: private media previews retain canonical original URL attributes and deferred/download controls.
         function _prodDescRichInline(s, previews) {
           s = _prodDescRichAttr(s);
           const st = [];
@@ -57699,6 +57700,7 @@
           if (kind === 'ul') return '<div class="prod-md-bullet" data-md="ul" data-md-prefix="' + _prodDescRichAttr(prefix || '- ') + '"><span class="prod-md-bullet-mark" contenteditable="false">•</span><span class="prod-md-bullet-text">' + body + '</span></div>';
           return '<div class="prod-md-p" data-md="p"' + (raw ? ' data-md-raw="' + _prodDescRichAttr(raw) + '"' : '') + '>' + body + '</div>';
         }
+        // PORT-DELTA: passes authenticated private media previews through each inline block.
         function _prodDescRichBuild(markdown, previews) {
           const lines = String(markdown == null ? '' : markdown).replace(/\r\n?/g, '\n').split('\n');
           const blocks = lines.map(line => {
@@ -57722,6 +57724,7 @@
           if (block.getAttribute('data-md') === 'ul') return block.querySelector('.prod-md-bullet-text') || block;
           return block;
         }
+        // PORT-DELTA: serializes original private-media URLs instead of expiring display URLs.
         function _prodDescRichSerializeInline(el) {
           let out = '';
           Array.from(el.childNodes).forEach(n => {
@@ -57816,6 +57819,7 @@
         /* Browser edits leave <b>, <i>, styled spans, nested divs and stray <br>s
            behind. Fold every one of them back into the block model so the serializer
            only ever sees shapes it knows. Idempotent. */
+        // PORT-DELTA: retains reversible private-media placeholders during normal editing.
         function _prodDescRichNormalize(root) {
           const unwrap = el => { while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el); el.remove(); };
           const clean = el => {

@@ -101,6 +101,8 @@ try {
     baselineSource=rewriteOnce(baselineSource,'from "'+file+'";','from '+JSON.stringify(pathToFileURL(path.resolve(FN_DIR,file)).href)+';');
   }
   baselineSource=rewriteOnce(baselineSource,'Deno.serve(','globalThis.__nirServe(');
+  if(baselineSource.includes('from "../_shared/native-brief-media.mjs";')) baselineSource=rewriteOnce(baselineSource,
+    'from "../_shared/native-brief-media.mjs";', 'from '+JSON.stringify(pathToFileURL(path.resolve(FN_DIR,'../_shared/native-brief-media.mjs')).href)+';');
   const baselineFile=path.join(scratch,'baseline.ts'),candidateHandler=handler;
   try {
     fs.writeFileSync(baselineFile,baselineSource);await import(pathToFileURL(baselineFile).href);

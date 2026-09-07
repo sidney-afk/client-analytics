@@ -149,9 +149,10 @@ archived rows are refused under declared browser assumptions.
   repository copy or change its anonymous access to satisfy this lane.
 - The controls cell explicitly delivers one status projection to Calendar.
   That assumption needs independent real native-to-card mirror evidence.
-- The client-note/Production projection check retains a red assertion under
-  shallow Calendar patch persistence: no implicit native import is fabricated.
-  Whether the frozen serving writer supplies that import is **UNPROVEN**.
+- The original client-note/Production projection failure is preserved as dated
+  evidence. The September 7 correction above exercises the actual source-feedback
+  reader over synthetic rows; it requires no native import. Installed reader,
+  frozen writer persistence and real database access remain **UNPROVEN**.
 - Source locations describe repository contracts only. The
   [deploy manifest](../../docs/ops/EF_DEPLOY_MANIFEST.md) does not prove serving
   function revisions. No LIVE_WRITE_DRILL is available here.

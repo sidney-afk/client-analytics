@@ -63976,6 +63976,11 @@
                with their GRA issues already minted, and reloading could not
                clear it because the reload succeeded. */
             _sxrAdoptDeliverableLinks(seq, slug).catch(() => {});
+            /* Edits typed on this client while the view was elsewhere, held by
+               `_sxrParkEditsForClient` because flushing them then would have
+               written them under whichever client was on screen. `sxrState`
+               describes this client now, so the normal engine can have them. */
+            try { _sxrRestoreParkedEdits(slug); } catch (e) {}
         } catch (e) {
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
             if (seq !== _sxrLoadSeq) return;
@@ -64409,23 +64414,93 @@
                `if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and
                defers behind THIS write, then wakes after the switch.
 
-               So when the view has moved on, the bucket is dropped rather than
-               flushed, and dropping it is what also stops that deferred
-               `_sxrAwaitCardSave` -- it re-reads `_sxrPendingEdits[pid]`, finds
-               nothing, and returns instead of writing to the wrong client. The
-               cost is a local edit on a card nobody is looking at any more,
-               recorded in the diagnostics ring; the alternative is a phantom
-               sample row under a client who never had one. */
+               So when the view has moved on the bucket leaves
+               `_sxrPendingEdits`, which is what stops that deferred
+               `_sxrAwaitCardSave`: it re-reads the map, finds nothing, and
+               returns instead of writing to the wrong client.
+
+               IT IS PARKED, NOT DROPPED (Codex P1 on PR 1342, fourth pass, and
+               it was right about the first version of this). Deleting it traded
+               a wrong-client write for silent data loss, and the person had no
+               way to know: `onSxrClientChange` had already tried to flush that
+               edit and its flush was sitting behind this very lock, so the
+               bucket was its only copy. Parking keeps it against the slug and
+               card it was typed on, `_sxrRestoreParkedEdits` puts it back the
+               next time that client loads, and the normal engine flushes it
+               there with the right `sxrState` -- so the status machinery, the
+               Linear pushes and the repair refs all run as they would have. */
             if (_sxrPendingEdits[pid]) {
                 if (sxrClientSlug(sxrState.client) === clientSlug) _sxrFlushCardSave(pid);
-                else {
-                    delete _sxrPendingEdits[pid];
-                    _writeUiQueueDiagnostic('sxr', 'queued_edit_dropped_off_client',
-                        { kind: 'component_fill' }, { code: 'client_changed_during_fill' });
-                }
+                else _sxrParkEditsForClient(clientSlug, pid);
             }
         }
     }
+    /* Edits typed on a card whose client the view then left, held against the
+       slug and card they belong to until that client is loaded again.
+     *
+     * The samples save engine reads `sxrState` at flush time, so a bucket
+     * flushed after a client switch is written under whichever client is on
+     * screen -- and `sample_reviews` is keyed by (client, id), so it lands as a
+     * brand-new sample under someone else. The fill is the one place that can
+     * hold the save lock long enough for `onSxrClientChange`'s own flush to be
+     * still waiting when the switch happens, which is why the parking lives
+     * here rather than in the engine.
+     *
+     * BOUNDED, because this is a repair and not a queue: one bucket per card
+     * per client, and a cap so a tab left open for a week cannot grow it
+     * without limit. Nothing here writes; restoring hands the edits back to the
+     * engine, which does. */
+    const _sxrParkedEdits = Object.create(null);
+    const SXR_PARKED_EDIT_MAX_CARDS = 50;
+    function _sxrParkEditsForClient(slug, pid) {
+        const edits = _sxrPendingEdits[pid];
+        delete _sxrPendingEdits[pid];
+        const key = String(slug || '');
+        if (!key || !edits || !Object.keys(edits).length) return;
+        const forClient = _sxrParkedEdits[key] || (_sxrParkedEdits[key] = Object.create(null));
+        if (!forClient[pid] && Object.keys(forClient).length >= SXR_PARKED_EDIT_MAX_CARDS) {
+            _writeUiQueueDiagnostic('sxr', 'parked_edit_capacity_dropped',
+                { kind: 'component_fill' }, { code: 'parked_edit_cap' });
+            return;
+        }
+        forClient[pid] = Object.assign(forClient[pid] || {}, edits);
+        _writeUiQueueDiagnostic('sxr', 'queued_edit_parked_off_client',
+            { kind: 'component_fill' }, { code: 'client_changed_during_fill' });
+        /* SAID OUT LOUD. The edit is safe but it is not saved yet, and a person
+           who typed something and switched tabs has no other way to learn that. */
+        showNotify('That edit is waiting for its client',
+            'A change you typed could not be saved while the client changed, so nothing was written to the wrong one. Open ' + key + ' again and it saves itself.');
+    }
+    /* Called after a successful load for `slug`, where `sxrState` finally
+       describes the client these edits belong to. A card the load did not
+       return is NOT restored: re-queuing it would make the engine insert it as
+       a new row, which is the defect this exists to avoid. */
+    function _sxrRestoreParkedEdits(slug) {
+        const key = String(slug || '');
+        const forClient = key && _sxrParkedEdits[key];
+        if (!forClient) return 0;
+        if (sxrClientSlug(sxrState.client) !== key) return 0;
+        let restored = 0;
+        for (const pid of Object.keys(forClient)) {
+            if (!(sxrState.posts || []).some(post => post && post.id === pid)) {
+                delete forClient[pid];
+                _writeUiQueueDiagnostic('sxr', 'parked_edit_card_gone',
+                    { kind: 'component_fill' }, { code: 'card_absent_on_restore' });
+                continue;
+            }
+            _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, forClient[pid]);
+            delete forClient[pid];
+            restored += 1;
+            _sxrFlushCardSave(pid);
+        }
+        if (!Object.keys(forClient).length) delete _sxrParkedEdits[key];
+        return restored;
+    }
+    window.peekSxrParkedEdits = function () {
+        const out = {};
+        for (const slug of Object.keys(_sxrParkedEdits)) out[slug] = Object.keys(_sxrParkedEdits[slug]);
+        return out;
+    };
     async function _sxrFillComponent(pid, which) {
         const target = which === 'graphic' ? 'graphic' : 'video';
         const team = target === 'graphic' ? 'graphics' : 'video';
@@ -64525,7 +64600,17 @@
                     showNotify(notice[0], notice[1]);
                     return;
                 }
-                // Last look, after two more awaits of its own.
+                /* BOTH CHECKS AGAIN, AFTER THE LAST AWAIT (Codex P1 on PR 1342,
+                   fourth pass). The authority read is a network round trip like
+                   the two before it, so a cross-tab sign-in landing during THAT
+                   one slipped past a principal comparison made before it. The
+                   rule is simply that the last thing before the write is a
+                   re-check, not that there is a re-check somewhere. */
+                if (!principalKey || _writeUiPrincipalKey() !== principalKey) {
+                    showNotify('The signed-in account changed',
+                        'Nothing was created. This confirmation belongs to the person who opened it, and a different account is signed in now. Press the button again to create it as yourself.');
+                    return;
+                }
                 if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
                     showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
                     return;

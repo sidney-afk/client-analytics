@@ -13802,6 +13802,30 @@ hold. `_writeUiLinkSlotSealedLive` runs again inside the callback, and the card
 check runs once more after both round trips, since each of them is itself a
 wait.
 
+**THE FOURTH PASS FOUND TWO MORE, AND ONE OF THEM WAS THE THIRD PASS'S OWN
+FIX** (Codex on PR 1342, on `82db9f2`).
+
+**P1: the principal was compared before the last await, not after it.** The
+authority read is a network round trip like the two before it, so a cross-tab
+sign-in landing during THAT one walked past a comparison made before it. The
+rule is that the last thing before the write is a re-check, not that there is a
+re-check somewhere; the principal and the card are both re-asked after it now.
+
+**P1: parking, not dropping.** The third pass dropped the queued edit when the
+view had moved on, and the review was right that this traded a wrong-client
+write for silent data loss. The person had no way to know either:
+`onSxrClientChange` had already tried to flush that edit and its flush was
+sitting behind this very lock, so the bucket was its only copy. The bucket is
+now PARKED against the slug and card it was typed on
+(`_sxrParkEditsForClient`), the person is told it is waiting, and
+`_sxrRestoreParkedEdits` hands it back to the normal engine on the next
+successful load of that client, where `sxrState` finally describes the right
+one, so the status machinery, the Linear pushes and the repair refs all run as
+they would have. A card the reload does not return is dropped rather than
+restored, because re-queuing it is exactly the insert-as-new-row defect this
+exists to avoid; the store is capped at 50 cards per client, and every drop is
+recorded. `peekSxrParkedEdits()` reads it, beside `peekWriteUiQueueDiagnostics()`.
+
 **THE CALENDAR TWIN HAS BOTH OF THESE, AND IS LEFT ALONE HERE.**
 `_calFillComponent` reads authority once before its dialog and hands
 `_calFillComponentSubmit` an `identity` argument that function never reads, so a
@@ -13837,8 +13861,11 @@ refusal are chosen from real response shapes rather than matched in source.
 The third pass is executed the same way, by running the real
 handler and firing the captured confirmation callback afterwards, so the
 rollback, the account change, the lapsed verification, the client switch and a
-peer's fill are each proven to stop the write. Sixteen checks across the three
-rounds go red against the code that preceded them. A watchdog and an
+peer's fill are each proven to stop the write. The fourth pass adds the park round trip end to end: parked
+with the edit intact, refused while the view is elsewhere, restored through the
+engine when that client returns, dropped when the card is gone, capped, and
+silent on an empty bucket. Eighteen checks across the four rounds go red
+against the code that preceded them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.

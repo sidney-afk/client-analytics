@@ -156,6 +156,94 @@ ok(/_sxrSaveInFlight\[pid\]/.test(writeSrc),
 ok(!/json\.sample/.test(writeSrc),
   'and applies only the columns it wrote, never the whole echo over a card someone may be editing');
 
+/* ---- 3f. EXECUTED: a parked edit survives and comes back ----------------
+ *
+ * Fourth-pass review, and it was right about the third pass's own fix:
+ * deleting the bucket traded a wrong-client write for silent data loss, and
+ * the person could not know, because `onSxrClientChange` had already tried to
+ * flush that edit and its flush was sitting behind this very lock. The bucket
+ * was its only copy. So it is parked against the slug and card it was typed
+ * on, and handed back to the engine the next time that client loads. */
+
+const parkSrc = grabFunc('function _sxrParkEditsForClient(');
+const restoreSrc = grabFunc('function _sxrRestoreParkedEdits(');
+
+function parkHarness(posts) {
+  const seen = { diagnostics: [], notified: [], flushed: [] };
+  const pending = Object.create(null);
+  const state = { client: 'testclient', posts: posts || [] };
+  const made = new Function(
+    '_sxrPendingEdits', '_writeUiQueueDiagnostic', 'showNotify', 'sxrClientSlug', 'sxrState',
+    '_sxrFlushCardSave',
+    'const _sxrParkedEdits = Object.create(null); const SXR_PARKED_EDIT_MAX_CARDS = 50;'
+    + parkSrc + restoreSrc
+    + '; return { park: _sxrParkEditsForClient, restore: _sxrRestoreParkedEdits, parked: _sxrParkedEdits };',
+  )(
+    pending,
+    (surface, outcome) => { seen.diagnostics.push({ surface, outcome }); },
+    (title, message) => { seen.notified.push({ title, message }); },
+    () => state.client,
+    state,
+    pid => { seen.flushed.push({ pid, edits: Object.assign({}, pending[pid]) }); },
+  );
+  return { seen, pending, state, ...made };
+}
+
+function parkChecks() {
+  /* The round trip: typed on one client, parked when the view leaves, handed
+     back when that client is loaded again. */
+  const h = parkHarness([{ id: 'sr_1' }]);
+  h.pending.sr_1 = { name: 'typed before the switch' };
+  h.state.client = 'testclient';
+  h.park('testclient', 'sr_1');
+  ok(h.pending.sr_1 === undefined,
+    'the bucket leaves the pending map, so nothing can flush it under another client');
+  ok(h.parked.testclient && h.parked.testclient.sr_1.name === 'typed before the switch',
+    'and it is held against the client and card it was typed on, with the edit intact');
+  ok(h.seen.notified.some(n => /waiting for its client/i.test(n.title)),
+    'and the person is told, because an edit that is safe but unsaved is still not saved');
+  ok(h.seen.diagnostics.some(row => row.outcome === 'queued_edit_parked_off_client'),
+    'and it is recorded for diagnostics');
+
+  h.state.client = 'anotherclient';
+  ok(h.restore('testclient') === 0 && h.seen.flushed.length === 0,
+    'restoring is refused while the view is on a different client, which is the whole point of parking it');
+
+  h.state.client = 'testclient';
+  ok(h.restore('testclient') === 1,
+    'and it is restored once that client is loaded again');
+  ok(h.seen.flushed.length === 1 && h.seen.flushed[0].pid === 'sr_1'
+    && h.seen.flushed[0].edits.name === 'typed before the switch',
+    'through the normal engine flush, with the edit it was holding, so the status machinery and Linear pushes run as they would have');
+  ok(h.parked.testclient === undefined,
+    'and the parking slot is emptied rather than left to be replayed twice');
+
+  /* A card the load did not return must NOT be re-queued: the engine would
+     insert it as a new row, which is the defect parking exists to avoid. */
+  const gone = parkHarness([]);
+  gone.pending.sr_2 = { name: 'card was archived meanwhile' };
+  gone.park('testclient', 'sr_2');
+  ok(gone.restore('testclient') === 0 && gone.seen.flushed.length === 0,
+    'a card the reload no longer returns is dropped rather than restored, because re-queuing it would insert it as a new sample');
+  ok(gone.seen.diagnostics.some(row => row.outcome === 'parked_edit_card_gone'),
+    'and that drop is recorded too');
+
+  /* Bounded: this is a repair, not a queue. */
+  const many = parkHarness([]);
+  for (let i = 0; i < 55; i++) { many.pending['sr_' + i] = { name: 'x' + i }; many.park('testclient', 'sr_' + i); }
+  ok(Object.keys(many.parked.testclient).length === 50,
+    'parking is capped, so a tab left open for a week cannot grow it without limit');
+  ok(many.seen.diagnostics.some(row => row.outcome === 'parked_edit_capacity_dropped'),
+    'and hitting the cap is recorded rather than silent');
+
+  /* An empty bucket is not worth a notification. */
+  const empty = parkHarness([{ id: 'sr_3' }]);
+  empty.pending.sr_3 = {};
+  empty.park('testclient', 'sr_3');
+  ok(empty.seen.notified.length === 0 && empty.parked.testclient === undefined,
+    'and an empty bucket parks nothing and says nothing');
+}
+
 /* ---- 3c. EXECUTED: the fill cannot follow the view to another client ----
  *
  * Second-pass review findings, all three about what happens when the Samples
@@ -207,7 +295,7 @@ const writeFn = new Function(
   '_sxrAwaitCardSave', '_sxrSaveInFlight', '_sxrUpsertFetch', 'sxrClientSlug', 'sxrState',
   '_sxrCacheWrite', '_sxrRenderBody', '_sxrIsBusy', '_sxrSchedulePendingRender',
   '_sxrPendingBackgroundRender', '_sxrPendingEdits', '_sxrFlushCardSave', '_sxrLastLocalWriteAt',
-  '_writeUiQueueDiagnostic',
+  '_writeUiQueueDiagnostic', '_sxrParkEditsForClient',
   writeSrc + '; return _sxrFillWriteCardLink;',
 );
 
@@ -217,7 +305,7 @@ function harness(options = {}) {
     pendingEdits: options.pendingEdits || Object.create(null),
     posts: options.posts || [{ id: 'sr_1', name: 'Sample 1', graphic_deliverable_id: 'b1_d_1' }],
     slug: 'testclient',
-    awaited: 0, cached: [], rendered: 0, flushed: [], sent: null, diagnostics: [],
+    awaited: 0, cached: [], rendered: 0, flushed: [], sent: null, diagnostics: [], parked: [],
   };
   const awaitCardSave = async pid => {
     state.awaited += 1;
@@ -246,6 +334,7 @@ function harness(options = {}) {
     pid => { state.flushed.push(pid); },
     0,
     (surface, outcome) => { state.diagnostics.push({ surface, outcome }); },
+    (slug, pid) => { state.parked.push({ slug, pid, edits: state.pendingEdits[pid] }); delete state.pendingEdits[pid]; },
   );
   return { state, fn };
 }
@@ -333,9 +422,11 @@ async function orderingChecks() {
   ok(switchedWithEdit.state.flushed.length === 0,
     'an edit queued during the fill is NOT flushed once the view has moved to another client');
   ok(switchedWithEdit.state.pendingEdits.sr_1 === undefined,
-    'and its bucket is dropped, so the deferred flush that onSxrClientChange started finds nothing to write under the wrong client');
-  ok(switchedWithEdit.state.diagnostics.some(row => row.surface === 'sxr' && row.outcome === 'queued_edit_dropped_off_client'),
-    'and the drop is recorded rather than silent, because a lost local edit nobody can see is the hardest kind of bug here');
+    'and its bucket leaves the pending map, so the deferred flush that onSxrClientChange started finds nothing to write under the wrong client');
+  ok(switchedWithEdit.state.parked.length === 1
+    && switchedWithEdit.state.parked[0].slug === 'testclient'
+    && switchedWithEdit.state.parked[0].pid === 'sr_1',
+    'and it is PARKED against the client and card it was typed on rather than deleted, so the change is not traded away for the wrong-client write');
 
   const stayedWithEdit = harness({ pendingEdits: { sr_1: { name: 'typed during the fill' } } });
   await stayedWithEdit.fn('testclient', 'sr_1', 'video', 'del_new', '');
@@ -477,6 +568,7 @@ function confirmHarness(options = {}) {
   };
   let principal = options.principal || 'staff:1:admin';
   let sealed = { sealed: true, reason: 'syncview_authoritative' };
+  let sealedHook = null;
   const state = { client: options.slug || 'testclient', posts: [thumbOnly] };
   const fn = new Function(
     '_isClientLink', '_sxrIsBlankId', '_writeUiLinkSlotSealed', 'sxrClientSlug', 'sxrState',
@@ -489,7 +581,7 @@ function confirmHarness(options = {}) {
     (title, message) => { seen.notified.push({ title, message }); },
     (title, message, onYes) => { seen.confirmed = { title, message, onYes }; },
     async () => { seen.identityReads += 1; if (options.identityThrows) throw new Error('Admin or SMM sign-in required.'); return {}; },
-    async () => { seen.authorityReads += 1; return sealed; },
+    async () => { seen.authorityReads += 1; if (sealedHook) sealedHook(); return sealed; },
     () => ['Video links are set automatically now', 'nope'],
     () => principal,
     (...args) => { seen.submitted.push(args); },
@@ -498,6 +590,7 @@ function confirmHarness(options = {}) {
     seen, fn,
     setPrincipal: value => { principal = value; },
     setSealed: value => { sealed = value; },
+    setSealedHook: fn => { sealedHook = fn; },
     setClient: value => { state.client = value; },
     setPosts: value => { state.posts = value; },
   };
@@ -540,6 +633,16 @@ async function confirmChecks() {
     'a confirmation is bound to the account that opened it, so a sign-in change in another tab cannot record the work against the wrong person');
   ok(swapped.seen.notified.some(n => /signed-in account changed/i.test(n.title)),
     'and the person is told why, and to press it again as themselves');
+
+  /* THE SWAP CAN ALSO LAND DURING THE AUTHORITY READ, which is a network round
+     trip like the two before it. The rule is that the LAST thing before the
+     write is a re-check, not that there is a re-check somewhere. */
+  const swappedLate = confirmHarness();
+  await swappedLate.fn('sr_mrfd5wbb_gzui9', 'video');
+  swappedLate.setSealedHook(() => swappedLate.setPrincipal('staff:3:admin'));
+  await swappedLate.seen.confirmed.onYes();
+  ok(swappedLate.seen.submitted.length === 0,
+    'an account change that arrives DURING the authority read is caught too, because the principal is compared again after it');
 
   /* Verification can lapse rather than change. */
   const lapsed = confirmHarness();
@@ -628,7 +731,7 @@ process.on('unhandledRejection', error => {
   process.exit(1);
 });
 
-orderingChecks().then(mirrorChecks).then(confirmChecks).then(() => {
+orderingChecks().then(mirrorChecks).then(confirmChecks).then(parkChecks).then(() => {
   clearTimeout(watchdog);
   console.log(failures === 0
     ? '\nsamples component fill checks passed'

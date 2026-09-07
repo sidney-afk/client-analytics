@@ -1,3 +1,9 @@
+## G4 unmatched comments outside creative issue population - 2026-09-07 01:12 UTC
+
+OFFLINE_COMPARISON of the saved LIVE_READ inventories: all 152 issue-linked unmatched comment IDs belong to issue identifiers outside GRA/VID. Their creation dates span January 2023 through February 2024. The remaining unmatched comment has no issue link and was created April 2026. Consequently zero provider comment IDs linked to the captured graphics/video issue population lack a normalized linear_comment_id match in this comparison. This does not establish complete credential visibility, comment text/thread/audience parity, intentional-deletion disposition, attachments or client access.
+
+The other-team comments remain part of whole-workspace preservation; do not discard them as irrelevant to export. Their age/team classification does not prove why they were not imported. No provider reread, body fetch or runtime change was needed. Private grouped result retained; the earlier 153 discrepancy is narrowed, not erased. Next G4 work: verify content/thread preservation and independently owned assets while retaining separate whole-workspace export scope.
+
 ## G4 five native owner links verified - 2026-09-07 01:00 UTC
 
 LIVE_READ at 01:00:33Z joined exactly the five previously mismatched comment IDs to their deliverable owners. All five owners exist; all five deliverable linear_issue_uuid values match the saved provider comment issue UUID; all five raw issue UUIDs also match. Therefore the earlier five raw-field mismatches are NOT wrong native ownership. Do not create an ownership repair for this population solely because the comment-level denormalized field is NULL.

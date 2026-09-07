@@ -78,6 +78,9 @@ preserving byte equality elsewhere, and binds the unchanged five-file gateway
 closure. No gateway/SQL behavior changed in this correction; the24-group SQL
 receipt below remains its original evidence. Focused46 editor and11 failure
 message checks pass. Historical hosted failure is retained, not relabeled.
+Both focused release-pin checks also pass. The local four-function fingerprint
+needed more than its old30-second test deadline; the bounded test now allows120
+seconds and reports timeout errors explicitly, retaining every closure assertion.
 
 Final focused result: **24 actual-handler/disposable-SQL groups pass, with zero
 provider/drainer requests; 13 isolated Chromium inbox checks pass**. The exact

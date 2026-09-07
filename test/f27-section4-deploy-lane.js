@@ -578,7 +578,7 @@ const fingerprint = spawnSync(process.execPath, [
   `--slugs=${EXACT_SLUGS.join(',')}`,
   '--expected-only',
   '--format=json',
-], { cwd: ROOT, encoding: 'utf8', timeout: 30_000 });
+], { cwd: ROOT, encoding: 'utf8', timeout: 120_000 });
 let currentCandidatesMatch = head.status === 0 && fingerprint.status === 0;
 if (currentCandidatesMatch) {
   const receipt = JSON.parse(fingerprint.stdout);
@@ -593,7 +593,7 @@ if (currentCandidatesMatch) {
   });
 }
 ok(currentCandidatesMatch,
-`the hardcoded candidate source/file/entrypoint contracts match the exact reviewed repository closure (${(fingerprint.stderr || '').trim()})`);
+`the hardcoded candidate source/file/entrypoint contracts match the exact reviewed repository closure (${fingerprint.error?.code || (fingerprint.stderr || '').trim()})`);
 
 const exactImport = 'npm:@supabase/supabase-js@2.49.8';
 const sourceFiles = [

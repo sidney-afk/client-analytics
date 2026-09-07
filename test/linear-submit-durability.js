@@ -237,6 +237,7 @@ function makeHarness(fetchImpl, options = {}) {
     const LINEAR_FORM_KEY = ${JSON.stringify(LINEAR_FORM_KEY)};
     const LAST_LINK_KEY = ${JSON.stringify(LAST_LINK_KEY)};
     const LINEAR_RECEIPTS_KEY = ${JSON.stringify(LINEAR_RECEIPTS_KEY)};
+    const NATIVE_INTAKE_PENDING_KEY = 'syncview_native_intake_pending_v1';
     const LINEAR_SUBMIT_TIMEOUT_MS = ${Number(options.timeoutMs || 25)};
     let linearSubmitInFlight = null;
     let linearJustCreated = false;

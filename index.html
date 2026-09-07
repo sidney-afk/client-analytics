@@ -48085,22 +48085,33 @@
     }
 
     async function _submitLinearFormRoutedOnce(mode) {
+        const status = document.getElementById('linearStatus');
+        let pendingNativeIntake = null;
         // A receipt created before an allowlist/authority transition must be
         // recovered through the exact F44 idempotency key that already owns
         // the request. Never switch an in-progress legacy receipt to native.
         try {
             if (localStorage.getItem(LINEAR_RECEIPTS_KEY)) return _submitLinearFormLegacy(mode);
+            const nativeRaw = localStorage.getItem(NATIVE_INTAKE_PENDING_KEY);
+            if (nativeRaw) {
+                pendingNativeIntake = JSON.parse(nativeRaw);
+                if (!pendingNativeIntake || !pendingNativeIntake.payload || !pendingNativeIntake.payload.request_id) {
+                    throw new Error('submission_recovery_unreadable');
+                }
+            }
         } catch (error) {
-            return _submitLinearFormLegacy(mode);
+            // Unknown saved ownership is not permission to mint an F44 request.
+            // Keep both stores and the visible draft for recovery.
+            if (status) status.textContent = 'Saved submission details could not be read. Keep this browser and your draft open, then try again. If the problem continues, contact your workspace administrator before recreating the work.';
+            return { ok: false, error: 'submission_recovery_unreadable' };
         }
         // Fail safely if a partially cached shell does not yet have the #813
         // routing helper: retain the durable F44 receipt path rather than the
         // pre-F44 fire-and-forget transport.
-        if (typeof _writeUiRerouteUseGatewayWhenReady !== 'function') {
+        if (!pendingNativeIntake && typeof _writeUiRerouteUseGatewayWhenReady !== 'function') {
             return _submitLinearFormLegacy(mode);
         }
         const input = document.getElementById('linearClientSearch');
-        const status = document.getElementById('linearStatus');
         const clientName = input?.value?.trim() || '';
         const selectedClientSlug = String(input?.dataset.clientSlug || '').trim();
         const selectionStillCurrent = () => {
@@ -48111,7 +48122,6 @@
         };
         // Likewise, an already-checkpointed native job remains on its recovery
         // path even if the allowlist changes while the browser is offline.
-        const pendingNativeIntake = _linearIntakeRead();
         const useGateway = pendingNativeIntake
             ? true
             : await _writeUiRerouteUseGatewayWhenReady(selectedClientSlug || clientName);

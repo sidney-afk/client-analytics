@@ -431,6 +431,7 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
       getElementById: id => id === 'linearClientSearch' ? submitInput : id === 'linearStatus' ? submitStatus : null,
     },
     LINEAR_RECEIPTS_KEY: 'linear-receipts',
+    NATIVE_INTAKE_PENDING_KEY: 'native-intake',
     localStorage: { getItem: () => null },
     _linearIntakeRead: () => null,
     _writeUiRerouteUseGatewayWhenReady: () => submitRoute,

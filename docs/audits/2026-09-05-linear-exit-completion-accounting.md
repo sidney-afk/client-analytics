@@ -1,3 +1,11 @@
+## G4 provider-host references measured - 2026-09-07 01:24 UTC
+
+LIVE_READ aggregate-only scan at 01:24:08Z: 246 production comment bodies contain the literal uploads.linear.app, including 131 nondeleted rows; 1,536 archive raw payloads contain it. Zero production comment attachment fields and zero deliverable file_url fields match that literal. Counts represent rows with text references, not unique URLs, reachable assets, current rendering or successful rescue. Other hosts/encodings/fields are outside this bounded scan. No URLs, comment bodies or file bytes were returned.
+
+OFFLINE_COMPARISON of saved attachment and issue identities assigns the 185 provider attachment objects to graphics 176, video five, other teams four, unknown zero. Objects may be external links rather than provider-hosted files; this does not inventory embedded Markdown assets. Combined with the earlier zero-row asset-rescue register, independent historical asset availability remains UNPROVEN.
+
+Next: construct a private read-only asset manifest with deduplicated references, ownership and destination-presence checks using the existing F34 contract. A copy/download/apply operation has not run and needs its own approved scope. Do not treat a URL literal scan as complete egress or rescue proof. Runtime candidate and watcher state unchanged.
+
 ## G4 unmatched comments outside creative issue population - 2026-09-07 01:12 UTC
 
 OFFLINE_COMPARISON of the saved LIVE_READ inventories: all 152 issue-linked unmatched comment IDs belong to issue identifiers outside GRA/VID. Their creation dates span January 2023 through February 2024. The remaining unmatched comment has no issue link and was created April 2026. Consequently zero provider comment IDs linked to the captured graphics/video issue population lack a normalized linear_comment_id match in this comparison. This does not establish complete credential visibility, comment text/thread/audience parity, intentional-deletion disposition, attachments or client access.

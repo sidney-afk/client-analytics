@@ -11,7 +11,16 @@ Source of truth: `docs/syncview-design/SyncView.html`. The wired `?prod=1` tab r
 Each `deliverables` row becomes one artifact-shaped issue:
 
 - `id`: the stable live deliverable id used by `?prod=1&d=...` deep links and event reads.
-- `displayId`: `identifier || linear_identifier || id`, used for visible issue labels.
+- `displayId`: `linear_identifier || identifier || id`, used for visible issue labels.
+  The order matters: `linear_identifier` is refreshed by `linear-inbound` on every
+  webhook while `identifier` is the b1 import's snapshot and is never maintained, so a
+  Linear team move (VID-13553 -> GRA-7197) leaves the snapshot naming a retired number.
+- `aliasId`: that retired snapshot when it disagrees with `linear_identifier`, else `''`.
+  `_prodIssue()` resolves `id` or `displayId` first and `aliasId` only in a second pass,
+  so a reference to the retired number opens the row and a canonical match always wins.
+  It resolves a divergence for as long as the DATA carries one: repairing the row makes the
+  two columns agree and the alias empties, which is the intended end state, not a permanent
+  redirect. See OPEN_REPAIRS 161 and `test/prod-deep-link-linear-identifier.js`.
 - `team`: deliverable team, falling back to its batch team.
 - `project`: client slug.
 - `title`: deliverable title.

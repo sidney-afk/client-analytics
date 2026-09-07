@@ -22,9 +22,15 @@ directory. No observer state is changed, uploaded or automatically recovered.
 
 `scripts/client-continuity-heartbeat.js` runs that helper under a hard deadline,
 then sends one empty success POST only for the combined receipt/liveness result.
+After valid activation, exact checkout and destination checks, every failed,
+timed-out, malformed or unknown assessment instead sends one empty POST to that
+same validated UUID's `/fail` endpoint. A confirmed failure signal remains
+`ok:false`; it proves only the ping API accepted the signal, never delivery or
+recovery. Known assessment reasons remain typed; arbitrary child output is not
+exported. A failed or ambiguous ping is not retried or converted to success.
 The sole allowed destination is the private UUID interface at `hc-ping.com`, over
 HTTPS without redirects, queries or URL credentials. No diagnostic body, private
-URL, child output, retry, failure ping or auto-provisioning is emitted. Inactive,
+URL, child output, retry, start ping or auto-provisioning is emitted. Inactive,
 failed, timed-out, malformed and unknown results never send a healthy ping.
 
 The owner has acknowledged the two September 5 DRILL messages. Preserve that
@@ -32,6 +38,11 @@ historical acknowledgement; it does not activate recurring messages. The owner
 has now selected an owner-controlled backup email, stored only in private
 coordination records. An additional person's receipt and ten-minute incident
 acknowledgement escalation remain separate unresolved operations contracts.
+The proposed conservative policy emails the selected backup on every critical
+failure immediately, including a primary delivery failure, without waiting to
+learn whether somebody acknowledged the primary alarm. This would cover an
+unacknowledged incident with earlier backup notification, but does not implement
+human acknowledgement tracking, prove that anyone responds, or close W10.
 This addition corrects the earlier hosted-option accounting: a wrapper and
 independent receipt consumer are now source-prepared; no host, check, recipient,
 subscription, secret or schedule has been provisioned.
@@ -63,12 +74,47 @@ Add the pre-created `CONTINUITY_HEALTHCHECKS_PING_URL` only in its secret store;
 then set `CONTINUITY_HEARTBEAT_ACTIVATION=OWNER_APPROVED_SENTINEL_HEARTBEAT` for the
 approved invocation of `node scripts/client-continuity-heartbeat.js`. The wrapper
 supplies the helper's existing sentinel activation string, not product flags.
-Default invocation refuses before execution or network. Configure a five-minute
-job and ten-minute missed-success threshold only in the approved later setup;
-measure actual delays. The [ping API](https://healthchecks.io/docs/http_api/)
+Default invocation refuses before execution or network. Proposed later setup:
+five-minute job, Healthchecks simple period five minutes plus grace five minutes,
+POST-only UUID interface, selected private email integration, and explicit
+failure signals enabled. No setting is installed by this source preparation.
+Keep automatic release updates disabled. Render delays an overlapping run;
+an external Docker image is pulled before each run, so it adds registry
+availability as another dependency. Prove the built exact checkout starts
+during GitHub outage before accepting the hosting arrangement.
+The [ping API](https://healthchecks.io/docs/http_api/)
 response alone cannot prove alarm configuration or recipient delivery.
 
-Source proof is 20 actual-routine/synthetic-artifact groups plus 14 wrapper groups,
+Timing is measured from explicit events. Existing receipt/scheduler freshness is
+ten minutes; a last success at age 9:59.999 followed by silence could previously
+delay the missed-success alarm until almost age twenty minutes. Explicit `/fail`
+removes that second wait after an observed red assessment. It does not remove
+receipt detection delay. With polling interval P, actual scheduling delay J,
+configured child timeout C=125 seconds and ping timeout H=5 seconds, the
+conservative signal budget after a failure becomes observable is P+J+C+H.
+At the proposed five-minute cadence, that is 7m10s plus J; a missing receipt's
+ten-minute freshness allowance makes the conservative last-evidence budget
+17m10s plus J. Host enforcement/termination delays and provider processing,
+email delivery and human response are additional measured terms, not zero.
+An already-observed failure starts its ping immediately, with a five-second
+request budget. Independent-host death instead uses period+grace, ten minutes
+since the last successful ping, plus actual provider/delivery delay.
+[Healthchecks schedule semantics](https://healthchecks.io/docs/configuring_checks/)
+make period and grace additive. None of these figures certifies a ten-minute
+end-to-end W10 response. Tighter limits need a separately reviewed and measured
+freshness/poll/runtime budget; changing a label cannot supply that proof.
+
+The observer has no human-acknowledgement input: its `confirmed` notification
+state means transport delivery. Although the shared liveness evaluator can
+classify `ack_overdue`, this consumer does not feed it incident acknowledgements.
+W10 therefore remains held for measured independent hosting, delivery and
+acknowledgement/escalation operations. The actual owner decisions are service
+setup approval and who covers alarms that remain unacknowledged; the selected
+private owner email is already recorded, an additional person is not selected.
+
+Source proof retains 20 actual-routine/synthetic-artifact groups. Another 32
+focused wrapper/timing groups exercise failure transport, unchanged healthy success, invalid activation,
+destination/checkout refusal, typed uncertainty, no retry and fake-clock timing,
 with zero external calls or messages. Before activation, prove missing artifacts,
 missing terminal, failed primary delivery, GitHub/API outage, stopped independent
 job and missed heartbeat with scoped faults and actual backup delivery/readback.

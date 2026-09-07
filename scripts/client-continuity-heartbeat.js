@@ -3,6 +3,8 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
+const TIMING = Object.freeze({ assessmentTimeoutMs: 125000, pingTimeoutMs: 5000 });
+const FAILURE_CODES = new Set(['receipt_unconfirmed', 'receipt_binding_mismatch', 'delivery_unconfirmed', 'sentinel_unconfirmed']);
 
 async function run(env = process.env, deps = {}) {
   const refused = () => ({ ok: false, code: 'sentinel_heartbeat_refused' });
@@ -19,25 +21,28 @@ async function run(env = process.env, deps = {}) {
   const childEnv = { ...env, CONTINUITY_ACTIVATION: 'OWNER_APPROVED_CONTINUITY_SENTINEL' };
   // Existing CLI checks the exact clean Git release and its own enable bit.
   const execute = deps.execute || ((file, args, options) => spawnSync(file, args, options));
-  let child;
+  let child, assessmentCode = 'sentinel_unconfirmed', healthy = false;
   try {
     child = execute(process.execPath, [path.join(__dirname, 'client-continuity-independent.js')],
-      { cwd, env: childEnv, encoding: 'utf8', timeout: 125000, maxBuffer: 16384, windowsHide: true });
-  } catch { return { ok: false, code: 'sentinel_unconfirmed' }; }
-  if (child.error || child.signal || child.status !== 0) return { ok: false, code: 'sentinel_unconfirmed' };
-  let result;
-  try { result = JSON.parse(child.stdout); } catch { return { ok: false, code: 'sentinel_unconfirmed' }; }
-  if (result.ok !== true || result.code !== 'pinned_receipts_and_sentinel_healthy' || result.lane !== 'observer') return { ok: false, code: 'sentinel_unconfirmed' };
-  // No failure/start ping and no retry. A missing success remains a missed beat.
+      { cwd, env: childEnv, encoding: 'utf8', timeout: TIMING.assessmentTimeoutMs, maxBuffer: 16384, windowsHide: true });
+    const result = JSON.parse(child.stdout);
+    healthy = !child.error && !child.signal && child.status === 0 && result.ok === true &&
+      result.code === 'pinned_receipts_and_sentinel_healthy' && result.lane === 'observer';
+    if (!child.error && !child.signal && result.ok === false && result.lane === 'observer' && FAILURE_CODES.has(result.code)) assessmentCode = result.code;
+  } catch { /* An unknown assessment is red and gets the same bounded failure signal. */ }
+  // Signal observed failure immediately; do not stack a missed-success period
+  // on receipt staleness. No start ping, diagnostic body, redirect or retry.
+  const outcome = confirmed => healthy
+    ? { ok: confirmed, code: confirmed ? 'sentinel_heartbeat_confirmed' : 'heartbeat_unconfirmed' }
+    : { ok: false, code: confirmed ? 'sentinel_failure_signalled' : 'sentinel_failure_signal_unconfirmed', assessmentCode };
   try {
-    const response = await (deps.fetchImpl || fetch)(url.href, {
-      method: 'POST', body: '', redirect: 'error', signal: AbortSignal.timeout(5000),
+    const response = await (deps.fetchImpl || fetch)(url.href + (healthy ? '' : '/fail'), {
+      method: 'POST', body: '', redirect: 'error', signal: AbortSignal.timeout(TIMING.pingTimeoutMs),
     });
-    if (response.status !== 200 || (await response.text()).trim() !== 'OK') return { ok: false, code: 'heartbeat_unconfirmed' };
-    return { ok: true, code: 'sentinel_heartbeat_confirmed' };
-  } catch { return { ok: false, code: 'heartbeat_unconfirmed' }; }
+    return outcome(response.status === 200 && (await response.text()).trim() === 'OK');
+  } catch { return outcome(false); }
 }
 if (require.main === module) run().then(result => {
   console.log(JSON.stringify(result)); process.exitCode = result.ok ? 0 : 2;
 }).catch(() => { console.error('{"ok":false,"code":"sentinel_heartbeat_refused"}'); process.exitCode = 2; });
-module.exports = { run };
+module.exports = { run, TIMING };

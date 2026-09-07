@@ -16,7 +16,7 @@ const recovery = require('./track-b-recovery-package');
 const { reconstruct, OUTCOMES } = require('./track-b-recovery-reconstruct');
 const ROOT = path.resolve(__dirname, '..');
 const CORPUS = process.env.TRACK_B_RECOVERY_TEST_CORPUS || 'history-v7';
-if (!['history-v7','history-v8'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
+if (!['history-v7','history-v8','history-v9'].includes(CORPUS)) throw new Error('unsupported_recovery_test_corpus');
 const quote = value => "'" + String(value).replaceAll("'", "''") + "'";
 const sha = value => crypto.createHash('sha256').update(value).digest('hex');
 // The older data rehearsal intentionally fixes its comparison at v7. This
@@ -35,10 +35,11 @@ const SOURCES = ['scripts/track-b-recovery-package.js', 'scripts/track-b-recover
   'migrations/2026-09-05-workload-native-membership.sql',
   'migrations/2026-09-05-card-change-journal.sql', 'migrations/2026-09-05-calendar-feedback-recovery.sql',
   'migrations/2026-09-05-crosswalk-bind-and-import.sql', 'migrations/2026-09-06-native-card-materialization-boundary.sql',
-  ...(CORPUS === 'history-v8' ? [
-  'scripts/track-b-history-v8-backup-prerequisites.sql',
+  ...(CORPUS !== 'history-v7' ? [
+  'scripts/track-b-'+CORPUS+'-backup-prerequisites.sql',
   'migrations/2026-09-05-native-label-catalog-foundation.sql', 'migrations/2026-09-06-native-label-writes.sql',
-  'migrations/2026-09-06-linear-outbound-cutoff.sql', 'migrations/2026-09-06-native-existing-assignment.sql'] : [])];
+  'migrations/2026-09-06-linear-outbound-cutoff.sql', 'migrations/2026-09-06-native-existing-assignment.sql'] : []),
+  ...(CORPUS === 'history-v9' ? ['migrations/2026-09-07-legacy-intake-native-triage.sql','migrations/2026-09-07-native-brief-media.sql','scripts/native-card-materialization/recovery-v9-phase.mjs'] : [])];
 // Platform-only prerequisites. No public application table/function/type is
 // recreated manually on the target; the package must reconstruct those.
 const TARGET_PREREQUISITES = `create schema extensions; create extension pgcrypto schema extensions;
@@ -74,10 +75,10 @@ class DB extends LocalDatabase {
     input: "set time zone 'America/Guatemala';\n" + sql, encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024,
     windowsHide: true, env: cleanEnv(this.config.password) }); }
 }
-function phase(cfg, db, kind, seed, name) {
+function phase(cfg, db, kind, seed, name, version=7) {
   const report = path.join(cfg.output, name + '.private.json');
-  const result = cp.spawnSync(process.execPath, ['--experimental-strip-types', path.join(ROOT, 'scripts/native-card-materialization/recovery-v7-phase.mjs')], {
-    timeout: 120000, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, windowsHide: true,
+  const result = cp.spawnSync(process.execPath, ['--experimental-strip-types', path.join(ROOT, 'scripts/native-card-materialization/recovery-v'+version+'-phase.mjs')], {
+    timeout: CORPUS==='history-v9'?240000:120000, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, windowsHide: true,
     env: { ...cleanEnv(cfg.password), NIR_PGHOST: cfg.host, NIR_PGPORT: cfg.port, NIR_PGUSER: db.config.user,
       NIR_PGDATABASE: db.name, NIR_PSQL: cfg.psql, CARD_MATERIALIZATION_FIXTURE: path.join(ROOT, 'scripts/native-card-materialization/fixture.mjs'),
       CARD_MATERIALIZATION_PHASE: kind, CARD_MATERIALIZATION_PHASE_REPORT: report, CARD_MATERIALIZATION_PHASE_SEED: seed || '' } });
@@ -93,11 +94,11 @@ function grants(cfg, db, role, mode) {
 }
 function dataGrants(cfg, db, role, mode) {
   const result = cp.spawnSync(cfg.psql, ['-w', ...db.args(), '-v', 'mode=' + mode, '-v', 'existing_role=' + role,
-    '-v', 'confirmation=' + (mode === 'backup' ? 'HISTORY_V8_BACKUP_GRANTS_ONLY' : 'DISPOSABLE_SCRATCH_ONLY'),
-    '-v', 'scratch_project_ref=abcdefghijklmnopqrst', '-f', path.join(ROOT, 'scripts/track-b-history-v8-backup-prerequisites.sql')], {
+    '-v', 'confirmation=' + (mode === 'backup' ? (CORPUS==='history-v9'?'HISTORY_V9_BACKUP_GRANTS_ONLY':'HISTORY_V8_BACKUP_GRANTS_ONLY') : 'DISPOSABLE_SCRATCH_ONLY'),
+    '-v', 'scratch_project_ref=abcdefghijklmnopqrst', '-f', path.join(ROOT, 'scripts/track-b-'+CORPUS+'-backup-prerequisites.sql')], {
     encoding: 'utf8', timeout: 60000, windowsHide: true, env: cleanEnv(cfg.password) });
   fs.writeFileSync(path.join(cfg.output, 'data-grants-' + mode + '.private.log'), result.stderr || '');
-  assert.equal(result.status, 0, 'actual v8 data role prerequisite');
+  assert.equal(result.status, 0, 'actual selected data role prerequisite');
 }
 function publicCount(db) { return db.query("select (select count(*) from pg_class where relnamespace='public'::regnamespace)+(select count(*) from pg_proc where pronamespace='public'::regnamespace)+(select count(*) from pg_type where typnamespace='public'::regnamespace and typtype in('e','d','r','c'))"); }
 function captureSequences(db) {
@@ -121,7 +122,7 @@ function postCommitRefusal() {
 async function run() {
   const cfg = config(); fs.mkdirSync(cfg.output, { recursive: true });
   const output = fs.realpathSync.native(cfg.output); if (sameOrInside(output, fs.realpathSync.native(ROOT))) throw new Error('repository_output_forbidden');
-  cfg.output = path.join(output, 'schema-v7-' + new Date().toISOString().replace(/[:.]/g, '-') + '-' + crypto.randomBytes(4).toString('hex'));
+  cfg.output = path.join(output, 'schema-'+CORPUS+'-' + new Date().toISOString().replace(/[:.]/g, '-') + '-' + crypto.randomBytes(4).toString('hex'));
   fs.mkdirSync(cfg.output); const checks = [], check = (name, fn) => { fn(); checks.push(name); };
   const source = new DB(cfg), target = new DB(cfg), quarantine = new DB(cfg), databases = [source, target, quarantine];
   const pins = Object.fromEntries(SOURCES.map(file => [file, sha(fs.readFileSync(path.join(ROOT, file)))]));
@@ -140,13 +141,18 @@ async function run() {
     for (const file of ['2026-09-02-workload-native-view.sql', '2026-09-05-workload-native-membership.sql'])
       source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
     for (const file of ['2026-09-05-crosswalk-bind-and-import.sql', '2026-09-06-native-card-materialization-boundary.sql']) source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
-    if (CORPUS === 'history-v8') for (const file of ['2026-09-05-native-label-catalog-foundation.sql', '2026-09-06-native-label-writes.sql', '2026-09-06-linear-outbound-cutoff.sql', '2026-09-06-native-existing-assignment.sql']) source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
+    if (CORPUS !== 'history-v7') for (const file of ['2026-09-05-native-label-catalog-foundation.sql', '2026-09-06-native-label-writes.sql', '2026-09-06-linear-outbound-cutoff.sql', '2026-09-06-native-existing-assignment.sql']) source.query(fs.readFileSync(path.join(ROOT, 'migrations', file), 'utf8'));
+    if (CORPUS==='history-v9') {
+      source.query('alter table storage.buckets add column public boolean not null default false,add column file_size_limit bigint,add column allowed_mime_types text[];grant usage on schema extensions to service_role');
+      for(const file of ['2026-07-14-linear-intake-receipts.sql','2026-09-07-legacy-intake-native-triage.sql','2026-09-07-native-brief-media.sql'])source.query(fs.readFileSync(path.join(ROOT,'migrations',file),'utf8'));
+    }
     const seeded = phase(cfg, source, 'seed', '', 'source');
+    const continuity = CORPUS==='history-v9' ? phase(cfg,source,'seed','','continuity-source',9) : null;
     check('actual selected corpus schema contains four accepted cards and retained unknown ingress', () => {
-      assert.equal(backup.resolveCorpus(CORPUS).tables.length, CORPUS === 'history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
+      assert.equal(backup.resolveCorpus(CORPUS).tables.length, backup.resolveCorpus(CORPUS).version===9 ? 42 : CORPUS==='history-v8' ? 39 : 37); assert.equal(seeded.value.cases.length, 4);
       assert.ok(seeded.value.held.ingress_id); assert.equal(seeded.value.provider_attempts, 0);
       for (const table of backup.resolveCorpus(CORPUS).tables) assert.notEqual(source.query('select to_regclass(' + quote('public.' + table.name) + ')'), '');
-      if (CORPUS === 'history-v8') {
+      if (CORPUS !== 'history-v7') {
       const labelVersion='00000000-0000-4000-8000-000000000700', teamVideo='00000000-0000-4000-8000-000000000900', teamGraphics='00000000-0000-4000-8000-000000000901';
       const node={id:'00000000-0000-4000-8000-000000000001',name:'Synthetic label',color:'#123456',description:null,isGroup:false,archivedAt:null,team:{id:teamVideo}};
       const manifest={schema_version:1,capture_id:'00000000-0000-4000-8000-000000000800',source_kind:'linear_workspace_issue_labels',source_sha256:'a'.repeat(64),workspace_fingerprint:'b'.repeat(64),captured_at:'2026-09-06T10:00:00Z',include_archived:true,teams:{video:teamVideo,graphics:teamGraphics},expected_count:1,pages:[{after:null,nodes:[node],pageInfo:{hasNextPage:false,endCursor:null}}]};
@@ -188,7 +194,7 @@ async function run() {
       assert.equal(source.query("select count(*) from public.production_comments where id='schema-v7-comment'"), '1');
       assert.equal(source.query("select count(*) from public.mirror_outbox where dedup_key='schema-v7-add'"), '1');
     });
-    if (CORPUS === 'history-v8') check('cutoff retains a real pre-cutoff queued receipt and refuses its valid lease request', () => {
+    if (CORPUS !== 'history-v7') check('cutoff retains a real pre-cutoff queued receipt and refuses its valid lease request', () => {
       cutoffReceipt = source.rows("select id,status,outbound_generation from public.mirror_outbox where dedup_key='schema-v7-add'")[0];
       assert.equal(cutoffReceipt.status, 'pending'); assert.equal(cutoffReceipt.outbound_generation, 0);
       // Roll back an actual successful claim to prove this exact row and call
@@ -257,7 +263,7 @@ async function run() {
     check('wrong HMAC and prior data readers refuse the selected newer package', () => {
       assert.throws(() => recovery.readRecoveryPackage(bytes, crypto.randomBytes(32).toString('base64')), /authentication failed/);
       assert.throws(() => backup.parseStrictPgDump(pkg.data, 'history-v6'), /Unexpected table/);
-      if (CORPUS === 'history-v8') assert.throws(() => backup.parseStrictPgDump(pkg.data, 'history-v7'), /Unexpected table/);
+      if (CORPUS !== 'history-v7') assert.throws(() => backup.parseStrictPgDump(pkg.data, 'history-v7'), /Unexpected table/);
     });
     const diagnosticDir = path.join(cfg.output, 'diagnostics');
     check('data alone cannot reconstruct the empty target', () => {
@@ -322,7 +328,7 @@ async function run() {
     check('restored canonical add receipt replays without duplicating current or historical rows', () => {
       const beforeReplay = unionImages(target); target.query(commentSql); assert.deepEqual(unionImages(target), beforeReplay);
     });
-    if (CORPUS === 'history-v8') {
+    if (CORPUS !== 'history-v7') {
       check('restored accepted native label receipt replays current edited state under hold without any corpus mutation', () => {
         const beforeReplay = unionImages(target);
         assert.deepEqual(JSON.parse(target.query(labelReplaySql)), labelCurrent);
@@ -355,7 +361,7 @@ async function run() {
       assert.throws(() => reconstruct(pkg, env, { psql: cfg.psql, diagnosticDir }), /reconstruction failed/);
       assert.deepEqual(unionImages(quarantine), before);
     });
-    if (CORPUS === 'history-v8') check('distinct v8 backup and scratch grant artifacts restore all39 images with retained triggers', () => {
+    if (CORPUS !== 'history-v7') check('distinct selected backup and scratch grant artifacts restore all images with retained triggers', () => {
       const dataRole = target.name + '_data', dataPassword = crypto.randomBytes(24).toString('hex');
       target.query(`create role ${dataRole} login nosuperuser nocreatedb nocreaterole noinherit bypassrls password ${quote(dataPassword)};`);
       dataGrants(cfg, source, captureRole, 'backup'); dataGrants(cfg, target, dataRole, 'scratch');
@@ -372,13 +378,24 @@ async function run() {
       assert.equal(target.query(`set role service_role;select (public.linear_outbound_claim_v1(${cutoffReceipt.id},'pending',600) is null)::text;`), 'true');
       assert.deepEqual(unionImages(target), before);
     });
+    if(continuity) {
+      check('restricted restored v9 provenance, staff completion, held debt, media identity and private ACL remain usable',()=>{
+        const replay=phase(cfg,target,'replay',continuity.report,'continuity-replay',9);
+        assert.equal(replay.value.replayed,1);assert.equal(replay.value.provider_attempts,0);
+        assert.equal(replay.value.object_bytes_recovered,false);assert.equal(replay.value.owner_receipt_bytes_recovered,false);
+      });
+      check('v8 refuses the expanded native continuity source despite the unchanged older format',()=>{
+        const refused=target.raw('begin;'+backup.corpusBoundarySql('history-v8')+'rollback;');
+        assert.notEqual(refused.status,0);assert.match(refused.stderr,/omits native continuity/);
+      });
+    }
     const report = { status: 'PASS', classification: 'ISOLATED_MIGRATION_SHAPED_SCHEMA_DATA_REPLAY', passed: checks.length, checks,
       corpus: CORPUS, table_count: backup.resolveCorpus(CORPUS).tables.length, package_sha256: sha(bytes), source_sha256: pins,
       data_coverage: pkg.manifest.data.tables, omitted_data_tables: pkg.manifest.omitted_data_tables,
       limits: ['Synthetic migration-shaped source; installed capture/reconstruction remains UNPROVEN',
         'Whole public schema plus selected corpus data, not a full platform or omitted-data backup',
         'Callable lexical source is independently reviewed; execution coverage is limited to this fixture',
-        'No serving adapter, provider, workflow, alert or live action'] };
+        'No serving adapter, provider, workflow, alert or live action', 'Media object bytes, storage bucket configuration and private owner receipt bytes are separate custody; ledger restoration does not recover these'] };
     fs.writeFileSync(path.join(cfg.output, 'REPORT.private.json'), JSON.stringify(report, null, 2)); complete = true;
     console.log(JSON.stringify({ status: 'PASS', passed: checks.length, table_count: backup.resolveCorpus(CORPUS).tables.length }));
   } catch (error) {
@@ -389,4 +406,5 @@ async function run() {
   }
 }
 if (require.main === module) run().catch(() => { console.log(JSON.stringify({ status: 'FAIL', code: 'LOCAL_SCHEMA_CONFIGURATION_FAILED' })); process.exitCode = 1; });
-module.exports = { run, config, cleanEnv, connectionEnv, DB, postCommitRefusal, SOURCES };
+module.exports = { run, config, cleanEnv, connectionEnv, DB, postCommitRefusal, SOURCES,
+  phase, grants, dataGrants, unionImages, captureSequences, TARGET_PREREQUISITES };

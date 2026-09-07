@@ -1,5 +1,10 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Native intake post names / append ordinals / atomic migration composition: [native named append contract](ops/NATIVE_INTAKE_NAMED_APPEND.md). Separate restored-target SQL proof; first native-column installation held.
+
+
+Native continuity backup / public intake provenance / F44 triage / media ledger ? [explicit history-v9 recovery](ops/RECOVERY_SCHEMA_V9.md).42 selected tables; media object and owner-receipt bytes require separate custody.
+
 F44 received submission needs staff team confirmation / native completion / old
 unresolved receipt inbox → [protected website triage](audits/2026-09-07-f44-native-triage.md).
 Source-only capture, claim fence, immutable native completion and separate recovery extension.

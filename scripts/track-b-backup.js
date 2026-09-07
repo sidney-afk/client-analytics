@@ -105,6 +105,12 @@ const CATALOG_CUTOFF_HISTORY_TABLES = Object.freeze([...MATERIALIZATION_HISTORY_
   { name: 'production_label_catalog_versions', pk: 'version_id' },
   { name: 'linear_outbound_cutoff_control', pk: 'lane' },
 ]);
+// Explicit successor; earlier authenticated table meanings and defaults stay fixed.
+const NATIVE_CONTINUITY_HISTORY_TABLES = Object.freeze([...CATALOG_CUTOFF_HISTORY_TABLES,
+  { name: 'public_intake_log', pk: 'id', identity: true },
+  { name: 'legacy_intake_native_triage', pk: 'payload_hash' },
+  { name: 'native_brief_media_occurrences', pk: 'id' },
+]);
 const CORPORA = Object.freeze({
   'legacy-v3': Object.freeze({ name: 'legacy-v3', version: 3, magic: PACKAGE_MAGIC, tables: TABLES }),
   'history-v4': Object.freeze({ name: 'history-v4', version: 4,
@@ -117,6 +123,8 @@ const CORPORA = Object.freeze({
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V7\n', 'utf8'), tables: MATERIALIZATION_HISTORY_TABLES }),
   'history-v8': Object.freeze({ name: 'history-v8', version: 8,
     magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V8\n', 'utf8'), tables: CATALOG_CUTOFF_HISTORY_TABLES }),
+  'history-v9': Object.freeze({ name: 'history-v9', version: 9,
+    magic: Buffer.from('SYNCVIEW_TRACK_B_SNAPSHOT_V9\n', 'utf8'), tables: NATIVE_CONTINUITY_HISTORY_TABLES }),
 });
 
 function resolveCorpus(name = 'legacy-v3') {
@@ -134,7 +142,8 @@ function manifestCorpus(manifest) {
       : manifest && manifest.schema_version === 5 ? 'history-v5'
         : manifest && manifest.schema_version === 6 ? 'history-v6'
           : manifest && manifest.schema_version === 7 ? 'history-v7'
-            : manifest && manifest.schema_version === 8 ? 'history-v8' : '';
+            : manifest && manifest.schema_version === 8 ? 'history-v8'
+              : manifest && manifest.schema_version === 9 ? 'history-v9' : '';
   const corpus = resolveCorpus(name);
   if ((corpus.version >= 4 || manifest.corpus != null) && manifest.corpus !== corpus.name) {
     throw new Error('Track-B snapshot corpus does not match its schema version');
@@ -315,6 +324,7 @@ function corpusBoundarySql(corpusName) {
 ${corpus.version < 6 ? "if to_regclass('public.production_card_provenance') is not null or to_regclass('public.calendar_feedback_materializations') is not null then raise exception 'Track-B package omits integrated recovery evidence'; end if;" : ''}
 ${corpus.version < 7 ? "if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if; if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if;" : ''}
 ${corpus.version < 8 ? "if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if;" : ''}
+${corpus.version < 9 ? "if to_regclass('public.legacy_intake_native_triage') is not null or to_regclass('public.native_brief_media_occurrences') is not null then raise exception 'Track-B package omits native continuity recovery evidence'; end if;" : ''}
 if exists(select 1 from pg_catalog.pg_constraint where contype='f'
   and confrelid=any(covered) and not conrelid=any(covered)) then
   raise exception 'Track-B corpus has an omitted incoming foreign key';
@@ -327,7 +337,7 @@ end $corpus_boundary$;\n`;
 }
 
 function materializationPresenceSql() {
-  return "do $materialization_boundary$ begin if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if; if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if; end $materialization_boundary$;\n";
+  return "do $materialization_boundary$ begin if to_regclass('public.production_card_materialization_receipts') is not null or to_regclass('public.production_card_materialization_ingress') is not null then raise exception 'Track-B package omits materialization recovery evidence'; end if; if to_regclass('public.production_label_catalog_versions') is not null or to_regclass('public.linear_outbound_cutoff_control') is not null then raise exception 'Track-B package omits catalog or cutoff recovery evidence'; end if; if to_regclass('public.legacy_intake_native_triage') is not null or to_regclass('public.native_brief_media_occurrences') is not null then raise exception 'Track-B package omits native continuity recovery evidence'; end if; end $materialization_boundary$;\n";
 }
 
 function readOnlyPrivilegeSql(corpusName = 'legacy-v3') {
@@ -1292,6 +1302,7 @@ module.exports = {
   INTEGRATED_HISTORY_TABLES,
   MATERIALIZATION_HISTORY_TABLES,
   CATALOG_CUTOFF_HISTORY_TABLES,
+  NATIVE_CONTINUITY_HISTORY_TABLES,
   corpusBoundarySql,
   readOnlyPrivilegeArgs,
   configuredCorpus,

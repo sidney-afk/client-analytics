@@ -13246,7 +13246,7 @@ different job.
 
 ---
 
-## 160. [2026-09-07, MEASURED — 12 live rows, 8 real clients, oldest drifted 5 weeks; the status twin of item 95] Workload and SyncLinear show two different statuses for the same deliverable, and neither is lying
+## 160. [2026-09-07, ONE HALF FIXED, ONE OWNER DECISION — 12 live rows, 8 real clients, oldest drifted 5 weeks; the status twin of item 95] Workload and SyncLinear show two different statuses for the same deliverable, and neither is lying
 
 **[owner]** — the repair is a scope decision, not a patch. Reported by the owner
 against `VID-13679` (Video 1, Dr. Sonia Chopra, Iara): the Workload board put it
@@ -13353,22 +13353,52 @@ re-open two-way sync and undo the 2026-08-28 flip.
 
 Done when: an owner decision picks 1, 2 or 3 and this entry links the PR.
 
-### The other half of the same report
+### The other half of the same report — FIXED
 
-The owner also flagged the click-through itself: from the **In progress** chip
-("Dr. Sonia Chopra · 1") the popover offers *two* destinations, and they land in
-different places —
+The owner also flagged the click-through. He confirmed he pressed the header
+**Open SyncView →** on the In progress chip, which targets the PARENT, and
+landed on the sub-issue `VID-13679`.
 
-- header **Open SyncView →** → `?prod=1&d=VID-13678`, the parent;
-- the row title **Video 1** → `?prod=1&d=VID-13679`, the sub-issue.
+Both header link-outs ended in a first-CHILD fallback:
 
-Both resolve. But `VID-13678` has **no deliverable row** — SyncView hangs the
-child off a *synthetic batch parent* minted from `bat_3d82ce2c…`, whose
-`displayId` is the Linear identifier while its title is the batch name and its
-status is hardcoded `todo` (`_prodResolveBatchParentNodes`, index.html). So the
-parent reads **"VID-13678 Dr. Sonia Chopra · 31 Aug 2026"** in SyncLinear and
-**"VID-13678 Dr. Sonia Chopra | E-School Launch reel"** in Linear: same issue,
-two names, and a status the code comment already admits nothing ever updates.
-Whichever of the two links the owner took, the destination does not look like the
-chip he clicked. Awaiting his answer on which one he pressed before this is
-repaired.
+```js
+const parentUrl   = (parentById.get(parentId)?.url)        || subs[0]?.url        || '';
+const parentIdent = (parentById.get(parentId)?.identifier) || subs[0]?.identifier || '';
+```
+
+That reads as harmless — open something rather than nothing — and is the one
+thing these two controls must not do. They are labelled and positioned as the
+parent, so substituting the first sub-issue does not degrade the button, it
+makes it lie, silently.
+
+`parentById` holds only parents returned in THIS snapshot, and the board has
+more than one way to hold fewer: the Linear-derived read pages `active = true`
+only, so a parent whose own row went inactive is absent while its children are
+live, and the n8n `linear-issues` fallback (taken whenever the Supabase read
+throws) answers a different row set again. So the fallback is reachable in
+normal operation, not a corner case.
+
+**Fixed** by taking the fallback `wlLooseParentInfo` already uses for the loose
+strips — the sub's own `parentIdentifier` from `workload_issues`, which is all
+the SyncLinear deep link needs. It was added there on 2026-09-07 (#1331) and
+never carried back to the popover. When neither source can name the parent the
+button is now **omitted**: an absent control is honest, one pointing at a child
+is not, and the per-row links still open every sub-issue.
+
+Pinned by `test/workload-syncview-links.js`, which now EXECUTES the resolution
+block against three states (parent present, parent missing with
+`parentIdentifier`, parent missing without one) rather than pattern-matching it.
+The previous version of that suite asserted `|| subs[0]?.identifier` as if it
+were the contract, so it pinned the defect; 8 of its checks fail against the
+old code.
+
+Not repaired, and separate: `VID-13678` has **no deliverable row**. SyncView
+hangs the child off a *synthetic batch parent* minted from `bat_3d82ce2c…`
+(`_prodResolveBatchParentNodes`), whose `displayId` is the Linear identifier
+while its title is the batch name and its status is hardcoded `todo` — the code
+comment already admits nothing ever updates that status. So the parent reads
+**"VID-13678 Dr. Sonia Chopra · 31 Aug 2026"** in SyncLinear and **"VID-13678
+Dr. Sonia Chopra | E-School Launch reel"** in Linear: one issue, two names.
+`batches.linear_parent_ids` stores `{uuid, identifier, url}` and no title, so
+the real name is not recoverable in the browser today — it needs a schema or
+gateway change, and is listed here rather than fixed.

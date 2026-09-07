@@ -72,11 +72,10 @@ ok(/imported — glance &amp; confirm/.test(header),
   'a reviewed-pending group is described as imported, not broken');
 
 // ---- 2. the workload popover is SyncView-first ------------------------------
-const pop = source.slice(source.indexOf('const parentUrl   = clientName'),
+const pop = source.slice(source.indexOf('const parentRow   = parentId'),
   source.indexOf('No upcoming sub-issues.'));
-ok(/const parentIdent = clientName/.test(pop)
-  && /parentById\.get\(parentId\)\?\.identifier\) \|\| subs\[0\]\?\.identifier/.test(pop),
-'the header derives a Linear IDENTIFIER for the SyncView deep link, parent first then first sub');
+ok(/const parentIdent = clientName/.test(pop),
+  'the header derives a Linear IDENTIFIER for the SyncView deep link');
 ok(/parentSyncUrl = parentIdent\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(parentIdent\)\)/.test(pop),
   'the header link is the ?prod=1&d= deep link Production already resolves by identifier');
 ok(/Open SyncView →/.test(pop), 'the primary header action now reads Open SyncView');
@@ -91,6 +90,70 @@ ok(!/workload-popover-item-main" href="\$\{wlEscape\(s\.url\)\}/.test(pop),
   'the old direct-to-Linear main link is gone');
 ok(/workload-popover-item-linear" href="\$\{wlEscape\(s\.url\)\}/.test(pop),
   'a per-row Linear icon keeps the source of truth one click away');
+
+// ---- 3. a PARENT button never resolves to a CHILD ---------------------------
+/*
+ * Owner report 2026-09-07 (OPEN_REPAIRS 160). Pressing "Open SyncView ->" on
+ * the In progress chip for one client opened the SUB-issue VID-13679, not its
+ * parent VID-13678, and nothing on the page said a substitution had happened.
+ *
+ * The cause was the fallback `|| subs[0]?.identifier` -- the first CHILD --
+ * taken whenever `parentById` lacked the parent. The board has several ways
+ * to lack it (the Linear-derived read pages `active = true` only; the n8n
+ * `linear-issues` fallback answers a different row set), so this is reachable
+ * in normal operation, and the previous version of this suite PINNED the bad
+ * fallback as if it were the contract.
+ *
+ * Executed, not pattern-matched: the real resolution block is sliced out of
+ * index.html and run against three states. A regex here could pass against a
+ * neighbouring expression; running it cannot.
+ */
+const resolveBlock = source.slice(
+  source.indexOf('const parentRow   = parentId ? wlState.parentById.get(parentId) : null;'),
+  source.indexOf('const parentTitle = parentRow'));
+ok(resolveBlock.length > 0 && /parentSyncUrl/.test(resolveBlock),
+  'the parent-resolution block extracts (harness is not vacuous)');
+
+const resolveParent = new Function('wlState', 'parentId', 'clientName', 'subs', 'location',
+  resolveBlock + '\nreturn { parentUrl, parentIdent, parentSyncUrl };');
+
+const PARENT_ID = 'c96ac1d0-38ce-4446-80c5-d279771c6bb6';
+const CHILD = { identifier: 'VID-13679', url: 'https://linear.app/x/issue/VID-13679',
+                parentIdentifier: 'VID-13678' };
+const loc = { pathname: '/' };
+const withParent = { parentById: new Map([[PARENT_ID,
+  { identifier: 'VID-13678', url: 'https://linear.app/x/issue/VID-13678', title: 'E-School Launch reel' }]]) };
+const noParent = { parentById: new Map() };
+
+const hit = resolveParent(withParent, PARENT_ID, 'Dr. Sonia Chopra', [CHILD], loc);
+ok(hit.parentIdent === 'VID-13678', 'parent present in the snapshot: the deep link names the PARENT');
+ok(hit.parentSyncUrl === '/?prod=1&d=VID-13678', 'parent present: ?prod=1&d= carries the parent identifier');
+ok(hit.parentUrl === 'https://linear.app/x/issue/VID-13678', 'parent present: Linear ↗ points at the parent');
+
+const miss = resolveParent(noParent, PARENT_ID, 'Dr. Sonia Chopra', [CHILD], loc);
+ok(miss.parentIdent === 'VID-13678',
+  "parent MISSING from the snapshot: the sub's own parentIdentifier answers -- the owner's exact case");
+ok(miss.parentIdent !== CHILD.identifier,
+  'parent missing: the deep link is NEVER the child identifier (the reported defect)');
+ok(miss.parentSyncUrl === '/?prod=1&d=VID-13678',
+  'parent missing: the deep link still opens VID-13678, not VID-13679');
+ok(miss.parentUrl === '',
+  'parent missing: Linear ↗ is dropped rather than pointed at the child -- no parent URL is recoverable');
+
+const orphan = resolveParent(noParent, PARENT_ID, 'Dr. Sonia Chopra',
+  [{ identifier: 'VID-13679', url: 'https://linear.app/x/issue/VID-13679' }], loc);
+ok(orphan.parentIdent === '' && orphan.parentSyncUrl === '',
+  'neither source names a parent: the button is OMITTED, not aimed at a child');
+ok(orphan.parentUrl === '', 'neither source names a parent: no Linear parent link either');
+
+// Inversion: the removed fallback must not creep back under another spelling.
+ok(!/subs\[0\]\?\.identifier/.test(resolveBlock) && !/subs\[0\]\?\.url/.test(resolveBlock),
+  'the first-child fallback is gone from the parent resolution, in source');
+
+// A per-editor total badge (no client) still renders no parent controls at all.
+const noClient = resolveParent(withParent, PARENT_ID, '', [CHILD], loc);
+ok(noClient.parentIdent === '' && noClient.parentUrl === '',
+  'the editor-total badge spans clients, so it claims no parent');
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nWorkload SyncView-link and credentials-label checks passed.');

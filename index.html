@@ -19372,9 +19372,37 @@
         wlState.popoverAnchor = rollupEl;
         rollupEl.setAttribute('aria-expanded', 'true');
 
-        const parentUrl   = clientName
-            ? ((parentId && wlState.parentById.get(parentId)?.url) || subs[0]?.url || '')
-            : '';
+        /* A PARENT BUTTON MAY NEVER RESOLVE TO A CHILD.
+
+           Both link-outs below used to end `|| subs[0]?.url` / `||
+           subs[0]?.identifier`. That fallback reads as harmless -- "open
+           something rather than nothing" -- and is the one thing these two
+           controls must not do: they are labelled and positioned as the
+           PARENT, so substituting the first sub-issue does not degrade the
+           button, it makes it lie. Owner report 2026-09-07, pressing
+           "Open SyncView ->" on the In progress chip for one client and
+           landing on the sub-issue `VID-13679` instead of its parent
+           `VID-13678`, with nothing on the page saying a substitution had
+           happened.
+
+           `parentById` only holds parents that came back in THIS snapshot,
+           and the board has several ways to hold fewer: the Linear-derived
+           read pages `active = true` only, so a parent whose own row went
+           inactive is absent while its children are still live, and the
+           n8n `linear-issues` fallback (taken whenever the Supabase read
+           throws) answers a different row set again. The sub itself carries
+           `parentIdentifier` from `workload_issues` for exactly this case --
+           which is all the SyncLinear deep link needs -- so that is the
+           fallback, the same one `wlLooseParentInfo` already uses for the
+           loose strips. It was added there on 2026-09-07 and never carried
+           back here.
+
+           When neither source can name the parent, the button is NOT
+           rendered. An absent control is honest; one pointing at a child
+           is not. The per-row links below still open each sub-issue, so
+           nothing becomes unreachable -- only unlabelled-as-parent. */
+        const parentRow   = parentId ? wlState.parentById.get(parentId) : null;
+        const parentUrl   = clientName ? (parentRow?.url || '') : '';
         /* SyncView-first link-outs (owner request 2026-08-21: "it opens the
            original linear... make it so it opens our sync linear"). Post-flip
            the designers' work lives in the Production tab, so the popover's
@@ -19389,12 +19417,12 @@
            either way, so the extra icon is still worth less than removing a
            working escape hatch. */
         const parentIdent = clientName
-            ? ((parentId && wlState.parentById.get(parentId)?.identifier) || subs[0]?.identifier || '')
+            ? (parentRow?.identifier || String(subs[0]?.parentIdentifier || ''))
             : '';
         const parentSyncUrl = parentIdent
             ? (location.pathname + '?prod=1&d=' + encodeURIComponent(parentIdent))
             : '';
-        const parentTitle = (parentId && wlState.parentById.get(parentId)?.title) || clientName || editorName || '';
+        const parentTitle = parentRow?.title || clientName || editorName || '';
         const headerTitle = clientName || editorName || parentTitle;
         pop.setAttribute('aria-label', headerTitle ? ('Workload details for ' + headerTitle) : 'Workload details');
 

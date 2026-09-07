@@ -1,5 +1,7 @@
 # Repo map
 
+Native urgent video: `docs/ops/NATIVE_URGENT_HANDOFF.md` owns the inactive protected production-write resolver, exact JWT handoff and delivery-unknown contract. `test/native-urgent-dispatch.js` exercises the actual handler with synthetic scope, signature and transport failures.
+
 F44 website triage source: `migrations/2026-09-07-legacy-intake-native-triage.sql`
 owns receipt capture, provider admission fences and native completion;
 `scripts/f44-native-recovery-extension.js` supplies a separate recovery inventory.

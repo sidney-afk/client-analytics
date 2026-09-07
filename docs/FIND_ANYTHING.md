@@ -1,5 +1,7 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Native urgent video without provider lookup: [inactive protected handoff](ops/NATIVE_URGENT_HANDOFF.md). Existing staff authentication, current editor resolution, purpose-bound JWT and explicit delivery uncertainty; installation and delivery remain held.
+
 Native intake post names / append ordinals / atomic migration composition: [native named append contract](ops/NATIVE_INTAKE_NAMED_APPEND.md). Separate restored-target SQL proof; first native-column installation held.
 
 

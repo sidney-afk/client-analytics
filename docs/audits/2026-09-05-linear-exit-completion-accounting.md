@@ -1,3 +1,9 @@
+## G4 existing asset planner executed read-only - 2026-09-07 01:37 UTC
+
+LIVE_READ using candidate d144's existing F34 discovery planner: 80 GET-only requests to the three allowlisted Supabase tables produced 5,934 reference occurrences. Wrapper refused every other origin, method, path and redirect; no apply arguments or rescue credentials supplied. Private result retained outside Git. Existing planner reports scan_complete=false and final_linear_export_inventory_required. This is an occurrence plan, not 5,934 unique files, a certified complete provider export, downloaded assets or successful rescue.
+
+The planner scanned stored archive rows, normalized comment bodies/attachments and deliverable briefs; live reads brought private source data into process memory, but only the private hashed occurrence plan was saved and aggregate counts printed. Source body/URL content was not published. Next required input is the independently certified final provider asset inventory, followed by reconciliation and separately authorized rescue. No production mutation or watcher activation.
+
 ## G4 provider-host references measured - 2026-09-07 01:24 UTC
 
 LIVE_READ aggregate-only scan at 01:24:08Z: 246 production comment bodies contain the literal uploads.linear.app, including 131 nondeleted rows; 1,536 archive raw payloads contain it. Zero production comment attachment fields and zero deliverable file_url fields match that literal. Counts represent rows with text references, not unique URLs, reachable assets, current rendering or successful rescue. Other hosts/encodings/fields are outside this bounded scan. No URLs, comment bodies or file bytes were returned.

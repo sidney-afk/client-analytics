@@ -64442,8 +64442,9 @@
         const clientSlug = sxrClientSlug(sxrState.client);
         if (!clientSlug) return;
         const cardName = String((post && post.name) || '').trim();
-        let identity;
-        try { identity = await _syncviewRequireStaffIdentity('intake'); }
+        // Refused early as well as at confirm time, so somebody who is not
+        // signed in is told before a dialog promises them anything.
+        try { await _syncviewRequireStaffIdentity('intake'); }
         catch (error) {
             showNotify('Sign-in required', (error && error.message) || 'Admin or SMM sign-in required.');
             return;
@@ -64469,18 +64470,67 @@
             showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
             return;
         }
+        // The principal that opened the dialog, as the write path itself
+        // computes one, so the comparison below is against the same value the
+        // gateway will be told about rather than a parallel notion of identity.
+        const principalKey = _writeUiPrincipalKey();
         showConfirm(
             'Add the missing ' + label + '?',
             'This creates the ' + label + ' for ' + (cardName ? '“' + cardName + '”' : 'this sample')
                 + ' on ' + clientSlug + ', in the same batch as its '
                 + (target === 'graphic' ? 'video' : 'thumbnail')
                 + ', and attaches it to that card. It appears in Production and mirrors to Linear.',
-            () => {
+            async () => {
                 if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
                     showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
                     return;
                 }
-                _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug, identity);
+                /* THE DIALOG IS A WAIT, AND TWO MORE THINGS MOVE UNDER IT
+                   (Codex P1 x2 on PR 1342, third pass).
+
+                   WHO. `_sxrFillComponentSubmit` never used the captured
+                   `identity` -- it was a gate result and nothing more -- while
+                   `_syncviewEfHeaders` reads `_syncviewStaffIdentityForHeaders()`
+                   at REQUEST time. Staff identity is shared through localStorage
+                   and synced across tabs by `_syncviewStaffIdentityStorageChanged`,
+                   so a sign-in change in another tab lands in this one while the
+                   dialog sits open, and the person who pressed Confirm is
+                   recorded as the author of work somebody else asked for. The
+                   identity is re-required (which re-verifies it, so a lapsed
+                   verification is caught too) and its principal key compared
+                   with the one that opened the dialog. The parameter is gone
+                   from the submitter rather than left there unused, because an
+                   argument nothing reads is a claim the code does not keep.
+
+                   WHAT AUTHORITY. AGENTS.md: read back current runtime
+                   authority before acting, never treat a snapshot as a
+                   permanent guarantee. The read above happened BEFORE the
+                   dialog, so a SyncView -> Linear rollback during the wait
+                   would still have sent a create. The gateway refuses it and
+                   nothing wrong is written, but the refusal is avoidable and
+                   the boundary is ours to hold, not the server's. */
+                try { await _syncviewRequireStaffIdentity('intake'); }
+                catch (error) {
+                    showNotify('Sign-in required', (error && error.message) || 'Admin or SMM sign-in required.');
+                    return;
+                }
+                if (!principalKey || _writeUiPrincipalKey() !== principalKey) {
+                    showNotify('The signed-in account changed',
+                        'Nothing was created. This confirmation belongs to the person who opened it, and a different account is signed in now. Press the button again to create it as yourself.');
+                    return;
+                }
+                const sealedNow = await _writeUiLinkSlotSealedLive(target);
+                if (!sealedNow || sealedNow.sealed !== true) {
+                    const notice = _writeUiLinkSlotSealedNotice(target, sealedNow && sealedNow.reason || 'authority_unavailable');
+                    showNotify(notice[0], notice[1]);
+                    return;
+                }
+                // Last look, after two more awaits of its own.
+                if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
+                    showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
+                    return;
+                }
+                _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug);
             },
             'Add ' + label);
     }
@@ -64494,7 +64544,7 @@
         const current = sxrState.posts.find(item => item && item.id === pid);
         return !!current && _sxrFillSiblingId(current, target) === siblingId;
     }
-    async function _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug, identity) {
+    async function _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug) {
         const requestId = _sxrFillRequestId(pid, team);
         let result = null;
         let failure = null;

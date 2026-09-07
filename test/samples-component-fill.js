@@ -416,7 +416,7 @@ async function mirrorChecks() {
     ok: true, native_committed: true, mirror_pending: true,
     item: { id: 'del_new', linear_issue_url: '' },
   });
-  await draining.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient', {});
+  await draining.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient');
   ok(draining.seen.linked.length === 1 && draining.seen.linked[0].id === 'del_new',
     'a live fill links the card to the deliverable the gateway made, before the mirror has drained');
   ok(draining.seen.adopted.length === 1 && draining.seen.adopted[0] === 'testclient',
@@ -428,7 +428,7 @@ async function mirrorChecks() {
     ok: true, native_committed: true,
     item: { id: 'del_new', linear_issue_url: 'https://linear.app/x/VID-9' },
   });
-  await drained.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient', {});
+  await drained.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient');
   ok(drained.seen.adopted.length === 0,
     'a response that already carries the url starts no poll, because there is nothing left to adopt');
 
@@ -437,7 +437,7 @@ async function mirrorChecks() {
   const repaired = submitHarness(
     { ok: false, error: 'component_fill_team_occupied' },
     { httpOk: false, existing: { id: 'del_peer', linear_issue_url: '' } });
-  await repaired.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient', {});
+  await repaired.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient');
   ok(repaired.seen.lookups === 1 && repaired.seen.linked.length === 1 && repaired.seen.linked[0].id === 'del_peer',
     'an occupied slot is repaired by linking the component that already exists');
   ok(repaired.seen.adopted.length === 1,
@@ -447,7 +447,7 @@ async function mirrorChecks() {
      answered here and never handed to the shared reload-and-evict handler. */
   const missing = submitHarness(
     { ok: false, error: 'component_fill_card_missing' }, { httpOk: false });
-  await missing.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient', {});
+  await missing.fn('sr_1', 'video', 'video', 'video', 'b1_d_1', 'testclient');
   ok(missing.seen.reported.length === 0,
     'a card the RPC looked for in the wrong table never reaches the shared handler, so no display cache is swept');
   ok(missing.seen.diagnostics.some(row => row.surface === 'sxr'),
@@ -456,6 +456,114 @@ async function mirrorChecks() {
     'and the person is told what is actually true, not to reload');
   ok(missing.seen.linked.length === 0,
     'and nothing is written to the card, because nothing was created');
+}
+
+
+/* ---- 3e. EXECUTED: the dialog is a wait, and three things move under it -
+ *
+ * Third-pass review. The confirmation can sit open indefinitely, and in that
+ * time the signed-in account can change (staff identity is shared through
+ * localStorage and synced across tabs), team authority can be rolled back, and
+ * the client can be switched. `_syncviewEfHeaders` reads the identity at
+ * REQUEST time, so the person who pressed Confirm is the one recorded as
+ * creating the work -- the captured one was never used. Executed by running the
+ * real handler and firing the captured callback afterwards. */
+
+const fillHandlerSrc = grabFunc('async function _sxrFillComponent(');
+
+function confirmHarness(options = {}) {
+  const seen = {
+    confirmed: null, notified: [], submitted: [], authorityReads: 0, identityReads: 0,
+  };
+  let principal = options.principal || 'staff:1:admin';
+  let sealed = { sealed: true, reason: 'syncview_authoritative' };
+  const state = { client: options.slug || 'testclient', posts: [thumbOnly] };
+  const fn = new Function(
+    '_isClientLink', '_sxrIsBlankId', '_writeUiLinkSlotSealed', 'sxrClientSlug', 'sxrState',
+    'showNotify', 'showConfirm', '_syncviewRequireStaffIdentity', '_writeUiLinkSlotSealedLive',
+    '_writeUiLinkSlotSealedNotice', '_writeUiPrincipalKey', '_sxrFillComponentSubmit', '_sxrEscAttr',
+    gateSrc + grabFunc('function _sxrFillStillCurrent(') + fillHandlerSrc + '; return _sxrFillComponent;',
+  )(
+    false, blankId, sealedAll,
+    () => state.client, state,
+    (title, message) => { seen.notified.push({ title, message }); },
+    (title, message, onYes) => { seen.confirmed = { title, message, onYes }; },
+    async () => { seen.identityReads += 1; if (options.identityThrows) throw new Error('Admin or SMM sign-in required.'); return {}; },
+    async () => { seen.authorityReads += 1; return sealed; },
+    () => ['Video links are set automatically now', 'nope'],
+    () => principal,
+    (...args) => { seen.submitted.push(args); },
+  );
+  return {
+    seen, fn,
+    setPrincipal: value => { principal = value; },
+    setSealed: value => { sealed = value; },
+    setClient: value => { state.client = value; },
+    setPosts: value => { state.posts = value; },
+  };
+}
+
+async function confirmChecks() {
+  /* The ordinary path still works end to end. */
+  const happy = confirmHarness();
+  await happy.fn('sr_mrfd5wbb_gzui9', 'video');
+  ok(!!happy.seen.confirmed, 'the button opens a confirmation before anything is created');
+  ok(/on testclient/.test(happy.seen.confirmed.message),
+    'and the confirmation names the client it will act on, so it cannot be read as being about whatever is on screen now');
+  await happy.seen.confirmed.onYes();
+  ok(happy.seen.submitted.length === 1,
+    'confirming it submits the fill');
+  ok(happy.seen.submitted[0].length === 6,
+    'and the submitter no longer takes an identity argument it never read');
+  ok(happy.seen.authorityReads === 2 && happy.seen.identityReads === 2,
+    'authority and identity are read again INSIDE the callback, not trusted from before the dialog opened');
+
+  /* A rollback during the wait. The gateway would refuse this, but the UI is
+     the one holding the current-authority boundary, and an avoidable failed
+     action is still a failed action. */
+  const rolledBack = confirmHarness();
+  await rolledBack.fn('sr_mrfd5wbb_gzui9', 'video');
+  rolledBack.setSealed({ sealed: false, reason: 'linear_authoritative' });
+  await rolledBack.seen.confirmed.onYes();
+  ok(rolledBack.seen.submitted.length === 0,
+    'a team rolled back to Linear while the dialog was open stops the write in the browser, rather than sending one the gateway has to refuse');
+
+  /* A different account signed in while the dialog waited. The captured
+     identity was never used by the submitter, and the headers are built at
+     request time, so without this the wrong person is recorded as the author
+     of real Production and Linear work. */
+  const swapped = confirmHarness();
+  await swapped.fn('sr_mrfd5wbb_gzui9', 'video');
+  swapped.setPrincipal('staff:2:smm');
+  await swapped.seen.confirmed.onYes();
+  ok(swapped.seen.submitted.length === 0,
+    'a confirmation is bound to the account that opened it, so a sign-in change in another tab cannot record the work against the wrong person');
+  ok(swapped.seen.notified.some(n => /signed-in account changed/i.test(n.title)),
+    'and the person is told why, and to press it again as themselves');
+
+  /* Verification can lapse rather than change. */
+  const lapsed = confirmHarness();
+  await lapsed.fn('sr_mrfd5wbb_gzui9', 'video');
+  lapsed.setPrincipal('');
+  await lapsed.seen.confirmed.onYes();
+  ok(lapsed.seen.submitted.length === 0,
+    'and an identity that has lapsed to nothing is refused rather than treated as a match');
+
+  /* The client can still move under the dialog. */
+  const moved = confirmHarness();
+  await moved.fn('sr_mrfd5wbb_gzui9', 'video');
+  moved.setClient('anotherclient');
+  await moved.seen.confirmed.onYes();
+  ok(moved.seen.submitted.length === 0,
+    'and the client switch check still runs first, before either round trip');
+
+  /* A peer who filled the slot while the dialog sat open. */
+  const raced = confirmHarness();
+  await raced.fn('sr_mrfd5wbb_gzui9', 'video');
+  raced.setPosts([Object.assign({}, thumbOnly, { video_deliverable_id: 'del_peer' })]);
+  await raced.seen.confirmed.onYes();
+  ok(raced.seen.submitted.length === 0,
+    'and a peer who filled the same slot first stops it too');
 }
 
 /* ---- 5. Live authority, not the render-time guess ---------------------- */
@@ -520,7 +628,7 @@ process.on('unhandledRejection', error => {
   process.exit(1);
 });
 
-orderingChecks().then(mirrorChecks).then(() => {
+orderingChecks().then(mirrorChecks).then(confirmChecks).then(() => {
   clearTimeout(watchdog);
   console.log(failures === 0
     ? '\nsamples component fill checks passed'

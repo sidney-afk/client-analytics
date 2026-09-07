@@ -13776,6 +13776,32 @@ across the window the mirror actually takes, measured at 15s on the 2026-08-20
 create). It now runs after a fill whose response carries no url, and after the
 repair arm, since a peer's fill can be mid-drain just as easily.
 
+**THE THIRD PASS FOUND TWO MORE, BOTH UNDER THE CONFIRMATION** (Codex on
+PR 1342, on `86983dc`). The dialog can sit open indefinitely, and the second
+round only taught it to re-check the CARD.
+
+**P1: the work could be recorded against the wrong person.** The submitter
+never used the captured `identity`; it was a gate result and nothing more,
+while `_syncviewEfHeaders` reads `_syncviewStaffIdentityForHeaders()` at
+REQUEST time. Staff identity lives in localStorage and is synced across tabs by
+`_syncviewStaffIdentityStorageChanged`, so a sign-in change in another tab
+lands in this one while the dialog waits, and whoever presses Confirm is
+recorded on `deliverables.created_by` as the author of work somebody else
+asked for. The identity is now re-required inside the callback (which
+re-verifies it, so a lapsed verification is caught as well as a changed
+account) and its `_writeUiPrincipalKey()` compared with the one that opened the
+dialog. The unused parameter is gone from the submitter rather than left in
+place: an argument nothing reads is a claim the code does not keep.
+
+**P1: authority was read before the wait, not after it.** AGENTS.md is explicit
+that current runtime authority is read back before acting and that no snapshot
+is a permanent guarantee. A SyncView to Linear rollback while the dialog sat
+open would still have sent a create. The gateway refuses it and nothing wrong
+is written, but the refusal is avoidable and the boundary is the browser's to
+hold. `_writeUiLinkSlotSealedLive` runs again inside the callback, and the card
+check runs once more after both round trips, since each of them is itself a
+wait.
+
 **STILL OPEN, AND IT IS NOT THIS CHANGE'S:** `_sxrFlushCardSave` deriving its
 slug and row from `sxrState` at flush time is a property of the samples save
 engine, not of the fill. Any in-flight save plus a client switch reaches it
@@ -13798,8 +13824,11 @@ queued edit flushed, and a mid-flight client switch proves the departed cache is
 left alone. The second pass is executed the same way, the whole submit function
 included, so the mirror-pending branch, the repair arm and the drifted-batch
 refusal are chosen from real response shapes rather than matched in source.
-Eleven checks across the two rounds go red against the code that preceded
-them. A watchdog and an
+The third pass is executed the same way, by running the real
+handler and firing the captured confirmation callback afterwards, so the
+rollback, the account change, the lapsed verification, the client switch and a
+peer's fill are each proven to stop the write. Sixteen checks across the three
+rounds go red against the code that preceded them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.

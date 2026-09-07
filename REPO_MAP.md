@@ -1,5 +1,11 @@
 # Repo map
 
+Offline n8n CARD compatibility: `scripts/n8n-native-card-adapter.js` transforms
+hash-pinned private published captures into a new private terminal native draft;
+`test/n8n-native-card-adapter.js` covers synthetic graphs and transport contracts.
+`docs/ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md` owns the private binding,
+exact-version evidence and held release order. No workflow is activated.
+
 Independent continuity preparation: `scripts/client-continuity-independent.js`
 reads exact pinned receipts and delivery state through existing owners;
 `scripts/client-continuity-heartbeat.js` sends only a combined healthy heartbeat.

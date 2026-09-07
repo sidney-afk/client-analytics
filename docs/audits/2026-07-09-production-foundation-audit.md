@@ -492,3 +492,29 @@ Two facts belong in a foundation audit rather than only in a changelog:
 - **The parent grid hides a row, it does not gain one.** A real hierarchy
   parent draws the Deliverable file row only when a value exists on it; the
   attach control that the empty row carried is simply not rendered there.
+
+
+## Addendum, 2026-09-07 — the identifier a row answers to, and what the alias does not widen
+
+- **A read-path rename, not a new read.** `_prodAdapter` now names a row by
+  `linear_identifier` (the column `linear-inbound` maintains) rather than by
+  `identifier` (the b1 import's snapshot, retired for a row whose Linear team
+  changed). Both columns were already in the browser projection and already
+  read by this tab; nothing is fetched from a new place, no grant moves, and
+  the deep-link one-row read still asks for the same three columns it did
+  before.
+- **The alias resolves, it never overrides.** `_prodIssue` matches `id` or
+  `displayId` in a first pass and a retired `aliasId` only in a second, so an
+  alias can never win over a row that carries the same string as its own
+  canonical name. Verified over the live set: zero duplicate `displayId`, and
+  no string that is one row's `displayId` and another row's
+  `linear_identifier`.
+- **No control, no write, no authority change.** The Production tab's write
+  gates, roles, and refusals are untouched; this changes which string labels a
+  row and which strings resolve to it. The accompanying data repair is
+  owner-applied SQL on one column of `deliverables`, creating no outbound
+  intent and mirroring nothing to Linear (`ROLLBACK.md`, 2026-09-07).
+- **The missing-row notice keeps its real cases.** It still fires for a target
+  that genuinely has no row, and its archived branch now tests `id` and BOTH
+  identifier columns independently, so an archived row linked by its current
+  number is described as archived rather than as never imported.

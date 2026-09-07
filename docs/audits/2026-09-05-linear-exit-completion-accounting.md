@@ -1,3 +1,9 @@
+## G4 five native owner links verified - 2026-09-07 01:00 UTC
+
+LIVE_READ at 01:00:33Z joined exactly the five previously mismatched comment IDs to their deliverable owners. All five owners exist; all five deliverable linear_issue_uuid values match the saved provider comment issue UUID; all five raw issue UUIDs also match. Therefore the earlier five raw-field mismatches are NOT wrong native ownership. Do not create an ownership repair for this population solely because the comment-level denormalized field is NULL.
+
+This closes the bounded owner-identity question, not text/thread/audience/client-reader parity or global comment completeness. The 153 unmatched normalized IDs and tombstone disposition remain open. Five-row scope/count validation and private identity receipts retained off-repository; no bodies, URLs or production writes. Candidate and watcher holds unchanged.
+
 ## G4 comment discrepancy classification - 2026-09-07 00:49 UTC
 
 LIVE_READ metadata-only classification at 00:48:36Z: all five prior issue mismatches are nondeleted source=ui/origin=native comments with a deliverable owner and NULL linear_issue_uuid. Thus these are absent denormalized provider links, not proven wrong-card ownership. The deliverable's provider ownership still needs checking before any repair; the earlier mismatch count remains a valid raw-field comparison with this narrower interpretation.

@@ -686,3 +686,52 @@ executes these files (see `README.md` › Repository layout).
   once. `native_assignee_id` carries the other one. Because two columns moved,
   `create or replace view` cannot re-apply over an earlier branch build — the
   file's header says to drop it first.
+
+- **`2026-09-07-production-intake-append-v8.sql`** replaces the append RPC body
+  installed by `2026-08-26-production-intake-append-v7.sql` (applied). It is the
+  eighth and current member of the `production_intake_append` chain; a database
+  rebuilt from the baseline plus deltas should run this one and skip v1–v7.
+
+  **What it changes is two predicates about a child TITLE, and nothing else.**
+  Both learn an optional `' — <name>'` suffix: the ordinal scan
+  (`v_base_ordinal`) counts a named title as a used number, and the per-group
+  title check accepts the composed title bare or with that suffix. No table,
+  column, index, policy, grant or runtime flag moves.
+
+  It exists for the owner request of 2026-09-07 — an SMM should be able to name
+  the batch and name the post from Create Post. The batch half needed nothing
+  here (`batches.name` has always come from the caller and becomes the Linear
+  parent title); the sub-issue half ended at this function, which demanded the
+  title be exactly `[Sample ]Video N` / `[Sample ]Thumbnail N` and raised
+  `invalid_intake_append_order` on anything else.
+
+  **The name is a suffix and not a free title for two structural reasons.** The
+  number is the only record of a post's ordinal — `deliverables` has no column
+  for it, and both this function and `planAppendIntakeItems` re-derive the next
+  number by reading it back out of the titles already in the batch, so a
+  free-form title makes the next append reissue a used number. And the kind has
+  to stay visible: the owner read his own test post as "two video sub-issues"
+  on 2026-08-17 when both halves shared a title, which one typed name replacing
+  both would rebuild.
+
+  **Order of installation: this file, then `production-write`, then the
+  browser.** Alone it only widens what the RPC accepts, and the deployed
+  gateway in front of it still composes bare numbered titles, so applying it
+  changes nothing anyone sees. `index.html` ships on merge and cannot wait for
+  the other two, so its Create Post dialog compares the names it asked for
+  against the titles that came back and says so in the notification when a name
+  did not land — an early merge is visible rather than silent.
+
+  Executed before handover against a disposable PostgreSQL 16 built from the
+  baseline plus deltas, not merely compiled: a named append commits, the next
+  append after it allocates the FOLLOWING ordinal (the regression this shape
+  exists to prevent), an unnamed append is unchanged, a wrong ordinal and a
+  bare trailing separator are both still refused `invalid_intake_append_order`,
+  and the same named call against v7 is refused — so the migration is required
+  rather than cosmetic. `test/intake-post-names.js` pins all of it.
+
+  **Rolling back** means re-running v7 AND redeploying the prior gateway. Rows
+  already written with named titles are untouched and stay correct, but v7
+  cannot read an ordinal out of one, so it would renumber a batch holding a
+  named child from the highest BARE title in it. Check such a batch before
+  appending to it again.

@@ -75,6 +75,31 @@ try{
     // A real historical provider owner retains its old state transition.
     await sql(`set role service_role;update public.linear_intake_receipts set status='failed',error='historical fixture refusal' where receipt_key=${q(a.receipt_key)}`);
   });
+  for(const nativeFirst of [true,false])await check('first capture versus other-team provider INSERT: '+(nativeFirst?'native wins':'provider wins'),async()=>{
+    const a=envelope(),other=envelope('graphics',original(a));
+    const receive=`select public.legacy_intake_native_receive(${q(stable(original(a)))},'video',${q(JSON.stringify(a))},'f44fixture')`;
+    const insert=`insert into public.linear_intake_receipts(receipt_key,payload_hash,client,team,payload_json) values(${q(other.receipt_key)},${q(other.payload_hash)},'F44 Fixture','graphics',${q(stable(original(a)))})`;
+    const firstName=nativeFirst?'f44-first-native':'f44-first-provider',secondName=nativeFirst?'f44-wait-provider':'f44-wait-native';
+    const first=runSql(`set application_name=${q(firstName)};set lock_timeout='5s';begin;${nativeFirst?receive:insert};select pg_sleep(2);commit`);
+    async function waits(name,event){for(let i=0;i<20;i++){
+      if((await rows(`select pid from pg_stat_activity where application_name=${q(name)} and wait_event=${q(event)}`)).length)return true;
+      await new Promise(resolve=>setTimeout(resolve,25));
+    }return false;}
+    assert.equal(await waits(firstName,'PgSleep'),true,'first admission is still uncommitted');
+    const second=runSql(`set application_name=${q(secondName)};set lock_timeout='5s';${nativeFirst?insert:receive}`);
+    assert.equal(await waits(secondName,'advisory'),true,'other-team admission waits on the same payload lock');
+    const [winner,loser]=await Promise.all([first,second]);assert.equal(winner.status,0,winner.stderr);
+    if(nativeFirst){assert.notEqual(loser.status,0);assert.match(loser.stderr,/legacy_intake_native_owned/);
+      assert.equal((await rows('select * from public.linear_intake_receipts where receipt_key='+q(other.receipt_key))).length,0);
+      assert.equal((await owner(a)).state,'triage');
+    }else{
+      assert.equal(loser.status,0,loser.stderr);const before=await sql('select count(*) from public.production_intake_manifests');
+      const attempted=await complete(a,['video','graphics']);assert.equal(attempted.status,409);assert.equal(attempted.json.error,'legacy_intake_provider_or_unknown_receipt');
+      assert.equal(await sql('select count(*) from public.production_intake_manifests'),before);
+      const inbox=await gw.post({action:'legacy_intake_triage_list'});assert.equal(inbox.json.rows.find(r=>r.payload_hash===a.payload_hash).state,'held');
+      assert.equal((await rows('select status from public.linear_intake_receipts where receipt_key='+q(other.receipt_key)))[0].status,'pending');
+    }
+  });
   await check('hash mismatch, extra fields and capture failure never acknowledge durable receipt',async()=>{
     assert.equal((await gw.post({...envelope(),extra:'must not drop'},{})).status,400);
     assert.equal((await gw.post({...envelope(),payload_hash:'0'.repeat(64)},{})).status,409);

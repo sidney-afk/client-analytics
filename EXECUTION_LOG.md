@@ -6921,6 +6921,12 @@ Recovery and proof limits: `docs/ops/REVIEW_FEEDBACK_DRAFTS.md`.
 From integration `6b306f473524b8f4759d6f03f09df45e8ba0aaf7`, added explicit history-v6 for both FK-free recovery ledgers. Twelve new offline checks and ten finite combined SQL checks pass; old formats remain readable and default schedule unchanged. Evidence and held schema/feedback-RPC/integration boundaries: `docs/ops/INTEGRATED_RECOVERY_CORPUS.md`. No production action.
 # 2026-09-07 — F44 website triage preparation (source only)
 
+Review correction: provider INSERT now shares native receive's per-payload
+advisory admission before looking for the first owner. Two real-session tests
+cover both winning orders against a different-team key; the focused SQL lane
+passes 24 groups with zero provider/drainer requests. UPDATE/DELETE ordering is
+unchanged. No full suite or live action was run.
+
 Prepared immutable public-origin legacy capture and real admin/SMM website
 completion through the native gateway, accepted-manifest reconciliation and
 Calendar materializer. Provider receipt admission is fenced for native owners;

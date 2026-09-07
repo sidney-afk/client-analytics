@@ -39,6 +39,11 @@ language plpgsql security definer set search_path=public as $$
 declare g public.legacy_intake_native_triage;
 begin
   if tg_op='INSERT' then
+    -- Row locks cannot cover a not-yet-inserted other-team key. Serialize the
+    -- entire payload namespace BEFORE checking whether its first owner exists.
+    -- Native receive already holds this lock; its INSERT is reentrant. Do not
+    -- take this advisory lock in UPDATE/DELETE after their receipt-row lock.
+    perform pg_advisory_xact_lock(hashtextextended('legacy-native:'||new.payload_hash,0));
     select * into g from public.legacy_intake_native_triage where payload_hash=new.payload_hash for share;
     if found and exists(select 1 from jsonb_each(g.received) entry where entry.value->>'fresh_capture'='true')
       and current_setting('app.legacy_intake_capture_hash',true) is distinct from new.payload_hash then

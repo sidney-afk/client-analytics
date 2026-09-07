@@ -56,7 +56,10 @@ receipt UPDATEs. The provider guard rejects all UPDATE/DELETE of fresh native
 keys and provider INSERT of another team for that native-owned payload hash.
 Historical provider receipts retain their old write rules. A narrow transaction
 local SQL context permits only the receiver's late-key capture; no browser flag
-or global runtime control is added. Receipt locks precede triage-owner locks.
+or global runtime control is added. INSERT first takes the receiver's same
+per-payload advisory lock before looking for an owner, covering the absent
+other-team key during first capture. UPDATE/DELETE take no advisory lock:
+receipt locks precede triage-owner locks.
 
 This cannot revoke a provider request already authorized before native capture.
 If the old provider receipt wins first, native capture marks it historical and
@@ -67,14 +70,23 @@ does not claim those old browser continuations are provider independent.
 
 ## Proof and recovery boundary
 
-Final focused result: **22 actual-handler/disposable-SQL groups pass, with zero
+Final focused result: **24 actual-handler/disposable-SQL groups pass, with zero
 provider/drainer requests; 13 isolated Chromium inbox checks pass**. The exact
 original nine-key body, including leading/trailing whitespace, is exercised at
 the query-action endpoint and retained byte-for-byte. Two real SQL sessions
-exercise the receipt-first lock order and old provider UPDATE refusal. Existing
+exercise the receipt-first lock order and old provider UPDATE refusal. Two more
+real-session races observe advisory blocking before the first owner commits:
+native-first rejects the old other-team INSERT; provider-first preserves its
+receipt and refuses native acceptance. Existing
 F44 durability retains all 72 checks; receipt contract, native intake UI and
 16-group owned selector checks pass. Repository map 520 and truth 542 checks pass.
 No full suite or live probe was run.
+
+Final review found that the earlier 22-group result did not fence a different
+team's INSERT while the first owner was still uncommitted. The separate
+correction adds the INSERT-only advisory admission and both winning-order
+regressions; the 24-group result includes that fix. It does not place an
+advisory lock after an UPDATE's already-acquired receipt lock.
 
 Earlier retained attempts found a genuine SQL alias ambiguity (fixed), a test
 that confused malformed with disabled native flags (split into explicit controls),
@@ -86,7 +98,7 @@ this is not evidence that those dependencies are installed in production.
 Tested gateway bytes SHA-256:
 `c82489a8710a08d0df7a0fd79d904d31e8b3b803876b409241ca8219686a59ad`.
 Tested triage migration bytes SHA-256:
-`e32f09798eb3fc3e06aa79f11955952b9e82d2946fd901e13695c18a9abacc50`.
+`1faf9a28114124ac5631db4d7561c514e19615ad60806afdd902ba335d484831`.
 
 `test/f44-native-triage-sql.js` runs the complete actual gateway through the
 existing translating SDK seam into real disposable SQL. It requires explicit

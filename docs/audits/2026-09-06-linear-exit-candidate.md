@@ -1,5 +1,42 @@
 # Combined Linear-exit candidate
 
+## September 7 operational corrections combined
+
+Runtime parent `59bdb8037f7939d38a33f3b375047343de361590` preserves d144 and
+combines the reviewed live-click refusal retention from PR1328, saved native
+Submit ownership routing, and retained Workload cutoff admission. Integration
+resolved only the two documentation-router conflicts, keeping both entries.
+The later documentation commit does not change runtime bytes.
+
+Coordinator review and focused combined checks passed: retained refusals59,
+owned Submit selector16, existing F44 durability72 and complete Workload
+handler58. Map507 and truth542 pass; the identity exposure growth check remains
+at its existing baseline. Two initially mistyped documentation-test filenames
+did not execute tests; their correct scripts then passed. No repeated full
+local suite. The historical459-suite hosted result below remains tied to d144;
+new-head hosted checks are pending publication.
+
+Tooling `bddd4b8b8ef455f1c45b397201ec9058776a2cde` exercised this combined runtime:
+`editor-smm-handoff,comments`, **2 cells / 8 steps PASS**, twenty served documents
+matching HTML SHA256 `22d9c060f000c2c4fecf310e13d92cb5b1343b1de09ab89cbb49bea28a9d2d0f`.
+The real visible role sequence is Kasper request -> editor sends For SMM Approval
+-> separate SMM sends Kasper Approval. The editor's synthetic403 remains recorded
+with visible Save failed/Retry and unchanged modeled state. Source feedback is
+read-only, missing feedback stays incomplete, and canonical comments are not
+implicitly imported. Zero unexpected blocked requests, page errors or sockets.
+Private summary SHA256 `ce525740cb751684e964e29f4347277caa431246388bcbb6246b50116567e42a`.
+These are ISOLATED_BROWSER results with synthetic transport, not installed
+authorization, media editing, real persistence or a live release. Older failures,
+including the separate Comments-history Reopen expectation, remain historical
+evidence; no Reopen policy changed.
+
+The [legacy route contract](../ops/LEGACY_INTAKE_NATIVE_COMPATIBILITY.md) and
+[Workload adapter prerequisites](2026-09-07-workload-cutoff.md) are still release
+holds. Native recovery no longer falls into F44 when a helper is missing, but
+fresh old callers still need compatible serving adapters. Workload requires the
+existing cutoff table/grant and cannot prove that old or already admitted
+requests have stopped. No frozen anonymous writer, SQL, n8n or live state changed.
+
 This is implementation evidence for the one G0-G10 execution sequence in [draft PR1268](https://github.com/sidney-afk/client-analytics/pull/1268). It does not replace that sequence or authorize a release. Decision A remains **NOT READY**; product watchers are inactive and neither observation clock has started.
 
 ## What is combined

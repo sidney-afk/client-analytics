@@ -13319,11 +13319,25 @@ an alias must never steal a canonical match, in either row order.
 1. **The data is still divergent — SQL written, owner-applied.**
    `migrations/2026-09-07-deliverable-identifier-team-move-repair.sql` sets
    `identifier` from `linear_identifier` for exactly the rows where both are
-   present and disagree: bounded, idempotent, one column, and fail-closed on
-   the `text unique` constraint, with a look-first step whose output is the
-   only reversal material (the ledger guard records op and reason only). It
-   moves `updated_at` on those 7 rows and writes 7 `rpc_bypass_guard` ledger
-   events, both expected. Shape pinned by
+   present and disagree: one locked cohort, bounded, idempotent, one column on
+   `deliverables`, and fail-closed on the `text unique` constraint.
+
+   **Reversal is event-backed, and does not depend on anyone keeping the
+   look-first output.** That output is a record BEFORE the fact; the repair
+   also writes its own, in the same statement, so `ROLLBACK.md` restores from
+   `deliverable_events` (`payload->>'op' = 'identifier_team_move_repair'`,
+   carrying `retired_identifier` and `current_identifier`) and touches only
+   rows still holding the value this repair wrote. *(Corrected after review
+   round four on #1333: this paragraph still called Step 1's output the only
+   reversal material, which was true of the first draft and contradicts the
+   recovery contract the same entry now points at. A lost Step 1 result does
+   not make rollback impossible.)*
+
+   Each repaired row therefore gains TWO ledger rows, both expected: the
+   explicit `identifier_team_move_repair` event this statement writes, and the
+   bare `rpc_bypass_guard` `update` event `track_b_deliverable_ledger_guard`
+   writes for any direct statement — 14 in total for today's seven, not 7.
+   `updated_at` moves on those rows; `status_at` does not. Shape pinned by
    `test/identifier-team-move-repair.js`, because nothing else in the
    repository reads that file. **Not applied at the time of writing.**
 

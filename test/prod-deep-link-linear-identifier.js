@@ -193,151 +193,48 @@ const popover = INDEX.slice(INDEX.indexOf('function wlOpenRollupPopover('),
    length; leave property bases and calls alone; and if a standalone name cannot
    be resolved -- no local definition, a self-referential one, or hops
    exhausted -- the trace FAILS rather than passing on what it could not see. */
-/* CODE ONLY, NEVER STRING CONTENTS. `rollupEl.getAttribute('data-wl-parent-id')`
-   put `data` in front of the scanner as if it were a variable, and an
-   unresolvable name is a failure now, so the tracer reported the page's own
-   attribute names as unresolved. Names are read, and substitutions made, only
-   in the segments between string literals. */
-function splitStrings(text) {
-  const parts = [];
-  let buf = '', quote = '', escaped = false;
-  for (const ch of text) {
-    if (quote) {
-      buf += ch;
-      if (escaped) escaped = false;
-      else if (ch === '\\') escaped = true;
-      else if (ch === quote) { parts.push({ text: buf, str: true }); buf = ''; quote = ''; }
-      continue;
-    }
-    if (ch === '"' || ch === "'" || ch === '`') {
-      if (buf) parts.push({ text: buf, str: false });
-      buf = ch; quote = ch; continue;
-    }
-    buf += ch;
-  }
-  if (buf) parts.push({ text: buf, str: !!quote });
-  return parts;
-}
-const codeOf = text => splitStrings(text).filter(p => !p.str).map(p => p.text).join(' ');
+/* ---- 5. The caller this exists for ------------------------------------- */
 
-function expandLocals(block, expr, hops) {
-  const KEYWORDS = new Set(['true', 'false', 'null', 'undefined', 'typeof', 'new', 'void']);
-  // A name is STANDALONE when it is not a property (`.x`), not the base of a
-  // property or index read (`x.`, `x?.`, `x[`), and not a call (`x(`).
-  const standalone = text => {
-    const out = new Set();
-    const re = /(^|[^.\w$])([A-Za-z_$][A-Za-z0-9_$]*)\s*(\??\.|\[|\()?/g;
-    let m;
-    while ((m = re.exec(codeOf(text)))) if (!m[3] && !KEYWORDS.has(m[2])) out.add(m[2]);
-    return out;
-  };
-  const substitute = (text, name, value) => splitStrings(text)
-    .map(p => (p.str ? p.text
-      : p.text.replace(new RegExp('(^|[^.\\w$])' + name + '\\b(?!\\s*[.[(])', 'g'), '$1(' + value + ')')))
-    .join('');
-  let out = expr;
-  for (let i = 0; i <= hops; i++) {
-    const names = standalone(out);
-    if (!names.size) return { expr: out, unresolved: '' };
-    let grew = false;
-    for (const name of names) {
-      const def = block.match(new RegExp('const\\s+' + name + '\\s*=\\s*([^;]+);'));
-      // No definition, or one that mentions itself (which would loop): the
-      // trace cannot see what this is, so it must not vouch for it.
-      if (!def || new RegExp('\\b' + name + '\\b').test(codeOf(def[1]))) {
-        return { expr: out, unresolved: name };
-      }
-      out = substitute(out, name, def[1]);
-      grew = true;
-    }
-    if (!grew) return { expr: out, unresolved: [...names][0] };
-  }
-  return { expr: out, unresolved: '(hops exhausted)' };
-}
+/* WHAT THIS SECTION IS NOW, AND WHY IT SHRANK.
+ *
+ * It spent four review rounds as a hand-rolled tracer that expanded the
+ * popover's link expression through its local consts and judged the result.
+ * Codex found a hole in it four times -- an early return, a length ceiling, a
+ * string literal read as code, and finally template interpolations and locals
+ * reached through an index or a call. Every fix was correct and the next one
+ * arrived anyway, which is the actual finding: a regex approximation of a
+ * JavaScript parser cannot be made sound, there is no parser in this
+ * repository's dependencies to swap in, and each round was buying a weaker
+ * form of a guarantee that ALREADY EXISTS one file away.
+ *
+ * `test/workload-syncview-links.js` EXECUTES the popover's own resolution
+ * against synthetic rows and asserts the produced URL exactly
+ * (`parentSyncUrl === '/?prod=1&d=VID-9001'`, and the negative that it is not
+ * the parent's number). Execution settles what the value is; nothing a static
+ * scan of the same source can say improves on it, and two suites asserting the
+ * same property with different rigor is how the weaker one ends up believed.
+ *
+ * So this section keeps only what this suite genuinely needs: proof that the
+ * shared helper builds an identifier link (executed here, since it is a pure
+ * function), and a check that the executed popover coverage still exists to
+ * point at. If that coverage is ever deleted, this fails and says where it
+ * went. */
 
-/* The detector, proved on synthetic blocks before it is trusted on the real
-   one. A tracer that silently answers "yes" to everything would make every
-   assertion below vacuous, and a tracer that answers "no" to a rename is the
-   bug this replaces. */
-/* An identifier read is a property whose NAME ends in "identifier" --
-   `.identifier`, `.parentIdentifier`, `.linear_identifier`. Matching only
-   `.identifier` misses the parent one that #1331 introduced and would call a
-   correct link a failure. */
-const IDENT_READ = /\.[A-Za-z0-9_$]*[Ii]dentifier\b/;
-const traces = (block, expr) => {
-  const { expr: t, unresolved } = expandLocals(block, expr, 8);
-  if (unresolved) return false;
-  const code = codeOf(t);
-  return IDENT_READ.test(code) && !/\.id\b/.test(code.replace(new RegExp(IDENT_READ.source, 'g'), ''));
-};
-/* Self-contained on purpose: with "unresolved fails" the block must define
-   every standalone name the expression reaches, exactly as the real function
-   does. */
-const SHAPE = `
-  const clientName = 'a client';
-  const parentIdent = clientName ? (parentRow?.identifier || String(subs[0]?.parentIdentifier || '')) : '';
-  const soleSubIdent = String(soleSub?.identifier || '');
-  const openIdent = soleSubIdent || parentIdent;
-`;
-ok(traces(SHAPE, 'openIdent'),
-  'the tracer follows a two-hop identifier through its own consts');
-ok(traces(SHAPE.replace(/openIdent/g, 'targetIdentifier'), 'targetIdentifier')
-  && traces(SHAPE.replace(/openIdent/g, 'x').replace(/soleSubIdent/g, 'y').replace(/parentIdent\b/g, 'z'), 'x'),
-  'and survives a rename of every name involved, which is the false failure this replaced');
-ok(!traces(`const openIdent = parentRow?.id || '';`, 'openIdent'),
-  'while a canonical row id in place of the identifier FAILS');
-ok(!traces(`
-  const soleSubIdent = String(soleSub?.id || '');
-  const parentIdent = parentRow?.identifier || '';
-  const openIdent = soleSubIdent || parentIdent;
-`, 'openIdent'),
-  'and so does a link where only ONE branch drops to a row id');
-/* The order matters, and the first tracer got it wrong: with the good branch
-   FIRST, an early return accepts the expression before the bad branch is ever
-   expanded. Both orders are pinned so that hole cannot come back. */
-ok(!traces(`
-  const fallback = parentRow?.id || '';
-  const openIdent = soleSub?.identifier || fallback;
-`, 'openIdent'),
-  'including when the identifier branch comes FIRST and the row id hides behind it (the hole the early return left)');
-ok(!traces(`
-  const openIdent = clientName ? soleSub?.identifier : parentRow?.id;
-`, 'openIdent'),
-  'and when the two branches are the arms of a ternary rather than an ||');
-/* The case the old length ceiling existed to protect, now carried by POSITION:
-   `subs` is a long filter whose body mentions `s.id`, and it is never expanded
-   because the value comes from the property read, not from the object. */
-const LONG = "source.filter(s => (s.assigneeId || '') === assigneeId && (!issueId || String(s.id || '') === issueId))";
-ok(traces('const subs = ' + LONG + ';', 'subs[0]?.parentIdentifier'),
-  'a link reading a property off a long data-pipeline local is accepted, because the value comes from the property and not from the object');
-/* And the hole that ceiling opened: a row id parked behind a LONG definition
-   was skipped and treated as safe. Length is no longer consulted. */
-ok(!traces('const fallback = ' + LONG + " || parentRow?.id;\nconst openIdent = soleSub?.identifier || fallback;", 'openIdent'),
-  'while a row id hidden behind a definition longer than any ceiling FAILS — length is not a reason to stop looking');
-/* Unresolved is never "fine": a standalone name the block does not define
-   cannot be vouched for. */
-ok(!traces("const openIdent = soleSub?.identifier || mysteryValue;", 'openIdent'),
-  'and a standalone name with no definition in the block fails rather than passing on what the trace could not see');
+const helperSrc = grabFunc('function wlSyncLinearUrl(');
+const helperCtx = {};
+vm.createContext(helperCtx);
+vm.runInContext("const location = { pathname: '/' };\n" + helperSrc + '\nthis.build = wlSyncLinearUrl;', helperCtx);
+ok(helperCtx.build('GRA-7197') === '/?prod=1&d=GRA-7197',
+  'the shared link helper turns a Linear identifier into the deep link this resolver answers');
+ok(helperCtx.build('') === '' && helperCtx.build(null) === '',
+  'and builds nothing from nothing, rather than a link to the list');
 
-const builders = [...popover.matchAll(/'\?prod=1&d=' \+ encodeURIComponent\(([^)]+(?:\)[^)]*)*?)\)/g)]
-  .map(m => m[1].trim());
-ok(builders.length >= 2,
-  'the Workload popover still builds ?prod=1&d= links — the header and every row — which is why the row must answer to a Linear identifier');
-builders.forEach(expr => {
-  const { expr: traced, unresolved } = expandLocals(popover, expr, 8);
-  ok(!unresolved,
-    'every part of `' + expr + '` is resolved before it is judged'
-      + (unresolved ? ' (could not resolve `' + unresolved + '`)' : ''));
-  const tracedCode = codeOf(traced);
-  ok(IDENT_READ.test(tracedCode),
-    'the link built from `' + expr + '` resolves to a Linear identifier, traced through its own definitions rather than read off its name');
-  ok(!/\.id\b/.test(tracedCode.replace(new RegExp(IDENT_READ.source, 'g'), '')),
-    'and to nothing else: `' + expr + '` never carries a canonical row id, which the Production tab resolves by a different path');
-});
-const helper = grabFunc('function wlSyncLinearUrl(');
-ok(/'\?prod=1&d=' \+ encodeURIComponent\(ident\)/.test(helper)
-  && /String\(identifier \|\| ''\)/.test(helper),
-  'and the shared helper the loose strips use takes an identifier and builds the same link');
+const CALLER_SUITE = 'workload-syncview-links.js';
+const callerSuite = fs.readFileSync(path.resolve(__dirname, CALLER_SUITE), 'utf8');
+ok(/parentSyncUrl === '\/\?prod=1&d=/.test(callerSuite),
+  CALLER_SUITE + ' still EXECUTES the popover resolution and asserts the produced ?prod=1&d= URL — the property this resolver depends on, proved by running it rather than by reading it');
+ok(/identifier: 'VID-900/.test(callerSuite),
+  'and does it with rows whose identifier is the thing under test, so the URL it asserts can only come from an identifier');
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nProduction deep-link Linear-identifier checks passed.');

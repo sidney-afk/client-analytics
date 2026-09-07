@@ -1,3 +1,11 @@
+## G4 certified asset inventory tooling boundary - 2026-09-07 01:49 UTC
+
+SOURCE_ONLY candidate d144: docs/ops/F34_LINEAR_ASSET_RESCUE.md:88-132 requires an independent raw Linear export, occurrence identities, source artifact hash, owner-held HMAC and an externally pinned inventory-file hash. The existing rescue planner cannot certify its own discovery. Search of scripts/test and the owning runbook found the required generator name only in the contract validator, runbook and synthetic test fixture; no matching production generator was located in those searched paths. This is a bounded search result, not proof that no private/external exporter exists.
+
+Engineering prerequisite: locate an existing independent exporter or implement a reviewed read-only exporter/adapter with terminal pagination, scope evidence, immutable raw artifact hashing, explicit source-to-occurrence ownership/location mapping and negative controls. Keep signing separate from completeness: an HMAC authenticates the supplied inventory but cannot make an incomplete export exhaustive. Do not sign the 5,934-row SyncView discovery as an independent export. Owner key custody and exact final export pin remain later gates; no credential generation requested or performed.
+
+All existing agents are completed; no assignment or duplicate runtime work started. Runtime candidate remains unchanged. This scopes the next finite G4 implementation, not a new parallel strategy.
+
 ## G4 existing asset planner executed read-only - 2026-09-07 01:37 UTC
 
 LIVE_READ using candidate d144's existing F34 discovery planner: 80 GET-only requests to the three allowlisted Supabase tables produced 5,934 reference occurrences. Wrapper refused every other origin, method, path and redirect; no apply arguments or rescue credentials supplied. Private result retained outside Git. Existing planner reports scan_complete=false and final_linear_export_inventory_required. This is an occurrence plan, not 5,934 unique files, a certified complete provider export, downloaded assets or successful rescue.

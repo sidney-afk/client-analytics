@@ -5,7 +5,7 @@ from SyncView. This file says who owns what. It exists because `index.html` is o
 79,418-line file and every lane edits it, and because merging to `main` deploys the
 live site instantly.
 
-Authority: `AGENTS.md` outranks this file. `docs/ops/OPEN_REPAIRS.md` items **163-168**
+Authority: `AGENTS.md` outranks this file. `docs/ops/OPEN_REPAIRS.md` items **163-168 and 175**
 carry the evidence behind every rule here; read 166 (the collision map) and 167 (the
 fingerprint pin) before your first commit.
 
@@ -110,7 +110,7 @@ than blank, and it is why lane A must be observed before lane F stops the reconc
 that gate. It is hard-coded 43 times in the only deploy path for `deliverable-write` and
 `batch-write`, and it is baked into the owner's local capture script.
 
-**The outbound flip is gated on lane B's native naming mint** (item 162's correction):
+**The outbound flip is gated on lane B's native naming mint** (item 175's correction):
 `linear-outbound` is what mints `linear_identifier` for native cards, so flipping it off
 before the mint lands means every new card loses its readable name.
 

@@ -13602,7 +13602,7 @@ an alias must never steal a canonical match, in either row order.
    the identifier resolution above is what makes those links RESOLVE, and
    #1331/#1338 are what make them point at the right row.
 
-## 162. [2026-09-07, FOUND — the exit's own anchor stops being maintained on the day of the exit] Every human-readable task name in the estate is minted by Linear, and nothing else mints one
+## 175. [2026-09-07, FOUND — the exit's own anchor stops being maintained on the day of the exit] Every human-readable task name in the estate is minted by Linear, and nothing else mints one
 
 **Mechanism, read out of the source rather than inferred.**
 `deliverables.linear_identifier` (the `VID-13553` / `GRA-7197` name a human reads)
@@ -13663,6 +13663,13 @@ own control. The native naming mint must therefore land **before the outbound
 flip**, not before the cancellation date. Treat the outbound flip as gated on it.
 
 Found by the exit scoping's adversarial pass; see item 165.
+
+**Renumbered 162 -> 175 the same evening.** A concurrent non-exit session merged its
+own `## 162.` to main first (the samples half-card item). This entry moved rather
+than that one, and the exit's other numbers (163-168) and the lane reservations
+(169-174) are untouched, so nothing else had to shift. Recorded because CLAUDE.md
+warns that concurrent branches routinely claim the same number, and this is the
+first time in this program that it actually happened.
 
 
 ## 163. [2026-09-07, FOUND — three PRs merged to main this week, all of them anchored on a column Linear maintains] Main is still ADDING Linear coupling eight days before Linear access ends

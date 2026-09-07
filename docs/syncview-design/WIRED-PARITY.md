@@ -1074,7 +1074,7 @@ that exists, is not archived, and had already been fetched. OPEN_REPAIRS 161.
     repair, and every future move while Linear is connected, because
     `linear-inbound` still does not re-stamp `identifier`. Keeping retired
     numbers resolvable for ever is an owner decision recorded in OPEN_REPAIRS
-    160, recommended against, and would take a new browser-readable column plus
+    161, recommended against, and would take a new browser-readable column plus
     a view migration.
 -   **Deep-link state is unchanged.** `_prodState.openId` still holds the
     string the URL asked for, so `_prodApplyDeepLinkFallback` compares it

@@ -167,16 +167,30 @@ ok(!/row\.identifier \|\| row\.linear_identifier/.test(notice),
 const popover = INDEX.slice(INDEX.indexOf('const parentUrl   = clientName'),
   INDEX.indexOf('No upcoming sub-issues.'));
 
+/* EXPAND EVERYTHING, THEN JUDGE. The first version returned as soon as it saw
+   a `.identifier` anywhere, which accepts `soleSub.identifier || fallback` with
+   `const fallback = parentRow.id` -- one branch reading a row id, the exact
+   regression this is here to catch, hidden behind a sibling branch that reads
+   the right thing (Codex on #1333). There is no early return now: every local
+   is expanded to a fixed point and the whole expression is judged at the end.
+
+   The 200-character ceiling is what keeps that sound rather than merely
+   thorough. An identifier chain is short (`openIdent`, `soleSubIdent`,
+   `parentIdent`); `subs` is a multi-line filter whose body legitimately
+   mentions `s.id`, and expanding it would drag that into the text and fail a
+   link that is perfectly correct. So a long definition is left unexpanded, and
+   the leaf it contributes (`subs[0]?.parentIdentifier`) is judged as written. */
+const MAX_DEF = 200;
 function expandLocals(block, expr, hops) {
   let out = expr;
   for (let i = 0; i < hops; i++) {
-    if (/\.identifier\b/.test(out)) return out;
     let grew = false;
     for (const name of new Set(out.match(/[A-Za-z_$][A-Za-z0-9_$]*/g) || [])) {
-      // Only a local const, and never the name currently being defined, so a
-      // self-referential expansion cannot loop.
+      // Only a local const, never a self-referential one (which would loop),
+      // and never a long one (see the ceiling above).
       const def = block.match(new RegExp('const\\s+' + name + '\\s*=\\s*([^;]+);'));
-      if (!def || new RegExp('\\b' + name + '\\b').test(def[1])) continue;
+      if (!def || def[1].length > MAX_DEF) continue;
+      if (new RegExp('\\b' + name + '\\b').test(def[1])) continue;
       out = out.replace(new RegExp('\\b' + name + '\\b', 'g'), '(' + def[1] + ')');
       grew = true;
     }
@@ -189,9 +203,14 @@ function expandLocals(block, expr, hops) {
    one. A tracer that silently answers "yes" to everything would make every
    assertion below vacuous, and a tracer that answers "no" to a rename is the
    bug this replaces. */
+/* An identifier read is a property whose NAME ends in "identifier" --
+   `.identifier`, `.parentIdentifier`, `.linear_identifier`. Matching only
+   `.identifier` misses the parent one that #1331 introduced and would call a
+   correct link a failure. */
+const IDENT_READ = /\.[A-Za-z0-9_$]*[Ii]dentifier\b/;
 const traces = (block, expr) => {
   const t = expandLocals(block, expr, 6);
-  return /\.identifier\b/.test(t) && !/\.id\b/.test(t.replace(/\.identifier\b/g, ''));
+  return IDENT_READ.test(t) && !/\.id\b/.test(t.replace(new RegExp(IDENT_READ.source, 'g'), ''));
 };
 const SHAPE = `
   const parentIdent = clientName ? (parentRow?.identifier || String(subs[0]?.parentIdentifier || '')) : '';
@@ -211,6 +230,25 @@ ok(!traces(`
   const openIdent = soleSubIdent || parentIdent;
 `, 'openIdent'),
   'and so does a link where only ONE branch drops to a row id');
+/* The order matters, and the first tracer got it wrong: with the good branch
+   FIRST, an early return accepts the expression before the bad branch is ever
+   expanded. Both orders are pinned so that hole cannot come back. */
+ok(!traces(`
+  const fallback = parentRow?.id || '';
+  const openIdent = soleSub?.identifier || fallback;
+`, 'openIdent'),
+  'including when the identifier branch comes FIRST and the row id hides behind it (the hole the early return left)');
+ok(!traces(`
+  const openIdent = clientName ? soleSub?.identifier : parentRow?.id;
+`, 'openIdent'),
+  'and when the two branches are the arms of a ternary rather than an ||');
+/* And the ceiling that keeps expansion sound is itself pinned: a long
+   definition must NOT be expanded, or a legitimate link that reads
+   `subs[0]?.parentIdentifier` fails because the `subs` filter body mentions
+   `s.id`. */
+const LONG = 'source.filter(s => (s.assigneeId || \'\') === assigneeId && (clientName === \'\' || (s.clientName || \'\') === clientName) && (!issueId || String(s.id || \'\') === issueId) && (!deadlineIds.size || deadlineIds.has(String(s.id || \'\'))))';
+ok(LONG.length > MAX_DEF && traces('const subs = ' + LONG + ';', 'subs[0]?.parentIdentifier'),
+  'while a link reading through a long data-pipeline local is still accepted, because that definition is left unexpanded');
 
 const builders = [...popover.matchAll(/'\?prod=1&d=' \+ encodeURIComponent\(([^)]+(?:\)[^)]*)*?)\)/g)]
   .map(m => m[1].trim());
@@ -218,9 +256,9 @@ ok(builders.length >= 2,
   'the Workload popover still builds ?prod=1&d= links — the header and every row — which is why the row must answer to a Linear identifier');
 builders.forEach(expr => {
   const traced = expandLocals(popover, expr, 6);
-  ok(/\.identifier\b/.test(traced),
+  ok(IDENT_READ.test(traced),
     'the link built from `' + expr + '` resolves to a Linear identifier, traced through its own definitions rather than read off its name');
-  ok(!/\.id\b/.test(traced.replace(/\.identifier\b/g, '')),
+  ok(!/\.id\b/.test(traced.replace(new RegExp(IDENT_READ.source, 'g'), '')),
     'and to nothing else: `' + expr + '` never carries a canonical row id, which the Production tab resolves by a different path');
 });
 const helper = grabFunc('function wlSyncLinearUrl(');

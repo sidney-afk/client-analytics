@@ -294,13 +294,18 @@ check(wlState.overdue.map(row => row.id).includes('ordinary-overdue')
     && ![...wlState.calendarByDate.values()].flat().map(row => row.id).includes('ordinary-overdue'),
   'past-due work leaves the work-day calendar and appears in Overdue');
 
+// Owner ruling 2026-09-07: Overdue is a To Do lane. A past-due row somebody
+// has already started is described by In Progress, not by the date, so it is
+// counted there ONCE and nowhere else. The ruling moved that count and nothing
+// else: the row still leaves the work-day calendar, so it never lands on a day
+// nobody planned it for and never spends that editor's capacity.
 const pastDueInProgress = issue('In Progress', 'in-progress-overdue', '2026-07-14');
 wlApplyData([pastDueInProgress], '2026-07-15T12:00:00Z');
-check(wlState.overdue.map(row => row.id).includes('in-progress-overdue')
+check(!wlState.overdue.map(row => row.id).includes('in-progress-overdue')
     && wlState.nowWorking.map(row => row.id).includes('in-progress-overdue')
     && !wlState.planned.map(row => row.id).includes('in-progress-overdue')
     && ![...wlState.calendarByDate.values()].flat().map(row => row.id).includes('in-progress-overdue'),
-  'past-due In Progress work appears in both exception strips but not on the calendar');
+  'past-due In Progress work is in-progress only — never overdue, never on the calendar, never against capacity');
 
 const manuallyPlannedPastDue = issue('To Do', 'manual-overdue', '2026-07-14');
 wlState.planByIssueId.set(manuallyPlannedPastDue.id, '2026-07-18');

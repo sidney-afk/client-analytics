@@ -9,21 +9,40 @@
  * own views call all 132 "overdue", which is how a person who finished their
  * editing weeks ago opens their board and reads a three-digit debt.
  *
- * The owner ruled (2026-08-27): work that is still to do — or in progress —
- * past its date COUNTS as the editor's overdue. Work waiting on an approval
- * does NOT. Tweak Needed goes to the NEEDED lane, not the overdue lane.
+ * The owner ruled (2026-08-27): work still to do — or in progress — past its
+ * date COUNTS as the editor's overdue. Work waiting on an approval does NOT.
+ * Tweak Needed goes to the NEEDED lane, not the overdue lane.
  *
- * The Workload view already encodes exactly that rule, in two stages this
- * suite executes for real:
+ * NARROWED 2026-09-07, same owner, same lane. Overdue is now a TO DO lane
+ * only. The reasoning: every live status other than To Do already says
+ * something truer about where a row is — In Progress says somebody has it
+ * open right now, Tweak Needed says it went back for a named change — and
+ * that status OVERRIDES the date rather than doubling into a second lane. A
+ * past-due In Progress row was previously counted in both strips at once; it
+ * is now counted only in In progress. So of the 19, only the Todo share is
+ * Overdue; the In Progress share moved one strip down, and the 113 parked and
+ * tweak rows are unchanged.
+ *
+ * The narrowing moved a COUNT, not a PLACEMENT (owner decision, same day).
+ * Past-due work still leaves the work-day calendar whenever a strip above is
+ * already carrying it, so today's cell keeps the capacity totals it had; the
+ * only rows that now fall through to `planned` are past-due rows in a live
+ * status no strip claims, which would otherwise drop off the page entirely.
+ *
+ * The Workload view encodes that rule in three stages this suite executes:
  *
  *   1. `wlIsActiveStatus` parks the approval states by NAME (a fixed
  *      vocabulary, WL_PARKED_STATUSES) before any bucketing, so an
  *      approval-wait row never reaches a strip at all;
  *   2. the partition loop routes tweak-family rows to `tweaksNeeded` BEFORE
- *      the past-due check runs, so a late tweak is "needed", never "overdue".
+ *      the past-due check runs, so a late tweak is "needed", never "overdue";
+ *   3. the past-due check itself is gated on `wlIsToDo`, so every remaining
+ *      live status keeps its own strip and stays off the overdue lane;
+ *   4. the calendar short-circuit is gated on a strip actually carrying the
+ *      row, so a past-due row nothing claims stays visible on the calendar.
  *
- * So the number this page shows the editor is the ~19, not the 132. The 132
- * lives in Linear's native UI, which we do not render and cannot re-teach;
+ * What the page shows the editor is a subset of the ~19, never the 132. The
+ * 132 lives in Linear's native UI, which we do not render and cannot re-teach;
  * changing what LINEAR calls overdue would mean changing the data (clearing
  * due dates at approval time), which is a workflow decision, not a view fix.
  *
@@ -77,12 +96,13 @@ ok(partFrom > -1 && partTo > partFrom, 'the partition loop is findable (harness 
 const partitionSrc = html.slice(partFrom, partTo + 'wlState.unassigned   = unassigned;'.length);
 const runPartition = (subs, overrides) => new Function(
   'subs', 'wlState', 'wlWorkloadTodayISO', 'wlIsInProgress', 'wlIsTweaksNeeded',
-  'wlPlanDate', 'wlDisplayDate', 'wlIsAllowedEditor',
+  'wlIsToDo', 'wlPlanDate', 'wlDisplayDate', 'wlIsAllowedEditor',
   partitionSrc + '\nreturn { nowWorking, tweaksNeeded, planned, overdue, undated, unassigned };')(
   subs, {},
   () => '2026-08-27',
   (overrides && overrides.wlIsInProgress) || predicates.wlIsInProgress,
   (overrides && overrides.wlIsTweaksNeeded) || predicates.wlIsTweaksNeeded,
+  (overrides && overrides.wlIsToDo) || predicates.wlIsToDo,
   () => null,
   s => s.dueDate || null,
   () => true);
@@ -111,24 +131,37 @@ const active = plate.filter(s => s.isSubIssue && predicates.wlIsActiveStatus(s))
 const buckets = runPartition(active);
 const ids = list => list.map(s => s.id).sort().join(',');
 
-ok(ids(buckets.overdue) === 'inprog-late,todo-late',
-  'overdue is EXACTLY the late Todo and the late In Progress — the ~19 of the 132, nobody else');
+ok(ids(buckets.overdue) === 'todo-late',
+  'overdue is EXACTLY the late Todo — the 2026-09-07 narrowing, nobody else');
+ok(!buckets.overdue.some(s => s.id === 'inprog-late'),
+  'and the late In Progress row is NOT overdue — its own status overrides the date');
 ok(ids(buckets.tweaksNeeded) === 'tweak-clean,tweak-mirrored',
   'both tweak spellings land in NEEDED, the lane the owner named for them');
 ok(!buckets.overdue.some(s => predicates.wlIsTweaksNeeded(s)),
   'and no tweak row is also called overdue, however late it is');
 ok(active.every(s => !APPROVAL_STATES.includes(s.status)),
   'no approval-wait row even reaches the partition — parked upstream, exactly where the app parks it');
-ok(buckets.nowWorking.some(s => s.id === 'inprog-late'),
-  'a late In Progress row still shows in the in-progress strip alongside overdue');
+ok(buckets.nowWorking.some(s => s.id === 'inprog-late')
+  && buckets.nowWorking.filter(s => s.id === 'inprog-late').length === 1,
+  'a late In Progress row shows in the in-progress strip, once, and only there');
+ok(!buckets.planned.some(s => s.id === 'inprog-late'),
+  'and it leaves the work-day calendar exactly as it did before — the narrowing moved a count, not a placement');
 ok(buckets.planned.some(s => s.id === 'todo-future') && !buckets.overdue.some(s => s.id === 'todo-future'),
   'future-dated work is planned, not overdue');
 
-/* Inversion — proof this suite would catch the regression it exists to stop.
-   If the tweak branch stopped short-circuiting, a late tweak becomes overdue. */
+/* Inversion — proof this suite would catch the regressions it exists to stop.
+   If the tweak branch stopped short-circuiting, a late tweak becomes overdue;
+   if the To Do gate stopped gating, the late In Progress row comes back. */
 const inverted = runPartition(active, { wlIsTweaksNeeded: () => false });
-ok(inverted.overdue.some(s => s.id === 'tweak-mirrored'),
-  'remove the tweak short-circuit and a late tweak IS called overdue — the assertions above are doing work');
+ok(!inverted.tweaksNeeded.some(s => s.id === 'tweak-mirrored')
+  && inverted.planned.some(s => s.id === 'tweak-mirrored'),
+  'remove the tweak short-circuit and a late tweak leaves the NEEDED lane for the calendar — the assertions above are doing work');
+const bothOff = runPartition(active, { wlIsTweaksNeeded: () => false, wlIsToDo: () => true });
+ok(bothOff.overdue.some(s => s.id === 'tweak-mirrored'),
+  'and with the To Do gate off too it is called overdue outright — the lane is reachable, the two guards are what keep it out');
+const ungated = runPartition(active, { wlIsToDo: () => true });
+ok(ungated.overdue.some(s => s.id === 'inprog-late'),
+  'remove the To Do gate and the late In Progress row IS called overdue again — the gate is doing work');
 
 // ---- the composition is the app's own -------------------------------------
 const filterAt = html.indexOf('const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIsAllowedClient(i.clientName));');

@@ -13191,3 +13191,55 @@ and the card refuses `[ ]` in text and `< >` in an address with a visible
 note. The lane also gained per-section phase markers after the first CI
 red reported under an assignee phase.
 
+
+## 159. [2026-09-07, RULED AND SHIPPED — narrows item 51] Overdue is a To Do lane; every other live status overrides the date
+
+The owner, reading the Workload calendar's Overdue column: *"if it's approved
+it shouldn't be there, if it's for Kasper it shouldn't be there ... but if it's
+To Do and the due date is in the past then it should be overdue."*
+
+Two halves, and only one of them was a change.
+
+**Already true, nothing to do.** Approved, Posted, `For SMM approval`, `For
+Kasper approval`, `For Client Approval` and `Tweak Applied` are parked by name
+in `WL_PARKED_STATUSES` before any bucketing — they reach no strip on this page
+at all, Overdue included — and `Tweak Needed` is short-circuited into the NEEDED
+lane before the past-due check runs. That was item 51's closure and it still
+holds.
+
+**The change.** Item 51 (2026-08-27) ruled that to-do **or in-progress** work
+past its date counts as the editor's overdue. The 2026-09-07 ruling narrows
+that: the lane is `To Do` only. A past-due `In Progress` row was being counted
+in Overdue **and** in In progress simultaneously — one row, two red-and-yellow
+totals — and In Progress is the truer statement about where that row is. So the
+past-due test is now gated on `wlIsToDo`, the double-push into `nowWorking` is
+gone, and any live status that is not To Do keeps its own strip instead.
+
+**A COUNT moved, not a PLACEMENT.** The first cut of this let a past-due In
+Progress row fall through to `planned`, where `wlAutoPlanDate` floors its
+automatic day at today — so it landed on today's column and spent that editor's
+capacity there. The owner caught it on review the same day: the work-day
+calendar's per-editor pills already surface overdue / in progress / tweaks and
+deliberately do **not** feed the capacity total, and a row nobody planned for
+today has no business inflating the over-capacity badge on the fullest cell on
+the board. Reverted. Past-due work leaves the calendar exactly as it did
+before; the row stays visible where it always was, in the In progress strip and
+that editor's yellow pill on today's cell.
+
+The revert is gated on a strip actually carrying the row
+(`isPastDue && (isOverdue || inProg)`), not on `isPastDue` alone. A past-due row
+in some *other* live status — a column `WL_PARKED_STATUSES` has never heard of,
+or one added to Linear later — is claimed by no strip, so it keeps falling
+through to the calendar rather than dropping off the page entirely, which is
+what a blanket `isPastDue` short-circuit would now do.
+
+Pinned by: `test/workload-overdue-ruling.js` (rewritten — the late Todo is the
+whole of Overdue, the late In Progress is in-progress-only and still off the
+calendar, with an inversion proof for both the To Do gate and the tweak
+short-circuit) and `test/workload-tweak-exclusive-bucket.js` (the past-due
+In Progress fixture asserts never-overdue, never-on-the-calendar,
+never-against-capacity).
+
+Untouched on purpose: the Production tab's `_prodOverdue`, which mirrors what
+Linear itself calls overdue on a row and is a different surface with a
+different job.

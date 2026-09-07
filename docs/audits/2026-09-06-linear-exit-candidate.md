@@ -52,6 +52,18 @@ official Deno2.5.2 ratchet plus35 focused comment-media controls. The comment
 closure above includes that correction; its earlier hash is historical. Unit
 and exact corrected-head hosted outcomes remain separate pending proof.
 
+The34ded unit run completed with3 of476 suites failing, before its later SQL
+steps: the retained-refusal VM omitted new naming helpers, a tombstone assertion
+still expected direct linkification, and the preview POST allowlist omitted the
+protected media refresh. The current fixture correction loads the actual naming
+helpers, retains all59 prior refusal controls and adds two original-name retry
+cases (61 PASS). The two source suites now pass, preserving the exact12-POST
+allowlist with refresh authentication/identity/current-version guards and
+executing the actual deleted-comment renderer to prove no media invocation.
+No product runtime changed in these three test repairs. The intermediate535f
+hosted type gate passed; its duplicate unit workflow was deliberately cancelled
+once the earlier failures were known. Cancellation is not a successful unit run.
+
 All required captured brief and current linked staff-comment files have private
 validated bytes and staged occurrence packages. The owner's one historical
 large-video website deferral remains exact and private. No upload, source-body

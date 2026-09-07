@@ -13,6 +13,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { extractFunction } = require('./helpers/extract-function');
 
 const root = path.resolve(__dirname, '..');
 const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
@@ -195,8 +196,24 @@ check('deliverable projection paginates by primary-key keyset, not offset, and n
 check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
 check('preview callers pass page sizes explicitly', /_prodRestRows\(\s*'production_deliverables_browser_v1'[\s\S]{0,1200}1000,\s*50/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 const explicitMutationMethods = [...prodBlock.matchAll(/['"`](POST|PUT|PATCH|DELETE)['"`]/g)].map(match => match[1]);
-check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 11
+const mediaRefresh = extractFunction(prodBlock, 'refreshMedia');
+// The twelfth POST refreshes one comment's protected download projection.
+// Pin its exact read body and stale-identity/body guards before allowing it in
+// the total count; an extra request elsewhere must still fail this allowlist.
+const guardedMediaRefresh = (mediaRefresh.match(/['"`](POST|PUT|PATCH|DELETE)['"`]/g) || []).length === 1
+  && /if \(!current \|\| !original \|\| _isClientLink\) return;/.test(mediaRefresh)
+  && /fetch\(PROD_COMMENTS_EF_URL, \{ method:'POST', headers:authHeaders\(\), signal:controller\.signal,\s*body:JSON\.stringify\(\{deliverable_id:id,media_comment_id:commentId\}\) \}\)/.test(mediaRefresh)
+  && /const identity = JSON\.stringify\(_syncviewStaffIdentityForHeaders\(\) \|\| null\)/.test(mediaRefresh)
+  && (mediaRefresh.match(/generation !== epoch \|\| stateFor\(id\) !== current/g) || []).length === 2
+  && (mediaRefresh.match(/identity !== JSON\.stringify\(_syncviewStaffIdentityForHeaders\(\) \|\| null\)/g) || []).length === 2
+  && (mediaRefresh.match(/\['version','body','audience','row_updated_at'\]\.some\(key => latest\[key\] !== original\[key\]\)/g) || []).length === 2
+  && /!response\.ok \|\| result\.ok !== true \|\| !Array\.isArray\(result\.comments\) \|\| result\.comments\.length !== 1\s*\|\| result\.comments\[0\]\.id !== commentId/.test(mediaRefresh)
+  && /Number\(result\.comments\[0\]\.version\) < Number\(latest\.version\)/.test(mediaRefresh)
+  && /mode:'required',complete:false,render_body:null,expires_at:null/.test(mediaRefresh);
+check('comment media refresh is an exact scoped read with staff, identity and current-comment guards', guardedMediaRefresh);
+check('preview block limits POSTs to protected reads, guarded creation, and authority-gated native writes', explicitMutationMethods.length === 12
   && explicitMutationMethods.every(method => method === 'POST')
+  && guardedMediaRefresh
   && /async function _prodEnsureAssigneeOptions\(id, force\)[\s\S]*?fetch\(PROD_WRITE_EF_URL,[\s\S]{0,260}method: 'POST'[\s\S]{0,700}action: 'assignee_options',[\s\S]{0,120}surface: 'production'/.test(prodBlock)
   && /fetch\(PROD_COMMENTS_EF_URL,[\s\S]{0,180}method: 'POST'/.test(prodBlock)
   && /const requestBody = \{[\s\S]{0,220}deliverable_id: id,[\s\S]{0,160}limit: PROD_COMMENTS_PAGE_SIZE,[\s\S]{0,160}before: cursor \|\| null[\s\S]{0,100}if \(clientSurface\) Object\.assign\(requestBody, clientSurface\)/.test(prodBlock)

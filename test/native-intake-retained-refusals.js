@@ -25,7 +25,12 @@ function extract(source, name) {
   const body = extractFunction(source, name);
   return (source.includes('async ' + body) ? 'async ' : '') + body;
 }
-const script = functions.map(name => extract(html, name)).join('\n') + '\nvar _nativeIntakeResumePromise = null;';
+// Current naming dependencies belong only to the current source fixture; the
+// historical deletion controls must continue to execute their original code.
+const namingFunctions = ['_calNativeCleanName', '_calNativePostNamesFor', '_calNativeBatchNameFor', '_linearIntakeBatchTitle'];
+const namingLimit = html.match(/const CAL_NATIVE_NAME_MAX = \d+;/);
+assert.ok(namingLimit, 'actual naming limit declaration exists');
+const script = namingLimit[0] + '\n' + namingFunctions.concat(functions).map(name => extract(html, name)).join('\n') + '\nvar _nativeIntakeResumePromise = null;';
 const clickBaseline = functions.map(name => extract(clickOld, name)).join('\n') + '\nvar _nativeIntakeResumePromise = null;';
 let passed = 0;
 const pass = name => { passed++; console.log('PASS ' + name); };
@@ -88,10 +93,14 @@ function world(source = script) {
     locks: () => locks };
 }
 async function rejection(promise, code) { await assert.rejects(promise, error => error.code === code); }
-function liveClickWorld(surface, source = script) {
+function liveClickWorld(surface, source = script, namingState = {}) {
   const w = world(source), saved = job(surface);
+  Object.assign(w.ctx._calNativePostState, namingState, { surface });
   saved.signature = JSON.stringify({ surface, choice: 'new', mode: 'video', post_count: 1, client_slug: 'fixture',
-    video_assignee_id: '', batch_id: '', expected_batch_updated_at: '', actor_id: 'actor-a' });
+    video_assignee_id: '',
+    ...(source === script ? { post_names: w.ctx._calNativePostNamesFor(w.ctx._calNativePostState, 1),
+      batch_name: w.ctx._calNativeBatchNameFor(w.ctx._calNativePostState) } : {}),
+    batch_id: '', expected_batch_updated_at: '', actor_id: 'actor-a' });
   w.save(saved); w.ctx._calNativePostState.surface = surface;
   return { ...w, saved };
 }
@@ -130,6 +139,31 @@ async function main() {
     assert.deepEqual(w.read(), { ...w.saved, resume_held: true });
     assert.equal(w.sent.length, 2); assert.equal(w.sent[0].body, w.sent[1].body);
     pass(surface + ' lost-response followed by live refusal preserves modeled accepted identity');
+  }
+  for (const surface of ['calendar', 'sxr']) {
+    const w = liveClickWorld(surface, script, { postNames: ['  Original\u00a0  post  '], batchName: '  Saved   batch  ' });
+    const signature = JSON.parse(w.saved.signature);
+    assert.deepEqual(signature.post_names, ['Original post']);
+    assert.equal(signature.batch_name, surface === 'sxr' ? 'Saved batch · Samples' : 'Saved batch');
+    w.saved.payload.items[0].name = signature.post_names[0];
+    w.saved.payload.items[0].title = (surface === 'sxr' ? 'Sample ' : '') + 'Video 1 — Original post';
+    w.saved.payload.batch.name = signature.batch_name; w.save(w.saved);
+    const originalPayload = JSON.stringify(w.saved.payload);
+    w.ctx.gatewayStatus = 409; await w.ctx._calSubmitNativePost();
+    assert.deepEqual(w.read(), { ...w.saved, resume_held: true });
+    assert.equal(w.sent.length, 1); assert.equal(w.sent[0].body, originalPayload);
+    await rejection(w.ctx._resumeNativeIntakeJob('startup'), 'native_intake_recovery_held');
+    assert.equal(w.sent.length, 1); assert.equal(w.box.children.length, 1);
+    // Editing the new draft must not rewrite the explicitly retried saved job.
+    w.ctx._calNativePostState.postNames = ['Replacement draft']; w.ctx._calNativePostState.batchName = 'Replacement batch';
+    w.ctx.gatewayStatus = 200; w.ctx.gatewayResult = result();
+    w.ctx.gatewayResult.items[0].title = w.saved.payload.items[0].title;
+    await w.box.children[0].click();
+    assert.equal(w.sent[1].body, originalPayload); assert.equal(w.read(), null);
+    const cards = w.sent.filter(x => x.lane !== 'gateway'); assert.equal(cards.length, 1);
+    assert.equal((cards[0].body.sample || cards[0].body.post).name, w.saved.payload.items[0].title);
+    assert.match(w.box.textContent, /completed/);
+    pass(surface + ' named refusal retains original post and batch intent through explicit retry after draft edits');
   }
   for (const mutation of ['replaced-id', 'same-id-payload', 'same-id-context', 'accepted-result', 'actor', 'role', 'quota', 'missing-lock']) {
     const w = liveClickWorld('calendar'); w.ctx.gatewayStatus = 409;

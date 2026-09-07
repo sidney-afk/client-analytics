@@ -90,7 +90,21 @@ ok(/preserveDeepCursor \? current\.cursor : nextCursor/.test(source) && /priorPa
 ok(/\(append \|\| refreshing\) && current \? current\.items : \[\]/.test(source), 'newest-page refresh merges into already-loaded comments');
 ok(/Load older comments/.test(source), 'older-page control is rendered');
 ok(/c\.parent_id \? ' is-reply' : ''/.test(source), 'replies receive indentation');
-ok(/c\.deleted \? 'Comment deleted\.' : _prodLinkify\(c\.body\)/.test(source), 'tombstones cannot render deleted bodies');
+const commentHTML = extract('_prodCommentHTML');
+ok(/c\.deleted \? 'Comment deleted\.' : _prodCommentMediaHTML\(c\)/.test(commentHTML), 'tombstones bypass the guarded media renderer');
+let mediaRenderCalls = 0;
+Object.assign(context, {
+  _prodCommentTime: () => ({ text: 'just now', raw: '' }),
+  _calEsc: value => String(value || '').replace(/[&<>"']/g, ''),
+  _calEscAttr: value => String(value || ''),
+  _prodAvatar: () => '',
+  _prodState: { openId: 'fixture-deliverable' },
+  _prodCommentMediaHTML: () => { mediaRenderCalls++; throw new Error('deleted media must not render'); },
+});
+vm.runInContext(commentHTML + `\nresult = _prodCommentHTML({ id:'deleted-media', body:'deleted-secret',
+  deleted_at:'2026-09-07T00:00:00Z', attachments:[{ title:'deleted-file', url:'https://fixture.invalid/private' }] });`, context);
+ok(context.result.includes('Comment deleted.') && !/deleted-secret|deleted-file|fixture\.invalid|Refresh downloads/.test(context.result)
+  && mediaRenderCalls === 0, 'actual tombstone rendering exposes neither body nor files and never invokes media rendering');
 ok(/prod-comment-edited/.test(source) && /prod-comment-pill">Resolved/.test(source), 'edited and resolved states render');
 ok(/target="_blank" rel="noopener noreferrer"/.test(source), 'linkified bodies isolate new tabs');
 ok(/function _prodComposerHTML\(issue\)/.test(source)

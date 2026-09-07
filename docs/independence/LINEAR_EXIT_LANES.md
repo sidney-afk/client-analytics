@@ -69,7 +69,7 @@ owner window, not just a merge.
    one re-pin commit. See item 167.
 2. **`docs/ops/OPEN_REPAIRS.md`** — append only, never rewrite. Reserved numbers:
    **A=169, B=170, C=171, D=172, E=173, F=174.** Take more by appending upward from
-   175 and saying so in your PR. Four duplicate headers (`## 13.`, `## 14.`, `## 22.`,
+   176 (175 is taken; see that entry) and saying so in your PR. Four duplicate headers (`## 13.`, `## 14.`, `## 22.`,
    `## 23.`) already exist on main and predate this program; do not "fix" them (item 168).
 
 ---

@@ -14,6 +14,15 @@ const hash = x => typeof x === 'string' && /^[a-f0-9]{64}$/.test(x);
 const downloads = { 'application/pdf': 'original.pdf', 'image/svg+xml': 'original.svg', 'video/mp4': 'original.mp4', 'video/quicktime': 'original.mov' };
 const mime = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', ...Object.keys(downloads)]);
 const DEFERRED_TEXT = 'This older file has not been restored here yet.';
+export async function signNativeMedia(db, storagePath, storageOrigin, download=null) {
+  const signed=await db.storage.from(BRIEF_MEDIA_BUCKET).createSignedUrl(storagePath,300,download?{download}:undefined);
+  if (signed.error || typeof signed.data?.signedUrl!=='string') throw Error('media_signing_failed');
+  const url=new URL(signed.data.signedUrl);
+  if (url.protocol!=='https:' || url.origin!==new URL(storageOrigin).origin || url.username || url.password || url.hash
+    || url.pathname !== '/storage/v1/object/sign/'+BRIEF_MEDIA_BUCKET+'/'+storagePath
+    || (download && url.searchParams.get('download')!==download)) throw Error('media_signing_scope_failed');
+  return url.href;
+}
 export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()) {
   const brief = typeof row.brief === 'string' ? row.brief : '';
   const refs = briefMediaOccurrences(brief);
@@ -88,16 +97,8 @@ export async function projectBriefMedia(db, row, storageOrigin, now = Date.now()
         continue;
       }
       const download = downloads[copy.mime_type] || null;
-      const signed = await db.storage.from(BRIEF_MEDIA_BUCKET).createSignedUrl(copy.storage_path, 300,
-        download ? { download } : undefined);
-      if (signed.error || typeof signed.data?.signedUrl !== 'string') return result;
-      const url = new URL(signed.data.signedUrl);
-      // Enforce the configured Storage origin here; the browser consumes this
-      // authenticated, scope-bound response (it does not independently sign).
-      if (url.protocol !== 'https:' || url.origin !== new URL(storageOrigin).origin || url.username || url.password || url.hash
-          || !url.pathname.includes('/storage/v1/object/sign/' + BRIEF_MEDIA_BUCKET + '/')
-          || (download && url.searchParams.get('download') !== download)) return result;
-      replacements.push({ ...ref, original_url: ref.url, content_sha256: copy.content_sha256, url: url.href,
+      const url = await signNativeMedia(db, copy.storage_path, storageOrigin, download);
+      replacements.push({ ...ref, original_url: ref.url, content_sha256: copy.content_sha256, url,
         display: download ? 'download' : 'inline', mime_type: copy.mime_type });
     }
     // A row may move or change while URLs are signed. Never label that stale

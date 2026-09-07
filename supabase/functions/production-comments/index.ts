@@ -13,6 +13,8 @@ import {
 } from "../_shared/staff-role-auth.ts";
 import { timingSafeEqual } from "../_shared/staff-role-auth.ts";
 import { readLegacyFeedback } from "./feedback.mjs";
+import { projectCommentMedia } from "../_shared/native-comment-media.mjs";
+import { briefMediaOccurrences } from "../_shared/native-brief-media.mjs";
 import {
   audienceAllowed,
   clean,
@@ -285,6 +287,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const deliverableId = clean(body.deliverable_id);
+  const mediaCommentId = clean(body.media_comment_id);
+  if (mediaCommentId && !SAFE_ID.test(mediaCommentId)) return json({ ok:false, error:"invalid_comment_id" },400);
   const clientSurface = {
     source_surface: clean(body.source_surface).toLowerCase(),
     card_id: clean(body.card_id),
@@ -308,6 +312,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json({ ok: false, error: resolved.error }, resolved.status);
     }
     const principal = resolved;
+    if (mediaCommentId && principal.kind !== 'staff') return json({ ok:false,error:'forbidden' },403);
     const budget = await takeReadBudget(supabase, principal.actorKey);
     if (budget === "unavailable") {
       return json({ ok: false, error: "read_authorization_unavailable" }, 503);
@@ -363,6 +368,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         `created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`,
       );
     }
+    if (mediaCommentId) {
+      totalQuery = totalQuery.eq('id',mediaCommentId);
+      pageQuery = pageQuery.eq('id',mediaCommentId);
+    }
 
     const [totalResult, pageResult] = await Promise.all([totalQuery, pageQuery]);
     if (totalResult.error || pageResult.error) throw new Error("comment_read_failed");
@@ -378,6 +387,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
         actorKey: principal.actorKey,
       }))
       .filter(Boolean);
+    if (principal.kind === 'staff') {
+      let mediaProjected = false;
+      for (const comment of comments) {
+        const original = fetched.find(row => row.id === comment.id);
+        if (original && !original.deleted_at && briefMediaOccurrences(original.body).length) {
+          mediaProjected = true;
+          comment.media = await projectCommentMedia(supabase, original, target, url);
+        }
+      }
+      if (mediaProjected) {
+        const fresh = await resolvePrincipal(supabase, req);
+        if ('status' in fresh || fresh.actorKey !== principal.actorKey || fresh.keyRole !== principal.keyRole
+          || !staffTargetAllowed(fresh.keyRole,fresh.member?.team,target.team)) return json({ok:false,error:'forbidden'},403);
+      }
+    }
     const tail = comments.length ? comments[comments.length - 1] as JsonMap : null;
     let feedback = null;
     if (body.include_feedback === true && principal.kind === "staff") {

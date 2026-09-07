@@ -3,6 +3,7 @@
 F44 received submission needs staff team confirmation / native completion / old
 unresolved receipt inbox → [protected website triage](audits/2026-09-07-f44-native-triage.md).
 Source-only capture, claim fence, immutable native completion and separate recovery extension.
+Current comment files still open Linear links → [protected native comment downloads](ops/NATIVE_COMMENT_MEDIA.md). Reuses private brief custody with explicit comment/audience ownership; all files download-only, default off, global storage ceiling and combined recovery rebind held.
 
 Native brief inline images still depend on Linear → [dormant private media reader and custody](ops/NATIVE_BRIEF_MEDIA.md). Exact occurrence/revision projection, one new private bucket/ledger and a separate recovery extension; other required media and serving remain held.
 

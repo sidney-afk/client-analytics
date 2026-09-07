@@ -13647,3 +13647,125 @@ install, because none of the fifteen candidate migrations are installed.
 (Workload rows, SyncLinear cards, deep links, Slack alert text), or only the intake
 path. Nobody has walked that list.
 
+
+**CORRECTION, same day, before anyone acted on this entry.** The mechanism above
+is wrong in the direction that matters: `linear_identifier` has **three** writers,
+not one. `supabase/functions/linear-outbound/index.ts:857` and `:868` also write
+it, and for a SyncView-NATIVE card that is the actual **mint**, not an echo:
+`production-write` writes `identifier: null`, the row goes to `mirror_outbox`, the
+outbound worker creates the Linear issue and writes the minted identifier straight
+back. `linear-inbound:810` refreshes it afterwards.
+
+**Consequence, and it moves the deadline in the safe direction.** Readable names
+do not die on 2026-09-15 when the account lapses. They die the moment
+`linear_outbound_enabled` is set to `off`, which is EARLIER and entirely under our
+own control. The native naming mint must therefore land **before the outbound
+flip**, not before the cancellation date. Treat the outbound flip as gated on it.
+
+Found by the exit scoping's adversarial pass; see item 165.
+
+
+## 163. [2026-09-07, FOUND — three PRs merged to main this week, all of them anchored on a column Linear maintains] Main is still ADDING Linear coupling eight days before Linear access ends
+
+While the exit is being scoped, main is merging new dependencies on the very identifiers the exit removes. Three merges on 2026-09-07 alone:
+
+- **PR #1333** (`e589be7`, merge commit `d2495eb`, currently origin/main's tip) deliberately re-anchored the Production deep link on `deliverables.linear_identifier` **because that is the column Linear keeps current**. That is the correct reasoning for a world with Linear in it, and it is exactly backwards for the one arriving on 2026-09-15.
+- **PR #1331** (`9babc96`) added a SyncLinear button per Workload parent whose href is `wlSyncLinearUrl(parent.identifier)` → `?prod=1&d=<Linear identifier>`.
+- **PR #1338** (`7de1962`/`7169f2f`) made a Workload pill open the video by the same shape.
+
+**Mechanism.** `linear_identifier` is written in three places and all three are Linear-reachable: `supabase/functions/linear-inbound/index.ts:810` (a Linear webhook), and `supabase/functions/linear-outbound/index.ts:857` and `:868` (from the Linear create response). The last two are the mint for cards created IN SyncView: production-write writes `identifier: null` on the row and inside the synthesized `linear_raw.issue`, the row goes to `mirror_outbox`, linear-outbound creates the Linear issue, and the minted `VID-…`/`GRA-…` comes back. Item 162 names linear-inbound as the sole writer; that is wrong, and the correction matters because it moves the deadline. **Setting `linear_outbound_enabled` to `{"mode":"off"}` stops name minting the same minute** — days before 2026-09-15, under our own hand.
+
+`index.html:51816` renders `displayId: linearIdent || importIdent || String(d.id || '')`, so every card minted after that flip shows as `b1_d_188ba4ad…` in the Production list, the command palette, the Workload loose-strip parent header, and every deep link the three PRs above just built. Nothing errors. The estate simply stops producing names.
+
+**Ruling for the program.** The native naming mint gates the outbound-off flip, not 2026-09-15. Until it exists, no lane may set `linear_outbound_enabled` to `off`. And no further PR may anchor a new surface on `linear_identifier`.
+
+## 164. [2026-09-07, DECIDED AND ABANDONED — recorded so the silence is a decision, not an accident] What the Linear media rescue will deliberately NOT save
+
+The rescue (`scripts/linear-media-rescue.mjs`, `docs/ops/LINEAR_MEDIA_RESCUE.md`) re-hosts `uploads.linear.app` files into the live `syncview-description-images` bucket for cards someone is still working. Everything below is knowingly left behind. Each line is a decision, and each is reversible only while Linear still answers.
+
+1. **Historical media on completed/canceled work.** Predicate excludes `board_status in ('completed','canceled')`. Owner has ruled: do not rescue old media.
+2. **Two OpenType fonts** in the comment capture. `font/otf` is not in `ALLOWED_TYPES` in `supabase/functions/description-image-upload/policy.mjs` and widening the allowlist is a real code change for at most two files. Hand the owner the two files for Drive instead.
+3. **Files over the dimension ceiling.** `MAX_DIMENSION = 8000` (policy.mjs:20) is enforced independently of bytes and is NOT being raised. The rescue corpus is uncontrolled historical Linear uploads, not browser-downscaled 1600px pastes, so any over-8000px original refuses whatever the byte ceiling is. It will surface as an unexplained mid-run 4xx unless it is listed here first.
+4. **`production_comments.attachments`.** The scan predicate is `body like '%uploads.linear.app%'` only. `attachments jsonb` (migrations/2026-07-12-production-comments.sql:53-54) is where a Linear comment's file metadata lands and it is not scanned. At minimum the census must run the same `like` against `attachments::text` and report the delta even if the ruling is not to rescue it.
+5. **Four other free-text columns that render to staff.** `batches.description`, `batches.comments`, `clients.board_desc` and `deliverables.comments` all exist and are rendered in Production (`_prodDescriptionHTML(..., false)` at index.html:62097 and :62108). A `uploads.linear.app` URL in any of them is a staff-facing link that 404s on 2026-09-15 and the two counting queries will never see it. Nobody has counted them.
+6. **Inline rendering for bare-URL occurrences.** A URL-for-URL splice restores a WORKING LINK, not an image. `imageTag` fires only for `![alt](…)` and `![alt](<…>)` (index.html:54988-54989); a bare URL falls through to the generic anchor at :54993, and comments call `_prodLinkify(c.body)` with images off entirely (index.html:55164). If the point is 'the reference screenshot is visible in the brief', a bare occurrence does not achieve it. Promoting them to `![Rescued image](url)` during the splice is still a pure text edit — offered, not taken.
+
+**Open and sizing the whole lane:** `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md:112-114` says these are Linear-signed URLs needing Linear's own auth and that they ALREADY render broken in SyncView. If that is right, none of the above is a regression — the lane is an improvement with a soft deadline. One click on any Production card whose brief contains `uploads.linear.app` settles it.
+
+## 165. [2026-09-07, CORRECTED — six load-bearing claims in the exit scoping were wrong, each verified against the tree] What the exit briefs get materially wrong, and what is true instead
+
+Recorded because a session handed one of these will act on it. Every correction below was verified with a command, not read.
+
+1. **`linear_identifier` has three writers, not one.** `linear-outbound/index.ts:857` and `:868` mint it for SyncView-native cards. See item 163. Consequence: the naming deadline is the outbound-off flip, not 2026-09-15.
+
+2. **The item-95 acceptance number is ~195, not 40.** `_wlNativeDiffReport` (index.html:14329-14392) applies NO client filter — it keys purely on `linear_id` presence — while OPEN_REPAIRS 95 decomposes 195 rows as 116 TEST client + 39 off-roster + 40 active-roster. A session told to expect 40 will read ~195 and call a working harness broken. The 40 must be re-derived by joining against the client roster. Item 95 also says verbatim that 31 of the 40 carry a `mirror_in_delete` and the remaining 9 are undecomposed — do not quote 40 as if one fix clears all of them.
+
+3. **production-write makes four or five reachable Linear calls, not two.** `linearLabelsRequest` (:832-834, called :871/:918/:946) → 503 `label_catalog_unavailable`; `linearRead` (:2282/:2325) → 503 `project_mapping_validation_unavailable`; `linearStateIdForCreate` (:2538-2540) → 503 `linear_team_mapping_unavailable` / 409 `status_mapping_unavailable`; `assigneeProviderPool` (:2585-2599) → 503 `assignee_provider_unavailable`. A dead-Linear rehearsal that observes only two codes will be recorded as complete while status mapping and the assignee picker were never exercised. Also: `handleCreateOptions` has TWO ungated reaches in one `Promise.all` (`linearLabelCatalog` AND `mappedCreateAssignees`), not one.
+
+4. **`workload-plan`'s `action:"list"` is NOT backward compatible.** On the candidate, `listPlans` is defined and never called; the dispatcher routes both `list` and `native_snapshot` through `workload_native_snapshot_v1`. Deploying before the migrations takes plan days off the LIVE board (503 `workload_snapshot_unavailable`). The rollback is 'redeploy the captured prior closure', not 'list still answers'.
+
+5. **`F27_EDGE_SLUGS` is five slugs, not four.** `scripts/f27-edge-source-rollback.js:36-42` freezes `batch-write, deliverable-write, linear-inbound, linear-outbound, production-write` and `exactAllowedSlugs` throws at :113 on anything else. Deleting `supabase/functions/linear-inbound/` therefore also trips the rollback allowlist and orphans `.github/workflows/deploy-f27-linear-inbound.yml`. Separately, `linear-outbound` appears **43 times** in `deploy-f27-section4-closures.yml` including a dedicated ~90-line deploy-and-verify job and positional '1 of 4' step naming — not the nine line edits the scoping describes. And production-write is DUAL-path (EF_DEPLOY_MANIFEST.md:46; `REVIEWED_MULTI_OWNER` in scripts/ef-deploy-manifest.js:68-70), so 'nobody could deploy production-write again' is false.
+
+6. **`production_label_catalog_capability()` does not self-guard.** It reads only the `production_native_label_catalog` runtime flag (migrations/2026-09-06-native-label-writes.sql:57-72) and never queries `production_label_catalog_versions`. Setting the flag to `mode:"native"` with any UUID reports native with NO version staged; the refusal lands one call later as 503 `native_label_catalog_unverified`/`native_label_catalog_unavailable`. It also takes no arguments, so it cannot return anything 'for both teams'.
+
+Minor but navigational: `docs/ops/WORKLOAD_NATIVE_SOURCE.md` §3b (line 117) already sanctions the compatibility-mapping branch and must be left alone — only §5 step 2 (line 236) needs correcting; `production_comments` has no anon or authenticated grant anywhere in migrations/ (only `grant … to service_role` at 2026-07-12-production-comments.sql:144), so reading it directly over REST is dead as an option, not merely unverified; and `migrations/2026-09-02-workload-native-view.sql` is blob `386b9b8f…` on origin/main AND on the candidate — identical, and still unapplied (no EXECUTION_LOG.md entry).
+
+## 166. [2026-09-07, COORDINATION RULE — six parallel sessions, one 79,418-line file] The index.html collision map for the Linear exit, and who owns each region
+
+Six sessions will edit `index.html` on separate branches and merge one at a time; main auto-deploys index.html to syncview.synchrosocial.com on every push. Region ownership is assigned here so a conflict is a merge error, not a silent overwrite. Line numbers verified against origin/main (`d2495eb`).
+
+| Region | Lines | Sole owner |
+|---|---|---|
+| `WRITE_UI_FAILURE_CODE_TEXT` object literal | 26859-27450 | **B** (C appends at the END, later, reformatting nothing) |
+| Workload source, realtime, snapshot, ↻ | 13969, 14025-14575, 15323, 16323-16600 | **A** |
+| Tweak-comment popover + its catch string | 19270-19600 (incl. 19596) | **D** |
+| write-UI reroute flag and its dark fallback | 25349-25600 | **C** |
+| Calendar legacy Linear surface | 30384-34049, 38485-38880 | **C** |
+| Create Post editor picker + error mapper | 40522-40560, 41331-41400 | **B** |
+| Submit router and card-write jobs | 47059-48450 | **C** |
+| Prod comment renderer + feedback panel | 2987-3013, 54912-55164, 62068 | **D** |
+| Samples legacy Linear surface + 2nd outbox | 63149, 64363-64525, 67641-68160, 68903-68960 | **C** |
+| Kasper editors-week panel | 77615-78000 | **C** |
+
+**Three-way collision resolved:** `wlFetchTweakComments` (19270) and `wlRenderTweakComments` (19293) were claimed by A, C and D simultaneously. Assigned to D.
+
+**Cross-lane wire that has no textual conflict and will still break:** `loadLinearIssues` has exactly two callers — index.html:15337 (lane A) and index.html:48187 (lane C's `_writeLinearVideoCardsToCalendar`, polling 20 x 5s). They are 33,650 lines apart. A rewrites the definition; C deletes the caller. C4 must land after A4.
+
+**Two seal holes found while mapping, worth fixing regardless of the exit:** `_sxrMoveLink` (index.html:64500) calls `_sxrSyncStatusFromLinear` at :64525 with NO `_writeUiLinkSlotSealedLive` guard, while its calendar twin `_calMoveLink` seals at :38705 — the Samples surface has the hole the calendar comment warns about. And there are TWO retry outboxes, `syncview_linear_outbox_v1` (:30384) and `syncview_sxr_linear_outbox_v1` (:63149); a drain that clears only the first leaves every queued Samples write retrying a dead URL forever.
+
+## 167. [2026-09-07, RULE — one env var, three lanes, and only one value can be right] The Edge Function fingerprint pin is a single-writer resource for the whole exit
+
+`.github/workflows/deploy-f27-section4-closures.yml` fails CLOSED on a fingerprint mismatch: a wrong digest cannot deploy the wrong code, it can only decline, in about 19 seconds, having deployed nothing. Three lanes currently plan to set the same env vars to three different values:
+
+- origin/main pins `PRODUCTION_WRITE_SOURCE_SHA256: ccbdd136…` (line 284) and `PRODUCTION_WRITE_FILE_COUNT: '5'` (line 75)
+- the integration candidate `5bcc03bd` pins `3a5c0ba2…` and `'6'`
+- PR 1341 pins `663e7e42…`
+- `LINEAR_OUTBOUND_SOURCE_SHA256` is `1489a4c2…` on main (line 71) and `43329cdf…` on the candidate; the same value is pinned again in `test/f27-section4-deploy-lane.js:73`
+
+**Rule.** No lane edits this workflow or that test. One designated integrator re-pins both files in a single commit AFTER the last change to `supabase/functions/production-write/` merges, regenerating with `node scripts/ef-fingerprint.js <merge-sha> --slugs=production-write --expected-only` — never by hand, per CLAUDE.md. `PRODUCTION_WRITE_FILE_COUNT` moves to '6' only if the `../_shared/native-brief-media.mjs` import is kept, and if it moves, `docs/ops/EF_DEPLOY_MANIFEST.md:46` needs the new closure file in the same commit or `test/f27-section4-deploy-lane.js` goes red.
+
+**Second rule, from CLAUDE.md and already paid for twice.** Nothing merges between handing the owner a deploy SHA and his dispatch — the lane requires `commit_sha` to equal main's tip at dispatch time, and dispatches were rejected on 2026-09-02 (one docs PR) and 2026-08-08 (four PRs). With six sessions this is not advice, it is a lock: the integrator announces a freeze, the owner captures with `& "$env:USERPROFILE\.syncview\f27-capture.ps1"` from any directory, uploads the printed `.sourcebundle` to the `SyncView Backups/` Shared Drive root, dispatches, and only then does the freeze lift.
+
+Also: `.github/workflows/deploy-onboarding-edge-functions.yml:138` deploys `linear-outbound production-write production-comments production-archive` from ONE `commit_sha` in that order. Lane D's reader deploy is therefore also a production-write deploy. There is no per-function rollback in that lane.
+
+## 168. [2026-09-07, BASELINE — so nobody 'fixes' the ledger] Four duplicate `## N.` headers already exist on main; the exit reserves 163-172
+
+CLAUDE.md says to check for duplicate `## N.` headers after any merge because concurrent branches routinely claim the same number, and to append to this file, never rewrite it. Both instructions are about to collide with seven parallel sessions, so the baseline is recorded here.
+
+**Verified on origin/main (`d2495eb`) today:** `grep -o '^## [0-9]*\.' docs/ops/OPEN_REPAIRS.md | sort | uniq -d` returns `## 13.`, `## 14.`, `## 22.` and `## 23.` — four numbers each used twice. These PREDATE the Linear exit. A session that finds them after its own merge will believe it caused them and start renumbering a file the house rule says to append to. It did not, and it must not.
+
+**Highest number on origin/main is `## 161.`** `## 162.` (Ledger 162, commit `8483498`) exists only on the unmerged working branch. So the exit reserves, and each lane appends only under its own number:
+
+- 163 — new Linear coupling still landing on main (this program)
+- 164 — lane E's deliberate abandonments
+- 165 — corrections to the exit scoping
+- 166 — the index.html collision map
+- 167 — the fingerprint pin single-writer rule
+- 168 — this entry
+- 169 — lane A: item 95/160 acceptance measurement, and the assignee/client eligibility census
+- 170 — lane B: the label-catalog capture and what freezes without it
+- 171 — lane C: the endpoints retired and the two outboxes drained
+- 172 — lane F: the cutoff order actually executed, with each flag's captured prior value
+
+Items 95, 160, 72, 63, 75, 76, 78 and 79 close as part of this program; each gets a one-line reason appended under its own heading, not a rewrite.
+

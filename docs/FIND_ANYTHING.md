@@ -1,5 +1,8 @@
 # FIND ANYTHING — the one-hop retrieval router
 
+Native urgent receiver / JWT credentials / preserved Slack roster and bot:
+[review-only graph preparation](ops/NATIVE_URGENT_N8N_DRAFT.md). No workflow or credential activation.
+
 Native intake post names / append ordinals / atomic migration composition: [native named append contract](ops/NATIVE_INTAKE_NAMED_APPEND.md). Separate restored-target SQL proof; first native-column installation held.
 
 

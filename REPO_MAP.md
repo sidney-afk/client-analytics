@@ -1,5 +1,10 @@
 # Repo map
 
+Native urgent receiver draft: `scripts/n8n-native-urgent-draft.js` preserves the
+captured graph and adds an isolated JWT credential-store root; focused offline
+proof is `test/n8n-native-urgent-draft.js`. The private input contract and held
+installation limits are in `docs/ops/NATIVE_URGENT_N8N_DRAFT.md`.
+
 F44 website triage source: `migrations/2026-09-07-legacy-intake-native-triage.sql`
 owns receipt capture, provider admission fences and native completion;
 `scripts/f44-native-recovery-extension.js` supplies a separate recovery inventory.

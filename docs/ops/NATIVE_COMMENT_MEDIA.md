@@ -147,6 +147,24 @@ with private bucket and both reader flags off. Private SQL receipt SHA-256:
 This proves the additive migration on an owned empty local target, not the full
 combined recovery or a production installation.
 
+Actual current-file ingress is privately staged in **two complete packages**:
+48 comments / 72 occurrences / 92798103 object bytes, and the complete seven-file
+comment / 455577580 object bytes. Combined coverage is **49 comments, 79
+occurrences, 75 distinct URLs and 548375683 staged object bytes**. Repeated
+occurrences intentionally retain their separate custody identities. Every staged
+row remains pending; no Storage object or ledger row has been installed.
+
+The combined private readback checked every packaged file hash, each original
+body/offset/version/client/team/audience binding, both schema/validator pins,
+and the retained acquisition receipts. Generated source bindings are explicitly
+labelled as derived from the original 17:40 collection and per-URL/streaming
+receipts; they are not fabricated provider responses. Original collection and
+read receipts remain alongside each package under their content hashes.
+Combined staging coverage receipt SHA-256:
+`cf2ab05fdd5c7ef7376f1d2b5f46bb3bca5267e1cd4a1ccaea19f4775c4f475e`.
+This is local package readback and complete captured-scope accounting, not
+independent Storage delivery, live current-scope admission or a recovery restore.
+
 Focused evidence is local actual-handler/model plus extracted Chromium controls;
 SQL runs only with an explicitly owned disposable loopback binding. Hosted CI,
 live SQL and Storage delivery are not claimed by local tests. Withdrawal before

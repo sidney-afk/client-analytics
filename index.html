@@ -3759,34 +3759,37 @@
             .workload-overview-capacity { max-width: 220px; }
         }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-        .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .workload-chip { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); font-size: 0.71rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
         .workload-chip:hover { border-color: var(--sv-border-aaa); background: var(--white); }
-        .workload-loose-item { display: inline-flex; align-items: center; gap: 5px; }
-        .workload-loose-plan { min-height: 30px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.66rem; font-weight: 700; cursor: pointer; }
-        .workload-loose-plan:hover { border-color: var(--sv-border-6c5ce7); color: var(--sv-fg-6c5ce7); }
+        .workload-loose-item { display: inline-flex; align-items: center; gap: 3px; }
         /* Loose strips are grouped client then parent issue, so the chip row
-           stops being one flat wrap and becomes a column of client cards. */
-        .wl-loose-clients { flex-direction: column; align-items: stretch; gap: 10px; }
-        .wl-loose-client { border: 1px solid var(--border); border-radius: 10px; background: var(--bg); padding: 9px 11px; }
+           stops being one flat wrap and becomes a column of client cards.
+           Kept deliberately dense: these two strips are a queue someone scans
+           top to bottom, so every row of padding is a row of scrolling. */
+        .wl-loose-clients { flex-direction: column; align-items: stretch; gap: 7px; }
+        .wl-loose-client { border: 1px solid var(--border); border-radius: 7px; background: var(--bg); padding: 6px 8px; }
         .workload-undated .wl-loose-client { background: var(--white); }
-        .wl-loose-client-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
-        .wl-loose-client-name { font-size: 0.78rem; font-weight: 800; color: var(--text-primary); }
-        .wl-loose-client-count { border-radius: 999px; padding: 1px 7px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.04em; background: var(--border); color: var(--text-secondary); }
-        .wl-loose-parents { display: flex; flex-direction: column; gap: 8px; }
-        .wl-loose-parent { border-left: 2px solid var(--border); padding-left: 9px; }
-        .wl-loose-parent-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-        .wl-loose-parent-ident { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.03em; color: var(--sv-fg-6c5ce7); }
-        .wl-loose-parent-title { font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
+        .wl-loose-client-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+        .wl-loose-client-name { font-size: 0.75rem; font-weight: 800; color: var(--text-primary); }
+        .wl-loose-client-count { border-radius: 4px; padding: 0 5px; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.04em; background: var(--border); color: var(--text-secondary); }
+        .wl-loose-parents { display: flex; flex-direction: column; gap: 5px; }
+        .wl-loose-parent { border-left: 2px solid var(--border); padding-left: 8px; }
+        .wl-loose-parent-head { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+        .wl-loose-parent-ident { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.03em; color: var(--sv-fg-6c5ce7); }
+        .wl-loose-parent-title { font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
         .wl-loose-parent-title-none { font-style: italic; color: var(--text-muted); font-weight: 500; }
-        .wl-loose-parent-count { border-radius: 999px; padding: 1px 7px; font-size: 0.62rem; font-weight: 800; background: var(--white); border: 1px solid var(--border); color: var(--text-muted); }
+        .wl-loose-parent-count { border-radius: 4px; padding: 0 5px; font-size: 0.6rem; font-weight: 800; background: var(--white); border: 1px solid var(--border); color: var(--text-muted); }
         .workload-undated .wl-loose-parent-count { background: var(--bg); }
-        .wl-loose-open { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; border: 1px solid var(--sv-border-6c5ce7); border-radius: 999px; padding: 3px 9px; background: var(--white); color: var(--sv-fg-6c5ce7); font-size: 0.65rem; font-weight: 800; text-decoration: none; transition: all 0.13s; }
-        .wl-loose-open svg { width: 10px; height: 10px; flex-shrink: 0; }
+        .wl-loose-parent-chips { gap: 4px; }
+        .wl-loose-open { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--sv-border-6c5ce7); border-radius: 5px; padding: 2px 7px; background: var(--white); color: var(--sv-fg-6c5ce7); font-size: 0.63rem; font-weight: 800; text-decoration: none; transition: all 0.13s; }
+        .wl-loose-open svg { width: 9px; height: 9px; flex-shrink: 0; }
         .wl-loose-open:hover { background: var(--bg); border-color: var(--sv-fg-6c5ce7); }
-        .wl-loose-open-linear { border-color: var(--border); color: var(--text-muted); padding: 3px 6px; }
+        /* Linear stays reachable but visually subordinate: a bare glyph, no
+           pill of its own, so the escape hatch costs a click and not a row. */
+        .wl-loose-open-linear { border-color: transparent; background: none; color: var(--text-muted); padding: 2px; }
         .wl-loose-open-linear svg { width: 12px; height: 12px; }
-        .wl-loose-open-linear:hover { border-color: var(--sv-border-aaa); color: var(--text-secondary); }
-        .workload-chip-linear { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); text-decoration: none; flex-shrink: 0; transition: all 0.13s; }
+        .wl-loose-open-linear:hover { background: none; border-color: var(--border); color: var(--text-secondary); }
+        .workload-chip-linear { display: inline-flex; align-items: center; justify-content: center; padding: 2px; border-radius: 5px; border: 1px solid transparent; color: var(--text-muted); text-decoration: none; flex-shrink: 0; transition: all 0.13s; }
         .workload-chip-linear svg { width: 12px; height: 12px; }
         .workload-chip-linear:hover { border-color: var(--sv-border-aaa); color: var(--text-secondary); }
         .workload-calendar-module { overflow: visible; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
@@ -18676,7 +18679,17 @@
        with no parent button of their own, each chip opening its own SyncLinear
        row. Linear stays one small click away on every group and every chip: it
        is a reference and the rollback path, and removing a working escape
-       hatch costs more than the extra icon. */
+       hatch costs more than the extra icon.
+
+       `applyEditorFilter` is the only thing that still separates the two
+       strips. The undated strip used to pair every chip with a "Set work day"
+       button opening the plan popover; the owner pulled it on 2026-09-07 ("for
+       now") once the strips became a scan-and-hand-out queue rather than a
+       place to plan, and dropping ~25 buttons is most of what made the block
+       compact. Nothing else changed with it: the popover, wlSetPlanDate and
+       the delegated [data-wl-issue-open] handler are all untouched and still
+       reached from the calendar, so restoring the button is re-rendering it,
+       not rebuilding a path. */
     function renderLooseIssueStrip(stripId, chipsId, source, applyEditorFilter) {
         const stripEl = document.getElementById(stripId);
         const chipsEl = document.getElementById(chipsId);
@@ -18743,9 +18756,6 @@
                 const chips = subs.map(s => {
                     const team = wlTeamBucket(s.teamKey, s.teamName);
                     const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? 'var(--sv-misc-d97706)' : 'var(--sv-misc-6c5ce7)'}"></span>`;
-                    const planButton = applyEditorFilter
-                        ? `<button type="button" class="workload-loose-plan" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(s.id || '')}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="">Set work day</button>`
-                        : '';
                     const accessible = [s.identifier || '', s.title || '', s.clientName || ''].filter(Boolean).join(' · ');
                     const subSyncUrl = wlSyncLinearUrl(s.identifier) || s.url || '';
                     const subLinearBtn = s.url
@@ -18753,7 +18763,7 @@
                         : '';
                     return `<span class="workload-loose-item"><a class="workload-chip" href="${wlEscape(subSyncUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape(accessible)}">
                         ${dot}<span>${wlEscape(s.title)}</span>
-                    </a>${subLinearBtn}${planButton}</span>`;
+                    </a>${subLinearBtn}</span>`;
                 }).join('');
                 return `<div class="wl-loose-parent${parent ? '' : ' is-orphan'}">
                     <div class="wl-loose-parent-head">

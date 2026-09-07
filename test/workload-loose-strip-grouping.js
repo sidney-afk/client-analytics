@@ -175,11 +175,19 @@ ok(!chipHrefs.some(h => h.includes('linear.app')),
 ok((unassigned.match(/class="workload-chip-linear"/g) || []).length === 6,
   'a per-chip Linear icon keeps the source of truth reachable');
 
-// ---- the two strips stay behaviourally distinct ----------------------------
-ok(!/workload-loose-plan/.test(unassigned) && (undated.match(/workload-loose-plan/g) || []).length === 6,
-  '"Set work day" belongs to the undated strip only, one per sub-issue, exactly as before');
-ok(/data-wl-issue-open="1"[^>]*data-wl-issue-id="id\d+"[^>]*data-wl-parent-id=/.test(undated),
-  'and it still carries the popover payload the delegated click handler reads');
+// ---- the strips carry chips and nothing else -------------------------------
+/* The undated strip used to pair every chip with a "Set work day" button.
+   Owner pulled it on 2026-09-07, and ~25 buttons is most of what made the
+   block compact -- so this is asserted, not merely absent by accident. */
+ok(!/workload-loose-plan/.test(unassigned) && !/workload-loose-plan/.test(undated),
+  'neither strip renders a "Set work day" button any more');
+ok(!/data-wl-issue-open/.test(unassigned) && !/data-wl-issue-open/.test(undated),
+  'and neither opens the plan popover from a chip row, which is what that button did');
+ok(source.includes("data-wl-issue-open") && source.includes('function wlSetPlanDate('),
+  'the popover path itself is untouched and still reached from the calendar -- restoring the button is a render, not a rebuild');
+ok(JSON.stringify([...undated.matchAll(/wl-loose-client-name">([^<]*)</g)].map(m => m[1]))
+  === JSON.stringify(['alpha-slug', 'zebra-slug']),
+'the undated strip groups identically to the unassigned one');
 
 // ---- filters still apply BEFORE grouping -----------------------------------
 sandbox.wlState.client = 'alpha-slug';

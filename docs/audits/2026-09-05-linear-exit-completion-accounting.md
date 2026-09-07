@@ -1,3 +1,11 @@
+## G4 comment discrepancy classification - 2026-09-07 00:49 UTC
+
+LIVE_READ metadata-only classification at 00:48:36Z: all five prior issue mismatches are nondeleted source=ui/origin=native comments with a deliverable owner and NULL linear_issue_uuid. Thus these are absent denormalized provider links, not proven wrong-card ownership. The deliverable's provider ownership still needs checking before any repair; the earlier mismatch count remains a valid raw-field comparison with this narrower interpretation.
+
+The 6,081 matched deleted rows comprise 5,681 backfill/linear, 254 mirror/linear, 140 ui/native, three backfill/bridge and three backfill/legacy. The 5,935 first two groups have no native deliverable/batch owner; the remaining 146 have deliverable owners. Source labels do not establish who deleted a row, why, or whether deletion should be reversed. Preserve all tombstones. The 153 unmatched identities remain unresolved; no body-loss claim or recovery apply is authorized by these counts.
+
+Private identity metadata retained outside Git; no comment text or URLs retrieved. Next join the five native deliverable owners against provider issue IDs, then inspect bounded import provenance for the 152 archive-linked missing identities. No runtime change, release or watcher activation.
+
 ## G4 existing backfill planner boundary - 2026-09-07 00:36 UTC
 
 OFFLINE_TEST of exported planBackfill from candidate d1442f65c4da6dc4e5ef8f155e1465f564cafa5e, scripts/b4-linear-comment-backfill.js:661-752, using fictional rows only. A same-run backfill row with deleted_at set and a newer provider timestamp with deleted_at null produces one proposed update clearing the marker. A different import run correctly produces backfill_run_mismatch. A non-backfill stored row with matching provider comment ID/body/author but a different issue UUID produces a noop because safelyLinked (:710) does not require issue equality and the non-backfill noop branch (:738) accepts it.

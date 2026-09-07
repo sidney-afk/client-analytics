@@ -13420,3 +13420,114 @@ Still open here: the synthetic batch parent's wrong title and permanently-`todo`
 status. `batches.linear_parent_ids` stores `{uuid, identifier, url}` and no
 title, so the real name is not recoverable in the browser today. It needs a
 schema or gateway change and is recorded rather than fixed.
+
+---
+
+## 161. [2026-09-07, BUILT, live on merge with no deploy; one owner decision left, 3 cards] The samples card could not complete itself, and 24 of its 26 live cards are half a post
+
+The owner, with a sample thumbnail open beside a calendar post: *"when there's a
+calendar that has a post that is just a thumbnail, there's a little thing where
+we can add a video or a thumbnail to the batch... but we don't have the same
+system for samples. But we need it, and I guess it's probably the same
+concept."*
+
+It is the same concept, and it was already the same write.
+
+**THE POPULATION IS WORSE HERE THAN ON THE CALENDAR.** Measured 2026-09-07
+against `sample_reviews`, non-archived, with the key the shipped gate uses
+(`video_deliverable_id` / `graphic_deliverable_id`, both-ways-empty):
+
+| | cards |
+|---|---|
+| both components | 2 |
+| thumbnail only, needs a video | 21 |
+| video only, needs a thumbnail | 3 |
+| neither | 0 |
+
+**24 of 26 live sample cards are half a post, across 6 clients**, against 127 of
+688 on the calendar when item 155's button shipped. A samples batch is normally
+commissioned as thumbnails and then needs a video beside one of them, which is
+the gap exactly. Zero of the 24 carry a legacy Linear url in the empty slot, so
+every one of them is a fill and none is a half-link repair. Cross-checked by
+hand on one of them, `sr_mrfd5wbb_gzui9`: its sibling is `b1_d_81d72794...`,
+team `graphics`, `card_id` equal to the card, `origin` `samples`, `sort_key`
+null, the shape the gate reads and the RPC re-reads.
+
+**NOTHING NEW WAS ASKED OF THE SERVER, AND THAT IS THE FINDING.**
+`production-write` has admitted `component_fill` from the `sxr` surface since
+the operation shipped on 2026-08-31 (`assertSurfaceOperation` names calendar
+and sxr together, and refuses `production`), and
+`public.production_component_fill` reads and locks the card in `sample_reviews`
+rather than `calendar_posts` when the batch carries `purpose='samples'`. Both
+halves were written for two surfaces on the same day. Only one ever got a
+button. So this ships live on merge: **no migration, no Edge Function deploy.**
+
+**What was built.** The samples twin of the calendar pile's fill button:
+`_sxrFillSiblingId` / `_sxrFillComponentSlotHtml` / `_sxrFillRequestId` /
+`_sxrFillWriteCardLink` / `_sxrFillComponent` / `_sxrFillComponentSubmit`, wired
+into `_sxrLinearPileHtml` in the place the missing component would have
+occupied. The gate is the calendar's rule for rule: a sibling to inherit the
+batch, the parent route, the sort position and the title from; the slot empty
+BOTH ways; staff only; not on a blank row; not on an archived card; and only
+where the target team is SyncView-authoritative, because under a rollback the
+create is refused at the database and the button would be dead.
+
+Three things are samples-specific rather than copied:
+
+* **The request id carries its own `sfill:` prefix.** The gateway derives the
+  deliverable id from that string, and a sample card can carry a `p_native_...`
+  id just as a calendar card can (3 of the 24 do). The two tables mint ids
+  independently, so a shared prefix is the one way one id could ever serve two
+  different rows.
+* **The card write waits on any in-flight save for that card.** A save already
+  in flight was built before the fill and echoes the link columns as they were,
+  empty, so landing it afterwards would put the card straight back to unlinked.
+  `_sxrArchiveOne` waits on the same promise for the same reason. Only the two
+  columns written are applied locally; the full echo would carry columns the
+  person may have edited since.
+* **`component_fill_card_missing` is answered here, not passed to the shared
+  handler.** See the open half below.
+
+The repair arm (occupied / `idempotency_conflict`, then link the component that
+already exists) reuses `_calFillLookupExisting` outright rather than growing a
+second copy of the same `deliverables` read.
+
+**STILL OPEN: ONE OWNER DECISION, 3 CARDS.** The RPC picks the card table from
+`batches.purpose`. Two batches minted by the F42 adoption path (`b1_b_...`)
+carry `purpose='calendar'` while their children carry `origin='samples'` and
+`sr_` card ids; one of them holds the siblings of 3 of the 24 half cards (one
+client). On those three the write is refused `component_fill_card_missing`: the
+card is not missing, it was looked for among the calendar cards. Both drifted
+batches are mixed (3 samples-origin rows plus 1 or 2 `manual` rows with no card
+at all), which is why neither fix is obviously the right one and neither was
+taken unilaterally:
+
+1. **Correct the data.** Set `purpose='samples'` on those two batches. Makes the
+   existing children agree with their batch (today they disagree), and fixes
+   future appends into them too. One statement, owner-run.
+2. **Correct the resolution.** Have the RPC pick the table from the SIBLING's
+   `origin`, falling back to the batch purpose. The sibling is already the
+   authority for the batch, the sort position, the due date, the title and the
+   parent route; this is the one thing it is not the authority for. Needs a
+   migration and a rehearsal case.
+
+Until one of them lands, the button on those three cards refuses **and says so
+truthfully**. The shared `_writeUiReportFailure` answers that code by evicting
+the display caches and advising a reload, which is right on the calendar and
+false here: nothing is stale and no reload helps. The samples path intercepts
+the code first, records the diagnostic, and says the batch is recorded as a
+calendar batch. An honest refusal on 3 cards, not a wrong instruction on 3
+cards.
+
+**Noted, not fixed:** `WRITE_UI_NO_WORK_ITEM_TEXT`, the locked status pill's
+"one cannot be created from this screen", is now stale on any card that HAS a
+sibling, on both surfaces, because the fill button is exactly that creation. It
+stays true for a card with neither component, which is most locked pills. Left
+alone here rather than widened in a samples change; item 87.8 owns that
+sentence and `test/locked-pill-names-no-dead-control.js` pins it.
+
+Pinned by `test/samples-component-fill.js`, which EXECUTES the gate against the
+live card shapes (both halves, neither, blank, archived, client view, legacy
+half-link, rolled-back team) rather than pattern-matching it, proves the request
+id cannot collide with a calendar fill of the same card id, and pins the card
+write to the two link columns and the samples payload shape.

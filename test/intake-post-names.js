@@ -213,14 +213,34 @@ function extract(name) {
   ok(!/\balter table\b|\bcreate table\b|\bdrop (table|column|policy)\b/i.test(migration)
     && !/syncview_runtime_flags|prod_authority\s*=|linear_outbound_enabled\s*=/.test(migration),
   'v8 moves no table, column or runtime flag');
-  ok(/SUPERSEDES migrations\/2026-08-26-production-intake-append-v7\.sql/.test(migration)
-    /* The note must keep saying that re-running v7 is the UNSAFE direction
-       once a named row exists -- it fails silently (v7 and a v68 gateway agree
-       on an ordinal a named row already holds), where keeping v8 fails closed.
-       Codex P1 on #1340 corrected the opposite advice. */
-    && /DO NOT RE-RUN v7/.test(migration)
-    && /roll the GATEWAY back to v68 and\n-- leave v8 in place/.test(migration),
-  'v8 names what it supersedes, and its rollback note points at the gateway rather than at v7');
+  ok(/SUPERSEDES migrations\/2026-08-26-production-intake-append-v7\.sql/.test(migration),
+    'v8 names what it supersedes');
+
+  /* ---- 8b. THE ROLLBACK BLOCK IS SAFE FROM ITS FIRST LINE ---------------- */
+  /*
+   * Codex raised this twice on #1340, and the second time was because of how
+   * the first fix was written. The correction ("do not re-run v7") had been
+   * APPENDED BELOW a "Re-run v7 ... and redeploy the prior Edge version"
+   * instruction that still stood at the top of the block -- so an operator
+   * reading top-down follows the unsafe path several paragraphs before
+   * reaching the warning. A warning under the fold is not a fix.
+   *
+   * The first assertion here was also vacuous: it searched the WHOLE file for
+   * `DO NOT RE-RUN v7`, which passed happily while the instruction it was
+   * meant to retire sat above it. These read the block itself, and where in
+   * it each thing appears.
+   */
+  const rollbackBlock = migration.slice(migration.indexOf('-- OWNER-ONLY ROLLBACK'));
+  ok(/^-- OWNER-ONLY ROLLBACK: ROLL THE GATEWAY BACK\. DO NOT RE-RUN v7\./m.test(rollbackBlock),
+    'the block states the safe procedure in its own heading, where a reader cannot miss it');
+  ok(!/\bRe-run v7\b/.test(rollbackBlock) && !/\bRe-run v6\b/.test(rollbackBlock),
+    'and carries no surviving imperative to re-run an older RPC version');
+  ok(rollbackBlock.indexOf('Restore `production-write`') < rollbackBlock.indexOf('HISTORY, NOT AN INSTRUCTION')
+    && rollbackBlock.indexOf('Restore `production-write`') < rollbackBlock.indexOf('UNSAFE DIRECTION'),
+  'the procedure comes FIRST -- before the rationale and before the history, which is what the second finding was about');
+  ok(/LEAVE THIS MIGRATION APPLIED/.test(rollbackBlock)
+    && /backward compatible with the older gateway/.test(rollbackBlock),
+  'and it says v8 stays applied, with the reason a v68 gateway runs correctly in front of it');
   ok(!/\(\?: — \.\+\)\?/.test(v7),
     'and v7 genuinely lacks the suffix, so the migration is required rather than cosmetic');
 

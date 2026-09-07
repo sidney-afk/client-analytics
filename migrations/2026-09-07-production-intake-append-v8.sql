@@ -550,38 +550,43 @@ grant execute on function public.production_intake_append(text, timestamptz, jso
 
 commit;
 
--- OWNER-ONLY ROLLBACK.
+-- OWNER-ONLY ROLLBACK: ROLL THE GATEWAY BACK. DO NOT RE-RUN v7.
 --
--- This migration SUPERSEDES a live function rather than installing a new one,
--- so the rollback is NOT a drop. Re-run v7 -- the version this one replaces:
+-- Restore `production-write` to its previous version from the sealed Section 4
+-- bundle (ROLLBACK.md names the current one) and LEAVE THIS MIGRATION APPLIED.
+-- That is the whole procedure. This migration SUPERSEDES a live function
+-- rather than installing a new one, so the rollback is not a drop either.
 --
---     migrations/2026-08-26-production-intake-append-v7.sql
+-- v8 is backward compatible with the older gateway: it still accepts the bare
+-- `Video N` / `Thumbnail N` titles that gateway composes, so every batch goes
+-- on appending exactly as it did before this migration was applied.
 --
--- and redeploy the prior Edge version. That restores the exact-title rule and
--- leaves every caller working.
+-- RE-RUNNING v7 IS THE UNSAFE DIRECTION, AND IT FAILS SILENTLY. v7 and a
+-- pre-v69 gateway both read the next ordinal from BARE titles only, so on a
+-- batch holding 'Video 4 — Launch hook' they agree on 4 and write a SECOND
+-- 'Video 4' with no error at all. Keeping v8 fails CLOSED on that same batch
+-- instead: v8 counts the named row, expects 5, and refuses the gateway's 4
+-- with invalid_intake_append_order. A rollback should fail in that direction.
 --
--- NOT v6, which is what this block said until Codex caught it on #1336. This
--- file inherited v7's rollback text verbatim, where "re-run v6" was correct.
--- Re-running v6 from HERE would undo v7 as well, and v7 exists to REMOVE the
--- `batch_team_mismatch` clause that refused a mixed-team append to any batch
--- carrying a `team` stamp -- measured at 143 of 397 active batches, reported by
--- two SMMs on 2026-08-26 as batches "not appearing in the list". A rollback
--- that reintroduces a defect the owner already had fixed is not a rollback.
+-- Containment for a batch that already holds named rows: put the gateway back
+-- at v69, or rename those children to their bare 'Video N' form. A batch with
+-- no named rows is unaffected either way.
 --
--- v8 note, CORRECTED 2026-09-07 after this file was applied and deployed
--- (Codex P1 on #1340; the correction is a comment, nothing executable moved).
--- The paragraph above is the rollback for a v8 that has never written a named
--- row. ONCE ONE EXISTS, DO NOT RE-RUN v7: roll the GATEWAY back to v68 and
--- leave v8 in place. v8 still accepts the bare `Video N` titles a v68 gateway
--- composes, so it is backward compatible; v7 is not merely stricter, it is
--- WRONG in the silent direction. v7 and a v68 gateway both read the next
--- ordinal from BARE titles only, so on a batch holding 'Video 4 — Launch hook'
--- they agree on 4 and write a second 'Video 4' with no error. Keeping v8 fails
--- CLOSED on the same batch instead -- v8 counts the named row, expects 5, and
--- refuses the gateway's 4 with invalid_intake_append_order -- which is the
--- direction a rollback should fail in. Containment for such a batch: restore
--- the gateway to v69, or rename its named children to their bare form. Batches
--- with no named rows append normally under either combination.
+-- CORRECTED TWICE, 2026-09-07, after this file was applied and deployed
+-- (Codex P1 on #1340, both rounds; comment only, nothing executable moved).
+-- The first correction was APPENDED BELOW an instruction to re-run the older
+-- RPC, which still stood at the top of this block, so an operator reading it
+-- top-down followed the unsafe path several paragraphs before reaching the
+-- warning. It is deleted now rather than annotated, which is why this block
+-- opens with the procedure instead of ending with it.
+--
+-- HISTORY, NOT AN INSTRUCTION: this block named v6 until Codex caught it on
+-- #1336. The file had inherited v7's rollback text verbatim, where "re-run v6"
+-- was correct; from here it would also have undone v7, which exists to REMOVE
+-- the `batch_team_mismatch` clause that refused a mixed-team append to any
+-- batch carrying a `team` stamp -- 143 of 397 active batches, reported by two
+-- SMMs on 2026-08-26 as batches "not appearing in the list". Neither v6 nor v7
+-- is a rollback target for this migration; the gateway is.
 --
 -- The drop block that shipped with earlier versions is deliberately NOT carried
 -- forward here: dropping `production_intake_append` while a deployed

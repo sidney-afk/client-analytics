@@ -51498,20 +51498,32 @@
                    resolvable as an ALIAS, so a reference to the retired number
                    opens the row rather than being told it does not exist.
 
-                   WHAT THE ALIAS IS ACTUALLY FOR, since the data repair
+                   WHAT THE ALIAS RESOLVES, AND FOR HOW LONG. It resolves a
+                   divergence FOR AS LONG AS THE DATA CARRIES ONE -- not for
+                   ever. The repair
                    (migrations/2026-09-07-deliverable-identifier-team-move-repair.sql)
-                   makes the two columns agree and therefore empties it for
-                   today's seven. Raised by review on #1333. No surface in the
+                   makes the two columns agree, so it empties for today's seven
+                   and the retired number stops resolving here. That is the end
+                   state, not a regression, and review on #1333 was right that
+                   the first wording claimed otherwise.
+
+                   Two reasons it is the right end state. No surface in the
                    product has ever EMITTED a link carrying the snapshot --
-                   _prodSetQuery writes the canonical row id, and every Workload
-                   link carries the current Linear identifier -- so the alias
-                   covers a reference held OUTSIDE the product, and the window
-                   before that SQL is applied. It also covers the next
-                   divergence: linear-inbound still does not re-stamp
-                   `identifier` on a team move, so any row moved between teams
-                   while Linear is still connected lands here again, and this
-                   resolves it without a second repair. The retired value is
-                   preserved in `deliverable_events` by the repair itself. */
+                   every _prodOpenDeliverable caller passes the canonical row
+                   id, which is what _prodSetQuery writes, and every Workload
+                   link carries the current Linear identifier. And a re-keyed
+                   number names nothing in Linear either: it is not a handle
+                   anyone can still resolve anywhere, so keeping it alive here
+                   would mean this tab is the last system on earth answering to
+                   it. The repair records it in `deliverable_events` for
+                   forensics and reversal.
+
+                   What the alias is still FOR, after that: the window between a
+                   team move and its repair, which is where these seven lived
+                   for two weeks, and every future one -- linear-inbound still
+                   does not re-stamp `identifier` on a team move, so any row
+                   moved between teams while Linear is connected lands here and
+                   resolves without waiting for a second repair. */
                 const linearIdent = String(d.linear_identifier || '');
                 const importIdent = String(d.identifier || '');
                 const issue = {

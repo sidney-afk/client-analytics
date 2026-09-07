@@ -37,10 +37,13 @@
 -- WHY THE RETIRED NAME IS RECORDED FIRST. Raised by review on PR #1333, and
 -- correct: after the update the two columns agree, so the browser's `aliasId`
 -- for these rows becomes empty and the retired number stops resolving in the
--- tab. That is acceptable -- no surface in the product has ever EMITTED a link
--- carrying the snapshot (`_prodSetQuery` writes the canonical row id, and every
--- Workload link carries the current Linear identifier) -- but it must not also
--- be the moment the value stops existing anywhere. Nothing else stores it:
+-- tab. That is the intended end state. No surface in the product has ever
+-- EMITTED a link carrying the snapshot (every `_prodOpenDeliverable` caller
+-- passes the canonical row id, which is what `_prodSetQuery` writes, and every
+-- Workload link carries the current Linear identifier), and a re-keyed number
+-- names nothing in Linear either -- so resolving it here for ever would make
+-- this tab the last system answering to a name no other system knows. What it
+-- must not be is the moment the value stops existing anywhere. Nothing else stores it:
 -- `linear_aliases.identifier` was overwritten by the first webhook after the
 -- move, and its `history` begins at that webhook, already carrying the new
 -- number. So each retired identifier goes into `deliverable_events.payload`

@@ -17,8 +17,10 @@ Each `deliverables` row becomes one artifact-shaped issue:
   Linear team move (VID-13553 -> GRA-7197) leaves the snapshot naming a retired number.
 - `aliasId`: that retired snapshot when it disagrees with `linear_identifier`, else `''`.
   `_prodIssue()` resolves `id` or `displayId` first and `aliasId` only in a second pass,
-  so an old link still opens the row and a canonical match always wins. See OPEN_REPAIRS
-  160 and `test/prod-deep-link-linear-identifier.js`.
+  so a reference to the retired number opens the row and a canonical match always wins.
+  It resolves a divergence for as long as the DATA carries one: repairing the row makes the
+  two columns agree and the alias empties, which is the intended end state, not a permanent
+  redirect. See OPEN_REPAIRS 160 and `test/prod-deep-link-linear-identifier.js`.
 - `team`: deliverable team, falling back to its batch team.
 - `project`: client slug.
 - `title`: deliverable title.

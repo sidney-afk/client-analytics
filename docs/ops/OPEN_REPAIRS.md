@@ -13342,6 +13342,29 @@ an alias must never steal a canonical match, in either row order.
    and it reads the repair's own events rather than depending on anyone having
    kept the look-first output.
 
+   **Round three re-raised the first finding, and it is a judgement call, so
+   it is an OWNER DECISION rather than a silent choice.** The reviewer is right
+   on the fact: after the SQL, `aliasId` empties for those rows and the retired
+   number stops resolving in the tab, and the event ledger does not help because
+   the browser never reads it for identity. Keeping it resolvable would take a
+   new browser-readable column plus a view migration plus an adapter read —
+   `linear_aliases` cannot serve, since for all seven its `identifier` was
+   overwritten by the first post-move webhook and its `history` begins there,
+   already carrying the GRA number. **Recommend against**, on three counts:
+   nothing in the product ever emitted a link carrying the snapshot (every
+   `_prodOpenDeliverable` caller passes the canonical row id, which is what
+   `_prodSetQuery` writes; every Workload link carries the current Linear
+   identifier); a re-keyed number names nothing in Linear either, so this tab
+   would be the last system on earth answering to it; and Linear is being
+   retired, which is what makes the column worth cleaning rather than
+   extending. What WAS wrong is that the contract claimed permanence: the
+   adapter comment, `ADAPTER.md` and the SQL header now say the alias resolves a
+   divergence for as long as the data carries one, which is the window between a
+   team move and its repair, plus every future move while Linear is connected.
+   If the owner would rather keep the retired numbers resolvable, the change is
+   a `retired_identifier` column, a `production_deliverables_browser_v1`
+   migration, and one more line in the adapter.
+
    The PRODUCER fix is `linear-inbound`, which already detects the move
    (`eventPayload.team_move`) and rewrites `team` while leaving `identifier`
    alone. Recommend NOT building it: the owner is removing Linear, so the

@@ -1,3 +1,9 @@
+## G4 raw-export foundation published - 2026-09-07 02:24 UTC
+
+Draft PR1327 (https://github.com/sidney-afk/client-analytics/pull/1327) is open/unmerged at cbf714c01712818a02d476f226287be282b4bc39, stacked on candidate d144. Nine tooling/test/docs files, no runtime/EF/SQL/workflow changes. Three global paginated collections avoid per-issue fanout; raw private artifacts are hash-bound; every output remains complete:false. Named exact-source review PASS; coordinator independently reran all37 synthetic controls. Author map506/truth542 pass; no hosted result or full-suite result claimed at publication.
+
+A provisional Windows privacy gap was corrected: export refuses without a reviewed injected root ACL verifier; no live verifier is supplied. Real transport, schema/visibility proof, exhaustive provider scope, source-to-occurrence adapter, owner-held signing and rescue remain held. No live export or production action. Named post-push review requested. Candidate1326 remains unchanged; this is the next G4 prerequisite, not a release gate closure.
+
 ## G4 certified asset inventory tooling boundary - 2026-09-07 01:49 UTC
 
 SOURCE_ONLY candidate d144: docs/ops/F34_LINEAR_ASSET_RESCUE.md:88-132 requires an independent raw Linear export, occurrence identities, source artifact hash, owner-held HMAC and an externally pinned inventory-file hash. The existing rescue planner cannot certify its own discovery. Search of scripts/test and the owning runbook found the required generator name only in the contract validator, runbook and synthetic test fixture; no matching production generator was located in those searched paths. This is a bounded search result, not proof that no private/external exporter exists.

@@ -13707,8 +13707,44 @@ stays true for a card with neither component, which is most locked pills. Left
 alone here rather than widened in a samples change; item 87.8 owns that
 sentence and `test/locked-pill-names-no-dead-control.js` pins it.
 
+**REVIEW FOUND TWO, AND BOTH WERE REAL** (Codex on #1342).
+
+**P1: awaiting the in-flight save once was not enough.** That save's `finally`
+starts a REPLACEMENT `_sxrSaveInFlight[pid]` for any edit queued while it was
+draining, so the continuation resumed beside a save it had never waited for.
+The reviewer's mechanism needs one narrowing that does not save it: an ordinary
+edit is a FIELD-LEVEL PATCH carrying only the columns it touched, so it holds no
+link column and cannot clobber one. The whole-card branch is the live path. It
+runs for a new row and for `_sxrRetrySave`, which queues an empty bucket
+precisely so the flush re-sends the current row, link columns included, from
+local state. A copy built before the fill carries them EMPTY, and landing it
+after the fill detaches the component that was just created while the card
+reports success. The write now drains with `_sxrAwaitCardSave` (which also
+flushes queued edits, not merely the active save) and then HOLDS the per-card
+lock across itself, so a flush starting meanwhile hits the engine's own
+`if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and re-reads local
+state afterwards. Released in a `finally` in the save engine's own order, with
+any edit queued during the hold flushed on release.
+
+**P2: a departed client could be cached as the current one.** Staff switch
+Samples tabs while a request is in flight; `clientSlug` still names the client
+the write was started for while `sxrState.posts` already holds the newly
+selected one. `_sxrCacheWrite(clientSlug, sxrState.posts)` then stores one
+client's rows under another's key, to be rendered on the next visit until its
+network read lands. The server write is correct and stays; the local state, the
+cache write and the repaint are now skipped when the view has moved on, and the
+next load of that client reads the link back off the row.
+
 Pinned by `test/samples-component-fill.js`, which EXECUTES the gate against the
 live card shapes (both halves, neither, blank, archived, client view, legacy
 half-link, rolled-back team) rather than pattern-matching it, proves the request
 id cannot collide with a calendar fill of the same card id, and pins the card
-write to the two link columns and the samples payload shape.
+write to the two link columns and the samples payload shape. The two review
+findings are pinned by EXECUTION rather than by source-matching, as the reviewer
+asked: a stub flush started beside the write proves it reads the link and not
+the emptiness before it, a refused write proves the lock is released and the
+queued edit flushed, and a mid-flight client switch proves the departed cache is
+left alone. All four go red against the pre-review code. A watchdog and an
+unhandled-rejection handler were added with them, because the first draft of
+that section deadlocked its own stub and exited 0 with none of the checks run,
+which is the one way a test can be worse than absent.

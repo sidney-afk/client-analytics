@@ -64332,39 +64332,73 @@
     /* Write ONLY this component slot back to the sample. sample-review-upsert
        copies just the keys the payload carries, so a fill cannot touch the
        name, the media links, the creative direction, the statuses, the tweaks
-       or the other component. */
+       or the other component.
+     *
+     * IT RUNS INSIDE THE PER-CARD SAVE QUEUE, and that is the whole safety of
+     * it (Codex P1 on #1342). Awaiting the in-flight save once was not enough:
+     * that save's `finally` starts a REPLACEMENT `_sxrSaveInFlight[pid]` for
+     * any edit queued while it was draining, so the continuation resumed
+     * beside a save this write had never waited for. The follow-on save is
+     * usually a field-level patch that carries no link column, but the
+     * whole-card branch (a new row, or `_sxrRetrySave` re-sending the current
+     * row with an empty bucket) sends all four link columns from local state,
+     * and a copy built before this update carries them EMPTY. Landing after
+     * this write, it detaches the component that was just created while the
+     * card reports success.
+     *
+     * So: drain with `_sxrAwaitCardSave` (which also flushes queued edits, not
+     * merely the active save), then HOLD the lock across the write. Any flush
+     * that starts meanwhile hits `if (_sxrSaveInFlight[pid]) return
+     * _sxrAwaitCardSave(pid)` and re-reads local state afterwards, so its
+     * whole-card copy carries the link this wrote rather than the emptiness
+     * that preceded it. Released in a `finally` in the same order the save
+     * engine releases it, so a throw here can never strand the card. */
     async function _sxrFillWriteCardLink(clientSlug, pid, team, deliverableId, issueUrl) {
-        /* A save already in flight was built BEFORE this write, so its echo
-           carries the link columns as they were, empty. Landing it after this
-           update would put the card straight back to unlinked. The archive path
-           waits on the same promise for the same reason. */
-        if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
-        const sample = team === 'graphics'
-            ? { id: pid, graphic_deliverable_id: deliverableId, graphic_linear_issue_id: String(issueUrl || '') }
-            : { id: pid, video_deliverable_id: deliverableId, linear_issue_id: String(issueUrl || '') };
-        const response = await _sxrUpsertFetch(clientSlug, { client: clientSlug, sample, comments_base_at: '' }, 'samples-component-fill');
-        const json = await response.json().catch(() => ({}));
-        if (!response.ok || !json || json.ok !== true) throw new Error('sample_card_write_failed');
-        // Our own row change is about to arrive on the realtime channel; mark it
-        // as a local write so the strip is not rebuilt underneath the person who
-        // just pressed the button, exactly as every other samples write does.
-        _sxrLastLocalWriteAt = Date.now();
-        const post = sxrState.posts.find(item => item && item.id === pid);
-        // The two columns this wrote, not the whole echo: the row on screen may
-        // carry edits this write never sent, and the echo would undo them.
-        if (post) Object.assign(post, sample);
-        try { _sxrCacheWrite(clientSlug, sxrState.posts); } catch (e) {}
-        /* Deferred while somebody is typing, exactly as the link adopter defers:
-           a full _sxrRenderBody() detaches the focused input and eats the caret
-           (the PR-705 focus guard). */
+        try { await _sxrAwaitCardSave(pid); } catch (e) {}
+        let releaseSave;
+        _sxrSaveInFlight[pid] = new Promise(resolve => { releaseSave = resolve; });
         try {
-            if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
-                _sxrPendingBackgroundRender = true;
-                if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
-            } else {
-                _sxrRenderBody({ preserveScroll: true });
-            }
-        } catch (e) {}
+            const sample = team === 'graphics'
+                ? { id: pid, graphic_deliverable_id: deliverableId, graphic_linear_issue_id: String(issueUrl || '') }
+                : { id: pid, video_deliverable_id: deliverableId, linear_issue_id: String(issueUrl || '') };
+            const response = await _sxrUpsertFetch(clientSlug, { client: clientSlug, sample, comments_base_at: '' }, 'samples-component-fill');
+            const json = await response.json().catch(() => ({}));
+            if (!response.ok || !json || json.ok !== true) throw new Error('sample_card_write_failed');
+            // Our own row change is about to arrive on the realtime channel; mark
+            // it as a local write so the strip is not rebuilt underneath the
+            // person who just pressed the button, as every samples write does.
+            _sxrLastLocalWriteAt = Date.now();
+            /* THE VIEW MAY HAVE MOVED ON (Codex P2 on #1342). Staff switch client
+               tabs while a request is in flight, and `sxrState.posts` then holds
+               the NEW client's rows while `clientSlug` still names the old one.
+               Writing that array under the old slug's cache key would leave one
+               client's samples cached as another's, to be rendered on the next
+               visit until its network read lands. The server write above is
+               already correct and stays; only the local state, the cache and the
+               repaint are skipped, and the next load of that client reads the
+               link back from the row. */
+            if (sxrClientSlug(sxrState.client) !== clientSlug) return;
+            const post = sxrState.posts.find(item => item && item.id === pid);
+            // The two columns this wrote, not the whole echo: the row on screen
+            // may carry edits this write never sent, and the echo would undo them.
+            if (post) Object.assign(post, sample);
+            try { _sxrCacheWrite(clientSlug, sxrState.posts); } catch (e) {}
+            /* Deferred while somebody is typing, exactly as the link adopter
+               defers: a full _sxrRenderBody() detaches the focused input and eats
+               the caret (the PR-705 focus guard). */
+            try {
+                if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                    _sxrPendingBackgroundRender = true;
+                    if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                } else {
+                    _sxrRenderBody({ preserveScroll: true });
+                }
+            } catch (e) {}
+        } finally {
+            delete _sxrSaveInFlight[pid];
+            if (releaseSave) releaseSave();
+            if (_sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
+        }
     }
     async function _sxrFillComponent(pid, which) {
         const target = which === 'graphic' ? 'graphic' : 'video';

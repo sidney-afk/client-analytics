@@ -156,6 +156,131 @@ ok(/_sxrSaveInFlight\[pid\]/.test(writeSrc),
 ok(!/json\.sample/.test(writeSrc),
   'and applies only the columns it wrote, never the whole echo over a card someone may be editing');
 
+/* ---- 3b. EXECUTED: the write holds the per-card save queue -------------
+ *
+ * Codex P1 on #1342, and it was right. Awaiting the in-flight save once is not
+ * enough: that save's `finally` starts a REPLACEMENT `_sxrSaveInFlight[pid]`
+ * for any edit queued while it drained, so the continuation resumed beside a
+ * save it had never waited for. A field-level patch carries no link column and
+ * is harmless, but the whole-card branch (a new row, or `_sxrRetrySave`
+ * re-sending the current row) sends all four link columns from local state,
+ * and a copy built before the fill carries them EMPTY.
+ *
+ * These run the real function against stubs rather than grepping it, because
+ * "does a later save see the link" is a question about ordering and a regex
+ * cannot answer it. */
+
+const writeFn = new Function(
+  '_sxrAwaitCardSave', '_sxrSaveInFlight', '_sxrUpsertFetch', 'sxrClientSlug', 'sxrState',
+  '_sxrCacheWrite', '_sxrRenderBody', '_sxrIsBusy', '_sxrSchedulePendingRender',
+  '_sxrPendingBackgroundRender', '_sxrPendingEdits', '_sxrFlushCardSave', '_sxrLastLocalWriteAt',
+  writeSrc + '; return _sxrFillWriteCardLink;',
+);
+
+function harness(options = {}) {
+  const state = {
+    saveInFlight: Object.create(null),
+    pendingEdits: options.pendingEdits || Object.create(null),
+    posts: options.posts || [{ id: 'sr_1', name: 'Sample 1', graphic_deliverable_id: 'b1_d_1' }],
+    slug: 'testclient',
+    awaited: 0, cached: [], rendered: 0, flushed: [], sent: null,
+  };
+  const awaitCardSave = async pid => {
+    state.awaited += 1;
+    for (;;) {
+      const active = state.saveInFlight[pid];
+      if (active) { await active; continue; }
+      return;
+    }
+  };
+  const fn = writeFn(
+    awaitCardSave,
+    state.saveInFlight,
+    async (slug, payload) => {
+      state.sent = { slug, payload };
+      if (options.duringWrite) await options.duringWrite(state);
+      return { ok: options.httpOk !== false, json: async () => ({ ok: options.bodyOk !== false }) };
+    },
+    () => state.slug,
+    { get client() { return state.slug; }, get posts() { return state.posts; } },
+    (slug, posts) => { state.cached.push({ slug, count: posts.length }); return true; },
+    () => { state.rendered += 1; },
+    () => false,
+    () => {},
+    false,
+    state.pendingEdits,
+    pid => { state.flushed.push(pid); },
+    0,
+  );
+  return { state, fn };
+}
+
+async function orderingChecks() {
+  /* THE ORDERING CASE. A flush that starts while the link write is in flight
+     must see the link, not the emptiness that preceded it. The stub flush uses
+     the save engine's own guard: `if (_sxrSaveInFlight[pid]) return
+     _sxrAwaitCardSave(pid)`. */
+  let followOnSnapshot = null;
+  let followOn = null;
+  const ordered = harness({
+    duringWrite: state => {
+      /* STARTED, NOT AWAITED. The flush runs BESIDE the link write, which is
+         the whole scenario; awaiting it here would deadlock the stub on the
+         very lock under test and, before this was fixed, made the suite exit
+         silently with none of these checks run. */
+      followOn = (async () => {
+        if (state.saveInFlight.sr_1) await state.saveInFlight.sr_1;
+        followOnSnapshot = Object.assign({}, state.posts[0]);
+      })();
+    },
+  });
+  await ordered.fn('testclient', 'sr_1', 'video', 'del_new', 'https://linear.app/x/VID-1');
+  await followOn;
+  ok(followOnSnapshot && followOnSnapshot.video_deliverable_id === 'del_new'
+    && followOnSnapshot.linear_issue_id === 'https://linear.app/x/VID-1',
+    'a save that starts DURING the link write waits for it and then reads the link, so its whole-card copy cannot detach the new component');
+  ok(ordered.state.awaited >= 1,
+    'and the queue was drained before the write as well, not only after it');
+  ok(ordered.state.saveInFlight.sr_1 === undefined,
+    'the per-card lock is released when the write finishes');
+  ok(ordered.state.cached.length === 1 && ordered.state.cached[0].slug === 'testclient',
+    'the card is cached once, under the client it belongs to');
+  ok(ordered.state.rendered === 1, 'and the strip repaints once');
+
+  /* THE LOCK MUST NOT SURVIVE A FAILURE. A stranded `_sxrSaveInFlight[pid]`
+     would make every later edit on this card wait on a promise nobody
+     resolves, which is worse than the write failing. */
+  const failed = harness({ bodyOk: false, pendingEdits: { sr_1: { name: 'x' } } });
+  let threw = false;
+  try { await failed.fn('testclient', 'sr_1', 'video', 'del_new', ''); }
+  catch (error) { threw = /sample_card_write_failed/.test(String(error && error.message)); }
+  ok(threw, 'a refused card write throws, so the caller can say the component exists but the card is not linked yet');
+  ok(failed.state.saveInFlight.sr_1 === undefined,
+    'and the per-card lock is released even then, so the card is never stranded');
+  ok(failed.state.flushed.includes('sr_1'),
+    'and an edit queued while the lock was held is flushed on release rather than left sitting');
+
+  /* THE DEPARTED-CLIENT CASE. Codex P2: staff switch Samples tabs while the
+     request is in flight, so `sxrState.posts` holds the NEW client's rows while
+     the write still names the old one. Caching that array under the old slug
+     leaves one client's samples stored as another's. */
+  const switched = harness({
+    duringWrite: async state => {
+      state.slug = 'anotherclient';
+      state.posts = [{ id: 'sr_other', name: 'Someone else' }];
+    },
+  });
+  await switched.fn('testclient', 'sr_1', 'video', 'del_new', '');
+  ok(switched.state.sent && switched.state.sent.slug === 'testclient',
+    'the server write still goes out for the client it was started for, because it is correct and already earned');
+  ok(switched.state.cached.length === 0,
+    'but the departed client cache is NOT overwritten with the newly selected client rows');
+  ok(switched.state.rendered === 0,
+    'and the newly selected view is not repainted by a write that belongs to the one before it');
+  ok(switched.state.saveInFlight.sr_1 === undefined,
+    'and the lock is still released');
+}
+
 /* ---- 4. It asks the gateway for a samples fill, and cannot create a card */
 
 const submitSrc = grabFunc('async function _sxrFillComponentSubmit(');
@@ -238,7 +363,27 @@ const nasty = slot({ id: 'sr_a"b', graphic_deliverable_id: 'b1_d_1', status: 'In
 ok(!/_sxrFillComponent\('sr_a"b'/.test(nasty) && /&quot;/.test(nasty),
   'and a quote in a card id is escaped rather than closing the attribute');
 
-console.log(failures === 0
-  ? '\nsamples component fill checks passed'
-  : '\n' + failures + ' samples component fill check(s) failed');
-process.exit(failures === 0 ? 0 : 1);
+/* A HANG MUST NOT READ AS A PASS. The executed section above is async, so a
+   deadlocked stub empties the event loop and node exits 0 with the summary
+   never printed. That happened once while writing it. The watchdog and the
+   rejection handler make either failure loud. */
+const watchdog = setTimeout(() => {
+  console.error('FAIL  the executed save-queue checks never finished (deadlock or hang)');
+  process.exit(1);
+}, 20000);
+process.on('unhandledRejection', error => {
+  console.error('FAIL  unhandled rejection in the executed checks: ' + (error && error.message || error));
+  process.exit(1);
+});
+
+orderingChecks().then(() => {
+  clearTimeout(watchdog);
+  console.log(failures === 0
+    ? '\nsamples component fill checks passed'
+    : '\n' + failures + ' samples component fill check(s) failed');
+  process.exit(failures === 0 ? 0 : 1);
+}, error => {
+  clearTimeout(watchdog);
+  console.error('FAIL  the executed save-queue checks threw: ' + (error && error.stack || error));
+  process.exit(1);
+});

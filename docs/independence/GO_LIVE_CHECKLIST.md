@@ -16,7 +16,15 @@ change; hosted535f type checking also passed. The34ded unit run failed3 of476
 suites due to stale naming/tombstone/scoped-read fixtures;5bcc corrects all3,
 retains prior controls and passes focused checks, including61 refusal/retry
 cases. The duplicate535f unit workflow was deliberately cancelled. Exact5bcc
-hosted proof remains pending.
+now passes all8 applicable hosted jobs, all476 unit suites and later disposable
+SQL/recovery steps;2 optional polish jobs are skipped. This is isolated proof,
+not installed or live workflow proof.
+
+DraftPR1341 `1e9bb39668925ec8381b50aedab0f8c224b73ad5` separately combines native
+urgent UI, protected current-editor resolution and a credential-authenticated
+receiver draft. Focused40/28/31 groups and combined envelope checks pass; current
+hosted checks are running. No secret, live message or installation occurred.
+Unknown delivery/replay/reassignment limits remain explicit in its runbook.
 
 Current automation inventory is complete:129 current workflows/93 active
 published bindings. The old32 missing-read gap is closed. Bounded classification
@@ -25,7 +33,7 @@ cutoff; it does not establish zero traffic. Fresh installed read confirms11
 targeted exit relations absent and retains exact definitions/ACLs privately.
 Final installation/recovery, required-file delivery, urgent editor lookup,
 linked metadata/queues, reserved TEST journeys and independent alarms remain.
-Owner usage of weekly editor stats and6 archive-reader comments is pending.
+Owner confirms weekly editor stats are used and required. Usage of6 archive-reader comments remains pending.
 
 Keep existing tokenless client writers. No main merge, deployment, live/TEST
 write, n8n edit, flag, credential, billing/cancellation or new alert is authorized.

@@ -29,10 +29,34 @@ The two source suites pass. The duplicate535f
 unit workflow was deliberately stopped to avoid rerunning those known failures.
 Its six new comment-media type errors are corrected in43db with annotations
 only: targeted official Deno2.5.2 ratchet and35 comment-media checks pass, with
-the baseline unchanged. Hosted535f type checking also passed. Exact5bcc hosted
-checks are pending; green
-d12 or d144 results are not transferred. PR1339 fc20's three closure failures
+the baseline unchanged. Hosted535f type checking also passed. Exact5bcc now
+passes all8 applicable hosted jobs, including all476 unit suites and the later
+disposable SQL/recovery steps;2 optional polish jobs remain skipped.
+[Exact combined unit/recovery run](https://github.com/sidney-afk/client-analytics/actions/runs/34155524321).
+Green d12 or d144 results are not transferred. PR1339 fc20's three closure failures
 and pre-test missing-lock browser failure remain historical.
+
+The required native urgent-alert source is now separately published in draft
+[PR1341](https://github.com/sidney-afk/client-analytics/pull/1341), exact
+`1e9bb39668925ec8381b50aedab0f8c224b73ad5`, stacked on green5bcc. Four staff
+callers use the existing protected gateway; current native client/video/card/
+round/editor ownership precedes a purpose-bound JWT handoff to an isolated
+credential-authenticated webhook. The current roster/mapping/channel/bot are
+reused. Source review corrected real card-field and JavaScript-scope mistakes;
+40 actual-handler groups,28 UI VM checks and31 receiver controls pass. Combined
+synthetic transport also validates actual generated claims/body with the actual
+receiver envelope validator. Exact captured draft preserves9 nodes and adds9
+isolated native nodes, with retries disabled. Gateway six-file closure is
+`663e7e423dfe150449f820ecb1e7aa3f2506d6c55c3770cfdc65b556d1311e14`.
+Its hosted checks are running; parent green proof does not certify this source.
+It is default-off/uninstalled, with no new secret or message. Credential binding,
+actual engine/sandbox/mapping/Slack response and complete installed delivery
+remain held. Local unknown-delivery holds are not global replay prevention or
+an atomic reassignment lock. The old provider root is preserved, not retired.
+
+Owner explicitly confirms that Kasper's weekly Editors summary is used and
+required. Its native history replacement is an unfinished engineering blocker;
+do not defer it as optional history or ask that usage question again.
 
 The named append migration has SHA256
 `2b26c56fbbefa70e06e16aab4feb652aa2a83f81a4dd4ffade18f23f780e0c52`.
@@ -94,7 +118,7 @@ Inventory completeness does not prove zero provider traffic or full execution.
 The remaining automation work is seven finite groups: F44 submit forwarding and
 native project picker; native Workload/tweak scope and scheduled mirror
 replacement/retirement; native urgent editor lookup; weekly editor statistics
-(owner usage answer pending); linked-card status/metadata/adoption and explicit
+(owner confirms current use); linked-card status/metadata/adoption and explicit
 provider import; conserved comment/status queues with refusal BEFORE provider
 lookup; and the two bounded external-destination checks. Preserve the31 healthy
 non-Linear destinations. Two legacy write fences currently query Linear before

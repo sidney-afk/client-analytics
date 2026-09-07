@@ -23,6 +23,12 @@
  * Overdue; the In Progress share moved one strip down, and the 113 parked and
  * tweak rows are unchanged.
  *
+ * The narrowing moved a COUNT, not a PLACEMENT (owner decision, same day).
+ * Past-due work still leaves the work-day calendar whenever a strip above is
+ * already carrying it, so today's cell keeps the capacity totals it had; the
+ * only rows that now fall through to `planned` are past-due rows in a live
+ * status no strip claims, which would otherwise drop off the page entirely.
+ *
  * The Workload view encodes that rule in three stages this suite executes:
  *
  *   1. `wlIsActiveStatus` parks the approval states by NAME (a fixed
@@ -31,7 +37,9 @@
  *   2. the partition loop routes tweak-family rows to `tweaksNeeded` BEFORE
  *      the past-due check runs, so a late tweak is "needed", never "overdue";
  *   3. the past-due check itself is gated on `wlIsToDo`, so every remaining
- *      live status keeps its own strip and stays off the overdue lane.
+ *      live status keeps its own strip and stays off the overdue lane;
+ *   4. the calendar short-circuit is gated on a strip actually carrying the
+ *      row, so a past-due row nothing claims stays visible on the calendar.
  *
  * What the page shows the editor is a subset of the ~19, never the 132. The
  * 132 lives in Linear's native UI, which we do not render and cannot re-teach;
@@ -136,8 +144,8 @@ ok(active.every(s => !APPROVAL_STATES.includes(s.status)),
 ok(buckets.nowWorking.some(s => s.id === 'inprog-late')
   && buckets.nowWorking.filter(s => s.id === 'inprog-late').length === 1,
   'a late In Progress row shows in the in-progress strip, once, and only there');
-ok(buckets.planned.some(s => s.id === 'inprog-late'),
-  'and it stays on the calendar — started work is not hidden because its deadline slipped');
+ok(!buckets.planned.some(s => s.id === 'inprog-late'),
+  'and it leaves the work-day calendar exactly as it did before — the narrowing moved a count, not a placement');
 ok(buckets.planned.some(s => s.id === 'todo-future') && !buckets.overdue.some(s => s.id === 'todo-future'),
   'future-dated work is planned, not overdue');
 

@@ -20,12 +20,15 @@ clients**, against 127 of 688 on the calendar. A samples batch is commissioned a
 thumbnails and then needs a video beside one of them. None of the 24 carries a legacy
 Linear url in the empty slot, so every one is a fill rather than a half-link repair.
 
-Left open on purpose, 3 cards, one owner decision: the RPC picks the card table from
-`batches.purpose`, and two F42-adoption batches carry `purpose='calendar'` while their
-children carry `origin='samples'`, so those three refuse `component_fill_card_missing`.
-The refusal now says what is actually true instead of inheriting the calendar's
-evict-the-cache-and-reload advice, which is right there and false here. Browser-only,
-no deploy. OPEN_REPAIRS 162.
+Left open on the day, then closed the same day: the RPC picks the card table from
+`batches.purpose`, and two F42-adoption batches carried `purpose='calendar'` while their
+children carried `origin='samples'`, so 3 cards would have refused
+`component_fill_card_missing`. The owner corrected both batches at 20:33Z, a minute
+before the PR opened, so that count was stale as written. Re-measured after: all 23
+half cards satisfy every condition the write checks and none is blocked. The refusal
+path stays as a guard against the pair drifting again, saying what is true instead of
+inheriting the calendar's evict-the-cache-and-reload advice. Browser-only, no deploy.
+OPEN_REPAIRS 162 and 162.1.
 
 ## 2026-09-06 — Built: the description edits in place, like Linear's
 

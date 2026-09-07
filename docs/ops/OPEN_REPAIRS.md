@@ -13919,3 +13919,31 @@ red against the code that preceded them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
+
+### 162.1 The drifted batches were corrected the same day, and the 3 cards are no longer blocked
+
+The owner ran option 1 while PR 1342 was still being written:
+`b1_b_e1052e9dc5b1aa4943e100fb017d` and `b1_b_2b23eef88da72a3d7f8382149ab3`
+both carry `purpose='samples'` as of `2026-09-07T20:33:44Z`, about a minute
+before the PR opened. **Every measurement above that names 3 blocked cards was
+taken at 19:59 and was already out of date when it was written.** The PR body
+and the `EXECUTION_LOG` entry for 2026-09-07 carry the same stale figure.
+
+Re-measured after the fact, non-archived: 3 cards carry both components, 20
+only a thumbnail, 3 only a video, 0 neither. Of the 23 half cards, **23 satisfy
+every condition the write checks** (a readable sibling, carrying that card's own
+`card_id`, in a batch whose purpose is `samples`) and none is blocked. The
+population also moved by one between the two measurements, from 21 thumbnail
+only to 20, so one card gained its video in that window.
+
+The browser's `component_fill_card_missing` answer STAYS, and is now a guard
+with no live population rather than an explanation of a known case. It exists
+because the RPC picks the card table from `batches.purpose`, and nothing stops
+that pair from drifting again on a future adoption import; if it does, the
+refusal still says what is true instead of advising a reload that cannot help.
+
+Option 2 above (resolving the card table from the SIBLING's `origin` rather
+than the batch purpose) is therefore NOT needed for any live row, and is left
+recorded rather than built. It remains the more robust of the two, because it
+would make the drift unable to block a fill at all rather than requiring the
+data to be corrected each time.

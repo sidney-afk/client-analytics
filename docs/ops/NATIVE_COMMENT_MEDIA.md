@@ -132,6 +132,10 @@ edit reuse, scoped refresh success/failure/concurrent-edit and identity-loss cas
 actual Chromium refresh/expired-click controls with zero external requests, and
 private synthetic staging/readback proposals. The shared brief suite also passed
 **32 groups** after signer extraction and exact object-path checking.
+The actual comment-reader fixture loaders resolve both media modules from their
+real source paths. The receipt-fingerprint fixture additionally resolves the
+candidate's brief helper while preserving its older baseline; **238 receipt
+checks** and **26 comment-reader checks** passed without substitute media modules.
 
 All **75** already preserved current files passed the final validators, totaling
 **547252015 bytes**, including all five larger videos and both fonts. This was an
@@ -146,6 +150,24 @@ with private bucket and both reader flags off. Private SQL receipt SHA-256:
 `7363c71886e405f6a8e724501aa060959f57908308d2de47b6361b277162a5a7`.
 This proves the additive migration on an owned empty local target, not the full
 combined recovery or a production installation.
+
+Actual current-file ingress is privately staged in **two complete packages**:
+48 comments / 72 occurrences / 92798103 object bytes, and the complete seven-file
+comment / 455577580 object bytes. Combined coverage is **49 comments, 79
+occurrences, 75 distinct URLs and 548375683 staged object bytes**. Repeated
+occurrences intentionally retain their separate custody identities. Every staged
+row remains pending; no Storage object or ledger row has been installed.
+
+The combined private readback checked every packaged file hash, each original
+body/offset/version/client/team/audience binding, both schema/validator pins,
+and the retained acquisition receipts. Generated source bindings are explicitly
+labelled as derived from the original 17:40 collection and per-URL/streaming
+receipts; they are not fabricated provider responses. Original collection and
+read receipts remain alongside each package under their content hashes.
+Combined staging coverage receipt SHA-256:
+`cf2ab05fdd5c7ef7376f1d2b5f46bb3bca5267e1cd4a1ccaea19f4775c4f475e`.
+This is local package readback and complete captured-scope accounting, not
+independent Storage delivery, live current-scope admission or a recovery restore.
 
 Focused evidence is local actual-handler/model plus extracted Chromium controls;
 SQL runs only with an explicitly owned disposable loopback binding. Hosted CI,

@@ -40,6 +40,12 @@ async function load(version) {
   for (const relative of ['../_shared/staff-role-auth.ts','./selected-label-pages.mjs','../_shared/linear-create-id.mjs']) {
     text = rewriteOnce(text,`from "${relative}";`,`from "${pathToFileURL(path.resolve(ROOT,'supabase/functions/production-write',relative)).href}";`);
   }
+  // The historical baseline predates media. Candidate imports must resolve the
+  // actual shared source at its owning path, not a substituted empty module.
+  const mediaRelative = '../_shared/native-brief-media.mjs';
+  if (text.includes(`from "${mediaRelative}";`)) {
+    text = rewriteOnce(text,`from "${mediaRelative}";`,`from "${pathToFileURL(path.resolve(ROOT,'supabase/functions/production-write',mediaRelative)).href}";`);
+  }
   text = rewriteOnce(text,'from "./policy.mjs";',`from "${pathToFileURL(policyFile).href}";`);
   const file = path.join(tmp,version+'.ts');fs.writeFileSync(file,text);
   await import(pathToFileURL(file).href);

@@ -13802,6 +13802,16 @@ hold. `_writeUiLinkSlotSealedLive` runs again inside the callback, and the card
 check runs once more after both round trips, since each of them is itself a
 wait.
 
+**THE CALENDAR TWIN HAS BOTH OF THESE, AND IS LEFT ALONE HERE.**
+`_calFillComponent` reads authority once before its dialog and hands
+`_calFillComponentSubmit` an `identity` argument that function never reads, so a
+rollback or a sign-in change during the calendar confirmation lands exactly the
+same way: a create the gateway has to refuse, and a `created_by` naming whoever
+pressed Confirm. Verified in source on 2026-09-07, not assumed from the
+symmetry. It predates this change and it is the calendar's, so it is recorded
+here rather than fixed inside a samples PR; the fix is the one written above,
+ported.
+
 **STILL OPEN, AND IT IS NOT THIS CHANGE'S:** `_sxrFlushCardSave` deriving its
 slug and row from `sxrState` at flush time is a property of the samples save
 engine, not of the fill. Any in-flight save plus a client switch reaches it

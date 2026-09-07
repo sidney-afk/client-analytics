@@ -3521,8 +3521,6 @@
         .workload-exception-section.is-collapsed .workload-section-toggle { margin-bottom: 0; }
         .workload-exception-rollups[hidden] { display: none; }
         @media (prefers-reduced-motion: reduce) { .workload-section-toggle-chevron { transition: none; } }
-        .workload-section-hint { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
-        .workload-section-hint strong { color: var(--text-secondary); font-weight: 700; }
         .workload-weekend-notice { position: relative; margin-left: auto; text-transform: none; letter-spacing: 0; }
         .workload-weekend-notice[hidden] { display: none; }
         .workload-weekend-notice summary { min-height: 28px; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--white); color: var(--text-secondary); font-size: 0.62rem; font-weight: 750; cursor: pointer; list-style: none; white-space: nowrap; }
@@ -3761,12 +3759,39 @@
             .workload-overview-capacity { max-width: 220px; }
         }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-        .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .workload-chip { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); font-size: 0.71rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; }
         .workload-chip:hover { border-color: var(--sv-border-aaa); background: var(--white); }
-        .workload-chip .chip-client { color: var(--text-muted); font-weight: 500; }
-        .workload-loose-item { display: inline-flex; align-items: center; gap: 5px; }
-        .workload-loose-plan { min-height: 30px; border: 1px solid var(--border); border-radius: 999px; padding: 5px 9px; background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.66rem; font-weight: 700; cursor: pointer; }
-        .workload-loose-plan:hover { border-color: var(--sv-border-6c5ce7); color: var(--sv-fg-6c5ce7); }
+        .workload-loose-item { display: inline-flex; align-items: center; gap: 3px; }
+        /* Loose strips are grouped client then parent issue, so the chip row
+           stops being one flat wrap and becomes a column of client cards.
+           Kept deliberately dense: these two strips are a queue someone scans
+           top to bottom, so every row of padding is a row of scrolling. */
+        .wl-loose-clients { flex-direction: column; align-items: stretch; gap: 7px; }
+        .wl-loose-client { border: 1px solid var(--border); border-radius: 7px; background: var(--bg); padding: 6px 8px; }
+        .workload-undated .wl-loose-client { background: var(--white); }
+        .wl-loose-client-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+        .wl-loose-client-name { font-size: 0.75rem; font-weight: 800; color: var(--text-primary); }
+        .wl-loose-client-count { border-radius: 4px; padding: 0 5px; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.04em; background: var(--border); color: var(--text-secondary); }
+        .wl-loose-parents { display: flex; flex-direction: column; gap: 5px; }
+        .wl-loose-parent { border-left: 2px solid var(--border); padding-left: 8px; }
+        .wl-loose-parent-head { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+        .wl-loose-parent-ident { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.03em; color: var(--sv-fg-6c5ce7); }
+        .wl-loose-parent-title { font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
+        .wl-loose-parent-title-none { font-style: italic; color: var(--text-muted); font-weight: 500; }
+        .wl-loose-parent-count { border-radius: 4px; padding: 0 5px; font-size: 0.6rem; font-weight: 800; background: var(--white); border: 1px solid var(--border); color: var(--text-muted); }
+        .workload-undated .wl-loose-parent-count { background: var(--bg); }
+        .wl-loose-parent-chips { gap: 4px; }
+        .wl-loose-open { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--sv-border-6c5ce7); border-radius: 5px; padding: 2px 7px; background: var(--white); color: var(--sv-fg-6c5ce7); font-size: 0.63rem; font-weight: 800; text-decoration: none; transition: all 0.13s; }
+        .wl-loose-open svg { width: 9px; height: 9px; flex-shrink: 0; }
+        .wl-loose-open:hover { background: var(--bg); border-color: var(--sv-fg-6c5ce7); }
+        /* Linear stays reachable but visually subordinate: a bare glyph, no
+           pill of its own, so the escape hatch costs a click and not a row. */
+        .wl-loose-open-linear { border-color: transparent; background: none; color: var(--text-muted); padding: 2px; }
+        .wl-loose-open-linear svg { width: 12px; height: 12px; }
+        .wl-loose-open-linear:hover { background: none; border-color: var(--border); color: var(--text-secondary); }
+        .workload-chip-linear { display: inline-flex; align-items: center; justify-content: center; padding: 2px; border-radius: 5px; border: 1px solid transparent; color: var(--text-muted); text-decoration: none; flex-shrink: 0; transition: all 0.13s; }
+        .workload-chip-linear svg { width: 12px; height: 12px; }
+        .workload-chip-linear:hover { border-color: var(--sv-border-aaa); color: var(--text-secondary); }
         .workload-calendar-module { overflow: visible; background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
         .workload-calendar-heading { position: relative; min-height: 34px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
         .workload-calendar-heading h2 { margin: 0; color: var(--text-primary); font-size: 1.45rem; font-weight: 850; letter-spacing: -0.025em; text-align: center; }
@@ -16193,12 +16218,11 @@
             </section>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>
-                <div class="workload-chips" id="wlUnassignedChips"></div>
+                <div class="workload-chips wl-loose-clients" id="wlUnassignedChips"></div>
             </div>
             <div id="wlUndated" class="workload-needs-assignment workload-undated empty">
                 <div class="workload-section-label">Needs a work day or deadline</div>
-                <div class="workload-section-hint">These assigned sub-issues stay visible here until an internal work day or Linear deadline exists.</div>
-                <div class="workload-chips" id="wlUndatedChips"></div>
+                <div class="workload-chips wl-loose-clients" id="wlUndatedChips"></div>
             </div>
             <div class="workload-legend">
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--sv-bg-6c5ce7)"></span>Video</span>
@@ -18628,6 +18652,64 @@
         renderLooseIssueStrip('wlUnassigned', 'wlUnassignedChips', wlState.unassigned, false);
     }
 
+    /* SyncLinear deep link for a Linear identifier.
+
+       Same shape the workload popover has used since the 2026-08-21 owner
+       request ("it opens the original linear... make it so it opens our sync
+       linear"): ?prod=1&d=<identifier>, which the Production tab resolves by
+       displayId and falls back to its own list view for anything it cannot
+       find. Read-only navigation, never a write. */
+    function wlSyncLinearUrl(identifier) {
+        const ident = String(identifier || '').trim();
+        return ident ? (location.pathname + '?prod=1&d=' + encodeURIComponent(ident)) : '';
+    }
+
+    /* The parent a loose sub-issue hangs off, as far as this board can see it.
+
+       `parentById` only holds parents that came back in THIS snapshot, and a
+       sub whose parent is filtered out of the snapshot still carries
+       `parentIdentifier` from workload_issues -- which is all the SyncLinear
+       deep link needs. So the identifier falls back to the sub's own copy and
+       a group is still openable when the parent row itself is absent; only the
+       human-readable title and the Linear escape hatch degrade. */
+    function wlLooseParentInfo(sub) {
+        const parentId = String(sub && sub.parentId || '');
+        const parent = parentId ? wlState.parentById.get(parentId) : null;
+        const identifier = String((parent && parent.identifier) || (sub && sub.parentIdentifier) || '');
+        if (!parentId && !identifier) return null;
+        return {
+            key: parentId || identifier,
+            identifier,
+            title: String((parent && parent.title) || ''),
+            url: String((parent && parent.url) || ''),
+        };
+    }
+
+    /* Loose sub-issues, grouped CLIENT then PARENT ISSUE.
+
+       Owner request 2026-09-07, looking at a flat 30-chip "Needs assignment"
+       wall: the two loose strips are where someone goes to hand work out, and
+       a flat list makes them re-derive by eye which chips belong to the same
+       client and the same parent. Sub-issues under one parent are almost
+       always assigned together, so the parent gets ONE button that opens it in
+       SyncLinear -- where the assigning actually happens -- instead of thirty
+       chips each opening Linear one sub-issue at a time.
+
+       Sub-issues with no parent still render; they group under their client
+       with no parent button of their own, each chip opening its own SyncLinear
+       row. Linear stays one small click away on every group and every chip: it
+       is a reference and the rollback path, and removing a working escape
+       hatch costs more than the extra icon.
+
+       `applyEditorFilter` is the only thing that still separates the two
+       strips. The undated strip used to pair every chip with a "Set work day"
+       button opening the plan popover; the owner pulled it on 2026-09-07 ("for
+       now") once the strips became a scan-and-hand-out queue rather than a
+       place to plan, and dropping ~25 buttons is most of what made the block
+       compact. Nothing else changed with it: the popover, wlSetPlanDate and
+       the delegated [data-wl-issue-open] handler are all untouched and still
+       reached from the calendar, so restoring the button is re-rendering it,
+       not rebuilding a path. */
     function renderLooseIssueStrip(stripId, chipsId, source, applyEditorFilter) {
         const stripEl = document.getElementById(stripId);
         const chipsEl = document.getElementById(chipsId);
@@ -18644,16 +18726,81 @@
             return;
         }
         stripEl.classList.remove('empty');
-        chipsEl.innerHTML = filtered.map(s => {
-            const team = wlTeamBucket(s.teamKey, s.teamName);
-            const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? 'var(--sv-misc-d97706)' : 'var(--sv-misc-6c5ce7)'}"></span>`;
-            const planButton = applyEditorFilter
-                ? `<button type="button" class="workload-loose-plan" data-wl-issue-open="1" data-wl-issue-id="${wlEscape(s.id || '')}" data-wl-parent-id="${wlEscape(s.parentId || '')}" data-wl-assignee-id="${wlEscape(s.assigneeId || '')}" data-wl-client="${wlEscape(s.clientName || '')}" data-wl-date="">Set work day</button>`
-                : '';
-            const accessible = [s.identifier || '', s.title || '', s.clientName || ''].filter(Boolean).join(' · ');
-            return `<span class="workload-loose-item"><a class="workload-chip" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape(accessible)}">
-                ${dot}<span>${wlEscape(s.title)}</span><span class="chip-client">${wlEscape(s.clientName || '')}</span>
-            </a>${planButton}</span>`;
+
+        const byClient = new Map();
+        for (const s of filtered) {
+            const clientName = s.clientName || '';
+            // Leading space keys cannot collide with a real client name,
+            // Linear id or identifier, so the two fallback buckets below stay
+            // distinct from every genuine group.
+            const clientKey = clientName || ' noclient';
+            if (!byClient.has(clientKey)) byClient.set(clientKey, { clientName, total: 0, groups: new Map() });
+            const client = byClient.get(clientKey);
+            client.total++;
+            const parent = wlLooseParentInfo(s);
+            const groupKey = parent ? parent.key : ' noparent';
+            if (!client.groups.has(groupKey)) client.groups.set(groupKey, { parent, subs: [] });
+            client.groups.get(groupKey).subs.push(s);
+        }
+
+        const clients = [...byClient.values()].sort((a, b) =>
+            (a.clientName || '').localeCompare(b.clientName || ''));
+
+        const externalMark = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 2.4h3v3"/><path d="M9.6 2.4 5.2 6.8"/><path d="M9.6 6.6v3h-7v-7h3"/></svg>`;
+        const linearMark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/></svg>`;
+
+        chipsEl.innerHTML = clients.map(client => {
+            const clientLabel = client.clientName || 'No client';
+            const groups = [...client.groups.values()].sort((a, b) => {
+                // Parentless subs sink to the bottom of their client; the rest
+                // hold a stable identifier order so a refresh does not reshuffle
+                // the block someone is reading.
+                if (!a.parent !== !b.parent) return a.parent ? -1 : 1;
+                if (!a.parent) return 0;
+                return (a.parent.identifier || '').localeCompare(b.parent.identifier || '', undefined, { numeric: true });
+            });
+            const groupsHtml = groups.map(group => {
+                const parent = group.parent;
+                const subs = wlSortSubIssues(group.subs);
+                const syncUrl = parent ? wlSyncLinearUrl(parent.identifier) : '';
+                const parentName = parent ? (parent.identifier || 'the parent issue') : '';
+                const openBtn = syncUrl
+                    ? `<a class="wl-loose-open" href="${wlEscape(syncUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape('Open ' + parentName + ' in SyncLinear to assign its sub-issues')}"><span>Open in SyncLinear</span>${externalMark}</a>`
+                    : '';
+                const parentLinearBtn = parent && parent.url
+                    ? `<a class="wl-loose-open wl-loose-open-linear" href="${wlEscape(parent.url)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape('Open ' + parentName + ' in Linear')}" data-tip="Open in Linear">${linearMark}</a>`
+                    : '';
+                const parentHead = parent
+                    ? `<span class="wl-loose-parent-ident">${wlEscape(parent.identifier || 'Parent')}</span>${parent.title ? `<span class="wl-loose-parent-title">${wlEscape(parent.title)}</span>` : ''}`
+                    : `<span class="wl-loose-parent-title wl-loose-parent-title-none">No parent issue</span>`;
+                const chips = subs.map(s => {
+                    const team = wlTeamBucket(s.teamKey, s.teamName);
+                    const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? 'var(--sv-misc-d97706)' : 'var(--sv-misc-6c5ce7)'}"></span>`;
+                    const accessible = [s.identifier || '', s.title || '', s.clientName || ''].filter(Boolean).join(' · ');
+                    const subSyncUrl = wlSyncLinearUrl(s.identifier) || s.url || '';
+                    const subLinearBtn = s.url
+                        ? `<a class="workload-chip-linear" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape((s.identifier || s.title || 'Sub-issue') + ' in Linear')}" data-tip="Open in Linear">${linearMark}</a>`
+                        : '';
+                    return `<span class="workload-loose-item"><a class="workload-chip" href="${wlEscape(subSyncUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${wlEscape(accessible)}">
+                        ${dot}<span>${wlEscape(s.title)}</span>
+                    </a>${subLinearBtn}</span>`;
+                }).join('');
+                return `<div class="wl-loose-parent${parent ? '' : ' is-orphan'}">
+                    <div class="wl-loose-parent-head">
+                        ${parentHead}
+                        <span class="wl-loose-parent-count">${subs.length}</span>
+                        ${openBtn}${parentLinearBtn}
+                    </div>
+                    <div class="workload-chips wl-loose-parent-chips">${chips}</div>
+                </div>`;
+            }).join('');
+            return `<section class="wl-loose-client" aria-label="${wlEscape(clientLabel)}">
+                <div class="wl-loose-client-head">
+                    <span class="wl-loose-client-name">${wlEscape(clientLabel)}</span>
+                    <span class="wl-loose-client-count">${client.total}</span>
+                </div>
+                <div class="wl-loose-parents">${groupsHtml}</div>
+            </section>`;
         }).join('');
     }
 

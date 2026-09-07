@@ -39,12 +39,18 @@ claim current installed or live workflow proof.
 Production-write's six-file closure is
 `3a5c0ba24df54711e9169896729f66438a4ed96bc78082198a85aaebfaac7d95`.
 Production-comments' six-file closure is
-`ac85ae775789fafc809fdd69e961b1c06aa83f32a83adb970cb460cb78e86c9c`.
+`6083e53a630f9c9faf9ad997884dd28a1066e51b732385243bc42e4bfbfd31b5`.
 The generated manifest, expected-only provenance and F27 pins agree. A mandatory
 hosted Chromium media job fixes the earlier media PR's missing-lockfile setup;
 the earlier three closure failures and pre-test browser failure remain recorded.
-One combined hosted run is pending publication; older green results are not
-transferred to this head.
+The first combined hosted run on `34ded6cb` passes the mandatory media browser,
+visible boot, synthetic browser, Production polish, identity and F27 rollback
+checks. Its type ratchet found six new comment-media errors. Source correction
+`43db19a93b68d201d6b24a1509a79f216052c027` changes only TypeScript annotations,
+keeps all runtime guards and the existing baseline, and passes the targeted
+official Deno2.5.2 ratchet plus35 focused comment-media controls. The comment
+closure above includes that correction; its earlier hash is historical. Unit
+and exact corrected-head hosted outcomes remain separate pending proof.
 
 All required captured brief and current linked staff-comment files have private
 validated bytes and staged occurrence packages. The owner's one historical

@@ -39,8 +39,8 @@ Real backend authorization, media quality and live persistence remain unproven.
 Staged operations [PR1332](https://github.com/sidney-afk/client-analytics/pull/1332),
 `cfb042aca6394edc0f6f9c4ebab928b1e223f806`, contains the separate frozen-writer
 builder and independent receipt/heartbeat consumer. Named source review and root
-focused checks pass. It installs nothing; hosted publication checks are pending.
-All four applicable PR1332 cfb hosted jobs subsequently passed. Those results
+focused checks pass. It installs nothing. All four applicable PR1332 cfb hosted
+jobs passed. Those results
 remain preparation evidence, with private captured-handler tests explicitly
 separate from hosted execution.
 
@@ -62,6 +62,17 @@ this dated mirror read is not provider-completeness or UI-membership proof.
 The current32-file inventory receipt is SHA256
 `5557f17bdfd1dd9abea6b61c33f6e952ef486297eb3488225f703f38cd723c56`;
 the earlier31-file d144 inventory remains intact.
+
+LIVE_READ at September7 16:50:57Z checked the public object names declared by
+those11 source migrations. All nine declared table/view names are absent in the
+installed catalog; two installed overloads match the51 declared function names.
+Private catalog footprint receipt SHA256
+`e4134fac0a1a8fec9207579ad3499c10f8681df202936fb3dcf8004744fc917a`.
+This is a bounded lexical name inventory and installed definition fingerprints,
+not complete dependency/grant inspection, source equality or installation order.
+No business rows or function bodies were returned and no DDL was executed.
+The new media and legacy-intake preparation will require a separate explicit
+recovery extension; neither can silently expand the existing history-v8 promise.
 
 The staged anonymous composition uses captured Calendarv48/Samplesv49 plus
 the existing native materialization and thumbnail helpers: four unique files,
@@ -93,6 +104,19 @@ current product dependency, not justification to restart exhaustive export.
 Other hosts/fields, comments and embedded card feedback need bounded coverage
 before any complete required-media claim. Per-client visibility remains distinct
 from active-client membership.
+
+A second bounded LIVE_READ at September7 16:46:09Z classified the246 normalized
+comment bodies with literal Linear-upload references:49 nondeleted rows have
+active-client deliverable owners (36 graphics,13 video),82 nondeleted rows have
+no deliverable owner, and115 rows are deleted. All49 directly linked rows have
+staff audience. Receipt SHA256
+`9428fe5e971749c8d6b28814362acf5804745d5ca0d39de398f33b72ce522173`.
+The current staff comment renderer offers links and deliberately does not render
+inline comment images. Preserve that behavior while replacing required file
+destinations. The82 unlinked rows need offered-reader classification; the115
+tombstones are not authorization to resurrect or discard anything. No body,
+URL, client identity or file byte was returned. Brief-only replacement cannot
+close this separately identified current comment dependency.
 
 ## Minimum reserved TEST window
 

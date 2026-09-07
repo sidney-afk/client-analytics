@@ -13610,3 +13610,312 @@ an alias must never steal a canonical match, in either row order.
    otherwise for the hour the two PRs and this one overlapped (Codex on #1333);
    the identifier resolution above is what makes those links RESOLVE, and
    #1331/#1338 are what make them point at the right row.
+
+---
+
+## 162. [2026-09-07, BUILT, live on merge with no deploy; one owner decision left, 3 cards] The samples card could not complete itself, and 24 of its 26 live cards are half a post
+
+The owner, with a sample thumbnail open beside a calendar post: *"when there's a
+calendar that has a post that is just a thumbnail, there's a little thing where
+we can add a video or a thumbnail to the batch... but we don't have the same
+system for samples. But we need it, and I guess it's probably the same
+concept."*
+
+It is the same concept, and it was already the same write.
+
+**THE POPULATION IS WORSE HERE THAN ON THE CALENDAR.** Measured 2026-09-07
+against `sample_reviews`, non-archived, with the key the shipped gate uses
+(`video_deliverable_id` / `graphic_deliverable_id`, both-ways-empty):
+
+| | cards |
+|---|---|
+| both components | 2 |
+| thumbnail only, needs a video | 21 |
+| video only, needs a thumbnail | 3 |
+| neither | 0 |
+
+**24 of 26 live sample cards are half a post, across 6 clients**, against 127 of
+688 on the calendar when item 155's button shipped. A samples batch is normally
+commissioned as thumbnails and then needs a video beside one of them, which is
+the gap exactly. Zero of the 24 carry a legacy Linear url in the empty slot, so
+every one of them is a fill and none is a half-link repair. Cross-checked by
+hand on one of them, `sr_mrfd5wbb_gzui9`: its sibling is `b1_d_81d72794...`,
+team `graphics`, `card_id` equal to the card, `origin` `samples`, `sort_key`
+null, the shape the gate reads and the RPC re-reads.
+
+**NOTHING NEW WAS ASKED OF THE SERVER, AND THAT IS THE FINDING.**
+`production-write` has admitted `component_fill` from the `sxr` surface since
+the operation shipped on 2026-08-31 (`assertSurfaceOperation` names calendar
+and sxr together, and refuses `production`), and
+`public.production_component_fill` reads and locks the card in `sample_reviews`
+rather than `calendar_posts` when the batch carries `purpose='samples'`. Both
+halves were written for two surfaces on the same day. Only one ever got a
+button. So this ships live on merge: **no migration, no Edge Function deploy.**
+
+**What was built.** The samples twin of the calendar pile's fill button:
+`_sxrFillSiblingId` / `_sxrFillComponentSlotHtml` / `_sxrFillRequestId` /
+`_sxrFillWriteCardLink` / `_sxrFillComponent` / `_sxrFillComponentSubmit`, wired
+into `_sxrLinearPileHtml` in the place the missing component would have
+occupied. The gate is the calendar's rule for rule: a sibling to inherit the
+batch, the parent route, the sort position and the title from; the slot empty
+BOTH ways; staff only; not on a blank row; not on an archived card; and only
+where the target team is SyncView-authoritative, because under a rollback the
+create is refused at the database and the button would be dead.
+
+Three things are samples-specific rather than copied:
+
+* **The request id carries its own `sfill:` prefix.** The gateway derives the
+  deliverable id from that string, and a sample card can carry a `p_native_...`
+  id just as a calendar card can (3 of the 24 do). The two tables mint ids
+  independently, so a shared prefix is the one way one id could ever serve two
+  different rows.
+* **The card write waits on any in-flight save for that card.** A save already
+  in flight was built before the fill and echoes the link columns as they were,
+  empty, so landing it afterwards would put the card straight back to unlinked.
+  `_sxrArchiveOne` waits on the same promise for the same reason. Only the two
+  columns written are applied locally; the full echo would carry columns the
+  person may have edited since.
+* **`component_fill_card_missing` is answered here, not passed to the shared
+  handler.** See the open half below.
+
+The repair arm (occupied / `idempotency_conflict`, then link the component that
+already exists) reuses `_calFillLookupExisting` outright rather than growing a
+second copy of the same `deliverables` read.
+
+**STILL OPEN: ONE OWNER DECISION, 3 CARDS.** The RPC picks the card table from
+`batches.purpose`. Two batches minted by the F42 adoption path (`b1_b_...`)
+carry `purpose='calendar'` while their children carry `origin='samples'` and
+`sr_` card ids; one of them holds the siblings of 3 of the 24 half cards (one
+client). On those three the write is refused `component_fill_card_missing`: the
+card is not missing, it was looked for among the calendar cards. Both drifted
+batches are mixed (3 samples-origin rows plus 1 or 2 `manual` rows with no card
+at all), which is why neither fix is obviously the right one and neither was
+taken unilaterally:
+
+1. **Correct the data.** Set `purpose='samples'` on those two batches. Makes the
+   existing children agree with their batch (today they disagree), and fixes
+   future appends into them too. One statement, owner-run.
+2. **Correct the resolution.** Have the RPC pick the table from the SIBLING's
+   `origin`, falling back to the batch purpose. The sibling is already the
+   authority for the batch, the sort position, the due date, the title and the
+   parent route; this is the one thing it is not the authority for. Needs a
+   migration and a rehearsal case.
+
+Until one of them lands, the button on those three cards refuses **and says so
+truthfully**. The shared `_writeUiReportFailure` answers that code by evicting
+the display caches and advising a reload, which is right on the calendar and
+false here: nothing is stale and no reload helps. The samples path intercepts
+the code first, records the diagnostic, and says the batch is recorded as a
+calendar batch. An honest refusal on 3 cards, not a wrong instruction on 3
+cards.
+
+**Noted, not fixed:** `WRITE_UI_NO_WORK_ITEM_TEXT`, the locked status pill's
+"one cannot be created from this screen", is now stale on any card that HAS a
+sibling, on both surfaces, because the fill button is exactly that creation. It
+stays true for a card with neither component, which is most locked pills. Left
+alone here rather than widened in a samples change; item 87.8 owns that
+sentence and `test/locked-pill-names-no-dead-control.js` pins it.
+
+**REVIEW FOUND TWO, AND BOTH WERE REAL** (Codex on #1342).
+
+**P1: awaiting the in-flight save once was not enough.** That save's `finally`
+starts a REPLACEMENT `_sxrSaveInFlight[pid]` for any edit queued while it was
+draining, so the continuation resumed beside a save it had never waited for.
+The reviewer's mechanism needs one narrowing that does not save it: an ordinary
+edit is a FIELD-LEVEL PATCH carrying only the columns it touched, so it holds no
+link column and cannot clobber one. The whole-card branch is the live path. It
+runs for a new row and for `_sxrRetrySave`, which queues an empty bucket
+precisely so the flush re-sends the current row, link columns included, from
+local state. A copy built before the fill carries them EMPTY, and landing it
+after the fill detaches the component that was just created while the card
+reports success. The write now drains with `_sxrAwaitCardSave` (which also
+flushes queued edits, not merely the active save) and then HOLDS the per-card
+lock across itself, so a flush starting meanwhile hits the engine's own
+`if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and re-reads local
+state afterwards. Released in a `finally` in the save engine's own order, with
+any edit queued during the hold flushed on release.
+
+**P2: a departed client could be cached as the current one.** Staff switch
+Samples tabs while a request is in flight; `clientSlug` still names the client
+the write was started for while `sxrState.posts` already holds the newly
+selected one. `_sxrCacheWrite(clientSlug, sxrState.posts)` then stores one
+client's rows under another's key, to be rendered on the next visit until its
+network read lands. The server write is correct and stays; the local state, the
+cache write and the repaint are now skipped when the view has moved on, and the
+next load of that client reads the link back off the row.
+
+**THE SECOND PASS FOUND THREE MORE, ALL ABOUT THE VIEW MOVING MID-FLIGHT**
+(Codex on #1342, on `7fdd41d`). Every fill has three waits in it, and staff
+switch Samples client tabs during all of them.
+
+**P1: the confirmation could open over a client it did not belong to.** The
+client, the card and the sibling are captured before two network round trips
+(the staff identity read and the live authority read), and the dialog said only
+"this sample". A switch during either one left a dialog sitting over the NEW
+client while carrying the OLD one's identifiers, and confirming it minted real
+Production and Linear work for a client nobody was looking at. `_sxrFillStillCurrent`
+now re-asks the whole question (same client, same card present, same sibling
+still missing the same component) after the awaits AND inside the confirm
+callback, because the dialog is itself a wait that can sit open across a tab
+switch. It also catches a peer who filled the slot first. The dialog now names
+the client and the card.
+
+**P1: a queued edit could be flushed under the wrong client.** The lock added
+in the first round opens this twice over. `onSxrClientChange` calls
+`_sxrFlushAllPending` before switching, but every flush it starts hits
+`if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and DEFERS behind the
+fill; the release-time flush is the other trigger. Either way
+`_sxrFlushCardSave` derives `_saveSlug` and the row from `sxrState` at flush
+time, and a card it cannot find is treated as a new row and INSERTED. Since
+`sample_reviews` is keyed by (client, id), one client's edit lands as a brand-new
+sample under another. The bucket is now dropped rather than flushed when the
+view has moved on, with a diagnostic; dropping it is also what stops the
+deferred `_sxrAwaitCardSave`, which re-reads `_sxrPendingEdits[pid]`, finds
+nothing and returns. The cost is a local edit on a card nobody is looking at any
+more; the alternative was a phantom row under a client who never had one.
+
+**P2: the Linear url is usually not in the fill response.** On a live fill the
+gateway schedules the outbound drain and answers `mirror_pending: true` before
+the issue exists, so the card is written with the deliverable id and an EMPTY
+url. That is enough to retire the fill button, so nothing on the card asks for
+the link any more and it sat empty until an unrelated reload happened to run the
+adopter. This is the hole a freshly created sample already had, and
+`_sxrAdoptLinksAfterCreate` is the answer written for it (four guarded polls
+across the window the mirror actually takes, measured at 15s on the 2026-08-20
+create). It now runs after a fill whose response carries no url, and after the
+repair arm, since a peer's fill can be mid-drain just as easily.
+
+**THE THIRD PASS FOUND TWO MORE, BOTH UNDER THE CONFIRMATION** (Codex on
+PR 1342, on `86983dc`). The dialog can sit open indefinitely, and the second
+round only taught it to re-check the CARD.
+
+**P1: the work could be recorded against the wrong person.** The submitter
+never used the captured `identity`; it was a gate result and nothing more,
+while `_syncviewEfHeaders` reads `_syncviewStaffIdentityForHeaders()` at
+REQUEST time. Staff identity lives in localStorage and is synced across tabs by
+`_syncviewStaffIdentityStorageChanged`, so a sign-in change in another tab
+lands in this one while the dialog waits, and whoever presses Confirm is
+recorded on `deliverables.created_by` as the author of work somebody else
+asked for. The identity is now re-required inside the callback (which
+re-verifies it, so a lapsed verification is caught as well as a changed
+account) and its `_writeUiPrincipalKey()` compared with the one that opened the
+dialog. The unused parameter is gone from the submitter rather than left in
+place: an argument nothing reads is a claim the code does not keep.
+
+**P1: authority was read before the wait, not after it.** AGENTS.md is explicit
+that current runtime authority is read back before acting and that no snapshot
+is a permanent guarantee. A SyncView to Linear rollback while the dialog sat
+open would still have sent a create. The gateway refuses it and nothing wrong
+is written, but the refusal is avoidable and the boundary is the browser's to
+hold. `_writeUiLinkSlotSealedLive` runs again inside the callback, and the card
+check runs once more after both round trips, since each of them is itself a
+wait.
+
+**THE FOURTH PASS FOUND TWO MORE, AND ONE OF THEM WAS THE THIRD PASS'S OWN
+FIX** (Codex on PR 1342, on `82db9f2`).
+
+**P1: the principal was compared before the last await, not after it.** The
+authority read is a network round trip like the two before it, so a cross-tab
+sign-in landing during THAT one walked past a comparison made before it. The
+rule is that the last thing before the write is a re-check, not that there is a
+re-check somewhere; the principal and the card are both re-asked after it now.
+
+**P1: parking, not dropping.** The third pass dropped the queued edit when the
+view had moved on, and the review was right that this traded a wrong-client
+write for silent data loss. The person had no way to know either:
+`onSxrClientChange` had already tried to flush that edit and its flush was
+sitting behind this very lock, so the bucket was its only copy. The bucket is
+now PARKED against the slug and card it was typed on
+(`_sxrParkEditsForClient`), the person is told it is waiting, and
+`_sxrRestoreParkedEdits` hands it back to the normal engine on the next
+successful load of that client, where `sxrState` finally describes the right
+one, so the status machinery, the Linear pushes and the repair refs all run as
+they would have. A card the reload does not return is dropped rather than
+restored, because re-queuing it is exactly the insert-as-new-row defect this
+exists to avoid; the store is capped at 50 cards per client, and every drop is
+recorded. `peekSxrParkedEdits()` reads it, beside `peekWriteUiQueueDiagnostics()`.
+
+**THE FIFTH PASS FOUND FOUR, THREE OF THEM IN THE PARKING ITSELF** (Codex on
+PR 1342, on `88a35cf`). Two are fixed; two are refused, on the record.
+
+**FIXED. Whose edit it is, kept with it.** Staff identity is shared through
+localStorage, so the account can change before that client is opened again, and
+a restored bucket is flushed with whoever is signed in THEN. A parked status
+edit would have reached the native gateway attributed to somebody who never
+made it. The principal is recorded at park time and compared on the way out; a
+mismatch discards it, records it, and says so.
+
+**FIXED. Newer input wins.** Returning to a client paints from cache first, so
+somebody can be typing in the same card while the background load that triggers
+the restore is still in flight. `Object.assign(pending, parked)` put the older
+value last, overwriting what was just typed and flushing it straight to the
+server. The merge is `Object.assign({}, parked, pending)` now: a field both
+carry keeps the newer value, a field only the parked bucket carries is still
+restored.
+
+**REFUSED, AND THE MESSAGE CORRECTED INSTEAD: durability across a reload.** The
+review is right that the map is in memory and a refresh loses it. What was
+actually wrong was the promise: the notification said the edit "saves itself",
+which a page refresh breaks. It now says the edit is not saved, that opening
+that client again in this tab will save it, and to retype it after a reload.
+Persisting the queue would mean a durable local write store with its own quota
+handling, staleness policy, cross-tab races on one key, and a principal binding
+that has to survive a session, which is a sub-system and not a line. It is not
+built here, and the honest message is what stands in for it.
+
+**REFUSED HERE, BECAUSE IT CANNOT BE VERIFIED FROM THIS SESSION: a nightly
+probe.** The review is right on the house rule and right on the fact: no probe
+in `qa/` drives this control or sends `component_fill` from `surface: sxr`, and
+AGENTS.md wants the harness updated when the road moves. Two things about it.
+The calendar's fill button has had the same gap since it shipped 2026-08-31, so
+this is a standing gap rather than one opened here, and nothing existing goes
+red. And a probe written from this sandbox could not be RUN: there is no route
+to the live backend and no `SYNCVIEW_STAFF_KEY`, so it would first execute at
+06:00 UTC against the live TEST client, which is exactly the unverified push
+AGENTS.md warns about. Recorded as the immediate follow-up, covering both
+surfaces, to be written where it can be run.
+
+**THE CALENDAR TWIN HAS BOTH OF THESE, AND IS LEFT ALONE HERE.**
+`_calFillComponent` reads authority once before its dialog and hands
+`_calFillComponentSubmit` an `identity` argument that function never reads, so a
+rollback or a sign-in change during the calendar confirmation lands exactly the
+same way: a create the gateway has to refuse, and a `created_by` naming whoever
+pressed Confirm. Verified in source on 2026-09-07, not assumed from the
+symmetry. It predates this change and it is the calendar's, so it is recorded
+here rather than fixed inside a samples PR; the fix is the one written above,
+ported.
+
+**STILL OPEN, AND IT IS NOT THIS CHANGE'S:** `_sxrFlushCardSave` deriving its
+slug and row from `sxrState` at flush time is a property of the samples save
+engine, not of the fill. Any in-flight save plus a client switch reaches it
+without this feature, through the same deferred `_sxrAwaitCardSave`. The fill
+no longer contributes a path to it, and the fix above is local to the fill
+rather than to the engine, deliberately: binding a queued edit to its
+originating slug means stamping it at a dozen queue sites or adding a guard
+whose blast radius covers the cross-client Kasper queue, which is not a change
+to make inside a samples-feature PR. Recorded here for its own change.
+
+Pinned by `test/samples-component-fill.js`, which EXECUTES the gate against the
+live card shapes (both halves, neither, blank, archived, client view, legacy
+half-link, rolled-back team) rather than pattern-matching it, proves the request
+id cannot collide with a calendar fill of the same card id, and pins the card
+write to the two link columns and the samples payload shape. The two review
+findings are pinned by EXECUTION rather than by source-matching, as the reviewer
+asked: a stub flush started beside the write proves it reads the link and not
+the emptiness before it, a refused write proves the lock is released and the
+queued edit flushed, and a mid-flight client switch proves the departed cache is
+left alone. The second pass is executed the same way, the whole submit function
+included, so the mirror-pending branch, the repair arm and the drifted-batch
+refusal are chosen from real response shapes rather than matched in source.
+The third pass is executed the same way, by running the real
+handler and firing the captured confirmation callback afterwards, so the
+rollback, the account change, the lapsed verification, the client switch and a
+peer's fill are each proven to stop the write. The fourth pass adds the park round trip end to end: parked
+with the edit intact, refused while the view is elsewhere, restored through the
+engine when that client returns, dropped when the card is gone, capped, and
+silent on an empty bucket. The fifth pass adds the principal
+binding and the merge precedence. Twenty-one checks across the five rounds go
+red against the code that preceded them. A watchdog and an
+unhandled-rejection handler were added with them, because the first draft of
+that section deadlocked its own stub and exited 0 with none of the checks run,
+which is the one way a test can be worse than absent.

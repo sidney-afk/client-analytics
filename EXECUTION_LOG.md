@@ -2,6 +2,31 @@
 
 All times are UTC unless noted.
 
+## 2026-09-07 — Built: a SAMPLE card can be completed from the card, like a calendar post
+
+Owner: *"when there's a calendar that has a post that is just a thumbnail, there's a
+little thing where we can add a video or a thumbnail to the batch... but we don't have
+the same system for samples."* The samples card now carries the same fill button, in the
+same place in the same pile, under the same gate. **No migration and no deploy stand
+between it and being live:** `production-write` has admitted `component_fill` from the
+`sxr` surface since the operation shipped on 2026-08-31, and
+`public.production_component_fill` already reads and locks the card in `sample_reviews`
+when the batch is a samples batch. Both halves were written for two surfaces that day,
+and only one ever got a button.
+
+Measured 2026-09-07 across the 26 non-archived sample cards: 2 carry both components, 21
+only a thumbnail, 3 only a video, 0 neither. **24 of 26 are half a post, across 6
+clients**, against 127 of 688 on the calendar. A samples batch is commissioned as
+thumbnails and then needs a video beside one of them. None of the 24 carries a legacy
+Linear url in the empty slot, so every one is a fill rather than a half-link repair.
+
+Left open on purpose, 3 cards, one owner decision: the RPC picks the card table from
+`batches.purpose`, and two F42-adoption batches carry `purpose='calendar'` while their
+children carry `origin='samples'`, so those three refuse `component_fill_card_missing`.
+The refusal now says what is actually true instead of inheriting the calendar's
+evict-the-cache-and-reload advice, which is right there and false here. Browser-only,
+no deploy. OPEN_REPAIRS 162.
+
 ## 2026-09-06 — Built: the description edits in place, like Linear's
 
 Owner: *"when we click edit it shouldn't change the way we are viewing things ... like

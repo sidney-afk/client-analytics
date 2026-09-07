@@ -13919,3 +13919,130 @@ red against the code that preceded them. A watchdog and an
 unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
+
+---
+
+## 172. [2026-09-07, BUILT SOURCE-ONLY — one live defect fixed on the way in; browser live on merge, server needs one dispatch] Linear was the only place both halves of a deliverable's feedback appeared together, and the replacement shipped with the Samples video path dead
+
+Lane D of the Linear exit. Number reserved by `LINEAR_EXIT_LANES.md`. **Collision
+notice:** item 168 assigns 172 to lane F while the lane map assigns it to D and
+gives F 174. This entry takes 172 per the lane map and the session brief; the
+coordinator should settle it before merge rather than either lane renumbering
+unilaterally. Four duplicate `## N.` headers (`## 13.`, `## 14.`, `## 22.`,
+`## 23.`) predate this program — item 168 — and are not touched here.
+
+### The shape of the loss
+
+A tweak note reaches staff by two transports and they do not converge:
+
+- the **canonical** lane writes `production_comments`, which is what SyncLinear's
+  comment panel renders;
+- the **legacy** lane writes the `calendar_posts` / `sample_reviews` tweak cell
+  and the `linear-add-comment` n8n webhook, and never `production_comments`
+  (items 99/102/104).
+
+The Linear sub-issue received both, so opening it showed the complete picture.
+Nothing else does. SyncLinear shows the canonical half only; the Workload
+"Tweaks Needed" popover reads Linear directly through
+`LINEAR_TWEAK_COMMENTS_WEBHOOK` — a single unconditional POST, so on 2026-09-15
+every popover falls into its catch branch and paints *"Couldn't load the
+comments — open the sub-issue in Linear to read them"*: an instruction to open a
+system that no longer exists.
+
+Deterministically, every broken-crosswalk card's feedback took the legacy lane
+(item 104 measured this and found zero exceptions across 46 client `tweak`
+events). After the cutoff those notes exist in the card cell and are visible
+nowhere in the staff view, **with no notice that anything is missing** — which is
+worse than an error, because an absence is the one failure a user cannot report
+accurately.
+
+### The defect found in the replacement, before it shipped
+
+`feedback.mjs:90` as written on the integration candidate and PR 1297:
+
+```js
+const fields = scope.component === 'video' ? ['video_tweaks', 'tweaks'] : ['graphic_tweaks'];
+```
+
+The choice is made on component and is unconditional on **surface**. Line 92 then
+selects those columns from `sample_reviews` whenever the surface is `sxr`.
+`sample_reviews` has no `tweaks` column — `migrations/live-schema-baseline-2026-07-03.sql`
+lists only `video_tweaks` (212) and `graphic_tweaks` (213), and no migration adds
+one (`grep -rn 'sample_reviews' migrations/*.sql | grep 'add column'` returns
+nothing that does). `calendar_posts` does carry `tweaks` (baseline 36).
+
+So **every Samples video deliverable** would have failed the whole card read and
+returned `feedback.status: 'source_unavailable'`, which the panel words as
+*"Feedback from the linked card could not load"* — indistinguishable from a
+transient failure. A permanent fake outage, on the surface the owner named, on
+Kasper's own review path. Fixed by making the field list surface-aware.
+
+The blast radius is small today — item 102's origin histogram puts `samples` at 38
+against `calendar` 1,157 — but it is small for a reason that is itself a gap: the
+Samples crosswalk was never repaired (the Phase 2 runner is calendar-only, and the
+F42 runbook recorded 3 of 1,722 Samples cards linked at 2026-07-24). If Samples is
+ever repaired, this defect scales with it.
+
+**Why the test suite could not have caught it.** `test/component-feedback-read.js`
+substitutes a finite in-memory table that returns whatever key it is asked for, so
+it cannot fail on a column Postgres does not have. The added guard pairs the
+projection with the real schema: it parses the baseline create blocks plus every
+later `add column` for both card tables and asserts that every column the handler
+actually selects, on all four surface × component combinations, exists. Reverting
+the fix turns it red with `sample_reviews has no column 'tweaks' (selected for
+samples/video)` — verified by reverting it.
+
+### Two house guards that had to move together
+
+1. `docs/syncview-design/tests/prod-structure-subset.js:78` requires
+   `body.limit === 50` on every `production-comments` POST leaving the page, while
+   the candidate's Workload popover posted `limit: 100`. **Resolved toward 50, not
+   by widening the guard.** The popover's reader pages until `has_more` is false
+   and refuses unless `rows.length === total`, so the page size changes the number
+   of round trips and *nothing* about completeness. Against that, `100` was a
+   second unnamed page-size literal for an endpoint the page already reads at the
+   named `PROD_COMMENTS_PAGE_SIZE = 50`. The guard was right; the literal was the
+   drift. One page size, one shape, and the guard stays an exact literal instead of
+   an OR of two magic numbers. (Server-side `MAX_LIMIT` is 100, so 100 was legal —
+   just not worth a second shape.)
+2. `docs/ops/EF_DEPLOY_MANIFEST.md:45` must name `feedback.mjs` in the
+   `production-comments` closure or `test/ef-deploy-provenance.js` goes red, because
+   it validates that manifest against the real import closure. Landed in the same
+   commit as the file.
+
+### What is NOT solved here
+
+- **`uploads.linear.app` inside comment and card-cell bodies.**
+  `docs/ops/NATIVE_COMMENT_MEDIA.md` counts 49 non-deleted native comments, 79
+  occurrences, 75 distinct URLs, including five videos of 58-94 MB and two
+  OpenType fonts. `sourceComment` passes card-cell bodies through untouched, so
+  the card-side occurrences are not even in that count — **nobody has counted
+  them.** These die with Linear access and the Feedback panel is where the
+  breakage will show. Lane E's job, not this one; recorded here so the panel is
+  not mistaken for having made the files safe.
+- **The panel's coverage is bounded by the crosswalk, and the crosswalk is mostly
+  unwritten.** `feedbackScope` returns null unless `origin` is calendar|samples
+  AND `card_id` is non-empty, and a null scope renders `unmapped`. Item 102
+  measured 5,150 of 6,241 deliverables with `card_id` NULL on 2026-09-02; item 156
+  repaired 100 of 100 *targeted* calendar slots on 2026-09-05, which is a different
+  and much smaller population. **Neither number was re-measured for this entry** —
+  no live read was taken — so the honest statement is that most deliverables will
+  render `unmapped`, and the panel must never be described as complete coverage.
+- **`caption_tweaks` and `title_tweaks` are never projected.** `calendar_posts`
+  carries both (baseline 50 and 60) and the reader reads neither. This is not a
+  Sept-15 loss — `_writeUiComponentHasWorkItem` returns false for caption and
+  title, so no deliverable exists for them — but the panel is silent about the
+  omission rather than explicit, and a reader will reasonably assume it shows
+  everything on the card.
+- **The Workload popover's native branch is unproven against real data.** It is
+  written against lane A's `workloadSource` / `wlSnapshotIdentity`, both of which
+  have **zero occurrences on origin/main** today. Routing is permissive: with lane
+  A absent nothing classifies as native and every row takes the unchanged legacy
+  lane, so this cannot regress today's board. It also means the native path has
+  never executed against a real snapshot and must be re-verified after lane A
+  merges.
+- **Resolved feedback is dropped from the popover.** The native branch filters
+  `deleted_at || resolved_at`, and Linear showed resolved comments. Whether losing
+  resolved tweak notes from the popover is acceptable, or they should render
+  dimmed, is an owner decision and is left open.
+

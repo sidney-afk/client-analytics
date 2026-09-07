@@ -178,7 +178,15 @@ Other:
   against the exact Samples-origin deliverable and component team. The client UI
   defensively projects client audience only and staff Client-visible depends on durable Samples-card
   linkage, not an endpoint assertion. The tokened TEST read drill is still owed before
-  client-visible UI widens further.
+  client-visible UI widens further. **Staff principals may additionally send
+  `include_feedback: true`**, which adds a read-only `feedback` object
+  (`{version, status, complete, scope, rows}`) projecting the notes still held
+  in the linked Calendar/Samples card cell. It is staff-only, runs after the
+  existing budget/target-authorization/allow-audit and re-checks the five
+  crosswalk fields before responding, adds no SQL, and returns
+  `status:'unmapped'` when the deliverable carries no verified card link. Two
+  readers send it: the SyncLinear **Feedback & tweaks** panel and the Workload
+  Tweak Needed popover, both at `limit: 50`.
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
   Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or
   the active TEST client uses the bounded override.

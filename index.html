@@ -3014,6 +3014,13 @@
         .prod-comment-state-action, .prod-comment-more { min-height: 27px; margin-top: 8px; padding: 0 10px; border: 1px solid var(--prod-border-soft); border-radius: 7px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 12px; cursor: pointer; }
         .prod-comment-state-action:hover, .prod-comment-more:hover { background: var(--prod-hover); }
         .prod-comment-state-action:disabled, .prod-comment-more:disabled { cursor: default; opacity: .6; }
+        .prod-feedback-status { margin: 12px 0; color: var(--prod-faint); font-size: 12px; line-height: 1.5; }
+        .prod-feedback-status.is-error { color: var(--prod-strong); }
+        .prod-feedback-source { border-top: 1px solid var(--prod-border-soft); margin-top: 12px; padding-top: 12px; }
+        .prod-feedback-heading { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--prod-strong); }
+        .prod-feedback-context { margin-top: 6px; font-size: 12px; color: var(--prod-muted); overflow-wrap: anywhere; }
+        .prod-feedback-status .prod-comment-state-action { min-height: 44px; }
+        .prod-feedback-status .prod-comment-state-action:focus-visible { outline: 2px solid var(--prod-strong); outline-offset: 2px; }
         .prod-comment-loading { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 9px; margin-bottom: 12px; }
         .prod-comment-loading-copy { display: flex; flex-direction: column; gap: 7px; padding-top: 2px; }
         .prod-composer { margin-top: 12px; display: flex; align-items: flex-start; gap: 10px; }
@@ -19267,7 +19274,103 @@
     const WL_TWEAK_COMMENTS_TTL_MS = 5 * 60 * 1000;
     const _wlTweakCommentsCache = new Map(); // linear issue id -> { fetchedAt, comments[] }
     let _wlTweakCommentsToken = 0;           // invalidates in-flight fills when a newer popover opens
+    // Native rows read their feedback from Supabase (`production-comments`);
+    // anything else keeps the legacy n8n lane in `_wlLegacyFetchTweakComments`.
+    // Lane A's native snapshot supplies `wlSnapshotIdentity()` and each row's
+    // `workloadSource` / `nativeId`; until that lands nothing classifies as
+    // native and every id takes the legacy path, i.e. this function's previous
+    // behaviour byte for byte.
+    //
+    // Routing is deliberately PERMISSIVE (AGENTS.md): a row we cannot classify
+    // falls back rather than refusing, because a refusal here renders as "no
+    // feedback" and an absence is the one failure an editor cannot report.
+    // Integrity INSIDE the native read stays strict for the opposite reason —
+    // feedback presented as complete when it is not is precisely the failure
+    // this lane exists to prevent.
+    // Must equal `PROD_COMMENTS_PAGE_SIZE` (declared in a nested scope this block
+    // cannot see) and the `body.limit === 50` literal that
+    // docs/syncview-design/tests/prod-structure-subset.js and
+    // prod-readonly-smoke.js enforce on every production-comments POST leaving
+    // this page. test/workload-tweak-feedback-source.js asserts all three agree,
+    // so this second declaration cannot drift from the first.
+    const WL_TWEAK_FEEDBACK_PAGE_SIZE = 50;
     async function wlFetchTweakComments(ids) {
+        const owner = typeof wlSnapshotIdentity === 'function' ? wlSnapshotIdentity() : null;
+        const issues = new Map((wlState.issueSnapshot || []).map(issue => [issue.id, issue]));
+        const legacy = [], out = {};
+        for (const id of ids) {
+            const issue = issues.get(id);
+            const nativeId = issue && typeof issue.nativeId === 'string' ? issue.nativeId : '';
+            if (!owner || !issue || issue.workloadSource !== 'native' || !nativeId) { legacy.push(id); continue; }
+            out[id] = await _wlNativeTweakComments(issue, nativeId, owner);
+        }
+        if (legacy.length) Object.assign(out, await _wlLegacyFetchTweakComments(legacy));
+        if (owner && owner !== wlSnapshotIdentity()) throw new Error('Feedback scope changed.');
+        return out;
+    }
+    // One deliverable's complete feedback: every canonical comment, plus the
+    // notes still living in the Calendar/Samples card cell (`include_feedback`).
+    // Linear used to be the union point for those two; after the exit this read
+    // is. Pages at the page-wide comment page size so exactly one
+    // production-comments request shape leaves this page.
+    async function _wlNativeTweakComments(issue, nativeId, owner) {
+        const rows = [], seen = new Set();
+        let before = null, total = null, complete = false, feedback = null;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+        try {
+            for (let page = 0; page < 50; page++) {
+                const url = CAL_SUPABASE_URL + '/functions/v1/production-comments';
+                const response = await fetch(url, {
+                    method: 'POST', cache: 'no-store', signal: controller.signal,
+                    headers: _syncviewEfHeaders({ 'Content-Type': 'application/json' }, url),
+                    body: JSON.stringify({ deliverable_id: nativeId, include_feedback: true, limit: WL_TWEAK_FEEDBACK_PAGE_SIZE, before })
+                });
+                const value = await response.json();
+                if (!response.ok || !value || value.ok !== true || value.canonical_thread !== true
+                    || value.audience_scope !== 'all' || !Array.isArray(value.comments)
+                    || !Number.isSafeInteger(value.total) || value.total < 0
+                    || typeof value.has_more !== 'boolean' || (total !== null && total !== value.total)) {
+                    throw new Error('Feedback is incomplete.');
+                }
+                total = value.total;
+                feedback = value.feedback || null;
+                for (const row of value.comments) {
+                    if (!row || !row.id || seen.has(row.id) || typeof row.body !== 'string') {
+                        throw new Error('Feedback identities are incomplete.');
+                    }
+                    seen.add(row.id); rows.push(row);
+                }
+                if (!value.has_more) { complete = rows.length === total; break; }
+                if (!value.next_cursor || !value.next_cursor.id || !value.next_cursor.created_at
+                    || JSON.stringify(value.next_cursor) === JSON.stringify(before)) {
+                    throw new Error('Feedback pagination is incomplete.');
+                }
+                before = value.next_cursor;
+            }
+            if (!complete || owner !== wlSnapshotIdentity() || !(wlState.issueSnapshot || []).some(row => row === issue)) {
+                throw new Error('Feedback scope changed or is incomplete.');
+            }
+        } finally { clearTimeout(timer); }
+        // Card-cell notes that never became canonical comments are the whole
+        // reason this reads `include_feedback`: a tweak that took the legacy
+        // write lane exists ONLY in the card cell, and Linear was the only
+        // place staff could previously see it next to the canonical thread.
+        const source = feedback && Array.isArray(feedback.rows) ? feedback.rows : [];
+        const shown = [...rows, ...source]
+            .filter(row => !row.deleted_at && !row.resolved_at && !row.deleted && !row.done)
+            .map(row => ({
+                author: row.author_name, body: row.body,
+                createdAt: row.source_created_at || row.created_at,
+                fromCard: row.source_only === true
+            }));
+        shown.native = true;
+        // `complete` above proves the CANONICAL thread was read whole. The card
+        // projection carries its own completeness and must not borrow it.
+        shown.sourceComplete = !feedback || feedback.complete === true;
+        return shown;
+    }
+    async function _wlLegacyFetchTweakComments(ids) {
         const now = Date.now();
         const missing = ids.filter(id => {
             const hit = _wlTweakCommentsCache.get(id);
@@ -19291,21 +19394,28 @@
         return out;
     }
     function wlRenderTweakComments(comments) {
-        // No comment on the sub-issue → render nothing. An absent comment is
-        // not worth a row of its own; the empty popover row speaks for itself.
+        const native = !!(comments && comments.native);
+        // A native read that found nothing says so, because after the Linear
+        // exit this popover is the only reader and silence would be
+        // indistinguishable from a broken one. A legacy read keeps rendering
+        // nothing, which is this function's existing behaviour.
         if (!comments || !comments.length) {
-            return '';
+            return native
+                ? '<div class="wl-tweak-comments-status">No feedback is available here. Open the post in SyncView to check its review notes.</div>'
+                : '';
         }
         const shown = comments.slice(0, 3);
         const more = comments.length - shown.length;
         // One row per comment: author · body · time. No Frame/Linear link and
         // no card chrome — the body is the signal, everything else is muted.
         return shown.map(c => `<div class="wl-tweak-comment">
-            <span class="wl-tweak-comment-author">${wlEscape(c.author || 'Unknown')}</span>
+            <span class="wl-tweak-comment-author">${wlEscape(c.author || 'Unknown')}</span>${c.fromCard ? '<span class="wl-tweak-comment-time">from the card</span>' : ''}
             <span class="wl-tweak-comment-body" onclick="wlToggleTweakComment(this)" onkeydown="wlOnTweakCommentKey(event,this)">${wlEscape(c.body || '')}</span>
             <span class="wl-tweak-comment-time">${wlEscape(_calFmtCommentTime(c.createdAt))}</span>
         </div>`).join('') + (more > 0
-            ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'} on the sub-issue in Linear</div>`
+            ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'}${native ? '' : ' on the sub-issue in Linear'}</div>`
+            : '') + (native && comments.sourceComplete === false
+            ? '<div class="wl-tweak-comments-status">Some notes on the original card could not be read, so this list may be incomplete.</div>'
             : '');
     }
     // Expand/collapse is only offered on comments whose body genuinely
@@ -19593,7 +19703,7 @@
             }).catch(() => {
                 if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
                 pop.querySelectorAll('.wl-tweak-comments').forEach(box => {
-                    box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load the comments — open the sub-issue in Linear to read them.</div>';
+                    box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load feedback. Retry, or open the post in SyncView.</div>';
                 });
             });
         }
@@ -55099,7 +55209,7 @@
                 body,
                 created_at: createdAt,
                 updated_at: updatedAt,
-                row_updated_at: String(row.updated_at || '').trim(),
+                row_updated_at: String(row.row_updated_at || row.updated_at || '').trim(),
                 version: Number.isInteger(Number(row.version)) ? Number(row.version) : 1,
                 attachments,
                 component: String(row.component || '').trim(),
@@ -55108,6 +55218,12 @@
                 can_edit: _prodCommentTruthy(row.can_edit),
                 can_delete: _prodCommentTruthy(row.can_delete),
                 can_resolve: _prodCommentTruthy(row.can_resolve),
+                source_only: row.source_only === true,
+                source_surface: ['calendar', 'sxr'].includes(row.source_surface) ? row.source_surface : '',
+                source_audience: ['client', 'internal'].includes(row.source_audience) ? row.source_audience : '',
+                parent_unavailable: row.parent_unavailable === true,
+                feedback_origin: ['native', 'linear', 'legacy', 'bridge'].includes(row.feedback_origin) ? row.feedback_origin : '',
+                tweak_known: typeof row.is_tweak === 'boolean' && row.tweak_known !== false,
                 edited: !deleted && (!!String(row.edited_at || '').trim() || _prodCommentTruthy(row.edited)
                     || (Number.isFinite(createdMs) && Number.isFinite(updatedMs) && updatedMs > createdMs + 1000)),
                 deleted,
@@ -55158,8 +55274,15 @@
             const c = _prodCommentNormalize(comment);
             if (c.hidden) return '';
             const time = _prodCommentTime(c);
-            const pills = (c.audience === 'client' ? '<span class="prod-comment-pill">Client-visible</span>' : '<span class="prod-comment-pill">Internal</span>')
-                + (c.done ? '<span class="prod-comment-pill">Resolved</span>' : '');
+            const sourceLabel = c.source_only ? (c.source_surface === 'sxr' ? 'Samples' : 'Calendar') + ' source'
+                : ({ native: 'Native comment', linear: 'Linear import', legacy: 'Imported feedback', bridge: 'Linked feedback' }[c.feedback_origin] || 'Origin unverified');
+            const audienceLabel = c.source_only ? (c.source_audience === 'client' ? 'Card: client-visible' : c.source_audience === 'internal' ? 'Card: internal' : 'Visibility not recorded')
+                : c.audience === 'client' ? 'Client-visible' : 'Internal';
+            const pills = '<span class="prod-comment-pill">' + _calEsc(audienceLabel) + '</span>'
+                + '<span class="prod-comment-pill">' + _calEsc(sourceLabel) + '</span>'
+                + (['video', 'graphic'].includes(c.component) ? '<span class="prod-comment-pill">' + (c.component === 'video' ? 'Video' : 'Graphics') + '</span>' : '')
+                + (c.tweak_known && c.is_tweak ? '<span class="prod-comment-pill">Tweak' + (c.round > 0 ? ' · Round ' + _calEsc(String(c.round)) : '') + '</span>' : '')
+                + (c.done ? '<span class="prod-comment-pill">Resolved</span>' : c.tweak_known && c.is_tweak ? '<span class="prod-comment-pill">Open</span>' : '');
             const edited = c.edited ? '<span class="prod-comment-edited">(edited)</span>' : '';
             const body = c.deleted ? 'Comment deleted.' : _prodLinkify(c.body);
             const attachments = c.deleted || !c.attachments.length ? '' : '<div class="prod-comment-assets">'
@@ -55167,7 +55290,7 @@
                     + (asset.url ? '<a href="' + _calEscAttr(asset.url) + '" target="_blank" rel="noopener noreferrer">' + _calEsc(_prodFileLinkLabel(asset.url)) + '</a>' : '<span class="prod-asset-value">No usable link</span>')
                     + '<span class="prod-asset-state" data-state="' + _calEscAttr(asset.state) + '">' + _calEsc(_prodAssetStateLabel(asset.state)) + '</span></div>').join('') + '</div>';
             const issueId = String(_prodState.openId || '');
-            const actions = c.deleted ? '' : '<div class="prod-comment-actions">'
+            const actions = c.deleted || c.source_only ? '' : '<div class="prod-comment-actions">'
                 + (!c.done ? '<button class="prod-comment-action" type="button" onclick="_prodCommentBegin(' + _jsAttrArg(issueId) + ',\'add\',' + _jsAttrArg(c.id) + ')">Reply</button>' : '')
                 + (c.can_edit ? '<button class="prod-comment-action" type="button" onclick="_prodCommentBegin(' + _jsAttrArg(issueId) + ',\'edit\',' + _jsAttrArg(c.id) + ')">Edit</button>' : '')
                 + (c.can_resolve && !c.parent_id ? '<button class="prod-comment-action" type="button" onclick="_prodCommentLifecycle(' + _jsAttrArg(issueId) + ',' + _jsAttrArg(c.id) + ',' + _jsAttrArg(c.done ? 'unresolve' : 'resolve') + ')">' + (c.done ? 'Reopen' : 'Resolve') + '</button>' : '')
@@ -55177,7 +55300,11 @@
                 + _prodAvatar(null, 18)
                 + '<div class="prod-comment-main"><div class="prod-comment-meta"><span class="prod-comment-author">' + _calEsc(c.author) + '</span>'
                 + '<span aria-hidden="true">·</span><time' + (time.raw ? ' datetime="' + _calEscAttr(time.raw) + '" title="' + _calEscAttr(time.raw) + '"' : '') + '>' + _calEsc(time.text) + '</time>'
-                + edited + pills + '</div><div class="prod-comment-body">' + body + '</div>' + attachments + actions + '</div></div>';
+                + edited + pills + '</div><div class="prod-comment-body">' + body + '</div>' + attachments
+                + (c.done && c.resolved_at ? '<div class="prod-feedback-context">Resolved ' + _calEsc(c.resolved_at) + (c.resolved_by_name ? ' by ' + _calEsc(c.resolved_by_name) : '') + '</div>' : '')
+                + (c.source_only ? '<div class="prod-feedback-context">Read-only here; manage on the original ' + (c.source_surface === 'sxr' ? 'Samples' : 'Calendar') + ' card.'
+                    + (c.parent_unavailable ? ' Original reply parent is unavailable.' : '') + '</div>' : '')
+                + actions + '</div></div>';
         }
         function _prodCommentLoadingHTML() {
             return Array.from({ length: 2 }, () => '<div class="prod-comment-loading" role="status" aria-label="Loading comments"><span class="prod-skeleton" style="width:18px;height:18px;border-radius:50%;"></span><span class="prod-comment-loading-copy"><span class="prod-skeleton" style="height:11px;width:110px;"></span><span class="prod-skeleton" style="height:12px;width:min(360px,82%);"></span></span></div>').join('');
@@ -55325,6 +55452,46 @@
                 component
             });
         }
+        function _prodFeedbackState(value, previous) {
+            const statuses = ['complete', 'unmapped', 'source_unavailable', 'source_incomplete', 'source_limit', 'source_changed', 'link_changed'];
+            if (!value || value.version !== 1 || !statuses.includes(value.status) || !Array.isArray(value.rows)) {
+                return { status: 'unavailable', complete: false, rows: previous && previous.rows || [], retained: !!(previous && previous.rows && previous.rows.length), scope: previous && previous.scope || null };
+            }
+            const sameScope = !!(previous && previous.scope && value.scope)
+                && JSON.stringify(previous.scope) === JSON.stringify(value.scope);
+            const retained = (value.status === 'source_unavailable' || value.retain_previous === true && ['source_incomplete', 'source_limit'].includes(value.status))
+                && sameScope && previous.rows && previous.rows.length;
+            const incoming = value.rows.filter(row => row && row.source_only === true);
+            return { ...value, complete: value.status === 'complete' && value.complete === true,
+                rows: retained ? [...new Map([...previous.rows, ...incoming].map(row => [String(row.id), row])).values()] : incoming, retained: !!retained };
+        }
+        function _prodFeedbackHTML(feedback, canonicalRows, id, incompleteCanonical) {
+            if (!feedback) return '';
+            const labels = {
+                complete: 'Feedback from the linked card was checked. Earlier versions and resolution history are not included.',
+                unmapped: 'This issue has no verified Calendar or Samples card link. Other feedback may be missing.',
+                source_unavailable: 'Feedback from the linked card could not load. SyncLinear comments remain available.',
+                source_incomplete: 'Some feedback could not be read. The visible notes are not a complete record.',
+                source_limit: 'Some feedback could not be loaded because this record is too large. The view is incomplete.',
+                source_changed: 'Feedback changed while it was loading. Refresh to check it again.',
+                link_changed: 'The original card link has changed. Its notes are withheld until the link is verified.',
+                unavailable: 'Feedback from the original card is unavailable. The view is incomplete.'
+            };
+            const visibleCanonical = new Map((canonicalRows || []).map(row => [String(row.id), row]));
+            const sourceRows = (feedback.rows || []).filter(row => {
+                const canonical = row.covered_by && visibleCanonical.get(String(row.covered_by));
+                return !canonical || !Number.isInteger(row.covered_version) || !row.covered_updated_at
+                    || Number(canonical.version) !== row.covered_version
+                    || String(canonical.row_updated_at || canonical.updated_at || '') !== String(row.covered_updated_at);
+            });
+            const incomplete = !feedback.complete || incompleteCanonical;
+            const message = (labels[feedback.status] || labels.unavailable)
+                + (feedback.retained ? ' Previously loaded card notes are shown and may be out of date.' : '')
+                + (incompleteCanonical ? ' Some SyncLinear comments may still be missing.' : '');
+            return '<div class="prod-feedback-status' + (incomplete ? ' is-error' : '') + '" role="status" data-prod-feedback-state="' + _calEscAttr(incomplete ? 'incomplete' : 'complete') + '">'
+                + _calEsc(message) + (incomplete ? ' <button class="prod-comment-state-action" data-prod-feedback-refresh="' + _calEscAttr(id) + '" type="button" onclick="_prodComments.refresh(' + _jsAttrArg(id) + ')">Refresh feedback</button>' : '') + '</div>'
+                + (sourceRows.length ? '<div class="prod-feedback-source"><div class="prod-feedback-heading">From the original card</div>' + sourceRows.map(_prodCommentHTML).join('') + '</div>' : '');
+        }
         const _prodComments = (() => {
             const states = new Map();
             let generation = 0;
@@ -55405,6 +55572,7 @@
                     return stateFor(id);
                 }
                 const requestGeneration = generation;
+                const requestIdentity = JSON.stringify(_syncviewStaffIdentityForHeaders() || null);
                 const token = (previous && previous.token || 0) + 1;
                 const refreshing = !append && !!options.refresh && !!current && current.status === 'ready';
                 if (append) states.set(id, { ...current, token, loadingMore: true, moreError: '' });
@@ -55441,6 +55609,8 @@
                         before: cursor || null
                     };
                     if (clientSurface) Object.assign(requestBody, clientSurface);
+                    const includeFeedback = !_isClientLink && !clientSurface && options.canonicalOnly !== true;
+                    if (includeFeedback) requestBody.include_feedback = true;
                     const response = await fetch(PROD_COMMENTS_EF_URL, {
                         method: 'POST',
                         headers: authHeaders(),
@@ -55450,6 +55620,7 @@
                     });
                     const json = await response.json().catch(() => ({}));
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
+                    if (requestIdentity !== JSON.stringify(_syncviewStaffIdentityForHeaders() || null)) { clear(id); return; }
                     if (response.status === 401 || response.status === 403) {
                         states.set(id, {
                             status: response.status === 401 ? 'signin' : 'forbidden',
@@ -55484,6 +55655,10 @@
                     states.set(id, {
                         status: 'ready',
                         items: _prodCommentMerge(priorItems, page),
+                        feedback: includeFeedback ? _prodFeedbackState(json.feedback, current && current.feedback)
+                            : !clientSurface && !_isClientLink ? previous && previous.feedback || _prodFeedbackState(null, null) : null,
+                        pageIncomplete: !Array.isArray(json.comments) && !Array.isArray(json.items)
+                            || (json.has_more === true || json.hasMore === true) && !nextCursor,
                         cursor: preserveDeepCursor ? current.cursor : nextCursor,
                         hasMore: preserveDeepCursor ? current.hasMore : !!nextCursor && (json.has_more !== false && json.hasMore !== false),
                         loadingMore: false,
@@ -55500,6 +55675,7 @@
                     });
                 } catch (e) {
                     if (generation !== requestGeneration || !stateFor(id) || stateFor(id).token !== token) return;
+                    if (requestIdentity !== JSON.stringify(_syncviewStaffIdentityForHeaders() || null)) { clear(id); return; }
                     // A timeout is not the same event as a refusal, and saying so
                     // is the difference between "try again" and "something is
                     // broken". Both land on the same Retry control.
@@ -55554,6 +55730,7 @@
                     force: true,
                     refresh: true,
                     replace: options.replace === true,
+                    canonicalOnly: true,
                     clientSurface: options.clientSurface || null
                 });
                 for (let page = 1; page < 20; page++) {
@@ -55561,6 +55738,7 @@
                     if (!state || state.status !== 'ready' || !state.hasMore || !state.cursor) break;
                     await load(id, {
                         append: true,
+                        canonicalOnly: true,
                         clientSurface: state.clientSurface || options.clientSurface || null
                     });
                 }
@@ -55582,14 +55760,15 @@
                 if (state.status === 'signin') return '<div class="prod-comment-state" data-prod-comments-state="signin">Sign in with your staff account to view comments.<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.signIn(' + _jsAttrArg(id) + ')">Sign in to view comments</button></div>';
                 if (state.status === 'forbidden') return '<div class="prod-comment-state is-error" data-prod-comments-state="forbidden">This comment thread is not available to your exact team or client scope.</div>';
                 if (state.status === 'error') return '<div class="prod-comment-state is-error" data-prod-comments-state="error">' + (state.timedOut ? 'Comments took too long to load.' : 'Comments could not load.') + '<br><button class="prod-comment-state-action" type="button" onclick="_prodComments.retry(' + _jsAttrArg(id) + ')">Retry</button></div>';
-                if (!state.items.length) return '<div class="prod-comment-state" data-prod-comments-state="empty">No comments yet.</div>';
+                const feedback = _prodFeedbackHTML(state.feedback, state.items, id, !!(state.hasMore || state.pageIncomplete || state.moreError || state.refreshError));
+                if (!state.items.length && !feedback) return '<div class="prod-comment-state" data-prod-comments-state="empty">No comments yet.</div>';
                 const rows = state.items.map(_prodCommentHTML).join('');
                 const refreshError = state.refreshError ? '<div class="prod-comment-state is-error">' + _calEsc(state.refreshError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.refresh(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
                 const more = state.hasMore
                     ? '<button class="prod-comment-more" type="button" data-prod-comments-more="1" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')"' + (state.loadingMore ? ' disabled' : '') + '>' + (state.loadingMore ? 'Loading older comments…' : 'Load older comments') + '</button>'
                     : '';
                 const moreError = state.moreError ? '<div class="prod-comment-state is-error">' + _calEsc(state.moreError) + ' <button class="prod-comment-state-action" type="button" onclick="_prodComments.loadOlder(' + _jsAttrArg(id) + ')">Retry</button></div>' : '';
-                return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more;
+                return refreshError + '<div class="prod-comment-feed" data-prod-comments-state="ready">' + rows + '</div>' + moreError + more + feedback;
             }
             return { clear, ensure, refresh, retry, loadOlder, signIn, render, find, adopt, readCanonical };
         })();
@@ -62065,7 +62244,7 @@
                     ? { slots: ['filming_plan', 'raw_footage', 'delivery_folder'], readOnly: !batchAssetSource }
                     : parentSlots ? { slots: parentSlots } : undefined)
                 + subSection
-                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Comments</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
+                + '<div class="prod-activity"><div class="prod-activity-head"><span class="prod-activity-title">Feedback &amp; tweaks</span><span class="prod-spacer"></span></div>' + _prodComments.render(d.id) + _prodComposerHTML(d) + '</div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, d.file || '') + '</aside></div>'
                 + _prodSelectionBar();
         }

@@ -175,8 +175,32 @@ ok(/retryCursor && retryCursor\.rebased === true/.test(cardLifecycle)
 ok(/A newer version was loaded\. Your draft was preserved; Retry applies it to the current comment\./.test(source),
 'conflict copy tells the user the newer version is loaded and the preserved draft will apply to current state');
 
-if (failures) {
-  console.error(`\n${failures} Production comment UI source check(s) failed`);
-  process.exit(1);
-}
-console.log('\nProduction comment UI source checks passed');
+(async () => {
+  // Exercise each real house-suite mutation guard, not a duplicate predicate.
+  for (const script of ['prod-structure-subset.js', 'prod-readonly-smoke.js']) {
+    const suite = fs.readFileSync(path.join(__dirname, '..', 'docs/syncview-design/tests', script), 'utf8');
+    const guardSource = suite.slice(suite.indexOf('async function assertNoWriteRequests'), suite.indexOf('\n(async () =>'));
+    const guard = vm.runInNewContext(guardSource + '\nassertNoWriteRequests;', { URL });
+    const base = { before: null, deliverable_id: 'fictional-deliverable', limit: 50 };
+    const request = body => ({ method: 'POST', url: 'https://fixture.invalid/functions/v1/production-comments', postData: JSON.stringify(body) });
+    await guard([request(base), request({ ...base, include_feedback: true }),
+      request({ ...base, include_feedback: true, before: { id: 'fictional-comment', created_at: '2026-09-01T00:00:00Z' } })]);
+    ok(true, script + ' allows only the supported legacy and feedback read shapes');
+    const refused = [false, 'true', 1, null].map(include_feedback => request({ ...base, include_feedback }));
+    refused.push(request({ ...base, include_feedback: true, action: 'comment_edit' }),
+      request({ ...base, include_feedback: true, patch: { body: 'fictional' } }),
+      request({ ...base, extra: true }), request({ ...base, limit: 500 }), request({ ...base, deliverable_id: '' }),
+      { ...request({ ...base, include_feedback: true }), method: 'PATCH' },
+      { ...request({ ...base, include_feedback: true }), url: 'https://fixture.invalid/functions/v1/other-writer' });
+    for (const [i, attempt] of refused.entries()) {
+      let denied = false;
+      try { await guard([attempt]); } catch (_) { denied = true; }
+      ok(denied, script + ' rejects unsupported/write-shaped request ' + (i + 1));
+    }
+  }
+  if (failures) {
+    console.error(`\n${failures} Production comment UI source check(s) failed`);
+    process.exit(1);
+  }
+  console.log('\nProduction comment UI source checks passed');
+})().catch(error => { console.error(error); process.exit(1); });

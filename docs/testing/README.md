@@ -5,6 +5,14 @@ only remember one file about testing, remember this one.
 
 ## The three safety contracts (never confuse them)
 
+Mapped component feedback adds the offline actual-handler suite
+`test/component-feedback-read.js` and the fictional Chromium component suite
+`docs/syncview-design/tests/prod-feedback-browser.js` (fast Production gate).
+Scope, limits and deployment dependencies: `docs/features/COMPONENT_FEEDBACK.md`.
+`test/prod-context-menu-pixel-contract.js` executes the actual pixel comparator;
+its negative controls keep icon and submenu regressions red while respecting the
+existing unsupported Project action.
+
 | Contract | Applies to | Rule | Canonical text |
 |---|---|---|---|
 | **Live-backend QA** | `test/`, `qa/` (probes, scenarios, master) | Mutating the backend is *expected* — but ONLY the test client `sidneylaruel`, unique ids, archive on exit, Linear always mocked, 0 app JS errors | `HEADLESS-TESTING-GUIDE.md` §5 (+ the mocked-Linear / 0-JS-errors clauses in `qa/MASTER_TESTER.md` → Safety) |

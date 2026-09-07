@@ -39,6 +39,14 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const vm = require('vm');
+/* Comments in these functions legitimately NAME the thing they avoid calling
+   ("a surgical rebuild rather than _calRenderNativePostChoice()"), so the
+   avoidance assertions below read code with the prose stripped out. The house
+   helper, not the raw regex OPEN_REPAIRS 145 is about: that one opens a
+   comment at any "/" + "*", a glob or a MIME type included, and deletes to the
+   next closing delimiter anywhere in the file -- which turns a negative
+   assertion into one that passes because its subject was erased. */
+const { stripComments } = require('./helpers/strip-comments.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(ROOT, relative), 'utf8');
@@ -80,13 +88,6 @@ function extract(name) {
     else if (ch === '}' && --depth === 0) return source.slice(start, i + 1);
   }
   throw new Error('unclosed ' + name);
-}
-
-/* Comments in these functions legitimately NAME the thing they avoid calling
-   ("a surgical rebuild rather than _calRenderNativePostChoice()"), so the
-   avoidance assertions read code with the prose stripped out. */
-function codeOnly(text) {
-  return String(text).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 }
 
 (async () => {
@@ -237,12 +238,12 @@ function codeOnly(text) {
   /* A keystroke must not re-render: _calRenderNativePostChoice rebuilds the
      whole modal body, which drops focus and the caret. Both setters are state
      only, and the count stepper rebuilds ONLY the list. */
-  ok(!codeOnly(setName).includes('_calRenderNativePostChoice')
-    && !codeOnly(setBatchName).includes('_calRenderNativePostChoice'),
+  ok(!stripComments(setName, ' ').includes('_calRenderNativePostChoice')
+    && !stripComments(setBatchName, ' ').includes('_calRenderNativePostChoice'),
   'typing a name never re-renders the dialog out from under the caret');
   ok(setCount.includes("document.getElementById('calNativePostNames')")
     && setCount.includes('_calNativePostNamesHtml(state, state.postCount, mode)')
-    && !codeOnly(setCount).includes('_calRenderNativePostChoice'),
+    && !stripComments(setCount, ' ').includes('_calRenderNativePostChoice'),
   'stepping the count rebuilds only the name list, so a held-down stepper cannot throw the dialog away');
   ok(namesFor.includes('state.postNames') && namesFor.includes('_calNativeCleanName'),
     'names live in state, so stepping 3 -> 1 -> 3 gives the third name back');

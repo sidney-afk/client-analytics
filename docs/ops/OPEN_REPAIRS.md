@@ -13249,15 +13249,15 @@ different job.
 ## 160. [2026-09-07, ONE HALF FIXED, ONE OWNER DECISION — 12 live rows, 8 real clients, oldest drifted 5 weeks; the status twin of item 95] Workload and SyncLinear show two different statuses for the same deliverable, and neither is lying
 
 **[owner]** — the repair is a scope decision, not a patch. Reported by the owner
-against `VID-13679` (Video 1, Dr. Sonia Chopra, Iara): the Workload board put it
-in Iara's **In progress** column, clicking through to SyncLinear said **For SMM
-approval**, and Linear said **In Progress**.
+against `VID-13679` (one video sub-issue, one client, one editor): the Workload
+board put it in that editor's **In progress** column, clicking through to
+SyncLinear said **For SMM approval**, and Linear said **In Progress**.
 
 ### What actually happened, read out of `deliverable_events` rather than guessed
 
 ```
 15:08:18  deliverables.status → smm_approval          (status_at)
-15:09:01  status_change  actor=Iara  role=editor  src=ui  todo → smm_approval
+15:09:01  status_change  actor=<editor>  role=editor  src=ui  todo → smm_approval
 15:11:10  foreign_write_detected  actor=Linear webhook  src=mirror
 15:35:12  foreign_write_detected  actor=Linear webhook  src=mirror
 17:00:38  foreign_write_detected  actor=Linear webhook  src=mirror
@@ -13267,12 +13267,12 @@ Against Linear's own `stateHistory` for the same issue:
 
 | time | Linear state | who |
 |---|---|---|
-| 15:08:21 | Todo → For SMM approval | SyncView Mirror (outbound — Iara's 15:09 SyncView write) |
+| 15:08:21 | Todo → For SMM approval | SyncView Mirror (outbound, the 15:09 SyncView write) |
 | 15:11:10 | → Todo | in Linear — **discarded** |
 | 15:35:11 | → In Progress | in Linear — **discarded** |
 | 17:00:36 | → For SMM approval | in Linear — **discarded** |
 
-**SyncView was never wrong.** Iara set For SMM approval *in SyncView* at 15:09;
+**SyncView was never wrong.** The editor set For SMM approval *in SyncView* at 15:09;
 outbound mirrored it into Linear, which is the activity line the owner read as
 "SyncView changed it on its own". She then did her three real status moves *in
 Linear*, and `linear-inbound` refused all three — correctly, because
@@ -13293,7 +13293,7 @@ query, so it faithfully reproduces the drift SyncView just rejected. Same root
 cause as item 95 — Workload never reads native data — but the **status** twin of
 it rather than the deletion twin, and not previously recorded.
 
-**It self-heals only by coincidence.** The reconcile picked up Iara's 17:00
+**It self-heals only by coincidence.** The reconcile picked up the editor's 17:00
 Linear move at 17:10:17, which happened to equal what SyncView had held since
 15:08. The two agreed again with nothing repaired. That is what the owner saw as
 "now they appear to be synced".
@@ -13313,10 +13313,12 @@ Joining `production_deliverables_browser_v1` against active `workload_issues` on
 | distinct clients | 8 |
 | TEST client (`sidneylaruel`) | **0** |
 
-`edwardmannix`, `jennaphillipsballard`, `lilybaker`, `lukecutting`,
-`nataliemacneil`, `nikomercuris`, `roccopiazza`, `soniachopra`. Every one is real
-client work. The oldest three (`GRA-6660`, `GRA-6659`, `GRA-6951`) have disagreed
-since **3 and 11 August** — five weeks of an editor's Tweaks-needed move sitting
+Eight distinct active-roster slugs, none of them the TEST client, so every one is
+real client work; the slugs are deliberately not listed here, because this repo is
+public and `scripts/repo-identity-exposure-check.js` counts a client slug as an
+identity. Reproduce the list locally with the query in the paragraph above. The
+oldest three (`GRA-6660`, `GRA-6659`, `GRA-6951`) have disagreed since
+**3 and 11 August** — five weeks of an editor's Tweaks-needed move sitting
 in the Workload board while SyncLinear showed For SMM approval, or the reverse.
 
 Do not quote 12 as a fixed backlog: it moves every reconcile, in both directions,
@@ -13362,8 +13364,8 @@ sub-issue himself to read the status. His rule, in his words:
 > "when you open a pill, you're opening a video, so you're supposed to go to
 > that sub-issue, which has the status In progress."
 
-He is describing what the chip MEANS. "Dr. Sonia Chopra · 1" in the In progress
-column is not a claim about the client or about the parent. It is one video that
+He is describing what the chip MEANS. A client chip reading "· 1" in the In
+progress column is not a claim about the client or about the parent. It is one video that
 is in progress, and the status the chip just asserted lives on that sub-issue.
 
 **The parent is structurally unable to answer it.** `VID-13678` has no
@@ -13372,8 +13374,8 @@ from `bat_3d82ce2c…` (`_prodResolveBatchParentNodes`), whose title is the batc
 name and whose status is **hardcoded `todo` and never updated** — the code
 comment already says so. So the destination was guaranteed to contradict the
 chip that sent him there, and to show a different name for the same issue:
-**"VID-13678 Dr. Sonia Chopra · 31 Aug 2026"** in SyncLinear against
-**"VID-13678 Dr. Sonia Chopra | E-School Launch reel"** in Linear.
+**"VID-13678 <client> · 31 Aug 2026"** (the batch name) in SyncLinear against
+**"VID-13678 <client> | <reel name>"** (the Linear title) in Linear.
 
 **Fixed.** The primary button now resolves to `openIdent`:
 

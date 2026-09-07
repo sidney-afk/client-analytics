@@ -147,7 +147,7 @@ const withParent = { parentById: new Map([[PARENT_ID, PARENT_ROW]]) };
 const noParent = { parentById: new Map() };
 
 // A. one sub-issue in the group: the pill IS that video.
-const one = resolveLinks(withParent, PARENT_ID, 'Dr. Sonia Chopra', [CHILD], loc);
+const one = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD], loc);
 ok(one.parentSyncUrl === '/?prod=1&d=VID-13679',
   "a single-video pill opens the SUB-ISSUE, the row carrying the status the chip asserted");
 ok(one.parentSyncUrl !== '/?prod=1&d=VID-13678',
@@ -158,7 +158,7 @@ ok(one.openLinearUrl === 'https://linear.app/x/issue/VID-13679',
   'the Linear escape hatch follows the primary target instead of pointing elsewhere');
 
 // A. several sub-issues: no single row is "the video", so guessing is refused.
-const many = resolveLinks(withParent, PARENT_ID, 'Dr. Sonia Chopra', [CHILD, SIBLING], loc);
+const many = resolveLinks(withParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);
 ok(many.parentSyncUrl === '/?prod=1&d=VID-13678' && many.openIsParent === true,
   'a multi-video pill keeps the parent as the group destination rather than picking one child');
 ok(many.openLabel === 'Open parent →',
@@ -167,7 +167,7 @@ ok(many.openLinearUrl === 'https://linear.app/x/issue/VID-13678',
   'the multi-video Linear link matches the parent it sits beside');
 
 // B. the parent branch never substitutes a child.
-const missMany = resolveLinks(noParent, PARENT_ID, 'Dr. Sonia Chopra', [CHILD, SIBLING], loc);
+const missMany = resolveLinks(noParent, PARENT_ID, 'A Client', [CHILD, SIBLING], loc);
 ok(missMany.parentIdent === 'VID-13678',
   "parent missing from the snapshot: the sub's own parentIdentifier answers");
 ok(missMany.parentSyncUrl === '/?prod=1&d=VID-13678',
@@ -175,7 +175,7 @@ ok(missMany.parentSyncUrl === '/?prod=1&d=VID-13678',
 ok(missMany.openLinearUrl === '',
   'parent missing: Linear ↗ is dropped rather than aimed at a child -- no parent URL is recoverable');
 
-const orphan = resolveLinks(noParent, PARENT_ID, 'Dr. Sonia Chopra',
+const orphan = resolveLinks(noParent, PARENT_ID, 'A Client',
   [{ identifier: 'VID-13679', url: 'https://linear.app/x/issue/VID-13679' },
    { identifier: 'VID-13680', url: 'https://linear.app/x/issue/VID-13680' }], loc);
 ok(orphan.parentIdent === '' && orphan.parentSyncUrl === '',

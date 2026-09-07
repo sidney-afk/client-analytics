@@ -1,3 +1,9 @@
+## G4 exporter hosted validation - 2026-09-07 02:49 UTC
+
+PR1327 exact cbf714c hosted run34076144086 completed success. Latest-attempt jobs identity-exposure101602529159, unit101602529331 and F27 rollback101602529540 all succeeded. The unit job's named private-history, full corpus, closed-DDL, Workload, v7-data, v7-schema and v8-schema/replay steps each completed success; none is inferred from a skipped step. No numeric full-suite assertion count claimed from job metadata. This remains hosted disposable/source proof, not a live export, installed change or asset-rescue certification.
+
+The stacked transport/privacy implementation is still active and is not covered by this completed head. No duplicate full local test run was started. Production and watcher holds unchanged.
+
 ## G4 occurrence mapping requirement - 2026-09-07 02:37 UTC
 
 OFFLINE_COMPARISON of saved private discovery: 5,934 occurrences represent 1,973 distinct URL hashes: 4,271 issue-description occurrences, 1,338 operational-brief occurrences and 325 normalized-comment-body occurrences. Unique URL hashes are not unique file bytes or independently rescued assets.

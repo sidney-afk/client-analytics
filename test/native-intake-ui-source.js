@@ -326,14 +326,22 @@ const result = {
   /* Was: "graphics brief remains server-owned" — the browser sent no graphics
      brief at all, because the server used to generate it and refused a
      caller-supplied one (graphics_brief_server_owned). The owner retired that
-     generator on 2026-08-17 and the gateway now ranks a caller-supplied brief
+     generator on 2026-08-17 and the gateway ranked a caller-supplied brief
      ABOVE the generated text, so on 2026-08-21 he asked for the per-video note
-     to land on the thumbnail sub-issue as well as the video one. What still
-     matters, and is pinned here, is that the graphics child gets the NOTE only
-     — never the video composer, whose camera and audio lines belong to the
-     editor — and that an empty note still leaves the field for the server. */
+     to land on the thumbnail sub-issue as well as the video one.
+     2026-09-08: a non-empty caller-supplied brief used to make the gateway
+     skip AI thumbnail-title generation outright, so an ordinary editing note
+     silently produced the "AI never wrote a title" symptom the owner
+     reported. The note still rides the same `_linearThumbnailBrief` wiring
+     below (test/submit-video-notes-and-tab-icons.js pins that function's
+     body), but the gateway no longer treats its presence as a reason to skip
+     generation — it combines the note with a generated line instead of
+     either one excluding the other. What this suite pins is only the wiring:
+     the graphics child's `brief` comes from `_linearThumbnailBrief` and never
+     from the video composer, whose camera/audio lines belong to the editor
+     regardless. */
   ok(/team: 'graphics'[\s\S]{0,180}brief: _linearThumbnailBrief\(/.test(intakeItems),
-  'the graphics child carries the owner-written note');
+  'the graphics child brief is still wired through _linearThumbnailBrief, which now always withholds the note');
   ok(!/team: 'graphics'[\s\S]{0,180}_linearVideoBrief\(/.test(intakeItems),
   'the graphics child never receives the video composer, so no footage links reach the designer');
 

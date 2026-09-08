@@ -1119,9 +1119,9 @@ function extractFunction(name) {
   ok(!/graphicDescriptions/.test(edge)
     && !/generatedDescriptions/.test(edge),
   'the retired unconditional graphics-description generator is gone, not dormant');
-  ok(/const brief = existingBrief \|\| sourceBrief\s*\n\s*\|\| \(team === "graphics" \? clean\(thumbnailText\.get\(index\)\) : ""\);/.test(edge)
+  ok(/const generatedThumbnailTitle = team === "graphics" \? clean\(thumbnailText\.get\(index\)\) : "";\s*\n\s*const brief = existingBrief \|\| sourceBrief\s*\n\s*\|\| \(generatedThumbnailTitle \? `\$\{THUMBNAIL_TEXT_AI_LABEL\}\$\{generatedThumbnailTitle\}` : ""\);/.test(edge)
     && /const sourceBrief = clean\(item\.brief\);/.test(edge),
-  'an existing or caller-supplied brief always outranks generated text, which reaches graphics only');
+  'an existing or caller-supplied brief always outranks generated text, which reaches graphics only and is labelled as AI-generated');
   ok(!/throw new GatewayError\(400, "graphics_brief_server_owned"/.test(edge),
   'the server no longer refuses a caller-supplied graphics brief');
   // The title now carries the intake purpose prefix ('Sample ' on the sxr

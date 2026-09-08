@@ -263,12 +263,52 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     action = requestedAction;
 
-    if (action === "list" || action === "native_snapshot") {
+    if (action === "native_snapshot") {
       requireListStaff(req);
       const snapshot = await nativeSnapshot(serviceClient());
       outcome = "ok";
-      return action === "native_snapshot" ? json(snapshot)
-        : json({ok:true,complete:true,plans:legacyPlanAliases(snapshot)});
+      return json(snapshot);
+    }
+
+    /* THE COMPATIBILITY ACTION MUST NOT DEPEND ON SNAPSHOT VALIDATION.
+     *
+     * `list` is what an OLD or still-open browser bundle calls. Routing it
+     * through nativeSnapshot() made an otherwise readable plan list fail 503 on
+     * ANY of the validator's all-or-nothing refusals -- a count mismatch, a
+     * duplicate row, a missing authority, one `linear_id` claimed twice. On a
+     * cold load that browser then paints every pill at its raw deadline with
+     * saved-day editing disabled.
+     *
+     * That is OPEN_REPAIRS 177 exactly, through a different door. Item 177
+     * relaxed the ONE drift check that caused the live outage; it did not make
+     * the other refusals survivable, and `list` runs through all of them.
+     *
+     * So the enriched answer is attempted and the bounded read is the floor.
+     * The healthy path is byte-identical to before -- same aliases, same shape
+     * -- and a validation failure now costs the aliases rather than the board.
+     * `listPlans` is a paged direct read of `workload_plan` with no validator
+     * in it, and it still refuses (503) if IT cannot complete, so a partial
+     * list can never masquerade as a whole one.
+     */
+    if (action === "list") {
+      requireListStaff(req);
+      const db = serviceClient();
+      try {
+        const snapshot = await nativeSnapshot(db);
+        outcome = "ok";
+        return json({ok:true,complete:true,plans:legacyPlanAliases(snapshot)});
+      } catch (snapshotError) {
+        if (!(snapshotError instanceof WorkloadPlanError) || snapshotError.status !== 503) {
+          throw snapshotError;
+        }
+        // Degraded, not refused: every stored work day, keyed as stored. A row
+        // saved under a native id loses its provider alias here, so an old
+        // browser may not find that one -- losing some plans is strictly better
+        // than losing all of them plus the ability to edit any.
+        const plans = await listPlans(db);
+        outcome = "ok_unaliased";
+        return json({ok:true,complete:true,plans});
+      }
     }
 
     const client = normalizeBrowserWriteClient(body.client);

@@ -14550,6 +14550,54 @@ thing before deciding it is too expensive.** Two rounds were spent defending an
 estimate that took thirty seconds to disprove.
 
 
+### Codex round 11 — item 177's outage was still reachable, through the compatibility door (2026-09-08)
+
+One P1, and it is the most important finding of the eleven rounds, because it is
+the SAME OUTAGE as item 177 by a different route.
+
+`action: 'list'` is what an OLD or still-open browser bundle calls. This lane
+routed it through `nativeSnapshot()` — the `workload_native_snapshot_v1` RPC plus
+the `projectNativeSnapshot` validator. That validator refuses the WHOLE snapshot
+on any of: a count mismatch, a duplicate row, `complete:false`, missing or
+non-syncview authority, a missing `native_client_active`, one `linear_id`
+claimed twice, a duplicate projected plan, a malformed `plan_date`, absent
+`legacy_teams`. Any one of them returned **503 to a browser with no other
+source**, which on a cold load paints every pill at its raw deadline with
+saved-day editing disabled — every editor, every client.
+
+**Item 177 relaxed the one drift check that caused the live outage. It did not
+make the other nine refusals survivable, and `list` ran through all of them.**
+The bounded `listPlans` — a paged direct read of `workload_plan` with no
+validator anywhere in it — was still sitting in the file, unreached.
+
+`list` now attempts the enriched answer and falls back to that bounded read when
+validation fails. The healthy path is byte-identical: same aliases, same shape.
+A validation failure now costs the provider aliases (an old browser may not find
+a plan stored under a native id) instead of costing the board. `listPlans` still
+refuses 503 if IT cannot complete, so a partial list can never masquerade as a
+whole one. `native_snapshot` keeps full validation, unchanged — the new bundle
+wants all-or-nothing, the old one cannot survive it.
+
+**Why no check caught it, which is the durable part.** `qa/workload-native/handler.mjs`
+runs the real handler over real SQL, and its query-builder shim implemented only
+`select`, `eq`, `maybeSingle` and `upsert`. `listPlans` uses `not`, `order`,
+`limit` and `gt` — so the shim **could not express the compatibility read at
+all**. A path the harness cannot express is a path the harness silently does not
+cover, and routing `list` away from it was therefore invisible. The shim now
+implements those four, with column-name and limit validation, and the lane
+carries an old-bundle request exercised with the RPC actually broken.
+
+Proven red against `27817b1` on a real PostgreSQL 16 instance: the old-bundle
+check fails. Handler lane 29 → 33 checks.
+
+**The lesson, and it is not the same as rounds 8-10.** Those were harnesses
+modelling code they could have executed. This one is a harness whose transport
+shim was *narrower than the code under test*, so an entire branch fell outside
+what it could even represent. Both shapes end in a green suite over an untested
+path, and the second is harder to see: nothing looks stubbed, the lane is real,
+and the missing coverage is a method that was never called.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

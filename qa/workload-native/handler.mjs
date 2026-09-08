@@ -18,11 +18,22 @@ const db={rpc:async(name,params={})=>{rpcCalls++;if(rpcFault)return {data:null,e
  try {return {data:JSON.parse(sql(`select public.${name}(${Object.entries(params).map(([k,v])=>k+'=>'+quote(v)).join(',')});`)||'null'),error:null};}
  catch {return {data:null,error:{code:'sql_refused'}};}},
  from:table=>{if(!['workload_plan','workload_issues','syncview_runtime_flags','clients','client_access'].includes(table))throw Error('Unapproved SQL table');
- let columns='*',where=[],write=null,one=false;const run=()=>{try{let result;
+ // The builder must express EVERY read the handler makes, or a path it cannot
+ // express is a path this lane silently does not cover. listPlans -- the bounded
+ // compatibility read behind `action:'list'` -- uses not/order/limit/gt, none of
+ // which existed here, which is exactly why a Codex P1 could route `list`
+ // through the snapshot validator without any handler check noticing.
+ let columns='*',where=[],write=null,one=false,orderBy='',limitRows=0;const run=()=>{try{let result;
  if(write){legacyWrites++;const cols=Object.keys(write);result=sql(`with written as(insert into ${table}(${cols.join(',')}) values(${cols.map(c=>quote(write[c])).join(',')}) on conflict(issue_id)do update set plan_date=excluded.plan_date,updated_by=excluded.updated_by,updated_at=excluded.updated_at returning *)select coalesce(jsonb_agg(to_jsonb(written)),'[]')from written;`);}
- else result=sql(`select coalesce(jsonb_agg(to_jsonb(r)),'[]')from(select ${columns} from ${table}${where.length?' where '+where.join(' and '):''})r;`);
+ else result=sql(`select coalesce(jsonb_agg(to_jsonb(r)),'[]')from(select ${columns} from ${table}${where.length?' where '+where.join(' and '):''}${orderBy}${limitRows?' limit '+limitRows:''})r;`);
  const rows=JSON.parse(result);return {data:one?(rows[0]||null):rows,error:null};}catch{return {data:null,error:{code:'sql_refused'}};}};
- const q={select(c){columns=c;return q;},eq(k,v){where.push(k+'='+quote(v));return q;},maybeSingle(){one=true;return Promise.resolve(run());},upsert(v){write=v;return q;},then(a,b){return Promise.resolve(run()).then(a,b);}};return q;}};
+ const column=k=>{if(!/^[a-z_][a-z0-9_]*$/.test(String(k)))throw Error('Unapproved SQL column');return k;};
+ const q={select(c){columns=c;return q;},eq(k,v){where.push(column(k)+'='+quote(v));return q;},
+ gt(k,v){where.push(column(k)+'>'+quote(v));return q;},
+ not(k,op,v){if(op!=='is'||v!==null)throw Error('Unapproved SQL negation');where.push(column(k)+' is not null');return q;},
+ order(k,opts){orderBy=' order by '+column(k)+((opts&&opts.ascending===false)?' desc':' asc');return q;},
+ limit(n){if(!Number.isSafeInteger(n)||n<=0)throw Error('Unapproved SQL limit');limitRows=n;return q;},
+ maybeSingle(){one=true;return Promise.resolve(run());},upsert(v){write=v;return q;},then(a,b){return Promise.resolve(run()).then(a,b);}};return q;}};
 globalThis.__workloadDb=db;
 globalThis.fetch=async()=>{external++;throw Error('External transport prohibited');};
 const secrets={SUPABASE_URL:'https://fixture.invalid',SUPABASE_SERVICE_ROLE_KEY:'fixture-service',ROLE_KEY_ADMIN:'fixture-admin',ROLE_KEY_SMM:'fixture-smm',ROLE_KEY_CREATIVE:'fixture-creative'};
@@ -50,6 +61,20 @@ try{
  ok(sql("select count(*)from workload_plan where issue_id in('old-fixture','del_fixture');")==='1','actual handler never duplicates plan storage');
  r=await request({action:'list'});ok(r.status===200&&r.body.plans.filter(p=>p.plan_date==='2030-03-01').length===2,'old list exposes both aliases of one stored row');
  rpcFault=true;r=await request({action:'native_snapshot'});ok(r.status===503,'missing SQL capability is failed read, never empty success');
+ // THE OLD BUNDLE MUST STILL GET ITS PLANS. Codex P1 on #1344: routing `list`
+ // through the snapshot validator made any all-or-nothing refusal -- not just
+ // the drift check OPEN_REPAIRS 177 relaxed -- return 503 to a browser that has
+ // no other source, which paints every pill at its raw deadline with editing
+ // disabled. The enriched answer is attempted; the bounded table read is the
+ // floor. Exercised with the RPC actually broken, not with a mocked error.
+ r=await request({action:'list'});
+ ok(r.status===200&&Array.isArray(r.body.plans)&&r.body.plans.length>0,
+  'an old bundle still receives its stored work days when the snapshot cannot be validated');
+ ok(r.body.plans.every(p=>p.plan_date),'the degraded list carries real work days, not cleared history');
+ ok(r.body.ok===true&&r.body.complete===true,'and keeps the response shape the old bundle parses');
+ rpcFault=false;
+ r=await request({action:'list'});ok(r.status===200,'and the healthy list is unchanged');
+ rpcFault=true;
  before=legacyWrites;r=await request({action:'set',issue_id:'legacy-con',client:'Fixture',plan_date:'2030-03-01'});ok(r.status===503&&legacyWrites===before,'unreadable native ownership never falls through to legacy write');rpcFault=false;
  r=await request({action:'set',issue_id:'legacy-con',client:'Fixture',plan_date:'2030-03-01'});ok(r.status===200&&legacyWrites===before+1,'explicit CON compatibility writes existing sidecar path');
  sql("insert into workload_issues values('legacy-video-only',true,true,'VID','Video','Fixture','started');");

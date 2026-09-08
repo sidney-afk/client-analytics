@@ -15526,5 +15526,22 @@ Correcting a reviewer twice in a row made me confident, and the second correctio
 overshot. Being right about where a mechanism ISN'T is not the same as being
 right about where it is.
 
-Seven rounds, twenty-one reported findings, twenty of them mine, plus eleven from
+**The rest of the flag sweep, completed rather than promised.** The other
+runtime-flag undos in the set were checked against their readers and are sound:
+brief F's `linear_legacy_parity_enabled` and `linear_inbound_enabled` already
+carry flat literals and a readback, and the continuity vars are repo variables
+rather than JSON. Brief D's `native_comment_media` is the one worth a note: the
+reader tests `contract` before the `off` branch, so a replacement document that
+drops `contract` does NOT disable the lane — but it falls through to
+`mode:'required', complete:false`, which serves no media and signs nothing. That
+one degrades where brief B's three broke, and the line now says so rather than
+leaving the next reader to re-derive it.
+
+So the class is: three flags actually broken (all in brief B), one fail-closed
+and documented, three already correct. The distinguishing feature of the broken
+three is that their readers RAISE on a malformed document while brief D's
+returns a refusal value. An undo that writes a flag needs to know which of those
+two its reader does.
+
+Seven rounds, twenty-one reported findings, twenty of them mine, plus twelve from
 my own sweeps.

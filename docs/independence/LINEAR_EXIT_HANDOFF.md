@@ -28,14 +28,17 @@ at work that has already been called done.
 1. **Read `docs/ops/OPEN_REPAIRS.md` item 178** (the night summary) and **item
    177** (the live outage, on branch `claude/lx-a-workload-native`). 177 carries
    the rule the night earned; check the open PRs actually honour it.
-2. **The four open PRs are all green and all unmerged.** Do not take a session's
-   own "all tests pass" at face value — one reported green while its own run
-   contained a real failure it had misread as the known baseline. Run the suite
-   yourself and compare the FAILURE SET, not the count.
+2. **The four open PRs are all CI-green and all unmerged, and green means very
+   little here.** The second review round returned six more findings on two of
+   them (§3), all against the fixes. Do not take a session's own "all tests pass"
+   at face value either — one reported green while its own run contained a real
+   failure it had misread as the known baseline. Run the suite yourself and
+   compare the FAILURE SET, not the count.
 3. **Look specifically for changes that only affect rows created AFTER the
-   outbound flip.** Two P1s of that shape were found on #1344. They cannot be
-   hit today, so they ship invisibly and break on cutover day when attention is
-   elsewhere and rollback is hardest. If more exist, they matter most.
+   outbound flip.** Three P1s of that shape have now been found on #1344 across
+   two review rounds. They cannot be hit today, so they ship invisibly and break
+   on cutover day when attention is elsewhere and rollback is hardest. If more
+   exist, they matter most.
 4. **Question whether the lane split still makes sense.** It was chosen when the
    scope was believed larger. The media lane shrank to almost nothing on
    evidence; others may too.
@@ -56,8 +59,8 @@ is installed.
 | Monitoring survives the cutoff | **MERGED** (#1348) |
 | Label exporter + native naming mint | **MERGED** (#1349) |
 | Media rescue preparation | **MERGED** (#1345), and the lane shrank on evidence |
-| Workload native source | Built, reviewed, **held on the owner** (#1344) |
-| Endpoints / Submit / editors-week | Built, reviewed, **held** (#1346) |
+| Workload native source | Built; **second review round returned 2 more P1s** (#1344), then held on the owner |
+| Endpoints / Submit / editors-week | Built; **second review round returned 4 more findings** (#1346) |
 | Native comment + feedback UI | Built, reviewed, **held** (#1347) |
 | Cutoff sequence + watchers | Built, reviewed, **merges last** (#1350) |
 | n8n workflow replacements | **Barely started.** Needs owner go-ahead per workflow |
@@ -131,18 +134,60 @@ than its name suggests.
 
 ## 3. The open pull requests
 
-All four are green and rebased onto current `main`. **The previous session merged
-nothing after the review findings landed**, deliberately.
+All four are CI-green and rebased onto current `main`. **The previous session
+merged nothing after the review findings landed**, deliberately. Green CI is not
+the gate on any of them.
 
 | PR | Lane | Merge order | Gate |
 |---|---|---|---|
-| [#1344](https://github.com/sidney-afk/client-analytics/pull/1344) | Workload native | after B | owner query **and** deploy (§2a) |
-| [#1346](https://github.com/sidney-afk/client-analytics/pull/1346) | Endpoints, Submit, editors-week | after A/D | Codex re-review in flight |
+| [#1344](https://github.com/sidney-afk/client-analytics/pull/1344) | Workload native | after B | 2 new P1s in flight (LX-A3), then owner query **and** deploy (§2a) |
+| [#1346](https://github.com/sidney-afk/client-analytics/pull/1346) | Endpoints, Submit, editors-week | after A/D | 4 new findings in flight (LX-C3) |
 | [#1347](https://github.com/sidney-afk/client-analytics/pull/1347) | Comments + feedback UI | after A | merge then deploy immediately (§2b) |
 | [#1350](https://github.com/sidney-afk/client-analytics/pull/1350) | Cutoff + watchers | **last** | every flag step presumes A/B/C/D live |
 
-A Codex re-review was requested on #1344 and #1346 after their fixes. **Read the
-verdicts before merging either.**
+### The second Codex round came back, and it is not clean
+
+A re-review was requested on #1344 and #1346 after their first round of fixes.
+Both verdicts landed at ~03:07 and ~03:10 UTC and returned **six further
+findings, five of them P1, every one of them against the fixes themselves.**
+Sessions LX-A3 and LX-C3 were spawned on the two branches to close them; check
+their PR comments for where that ended up.
+
+**#1344, on head `996d61f5`:**
+
+1. **P1.** The dropped-plan warning is *still* invisible. It now reaches
+   `wlState.backgroundError`, but `renderWorkloadPlanStatus` replaces every
+   `backgroundError` except the exact legacy-team sentinel with the generic
+   "could not check for newer changes" text, and a manual refresh clears it
+   whenever `legacyTeams` is empty. **Third pass on one defect:** counted into a
+   field nothing read, then written into a field the renderer discards.
+2. **P1.** A second, independent link-resolution path in the popover header
+   derives `soleSubIdent` from `soleSub.identifier` and falls through to
+   `parentIdent`, so a one-video popover's most prominent action opens the batch
+   parent, or vanishes, for a row with no Linear identifier.
+
+**#1346, on head `57d77e03`:**
+
+3. **P1.** `_writeUiRerouteRosterUsable` only asks whether normalization produced
+   at least one slug. A corrupt flag value normalizes to the bogus slug
+   `objectobject`, which clears the unusable signal and routes every real client
+   back to the retiring Linear webhooks. The fail-closed contract has now been
+   defeated by a *different* input on each of two consecutive rounds.
+4. **P1.** `p28`/`p29`/`p30` still wait on `linear-set-status` and
+   `linear-add-comment`, and their seeded cards have no native deliverable ids,
+   so on the production lane they refuse with `native_link_required` first.
+5. **P1.** `qa/write_ui_reroute_fixture.js` returns the reroute row but not
+   `client_comment_gateway_enabled`, so the comment front door is OFF in every
+   harness while production has it ON.
+6. **P2.** editors-week totals include TEST and internal clients, against
+   `TRACK_B_LINEAR_REPLACEMENT_SPEC.md:1425-1431`.
+
+**The pattern is worth more than the six items.** Findings 1 and 3 are second and
+third attempts at the same defect: a fix was written, believed, and reviewed
+green while still not doing the thing it claimed. Findings 4 and 5 are a harness
+green about behaviour production does not take — the same class as the previous
+round's finding 4. When you read a fix on these branches, do not check that the
+code changed; check that the changed code reaches a user.
 
 ---
 

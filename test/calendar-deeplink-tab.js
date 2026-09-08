@@ -189,7 +189,6 @@ ok(m.calls.loadCalendarPosts === 1, 'and loads it (no stuck loader)');
 
 console.log('\n— Codex review, item 176 PR: an unresolvable slug\'s card link dismisses its own toast —');
 reset();
-m._calSavePins(['Baya Voce']);
 m.calState.client = null;
 m.pending = { slug: 'whoisthis', cardId: 'p_xyz' };  // this time the link had a card
 m._calResolvePendingDeepLink();
@@ -199,8 +198,9 @@ ok(m.calls.hideToast === 1,
 console.log('\n— Navigated away while loading: resolver does not yank the user back —');
 reset();
 m.calState.client = null;
-m.pending = { slug: 'jennaphillipsballard', cardId: 'p_gone' };  // a card link, this time
-m.WL = ['Baya Voce', 'Jenna Phillips Ballard'];
+m.pending = { slug: 'whoisthis', cardId: 'p_gone' };  // a card link, this time — resolution never
+                                                       // even reaches the WL lookup below, so the
+                                                       // slug need not resolve to anything real
 m.nav = 'home';                             // user left the calendar
 m._calResolvePendingDeepLink();
 ok(m.calState.client === null, 'active client untouched');

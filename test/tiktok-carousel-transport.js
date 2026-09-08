@@ -166,7 +166,12 @@ const removePhoto = grabFunc('_tkRemovePhoto');
 check('photo grid buttons carry data-photo-idx/data-action for focus lookup after re-render',
   INDEX.includes('data-photo-idx="${i}" data-action="move-earlier"'), true);
 check('_tkMovePhoto restores focus to the moved image\'s control at its new index',
-  movePhoto.includes("_tkFocusPhotoControl(j, dir < 0 ? 'move-earlier' : 'move-later')"), true);
+  /const primaryAction = dir < 0 \? 'move-earlier' : 'move-later';/.test(movePhoto), true);
+// Round 4: at a boundary (moved to index 0, or to the last index) the
+// primary direction's own button is disabled -- there's nowhere further to
+// go -- so _tkMovePhoto must fall back rather than leave focus on <body>.
+check('_tkMovePhoto falls back to the opposite direction, then Remove, at a boundary',
+  /const fallbackAction = dir < 0 \? 'move-later' : 'move-earlier';[\s\S]*?_tkFocusPhotoControl\(j, primaryAction\) \|\| _tkFocusPhotoControl\(j, fallbackAction\) \|\| _tkFocusPhotoControl\(j, 'remove'\);/.test(movePhoto), true);
 check('_tkRemovePhoto restores focus to a neighboring image (or the file input if none remain)',
   removePhoto.includes("_tkFocusPhotoControl(Math.min(i, tkState.photos.length - 1), 'remove')"), true);
 

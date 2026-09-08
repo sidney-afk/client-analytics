@@ -71618,8 +71618,14 @@
         _tkSaveDraft();
         _tkRenderForm();
         // Follow the moved image to its new slot so repeated presses keep
-        // moving the same one, rather than dropping focus after each step.
-        _tkFocusPhotoControl(j, dir < 0 ? 'move-earlier' : 'move-later');
+        // moving the same one. At a boundary (index 0 or the last index)
+        // that direction's own button is now disabled -- there's nowhere
+        // further to go -- so fall back to the opposite direction, then
+        // Remove (always enabled here), rather than dropping focus to
+        // <body> when the primary target can't be focused.
+        const primaryAction = dir < 0 ? 'move-earlier' : 'move-later';
+        const fallbackAction = dir < 0 ? 'move-later' : 'move-earlier';
+        _tkFocusPhotoControl(j, primaryAction) || _tkFocusPhotoControl(j, fallbackAction) || _tkFocusPhotoControl(j, 'remove');
     }
     function _tkClearAllPhotos() {
         tkState.photos.forEach(p => { if (p.objectUrl) URL.revokeObjectURL(p.objectUrl); });

@@ -30,7 +30,9 @@
  *   5. Reordering or removing a photo re-renders the whole form, which used
  *      to drop keyboard focus to <body>; focus now follows the moved image
  *      or lands on a neighbor, so a keyboard user isn't forced to re-tab
- *      through the form after every step.
+ *      through the form after every step. Includes the two boundary cases
+ *      (moved to the first or last slot, where that direction's own button
+ *      is disabled) that the first version of this fix missed.
  *
  * Run standalone:  node docs/syncview-design/tests/tiktok-carousel-browser-journey.js
  * Wired into CI via .github/workflows/tiktok-carousel-browser-journey.yml
@@ -345,6 +347,21 @@ async function attachThreeImagesAndCaption(page, caption) {
       // button at its new slot, so repeated presses keep moving it.
       await page.click('.tk-photo-btn[data-photo-idx="0"][data-action="move-later"]');
       check('after moving an image later, focus follows it to its new index', await focused(), { idx: '1', action: 'move-later', id: null });
+
+      // Round 4 boundary case: moving the image now at index 1 EARLIER lands
+      // it at index 0, where "move earlier" is disabled -- there's nowhere
+      // further to go. Focus must fall back to "move later" at index 0
+      // instead of dropping to <body>.
+      await page.click('.tk-photo-btn[data-photo-idx="1"][data-action="move-earlier"]');
+      check('moving an image to the FIRST slot falls back to "move later" (its own direction is disabled)',
+        await focused(), { idx: '0', action: 'move-later', id: null });
+
+      // Round 4 boundary case: with 3 images, index 1 is penultimate --
+      // moving it LATER lands it at the last index, where "move later" is
+      // disabled. Focus must fall back to "move earlier" at that index.
+      await page.click('.tk-photo-btn[data-photo-idx="1"][data-action="move-later"]');
+      check('moving an image to the LAST slot falls back to "move earlier" (its own direction is disabled)',
+        await focused(), { idx: '2', action: 'move-earlier', id: null });
 
       // Remove the image now at index 0. Focus should land on a neighboring
       // image's remove button (the one that slid into slot 0), not <body>.

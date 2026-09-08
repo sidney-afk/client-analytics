@@ -250,10 +250,16 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // dependency, no new entrypoint. The blob change is one integer, one cadence
   // string and comment text — no filesystem, process, child-process or network
   // path is added, and this lane's `--heartbeat=reconciler_pager` and
-  // `--check` steps are untouched. Reviewed effect on THIS lane: a stale
-  // `monitoring_watchdog` now pages six hours after its last beat rather than
-  // three; every other lane's threshold is unchanged. (Previous pin:
-  // cc2b4324...)
+  // `--check` steps are untouched.
+  //
+  // Reviewed effect on THIS lane, stating the THRESHOLD and the DETECTION TIME
+  // separately because conflating them is the error this change had to correct
+  // twice: the staleness threshold for `monitoring_watchdog` moves from 180 to
+  // 360 minutes. Detection time is a different number — freshness is only
+  // evaluated when a host runs, so the worst case is the threshold PLUS the
+  // observation interval, about 634 minutes here against roughly 454 before.
+  // No other lane's threshold changes, and no lane's detection path does.
+  // (Previous pin: cc2b4324...)
   'scripts/monitoring-watchdog.js':
     'c157320180361993484de8a5c6dae2cfb1724747ae6e6b1696fb5607f309f6fe',
   'scripts/prod-authority-guard.js':

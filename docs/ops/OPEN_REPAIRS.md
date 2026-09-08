@@ -15622,3 +15622,43 @@ undo is safe only when nothing deployed still calls what it removes, and the
 runtime flag that stops the FEATURE is usually not the thing that stops the
 CALLS. Those are two different switches, and every one of these teardowns
 conflated them until it was asked not to.
+
+### NINTH CORRECTION — a live-action list whose ORDER is wrong, and a rewrite that skips rather than fails
+
+Codex round nine, on the current head `433eaae`, after one clean round: one P1,
+on brief E's ordering. Valid, with its mechanism half right in a way worth
+recording.
+
+**The finding.** E4's three parts (bucket `file_size_limit`, `policy.MAX_BYTES`,
+the function redeploy) are listed AFTER the upload and the forward rewrite. If
+E4 is being taken at all, they have to precede the upload: the deployed handler
+refuses an oversize file at `MAX_BYTES` and the bucket refuses it independently,
+so an upload run before the raise never creates those objects. Both live-action
+lines now say so.
+
+**Where the stated mechanism overshoots, and the truth is quieter and worse.**
+The finding says the rescue "cannot produce the complete out-map needed by the
+rewrite", implying the rewrite is blocked. It is not. `rewriteText` SKIPS an
+occurrence it cannot resolve (`if (!next) { skipped.push(occ); continue; }`,
+scripts/linear-media-rescue.mjs:146-149) rather than throwing, so the forward SQL
+still generates and still applies cleanly under its old-literal guard. A brief
+holding one rescued and one oversize image is rewritten for the first and left
+pointing at the dead `uploads.linear.app` URL for the second.
+
+So the failure is not a refusal, it is a **silent partial rescue**. The upload
+half is loud — `REFUSED 413 image_too_large` per file and a non-zero exit — and
+the rewrite half says nothing. Under item 173's standing ruling (E4 not taken,
+over-4 MiB and over-8000px files not rescued) that partial outcome is the
+INTENDED one, which is exactly why it needs stating: an operator who does not
+know it will read a clean-looking forward apply as a complete rescue. The line
+now says to count the `REFUSED` lines against the manifest before applying, and
+to record that count in the ledger so surviving dead links are a known number.
+
+**The class, which is new: the ORDER of a live-action list is itself an
+instruction.** Every prior round audited individual lines. This one is about
+their sequence on the page — a conditional step printed after the step it must
+precede. Nothing in a line-by-line review catches that, and I had not once read
+these six LIVE ACTIONS blocks as ordered procedures rather than as sets of
+independent items.
+
+Nine rounds, twenty-five reported findings, twenty-four of them mine.

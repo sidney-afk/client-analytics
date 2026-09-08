@@ -40,6 +40,33 @@ calls it, and `docs/ops/MONITORING.md` records its workflow (`MJbMZ789B5ExZz9x`)
 as inactive/unpublished. So the honest figure is **four of seven intercepted
 before this change, seven of seven after.**
 
+**And the prefix is not the whole surface — corrected 2026-09-08.** Counting
+`linear-*` names answers "which Linear-NAMED webhooks are intercepted", which is
+not the same question as "does anything still reach Linear". Lane LX-N8N
+(OPEN_REPAIRS 181) named four webhooks that reach Linear through their n8n
+workflow while carrying no `linear-` prefix, each verified against this tree:
+
+| webhook | how it reaches Linear |
+|---|---|
+| `editors-week` | queries Linear for the week's editor workload |
+| `send-urgent-slack` | shaped like a Slack write, but resolves the issue's **current Linear assignee** to pick who to mention |
+| `video-form` | creates a Linear issue |
+| `graphic-form` | creates a Linear issue |
+
+Left alone, a dead-Linear run would have sent these four to real n8n and a
+**healthy** Linear — reporting four Linear-dependent flows as surviving Linear's
+death on the strength of them having quietly used a live one. That is this mode's
+own founding error, one layer further out, and it would have passed every
+assertion in the suite. `LINEAR_BACKED_HOOK` now covers them **in dead mode
+only**: healthy-mode behaviour is unchanged, because the courier has never mocked
+these four and altering that would silently change every existing probe rather
+than only the rehearsal. `kasper-queue` is excluded with `log-linear-submission`
+for the same reason — it reads Sheets and survives Linear untouched.
+
+**So the coverage claim is now two claims, and both belong in the result form:**
+seven of seven `linear-*` webhooks, **and** four of four Linear-backed webhooks
+that carry no such name.
+
 **`log-linear-submission` is deliberately NOT intercepted and NOT blocked.**
 Despite the name it is not a Linear endpoint — it appends to a Google Sheet and
 touches no Linear API. Blocking it re-opens the 2026-08-26 incident where the only
@@ -191,6 +218,7 @@ Fill in `observed` and `verdict`. **A blank row is not a pass.**
 | R8 | No request reached `api.linear.app` | `linear_calls.jsonl` contains no row whose `path` is `api.linear.app` with a non-`refused` outcome | | |
 | R9 | Every one of the seven webhooks was exercised at least once | distinct `path` values in `linear_calls.jsonl` | | |
 | R10 | All four fault shapes were injected | distinct `dead` values in `linear_calls.jsonl` | | |
+| R10b | **The four Linear-backed webhooks were intercepted too, not just the `linear-*` ones** | `linear_calls.jsonl` carries `"backed":true` rows for every one of `editors-week`, `send-urgent-slack`, `video-form`, `graphic-form` that the run exercised — and a run that exercised none of them does not satisfy this row, it fails to test them | | |
 | R11 | **Each shape was run PINNED across the probe manifest** — four runs, not one rotating run | four separate `SYNCVIEW_QA_LINEAR_DEAD=<shape>` invocations, each recorded here | | |
 | R12 | The status-and-comment write flows survived `ok_lie` specifically | the pinned `ok_lie` run, read as a person: a 200 that carried nothing must not be reported anywhere as success | | |
 

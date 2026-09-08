@@ -15564,6 +15564,92 @@ costs four characters. The reservation table in item 168 remains the right
 mechanism for avoiding collisions in the first place, but it only binds sessions
 that read it, and PR #1354 was not part of this programme.
 
+## 177. [2026-09-08, FIXED] The pasted-card-link highlight was invisible in dark mode
+
+Item 176 (same day, merged as PR #1354) fixed the timing problem — the toast
+now appears immediately. The owner came back after checking it out: *"I
+never saw the border color... it's because of the dark mode. On the dark
+mode, it doesn't show up... it appears as like a black thing."*
+
+**Root cause.** The persistent outline `_calApplyFocusRequest` puts on a
+linked card (`.cal-card-focused`, and its non-persistent sibling
+`.cal-card-flash` for the identifier/search-jump case) reads its ring color
+from `--sv-shadow-rgba-94-106-210-*` — the brand indigo, rgb(94,106,210).
+The dark-theme override block flattened five of those six tokens to plain
+black (`rgba(0,0,0,…)`) — the sixth, the fully-transparent `-0` variant, was
+already `rgba(94,106,210,0)` and untouched, since a zero alpha carries no
+visible color either way. The five non-transparent ones are close to
+indistinguishable from the app's own near-black dark background: a ring
+built to say "this one" said nothing.
+Every OTHER brand-indigo token in the file (`--sv-border-9aa3f0`,
+`--sv-fg-4a54c0`, …) is brightened for dark mode instead of blackened — this
+shadow-token family was the one place the pattern wasn't followed, almost
+certainly because whatever produced the dark palette treated every
+`--sv-shadow-*` variable as a generic elevation shadow (where black is the
+right call) rather than checking which ones are actually colored accent
+rings.
+
+**Verified, not just reasoned.** Rendered the real, extracted
+`.cal-card-focused` rule in a headless Chromium against both themes' actual
+variable values, before touching anything: the light-mode ring was clearly
+visible; the dark-mode one was there, technically, but barely
+distinguishable from the card and page behind it — exactly the "black
+thing" the report described.
+
+**Fix.** Kept the same hue in dark mode, brightened to `rgb(174,181,242)` —
+the same value `--sv-border-9aa3f0` already uses for its own dark-mode
+counterpart, so this now follows the same convention as every other
+brand-indigo token instead of being the exception. Re-rendered the same
+Chromium check after the change: dark mode now shows a clearly visible
+indigo ring, matching light mode's legibility. Five tokens changed (the
+transparent sixth was already correct and left alone), all in the same
+`html[data-theme="dark"]` override block; the `.cal-card-focused` /
+`.cal-card-flash` rules that consume them were untouched, since the box-shadow
+rules themselves were never the problem — only the color they were told to
+use.
+
+Pinned by a new `test/calendar-focus-highlight-dark-mode.js`: asserts each
+of the five non-transparent tokens in the dark-theme block still carries a
+colored (non-black) value, and specifically the `rgb(174,181,242)` this fix
+lands on — so a future dark-palette regeneration can't quietly re-blacken
+this family without a test failing.
+
+**Codex review, PR #1359.** One real finding: the color fix above made the
+ring visible, but not necessarily PRESENT. `.cal-card-focused` is a single
+class (specificity 1). `.cal-card.cal-card-posted` (2) and `.cal-card:hover`
+/ `.cal-card.cal-card-posted:hover` (2 and 3) each carry their own static
+`box-shadow`, all at equal or higher specificity — so a linked card that was
+posted, or simply sat under the pointer, showed no ring at all, in EITHER
+theme. Not new in this PR; the underlying rule predates it. Added
+`!important` to `.cal-card-focused`'s `box-shadow` so it wins regardless of
+what other card-state classes are present, matching this file's existing
+convention for "this state must win" indicators (e.g.
+`.workload-rollup.in-progress`'s `border-left-color !important`).
+`.cal-card-flash` (the identifier/search-jump sibling) needed no such fix:
+its color comes from a CSS animation, which the cascade already places above
+any static rule regardless of specificity.
+
+Verified with a real headless-Chromium render (not just source regex) of a
+card carrying `cal-card cal-card-posted cal-card-focused` in dark mode,
+hovered — the highest-specificity competing case — and read back
+`getComputedStyle(...).boxShadow`: the indigo ring is present and the
+posted-state green shadow is fully replaced rather than blended in behind
+it.
+
+**Same review, second finding.** That verification was first committed as a
+`require('playwright')` section inside `test/calendar-focus-highlight-dark-
+mode.js` itself — which `test/run-all.js` sweeps unconditionally into the
+dependency-free `unit` CI job (`.github/workflows/calendar-unit-tests.yml`,
+no `npm install`, no browser provisioning, by design: "No test in this job
+reaches a live backend or browser"). That would have failed the job outright
+on the next push with `MODULE_NOT_FOUND`, not just this one suite — this
+repo has no lightweight lane between "dependency-free source regex" and the
+heavy, explicitly-registered `production-polish` browser lanes (themselves
+scoped to the `_prod`/write-gateway surface, not general Calendar CSS).
+Removed the async section; the regex assertion pinning `!important` is what
+a `test/` suite can safely check, and the browser verification itself is
+recorded here rather than kept as a suite that can't run where it lives.
+
 ---
 
 ## 179. [2026-09-08, lane LX-RESTORE, DONE for the executable subset; ~284 context lines still clipped] The 49 clipped brief lines an owner actually executes are restored from source, and six of them were wrong as well as short
@@ -16532,8 +16618,11 @@ deep-link pair from PR #1354, plus the exit's own naming-mint finding and the
 lane-A acceptance measurement), and `178`/`179` were taken as well. Item 168's
 rule of "spares from 176 up" is therefore exhausted. **Renumbered to 180 here,
 in the merge that discovered the collision** — the content is self-contained and
-nothing cites it by number, so no reference had to move. The next free spare is
-181.
+nothing cites it by number, so no reference had to move. This entry first said
+the next free spare was 181; lane LX-N8N took 181 on `main` in the very next
+merge, having verified it free against a `main` this branch had not yet reached.
+**The next free spare is 182**, and the fact that this line went stale inside one
+merge is exactly the decay item 168 was written about.
 
 ---
 
@@ -16878,9 +16967,10 @@ could have left this runbook holding a defective procedure.
 
 **Ledger numbering, same merge.** This entry moved 175 → 180 (see **Number.**
 above). Item 168's "spares from 176 up" rule is spent: on `81a7b55` the numbers
-175 and 176 are each claimed twice and 178/179 are taken. The next free spare is
-**181**. The four pre-existing duplicate headers item 168 baselines (13, 14, 22,
-23) are still four; this merge added no new duplicate.
+175 and 176 are each claimed twice and 178/179 are taken. **Superseded one merge
+later:** lane LX-N8N claimed 181 on `main`, so the next free spare is **182** —
+see the **Number.** paragraph above. The four pre-existing duplicate headers item
+168 baselines (13, 14, 22, 23) are still four; neither merge added a new one.
 
 **Proof bar on the merge.** `npm test` on the merge commit: 1 of 419 suites
 failed, `test/truth-sync.js`, at **515 passed / 14 failed** — the documented
@@ -16889,3 +16979,131 @@ assertions, so the `scripts/monitoring-watchdog.js` closure pin still verifies
 after main absorbed part 1 (PR #1348, `e797444`). The merge brought main's
 `index.html` changes into the branch, as merges do; `git diff origin/main...HEAD`
 lists no `index.html`, so this lane still touches none of it.
+
+
+## 181. [2026-09-08, lane LX-N8N, WRITTEN — a plan, nothing executed] The seven n8n webhooks that die with Linear, and the three source documents that each get the list wrong differently
+
+`181` was verified free before writing: the ledger's numbers run 1–129, 134–162,
+170, 173, 174, and item 174 records the lane reservations (A took `169`, C took
+`171`/`175`/`176`, D took `172`, E took `173`, F took `174`). Nothing claims
+`177`–`180` on `main`; this lane takes `181` rather than the next free number so
+a concurrent lane landing in the gap does not collide.
+
+**Deliverable.** `docs/independence/N8N_REPLACEMENT_PLAN.md`. Read-only lane: no
+n8n workflow was created, edited, activated, deactivated, or run; no migration,
+deploy, or write of any kind.
+
+**The list, re-derived from `main@d8866d9` rather than a July snapshot.** Seven
+browser-called n8n webhooks reach Linear and fail when the account lapses:
+`editors-week`, `linear-issues`, `linear-issue-statuses`, `linear-subissues`,
+`linear-tweak-comments`, `linear-projects`, and — the one no reader list carries
+— **`send-urgent-slack`**, which is shaped like a Slack write but resolves the
+issue's current Linear assignee to pick the mention. Four more write Linear and
+die with it (`linear-set-status`, `linear-add-comment`, `video-form`,
+`graphic-form`). Two that look Linear-bound survive untouched:
+`log-linear-submission` appends a Google Sheet, and `kasper-queue` reads Sheets.
+
+**The three sources disagree seven ways**, each verified on `main@d8866d9` and
+tabled in §2 of the plan. The two most likely to cost someone a day:
+
+- **Every line number in `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` is dead.** It
+  was verified at `e3961b6` on 2026-07-14 and says so, but nothing warns that its
+  anchors have since moved by tens of thousands of lines. Not one range still
+  points at its code — `editors-week` is cited at `index.html:43879-43925`; today
+  its constant is at `22419` and its single fetch at `78774`. The dispositions in
+  that document remain the best thinking available; only its coordinates are
+  gone.
+- **`docs/truth/ENDPOINTS.md` says "n8n webhooks (54)"; the real count is 56.**
+  The *set* it enumerates is right and `test/truth-sync.js` proves it — but the
+  parenthetical in the heading is not machine-checked, so it drifted two behind
+  when `tiktok-upload-url` and `tiktok-upload-direct` landed on 2026-08-18.
+  `SYSTEM_MAP.md:1537` is the correct one.
+
+**One finding that is not a documentation problem.** The native replacement for
+`editors-week` (PR #1346) reads `public.deliverable_events`. That table is
+granted `select` to `anon` and `authenticated` under a permissive `using(true)`
+policy (`migrations/2026-07-06-b1-linear-data-model.sql:682-688`, `:698`), and
+**no migration in this repo revokes it.** The F53 migration
+(`2026-07-23-f34-f53-production-attachments.sql:280,296`) revoked table-level
+SELECT on `batches` and `deliverables` from `public, anon, authenticated` and did
+not include `deliverable_events`; the only carve-out since is one restrictive
+policy covering comment-body snapshots
+(`2026-07-12-production-comments.sql:158-161`), which leaves the ordinary
+activity rows — `client_slug`, `actor`, `role`, `from_status`, `to_status`, `ts`
+— anon-readable. That is F48's exposure shape reproduced natively. **This is a
+source-level reading; the live grant was NOT checked** and several tables here
+were created by hand-run SQL that never reached the repo. Verify live before
+relying on the finding or on its absence.
+
+**The parity gap the replacement does not close.** `deliverable_events` has no
+event-time assignee column, so attribution must join through
+`deliverables.assignee_id` — the *current* assignee — which is exactly the defect
+F48 records in the legacy endpoint. `CUTOVER_AUDIT_2026-07-13.md` already
+measured what that costs (of 401 source transitions for the same production
+videos, 27 absent natively and 239 unmatched or duplicative). Closing it needs a
+schema change that is outside this lane and, as far as the PR description shows,
+outside #1346. Until it lands the native Editors tab has delivery-count parity,
+not report parity, and `GO_LIVE_CHECKLIST.md:999` is right to gate retirement on
+full §9.11 parity.
+
+**Ordering, stated because getting it backwards is a live outage.** `main`
+today still calls `editors-week` at `index.html:78774`, so **PR #1346 must merge
+before the endpoint is deactivated** or Kasper's Editors subtab dies with no
+fallback beyond a one-week cache. The full order for all eleven endpoints is §5
+of the plan. Two more that are easy to get wrong: `linear-issues` has a second,
+undocumented caller (the Calendar bulk-create link poll shares its feeder and
+cache), so merging the Workload half alone is not sufficient; and
+`linear-projects`' legacy half must not be deleted until every client is enrolled
+in `write_ui_reroute_clients`, because the native branch is cohort-gated and
+un-enrolled clients would get an empty Submit dropdown — the "absence a user
+cannot debug" failure the owner's permissive rule exists to prevent.
+
+**What could not be established** is named specifically in §6 of the plan, eight
+items: no live n8n workflow was inspected (the readbacks this leans on are eight
+weeks old), the `deliverable_events` grant is source-level only, response shapes
+are inferred from what the browser consumes rather than from a captured response,
+#1346's diff was not read, `LINEAR_EXIT_LANES.md` is on #1351's branch and not on
+`main` so the authoritative lane order could not be consulted, and no row counts
+are published at all — deriving them needed a live read this lane did not take,
+and `AGENTS.md`'s 2026-09-05 rule says an unmeasured number is worse than none.
+
+**Addendum, 2026-09-08, after merging main (`7291b55`) — a fifth guard that
+looked checked and was not, found by another lane.** OPEN_REPAIRS 181 (lane
+LX-N8N) names four webhooks that reach Linear through their n8n workflow while
+carrying no `linear-` prefix: `editors-week`, `send-urgent-slack` (shaped like a
+Slack write, but it resolves the issue's *current Linear assignee* to pick the
+mention), `video-form` and `graphic-form`. Verified against this tree —
+`index.html` calls all four, and `LINEAR_HOOK`'s prefix match sees none of them.
+
+**Why this mattered more than a missed pattern.** The rehearsal's whole purpose
+is to answer "does the app survive Linear being unreachable". Counting `linear-*`
+names answers a different question — "which Linear-NAMED webhooks are
+intercepted" — and the two look identical until something reaches Linear without
+the name. Left as it was, a dead-Linear run would have sent these four to real
+n8n and a **healthy** Linear, then reported four Linear-dependent flows as
+surviving Linear's death on the strength of them having used a live one. That is
+this mode's own founding polarity error, one layer further out, and **it would
+have passed every assertion already in the suite.**
+
+**The fix is dead-mode only.** `LINEAR_BACKED_HOOK` intercepts the four under
+`if (LINEAR_DEAD)` and nowhere else. Healthy mode is untouched deliberately: the
+courier has never mocked these four (one probe,
+`ot4_t1_submit_intake_guards.js`, mocks `video-form`/`graphic-form` itself), so
+mocking them in normal mode would silently change every existing probe rather
+than only the rehearsal. `kasper-queue` is excluded alongside
+`log-linear-submission` — it reads Sheets and survives Linear untouched.
+
+Six mutations, each confirmed red before the fix was called done: dropping
+`send-urgent-slack` from the pattern; widening it until it swallows
+`log-linear-submission`; unanchoring the path boundary so it matches by prefix;
+pinning the backed branch to one fixed fault instead of the rotating sequence;
+firing the branch in healthy mode; and swallowing the `refused` shape with a 200
+instead of aborting.
+
+**The count for this lane is now five**, and the fifth is the one worth keeping:
+the four before it were found by an adversarial reader or a mutation of my own
+code. This one was found by **another lane's inventory of a system I had not
+inventoried** — I had counted the webhooks whose names contained the word I was
+looking for. No amount of re-reading my own regex would have surfaced it, and no
+mutation of my own file would either, because the missing names were never in it.
+

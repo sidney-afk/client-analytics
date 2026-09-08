@@ -97,6 +97,45 @@ try { fs.mkdirSync(TMP, { recursive: true }); } catch {}
  * never calls it, and MONITORING.md records its workflow as inactive.)
  */
 const LINEAR_HOOK = /\/webhook\/(linear-[a-z0-9-]+)\b/;
+
+/* LINEAR-BACKED webhooks that do NOT carry the `linear-` prefix.
+ *
+ * Found by lane LX-N8N (OPEN_REPAIRS 181) and verified against this tree: four
+ * webhooks the browser calls reach Linear through their n8n workflow rather
+ * than through a `linear-*` name, so the prefix match above cannot see them.
+ *
+ *   editors-week       queries Linear for the week's editor workload
+ *   send-urgent-slack  shaped like a Slack write, but resolves the issue's
+ *                      CURRENT Linear assignee to pick who to mention
+ *   video-form         creates a Linear issue
+ *   graphic-form       creates a Linear issue
+ *
+ * WHY THIS MATTERS FOR THE REHEARSAL, and only for the rehearsal. A dead-Linear
+ * run that leaves these four live sends them to real n8n, whose Linear nodes are
+ * (today) talking to a HEALTHY Linear -- so the rehearsal would report that four
+ * Linear-dependent flows survive Linear being dead on the strength of them
+ * having quietly used a live one. That is the same polarity error this whole
+ * mode exists to correct, one layer further out.
+ *
+ * INTERCEPTED IN DEAD MODE ONLY. In normal mode these fall through exactly as
+ * before -- this file has never mocked them, one probe
+ * (`ot4_t1_submit_intake_guards.js`) mocks video-form/graphic-form itself, and
+ * changing healthy-mode behaviour would silently alter every existing probe.
+ * The fix here is scoped to the question the rehearsal asks.
+ *
+ * THE FAULT SHAPES ARE THE RIGHT ONES BY ACCIDENT OF ARCHITECTURE. The browser
+ * cannot tell a dead Linear from a dead n8n; it sees whatever n8n returns when
+ * its Linear node errors, and `ok_lie` -- a 200 that reports success having done
+ * nothing -- is precisely the n8n-mediated shape OPEN_REPAIRS 78 recorded twenty
+ * times over.
+ *
+ * NEITHER `log-linear-submission` NOR `kasper-queue` IS LISTED, deliberately.
+ * Despite its name the first appends a Google Sheet and the second reads Sheets;
+ * both survive Linear untouched, and blocking the first re-opens the 2026-08-26
+ * incident in which a videographer's only submitted copy lived in his browser.
+ */
+const LINEAR_BACKED_HOOK =
+  /\/webhook\/(editors-week|send-urgent-slack|video-form|graphic-form)(?:[/?]|$)/;
 const FILMING_TABS_HOOK = /\/webhook\/filming-plan-tabs\b/;
 const LIVE_FILMING_TABS = process.env.SYNCVIEW_QA_LIVE_FILMING_TABS === '1';
 const LINEAR_CALLS_FILE = `${TMP}/linear_calls.jsonl`;
@@ -594,6 +633,27 @@ async function _ctx(browser, opts) {
         : { ok: true };
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: JSON.stringify(body) });
     }
+    // 1b) LINEAR-BACKED webhooks without the `linear-` prefix, IN DEAD MODE ONLY.
+    //     See LINEAR_BACKED_HOOK. These reach Linear through n8n, so a dead-Linear
+    //     rehearsal that let them through would be exercising a live, healthy
+    //     Linear for four of the flows it claims to have proven. Normal mode is
+    //     untouched on purpose: this file has never mocked them.
+    if (LINEAR_DEAD) {
+      const bh = url.match(LINEAR_BACKED_HOOK);
+      if (bh) {
+        let payload = null; try { payload = JSON.parse(req.postData() || 'null'); } catch {}
+        const shape = linearDeadShapeFor(_linearDeadCallIndex++);
+        try { fs.appendFileSync(LINEAR_CALLS_FILE, JSON.stringify({ path: bh[1], payload, dead: shape, backed: true, at: Date.now() }) + '\n'); } catch {}
+        const response = linearDeadResponseFor(shape);
+        if (!response) return route.abort('connectionrefused');
+        return route.fulfill({
+          status: response.status,
+          contentType: response.contentType,
+          headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
+          body: response.body,
+        });
+      }
+    }
     // 2) Filming Plan Tabs -> stub by default. QA cold boots do not exercise
     // the Google Docs tab parser; let the app
     // render the empty-state contract without spending n8n executions.
@@ -802,7 +862,7 @@ module.exports = {
   courierCommitThenFailEvents, resetCourierCommitThenFailEvents, setSubissuesResp,
   // Linear-dead rehearsal (F11). Exported so the offline suite can exercise the
   // fault rotation and the interception surface with no browser and no network.
-  LINEAR_API_HOST, LINEAR_DEAD, LINEAR_DEAD_SHAPES, LINEAR_HOOK,
+  LINEAR_API_HOST, LINEAR_BACKED_HOOK, LINEAR_DEAD, LINEAR_DEAD_SHAPES, LINEAR_HOOK,
   linearDeadResponseFor, linearDeadShapeFor, resetLinearDeadRotation,
   __test: Object.freeze({
     courierFetch: _courierFetch,

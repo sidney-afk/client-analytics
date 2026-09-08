@@ -80,12 +80,14 @@ function extract(names) {
 const {
   LINEAR_DEAD_SHAPES,
   LINEAR_HOOK,
+  LINEAR_BACKED_HOOK,
   LINEAR_API_HOST,
   linearDeadShapeFor,
   linearDeadResponseFor,
 } = extract([
   'LINEAR_DEAD_SHAPES',
   'LINEAR_HOOK',
+  'LINEAR_BACKED_HOOK',
   'LINEAR_API_HOST',
   'linearDeadShapeFor',
   'linearDeadResponseFor',
@@ -124,6 +126,48 @@ const {
     'the api.linear.app guard must abort, and must sit in the route handler');
   ok(source.indexOf('LINEAR_API_HOST.test(url)') < source.indexOf('const lh = url.match(LINEAR_HOOK)'),
     'the api.linear.app abort must run BEFORE the webhook branch, so nothing can fall past it');
+}
+
+// ---------------------------------------------------------------------------
+// LINEAR-BACKED WEBHOOKS THAT DO NOT CARRY THE `linear-` PREFIX.
+//
+// OPEN_REPAIRS 181 (lane LX-N8N) named four webhooks that reach Linear through
+// their n8n workflow rather than through a `linear-*` name. The prefix match
+// cannot see them, so a dead-Linear rehearsal would have sent them to real n8n
+// and a HEALTHY Linear -- reporting four Linear-dependent flows as surviving a
+// dead Linear on the strength of them having used a live one.
+// ---------------------------------------------------------------------------
+{
+  const backed = ['editors-week', 'send-urgent-slack', 'video-form', 'graphic-form'];
+  const app = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  for (const hook of backed) {
+    ok(app.includes(`webhook/${hook}`),
+      `${hook} must still be called by the app — if it is gone, drop it from LINEAR_BACKED_HOOK rather than leaving a dead pattern`);
+    ok(LINEAR_BACKED_HOOK.test(`https://example.invalid/webhook/${hook}`),
+      `${hook} reaches Linear through n8n and must be intercepted in dead mode`);
+  }
+  ok(LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/video-form?client=x'),
+    'a query string must not defeat the match');
+
+  // The two that must NOT be caught, for the same reason as log-linear-submission.
+  ok(!LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/log-linear-submission'),
+    'log-linear-submission appends a Google Sheet and must never be intercepted');
+  ok(!LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/kasper-queue'),
+    'kasper-queue reads Sheets and survives Linear untouched');
+  ok(!LINEAR_BACKED_HOOK.test('https://example.invalid/webhook/editors-week-archive'),
+    'the match must be anchored at a path boundary, not a prefix');
+
+  // DEAD MODE ONLY. Healthy-mode behaviour for these four must not change: this
+  // library has never mocked them, and altering that would silently change every
+  // existing probe rather than only the rehearsal.
+  const backedBranch = source.match(/if \(LINEAR_DEAD\) \{\s*\n\s*const bh = url\.match\(LINEAR_BACKED_HOOK\)[\s\S]{0,1400}?\n    \}/);
+  ok(backedBranch, 'the LINEAR_BACKED_HOOK branch must exist and must be guarded by LINEAR_DEAD');
+  ok(/linearDeadShapeFor\(_linearDeadCallIndex\+\+\)/.test(backedBranch[0]),
+    'the backed branch must draw from the same rotating fault sequence, not a fixed shape');
+  ok(/route\.abort\('connectionrefused'\)/.test(backedBranch[0]),
+    'the backed branch must honour the refused shape by aborting');
+  ok(source.indexOf('const bh = url.match(LINEAR_BACKED_HOOK)') > source.indexOf('const lh = url.match(LINEAR_HOOK)'),
+    'the backed branch must sit after the linear-* branch, which already owns those names');
 }
 
 // ---------------------------------------------------------------------------

@@ -49,8 +49,12 @@ function fnSrc(name) {
   return end < 0 ? '' : html.slice(start, end + 6);
 }
 
+/* `_calNativeSyncReceipt` joined the list when the count setter started
+   driving the receipt (2026-09-08). It no-ops without a dialog in the DOM,
+   which is exactly this harness, but it must EXIST or the setter throws. */
 const NEEDED = ['_svStepNumber', '_svSyncStepper', '_calSetNativePostCount',
-  '_calNativePostCountMax', '_calNativePostTeamsPer', '_calNativePostCountHint'];
+  '_calNativePostCountMax', '_calNativePostTeamsPer', '_calNativePostCountHint',
+  '_calNativeSyncReceipt'];
 const sources = NEEDED.map(fnSrc);
 ok(sources.every(Boolean), 'the shipped primitive and the dialog setter are both findable (harness is not vacuous)');
 
@@ -97,7 +101,14 @@ function harness(mode, max) {
   // test — if that wiring is ever dropped, these checks fail.
   input.addEventListener('input', () => ctx._svSyncStepper('calNativePostCount'));
   input.addEventListener('change', () => ctx._calSetNativePostCount(input.value));
-  return { nodes, state, input, ctx, press: d => ctx._svStepNumber('calNativePostCount', d) };
+  /* Counted rather than stubbed away: the real function is in the vm and
+     no-ops without a dialog in the DOM, so this wraps it to observe the CALL
+     the setter is required to make. */
+  const real = ctx._calNativeSyncReceipt;
+  const box = { receiptSyncs: 0 };
+  ctx._calNativeSyncReceipt = function () { box.receiptSyncs++; return real.apply(this, arguments); };
+  return { nodes, state, input, ctx, press: d => ctx._svStepNumber('calNativePostCount', d),
+    get receiptSyncs() { return box.receiptSyncs; } };
 }
 const MAX_BOTH = Math.floor(maxItems / 2);
 
@@ -107,8 +118,12 @@ const MAX_BOTH = Math.floor(maxItems / 2);
   h.press(1);
   ok(h.state.postCount === 2,
     'pressing + reaches _calSetNativePostCount through the primitive\'s dispatched change event — one path in, not two');
-  ok(/2 posts/.test(h.nodes.calNativePostCountHint.textContent),
-    'and the hint under the control is rewritten, so the sub-issue total is never stale');
+  /* The sub-issue total used to live in a hint paragraph under the stepper and
+     now lives in the receipt (2026-09-08, option A). What matters is unchanged
+     and is what this asserts: pressing the button must reach whatever renders
+     that total, so it can never describe a count the dialog has moved past. */
+  ok(h.receiptSyncs === 1,
+    'and the receipt is re-rendered on the same press, so the sub-issue total is never stale');
   h.press(-1);
   ok(h.state.postCount === 1, 'pressing − lowers it again');
 }

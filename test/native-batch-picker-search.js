@@ -94,8 +94,15 @@ ok(/CAL_NATIVE_BATCH_FILTER_MIN/.test(html) && /compatible\.length > CAL_NATIVE_
    the same shape as the cap this replaces. */
 ok(/select\.innerHTML = _calNativeBatchOptionsHtml\(/.test(html),
   'filtering REBUILDS the options rather than hiding <option> elements, which Safari ignores');
-ok(/if \(shown\.length\) _calNativePrevBatchPick\(select, false\)/.test(html),
+ok(/_calNativePrevBatchPick\(select, false\)/.test(html),
   'and the radio follows the filtered selection, so a post cannot append to a batch nobody can see');
+/* The other branch, added 2026-09-08 (Codex P1 on PR 1353). Disabling the
+   select was not enough: on ZERO matches the radio kept the id of the last
+   batch the list showed and stayed checked, so Create appended the post to a
+   batch the no-match line said was not there. This is a source pin; the
+   behaviour itself is executed in test/create-post-picker.js, world 8c. */
+ok(/dataset\.batchId = ''/.test(html),
+  'and a query matching NOTHING clears the target outright, rather than leaving the last visible batch aimed at');
 ok(/const isLatest = !!all\.length && String\(all\[0\]\.id \|\| ''\) === String\(batch\.id \|\| ''\)/.test(html),
   '"last batch" marks the newest of ALL batches, so filtering cannot relabel an old one as the latest');
 

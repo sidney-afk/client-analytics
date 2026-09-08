@@ -22,10 +22,20 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
   // Through the shared helper rather than a hand-rolled route: one place owns the retired
   // webhook URLs, and it only supports COUNTING them, which is the only thing a probe on the
   // production roster may do with them (test/probes-assert-native-write-lane.js).
-  const retired = await NW.captureRetiredWebhooks(kctx);
+  // EVERY CONTEXT THAT ACTS, not just the one that was convenient. Step 4 performs the title
+  // approval through the separate client context below, so captures installed only here would
+  // leave those arrays empty and let the zero-transport assertion pass while a regressed
+  // client push went to the live TEST backend. Codex finding on cfe251d — the third time on
+  // this PR that a guard only looked where its author looked.
+  const retiredCaptures = [];
+  const gateway = [];
+  async function watch(ctx) {
+    retiredCaptures.push(await NW.captureRetiredWebhooks(ctx));
+    await NW.stubNativeGateway(ctx, { onCall: payload => gateway.push(payload) });
+  }
   // Title owns no work item, so nothing should reach the native gateway either — the check
   // below is stronger than the Linear-only one it replaces.
-  const gateway = await NW.stubNativeGateway(kctx);
+  await watch(kctx);
   const kas = await kctx.newPage(); kas._errs = [];
   kas.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) kas._errs.push(m.text()); });
   kas.on('pageerror', e => kas._errs.push(String(e && e.message)));
@@ -33,6 +43,10 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
   await kas.waitForTimeout(8000);
 
   const cli = await Q.clientPage(browser);
+  // The client page is built by the shared helper, so its context can only be watched once it
+  // exists. Every action under test happens after this point; the uncovered window is the
+  // helper's own initial load, which performs no title write.
+  await watch(cli.context());
   try {
     // YouTube card: video/graphic/caption all Approved; TITLE engaged at Kasper Approval.
     await Q.up({ id: PID, name: 'TTL ' + PID.slice(-6), platforms: 'youtube', scheduled_date: '2026-06-29',
@@ -73,9 +87,9 @@ const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.post
 
     // 5) title NEVER pushed to Linear across the whole flow
     await kas.waitForTimeout(1500);
-    S.ok(NW.retiredCallCount(retired) === 0 && gateway.length === 0,
-      'ZERO transport from title on EITHER lane — title owns no work item (retired='
-      + NW.retiredCallCount(retired) + ', gateway=' + gateway.length + ')');
+    S.ok(NW.retiredCallCount(retiredCaptures) === 0 && gateway.length === 0,
+      'ZERO transport from title on EITHER lane, from BOTH surfaces — title owns no work item '
+      + '(retired=' + NW.retiredCallCount(retiredCaptures) + ', gateway=' + gateway.length + ')');
 
     S.ok(kas._errs.length === 0 && cli._errs.length === 0, 'no JS errors (' + JSON.stringify([...kas._errs, ...cli._errs].slice(0, 3)) + ')');
   } finally { try { await Q.archive(PID); } catch (e) {} await browser.close(); }

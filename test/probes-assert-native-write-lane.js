@@ -157,30 +157,76 @@ ok(NW.retiredCallCount({ setStatus: [], addComment: [] }) === 0
    `zero` asserts none was (already correct under the native lane, and strengthened by it).
    Only `present` entries are work. Tracked in OPEN_REPAIRS 175. */
 
+/* Each entry carries a WITNESS: an exact substring from that file which demonstrates the
+   declared polarity. Codex finding on cfe251d — the first version stored the polarity and
+   then reduced the map with `Object.keys`, so the values were never checked and a file that
+   flipped from asserting a push to asserting zero (or back) would keep its stale label while
+   this guard stayed green. That is the exact drift the tracked list exists to catch, so the
+   label is now an assertion rather than a comment.
+
+   Deliberately a pinned quotation and not a classifier: a regex that tried to decide polarity
+   by itself would be a second thing to get wrong. If someone rewrites one of these
+   assertions the witness disappears, the test fails, and the entry has to be re-read and
+   re-classified by a human — which is the outcome worth having. */
 const OUTSIDE_MANIFEST = {
-  'qa/scenarios.js': 'present',                              // expectLinear steps in the scenario DSL
-  'qa/scenario_engine.js': 'present',                        // the DSL verb that executes them
-  'qa/probes/ot4_t0_client_edge_conditions.js': 'present',   // client surface; needs a live review token
-  'qa/probes/sxr_kasper_audit_holes.js': 'present',
-  'qa/probes/cal_linear_deep.js': 'present',
-  'qa/probes/sxr_linear_deep.js': 'present',
-  'qa/ef-writepath/10-status-linear.js': 'present',
-  'qa/ef-writepath/12-samples.js': 'present',
-  'qa/ef-writepath/13-settings.js': 'zero',                  // already asserts no push; correct as-is
-  'qa/ef-writepath/lib.js': 'zero',                          // harness plumbing, asserts nothing
-  'qa/sxr_courier_lib.js': 'zero',                           // harness plumbing, asserts nothing
-  // Deliberately legacy, and NOT affected: the fully synthetic boot harness pins the legacy
-  // world on purpose (it serves its own flag rows and never the production roster fixture)
-  // because its subject is the resume lease and the BFCache stale release, not routing. Its
-  // `legacyQueueWrites` are the outbox drain's, which item 175 pinned as NOT flipped.
-  'qa/boot/client-entry-sequence.js': 'deliberate-legacy'
+  // present = asserts a retired webhook WAS called. These are the affected, owed lanes.
+  'qa/scenarios.js': {
+    polarity: 'present',
+    witness: "['expectLinear', 'linear-set-status'"
+  },
+  'qa/scenario_engine.js': {
+    polarity: 'present',
+    witness: "if (verb === 'expectLinear') {"
+  },
+  'qa/probes/ot4_t0_client_edge_conditions.js': {
+    polarity: 'present',
+    witness: 'matchingNotifications(issueUrl, submittedBody).length > 0'
+  },
+  'qa/probes/sxr_kasper_audit_holes.js': {
+    polarity: 'present',
+    witness: "pushed = linearCalls().some(c => c.path === 'linear-set-status'"
+  },
+  'qa/probes/cal_linear_deep.js': {
+    polarity: 'present',
+    witness: "pushed = pushes('Client Approval').length > 0"
+  },
+  'qa/probes/sxr_linear_deep.js': {
+    polarity: 'present',
+    witness: "pushed = pushes('Client Approval').length > 0"
+  },
+  'qa/ef-writepath/10-status-linear.js': {
+    polarity: 'present',
+    witness: 's.ok(toExpect.length >= 1,'
+  },
+  'qa/ef-writepath/12-samples.js': {
+    polarity: 'present',
+    witness: 's.ok(toExpect.length >= 1,'
+  },
+  // zero = already asserts no push reached them; correct as it stands under the native lane.
+  'qa/ef-writepath/13-settings.js': {
+    polarity: 'zero',
+    witness: 's.ok(pushes.length === 0,'
+  },
+  // plumbing = routes or records the webhooks but asserts nothing about them. Checked by
+  // absence rather than by a witness: no assertion line in the file may mention them.
+  'qa/ef-writepath/lib.js': { polarity: 'plumbing' },
+  'qa/sxr_courier_lib.js': { polarity: 'plumbing' },
+  // deliberate-legacy = records legacy queue writes ON PURPOSE. The fully synthetic boot
+  // harness pins the legacy world because its subject is the resume lease and the BFCache
+  // stale release, not routing, and the writes it records are the outbox drain's, which
+  // OPEN_REPAIRS 175 pinned as NOT flipped. The second condition is what makes that claim
+  // checkable: it must NOT serve the shared production roster fixture.
+  'qa/boot/client-entry-sequence.js': {
+    polarity: 'deliberate-legacy',
+    witness: 'state.legacyQueueWrites.push('
+  }
 };
 
 /* WALK THE WHOLE TREE, not a list of directories somebody remembered.
-   The first version of this scan hard-coded `qa`, `qa/probes` and
-   `qa/ef-writepath` and therefore missed `qa/boot/client-entry-sequence.js`
-   entirely — a guard that only looks where its author looked, which is the same
-   defect one level up from the one this file exists to prevent. */
+   The first version of this scan hard-coded `qa`, `qa/probes` and `qa/ef-writepath` and
+   therefore missed `qa/boot/client-entry-sequence.js` entirely — a guard that only looks
+   where its author looked, which is the same defect one level up from the one this file
+   exists to prevent. */
 function walkJs(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const abs = path.join(dir, entry.name);
@@ -203,6 +249,31 @@ ok(JSON.stringify(found) === JSON.stringify(tracked),
   'the audited set of non-manifest lanes still touching the retired webhooks is exactly the '
   + 'tracked list — untracked: ' + JSON.stringify(found.filter(f => !tracked.includes(f)))
   + ', gone: ' + JSON.stringify(tracked.filter(f => !found.includes(f))));
+
+/* And each entry's DECLARED POLARITY is checked against the file, not merely recorded. */
+const ASSERTION_CALL = /(?:^|[^\w.])(?:s\.ok|S\.ok|ok|t|note|assert)\s*\(/;
+for (const [rel, entry] of Object.entries(OUTSIDE_MANIFEST).sort()) {
+  const abs = path.join(ROOT, rel);
+  if (!fs.existsSync(abs)) { ok(false, rel + ' is tracked but does not exist'); continue; }
+  const src = fs.readFileSync(abs, 'utf8');
+  if (entry.polarity === 'plumbing') {
+    const asserts = src.split('\n')
+      .map((line, i) => [i + 1, line])
+      .filter(([, line]) => ASSERTION_CALL.test(line) && /linear-set-status|linear-add-comment|linearCalls\s*\(/.test(line));
+    ok(asserts.length === 0,
+      rel + ' is still plumbing: it routes or records the retired webhooks and asserts nothing '
+      + 'about them' + (asserts.length ? ' (line ' + asserts.map(([i]) => i).join(', ') + ')' : ''));
+    continue;
+  }
+  ok(src.includes(entry.witness),
+    rel + ' still matches its recorded polarity `' + entry.polarity + '` — witness `'
+    + entry.witness + '` is present');
+  if (entry.polarity === 'deliberate-legacy') {
+    ok(!/write_ui_reroute_fixture/.test(src),
+      '  · and it is legacy DELIBERATELY: it serves its own flag rows and never the shared '
+      + 'production roster fixture, which is what keeps it out of the affected set');
+  }
+}
 
 /* ---- 2. THE FIXTURE ACTUALLY STAMPS THE CARD ----------------------------- */
 /* Executed, not read. A stand-in for the slice of Playwright's routing API the

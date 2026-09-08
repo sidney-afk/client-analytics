@@ -14479,7 +14479,28 @@ its author looked, which is the same defect one level up from the one it exists
 to prevent. It walks `qa/` recursively now.
 
 That list is pinned in the suite as a tracked set: the test fails if a new file
-joins it OR if one leaves without its line being deleted. The point is not that
+joins it OR if one leaves without its line being deleted. Each entry also carries a
+**witness** — an exact substring proving its declared polarity — because the
+first version stored the polarity and then reduced the map with `Object.keys`,
+so the labels were never checked and a file that flipped from asserting a push
+to asserting zero would have kept its stale label with the guard still green
+(Codex, `cfe251d`). Deliberately a pinned quotation rather than a classifier: a
+regex that decided polarity by itself would be a second thing to get wrong, and
+when a witness disappears the failure forces a human to re-read and re-classify
+that entry, which is the outcome worth having.
+
+**AND THE SAME MISTAKE A THIRD TIME, in the probes themselves.** `p47` and `p68`
+were strengthened to assert zero transport on both lanes — but `p47` installed
+its captures only on the Kasper context, while its step 4 performs the title
+approval through the separate client context, and `p60` did the same with its
+client tab. A regressed client-side push would have left those arrays empty, the
+zero-assertion would still have passed, and the request would have gone to the
+live TEST backend. Both now watch every context that acts. That is three
+instances on this PR of one pattern — a guard that only looks where its author
+looked — which is worth naming as the lesson rather than the individual fixes:
+`qa/boot` missed by a directory list, the polarity values missed by
+`Object.keys`, and the client contexts missed by watching only the convenient
+one. The point is not that
 the list is long — it is that it can no longer be forgotten, which is what
 actually went wrong twice here.
 

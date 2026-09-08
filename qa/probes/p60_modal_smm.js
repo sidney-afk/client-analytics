@@ -43,8 +43,16 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
   const sctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await Q.stubRerouteFlagProduction(sctx);  // route the TEST client the way production routes a real one (see lib.js)
   await sctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
-  const retired = await NW.captureRetiredWebhooks(sctx);
-  const gateway = await NW.stubNativeGateway(sctx);
+  // Both contexts are watched, not just the acting one: the client tab below is a separate
+  // context, and a capture installed only on the SMM side would let a client-side push slip
+  // past the zero-assertion AND out to the live TEST backend. Same finding as p47.
+  const retiredCaptures = [];
+  const gateway = [];
+  async function watch(ctx) {
+    retiredCaptures.push(await NW.captureRetiredWebhooks(ctx));
+    await NW.stubNativeGateway(ctx, { onCall: payload => gateway.push(payload) });
+  }
+  await watch(sctx);
   await NW.stubNativeWorkItems(sctx, [{ id: PID, components: ['video'] }]);
   const smm = await sctx.newPage(); smm._errs = [];
   smm.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) smm._errs.push(m.text()); });
@@ -55,6 +63,8 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
   // The native lane needs a VERIFIED staff identity; the retired webhooks needed none.
   const staff = await NW.seedVerifiedProbeStaff(smm);
   const cli = await Q.clientPage(browser);
+  // Watched once it exists; every action under test happens after this point.
+  await watch(cli.context());
   try {
     await Q.up({ id: PID, name: 'M60 ' + TS, platforms: 'instagram', scheduled_date: '2026-06-29',
       video_status: 'For SMM Approval', graphic_status: 'Approved', caption_status: 'Client Approval', status: 'For SMM Approval',
@@ -95,8 +105,9 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
       'video note ROUTED to the NATIVE gateway, against the card\'s own video work item');
     S.ok(!gateway.some(c => JSON.stringify(c).includes(INT) || JSON.stringify(c).includes(CLI)),
       'caption notes transported NOTHING (caption owns no work item — OPEN_REPAIRS 127)');
-    S.ok(NW.retiredCallCount(retired) === 0,
-      'NOTHING reached the retired Linear webhooks (' + NW.retiredCallCount(retired) + ' calls)');
+    S.ok(NW.retiredCallCount(retiredCaptures) === 0,
+      'NOTHING reached the retired Linear webhooks, from EITHER surface ('
+      + NW.retiredCallCount(retiredCaptures) + ' calls)');
 
     // 5) cross-surface: client sees the client note + reply, NOT the internal note
     await Q.waitForPost(cli, PID, "p=>p.id==='" + PID + "'");

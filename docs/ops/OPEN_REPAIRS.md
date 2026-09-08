@@ -17514,3 +17514,22 @@ That generalises past this document: **prefer the invariant to the measurement
 whenever the invariant is what makes the claim true.** A count is evidence for a
 mechanism; publishing it in the mechanism's place trades something permanent for
 something that expires.
+
+**Non-flag live claims, swept the same way. One check falls out.** Today's
+`workload-plan` deploy from `d4b2365e` is properly recorded in
+`EXECUTION_LOG.md:5-8`, so that Phase 0 row is sourced. The label-catalog capture is
+sourced to item 170; it is a capture artefact rather than live database state, so
+its absence from the live-state docs is correct rather than a gap.
+
+**But `ROLLBACK.md:322` still names "the prior exact `workload-plan` v2 closure from
+`fd3e0eaa`" as the restore target, and nobody has confirmed that is still the
+correct prior version after today's deploy.** It may well be. This is deliberately
+recorded as a **check, not a defect** — asserting it stale would be the same
+source-vs-live error the round above just corrected, in the opposite direction.
+
+**Why it is worth recording at all:** a deploy changes what "the prior version"
+means, and a rollback target is read exactly once, during an incident, by someone
+who has no time to verify it. The PR template asks whether `ROLLBACK.md` needs
+updating when rollback scope changes; a deploy changes rollback scope by definition,
+and today's deploy did not come with that check. **A minute of the owner's time
+before the cutoff, not a blocker.**

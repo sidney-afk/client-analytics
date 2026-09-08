@@ -83,6 +83,17 @@ the load-bearing fact; the equality is.** Quoting a snapshot as though it were a
 property is how three different true numbers end up looking like a disagreement, so
 the row now states the mechanism.
 
+**One thing the non-flag sweep turned up, stated as a check rather than a defect.**
+Today's `workload-plan` deploy from `d4b2365e` is properly recorded in
+`EXECUTION_LOG.md:5-8`, so the Phase 0 row is sourced. But `ROLLBACK.md:322` still
+names *"the prior exact `workload-plan` v2 closure from `fd3e0eaa`"* as the restore
+target, and **nobody has confirmed that is still the correct prior version after
+today's deploy.** It may well be — `fd3e0eaa` could be exactly what was live before
+`d4b2365e` — and this document is not asserting otherwise. But a deploy changes what
+"the prior version" means, and the one moment that target gets read is the one moment
+nobody has time to check it. **Worth a minute of the owner's time before the cutoff,
+not a blocker.**
+
 **The two unrecorded flags are worth their own line.** Neither
 `production_assignee_eligibility` nor `production_native_identifier_mint` appears in
 the live-state docs. For the mint that is consistent and expected. For the assignee

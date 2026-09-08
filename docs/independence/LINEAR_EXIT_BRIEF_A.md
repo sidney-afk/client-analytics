@@ -116,9 +116,22 @@ ALREADY BUILT — LIFT THESE, DO NOT REBUILD
     lift: Already present. This is the tool for the item-95 acceptance measurement (work item A7); it only works while `workload_issues` is still being rebuilt, so run it BEFORE the outbound cutoff.
 
 WORK ITEMS
-  [A1] (low risk, lift) Apply the two migrations (owner window)
-     Apply `migrations/2026-09-02-workload-native-view.sql` FIRST (it is on main and NOT installed — the context said "none of the 15 candidate migrations are installed", which is true but misses this one), then the amended `migrations/2026-09-05-workload-native-membership.sql`, which references `public.workload_issues_native_v1` and cannot be applied before it. Both are additive, read-only-object creations. The view file's own header tells the operator to `drop view if exists public.workload_issues_native_v1;` first if an earlier revision was applied, because `create or replace view` cannot rename a column.
-     files: migrations/2026-09-02-workload-native-view.sql, migrations/2026-09-05-workload-native-membership.sql, migrations/README.md, EXECUTION_LOG.md
+  [A1] (DONE — do not re-run) Apply the two migrations (owner window)
+     **BOTH MIGRATIONS ARE APPLIED. This item is closed and its original text was wrong.** It said
+     `migrations/2026-09-02-workload-native-view.sql` was "on main and NOT installed", inferring that from its absence
+     from `EXECUTION_LOG.md`. Absence from the log is absence of a RECORD, not of the change: an owner migration window
+     had already been spent without being logged. Item 176 disproved the claim with a live REST read, and on 2026-09-08
+     the owner ran `public.workload_native_snapshot_v1()` in the SQL editor and it answered
+     `ok=true complete=true contract=workload-native-snapshot-v1 count=6450 rows_len=6450 plans_len=262
+     authority={"video":"syncview","graphics":"syncview"}`. A function that answers completely cannot be uninstalled.
+     `migrations/2026-09-05-workload-native-membership.sql` was applied by the owner the same night.
+     **Do not act on the drop instruction.** This item also claimed the view file's header tells the operator to
+     `drop view if exists public.workload_issues_native_v1;`. It does not, unconditionally. The header states at :28-29
+     that "Nothing is dropped, no table is touched, no row is written, and re-running it is a no-op", and the drop line
+     at :153 is conditional on an EARLIER REVISION having been applied — a case the file itself describes as never
+     having happened in production, which is the same false premise corrected above. Dropping a view that production
+     now reads, on the strength of a stale parenthetical, is a live risk for no gain.
+     files: EXECUTION_LOG.md only, and only to RECORD the two applications that already happened. Do not re-apply either migration.
   [A2] (medium risk, lift) Lift the workload-plan handler + native-snapshot.mjs onto main
      Cherry-pick `supabase/functions/workload-plan/index.ts` and `supabase/functions/workload-plan/native-snapshot.mjs` from 5bcc03bd. This is the row-identity + plan-key half of question 2: `requireWritableIssue` stops being the validator for syncview teams (it stays only for the explicit provider branch, now preceded by a `prod_authority` read that returns 409 `native_issue_unavailable` for a syncview team), and every write goes through `workload_native_plan_target_v1` → `workload_native_plan_set_v1`.
      files: supabase/functions/workload-plan/index.ts, supabase/functions/workload-plan/native-snapshot.mjs

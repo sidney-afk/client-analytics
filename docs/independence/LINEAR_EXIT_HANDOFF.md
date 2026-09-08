@@ -25,9 +25,30 @@ at work that has already been called done.
 
 ### Where to point the health check
 
-1. **Read `docs/ops/OPEN_REPAIRS.md` item 178** (the night summary) and **item
-   177** (the live outage, on branch `claude/lx-a-workload-native`). 177 carries
-   the rule the night earned; check the open PRs actually honour it.
+1. **Read `docs/ops/OPEN_REPAIRS.md` item 178** (the night summary). Then item
+   **177**, the live outage, which is **NOT on `main`**: it lives on branch
+   `claude/lx-a-workload-native` and lands with PR #1344. Permanent link, pinned
+   to a commit so it survives the branch:
+   [OPEN_REPAIRS.md @ `996d61f5`](https://github.com/sidney-afk/client-analytics/blob/996d61f53ac17ecca701f756cfc8ce5dce1ed2a9/docs/ops/OPEN_REPAIRS.md).
+   Because this file must not depend on a branch that can disappear, the two
+   load-bearing pieces of 177 are restated here:
+
+   **The rule the night earned.** *A deliberate-manual Edge Function that changes
+   how an EXISTING action is served must be proven against production data before
+   it is deployed.* A green CI on a lane with no database access is not evidence
+   about the database. Check that the open PRs actually honour this.
+
+   **The mechanism, in one sentence.** `projectNativeSnapshot` discarded the
+   entire snapshot when any single stored plan's client no longer matched its
+   owner's, so six drifted rows blanked every editor's Workload board; the fix
+   drops the row and counts it instead of failing the board.
+
+   **The six drifted rows are still drifted.** A guarded repair is written in 177
+   and has NOT been run. It is not urgent: the code change protects the board
+   whether or not those rows are ever touched. If you run it, its step-1 SELECT
+   is the ONLY undo, because `workload_plan` keeps no history and the prior
+   `client` value is recorded nowhere this repo can read. Save that result before
+   the UPDATE.
 2. **The four open PRs are all CI-green and all unmerged, and green means very
    little here.** The second review round returned six more findings on two of
    them (§3), all against the fixes. Do not take a session's own "all tests pass"
@@ -91,7 +112,22 @@ from s;
 
 `count` must equal `rows_len` and the contract must read
 `workload-native-snapshot-v1`. **This is the step that was skipped and caused the
-outage in item 177.** Do not merge #1344 without it.
+outage in item 177.**
+
+**RUN, AND IT PASSES.** On 2026-09-08 the owner ran it and it returned
+`ok=true`, `complete=true`, `contract=workload-native-snapshot-v1`,
+`count=6450`, `rows_len=6450`, `plans_len=262`,
+`authority={"video":"syncview","graphics":"syncview"}`. `count` equals
+`rows_len`, so the snapshot is whole. This gate on #1344 is **satisfied**; keep
+the query, because it is the right first move after any later change to the view
+or the membership function.
+
+**What it does not prove.** This is the Postgres RPC. The drop-instead-of-fail
+logic that caused and then fixed the outage lives in
+`supabase/functions/workload-plan/native-snapshot.mjs`, which runs in Deno over
+these rows and is covered only by unit fixtures. So the remaining unknown is how
+many of the 262 plans that projection drops, which is answered by the step-1
+SELECT of the repair in item 177 rather than by this query.
 
 Then, and only if that reads correctly:
 

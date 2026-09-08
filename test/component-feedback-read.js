@@ -176,6 +176,51 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
         { ...importScope, component: 'graphic', team: 'graphics' }, null).is_tweak;
       assert.equal(projected, imported, 'graphic_tweaks with no flag');
     });
+    await check('the projection derives source_created_at by executing the same rule the importer writes', async () => {
+      // Second member of the same family as the is_tweak parity check above: a
+      // historical entry carrying only `updated_at` is accepted by the importer,
+      // which writes that value as source_created_at. Projecting `null` instead
+      // made sameCurrentComment's strict equality on that field unmeetable, so
+      // the note stayed visible twice forever. Both REAL functions run and their
+      // answers are compared, so they cannot drift apart again.
+      const importScope = { productionId: 'pc-fixture', deliverableId: target.id, surface: 'calendar',
+        cardId: target.card_id, component: 'video', team: 'video', importRunId: 'fixture-run', resolvedAudience: 'internal' };
+      const bare = { id: 'stamped', author: 'Fixture reviewer', role: 'smm', body: 'Same text' };
+      const shapes = [
+        { label: 'updated_at only', raw: { ...bare, updated_at: now } },
+        { label: 'created_at and updated_at', raw: note('stamped') },
+        { label: 'ts only', raw: { ...bare, ts: now } },
+      ];
+      for (const shape of shapes) {
+        reset([shape.raw]);
+        const projected = (await call()).body.feedback.rows[0].source_created_at;
+        const imported = importer.normalizeComment({ ...shape.raw, _source_field: 'video_tweaks' }, importScope, null).source_created_at;
+        assert.equal(projected, imported, 'video_tweaks with ' + shape.label);
+      }
+      // Where the projection deliberately STOPS mirroring the importer, and why.
+      // For an entry with no timestamp anywhere the importer writes the epoch
+      // (`new Date(0).toISOString()`). Copying that here would print a 1970 date
+      // beside a tweak note in the Workload popover — inventing a fact rather
+      // than reporting one, which is the failure this lane exists to prevent.
+      // The cost is that such a row cannot be covered and shows twice; a visible
+      // duplicate is the mild failure, and a note wrongly HIDDEN by a loosened
+      // identity match is the one nobody can report. Left deliberately.
+      reset([bare]);
+      const projected = (await call()).body.feedback.rows[0].source_created_at;
+      const imported = importer.normalizeComment({ ...bare, _source_field: 'video_tweaks' }, importScope, null).source_created_at;
+      assert.equal(projected, null, 'an entry with no timestamp projects an honest absence');
+      assert.equal(imported, new Date(0).toISOString(), 'even though the importer defaults it to the epoch');
+    });
+    await check('an imported note carrying only updated_at is covered instead of duplicating forever', async () => {
+      // The end the reader actually sees: without the fallback this row can
+      // never be covered, so the same feedback shows twice and can displace a
+      // source-only tweak from the popover's three-row preview.
+      reset([{ id: 'stamped', author: 'Fixture reviewer', role: 'smm', body: 'Same text', updated_at: now }]);
+      db.production_comments = [canonical('stamped')];
+      const rows = (await call()).body.feedback.rows;
+      assert.equal(rows[0].covered_by, 'stamped');
+      assert.equal(rows[0].covered_version, 1);
+    });
     await check('an imported note that omitted is_tweak is covered instead of duplicating forever', async () => {
       reset([note('imported')]);
       db.production_comments = [canonical('imported')];

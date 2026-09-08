@@ -123,6 +123,17 @@ cost one request; a shared read is abandoned only once every generation waiting 
 it has given up, so one popover walking away never fails the row for the popover
 that replaced it.
 
+Source-row identity fields are derived by mirroring the F42 importer's rules
+exactly rather than re-deriving them, because `sameCurrentComment` compares them
+strictly and any divergence makes coverage impossible — the note then duplicates
+forever and can displace a source-only tweak from the popover's three-row
+preview. That now covers both `is_tweak` and `source_created_at`, whose fallback
+list ends at `updated_at` as the importer's does. The one place the mirror stops
+is an entry with no timestamp at all, where the importer defaults to the epoch:
+the projection reports an honest absence instead, because printing a 1970 date
+beside a tweak note invents a fact, and a visible duplicate is a milder failure
+than a note hidden by a loosened identity match.
+
 ## Compatibility and serving dependencies
 
 The canonical `comments`, cursor, audience and lifecycle fields are unchanged.

@@ -14957,3 +14957,44 @@ generation advances on every popover replacement`, `closing the popover records
 itself in the same generation`, and `two overlapping opens of the same deliverable
 cost ONE request, not two`. The abandon bound is re-measured under sharing and is
 unchanged at one pool-sized wave.
+
+### Third follow-up: the created-time fallback, third member of the importer-parity family (Codex P2 on `7329a64`)
+
+Not a consequence of anything above — an independent defect in `feedback.mjs`
+that the same review pass found. It is the third instance of one pattern, which
+is why it belongs in the record rather than in a commit message alone:
+
+> the projection re-derives a field the F42 importer already has a rule for, and
+> re-derives it slightly differently, so `sameCurrentComment`'s strict equality
+> can never meet the imported canonical row and the note duplicates forever.
+
+Instance 1 was `is_tweak` (item 172, fixed by `6dcf531f`). Instance 2 is this
+one. The importer accepts an entry carrying only `updated_at` and writes that
+value as `source_created_at`
+(`scripts/f42-card-comment-import.js`, `normalizeComment`); the projection's
+fallback list stopped at `ts`, so the same entry projected `null`. Strict
+equality on that field then made coverage impossible: the note stayed visible
+**twice**, and on a thread with two canonical comments the duplicate can push a
+genuinely source-only tweak out of the Workload popover's three-row preview —
+the one row an editor opens the popover to read.
+
+Fixed by mirroring the importer's fallback list exactly, `updated_at` last and
+snake case only, so a camelCase-only row still projects the same absence the
+importer records for it.
+
+**Where the mirror deliberately STOPS, and why.** For an entry with no timestamp
+anywhere the importer writes `new Date(0).toISOString()`. Copying that would
+print a 1970 date beside a tweak note in the popover — inventing a fact rather
+than reporting one, which is the failure this lane exists to prevent. The cost is
+that such a row cannot be covered and shows twice. That trade is taken
+deliberately: a visible duplicate is the mild failure, and a note wrongly HIDDEN
+by a loosened identity match is the one nobody can report. The alternative
+considered and rejected was making a null `source_created_at` non-disqualifying
+the way unknown `is_tweak` already is; with every other identity field already
+required to match exactly, it would rarely be wrong, but when it was wrong it
+would hide a note rather than repeat one.
+
+Proof: `node test/component-feedback-read.js` — **33 pass**, red against
+`7329a64` on `video_tweaks with updated_at only`. Like the `is_tweak` check
+beside it, the test runs BOTH real functions and compares their answers rather
+than restating the rule, so the pair cannot drift apart a third time.

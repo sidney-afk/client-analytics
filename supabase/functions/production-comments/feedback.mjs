@@ -53,7 +53,19 @@ function sourceComment(raw, scope, field, index) {
   const id = clean(raw.id || raw.comment_id || raw.native_comment_id);
   const deleted = truthy(raw.deleted) || truthy(raw.is_deleted) || !!clean(raw.deleted_at);
   const resolved = truthy(raw.done) || truthy(raw.resolved) || !!clean(raw.resolved_at);
-  const created = stamp(raw.source_created_at || raw.created_at || raw.createdAt || raw.ts);
+  // Same shape as the tweak-flag rule above, and the same failure if it drifts:
+  // the F42 importer accepts an entry that carries only `updated_at` and writes
+  // that value as `source_created_at`
+  // (`scripts/f42-card-comment-import.js` — `normalizeComment`). Recording
+  // `null` here instead meant `sameCurrentComment`'s strict equality on
+  // `source_created_at` could never meet the imported canonical row, so an
+  // already-imported historical note stayed visible TWICE forever and could
+  // push a genuinely source-only tweak out of the Workload popover's three-row
+  // preview. The fallback list mirrors the importer's exactly — `updated_at`
+  // last, and snake case only, so a camelCase-only row still projects the same
+  // absence the importer records for it.
+  const created = stamp(raw.source_created_at || raw.created_at || raw.createdAt || raw.ts
+    || raw.updated_at);
   return {
     id: 'source:' + JSON.stringify([scope.surface, scope.card_id, scope.component, field, id, index]),
     native_id: id, parent_native_id: clean(raw.parent_id || raw.parentId),

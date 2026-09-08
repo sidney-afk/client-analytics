@@ -96,40 +96,43 @@ Pin one shape when chasing a single defect:
 SYNCVIEW_QA_LINEAR_DEAD=ok_lie node qa/master.js --profile=full
 ```
 
-### FOUR PROBES ARE NOT REHEARSED BY THIS, AND THE COMMAND ABOVE DOES NOT COVER THEM
+### The four probes that used to escape the interceptor — now fixed
 
-Found by the Codex review of this PR, verified against the tree, and it is the
-same defect one layer out from the one this whole document exists to correct.
+Found by the Codex review of this PR, and it was the same defect one layer out
+from the one this whole document exists to correct.
 
 `SYNCVIEW_QA_LINEAR_DEAD` is honoured by the centralized interceptor in
-`qa/sxr_courier_lib.js`. Four probes never reach it — they register their own
-`ctx.route('**/webhook/linear-…')` handlers that fulfil `200 {"ok":true}`
-unconditionally, and a later-registered Playwright route wins:
+`qa/sxr_courier_lib.js`. Four probes never reached it — they registered their own
+Playwright route for the same webhooks and fulfilled `200 {"ok":true}`
+unconditionally, and a later-registered route wins. **So a full-manifest run with
+dead mode on exercised a HEALTHY Linear for exactly the status-and-comment write
+flows this rehearsal exists to watch die.**
 
-| probe | what it self-mocks |
+| probe | status |
 |---|---|
-| `qa/probes/p28_linear_sync.js` | `linear-set-status`, `linear-add-comment` |
-| `qa/probes/p29_linear_kasper.js` | `linear-set-status`, `linear-add-comment` |
-| `qa/probes/p30_linear_client.js` | `linear-set-status`, `linear-add-comment` |
-| `qa/probes/p36_full_sync.js` | `linear-set-status`, `linear-add-comment` |
+| `qa/probes/p28_linear_sync.js` | fixed — answers through the shared helper |
+| `qa/probes/p29_linear_kasper.js` | fixed — answers through the shared helper |
+| `qa/probes/p30_linear_client.js` | fixed — answers through the shared helper |
+| `qa/probes/p36_full_sync.js` | fixed — answers through the shared helper |
 
-**So a full-manifest run with dead mode on exercises HEALTHY Linear for exactly
-the status-and-comment write flows the rehearsal most needs to see die.** A pass
-on those four is not evidence about the cutoff. Read them as unrehearsed, not as
-green.
+They cannot simply drop their routes and inherit the library's, because they need
+to RECORD the calls they intercept. So they share one answer:
+`qa/probes/linear-hook-fulfil.js`. Healthy mode is the historical `200 {"ok":true}`
+byte for byte, so a probe green before the helper existed stays green for the same
+reason; dead mode gets the same four-shape rotation as everything else.
 
-**This is not fixed here, deliberately.** `qa/probes/**` is not among the files
-this lane owns, and the house rule is to write the need into the ledger rather
-than edit another lane's file. The fix is small and mechanical — each probe's
-`route.fulfill` becomes a call that honours the mode, four files, roughly four
-lines each — and it is recorded in OPEN_REPAIRS 175 for whoever owns those
-probes.
+Measured rather than asserted, six calls in dead mode:
+`ABORT/connectionrefused · 502 · 504 · 200 · ABORT/connectionrefused · 502`.
+Healthy mode: `200 · 200 · 200 · 200`. Before the fix, dead mode was `200` every
+time.
 
-**Until then, R9 and R10 below are scoped to the seven webhooks the interceptor
-sees, and these four probes are excluded from every claim this document makes.**
-`test/linear-dead-rehearsal.js` enforces the exclusion list against the probe
-directory, so a new self-mocking probe fails the suite until it is either
-converted or listed here — the list cannot silently rot.
+**What keeps it fixed.** `test/linear-dead-rehearsal.js` does not maintain a list
+of names — an exclusion list has to be updated by whoever adds the next probe, and
+that is precisely the person who does not know it exists. It slices **every**
+Linear route handler in `qa/probes/` by balancing parens from its `.route(` and
+requires each one to answer through the helper and never to fulfil directly. A new
+probe that hand-rolls its own answer fails immediately, and so does reverting a
+single handler out of the two each of these probes registers.
 
 **Run it BEFORE the cutoff's STEP 3, not after.** The point is to find the
 breakage while the flags can still be put back.

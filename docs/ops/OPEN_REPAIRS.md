@@ -14735,3 +14735,45 @@ reading a PR whose own subject is "monitors that lie about what they cover".
 F1 and F3 are both instances of that same shape. The estate's habit of checking
 its claims with a test rather than a sentence is what turned two of them into
 one-line enforcement instead of a note nobody re-reads.
+
+**Addendum 3, 2026-09-08 — F1 is CLOSED, by another session, and the guard that
+keeps it closed changed shape.** Addendum 2 recorded F1 (four probes bypassing
+the dead-Linear interceptor) as a real gap this lane declined to fix because
+`qa/probes/**` is not its files. A coordinator session took it and pushed
+`4553bb3` onto this branch: p28/p29/p30/p36 now answer through one shared
+`qa/probes/linear-hook-fulfil.js`, which consults the same rotation
+`qa/sxr_courier_lib.js` uses. They could not simply drop their routes and inherit
+the library's because they still need to RECORD the calls they intercept.
+Measured in that commit, six calls in dead mode:
+`ABORT · 502 · 504 · 200 · ABORT · 502`; healthy mode `200 · 200 · 200 · 200`;
+before it, dead mode was `200` every time.
+
+**The guard this lane wrote for F1 was the wrong shape, and two mutations proved
+it.** It asserted that a self-mocking probe must be NAMED in the audit as
+unrehearsed. Two things were wrong with that:
+
+1. **It was a list, and lists rot.** An exclusion list has to be maintained by
+   whoever adds the next probe — exactly the person who does not know it exists.
+2. **It was per-FILE, not per-HANDLER.** Each of these probes registers TWO
+   Linear routes. Reverting one of them to a hard-coded `200 {"ok":true}` left
+   the other `fulfilLinearHook` reference in the file and the check stayed green.
+   A second mutation — deleting the helper's `if (!LINEAR_DEAD)` branch entirely —
+   also passed, because the token `LINEAR_DEAD` still appeared in the file's
+   import and exports. **Both mutations proved the assertion rather than the
+   code, which is the exact failure this lane spent its whole length hunting.**
+
+Replaced with the property that actually matters and cannot rot: every Linear
+route handler in `qa/probes/` is sliced out by BALANCING PARENS from its
+`.route(` — the probes are written both multi-line and single-line, and a regex
+tuned to one shape found nothing in the other — and each handler must answer
+through the helper and must never fulfil directly. The helper must branch on
+`LINEAR_DEAD`, must ABORT for the refused shape rather than fulfil it (reporting
+an aborted request as a 200 says the opposite of what happened), and must keep
+healthy mode byte-identical. All four mutations now go red, including the two
+that previously slipped past.
+
+**Worth recording for the program, because it happened three times in this one
+lane:** the wrong-polarity mock, the freshness watcher pointed at a source with
+no watermark, and now a guard that passed while the thing it guarded was broken.
+Each was a claim that looked checked and was not. The only thing that caught any
+of them was running the mutation and watching it fail to go red.

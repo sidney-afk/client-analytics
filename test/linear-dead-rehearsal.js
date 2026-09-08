@@ -215,51 +215,108 @@ const {
 }
 
 /*
- * THE EXCLUSION LIST MUST MATCH REALITY, IN BOTH DIRECTIONS.
+ * A PROBE THAT INTERCEPTS A LINEAR WEBHOOK MUST HONOUR THE MODE.
  *
  * `SYNCVIEW_QA_LINEAR_DEAD` reaches only what the centralized interceptor sees.
- * A probe that registers its OWN `ctx.route('**​/webhook/linear-…')` handler
- * bypasses it entirely — a later-registered Playwright route wins — so that
- * probe rehearses a HEALTHY Linear no matter what the environment says.
+ * A probe that registers its OWN route for the same pattern wins — a
+ * later-registered Playwright route takes precedence — so it answers however it
+ * likes no matter what the environment says.
  *
- * Four probes do this today. They are named in the audit document as
- * unrehearsed. The danger is not those four; it is the FIFTH, added later by
- * someone who never reads this file, silently widening the gap between what the
- * rehearsal claims and what it exercises. That is precisely the failure this
- * whole lane exists to prevent, so it is checked rather than trusted.
+ * Four probes (p28/p29/p30/p36) did exactly that, fulfilling `200 {"ok":true}`
+ * unconditionally, which meant a full-manifest run with dead mode ON exercised a
+ * HEALTHY Linear for precisely the status-and-comment write flows the rehearsal
+ * exists to watch die. Found by Codex on PR #1350 (F1); fixed by routing all four
+ * through `qa/probes/linear-hook-fulfil.js`, which they can share because they
+ * still need to RECORD the calls they intercept and so cannot simply drop their
+ * routes and inherit the library's.
  *
- * Adding a self-mocking probe now fails this suite until it is either converted
- * to honour the mode or added to the document's exclusion table.
+ * The property enforced here is the one that actually matters, and it is not a
+ * list of names: EVERY probe that intercepts a Linear webhook must answer through
+ * the shared helper. A new probe that hand-rolls `route.fulfill` fails this
+ * immediately, which is the only version of this check that cannot rot — an
+ * exclusion list would have to be maintained by whoever adds the probe, and that
+ * is exactly the person who does not know it exists.
  */
 {
   const probeDir = path.join(__dirname, '..', 'qa', 'probes');
-  const audit = fs.readFileSync(
-    path.join(__dirname, '..', 'docs', 'audits', '2026-09-15-linear-dead-rehearsal.md'), 'utf8');
+  const HELPER = 'linear-hook-fulfil.js';
 
-  // A probe self-mocks when it registers a route whose pattern names a Linear
-  // webhook. Deliberately loose on quoting/spacing so a stylistic rewrite of a
-  // probe cannot slip past the check.
-  const selfMocks = fs.readdirSync(probeDir)
-    .filter(name => name.endsWith('.js'))
+  const intercepts = fs.readdirSync(probeDir)
+    .filter(name => name.endsWith('.js') && name !== HELPER)
     .filter(name => /\.route\((['"`/]).{0,40}webhook.{0,3}linear/i
       .test(fs.readFileSync(path.join(probeDir, name), 'utf8')))
     .sort();
 
-  ok(selfMocks.length > 0,
-    'the detector must actually find the known self-mocking probes — if this goes to zero, '
-    + 'the pattern stopped matching and the check silently became a no-op');
+  ok(intercepts.length > 0,
+    'the detector must still find the probes that intercept a Linear webhook — if this goes to '
+    + 'zero the pattern stopped matching and the check silently became a no-op');
 
-  for (const probe of selfMocks) {
-    ok(audit.includes(probe),
-      `${probe} installs its own healthy Linear mock and bypasses SYNCVIEW_QA_LINEAR_DEAD, `
-      + 'so it must be named in docs/audits/2026-09-15-linear-dead-rehearsal.md as unrehearsed '
-      + '— otherwise the rehearsal claims coverage it does not have');
+  /*
+   * EVERY Linear route handler is checked, not merely the file.
+   *
+   * An earlier version of this asserted `fulfilLinearHook` appeared SOMEWHERE in
+   * the probe. Each of these probes registers TWO Linear routes, so reverting one
+   * of them to a hard-coded fulfil left the other reference behind and the check
+   * passed — the mutation proved the assertion, not the code. Slice each handler
+   * out and judge it on its own.
+   */
+  /*
+   * Slice each handler by BALANCING PARENS from its `.route(`, not by matching a
+   * closing brace pattern. The probes are written both ways — p28 puts the body
+   * on its own lines, p29/p30/p36 keep it on one — and a regex tuned to one shape
+   * silently found nothing in the other, which is a check that passes because it
+   * looked at nothing.
+   */
+  function linearRouteHandlers(source) {
+    const handlers = [];
+    const opener = /\.route\(\s*(['"`])[^'"`]*webhook[^'"`]*linear[^'"`]*\1/gi;
+    let match;
+    while ((match = opener.exec(source)) !== null) {
+      const open = source.indexOf('(', match.index);
+      let depth = 0;
+      for (let i = open; i < source.length; i++) {
+        if (source[i] === '(') depth += 1;
+        else if (source[i] === ')') {
+          depth -= 1;
+          if (depth === 0) { handlers.push(source.slice(open, i + 1)); break; }
+        }
+      }
+    }
+    return handlers;
   }
 
-  ok(/not fixed here, deliberately/i.test(audit),
-    'the audit must say plainly that the exclusion is a known gap, not a design choice that is fine');
-  ok(/OPEN_REPAIRS 175/.test(audit),
-    'the gap must point at the ledger entry that carries it, so it is somebody\'s work and not folklore');
+  for (const probe of intercepts) {
+    const source = fs.readFileSync(path.join(probeDir, probe), 'utf8');
+    const handlers = linearRouteHandlers(source);
+    ok(handlers.length > 0, `${probe} matched the interceptor scan but no handler body could be sliced`);
+    for (const [index, handler] of handlers.entries()) {
+      ok(/fulfilLinearHook/.test(handler),
+        `${probe} Linear route #${index + 1} does not answer through ${HELPER}, so it ignores `
+        + 'SYNCVIEW_QA_LINEAR_DEAD and rehearses a HEALTHY Linear whatever the environment says');
+      ok(!/\broute\.fulfill\(|\br\.fulfill\(/.test(handler),
+        `${probe} Linear route #${index + 1} still fulfils directly — the whole point of the `
+        + 'helper is that the answer depends on the mode');
+    }
+  }
+
+  // The helper itself must genuinely branch on the mode and must treat a refusal
+  // as an abort. A probe that reported an aborted request as a 200 would say the
+  // opposite of what happened.
+  const helper = fs.readFileSync(path.join(probeDir, HELPER), 'utf8');
+  // The helper must BRANCH on the mode. Asserting the token `LINEAR_DEAD` merely
+  // appears is not enough — it also appears in the import and the exports, so
+  // deleting the branch itself left the old assertion green.
+  ok(/if\s*\(\s*!\s*LINEAR_DEAD\s*\)|if\s*\(\s*LINEAR_DEAD\s*\)/.test(helper),
+    'the shared helper must branch on LINEAR_DEAD — without the branch every answer is the '
+    + 'healthy 200 again and dead mode reaches nothing');
+  ok(/linearDeadResponseFor\s*\(/.test(helper) && /linearDeadShapeFor\s*\(/.test(helper),
+    'the shared helper must consult the dead-mode rotation, not just proxy a 200');
+  ok(/route\.abort\(/.test(helper),
+    'the helper must ABORT for the refused shape — fulfilling it as a response would turn '
+    + '"connection refused" into "the server answered"');
+  ok(/status: 200[\s\S]{0,120}ok["']?:?\s*true|\{"ok":true\}/.test(helper),
+    'healthy mode must remain the historical 200 byte for byte, so a probe green before the '
+    + 'helper existed stays green for the same reason');
 }
 
 console.log(failures

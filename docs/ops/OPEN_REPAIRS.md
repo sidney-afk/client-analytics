@@ -18169,3 +18169,43 @@ Applying and proving the SQL is not the same as proving the gateway against it, 
 of this touches the still-unprovisioned credentials for the urgent hand-off, which remain
 the real blocker on that lane. The two fixes are pushed to the PR branch and the PR is
 still HELD for the owner's Fable 5.1 review with the other five. Nothing was merged.
+
+**[ADDENDUM 2026-09-08, same session, correcting 184.4 and then closing the gap it
+was about.]**
+
+**The correction first, because 184.4 as written implies more than is true.** The
+native lanes are NOT skipped everywhere. `.github/workflows/calendar-unit-tests.yml`
+gives the `unit` job a `postgres:16` service and sets `PGHOST: localhost` and
+`F63_REQUIRE_POSTGRES: '1'`, which is exactly what those lanes ask for, so they have
+been RUNNING in CI. What was newly possible in this container is running them HERE,
+during a session, which is the difference between "CI will tell me tomorrow" and
+"I can check this claim now". Worth having, not worth overstating.
+
+**The gap that was genuinely open, and is now closed.** No lane anywhere applied the
+COMPOSED artifact. `test/native-intake-named-append.js` composes it and checks the
+composition, and reports `executed:false` in its own receipt. So the file the owner is
+actually instructed to apply had never been run against a database, in CI or anywhere
+else.
+
+`test/native-intake-composed-apply.js` now applies it to a disposable PostgreSQL 16 with
+`check_function_bodies` on. 11 checks, all passing:
+
+* exactly one `production_intake_append` survives the two replacements, and the surviving
+  body carries BOTH the named-title tolerance AND the native routing, so the last
+  replacement did not silently drop the first, which is the exact failure the whole
+  compose-into-one-transaction design exists to prevent;
+* the receipt guard the hybrid half requires is installed and enabled;
+* admission is off for both teams on a fresh install;
+* the hybrid half applied ALONE is refused by its own prerequisite guard, tested on a
+  database that has the real `mirror_outbox` but not the native half, which is the only
+  state where that guard is the thing under test, and the refusal leaves the append body
+  the chain already had;
+* the composer still returns `2571a909...` and 66665 bytes.
+
+That last one is now **enforced by CI rather than by a reviewer noticing**, and it runs
+even without a database, so the discipline in 184.3 has teeth: a change to either half
+that does not update every published copy of the digest fails the build instead of
+reaching the owner as an artifact his own instructions tell him to refuse.
+
+Still not claimed: this is a FRESH install only. It does not rehearse applying over an
+older native install, and it does not exercise the gateway against the applied schema.

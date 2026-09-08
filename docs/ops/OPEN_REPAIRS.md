@@ -16852,3 +16852,67 @@ code. Its dispositions remain the best thinking available; only the coordinates
 are gone. This is the same defect class as the truncated briefs and the
 mis-scoped reversibility quote, in its third distinct shape: **a document that is
 correct about what it says and wrong about where it points.**
+
+### Addendum, 2026-09-08 — there is a SECOND Linear exit programme, and the document that spans every lane did not know
+
+The master sequence merged as PR #1357 an hour before this was found. Its stated
+purpose is to be the one document carrying the order across every lane. It
+carried the order across **this programme's** lanes and was silent about the
+other one. That is the defect this file exists to prevent, committed by this
+file, which is the reason it is recorded at this length rather than quietly
+patched.
+
+**What exists.** Three open drafts from an earlier effort, authored 2026-09-04 to
+2026-09-07 and last touched hours before this programme's lanes started:
+PR #1268 (draft, base `main`, docs only, its release packet is the reviewable
+status), PR #1326 (draft, base `integration/linear-exit-candidate-20260906`, the
+runtime stack) and PR #1341 (draft, stacked on #1326, **a native urgent-alert
+replacement**).
+
+**Four things it holds that this programme does not.**
+
+1. **A live n8n inventory where ours is source-derived.** `N8N_REPLACEMENT_PLAN.md`
+   (item 181) states plainly that no live n8n workflow was inspected and its
+   readbacks are eight weeks old. The release packet reports a fresh read-only
+   inventory over **129 of 129 current workflow IDs, 93 active**, every active
+   published binding verified. Where they disagree about what exists, the measured
+   one wins. The counts are **not** a contradiction and must not be reported as
+   one: ours counts 56 browser-reached webhook endpoints, theirs counts 129
+   workflows in the account. Different units. The real difference is measured
+   versus inferred.
+2. **"Two legacy write fences currently query Linear before refusing mutation, so
+   native authority alone does not eliminate their reads."** Nothing in this
+   programme's documents says this. It does not automatically make the
+   "staff writes are safe" row wrong, but it means that row rests on a fence
+   behaviour nobody here checked. The degradation table now carries the caveat
+   rather than the flat claim.
+3. **A different decomposition of the remaining n8n work** into seven finite
+   groups, including one this programme never named: queues that refuse **before**
+   the provider lookup rather than after.
+4. **Independent corroboration of `send-urgent-slack`.** PR #1341 exists because
+   the Slack workflow resolves the editor through Linear — reached from a
+   different direction, days before PR #1356 re-derived it from source. Two
+   independent derivations agreeing is the strongest evidence either has.
+
+**A decision the owner may not know is on the table.** The release packet says a
+short Linear extension targeting 2026-10-15 was prepared for review, with
+2026-09-15 cancellation still scheduled meanwhile. The owner has said he cannot
+extend, so this is recorded and not recommended. But it was prepared, and a
+prepared option nobody is told about is the same as no option. If extension is
+genuinely foreclosed, that belongs written down, because that packet is currently
+planning around an availability it may not have.
+
+**Why it was missed, which matters more than the miss.** Every lane was scoped
+from `main` and from documents on `main`. All three PRs are drafts and two are
+based on an integration branch, so nothing any lane read could have named them.
+The open-PR list would have. No lane read it, this coordinator included.
+
+**The rule earned:** *a document claiming to span every lane must enumerate the
+lanes from the PR list, not from the branch it is standing on.* Sibling to the
+rule from item 178 about comparing failure sets rather than colours: in both
+cases the cheap complete source was available and a convenient partial one was
+used instead.
+
+**The completion figure stays at ~60%.** Finding that more work exists than was
+credited is not progress. It changes the honesty of the denominator, not the
+numerator.

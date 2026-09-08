@@ -56,7 +56,7 @@ reading:
 
 | Surface | Effect | Severity |
 |---|---|---|
-| Staff writes (status, comments) | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so writes already go native (item 175, 2026-09-07) | none |
+| Staff writes (status, comments) | **Safe, with one thing to verify.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so writes already go native (item 175, 2026-09-07). But `LINEAR_EXIT_RELEASE_PACKET_2026-09-07.md` reports **two legacy write fences that query Linear BEFORE refusing a mutation**, so native authority alone does not remove their reads. Unverified by this lane, and it is the one thing that could make this row wrong | none if the fences fail closed; **verify** |
 | Workload board | The n8n reconcile stops refreshing `workload_issues`, so the board **freezes rather than empties** — silently current-looking and stale | high, because it is invisible |
 | Kasper → Editors subtab | `editors-week` fails | visible |
 | Tweak comments | `linear-tweak-comments` fails | visible |
@@ -78,6 +78,86 @@ point and not just a row: **an endpoint's dependencies are not inferable from
 its name or its effect.** Two endpoints that look Linear-bound survive untouched
 for the mirror-image reason — `log-linear-submission` only appends a Google
 Sheet and `kasper-queue` only reads Sheets.
+
+---
+
+## There is a SECOND exit programme, and this document did not know about it
+
+**Found 2026-09-08, after the first version of this file was merged. It is the
+exact defect this file exists to prevent, committed by this file.** A document
+whose stated purpose is to span every lane spanned one programme's lanes and was
+silent about the other.
+
+Three open **drafts** carry an earlier, separate Linear exit effort, authored
+2026-09-04 to 2026-09-07 and last touched hours before this programme's lanes
+started:
+
+| PR | State | What it is |
+|---|---|---|
+| [#1268](https://github.com/sidney-afk/client-analytics/pull/1268) | Draft, base `main`, **docs only** (20 files) | Its "canonical plan", with `LINEAR_EXIT_RELEASE_PACKET_2026-09-07.md` as the reviewable status |
+| [#1326](https://github.com/sidney-afk/client-analytics/pull/1326) | Draft, base `integration/linear-exit-candidate-20260906` | The runtime stack it refers to |
+| [#1341](https://github.com/sidney-afk/client-analytics/pull/1341) | Draft, stacked on #1326 | **A native urgent-alert replacement**, i.e. the `send-urgent-slack` fix |
+
+**Do not merge any of them on the strength of this section.** #1326 and #1341 are
+stacked on an integration branch rather than `main`, they are drafts by their
+authors' own choice, and #1268's own text says no merge or deploy is authorized.
+They are listed because of what they *know*, not because they are ready.
+
+### What it holds that this programme does not
+
+**A live n8n inventory, where ours is source-derived.**
+`N8N_REPLACEMENT_PLAN.md` (PR #1356) says plainly that **no live n8n workflow was
+inspected** and its readbacks are eight weeks old. The release packet reports a
+fresh read-only inventory covering **129 of 129 current workflow IDs, 93 active
+and 36 inactive**, with every active published-version binding verified, and says
+it supersedes an older 32-workflow missing-read gap. Where the two disagree about
+what exists, **the live read wins** and our source-derived list is the one to
+correct.
+
+The two counts are not directly comparable and should not be reported as a
+contradiction: ours counts **56 webhook endpoints** reached from the browser,
+theirs counts **129 workflows** in the n8n account. Different units. What matters
+is that theirs was measured and ours was inferred.
+
+**A finding that touches the degradation table above.** *"Two legacy write fences
+currently query Linear before refusing mutation, so native authority alone does
+not eliminate their reads."* Nothing in this programme's documents says that. It
+does not necessarily make "staff writes are safe" wrong — a fence that queries
+Linear and then refuses may simply refuse harder when Linear is dead — but it
+means the claim rests on a fence behaviour nobody here has checked. That row now
+carries the caveat.
+
+**A different decomposition of the remaining automation work**, into seven finite
+groups rather than our per-endpoint list: F44 submit forwarding and native project
+picker; native Workload/tweak scope and scheduled mirror replacement; native
+urgent editor lookup; weekly editor statistics; linked-card status/metadata and
+explicit provider import; conserved comment/status queues refusing **before** the
+provider lookup; and two bounded external-destination checks.
+
+**Independent corroboration of the `send-urgent-slack` finding.** #1341 exists
+because *"the existing Slack workflow looks up the editor in Linear"* — reached
+separately, from a different direction, before PR #1356 re-derived it from source.
+Two independent derivations agreeing is the strongest evidence either has.
+
+### A decision the owner may not know is on the table
+
+The release packet says a **short Linear access extension targeting 2026-10-15**
+was prepared for review, without adding seats or features, and that 2026-09-15
+cancellation remains scheduled meanwhile. The owner has said he cannot extend, so
+this is recorded rather than recommended — but it was prepared, and a prepared
+option nobody is told about is the same as no option. **The owner's word is
+authoritative here**; if extension is genuinely foreclosed, that fact belongs in
+the packet too, because it is currently planning around an extension that is not
+available.
+
+### Why this was missed, since the method matters more than the miss
+
+Every lane in this programme was scoped from `main` and from documents on `main`.
+All three of these PRs are **drafts**, and two are based on an integration branch
+rather than `main`, so nothing any lane read could have mentioned them. The
+open-PR list would have — and no lane, this coordinator included, read it. **A
+document claiming to span every lane must enumerate the lanes from the PR list,
+not from the branch it happens to be standing on.**
 
 ---
 
@@ -279,6 +359,17 @@ against the live database before relying on either the finding or its absence.
 are production sales automation. The house rule is in `CLAUDE.md` and it is not
 negotiable by a session.
 
+**Before executing any of this, reconcile it against the live inventory in
+`LINEAR_EXIT_RELEASE_PACKET_2026-09-07.md`** (PR #1268, draft). Our plan is
+derived from source with the live n8n account explicitly not inspected; theirs is
+a read of the account covering 129 of 129 workflow IDs. Where they disagree about
+what exists, the measured one wins. See the second-programme section above.
+
+**And check PR #1341 before rebuilding the urgent alert.** It is a draft native
+replacement for `send-urgent-slack` — the same endpoint this plan lists as needing
+one. Rebuilding it from scratch without reading that first is the avoidable waste
+this section exists to prevent.
+
 ### F48 — a security item with a forced order
 
 `webhook/editors-week` is deployed, **unauthenticated**, accepts an arbitrary
@@ -311,10 +402,20 @@ elsewhere and rollback is hardest. Three were found and fixed on one PR alone.
 - **Building: near done.** Four PRs finished and reviewed.
 - **Installing: barely started.** Two migrations, two deploys, a rehearsal and the watchers, all owner actions.
 - **The cutoff: not started**, and correctly so.
-- **n8n: planned, not built.**
+- **n8n: planned twice, built once in draft.** This programme wrote a plan; an
+  earlier programme measured the account and drafted the urgent-alert replacement.
+  Neither is merged, and until today neither knew about the other.
 
 Roughly **60% complete** toward "staff and clients work without Linear and the
 account can be cancelled safely". That figure has not moved much in two days, and
 the reason is worth stating plainly: the engineering advanced a great deal and
 the *installation* did not. Installation is the half that is behind, and no
 amount of further code moves that number.
+
+**The figure stays at ~60% after finding the second programme, and it is worth
+saying why it did not go up.** Discovering that more work exists than was
+credited does not mean more work is done. What it changes is the denominator's
+honesty, not the numerator: some of what this programme listed as "to build" may
+already be drafted elsewhere, and some of what it listed as done rests on a
+source reading that a live measurement could overturn. Both directions are now
+visible, which is the improvement. The percentage is not.

@@ -18061,3 +18061,111 @@ coordinator's own edits belong in a worktree from that moment on.
 Cost this time: about four minutes and no lost work, because the missing header was
 noticed immediately. Had item 183 been appended and committed on the build branch, it
 would have arrived inside an unrelated PR, or been lost when that branch was force-updated.
+
+---
+
+## 184. [2026-09-08, lane LX-BUILD, FIXED and PUSHED] Two review findings on the native write gateway PR, one of which would have broken a live button by merging, and the disposable PostgreSQL 16 this container turns out to be able to run
+
+**In one sentence for the owner: the last two problems Codex found on the big build PR
+(#1362) are fixed, tested and pushed, and one of them was a real "merging this would
+break something that works today", not a theoretical one.**
+
+### 184.1 The urgent Slack button would have died in the gap between the two deploys
+
+`index.html` goes live the moment a PR merges (GitHub Pages). The Edge Function that
+understands the new native urgent action only goes live later, when the owner dispatches
+the F27 Section 4 lane. That gap is the hazard, and this is the second time this
+programme has met it: the Create Post editor picker already had a fix for exactly the
+same shape.
+
+What would have happened. Most existing cards carry BOTH a native `video_deliverable_id`
+and an old `linear_issue_id`. The new code picked the native lane whenever the native id
+was present, full stop. In the gap, the gateway that is actually deployed answers
+`400 unsupported_action`. The new code could not tell that apart from "I sent something
+and I do not know whether it arrived", so it kept its local safety hold, disabled the
+URGENT button and told the SMM to go check Slack by hand. Not for one click: the hold
+survives a reload, so the button stayed dead for that whole tweak round. On a card that
+works perfectly today.
+
+The fix. The dispatcher now recognises the exact pre-deploy answer and treats it as "the
+other lane", not as doubt. The tell is not the status code on its own, it is that the
+body carries no `delivery` field at all, and the new handler always sets one on every
+exit, so that shape cannot come from a gateway that knows the action. On it, the hold is
+released and the card falls through to the webhook it uses right now. A card that has
+only the native id and no Linear sub-issue has no fallback, so it re-enables the button
+and says plainly that nothing was sent, which is what it already did before this branch.
+Every other 400 stays cautious.
+
+**Standing rule this is the second instance of, worth remembering rather than
+rediscovering: any browser change that calls a gateway action which is not deployed yet
+must have an answer for the deployed gateway's refusal. "It will be fine once we
+dispatch" is not one, because Pages does not wait for the dispatch.**
+
+### 184.2 A deleted receipt would have silently re-decided which lane an accepted job was on
+
+The native intake work writes a "receipt" row for every accepted request. That row is not
+just history: when a request is retried, the code reads the receipt to find out which lane
+that request was accepted on. The guard protecting those receipts covered inserts and
+updates, but not deletes and not `truncate`. So an ordinary service-role cleanup of old
+outbox rows could remove one, and the next retry would then quietly re-decide the lane
+from whatever the flag happens to say at that moment.
+
+Proven, not argued, against a real PostgreSQL 16: with the receipt present the retry
+resolves to `proof-epoch-1`; with the flag moved on and the receipt deleted, the same
+retry resolves to `proof-epoch-2`.
+
+`migrations/2026-09-08-native-intake-receipt-retention.sql` adds delete and truncate
+guards scoped to the native marker, so an ordinary provider row is still deletable.
+`test/native-intake-receipt-retention.js` proves it, 9 checks, executed.
+
+Residual, recorded rather than hidden: deleting an UNMARKED provider receipt drops a pin
+the same way. Refusing every outbox delete forever is a bigger constraint than this lane
+should impose, so that one stays an operator caution.
+
+### 184.3 Why the fix is a NEW migration file and not an edit, and the rule that follows
+
+`migrations/2026-09-05-native-only-intake.sql` is never installed on its own. It is
+composed with the named-append migration into ONE artifact, and that artifact's
+`composed_sha256` (`2571a909...`) and byte length (66665) are published in
+`LINEAR_EXIT_BRIEF_B.md` with an instruction to REFUSE on mismatch, and are backed by an
+execution record in `docs/audits/2026-09-07-native-named-append-evidence.json`.
+
+Editing the file in place moved the digest to `1c847f47...` / 67831 bytes. That is not a
+cosmetic ripple: it would have made the owner's own install instruction reject the
+correct artifact, and invalidated an execution record that cannot be re-run from here.
+
+**Standing rule: `2026-09-05-native-only-intake.sql` and `2026-09-07-native-intake-named-append.sql`
+are FROZEN as far as the composed artifact is concerned. Anything they need afterwards
+goes in a new dated migration applied after the composed artifact. If one of them ever
+genuinely must change, the change is not done until the composer has been re-run and
+every published digest and byte length has been updated in the same commit: brief B
+(lines around 54, 191, 224, 274, 342-344), OPEN_REPAIRS 15950-15952, and the audit JSON.**
+
+### 184.4 This container can run a disposable PostgreSQL 16, and that closes a standing gap
+
+The programme has carried "the composed intake SQL has never been executed against a
+disposable PostgreSQL 16" as an open item for days. It turns out the session container
+has PostgreSQL 16.13 server binaries, and the repo already has a harness that stands up a
+throwaway cluster, applies the real migration chain and seeds a synthetic fixture
+(`scripts/native-intake-manifest/harness.js`, reusing `scripts/f42-apply-rehearsal.js`).
+
+Two practical notes, both learned the annoying way:
+
+* `initdb` refuses to run as root, so the server must be started with `su postgres`.
+* The data directory must live somewhere the `postgres` user can traverse. The session
+  scratchpad under `/tmp/claude-0/...` is not, so use a path under `/var/lib/postgresql`.
+
+With that, the whole native intake chain (`2026-09-05-native-intake-root-manifest.sql`,
+`2026-09-05-native-only-intake.sql`, and the new retention migration) applies cleanly on
+a real PostgreSQL 16, and the marked receipt actually terminalises the way the design says
+it does. **The lanes that have been printing "SKIP ... disposable PostgreSQL not
+explicitly required" can now be RUN**, with `PGHOST=127.0.0.1 PGPORT=<port> PGUSER=postgres
+F63_REQUIRE_POSTGRES=1`. A separate session is doing exactly that; whatever it finds
+belongs under this number.
+
+### What is NOT claimed here
+
+Applying and proving the SQL is not the same as proving the gateway against it, and none
+of this touches the still-unprovisioned credentials for the urgent hand-off, which remain
+the real blocker on that lane. The two fixes are pushed to the PR branch and the PR is
+still HELD for the owner's Fable 5.1 review with the other five. Nothing was merged.

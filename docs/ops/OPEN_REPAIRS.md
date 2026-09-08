@@ -15564,6 +15564,125 @@ costs four characters. The reservation table in item 168 remains the right
 mechanism for avoiding collisions in the first place, but it only binds sessions
 that read it, and PR #1354 was not part of this programme.
 
+### Addendum, 2026-09-08 — the exit now has ONE ordered list, and P1 was on nobody's list
+
+`docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` is new. Every lane had a good
+runbook for its own piece; **none carried the order ACROSS lanes** — which merge
+precedes which migration, which deploy precedes which flag, and which of those
+only the owner can perform. Writing it surfaced one item that was genuinely
+nobody's task.
+
+**The naming mint migration is NOT applied, and nothing was tracking that.**
+`docs/ops/NATIVE_IDENTIFIER_MINT.md` opens "Status: SOURCE ONLY … has not been
+applied to the live database and no team has been seeded", and `EXECUTION_LOG.md`
+has no record of it either. It is precondition **P1** of the cutoff runbook.
+
+**Why it is worth its own paragraph.** `deliverables.linear_identifier` is the
+`VID-`/`GRA-` name staff say out loud, and every writer of that column is Linear.
+Flip outbound off before this is applied AND each team seeded, and every card
+created afterwards has **no name** — a raw internal id in the Production list,
+the command palette, the Workload parent header and all three deep links.
+**Nothing errors.** The estate silently stops producing names, which is the
+hardest kind of failure to notice and the easiest to cause.
+
+Merging PR #1349 was not enough and the runbook already said so; what was missing
+was anyone carrying it as an owner action. It is now the first item in Phase 2,
+with its proof: create one card on the TEST client after seeding and read back a
+non-null identifier Linear did not mint.
+
+**Also surfaced by the same pass:** lane A's corrective migration
+`2026-09-08-workload-native-label-state-shape.sql` has no application record
+either. The entry does **not** claim it is unapplied — this programme has now
+been wrong in both directions about which migrations are live, so it says
+*verify before assuming*.
+
+**The document's other job is to stop the completion figure drifting upward on
+feeling.** It states, in one line each, that building is near done and installing
+is barely started, and that no further code moves the number.
+
+### Addendum, 2026-09-08 — CORRECTION: "nothing is time-critical" was too strong, and the mint needs FOUR steps
+
+Two P1s from Codex on PR #1357, both against text I wrote in the master
+sequence, and both correct.
+
+**1. The naming mint has four live steps, not three, and the fourth is the
+gate.** The addendum above and the first draft of the master sequence said
+"applied AND seeded". `docs/ops/NATIVE_IDENTIFIER_MINT.md` §"Live actions, in
+order" lists a fourth: flip
+`syncview_runtime_flags.production_native_identifier_mint` to `native`, per team.
+`production_native_identifier_capability(team)` returns `native` only when the
+flag says native **and** a seed row exists, so stopping after seeding leaves the
+allocator installed and refusing — the TEST card still gets its name from Linear
+and the nameless-card failure happens anyway. **Naming the precondition and then
+under-specifying it by one step is the same defect as not naming it**, because a
+reader who does 1 to 3 believes they are done. Corrected with the full table, the
+per-team order, and the note that the capability self-guards so a premature flip
+is inert rather than half-armed.
+
+**2. "Nothing left is time-critical" conflates irrecoverable with
+undamaged.** Said repeatedly to the owner and written into the master sequence.
+Nothing left is *irrecoverable*: the only artefact needing the live API is
+captured. But n8n webhooks that read Linear will fail when the account lapses,
+and SyncView calls them, so **surfaces degrade on their own if the cutover has
+not happened by 2026-09-15**.
+
+Best current reading of that date with nothing merged: staff **writes are safe**
+(all 43 active clients enrolled, both teams SyncView-authoritative, so writes
+already go native — item 175); the **Workload board freezes rather than empties**
+when the reconcile stops, which is the dangerous one because a frozen board looks
+current; Kasper's Editors subtab and tweak comments fail visibly; Linear import
+fails and is moot.
+
+**So the four held PRs merging before 2026-09-15 converts an uncontrolled
+degradation into a controlled cutover.** That is a deadline on the owner's
+review, not on the engineering, and it is one week out. The distinction is worth
+keeping: it is a reason to *schedule* the review, not to rush it.
+
+Both corrections were caught by review, not by me, on a document whose entire
+purpose is to be the one place the sequence is right.
+
+### Addendum, 2026-09-08 — a reversibility reassurance that covered the wrong route
+
+Third P1 from review on PR #1357, and the most dangerous of the three because it
+concerns a one-way action.
+
+**What I wrote.** "Steps 0 through 6 are fully reversible. Only STEP 7 is
+one-way." Quoted in good faith from `LINEAR_CUTOFF_RUNBOOK.md`, where it is true.
+
+**Why it was unsafe anyway.** Two routes to the outbound cutoff are described in
+documents on `main`, and the reassurance only holds for one:
+
+- **Route A**, what the runbook does: flags only. `2026-09-06-linear-outbound-cutoff.sql`
+  is never installed, so there is genuinely no irreversible database step and
+  every flag step has a restore block. The runbook's §0 computes this rather than
+  assuming it: with outbound `off` and parity `false`, `linear-outbound:1355`
+  skips the whole provider block, so nothing reaches `api.linear.app`.
+- **Route B**, which `LINEAR_EXIT_BRIEF_F.md` still describes as live actions:
+  install that migration and call `linear_outbound_cutoff_activate_v1`. Its own
+  entry says *"NOT REVERSIBLE by design — there is deliberately no re-enable RPC"*,
+  and the install's undo says *"VALID ONLY BEFORE THE CUTOFF IS ACTIVATED. AFTER
+  ACTIVATION IT DESTROYS THE EVIDENCE THE RECOVERY NEEDS."*
+
+An operator who followed brief F's live-action list and then read my blanket
+reassurance would have taken a one-way step believing a restore block existed.
+**A true sentence, quoted from the right document, made false by being applied to
+a scope its source did not have.** That is a new variant of this programme's
+recurring defect and worth logging as such: the previous instances were two
+documents disagreeing; this is one document being repeated correctly into a
+context where it stops being true.
+
+**Corrected** by naming both routes, marking Route B one-way with its source
+quoted, and saying plainly: do not take Route B. The runbook's reasoning for
+skipping it is costed — it needs an F27 Section 4 dispatch and therefore a merge
+freeze across every exit branch, and dispatches were rejected on 2026-09-02 and
+2026-08-08 for exactly that. A flag at `off` stops the traffic equally well and
+reverses.
+
+**The briefs describe Route B because they were written when it was the plan.**
+They are a map of what exists, not an instruction to install it. That sentence is
+now in the master sequence, because the briefs cannot be trusted to carry their
+own obsolescence.
+
 ## 177. [2026-09-08, FIXED] The pasted-card-link highlight was invisible in dark mode
 
 Item 176 (same day, merged as PR #1354) fixed the timing problem — the toast
@@ -16691,3 +16810,45 @@ are inferred from what the browser consumes rather than from a captured response
 `main` so the authoritative lane order could not be consulted, and no row counts
 are published at all — deriving them needed a live read this lane did not take,
 and `AGENTS.md`'s 2026-09-05 rule says an unmeasured number is worse than none.
+
+### Addendum, 2026-09-08 — the n8n plan is merged, and one of its findings changes the degradation table
+
+PR #1356 merged. `docs/independence/N8N_REPLACEMENT_PLAN.md` is now on `main`,
+and three of its findings are folded into
+`docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` rather than left to be
+discovered by whoever reads the two documents in the right order.
+
+**1. `send-urgent-slack` is a Linear reader and no previous list carried it.**
+Added to the 2026-09-15 degradation table. It is shaped like a pure Slack write,
+and it is, except that it resolves the issue's **current Linear assignee** to
+decide who to mention. It fails with the account. The method point is worth more
+than the row: **an endpoint's dependencies are not inferable from its name or its
+effect.** The mirror image is in the same finding — `log-linear-submission` only
+appends a Google Sheet and `kasper-queue` only reads Sheets, so two endpoints
+that read as Linear-bound survive untouched. The list was re-derived on `main`
+instead of carried forward from the July audit, which is the only reason any of
+this was caught.
+
+**2. The `deliverable_events` anon grant is an independent, mandatory revoke.**
+PR #1346's native `editors-week` reads `public.deliverable_events`, granted
+`select` to `anon` under `using(true)` in
+`migrations/2026-07-06-b1-linear-data-model.sql:682-688,698`, with no revoke
+anywhere in this repo — F53 covered `batches` and `deliverables` and not this
+table. That is F48's exposure shape reproduced natively. **Serving it through an
+authenticated Edge Function does not satisfy the requirement**, because the
+publishable key is committed and reaches the table through PostgREST regardless.
+The master sequence's held-PR table now says #1346 carries this as an attached
+obligation, so that merging it is not mistaken for closing F48's shape.
+
+Recorded with the limit the lane stated and did not smooth away: this is a
+**source-level reading and the live grant was not checked**, and tables here have
+been created by hand-run SQL that never reached the repo. Verify live before
+relying on the finding *or* on its absence.
+
+**3. Every line number in `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` is dead.**
+Verified at `e3961b6` on 2026-07-14, and nothing in it warns that its anchors
+have since moved by tens of thousands of lines. Not one range still points at its
+code. Its dispositions remain the best thinking available; only the coordinates
+are gone. This is the same defect class as the truncated briefs and the
+mis-scoped reversibility quote, in its third distinct shape: **a document that is
+correct about what it says and wrong about where it points.**

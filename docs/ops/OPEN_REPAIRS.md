@@ -17255,3 +17255,52 @@ The master sequence now says outright that its own gate is a note rather than a 
 gate until #1350 carries it. **A document admitting where its enforcement is weak is
 more useful than one that reads as though it has none** — and pretending otherwise
 would repeat, in the repair, the defect the repair is for.
+
+### Addendum, 2026-09-08 — labels are not safe either, and the enumeration that was supposed to fix generalising did not
+
+Four more findings on PR #1360, three P1. The first one stings.
+
+**1. Labels reach Linear, and I had just listed them as safe.** `handleLabelsRead`
+calls `linearLabelSnapshot` unconditionally at `production-write:4947`, and the
+`labels` write does the same at `:5491`; both go on to `linearLabelCatalog`, which
+**pages the Linear API**. Neither is flag-gated.
+
+**Why this one is worse than a missed row.** One round earlier, the fix for the
+assignee error was to stop saying "edits" and **enumerate** the safe operations, on
+the reasoning that a list cannot silently absorb a new member. The list I wrote
+included `labels`. **I replaced a generalisation with an enumeration and then did
+not verify the enumeration**, which produces a *more* confident wrong statement than
+the vague one it replaced: "edits" invites a reader to check, a named list does not.
+A remedy applied without doing the work the remedy exists to force is worse than the
+defect.
+
+The safe set, now verified per operation against an exhaustive map of every
+Linear-reaching call site in the file: `status`, `due`, `description`, `comment`,
+`attachment`, `batch_description`, `batch_asset`. Not safe: intake, component fill,
+assignee changes, **labels (read and write)**, and the `create_options` action.
+
+**2. The behavioural gate did not test the second request site.** It required a
+Calendar post and a Samples/SXR post — which are built at **the same** browser site,
+`index.html:42155`, differing only in a surface value. The staff submission is built
+at `:48263`. So a surface-scoped repair could have passed every listed check while
+normal staff submissions still refused after cutoff. **My own table two sections
+above says there are two sites**; the gate I derived from it tested one twice. The
+criteria are now six checks with a column saying what each one covers that the
+others do not.
+
+**3. Setting the assignee flag was not proof that it worked.** The document insists
+elsewhere that deployed `production-write` may differ from repo source, then treated
+an exact flag readback as sufficient. A readback proves what the flags table holds.
+It is now check 6 of the behavioural gate: with Linear dead and the flag set, open
+the picker and change an assignee, and see it succeed.
+
+**4. "#1350 is merged" does not satisfy the gate.** The preconditions have to be
+*in* the runbook the operator opens. Row 1 of the entry gate now reads "merged **and**
+its runbook carries the P6/P7 preconditions", because merging it with the old text
+leaves the enforcement exactly where it was.
+
+**The pattern across today, stated once.** Every fix of mine has been applied at the
+depth the reviewer pointed at, and the defect has lived one level deeper each time:
+fix the line → fix the claim → fix the claim everywhere → fix the *kind* of claim.
+Enumerating instead of generalising was right; enumerating without checking each
+member was the same defect wearing the remedy's clothes.

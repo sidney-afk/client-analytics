@@ -56,7 +56,8 @@ reading:
 
 | Surface | Effect | Severity |
 |---|---|---|
-| Staff writes: status, due date, description, comments, attachments, labels | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so these go native (item 175, 2026-09-07) | none |
+| Staff writes: status, due date, description, comments, attachments | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so these go native (item 175, 2026-09-07). Verified per operation, not inferred from the group | none |
+| **Labels** — reading them and setting them | **NOT safe.** `handleLabelsRead:4947` and the `labels` write at `:5491` both call `linearLabelSnapshot` → `linearLabelCatalog`, which pages the Linear API. Unconditional, no flag | not safe |
 | **Changing a card's assignee** | **NOT safe as things stand.** `validateAssignee` → `assigneeProviderPool` needs Linear, and a **missing or malformed** `production_assignee_eligibility` flag *stays strictest* (`docs/truth/APP.md:652-653`). Loss of Linear gives `assignee_provider_unavailable` before the native assignment. **Unlike the intake reads, this one has a documented off switch** — see P6 | **fixable by one flag; unsafe until it is set** |
 | **Staff creating a post, or filling a component** | **NOT safe. See the section below.** `intake_create` and `component_fill` both read the Linear API before writing anything, and neither read is behind a flag | **the highest severity in this table** |
 | Workload board | The n8n reconcile stops refreshing `workload_issues`, so the board **freezes rather than empties** — silently current-looking and stale | high, because it is invisible |
@@ -224,7 +225,9 @@ wrong, which is the least useful way to be right.
 | `component_fill` | **Yes** | **Yes, ALWAYS.** `handleComponentFill:6008` calls `projectForIntake` unconditionally, before `parentRouteForAppend` at `:6038` | **No** |
 | **Changing a card's assignee** | **Yes** | **Yes** — `validateAssignee` → `assigneeProviderPool`. An everyday action on an existing card | **Yes**, `production_assignee_eligibility` |
 | `status`, `due`, `description` | Yes | **No** | n/a |
-| `comment`, `attachment`, `labels` | Yes | **No** | n/a |
+| `comment`, `attachment` | Yes | **No** | n/a |
+| **`labels` (write) and the `labels_read` action** | Yes | **Yes** — `linearLabelSnapshot` → `linearLabelCatalog` pages the provider | **No** |
+| `create_options` action | Yes — the browser calls it | Yes — via `productionCreateScope` → `projectForIntake` | **No** |
 | `batch_description`, `batch_asset` | Yes | **No** | n/a |
 
 **A withdrawn claim.** The first version called `component_fill` "sometimes"
@@ -480,7 +483,16 @@ This is the **only** Linear-dependent write path with a documented off switch. I
 author built the retirement in. Use it.
 
 Order it **after** the dead-Linear rehearsal, so the rehearsal observes the strict
-behaviour first and the flag's effect is proved rather than assumed.
+behaviour first.
+
+**Then prove it, because the readback does not.** Running the rehearsal *before*
+the flag establishes only the strict baseline. Confirming the stored JSON afterwards
+proves what the flags table holds, not what the deployed function does — and this
+document already insists elsewhere that deployed `production-write` may differ from
+repo source. So the proof is **check 6 of P7's criteria**: with Linear dead and the
+flag set, open the assignee picker and change an assignee, and see it **succeed**.
+An exact flag readback alone can satisfy the Phase 3 table while the deployed
+handler still answers `assignee_provider_unavailable`.
 
 ### P7. Repair intake, and prove it — REQUIRED BEFORE PHASE 3
 
@@ -501,10 +513,28 @@ Either way it is an Edge Function change and therefore an F27 Section 4 deploy,
 with everything that implies: the sealed capture, the merge freeze, the exact SHA.
 
 **The acceptance criterion is behavioural, not a green check.** With
-`SYNCVIEW_QA_LINEAR_DEAD` active, on the TEST client `sidneylaruel`: create a post
-from the Calendar, create one from Samples/SXR, and fill a component. All three must
-**succeed**, not merely fail cleanly. Until they do, Phase 3 is not reachable, no
-matter what else is done.
+`SYNCVIEW_QA_LINEAR_DEAD` active, on the TEST client `sidneylaruel`, all of these
+must **succeed**, not merely fail cleanly:
+
+| # | Check | Why it is separate |
+|---|---|---|
+| 1 | Create a post from the **Calendar** | request site `index.html:42155` |
+| 2 | Create a post from **Samples/SXR** | **same** request site as 1, different surface value — it proves the surface branch, not a second site |
+| 3 | A **staff submission** from the normal tab | the **other** request site, `index.html:48263`. A surface-scoped repair could pass 1 and 2 and still refuse this |
+| 4 | **Fill a component** | `handleComponentFill`, a different handler again |
+| 5 | Set a **label**, and open the label picker | `linearLabelSnapshot` → `linearLabelCatalog`, a different provider dependency from the intake reads |
+| 6 | **Change an assignee**, after P6 | proves the flag actually took effect on the *deployed* function |
+
+**Checks 1 and 2 do not cover check 3**, and that is the trap worth naming: Calendar
+and Samples/SXR are built at the **same** browser site, so passing both proves one
+site works. The staff submission is built somewhere else entirely. An owner-chosen
+repair scoped to one surface could satisfy 1, 2 and 4 while normal staff submissions
+still refuse after the cutoff.
+
+If the client-link flow's default-off flag is enabled, add it as check 7.
+
+Until every one of these passes, Phase 3 is not reachable, no matter what else is
+done.
 
 ### P5. Schedule the watchers and fire each one on purpose once
 
@@ -531,7 +561,7 @@ that must succeed:
 
 | # | Must be true | Not merely |
 |---|---|---|
-| 1 | The four held PRs are merged | reviewed |
+| 1 | The four held PRs are merged, **and #1350's runbook carries the P6/P7 preconditions** | merged with the old runbook text |
 | 2 | The naming mint's **four** steps are done, flag flip included (P1) | migration applied |
 | 3 | `production_assignee_eligibility` is exactly `{"provider_mapping_required": false}` (P6) | left absent |
 | 4 | With Linear dead: a Calendar post, a Samples/SXR post, and a component fill all **succeed** on the TEST client (P7) | refuse cleanly |
@@ -547,11 +577,19 @@ cutoff time has `LINEAR_CUTOFF_RUNBOOK.md` open, not this file.**
 
 The runbook lives on PR #1350's branch and is held, so this lane cannot add to it
 without touching another lane's finished work. The precondition has therefore been
-handed to that lane as a comment on #1350, phrased in its existing P-numbered style,
-and **should be added there before its STEP 3 is ever run**. Until it is, item 4
-above is a note in a coordination document rather than a real gate — which is
-exactly the distinction this section exists to make, so it is stated plainly instead
-of being papered over.
+handed to that lane as a comment on #1350, phrased in its existing P-numbered style.
+
+**Stated as a condition rather than a hope: #1350 merging does not satisfy this
+gate unless its runbook carries these preconditions.** An operator entering through
+the procedural runbook, which is the normal way in, never sees this file. So
+"#1350 is merged" is **not** sufficient for row 1 of the entry gate; the runbook it
+lands must contain the intake and label success criteria and the assignee flag
+literal. If it merges without them, the gate is unmet and the cutoff is not
+reachable, however green everything looks.
+
+Until that happens, the entry gate above is a note in a coordination document rather
+than an enforced precondition. That is exactly the distinction this section exists
+to make, so it is stated plainly rather than papered over.
 
 ### There are TWO possible routes here, and only one of them is reversible
 

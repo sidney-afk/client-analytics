@@ -518,6 +518,23 @@ const nativeScenarios = allScenarios.filter(scn => !ENGINE.scenarioUsesLegacyLan
 ok(nativeScenarios.every(scn => !/expectLinear|expectNoLinear/.test(JSON.stringify(scn.steps || scn))),
   '  · and every scenario left on the PRODUCTION lane carries none, so no Linear assertion is '
   + 'silently run against the native route');
+/* THE COMPILED TREE IS A SECOND POPULATION, and pinning only the base scenarios would be
+   the same narrowness this file keeps catching: `qa/scenario_tree.js` compiles to the same
+   `{ key, title, seed, steps, shots }` shape `runScenario` takes, and Codex's finding named
+   "every compiled tree path" explicitly. Driven over the real compiled output. */
+const TREE = require(path.join(ROOT, 'qa', 'scenario_tree.js'));
+const treePaths = TREE.compile(TREE.samplesReviewTree());
+const treeLegacy = treePaths.filter(ENGINE.scenarioUsesLegacyLane);
+const treeWithVerb = treePaths.filter(p => /expectLinear|expectNoLinear/.test(JSON.stringify(p.steps || [])));
+ok(treePaths.length > 0,
+  'the compiled scenario tree loads and is the real one (' + treePaths.length + ' paths)');
+ok(treeLegacy.length === treeWithVerb.length,
+  'the selector agrees with reality on every compiled TREE path too — ' + treeLegacy.length
+  + ' selected, ' + treeWithVerb.length + ' actually carrying a Linear verb');
+ok(treeLegacy.length < treePaths.length,
+  '  · and not every path is forced onto the retired lane, which is what the blanket wiring '
+  + 'did to all of them');
+
 ok(ENGINE.scenarioUsesLegacyLane({ steps: [] }) === false
   && ENGINE.scenarioUsesLegacyLane(undefined) === false,
   '  · CONTROL: a scenario with no steps, and no scenario at all, default to PRODUCTION — a '

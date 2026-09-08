@@ -14638,6 +14638,15 @@ against the real `qa/scenarios.js` output in the suite, not asserted about:
 4 of 84 select legacy, every one of them genuinely carries the verb, and every
 scenario left on production carries none.
 
+**The compiled tree is a SECOND population, and the first version of this test
+pinned only the base scenarios** — the same narrowness this file keeps catching,
+in the test written to catch it. `qa/scenario_tree.js` compiles to the same
+`{ key, title, seed, steps, shots }` shape `runScenario` takes, and the finding
+named "every compiled tree path" explicitly. Measured: **12** compiled paths,
+**0** carrying a Linear verb, so all 12 correctly stay on production — and all 12
+were forced onto the retired lane by the blanket wiring. Both populations are now
+driven in the suite.
+
 **AND TWO LANES SHOULD NOT HAVE BEEN PINNED AT ALL.** `ot4_t0_client_edge_conditions`
 (the Tier-0 P4 real-client failure/lost-ack recovery contract) and
 `sxr_kasper_audit_holes` (approve/undo persistence and `kasper_approved_at`) are

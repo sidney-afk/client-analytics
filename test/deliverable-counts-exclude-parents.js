@@ -199,7 +199,12 @@ const rows = [
 
   /* And the three that must exclude really do, checked in their own source
      rather than taken on the registry's word. */
-  const poolSrc = html.slice(html.indexOf('function _calNativeVideoEditorPool('), html.indexOf('function _calNativeEditorDisclaimer('));
+  /* End boundary re-pointed 2026-09-08: `_calNativeEditorDisclaimer` was
+     deleted with the paragraph it built, and indexOf returning -1 quietly
+     turned this slice into "everything but the last character" -- green, and
+     measuring nothing. */
+  const poolSrc = html.slice(html.indexOf('function _calNativeVideoEditorPool('), html.indexOf('const CAL_NATIVE_MAX_INTAKE_ITEMS'));
+  ok(poolSrc.length > 0 && poolSrc.length < 8000, 'the editor-pool slice is bounded (harness is not vacuous)');
   ok(/raw_issue_parent_id/.test(poolSrc) && /parentUuids\.has/.test(poolSrc),
     'the editor pool still excludes parent rows');
   const countSrc = html.slice(from, to);

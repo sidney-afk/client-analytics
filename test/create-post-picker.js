@@ -153,7 +153,6 @@ const PICKER_SOURCES = [
   'function _svSelectToggle(){}',
   extract('_svTone'),
   extract('_svSelectHtml'),
-  extract('_calNativeEditorDisclaimer'),
   // Post/batch naming (2026-09-07). The renderer calls all four, so the vm
   // needs them or every picker assertion fails on a ReferenceError instead of
   // on what it is actually checking.
@@ -492,10 +491,16 @@ console.log('6) the post-count read is one bounded projection query that counts 
         'the editor with the fewest open videos is the suggested default');
       ok(modal.innerHTML.indexOf('Free Editor') < modal.innerHTML.indexOf('Busy Editor'),
         'and the pool is ordered freest-first');
-      ok(/has the least on right now \(1 open video\)/.test(modal.innerHTML),
-        'the disclaimer names the person and the number it is based on, singular for one');
-      ok(/suggestion/.test(modal.innerHTML),
-        'and says plainly that it is a suggestion, which is what the owner asked to be disclaimed');
+      /* The explanatory paragraph under the picker was removed on 2026-09-08
+         at the owner's request. What it carried is not lost: the OPTION itself
+         still names the open count and marks the suggestion, which is where
+         these two now assert it. */
+      ok(!/cal-native-editor-hint/.test(modal.innerHTML),
+        'no explanatory paragraph under the picker');
+      ok(/1 open video/.test(modal.innerHTML),
+        'the option itself still carries the number the suggestion is based on, singular for one');
+      ok(/\(suggested\)/.test(modal.innerHTML),
+        'and still marks which one is suggested, so the default is never unexplained');
     }
   }
 

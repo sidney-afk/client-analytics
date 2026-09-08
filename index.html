@@ -4517,12 +4517,12 @@
         .cal-native-batch-field::after { content: ''; position: absolute; right: 13px; top: 50%; width: 8px; height: 8px; margin-top: -6px; border-right: 2px solid var(--text-muted); border-bottom: 2px solid var(--text-muted); transform: rotate(45deg); pointer-events: none; }
         .cal-native-batch-select { width: 100%; height: 40px; padding: 0 34px 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 600; line-height: 1.2; cursor: pointer; -webkit-appearance: none; -moz-appearance: none; appearance: none; text-overflow: ellipsis; }
         .cal-native-batch-select:hover { border-color: var(--text-muted); }
-        .cal-native-batch-select:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-batch-select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
         .cal-native-batch-select:disabled { opacity: .55; cursor: not-allowed; }
         .cal-native-batch-filter { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 500; }
         .cal-native-batch-filter::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
         .cal-native-batch-filter:hover { border-color: var(--text-muted); }
-        .cal-native-batch-filter:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-batch-filter:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
         /* margin-top: 0 -- the grid gap above owns the spacing now, and a
            margin here would double it the moment the notice appears. */
         .cal-native-batch-filter-empty { display: block; margin-top: 0; font-size: 0.72rem; color: var(--sv-fg-aaa); }
@@ -4548,21 +4548,29 @@
         .cal-native-name-row { margin-top: 14px; }
         .cal-native-name-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
         .cal-native-name-optional { margin-left: 6px; font-size: 0.72rem; font-weight: 600; color: var(--sv-fg-aaa); }
-        .cal-native-name-list { display: grid; gap: 8px; max-height: 216px; overflow-y: auto; }
+        /* THE PADDING IS THE FOCUS RING'S ROOM, not decoration (2026-09-08).
+           `overflow-y: auto` computes `overflow-x: auto` too, so this scroll
+           container clips at its PADDING box -- and the focused input's ring
+           sits 3px outside its border box (1px offset + 2px wide). With no
+           padding the ring's four straight edges were clipped away and only
+           the corner arcs survived, which read as stray marks at the corners
+           of the field. The negative margin puts the row back where it was, so
+           nothing moves. */
+        .cal-native-name-list { display: grid; gap: 8px; max-height: 216px; overflow-y: auto; padding: 4px; margin: -4px; }
         .cal-native-name-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: center; }
         .cal-native-name-item.is-numbered { grid-template-columns: 22px minmax(0, 1fr); }
         .cal-native-name-index { font-size: 0.74rem; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
         .cal-native-name-input { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 500; box-sizing: border-box; }
         .cal-native-name-input::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
         .cal-native-name-input:hover { border-color: var(--text-muted); }
-        .cal-native-name-input:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-name-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
         .cal-native-name-hint { margin: 6px 0 0; font-size: 0.74rem; line-height: 1.45; color: var(--text-muted); }
         /* The batch name lives INSIDE the "Start a new batch" card, so the name
            and the decision to create it are one control rather than two. */
         .cal-native-batch-name { width: 100%; height: 38px; margin-top: 8px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 600; box-sizing: border-box; }
         .cal-native-batch-name::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
         .cal-native-batch-name:hover { border-color: var(--text-muted); }
-        .cal-native-batch-name:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-batch-name:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
         /* CREATE POST, OPTION A (owner pick 2026-09-08).
            The four hint blocks are gone. Three of them described the same
            thing in prose -- the issue tree about to be created -- so one live
@@ -4578,6 +4586,7 @@
         .cal-native-batch-tabs input:checked + span { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
         .cal-native-batch-tabs input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
         .cal-native-batch-panel { margin-top: 10px; display: grid; gap: 8px; }
+        .cal-native-batch-panel .cal-native-sublabel { margin: 2px 0 -4px; font-size: 0.74rem; }
         .cal-native-field-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
         .cal-native-field-label .cal-native-name-optional { margin-left: 6px; }
         .cal-native-receipt { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); padding: 11px 13px; }
@@ -40660,44 +40669,6 @@
         });
         return withLoad;
     }
-    function _calNativeEditorDisclaimer(state) {
-        const editors = (state && state.videoEditors) || [];
-        if (state && state.videoEditorStatus === 'loading') return 'Checking who has the most room...';
-        if (!editors.length) return 'No video editor could be loaded, so this post will be assigned automatically.';
-        const suggested = editors.find(editor => editor.id === (state && state.videoEditorSuggestedId));
-        if (!suggested) return 'Pick who edits this post.';
-        if (suggested.openCount == null) {
-            return 'Current workloads could not be read, so this is just the first editor alphabetically — please check it.';
-        }
-        const open = suggested.openCount === 1 ? '1 open video' : suggested.openCount + ' open videos';
-        const chosen = (state && state.videoEditorId) || '';
-        const followed = chosen === suggested.id;
-        /* LEAD WITH WHAT WILL HAPPEN, not with what the picker would have done.
-           The previous copy opened "Suggested was <X>, but you have chosen
-           someone else", and an SMM read that as a refusal -- reported
-           2026-08-25 as "no me deja, me dice que solo puedo poner al
-           suggested" (it will not let me, it says I can only use the suggested
-           one). Nothing was refusing her: a video assignee override is accepted
-           by the picker AND by the gateway, which rejects one only for
-           graphics. The sentence just described her choice as a deviation
-           before it confirmed it, so it read like a correction.
-           Now the chosen editor is the subject and the suggestion is an aside. */
-        const chosenEditor = editors.find(editor => editor.id === chosen);
-        if (!followed && chosenEditor) {
-            return chosenEditor.name + ' will edit this post. (Suggested was ' + suggested.name
-                + ', who has the least on right now — ' + open
-                + ' — but that is open work only, not a schedule.)';
-        }
-        /* NOT shortened by option A, deliberately. Every other hint in this
-           dialog went; this one stays because its exact wording is the repair
-           for an SMM reading the picker as a refusal (2026-08-25), and three
-           suites pin the tokens that carry it. Trading a support round trip
-           for one line of dialog height is not a trade worth making. */
-        return (followed
-            ? 'Suggested: ' + suggested.name + ' has the least on right now (' + open + ').'
-            : 'Suggested was ' + suggested.name + ' (' + open + ').')
-            + ' This is a suggestion from open work only, not a schedule — change it if you know better.';
-    }
     /* One Create Post submission can mint several posts (owner request
        2026-08-20: "if it's 12 posts, it would be 12 sub-issues. But if it's
        video plus thumbnail, it would be 24").
@@ -41416,6 +41387,7 @@
            Clearing it still falls back to the same default, because
            `_calNativeBatchNameFor` treats empty as untouched. */
         const newBatchHtml = `
+                        <label class="cal-native-field-label cal-native-sublabel" for="calNativeBatchName">Batch name<span class="cal-native-name-optional">optional</span></label>
                         <input type="text" class="cal-native-batch-name" id="calNativeBatchName" maxlength="${CAL_NATIVE_NAME_MAX}"
                             value="${_calEscAttr(_calNativeBatchNameFor(state))}" placeholder="${_calEscAttr(_linearIntakeBatchTitle(state.clientName, state.surface))}"
                             aria-label="Name for the new batch" autocomplete="off"
@@ -41446,7 +41418,6 @@
                         state.videoEditorStatus === 'loading' ? 'Checking workloads…' : 'Assigned automatically',
                         { disabled: state.videoEditorStatus === 'loading' || !editorItems.length,
                           onchange: '_calSetNativePostEditor()' })}
-                    <p class="cal-native-editor-hint" id="calNativeEditorHint">${_calEsc(_calNativeEditorDisclaimer(state))}</p>
                 </div>` : '';
         modal.innerHTML = `
             <div class="cal-import-head">

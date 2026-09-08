@@ -16930,3 +16930,63 @@ used instead.
 **The completion figure stays at ~60%.** Finding that more work exists than was
 credited is not progress. It changes the honesty of the denominator, not the
 numerator.
+
+### Addendum, 2026-09-08 — Create Post reads Linear twice before it writes, and none of the four held PRs fixes it
+
+The most consequential finding of the day, and it contradicts a line the master
+sequence carried for most of it. That document said staff writes are safe on
+2026-09-15. True of status, comment and edit writes. **False of creating a post**,
+which is the write staff make most.
+
+**Source, on today's `main`.** `supabase/functions/production-write/index.ts`:
+`operation === "create"` dispatches to `handleProductionCreate`, which calls
+`productionCreateScope`, whose first substantive step is `projectForIntake`. Every
+branch of that function that returns successfully calls `readLinearProject`, a
+live `POST https://api.linear.app/graphql`. A real client with no tagged project is
+refused `409` anyway and one with several is refused `409 ambiguous`, so **there is
+no path to a successful create that does not read Linear.** Then
+`handleProductionCreate` reads it a second time through `linearStateIdForCreate`,
+for the status state id. Unreachable provider throws
+`GatewayError(503, "project_mapping_validation_unavailable")` — **fails closed**,
+so nothing is corrupted, and the create is refused.
+
+**Two orderings make it worse than it first looks.**
+
+1. **The provider read precedes the authority check.** `projectForIntake` runs
+   before `authorityFor`/`authorityLane`, so a client whose authority is fully
+   `syncview` still pays it, and flipping authority native does not avoid it. This
+   is the shape the other programme's release packet describes as *"legacy write
+   fences query Linear before refusing mutation, so native authority alone does
+   not eliminate their reads"* — confirmed from source, and narrower and more
+   actionable than that sentence.
+2. **Neither read is flag-gated.** The third Linear-reading fence in the same file,
+   the assignee eligibility pool, **is** flag-gated
+   (`production_assignee_eligibility`) with a documented retirement path. The two
+   on the create path have none, so this cannot be fixed by a flag flip at cutoff
+   time.
+
+**Held-PR coverage, checked directly rather than assumed.**
+`claude/lx-a-workload-native`, `claude/lx-c-endpoints` and `claude/lx-d-feedback`
+change **zero** lines of `production-write/index.ts`. Merging this programme's
+entire held set leaves Create Post dependent on Linear.
+
+**PR #1326 fixes it**, at `5bcc03bd`, by threading a `nativeEpoch` through
+`projectForIntake` that short-circuits both branches before the provider read. That
+is the strongest concrete argument for the other programme's work, and it is a gap
+rather than a preference.
+
+**What is NOT verified, stated because the distinction has burned this programme
+twice.** This is a reading of **repo source, not of the deployed function**.
+`production-write` reaches production only through the fingerprint-pinned F27
+Section 4 lane, so live could differ. Two things settle it: the
+`SYNCVIEW_QA_LINEAR_DEAD` rehearsal, now promoted to the **first** Phase 2 action
+rather than the fourth, and a create attempted on the TEST client with the provider
+unreachable. Until one runs, this is a strongly-evidenced source finding and not a
+measured fact about the live system.
+
+**Method note worth keeping.** This was found by verifying one sentence borrowed
+from another team's document instead of citing it. The sentence was true, vaguer
+than the truth, and pointed at something bigger than it claimed. **Checking a
+borrowed claim against source is how a citation becomes a finding**, and it is the
+opposite of the failure logged earlier the same day, where a true sentence was
+quoted into a scope its source did not have.

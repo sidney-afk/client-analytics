@@ -56,7 +56,8 @@ reading:
 
 | Surface | Effect | Severity |
 |---|---|---|
-| Staff writes (status, comments) | **Safe, with one thing to verify.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so writes already go native (item 175, 2026-09-07). But `LINEAR_EXIT_RELEASE_PACKET_2026-09-07.md` reports **two legacy write fences that query Linear BEFORE refusing a mutation**, so native authority alone does not remove their reads. Unverified by this lane, and it is the one thing that could make this row wrong | none if the fences fail closed; **verify** |
+| Staff writes: status, comments, edits | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so these go native (item 175, 2026-09-07) | none |
+| **Staff CREATING a post** | **NOT safe. See the section below.** Every create reads the Linear API twice before it writes anything, and neither read is behind a flag | **the highest severity in this table** |
 | Workload board | The n8n reconcile stops refreshing `workload_issues`, so the board **freezes rather than empties** — silently current-looking and stale | high, because it is invisible |
 | Kasper → Editors subtab | `editors-week` fails | visible |
 | Tweak comments | `linear-tweak-comments` fails | visible |
@@ -183,6 +184,97 @@ whole point of the section is what the review needs to weigh.
 
 ---
 
+## Create Post is Linear-dependent, and none of the four held PRs fixes it
+
+**This is the most consequential thing found on 2026-09-08, and it contradicts a
+line this document carried for most of the day.** The degradation table said
+"staff writes are safe". That is true of status, comment and edit writes. It is
+**false of creating a post**, which is the write staff make most.
+
+### What the source says
+
+`supabase/functions/production-write/index.ts` on today's `main`. The `create`
+operation dispatches to `handleProductionCreate`, which calls
+`productionCreateScope`, which calls `projectForIntake` **unconditionally** as its
+first substantive step. Every branch of that function that returns successfully
+goes through `readLinearProject`, which is a live `POST https://api.linear.app/graphql`:
+
+- a test-scope principal reads the configured test project;
+- a real client with exactly one tagged project reads that project;
+- a real client with none is refused `409 project_mapping_missing` anyway, and one
+  with several is refused `409 project_mapping_ambiguous`.
+
+**There is no path to a successful create that does not read Linear.** Then
+`handleProductionCreate` reads it a second time, through
+`linearStateIdForCreate`, to resolve the status state id.
+
+When Linear is unreachable, `linearRead` throws
+`GatewayError(503, "project_mapping_validation_unavailable")`. It **fails closed**,
+which is the correct choice and means nothing is corrupted. It also means the
+create is **refused**.
+
+### Two orderings that make this worse than it first looks
+
+**The Linear read happens before the authority check.** `projectForIntake` runs,
+and only then does `productionCreateScope` call `authorityFor` and `authorityLane`.
+So a client whose authority is fully `syncview` still pays the provider read, and
+flipping authority native does not avoid it. This is the precise shape the other
+programme's release packet describes as *"legacy write fences query Linear before
+refusing mutation, so native authority alone does not eliminate their reads."*
+Confirmed here from source, and narrower and more actionable than that sentence.
+
+**Neither read is behind a runtime flag.** A third Linear-reading fence in the same
+file, the assignee eligibility pool, *is* flag-gated
+(`production_assignee_eligibility`) and has a documented retirement path. The two on
+the create path have neither. They cannot be turned off from the flags table, so
+this is not fixable in Phase 3 by a flag flip.
+
+### What this means for 2026-09-15
+
+With `main` as it stands: **staff cannot create a post for any real client once
+Linear stops answering.** Nothing is lost or corrupted, because it fails closed.
+The surface simply stops accepting new work.
+
+### None of the four held PRs fixes it, and #1326 does
+
+Checked directly: `claude/lx-a-workload-native` (#1344), `claude/lx-c-endpoints`
+(#1346) and `claude/lx-d-feedback` (#1347) change **zero** lines of
+`production-write/index.ts`. This programme's held set does not close this gap.
+
+The other programme's #1326 does, at `5bcc03bd`, with a `nativeEpoch` parameter
+that short-circuits both reads:
+
+```
+-async function projectForIntake(client, team, principal)
++async function projectForIntake(client, team, principal, nativeEpoch = "")
+     ...
++    if (nativeEpoch) return projectId;      // test-scope branch
+     ...
++    if (nativeEpoch) return tagged[0];      // real-client branch
+```
+
+**That is the single strongest argument in favour of the other programme's work**,
+and it is a concrete gap rather than a matter of taste: this programme's set,
+merged in full, still leaves Create Post dependent on Linear.
+
+### What has NOT been verified, and it matters
+
+**This is a reading of repo source, not of the deployed function.**
+`production-write` reaches production only through the fingerprint-pinned F27
+Section 4 lane, so the live function is whatever was last deployed through it and
+could differ. Two things settle it, neither of which is a session's to run:
+
+1. **P4, the `SYNCVIEW_QA_LINEAR_DEAD` rehearsal.** This is exactly what it exists
+   to catch, and it moves from "before the cutoff" to **the first thing to run**,
+   because it either confirms this or proves the deployed function differs.
+2. A create attempted on the TEST client `sidneylaruel` with the provider
+   unreachable.
+
+Until one of those runs, treat this as a strongly-evidenced source finding and not
+as a measured fact about the live system.
+
+---
+
 ## Phase 1 — the owner's review gate
 
 Four PRs are finished, CI-green, and held **by choice**. Merging any of them
@@ -278,10 +370,17 @@ Dispatch https://github.com/sidney-afk/client-analytics/actions/workflows/deploy
 `production-write`, `production-comments`, `production-archive`. The other three
 go out byte-identical, but it is a larger action than its name suggests.
 
-### P4. The dead-Linear rehearsal — before the cutoff, not after
+### P4. The dead-Linear rehearsal — RUN THIS FIRST, ahead of everything else in Phase 2
 
 `SYNCVIEW_QA_LINEAR_DEAD`. Prove the app behaves correctly with Linear
-unreachable **before** flipping anything. This rehearsal was quietly passing
+unreachable **before** flipping anything.
+
+**Promoted to first place on 2026-09-08.** It was listed fourth as a
+before-the-cutoff item. The Create Post finding above changes that: this rehearsal
+is the instrument that either confirms the deployed write gateway refuses every
+create with Linear dead, or proves the live function differs from repo source.
+Everything else in Phase 2 is cheaper to decide once that is known, and the review
+in Phase 1 is choosing between two programmes partly on this exact question. This rehearsal was quietly passing
 until 2026-09-08, because four probes overrode the dead-mode switch with their
 own always-succeeds Linear — covering exactly the write flows the rehearsal
 exists to watch fail. Fixed; dead mode now returns a mix of abort, 502, 504 and

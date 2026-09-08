@@ -15152,3 +15152,51 @@ because it sends a reader to the source. A line that says "I checked, and the
 thing you were told to rely on does not exist" is not, because it stops them
 looking. Of the two failure modes this pass could have had, it had the second
 one four times.
+
+### THIRD CORRECTION — three more P1s, and the worst one is a rollback that would have deleted live images
+
+Codex's second pass, on `02e748b`, returned three P1s. All three are valid, all
+three are fixed, and one of them is the single most dangerous line this pass
+touched.
+
+**1. Brief E's storage rollback would have deleted ordinary staff uploads.** The
+line enumerates what to delete with
+`select public_url, storage_path from public.description_images where deliverable_id is not null`.
+That predicate does not isolate rescue objects. Every ordinary paste-into-description
+upload sends `X-Syncview-Image-Issue: <issue.id>` (`_prodDescriptionPostImage`,
+index.html:58008-58018) and `description-image-upload` stores it as
+`description_images.deliverable_id` (index.ts:257-271) — and the rescue script
+sends the identical header (`'x-syncview-image-issue': occ.id`,
+scripts/linear-media-rescue.mjs:365), so the two are indistinguishable by that
+column. Following that undo deletes live images out of real descriptions. The
+rescue-specific set is the **out-map** the upload step writes per file
+(`{new_url, mime_type, byte_length, sha256}`); the line now enumerates from it
+and forbids the `deliverable_id` fallback.
+
+That selector came from the ORIGINAL brief text. This pass extended it without
+checking what it selects, which is the "never invent a rollback step" rule
+failing in its quieter form: not inventing, but endorsing. **Extending a
+rollback means verifying its selector, not just finishing its sentence.**
+
+**2. Brief D understated a rollback's blast radius by eight functions.** The
+earlier-SHA dispatch rolls back TWELVE, not four: the workflow's first deploy
+step (`.github/workflows/deploy-onboarding-edge-functions.yml:107-121`) carries
+no `if:` guard, so on `workflow_dispatch` it ships `onboarding-list
+ai-onboarding-list legacy-onboarding-list onboarding-full client-credentials
+filming-plans smm-weekly-reports key-verify` from the chosen SHA before the
+Track-B four. Both `undo:` lines and the sequencing `mitigate:` now say so, and
+lane D's own `ROLLBACK.md:107` row needs the same correction when it merges.
+
+**3. Brief B's byte count is now the headline.** 66,665 UTF-8 bytes, with 66,659
+kept only as the character count. The instruction on that step is to refuse on a
+mismatch, so publishing a character count as bytes makes an operator refuse the
+correct artifact.
+
+**Running total for this pass: seven review findings, six of them mine.** Two
+rounds of Codex have now found more real defects in these restored lines than
+the restoration found in the originals. The through-line in every one is the
+same: a sentence completed from what it looked like it was saying rather than
+from what its referent actually does. A selector, a function count, a byte
+count, four absence claims. The clipped text was never the hard part; the
+verification was, and this entry is the record of getting that wrong repeatedly
+and only catching it under review.

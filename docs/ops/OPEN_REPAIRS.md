@@ -17114,3 +17114,22 @@ the `SYNCVIEW_QA_LINEAR_DEAD` rehearsal stays the first Phase 2 action. It is no
 the *only* thing that should settle this, because this analysis has already been
 wrong once about which code runs, and a second source reading is not the remedy for
 a source reading that missed a `throw`.
+
+**Widened while verifying the correction: three surfaces send `intake_create`.**
+Checking the borrowed citation `index.html:42155` instead of repeating it found two
+more senders of the same operation, all reaching `handleIntakeCreate` and its
+unflagged provider read: `:42155` (Calendar, staff Create Post), `:47372`
+(`submission` surface, authenticated staff submission) and `:48263` (**the client
+link** — `production-write` admits a credential-less caller for `intake_create` on
+the `submission` surface only, behind a **default-off** runtime flag, rate-limited
+and marked `public-intake`).
+
+So the affected scope is every intake path rather than the Calendar dialog alone.
+The client-facing one is conditional on a flag whose live value this lane has not
+read, and is recorded as conditional rather than as fact.
+
+**Third borrowed claim checked today, third time it paid.** The other programme's
+write-fence sentence understated its subject; this programme's runbook sentence
+was slightly over-general; and a reviewer's line citation was correct but pointed
+at one of three call sites. None of the three outcomes was predictable before
+checking, which is the whole argument for checking.

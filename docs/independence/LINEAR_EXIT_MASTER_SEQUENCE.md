@@ -238,6 +238,23 @@ clean. `handleEntityOperation` was read forward: `status`, `due` and `descriptio
 each take their own branch and none calls `validateAssignee`, which is reached only
 in the final `else`. That branch is the mutate path's entire Linear exposure.
 
+### Three surfaces reach `intake_create`, not one
+
+Verifying the borrowed citation `index.html:42155` rather than repeating it turned
+up two more senders of the same operation. All three reach `handleIntakeCreate` and
+therefore the same unflagged provider read:
+
+| Sender | Surface | Who |
+|---|---|---|
+| `index.html:42155` | Calendar | Staff Create Post |
+| `index.html:47372` | `submission` | Staff submission from the normal tab, authenticated |
+| `index.html:48263` | `submission` | **The client link.** `production-write` admits a credential-less caller for `intake_create` on the `submission` surface only, behind a **default-off** runtime flag, rate-limited and marked `public-intake` |
+
+**So the blast radius is every intake path, not just the Calendar dialog.** The
+client-facing one is behind a default-off flag, so whether it is exposed depends on
+that flag's live value, which this lane has not read — state it as conditional, not
+as fact.
+
 ### The failure mode, unchanged by the correction
 
 When Linear is unreachable, `linearRead` throws

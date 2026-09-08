@@ -17235,3 +17235,23 @@ unacceptable. A document that is the ordered list has a second correctness prope
 beyond its facts: **following it must not be able to produce a state it forbids.**
 Nothing in a fact-check catches that. It is caught by asking what a reader who obeys
 every line ends up doing.
+
+**Follow-up: the gate was put in the wrong document, and saying so is part of the
+fix.** The structural finding above was repaired by adding a gate to
+`LINEAR_EXIT_MASTER_SEQUENCE.md`. That is the weakest available enforcement, and
+noticing it matters more than the paragraph: the failure being repaired was that a
+reader could satisfy every listed step and still reach a forbidden state, so a
+second gate in prose, in a document the operator does not have open at cutoff time,
+is a second thing to walk past.
+
+`LINEAR_CUTOFF_RUNBOOK.md` is where the operator actually looks, and it lives on PR
+#1350's branch, held. Rather than touch another lane's finished work, the
+precondition was handed to that lane as a comment on #1350 in its existing
+P-numbered style, with the load-bearing sentence spelled out: **with Linear dead, a
+Calendar post, a Samples/SXR post and a component fill must all SUCCEED on the TEST
+client; refusing cleanly is a FAIL, not a pass.** Plus the assignee flag literal.
+
+The master sequence now says outright that its own gate is a note rather than a real
+gate until #1350 carries it. **A document admitting where its enforcement is weak is
+more useful than one that reads as though it has none** — and pretending otherwise
+would repeat, in the repair, the defect the repair is for.

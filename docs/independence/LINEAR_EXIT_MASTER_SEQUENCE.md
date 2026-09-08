@@ -539,6 +539,20 @@ that must succeed:
 **Any one of these unmet means Phase 3 is not reachable.** Item 4 is the one this
 document previously permitted a reader to walk straight past.
 
+**This gate is in the wrong document, and that is worth admitting rather than
+leaving as a quiet weakness.** The failure it repairs was that a reader could
+satisfy every listed step and still reach a forbidden state; repairing it with more
+prose in the same document produces a second thing to walk past. **The operator at
+cutoff time has `LINEAR_CUTOFF_RUNBOOK.md` open, not this file.**
+
+The runbook lives on PR #1350's branch and is held, so this lane cannot add to it
+without touching another lane's finished work. The precondition has therefore been
+handed to that lane as a comment on #1350, phrased in its existing P-numbered style,
+and **should be added there before its STEP 3 is ever run**. Until it is, item 4
+above is a note in a coordination document rather than a real gate — which is
+exactly the distinction this section exists to make, so it is stated plainly instead
+of being papered over.
+
 ### There are TWO possible routes here, and only one of them is reversible
 
 An earlier draft of this section said flatly "steps 0 through 6 are fully

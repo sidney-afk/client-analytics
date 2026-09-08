@@ -93,9 +93,16 @@ async function eventMatch(id, action, want, ms = 15000) {
 // ---------- tab manager ----------
 class Actors {
   constructor(browser) { this.browser = browser; this._smm = null; this._kasper = null; this._client = null; }
-  async smm() { if (!this._smm) this._smm = await smm(this.browser); return this._smm; }
-  async kasper() { if (!this._kasper) this._kasper = await kasper(this.browser); return this._kasper; }
-  async client() { if (!this._client) this._client = await client(this.browser); return this._client; }
+  /* The DSL's `expectLinear` verb asserts that a RETIRED webhook was called, so every
+     scenario built on it describes the legacy write path. It therefore opens its surfaces
+     with the explicit legacy roster rather than the production one: before this PR they
+     received `[]`, which meant legacy, and after the item-175 fail-closed repair `[]` routes
+     NATIVE — the opposite. Codex finding on d6e26c3. Migrating the verb (and every scenario
+     that uses it) to native intents is tracked as owed in
+     test/probes-assert-native-write-lane.js; this keeps the engine honest until then. */
+  async smm() { if (!this._smm) this._smm = await smm(this.browser, 'sidneylaruel', { writeUiRerouteLegacy: true }); return this._smm; }
+  async kasper() { if (!this._kasper) this._kasper = await kasper(this.browser, { writeUiRerouteLegacy: true }); return this._kasper; }
+  async client() { if (!this._client) this._client = await client(this.browser, undefined, undefined, { writeUiRerouteLegacy: true }); return this._client; }
   async closeAll() { for (const p of [this._smm, this._kasper, this._client]) { if (p) { try { await p.context().close(); } catch {} } } this._smm = this._kasper = this._client = null; }
 }
 

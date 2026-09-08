@@ -23,7 +23,13 @@ const row = (id, cols) => { const r = supa('id=eq.' + id + '&select=' + cols); r
     await sleep(1500);
     resetLinearCalls();
 
-    const kp = await kasper(browser);
+  // THIS LANE'S SUBJECT IS THE LEGACY WRITE PATH, so it asks for the explicit
+  // legacy roster rather than the production one. Before this PR it received
+  // `[]`, which meant legacy; after the item-175 fail-closed repair `[]` routes
+  // NATIVE, so an explicit usable-roster-without-this-client is now the only
+  // honest way to ask. Codex finding on d6e26c3. It stays on the owed-migration
+  // list in test/probes-assert-native-write-lane.js.
+    const kp = await kasper(browser, { writeUiRerouteLegacy: true });
     await kp.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
     await kp.waitForFunction((cid) => (typeof _sxrKasperFindItem === 'function') && !!_sxrKasperFindItem(cid), id, { timeout: 20000 });
 

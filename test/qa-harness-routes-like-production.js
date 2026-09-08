@@ -222,6 +222,38 @@ ok(served.enrolled === true,
   'and it does so by ENROLLMENT, not by the fail-closed fallback: the harness is production, '
   + 'not a flag outage dressed up as one');
 
+/* ---- 4b. THE EXPLICIT LEGACY BODY, PROVED THE SAME WAY -------------------- */
+/* Codex on d6e26c3: switching the shared route moved lanes whose SUBJECT is the
+   legacy path onto the native lane. The alternative it offered — an explicit
+   legacy fixture for exactly those lanes — is only honest if the body actually
+   selects the lane it claims. So it is judged by the SHIPPED predicates, like
+   the production body above, rather than by reading the literal.
+
+   The distinction that matters: it must route legacy by ENROLLMENT (a usable
+   roster this client is simply not in), never by the fail-closed fallback. `[]`
+   would be the fallback, and after the item-175 repair the fallback goes
+   NATIVE — the opposite of what `[]` used to mean, which is the whole reason
+   this fixture exists instead of the old one. */
+
+const legacy = laneForHarnessBody(FIXTURE.legacyRosterBody());
+ok(legacy.native === false,
+  'the explicit legacy body routes the TEST client to the LEGACY lane, which is what a lane '
+  + 'exercising the outbox drain or the ef-writepath Pipe B push needs');
+ok(legacy.enrolled === false,
+  '  · by ENROLLMENT — the roster is usable and simply does not name this client');
+ok(FIXTURE.legacyRosterBody() !== FIXTURE.productionRosterBody(),
+  '  · and it is a different body from the production one, so a lane cannot get legacy by '
+  + 'accident');
+ok(frontDoorForBody(FIXTURE.legacyRosterBody()) === true,
+  '  · while the client-comment front door stays ON, because that is a separate flag and is '
+  + 'on in production either way');
+const legacyRows = JSON.parse(FIXTURE.legacyRosterBody());
+const legacyReroute = legacyRows.find(r => r && r.key === 'write_ui_reroute_clients');
+ok(legacyReroute && Array.isArray(legacyReroute.value.clients) && legacyReroute.value.clients.length > 0
+  && !legacyReroute.value.clients.includes(FIXTURE.WRITE_UI_REROUTE_TEST_CLIENT),
+  '  · and the roster is NON-EMPTY and excludes the TEST client — not `[]`, which now means '
+  + 'native and is exactly the confusion this replaces');
+
 /* THE COUNTEREXAMPLE. The exact body these harnesses used to serve. It must not
    route like production — if this ever passes, the check above has stopped
    discriminating and this suite is decoration. */

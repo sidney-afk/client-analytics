@@ -302,9 +302,19 @@ async function makeCtx(browser, opts = {}) {
     // Reasoning and the fixture half still owed: qa/write_ui_reroute_fixture.js.
     // Only this one flag is pinned — the Track-A rosters this suite exists to
     // exercise stay live.
+    // The Pipe B lanes (10-status-linear, 12-samples) assert that a RETIRED
+    // webhook fired, so their subject is the legacy write path and they ask for
+    // the explicit legacy roster. Before this PR they received `[]`, which meant
+    // legacy; after the item-175 fail-closed repair `[]` routes NATIVE, so an
+    // explicit usable-roster-without-this-client is the only honest way to ask.
+    // Codex finding on d6e26c3. Default stays production. Both lanes stay on the
+    // owed-migration list in test/probes-assert-native-write-lane.js.
     if (REROUTE_FIXTURE.isRerouteFlagRequest(url)) {
       entry.status = 200;
-      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: REROUTE_FIXTURE.productionRosterBody() });
+      const body = process.env.EF_WRITEPATH_LEGACY_ROSTER === '1'
+        ? REROUTE_FIXTURE.legacyRosterBody()
+        : REROUTE_FIXTURE.productionRosterBody();
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body });
     }
     // Speed/robustness: STUB the heavy analytics Google-Sheets (Metrics/TopVideos/
     // briefs/summaries) — they are irrelevant to the write path and otherwise

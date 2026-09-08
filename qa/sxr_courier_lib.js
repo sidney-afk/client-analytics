@@ -392,7 +392,7 @@ async function _ctx(browser, opts) {
   // Strip the harness-only keys before newContext. clientEntryCtx marks a
   // client-share context (openClient): its review token is its credential, so
   // the staff-key injection below must never touch it.
-  const { writeUiRerouteLive, courierCommitThenFail, syntheticClientEntry, clientEntryCtx, ...ctxOpts } = opts || {};
+  const { writeUiRerouteLive, writeUiRerouteLegacy, courierCommitThenFail, syntheticClientEntry, clientEntryCtx, ...ctxOpts } = opts || {};
   let courierCommitThenFailUsed = false;
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...ctxOpts });
   await ctx.addInitScript((theme) => {
@@ -421,10 +421,18 @@ async function _ctx(browser, opts) {
     //    fixture half still owed: qa/write_ui_reroute_fixture.js. Only this
     //    flag is pinned; p95 opts into the genuinely live one via
     //    writeUiRerouteLive to pin the roster's real contents.
+    //    opts.writeUiRerouteLegacy: a lane whose SUBJECT is the legacy write path
+    //    (the outbox drain and its quarantine, the ef-writepath Pipe B push) asks
+    //    for an explicit, usable roster that simply does not enrol this client.
+    //    Not `[]` — after the fail-closed repair that routes NATIVE, which is the
+    //    opposite of what it used to mean. Codex finding on d6e26c3.
     if (!writeUiRerouteLive && REROUTE_FIXTURE.isRerouteFlagRequest(url)) {
       const CORS = REROUTE_FIXTURE.WRITE_UI_REROUTE_CORS;
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
-      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: REROUTE_FIXTURE.productionRosterBody() });
+      const body = writeUiRerouteLegacy
+        ? REROUTE_FIXTURE.legacyRosterBody()
+        : REROUTE_FIXTURE.productionRosterBody();
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body });
     }
     // Fully intercepted share-link tests can supply one fictional strict
     // verifier contract. Live TEST lanes never set this option and therefore

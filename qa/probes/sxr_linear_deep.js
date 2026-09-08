@@ -50,7 +50,13 @@ async function waitStatus(id, comp, status, ms = 20000) {
     up({ id: idA, name: 'LIN deep A ' + ts, order_index: 1, video_status: 'For SMM Approval', graphic_status: 'Approved', status: 'For SMM Approval', linear_issue_id: LINK_A, graphic_linear_issue_id: 'https://linear.app/x/GRA-DEEP-A' + ts });
     up({ id: idB, name: 'LIN deep B ' + ts, order_index: 2, video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress' });
     await sleep(1500);
-    const page = await smm(browser);
+  // THIS LANE'S SUBJECT IS THE LEGACY WRITE PATH, so it asks for the explicit
+  // legacy roster rather than the production one. Before this PR it received
+  // `[]`, which meant legacy; after the item-175 fail-closed repair `[]` routes
+  // NATIVE, so an explicit usable-roster-without-this-client is now the only
+  // honest way to ask. Codex finding on d6e26c3. It stays on the owed-migration
+  // list in test/probes-assert-native-write-lane.js.
+    const page = await smm(browser, 'sidneylaruel', { writeUiRerouteLegacy: true });
 
     // ---------- 1. inbound-echo suppression (single-shot) ----------
     resetLinearCalls();

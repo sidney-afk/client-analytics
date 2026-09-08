@@ -65292,7 +65292,28 @@
                     cleared = true;
                 }
             });
-            if (cleared) { _sxrRenderBody({ preserveScroll: true }); try { await _sxrFlushCardSave(oldPid); } catch (e) {} }
+            if (cleared) {
+                _sxrRenderBody({ preserveScroll: true });
+                try { await _sxrFlushCardSave(oldPid); } catch (e) {}
+                /* THE SECOND AWAIT HAS THE SAME HAZARD AS THE FIRST (Codex,
+                   2026-09-08). The freeze above protects the AUTHORITY read;
+                   this flush is a separate network round trip, and a client
+                   switch during it lands the continuation on the new client's
+                   `sxrState.posts` with the same consequence: `newPid` matches
+                   nothing, and the writes below stamp `_sxrPendingEdits[newPid]`
+                   and call `_sxrFlushCardSave(newPid)` anyway, saving the
+                   previous client's card into the client now on screen. One
+                   guarded await and one unguarded one is not a guard; it is the
+                   same hole moved four lines down.
+                   The source card's link IS already cleared and saved at this
+                   point, so bailing here leaves the move half-done. That is
+                   deliberate and it is the lesser harm: an incomplete move on a
+                   client the user has navigated away from is recoverable and
+                   visible, while a cross-client WRITE is neither. Closing the
+                   half-state needs a transactional move, which is not this
+                   repair. */
+                if (sxrClientSlug(sxrState.client) !== slug) return false;
+            }
         }
         const newPost = sxrState.posts.find(p => p.id === newPid);
         if (newPost) newPost[newFld] = val;

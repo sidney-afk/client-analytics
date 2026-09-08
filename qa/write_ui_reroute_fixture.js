@@ -83,6 +83,39 @@ const WRITE_UI_REROUTE_PRODUCTION_ROWS = [
   { key: 'client_comment_gateway_enabled', value: { enabled: true } }
 ];
 
+/* THE EXPLICIT LEGACY ROSTER, for the lanes that are ABOUT the legacy write path.
+ *
+ * Codex finding on d6e26c3, and the alternative it offered to migrating them: changing this
+ * shared route moved every consumer onto the native lane, including probes whose subject IS
+ * the legacy lane — the outbox drain and its quarantine (OPEN_REPAIRS 63/175, deliberately
+ * NOT flipped), and the ef-writepath "Pipe B" n8n push. Those probes do not time out because
+ * they are stale; they time out because the harness stopped serving the world they test.
+ * Recording them as owed does not keep the harness honest in the meantime.
+ *
+ * WHY IT IS NOT `[]`. Before this PR those lanes received `[]` and that meant legacy. After
+ * the fail-closed repair a successful read with no usable roster routes NATIVE, so `[]` now
+ * means the opposite of what it used to. The only honest way to ask for the legacy lane is a
+ * roster that is perfectly USABLE and simply does not enrol this client — which is what this
+ * serves, and it says so out loud instead of relying on a failure mode.
+ *
+ * This is NOT a second opinion about what production does. Production enrols all 43 active
+ * clients; `productionRosterBody()` is the default and every lane that describes production
+ * uses it. This is opt-in, per lane, for lanes that describe the legacy path on purpose, and
+ * those lanes stay on the owed list in `test/probes-assert-native-write-lane.js` until they
+ * are migrated for real.
+ *
+ * The comment-gateway row is served identically: the front door is a separate flag and is ON
+ * in production either way. */
+const WRITE_UI_REROUTE_LEGACY_ROWS = [
+  { key: 'write_ui_reroute_clients', value: { clients: ['probelegacyroster'] } },
+  { key: 'client_comment_gateway_enabled', value: { enabled: true } }
+];
+
+/* The body a lane serves when it is deliberately exercising the legacy path. */
+function legacyRosterBody() {
+  return JSON.stringify(WRITE_UI_REROUTE_LEGACY_ROWS);
+}
+
 const WRITE_UI_REROUTE_CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': '*',
@@ -105,7 +138,9 @@ function isRerouteFlagRequest(url) {
 module.exports = {
   WRITE_UI_REROUTE_TEST_CLIENT,
   WRITE_UI_REROUTE_PRODUCTION_ROWS,
+  WRITE_UI_REROUTE_LEGACY_ROWS,
   WRITE_UI_REROUTE_CORS,
   productionRosterBody,
+  legacyRosterBody,
   isRerouteFlagRequest
 };

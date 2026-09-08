@@ -122,5 +122,70 @@ ok(/function _sxrMoveLinkConfirm[\s\S]{0,1600}?_sxrMoveLink\(/.test(INDEX),
 ok(/if \(_isClientLink\) return false;/.test(sxrMove),
   'clients still cannot reach it at all — the staff-only guard is unchanged');
 
-console.log(`\nsxr-move-link-sealed: ${failures ? failures + ' failed ❌' : 'all checks passed ✅'}`);
-process.exit(failures ? 1 : 0);
+/* ---- EXECUTED: the client switch during EITHER await -------------------- */
+/* Codex, 2026-09-08: the freeze guarded the authority read, and then
+   `_sxrFlushCardSave(oldPid)` introduced a SECOND network await with the same
+   consequence. Driven rather than grepped, because every earlier check in this
+   file is a source assertion and a source assertion cannot tell you what the
+   function DOES when the client moves mid-flight. */
+const vm = require('vm');
+
+function driveMove(switchDuring) {
+  const writes = [];
+  const sandbox = {
+    console, String, Object, Array, Promise, JSON,
+    _isClientLink: false,
+    sxrState: { client: 'Client A', posts: [
+      { id: 'old1', linear_issue_id: 'https://linear.invalid/VID-1', graphic_linear_issue_id: '' }
+    ] },
+    sxrClientSlug: v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ''),
+    _sxrLinkKey: v => String(v || '').trim().toLowerCase(),
+    _sxrPendingEdits: {},
+    _sxrRenderBody: () => {},
+    _sxrArchivedRemove: () => {},
+    _sxrSyncStatusFromLinear: () => { writes.push('sync'); },
+    showNotify: () => {},
+    _writeUiLinkSlotSealedNotice: () => ['t', 'b'],
+    // The seal read is network-bound; the flush is a second one. Each can be
+    // made to yield, and the test switches the client inside the named one.
+    _writeUiLinkSlotSealedLive: async () => {
+      if (switchDuring === 'authority') sandbox.sxrState.client = 'Client B';
+      return { sealed: false, reason: 'ok' };
+    },
+    _sxrFlushCardSave: async (pid) => {
+      writes.push('flush:' + pid);
+      if (switchDuring === 'flush') sandbox.sxrState.client = 'Client B';
+    }
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(grabFunc('_sxrMoveLink'), sandbox);
+  return sandbox._sxrMoveLink('old1', 'new1', 'video', 'https://linear.invalid/VID-1')
+    .then(result => ({ result, writes, pending: Object.keys(sandbox._sxrPendingEdits) }));
+}
+
+(async () => {
+  const clean = await driveMove(null);
+  ok(clean.result === true && clean.pending.includes('new1'),
+    'CONTROL: with no client switch the move completes and stamps the receiving card');
+
+  const duringAuthority = await driveMove('authority');
+  ok(duringAuthority.result === false && !duringAuthority.pending.includes('new1'),
+    'a switch during the AUTHORITY await refuses and never stamps the receiving card');
+
+  const duringFlush = await driveMove('flush');
+  ok(duringFlush.result === false,
+    'a switch during the SOURCE-SAVE await refuses too — the second await was the hole Codex '
+    + 'found after the first was closed');
+  ok(!duringFlush.pending.includes('new1'),
+    '  · and no pending edit is stamped for the receiving card, so nothing can be flushed into '
+    + 'the client now on screen');
+  ok(!duringFlush.writes.includes('flush:new1') && !duringFlush.writes.includes('sync'),
+    '  · and neither the receiving save nor the Linear status sync runs — a cross-client WRITE '
+    + 'is the harm this refuses');
+  ok(duringFlush.writes.includes('flush:old1'),
+    '  · the source card\'s own clear DID save, which is the deliberate half-done state: an '
+    + 'incomplete move is the lesser harm than a write to another client');
+
+  console.log(`\nsxr-move-link-sealed: ${failures ? failures + ' failed ❌' : 'all checks passed ✅'}`);
+  process.exit(failures ? 1 : 0);
+})();

@@ -171,38 +171,51 @@ ok(NW.retiredCallCount({ setStatus: [], addComment: [] }) === 0
    assertions the witness disappears, the test fails, and the entry has to be re-read and
    re-classified by a human — which is the outcome worth having. */
 const OUTSIDE_MANIFEST = {
-  // present = asserts a retired webhook WAS called. These are the affected, owed lanes.
+  // present = asserts a retired webhook WAS called. Still owed a real migration to native
+  // intents — AND, since d6e26c3, each must opt into the EXPLICIT legacy roster, because the
+  // shared route now serves production by default and these lanes are not written for it.
+  // Codex finding on d6e26c3: recording them as owed does not keep the harness honest in the
+  // meantime. `legacyOptIn` names the token that proves the opt-in, checked below.
   'qa/scenarios.js': {
     polarity: 'present',
-    witness: "['expectLinear', 'linear-set-status'"
+    witness: "['expectLinear', 'linear-set-status'",
+    // No opt-in of its own: it is DATA, executed by qa/scenario_engine.js, which opts in.
+    legacyOptIn: null
   },
   'qa/scenario_engine.js': {
     polarity: 'present',
-    witness: "if (verb === 'expectLinear') {"
+    witness: "if (verb === 'expectLinear') {",
+    legacyOptIn: "writeUiRerouteLegacy: true"
   },
   'qa/probes/ot4_t0_client_edge_conditions.js': {
     polarity: 'present',
-    witness: 'matchingNotifications(issueUrl, submittedBody).length > 0'
+    witness: 'matchingNotifications(issueUrl, submittedBody).length > 0',
+    legacyOptIn: 'writeUiRerouteLegacy: true'
   },
   'qa/probes/sxr_kasper_audit_holes.js': {
     polarity: 'present',
-    witness: "pushed = linearCalls().some(c => c.path === 'linear-set-status'"
+    witness: "pushed = linearCalls().some(c => c.path === 'linear-set-status'",
+    legacyOptIn: "writeUiRerouteLegacy: true"
   },
   'qa/probes/cal_linear_deep.js': {
     polarity: 'present',
-    witness: "pushed = pushes('Client Approval').length > 0"
+    witness: "pushed = pushes('Client Approval').length > 0",
+    legacyOptIn: "writeUiRerouteLegacy: true"
   },
   'qa/probes/sxr_linear_deep.js': {
     polarity: 'present',
-    witness: "pushed = pushes('Client Approval').length > 0"
+    witness: "pushed = pushes('Client Approval').length > 0",
+    legacyOptIn: "writeUiRerouteLegacy: true"
   },
   'qa/ef-writepath/10-status-linear.js': {
     polarity: 'present',
-    witness: 's.ok(toExpect.length >= 1,'
+    witness: 's.ok(toExpect.length >= 1,',
+    legacyOptIn: "EF_WRITEPATH_LEGACY_ROSTER = '1'"
   },
   'qa/ef-writepath/12-samples.js': {
     polarity: 'present',
-    witness: 's.ok(toExpect.length >= 1,'
+    witness: 's.ok(toExpect.length >= 1,',
+    legacyOptIn: "EF_WRITEPATH_LEGACY_ROSTER = '1'"
   },
   // zero = already asserts no push reached them; correct as it stands under the native lane.
   'qa/ef-writepath/13-settings.js': {
@@ -357,6 +370,17 @@ ok(assertionSpans("ok(/\\(/.test(linearCalls()), 'x');").some(x => RETIRED_REF.t
   'a regex literal with an unbalanced OPEN paren inside an assertion is still seen');
 ok(assertionSpans("ok(/\\)/.test(linearCalls()), 'x');").some(x => RETIRED_REF.test(x)),
   'and one with an unbalanced CLOSE paren');
+/* Codex's own example from the d6e26c3 review, kept verbatim: the regex closing paren comes
+   FIRST and the retired-lane reference AFTER it, so a scanner that ended the span at the
+   regex would return only `(/)` and pass. It was already handled by 0124e8d; it is pinned
+   here because the review asked for it and because the next edit to this matcher should have
+   to keep it working. */
+ok(assertionSpans("s.ok(/)/.test(value) && linearCalls().length === 0, 'no push')")
+  .some(x => RETIRED_REF.test(x)),
+  "Codex's example: a regex CLOSING paren before the reference does not truncate the span");
+ok(assertionSpans("s.ok(\n  /)/.test(v) &&\n  linearCalls().length === 0,\n  'no push');")
+  .some(x => RETIRED_REF.test(x)),
+  '  · and the same shape spread across lines');
 ok(assertionSpans("t.ok(linearCalls().length === 0, 'x');").some(x => RETIRED_REF.test(x))
   && assertionSpans('expect(linearCalls().length).to.equal(0);').some(x => RETIRED_REF.test(x)),
   'receiver-form and expect() assertions are seen too — the opener list is an enumeration, '
@@ -380,6 +404,12 @@ for (const [rel, entry] of Object.entries(OUTSIDE_MANIFEST).sort()) {
   ok(src.includes(entry.witness),
     rel + ' still matches its recorded polarity `' + entry.polarity + '` — witness `'
     + entry.witness + '` is present');
+  if (entry.legacyOptIn) {
+    ok(src.includes(entry.legacyOptIn),
+      '  · and it OPTS IN to the explicit legacy roster (`' + entry.legacyOptIn + '`) — the '
+      + 'shared route serves production by default, and a lane asserting a retired push is not '
+      + 'written for that');
+  }
   if (entry.polarity === 'deliberate-legacy') {
     ok(!/write_ui_reroute_fixture/.test(src),
       '  · and it is legacy DELIBERATELY: it serves its own flag rows and never the shared '

@@ -52,7 +52,13 @@ const setLink = (page, pid, link) => page.evaluate(async (args) => {
     for (let i = 0; i < 15 && !seeded; i++) { const r = row(idA, 'linear_issue_id'); seeded = !!r && r.linear_issue_id === LINK_A; if (!seeded) await sleep(1000); }
     t(seeded, 'seeds persisted');
 
-    const page = await smmCal(browser);
+  // THIS LANE'S SUBJECT IS THE LEGACY WRITE PATH, so it asks for the explicit
+  // legacy roster rather than the production one. Before this PR it received
+  // `[]`, which meant legacy; after the item-175 fail-closed repair `[]` routes
+  // NATIVE, so an explicit usable-roster-without-this-client is now the only
+  // honest way to ask. Codex finding on d6e26c3. It stays on the owed-migration
+  // list in test/probes-assert-native-write-lane.js.
+    const page = await smmCal(browser, 'sidneylaruel', { writeUiRerouteLegacy: true });
     await loadPosts(page);
 
     // ---------- 1. inbound-echo suppression (single-shot) ----------

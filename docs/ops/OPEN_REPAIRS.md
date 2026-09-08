@@ -14548,6 +14548,74 @@ both directions. Seven adversarial shapes are pinned as self-tests, including
 the two that were missed, and the end-to-end injection was re-run with a
 regex-literal assertion: red, naming the file and quoting the span.
 
+### CODEX ON `d6e26c3`: THE OWED LIST WAS NOT ENOUGH ON ITS OWN
+
+Three findings, and the first is a design correction worth more than the fix.
+
+**P1 — a shared route was switched under lanes not written for it.** Recording
+the seven non-manifest lanes as "owed" left them pointed at the production
+roster by the shared `sxr_courier_lib.js` / `qa/ef-writepath/lib.js` route, and
+they are written for the LEGACY path: they seed legacy-only targets and wait for
+retired webhook calls, so they time out rather than exercise anything. Codex
+offered the alternative I had missed — *migrate them, or preserve an explicit
+legacy fixture only for them*.
+
+The second option is the right one, and not as a compromise: several of these
+lanes are ABOUT the legacy path by design. `cal_linear_deep` and
+`sxr_linear_deep` drive the outbox drain and its quarantine, which item 175
+pinned as deliberately NOT flipped; `qa/ef-writepath/10-status-linear` and
+`12-samples` assert the "Pipe B" n8n push, which IS the legacy pipe. A lane whose
+subject is the legacy write path should ask for the legacy lane out loud.
+
+**`[]` COULD NOT BE THAT REQUEST ANY MORE, which is the whole point.** Before
+this PR those lanes received `[]` and that meant legacy. After the fail-closed
+repair a successful read with no usable roster routes NATIVE, so `[]` now means
+the opposite of what it used to. `WRITE_UI_REROUTE_LEGACY_ROWS` is therefore a
+roster that is perfectly USABLE and simply does not enrol this client — legacy
+by ENROLLMENT, never by a failure mode, and it says so instead of relying on one.
+
+Wired per lane and opt-in only: `writeUiRerouteLegacy` on the courier surfaces
+(`cal_linear_deep`, `sxr_linear_deep`, `sxr_kasper_audit_holes`, the scenario
+engine's three openers, ot4_t0's four client openers) and
+`EF_WRITEPATH_LEGACY_ROSTER=1` on the two Pipe B lanes. The default stays
+production. **Every one of them remains on the owed-migration list**, and the
+suite now also asserts each carries its opt-in token, so the wiring and the list
+cannot drift apart.
+
+The fixture is judged by the SHIPPED predicates in
+`test/qa-harness-routes-like-production.js`, not by reading the literal: the
+legacy body routes the TEST client legacy, does so by enrollment rather than by
+the fail-closed fallback, differs from the production body, keeps the
+client-comment front door ON, and carries a non-empty roster excluding this
+client — the last check being the one that stops anybody reintroducing `[]`.
+
+**P1 — `_sxrMoveLink` had a SECOND unguarded await.** The 2026-09-08 freeze
+protected the authority read; `_sxrFlushCardSave(oldPid)` is a separate network
+round trip, and a client switch during it lands the continuation on the new
+client's `sxrState.posts` with the identical consequence — `newPid` matches
+nothing, and the code below still stamps `_sxrPendingEdits[newPid]` and calls
+`_sxrFlushCardSave(newPid)`, saving the previous client's card into the client
+now on screen. One guarded await and one unguarded one is not a guard; it is the
+same hole four lines down. The slug is re-validated after the flush.
+
+The source card's link is already cleared and saved at that point, so bailing
+leaves the move half-done. Deliberate, and the lesser harm: an incomplete move on
+a client the user has left is recoverable and visible, a cross-client WRITE is
+neither. Closing the half-state needs a transactional move and is not this
+repair.
+
+**Test:** `test/sxr-move-link-sealed.js` gains an EXECUTED section — every
+earlier check in that file is a source assertion, and a source assertion cannot
+say what the function does when the client moves mid-flight. It lifts the
+shipped `_sxrMoveLink` into a vm and switches the client inside each await in
+turn: three checks go red against the code without this fix.
+
+**P2 — the regex-literal case, already closed.** Codex's example
+(`s.ok(/)/.test(value) && linearCalls().length === 0, 'no push')`) was fixed by
+`0124e8d`, which it had not seen. Verified against its exact string rather than
+assumed, and pinned as a self-test because the review asked for it and because
+the next edit to that matcher should have to keep it working.
+
 **FIVE INSTANCES OF ONE PATTERN IS THE FINDING.** Not five separate mistakes: a
 guard is only as wide as the place its author remembered to look, and every one
 of these was written by someone (me) who had just been burned by the previous

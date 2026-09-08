@@ -732,7 +732,9 @@ async function exerciseCommittedLostAck(opts) {
     await exerciseRequestFailure({
       browser,
       label: 'samples',
-      openPage: client,
+      // Legacy roster on purpose: this lane asserts a retired webhook was called.
+      // See test/probes-assert-native-write-lane.js (Codex, d6e26c3).
+      openPage: b => client(b, undefined, undefined, { writeUiRerouteLegacy: true }),
       routePattern: '**/sample-review-upsert*',
       id: IDS.fail,
       name: NAMES.fail,
@@ -743,7 +745,7 @@ async function exerciseCommittedLostAck(opts) {
     await exerciseRequestFailure({
       browser,
       label: 'calendar',
-      openPage: clientCal,
+      openPage: b => clientCal(b, undefined, undefined, { writeUiRerouteLegacy: true }),
       routePattern: '**/calendar-upsert*',
       id: IDS.failCal,
       name: NAMES.failCal,
@@ -758,7 +760,7 @@ async function exerciseCommittedLostAck(opts) {
       gateSurface: 'sxr',
       outboxKey: 'syncview_sxr_linear_outbox_v1',
       openPage: b => client(b, undefined, undefined, {
-        courierCommitThenFail: 'sample-review-upsert'
+        courierCommitThenFail: 'sample-review-upsert', writeUiRerouteLegacy: true
       }),
       endpoint: 'sample-review-upsert',
       sourceReadRoutes: [
@@ -777,7 +779,7 @@ async function exerciseCommittedLostAck(opts) {
       gateSurface: 'calendar',
       outboxKey: 'syncview_linear_outbox_v1',
       openPage: b => clientCal(b, undefined, undefined, {
-        courierCommitThenFail: 'calendar-upsert'
+        courierCommitThenFail: 'calendar-upsert', writeUiRerouteLegacy: true
       }),
       endpoint: 'calendar-upsert',
       sourceReadRoutes: [

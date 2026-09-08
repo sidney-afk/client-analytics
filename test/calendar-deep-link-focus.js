@@ -284,21 +284,104 @@ function harness(options) {
   ok(assignments === 1,
     'and it is the ONLY place calState.client is assigned, so a new switch path '
     + 'gets the rule by construction (found ' + assignments + ')');
-  ok(/function _calSetClient\(name\) \{[^}]*calState\.client = name;/s.test(INDEX),
-    'that one assignment being the setter\'s own');
+  ok(setter.trim().endsWith('calState.client = name;\n    }'),
+    'that one assignment being the setter\'s own, as the function\'s final statement');
 
-  // Run it, rather than only reading it.
-  const run = new Function('calState', `${setter}; return _calSetClient;`);
+  // Run it, rather than only reading it. _calFocusRequest/_calPendingDeepLink
+  // are free variables the setter now reads (fifth pass, below) — null in
+  // this first pass so these assertions stay about focusPid alone.
+  const run = new Function(
+    'calState', 'wlNormalizeClient', 'calClientSlug',
+    '_calFocusRequest', '_calPendingDeepLink',
+    '_calSetFocusRequest', '_calSetPendingDeepLink', '_calHideOwnToast',
+    `${setter}; return _calSetClient;`,
+  );
+  const noop4 = () => {};
   let st = { client: 'a', focusPid: 'p1' };
-  run(st)('b');
+  run(st, String, String, null, null, noop4, noop4, noop4)('b');
   ok(st.client === 'b' && st.focusPid === null, 'switching client drops the pin');
   st = { client: 'a', focusPid: 'p1' };
-  run(st)('a');
+  run(st, String, String, null, null, noop4, noop4, noop4)('a');
   ok(st.client === 'a' && st.focusPid === 'p1',
     'while re-setting the SAME client keeps it — a no-op switch must not cancel a deep link mid-flight');
   st = { client: 'a', focusPid: 'p1' };
-  run(st)(null);
+  run(st, String, String, null, null, noop4, noop4, noop4)(null);
   ok(st.client === null && st.focusPid === null, 'and clearing the client drops it too');
+
+  /* Codex review, PR for item 176 (fifth pass): switching CLIENT TABS
+     within the calendar (not leaving the page) is a fourth way the pin goes
+     stale, and it's specific to _calFocusRequest/_calPendingDeepLink — they
+     aren't focusPid, and nothing above touches them. Full harness this
+     time: the setter now reads both, and calls the real setters/toast guard
+     to clear them, but ONLY for a client that ISN'T the one the pending
+     request is actually for — _calResolvePendingDeepLink's own
+     _calSetFocusRequest(...) then _calOpenClientTab(...) sequence must
+     survive landing here. */
+  function runSetClient(opts) {
+    opts = opts || {};
+    const calls = { hideToast: 0, setFocus: [], setPending: [] };
+    const fn = new Function(
+      'calState', 'wlNormalizeClient', 'calClientSlug',
+      '_calFocusRequest', '_calPendingDeepLink',
+      '_calSetFocusRequest', '_calSetPendingDeepLink', '_calHideOwnToast',
+      `${setter}\nreturn _calSetClient;`,
+    );
+    const calState = opts.calState || { client: 'a' };
+    const setClient = fn(
+      calState,
+      v => String(v || '').toLowerCase(),
+      v => String(v || '').toLowerCase(),
+      opts.focusRequest || null,
+      opts.pendingDeepLink || null,
+      req => calls.setFocus.push(req),
+      v => calls.setPending.push(v),
+      () => { calls.hideToast++; },
+    );
+    return { setClient, calState, calls };
+  }
+  {
+    // Switching to a DIFFERENT client than the one a card link named.
+    const h = runSetClient({ calState: { client: 'A' }, focusRequest: { client: 'A', cardId: 'p1' } });
+    h.setClient('B');
+    ok(h.calls.setFocus.length === 1 && h.calls.setFocus[0] === null,
+      'switching to a different client abandons a card-link request pinned to the old one');
+    ok(h.calls.hideToast === 1, 'and dismisses its toast, so it does not linger on the new client\'s calendar');
+  }
+  {
+    // Switching TO the very client the pending request is for — the
+    // _calResolvePendingDeepLink sequence. Must survive.
+    const h = runSetClient({ calState: { client: 'A' }, focusRequest: { client: 'B', cardId: 'p1' } });
+    h.setClient('B');
+    ok(h.calls.setFocus.length === 0,
+      'but switching TO the client a pending request already names does not cancel it — that request is what the switch is FOR');
+  }
+  {
+    // Same two shapes, for the deferred (sheet-only-client) pending link.
+    const h = runSetClient({ calState: { client: 'A' }, pendingDeepLink: { slug: 'a', cardId: 'p1' } });
+    h.setClient('B');
+    ok(h.calls.setPending.length === 1 && h.calls.setPending[0] === null,
+      'a deferred pending link is abandoned the same way when the client actually changes to something else');
+  }
+  {
+    const h = runSetClient({ calState: { client: 'A' }, pendingDeepLink: { slug: 'b', cardId: 'p1' } });
+    h.setClient('B');
+    ok(h.calls.setPending.length === 0, 'and left alone when switching to the client it already names');
+  }
+  {
+    // No cardId (the identifier/search-jump shape) — request still gets
+    // dropped on a real client change, but there was never a toast to hide.
+    const h = runSetClient({ calState: { client: 'A' }, focusRequest: { client: 'A', identifier: 'SS-1' } });
+    h.setClient('B');
+    ok(h.calls.setFocus.length === 1 && h.calls.hideToast === 0,
+      'the identifier shape is still abandoned on a real client change, but nothing was showing to dismiss');
+  }
+  {
+    // A no-op re-set of the SAME client must not touch either request at all.
+    const h = runSetClient({ calState: { client: 'A' }, focusRequest: { client: 'A', cardId: 'p1' } });
+    h.setClient('A');
+    ok(h.calls.setFocus.length === 0 && h.calls.hideToast === 0,
+      'a no-op client re-set does not go anywhere near the pending request or its toast');
+  }
 
   /* THE THIRD WAY IT GOES STALE. onCalViewChange covers leaving the Sheet and
      _calSetClient covers changing client; neither fires when you navigate to
@@ -323,7 +406,7 @@ function harness(options) {
     'and dismisses the toast too, so it does not follow the reader onto whatever page they went to');
   ok(/if \(v !== 'organizer'\) calState\.focusPid = null;/.test(INDEX),
     'and the two older exits are still there: leaving the Sheet…');
-  ok(/calState\.client !== name\) calState\.focusPid = null;/.test(INDEX),
+  ok(/calState\.client !== name\)\s*\{\s*\n\s*calState\.focusPid = null;/.test(INDEX),
     '…and changing client');
 }
 
@@ -418,35 +501,48 @@ function harness(options) {
   ok(toasts.length === 1, 'a bare client-slug link (no card) stays silent — nothing to announce yet');
 }
 
-/* ── Codex review, PR for item 176 (fourth pass): dismiss OUR toast only ───
+/* ── Codex review, PR for item 176 (fourth AND fifth pass): dismiss OUR
+   toast only ────────────────────────────────────────────────────────────
    showToast/hideToast are one shared instance app-wide. Every hideToast()
    this feature calls now goes through _calHideOwnToast, which checks the
    toast actually on screen is still "Opening linked card…" before touching
    it — otherwise dismissing it after the fact could just as easily clobber
    an unrelated toast (an Undo prompt, a save confirmation) that legitimately
-   replaced it in the interim. */
+   replaced it in the interim.
+
+   Fifth pass: the FIRST version of this check queried the DOM globally
+   (document.querySelector), which is exactly wrong during hideToast()'s own
+   220ms fade — the old element lingers in the document after _toastEl has
+   already moved on to the new one, so a global query can read the dying
+   leftover instead of what's actually live. Checking _toastEl directly (the
+   one variable that IS the current toast, never a fading leftover) is the
+   fix; this suite now passes _toastEl itself rather than a document mock,
+   which is the point — there is no DOM query left to get stale. */
 {
   const INDEX = html;
   const helper = extractFunction(INDEX, '_calHideOwnToast');
   ok(!!helper, 'the ownership-checking helper is findable');
-  const run = new Function('document', 'hideToast', `${helper}\nreturn _calHideOwnToast;`);
+  ok(!/document\.querySelector/.test(helper),
+    'and it no longer queries the DOM at large — _toastEl is the only source of truth for "what toast is live"');
+  const run = new Function('_toastEl', 'hideToast', `${helper}\nreturn _calHideOwnToast;`);
   {
     let hidden = 0;
-    const doc = { querySelector: () => ({ textContent: 'Opening linked card… · Mon 09/08/26' }) };
-    run(doc, () => { hidden++; })('Opening linked card');
+    const toastEl = { querySelector: () => ({ textContent: 'Opening linked card… · Mon 09/08/26' }) };
+    run(toastEl, () => { hidden++; })('Opening linked card');
     ok(hidden === 1, 'dismisses the toast when it is still the one this feature fired');
   }
   {
     let hidden = 0;
-    // Some OTHER toast — an Undo prompt — has replaced ours by the time this runs.
-    const doc = { querySelector: () => ({ textContent: 'Card archived · Undo' }) };
-    run(doc, () => { hidden++; })('Opening linked card');
+    // Some OTHER toast — an Undo prompt — has replaced ours by the time this
+    // runs, so _toastEl now points at THAT element, not ours.
+    const toastEl = { querySelector: () => ({ textContent: 'Card archived · Undo' }) };
+    run(toastEl, () => { hidden++; })('Opening linked card');
     ok(hidden === 0, 'and leaves an unrelated toast alone — dismissing it would silently drop someone else\'s Undo');
   }
   {
     let hidden = 0;
-    const doc = { querySelector: () => null };  // nothing showing at all
-    run(doc, () => { hidden++; })('Opening linked card');
+    const toastEl = null;  // nothing showing at all
+    run(toastEl, () => { hidden++; })('Opening linked card');
     ok(hidden === 0, 'and does nothing when no toast is showing at all');
   }
 }

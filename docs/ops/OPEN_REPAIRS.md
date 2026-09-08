@@ -14910,3 +14910,50 @@ actor-wide budget` and `a popover closed after the first row costs 12 requests`
 against the fixed `4`. The budget number is read out of the migration that
 enforces it rather than retyped, on the same rule that caught the sandbox's
 hand-typed row timeout.
+
+### Second follow-up: the cancellation itself was inferred, not recorded (three Codex P2s on `4df6522`)
+
+Three findings, and two of them share one root cause worth naming: **the fix
+inferred lifecycle from DOM state instead of recording it.** That is the same
+class of mistake as reading an absence for a fact, one layer down.
+
+1. **The generation only advanced when the new rollup had tweak rows.** The
+   `++_wlTweakCommentsToken` sat inside `if (tweakSubs.length)`. A replacement
+   popover with no tweak-needed rows destroyed the previous popover's feedback
+   boxes and left the generation alone, so the previous drain saw both its token
+   and the `open` class as live and kept paging against content that no longer
+   held a single feedback box. Moved above the guard, to the line right after
+   `pop.innerHTML` — where the boxes are actually destroyed.
+2. **A popover closed before its first page returned was never detected.** The
+   predicate used a `wasOpen` latch to distinguish "not open yet" from "closed",
+   which only works if some sample happened *while* it was open. Every sample for
+   a single-page first row is taken in the synchronous prelude, before
+   `pop.classList.add('open')` runs. So open-then-close-quickly left `wasOpen`
+   false forever and the drain ran to completion — for a popover nobody was
+   looking at, which is precisely the case the budget protection exists for.
+   The predicate is now the recorded generation alone (`token !==
+   _wlTweakCommentsToken`) and reads no DOM state; `wlClosePopover` advances it.
+3. **Overlapping opens raced instead of sharing.** Reopening a rollup before its
+   first reads land means both generations miss the completed-value cache and both
+   request the same deliverable, so a slow popover opened repeatedly still spent a
+   pool-sized wave each time. In-flight reads are now shared. The shared read is
+   abandoned only once **every** generation waiting on it has given up — one
+   popover walking away must not fail the row for the popover that replaced it —
+   and it inherits the first waiter's deadline, so a later generation can see it
+   cut early. That costs one re-read on the next open; racing it cost a request
+   every time.
+
+**Two lines landed outside this lane's declared regions**, and the coordinator
+should see them rather than discover them: `_wlTweakCommentsToken++` inside
+`wlClosePopover`, and the hoist of the generation bump above `if
+(tweakSubs.length)` in `wlOpenRollupPopover`. Both are Workload functions. Both
+are purely about the feedback read's generation and touch nothing else in those
+functions. The alternative was to keep inferring closure from a class that is set
+after the read starts, which is the defect above; it is worth a flagged
+cross-region edit rather than a knowingly fragile one.
+
+Proof: **152 green**, **6 red against `4df6522`**, including `the feedback
+generation advances on every popover replacement`, `closing the popover records
+itself in the same generation`, and `two overlapping opens of the same deliverable
+cost ONE request, not two`. The abandon bound is re-measured under sharing and is
+unchanged at one pool-sized wave.

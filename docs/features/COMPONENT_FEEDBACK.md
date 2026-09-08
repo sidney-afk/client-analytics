@@ -111,6 +111,18 @@ load" state, never the empty-thread one. The cost of this is staleness: feedback
 posted within the TTL may not appear until it expires, which is the behaviour this
 surface already had on the legacy lane.
 
+The popover's feedback generation is RECORDED, never inferred from the DOM. It
+advances where the previous popover's feedback boxes are destroyed — on every
+replacement, including a rollup that starts no read of its own — and again in
+`wlClosePopover`. Reading it off the `open` class cannot work: the class is added
+after the read is started, so every sample taken before then sees "not open yet",
+and a popover closed before its first page returned is never sampled while open
+at all, which is exactly when the abandon protection has to work. In-flight reads
+are shared rather than raced, so two popovers overlapping on the same deliverable
+cost one request; a shared read is abandoned only once every generation waiting on
+it has given up, so one popover walking away never fails the row for the popover
+that replaced it.
+
 ## Compatibility and serving dependencies
 
 The canonical `comments`, cursor, audience and lifecycle fields are unchanged.

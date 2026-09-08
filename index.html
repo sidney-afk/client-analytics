@@ -19337,6 +19337,14 @@
     // the one thing this popover must not do — and a hit is served only to the
     // staff identity that took it.
     const _wlNativeTweakCommentsCache = new Map(); // native deliverable id -> { fetchedAt, owner, rows }
+    // The completed-value cache above cannot help two popovers that overlap:
+    // reopening a rollup before its first reads land means both generations miss
+    // it and both send a request for the same deliverable, so a slow popover
+    // opened repeatedly still spends a pool-sized wave every time. In-flight
+    // reads are therefore shared, not raced. The shared read is abandoned only
+    // once EVERY generation waiting on it has given up — one popover walking
+    // away must not fail the row for the popover that replaced it.
+    const _wlNativeTweakCommentsInFlight = new Map(); // owner + id -> { promise, wanted:Set }
     // SETTLE PER ROW. A popover lists N deliverables and each one is its own
     // independent read; this loop used to be a single all-or-nothing await
     // chain, so the FIRST rejection — an aborted read on the timeout, the
@@ -19418,11 +19426,27 @@
                 // Past the deadline nothing new is started: a read begun here
                 // could only report after the bound this exists to hold.
                 if (Date.now() >= deadline) { settle(row.id, unavailable()); continue; }
-                try {
-                    const rows = await _wlNativeTweakComments(row.issue, row.nativeId, owner, deadline, shouldStop);
-                    remember(row.nativeId, rows);
-                    settle(row.id, rows);
-                } catch (e) { settle(row.id, unavailable()); }
+                const key = owner + '\u0000' + row.nativeId;
+                let flight = _wlNativeTweakCommentsInFlight.get(key);
+                if (!flight) {
+                    flight = { promise: null, wanted: new Set() };
+                    _wlNativeTweakCommentsInFlight.set(key, flight);
+                    flight.wanted.add(stale);
+                    // The shared read inherits the FIRST waiter's deadline, so a
+                    // later generation can see it cut early. That costs one
+                    // re-read on the next open, where racing it costs a request
+                    // every time.
+                    flight.promise = _wlNativeTweakComments(row.issue, row.nativeId, owner, deadline,
+                        () => flight.wanted.size === 0 || [...flight.wanted].every(want => want()));
+                    flight.promise.then(rows => { remember(row.nativeId, rows); }, () => {}).then(() => {
+                        if (_wlNativeTweakCommentsInFlight.get(key) === flight) _wlNativeTweakCommentsInFlight.delete(key);
+                    });
+                } else {
+                    flight.wanted.add(stale);
+                }
+                try { settle(row.id, await flight.promise); }
+                catch (e) { settle(row.id, unavailable()); }
+                finally { flight.wanted.delete(stale); }
             }
         };
         const lanes = [];
@@ -19889,21 +19913,26 @@
             : '';
 
         pop.innerHTML = header + frameNote + items;
+        // EVERY replacement advances the feedback generation, not only one that
+        // starts a read of its own. The line above just destroyed the previous
+        // popover's feedback boxes; a rollup with no tweak rows destroys them
+        // just as thoroughly, and leaving the generation alone there let the
+        // previous read keep paging and draining against content that no longer
+        // holds a single feedback box.
+        const token = ++_wlTweakCommentsToken;
 
         if (tweakSubs.length) {
-            const token = ++_wlTweakCommentsToken;
             const live = () => token === _wlTweakCommentsToken && pop.classList.contains('open');
-            // Whether the ANSWER is still wanted, which is not the same question
-            // as whether it can be painted yet: `pop` gets its `open` class a few
-            // lines below this block, so "not open" means "not open YET" until we
-            // have seen it open once. Reading it as closed here would abandon
-            // every read before the first one was ever started.
-            let wasOpen = false;
-            const abandoned = () => {
-                if (token !== _wlTweakCommentsToken) return true;
-                if (pop.classList.contains('open')) { wasOpen = true; return false; }
-                return wasOpen;
-            };
+            // Whether the ANSWER is still wanted. This is deliberately NOT read
+            // off the DOM: `pop` gets its `open` class a few lines below this
+            // block, so every sample taken before then sees a popover that is
+            // not open YET, and a popover closed before its first page returned
+            // was never sampled while open at all — the drain then ran to
+            // completion for a popover nobody was looking at, which is exactly
+            // when the budget protection had to work. The generation counter is
+            // recorded rather than inferred: it advances on every open above and
+            // on every close in wlClosePopover.
+            const abandoned = () => token !== _wlTweakCommentsToken;
             // PAINT EACH ROW AS IT SETTLES. Every deliverable in this popover is
             // its own independent read, so a row that answered has no reason to
             // sit on a skeleton until its slowest neighbour has finished timing
@@ -20035,6 +20064,13 @@
         if (anchor && typeof anchor.setAttribute === 'function') anchor.setAttribute('aria-expanded', 'false');
         pop.classList.remove('open');
         pop.setAttribute('aria-hidden', 'true');
+        // Closing is the other end of the feedback generation opened in
+        // wlOpenRollupPopover. Recording it here is what lets an in-flight
+        // tweak-comment drain stop spending the actor-wide read budget on a
+        // popover nobody is looking at; inferring it from this class instead
+        // missed the case where the popover closed before its first page
+        // returned. (Lane D edit inside a Workload function — noted on the PR.)
+        _wlTweakCommentsToken++;
         wlState.popoverAnchor = null;
         wlClearSpotlight();
         // Paint any data refresh that was deferred while the popover was open.

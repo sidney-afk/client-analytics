@@ -79,6 +79,7 @@ const ROW_TIMEOUT_MS = valueOf((source.match(/^ *const WL_PLAN_READ_TIMEOUT_MS =
 // The per-deliverable read cache. Tolerant like the bounds above, so a tree
 // without it still runs and fails on the measurement.
 const NATIVE_CACHE_DECL = (source.match(/^ *const _wlNativeTweakCommentsCache = new Map\(\);/m) || [''])[0].trim();
+const IN_FLIGHT_DECL = (source.match(/^ *const _wlNativeTweakCommentsInFlight = new Map\(\);/m) || [''])[0].trim();
 // The actor-wide read budget, read out of the migration that enforces it rather
 // than retyped here — the number this popover has to stay under.
 const READ_BUDGET = Number((fs.readFileSync(path.join(__dirname, '..',
@@ -219,6 +220,7 @@ function build(options = {}) {
     POOL_DECL,
     DEADLINE_DECL,
     NATIVE_CACHE_DECL,
+    IN_FLIGHT_DECL,
     extract('wlFetchTweakComments'),
     extract('_wlNativeTweakComments'),
     extract('_wlLegacyFetchTweakComments'),
@@ -489,12 +491,29 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'the popover passes a per-row painter, so a settled deliverable reaches the screen before the collection finishes');
     ok(/painted\.has\(s\.id\)/.test(fill),
       'and the final pass leaves an already-painted row alone, so a comment an editor expanded mid-read is not collapsed under them');
-    // The trap in wiring the stop predicate: `pop` gets its `open` class AFTER
-    // this block runs, so a predicate that reads "not open" as "closed" abandons
-    // every read before the first one starts, and the popover loads nothing at
-    // all. `wasOpen` is what separates "not open yet" from "closed".
-    ok(/let wasOpen = false;/.test(fill) && /if \(pop\.classList\.contains\('open'\)\) \{ wasOpen = true; return false; \}/.test(fill),
-      'and the stop predicate treats a popover that is not open YET as still wanted, rather than abandoning every read before the first one starts');
+    // The lifecycle is RECORDED, not inferred from the DOM. Reading it off the
+    // `open` class cannot work from here: `pop` gets that class a few lines
+    // BELOW this block, so every sample taken before then sees "not open yet",
+    // and a popover closed before its first page returned is never sampled while
+    // open at all — the drain then runs to completion for a popover nobody is
+    // looking at, which is precisely when the budget protection has to work.
+    ok(/const abandoned = \(\) => token !== _wlTweakCommentsToken;/.test(fill),
+      'the stop predicate is the recorded generation alone and reads no DOM state');
+    ok(!/wasOpen/.test(fill), 'so there is no open-class sampling left to get the timing wrong');
+    // And the generation has to advance on EVERY replacement. A rollup with no
+    // tweak rows destroys the previous popover's feedback boxes just as
+    // thoroughly as one that has them.
+    const opener = source.slice(source.indexOf('function wlOpenRollupPopover'));
+    const body = opener.slice(0, opener.indexOf('// Position:'));
+    const bump = body.indexOf('const token = ++_wlTweakCommentsToken;');
+    const guard = body.indexOf('if (tweakSubs.length) {');
+    ok(bump > 0 && guard > 0 && bump < guard,
+      'the feedback generation advances on every popover replacement, not only one that starts a read of its own');
+    ok(/pop\.innerHTML = header \+ frameNote \+ items;/.test(body.slice(0, bump)),
+      'and it advances where the previous popover’s feedback boxes are actually destroyed');
+    const closer = source.slice(source.indexOf('function wlClosePopover'));
+    ok(/_wlTweakCommentsToken\+\+;/.test(closer.slice(0, closer.indexOf('function onLinearSearchInput'))),
+      'closing the popover records itself in the same generation, so an in-flight drain stops rather than running to completion');
   }
 
   // ── One failed row does not blank the rows that answered (finding 3) ─
@@ -854,6 +873,59 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'and its partial rows are discarded rather than shown as the thread');
     ok(!/No feedback is available here/.test(rendered),
       'never as an empty one — an abandoned read is not evidence a client said nothing');
+  }
+
+  // ── Overlapping popovers share a read rather than racing it ─────────
+  {
+    // The completed-value cache cannot help two popovers that overlap: reopening
+    // a rollup before its first reads land means both generations miss it and
+    // both send a request for the same deliverable, so a slow popover opened
+    // repeatedly still spends a pool-sized wave every time.
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], complete([])),
+      page([canonical('second-request')], complete([])),
+    ] } });
+    const both = await Promise.all([
+      context.wlFetchTweakComments(['wl-1']),
+      context.wlFetchTweakComments(['wl-1']),
+    ]);
+    ok(nativeCalls(calls) === 1, 'two overlapping opens of the same deliverable cost ONE request, not two');
+    ok(both.every(out => out['wl-1'] && (out['wl-1'][0] || {}).body === 'canonical a'),
+      'and both popovers get the same real feedback');
+  }
+  {
+    // A shared read must not be abandoned by a generation that walked away while
+    // another is still waiting on it — that would turn a reopen into a failure.
+    const clock = makeClock();
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ clock, snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+      page([canonical('b')], { total: 2 }),
+    ] } });
+    // The first popover gives up immediately; the second one is still watching.
+    const abandonedRun = context.wlFetchTweakComments(['wl-1'], null, () => true);
+    const watching = context.wlFetchTweakComments(['wl-1'], null, () => false);
+    const [gone, kept] = await Promise.all([
+      runWithClock(clock, abandonedRun),
+      runWithClock(clock, watching),
+    ]);
+    ok(!!kept.value && kept.value['wl-1'] && kept.value['wl-1'].failed !== true,
+      'the popover still watching gets its feedback even though the one before it gave up');
+    ok(!!kept.value && kept.value['wl-1'].length === 2,
+      'read whole, across both pages, rather than cut off at the abandoned generation');
+    ok(gone.settled, 'and the abandoned generation still settles');
+  }
+  {
+    // Once every waiter has gone, the shared read stops like any other.
+    const clock = makeClock();
+    const snapshot = nativeRows(20);
+    const { context, calls } = build({ clock, snapshot, byDeliverable: allHang(snapshot) });
+    let settledCount = 0;
+    await runWithClock(clock, context.wlFetchTweakComments(
+      snapshot.map(row => row.id), () => { settledCount++; }, () => settledCount >= 1));
+    ok(nativeCalls(calls) === POOL,
+      'sharing in-flight reads does not weaken the abandon bound (' + nativeCalls(calls) + ' requests)');
   }
 
   // ── Progressive paint never outruns the whole-collection refusal ─────

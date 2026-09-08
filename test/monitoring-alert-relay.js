@@ -178,7 +178,7 @@ const noSleep = async () => {};
     const payload = relayPayload({
       type: 'monitoring_heartbeat_stale',
       summaryParts: ['lanes4', 'no_heartbeat', 'reconciler_pager=never/max240m',
-        'monitoring_watchdog=never/max180m', 'production_write_drill=never/max2160m',
+        'monitoring_watchdog=never/max360m', 'production_write_drill=never/max2160m',
         'b1_incremental_refresh=never/max240m'],
       team: 'monitoring',
       count: 4,

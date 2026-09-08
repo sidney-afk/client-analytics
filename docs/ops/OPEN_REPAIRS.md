@@ -15157,3 +15157,52 @@ door**, after the dropped-plan counter and the per-row feedback settle that
 multiplied the worst-case wait. The pattern is worth more than any of the three:
 *a fix that changes control flow needs its new failure mode named before it
 ships, not after a test finds it.*
+
+### Addendum, 2026-09-08 — CORRECTION: the #1344 prod-polish failure is NOT a regression
+
+The addendum above called the failing `production-polish` check on PR #1344 "a
+new regression" and offered a mechanism. **The mechanism was wrong and the
+conclusion was wrong.** Corrected here rather than edited, because the reasoning
+error is the useful part.
+
+**The evidence.** The check passed at `546437d0` and failed at `d4b2365e`, the
+very next commit. That commit changes three files: `docs/ops/OPEN_REPAIRS.md`,
+`qa/workload-native/handler.mjs`, and `supabase/functions/workload-plan/index.ts`.
+**It does not touch `index.html`.** And `production-polish-gate.yml` has no
+supabase, deploy or functions step: it drives a browser against the live site and
+the live gateway, so **the Edge Function SOURCE in the repository is never
+executed by that gate** — the deployed isolate is. A commit touching only
+function source, a QA harness and a ledger entry cannot change what that browser
+test sees. The transition is therefore not attributable to the diff.
+
+`Production structure subset` also has this exact history on the record:
+`docs/syncview-design/tests/prod-test-utils.js:240-253` documents it going red
+"on every run once the snapshot first fit in the quota, with no product defect
+behind it".
+
+**What survives.** The earlier session's report of "CI green (1 known)" was still
+wrong, and finding that out was still correct: the FAST lane passes on `main`,
+and what fails there is the heavy and interaction lanes, which only run
+post-merge. **"Not the known baseline" and "a regression from this diff" are
+different claims and I ran the first into the second.** That is the whole error.
+
+**The mechanism error, named because it is instructive.** I proposed that
+`Promise.race` leaves the losing read open and that this surfaced as
+`pending read requests`. The abandoned read is **server-side inside the Edge
+Function**; the audit counts **browser** requests (`prod-test-utils.js:329`).
+Different sides of the wire. And the 3s budget cannot collide with a 30s
+`drainCeilingMs`. Neither half of the story held, and both were checkable in
+about two minutes.
+
+**Why it is only cheap to be wrong here.** The claim was published as inference
+rather than proof, on the PR and in the ledger, and the correction cost one
+comment. **The fourth instance in two days of a plausible story surviving until
+someone checked it, and the only one that was mine.** The rule the others earned
+applies to reasoning as much as to code: *state the mechanism as a hypothesis and
+name the check that would falsify it, before acting on it.*
+
+**Open:** the failed job needs a re-run, which this session cannot do
+(`403 Resource not accessible by integration`). Owner or a branch push. The
+pairing has since improved: that run executed at 06:42 UTC against the
+pre-incident gateway, and `workload-plan` has now been deployed from this exact
+SHA and verified live.

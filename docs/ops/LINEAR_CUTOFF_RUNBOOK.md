@@ -61,6 +61,24 @@ the same closure, so the gate analysed here is the gate production executes. The
 is no caching: `readFlag` is called per invocation, so an old isolate obeys a new
 flag on its next request.
 
+**SCOPE THIS CLAIM PRECISELY — it is about `linear-outbound`, not about the
+estate.** Everything above concerns one Edge Function: the outbound MIRROR stops
+when the flags say off. It does **not** mean nothing in SyncView reaches Linear
+afterwards. `supabase/functions/production-write/index.ts` reaches
+`api.linear.app` (`:241`, `:2291`) through four helper functions and nine call
+sites that **no runtime flag gates** — it declares
+`const OUTBOUND_FLAG = "linear_outbound_enabled"` at `:239` and then never reads
+it, so that constant is dead and the label, project-mapping, status-mapping and
+assignee reads run regardless of every flag in STEP 1-4. Those are lane B's to
+remove and they gate STEP 7, not the earlier steps; see P5 and STEP 7, where they
+are enumerated with their staff-visible failures.
+
+So the accurate sentence is: **the flags stop the outbound mirror without a
+deploy. They do not stop production-write, and nothing in this runbook claims
+they do.** After 2026-09-15 those reaches fail on a revoked credential rather than
+on a flag, which is exactly why STEP 7 is gated on their removal rather than
+ordered by the calendar.
+
 **Recommendation: drop F1 and F2 from the exit.** Ship the flags, the schedulers
 and the watchers. No migration, no deploy, no capture bundle, no merge freeze.
 
@@ -492,17 +510,27 @@ intended signal.
 Revoke `LINEAR_MIRROR_API_KEY`, `LINEAR_API_KEY`, `LINEAR_READ_API_KEY`,
 `LINEAR_INBOUND_SIGNING_SECRET`.
 
-**HARD PRECONDITION — all FOUR of production-write's Linear call sites must be
+**HARD PRECONDITION — every one of production-write's Linear reaches must be
 removed and deployed first**, not two. The exit scoping says two; the adversarial
-review counted four distinct staff-visible failure surfaces and it is right
-(OPEN_REPAIRS 165 point 3):
+review counted four and it is right about the helpers (OPEN_REPAIRS 165 point 3).
 
-| call site | code | staff-visible failure |
-|---|---|---|
-| `linearLabelsRequest` `:832` (throws `:834`/`:843`/`:847`; called `:871`/`:918`/`:946`) | 503 `label_catalog_unavailable` | cannot pick a label |
-| `linearRead` (throws `:2325`, code default `:2285`) | 503 `project_mapping_validation_unavailable` | cannot create a deliverable |
-| `linearStateIdForCreate` (throws `:2539`, `:2548`, `:2556`) | 503 `linear_team_mapping_unavailable` / 409 `linear_team_mapping_unavailable` / 409 `status_mapping_unavailable` | status mapping dead |
-| `assigneeProviderPool` (throws `:2600`, code `:2592`) | 503 `assignee_provider_unavailable` | assignee picker dead |
+**Say what is being counted, because "four call sites" was wrong and got fixed
+here on 2026-09-08.** There are **four HELPER FUNCTIONS that reach
+`api.linear.app`**, through **nine direct call sites**, depended on by **five
+request handlers** — `handleLabelsRead`, `handleEntityOperation`,
+`handleCreateOptions`, `handleProductionCreate`, `handleAssigneeOptions` — plus
+the intermediates `linearLabelCatalog`, `linearLabelSnapshot`,
+`assigneeEligibilityContext`, `readLinearProject` and `validateLinearBatchParent`.
+Counting helpers is the useful unit for "what must lane B remove"; counting call
+sites is the useful unit for "have they all gone". They are not the same number
+and this row used to give one figure for both:
+
+| Linear-reaching helper | direct call sites | code | staff-visible failure |
+|---|---|---|---|
+| `linearLabelsRequest` `:832` (throws `:834`/`:843`/`:847`) | 3 — `:871`, `:918`, `:946` | 503 `label_catalog_unavailable` | cannot pick a label **on create** (`handleCreateOptions` `:3345`), cannot **read** a card's labels (`handleLabelsRead` `:4947`), and cannot **write** one on an existing card (`handleEntityOperation` `:5491`) — three surfaces, one helper. This row previously named only the first. |
+| `linearRead` (throws `:2325`, code default `:2285`) | 4 — `:2326`, `:2345`, `:2540`, `:2587` | 503 `project_mapping_validation_unavailable` | cannot create a deliverable; also reaches through `readLinearProject` and `validateLinearBatchParent` |
+| `linearStateIdForCreate` (throws `:2539`, `:2548`, `:2556`) | 1 — `:3604` | 503 `linear_team_mapping_unavailable` / 409 `linear_team_mapping_unavailable` / 409 `status_mapping_unavailable` | status mapping dead |
+| `assigneeProviderPool` (throws `:2600`, code `:2592`) | 1 — `:2619` | 503 `assignee_provider_unavailable` | assignee picker dead |
 
 Also note `production_assignee_eligibility` (`:2566`): `assigneeEligibilityPolicyFor()`
 returns `{ providerMappingRequired: true }` when the flag row is absent or

@@ -17301,3 +17301,46 @@ code. Its dispositions remain the best thinking available; only the coordinates
 are gone. This is the same defect class as the truncated briefs and the
 mis-scoped reversibility quote, in its third distinct shape: **a document that is
 correct about what it says and wrong about where it points.**
+
+**Addendum, 2026-09-08 — the §0 headline was scoped correctly in its evidence and
+not in its sentence, and STEP 7 counted the wrong unit.** PR #1360 (the
+coordination lane, unmerged at the time of writing) reports that labels reach
+Linear from `production-write` ungated, and — more usefully — describes the trap
+that produced it: *"I replaced a generalisation with an enumeration and did not
+verify the enumeration, which produces a more confident wrong statement than the
+vague one it replaced."* Both halves apply here, verified against the tree rather
+than taken from the report.
+
+**1. §0's claim was true and read wider than it is.** Every citation in it is to
+`supabase/functions/linear-outbound/index.ts`, and the conclusion — the outbound
+mirror stops on a flag, with no deploy — holds exactly as computed. But the
+sentence *"no request reaches `api.linear.app`"* sits under a heading about the
+whole cutoff, and a reader can carry it further than the evidence goes.
+`production-write` reaches `api.linear.app` (`:241`, `:2291`) through four helper
+functions that **no runtime flag gates**. It declares
+`const OUTBOUND_FLAG = "linear_outbound_enabled"` at `:239` and never reads it
+again — **the constant is dead**, so nothing in STEP 1-4 touches those reads. §0
+now states the scope in its own words: the flags stop the outbound mirror, they do
+not stop production-write, and nothing in this runbook claims otherwise. Which
+was already the runbook's structure — P5 and STEP 7 exist for precisely these
+reaches — but structure is not a sentence, and the sentence is what gets quoted.
+
+**2. STEP 7 said "all FOUR of production-write's Linear call sites" and there are
+nine.** Four HELPERS reach the API, through nine direct call sites, depended on by
+five request handlers (`handleLabelsRead`, `handleEntityOperation`,
+`handleCreateOptions`, `handleProductionCreate`, `handleAssigneeOptions`) plus five
+intermediates. "Four" was right about helpers and wrong about call sites, and the
+row gave one number for both. Worse, the label row's staff-visible column named
+only *"cannot pick a label"* — the same helper also serves the label **read**
+(`:4947`) and the label **write on an existing card** (`:5491`). Three surfaces,
+one helper, one named. The table now separates helpers from call sites, because
+they answer different questions: helpers are the unit for *what lane B removes*,
+call sites are the unit for *whether they all went*.
+
+**The pattern, stated because it is now three for three today.** P1 named three of
+four mint steps. The rehearsal counted `linear-*` names instead of Linear
+dependencies. STEP 7 counted helpers and called them call sites. Every one is an
+enumeration that replaced a vaguer statement and was never itself checked against
+the tree — and each read as *more* authoritative than what it replaced, which is
+the actual harm. **An enumeration is a claim about completeness; it needs the same
+verification as any other claim, and more than the generalisation it improves on.**

@@ -14323,6 +14323,38 @@ owner gate on this branch alongside the live snapshot read and the
 `workload-plan` deploy.
 
 
+### Codex round 6 — the warning fired for work days nobody lost (2026-09-08)
+
+One P2, and it is the sharpest kind: the fix chain above spent four rounds
+making a warning REACH a person, and this one is about it being TRUE.
+
+`workload_plan` deliberately retains a row with `plan_date = NULL` when a user
+clears a saved work day — the clear is the history. The client-mismatch check in
+`native-snapshot.mjs` ran regardless of `plan_date`, so if such a deliverable
+later moved between client accounts, the cleared row was counted in
+`plans_dropped` and the board announced that a saved work day was not being
+shown. There was no saved work day. The card was on automatic placement because
+somebody put it there on purpose, which is the correct state.
+
+Worse than merely wrong: it is **persistent**. The stored client stays drifted
+until repaired, so the false sentence would sit on the board indefinitely. A
+standing false warning is how a true one stops being read — which would quietly
+undo everything rounds 1 through 4 were for.
+
+Now counted only when `plan_date` is non-null. The row is still **dropped rather
+than projected** either way: the safety property — a mismatched plan is never
+attached to an owner — does not depend on `plan_date` and is not relaxed.
+
+Proven red against `676c717`: 4 checks, at the gateway (a cleared drift counts
+zero; a real lost day beside a cleared one counts exactly one; the cleared row is
+still not projected) and end to end through the real renderer (a board whose only
+drift is a cleared day says nothing).
+
+This changes `supabase/functions/workload-plan/native-snapshot.mjs`, so it does
+not add a gate — it changes what the existing `workload-plan` deploy gate must
+carry.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

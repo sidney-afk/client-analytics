@@ -59,7 +59,18 @@ export function projectNativeSnapshot(value, normalizeClient) {
     // property is unchanged -- a mismatched plan is still never attached to an
     // owner -- and the blast radius stops at the row that actually drifted.
     if (bound && normalizeClient(owner.native_plan_client_name || owner.client_name) !== plan.client) {
-      dropped.push(plan.issue_id);
+      // COUNTED ONLY WHEN THERE WAS A WORK DAY TO LOSE. A row with a null
+      // plan_date is a day somebody deliberately CLEARED, retained here as
+      // history -- the card is already on automatic placement and that is
+      // correct, so nothing is missing from the board. Counting it would make
+      // the board state, permanently and untruthfully, that a saved work day is
+      // not being shown. A standing false warning is how a true one stops being
+      // read, which would undo the whole point of surfacing this at all.
+      //
+      // The row is still DROPPED rather than projected either way: the safety
+      // property -- a mismatched plan is never attached to an owner -- does not
+      // depend on plan_date and is not being relaxed here.
+      if (plan.plan_date !== null) dropped.push(plan.issue_id);
       continue;
     }
     const id = bound ? owner.id : plan.issue_id;

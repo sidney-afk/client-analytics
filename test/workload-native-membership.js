@@ -92,6 +92,24 @@ function browser(response=fixture()) {
  ok(projectNativeSnapshot(copy(raw),s=>s.toLowerCase()).plans_dropped===0,'a clean snapshot drops nothing');
  const history=copy(raw);history.plans.push({issue_id:'retired-fixture',client:'fixture',plan_date:null});
  ok(projectNativeSnapshot(history,s=>s.toLowerCase()).plans.length===2,'completed/cleared history retained');
+ // A CLEARED day that later drifts is not a LOST day. Codex round 6. The
+ // mismatch check ran regardless of plan_date, so a row somebody deliberately
+ // cleared -- card already on automatic placement, correctly -- was counted as
+ // dropped and the board warned, permanently, that a saved work day was missing
+ // when none existed. A standing false warning is how a true one stops being
+ // read, which would undo the point of surfacing this at all.
+ {const cleared=copy(raw);cleared.plans[0].plan_date=null;cleared.plans[0].client='other';
+  const out=projectNativeSnapshot(cleared,s=>s.toLowerCase());
+  ok(out.plans_dropped===0,'a drifted row with no work day on it is not counted as a dropped work day');
+  ok(!out.plans.some(p=>p.storage_issue_id===cleared.plans[0].issue_id),
+   'but it is still not projected onto its owner -- the safety property does not depend on plan_date');
+  const mixed=copy(raw);mixed.plans[0].client='other';
+  mixed.plans.push({issue_id:'del_fixture_cleared',client:'other',plan_date:null});
+  mixed.rows.push({...copy(mixed.rows[1]),id:'del_fixture_cleared',linear_id:'old-cleared',
+   native_metadata:{...copy(mixed.rows[1].native_metadata),id:'del_fixture_cleared'}});
+  mixed.count=3;
+  ok(projectNativeSnapshot(mixed,s=>s.toLowerCase()).plans_dropped===1,
+   'a real lost day beside a cleared one counts exactly the real one');}
  for(const force of [false,true]){const b=browser();const result=await b.context.loadLinearIssues(force);
  ok(b.calls.length===1&&b.calls[0].body.action==='native_snapshot','normal and forced loads use one native snapshot');
  ok(result.issues[1].id==='del_fixture'&&result.issues[1].nativeId==='del_fixture'&&result.issues[1].url==='','native direct identity has no Linear link');
@@ -245,6 +263,16 @@ function browser(response=fixture()) {
     'with no board on screen, notices ABOUT the board stay silent');
    ok(/editing is disabled/.test(cold.context.planStatusEl.textContent),
     'while the plan-state notice, which is not about the board, still speaks');}
+
+  // 3f. End to end: a board whose only drift is a CLEARED day says nothing.
+  {const clearedDrift=fixture();clearedDrift.plans[0].plan_date=null;clearedDrift.plans[0].client='other';
+   const projectedCleared=projectNativeSnapshot(clearedDrift,s=>s.toLowerCase());
+   ok(projectedCleared.plans_dropped===0,'precondition: the gateway counts nothing');
+   const c=browser(projectedCleared);
+   await c.context.wlLoadSnapshot(false,null);
+   c.context.renderWorkloadPlanStatus();
+   ok(!/saved work day/i.test(c.context.planStatusEl.textContent),
+    'the board does not warn about a work day nobody lost');}
 
   // 4. And it clears when the snapshot is clean -- a warning that never goes
   //    away is the next way to make it unreadable.

@@ -15112,3 +15112,43 @@ prerequisite, and its undo is replaced with "NONE. DO NOT RE-APPLY v7." plus the
 reason. This pass had noted the staleness in the brief's header block and left
 the line alone because it was not truncated; the review was right that a note in
 a header does not travel with the step.
+
+### SECOND CORRECTION, same day — the withdrawn contradiction was not one mistake, it was a pattern, and it cost three of the four "gaps"
+
+Prompted by the first correction, I told the reviewer on #1352 to look for other
+restored lines asserting that something is ABSENT. Then I did the search
+properly myself: fetched all 131 remote branches shallow and grepped across
+every one. **Three of the four honest gaps this entry published were not gaps.**
+Every artifact was there; I had searched a handful of branches, or a
+`head`-limited grep, and reported the result as exhaustive.
+
+| Published as | Actually |
+|---|---|
+| The composer and the named-append migration "exist on no reachable branch", so `composed_sha256` is unchecked | Both are on `origin/integration/linear-exit-candidate-20260906` (which IS candidate `5bcc03b`) and on `origin/codex/native-urgent-dispatch-20260907`. The composer was RUN: `composed_sha256` matches the brief exactly |
+| `count_unproven` / `inconclusive` "appear on no branch reachable from this clone" | `scripts/client-continuity-monitor.js` on `origin/agent/continuity-release-package-20260906`. Both are non-ok codes; `assessRead` returns `count_unproven` on `complete !== true`, `authorityMatched !== true`, a bad `authoritativeCount`, or `renderedCount !== authoritativeCount` |
+| `ROLLBACK.md` "has no row for the Feedback panel or `production-comments`" | `ROLLBACK.md:107` on `claude/lx-d-feedback`, with the browser-only revert path spelled out. Absent from main and the coordinator branch, present on the lane that ships it |
+| Brief C's `log-linear-submission` clause "is not recoverable" | Recoverable from files in this very working tree. `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md:117` dispositions it keep-until-B5 / retain as non-Linear telemetry; `SYSTEM_MAP.md:470,540` calls it post-commit telemetry, not the acceptance receipt. My earlier grep was `head -5`-limited and I read the truncation as the answer |
+
+All four lines are now restored from those sources and each says where it was
+wrong. **One real finding survives the re-check**, and it is new: the composed
+artifact's stated size, "66659 bytes", is a CHARACTER count. Running the
+composer gives 66,659 JavaScript characters and **66,665 UTF-8 bytes** (three
+non-ASCII characters). An operator verifying with `wc -c` sees 66665, and on
+this brief's own instruction to refuse a mismatch would refuse the correct
+artifact.
+
+**The rule, and it is the one worth keeping from this whole pass.** In a
+programme with six lanes, six unmerged branches, an integration candidate and
+131 heads on the remote, "I did not find it" is a statement about the search,
+not about the estate. Before writing that something does not exist: enumerate
+the refs, grep across all of them, and never let a `head`-limited result stand
+in for a complete one. This is item 178's coordination defect wearing yet
+another costume — two views of the estate disagreeing because only one of them
+was actually looked at.
+
+And the asymmetry that makes it worth a ledger entry rather than a quiet fix: a
+line that says "unknown, establish this before acting" is safe when it is wrong,
+because it sends a reader to the source. A line that says "I checked, and the
+thing you were told to rely on does not exist" is not, because it stops them
+looking. Of the two failure modes this pass could have had, it had the second
+one four times.

@@ -2,6 +2,61 @@
 
 All times are UTC unless noted.
 
+## 2026-09-08 — Built: Create Post explains itself once, in a receipt, instead of four times
+
+Owner, on the dialog as it stood: *"I just want to make this create post menu more UI
+friendly... I would remove all the hint things. It's too much text."* Three mockups went
+back; he picked the conservative one and then trimmed it further over two rounds.
+
+**The diagnosis, because it decided the shape.** Every hint block in the dialog described
+an OUTCOME, not a control, and three of them described the same outcome in three
+registers: the sub-issue total, a worked example of a composed title, and the parent's
+name in quotes. One live receipt states all three from real state, so all three
+paragraphs are gone. The fourth, under the video-editor picker, was removed outright at
+the owner's request in the second round, and `_calNativeEditorDisclaimer` went with it --
+it had no other caller. What it guaranteed is not lost: the option itself still carries
+the open count and the `(suggested)` marker, and `test/native-post-editor-picker.js` now
+pins those against the option builder, including that no paragraph returns to re-explain
+the control above it.
+
+**The receipt answers something no hint could.** On an APPEND it shows the ordinals the
+post will actually get -- invisible until now, and only discoverable in Linear after the
+fact. The number is mirrored from the gateway, never counted: a batch's post COUNT is not
+its highest ordinal (delete one card and they part company permanently), and the ordinal
+is recorded nowhere but the title. So `_calFetchNativeBatchPostCounts` now also selects
+`title` on rows it was already fetching and reads the max back with the RPC's own rule,
+returning `{ counts, ordinals }`. One column, no extra round trip. A read that fails or
+stalls renders the ordinal as an ellipsis rather than a guess. **This is a preview**: the
+server still allocates, and `production_intake_append` still fails closed if the two ever
+disagree.
+
+**The batch name is prefilled, not placeheld** (owner: *"it should be clear that we can
+change the name"*). A greyed placeholder read as a system-issued value rather than a
+field you own, so the generated title is now real, selectable text, and the field gained
+a `Batch name` label of its own. Clearing it still lands on the same default --
+`_calNativeBatchNameFor` already treats empty as untouched -- so the fallback is
+unchanged.
+
+**The batch pair became a segmented toggle** and only the chosen branch renders its
+controls; both used to sit open at once, spending about a third of the dialog on the
+option nobody picked. The radios move into the tab strip, so every read of
+`calNativeBatchChoice` -- the submit path included -- is untouched by this.
+
+**Two focus-ring bugs, both real, found from one owner note** (*"there's like white
+corners on the post name field"*). First, `--sv-focus` is defined NOWHERE in `index.html`,
+so all four Create Post fields fell through to `--text-primary` -- near-white in dark mode
+-- while the app's other 22 rings use `--focus-ring`. Second, and the actual "corners":
+`.cal-native-name-list` is a scroll container, `overflow-y: auto` computes `overflow-x:
+auto` with it, and the clip happens at the padding box -- so the ring, which sits 3px
+outside the input's border box, lost all four straight edges and kept only its corner
+arcs. 4px of padding gives it room; a matching negative margin keeps the row in place.
+Isolated before it was fixed: with `overflow: visible` the ring drew complete.
+
+**Browser only.** No migration, no Edge Function, no gateway change -- the payload shape
+is byte-identical. It goes live with the Pages deploy on merge, and the rollback is
+reverting the commit. Verified in the real app under a headless browser (both themes, one
+and three posts, and an append to a batch holding three previewing Video 4/5/6), plus
+415/415 under CI-equivalent conditions.
 ## 2026-09-07 — Built (SOURCE ONLY, draft PR): every piece of feedback on a deliverable, in one place, without Linear
 
 Linear exit, lane D. Owner: *"in the planner we also have a new system to view

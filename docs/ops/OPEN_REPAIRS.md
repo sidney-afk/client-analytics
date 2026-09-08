@@ -17752,3 +17752,66 @@ an open PostgREST read.
 **A wrong report that renders is worse than an endpoint that fails**, because
 failure is legible and a confident wrong number is not. That is the same reason the
 Workload board's freeze is rated above the surfaces that die visibly.
+
+## 182. [2026-09-08, FIXED in the browser; nothing to deploy] SyncLinear felt "sometimes really slow" while the backend answered in half a second: the tab was downloading every batch description on every open and every return
+
+**Owner report.** "Sometimes SyncLinear is pretty slow today. It was really fast a
+couple of days ago." Calendar and Workload "feel slow" too, on and off.
+
+**What was measured (sandbox, 2026-09-08 22:00 UTC, twelve samples over two
+minutes).** Every read the Production tab makes at boot answered in 0.3 to 0.6
+seconds; one deliverables page in twelve took 1.8 seconds. The GitHub Pages fetch
+of the app took under half a second. Supabase's status page showed "partially
+degraded" for an unrelated 401 incident. So the server was not the slowness. The
+weight was in what the tab pulled, and how often:
+
+| Read at boot | Compressed | Note |
+|---|---|---|
+| `index.html` | 1.3 MB | cached 10 minutes by Pages |
+| `batches`, 2 sequential pages | 1.1 MB | **1.0 MB of it is the `description` column**: 2.3 million characters across 1,688 rows, median 743, evenly spread, not one bad row |
+| live deliverables, 3 sequential pages | 0.75 MB | 2,316 rows |
+| terminal tail, ~5 pages | ~1 MB | 4,098 rows, deferred |
+
+And `_prodAutoRefreshOnReturn` re-ran the FULL load (batches and live projection
+again, about 2 MB) on every return to the tab after 30 seconds away. On a link
+whose throughput moves around, that is exactly "fast one day, slow the next,
+slow within the same day". The description column was consumed in one place: the
+detail panel of the parent that is open. Deliverable descriptions (`brief`) had
+already been taken off the boot read for the same reason; batches had not.
+
+**What changed (`index.html` only, so it ships with the merge; no function deploy,
+no migration).**
+
+1. `PROD_BATCH_SELECT` no longer carries `description`. A batch parent's panel
+   reads its ONE row on open through the synthetic branch of
+   `_prodEnsureDescription`, over the same browser grant, with the same three
+   late-answer guards as the deliverable path (request token, projection
+   generation, row scope). The old branch declared the description "ready"
+   without reading anything, which was only true because boot had read it.
+   `_prodCarryBatchDescriptions` keeps a held description across a full reload
+   only while the row's `updated_at` is unchanged: the description write is a
+   compare-and-swap on that stamp (item 2026-09-01), so a moved stamp means
+   read it again.
+2. A tab return calls `_prodRefresh({ silent: true, incremental: true })`, which
+   routes to the existing `_prodDeltaRefresh` (rows stamped since the watermark,
+   full reconcile every ten minutes as before) instead of the full load. Authority
+   is still re-read on return. The delta now also walks `batches` on their own
+   watermark (`_prodMergeBatchRows`), so a filming day planned since the last
+   read appears on the next tick rather than at the reconcile; a batch whose
+   stamp moved marks its open panel stale (`_prodMarkBatchDescriptionsStale`) so
+   the text is re-read rather than shown as current.
+
+Not done, by the owner's choice: trimming the 20+ `raw_*` attribution columns from
+the deliverable select (the third proposal).
+
+**Effect.** Boot drops from about 3.2 MB to about 2.2 MB compressed and loses the
+slowest single query (the description-only read alone took 1.9 s). A tab return
+drops from about 2 MB to a few kilobytes unless rows changed. The manual Refresh
+button keeps the full path.
+
+**Proof.** `test/prod-boot-payload-diet.js` (new) pins both rules against the
+shipped source and executes the two merges and the return listener.
+`test/prod-deep-link-fast-paint.js` and `test/production-preview-source.js` were
+updated for the renamed batch merge. The mocked browser gate
+(`docs/syncview-design/tests/prod-write-gateway-browser.js`) and the boot budget
+were run before push.

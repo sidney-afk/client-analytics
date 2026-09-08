@@ -49902,7 +49902,16 @@
            apart. `description` is the one column the cache drops (see
            _prodCacheBatchColumns) and the one the preserve path already knows
            how to refill. */
-        const PROD_BATCH_SELECT = 'id,client_slug,team,name,description,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids';
+        const PROD_BATCH_SELECT = 'id,client_slug,team,name,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids';
+        /* The description is NOT in the boot read. It is read per batch, when
+           that parent's panel opens (`_prodEnsureDescription`), the way a
+           deliverable's `brief` already is. Measured 2026-09-08: 1,688 batches
+           carry 2.3 million characters of description, about 1.0 MB of the
+           1.1 MB (compressed) the batch read cost, and the app re-downloaded
+           all of it on every open of the tab and every return to it, to show
+           one description at a time. `updated_at` rides along so a held value
+           can be told apart from a moved one. */
+        const PROD_BATCH_DESCRIPTION_SELECT = 'id,description,updated_at';
         const PROD_DELIVERABLE_SELECT = 'id,identifier,batch_id,client_slug,team,kind,title,status,status_at,assignee_id,due_date,origin,card_id,sync_state,created_at,updated_at,artifact_revision,linear_issue_uuid,linear_identifier,linear_issue_url,identity_repair_state,identity_repair_reason,identity_repair_resolved_linear_issue_id,raw_issue_parent_id,raw_project_id,raw_attribution_schema,raw_attribution_state,raw_attribution_client_slug,raw_attribution_owner_kind,raw_attribution_source,raw_attribution_provisional_client_slug,raw_attribution_mapping_revision,raw_attribution_repair_required,raw_attribution_reason,raw_attribution_explicit_owner_approved,raw_attribution_has_explicit_decision_ref,raw_attribution_explicit_manifest_sha256,raw_issue_archived_at,raw_issue_canceled_at,raw_webhook_delete,raw_deleted,raw_delete,raw_removed,raw_archived';
         async function _prodLoadDeliverableProjection(filterParams) {
             const select = PROD_DELIVERABLE_SELECT;
@@ -49990,6 +49999,22 @@
                 fields.forEach(field => {
                     if (!_prodHasOwn(row, field) && _prodHasOwn(prior, field)) row[field] = prior[field];
                 });
+                return row;
+            });
+        }
+        /* Batch descriptions are read on demand (PROD_BATCH_DESCRIPTION_SELECT),
+           so a reload never carries them in. A description already held is
+           kept only while the row's `updated_at` is unchanged: the description
+           write is a compare-and-swap on that column, so a different stamp
+           means the text may have moved, and the panel must read it again
+           rather than keep showing the old one. */
+        function _prodCarryBatchDescriptions(incoming, previous) {
+            const priorById = _prodById(previous, 'id');
+            return (incoming || []).map(row => {
+                const prior = row ? priorById.get(String(row.id || '')) : null;
+                if (!prior || _prodHasOwn(row, 'description')) return row;
+                if (String(prior.updated_at || '') !== String(row.updated_at || '')) return row;
+                if (_prodHasOwn(prior, 'description')) row.description = prior.description;
                 return row;
             });
         }
@@ -57096,12 +57121,65 @@
             const state = issue && _prodDescriptionState(id);
             if (!issue || !state || state.saving) return state || null;
             if (issue.syntheticBatchParent === true) {
-                // The batch description was loaded with the batch row; the
-                // deliverable description reader has no row to refresh from.
-                state.refreshing = false;
+                /* A batch parent has no deliverable row for `description_read`
+                   to authorize against, and since 2026-09-08 the boot read no
+                   longer carries batch descriptions either (see
+                   PROD_BATCH_DESCRIPTION_SELECT). So this reads the ONE batch
+                   row over the same browser grant the boot read uses -- the
+                   column was always readable here; the change is reading it
+                   for the parent that is open instead of for all 1,688. No
+                   staff identity is involved, which is why this branch stays
+                   above the identity read below. Same guards as the deliverable
+                   path: a request token, the projection generation and the
+                   row's scope, so a late answer cannot land on a row that
+                   moved. */
+                if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error')) return state;
+                const batchId = String(issue.batchId || '');
+                if (!batchId) {
+                    state.refreshing = false;
+                    state.status = state.hasValue ? 'ready' : 'error';
+                    if (!state.hasValue) state.error = 'Description could not load.';
+                    return state;
+                }
+                const batchToken = _prodNextDescriptionRequestToken(id);
+                const batchGeneration = _prodState.projectionGeneration;
+                const batchScope = _prodIssueScopeSignature(issue);
+                const batchStillCurrent = () => {
+                    const live = _prodIssue(id);
+                    return batchToken === _prodState.descriptionRequestTokens.get(id)
+                        && batchGeneration === _prodState.projectionGeneration
+                        && !!live && String(live.batchId || '') === batchId
+                        && _prodIssueScopeSignature(live) === batchScope;
+                };
+                state.refreshing = true;
                 state.refreshError = '';
-                state.status = 'ready';
-                return state;
+                state.refreshSilent = !force;
+                state.status = state.hasValue ? 'stale' : 'loading';
+                if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                try {
+                    const rows = await _prodRestRows('batches', PROD_BATCH_DESCRIPTION_SELECT, 'id=eq.' + encodeURIComponent(batchId), 1, 1);
+                    if (!batchStillCurrent()) return null;
+                    const row = Array.isArray(rows) ? rows.find(item => String(item && item.id || '') === batchId) : null;
+                    if (!row) throw new Error('batch_description_read_failed');
+                    _prodSyncBatchDescriptionRow(id, row.description, row.updated_at);
+                    _prodAdoptDescriptionValue(id, row.description, row.updated_at);
+                    const adoptedBatch = _prodState.descriptions.get(id);
+                    if (adoptedBatch) adoptedBatch.scopeSignature = batchScope;
+                    if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                    return state;
+                } catch (error) {
+                    if (!batchStillCurrent()) return null;
+                    state.refreshing = false;
+                    if (state.hasValue) {
+                        state.status = 'stale';
+                        state.refreshError = 'Description could not refresh. The text shown may be outdated.';
+                    } else {
+                        state.status = 'error';
+                        state.error = 'Description could not load.';
+                    }
+                    if (document.getElementById('prodRoot') && _prodState.openId === id) _prodRender();
+                    return null;
+                }
             }
             if (!force && (state.status === 'ready' || state.refreshing || state.status === 'error' || state.refreshError)) return state;
             const staffIdentity = _syncviewStaffIdentityForHeaders();
@@ -60864,7 +60942,7 @@
                     authorityPromise
                 ]);
                 const mergedClients = _prodPreserveProjectedFields(clients, _prodState.clients, 'slug', ['board_desc', 'desc']);
-                const mergedBatches = _prodPreserveProjectedFields(batches, _prodState.batches, 'id', ['description', 'desc']);
+                const mergedBatches = _prodCarryBatchDescriptions(batches, _prodState.batches);
                 const mergedDeliverables = _prodCarryDeepLinkRows(deliverables);
                 _prodState.projectionGeneration++;
                 _prodInvalidateScopedReads();
@@ -61415,6 +61493,28 @@
         }
         function _prodRefresh(opts) {
             const silent = !!(opts && opts.silent && _prodState.loaded);
+            /* A return to the tab asks for what CHANGED, not for everything.
+               Until 2026-09-08 `_prodAutoRefreshOnReturn` came through the full
+               path below: every batch and every live deliverable again, in
+               sequential pages (about 2 MB compressed), every time the tab was
+               left for 30 seconds -- the single most repeated download in the
+               app, and the one the owner felt as "sometimes really slow". The
+               30-second operational tick already knew how to do better:
+               `_prodDeltaRefresh` reads rows stamped since the last watermark
+               and falls back to a full reconcile once every
+               PROD_FULL_RECONCILE_MS. A tab return now takes that route.
+               Authority is still re-read (one tiny row) because a flipped gate
+               must not wait for a row to change, and the open thread's comments
+               are refreshed here only on the full-reconcile turn -- the delta
+               branch refreshes them itself. The manual Refresh button keeps
+               the full path. */
+            if (silent && opts && opts.incremental) {
+                _prodRefreshAuthority({ silent: true });
+                const reconcileDue = (Date.now() - Number(_prodState.lastFullSyncAt || 0)) >= PROD_FULL_RECONCILE_MS;
+                if (reconcileDue && _prodState.view === 'detail' && _prodState.openId) _prodComments.refresh(_prodOpenRowId());
+                _prodDeltaRefresh({ force: true });
+                return;
+            }
             // Quarantine every protected response synchronously, before the
             // replacement projection request can resolve. A held old-scope
             // response therefore cannot land during the refresh window.
@@ -61470,7 +61570,7 @@
             const now = Date.now();
             if (now - _prodLastAutoRefreshAt < 30000) return;
             _prodLastAutoRefreshAt = now;
-            _prodRefresh({ silent: true });
+            _prodRefresh({ silent: true, incremental: true });
         }
         // ---- F95: bounded foreground operational refresh --------------------
         // Production loaded operational rows once at mount and re-read them only
@@ -61565,6 +61665,51 @@
             });
             _prodState.deliverables = Array.from(byId.values());
             return changedIds;
+        }
+        /* The batch twin of _prodMergeDeliverableRows. A row whose stamp is
+           unchanged keeps the description it already holds (the delta select
+           does not carry one); a row whose stamp moved arrives without it, so
+           its parent panel reads the text again rather than showing the old
+           one as current. */
+        function _prodMergeBatchRows(changed) {
+            const rows = Array.isArray(changed) ? changed : [];
+            if (!rows.length) return [];
+            const byId = new Map((_prodState.batches || [])
+                .map(row => [String(row && row.id || ''), row])
+                .filter(([id]) => id));
+            const changedIds = [];
+            rows.forEach(row => {
+                const id = String(row && row.id || '');
+                if (!id) return;
+                const previous = byId.get(id);
+                if (previous && String(previous.updated_at || '') === String(row.updated_at || '')) {
+                    if (_prodHasOwn(previous, 'description') && !_prodHasOwn(row, 'description')) row.description = previous.description;
+                    byId.set(id, row);
+                    return;
+                }
+                changedIds.push(id);
+                byId.set(id, row);
+            });
+            _prodState.batches = Array.from(byId.values());
+            return changedIds;
+        }
+        /* After the adapter has been rebuilt: the open panel of a batch whose
+           row moved is told its text may be outdated, so the next render
+           re-reads it through _prodEnsureDescription. Mirrors
+           _prodMarkDescriptionsStale, scoped to the batches that changed. */
+        function _prodMarkBatchDescriptionsStale(batchIds) {
+            const targets = new Set((batchIds || []).map(id => String(id || '')).filter(Boolean));
+            if (!targets.size) return;
+            _prodState.descriptions.forEach((state, id) => {
+                if (!state || state.saving) return;
+                const issue = _prodIssue(id);
+                if (!issue || issue.syntheticBatchParent !== true || !targets.has(String(issue.batchId || ''))) return;
+                _prodState.descriptionRequestTokens.set(id, Number(_prodState.descriptionRequestTokens.get(id) || 0) + 1);
+                state.refreshing = false;
+                state.refreshError = '';
+                state.refreshSilent = true;
+                state.status = state.hasValue ? 'stale' : 'idle';
+            });
         }
         function _prodRefreshAgeMs() {
             return _prodState.lastSyncAt ? Math.max(0, Date.now() - _prodState.lastSyncAt) : -1;
@@ -61666,19 +61811,34 @@
                     }
                     _prodState.lastFullSyncAt = Date.now();
                 } else {
-                    const rows = await _prodRestRows(
-                        'production_deliverables_browser_v1',
-                        PROD_DELIVERABLE_SELECT,
-                        'updated_at=gte.' + encodeURIComponent(watermark),
-                        1000,
-                        50,
-                        { keysetColumn: 'id' }
-                    );
+                    /* Batches ride along on their own watermark, so a filming
+                       day planned since the last read appears on the next tick
+                       (and on a tab return, which takes this path since
+                       2026-09-08) instead of waiting for the full reconcile.
+                       Same select as boot: no description. A batch whose stamp
+                       moved drops its held description and re-reads it when
+                       its panel is open. */
+                    const batchWatermark = _prodDeliverableWatermark(_prodState.batches);
+                    const [rows, batchRows] = await Promise.all([
+                        _prodRestRows(
+                            'production_deliverables_browser_v1',
+                            PROD_DELIVERABLE_SELECT,
+                            'updated_at=gte.' + encodeURIComponent(watermark),
+                            1000,
+                            50,
+                            { keysetColumn: 'id' }
+                        ),
+                        batchWatermark
+                            ? _prodRestRows('batches', PROD_BATCH_SELECT, 'updated_at=gte.' + encodeURIComponent(batchWatermark), 1000, 25, { keysetColumn: 'id' })
+                            : Promise.resolve([])
+                    ]);
                     const changedIds = _prodMergeDeliverableRows(rows);
-                    if (changedIds.length) {
+                    const changedBatchIds = _prodMergeBatchRows(batchRows);
+                    if (changedIds.length || changedBatchIds.length) {
                         repaint = true;
                         _prodInvalidateScopedReadsFor(changedIds);
                         _prodState.adapter = _prodAdapter(_prodState);
+                        _prodMarkBatchDescriptionsStale(changedBatchIds);
                         _prodCacheWrite({
                             clients: _prodState.clients,
                             members: _prodState.members,

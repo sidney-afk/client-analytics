@@ -111,6 +111,7 @@ function newHarness(opts) {
       throw new Error('unexpected projection read ' + params);
     },
     _prodPreserveProjectedFields: incoming => incoming,
+    _prodCarryBatchDescriptions: incoming => incoming,
     _prodInvalidateScopedReads() {},
     _prodCacheWrite() { log.cacheWrites++; },
     _prodCachePurge() {},

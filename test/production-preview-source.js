@@ -148,7 +148,7 @@ check('preview disables legacy bulk brief hydration outside boot',
 check('preview preserves safe project/batch descriptions while invalidating scoped deliverable bodies',
   /function _prodPreserveProjectedFields\(incoming, previous, key, fields\)/.test(prodBlock)
   && /mergedClients = _prodPreserveProjectedFields\(clients, _prodState\.clients, 'slug', \['board_desc', 'desc'\]\)/.test(prodBlock)
-  && /mergedBatches = _prodPreserveProjectedFields\(batches, _prodState\.batches, 'id', \['description', 'desc'\]\)/.test(prodBlock)
+  && /mergedBatches = _prodCarryBatchDescriptions\(batches, _prodState\.batches\)/.test(prodBlock)
   /* Deliverables are never field-preserved across a refresh (that is the
      property here); the only thing the fresh set gains is a deep-linked row
      the boot-time fast paint read a moment earlier, see _prodCarryDeepLinkRows. */

@@ -196,9 +196,12 @@ Other:
   so both consumers must be checked when this field changes. Note that `before`
   is applied to the PAGE query only, never to the count, so every `total` is a
   whole-thread count at the moment its page was served: the reader proves a paged
-  walk against its TERMINAL count alone. A paged walk whose terminal count failed
-  open refuses (an earlier count predates the pages after it and cannot catch a
-  head insertion), and a walk with no count is accepted only when it never paged.
+  walk against its TERMINAL count alone: intermediate counts are neither retained
+  nor compared, because counts taken at different moments differ legitimately (an
+  older unserved row deleted mid-walk) and catch nothing the terminal count does
+  not. A paged walk whose terminal count failed open refuses (an earlier count
+  predates the pages after it and cannot catch a head insertion), and a walk with
+  no count is accepted only when it never paged.
   Every other non-integer (`undefined` included) stays a refusal. Whether the endpoint should
   compute an exact count at all is an open owner decision (`OPEN_REPAIRS` 172).
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the

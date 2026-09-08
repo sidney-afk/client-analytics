@@ -19526,7 +19526,7 @@
     // production-comments request shape leaves this page.
     async function _wlNativeTweakComments(issue, nativeId, owner, deadline, shouldStop) {
         const rows = [], seen = new Set();
-        let before = null, total = null, complete = false, feedback = null;
+        let before = null, complete = false, feedback = null;
         const controller = new AbortController();
         // This row's own timeout, clipped to whatever the collection has left.
         // A read that started late must not be able to report AFTER the
@@ -19567,14 +19567,25 @@
                 if (!response.ok || !value || value.ok !== true || value.canonical_thread !== true
                     || value.audience_scope !== 'all' || !Array.isArray(value.comments)
                     || (counted !== null && (!Number.isSafeInteger(counted) || counted < 0))
-                    || typeof value.has_more !== 'boolean'
-                    || (counted !== null && total !== null && total !== counted)) {
+                    || typeof value.has_more !== 'boolean') {
                     throw new Error('Feedback is incomplete.');
                 }
-                // A page whose count failed open cannot vote on the cross-page
-                // stability check; a counted page still has to agree with every
-                // other counted page.
-                if (counted !== null) total = counted;
+                // Intermediate counts are deliberately NOT retained or compared.
+                // Requiring every counted page to report the same number sounds
+                // like a stability check and is really a false-refusal
+                // generator: the counts are taken at different moments, so
+                // deleting an older row that page 1 counted but had not yet
+                // served makes the terminal count legitimately smaller, while
+                // the rows collected are still the whole current thread.
+                // Comparing them rejected exactly that read.
+                //
+                // It also protected nothing. Everything cross-page agreement
+                // could catch, the terminal count catches on its own: a head
+                // insertion leaves the terminal count above `rows.length`, and a
+                // deletion of an already-collected row leaves it below. The one
+                // case neither catches is a compensating insert-and-delete
+                // between the same two pages, which keeps both counts equal too.
+                // So the comparison cost real reads and bought nothing.
                 feedback = value.feedback || null;
                 for (const row of value.comments) {
                     if (!row || !row.id || seen.has(row.id) || typeof row.body !== 'string') {

@@ -14289,12 +14289,43 @@ covers the ordinary case for free, so the watermark is now only a fallback for a
 *sustained* count outage across a whole multi-page walk, at the cost of an extra
 request against the 120-per-actor budget. Recorded rather than built.
 
-`test/workload-tweak-feedback-source.js` grew 34 assertions across the three
-commits and runs **210 pass**. Against `0d588fa`, red on the 4 acceptance
+**Fourth correction, and it removes a check rather than adding one.** Having made
+the terminal count the proof, the code still kept the old cross-page comparison
+that required every counted page to report the same number. Codex found on
+`33f7ab9` that this is not a stability check but a false-refusal generator, and
+the walk-through settles it: the counts are taken at different moments, so an
+older row that page 1 counted but had not yet served can legitimately be deleted
+before the terminal page — the terminal count comes back smaller, the rows
+collected are still the whole current thread, and the comparison rejected them.
+
+It also protected nothing. Enumerated against the terminal-count equality:
+
+| what happens mid-walk | terminal count vs `rows.length` | caught? |
+|---|---|---|
+| comment inserted at the head after page 1 | count is higher | yes, refuses |
+| already-collected row deleted | count is lower | yes, refuses |
+| older, not-yet-served row deleted | equal, and correctly so | accepted, as it should be |
+| compensating insert **and** delete | equal | no — and cross-page agreement missed it too |
+
+So the comparison cost real reads and bought nothing. Intermediate counts are now
+neither retained nor compared, and the local that held them is gone.
+
+`test/workload-tweak-feedback-source.js` grew 35 assertions across the four
+commits and runs **211 pass**. Against `0d588fa`, red on the 4 acceptance
 assertions. Against `1396c7f`, red on the 3 refusals that closed the head-insert
-hole. Against `9ba499a`, red on exactly **1** assertion, the over-strict case, with
-the head-insertion refusal and the terminal-uncounted refusal green in both — each
-round changing only what it claimed to.
+hole. Against `9ba499a`, red on exactly 1, the over-strict case. Against
+`33f7ab9`, red on exactly **1**, the legitimate mid-walk deletion — with every
+refusal green in both runs, which is what proves those refusals were already
+resting on the terminal count and not on the comparison being removed.
+
+**Worth recording as a working note, not just as four fixes.** Rounds two, three
+and four were all repairs to this lane's own previous round, and the sequence went
+unsound → over-strict → still carrying the over-strict remnant. Each time the
+error was reasoning about a component from its call site instead of reading it:
+the browser reader was never checked for `total` use, the endpoint's `totalQuery`
+was never checked for cursor filtering, and the leftover comparison was never
+re-examined once the proof beneath it had changed. A finding fixed at the wrong
+altitude produces the next finding.
 
 **Proof.** `node test/production-comments-total-fail-open.js`. It drives the real
 TypeScript handler through a transport that refuses ONE of the two queries by

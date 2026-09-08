@@ -338,7 +338,7 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
     page([canonical('a')], { total: 2 }),
   ] });
-  await refuses('a total that moves between pages refuses — the thread changed under the read', { pages: [
+  await refuses('a terminal count that disagrees with the rows collected refuses — the thread changed under the read', { pages: [
     page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
     page([canonical('b')], { total: 9 }),
   ] });
@@ -418,11 +418,28 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     ok(calls.length === 2 && rows.length === 2 && rows.failed !== true,
       'a fully counted paged walk still succeeds — the strict path is unchanged');
   }
-  await refuses('a counted page still has to agree with every other counted page, null pages notwithstanding', { pages: [
+  await refuses('a terminal count still governs across a walk with a null page in the middle', { pages: [
     page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
     page([canonical('b')], { total: null, has_more: true, next_cursor: { id: 'b', created_at: now } }),
     page([canonical('c')], { total: 9 }),
   ] });
+  {
+    // INTERMEDIATE counts are not retained, and must not be. They are taken at
+    // different moments, so an older row that page 1 counted but had not yet
+    // served can legitimately be deleted before the terminal page: the terminal
+    // count comes back smaller and the rows collected are still the whole
+    // current thread. Comparing the two counts rejected that read. It also
+    // caught nothing the terminal count does not — a head insertion leaves the
+    // terminal count ABOVE rows.length, a deletion of an already-collected row
+    // leaves it BELOW — so the comparison was pure false refusal.
+    const { context } = build({ pages: [
+      page([canonical('a')], { total: 3, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+      page([canonical('b')], { total: 2 }),
+    ] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(rows.length === 2 && rows.failed !== true,
+      'an older unserved row deleted mid-walk is accepted — the terminal count matches the rows collected, and the higher earlier count is not held against it');
+  }
   await refuses('a counted page that disagrees with the rows served still refuses when a later count is null', { pages: [
     page([canonical('a')], { total: 5, has_more: true, next_cursor: { id: 'a', created_at: now } }),
     page([canonical('b')], { total: null }),

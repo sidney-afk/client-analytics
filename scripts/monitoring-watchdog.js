@@ -122,11 +122,20 @@ const LANES = Object.freeze([
    * WHAT THAT DOES AND DOES NOT BUY, stated as arithmetic because the first
    * version of this comment got it wrong and said "pages within six hours":
    * freshness is only evaluated when a host actually runs, so the real
-   * detection deadline is max_age_minutes PLUS the observation interval, not
+   * detection time is max_age_minutes PLUS the observation interval, not
    * max_age_minutes alone. A lane that stops right after a beat is seen at
    * age 274 by the next host (healthy) and only at age 548 by the one after,
-   * so the worst case here is 360 + 274 = 634 minutes, about ten and a half
-   * hours. Typical is nearer nine.
+   * putting detection near 360 + 274 = 634 minutes, about ten and a half
+   * hours, with typical nearer nine.
+   *
+   * 634 IS AN ESTIMATE, NOT A BOUND, and the distinction matters for a record
+   * operators lean on: 274 is the largest gap in the sampled history, not a
+   * limit GitHub honours. Best-effort scheduling can drop firings for longer
+   * than anything measured here, which pushes detection past 634 by however
+   * long the gap runs; and if BOTH hosts stop firing, no page is produced at
+   * all. That last case is the residual the runbook already names — a total
+   * Actions outage silences both halves — and closing it needs an observer
+   * outside Actions, not a different number here.
    *
    * There is no threshold that fixes this, and that is the point worth
    * carrying: no-false-positives requires max_age above the 274-minute

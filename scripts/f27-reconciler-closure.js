@@ -256,12 +256,14 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // separately because conflating them is the error this change had to correct
   // twice: the staleness threshold for `monitoring_watchdog` moves from 180 to
   // 360 minutes. Detection time is a different number — freshness is only
-  // evaluated when a host runs, so the worst case is the threshold PLUS the
-  // observation interval, about 634 minutes here against roughly 454 before.
+  // evaluated when a host runs, so detection is the threshold PLUS the
+  // observation interval, near 634 minutes here against roughly 454 before —
+  // an estimate from the worst observed host gap, not a bound, since
+  // best-effort scheduling can drop firings for longer than anything measured.
   // No other lane's threshold changes, and no lane's detection path does.
-  // (Previous pin: cc2b4324...)
+  // (Previous pins: c1573201... this branch, cc2b4324... before it.)
   'scripts/monitoring-watchdog.js':
-    'c157320180361993484de8a5c6dae2cfb1724747ae6e6b1696fb5607f309f6fe',
+    'c1a773a3c062fd850040a0dfb4f0e261ff1c466a831c15f871e7ce6468506348',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

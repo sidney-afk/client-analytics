@@ -70525,9 +70525,14 @@
         .tk-toggle input:checked ~ .tk-toggle-track { background: var(--sv-bg-111110); }
         .tk-toggle input:checked ~ .tk-toggle-track .tk-toggle-thumb { left: 15px; }
         .tk-radio-row { display: flex; gap: 8px; flex-wrap: wrap; }
-        .tk-radio { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border: 1.5px solid var(--border); border-radius: 99px; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); background: var(--white); transition: all 0.13s; }
-        .tk-radio input { display: none; }
+        .tk-radio { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border: 1.5px solid var(--border); border-radius: 99px; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); background: var(--white); transition: all 0.13s; }
+        /* Visually hidden, not display:none — a display:none input drops out of the tab
+           order entirely, which made every .tk-radio group (including the new Video /
+           Photo carousel toggle) unreachable by keyboard. This keeps it focusable and
+           announced by screen readers while looking identical for mouse/touch. */
+        .tk-radio input { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
         .tk-radio:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
+        .tk-radio:focus-within { outline: 2px solid var(--sv-border-111110); outline-offset: 2px; }
         .tk-radio.active { background: var(--sv-bg-111110); color: var(--sv-fg-fff); border-color: var(--sv-border-111110); }
         .tk-submit-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; position: sticky; bottom: 16px; box-shadow: 0 6px 24px var(--sv-shadow-rgba-0-0-0-0_06); }
         .tk-submit-btn { flex-shrink: 0; padding: 12px 28px; background: var(--sv-bg-111110); color: var(--sv-fg-fff); border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
@@ -70603,9 +70608,16 @@
         .tk-photo-item { position: relative; aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); }
         .tk-photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .tk-photo-badge { position: absolute; top: 6px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 800; display: grid; place-items: center; }
-        .tk-photo-actions { position: absolute; inset-inline: 0; bottom: 0; display: flex; gap: 4px; padding: 5px; background: linear-gradient(to top, var(--sv-bg-rgba-0-0-0-0_55), transparent); opacity: 0; transition: opacity 0.13s; }
+        .tk-photo-actions { position: absolute; inset-inline: 0; bottom: 0; display: flex; gap: 4px; padding: 6px; background: linear-gradient(to top, var(--sv-bg-rgba-0-0-0-0_55), transparent); opacity: 0; transition: opacity 0.13s; }
         .tk-photo-item:hover .tk-photo-actions, .tk-photo-item:focus-within .tk-photo-actions { opacity: 1; }
-        .tk-photo-btn { flex: 1; border: none; border-radius: 5px; background: var(--white); color: var(--text-primary); font-size: 0.76rem; font-weight: 700; padding: 3px 0; cursor: pointer; }
+        /* Hover-to-reveal has no equivalent on touch — a tap would focus and activate an
+           unseen button in one gesture — so keep the strip visible whenever the device has
+           no real hover capability, per UI_DESIGN_STANDARDS.md's keyboard/mobile-states rule. */
+        @media (hover: none) { .tk-photo-actions { opacity: 1; } }
+        .tk-photo-btn { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 36px; border: none; border-radius: 5px; background: var(--white); color: var(--text-primary); font-size: 0.76rem; font-weight: 700; padding: 3px 0; cursor: pointer; }
+        /* 36px, not the full 44px UI_DESIGN_STANDARDS.md default: three controls share one
+           thumbnail's width, which is the "where space permits" exception the standard itself
+           carves out — this is the tallest they can go without shrinking the image preview. */
         .tk-photo-btn:disabled { opacity: 0.35; cursor: not-allowed; }
         .tk-photo-btn-remove { color: var(--sv-fg-dc2626); }
         `;
@@ -71460,6 +71472,14 @@
     // drop zone — the SMM never sees which path ran.
     function _tkSubmitDirect(idempotencyKey, scheduledAtWall, scheduledAtUTC) {
         const file = tkState.file;
+        // Snapshot the submission target now, synchronously, before any async gap.
+        // The mint + PUT round trip below can take a while for a large video, and
+        // the client/caption/option controls are not disabled while it runs — so
+        // reading tkState.* lazily in _tkFinishDirectSubmit would let an edit made
+        // mid-upload (e.g. switching clients) redirect an already-uploading video
+        // to the wrong Post For Me account. Read once here, thread the snapshot
+        // through instead.
+        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz };
         tkState.submitting = true;
         tkState.error = null;
         tkState.progress = 0;
@@ -71487,7 +71507,7 @@
                 _tkRenderForm();
                 return;
             }
-            _tkPutDirect(file, mint.upload_url, mint.media_url, idempotencyKey, scheduledAtWall, scheduledAtUTC);
+            _tkPutDirect(file, mint.upload_url, mint.media_url, idempotencyKey, scheduledAtWall, scheduledAtUTC, target);
         };
         urlXhr.onerror = () => {
             _tkActiveXhr = null;
@@ -71506,7 +71526,7 @@
         urlXhr.send();
     }
 
-    function _tkPutDirect(file, uploadUrl, mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+    function _tkPutDirect(file, uploadUrl, mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC, target) {
         const putXhr = new XMLHttpRequest();
         _tkActiveXhr = putXhr;
         putXhr.open('PUT', uploadUrl);
@@ -71527,7 +71547,7 @@
                 _tkRenderForm();
                 return;
             }
-            _tkFinishDirectSubmit(mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC);
+            _tkFinishDirectSubmit(mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC, target);
         };
         putXhr.onerror = () => {
             _tkActiveXhr = null;
@@ -71546,7 +71566,7 @@
         putXhr.send(file);
     }
 
-    function _tkFinishDirectSubmit(mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+    function _tkFinishDirectSubmit(mediaUrl, idempotencyKey, scheduledAtWall, scheduledAtUTC, target) {
         // FormData (not JSON) deliberately: a JSON content-type forces the browser
         // to send a CORS preflight (OPTIONS) first, and n8n's webhook node here is
         // bound to POST only — it 500s on OPTIONS instead of answering it, which
@@ -71554,14 +71574,14 @@
         // path exists to fix. multipart/form-data is CORS-simple (no preflight),
         // same as the legacy path above, which is why that one never hit this.
         const fd = new FormData();
-        fd.append('clientName', tkState.client);
-        fd.append('socialAccountId', tkState.profile);
-        fd.append('title', tkState.title);
-        fd.append('options', JSON.stringify(tkState.options));
+        fd.append('clientName', target.client);
+        fd.append('socialAccountId', target.profile);
+        fd.append('title', target.title);
+        fd.append('options', JSON.stringify(target.options));
         fd.append('scheduledAt', scheduledAtWall);
         fd.append('scheduledAtUTC', scheduledAtUTC);
         fd.append('scheduledAtUnix', scheduledAtUTC ? String(Math.floor(Date.parse(scheduledAtUTC) / 1000)) : '');
-        fd.append('timezone', tkState.schedule.tz);
+        fd.append('timezone', target.tz);
         fd.append('idempotencyKey', idempotencyKey);
         fd.append('mediaUrl', mediaUrl);
         const xhr = new XMLHttpRequest();
@@ -71606,6 +71626,13 @@
     // in-band single-video tiktok-upload workflow.
     async function _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC) {
         const photos = tkState.photos.slice();
+        // Snapshot the submission target now, synchronously, before the sequential
+        // mint+PUT loop below (which can take a while for several images). Client,
+        // caption and option controls are not disabled while it runs, so reading
+        // tkState.* lazily in _tkFinishPhotoSubmit would let an edit made mid-upload
+        // (e.g. switching clients) hand these photos to the wrong Post For Me
+        // account. Read once here, thread the snapshot through instead.
+        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz };
         tkState.submitting = true;
         tkState.error = null;
         tkState.progress = 0;
@@ -71639,20 +71666,20 @@
             return;
         }
         _tkActivePhotoAbort = null;
-        _tkFinishPhotoSubmit(mediaUrls, idempotencyKey, scheduledAtWall, scheduledAtUTC);
+        _tkFinishPhotoSubmit(mediaUrls, idempotencyKey, scheduledAtWall, scheduledAtUTC, target);
     }
 
-    function _tkFinishPhotoSubmit(mediaUrls, idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+    function _tkFinishPhotoSubmit(mediaUrls, idempotencyKey, scheduledAtWall, scheduledAtUTC, target) {
         // FormData (not JSON) for the same CORS-simple reason as _tkFinishDirectSubmit above.
         const fd = new FormData();
-        fd.append('clientName', tkState.client);
-        fd.append('socialAccountId', tkState.profile);
-        fd.append('title', tkState.title);
-        fd.append('options', JSON.stringify(tkState.options));
+        fd.append('clientName', target.client);
+        fd.append('socialAccountId', target.profile);
+        fd.append('title', target.title);
+        fd.append('options', JSON.stringify(target.options));
         fd.append('scheduledAt', scheduledAtWall);
         fd.append('scheduledAtUTC', scheduledAtUTC);
         fd.append('scheduledAtUnix', scheduledAtUTC ? String(Math.floor(Date.parse(scheduledAtUTC) / 1000)) : '');
-        fd.append('timezone', tkState.schedule.tz);
+        fd.append('timezone', target.tz);
         fd.append('idempotencyKey', idempotencyKey);
         fd.append('mediaUrls', JSON.stringify(mediaUrls));
         const xhr = new XMLHttpRequest();

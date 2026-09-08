@@ -14747,3 +14747,27 @@ runtime harness (abandon-on-different-client and survive-on-matching-client,
 for both request shapes, plus the no-op-reset case untouched) and rewrote
 the `_calHideOwnToast` unit test to pass `_toastEl` instead of a `document`
 mock, since there is no longer a DOM query to mock.
+
+**Sixth Codex pass, same PR, on the fix above.** One finding, and it was a
+real regression from the fifth pass's own fix, caught within minutes:
+
+12. *(P2)* `_calSetClient`'s fifth-pass fix treated ANY `calState.client`
+    change — including the transition to `null` — as abandoning a pending
+    card-link request. But `mountCalendar()` deliberately routes through
+    `_calSetClient(null)` as a "still resolving, don't paint the wrong
+    client" loader placeholder while a sheet-only-client link's roster read
+    is in flight (`else if (_calPendingDeepLink) initial = null;`). A
+    RETURNING staff tab — `calState.client` already set from an earlier
+    visit — that received a deferred link to a different client lost that
+    link the instant the loader mounted, before `_calResolvePendingDeepLink`
+    ever ran. Silently: the exact failure shape this whole item exists to
+    end, self-inflicted by the fifth pass. Fixed by excluding `name ===
+    null` from both clearing checks — `null` stays a permissive placeholder,
+    consistent with `mountCalendar`'s own reasoning for using it, and with
+    the owner's standing "when a guard could go either way, choose
+    permissive" directive (AGENTS.md) that Codex's finding cited.
+
+Pinned: two new `test/calendar-deep-link-focus.js` cases (one per request
+shape) construct exactly the returning-staff-tab scenario and assert the
+`null` mount transition touches neither `_calFocusRequest` nor
+`_calPendingDeepLink`.

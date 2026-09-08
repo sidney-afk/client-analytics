@@ -132,6 +132,44 @@ ok(!!rerouteRow && Array.isArray(rerouteRow.value && rerouteRow.value.clients)
   'and its roster is non-empty, so the harness is not back to describing an empty allowlist');
 ok(JSON.parse(FIXTURE.productionRosterBody()).length === rows.length,
   'the served body is the same rows the fixture declares');
+/* ---- 3b. AND IT CARRIES THE SECOND FLAG THAT READ FETCHES --------------- */
+/* Codex finding, 2026-09-08. The priming read asks for TWO keys in one request
+   and splits the rows itself, so a reply carrying only the reroute row is a
+   reply that says `client_comment_gateway_enabled` is absent — and absent is
+   OFF. Every harness therefore ran with the client-comment front door shut
+   while production has had it open since 2026-08-14, which put eligible client
+   comments on the legacy `linear-add-comment` fallback in the nightly and on
+   the native gateway in production. Same defect as the `[]` roster, one flag
+   over. Every check below fails against the reroute-row-only fixture. */
+
+const gatewayRow = rows.find(r => r && r.key === 'client_comment_gateway_enabled') || null;
+ok(!!gatewayRow,
+  'the fixture carries the client_comment_gateway_enabled row too — the read asks for both keys '
+  + 'in one request, so a one-row answer states the second flag is absent');
+
+/* Judged by the SHIPPED predicate, not by eyeballing the literal: only the
+   exact value `{"enabled": true}` opens the door, and this is the function that
+   decides. */
+const gatewaySandbox = { console, Array, Boolean, String, _calV2Log: function () {}, _clientCommentGatewayEnabled: null };
+vm.createContext(gatewaySandbox);
+vm.runInContext(
+  grabFunc('_clientCommentGatewaySetFlagValue') + '\n'
+  + grabFunc('_clientCommentGatewayOn'), gatewaySandbox);
+
+function frontDoorForBody(bodyText) {
+  const list = JSON.parse(bodyText);
+  const row = list.find(r => r && r.key === 'client_comment_gateway_enabled') || null;
+  gatewaySandbox._clientCommentGatewaySetFlagValue(row && row.value ? row.value : null);
+  return gatewaySandbox._clientCommentGatewayOn();
+}
+
+ok(frontDoorForBody(FIXTURE.productionRosterBody()) === true,
+  'the body the harnesses serve opens the client-comment FRONT DOOR, which is what production '
+  + 'has had open since the 2026-08-14 rollout');
+ok(frontDoorForBody(JSON.stringify([rerouteRow])) === false,
+  '  · COUNTEREXAMPLE: the reroute row on its own leaves it shut — the exact state every harness '
+  + 'was in, and the reason a client comment there took the legacy lane');
+
 ok(FIXTURE.isRerouteFlagRequest('https://x/rest/v1/syncview_runtime_flags?key=in.(write_ui_reroute_clients)')
   && !FIXTURE.isRerouteFlagRequest('https://x/rest/v1/syncview_runtime_flags?key=eq.calendar_upsert_ef_clients'),
   'the fixture matches the reroute flag read and leaves every other runtime flag live');
@@ -154,7 +192,9 @@ function laneForHarnessBody(bodyText) {
   };
   vm.createContext(sandbox);
   vm.runInContext(
-    grabFunc('_calRuntimeFlagClients') + '\n'
+    grabFunc('_calRuntimeFlagSlug') + '\n'
+    + grabFunc('_calRuntimeFlagRawMembers') + '\n'
+    + grabFunc('_calRuntimeFlagClients') + '\n'
     + grabFunc('_writeUiRerouteRosterUsable') + '\n'
     + grabFunc('_writeUiSetRerouteFlagValue') + '\n'
     + grabFunc('_writeUiRerouteUseGateway') + '\n'

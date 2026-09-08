@@ -14069,6 +14069,65 @@ The COMPLETENESS half of the entry above is unaffected and stands: the retired
 endpoint capped at 30 pages / 1,500 issues and the native reads page to
 exhaustion.
 
+### CORRECTION, 2026-09-08 (Codex finding 4 on PR #1346): **TEST AND INTERNAL CLIENTS WERE IN THE TOTALS.**
+
+The client lookup selected `slug,display_name` and nothing else, so the shaper
+could not tell one kind of client from another and every slug counted.
+`TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §9.11 names three exclusions for Video
+production totals — the Graphics team, TEST/internal clients, and unassigned
+work. Two of the three were implemented (`kind === 'video'`, `assignee_id`) and
+the third was not.
+
+The one that matters is TEST: `sidneylaruel` is the client the nightly probes
+drive, they move statuses on it all night, every move writes a `status_change`
+to `deliverable_events`, and each row landed in whichever editor holds the
+`assignee_id` — in the panel Kasper reads to judge people.
+
+**MEASURED AGAINST LIVE DATA, 2026-09-08** (read-only, publishable key, the same
+window, filters and grouping the shipped code uses; window resolved to
+`2026-08-31T05:00:00Z → 2026-09-07T05:00:00Z`, the same week the entry above
+measured):
+
+| | before | after |
+|---|---|---|
+| video + assigned deliverables | 139 | **123** |
+| editors returned | 4 | **3** |
+| in-window transitions counted | 458 | **440** |
+
+16 deliverables and 18 transitions drop: **1 from the TEST client and 15 from an
+internal one**. No slug in the window lacked a `clients` row, so the permissive
+branch below changed nothing this week.
+
+**AND IT EXPLAINS A LINE IN THE ENTRY ABOVE.** That measurement noted "one of the
+four returned 15 videos and a plate of 0 — its in-window transitions were all
+reviewer/pipeline moves, which is the existing definition working, not a gap."
+It was not the definition working. Those 15 videos are the internal client's, and
+that editor is the one who disappears entirely here. The odd row was the
+contamination, read as a curiosity.
+
+**EXCLUDED BY `kind`, NOT BY `active`, deliberately.** An offboarded real client
+(`kind:'client', active:false` — three live today) still had real videos edited
+by a real editor; dropping their week would erase work that happened. A slug
+with NO `clients` row is KEPT, per `AGENTS.md` ("when a guard could go either
+way, choose permissive"): the panel is a total, an absent registry row is not
+evidence of a robot, and silently under-reporting an editor is the failure
+nobody can see. Only a row that says `test` or `internal` is evidence.
+
+**IS THIS A BEHAVIOUR CHANGE FROM THE RETIRED ENDPOINT?** Probably yes, and it is
+not provable from here. The `editors-week` n8n workflow is not readable from this
+repo and must not be edited or invoked to find out, and the browser no longer
+calls it. The spec sentence exists because someone specified the exclusion for
+the REBUILD, which reads as the old reader not having it. So: **last week's
+number can legitimately drop when this merges**, and the drop is the robot and
+the internal client leaving, not work going missing. Stated here rather than
+corrected silently.
+
+**Test:** eight checks added to `test/editors-week-native.js` (TEST excluded,
+internal excluded, real client kept, offboarded real client kept, unknown slug
+kept, exactly two removed, the read actually selects `kind`, and an all-TEST week
+returning the empty envelope rather than an editor with a plate of zero). All
+eight fail against the shaper as it stood.
+
 ---
 
 ## 175. [2026-09-07, BUILT, live on merge with no deploy; lane LX-C] The write-UI reroute flag failed to LINEAR, and Linear is the thing that is about to stop existing
@@ -14248,6 +14307,121 @@ session could not do or verify — there is no route to it from the sandbox. **D
 not close it by putting the roster back to `[]`.** That restores the green, and
 the green was the defect. Owner decision owed on whether the fixture work lands
 in this lane or its own.
+
+### EXTENSION, 2026-09-08 (Codex findings 1 and 3 on PR #1346)
+
+**FINDING 1 — a malformed roster still read as usable.**
+`_writeUiRerouteRosterUsable` asked only whether normalisation produced at least
+one slug, and `_calRuntimeFlagClients` normalised every member with
+`String(x || '')`. `String()` does not reject a non-string, it FABRICATES a slug
+out of it: `{}` becomes `"[object Object]"`, which the slug rules strip to the
+perfectly plausible-looking `objectobject`. So `{"clients":[{}]}` — one corrupt
+value in the flag row — produced a non-empty roster that no real client is in,
+cleared the unusable signal, and sent all 43 enrolled clients back to
+`LINEAR_SET_STATUS_URL` / `LINEAR_ADD_COMMENT_URL` through the *factual* answer
+"this slug is not enrolled". The repair above, re-entered through its own fix.
+
+Fixed in two places, deliberately:
+
+- `_calRuntimeFlagSlug` is the member normaliser and answers **null** for
+  anything that is not a string. Every caller filters those out, so this only
+  ever drops entries that could not have matched a real client slug — the four
+  allowlists (`calendar_upsert_ef_clients`, `settings_ef_clients`,
+  `sample_review_ef_clients`, the reroute roster) keep exactly the behaviour they
+  had on well-formed data and stop inventing members on corrupt data.
+- `_writeUiRerouteRosterUsable` now requires that the value offers a member list
+  at all and that **every** member is slug-shaped. Salvaging the good half of a
+  mixed roster would leave the router acting on a roster it cannot trust, with
+  the 42 clients not in the salvaged half back on the dead lane.
+
+`_calRuntimeFlagRawMembers` was split out so the routing gate can tell "an
+operator's roster holding nobody" (`[]`) from "this value has no roster in it"
+(a scalar, an object of the wrong shape). The normaliser flattens both to zero
+slugs, which is right for an allowlist and wrong for a router.
+
+**Test:** 21 checks added to `test/write-ui-reroute-usable-roster.js`; **11 fail**
+against the predicate as it stood, including the finding verbatim
+(`{"clients":[{}]}`), the mixed good-slug-plus-corrupt-member case, and a control
+proving an all-strings roster is still usable and still decides by enrollment.
+
+**FINDING 3 — the shared fixture dropped the comment-gateway row.**
+`_writeUiFetchRerouteFlagOnce` issues ONE request for
+`key=in.(write_ui_reroute_clients,client_comment_gateway_enabled)` and splits the
+rows itself. `qa/write_ui_reroute_fixture.js` answered it with the reroute row
+alone, so `_clientCommentGatewaySetFlagValue(null)` ran on every harness and the
+client-comment front door was OFF — the same defect as the `[]` roster, one flag
+over, with eligible client comments exercising the legacy `linear-add-comment`
+fallback instead of the shipped native path.
+
+Read live 2026-09-08, read-only with the publishable key:
+`prod_authority = {"video":"syncview","graphics":"syncview"}` and
+`client_comment_gateway_enabled = {"enabled":true}` — ON since the 2026-08-14
+rollout. The fixture now serves both rows. Nothing elsewhere was depending on the
+door being shut: the only other harness that keys on the flag is
+`qa/probes/ot4_t1_submit_intake_guards.js`, which builds its own route table,
+leaves the row absent, and never opens a client comment — its comment claimed
+absent was "the faithful pre-rollout state", which stopped being true in August,
+and has been corrected to say why the row is absent there.
+
+**Test:** three checks added to `test/qa-harness-routes-like-production.js`,
+judged by the SHIPPED `_clientCommentGatewaySetFlagValue` / `_clientCommentGatewayOn`
+rather than by reading the literal, with the reroute-row-only body as the
+counterexample. All three fail against the one-row fixture.
+
+### THE PROBE-FIXTURE HALF IS NOW DONE — the part marked "NOT done" above
+
+`qa/native_work_item_fixture.js` gives the probes' own cards the thing a
+production card has: a native work item. It stamps `video_deliverable_id` /
+`graphic_deliverable_id` onto the probe's cards **in the calendar response**,
+answers the crosswalk read for exactly those ids with a row that genuinely
+describes the card, mocks the gateway, counts the retired webhooks, and seeds the
+verified staff identity the native lane requires and the retired webhooks did
+not.
+
+The ids are fixture-level rather than real, and that is a decision, not a
+shortcut: `calendar_posts.video_deliverable_id` carries a foreign key to
+`public.deliverables`, which the browser publishable key cannot write, and
+re-pointing a probe card at an EXISTING client deliverable would seed the exact
+F42 crosswalk breakage the product refuses. So the fixture fakes the ids it
+minted and nothing else — every flag read, the authority read, the card rows and
+every other table stay live.
+
+`p28`, `p29` and `p30` now assert native gateway intents and assert **ZERO**
+traffic to `linear-set-status` / `linear-add-comment`. They previously asserted
+the opposite, which is why "put the roster back to `[]`" was never the fix.
+
+**WHAT WAS ACTUALLY RUN, AND WHAT WAS NOT.**
+
+- `p28` and `p29`: **executed and green** (14/14 and 7/7) against the real
+  `index.html` and live backend reads, through the read-only bridge in
+  `docs/syncview-design/tests/prod-backend-bridge.js` — Chromium in an agent
+  sandbox has no route of its own (OPEN_REPAIRS 144/125). The bridge refuses
+  writes, so the source-save POSTs it blocks make a status push retry; the
+  assertions tolerate duplicates and the nightly has no bridge.
+- `p28` also needed one seeding change that is nothing to do with routing: both
+  approval picks are refused on an empty component by the 2026-09-05 "review
+  needs something to review" rule, so its card now carries an asset and a
+  thumbnail like `p29`/`p30` already did.
+- `p30`: **not run.** A client-entry tab needs a live review token, which needs
+  `SYNCVIEW_STAFF_KEY` — a repository secret this session does not hold. Its
+  comment assertion is the one place a residual risk sits: the client front door
+  also requires a verified client-entry capability, which only a real token
+  produces. The flag and the crosswalk it needs are both supplied; the capability
+  is not testable here.
+- The other 94 of the 136 probes that touch these surfaces are **not run and not
+  audited** here. Any of them that drives a status change or a comment on a
+  targetless card will now refuse rather than push to a mocked webhook, exactly
+  as production does. That is the honest remaining exposure of this item.
+
+**Test:** `test/probes-assert-native-write-lane.js`, 40 offline checks in
+`npm test`. It drives the fixture's real route handlers through a stand-in for
+Playwright's routing API (the card is stamped, other cards are not, a
+deliverables read naming none of the fixture ids is left live) and runs the
+shipped `_writeUiNativeId`, `_prodCrosswalkMismatchFields` and
+`_writeUiNativeStatus` over the fixture's own output, so the shapes the probes
+assert are the shapes the shipped code produces. It exists because the probes
+need a browser and a backend, and a claim about what the nightly asserts should
+be checkable on every pull request.
 
 ---
 

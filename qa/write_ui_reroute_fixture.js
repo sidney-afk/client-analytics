@@ -51,10 +51,36 @@
 /* The TEST client the probes drive. A slug, never a display name. */
 const WRITE_UI_REROUTE_TEST_CLIENT = 'sidneylaruel';
 
-/* Shaped exactly like the PostgREST rows `_writeUiFetchRerouteFlagOnce` reads:
-   `select=key,value` over `syncview_runtime_flags`. */
+/* THE READ FETCHES TWO KEYS, SO THE ANSWER HAS TO CARRY TWO ROWS.
+ *
+ * Codex finding, 2026-09-08. `_writeUiFetchRerouteFlagOnce` issues ONE request
+ * for `key=in.(write_ui_reroute_clients,client_comment_gateway_enabled)` and
+ * splits the rows itself. The first version of this fixture answered that
+ * request with the reroute row alone, so `_clientCommentGatewaySetFlagValue`
+ * received `null` on every harness run and the client-comment FRONT DOOR was
+ * OFF — while production has it ON.
+ *
+ * That is the same defect as the `[]` roster it was written to repair, one flag
+ * over: a harness answering a production read with a non-production body, so
+ * eligible client comments exercised the legacy `linear-add-comment` fallback
+ * instead of the shipped native path, and the nightly was green about a lane
+ * the product does not take.
+ *
+ * Read live 2026-09-08, read-only with the browser publishable key:
+ *   prod_authority                 {"video":"syncview","graphics":"syncview"}
+ *   client_comment_gateway_enabled {"enabled":true}
+ * The front door has been ON since the 2026-08-14 rollout (EXECUTION_LOG,
+ * docs/ops/COMMENT_GATEWAY_ROLLOUT.md Step B, docs/truth/BRIEFING.md).
+ *
+ * Only the exact value `{"enabled": true}` opens the door, and the tab must
+ * also be able to build a verified gateway context — so serving this does not
+ * force every client comment native, it stops FORCING them legacy.
+ *
+ * Shaped exactly like the PostgREST rows the read consumes:
+ * `select=key,value` over `syncview_runtime_flags`. */
 const WRITE_UI_REROUTE_PRODUCTION_ROWS = [
-  { key: 'write_ui_reroute_clients', value: { clients: [WRITE_UI_REROUTE_TEST_CLIENT] } }
+  { key: 'write_ui_reroute_clients', value: { clients: [WRITE_UI_REROUTE_TEST_CLIENT] } },
+  { key: 'client_comment_gateway_enabled', value: { enabled: true } }
 ];
 
 const WRITE_UI_REROUTE_CORS = {

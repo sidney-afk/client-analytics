@@ -25410,11 +25410,41 @@
     let _settingsEfClients = new Set();
     let _settingsFlagPromise = null;
     let _settingsFlagChannel = null;
+    /* One roster MEMBER, normalised, or null when the member is not a slug at
+       all. Codex finding on the item-175 repair: this used to be
+       `calClientSlug(String(x || ''))` inline, and `String()` does not reject a
+       non-string -- it FABRICATES a slug out of it. `{}` becomes
+       "[object Object]", which the slug rules then strip to the perfectly
+       plausible-looking `objectobject`. So `{"clients":[{}]}` -- a corrupt row,
+       an object where a slug belongs -- produced a non-empty roster that no
+       real client is in, and every real client fell through to "not enrolled".
+       A member that is not a string is corruption, and the honest answer is
+       null rather than an invented enrolment. Every caller filters those out,
+       so this only ever drops entries that could not have matched a real client
+       slug in the first place; what it additionally buys is that
+       `_writeUiRerouteRosterUsable` can now SEE the corruption instead of
+       counting it. */
+    function _calRuntimeFlagSlug(member) {
+        if (typeof member !== 'string') return null;
+        let slug;
+        try { slug = calClientSlug(member); }
+        catch (e) { slug = member.toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return slug || null;
+    }
+    /* The members a flag value offers, or null when it offers no member list at
+       all. Split out of the normaliser so the routing gate can tell "an
+       operator's roster holding nobody" (`[]`) from "this value has no roster
+       in it" (a scalar, an object of the wrong shape) -- the normaliser
+       flattens both to zero slugs, and that is the right answer for an
+       ALLOWLIST and the wrong one for a router. */
+    function _calRuntimeFlagRawMembers(value) {
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === 'object' && Array.isArray(value.clients)) return value.clients;
+        return null;
+    }
     function _calRuntimeFlagClients(value) {
-        const raw = Array.isArray(value) ? value : (value && Array.isArray(value.clients) ? value.clients : []);
-        return raw.map(x => {
-            try { return calClientSlug(String(x || '')); } catch (e) { return String(x || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
-        }).filter(Boolean);
+        const raw = _calRuntimeFlagRawMembers(value);
+        return (raw || []).map(x => _calRuntimeFlagSlug(x)).filter(Boolean);
     }
     function _calSetUpsertFlagValue(value) {
         _calUpsertEfClients = new Set(_calRuntimeFlagClients(value));
@@ -25441,7 +25471,19 @@
     function _writeUiRerouteRosterUsable(row) {
         const value = row && row.value;
         if (!value || typeof value !== 'object') return false;
-        return _calRuntimeFlagClients(value).length > 0;
+        const members = _calRuntimeFlagRawMembers(value);
+        if (!members || !members.length) return false;
+        /* EVERY member has to be slug-shaped, not merely one of them. Asking
+           "did normalisation produce at least one slug" was the Codex finding
+           on the first version of this predicate: a corrupt value such as
+           {"clients":[{}]} answered YES -- because the coercion invented
+           `objectobject` -- and that single bogus entry cleared the unusable
+           signal for the whole roster, sending every real client, none of whom
+           are in it, straight back to the retiring Linear webhooks. A roster
+           carrying anything that is not a slug is a roster this tab cannot
+           route by, whatever else is in it, so it heads for the native
+           authority that can refuse out loud. */
+        return members.every(member => _calRuntimeFlagSlug(member) !== null);
     }
     function _writeUiSetRerouteFlagValue(value, options) {
         const previousClients = new Set(_writeUiRerouteClients);
@@ -78597,7 +78639,7 @@
 
         // Only video deliverables: the panel counts videos, and graphics work
         // would inflate every headline number.
-        const deliverables = (await _kedRestIn(
+        let deliverables = (await _kedRestIn(
             'deliverables', 'id,title,client_slug,assignee_id,kind,linear_issue_url', 'id', ids))
             .filter(d => d && d.kind === 'video' && d.assignee_id);
         if (!deliverables.length) {
@@ -78610,9 +78652,47 @@
         const memberById = new Map(members.map(m => [m.id, m]));
         const clientSlugs = Array.from(new Set(deliverables.map(d => d.client_slug).filter(Boolean)));
         const clients = clientSlugs.length
-            ? await _kedRestIn('clients', 'slug,display_name', 'slug', clientSlugs)
+            ? await _kedRestIn('clients', 'slug,display_name,kind', 'slug', clientSlugs)
             : [];
         const clientBySlug = new Map(clients.map(c => [c.slug, c.display_name]));
+        /* TEST AND INTERNAL CLIENTS ARE NOT EDITOR PRODUCTION.
+
+           Codex finding, 2026-09-08. This lookup selected `slug,display_name`
+           only, so it could not tell one kind of client from another and every
+           slug counted. `sidneylaruel` is the TEST client the nightly probes
+           drive: they move statuses on it continuously, each move writes a
+           `status_change` to `deliverable_events`, and every one of those rows
+           landed in whichever editor holds the assignee_id — inflating first
+           cuts, tweak rounds, finishes and the videos-on-plate count with
+           robot traffic, in the panel Kasper reads to judge people.
+           `TRACK_B_LINEAR_REPLACEMENT_SPEC.md` §9.11 names the exclusion
+           explicitly ("exclude the Graphics team, TEST/internal clients, and
+           unassigned work from Video production totals"); the other two halves
+           of that sentence were already implemented above (`kind === 'video'`,
+           `assignee_id`) and this one was not.
+
+           EXCLUDED BY `kind`, NOT BY `active`, and the difference is
+           deliberate. An offboarded real client (`kind:'client', active:false`
+           — three of them live today) still had real videos edited by a real
+           editor, and dropping their week would erase work that happened. Only
+           a client that is not production work at all is removed.
+
+           A slug with NO `clients` row is KEPT, per the house rule that a guard
+           which could go either way chooses permissive (`AGENTS.md`): the panel
+           is a total, an absent registry row is not evidence of a robot, and
+           silently under-reporting an editor is the failure nobody can see. A
+           row that says `test` or `internal` IS evidence, and that is the only
+           thing dropped here. */
+        const nonProductionSlugs = new Set(clients
+            .filter(c => ['test', 'internal'].includes(String(c && c.kind || '').trim().toLowerCase()))
+            .map(c => c.slug));
+        if (nonProductionSlugs.size) {
+            deliverables = deliverables.filter(d => !nonProductionSlugs.has(d.client_slug));
+            if (!deliverables.length) {
+                return { weekLabel: _kedWeekLabel(weekStartMs, weekEndMs), weekStart: startISO,
+                         weekEnd: endISO, source: 'native', editors: [] };
+            }
+        }
 
         const byEditor = new Map();
         for (const d of deliverables) {

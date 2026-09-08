@@ -315,6 +315,78 @@ function ev(deliverable_id, ts, from_status, to_status) {
     && mixedOut.editors[0].videos[0].id === 'v1',
     'graphics deliverables and unassigned videos are excluded, so headline counts stay video-only');
 
+  /* ── 6b. TEST AND INTERNAL CLIENTS ARE NOT EDITOR PRODUCTION ─────────── */
+  /* Codex finding, 2026-09-08. The client lookup selected `slug,display_name`
+     only, so nothing downstream could tell one kind of client from another and
+     every slug counted. The TEST client is the one the nightly probes drive:
+     they move statuses on it all night, each move writes a `status_change`
+     row, and every one landed in whichever editor holds the assignee_id — in
+     the panel Kasper reads to judge people. TRACK_B_LINEAR_REPLACEMENT_SPEC
+     §9.11 names the exclusion; the graphics and unassigned halves of the same
+     sentence were already implemented (§6 above) and this one was not.
+
+     Every check in this block fails against the shaper as it stood before
+     2026-09-08. */
+  const kinds = makeSandbox({
+    deliverable_events: [
+      ev('real1', iso(0, 15), 'in_progress', 'smm_approval'),
+      ev('test1', iso(0, 15), 'in_progress', 'smm_approval'),
+      ev('int1', iso(0, 15), 'in_progress', 'smm_approval'),
+      ev('churned1', iso(0, 15), 'in_progress', 'smm_approval'),
+      ev('unknown1', iso(0, 15), 'in_progress', 'smm_approval')
+    ],
+    deliverables: [
+      { id: 'real1', title: 'R', client_slug: 'realclient', assignee_id: 'm1', kind: 'video', linear_issue_url: '' },
+      { id: 'test1', title: 'T', client_slug: 'robotclient', assignee_id: 'm1', kind: 'video', linear_issue_url: '' },
+      { id: 'int1', title: 'I', client_slug: 'internalclient', assignee_id: 'm1', kind: 'video', linear_issue_url: '' },
+      { id: 'churned1', title: 'C', client_slug: 'churnedclient', assignee_id: 'm1', kind: 'video', linear_issue_url: '' },
+      { id: 'unknown1', title: 'U', client_slug: 'noregistryrow', assignee_id: 'm1', kind: 'video', linear_issue_url: '' }
+    ],
+    team_members: [{ id: 'm1', name: 'Editor One', email: 'e1@example.invalid', role: 'editor', active: true }],
+    clients: [
+      { slug: 'realclient', display_name: 'Real Client', kind: 'client', active: true },
+      { slug: 'robotclient', display_name: 'Robot Client', kind: 'test', active: true },
+      { slug: 'internalclient', display_name: 'Internal Client', kind: 'internal', active: false },
+      { slug: 'churnedclient', display_name: 'Churned Client', kind: 'client', active: false }
+      /* `noregistryrow` deliberately has NO row at all. */
+    ]
+  });
+  const kindsOut = await kinds._kedFetchNativeWeek();
+  const kindIds = kindsOut.editors.length ? kindsOut.editors[0].videos.map(v => v.id).sort() : [];
+  ok(!kindIds.includes('test1'),
+    "a TEST client's video is excluded from an editor's week — the nightly probes' own status "
+    + 'traffic no longer counts as that editor\'s production');
+  ok(!kindIds.includes('int1'),
+    'and an INTERNAL client\'s video is excluded too, per spec §9.11');
+  ok(kindIds.includes('real1'),
+    'while a real active client\'s video is kept — the filter did not widen into "drop everything"');
+  ok(kindIds.includes('churned1'),
+    'an OFFBOARDED real client (kind:client, active:false) is KEPT: the work happened, and the rule '
+    + 'is kind, not active — dropping it would erase a real week from a real editor');
+  ok(kindIds.includes('unknown1'),
+    'a slug with no registry row at all is KEPT: an absent row is not evidence of a robot, and '
+    + 'AGENTS.md says a guard that could go either way chooses permissive');
+  ok(kindIds.length === 3,
+    'so exactly the two proven non-production clients are removed and nothing else (' + kindIds.join(',') + ')');
+
+  /* The lookup has to ASK for `kind`. Selecting only slug/display_name is how
+     the defect existed at all — a filter written against a column the request
+     never returned would silently keep everything. */
+  ok(/_kedRestIn\(\s*'clients',\s*'slug,display_name,kind'/.test(INDEX),
+    'the shipped clients read selects `kind`, so the filter has something real to judge');
+
+  /* An editor whose whole week was TEST work vanishes rather than appearing
+     with a plate of zero — the panel lists people who did production work. */
+  const allRobot = makeSandbox({
+    deliverable_events: [ev('t1', iso(0, 15), 'in_progress', 'smm_approval')],
+    deliverables: [{ id: 't1', title: 'T', client_slug: 'robotclient', assignee_id: 'm1', kind: 'video', linear_issue_url: '' }],
+    team_members: [{ id: 'm1', name: 'Editor One', email: 'e1@example.invalid', role: 'editor', active: true }],
+    clients: [{ slug: 'robotclient', display_name: 'Robot Client', kind: 'test', active: true }]
+  });
+  const allRobotOut = await allRobot._kedFetchNativeWeek();
+  ok(Array.isArray(allRobotOut.editors) && allRobotOut.editors.length === 0 && allRobotOut.weekStart,
+    'a week that was entirely TEST traffic returns the empty envelope, not an editor with a plate of zero');
+
   /* Paging: a week over the 1000-row PostgREST default must not truncate.
      A truncated read is indistinguishable from a quiet week. */
   const many = [];

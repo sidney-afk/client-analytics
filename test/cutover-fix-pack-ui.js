@@ -355,6 +355,8 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     // _writeUiRerouteRosterUsable normalises through this. Extracted rather
     // than stubbed so the usability rule is judged by the real slug rules; its
     // own try/catch covers calClientSlug being absent from this harness.
+    extract('_calRuntimeFlagSlug'),
+    extract('_calRuntimeFlagRawMembers'),
     extract('_calRuntimeFlagClients'),
     extract('_writeUiRerouteRosterUsable'),
     extract('_writeUiFetchRerouteFlagOnce'),

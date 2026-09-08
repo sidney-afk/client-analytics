@@ -211,6 +211,71 @@ const EMPTY_CASES = [
     'and still routes LEGACY, because with no Supabase config the native gateway is unreachable too — '
     + 'the one state where an empty roster means what it says');
 
+  /* ---- 7. A MALFORMED ROSTER IS NOT A USABLE ONE ----------------------- */
+  /* Codex finding on the section-1 fix, 2026-09-08. The usability question was
+     "did normalisation produce at least one slug", and normalisation coerced
+     every member with `String(x || '')`. `{}` coerces to "[object Object]",
+     which the slug rules strip to `objectobject` — a non-empty, entirely
+     plausible-looking entry. So a corrupt row cleared the unusable signal, the
+     predicate fell back to the factual "this slug is not enrolled", and every
+     real client went to LINEAR_SET_STATUS_URL / LINEAR_ADD_COMMENT_URL: the
+     exact outcome section 1 exists to prevent, reached through section 1's own
+     fix. Members are validated by TYPE now, and a roster carrying anything that
+     is not a slug routes to the authority that can refuse out loud.
+
+     Every check in this section fails against the predicate as it stood before
+     2026-09-08. */
+
+  const MALFORMED_CASES = [
+    ['an object where a slug belongs — the finding verbatim', { clients: [{}] }],
+    ['a populated object member', { clients: [{ slug: 'enrolledclient' }] }],
+    ['a nested array member', { clients: [['enrolledclient']] }],
+    ['a numeric member', { clients: [123] }],
+    ['a boolean member', { clients: [true] }],
+    ['a null member', { clients: [null] }],
+    ['a whitespace-only member that normalises to nothing', { clients: ['   '] }],
+    ['a bare array value carrying an object', [{}]]
+  ];
+
+  for (const [label, value] of MALFORMED_CASES) {
+    const m = makeSandbox();
+    m.serve([{ key: 'write_ui_reroute_clients', value }]);
+    await m.prime();
+    ok(m.routing('realclient') === true,
+      `a roster whose members are corrupt (${label}) routes a live write NATIVE`);
+    ok(m.clients().every(slug => slug !== 'objectobject'),
+      `  · and no slug is FABRICATED out of it (${label}) — the allowlist gains nothing that could `
+      + 'never have matched a real client');
+  }
+
+  /* THE MIXED CASE, which is the one a partial-validation fix would still get
+     wrong: one good slug beside one corrupt member. Salvaging the good half
+     would leave the router acting on a roster it cannot trust, and every client
+     absent from the salvaged half — which is 42 of the 43 — back on the dead
+     lane. The allowlist still keeps the good half, because the drain's question
+     is factual and unchanged. */
+  const mixed = makeSandbox();
+  mixed.serve([{ key: 'write_ui_reroute_clients', value: { clients: ['enrolledclient', {}] } }]);
+  await mixed.prime();
+  ok(mixed.routing('someoneelse') === true,
+    'one corrupt member beside a good slug makes the WHOLE roster unusable for routing');
+  ok(mixed.routing('enrolledclient') === true,
+    '  · including for the client that IS named in it — an untrustworthy roster is untrustworthy '
+    + 'in both directions, and native is the direction that can refuse out loud');
+  ok(mixed.clients().length === 1 && mixed.clients()[0] === 'enrolledclient',
+    '  · while the ALLOWLIST keeps exactly the good slug and nothing invented — the drain and the '
+    + 'project-source filter are untouched, as item 175 pinned');
+  ok(mixed.failed() === false,
+    '  · and the READ is still not marked failed: the transport was fine, the content was not');
+
+  /* The positive control. Validation by type must not make a healthy roster
+     unusable, or this section would pass by breaking everything. */
+  const healthy = makeSandbox();
+  healthy.serve(ROSTER);
+  await healthy.prime();
+  ok(healthy.routing('someoneelse') === false && healthy.routing('enrolledclient') === true,
+    'CONTROL: an all-strings roster is still usable and still decides by enrollment');
+
   console.log(`\nwrite-ui-reroute-usable-roster: ${failures ? failures + ' failed ❌' : 'all checks passed ✅'}`);
   process.exit(failures ? 1 : 0);
 })();

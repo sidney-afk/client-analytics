@@ -95,13 +95,28 @@ started:
 | PR | State | What it is |
 |---|---|---|
 | [#1268](https://github.com/sidney-afk/client-analytics/pull/1268) | Draft, base `main`, **docs only** (20 files) | Its "canonical plan", with `LINEAR_EXIT_RELEASE_PACKET_2026-09-07.md` as the reviewable status |
-| [#1326](https://github.com/sidney-afk/client-analytics/pull/1326) | Draft, base `integration/linear-exit-candidate-20260906` | The runtime stack it refers to |
+| [#1326](https://github.com/sidney-afk/client-analytics/pull/1326) | Draft, **base `main`**, all 8 hosted jobs green at `5bcc03bd` | A combined runtime candidate for the whole exit: native intake/assignments/labels, card and feedback recovery, Workload cutoff, tokenless writer composition, 42-table recovery |
 | [#1341](https://github.com/sidney-afk/client-analytics/pull/1341) | Draft, stacked on #1326 | **A native urgent-alert replacement**, i.e. the `send-urgent-slack` fix |
 
-**Do not merge any of them on the strength of this section.** #1326 and #1341 are
-stacked on an integration branch rather than `main`, they are drafts by their
-authors' own choice, and #1268's own text says no merge or deploy is authorized.
-They are listed because of what they *know*, not because they are ready.
+**Do not merge any of them on the strength of this section.** All three are drafts
+by their authors' own choice, #1268's own text says no merge or deploy is
+authorized, and #1326 states that first installation and final recovery remain
+unproven. They are listed for what they *know*, not because they are ready.
+
+**#1326 needs stating precisely, because it is the one that could waste real
+work.** It is not a stranded side branch: it targets `main`, and its author
+reports all eight hosted jobs green at `5bcc03bd`. What it covers overlaps this
+programme's lanes A (Workload), D (feedback recovery) and F (cutoff) directly.
+Two separate, independently-CI-green attempts at the same exit now exist, built
+without knowledge of each other.
+
+**This document does not rule on which one wins, and neither should a session.**
+That is an owner decision with a second model, and it is the single most valuable
+thing for that review to settle, ahead of any individual PR. What can be said
+factually: #1326 preserves `main` at `70715496a`, which is many merges behind
+today's tip, so it would need a substantial re-merge before it could be
+considered at all; this programme's four PRs are current. That is an argument
+about freshness, not about which design is better.
 
 ### What it holds that this programme does not
 
@@ -153,11 +168,18 @@ available.
 ### Why this was missed, since the method matters more than the miss
 
 Every lane in this programme was scoped from `main` and from documents on `main`.
-All three of these PRs are **drafts**, and two are based on an integration branch
-rather than `main`, so nothing any lane read could have mentioned them. The
-open-PR list would have — and no lane, this coordinator included, read it. **A
-document claiming to span every lane must enumerate the lanes from the PR list,
-not from the branch it happens to be standing on.**
+All three of these PRs are **drafts**, so none of their content is on `main` and
+nothing any lane read could have mentioned them. The open-PR list would have, and
+no lane read it, this coordinator included. **A document claiming to span every
+lane must enumerate the lanes from the PR list, not from the branch it happens to
+be standing on.**
+
+Correcting one thing in the first version of this section, within the hour, so
+the record is right: it said #1326 was based on an integration branch. **It is
+based on `main`.** Only #1341 is on the integration branch. That mattered, and
+getting it wrong understated the finding — a draft on `main` with green CI is a
+live alternative to this programme's work, not a stranded experiment, and the
+whole point of the section is what the review needs to weigh.
 
 ---
 

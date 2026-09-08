@@ -16865,9 +16865,23 @@ patched.
 **What exists.** Three open drafts from an earlier effort, authored 2026-09-04 to
 2026-09-07 and last touched hours before this programme's lanes started:
 PR #1268 (draft, base `main`, docs only, its release packet is the reviewable
-status), PR #1326 (draft, base `integration/linear-exit-candidate-20260906`, the
-runtime stack) and PR #1341 (draft, stacked on #1326, **a native urgent-alert
+status), PR #1326 (draft, **base `main`**, all eight hosted jobs green at
+`5bcc03bd`, a combined runtime candidate for the whole exit) and PR #1341 (draft,
+on the integration branch, stacked on #1326, **a native urgent-alert
 replacement**).
+
+**Correction inside the hour, because the first version of this entry understated
+the finding.** It said #1326 was based on an integration branch. It is based on
+`main`. Only #1341 is on the integration branch. The difference is the finding: a
+green draft on `main` covering native intake, card and feedback recovery and the
+Workload cutoff is a **live alternative** to lanes A, D and F, not a stranded
+experiment. Two independently-CI-green attempts at the same exit now exist, built
+without knowledge of each other, and which one wins is an owner decision with a
+second model rather than a session's call. The only factual argument available
+without that review: #1326 preserves `main` at `70715496a` and is many merges
+behind today's tip, so it needs a substantial re-merge before it can be weighed
+at all, while this programme's four PRs are current. That is freshness, not
+design quality.
 
 **Four things it holds that this programme does not.**
 

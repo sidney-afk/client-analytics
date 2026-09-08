@@ -14647,6 +14647,30 @@ named "every compiled tree path" explicitly. Measured: **12** compiled paths,
 were forced onto the retired lane by the blanket wiring. Both populations are now
 driven in the suite.
 
+**AND APPLYING THAT RULE WAS ITSELF A STEP TOO EARLY** (Codex on `a1b6d60`).
+Routing the other 80 scenarios to the production roster gives them the right
+LANE and a harness that cannot drive it: `qa/scenario_engine.js` seeds only fake
+`linear_issue_id` values and installs no `stubNativeWorkItems`, no
+`stubNativeGateway` and no verified staff identity — grep it for any of the three
+and the count is zero. Every native status or comment action would refuse with
+`native_link_required` or `credentials_required` BEFORE the journey under test
+ran, turning the whole samples nightly red rather than covering more of it.
+
+Right rule, premature application. The engine now asks `scenarioLaneIsLegacy`,
+which is the rule **OR** a named harness limit,
+`SCENARIO_HARNESS_CAN_DRIVE_NATIVE = false`. The two are deliberately separate: a
+single predicate returning "legacy" for both reasons would quietly lie about
+which one applied, and the reason is the whole content here. While the limit
+holds, all 84 run legacy — the pre-existing state, not a regression.
+
+Flipping that constant is the entire migration switch: seed native work items in
+the scenario fixtures, capture the gateway, seed a staff identity (the three
+things `qa/native_work_item_fixture.js` already does for p28/p29/p30/p36/p60),
+then set it `true` and the tested selector puts exactly 4 of 84 on the retired
+lane and the other 80 where production is. The suite pins that the constant is
+HONEST — it re-greps the engine for the three capabilities — so it cannot be set
+true while the harness still lacks them.
+
 **AND TWO LANES SHOULD NOT HAVE BEEN PINNED AT ALL.** `ot4_t0_client_edge_conditions`
 (the Tier-0 P4 real-client failure/lost-ack recovery contract) and
 `sxr_kasper_audit_holes` (approve/undo persistence and `kasper_approved_at`) are

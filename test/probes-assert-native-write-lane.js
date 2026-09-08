@@ -187,7 +187,7 @@ const OUTSIDE_MANIFEST = {
     witness: "if (verb === 'expectLinear') {",
     // Per SCENARIO, not per file: only the 4 of 84 that assert on the retired lane.
     // Section 1d drives the selector over the real scenario data.
-    legacyOptIn: 'scenarioUsesLegacyLane(scn)'
+    legacyOptIn: 'scenarioLaneIsLegacy(scn)'
   },
   'qa/probes/ot4_t0_client_edge_conditions.js': {
     polarity: 'present',
@@ -529,8 +529,33 @@ const legacyScenarios = allScenarios.filter(ENGINE.scenarioUsesLegacyLane);
 ok(allScenarios.length > 50,
   'the scenario set loads and is the real one (' + allScenarios.length + ' base scenarios)');
 ok(legacyScenarios.length > 0 && legacyScenarios.length < allScenarios.length / 4,
-  'only the scenarios that actually assert on the retired lane select it — '
+  'the RULE marks only the scenarios that actually assert on the retired lane — '
   + legacyScenarios.length + ' of ' + allScenarios.length + ', not all of them');
+
+/* THE RULE IS NOT YET WHAT THE ENGINE ASKS FOR, and that gap is the point.
+   Codex on a1b6d60: applying the rule put the other 80 scenarios on the production roster,
+   but the scenario harness seeds only fake `linear_issue_id` values — no native work items,
+   no gateway capture, no verified staff identity (grep `scenario_engine.js` for any of the
+   three: zero). Every native action would refuse with `native_link_required` or
+   `credentials_required` BEFORE the journey under test ran, turning the whole samples
+   nightly red. Right rule, applied a step too early.
+   So the engine asks `scenarioLaneIsLegacy`, which is the rule OR the harness limit, and the
+   limit is a named constant rather than something baked into the predicate — a predicate
+   that returned "legacy" for both reasons would quietly lie about which one applied. */
+ok(ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE === false,
+  'the scenario harness still cannot drive the native lane, and says so in one named constant');
+ok(allScenarios.every(scn => ENGINE.scenarioLaneIsLegacy(scn)) === true,
+  '  · so while that holds, EVERY scenario runs legacy — the pre-existing state, not a '
+  + 'regression, and not a nightly turned red by a premature switch');
+ok(ENGINE.scenarioLaneIsLegacy !== ENGINE.scenarioUsesLegacyLane,
+  '  · but the RULE stays separate from the LIMIT, so flipping the constant is the whole '
+  + 'migration switch and nothing has to be re-derived');
+const engineSrc = fs.readFileSync(path.join(ROOT, 'qa', 'scenario_engine.js'), 'utf8');
+ok(/scenarioLaneIsLegacy\(scn\)/.test(engineSrc),
+  '  · and the engine asks the combined question, not the rule alone');
+ok(!/stubNativeWorkItems|stubNativeGateway|seedVerifiedProbeStaff/.test(engineSrc),
+  '  · the constant is HONEST: the engine really does install no native seeding, so this is '
+  + 'a measured limit rather than a claimed one');
 for (const scn of legacyScenarios) {
   ok(/expectLinear|expectNoLinear/.test(JSON.stringify(scn.steps || scn)),
     '  · every scenario it puts on the legacy lane really does carry a Linear assertion');

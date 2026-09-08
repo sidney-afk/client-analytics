@@ -33524,8 +33524,10 @@
     }
     /* Four staff surfaces share confirmation and delivery handling. Native
        identity goes only to the authenticated gateway; legacy URL-only cards
-       retain their existing webhook. A local hold prevents blind resubmission
-       after uncertain native delivery. It is not a global delivery receipt. */
+       retain their existing webhook, and so does a native-capable card for as
+       long as the gateway has not been redeployed (see the 400 branch below).
+       A local hold prevents blind resubmission after uncertain native delivery.
+       It is not a global delivery receipt. */
     function _calUrgentSlackDispatch(btn, issue, client, name, opts) {
         const native = opts && opts.native;
         const roundTime = native ? Date.parse(native.video_status_at) : NaN;
@@ -33555,7 +33557,7 @@
                 if (retainedAttempt()) { showUnknown(); return; }
                 if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
                 (async () => {
-                    let attempted = false, knownNotSent = false, holdWritten = false, holdValue = '';
+                    let attempted = false, knownNotSent = false, holdWritten = false, holdValue = '', nativeLane = !!native;
                     const releaseOwnHold = () => {
                         try {
                             if (holdWritten && localStorage.getItem(attemptKey) === holdValue) localStorage.removeItem(attemptKey);
@@ -33563,7 +33565,7 @@
                     };
                     try {
                         let resp;
-                        if (native) {
+                        if (nativeLane) {
                             // Retain before transport. This is a local recovery hold,
                             // not a cross-device delivery or exactly-once receipt.
                             holdValue = JSON.stringify({ state: 'delivery_unknown', attempt_id: crypto.randomUUID() });
@@ -33580,7 +33582,41 @@
                         });
                         let j = null;
                         try { j = await resp.json(); } catch {}
-                        if (native) {
+                        /* THE PRE-DEPLOYMENT 400 IS THE LEGACY LANE, NOT A DELIVERY
+                           DOUBT. This file ships to Pages on merge; the gateway that
+                           knows `native_urgent_dispatch` ships later, on the F27
+                           Section 4 dispatch. In between, the deployed gateway
+                           answers `400 unsupported_action` with NO `delivery` field
+                           -- a shape the live handler cannot produce for this action,
+                           because it catches everything and always answers with one.
+                           A 400 is also the one status no retry and no later state
+                           can turn into a delivery: the request shape itself was
+                           refused, so nothing was sent and nothing can be sent later.
+                           Reading it as unknown would retain the hold and disable the
+                           URGENT button for the length of that window on every card
+                           that already works today. So the hold is released and a card
+                           that still carries a Linear sub-issue falls through to the
+                           webhook it uses right now. A native-only card has no such
+                           lane and is told plainly that nothing was sent. Same
+                           doctrine as the Create Post editor picker; it retires with
+                           the provider lane, not before. */
+                        if (nativeLane && resp.status === 400 && j && j.ok === false
+                            && j.error === 'unsupported_action' && j.delivery === undefined) {
+                            nativeLane = false;
+                            releaseOwnHold();
+                            if (!issue) {
+                                if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                                showNotify('Could not send urgent ping', 'Nothing was sent. This video has no Linear sub-issue to fall back on, so post in #video-editing manually.');
+                                return;
+                            }
+                            resp = await fetch(URGENT_SLACK_URL, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ issue, client, name: String(name || '') })
+                            });
+                            j = null;
+                            try { j = await resp.json(); } catch {}
+                        }
+                        if (nativeLane) {
                             knownNotSent = !!(j && j.ok === false && j.delivery === 'not_sent' && j.retry_safe === true);
                             if (!(resp.ok && j && j.ok === true && j.delivery === 'sent'
                                 && typeof j.dispatch_id === 'string' && j.dispatch_id.trim()
@@ -33593,8 +33629,8 @@
                         if (!resp.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('http ' + (resp && resp.status)));
                         let persistFailed = false;
                         const sentAt = new Date().toISOString();
-                        const current = native && opts.currentPost ? opts.currentPost() : null;
-                        const sameRound = !native || !!(current && opts.currentClientSlug && opts.currentClientSlug() === native.client_slug
+                        const current = nativeLane && opts.currentPost ? opts.currentPost() : null;
+                        const sameRound = !nativeLane || !!(current && opts.currentClientSlug && opts.currentClientSlug() === native.client_slug
                             && String(current.id) === native.card_id
                             && _writeUiNativeId(current, 'video') === native.deliverable_id
                             && String(current.video_status_at || '') === native.video_status_at
@@ -33615,13 +33651,13 @@
                         const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
                         showNotify('Urgent ping sent', 'Posted to #video-editing' + who + (persistFailed ? '. The Sent state may not persist until the row saves.' : '.'));
                     } catch (e) {
-                        if (native && attempted && !knownNotSent) { showUnknown(); return; }
-                        if (native && !attempted) {
+                        if (nativeLane && attempted && !knownNotSent) { showUnknown(); return; }
+                        if (nativeLane && !attempted) {
                             releaseOwnHold();
                             if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                             showNotify('Could not prepare urgent ping', 'Nothing was sent. This browser could not retain the delivery attempt. Check browser storage before trying again.'); return;
                         }
-                        if (native && knownNotSent) {
+                        if (nativeLane && knownNotSent) {
                             releaseOwnHold();
                             if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
                             const code = e.code || 'native_urgent_unconfirmed';

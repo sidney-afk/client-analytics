@@ -16,7 +16,10 @@ function world(surface='calendar',store=new Map()){
  localStorage:{getItem:k=>{if(ctx.readFailure)throw Error('storage');return store.get(k)||null;},setItem:(k,v)=>{if(ctx.writeFailure)throw Error('quota');store.set(k,v);},removeItem:k=>store.delete(k)},
  showNotify:(...x)=>notices.push(x),showConfirm:(title,text,fn)=>confirms.push(fn),
  _calPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},_sxrPersistUrgentSentForPost:async(...x)=>{persisted.push(x);if(ctx.persistFailure)throw Error('save');},
- fetch:async(url,options)=>{sent.push({url,options,body:JSON.parse(options.body)});if(ctx.afterFetch)await ctx.afterFetch();if(ctx.lost)throw Error('lost');return {ok:ctx.status===200,status:ctx.status,json:async()=>{if(ctx.invalidJson)throw Error('parse');return ctx.reply;}}},status:200,reply:{ok:true,delivery:'sent',dispatch_id:'dispatch-1',slack_ts:'123.456'}};
+ fetch:async(url,options)=>{sent.push({url,options,body:JSON.parse(options.body)});if(ctx.afterFetch)await ctx.afterFetch();if(ctx.lost)throw Error('lost');
+ // `staged` answers successive requests in order, so one attempt can cross lanes.
+ const staged=Array.isArray(ctx.staged)&&ctx.staged.length?ctx.staged.shift():null,status=staged?staged.status:ctx.status,reply=staged?staged.reply:ctx.reply;
+ return {ok:status===200,status,json:async()=>{if(ctx.invalidJson)throw Error('parse');return reply;}}},status:200,reply:{ok:true,delivery:'sent',dispatch_id:'dispatch-1',slack_ts:'123.456'}};
  vm.createContext(ctx);vm.runInContext(source,ctx);const fn={calendar:'_calSendUrgentSlack',samples:'_sxrSendUrgentSlack',samples_queue:'_sxrKasperSendUrgentSlack',calendar_queue:'_kasperSendUrgentSlack'}[surface];
  const click=(b=button())=>{ctx[fn]({currentTarget:b,preventDefault(){},stopPropagation(){}},post.id);return b;};
  return {ctx,post,item,store,sent,persisted,notices,confirms,button,click,confirm:async()=>{assert.equal(confirms.length,1);confirms.shift()();await new Promise(r=>setImmediate(r));}};
@@ -44,6 +47,46 @@ async function check(label,fn){await fn();passed++;console.log('PASS '+label);}
  await check('explicit pretransport refusal alone releases the local hold for manual retry',async()=>{const w=world(),b=w.click();w.ctx.status=409;w.ctx.reply={ok:false,delivery:'not_sent',retry_safe:true,error:'round_changed'};await w.confirm();assert.equal(w.store.size,0);assert.equal(w.persisted.length,0);assert.equal(b.disabled,false);w.click();assert.equal(w.confirms.length,1);assert.equal(w.sent.length,1);});
  for(const drift of ['round','identity','client','status'])await check('known delivery cannot mark changed '+drift,async()=>{const w=world(),b=w.click();w.ctx.afterFetch=()=>{if(drift==='round')w.post.video_status_at='2030-01-02T00:00:00.000Z';if(drift==='identity')w.post.video_deliverable_id='changed';if(drift==='client')w.ctx.scope='other';if(drift==='status')w.post.video_status='Approved';};await w.confirm();assert.equal(w.persisted.length,0);assert.notEqual(b.dataset.urgentSent,'1');assert.equal(b.textContent,'Earlier round sent');});
  await check('persistent marker failure never opens an acknowledged send to automatic retry',async()=>{const w=world(),b=w.click();w.ctx.persistFailure=true;await w.confirm();assert.equal(b.dataset.urgentSent,'1');const next=world('calendar',w.store);next.click();assert.equal(next.sent.length,0);assert.equal(next.confirms.length,0);});
+ // The gateway that knows this action deploys AFTER this file reaches Pages.
+ // Until it does, the deployed gateway answers `400 unsupported_action` with no
+ // `delivery` field, and a card that works today must keep working.
+ const UNSUPPORTED={status:400,reply:{ok:false,error:'unsupported_action'}};
+ for(const surface of ['calendar','samples','samples_queue','calendar_queue'])
+  await check(surface+' pre-deployment gateway falls back to the legacy webhook without staff credentials',async()=>{
+   const w=world(surface);w.post.linear_issue_id='https://linear.invalid/issue/1';const b=w.click();
+   w.ctx.staged=[UNSUPPORTED,{status:200,reply:{ok:true,editor:'Synthetic editor'}}];
+   await w.confirm();
+   assert.equal(w.sent.length,2);
+   assert.equal(w.sent[0].url,vm.runInContext('WRITE_UI_PRODUCTION_WRITE_URL',w.ctx));
+   assert.equal(w.sent[1].url,w.ctx.URGENT_SLACK_URL);
+   assert.deepEqual(Object.keys(w.sent[1].options.headers),['Content-Type']);
+   assert.equal(w.sent[1].body.issue,w.post.linear_issue_id);
+   assert.equal(w.store.size,0);
+   assert.equal(w.persisted.length,1);
+   assert.equal(b.dataset.urgentSent,'1');assert.equal(b.textContent,'Sent');
+   const reload=world(surface,w.store);reload.post.linear_issue_id=w.post.linear_issue_id;reload.click();assert.equal(reload.confirms.length,1);
+  });
+ await check('pre-deployment gateway leaves a native-only card explicitly unsent and retryable',async()=>{
+  const w=world(),b=w.click();w.ctx.staged=[UNSUPPORTED];
+  await w.confirm();
+  assert.equal(w.sent.length,1);assert.equal(w.persisted.length,0);assert.equal(w.store.size,0);
+  assert.equal(b.disabled,false);assert.equal(b.textContent,'URGENT');
+  assert.match(w.notices[0][1],/Nothing was sent|nothing was sent/);assert.match(w.notices[0][1],/manually/);
+  const reload=world('calendar',w.store);reload.click();assert.equal(reload.confirms.length,1);
+ });
+ await check('a 400 the live gateway can produce never reaches the legacy webhook',async()=>{
+  const w=world();w.post.linear_issue_id='https://linear.invalid/issue/1';const b=w.click();
+  w.ctx.status=400;w.ctx.reply={ok:false,delivery:'not_sent',retry_safe:true,error:'invalid_urgent_request'};
+  await w.confirm();
+  assert.equal(w.sent.length,1);assert.equal(w.persisted.length,0);assert.equal(w.store.size,0);assert.equal(b.disabled,false);
+  assert.match(w.notices[0][1],/code: invalid_urgent_request/);
+ });
+ await check('an unrecognised 400 stays conservative rather than guessing a lane',async()=>{
+  const w=world();w.post.linear_issue_id='https://linear.invalid/issue/1';const b=w.click();
+  w.ctx.status=400;w.ctx.reply={ok:false,error:'invalid_urgent_request'};
+  await w.confirm();
+  assert.equal(w.sent.length,1);assert.equal(w.persisted.length,0);assert.equal(b.textContent,'Check delivery');
+ });
  await check('client link cannot dispatch native urgent',async()=>{const w=world();w.ctx._isClientLink=true;w.click();assert.equal(w.confirms.length,0);assert.equal(w.sent.length,0);});
  await check('native video visibility preserves component and tweak status gates',async()=>{const w=world();for(const n of ['_calShowUrgent','_sxrShowUrgent']){assert.equal(w.ctx[n](w.post,'video'),true);assert.equal(w.ctx[n](w.post,'graphic'),false);assert.equal(w.ctx[n]({...w.post,video_status:'Approved'},'video'),false);assert.equal(w.ctx[n]({...w.post,video_deliverable_id:''},'video'),false);}});
  console.log(JSON.stringify({status:'PASS',passed,classification:'OFFLINE_ACTUAL_VM',external_requests:0,limitations:['Synthetic delivery replies; no server, Slack, installed auth, browser layout or global exactly-once proof']}));

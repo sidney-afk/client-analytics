@@ -162,7 +162,14 @@ preview. That now covers `is_tweak`, `source_created_at`
 carrying no boolean at all),
 `author_name` (labelled from the role, never "Unknown author", because the
 canonical twin already carries that label), `role` (lower-cased) and
-`resolved_by_name` (`done_by` first, as the importer has it). The emitted
+`resolved_by_name` (`done_by` first, as the importer has it). Reply AUDIENCE is
+mirrored for matching only: the planner makes a reply inherit its thread root's
+audience — a reply never sets its own client visibility — so a canonical twin
+carries the inherited value, and matching on the reply's row-local value could
+never meet it. The emitted `source_audience` deliberately stays row-local,
+because the panel renders it as "Card: client-visible" / "Card: internal", a
+label about what the CARD recorded; replacing it with an inherited value would
+make a displayed provenance label say something the card never said. The emitted
 `role` still stays null when the entry has none: an unknown role is deliberately
 non-disqualifying in the match, and inventing one would start refusing coverage
 rather than granting it. `test/component-feedback-read.js` holds a parity matrix

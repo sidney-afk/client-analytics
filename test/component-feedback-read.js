@@ -225,8 +225,14 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
       // made sameCurrentComment's strict equality on that field unmeetable, so
       // the note stayed visible twice forever. Both REAL functions run and their
       // answers are compared, so they cannot drift apart again.
-      const importScope = { productionId: 'pc-fixture', deliverableId: target.id, surface: 'calendar',
-        cardId: target.card_id, component: 'video', team: 'video', importRunId: 'fixture-run', resolvedAudience: 'internal' };
+      // The planner resolves a ROOT's audience with the importer's own exported
+      // rule before handing it to normalizeComment. Hard-coding 'internal' here
+      // made the fixture disagree with production for a client-role root, which
+      // then looked like a divergence in the projection rather than in the
+      // fixture. Use the real rule.
+      const importScope = raw => ({ productionId: 'pc-fixture', deliverableId: target.id, surface: 'calendar',
+        cardId: target.card_id, component: 'video', team: 'video', importRunId: 'fixture-run',
+        resolvedAudience: importer.ownAudience(raw) });
       const bare = { id: 'stamped', author: 'Fixture reviewer', role: 'smm', body: 'Same text' };
       const shapes = [
         { label: 'updated_at only', raw: { ...bare, updated_at: now } },
@@ -236,7 +242,7 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
       for (const shape of shapes) {
         reset([shape.raw]);
         const projected = (await call()).body.feedback.rows[0].source_created_at;
-        const imported = importer.normalizeComment({ ...shape.raw, _source_field: 'video_tweaks' }, importScope, null).source_created_at;
+        const imported = importer.normalizeComment({ ...shape.raw, _source_field: 'video_tweaks' }, importScope(shape.raw), null).source_created_at;
         assert.equal(projected, imported, 'video_tweaks with ' + shape.label);
       }
       // Where the projection deliberately STOPS mirroring the importer, and why.
@@ -249,9 +255,70 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
       // identity match is the one nobody can report. Left deliberately.
       reset([bare]);
       const projected = (await call()).body.feedback.rows[0].source_created_at;
-      const imported = importer.normalizeComment({ ...bare, _source_field: 'video_tweaks' }, importScope, null).source_created_at;
+      const imported = importer.normalizeComment({ ...bare, _source_field: 'video_tweaks' }, importScope(bare), null).source_created_at;
       assert.equal(projected, null, 'an entry with no timestamp projects an honest absence');
       assert.equal(imported, new Date(0).toISOString(), 'even though the importer defaults it to the epoch');
+    });
+    await check('the projection mirrors the importer\'s own-audience rule, executed on both sides', async () => {
+      // feedback.mjs cannot import a Node script, so it carries a mirror of
+      // ownAudience. A hand-written mirror is exactly what the last four rounds
+      // of findings were about, so it is verified against the importer's real
+      // EXPORTED rule rather than trusted.
+      const helper = fs.readFileSync(path.join(root, 'supabase/functions/production-comments/feedback.mjs'), 'utf8')
+        .match(/^const ownAudience = ([\s\S]*?);$/m);
+      assert(helper, 'the projection must declare a readable ownAudience mirror');
+      const policy = await import(pathToFileURL(path.join(root, 'supabase/functions/production-comments/policy.mjs')).href);
+      const mirrored = new Function('clean', 'return (' + helper[1] + ');')(policy.clean);
+      const shapes = [
+        {}, { audience: 'client' }, { audience: 'CLIENT' }, { audience: ' client ' }, { audience: 'internal' },
+        { audience: 'anything' }, { role: 'client' }, { role: 'CLIENT' }, { role: 'smm' }, { role: 'designer' },
+        { audience: 'internal', role: 'client' }, { audience: 'client', role: 'smm' }, { role: '' }, { audience: null },
+      ];
+      for (const raw of shapes) {
+        assert.equal(mirrored(raw), importer.ownAudience(raw),
+          'own-audience mirror disagrees for ' + JSON.stringify(raw));
+      }
+    });
+    await check('a reply is matched on the audience it INHERITS, and the card label still reports the card', async () => {
+      // The planner makes a reply inherit its thread root's audience — "a reply
+      // never sets its own client visibility" — so the canonical twin of a
+      // client-marked reply under an internal root carries `internal`. Matching
+      // on the reply's row-local value could never meet it, and the reply
+      // duplicated forever. The EMITTED source_audience stays row-local on
+      // purpose: the panel renders it as "Card: client-visible" / "Card:
+      // internal", a label about what the card recorded.
+      const rootRaw = { id: 'root', author: 'Fixture reviewer', role: 'smm', body: 'Same text',
+        created_at: now, updated_at: now, audience: 'internal' };
+      const replyRaw = { id: 'reply', parent_id: 'root', author: 'Fixture reviewer', role: 'smm',
+        body: 'Same text', created_at: now, updated_at: now, audience: 'client' };
+      reset([rootRaw, replyRaw]);
+      const scope = { productionId: 'pc-fixture', deliverableId: target.id, surface: 'calendar',
+        cardId: target.card_id, component: 'video', team: 'video', importRunId: 'fixture-run' };
+      const importedRoot = importer.normalizeComment({ ...rootRaw, _source_field: 'video_tweaks' },
+        { ...scope, resolvedAudience: importer.ownAudience(rootRaw) }, null);
+      // What the planner does for a reply: inherit the ROOT's audience.
+      const importedReply = importer.normalizeComment({ ...replyRaw, _source_field: 'video_tweaks' },
+        { ...scope, resolvedAudience: importer.ownAudience(rootRaw) }, 'root');
+      assert.equal(importedReply.audience, 'internal', 'the importer writes the inherited audience');
+      const canonicalFrom = (raw, imported, extra) => ({ ...canonical(raw.id),
+        author_name: imported.author_name, role: imported.role, body: imported.body,
+        audience: imported.audience, is_tweak: imported.is_tweak, round: imported.round,
+        source_created_at: imported.source_created_at, source_updated_at: imported.source_updated_at,
+        edited_at: imported.edited_at, deleted_at: imported.deleted_at,
+        resolved_at: imported.resolved_at, resolved_by_name: imported.resolved_by_name, ...extra });
+      db.production_comments = [
+        canonicalFrom(rootRaw, importedRoot),
+        canonicalFrom(replyRaw, importedReply, { parent_id: 'root' }),
+      ];
+      const rows = (await call()).body.feedback.rows;
+      // The response does not carry native_id, so the reply is identified by the
+      // card-local audience it kept — which is itself half the assertion.
+      const reply = rows.find(row => row.source_audience === 'client');
+      assert(reply, 'the reply is projected, still labelled with what the CARD recorded');
+      assert.equal(reply.covered_by, 'reply',
+        'a client-marked reply under an internal root is covered by its imported twin instead of duplicating');
+      const rootRow = rows.find(row => row.source_audience === 'internal');
+      assert.equal(rootRow && rootRow.covered_by, 'root', 'and the root is still covered by its own twin');
     });
     await check('PARITY MATRIX: every shape the importer accepts is covered, not duplicated', async () => {
       // Three divergences between this projection and the F42 importer have now
@@ -263,8 +330,9 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
       // a matrix of the raw shapes historical cards actually contain and asserts
       // the projection is covered by exactly what the importer would have
       // written. A new divergence fails here instead of in a review round.
-      const importScope = { productionId: 'pc-fixture', deliverableId: target.id, surface: 'calendar',
-        cardId: target.card_id, component: 'video', team: 'video', importRunId: 'fixture-run', resolvedAudience: 'internal' };
+      const importScope = raw => ({ productionId: 'pc-fixture', deliverableId: target.id, surface: 'calendar',
+        cardId: target.card_id, component: 'video', team: 'video', importRunId: 'fixture-run',
+        resolvedAudience: importer.ownAudience(raw) });
       const base = { id: 'shape', body: 'Same text' };
       const shapes = [
         { label: 'author and role present', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now } },
@@ -339,7 +407,7 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
         divergentValues.map(value => 'truthy ' + field + ' = ' + label(value)));
       const divergent = [];
       for (const shape of shapes) {
-        const imported = importer.normalizeComment({ ...shape.raw, _source_field: 'video_tweaks' }, importScope, null);
+        const imported = importer.normalizeComment({ ...shape.raw, _source_field: 'video_tweaks' }, importScope(shape.raw), null);
         reset([shape.raw]);
         db.production_comments = [{ ...canonical(shape.raw.id),
           author_name: imported.author_name, role: imported.role, body: imported.body,

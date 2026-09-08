@@ -15290,3 +15290,47 @@ Coverage: 20 generated forms from 5 declared vocabulary entries, 19 divergent ×
 
 Proof: **176 green** on the Workload suite (6 new, covering the flight/row
 scoping) and **35 pass** on `test/component-feedback-read.js`.
+
+### Eleventh follow-up: reply audience, mirrored for MATCHING and not for the label (Codex P2 on `d1f83d8`)
+
+Same family again, and the first member of it where the naive fix would have made
+a **displayed** claim untrue — so it is worth recording how the two were
+separated rather than only that they were.
+
+The F42 planner makes a reply inherit its thread ROOT's audience ("a reply never
+sets its own client visibility"), so the canonical twin of a client-marked reply
+under an internal root carries `internal`. The projection reported the reply's
+row-local `client`, `sameCurrentComment` compares audience exactly, and the reply
+duplicated forever.
+
+**What was NOT done, and why.** The obvious fix — make `source_audience` inherit —
+would have been wrong. The SyncLinear panel renders that field as
+*"Card: client-visible"* / *"Card: internal"* (`_prodCommentHTML`), a label about
+what the **card recorded**. Replacing it with the importer's resolved value would
+have made a visible provenance label say something the card never said. Two
+earlier rounds in this sequence went wrong by reasoning about display effects
+without checking them; this time the render path was read first, and it decided
+the shape of the fix.
+
+So the inherited audience is computed for **matching only** and passed to
+`sameCurrentComment` as a third argument; the emitted field stays row-local. The
+importer's root walk (topmost reachable ancestor, across every alias field of the
+component) is mirrored, including its `ownAudience` rule.
+
+**The mirror is verified, not trusted.** `feedback.mjs` cannot import a Node
+script, so it carries its own `ownAudience`. Since a hand-written mirror is
+precisely what the last several rounds have been about, the test extracts that
+mirror, executes it, and compares it against the importer's **exported**
+`ownAudience` across fourteen audience/role shapes. A drift fails there.
+
+**A fixture bug this exposed.** The parity matrix built its canonical rows with a
+hard-coded `resolvedAudience: 'internal'`, where the planner computes it with
+`ownAudience`. For a client-role root the fixture therefore disagreed with
+production, and the new matching surfaced it as a divergence in the projection
+when it was a divergence in the *fixture*. It now calls the importer's exported
+rule. Second fixture defect this sequence has produced (after the `{ now }` Date
+stub), both of which first presented as product failures.
+
+Proof: **37 pass**; red against `d1f83d8` with `a client-marked reply under an
+internal root is covered by its imported twin instead of duplicating`
+(`actual: undefined, expected: 'reply'`).

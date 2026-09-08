@@ -118,13 +118,39 @@ function sourceComment(raw, scope, field, index) {
   };
 }
 
-function sameCurrentComment(source, canonical) {
+// The importer's own-audience rule, before any inheritance: 'client' only when
+// the source says so explicitly or the author is a client.
+const ownAudience = raw => clean(raw && raw.audience).toLowerCase() === 'client'
+  || clean(raw && raw.role || 'smm').toLowerCase() === 'client' ? 'client' : 'internal';
+// The audience the IMPORTER would have written for this row, which is what a
+// canonical twin actually carries: a reply takes its thread ROOT's audience —
+// "a reply never sets its own client visibility" — and only a root keeps its
+// own. Used for MATCHING only. The emitted `source_audience` deliberately stays
+// row-local, because the panel renders it as "Card: client-visible" / "Card:
+// internal": that label reports what the CARD recorded, and replacing it with an
+// inherited value would make a displayed provenance label say something the card
+// never said.
+function importerAudience(raw, rawById, parentById) {
+  const id = clean(raw && (raw.id || raw.comment_id || raw.native_comment_id));
+  const parent = clean(raw && (raw.parent_id || raw.parentId));
+  if (!parent || !rawById.has(parent)) return ownAudience(raw);
+  const seen = new Set();
+  let cursor = id;
+  while (parentById.has(cursor) && rawById.has(parentById.get(cursor)) && !seen.has(cursor)) {
+    seen.add(cursor);
+    cursor = parentById.get(cursor);
+  }
+  return ownAudience(rawById.get(cursor) || {});
+}
+
+function sameCurrentComment(source, canonical, matchAudience) {
   const deleted = !!clean(canonical.deleted_at);
   const resolved = !!clean(canonical.resolved_at);
   return clean(canonical.component) === source.component
     && source.author_name === clean(canonical.author_name)
     && (!source.role || source.role === clean(canonical.role))
-    && (!source.source_audience || source.source_audience === canonical.audience)
+    && ((matchAudience || source.source_audience || '') === ''
+      || (matchAudience || source.source_audience) === canonical.audience)
     && source.body === (deleted ? '' : String(canonical.body ?? ''))
     && source.deleted === deleted && source.done === resolved
     // Unknown tweak metadata is non-disqualifying, exactly as unknown role and
@@ -182,6 +208,10 @@ export async function readLegacyFeedback(supabase, target, principal) {
     const rows = [];
     const aliases = new Map();
     const parsedFields = new Map(), hiddenIds = new Set(), deletedIds = new Set();
+    // Thread shape for this component, spanning every alias field exactly as the
+    // importer's per-component pass does, so a reply's ROOT is resolvable.
+    const rawById = new Map(), parentById = new Map();
+    const matchAudienceByRowId = new Map();
     // Suppression belongs to the stable comment identity across BOTH video
     // aliases, not to whichever row is encountered first. Inspect the whole
     // bounded payload before emitting a body, including beyond the row cap.
@@ -192,6 +222,14 @@ export async function readLegacyFeedback(supabase, target, principal) {
       try { values = typeof value === 'string' ? JSON.parse(value) : value; } catch { complete = false; sourcePartial = true; continue; }
       if (!Array.isArray(values)) { complete = false; sourcePartial = true; continue; }
       parsedFields.set(field, values);
+      for (const raw of values) if (object(raw)) {
+        const threadId = clean(raw.id || raw.comment_id || raw.native_comment_id);
+        if (threadId) {
+          if (!rawById.has(threadId)) rawById.set(threadId, raw);
+          const threadParent = clean(raw.parent_id || raw.parentId);
+          if (threadParent) parentById.set(threadId, threadParent);
+        }
+      }
       for (const raw of values) if (object(raw)) {
         const id = clean(raw.id || raw.comment_id || raw.native_comment_id);
         if (truthy(raw.hidden) || clean(raw.component) && clean(raw.component) !== scope.component) {
@@ -226,6 +264,7 @@ export async function readLegacyFeedback(supabase, target, principal) {
         if (truthy(raw.hidden)) { complete = false; suppressionObserved = true; continue; }
         if (clean(raw.component) && clean(raw.component) !== scope.component) { complete = false; suppressionObserved = true; continue; }
         const row = sourceComment(raw, scope, field, index);
+        matchAudienceByRowId.set(row.id, importerAudience(raw, rawById, parentById));
         if (row.deleted) suppressionObserved = true;
         if (!row.native_id) complete = false;
         // Video's two persisted aliases may contain the SAME stable identity.
@@ -261,7 +300,8 @@ export async function readLegacyFeedback(supabase, target, principal) {
     for (const row of rows) if (row.native_id) {
       const permitted = new Set([row.native_id, await importedCommentId(scope, row.native_id),
         ...links.filter(link => link.native_comment_id === row.native_id).map(link => link.production_comment_id)]);
-      const candidates = matches.filter(c => (permitted.has(c.id) || c.native_comment_id === row.native_id) && sameCurrentComment(row, c));
+      const candidates = matches.filter(c => (permitted.has(c.id) || c.native_comment_id === row.native_id)
+        && sameCurrentComment(row, c, matchAudienceByRowId.get(row.id)));
       if (candidates.length === 1) byNative.set(row.native_id, candidates[0].id);
     }
     const consumed = new Set();
@@ -274,7 +314,7 @@ export async function readLegacyFeedback(supabase, target, principal) {
       // their exact parent identity. Unknown parents stay visible as source.
       if (canonical && Number.isInteger(Number(canonical.version)) && clean(canonical.updated_at) && !consumed.has(candidate)
           && (row.parent_native_id ? expectedParent && canonical.parent_id === expectedParent : !canonical.parent_id)
-          && sameCurrentComment(row, canonical)) {
+          && sameCurrentComment(row, canonical, matchAudienceByRowId.get(row.id))) {
         row.covered_by = candidate;
         row.covered_version = Number(canonical.version);
         row.covered_updated_at = clean(canonical.updated_at);

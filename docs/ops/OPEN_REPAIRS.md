@@ -16944,6 +16944,13 @@ numerator.
 
 ### Addendum, 2026-09-08 — Create Post reads Linear twice before it writes, and none of the four held PRs fixes it
 
+> **SUPERSEDED IN PART, same day — read the correction addendum below before
+> acting on anything here.** The heading's "reads Linear twice" describes the
+> `create` operation, which is **closed** and never reaches a Linear read. The
+> conclusion survives via `intake_create`; the trace below does not. Annotated in
+> place rather than rewritten, per the append-only rule and the disambiguation
+> precedent set by the 175/176 collision.
+
 The most consequential finding of the day, and it contradicts a line the master
 sequence carried for most of it. That document said staff writes are safe on
 2026-09-15. True of status, comment and edit writes. **False of creating a post**,
@@ -17004,6 +17011,9 @@ quoted into a scope its source did not have.
 
 **Follow-up the same hour: `create` is not the only affected operation.** Every
 Linear read in `production-write` traced to the operation reaching it:
+
+> **SUPERSEDED TABLE — corrected below.** `create` is unreachable, and
+> `component_fill` is **Always**, not "Sometimes". Kept for the record.
 
 | Operation | Reads Linear? | Behind a flag? |
 |---|---|---|
@@ -17151,3 +17161,28 @@ write-fence sentence understated its subject; this programme's runbook sentence
 was slightly over-general; and a reviewer's line citation was correct but pointed
 at one of three call sites. None of the three outcomes was predictable before
 checking, which is the whole argument for checking.
+
+**The sweep that should have happened after each correction, and the two siblings
+it found.** Having just been caught leaving a stale count in this file after fixing
+it in the master sequence, the obvious next move was to grep the *claims* rather
+than the cited lines. It found two more, both in this ledger, both left behind by
+earlier corrections in this same entry:
+
+1. The addendum heading still asserted *"Create Post reads Linear twice before it
+   writes"* — the superseded claim, in a **heading**, which is the worst place for
+   one because headings are what a hurried reader trusts.
+2. The operation table still carried `create` as a live row and `component_fill` as
+   "Sometimes".
+
+Both are **annotated in place with a pointer to the correction**, not rewritten:
+the ledger is append-only, and the precedent for annotating rather than editing was
+set today by the 175/176 disambiguation notes.
+
+**The rule, stated so it is executable rather than aspirational:** after correcting
+a claim, grep the *claim's words* across every document, including the ones you
+already corrected, and including headings and tables rather than prose alone. A
+correction that lands in the body while the heading still asserts the old thing is
+not a correction; it is a contradiction with a timestamp.
+
+Three rounds of review on this entry have now each found the same shape: the fix
+landed where the reviewer pointed and not where the claim also lived.

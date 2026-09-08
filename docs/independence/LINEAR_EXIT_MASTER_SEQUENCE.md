@@ -313,9 +313,17 @@ a flag flip at cutoff time.
 
 ### What this means for 2026-09-15
 
-With `main` as it stands: **staff cannot create a post, and cannot fill a
-component, for any real client once Linear stops answering.** Nothing is lost or
-corrupted. Those surfaces stop accepting new work.
+With `main` as it stands, once Linear stops answering, **for any real client:**
+
+- **no post can be created** — from the Calendar, from **Samples/SXR**, from a staff
+  submission, or from the client link (that last one conditional on its default-off
+  flag);
+- **no component can be filled.**
+
+Nothing is lost or corrupted; every one of those fails closed. Those surfaces
+simply stop accepting new work. **Samples/SXR is in this list because a reviewer
+caught it missing**, and it is the one people are least likely to think of, since
+it is a different tab from the Calendar dialog everyone pictures.
 
 ### None of the four held PRs fixes it, and #1326 does
 

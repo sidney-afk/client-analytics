@@ -473,6 +473,30 @@ classified."* And the install step's own undo carries: *"THIS UNDO IS VALID ONLY
 BEFORE THE CUTOFF IS ACTIVATED. AFTER ACTIVATION IT DESTROYS THE EVIDENCE THE
 RECOVERY NEEDS — DO NOT TAKE IT."*
 
+**Route A's central claim is now verified from source, not quoted.** Given the
+day's lesson about borrowed sentences, the one the entire cutoff plan rests on
+deserved checking rather than citing. It holds:
+
+`linear-outbound/index.ts` guards its whole provider block with
+`if (initialMode !== "off" || parityEnabled || f27ReplayRequestValue)`. With
+outbound `off` and parity `false`, `rows` is declared empty at the top and is only
+ever assigned inside that block, so it stays empty. `readViewer()` is inside the
+block and is skipped. Every other Linear call in the file — `readIssue`,
+`readTeam`, `readLinearComment`, `readCommentByMarker`,
+`readAttachmentRevisionPresent`, `currentControl` and the mutation execution
+itself — runs inside `for (const candidate of rows)`, which therefore never
+executes a single iteration. **Nothing reaches `api.linear.app`.** The runbook is
+right and the flag really is sufficient.
+
+**One caveat the runbook's wording does not carry: that guard has THREE
+disjuncts, not two.** The third is `f27ReplayRequestValue`. An F27 replay request
+re-opens the provider path even with the flag `off`. That is a deliberate recovery
+and drill mechanism rather than a leak, and it is an explicit owner action, so it
+cannot happen by accident. It is named here because "with outbound off, nothing
+reaches Linear" is true of normal operation and not of a replay dispatch, and
+someone reading the shorter version during an incident is exactly the person who
+might issue one.
+
 **Do not take Route B.** The runbook's reasoning for skipping it is sound and
 costed: it needs an F27 Section 4 dispatch, which needs a merge freeze across
 every exit branch, and dispatches were rejected on 2026-09-02 and 2026-08-08 for

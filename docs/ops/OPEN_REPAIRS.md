@@ -17024,3 +17024,37 @@ but behind a flag, with a comment naming the pre-retirement state and a delibera
 choice that an absent flag row means strictest rather than a 503. The create-path
 reads are not remarkable for reading Linear; they are remarkable because **nothing
 can turn them off**.
+
+### Addendum, 2026-09-08 — Route A verified from source, and the guard has a third disjunct
+
+Applying the day's own lesson to the claim the entire cutoff plan rests on. The
+runbook's §0 says that with `linear_outbound_enabled = off` and
+`linear_legacy_parity_enabled = false`, the outbound worker's provider block is
+skipped entirely. **Checked rather than quoted, and it holds.**
+
+`linear-outbound/index.ts` guards the block with
+`if (initialMode !== "off" || parityEnabled || f27ReplayRequestValue)`. `rows` is
+declared empty at the top and assigned only inside that block, so it stays empty;
+`readViewer()` is inside the block and is skipped; and **every** other Linear call
+in the file (`readIssue`, `readTeam`, `readLinearComment`, `readCommentByMarker`,
+`readAttachmentRevisionPresent`, `currentControl`, and the mutation execution)
+runs inside `for (const candidate of rows)`, which never executes an iteration.
+Nothing reaches `api.linear.app`. The flag really is sufficient and Route A is
+safe as described.
+
+**The refinement: that guard has THREE disjuncts and the runbook's wording carries
+two.** The third is `f27ReplayRequestValue` — an F27 replay request re-opens the
+provider path with the flag still `off`. That is a deliberate recovery and drill
+mechanism, not a leak, and it requires an explicit owner action, so it cannot
+happen by accident. It is recorded because "with outbound off, nothing reaches
+Linear" is true of normal operation and not of a replay dispatch, and the person
+reading the short version during an incident is exactly the person who might issue
+one.
+
+**Two verifications of borrowed claims today, opposite results.** The other
+programme's write-fence sentence was true and *understated* what it pointed at,
+and became this ledger's largest finding. This programme's own runbook sentence
+was true and *slightly over-general*, and checking it cost minutes and produced a
+caveat rather than a defect. Both were worth doing, and the asymmetry is the point:
+**the check is cheap and its value is not predictable in advance**, so "the source
+is trustworthy" is not a reason to skip it.

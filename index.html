@@ -26857,6 +26857,32 @@
        the messages this notification already carried; they stay word for word,
        and only gain the code suffix every other message now carries. */
     const WRITE_UI_FAILURE_CODE_TEXT = {
+        /* THE THREE REFUSALS THAT STOP BEING TRANSIENT ON 2026-09-15.
+           WRITE_UI_FAILURE_CODE_CLASS files all three under `wait` -- correct
+           today, because each one means a dependency was unreachable and
+           nothing was committed, and the dependency usually comes back. It
+           stops being correct the day the Linear account lapses: the gateway
+           raises the identical code, and `wait` then advises an SMM to keep
+           trying something that can never succeed again. That is the exact
+           shape of the 2026-08-26 incident, where "safe to retry" cost a
+           videographer eleven identical submissions.
+           These entries do not reclassify anything -- this object exists for
+           "codes whose advice is more specific than their class" -- they add
+           the two sentences the class cannot carry: it is NOT this client's
+           setup, and if it does not clear on its own, no amount of retrying
+           will clear it. See OPEN_REPAIRS 170. */
+        project_mapping_validation_unavailable: {
+            title: 'Post not created',
+            text: 'The linked task system could not be reached, so this post was not filed. Nothing was created. This is not a problem with this client\u2019s setup and no setting will fix it \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
+        batch_parent_validation_unavailable: {
+            title: 'Post not created',
+            text: 'The linked task system could not confirm the batch this post would join, so nothing was created. This is not a problem with the batch or with this client\u2019s setup \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
+        assignee_provider_unavailable: {
+            title: 'Nothing was changed',
+            text: 'The linked task system could not confirm who is assignable, so nothing was changed. The editor list is not wrong and neither is this client\u2019s setup \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
         invalid_intake_item_name: {
             title: 'Post name too long',
             text: 'One of the post names is longer than a sub-issue title can carry. Shorten it, then create the post again.'
@@ -41367,6 +41393,24 @@
         if (/^batch_parent_mapping_/.test(code)) {
             return 'That batch cannot hold this kind of post — it was created before we started filing Video and Thumbnail work separately, so it only has a home for one of them. Start a new batch, or pick a post shape that batch already covers.';
         }
+        /* THE CATCH-ALL BELOW BECOMES A PERMANENT LIE ON 2026-09-15.
+           `project_mapping_validation_unavailable` (gateway index.ts:2325) and
+           `batch_parent_validation_unavailable` (:2348) are raised when the
+           linked task system cannot be READ. Both match /project|mapping|parent/,
+           so both land on the client-filing sentence -- which tells an SMM to
+           configure something that is already configured correctly, and that
+           no amount of configuring can ever clear. It is the same defect as the
+           2026-08-20 batch_parent_mapping_ case eight lines above, one cause
+           over: a DEPENDENCY problem dressed as a SETUP problem.
+           Named here rather than left to the catch-all so that a partial
+           rollout, or a browser tab opened before the native lane shipped,
+           still says the true cause. See OPEN_REPAIRS 170. */
+        if (code === 'project_mapping_validation_unavailable') {
+            return 'The linked task system could not be reached, so this post was not filed. Nothing was created \u2014 and this is not a problem with this client\u2019s filing, which no setting can fix. If it does not clear on its own within a few minutes, report it rather than trying again.';
+        }
+        if (code === 'batch_parent_validation_unavailable') {
+            return 'The linked task system could not confirm the batch this post would join, so nothing was created. This is not a problem with the batch or with this client\u2019s filing. If it does not clear on its own within a few minutes, report it rather than trying again.';
+        }
         if (/project|mapping|parent/.test(code)) return "This client's Video and Graphics filing must be configured before a post can be created.";
         if (Number(error && error.status) === 401 || Number(error && error.status) === 403) return 'Admin or SMM sign-in is required to create this post.';
         /* TWO MAPPERS, ONE PATH, and the branch went into the wrong one.
@@ -41391,6 +41435,17 @@
            sends them to the place they can see it. */
         if (code === 'native_intake_checkpoint_failed') {
             return 'The batch was created, but this browser could not save its progress — so the posts may be only half made. Do NOT press Create post again; that would create a second batch. Reload the page and check the batch in Production first. If this repeats, clear this site’s browser storage.';
+        }
+        /* `assignee_provider_unavailable` (gateway index.ts:2600) matches NO
+           branch above, so it reached the reader as "The post was not created.
+           Your request is safe to retry." The Create Post dialog sends
+           `assignee_id` whenever its editor dropdown resolves, so every video
+           post hits this the moment the provider stops answering -- and the
+           advice is false forever. That sentence is the one the file's own
+           2026-08-26 note is about. Say what actually failed, and say that
+           retrying is not the fix. */
+        if (code === 'assignee_provider_unavailable') {
+            return 'The linked task system could not confirm who is assignable, so this post was not created. Nothing was created, and the editor list is not wrong. If it does not clear on its own within a few minutes, report it rather than trying again.';
         }
         /* The catch-all is the honest answer for a code nobody has mapped, and
            it is also where three separate defects have hidden -- batch_team_mismatch,
@@ -63976,6 +64031,11 @@
                with their GRA issues already minted, and reloading could not
                clear it because the reload succeeded. */
             _sxrAdoptDeliverableLinks(seq, slug).catch(() => {});
+            /* Edits typed on this client while the view was elsewhere, held by
+               `_sxrParkEditsForClient` because flushing them then would have
+               written them under whichever client was on screen. `sxrState`
+               describes this client now, so the normal engine can have them. */
+            try { _sxrRestoreParkedEdits(slug); } catch (e) {}
         } catch (e) {
             if (_sxrLoadController === ctrl) _sxrLoadController = null;
             if (seq !== _sxrLoadSeq) return;
@@ -64260,13 +64320,522 @@
         const mark = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/><path d="M6 10.2 10.2 6M7.2 6h3v3"/></svg>`;
         return `<a class="cal-linear-btn is-linked cal-prod-btn cal-linear-btn-${which}" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener" title="Open the SyncView Production ${label} in a new tab">${mark}</a>`;
     }
+    /* ── Fill a missing component, from the SAMPLE card that is missing it ──
+     *
+     * The samples twin of _calFillComponent, and it exists for the reason the
+     * owner gave on 2026-09-07: "when there's a calendar that has a post that
+     * is just a thumbnail, there's a little thing where we can add a video or a
+     * thumbnail to the batch... but we don't have the same system for samples."
+     *
+     * IT IS WORSE HERE THAN ON THE CALENDAR. Measured live 2026-09-07 across
+     * the 26 non-archived sample cards: 2 carry both components, 3 only a
+     * video, 21 only a thumbnail, 0 neither. So 24 of 26, across 6 clients,
+     * are half a post, against 127 of 688 on the calendar. A samples batch is
+     * usually commissioned as thumbnails alone and then needs a video beside
+     * one of them, which is exactly the gap this closes.
+     *
+     * NOTHING NEW IS ASKED OF THE SERVER, and that is not luck. `production-write`
+     * has admitted `component_fill` from the `sxr` surface since the day the
+     * operation shipped, and public.production_component_fill reads and locks
+     * the card in `sample_reviews` rather than `calendar_posts` when the batch
+     * carries purpose='samples'. Both halves were written for two surfaces and
+     * only one ever got a button. This is that button; no migration and no
+     * deploy stand between it and being live.
+     *
+     * The gate is the calendar's, rule for rule: a sibling to inherit the
+     * batch, the Linear parent route, the sort position and the title from; an
+     * empty slot BOTH ways so a legacy half-link is left to be repaired rather
+     * than doubled; staff only; not on a blank row; not on an archived card;
+     * and only where the target team is SyncView-authoritative, because under a
+     * rollback the native create is refused at the database and the button
+     * would be a dead one.
+     */
+    function _sxrFillSiblingId(p, which) {
+        if (_isClientLink || !p) return '';
+        const pid = String(p.id || '');
+        if (!pid || _sxrIsBlankId(pid)) return '';
+        if (String(p.status || '').toLowerCase() === 'archived') return '';
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const other = target === 'graphic' ? 'video' : 'graphic';
+        const idOf = comp => String((comp === 'graphic'
+            ? p.graphic_deliverable_id : p.video_deliverable_id) || '').trim();
+        const linkOf = comp => String((comp === 'graphic'
+            ? p.graphic_linear_issue_id : p.linear_issue_id) || '').trim();
+        // Empty BOTH ways. A card carrying a Linear url with no native id is a
+        // legacy half-link, not a missing component, and filling it would leave
+        // the card pointing at two different issues.
+        if (idOf(target) || linkOf(target)) return '';
+        if (!_writeUiLinkSlotSealed(target)) return '';
+        return idOf(other);
+    }
+    function _sxrFillComponentSlotHtml(p, which) {
+        const sibling = _sxrFillSiblingId(p, which);
+        if (!sibling) return '';
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const label = target === 'graphic' ? 'thumbnail' : 'video';
+        const pid = String(p.id || '');
+        const plus = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>`;
+        return `<button class="cal-linear-btn cal-fill-btn cal-linear-btn-${target}" type="button"`
+            + ` onclick="_sxrFillComponent('${_sxrEscAttr(pid)}','${target}')"`
+            + ` title="This sample has no ${label} yet. Add one, in the same batch as its ${target === 'graphic' ? 'video' : 'thumbnail'}."`
+            + ` aria-label="Add the missing ${label} to this sample">${plus}</button>`;
+    }
+    /* Deterministic in the card and team, so every press is the SAME write: the
+       first creates and any later one replays and returns the row the first one
+       made. Same contract as _calFillRequestId, under its own `sfill:` prefix
+       so a samples fill and a calendar fill can never resolve to one deliverable
+       id. The gateway derives that id from this string, and the two card
+       tables mint their ids independently. */
+    function _sxrFillRequestId(pid, team) {
+        return ('sfill:' + team + ':' + String(pid || '')).replace(/[^a-zA-Z0-9:_-]/g, '').slice(0, 190);
+    }
+    /* Write ONLY this component slot back to the sample. sample-review-upsert
+       copies just the keys the payload carries, so a fill cannot touch the
+       name, the media links, the creative direction, the statuses, the tweaks
+       or the other component.
+     *
+     * IT RUNS INSIDE THE PER-CARD SAVE QUEUE, and that is the whole safety of
+     * it (Codex P1 on PR 1342). Awaiting the in-flight save once was not enough:
+     * that save's `finally` starts a REPLACEMENT `_sxrSaveInFlight[pid]` for
+     * any edit queued while it was draining, so the continuation resumed
+     * beside a save this write had never waited for. The follow-on save is
+     * usually a field-level patch that carries no link column, but the
+     * whole-card branch (a new row, or `_sxrRetrySave` re-sending the current
+     * row with an empty bucket) sends all four link columns from local state,
+     * and a copy built before this update carries them EMPTY. Landing after
+     * this write, it detaches the component that was just created while the
+     * card reports success.
+     *
+     * So: drain with `_sxrAwaitCardSave` (which also flushes queued edits, not
+     * merely the active save), then HOLD the lock across the write. Any flush
+     * that starts meanwhile hits `if (_sxrSaveInFlight[pid]) return
+     * _sxrAwaitCardSave(pid)` and re-reads local state afterwards, so its
+     * whole-card copy carries the link this wrote rather than the emptiness
+     * that preceded it. Released in a `finally` in the same order the save
+     * engine releases it, so a throw here can never strand the card. */
+    async function _sxrFillWriteCardLink(clientSlug, pid, team, deliverableId, issueUrl) {
+        try { await _sxrAwaitCardSave(pid); } catch (e) {}
+        let releaseSave;
+        _sxrSaveInFlight[pid] = new Promise(resolve => { releaseSave = resolve; });
+        try {
+            const sample = team === 'graphics'
+                ? { id: pid, graphic_deliverable_id: deliverableId, graphic_linear_issue_id: String(issueUrl || '') }
+                : { id: pid, video_deliverable_id: deliverableId, linear_issue_id: String(issueUrl || '') };
+            const response = await _sxrUpsertFetch(clientSlug, { client: clientSlug, sample, comments_base_at: '' }, 'samples-component-fill');
+            const json = await response.json().catch(() => ({}));
+            if (!response.ok || !json || json.ok !== true) throw new Error('sample_card_write_failed');
+            // Our own row change is about to arrive on the realtime channel; mark
+            // it as a local write so the strip is not rebuilt underneath the
+            // person who just pressed the button, as every samples write does.
+            _sxrLastLocalWriteAt = Date.now();
+            /* THE VIEW MAY HAVE MOVED ON (Codex P2 on PR 1342). Staff switch client
+               tabs while a request is in flight, and `sxrState.posts` then holds
+               the NEW client's rows while `clientSlug` still names the old one.
+               Writing that array under the old slug's cache key would leave one
+               client's samples cached as another's, to be rendered on the next
+               visit until its network read lands. The server write above is
+               already correct and stays; only the local state, the cache and the
+               repaint are skipped, and the next load of that client reads the
+               link back from the row. */
+            if (sxrClientSlug(sxrState.client) !== clientSlug) return;
+            const post = sxrState.posts.find(item => item && item.id === pid);
+            // The two columns this wrote, not the whole echo: the row on screen
+            // may carry edits this write never sent, and the echo would undo them.
+            if (post) Object.assign(post, sample);
+            try { _sxrCacheWrite(clientSlug, sxrState.posts); } catch (e) {}
+            /* Deferred while somebody is typing, exactly as the link adopter
+               defers: a full _sxrRenderBody() detaches the focused input and eats
+               the caret (the PR-705 focus guard). */
+            try {
+                if (typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                    _sxrPendingBackgroundRender = true;
+                    if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                } else {
+                    _sxrRenderBody({ preserveScroll: true });
+                }
+            } catch (e) {}
+        } finally {
+            delete _sxrSaveInFlight[pid];
+            if (releaseSave) releaseSave();
+            /* THE QUEUED EDIT BELONGS TO THE CLIENT IT WAS TYPED ON (Codex P1
+               on PR 1342, second pass). `_sxrFlushCardSave` derives `_saveSlug`
+               and the row from `sxrState` AT FLUSH TIME, and a card absent from
+               `sxrState.posts` is treated as a new row and INSERTED --
+               `sample_reviews` is keyed by (client, id), so a flush that lands
+               after a client switch writes one client's edit as a brand-new
+               sample under another. Holding the lock is what opens that window
+               twice over: `onSxrClientChange` calls `_sxrFlushAllPending`
+               first, but every flush it starts hits
+               `if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and
+               defers behind THIS write, then wakes after the switch.
+
+               So when the view has moved on the bucket leaves
+               `_sxrPendingEdits`, which is what stops that deferred
+               `_sxrAwaitCardSave`: it re-reads the map, finds nothing, and
+               returns instead of writing to the wrong client.
+
+               IT IS PARKED, NOT DROPPED (Codex P1 on PR 1342, fourth pass, and
+               it was right about the first version of this). Deleting it traded
+               a wrong-client write for silent data loss, and the person had no
+               way to know: `onSxrClientChange` had already tried to flush that
+               edit and its flush was sitting behind this very lock, so the
+               bucket was its only copy. Parking keeps it against the slug and
+               card it was typed on, `_sxrRestoreParkedEdits` puts it back the
+               next time that client loads, and the normal engine flushes it
+               there with the right `sxrState` -- so the status machinery, the
+               Linear pushes and the repair refs all run as they would have. */
+            if (_sxrPendingEdits[pid]) {
+                if (sxrClientSlug(sxrState.client) === clientSlug) _sxrFlushCardSave(pid);
+                else _sxrParkEditsForClient(clientSlug, pid);
+            }
+        }
+    }
+    /* Edits typed on a card whose client the view then left, held against the
+       slug and card they belong to until that client is loaded again.
+     *
+     * The samples save engine reads `sxrState` at flush time, so a bucket
+     * flushed after a client switch is written under whichever client is on
+     * screen -- and `sample_reviews` is keyed by (client, id), so it lands as a
+     * brand-new sample under someone else. The fill is the one place that can
+     * hold the save lock long enough for `onSxrClientChange`'s own flush to be
+     * still waiting when the switch happens, which is why the parking lives
+     * here rather than in the engine.
+     *
+     * BOUNDED, because this is a repair and not a queue: one bucket per card
+     * per client, and a cap so a tab left open for a week cannot grow it
+     * without limit. Nothing here writes; restoring hands the edits back to the
+     * engine, which does. */
+    const _sxrParkedEdits = Object.create(null);
+    const SXR_PARKED_EDIT_MAX_CARDS = 50;
+    function _sxrParkEditsForClient(slug, pid) {
+        const edits = _sxrPendingEdits[pid];
+        delete _sxrPendingEdits[pid];
+        const key = String(slug || '');
+        if (!key || !edits || !Object.keys(edits).length) return;
+        const forClient = _sxrParkedEdits[key] || (_sxrParkedEdits[key] = Object.create(null));
+        if (!forClient[pid] && Object.keys(forClient).length >= SXR_PARKED_EDIT_MAX_CARDS) {
+            _writeUiQueueDiagnostic('sxr', 'parked_edit_capacity_dropped',
+                { kind: 'component_fill' }, { code: 'parked_edit_cap' });
+            return;
+        }
+        /* WHOSE EDIT IT IS, kept with it (Codex P1 on PR 1342, fifth pass).
+           Staff identity is shared through localStorage, so the account can
+           change before that client is opened again -- and a restored bucket is
+           flushed with whoever is signed in THEN. A parked status edit would go
+           through the native gateway attributed to somebody who never made it.
+           The principal is recorded here and compared on the way out. */
+        const previous = forClient[pid];
+        forClient[pid] = {
+            principal: _writeUiPrincipalKey(),
+            edits: Object.assign({}, previous && previous.edits, edits)
+        };
+        _writeUiQueueDiagnostic('sxr', 'queued_edit_parked_off_client',
+            { kind: 'component_fill' }, { code: 'client_changed_during_fill' });
+        /* SAID OUT LOUD, AND SAID ACCURATELY. The edit is held in this tab and
+           nowhere else: it does not survive a reload, and promising that it
+           "saves itself" would be a promise a page refresh breaks (Codex P1,
+           fifth pass). So it says what is true and what to do about it. */
+        showNotify('That edit is not saved yet',
+            'A change you typed could not be saved while the client changed, so nothing was written to the wrong one. Open ' + key + ' again in this tab and it will save. If you reload first, retype it.');
+    }
+    /* Called after a successful load for `slug`, where `sxrState` finally
+       describes the client these edits belong to. A card the load did not
+       return is NOT restored: re-queuing it would make the engine insert it as
+       a new row, which is the defect this exists to avoid. */
+    function _sxrRestoreParkedEdits(slug) {
+        const key = String(slug || '');
+        const forClient = key && _sxrParkedEdits[key];
+        if (!forClient) return 0;
+        if (sxrClientSlug(sxrState.client) !== key) return 0;
+        let restored = 0;
+        const principalNow = _writeUiPrincipalKey();
+        for (const pid of Object.keys(forClient)) {
+            const entry = forClient[pid] || {};
+            if (!(sxrState.posts || []).some(post => post && post.id === pid)) {
+                delete forClient[pid];
+                _writeUiQueueDiagnostic('sxr', 'parked_edit_card_gone',
+                    { kind: 'component_fill' }, { code: 'card_absent_on_restore' });
+                continue;
+            }
+            // Not this person's edit to send. Dropped rather than replayed under
+            // a principal that never typed it, and said out loud.
+            if (!principalNow || entry.principal !== principalNow) {
+                delete forClient[pid];
+                _writeUiQueueDiagnostic('sxr', 'parked_edit_principal_changed',
+                    { kind: 'component_fill' }, { code: 'principal_changed_before_restore' });
+                showNotify('An unsaved edit was discarded',
+                    'A change typed here before the signed-in account changed was not saved, because it is not this account\u2019s to send. Nothing was written.');
+                continue;
+            }
+            /* NEWER INPUT WINS (Codex P1 on PR 1342, fifth pass). Returning to a
+               client paints from cache first, so somebody can be typing in this
+               very card while the background load that triggers this restore is
+               still in flight. Assigning the parked bucket LAST would overwrite
+               what they just typed and flush the older value straight to the
+               server. */
+            _sxrPendingEdits[pid] = Object.assign({}, entry.edits, _sxrPendingEdits[pid] || {});
+            delete forClient[pid];
+            restored += 1;
+            _sxrFlushCardSave(pid);
+        }
+        if (!Object.keys(forClient).length) delete _sxrParkedEdits[key];
+        return restored;
+    }
+    window.peekSxrParkedEdits = function () {
+        const out = {};
+        for (const slug of Object.keys(_sxrParkedEdits)) out[slug] = Object.keys(_sxrParkedEdits[slug]);
+        return out;
+    };
+    async function _sxrFillComponent(pid, which) {
+        const target = which === 'graphic' ? 'graphic' : 'video';
+        const team = target === 'graphic' ? 'graphics' : 'video';
+        const label = target === 'graphic' ? 'thumbnail' : 'video';
+        const post = sxrState.posts.find(item => item && item.id === pid);
+        // Re-checked against live state, not the state the button was drawn
+        // from: a tab left open while somebody else filled this slot must not
+        // send the write at all.
+        const siblingId = _sxrFillSiblingId(post, target);
+        if (!siblingId) {
+            showNotify('Nothing to add', 'This sample already has its ' + label + ', or its other half is missing. Reload to see the current state.');
+            return;
+        }
+        const clientSlug = sxrClientSlug(sxrState.client);
+        if (!clientSlug) return;
+        const cardName = String((post && post.name) || '').trim();
+        // Refused early as well as at confirm time, so somebody who is not
+        // signed in is told before a dialog promises them anything.
+        try { await _syncviewRequireStaffIdentity('intake'); }
+        catch (error) {
+            showNotify('Sign-in required', (error && error.message) || 'Admin or SMM sign-in required.');
+            return;
+        }
+        // The live authority read, not the cached one the button was drawn from.
+        const sealed = await _writeUiLinkSlotSealedLive(target);
+        if (!sealed || sealed.sealed !== true) {
+            const notice = _writeUiLinkSlotSealedNotice(target, sealed && sealed.reason || 'authority_unavailable');
+            showNotify(notice[0], notice[1]);
+            return;
+        }
+        /* THE VIEW CAN MOVE UNDER BOTH AWAITS ABOVE (Codex P1 on PR 1342, second
+           pass). The identity read and the live authority read are network
+           round trips, and staff switch Samples client tabs during them. The
+           captured `clientSlug`, `post` and `siblingId` still describe the
+           client that was on screen when the button was pressed, so a dialog
+           that opened afterwards would sit over the NEW client while carrying
+           the old one's identifiers -- and confirming it would mint real
+           Production and Linear work for a client the person is no longer
+           looking at. Re-checked here, and AGAIN inside the callback, because
+           the dialog itself is a wait: it can sit open across a tab switch. */
+        if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
+            showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
+            return;
+        }
+        // The principal that opened the dialog, as the write path itself
+        // computes one, so the comparison below is against the same value the
+        // gateway will be told about rather than a parallel notion of identity.
+        const principalKey = _writeUiPrincipalKey();
+        showConfirm(
+            'Add the missing ' + label + '?',
+            'This creates the ' + label + ' for ' + (cardName ? '“' + cardName + '”' : 'this sample')
+                + ' on ' + clientSlug + ', in the same batch as its '
+                + (target === 'graphic' ? 'video' : 'thumbnail')
+                + ', and attaches it to that card. It appears in Production and mirrors to Linear.',
+            async () => {
+                if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
+                    showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
+                    return;
+                }
+                /* THE DIALOG IS A WAIT, AND TWO MORE THINGS MOVE UNDER IT
+                   (Codex P1 x2 on PR 1342, third pass).
+
+                   WHO. `_sxrFillComponentSubmit` never used the captured
+                   `identity` -- it was a gate result and nothing more -- while
+                   `_syncviewEfHeaders` reads `_syncviewStaffIdentityForHeaders()`
+                   at REQUEST time. Staff identity is shared through localStorage
+                   and synced across tabs by `_syncviewStaffIdentityStorageChanged`,
+                   so a sign-in change in another tab lands in this one while the
+                   dialog sits open, and the person who pressed Confirm is
+                   recorded as the author of work somebody else asked for. The
+                   identity is re-required (which re-verifies it, so a lapsed
+                   verification is caught too) and its principal key compared
+                   with the one that opened the dialog. The parameter is gone
+                   from the submitter rather than left there unused, because an
+                   argument nothing reads is a claim the code does not keep.
+
+                   WHAT AUTHORITY. AGENTS.md: read back current runtime
+                   authority before acting, never treat a snapshot as a
+                   permanent guarantee. The read above happened BEFORE the
+                   dialog, so a SyncView -> Linear rollback during the wait
+                   would still have sent a create. The gateway refuses it and
+                   nothing wrong is written, but the refusal is avoidable and
+                   the boundary is ours to hold, not the server's. */
+                try { await _syncviewRequireStaffIdentity('intake'); }
+                catch (error) {
+                    showNotify('Sign-in required', (error && error.message) || 'Admin or SMM sign-in required.');
+                    return;
+                }
+                if (!principalKey || _writeUiPrincipalKey() !== principalKey) {
+                    showNotify('The signed-in account changed',
+                        'Nothing was created. This confirmation belongs to the person who opened it, and a different account is signed in now. Press the button again to create it as yourself.');
+                    return;
+                }
+                const sealedNow = await _writeUiLinkSlotSealedLive(target);
+                if (!sealedNow || sealedNow.sealed !== true) {
+                    const notice = _writeUiLinkSlotSealedNotice(target, sealedNow && sealedNow.reason || 'authority_unavailable');
+                    showNotify(notice[0], notice[1]);
+                    return;
+                }
+                /* BOTH CHECKS AGAIN, AFTER THE LAST AWAIT (Codex P1 on PR 1342,
+                   fourth pass). The authority read is a network round trip like
+                   the two before it, so a cross-tab sign-in landing during THAT
+                   one slipped past a principal comparison made before it. The
+                   rule is simply that the last thing before the write is a
+                   re-check, not that there is a re-check somewhere. */
+                if (!principalKey || _writeUiPrincipalKey() !== principalKey) {
+                    showNotify('The signed-in account changed',
+                        'Nothing was created. This confirmation belongs to the person who opened it, and a different account is signed in now. Press the button again to create it as yourself.');
+                    return;
+                }
+                if (!_sxrFillStillCurrent(pid, target, clientSlug, siblingId)) {
+                    showNotify('The view moved on', 'Nothing was created. This sample is no longer the one on screen, so the button was not applied to it. Open its client again and press it there.');
+                    return;
+                }
+                _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug);
+            },
+            'Add ' + label);
+    }
+    /* Is the card this fill was started for still the card on screen, and still
+       missing the same component with the same sibling? Every asynchronous step
+       between the press and the write re-asks it, so a client switch, a peer's
+       fill or a reload that lands in between stops the write rather than
+       redirecting it. */
+    function _sxrFillStillCurrent(pid, target, clientSlug, siblingId) {
+        if (sxrClientSlug(sxrState.client) !== clientSlug) return false;
+        const current = sxrState.posts.find(item => item && item.id === pid);
+        return !!current && _sxrFillSiblingId(current, target) === siblingId;
+    }
+    async function _sxrFillComponentSubmit(pid, target, team, label, siblingId, clientSlug) {
+        const requestId = _sxrFillRequestId(pid, team);
+        let result = null;
+        let failure = null;
+        try {
+            const response = await fetch(PROD_WRITE_EF_URL, {
+                method: 'POST', cache: 'no-store',
+                headers: _syncviewEfHeaders({
+                    apikey: CAL_SUPABASE_ANON_KEY,
+                    Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY,
+                    Accept: 'application/json', 'Content-Type': 'application/json'
+                }, PROD_WRITE_EF_URL),
+                body: JSON.stringify({
+                    operation: 'component_fill',
+                    surface: 'sxr',
+                    client_slug: clientSlug,
+                    card_id: pid,
+                    team,
+                    sibling_id: siblingId,
+                    request_id: requestId,
+                    source_edited_at: new Date().toISOString()
+                })
+            });
+            const body = await response.json().catch(() => ({}));
+            if (!response.ok || !body || body.ok !== true || body.native_committed !== true) {
+                const error = new Error(String(body && body.error || 'native_write_failed'));
+                error.code = String(body && body.error || 'native_write_failed');
+                error.status = response.status;
+                throw error;
+            }
+            result = body;
+        } catch (error) { failure = error; }
+
+        /* THE REPAIR ARM, shared with the calendar down to the lookup: both of
+           these mean the component exists and this card is the stale half.
+           Occupied because somebody filled it, and idempotency_conflict because
+           somebody ELSE filled it (the actor is part of the dedup identity).
+           Neither is a reason to leave the card unlinked, which is the very
+           state this feature exists to end. */
+        if (failure && ['component_fill_team_occupied', 'idempotency_conflict'].includes(String(failure.code || ''))) {
+            const existing = await _calFillLookupExisting(clientSlug, pid, team).catch(() => null);
+            if (existing && existing.id) {
+                try {
+                    await _sxrFillWriteCardLink(clientSlug, pid, team, String(existing.id), existing.linear_issue_url);
+                    // The row somebody else made may itself still be draining.
+                    if (!String(existing.linear_issue_url || '').trim()) _sxrAdoptLinksAfterCreate(clientSlug);
+                    showNotify('Already there', 'This sample already had a ' + label + '. The card is linked to it now.');
+                    return;
+                } catch (repairError) { failure = repairError; }
+            }
+        }
+        /* `component_fill_card_missing` means something different HERE than it
+           does on the calendar, and the shared handler's answer to it (evict
+           the display caches, tell the reader to reload) would be wrong twice
+           over on a sample.
+
+           The RPC picks which table to read the card from by the BATCH purpose:
+           `sample_reviews` when it is 'samples', `calendar_posts` otherwise. A
+           sample whose batch is recorded purpose='calendar' is therefore looked
+           for among the calendar cards, where it has never been. Measured
+           2026-09-07: 3 of the 24 half-complete sample cards live in one such
+           batch, minted by the F42 adoption path, its children carrying
+           origin='samples' while the batch itself says 'calendar'. The card is
+           not missing, the cache is not stale, and no reload changes anything,
+           so this says what is actually true and stops there. OPEN_REPAIRS 162
+           carries the two ways to close it; both are the owner's to pick. */
+        if (failure && String(failure.code || '') === 'component_fill_card_missing') {
+            _writeUiQueueDiagnostic('sxr', 'ui_write_failure', { kind: 'component_fill' }, failure);
+            showNotify('This sample can’t be completed yet',
+                'Nothing was created. Its batch is recorded as a calendar batch, so the write looked for this card among the calendar cards. Reloading will not help. Tell the owner, and quote this code: component_fill_card_missing.');
+            return;
+        }
+        if (failure) {
+            _writeUiReportFailure('sxr', 'component_fill', failure);
+            return;
+        }
+        const item = result && result.item && typeof result.item === 'object' ? result.item : {};
+        if (!String(item.id || '')) {
+            _writeUiReportFailure('sxr', 'component_fill',
+                Object.assign(new Error('native_response_refresh_failed'), { code: 'native_response_refresh_failed' }));
+            return;
+        }
+        try {
+            await _sxrFillWriteCardLink(clientSlug, pid, team, String(item.id), item.linear_issue_url);
+        } catch (error) {
+            /* The component IS made, and the retry is genuinely safe (the request
+               id is deterministic, so it replays and re-attempts this same card
+               write), so say exactly that rather than reporting a failure that
+               would send someone looking for work that is already there. */
+            showNotify('The ' + label + ' was created',
+                'It is in Production, but this card could not be linked to it just yet. Press the button again in a moment and it will finish the job.');
+            return;
+        }
+        /* THE LINEAR URL IS USUALLY NOT IN THAT RESPONSE (Codex P2 on PR 1342,
+           second pass). On a live fill the gateway schedules the outbound drain
+           and answers `mirror_pending: true` before the issue exists, so the
+           card is written with the deliverable id and an EMPTY Linear url. That
+           is enough to retire the fill button, which means nothing on the card
+           asks for the link any more and it would sit empty until an unrelated
+           reload happened to run the adopter. This is the same hole a freshly
+           created sample had, and `_sxrAdoptLinksAfterCreate` is the answer
+           already written for it: four guarded polls across the window the
+           mirror actually takes (measured 15s on the 2026-08-20 create), each
+           one abandoning if the view moved on, skipping any slot already
+           filled, and refusing a row whose card_id binds elsewhere. */
+        if (!String(item.linear_issue_url || '').trim()) _sxrAdoptLinksAfterCreate(clientSlug);
+        showNotify('Added', result && result.mirror_pending === true
+            ? 'The ' + label + ' is on this sample; the Linear mirror is still draining.'
+            : 'The ' + label + ' is on this sample.');
+    }
     function _sxrLinearPileHtml(pid, p) {
         const v = _sxrLinearSlotHtml(pid, p.linear_issue_id, 'video');
         const g = _sxrLinearSlotHtml(pid, p.graphic_linear_issue_id, 'graphic');
         const pv = _sxrProdSlotHtml(p, 'video');
         const pg = _sxrProdSlotHtml(p, 'graphic');
-        if (!v && !g && !pv && !pg) return '';
-        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${g}${pg}</div>`;
+        // The fill button takes the place the missing component would have
+        // occupied, so a half-complete sample reads as one pile with a gap to
+        // close rather than as a card that is simply missing something.
+        const fv = _sxrFillComponentSlotHtml(p, 'video');
+        const fg = _sxrFillComponentSlotHtml(p, 'graphic');
+        if (!v && !g && !pv && !pg && !fv && !fg) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${pv}${fv}${g}${pg}${fg}</div>`;
     }
     /* The samples twin of _calAdoptDeliverableLinks. A native sample is
        materialized before the Linear mirror finishes draining, so its

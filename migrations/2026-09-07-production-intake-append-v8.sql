@@ -550,29 +550,67 @@ grant execute on function public.production_intake_append(text, timestamptz, jso
 
 commit;
 
--- OWNER-ONLY ROLLBACK.
+-- OWNER-ONLY ROLLBACK: ROLL THE GATEWAY BACK. DO NOT RE-RUN v7.
 --
--- This migration SUPERSEDES a live function rather than installing a new one,
--- so the rollback is NOT a drop. Re-run v7 -- the version this one replaces:
+-- Restore `production-write` to its previous version from the sealed Section 4
+-- bundle (ROLLBACK.md names the current one) and LEAVE THIS MIGRATION APPLIED.
+-- That is the whole procedure. This migration SUPERSEDES a live function
+-- rather than installing a new one, so the rollback is not a drop either.
 --
---     migrations/2026-08-26-production-intake-append-v7.sql
+-- v8 still accepts the bare `Video N` / `Thumbnail N` titles the older gateway
+-- composes, so most batches go on appending exactly as they did before this
+-- migration was applied.
 --
--- and redeploy the prior Edge version. That restores the exact-title rule and
--- leaves every caller working.
+-- THE ONE SHAPE THAT STOPS is a batch whose HIGHEST ordinal is carried by a
+-- NAMED child -- that is, where the highest named number exceeds the highest
+-- bare one. The two sides count differently: v8 reads both spellings and
+-- expects the next number after ALL of them, while the older gateway reads
+-- BARE titles only and proposes the next number after those. When they
+-- disagree the RPC refuses with invalid_intake_append_order, which is the
+-- intended failure rather than a surprise.
 --
--- NOT v6, which is what this block said until Codex caught it on #1336. This
--- file inherited v7's rollback text verbatim, where "re-run v6" was correct.
--- Re-running v6 from HERE would undo v7 as well, and v7 exists to REMOVE the
--- `batch_team_mismatch` clause that refused a mixed-team append to any batch
--- carrying a `team` stamp -- measured at 143 of 397 active batches, reported by
--- two SMMs on 2026-08-26 as batches "not appearing in the list". A rollback
--- that reintroduces a defect the owner already had fixed is not a rollback.
+-- IT IS NOT "ANY NAMED CHILD", because post names are optional and a later
+-- unnamed post puts a bare title back on top: a batch holding
+-- 'Video 1 — Launch' and then 'Video 2' has both sides counting 2, so they
+-- agree and the append succeeds. Naming the condition precisely matters --
+-- told "every named batch stops", an operator mid-incident would expect a far
+-- bigger blast radius than this has.
 --
--- v8 note: re-running v7 makes this function refuse a NAMED append again, so
--- roll the gateway back with it. Rows already written with named titles are
--- untouched and stay correct -- v7 reads the ordinal out of a bare numbered
--- title only, so a batch that already holds a named child would renumber from
--- the highest BARE title in it. Check that batch before appending to it again.
+-- THE ONLY SUPPORTED WAY TO CLEAR THAT REFUSAL IS TO PUT THE GATEWAY BACK AT
+-- v69. There is no title writer to rename the children with: `production-write`
+-- has no title operation at all, and a rename made in Linear is recorded
+-- detect-only and never reaches `deliverables.title` while both teams are
+-- SyncView-authoritative. Do not send an operator after one.
+--
+-- RE-RUNNING v7 IS STILL NOT THE ANSWER, AND IT FAILS SILENTLY where the
+-- refusal above fails closed. v7 and a pre-v69 gateway both read the ordinal
+-- from BARE titles only, so on a batch holding 'Video 4 — Launch hook' they
+-- agree on 4 and write a SECOND 'Video 4' with no error at all. A rollback
+-- should fail in the direction that stops, not the one that duplicates.
+--
+-- CORRECTED FOUR TIMES, 2026-09-07, after this file was applied and deployed
+-- (Codex on #1340, four rounds; comment only, nothing executable moved).
+-- Round three removed a "rename those children" containment step that no
+-- supported surface can carry out -- the same dead end the browser message was
+-- corrected for one round earlier, written back in as an instruction -- and
+-- narrowed a compatibility claim that said EVERY batch keeps appending when
+-- the paragraph below it already said otherwise. Round four corrected the
+-- narrowed claim in turn: it had swung to "any named child stops the batch",
+-- which over-states the blast radius, when the condition is the highest
+-- ordinal being held by a named child.
+-- The first correction was APPENDED BELOW an instruction to re-run the older
+-- RPC, which still stood at the top of this block, so an operator reading it
+-- top-down followed the unsafe path several paragraphs before reaching the
+-- warning. It is deleted now rather than annotated, which is why this block
+-- opens with the procedure instead of ending with it.
+--
+-- HISTORY, NOT AN INSTRUCTION: this block named v6 until Codex caught it on
+-- #1336. The file had inherited v7's rollback text verbatim, where "re-run v6"
+-- was correct; from here it would also have undone v7, which exists to REMOVE
+-- the `batch_team_mismatch` clause that refused a mixed-team append to any
+-- batch carrying a `team` stamp -- 143 of 397 active batches, reported by two
+-- SMMs on 2026-08-26 as batches "not appearing in the list". Neither v6 nor v7
+-- is a rollback target for this migration; the gateway is.
 --
 -- The drop block that shipped with earlier versions is deliberately NOT carried
 -- forward here: dropping `production_intake_append` while a deployed

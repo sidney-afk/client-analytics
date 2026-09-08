@@ -13421,7 +13421,7 @@ status. `batches.linear_parent_ids` stores `{uuid, identifier, url}` and no
 title, so the real name is not recoverable in the browser today. It needs a
 schema or gateway change and is recorded rather than fixed.
 
-## 161. [2026-09-07, FIXED — browser-only, live on merge] Two names for one row: a Linear team move made a deliverable unreachable from Workload
+## 161. [2026-09-07, FIXED AND APPLIED — browser live on merge, the 7 rows repaired the same evening; one owner decision ruled] Two names for one row: a Linear team move made a deliverable unreachable from Workload
 
 **Owner (2026-09-07, with two screenshots):** opening the Workload calendar,
 a designer's **Overdue** rollup, a client chip, then **Open SyncView →** —
@@ -13516,7 +13516,13 @@ an alias must never steal a canonical match, in either row order.
    writes for any direct statement — 14 in total for today's seven, not 7.
    `updated_at` moves on those rows; `status_at` does not. Shape pinned by
    `test/identifier-team-move-repair.js`, because nothing else in the
-   repository reads that file. **Not applied at the time of writing.**
+   repository reads that file. **APPLIED by the owner 2026-09-07, the same
+   evening** (EXECUTION_LOG, "2026-09-07 — identifier team-move repair
+   applied"): look-first returned the expected 7 with no collision, and the
+   read-only check afterwards over all 6,369 browser-visible rows returned 0
+   still disagreeing and 0 duplicate identifiers, with seven
+   `identifier_team_move_repair` events whose retired/current pairs match the
+   look-first output row for row.
 
    **Round two on #1333 took three more, all on that SQL.** [P2] Two
    statements in one transaction take two snapshots under READ COMMITTED, so a
@@ -13534,7 +13540,10 @@ an alias must never steal a canonical match, in either row order.
    kept the look-first output.
 
    **Round three re-raised the first finding, and it is a judgement call, so
-   it is an OWNER DECISION rather than a silent choice.** The reviewer is right
+   it is an OWNER DECISION rather than a silent choice. RULED 2026-09-07: leave
+   it. The owner accepted that the retired numbers stop resolving; no
+   `retired_identifier` column, no view migration, no adapter read. This
+   sub-item is closed.** The reviewer is right
    on the fact: after the SQL, `aliasId` empties for those rows and the retired
    number stops resolving in the tab, and the event ledger does not help because
    the browser never reads it for identity. Keeping it resolvable would take a
@@ -13601,6 +13610,884 @@ an alias must never steal a canonical match, in either row order.
    otherwise for the hour the two PRs and this one overlapped (Codex on #1333);
    the identifier resolution above is what makes those links RESOLVE, and
    #1331/#1338 are what make them point at the right row.
+
+---
+
+## 162. [2026-09-07, BUILT, live on merge with no deploy; one owner decision left, 3 cards] The samples card could not complete itself, and 24 of its 26 live cards are half a post
+
+The owner, with a sample thumbnail open beside a calendar post: *"when there's a
+calendar that has a post that is just a thumbnail, there's a little thing where
+we can add a video or a thumbnail to the batch... but we don't have the same
+system for samples. But we need it, and I guess it's probably the same
+concept."*
+
+It is the same concept, and it was already the same write.
+
+**THE POPULATION IS WORSE HERE THAN ON THE CALENDAR.** Measured 2026-09-07
+against `sample_reviews`, non-archived, with the key the shipped gate uses
+(`video_deliverable_id` / `graphic_deliverable_id`, both-ways-empty):
+
+| | cards |
+|---|---|
+| both components | 2 |
+| thumbnail only, needs a video | 21 |
+| video only, needs a thumbnail | 3 |
+| neither | 0 |
+
+**24 of 26 live sample cards are half a post, across 6 clients**, against 127 of
+688 on the calendar when item 155's button shipped. A samples batch is normally
+commissioned as thumbnails and then needs a video beside one of them, which is
+the gap exactly. Zero of the 24 carry a legacy Linear url in the empty slot, so
+every one of them is a fill and none is a half-link repair. Cross-checked by
+hand on one of them, `sr_mrfd5wbb_gzui9`: its sibling is `b1_d_81d72794...`,
+team `graphics`, `card_id` equal to the card, `origin` `samples`, `sort_key`
+null, the shape the gate reads and the RPC re-reads.
+
+**NOTHING NEW WAS ASKED OF THE SERVER, AND THAT IS THE FINDING.**
+`production-write` has admitted `component_fill` from the `sxr` surface since
+the operation shipped on 2026-08-31 (`assertSurfaceOperation` names calendar
+and sxr together, and refuses `production`), and
+`public.production_component_fill` reads and locks the card in `sample_reviews`
+rather than `calendar_posts` when the batch carries `purpose='samples'`. Both
+halves were written for two surfaces on the same day. Only one ever got a
+button. So this ships live on merge: **no migration, no Edge Function deploy.**
+
+**What was built.** The samples twin of the calendar pile's fill button:
+`_sxrFillSiblingId` / `_sxrFillComponentSlotHtml` / `_sxrFillRequestId` /
+`_sxrFillWriteCardLink` / `_sxrFillComponent` / `_sxrFillComponentSubmit`, wired
+into `_sxrLinearPileHtml` in the place the missing component would have
+occupied. The gate is the calendar's rule for rule: a sibling to inherit the
+batch, the parent route, the sort position and the title from; the slot empty
+BOTH ways; staff only; not on a blank row; not on an archived card; and only
+where the target team is SyncView-authoritative, because under a rollback the
+create is refused at the database and the button would be dead.
+
+Three things are samples-specific rather than copied:
+
+* **The request id carries its own `sfill:` prefix.** The gateway derives the
+  deliverable id from that string, and a sample card can carry a `p_native_...`
+  id just as a calendar card can (3 of the 24 do). The two tables mint ids
+  independently, so a shared prefix is the one way one id could ever serve two
+  different rows.
+* **The card write waits on any in-flight save for that card.** A save already
+  in flight was built before the fill and echoes the link columns as they were,
+  empty, so landing it afterwards would put the card straight back to unlinked.
+  `_sxrArchiveOne` waits on the same promise for the same reason. Only the two
+  columns written are applied locally; the full echo would carry columns the
+  person may have edited since.
+* **`component_fill_card_missing` is answered here, not passed to the shared
+  handler.** See the open half below.
+
+The repair arm (occupied / `idempotency_conflict`, then link the component that
+already exists) reuses `_calFillLookupExisting` outright rather than growing a
+second copy of the same `deliverables` read.
+
+**STILL OPEN: ONE OWNER DECISION, 3 CARDS.** The RPC picks the card table from
+`batches.purpose`. Two batches minted by the F42 adoption path (`b1_b_...`)
+carry `purpose='calendar'` while their children carry `origin='samples'` and
+`sr_` card ids; one of them holds the siblings of 3 of the 24 half cards (one
+client). On those three the write is refused `component_fill_card_missing`: the
+card is not missing, it was looked for among the calendar cards. Both drifted
+batches are mixed (3 samples-origin rows plus 1 or 2 `manual` rows with no card
+at all), which is why neither fix is obviously the right one and neither was
+taken unilaterally:
+
+1. **Correct the data.** Set `purpose='samples'` on those two batches. Makes the
+   existing children agree with their batch (today they disagree), and fixes
+   future appends into them too. One statement, owner-run.
+2. **Correct the resolution.** Have the RPC pick the table from the SIBLING's
+   `origin`, falling back to the batch purpose. The sibling is already the
+   authority for the batch, the sort position, the due date, the title and the
+   parent route; this is the one thing it is not the authority for. Needs a
+   migration and a rehearsal case.
+
+Until one of them lands, the button on those three cards refuses **and says so
+truthfully**. The shared `_writeUiReportFailure` answers that code by evicting
+the display caches and advising a reload, which is right on the calendar and
+false here: nothing is stale and no reload helps. The samples path intercepts
+the code first, records the diagnostic, and says the batch is recorded as a
+calendar batch. An honest refusal on 3 cards, not a wrong instruction on 3
+cards.
+
+**Noted, not fixed:** `WRITE_UI_NO_WORK_ITEM_TEXT`, the locked status pill's
+"one cannot be created from this screen", is now stale on any card that HAS a
+sibling, on both surfaces, because the fill button is exactly that creation. It
+stays true for a card with neither component, which is most locked pills. Left
+alone here rather than widened in a samples change; item 87.8 owns that
+sentence and `test/locked-pill-names-no-dead-control.js` pins it.
+
+**REVIEW FOUND TWO, AND BOTH WERE REAL** (Codex on #1342).
+
+**P1: awaiting the in-flight save once was not enough.** That save's `finally`
+starts a REPLACEMENT `_sxrSaveInFlight[pid]` for any edit queued while it was
+draining, so the continuation resumed beside a save it had never waited for.
+The reviewer's mechanism needs one narrowing that does not save it: an ordinary
+edit is a FIELD-LEVEL PATCH carrying only the columns it touched, so it holds no
+link column and cannot clobber one. The whole-card branch is the live path. It
+runs for a new row and for `_sxrRetrySave`, which queues an empty bucket
+precisely so the flush re-sends the current row, link columns included, from
+local state. A copy built before the fill carries them EMPTY, and landing it
+after the fill detaches the component that was just created while the card
+reports success. The write now drains with `_sxrAwaitCardSave` (which also
+flushes queued edits, not merely the active save) and then HOLDS the per-card
+lock across itself, so a flush starting meanwhile hits the engine's own
+`if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and re-reads local
+state afterwards. Released in a `finally` in the save engine's own order, with
+any edit queued during the hold flushed on release.
+
+**P2: a departed client could be cached as the current one.** Staff switch
+Samples tabs while a request is in flight; `clientSlug` still names the client
+the write was started for while `sxrState.posts` already holds the newly
+selected one. `_sxrCacheWrite(clientSlug, sxrState.posts)` then stores one
+client's rows under another's key, to be rendered on the next visit until its
+network read lands. The server write is correct and stays; the local state, the
+cache write and the repaint are now skipped when the view has moved on, and the
+next load of that client reads the link back off the row.
+
+**THE SECOND PASS FOUND THREE MORE, ALL ABOUT THE VIEW MOVING MID-FLIGHT**
+(Codex on #1342, on `7fdd41d`). Every fill has three waits in it, and staff
+switch Samples client tabs during all of them.
+
+**P1: the confirmation could open over a client it did not belong to.** The
+client, the card and the sibling are captured before two network round trips
+(the staff identity read and the live authority read), and the dialog said only
+"this sample". A switch during either one left a dialog sitting over the NEW
+client while carrying the OLD one's identifiers, and confirming it minted real
+Production and Linear work for a client nobody was looking at. `_sxrFillStillCurrent`
+now re-asks the whole question (same client, same card present, same sibling
+still missing the same component) after the awaits AND inside the confirm
+callback, because the dialog is itself a wait that can sit open across a tab
+switch. It also catches a peer who filled the slot first. The dialog now names
+the client and the card.
+
+**P1: a queued edit could be flushed under the wrong client.** The lock added
+in the first round opens this twice over. `onSxrClientChange` calls
+`_sxrFlushAllPending` before switching, but every flush it starts hits
+`if (_sxrSaveInFlight[pid]) return _sxrAwaitCardSave(pid)` and DEFERS behind the
+fill; the release-time flush is the other trigger. Either way
+`_sxrFlushCardSave` derives `_saveSlug` and the row from `sxrState` at flush
+time, and a card it cannot find is treated as a new row and INSERTED. Since
+`sample_reviews` is keyed by (client, id), one client's edit lands as a brand-new
+sample under another. The bucket is now dropped rather than flushed when the
+view has moved on, with a diagnostic; dropping it is also what stops the
+deferred `_sxrAwaitCardSave`, which re-reads `_sxrPendingEdits[pid]`, finds
+nothing and returns. The cost is a local edit on a card nobody is looking at any
+more; the alternative was a phantom row under a client who never had one.
+
+**P2: the Linear url is usually not in the fill response.** On a live fill the
+gateway schedules the outbound drain and answers `mirror_pending: true` before
+the issue exists, so the card is written with the deliverable id and an EMPTY
+url. That is enough to retire the fill button, so nothing on the card asks for
+the link any more and it sat empty until an unrelated reload happened to run the
+adopter. This is the hole a freshly created sample already had, and
+`_sxrAdoptLinksAfterCreate` is the answer written for it (four guarded polls
+across the window the mirror actually takes, measured at 15s on the 2026-08-20
+create). It now runs after a fill whose response carries no url, and after the
+repair arm, since a peer's fill can be mid-drain just as easily.
+
+**THE THIRD PASS FOUND TWO MORE, BOTH UNDER THE CONFIRMATION** (Codex on
+PR 1342, on `86983dc`). The dialog can sit open indefinitely, and the second
+round only taught it to re-check the CARD.
+
+**P1: the work could be recorded against the wrong person.** The submitter
+never used the captured `identity`; it was a gate result and nothing more,
+while `_syncviewEfHeaders` reads `_syncviewStaffIdentityForHeaders()` at
+REQUEST time. Staff identity lives in localStorage and is synced across tabs by
+`_syncviewStaffIdentityStorageChanged`, so a sign-in change in another tab
+lands in this one while the dialog waits, and whoever presses Confirm is
+recorded on `deliverables.created_by` as the author of work somebody else
+asked for. The identity is now re-required inside the callback (which
+re-verifies it, so a lapsed verification is caught as well as a changed
+account) and its `_writeUiPrincipalKey()` compared with the one that opened the
+dialog. The unused parameter is gone from the submitter rather than left in
+place: an argument nothing reads is a claim the code does not keep.
+
+**P1: authority was read before the wait, not after it.** AGENTS.md is explicit
+that current runtime authority is read back before acting and that no snapshot
+is a permanent guarantee. A SyncView to Linear rollback while the dialog sat
+open would still have sent a create. The gateway refuses it and nothing wrong
+is written, but the refusal is avoidable and the boundary is the browser's to
+hold. `_writeUiLinkSlotSealedLive` runs again inside the callback, and the card
+check runs once more after both round trips, since each of them is itself a
+wait.
+
+**THE FOURTH PASS FOUND TWO MORE, AND ONE OF THEM WAS THE THIRD PASS'S OWN
+FIX** (Codex on PR 1342, on `82db9f2`).
+
+**P1: the principal was compared before the last await, not after it.** The
+authority read is a network round trip like the two before it, so a cross-tab
+sign-in landing during THAT one walked past a comparison made before it. The
+rule is that the last thing before the write is a re-check, not that there is a
+re-check somewhere; the principal and the card are both re-asked after it now.
+
+**P1: parking, not dropping.** The third pass dropped the queued edit when the
+view had moved on, and the review was right that this traded a wrong-client
+write for silent data loss. The person had no way to know either:
+`onSxrClientChange` had already tried to flush that edit and its flush was
+sitting behind this very lock, so the bucket was its only copy. The bucket is
+now PARKED against the slug and card it was typed on
+(`_sxrParkEditsForClient`), the person is told it is waiting, and
+`_sxrRestoreParkedEdits` hands it back to the normal engine on the next
+successful load of that client, where `sxrState` finally describes the right
+one, so the status machinery, the Linear pushes and the repair refs all run as
+they would have. A card the reload does not return is dropped rather than
+restored, because re-queuing it is exactly the insert-as-new-row defect this
+exists to avoid; the store is capped at 50 cards per client, and every drop is
+recorded. `peekSxrParkedEdits()` reads it, beside `peekWriteUiQueueDiagnostics()`.
+
+**THE FIFTH PASS FOUND FOUR, THREE OF THEM IN THE PARKING ITSELF** (Codex on
+PR 1342, on `88a35cf`). Two are fixed; two are refused, on the record.
+
+**FIXED. Whose edit it is, kept with it.** Staff identity is shared through
+localStorage, so the account can change before that client is opened again, and
+a restored bucket is flushed with whoever is signed in THEN. A parked status
+edit would have reached the native gateway attributed to somebody who never
+made it. The principal is recorded at park time and compared on the way out; a
+mismatch discards it, records it, and says so.
+
+**FIXED. Newer input wins.** Returning to a client paints from cache first, so
+somebody can be typing in the same card while the background load that triggers
+the restore is still in flight. `Object.assign(pending, parked)` put the older
+value last, overwriting what was just typed and flushing it straight to the
+server. The merge is `Object.assign({}, parked, pending)` now: a field both
+carry keeps the newer value, a field only the parked bucket carries is still
+restored.
+
+**REFUSED, AND THE MESSAGE CORRECTED INSTEAD: durability across a reload.** The
+review is right that the map is in memory and a refresh loses it. What was
+actually wrong was the promise: the notification said the edit "saves itself",
+which a page refresh breaks. It now says the edit is not saved, that opening
+that client again in this tab will save it, and to retype it after a reload.
+Persisting the queue would mean a durable local write store with its own quota
+handling, staleness policy, cross-tab races on one key, and a principal binding
+that has to survive a session, which is a sub-system and not a line. It is not
+built here, and the honest message is what stands in for it.
+
+**REFUSED HERE, BECAUSE IT CANNOT BE VERIFIED FROM THIS SESSION: a nightly
+probe.** The review is right on the house rule and right on the fact: no probe
+in `qa/` drives this control or sends `component_fill` from `surface: sxr`, and
+AGENTS.md wants the harness updated when the road moves. Two things about it.
+The calendar's fill button has had the same gap since it shipped 2026-08-31, so
+this is a standing gap rather than one opened here, and nothing existing goes
+red. And a probe written from this sandbox could not be RUN: there is no route
+to the live backend and no `SYNCVIEW_STAFF_KEY`, so it would first execute at
+06:00 UTC against the live TEST client, which is exactly the unverified push
+AGENTS.md warns about. Recorded as the immediate follow-up, covering both
+surfaces, to be written where it can be run.
+
+**THE CALENDAR TWIN HAS BOTH OF THESE, AND IS LEFT ALONE HERE.**
+`_calFillComponent` reads authority once before its dialog and hands
+`_calFillComponentSubmit` an `identity` argument that function never reads, so a
+rollback or a sign-in change during the calendar confirmation lands exactly the
+same way: a create the gateway has to refuse, and a `created_by` naming whoever
+pressed Confirm. Verified in source on 2026-09-07, not assumed from the
+symmetry. It predates this change and it is the calendar's, so it is recorded
+here rather than fixed inside a samples PR; the fix is the one written above,
+ported.
+
+**STILL OPEN, AND IT IS NOT THIS CHANGE'S:** `_sxrFlushCardSave` deriving its
+slug and row from `sxrState` at flush time is a property of the samples save
+engine, not of the fill. Any in-flight save plus a client switch reaches it
+without this feature, through the same deferred `_sxrAwaitCardSave`. The fill
+no longer contributes a path to it, and the fix above is local to the fill
+rather than to the engine, deliberately: binding a queued edit to its
+originating slug means stamping it at a dozen queue sites or adding a guard
+whose blast radius covers the cross-client Kasper queue, which is not a change
+to make inside a samples-feature PR. Recorded here for its own change.
+
+Pinned by `test/samples-component-fill.js`, which EXECUTES the gate against the
+live card shapes (both halves, neither, blank, archived, client view, legacy
+half-link, rolled-back team) rather than pattern-matching it, proves the request
+id cannot collide with a calendar fill of the same card id, and pins the card
+write to the two link columns and the samples payload shape. The two review
+findings are pinned by EXECUTION rather than by source-matching, as the reviewer
+asked: a stub flush started beside the write proves it reads the link and not
+the emptiness before it, a refused write proves the lock is released and the
+queued edit flushed, and a mid-flight client switch proves the departed cache is
+left alone. The second pass is executed the same way, the whole submit function
+included, so the mirror-pending branch, the repair arm and the drifted-batch
+refusal are chosen from real response shapes rather than matched in source.
+The third pass is executed the same way, by running the real
+handler and firing the captured confirmation callback afterwards, so the
+rollback, the account change, the lapsed verification, the client switch and a
+peer's fill are each proven to stop the write. The fourth pass adds the park round trip end to end: parked
+with the edit intact, refused while the view is elsewhere, restored through the
+engine when that client returns, dropped when the card is gone, capped, and
+silent on an empty bucket. The fifth pass adds the principal
+binding and the merge precedence. Twenty-one checks across the five rounds go
+red against the code that preceded them. A watchdog and an
+unhandled-rejection handler were added with them, because the first draft of
+that section deadlocked its own stub and exited 0 with none of the checks run,
+which is the one way a test can be worse than absent.
+
+## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
+
+**The check that settles it, and it changes the lane's priority.** Item 164 ended
+on an open question: `docs/ops/DESCRIPTION_IMAGE_UPLOAD.md:112-114` claims
+`uploads.linear.app` URLs need Linear's own auth and already render broken, and
+nobody had tested it. Tested now, live, read-only, 2026-09-07 22:36–22:42Z.
+
+Linear mints the `?signature=` JWT **on every API read** and gives it a
+**300-second** life (`exp - iat` = 300, decoded from a live description). Fetched
+with a 31-second-old signature the object answers **200** (`image/png`,
+1,045,198 bytes). The same URL 45 seconds after `exp` answers **401**
+`{"error":"unauthorized"}`. With the signature stripped, **401**. Every
+`uploads.linear.app` URL in `deliverables.brief` was written by the mirror months
+ago, so it has been a 401 since five minutes after it landed.
+
+What an editor sees on an affected card today is a broken-image icon labelled
+"Pasted image" — `imageTag`'s fallback alt (`index.html:54983`), because the
+Linear form is `![](url)` with an **empty** alt. No banner, surrounding text
+intact. That is why it has never been reported.
+
+**Consequences.** (a) LX-E is an improvement, not a regression-prevention, and
+its deadline is **soft**; it comes off the 2026-09-15 critical path. (b) What
+2026-09-15 actually removes is narrower than every brief says: not the ability to
+fetch bytes from a stored URL — already gone — but the ability to **mint a fresh
+signature** by reading the issue through the Linear API, the only route to any
+byte the owner's private capture does not already hold. (c) Therefore exactly one
+piece of this lane is time-critical: **confirm the private capture covers the
+active set before 2026-09-15.** Upload, rewrite and SQL can all land later.
+
+**Two corrections to the LX-E brief, both verified rather than reasoned.**
+
+1. **The join key is wrong throughout.** E1 cross-checks "the URL list" against
+   the capture receipt and E2 de-duplicates "by original URL". Reading one issue
+   twice, five minutes apart, returned an **identical path** and a **completely
+   different signature**. Full-URL equality therefore reports capture gaps that
+   are not real and uploads the same bytes once per occurrence. The key is
+   origin + pathname (`mediaKey()`), never the whole URL.
+2. **E1 as written leaks into a public repo.** It says to commit "exact offset,
+   length, original URL, for every occurrence" into
+   `docs/ops/LINEAR_MEDIA_RESCUE.md`, and `done_when` asks for a hand-off list
+   naming "its deliverable id and original URL". Those URLs carry a JWT plus the
+   workspace and per-file UUIDs. `scripts/linear-media-rescue.mjs` now refuses
+   (`assertPrivatePath`) to write a manifest or out-map anywhere inside a git
+   working tree; only counts and `mediaKeyHash()` (SHA-256 of the path) are
+   publishable. Any other lane instructed to commit a captured URL needs the
+   same treatment.
+
+**A third correction, to item 164 line 1 and to the predicate everyone is
+using.** `c.board_status not in ('completed','canceled')` — the clause item 164
+credits with implementing "the owner has ruled: do not rescue old media" —
+currently **excludes zero rows**. Measured live: across all 49 client rows the
+only `board_status` values that exist are `in_progress` (43) and `backlog` (6).
+Neither `completed` nor `canceled` nor `paused` occurs at all. The clause is a
+harmless guard, but **the deliverable `status` list is the entire lever**, and
+the brief's open question about `paused` clients is moot. Of the 49 client rows,
+**42** pass the client half of the predicate (3 removed by `kind <> 'test'`,
+4 by `not active`).
+
+**The counts are NOT in this entry, on purpose.** `deliverables`, `batches`,
+`production_comments` and `description_images` all return **42501** to the
+browser publishable key, so this session could not count the rescue set and will
+not guess it. The exact counting queries are in
+`docs/ops/LINEAR_MEDIA_RESCUE.md` §1 and must be run in the SQL Editor before
+anything is uploaded. CLAUDE.md's "you can READ most tables" does not cover
+these four; that is worth knowing generally.
+
+**What is deliberately NOT rescued.** Extends item 164; every line is the owner's
+to veto.
+
+1. **Everything item 164 already listed** — historical media on completed and
+   canceled work, the two OpenType fonts, over-dimension files,
+   `production_comments.attachments`, the four other free-text columns, and
+   inline rendering for bare-URL occurrences — stands unchanged.
+2. **Work item E4, the bucket ceiling raise, is NOT taken.** Going from 4 MiB to
+   25 MiB costs a hand-applied migration, a `policy.mjs:17` edit, a
+   `test/description-image-upload.js:169-171` edit, a real Edge Function deploy
+   and an owner approval window. With the deadline now soft (above), spending an
+   owner window on it is the wrong trade. Files over 4 MiB are listed as not
+   rescued instead. If the census later says otherwise, the whole change is one
+   statement plus two constants:
+   `update storage.buckets set file_size_limit = 26214400 where id = 'syncview-description-images';`
+   (undo: the same with `4194304`; objects already stored above the old limit
+   stay readable, the limit only gates new writes). `MAX_DIMENSION = 8000` would
+   have to move with it or large captures still refuse.
+3. **The five large Approved-card comment videos, the 115 deleted comments, the
+   82 unlinked comments, the archive-reader question and the 929 MB historical
+   video** stay out, per the owner's ruling. `approved` is not in the status
+   list, `pc.deleted_at is null` excludes the deleted set, and an unlinked
+   comment has no `deliverable_id` to join on.
+4. **Bare-URL occurrences are rewritten but not promoted to image syntax.** A
+   URL-for-URL splice restores a working *link*; `imageTag` fires only for
+   `![alt](…)` and `![alt](<…>)` (`index.html:54988-54989`). Promoting a bare URL
+   to `![Rescued image](url)` is still a pure text edit and would make it draw
+   inline — offered, not taken, because it changes what the editor reads and
+   nobody asked for it. One word from the owner turns it on.
+5. **`client_approval` is IN the active set** and is the one status worth
+   arguing about. An editor is not working a card in client review, but it
+   bounces straight to `tweak` and the brief's reference images are what the
+   tweak is judged against. Kept on the permissive side per AGENTS.md. One word
+   removes it.
+
+**Reuse, which was the corner to cut and it cut.** No new bucket, no new table,
+no new Edge Function, no `index.html` change, no global Storage setting, and
+therefore **no owner window at all** beyond running the SQL. The live
+`syncview-description-images` bucket, the `description_images` ledger and the
+`description_image_upload_enabled` kill switch (all applied by the owner
+2026-09-05, `ROLLBACK.md:106`) are written into as-is, and
+`description-image-upload` is called unchanged — it already returns a plain
+public https URL, which is shape-identical to a pasted one, which is why this
+lane needs zero renderer work.
+
+**Two preconditions the brief did not list.** The kill switch must be on —
+`description-image-upload` reads `description_image_upload_enabled` *before* it
+authenticates anyone (`index.ts:221`, `uploadEnabled` at `:150-160`) and fails
+closed, so a run against a flipped switch 503s with `upload_disabled`. And
+`qa/probes/p96_description_image_upload.js` should be green first; it is red
+until the `SYNCVIEW_STAFF_ACTOR` secret exists, and a red p96 means the upload
+path is unproven.
+
+**Proven.** `node test/linear-media-rescue.js` (68 checks): hand-computed offsets
+for the image form, the angle form and three repeats; the trailing-punctuation
+fix (the lifted scanner captured a sentence's final period into the URL, and
+splicing that offset would have **deleted punctuation out of a client-facing
+brief** — `trimBareTail` now mirrors the renderer's own `trimLinkTail` at
+`index.html:54937`); two differently-signed URLs collapsing to one key and one
+upload; every non-URL byte identical across a rewrite; the compare-and-swap SQL
+shape; forward and rollback proven exact inverses; and the manifest refusing to
+be written inside a git tree. `npm test` on this branch: **413 of 413 unit
+suites passed**.
+
+**Baseline correction for every session in this program.**
+`docs/independence/LINEAR_EXIT_LANES.md` states the truth-sync baseline is
+"515 passed, 14 failed" *because the session clone is shallow*. That is not true
+in these containers. `git rev-parse --is-shallow-repository` returns **false**
+and the clone has **3432** commits, so the freshness stamps resolve and
+`npm test` on a clean `origin/main` checkout is **412 of 412 passed, exit 0**.
+Nobody should treat 515/14 as expected, and any lane reporting it should look
+again. Also: the lane map is anchored on `d2495eb`; `origin/main` is now
+`4e57e744`, so every `index.html` line number in its region-ownership table
+needs re-checking. And `OPEN_REPAIRS.md` on main now tops out at `## 162.`
+(item 165 predicted 161); 173 was free at the moment of writing.
+
+**Not done.** No count of the rescue set (cannot read the tables). No upload, no
+rewrite, no migration, no deploy — every live action is written up with its undo
+in `docs/ops/LINEAR_MEDIA_RESCUE.md` and none was executed. The comment half is
+sequenced after the inbound webhook is off and that sequencing is lane F's call,
+not this lane's.
+## 170. [2026-09-07/08, BUILT AND UNRUN — the exporter exists, the capture has NOT been taken; one owner decision and one number still missing] The Linear label catalog had no exporter, and the naming mint had no mint
+
+Lane B of the Linear exit (`docs/independence/LINEAR_EXIT_BRIEF_B.md`, branch
+`claude/lx-b-write-path`, rebased onto `origin/main` `4e57e74` — main moved by
+#1342 and #1343 after the briefs were written). Number 170 was reserved for this
+lane by item 168; it was free when this was appended. This entry records what
+was built, and — more importantly — the three choices inside it that become
+permanent on 2026-09-15.
+
+### 1. There was no label exporter anywhere, and there still is no capture
+
+`production_label_catalog_stage_attested` is the only door into
+`production_label_catalog_versions`, and without a row there the whole native
+label lane is inert: staff can neither see nor change labels on any deliverable
+after Linear lapses. Nothing in the repository produced the manifest that
+function demands. Verified: `git ls-tree -r 5bcc03bd7 | grep -i label` returns
+migrations, docs, QA harnesses and tests, and no exporter.
+
+`scripts/linear-label-catalog-export.js` (+ `.cli.js`) is that exporter.
+`docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md` is the owner's runbook and carries
+the single command. It is READ-ONLY against both Linear and Postgres.
+
+**The capture has not been taken.** It needs `api.linear.app` and a credential,
+neither of which reaches a session. It is the one item in the whole programme
+that is unrecoverable after the 15th.
+
+### 2. The scope ruling, and exactly what is being left behind
+
+The owner ruled: export "only on active cards". That applies cleanly to one half
+and not the other, so the two halves have different scopes.
+
+**(a) The catalog is taken WHOLE, and that is not a widening of the ruling.**
+`production_label_catalog_check_manifest`
+(`migrations/2026-09-05-native-label-catalog-foundation.sql:40`) validates a
+closed cursor chain, a terminal page, archived-inclusive entries and an exact
+count, and refuses partial evidence by construction. A filtered catalog cannot
+satisfy its own manifest. Taking it whole is cheap: the checker itself bounds
+the capture at 50 pages × 100 rows, 5000 rows and 5 MiB. If this reading is
+wrong the exporter is wrong, and it should be said before the capture is taken.
+
+**(b) Per-card label state is `deliverables.linear_raw -> issue -> labels`, and
+that is where the ruling bites.** The predicate, exactly:
+
+```sql
+where d.status not in ('posted', 'canceled', 'duplicate')
+  and d.linear_raw ->> 'archived' is null
+```
+
+Decided at the DELIVERABLE, not at the client. The three statuses are the
+terminal ones in the `deliverables` status check
+(`migrations/2026-07-06-b1-linear-data-model.sql:38-41`); `archived` is the
+marker `linear-inbound:903` stamps onto `linear_raw`. A client-level filter
+(`clients.active`, `clients.board_status`) was considered and rejected: it would
+also drop in-flight cards belonging to a client whose flag is stale.
+
+**WHAT IS DELIBERATELY NOT CAPTURED, permanently, after 2026-09-15: the label
+state of every posted, canceled, duplicate or archived card.**
+
+**THE ROW COUNT IS NOT IN THIS ENTRY, AND IT SHOULD BE.** The brief asked for
+it; this session has no route to the live backend and will not invent one. The
+exporter prints it, and the runbook says to record it here and in the
+attestation before attesting. Until someone does, nobody knows how big the
+excluded set is.
+
+### 3. Half (b) is more than a snapshot, and this is the part nobody had noticed
+
+Most of (b) reads our own database, so it survives the 15th. One part does not.
+
+`production_labels_write` (`migrations/2026-09-06-native-label-writes.sql:163-165`)
+raises `native_label_state_incomplete` unless the stored relation has a `nodes`
+array **and** `hasNextPage` exactly `false`. A card whose stored relation is
+paginated, missing or malformed therefore **can never have its labels changed on
+the native lane**, and the only repair is a re-read from Linear.
+
+So the exporter classifies every active card `complete` / `paginated` /
+`missing` / `malformed` and re-reads from Linear only the ones the native writer
+would refuse, emitting them as `repaired_relation`. **Applying those repairs to
+`deliverables.linear_raw` is an owner decision and was deliberately not built**:
+it is a direct write to a real client column that bypasses
+`production_deliverable_write`, and it should not be a session's call. The
+counts arrive with the capture; the decision can be made then.
+
+### 4. THE TRAP, and it is not self-guarding
+
+`production_label_catalog_capability()`
+(`migrations/2026-09-06-native-label-writes.sql:57-72`) reads **only** the
+`production_native_label_catalog` runtime flag. It never queries
+`production_label_catalog_versions`. Set that flag to `mode:"native"` with any
+well-formed UUID and capability reports `native` with no version staged; the
+refusal lands one call later inside `production_label_catalog_read_attested` as
+a 503. This confirms item 165.6 by reading the function body.
+
+The generated `4-capability-flag.sql` carries the warning in its own header and
+`test/native-label-catalog-export.js` goes red if that warning is removed, or if
+`capability()` ever starts reading the versions table without this entry being
+revisited.
+
+### 5. The naming mint (folded-in lane G, item 162 and its correction)
+
+`migrations/2026-09-07-native-identifier-mint.sql` — a `before insert or update`
+trigger on `deliverables` that mints `linear_identifier` for native cards.
+Runbook: `docs/ops/NATIVE_IDENTIFIER_MINT.md`.
+
+A trigger on the table rather than a change to any write function, because both
+provider mint sites (`linear-outbound:852` into `production_issue_create_linkage`,
+`:868` into `deliverable_write`) and every native creation path all update that
+one table. It replaces no existing function, so it cannot collide with the
+composed intake artifact.
+
+Three decisions worth arguing with:
+
+- **Native ordinals start at `observed_provider_max + 100000`.** Native names
+  keep the provider's shape, so they share its namespace; a high band cannot
+  collide with anything Linear mints before the cutoff. The prefix is derived
+  from what the provider actually used, never configured, and a team with two
+  prefixes refuses to seed rather than guessing (the item-161 failure mode).
+- **The capability self-guards** — native only when the flag says native AND a
+  seed row exists. Deliberately unlike the label capability in §4 above.
+- **Name stability is NOT flag-gated.** Once a name is handed out, a later
+  provider write keeps the native name and records the one it refused. Flipping
+  back to `provider` stops minting and renames nothing.
+
+Proved against a disposable PostgreSQL 16, not asserted about: 17 cases in
+`qa/native-identifier-mint/sql-proof.js` covering the no-op install, the
+half-armed flip, minting, collision step-over, 25 concurrent allocations, the
+provider write-back, the undo and two refusals. **The first run of that proof
+found a real bug** — `production_native_identifier_capability` was declared
+`stable` and takes `for share`, which PostgreSQL refuses in a non-volatile
+function, so every insert would have failed. A source-only assertion would not
+have caught it.
+
+**Still unrun against the live database**, and still open from item 162:
+whether native naming covers every surface that shows a name. `displayId`
+(`index.html:51816`) is the resolution point for the Production list, the
+command palette and the deep links, and it needs no change because it already
+prefers `linear_identifier`. Slack alert text and the Workload row header were
+not walked.
+
+### 6. Two error strings that would have lied to staff on the 15th
+
+Fixed in `_calNativePostErrorText` and `WRITE_UI_FAILURE_CODE_TEXT`, both inside
+lane B's index.html regions.
+
+`project_mapping_validation_unavailable` (gateway `index.ts:2325`) and
+`batch_parent_validation_unavailable` (`:2348`) both matched
+`/project|mapping|parent/` and reached "This client's Video and Graphics filing
+must be configured before a post can be created" — telling an SMM to fix a
+configuration that is already correct and that no configuration can fix. Same
+class as the 2026-08-20 `batch_parent_mapping_` case eight lines above it, one
+cause over: a DEPENDENCY problem dressed as a SETUP problem.
+
+`assignee_provider_unavailable` (`:2600`) matched no branch and reached the
+catch-all's "safe to retry" — the sentence that cost a videographer eleven
+identical submissions on 2026-08-26. Create Post sends `assignee_id` whenever
+its editor dropdown resolves, so every video post hits it.
+
+All three now name the dependency, say nothing was created, and point at
+reporting rather than retrying. The assertions in
+`test/create-post-error-names-the-cause.js` are written as negatives — neither
+wrong sentence can be reached from these codes again, however the mapper is
+later rearranged — and they check that a genuine `project_mapping_missing` still
+gets the client-filing sentence, so a true message was not removed to prevent a
+false one.
+
+### 7. Confirmed and corrected from the briefs, by reading the source
+
+- **Item 165.3 is right and the brief was wrong** about `linear_team_mapping_unavailable`
+  and `status_mapping_unavailable` being on Create Post. `linearStateIdForCreate`
+  has exactly one caller, `index.ts:3604` inside `handleProductionCreate`, which
+  is dead behind the unconditional 403 `production_create_closed`. Create Post
+  and Submit never reach either code. They are Production-tab only.
+- **`linear-outbound` writes `linear_identifier` at one line, not two.** Item
+  162's correction names `:857` and `:868`; on `origin/main` `4e57e74` the two
+  minted values are `clean(completeIssue.identifier)` at **`:852`** (into
+  `production_issue_create_linkage` as `p_issue.identifier`) and `:868` (into
+  `deliverable_write` as `linear_identifier`). Both still reach the table, so
+  the correction's conclusion holds; only the line number is off by five.
+- **`production-write` copies, it never mints.** One reference,
+  `index.ts:1576`, `linear_identifier: clean(row.linear_identifier) || null`,
+  and four `identifier: null` at create. Pinned by a test so a future mint
+  there does not silently duplicate this one.
+
+### 8. Belongs to other lanes
+
+- **`WRITE_UI_FAILURE_CODE_CLASS` (index.html:26711-26855) files all three
+  codes above under `wait`.** Correct today — a dependency was unreachable and
+  nothing was committed — and a permanent lie from the 15th, when `wait` will
+  advise an SMM to keep trying something that can never succeed. That block is
+  outside lane B's assigned region (26859-27450), so it was not touched. It
+  needs an owner-visible decision about whether a fourth class exists for
+  "gone, not late". The `WRITE_UI_FAILURE_CODE_TEXT` entries added in §6 are a
+  local patch over it, not a fix for it.
+- **THE INTEGRATION CANDIDATE `5bcc03bd7` IS BEHIND MAIN, AND NOT ONLY IN
+  index.html.** Every lane brief says to lift artefacts from it. Measured on
+  this branch: `git ls-tree 5bcc03bd7 migrations/` returns 106 files and
+  `git ls-tree origin/main migrations/` returns 92, but the sets are not nested
+  — `migrations/2026-09-07-deliverable-identifier-team-move-repair.sql` is on
+  main and **absent from the candidate**. That file arrived with PR #1333
+  (`3ea7c04`, `d032cf5`), the same PR item 163 records as re-anchoring the
+  Production deep link on `linear_identifier`. `git diff origin/main 5bcc03bd7`
+  scores it `-194`, and index.html at `+3374/-`. So a wholesale lift of the
+  candidate's `migrations/` or `index.html` **reverts #1333**, and #1342 and
+  #1343 merged after that. `git merge-base` will not tell you this: the session
+  clone is shallow and the candidate was fetched at `--depth=1`, so merge-base
+  answers with main's own tip and is simply wrong. Compare trees, not history.
+  This is why lane B lifted the two label migrations FILE BY FILE and did not
+  take index.ts or index.html from the candidate at all.
+- The two label migrations are lifted onto this branch but the gateway half
+  (candidate `production-write/index.ts` + `policy.mjs`, work item B1) is **not**
+  lifted. `test/native-label-catalog-foundation.js` AND `test/native-label-writes.js`
+  both assert against that gateway, so neither is on this branch. Whoever lands
+  B1 restores both, together with `qa/native-label-catalog/` — see §9.
+
+### 9. A LIFTED TEST WITHOUT ITS HARNESS, HIDDEN BY ITS OWN SKIP — read this before lifting any candidate test
+
+This lane's first push turned CI red, and the way it did is a trap every other
+lane is currently exposed to.
+
+`test/native-label-writes.js` was lifted from the candidate without
+`qa/native-label-catalog/`, the harness it spawns. Locally it printed
+`SKIP native label writes: explicit disposable PostgreSQL required` and exited
+**0**, so a full `npm test` was green and the omission was invisible. **CI sets
+`F63_REQUIRE_POSTGRES=1`**, so there the same suite ran, could not find the
+harness, and threw `native_labels_actual_lane_failed_private_evidence_retained`
+— a message naming neither the missing file nor the reason.
+
+Two things follow, and both are general:
+
+1. **A sandbox `npm test` is NOT the CI suite.** Three suites are gated behind
+   `F63_REQUIRE_POSTGRES` (`f63-flip-runbook-sql-gate`,
+   `linear-deliverables-reconcile-bounded-postgres`, and this lane's
+   `native-identifier-mint`) and they SKIP silently without it. Run the suite
+   with a disposable PostgreSQL 16 on a loopback port and
+   `PGHOST/PGPORT/PGUSER/PGDATABASE` all set — **`PGDATABASE=postgres` included,
+   which `f63-flip-runbook-sql-gate.js:531` asserts outright** — or your green
+   run has not covered what CI covers. Measured both ways on this branch: 1 of
+   414 failed either way, but only the gated run actually executes the
+   behavioural proofs.
+2. `qa/native-label-catalog/write-proof.mjs` and `handler-proof.mjs` both LOAD
+   `supabase/functions/production-write/index.ts` and pin its contents, so they
+   are useless until B1 lands. `sql-proof.js` beside them is gateway-free and
+   could stand alone, but nothing in `test/` invokes it on the candidate either.
+
+**The guard: `test/gated-suites-have-their-harness.js`.** Every path a top-level
+suite hands to `path.join(__dirname|root, …)` must exist, whatever any gate
+would have decided — a spelling check on file paths, with no database, no
+credentials and no gate of its own. It resolves each path against the base that
+suite actually uses (the first draft resolved everything against `test/` and
+produced ~200 false alarms, because most suites join from a `root` they set to
+the repository root). Mutation-proven: restoring `test/native-label-writes.js`
+makes it exit 1 naming `qa/native-label-catalog/write-proof.mjs`, and it asserts
+it resolved 129 real paths so it cannot pass by matching nothing.
+
+Six sessions are lifting candidate tests right now. This is the shape that bites.
+
+### CAPTURE TAKEN 2026-09-08 01:24Z — this entry's "has NOT been taken" is superseded
+
+The owner ran the exporter twice from his own machine. Both runs were read-only:
+no mutation reached Linear and nothing was written to Postgres.
+
+**Run 1, 01:22:28Z** (`--skip-card-state`), capture `5a4bda94`: catalog half only.
+Superseded by run 2 and retained here because it is the run that proved the
+catalog half stands alone.
+
+**Run 2, 01:24:19Z, the one to attest**, capture `2697f5cd-3000-46f7-a063-aa4657a57678`:
+
+| | |
+|---|---|
+| labels captured | **46**, 1 page, archived included |
+| of which archived / label groups | 0 / 0 |
+| workspace-scoped | 3 |
+| independent walk at page size 50 | **RECONCILED** — only-primary 0, only-verify 0, changed 0 |
+| active cards | **5,437** |
+| complete / paginated / missing / malformed | **5,432 / 0 / 5 / 0** |
+| re-read from Linear / failed | **5 / 0** |
+
+`source_sha256` `00886fb83491e3de810c36c3ce776fa5f9f7c8e2dd8e1068d966082f52c81c7f`
+`export_package_sha256` `258945c38faa2fa28fe3acb4a19efa07c503aae5ffd0a1de310388b4210ee0f4`
+`review_evidence_sha256` `0a5ed7742adcde1fc608a61dfb472d3b82f637ac0b475643f5aed2965a4f44b9`
+
+The package is private, outside the repository, under `%USERPROFILE%\.syncview\`.
+It is never committed, pasted into an issue, or attached to a PR. Only counts and
+hashes appear above; no label name, client identity or card id.
+
+**The number this entry demanded, recorded before attesting:** 5,437 active cards
+were in scope and **none were excluded** — `paginated 0, malformed 0`. So the
+owner's "only active cards" ruling cost nothing here: there is no silently
+dropped population to remember later. The five `missing` rows were exactly the
+genuinely one-way case this entry describes (a stored relation the native writer
+would refuse forever), and all five were re-read from Linear successfully. Had
+those five not been re-read before the account lapses, those cards could never
+have had their labels changed on the native lane, by any means.
+
+**A correction to what the coordinator told the owner.** He was first told
+`--skip-card-state` was safe because half (b) reads our own database. That is
+true of most of half (b) and false of the part above, which is why run 2 exists.
+The instruction was wrong for about two minutes and the error was self-caught;
+recorded because a session repeating it after 2026-09-15 could not recover.
+
+**Still not done, and NOT deadline-bound:** the attest step, then the two
+migrations, then `3-stage-attested.sql`, then `4-capability-flag.sql`. Step 4
+does not guard itself — see this entry's own warning. None of that needs Linear
+alive, so it can happen at any time.
+---
+
+## 174. [2026-09-07, lane LX-F, PART 1 SHIPPED — the dead-man's switch survives the Linear cutoff; the cutoff itself is prepared separately] Four of the eight monitored lanes die with Linear, and the switch's second host dies with them
+
+`174` is the number the exit reserved for lane F. Item 168 on the coordinator
+branch says `172`; `docs/independence/LINEAR_EXIT_LANES.md` on the same branch
+says `174` and is the later of the two. Verified free before writing: A took
+`169`, C took `171`/`175`/`176`, D took `172`, E took `173`.
+
+**The finding.** `scripts/monitoring-watchdog.js` registered eight lanes. Four
+of them — `reconciler_pager`, `production_write_drill`, `production_shadow_audit`
+and `b1_incremental_refresh` — are hosted by workflows whose "require secrets"
+step demands `LINEAR_API_KEY` (`linear-deliverables-reconcile.yml:72`,
+`production-write-drill.yml:73`, `production-shadow-audit.yml:37`,
+`b1-linear-incremental-refresh.yml:61`). Each writes its heartbeat under
+`if: always()`. So on the day the credential dies they do not go quiet, which
+the switch is built to catch — they RUN, fail at the secrets gate, beat
+`ok:false`, latch a `failing` incident that can never clear because nothing can
+un-latch a lane that can never pass again, and leave a red run behind every day.
+That is the estate training its owner to ignore the one channel that would have
+told him about a real failure.
+
+**The finding underneath the finding, which is worse.** The dead-man's switch is
+a two-host design — "a checker cannot report its own death", so `--check` runs
+from two independent workflows that read each other's `monitoring_watchdog`
+heartbeat. The second host was `linear-deliverables-reconcile.yml`
+(`:124-126`), one of the four. Disabling it as part of the cutoff would have
+silently reduced the switch to a single host, at which point a dead
+`monitoring-deadman.yml` becomes undetectable — on the exact day the estate
+needs it most. Nothing anywhere asserted the host count, so nothing would have
+said a word.
+
+**Shipped in this PR.**
+
+1. The second host is re-homed to `.github/workflows/monitoring-crosscheck.yml`
+   (`*/20`), which holds no Linear credential and survives 2026-09-15 untouched.
+   Until the reconciler is disabled there are three hosts, not two; that is
+   harmless (a stale lane latches once regardless of how many hosts observe it)
+   and it is why the re-home could merge well ahead of the cutoff instead of
+   racing it.
+2. Every lane now declares `hosts`, and the four doomed ones declare
+   `retires_with: 'linear'`. Retirement is `retired: {at, reason}`; the lane
+   stays in the registry and every `--check` reports its watched and its retired
+   set by name, so a retirement is never a lane quietly vanishing.
+3. `test/monitoring-watchdog.js` enforces the registry against the workflow
+   files in **both** directions: an active lane must have at least one
+   actively-scheduled host, and a retired lane must have none. **Disabling a
+   Linear workflow and retiring its lane are therefore one change, welded
+   together by the suite, instead of two that can drift** — which is what the
+   lane brief asked for as a note and is now a machine check. It also asserts
+   that at least two actively-scheduled Linear-free hosts run `--check`, and
+   that every scheduled workflow needing a `LINEAR_*` secret is on the cutoff
+   inventory (after the cutoff that assertion becomes "there are none", checked
+   rather than grepped once).
+
+Mutation-verified, five ways, each confirmed to go red against the shipped code:
+retiring a lane whose host still runs; unscheduling the four Linear workflows
+without retiring their lanes; removing the crosscheck host's schedule; adding a
+new scheduled Linear-credentialed workflow that no lane claims; and moving a
+heartbeat step out from under `if: always()`. The positive control — retire all
+four lanes AND comment out their crons, i.e. the actual cutoff — passes and
+leaves four watched lanes and four dated, reasoned retirements.
+
+**What this PR deliberately does NOT do.** It does not disable a single
+workflow, retire a single lane, or change any runtime flag. Every lane is still
+watched and every cron still runs; the behaviour on merge day is identical to
+the behaviour before it. The cutoff is prepared, not executed — F turns things
+off only after A/B/C/D are live and observed, and the outbound-off flip is gated
+on lane B's native naming mint (item 163). The rest of lane F —
+`docs/ops/LINEAR_CUTOFF_RUNBOOK.md`, the outbox-debt census, the native write
+drill, the workload-source freshness watcher, the client-continuity lift, the
+alarm-proof lane, the Linear-dead rehearsal, and the `ROLLBACK.md` Live State
+rows — ships in a later PR that merges LAST of the six lanes.
+
+**Correction to the lane brief, for whoever reads it next.** The brief warns
+that `test/monitoring-watchdog.js` "will pin the current 8-lane LANES list" and
+that changing LANES is a build break. It does not pin a count — it derives
+everything from the imported `LANES`. What actually broke was four fixtures that
+named `reconciler_pager` as a literal, and the wiring block that named three
+retiring workflow files by hand. Both are now derived (`WATCHED[0]`,
+`WATCHED[1]`, and the registry's own `hosts`), so no future retirement can
+force an assertion to be deleted to get the suite green — which is precisely how
+a lane would stop being watched without anyone deciding that it should.
+
+**Found while shipping this, and it is a trap for the later PR.**
+`scripts/monitoring-watchdog.js` is a **pinned member of the F27 reconciler
+closure** (`scripts/f27-reconciler-closure.js`: `EXPECTED_CLOSURE_PATHS` and
+`REVIEWED_BLOB_SHA256`, entered 2026-08-04 when the reconcile workflow gained
+the heartbeat and `--check` steps). Editing it drifts the pin and
+`test/f27-reconciler-closure.js` fails `REVIEWED_CLOSURE_BLOB_DRIFT` — but ONLY
+after the edit is committed, because that suite reads closure files from git
+HEAD, not the working tree. A pre-commit `npm test` reports green and the
+failure appears on the push. That is exactly how it surfaced here: the baseline
+and the first post-edit run were both clean, and the confirming run on the
+committed tree was not. The suite says so in a comment at
+`test/f27-reconciler-closure.js:77-90`; nothing in the exit briefs does.
+
+Re-pinned in this PR to `cc2b4324…` (previous `5df8340c…`) with the review note
+the file's own discipline requires. Only one pin site exists — verified by
+grepping the old digest across the tree.
+
+**The trap:** `WORKFLOW_PATH` for that closure is
+`.github/workflows/linear-deliverables-reconcile.yml`, which F4 **unschedules**.
+So the cutoff PR drifts this pin twice — once for its own edit to
+`monitoring-watchdog.js` (retiring the four lanes) and once for the workflow
+blob — and it must re-pin both. More than a chore: the entire F27
+reconciler-closure capture/rollback apparatus is defined over a workflow the
+cutoff turns off. Whether that apparatus should be retired with it, kept as a
+frozen historical capture, or re-pointed is an owner decision this PR does not
+take and the exit briefs never raise. Flagged for the coordinator.
+
+**Lane G fold-in.** G6 is the same rewrite with the same intent and is covered
+here in full. G11 (the `docs/ops/MONITORING.md` and `docs/CLIENT_LIFECYCLE_MAP.md`
+rows that overlap F12) is not: only the dead-man's-switch row of
+`docs/ops/MONITORING.md` is touched in this PR, because it is the only row this
+PR makes untrue. The remaining G11 rows move with F12.
+
+---
 
 ## 175. [2026-09-07, FOUND — the exit's own anchor stops being maintained on the day of the exit] Every human-readable task name in the estate is minted by Linear, and nothing else mints one
 

@@ -160,7 +160,7 @@ the brief states it.
 | `linear-add-comment` | **RETIRE** | Same, superseded by the `production-comments` gateway (F43 canonical add/reply/edit/delete/resolve). |
 | `video-form` / `graphic-form` | **RETIRE** | Superseded by `production-write`'s `intake_create` on the `submission` and Calendar surfaces (#850 cohort). |
 | `log-linear-submission` | **KEEP** | Does not read or write Linear. Appends a Google Sheet, and is the pre-gateway fallback log that the 2026-08-26 incident exists to justify. It survives the Linear cutoff untouched. |
-| `kasper-queue` | **KEEP** | Does not read Linear. Reads Sheets as the middle fallback in the Kasper fan-out. Survives the cutoff. **Caveat, not a Linear dependency but adjacent:** four Kasper visibility predicates still gate on `graphic_linear_issue_id`, which stops being populated at the cutoff — thumbnails would silently drop out of Kasper review. That is a card-column dependency, tracked in the touchpoint inventory as `neutralize/repoint at epoch`, and it is not this endpoint's problem to solve. |
+| `kasper-queue` | **KEEP** | Does not read Linear. Reads Sheets as the middle fallback in the Kasper fan-out. Survives the cutoff with **nothing owed**. The touchpoint inventory's caveat here — four Kasper visibility predicates gating on `graphic_linear_issue_id`, so thumbnails drop out of review once the column stops being populated — **is closed on `main@d8866d9` and must not be carried forward.** `_calCompLinked` (:28124-28135) accepts either the legacy URL column or `graphic_deliverable_id` / `video_deliverable_id`, and `_calCompKasperVisible` gates on that shared predicate (:45758). `test/cutover-fix-pack-ui.js:158-196` is the F04 fix pack and pins all four Kasper decisions plus both SMM/SXR pill locks for a native-ID-only graphic. |
 
 ---
 
@@ -223,15 +223,28 @@ anonymous GET returns `401`.
 > shape reproduced natively. **Source-level finding, not live-verified** (see
 > §6). Whoever executes this must confirm the live grant and revoke it in the
 > same window as the cutover, or the replacement inherits the defect it replaces.
+> **The Edge Function is not a substitute for the revoke.** While the grant
+> stands, the committed publishable key reaches `deliverable_events` directly
+> through PostgREST — no application reader involved — so serving the tab from
+> an authenticated function protects that function's response and nothing else.
+> Both are required.
 
 **Failure mode.**
 
 - *What a user sees.* Kasper opens Editors and gets one card: "Couldn't load
-  editor stats" with the error text (`:78789-78792`). Any cached week that is
-  still the expected last-week Monday keeps rendering — the cache read happens
-  before the fetch (`_kedLoadEditorsCache` :78737, consulted at :78757-78766, before the
-  fetch at :78774), so a failure never blanks a week that was
-  already loaded.
+  editor stats" with the error text (`:78789-78792`) — **and whatever was on
+  screen is gone.** The cache does not keep rendering through a failure, on
+  either path. On an explicit Refresh (`forceRefresh`), `_kedLoadEditorsCache`
+  is skipped entirely (`:78759`), the body is replaced by a loading skeleton
+  (`:78770`), and the catch replaces that with the error card. On a non-force
+  load the catch's `b.innerHTML = …` (`:78787-78792`) is unconditional too, so
+  it blanks an already-painted week just the same. The cached payload survives
+  in `localStorage` and would be re-read on the *next* non-force load — it is
+  durable, but it is not on screen.
+- *Therefore the replacement owes work the legacy version never did.* "Keep the
+  stale week visible and label it stale" (below) is **not** preserved behaviour
+  to port; it is a change. Budget for it, or the native Editors tab reproduces
+  today's blank-on-failure.
 - *Fail open or closed?* **Closed on authorization, visible on availability.**
   An unauthorized caller gets `401` and no rows — never a partial or empty-looking
   success, because "no editor deliveries last week" is a legitimate render
@@ -489,7 +502,7 @@ Nothing in this list may be deactivated in n8n before the row above it is on
 |---|---|---|---|
 | 1 | **`editors-week` deactivated** | **PR #1346 merges.** `main@d8866d9` still calls it at `index.html:78774`; Kasper's Editors subtab dies the moment the endpoint stops answering. Deactivating first is a live outage on a staff-only tab with no fallback beyond a one-week cache. | §1.1, §2(7) |
 | 1a | *(and, before the tab can be trusted, not merely rendered)* | The event-time-assignee schema gap in §4.1 — **not in #1346**, needs a `deliverable_events` migration. Until then the native tab has delivery-count parity, not report parity. `GO_LIVE_CHECKLIST.md:999` requires full §9.11 parity before retirement. | §4.1 |
-| 1b | *(and, before it is served at all)* | The `deliverable_events` anon-SELECT grant is revoked, or the reader is an authenticated Edge Function that does not depend on that grant. Serving F48's data over the publishable key would replace an exposure with an identical one. | §4.1 |
+| 1b | *(and, independently, before it is served at all)* | **The `deliverable_events` anon-SELECT grant and permissive policy are revoked.** This is not satisfied by putting the reader behind an authenticated Edge Function: while the grant stands, the committed publishable key can query the table straight through PostgREST, so an EF protects only its own response and leaves the F48 exposure exactly where it was. Revocation and the authenticated reader are two requirements, not two options. | §4.1 |
 | 2 | **`linear-issues` deactivated** | **PR #1344 merges** AND the Calendar bulk-create link poll is repointed. The Workload half alone is not sufficient — the poll is the second, undocumented caller. | §2(5), §4.2 |
 | 3 | **`linear-issue-statuses` deactivated** | The Calendar completeness-banner source is native (§4.3) AND the `?v2=0` opt-out path is retired or accepted as broken. The persisted `syncview_calLinearMeta_v1` cache must be version-keyed in the same change or stale metadata outlives the endpoint by up to seven days. | §4.3 |
 | 4 | **`linear-tweak-comments` deactivated** | The Workload popover reads `production-comments` (§4.4), the partial-response caching at `:19350-19352` is fixed, and the "in Linear" copy at `:19374` is changed. | §4.4 |
@@ -499,7 +512,7 @@ Nothing in this list may be deactivated in n8n before the row above it is on
 | 8 | **`linear-set-status` / `linear-add-comment` deactivated** | All three browser outboxes are drained and neutralized — `syncview_linear_outbox_v1`, `syncview_sxr_linear_outbox_v1`, `syncview_calCardJobs_v1` — including startup, focus, timer, page-hide, resume and reassert paths. A queued item in a tab someone left open replays after deactivation. | `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` epoch checklist |
 | 9 | **`video-form` / `graphic-form` deactivated** | `production-write` `intake_create` serves every enrolled client on both the Submit and Calendar surfaces, and F101 closes for Advanced single-team intake. | `ENDPOINTS.md`, `production-write` entry |
 | — | **`log-linear-submission`** | **Never deactivate.** It is not a Linear endpoint. See §1.3 and §2(2). | PR #1346 body |
-| — | **`kasper-queue`** | **Never deactivate for Linear reasons.** Separately, the four `graphic_linear_issue_id` visibility predicates must be repointed at the epoch or thumbnails drop out of Kasper review. | §3 |
+| — | **`kasper-queue`** | **Never deactivate for Linear reasons**, and nothing else is owed here. The `graphic_linear_issue_id` predicate repoint that the July inventory lists as epoch work is already done (F04); re-listing it as a blocker would send someone to re-fix a closed issue. | §3 |
 
 **One cross-cutting order.** PR #1346 also inverts the reroute-flag failure
 direction: today an unreadable `write_ui_reroute_clients` routes **every** client's
@@ -568,3 +581,17 @@ plan that was never true.
    from a stale audit and publish a number later sessions would plan against,
    they are omitted. `AGENTS.md`'s 2026-09-05 rule applies: measure with the key
    the shipped code uses, or do not publish the measurement.
+9. **This document was itself caught doing the thing it warns about.** The first
+   draft carried the July inventory's Kasper-predicate caveat forward as live
+   epoch work. It is not: `_calCompLinked` (:28124-28135) has accepted
+   `graphic_deliverable_id` since the F04 fix pack, `_calCompKasperVisible`
+   gates on that shared predicate (:45758), and
+   `test/cutover-fix-pack-ui.js:158-196` pins all four Kasper decisions for a
+   native-ID-only graphic. The Codex review on PR #1356 caught it. It is
+   corrected in §3 and §5 above, and recorded here because the lesson
+   generalises past the one row: **§2's re-verification was positional.** Where
+   the inventory made a claim that forced me into the code to re-anchor a line
+   number, I checked it. Where it made a purely behavioural claim, I inherited
+   it. Treat every claim in §3–§5 that traces to the July inventory without a
+   `main@d8866d9` line reference beside it as carrying that same risk, and
+   re-check it in code before executing on it.

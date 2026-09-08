@@ -14739,3 +14739,117 @@ here in full. G11 (the `docs/ops/MONITORING.md` and `docs/CLIENT_LIFECYCLE_MAP.m
 rows that overlap F12) is not: only the dead-man's-switch row of
 `docs/ops/MONITORING.md` is touched in this PR, because it is the only row this
 PR makes untrue. The remaining G11 rows move with F12.
+
+## 175. [2026-09-08, lane LX-D, FIXED — browser live on merge, no deploy] Settling per row bought isolation with a wait that scales by row count, and the fast rows paid for it
+
+Number: **175**, the next free header (`## 174.` is the highest in the file;
+`172` is lane D's and is left as it stands). The four duplicate headers item 168
+names (`## 13.`, `## 14.`, `## 22.`, `## 23.`) predate this programme and are not
+touched here.
+
+### The second-order cost of a first-order fix
+
+Item 172's last repair made `wlFetchTweakComments` settle per deliverable, so one
+unreadable row could no longer blank the feedback beside it. It settled them
+**sequentially**, and that is where the cost landed. Each native read arms its own
+`WL_PLAN_READ_TIMEOUT_MS` abort, so awaiting them one after another makes the
+popover's worst case `N x 8s`:
+
+| rollup | before item 172 | after item 172 (sequential settle) | now |
+|---|---|---|---|
+| 3 unreachable rows | 8s, everything blanked | 24s | 8s |
+| 12 | 8s, everything blanked | 96s | 20s |
+| 20 | 8s, everything blanked | 160s | 20s |
+| 40 | 8s, everything blanked | 320s | 20s |
+| 80 | 8s, everything blanked | 640s | 20s |
+
+Measured, not estimated: `test/workload-tweak-feedback-source.js` drives the real
+functions against a virtual clock and reports the numbers above. The reviewer's
+report said "15-second timeout" and "about five minutes" for 20 rows; the shipped
+per-row abort is 8s, so the real figure was 160s. Same defect, and the corrected
+number is the one this entry publishes.
+
+Worse than the total: **no successful row rendered until the whole loop finished.**
+A deliverable that answered in 200ms sat on a skeleton behind a neighbour that
+was going to hang for its full timeout and then fail anyway.
+
+Isolation had traded a fast total failure for a slow partial one. On a wide
+rollup that is the worse of the two, because the total failure at least told the
+editor to go and look somewhere else after 8 seconds.
+
+### The bound
+
+Three parts, and they fail differently on purpose.
+
+1. **A pool of 4** native reads in flight. Caps the cost at `ceil(N / 4)` timeouts
+   instead of `N`. Deliberately small: the endpoint's per-actor rate limit is one
+   of the failures that produced the original all-or-nothing defect, and firing a
+   wide rollup at it in a single burst would trade a slow read for a rate-limited
+   one — the same outage in a different costume. `Promise.all` over every row
+   would have been the obvious fix and is the one that walks straight into it.
+2. **A 20s collection deadline.** Rows still outstanding when it expires are
+   aborted and render as the "couldn't load" state; rows that already settled keep
+   their real answer. It also **clips each row's own abort** to whatever the
+   collection has left, so a read that started late cannot report after the bound
+   — without that, the deadline leaks by one row's timeout.
+3. **Progressive paint.** `wlFetchTweakComments(ids, onRow)` hands each deliverable
+   to the caller the moment it settles, and the popover paints that row's box then
+   and there. The pool and deadline bound how long the slowest row can take; this
+   is what stops it costing the fast rows anything at all.
+
+Both numbers are product decisions — how long staff stare at a skeleton — not
+tuning constants, and they are declared beside `WL_TWEAK_FEEDBACK_PAGE_SIZE` where
+they can be argued with.
+
+### One thing found on the way in: the legacy lane had no bound at all
+
+`_wlLegacyFetchTweakComments` armed no `AbortController` and no timeout. A hung
+n8n webhook held the popover on skeletons **indefinitely** — the same defect the
+review found, on the other lane, and it would have made "the collection is
+bounded" false however well the native side behaved. It now runs *beside* the
+native pool rather than after it (it is an independent request; queueing it behind
+them only ever added their latency to its own) and is cut at the same 20s
+deadline.
+
+**The one behaviour change with a risk attached, stated plainly:** a legacy batch
+that today takes longer than 20s and eventually succeeds will now render
+"couldn't load this deliverable's feedback" instead. Against that: it starts ~8s
+to ~160s earlier than it used to, so in wall-clock terms it has more headroom than
+before, not less. If the owner disagrees, `WL_TWEAK_FEEDBACK_DEADLINE_MS` is the
+single place to change it.
+
+### Not traded into a third thing
+
+The check the brief asked for. Bounding a wait can buy back a correctness failure
+three ways, and each is pinned:
+
+- **Concurrency vs. the rate limit** — peak in-flight is asserted equal to the
+  pool at 3/12/20/40 rows, so this cannot silently become an unbounded fan-out.
+- **The deadline vs. a truthful "no feedback"** — a row cut off by the deadline
+  renders the amber "couldn't load" notice, never the muted "No feedback is
+  available here". Item 172's whole point survives, and is re-proved through a
+  *hang* rather than a rejection.
+- **Progressive paint vs. the whole-collection refusal** — painting early is only
+  safe if the one fact that invalidates every row still stops it. A row that
+  settles after the signed-in staff identity moves is neither stored nor handed to
+  the caller, the read still rejects, and the caller's catch clears what was
+  already on screen. Asserted: nothing is painted on the way out of that refusal.
+
+### Proof
+
+`node test/workload-tweak-feedback-source.js` — **116 green** with the fix,
+**19 red** against `b3148e1f` (the tree with per-row settling and no bound),
+including `doubling and quadrupling the rollup does not move the wall clock at
+all (160000/320000/640000ms)` and `a hung legacy webhook no longer holds the
+popover open forever`.
+
+The fixture makes reads **hang, not reject**. That difference is the whole
+finding: a rejection is instant and cannot reproduce it. Nothing resolves those
+fetches; the only thing that ends them is the `AbortController` the code under
+test arms, and time advances by firing the code's own timers in order against a
+virtual clock. So the assertions are a measurement of wall clock, not of ordering.
+
+The sandbox also carried a hand-typed `WL_PLAN_READ_TIMEOUT_MS: 15000` while
+`index.html` ships `8000`. Left alone it would have published a worst case nearly
+double the real one — the failure mode AGENTS.md records from 2026-09-05. It now
+reads the shipped declaration, as the page size already did.

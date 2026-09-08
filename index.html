@@ -19298,6 +19298,26 @@
     // this page. test/workload-tweak-feedback-source.js asserts all three agree,
     // so this second declaration cannot drift from the first.
     const WL_TWEAK_FEEDBACK_PAGE_SIZE = 50;
+    // BOUND THE COLLECTION, NOT ONLY EACH ROW. Settling per row (below) fixed
+    // the failure that let one deliverable destroy the collection, and bought a
+    // second one with it: every native read carries its own
+    // WL_PLAN_READ_TIMEOUT_MS abort, so awaiting them one after another made
+    // this popover's worst case N x that timeout. Twenty unreachable rows held
+    // EVERY box on skeletons for 160s, where the all-or-nothing chain gave up
+    // after 8s and no successful row rendered until the last one had timed out.
+    // Isolation had traded a fast total failure for a slow partial one, which
+    // on a wide rollup is the worse of the two.
+    // Two bounds, because they fail differently. The POOL caps the cost at
+    // ceil(N / pool) timeouts instead of N. The DEADLINE caps the wall clock
+    // outright, so an N nobody predicted still terminates: rows still
+    // outstanding when it expires are aborted and render as failed, and rows
+    // that already settled keep their real answer.
+    // The pool is deliberately SMALL. The endpoint's per-actor rate limit is
+    // one of the failures that produced the original defect, and firing a wide
+    // rollup at it in a single burst would trade a slow read for a rate-limited
+    // one -- the same outage in a different costume.
+    const WL_TWEAK_FEEDBACK_POOL = 4;
+    const WL_TWEAK_FEEDBACK_DEADLINE_MS = 20000;
     // SETTLE PER ROW. A popover lists N deliverables and each one is its own
     // independent read; this loop used to be a single all-or-nothing await
     // chain, so the FIRST rejection — an aborted read on the timeout, the
@@ -19312,29 +19332,65 @@
     // rows that answered render their real feedback. Only a whole-collection
     // fact still rejects: the signed-in staff identity moving under the read,
     // after which no row's answer belongs to the person looking at it.
-    async function wlFetchTweakComments(ids) {
+    // `onRow(id, rows)` — optional — is handed ONE deliverable the moment that
+    // deliverable settles, so a row that answered in 200ms paints at 200ms
+    // instead of waiting on a neighbour that will hang for its whole timeout.
+    // It is never called for a read the collection is about to refuse.
+    async function wlFetchTweakComments(ids, onRow) {
         const owner = typeof wlSnapshotIdentity === 'function' ? wlSnapshotIdentity() : null;
         const issues = new Map((wlState.issueSnapshot || []).map(issue => [issue.id, issue]));
         const unavailable = () => { const rows = []; rows.failed = true; return rows; };
-        const legacy = [], out = {};
+        const deadline = Date.now() + WL_TWEAK_FEEDBACK_DEADLINE_MS;
+        const legacy = [], native = [], out = {};
+        // The whole-collection refusal has to reach the SCREEN, not just the
+        // return value. Once the signed-in staff identity moves, no row's
+        // answer belongs to the person looking at the popover, so from that
+        // moment a settled row is neither stored nor painted; the caller's
+        // catch then clears whatever was painted before the change.
+        let scopeChanged = false;
+        const settle = (id, rows) => {
+            if (owner && owner !== wlSnapshotIdentity()) { scopeChanged = true; return; }
+            out[id] = rows;
+            if (typeof onRow === 'function') { try { onRow(id, rows); } catch (e) {} }
+        };
         for (const id of ids) {
             const issue = issues.get(id);
             const nativeId = issue && typeof issue.nativeId === 'string' ? issue.nativeId : '';
             if (!owner || !issue || issue.workloadSource !== 'native' || !nativeId) { legacy.push(id); continue; }
-            try { out[id] = await _wlNativeTweakComments(issue, nativeId, owner); }
-            catch (e) { out[id] = unavailable(); }
+            native.push({ id, issue, nativeId });
         }
+        let cursor = 0;
+        const drain = async () => {
+            while (cursor < native.length) {
+                const row = native[cursor++];
+                // Past the deadline nothing new is started: a read begun here
+                // could only report after the bound this exists to hold.
+                if (Date.now() >= deadline) { settle(row.id, unavailable()); continue; }
+                try { settle(row.id, await _wlNativeTweakComments(row.issue, row.nativeId, owner, deadline)); }
+                catch (e) { settle(row.id, unavailable()); }
+            }
+        };
+        const lanes = [];
+        for (let i = 0; i < Math.min(WL_TWEAK_FEEDBACK_POOL, native.length); i++) lanes.push(drain());
         // The legacy lane is ONE batched request covering every legacy id, so
-        // its failure genuinely leaves all of them unknown — but only them.
+        // its failure genuinely leaves all of them unknown — but only them. It
+        // now runs BESIDE the native pool instead of after it: it is an
+        // independent request, and queueing it behind them only ever added
+        // their latency to its own.
         if (legacy.length) {
-            try { Object.assign(out, await _wlLegacyFetchTweakComments(legacy)); }
-            catch (e) { for (const id of legacy) out[id] = unavailable(); }
+            lanes.push((async () => {
+                try {
+                    const got = await _wlLegacyFetchTweakComments(legacy, deadline);
+                    for (const id of legacy) settle(id, got[id]);
+                } catch (e) { for (const id of legacy) settle(id, unavailable()); }
+            })());
         }
+        await Promise.all(lanes);
         // Every id asked for leaves with an answer of its own, because a row
         // missing from this map renders as an empty box — the same pixels as
         // "no feedback" and a different fact.
         for (const id of ids) { if (!out[id]) out[id] = unavailable(); }
-        if (owner && owner !== wlSnapshotIdentity()) throw new Error('Feedback scope changed.');
+        if (scopeChanged || (owner && owner !== wlSnapshotIdentity())) throw new Error('Feedback scope changed.');
         return out;
     }
     // One deliverable's complete feedback: every canonical comment, plus the
@@ -19342,11 +19398,18 @@
     // Linear used to be the union point for those two; after the exit this read
     // is. Pages at the page-wide comment page size so exactly one
     // production-comments request shape leaves this page.
-    async function _wlNativeTweakComments(issue, nativeId, owner) {
+    async function _wlNativeTweakComments(issue, nativeId, owner, deadline) {
         const rows = [], seen = new Set();
         let before = null, total = null, complete = false, feedback = null;
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), WL_PLAN_READ_TIMEOUT_MS);
+        // This row's own timeout, clipped to whatever the collection has left.
+        // A read that started late must not be able to report AFTER the
+        // deadline the popover as a whole is held to, or the bound leaks by
+        // one row's timeout.
+        const budget = Number.isFinite(deadline)
+            ? Math.max(0, Math.min(WL_PLAN_READ_TIMEOUT_MS, deadline - Date.now()))
+            : WL_PLAN_READ_TIMEOUT_MS;
+        const timer = setTimeout(() => controller.abort(), budget);
         try {
             for (let page = 0; page < 50; page++) {
                 const url = CAL_SUPABASE_URL + '/functions/v1/production-comments';
@@ -19420,19 +19483,32 @@
         shown.sourceComplete = !!feedback && feedback.complete === true;
         return shown;
     }
-    async function _wlLegacyFetchTweakComments(ids) {
+    async function _wlLegacyFetchTweakComments(ids, deadline) {
         const now = Date.now();
         const missing = ids.filter(id => {
             const hit = _wlTweakCommentsCache.get(id);
             return !(hit && (now - hit.fetchedAt) < WL_TWEAK_COMMENTS_TTL_MS);
         });
         if (missing.length) {
-            const resp = await fetch(LINEAR_TWEAK_COMMENTS_WEBHOOK, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: missing })
-            });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            const data = await resp.json();
+            // This read carried NO timeout of any kind, so a hung n8n webhook
+            // held the popover on skeletons indefinitely — the same unbounded
+            // wait this change exists to remove, on the other lane. It gets the
+            // whole remaining collection deadline, which is more headroom than
+            // it had in practice: it no longer queues behind the native reads.
+            const controller = new AbortController();
+            const budget = Number.isFinite(deadline)
+                ? Math.max(0, deadline - now)
+                : WL_TWEAK_FEEDBACK_DEADLINE_MS;
+            const timer = setTimeout(() => controller.abort(), budget);
+            let resp, data;
+            try {
+                resp = await fetch(LINEAR_TWEAK_COMMENTS_WEBHOOK, {
+                    method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: missing })
+                });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                data = await resp.json();
+            } finally { clearTimeout(timer); }
             if (!data || data.ok === false) throw new Error((data && data.error) || 'comments fetch failed');
             const got = data.comments || {};
             for (const id of missing) {
@@ -19756,13 +19832,34 @@
 
         if (tweakSubs.length) {
             const token = ++_wlTweakCommentsToken;
-            wlFetchTweakComments(tweakSubs.map(s => s.id)).then(byId => {
-                if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
-                for (const s of tweakSubs) {
-                    const sel = (window.CSS && CSS.escape) ? CSS.escape(s.id) : String(s.id).replace(/"/g, '');
-                    const box = pop.querySelector('[data-wl-comments-for="' + sel + '"]');
-                    if (box) box.innerHTML = wlRenderTweakComments(byId[s.id]);
-                }
+            const live = () => token === _wlTweakCommentsToken && pop.classList.contains('open');
+            // PAINT EACH ROW AS IT SETTLES. Every deliverable in this popover is
+            // its own independent read, so a row that answered has no reason to
+            // sit on a skeleton until its slowest neighbour has finished timing
+            // out. The pool and deadline in wlFetchTweakComments bound how long
+            // that slowest neighbour can take; this is what stops it costing the
+            // fast rows anything at all.
+            const painted = new Set();
+            const paintRow = (id, rows) => {
+                if (!live()) return;
+                const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : String(id).replace(/"/g, '');
+                const box = pop.querySelector('[data-wl-comments-for="' + sel + '"]');
+                if (!box) return;
+                box.innerHTML = wlRenderTweakComments(rows);
+                painted.add(id);
+                // Clamp detection measures rendered width, so it runs on this
+                // row's box now rather than on a whole popover that is still
+                // filling in.
+                wlMarkClampedComments(box);
+            };
+            wlFetchTweakComments(tweakSubs.map(s => s.id), paintRow).then(byId => {
+                if (!live()) return;
+                // Backstop for rows the progressive call could not place — a box
+                // that had not been laid out yet. A row already painted is left
+                // ALONE rather than repainted with identical markup: the reads
+                // now take seconds during which an editor can expand a comment,
+                // and rewriting innerHTML under them would collapse it.
+                for (const s of tweakSubs) { if (!painted.has(s.id)) paintRow(s.id, byId[s.id]); }
                 wlMarkClampedComments(pop);
             }).catch(() => {
                 if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;

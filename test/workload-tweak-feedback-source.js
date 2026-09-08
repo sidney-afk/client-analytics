@@ -57,6 +57,79 @@ function pageSizeDeclaration() {
   if (!match) throw new Error('missing WL_TWEAK_FEEDBACK_PAGE_SIZE declaration');
   return match[0].trim();
 }
+// The collection's bounds are product numbers — how long staff stare at a
+// skeleton — so they are read out of the shipped declaration rather than
+// retyped here. Tolerant on purpose: against a tree that has no bounds at all
+// the sandbox still runs, and the checks below fail on the MEASUREMENT instead
+// of on a missing symbol, which is what makes the red meaningful.
+function numericConst(name) {
+  const match = source.match(new RegExp('^ *const ' + name + ' = \\d+;$', 'm'));
+  return match ? match[0].trim() : '';
+}
+const valueOf = decl => Number((decl.match(/= (\d+);/) || [0, 0])[1]);
+const POOL_DECL = numericConst('WL_TWEAK_FEEDBACK_POOL');
+const DEADLINE_DECL = numericConst('WL_TWEAK_FEEDBACK_DEADLINE_MS');
+const POOL = valueOf(POOL_DECL);
+const DEADLINE_MS = valueOf(DEADLINE_DECL);
+// The per-row abort the popover actually ships with. The sandbox used to carry
+// a hand-typed 15000 while index.html read 8000, which would have published a
+// worst case nearly double the real one (AGENTS.md: measure with the key the
+// shipped code uses).
+const ROW_TIMEOUT_MS = valueOf((source.match(/^ *const WL_PLAN_READ_TIMEOUT_MS = \d+;$/m) || [''])[0]);
+
+// ── A virtual clock ──────────────────────────────────────────────────────
+// The finding is about reads that HANG, not reads that reject: a rejection is
+// instant and cannot reproduce it. So the fixture never resolves those fetches
+// at all — the only thing that ends them is the AbortController the code under
+// test arms — and time is advanced by firing the code's own timers in order.
+// That makes the assertion below a measurement of wall clock, not of ordering.
+function makeClock() {
+  let now = 0, seq = 0;
+  const timers = new Map();
+  return {
+    now: () => now,
+    setTimeout(fn, ms) { const id = ++seq; timers.set(id, { at: now + (Number(ms) || 0), fn }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    fireNext() {
+      let bestId = null, bestAt = Infinity;
+      for (const [id, timer] of timers) if (timer.at < bestAt) { bestAt = timer.at; bestId = id; }
+      if (bestId === null) return false;
+      const timer = timers.get(bestId);
+      timers.delete(bestId);
+      if (timer.at > now) now = timer.at;
+      timer.fn();
+      return true;
+    },
+  };
+}
+const drainMicrotasks = async () => { for (let i = 0; i < 12; i++) await new Promise(r => setImmediate(r)); };
+// Runs a promise to settlement against the virtual clock: drain every pending
+// continuation, then advance to the next armed timer, until it settles or there
+// is no timer left to fire. A read with no bound at all never settles, and that
+// is reported as the failure it is rather than hanging the suite.
+async function runWithClock(clock, promise) {
+  const result = { settled: false, value: null, error: null };
+  promise.then(value => { result.settled = true; result.value = value; },
+              error => { result.settled = true; result.error = error || new Error('rejected'); });
+  for (let guard = 0; guard < 5000 && !result.settled; guard++) {
+    await drainMicrotasks();
+    if (result.settled) break;
+    if (!clock.fireNext()) break;
+  }
+  await drainMicrotasks();
+  return result;
+}
+const abortError = () => Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
+// A request that answers only when it is aborted. This is the shape the review
+// found: not a rejection, a hang.
+const hangs = init => new Promise((_, reject) => {
+  const signal = init && init.signal;
+  if (!signal) return;
+  if (signal.aborted) return reject(abortError());
+  signal.addEventListener('abort', () => reject(abortError()));
+});
+const nativeRows = n => Array.from({ length: n }, (_, i) =>
+  ({ id: 'wl-' + (i + 1), nativeId: 'del-' + (i + 1), workloadSource: 'native' }));
 
 const NATIVE_ID = 'del_fixture_one';
 const now = '2026-09-01T12:00:00.000Z';
@@ -68,6 +141,7 @@ const cardNote = (id, extra = {}) => ({ id: 'source:' + id, author_name: 'Fixtur
 // One sandbox per scenario: the real functions, everything they reach stubbed.
 function build(options = {}) {
   const calls = [];
+  let inFlight = 0, peakInFlight = 0;
   const issue = { id: 'wl-1', nativeId: NATIVE_ID, workloadSource: options.workloadSource ?? 'native' };
   const snapshot = options.snapshot === undefined ? [issue] : options.snapshot;
   let identity = options.owner === undefined ? 'staff-fixture' : options.owner;
@@ -78,7 +152,7 @@ function build(options = {}) {
     JSON, Math, Date, Map, Set, Number, Array, Object, String, Error, Promise,
     AbortController, setTimeout, clearTimeout,
     CAL_SUPABASE_URL: 'https://fixture.invalid',
-    WL_PLAN_READ_TIMEOUT_MS: 15000,
+    WL_PLAN_READ_TIMEOUT_MS: ROW_TIMEOUT_MS,
     WL_TWEAK_COMMENTS_TTL_MS: 5 * 60 * 1000,
     LINEAR_TWEAK_COMMENTS_WEBHOOK: 'https://n8n.invalid/webhook/linear-tweak-comments',
     _wlTweakCommentsCache: new Map(),
@@ -87,10 +161,16 @@ function build(options = {}) {
     _calFmtCommentTime: () => 'just now',
     wlState: { issueSnapshot: snapshot },
     setIdentity: value => { identity = value; },
-    fetch: async (url, init) => {
+    fetch: (url, init) => {
       const body = JSON.parse(init.body);
-      calls.push({ url, body });
+      calls.push({ url, body, at: options.clock ? options.clock.now() : 0 });
+      inFlight++;
+      if (inFlight > peakInFlight) peakInFlight = inFlight;
+      const settled = value => { inFlight--; return value; };
+      const done = promise => promise.then(settled, error => { settled(); throw error; });
+      return done((async () => {
       if (String(url).includes('linear-tweak-comments')) {
+        if (options.legacyHangs) return hangs(init);
         if (options.legacyThrows) throw new Error('legacy lane unreachable');
         return { ok: true, json: async () => ({ ok: true, comments: options.legacyComments
           || { 'wl-1': [{ author: 'Legacy', body: 'legacy note', createdAt: now }] } }) };
@@ -103,26 +183,36 @@ function build(options = {}) {
         const queue = options.byDeliverable[body.deliverable_id];
         if (!queue || !queue.length) throw new Error('fixture ran out of pages for ' + body.deliverable_id);
         const next = queue.shift();
+        if (next.hang) return hangs(init);
         if (next.reject) throw new Error(next.reject);
         return { ok: next.httpOk !== false, json: async () => next.value };
       }
       if (options.identityFlipsOnPage === pageIndex) identity = 'someone-else';
       const page = pages[pageIndex++];
       if (!page) throw new Error('fixture ran out of pages');
+      if (page.hang) return hangs(init);
       return { ok: page.httpOk !== false, json: async () => page.value };
+      })());
     },
   };
+  if (options.clock) {
+    context.Date = { now: () => options.clock.now() };
+    context.setTimeout = (fn, ms) => options.clock.setTimeout(fn, ms);
+    context.clearTimeout = id => options.clock.clearTimeout(id);
+  }
   if (options.laneA !== false) context.wlSnapshotIdentity = () => identity;
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext([
     pageSizeDeclaration(),
+    POOL_DECL,
+    DEADLINE_DECL,
     extract('wlFetchTweakComments'),
     extract('_wlNativeTweakComments'),
     extract('_wlLegacyFetchTweakComments'),
     extract('wlRenderTweakComments'),
   ].join('\n'), context);
-  return { context, calls };
+  return { context, calls, peak: () => peakInFlight };
 }
 const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: true, audience_scope: 'all',
   comments, total: comments.length, has_more: false, ...extra } });
@@ -377,6 +467,17 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'the popover’s catch branch no longer instructs staff to open the sub-issue in Linear');
     ok(/Couldn&rsquo;t load feedback/.test(catchCopy), 'and offers a retry against SyncView instead');
   }
+  {
+    // The fetch layer can hand a deliverable over the moment it settles, but
+    // only the call site can put it on screen — every check in this file would
+    // still pass if the popover ignored the channel and waited for the map.
+    const block = source.slice(source.indexOf('const token = ++_wlTweakCommentsToken;'));
+    const fill = block.slice(0, block.indexOf('// Position:'));
+    ok(/wlFetchTweakComments\(tweakSubs\.map\(s => s\.id\), paintRow\)/.test(fill),
+      'the popover passes a per-row painter, so a settled deliverable reaches the screen before the collection finishes');
+    ok(/painted\.has\(s\.id\)/.test(fill),
+      'and the final pass leaves an already-painted row alone, so a comment an editor expanded mid-read is not collapsed under them');
+  }
 
   // ── One failed row does not blank the rows that answered (finding 3) ─
   const complete = rows => ({ feedback: { version: 1, status: 'complete', complete: true, rows } });
@@ -448,6 +549,170 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'a row with no entry at all renders unavailable rather than an empty box');
     ok(context.wlRenderTweakComments([]) === '',
       'while an empty legacy array still renders nothing, as it does today');
+  }
+
+  // ── The collection is bounded, not just each row (finding 4) ────────
+  // Settling per row removed the all-or-nothing failure and introduced a
+  // sequential one: N independent 8s aborts awaited back to back, so a popover
+  // of 20 unreachable deliverables sat on skeletons for 160s where the old
+  // chain gave up at 8s. Every check in this section makes the reads HANG
+  // rather than reject, because a rejection is instant and cannot reproduce it.
+  {
+    ok(POOL >= 2 && POOL <= 8,
+      'the native reads declare a bounded concurrency pool (' + (POOL || 'none') + ')');
+    ok(DEADLINE_MS > 0 && DEADLINE_MS <= 30000,
+      'and the collection declares a wall-clock deadline (' + (DEADLINE_MS || 'none') + 'ms)');
+    ok(ROW_TIMEOUT_MS === 8000,
+      'measured against the per-row abort the page actually ships (' + ROW_TIMEOUT_MS + 'ms)');
+  }
+  const allHang = snapshot => Object.fromEntries(snapshot.map(row => [row.nativeId, [{ hang: true }]]));
+  for (const rowCount of [3, 12, 20, 40]) {
+    const snapshot = nativeRows(rowCount);
+    const ids = snapshot.map(row => row.id);
+    const clock = makeClock();
+    const { context, peak } = build({ clock, snapshot, byDeliverable: allHang(snapshot) });
+    const run = await runWithClock(clock, context.wlFetchTweakComments(ids));
+    const label = rowCount + ' unreachable rows';
+    ok(run.settled && !run.error, label + ': the read settles instead of hanging on the slowest row');
+    if (!run.settled || run.error) continue;
+    // Sequential settling cost rowCount x the per-row abort. The pool divides
+    // that by the pool size, and the deadline caps whatever is left.
+    const sequential = rowCount * ROW_TIMEOUT_MS;
+    const expected = Math.min(Math.ceil(rowCount / (POOL || 1)) * ROW_TIMEOUT_MS, DEADLINE_MS || Infinity);
+    ok(clock.now() <= (DEADLINE_MS || Infinity),
+      label + ': the whole collection finishes inside the deadline (' + clock.now() + 'ms)');
+    ok(clock.now() === expected,
+      label + ': worst case is ceil(N/pool) timeouts, capped by the deadline — ' + clock.now()
+        + 'ms, where sequential settling took ' + sequential + 'ms');
+    ok(rowCount < 8 || clock.now() < sequential / 2,
+      label + ': and is a fraction of the sequential worst case, not a rounding off it');
+    ok(peak() <= POOL,
+      label + ': never more than the pool is in flight, so a wide rollup is not fired at the '
+        + 'endpoint’s per-actor rate limit in one burst (peak ' + peak() + ')');
+    ok(!!run.value && ids.every(id => run.value[id] && run.value[id].failed === true),
+      label + ': and every row that could not be read says so on its own row');
+  }
+  {
+    // The bound must not depend on the row count. 40 rows may not cost more
+    // wall clock than 20 — that is the whole property the review asked for.
+    const measure = async rowCount => {
+      const snapshot = nativeRows(rowCount);
+      const clock = makeClock();
+      const { context } = build({ clock, snapshot, byDeliverable: allHang(snapshot) });
+      await runWithClock(clock, context.wlFetchTweakComments(snapshot.map(row => row.id)));
+      return clock.now();
+    };
+    const twenty = await measure(20), forty = await measure(40), eighty = await measure(80);
+    ok(twenty === forty && forty === eighty,
+      'doubling and quadrupling the rollup does not move the wall clock at all ('
+        + twenty + '/' + forty + '/' + eighty + 'ms)');
+  }
+
+  // ── A fast row does not wait on a hanging one (finding 4, part two) ──
+  {
+    // "No successful row renders until the entire loop finishes" was half the
+    // complaint, and the pool alone does not fix it: the caller still awaited
+    // one map. `onRow` hands each deliverable over the moment it settles.
+    const snapshot = nativeRows(3);
+    const clock = makeClock();
+    const { context } = build({ clock, snapshot, byDeliverable: {
+      'del-1': [{ hang: true }],
+      'del-2': [page([canonical('b')], complete([]))],
+      'del-3': [page([canonical('c')], complete([cardNote('c1')]))],
+    } });
+    const painted = [];
+    const run = await runWithClock(clock,
+      context.wlFetchTweakComments(['wl-1', 'wl-2', 'wl-3'], (id, rows) => painted.push({ id, rows, at: clock.now() })));
+    ok(painted.length === 3, 'every deliverable is handed to the caller as it settles, not once at the end');
+    const at = id => { const hit = painted.find(entry => entry.id === id); return hit ? hit.at : null; };
+    ok(at('wl-2') === 0 && at('wl-3') === 0,
+      'a deliverable that answered immediately renders at 0ms, with the hanging row still outstanding');
+    ok(at('wl-1') === ROW_TIMEOUT_MS,
+      'while the hanging row settles only when its own abort fires (' + at('wl-1') + 'ms)');
+    ok(painted.findIndex(entry => entry.id === 'wl-2') < painted.findIndex(entry => entry.id === 'wl-1'),
+      'so the fast rows are painted BEFORE the slow one, even though the slow one was asked for first');
+    const early = painted.find(entry => entry.id === 'wl-2');
+    ok(!!early && context.wlRenderTweakComments(early.rows).includes('canonical b'),
+      'and what is handed over early is that row’s real feedback, ready to render');
+    ok(run.settled && !!run.value && run.value['wl-1'].failed === true && run.value['wl-3'].length === 2,
+      'the final map still carries every row, hanging one included');
+  }
+
+  // ── Isolation, unchanged, with the reads hanging instead of rejecting ─
+  {
+    // LX-D3's guarantee re-proved through the new shape. A hang was always the
+    // likelier failure than a rejection, and it must still land on ONE row.
+    const snapshot = nativeRows(3);
+    const clock = makeClock();
+    const { context } = build({ clock, snapshot, byDeliverable: {
+      'del-1': [page([canonical('a')], complete([]))],
+      'del-2': [{ hang: true }],
+      'del-3': [page([canonical('c')], complete([cardNote('c1')]))],
+    } });
+    const run = await runWithClock(clock, context.wlFetchTweakComments(['wl-1', 'wl-2', 'wl-3']));
+    const out = run.value || {};
+    ok(run.settled && !run.error, 'a hanging deliverable does not reject the collection');
+    ok(!!out['wl-1'] && out['wl-1'][0] && out['wl-1'][0].body === 'canonical a'
+      && !!out['wl-3'] && out['wl-3'].some(row => row.fromCard === true),
+      'the deliverables beside it keep their real feedback, card notes included');
+    ok(!!out['wl-2'] && out['wl-2'].failed === true && out['wl-1'] && out['wl-1'].failed !== true
+      && out['wl-3'] && out['wl-3'].failed !== true,
+      'and only the row that hung is marked unavailable');
+    const failed = context.wlRenderTweakComments(out['wl-2']);
+    const emptyButRead = context.wlRenderTweakComments(Object.assign([], { native: true, sourceComplete: true }));
+    ok(failed !== emptyButRead && /class="wl-tweak-comments-status is-unavailable"/.test(failed),
+      'a row we could not ask still looks different from a row that genuinely has no feedback');
+    ok(!/No feedback is available here/.test(failed) && emptyButRead.includes('No feedback is available here'),
+      'and still never claims a client said nothing');
+  }
+
+  // ── The legacy lane had no bound at all ─────────────────────────────
+  {
+    // `_wlLegacyFetchTweakComments` armed no AbortController, so a hung n8n
+    // webhook held the popover indefinitely — the same defect on the other
+    // lane, and it would have made "the collection is bounded" false.
+    const clock = makeClock();
+    const { context } = build({ clock, legacyHangs: true,
+      snapshot: [{ id: 'wl-1', nativeId: '', workloadSource: 'legacy' }] });
+    const run = await runWithClock(clock, context.wlFetchTweakComments(['wl-1']));
+    ok(run.settled, 'a hung legacy webhook no longer holds the popover open forever');
+    ok(clock.now() <= (DEADLINE_MS || Infinity),
+      'it is cut at the same collection deadline (' + clock.now() + 'ms)');
+    ok(run.settled && !run.error && !!run.value && run.value['wl-1'].failed === true,
+      'and the legacy rows say they could not be read rather than reading as empty');
+  }
+  {
+    // And it runs BESIDE the native pool now, so its latency is no longer
+    // added to theirs.
+    const clock = makeClock();
+    const { context, calls } = build({ clock, legacyHangs: true, snapshot: [
+      { id: 'wl-1', nativeId: 'del-1', workloadSource: 'native' },
+      { id: 'wl-2', nativeId: '', workloadSource: 'legacy' },
+    ], byDeliverable: { 'del-1': [page([canonical('a')], complete([]))] } });
+    const painted = [];
+    const run = await runWithClock(clock,
+      context.wlFetchTweakComments(['wl-1', 'wl-2'], (id) => painted.push({ id, at: clock.now() })));
+    const legacyCall = calls.find(entry => String(entry.url).includes('linear-tweak-comments'));
+    ok(legacyCall && legacyCall.at === 0, 'the legacy batch is issued at once rather than queued behind the native reads');
+    ok(painted.some(entry => entry.id === 'wl-1' && entry.at === 0),
+      'so a native row still renders at 0ms while the legacy lane hangs');
+    ok(run.settled && !!run.value && run.value['wl-1'].failed !== true && run.value['wl-2'].failed === true,
+      'and the legacy outage lands only on the legacy rows');
+  }
+
+  // ── Progressive paint never outruns the whole-collection refusal ─────
+  {
+    // Painting early is only safe if the one fact that invalidates EVERY row —
+    // the signed-in staff identity moving — still stops it. A row that settles
+    // after the change is neither stored nor handed to the caller, and the read
+    // still rejects so the caller's catch clears what was already on screen.
+    const { context } = build({ identityFlipsOnPage: 0, pages: [page([canonical('a')])] });
+    const painted = [];
+    let threw = false;
+    try { await context.wlFetchTweakComments(['wl-1'], (id, rows) => painted.push({ id, rows })); }
+    catch (e) { threw = true; }
+    ok(threw, 'a staff identity change mid-read still refuses the whole read');
+    ok(painted.length === 0, 'and nothing was painted into the popover on the way out');
   }
 
   // ── Mixed board ──────────────────────────────────────────────────────

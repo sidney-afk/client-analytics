@@ -79,6 +79,20 @@ here" in the muted italic. A row absent from the read counts as the first, not
 the second. Only the signed-in staff identity moving mid-read invalidates every
 row at once, and that still refuses outright.
 
+They also settle WITHIN A BOUND, which per-row isolation on its own does not
+give: read sequentially, N independent aborts cost N x the per-row timeout, so a
+wide rollup of unreachable rows held every box on a skeleton far longer than the
+all-or-nothing chain it replaced. The native reads run through a pool of 4, the
+collection carries a 20s wall-clock deadline that also clips each row's own abort
+so a late read cannot report after it, and the batched legacy webhook — which
+carried no timeout at all — runs beside the pool under the same deadline. Rows
+still outstanding when the deadline expires are aborted and render as the
+"couldn't load" state, never as an empty thread. Each deliverable is painted the
+moment it settles rather than at the end of the collection, so a row that
+answered in 200ms is readable while a neighbour is still hanging. The pool size
+and the deadline are product numbers about how long staff wait, not tuning
+constants; both are declared next to `WL_TWEAK_FEEDBACK_PAGE_SIZE`.
+
 ## Compatibility and serving dependencies
 
 The canonical `comments`, cursor, audience and lifecycle fields are unchanged.

@@ -41451,8 +41451,25 @@
            you just clicked because your own search excluded the remembered id
            would be worse than the bug this fixes. So the tab is kept and only
            the id is re-aimed, at the first row the list actually shows. */
-        const priorBatchSurvives = priorChoice
-            && priorChoice.value === 'batch' && compatible.some(batchChecked);
+        /* AN EMPTY ID IS NOT A MISSING BATCH (Codex P2 on PR 1353, cascading
+           from the previous round's fix). A zero-match search clears the
+           radio's id on purpose; leaving the tab to `compatible.some(...)`
+           then read that empty id as "your batch is gone" and bounced the user
+           to Start a new batch -- taking the search box with it, which is the
+           only way to clear the query that caused it. Closing and reopening
+           the dialog was the sole escape.
+
+           The two cases are told apart by the id itself. A NON-EMPTY id that
+           no longer appears means the post shape really did drop that batch,
+           and falling back is right. An EMPTY id means only that nothing is
+           aimed at yet, so the tab is kept whenever any compatible batch
+           exists; the panel then renders the filter box to clear, the
+           no-match line, and a disabled select, and submit still refuses
+           until a target returns. */
+        const priorBatchSurvives = priorChoice && priorChoice.value === 'batch'
+            && (String(priorChoice.batchId || '')
+                ? compatible.some(batchChecked)
+                : compatible.length > 0);
         const prevBatchChecked = !!priorBatchSurvives;
         const priorBatchShown = priorBatchSurvives && shownBatches.some(batchChecked);
         const prevBatchId = priorBatchShown

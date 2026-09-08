@@ -652,6 +652,33 @@ console.log('6) the post-count read is one bounded projection query that counts 
   }
 
   // -------------------------------------------------------------------------
+  console.log('8d) an empty batch id keeps the tab instead of trapping the user');
+  {
+    /* Codex P2 on PR 1353, cascading from 8c's fix. A zero-match search clears
+       the radio's id deliberately. Reading that empty id as "your batch is
+       gone" bounced the user to Start a new batch and took the search box with
+       it -- the only control that could clear the query that caused it. The
+       dialog had to be closed and reopened to recover. */
+    const trapped = renderPicker([batchFixture({ id: 'bat-a' })], null, 'Client A',
+      { batchFilter: 'nothing matches this', batchChoice: { value: 'batch', batchId: '' } });
+    ok(/id="calNativePrevBatchRadio"[^>]* checked/.test(trapped),
+      'an empty id keeps the previous-batch tab, because nothing is aimed at yet is not the same as the batch being gone');
+    ok(/id="calNativeBatchName"/.test(trapped) === false,
+      'so the new-batch panel is NOT what renders');
+    ok(/cal-native-batch-select[^>]* disabled/.test(trapped),
+      'the select is disabled while nothing matches');
+
+    /* The distinction being kept: a NON-EMPTY id that no longer appears means
+       the post shape really did drop that batch, and falling back is right.
+       Without this the fix above would swallow world 8's mode-change case. */
+    const genuinelyGone = renderPicker([batchFixture({ id: 'bat-a' })], null, 'Client A',
+      { batchChoice: { value: 'batch', batchId: 'bat-vanished' } });
+    ok(/value="new" checked/.test(genuinelyGone)
+      && !/id="calNativePrevBatchRadio"[^>]* checked/.test(genuinelyGone),
+      'while a batch the post shape no longer offers still falls back to Start a new batch');
+  }
+
+  // -------------------------------------------------------------------------
   console.log('9) picking from the dropdown selects the card and re-aims the radio');
   {
     const radio = { dataset: {}, checked: false };

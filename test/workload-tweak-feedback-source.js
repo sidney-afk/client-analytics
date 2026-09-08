@@ -380,13 +380,32 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     page([canonical('a')], { total: null, has_more: true, next_cursor: { id: 'a', created_at: now } }),
     page([canonical('b')], { total: null }),
   ] });
-  await refuses('a paged walk with a GAP in its counts refuses too — the surviving count cannot vouch for the page that has none', { pages: [
+  await refuses('a paged walk whose TERMINAL count failed open refuses — an earlier count predates the pages after it, so a head insertion leaves it balancing', { pages: [
     page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
     page([canonical('b')], { total: null }),
   ] });
-  await refuses('and the gap refuses whichever page it falls on', { pages: [
+  {
+    // The mirror image is NOT a refusal, and getting this wrong hid threads that
+    // had been read whole. The endpoint applies the cursor to the page query
+    // only — `totalQuery` is never filtered by `before` — so every count is a
+    // whole-thread count at the moment its page was served. A count on the
+    // TERMINAL page is therefore taken after the entire walk, and it alone
+    // proves the total. Counts on the pages before it add nothing.
+    const { context, calls } = build({ pages: [
+      page([canonical('a')], { total: null, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+      page([canonical('b')], { total: 2 }),
+    ] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(calls.length === 2 && rows.length === 2 && rows.failed !== true,
+      'a paged walk whose terminal count succeeded is accepted even though an earlier count failed open');
+  }
+  // The hazard the terminal count exists to catch, driven rather than argued: a
+  // comment posted after page 1 is invisible to every later page (the cursor
+  // filters strictly older), but it IS in the whole-thread terminal count, which
+  // then exceeds the rows collected.
+  await refuses('a terminal count higher than the rows collected refuses — that is a comment posted into the head mid-walk', { pages: [
     page([canonical('a')], { total: null, has_more: true, next_cursor: { id: 'a', created_at: now } }),
-    page([canonical('b')], { total: 2 }),
+    page([canonical('b')], { total: 3 }),
   ] });
   {
     // The counted paged walk is untouched: this is the path the fail-open never

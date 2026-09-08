@@ -19527,10 +19527,6 @@
     async function _wlNativeTweakComments(issue, nativeId, owner, deadline, shouldStop) {
         const rows = [], seen = new Set();
         let before = null, total = null, complete = false, feedback = null;
-        // Whether EVERY page of this walk carried a count. A single page whose
-        // count failed open is provable on its own; a paged walk with a gap in
-        // its counts is not. See the completeness branch below.
-        let countedThroughout = true;
         const controller = new AbortController();
         // This row's own timeout, clipped to whatever the collection has left.
         // A read that started late must not be able to report AFTER the
@@ -19576,10 +19572,9 @@
                     throw new Error('Feedback is incomplete.');
                 }
                 // A page whose count failed open cannot vote on the cross-page
-                // stability check, so record that the walk has a gap in it; a
-                // counted page still has to agree with every other counted page.
-                if (counted === null) countedThroughout = false;
-                else total = counted;
+                // stability check; a counted page still has to agree with every
+                // other counted page.
+                if (counted !== null) total = counted;
                 feedback = value.feedback || null;
                 for (const row of value.comments) {
                     if (!row || !row.id || seen.has(row.id) || typeof row.body !== 'string') {
@@ -19588,41 +19583,39 @@
                     seen.add(row.id); rows.push(row);
                 }
                 if (!value.has_more) {
-                    // WITH a count on every page, the walk is proved exactly as
-                    // before: `rows.length === total`, on top of the cross-page
-                    // agreement already enforced above.
+                    // Completeness rests on THIS page's count, the terminal one,
+                    // and on nothing earlier.
                     //
-                    // WITHOUT one, `has_more === false` alone is NOT a
-                    // completeness proof for a walk that paged. The endpoint
-                    // orders newest-first and the cursor filters strictly OLDER
-                    // (`created_at.lt`), so a comment posted after page 1 is
-                    // invisible to every later page, and the terminating
-                    // `has_more === false` only proves nothing older remains
-                    // BELOW the cursor -- not that the head of the thread stayed
-                    // put. What actually catches that today is the cross-page
-                    // count agreement, not `rows.length === total`: page 1's
-                    // count predates the insert and the walk collects exactly
-                    // that many older rows, so the subtraction still balances.
-                    // Which means the protection needs every page after the
-                    // first to be counted, and a walk with a GAP in its counts
-                    // has no proof at all.
+                    // The endpoint applies the cursor to the page query ONLY;
+                    // `totalQuery` is filtered by `deliverable_id` (plus audience
+                    // for a client) and never by `before`, so every count it
+                    // returns is a whole-thread count at the moment that page was
+                    // served. A count on the terminal page is therefore taken
+                    // AFTER the whole walk, and `rows.length === counted` proves
+                    // the walk holds exactly as many rows as the thread contains
+                    // now. That is what catches the one hazard here: rows are
+                    // ordered newest-first and the cursor filters strictly OLDER,
+                    // so a comment posted after page 1 is invisible to every
+                    // later page -- but it IS in the terminal count, which then
+                    // exceeds `rows.length` and refuses. Counts on the preceding
+                    // pages are not needed for that, and requiring them would
+                    // hide a thread that was read whole.
                     //
-                    // So an uncounted walk is accepted only when it never paged.
-                    // A single page that came back `has_more === false` is the
-                    // whole thread as of that one query, with no cursor window
-                    // for anything to hide in -- airtight, and the common case,
-                    // since it covers every deliverable at or under the page
-                    // size. An uncounted or partly-counted PAGED walk refuses,
-                    // which is exactly the behaviour it had before the count
-                    // began failing open: nothing is made worse, the fail-open
-                    // simply does not extend to the case it cannot prove.
-                    // Refusing here is also the legible failure -- it paints
-                    // "Couldn't load this deliverable's feedback", which an
-                    // editor can see and report, where the alternative is
-                    // silently hiding a comment that was just posted.
-                    complete = countedThroughout && total !== null
-                        ? rows.length === total
-                        : page === 0;
+                    // An earlier count cannot stand in: it predates the pages
+                    // after it, so a head insertion following it leaves both the
+                    // row total and that stale count at the same number and the
+                    // subtraction still balances. Hence a terminal page whose
+                    // count failed open proves nothing about a walk that PAGED,
+                    // and only a single-page walk is accepted without a count --
+                    // one query, `has_more === false`, no cursor window for
+                    // anything to hide in. That is also the common case, since it
+                    // covers every deliverable at or under the page size, and a
+                    // paged walk with no terminal count refuses exactly as it did
+                    // before the count began failing open. Refusing is the
+                    // legible failure: "Couldn't load this deliverable's
+                    // feedback" is something an editor can see and report, where
+                    // the alternative silently omits a note just posted.
+                    complete = counted !== null ? rows.length === counted : page === 0;
                     break;
                 }
                 if (!value.next_cursor || !value.next_cursor.id || !value.next_cursor.created_at

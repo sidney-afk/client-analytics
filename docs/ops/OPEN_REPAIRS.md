@@ -14255,34 +14255,46 @@ like that would have been marked complete and, since `ab92bbf`, *cached*, hiding
 a just-submitted note for the cache TTL. That is precisely the unreportable
 absence this lane exists to prevent.
 
-Sharper than the finding as filed: what catches this when counts are present is
-the **cross-page agreement**, not `rows.length === total`. Page 1's count predates
-the insert and the walk collects exactly that many older rows, so the subtraction
-still balances. The protection therefore requires every page after the first to be
-counted, which means a walk with a GAP in its counts has no proof either.
+**Third correction, and it settles the rule.** My first answer to the above was
+to require a count on EVERY page. Codex found that over-strict on `9ba499a`, and
+the reason is a property of the endpoint I had not used: **the cursor is applied
+to the page query only.** `totalQuery` is filtered by `deliverable_id` (plus
+audience for a client) and never by `before`, so every count it returns is a
+whole-thread count at the moment that page was served.
 
-So an uncounted walk is now accepted **only when it never paged**. A single page
-returning `has_more === false` is the whole thread as of that one query, with no
-cursor window for anything to hide in: airtight, and the common case, since it
-covers every deliverable at or under the 50-row page size. An uncounted or
-partly-counted PAGED walk refuses, which is exactly what it did before the count
-began failing open — nothing is made worse, the fail-open simply does not extend
-to the case it cannot prove. Refusing is also the legible failure here: it paints
-*"Couldn't load this deliverable's feedback"*, which an editor can see and report,
-against silently omitting a note that was just posted.
+That makes the **terminal** page's count the whole proof, and the preceding pages'
+counts irrelevant. A count on the last page is taken after the entire walk, so
+`rows.length === counted` proves the walk holds exactly as many rows as the thread
+contains now; a comment inserted at the head after page 1 is missing from the rows
+but present in that count, which then exceeds them and refuses. Requiring the
+earlier counts as well only hid threads that had been read whole, which is the
+failure this fail-open exists to remove.
 
-**Open upgrade, not taken:** covering the paged case during a count outage means
-a head watermark — re-reading page 1 after the walk and proving the newest row
-did not move. It costs one extra request against the 120-per-actor budget in a
-degraded path, and it still would not catch a *backdated* insert the way
-cross-page count agreement does. Recorded rather than built.
+The converse does not hold, and that is why the rule is not simply "any count
+will do": an EARLIER count predates the pages after it, so a head insertion
+following it leaves both the collected rows and that stale count at the same
+number and the subtraction still balances. So a paged walk whose terminal count
+failed open still refuses, and a walk with no count at all is accepted only when
+it never paged — one query, `has_more === false`, no cursor window for anything
+to hide in. That single-page case is the common one, covering every deliverable at
+or under the 50-row page size, and a paged walk with no terminal count refuses
+exactly as it did before the count began failing open. Refusing is the legible
+failure here: *"Couldn't load this deliverable's feedback"* is something an editor
+can see and report, against silently omitting a note just posted.
 
-`test/workload-tweak-feedback-source.js` grew 33 assertions across the two
-commits and runs **209 pass**. Against `0d588fa`, red on the 4 acceptance
-assertions with all refusals green. Against `1396c7f`, red on exactly the 3 new
-refusals (paged-uncounted, and a count gap on either page) with the single-page
-acceptance and the fully-counted paged walk green in both — the split that shows
-each round changed only what it claimed to.
+**Open upgrade, no longer needed for the case it was raised for:** a head
+watermark (re-reading page 1 after the walk to prove the newest row did not move)
+would cover a paged walk whose terminal count also failed. The terminal count
+covers the ordinary case for free, so the watermark is now only a fallback for a
+*sustained* count outage across a whole multi-page walk, at the cost of an extra
+request against the 120-per-actor budget. Recorded rather than built.
+
+`test/workload-tweak-feedback-source.js` grew 34 assertions across the three
+commits and runs **210 pass**. Against `0d588fa`, red on the 4 acceptance
+assertions. Against `1396c7f`, red on the 3 refusals that closed the head-insert
+hole. Against `9ba499a`, red on exactly **1** assertion, the over-strict case, with
+the head-insertion refusal and the terminal-uncounted refusal green in both — each
+round changing only what it claimed to.
 
 **Proof.** `node test/production-comments-total-fail-open.js`. It drives the real
 TypeScript handler through a transport that refuses ONE of the two queries by

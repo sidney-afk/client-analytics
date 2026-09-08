@@ -335,14 +335,44 @@ code changed; check that the changed code reaches a user.
 
 ---
 
-## 6. The one thing to carry from the night
+## 6. The two things to carry from the night
 
-The recurring defect was not code. It was **two documents, or a document and a
-process, disagreeing because someone changed one of them**: a lane map stranded
-off `main`, a ledger heading reserving different numbers from the map beside it,
-a test asserting the old behaviour was correct, a rehearsal passing because it
-never killed the thing it claimed to kill, a counter surfaced nowhere while its
-comment said it was surfaced.
+### One coordination defect
 
-Every one of those passed CI. Most were caught by an independent reader looking
-at work that had already been called done. **Do that first.**
+**Two documents, or a document and a process, disagreeing because someone
+changed one of them**: a lane map stranded off `main`, a ledger heading reserving
+different numbers from the map beside it, a brief telling a lane to edit the one
+file the lane map forbids any lane to touch, a brief telling the owner to install
+a migration that was already installed, a test asserting the old behaviour was
+correct, a rehearsal passing because it never killed the thing it claimed to
+kill, a counter surfaced nowhere while its comment said it was surfaced.
+
+### One code defect, and this is the expensive one
+
+**All-or-nothing over a collection: one member fails, and the failure is allowed
+to destroy every member that succeeded.** Three confirmed instances so far, and
+it has already taken the site down once:
+
+1. `projectNativeSnapshot` discarded a whole 5,000+ row snapshot because ONE
+   stored plan's client no longer matched its owner's. Six drifted rows blanked
+   every pill on every editor's Workload board and disabled editing. This is the
+   live outage in item 177.
+2. `_writeUiFetchRerouteFlagOnce`: a read that succeeded with an empty or
+   malformed roster left the flag reporting itself healthy, routing **every**
+   staff write to webhooks that are about to stop existing.
+3. `_wlNativeTweakComments` (#1347): one row's rejection escapes the serial loop
+   and the call-site catch replaces **every** feedback box with the error state,
+   discarding rows already fetched successfully.
+
+The tell is always the same: a loop or a `Promise.all` over per-row work where a
+single rejection escapes, or one shared error state standing in for a collection.
+The fix is always the same shape too: settle per row, render what succeeded, and
+say specifically what failed. **When you review anything on these branches, grep
+for this before you read anything else.** And check the degraded state renders
+distinguishably: a blank box meaning "nothing here" and a blank box meaning "could
+not ask" are the same pixels and a completely different fact.
+
+Every one of these passed CI. Unit fixtures do not produce them, because a
+fixture where every row succeeds never exercises the path. Most were caught by an
+independent reader looking at work that had already been called done. **Do that
+first.**

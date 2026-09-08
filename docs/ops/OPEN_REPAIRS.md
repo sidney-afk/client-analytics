@@ -14871,3 +14871,43 @@ Item 176 measured 5,056 active task rows in `workload_issues_native_v1` on
 (that measurement filtered to active task rows; this is the whole snapshot
 envelope), so the numbers are not comparable and neither refutes the other. Noted
 because a future reader will otherwise try to reconcile them.
+
+### Addendum, 2026-09-08 03:30 — the night's real code defect has a name, and three instances
+
+Item 178 above says the recurring defect of the night was two documents
+disagreeing. That is true of the COORDINATION failures and it is not the whole
+story. A second pattern runs through the CODE findings, it is the more expensive
+of the two, and it is worth naming because it is greppable:
+
+**All-or-nothing over a collection.** One member of a set fails, and the failure
+is allowed to destroy every member that succeeded.
+
+1. **`projectNativeSnapshot`** discarded a 5,000+ row snapshot because ONE stored
+   plan's client no longer matched its owner's. Six drifted rows blanked every
+   pill on every editor's Workload board and disabled editing. This is the outage
+   in item 177, and it is the only one of the three that actually reached a user.
+2. **`_writeUiFetchRerouteFlagOnce`** (#1346): a flag read that SUCCEEDED with an
+   empty or malformed roster left the flag reporting itself healthy, so the
+   routing predicate answered the factual "not enrolled" and sent every staff
+   write to webhooks that are about to stop existing. Caught in review.
+3. **`_wlNativeTweakComments`** (#1347): one row's rejection escapes the serial
+   loop, and the call-site catch replaces EVERY feedback box with the error
+   state, discarding rows already fetched. Caught in review.
+
+**The tell**, in every case: a loop or a `Promise.all` over per-row work where a
+single rejection escapes, or one shared error state standing in for a whole
+collection. **The fix**, in every case: settle per row, render or return what
+succeeded, and say specifically what failed.
+
+**Why CI never catches it.** A fixture in which every row succeeds never
+exercises the path, and every fixture in this repo was written that way. A test
+for this class must inject a failure on ONE member of several and assert the rest
+survive. Three of the three instances above had passing unit coverage.
+
+**The half that keeps being skipped** is the degraded state itself. A blank box
+that means "there is no feedback here" and a blank box that means "we could not
+ask" are the same pixels and a completely different fact. Whoever fixes one of
+these owes the distinction, not just the try/catch.
+
+Recorded as a class rather than three findings because the next instance will not
+look like any of these three, and the grep will find it anyway.

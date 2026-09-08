@@ -14144,6 +14144,39 @@ not assumed. **Test:** four checks in `test/editors-week-native.js`, driven at
 before the ceiling); 3 of the 4 fail against the old loop, with 20,500 rows in
 and 20,000 out.
 
+**OPEN 2026-09-08 — event-time attribution is NOT implemented, and cannot be
+from this data.** Codex on `00d186b`: the shaper credits a week to the
+deliverable's CURRENT `assignee_id`, so a video reassigned after last week's
+transitions gives the whole week to whoever holds it now, and an unassigned one
+drops out entirely. `TRACK_B_LINEAR_REPLACEMENT_SPEC.md` 9.11 names precisely
+that as the legacy n8n reader's defect and requires the native replacement to
+use "the assignee identity at **event time**". The finding is correct and this
+panel does not meet that clause.
+
+**The prescribed remedy is blocked on absent data, not on effort.** Measured
+2026-09-08 against 1,000 live `deliverable_events` rows with `action=status_change`:
+every payload key across the sample is `op / reason / ts / role / actor / action /
+source / outbound / to_status / from_status / surface / actor_key / auth_kind /
+expected_status / expected_updated_at` — **no assignee key of any kind**. The
+`actor`/`role` columns are the person who ACTED (on a Client-Approval→Approved
+transition that is the client, not the editor) and are null on 669 of the 1,000.
+No `assign` action is recorded anywhere. There is therefore no assignment
+history to reconstruct from, and no correct substitute available in the browser:
+`actor` would be a DIFFERENT wrong answer, not a better one.
+
+Closing it needs a migration plus a writer change — stamp the assignee onto
+every `deliverable_events` insert, or keep an assignment-history table — then a
+shaper that joins on it. That is a schema change to production and an owner
+decision, and it is a different lane from this one. **Left OPEN and stated on
+the PR rather than quietly shipped**, because 9.11's whole point is that the
+native replacement must not silently reproduce the legacy misattribution, and
+the failure mode here is exactly that: a per-editor number that looks precise
+and can be attributed to the wrong person with nothing on screen to say so.
+
+The impact cannot be sized from here either, and for the same reason: measuring
+how often a video is reassigned mid-week requires the history that does not
+exist. Do not read that as "probably rare".
+
 ---
 
 ## 175. [2026-09-07, BUILT, live on merge with no deploy; lane LX-C] The write-UI reroute flag failed to LINEAR, and Linear is the thing that is about to stop existing

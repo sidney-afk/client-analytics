@@ -78683,6 +78683,24 @@
 
         // Only video deliverables: the panel counts videos, and graphics work
         // would inflate every headline number.
+        //
+        // KNOWN GAP, NOT AN OVERSIGHT: `assignee_id` is the deliverable's
+        // CURRENT assignee, so a video reassigned after last week's transitions
+        // credits the whole week to whoever holds it now. TRACK_B spec 9.11
+        // names that exact behaviour as the legacy `editors-week` reader's
+        // defect and requires the native replacement to use "the assignee
+        // identity at EVENT TIME" instead. This does not do that, and cannot
+        // yet: there is no assignment history to read. Measured 2026-09-08
+        // against 1,000 live `status_change` rows -- the `actor`/`role` columns
+        // are the person who ACTED (a client approving is not the editor), they
+        // are null on two thirds of rows, and no payload variant across the
+        // sample carries an assignee key at all. No `assign` action is recorded
+        // anywhere either. Reconstructing event-time assignment therefore needs
+        // a migration plus a writer change (stamp the assignee onto every
+        // event, or keep an assignment-history table), which is an owner
+        // decision and a different lane. OPEN_REPAIRS 171 carries it OPEN.
+        // Written here so the next reader sees the gap at the lookup that
+        // causes it rather than inferring the panel is spec-complete.
         let deliverables = (await _kedRestIn(
             'deliverables', 'id,title,client_slug,assignee_id,kind,linear_issue_url', 'id', ids))
             .filter(d => d && d.kind === 'video' && d.assignee_id);

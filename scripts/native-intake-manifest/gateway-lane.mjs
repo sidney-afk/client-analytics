@@ -227,9 +227,18 @@ try {
   await sql("update public.filming_plans set doc_url='https://docs.google.com/document/d/fixture-new-plan/edit', doc_id='fixture-new-plan' where client_slug='fixture-client'");
   const enrichedRetry = await post(enriched);
   const enrichedRows = await rows('select brief from public.deliverables where team=\'graphics\' and batch_id=' + q(enrichedRetry.json.batch?.id));
+  /* The STORED brief is the labelled one: an AI-generated thumbnail title is
+     prefixed with THUMBNAIL_TEXT_AI_LABEL before it reaches the row. Comparing
+     against the bare title made a correctly retained brief read as a
+     behavioural failure. The label is read out of the source under test rather
+     than restated here, and the comparison stays exact, so the property this
+     check exists for -- the retry keeps the FIRST generation and does not adopt
+     the new template's 'Calm Focus' -- is asserted as strictly as before. */
+  const aiLabel = (/const THUMBNAIL_TEXT_AI_LABEL = "([^"]*)";/.exec(fs.readFileSync(INDEX_TS, 'utf8')) || [])[1];
   ok(negativeControl ? 'negative-control-retry-valid-but-loses-first-generated-brief' : 'same-original-request-changed-enrichment-retains-first-brief',
     firstEnriched.status >= 500 && generationRan && enrichedRetry.status === 201
-    && (negativeControl ? !enrichedRows[0]?.brief : enrichedRows[0]?.brief === 'Bright Future'));
+    && (negativeControl ? !enrichedRows[0]?.brief
+      : !!aiLabel && enrichedRows[0]?.brief === aiLabel + 'Bright Future'));
   delete process.env.GRAPHIC_TITLE_API_KEY;
   delete process.env.GRAPHIC_TITLE_MODEL;
   await sql("delete from public.filming_plans where client_slug='fixture-client'");

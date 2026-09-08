@@ -149,11 +149,23 @@ try {
   ok('concurrent-sql-retry-one-terminal-receipt',waiting>=2&&concurrent.every(r=>r.status===200)&&await count('select 1 from public.mirror_outbox where dedup_key='+q(dedup))===1&&assignmentNoProvider(),{blocked_sql_sessions:waiting,statuses:concurrent.map(r=>r.status)});
   // Install the REAL journal after correcting only fixture owner keys. This
   // fixture is not a full live schema reconstruction or backup rehearsal.
-  await sql('alter table public.calendar_posts drop constraint calendar_posts_pkey;alter table public.calendar_posts add primary key(client,id);alter table public.sample_reviews drop constraint sample_reviews_pkey;alter table public.sample_reviews add primary key(client,id);');
-  await sql(fs.readFileSync(path.join(ROOT,'migrations/2026-07-19-workload-plan.sql'),'utf8'));
-  await sql(fs.readFileSync(path.join(ROOT,'migrations/2026-09-05-card-change-journal.sql'),'utf8'));
-  assignmentReset();const journalWrite=await post(await op(target,EDITOR_ONE));
-  ok('real-journal-native-assignment-capture',journalWrite.status===200&&await count("select 1 from public.card_change_journal where relation_name='deliverables'")===1&&assignmentNoProvider());
+  // THE JOURNAL IS NOT PART OF THIS LANE'S SUBJECT. It arrives with the card
+  // change history draft (PR #1299), which is unmerged, so its migration is
+  // absent from main and from this branch. Reading it unconditionally is how
+  // this lane crashed instead of reporting. Nothing shipped here references
+  // card_change_journal: the interaction is worth proving WHERE the journal
+  // exists, and is not a prerequisite of native assignment. The receipt below
+  // records which of the two states the run was in, so an absent journal can
+  // never read as a journal that was proved.
+  const journalMigration=path.join(ROOT,'migrations/2026-09-05-card-change-journal.sql');
+  const journalPresent=fs.existsSync(journalMigration);
+  if(journalPresent){
+    await sql('alter table public.calendar_posts drop constraint calendar_posts_pkey;alter table public.calendar_posts add primary key(client,id);alter table public.sample_reviews drop constraint sample_reviews_pkey;alter table public.sample_reviews add primary key(client,id);');
+    await sql(fs.readFileSync(path.join(ROOT,'migrations/2026-07-19-workload-plan.sql'),'utf8'));
+    await sql(fs.readFileSync(journalMigration,'utf8'));
+    assignmentReset();const journalWrite=await post(await op(target,EDITOR_ONE));
+    ok('real-journal-native-assignment-capture',journalWrite.status===200&&await count("select 1 from public.card_change_journal where relation_name='deliverables'")===1&&assignmentNoProvider());
+  }
   assignmentReset();let serviceCommit=false;
   hooks.beforeRpc=async(name,args)=>{if(name==='production_assignee_write'){
     hooks.beforeRpc=null;
@@ -167,7 +179,7 @@ try {
     const denied=await runSql("begin;set local role "+guest+";select public.production_assignment_context('{}'::jsonb);rollback;");
     ok(guest+'-rpc-execution-denied',denied.status!==0&&/42501/.test(denied.stderr)&&await state()===before);
   }
-  for(const owner of ['card_change_journal','mirror_outbox']){
+  for(const owner of journalPresent?['card_change_journal','mirror_outbox']:['mirror_outbox']){
     await sql("create function public.fixture_assignment_failure() returns trigger language plpgsql as $$begin raise exception 'fixture_assignment_failure';end;$$;create trigger fixture_assignment_failure before insert on public."+owner+' for each row execute function public.fixture_assignment_failure();');
     assignmentReset();before=await state();const failure=await post(await op(target,EDITOR_TWO));
     ok(owner+'-failure-rolls-back-row-event-receipt-journal',failure.status>=400&&await state()===before&&assignmentNoProvider());
@@ -194,6 +206,7 @@ try {
   // operator-classified protocol. This slice neither invokes nor retires it.
   const report={suite:'native-existing-assignment',passed:checks.filter(c=>c.pass).length,failed:checks.filter(c=>!c.pass).length,
     journey_sha256:assignmentJourneySha,
+    optional_sections:{card_change_journal:journalPresent?'RAN':'NOT_RUN_migration_absent_arrives_with_PR_1299'},
     checks:checks.map(c=>({id:c.id,pass:c.pass,evidence:c.evidence})),classification:'ACTUAL_HANDLER_DISPOSABLE_SQL_SYNTHETIC_TRANSPORT',
     source_sha256:createHash('sha256').update(fs.readFileSync(INDEX_TS)).digest('hex'),migration_sha256:createHash('sha256').update(fs.readFileSync(path.join(ROOT,'migrations/2026-09-06-native-existing-assignment.sql'))).digest('hex')};
   console.log('EXISTING_ASSIGNMENT_RESULT '+JSON.stringify(report));

@@ -428,6 +428,13 @@ function harness(options) {
     'and it marks itself told, so a string of background retries after the first foreground failure cannot re-notify for the same pin');
   ok(/showNotify\('Linked card not confirmed'/.test(catchBlock),
     'and it says so through the same blocking-dialog channel _calApplyFocusRequest\'s own failures use, not a toast that could expire unread');
+  /* Codex review, second pass, PR for item 176: _calApplyFocusRequest is
+     never reached on THIS failure path (ok never became true), so its own
+     hideToast() call never runs either. A quick rejection — nowhere near the
+     toast's ~21s duration — left "Opening linked card…" on screen right next
+     to this modal saying the opposite. */
+  ok(/hideToast\(\);\s*\n\s*showNotify\('Linked card not confirmed'/.test(catchBlock),
+    'the pending "Opening linked card…" toast is dismissed immediately before this modal, not left to say the opposite of it');
 }
 
 if (failures) {

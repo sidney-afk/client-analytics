@@ -29914,6 +29914,13 @@
         const pending = _calPendingDeepLink;
         if (!pending) return;
         _calSetPendingDeepLink(null);
+        // Codex review, PR for item 176: the "Opening linked card…" toast
+        // _calSetPendingDeepLink fired belongs to THIS pin, not to whatever
+        // happens next — an unresolved slug's "Calendar link not opened"
+        // modal below would otherwise sit next to a toast still claiming the
+        // card is opening, and a reader who navigated away before the sheet
+        // merged would carry it to an unrelated page.
+        if (pending.cardId) hideToast();
         // The user may have navigated away (or into a client profile) while data
         // was loading — don't yank them back to the calendar.
         if (currentNav !== 'calendar' || calState.embedded) return;
@@ -35687,6 +35694,13 @@
             if (!opts.background && _calFocusRequest && _calFocusRequest.cardId && !_calFocusRequestLoadFailed
                 && wlNormalizeClient(calState.client) === wlNormalizeClient(_calFocusRequest.client)) {
                 _calFocusRequestLoadFailed = true;
+                // Codex review, PR for item 176: _calApplyFocusRequest is
+                // never reached on this failure path (ok never became true),
+                // so its own hideToast() never runs either — a fetch that
+                // rejects quickly (well short of the toast's ~21s duration)
+                // left "Opening linked card…" on screen right next to this
+                // modal saying the opposite.
+                hideToast();
                 showNotify('Linked card not confirmed', (isAbort
                     ? "The calendar took too long to load, so the card this link points to couldn't be confirmed."
                     : "That calendar couldn't be loaded, so the card this link points to couldn't be confirmed.")

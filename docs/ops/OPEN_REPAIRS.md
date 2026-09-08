@@ -14635,3 +14635,29 @@ instead of throwing `ReferenceError` on the new call.
    (first line, untouched by this PR) runs, the superseded load is already
    `retired` and returns before reaching any of this item's code. Replied on
    the thread with the traced ordering rather than adding a redundant check.
+
+**Second Codex pass, same PR, on the fixes above.** Requested explicitly
+(`@codex review`) since re-review isn't automatic on a push. Two more real
+findings, both the same shape as #3 above — a toast this PR added surviving
+past the point where the reader was told something conclusive:
+
+5. *(P2)* `_calResolvePendingDeepLink`'s own `_calSetPendingDeepLink(null)`
+   cleared the pin but not the toast it had fired — so an unresolvable slug's
+   `showNotify('Calendar link not opened', …)` modal could show next to a
+   toast still saying the card was opening, and a reader who navigated away
+   before the roster read settled carried that toast to wherever they went.
+   Now calls `hideToast()` itself, right after clearing, whenever the pin
+   had a `cardId`.
+6. *(P2)* The `loadCalendarPosts` catch-block failure notice from the first
+   round (finding 3 there) only ever dismissed the toast from inside
+   `_calApplyFocusRequest` — which this failure path never reaches, since
+   `ok` never became `true`. A fetch that rejected quickly (well under the
+   toast's ~21s duration) left both on screen at once, saying opposite
+   things. Now calls `hideToast()` itself immediately before its own
+   `showNotify(...)`.
+
+Both pinned: `test/calendar-deeplink-tab.js` now asserts `hideToast` fires
+exactly once on the resolve-success, unresolved-slug, and navigated-away
+paths whenever the pending link carried a `cardId` (and not when it didn't —
+nothing to dismiss); `test/calendar-deep-link-focus.js` asserts the ordering
+of `hideToast()` immediately before the catch block's own `showNotify(...)`.

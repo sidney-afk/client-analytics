@@ -69,6 +69,7 @@ function _calSetFocusRequest(req) { _calFocusRequest = req; _calFocusRequestLoad
 // Same mirroring for the deferred (sheet-only-client) path's own setter
 // (Codex review, item 176 PR).
 function _calSetPendingDeepLink(v) { _calPendingDeepLink = v; }
+function hideToast() { calls.hideToast = (calls.hideToast || 0) + 1; }
 const calls = { loadCalendarPosts: 0, renderBody: 0, renderTabs: 0, renderShell: 0, teardown: 0 };
 // DOM-coupled deps → no-ops / counters.
 function _calRenderTabs(){ calls.renderTabs++; }
@@ -121,6 +122,7 @@ function reset() {
   m.calls.renderTabs = 0;
   m.calls.renderShell = 0;
   m.calls.teardown = 0;
+  m.calls.hideToast = 0;
 }
 
 console.log('— _calOpenClientTab pins AND switches to the client —');
@@ -167,6 +169,12 @@ m.WL = ['Baya Voce', 'Jenna Phillips Ballard'];
 m._calResolvePendingDeepLink();
 ok(m.focus && m.focus.client === 'Jenna Phillips Ballard' && m.focus.cardId === 'p_abc123',
    'focus request set so the card scrolls into view after load');
+// Codex review, item 176 PR: the deferred pin's own "Opening linked card…"
+// toast must not survive past this resolution — the resolve path fires its
+// OWN toast for the focus-request phase right after, which needs the slate
+// clear rather than stacking behind a stale one.
+ok(m.calls.hideToast === 1,
+   'and the pending-link toast is dismissed as part of resolving it, not left for the focus-request toast to paper over');
 
 console.log('\n— Graceful fallback: an unresolvable slug never sticks on the loader —');
 reset();
@@ -179,16 +187,30 @@ ok(m.calState.client === 'Baya Voce', 'falls back to the first pinned client');
 ok(m.calls.renderShell === 1, 'fallback uses the same complete toolbar activation path');
 ok(m.calls.loadCalendarPosts === 1, 'and loads it (no stuck loader)');
 
+console.log('\n— Codex review, item 176 PR: an unresolvable slug\'s card link dismisses its own toast —');
+reset();
+m._calSavePins(['Baya Voce']);
+m.calState.client = null;
+m.pending = { slug: 'whoisthis', cardId: 'p_xyz' };  // this time the link had a card
+m._calResolvePendingDeepLink();
+ok(m.calls.hideToast === 1,
+   'the "Calendar link not opened" notice does not have to share the screen with a toast still claiming the card is opening');
+
 console.log('\n— Navigated away while loading: resolver does not yank the user back —');
 reset();
 m.calState.client = null;
-m.pending = { slug: 'jennaphillipsballard', cardId: null };
+m.pending = { slug: 'jennaphillipsballard', cardId: 'p_gone' };  // a card link, this time
 m.WL = ['Baya Voce', 'Jenna Phillips Ballard'];
 m.nav = 'home';                             // user left the calendar
 m._calResolvePendingDeepLink();
 ok(m.calState.client === null, 'active client untouched');
 ok(m.calls.loadCalendarPosts === 0 && m.calls.renderBody === 0, 'no calendar work done');
 ok(m.pending === null, 'pending deep link still cleared (no leak)');
+// Codex review, item 176 PR: the toast is dismissed BEFORE the nav check
+// returns early, so a reader who left the calendar mid-wait doesn't carry
+// a stale "Opening linked card…" toast to wherever they went instead.
+ok(m.calls.hideToast === 1,
+   'the pending-link toast does not follow the reader off the calendar');
 
 console.log('\n' + (fail === 0 ? 'OVERALL: PASS' : 'OVERALL: FAIL (' + fail + ' failed)'));
 process.exit(fail === 0 ? 0 : 1);

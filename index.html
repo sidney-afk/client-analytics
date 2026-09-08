@@ -8439,6 +8439,15 @@
         hideToast();
         const el = document.createElement('div');
         el.className = 'sv-toast';
+        // Codex review, PR for item 176 (seventh pass): a screen-reader user
+        // gets no announcement at all when a plain div is inserted into the
+        // page — this toast (and the "Opening linked card…"/"Linked to…"
+        // messages this feature relies on it for) would otherwise leave
+        // exactly the silent wait the feature exists to remove. Matches the
+        // role="status" + aria-live="polite" convention already used
+        // throughout this file for loading/status announcements.
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
         const txt = document.createElement('span');
         txt.className = 'sv-toast-msg';
         txt.textContent = msg;
@@ -11591,6 +11600,10 @@
         // Calendar transport/realtime lease before replacing its surface with
         // Analytics, Brief, or the profile overview.
         if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();
+        // Codex review, PR for item 176 (seventh pass): render() bypasses
+        // navTo() (see the comment above), so navTo's own card-link
+        // abandonment never ran for this exit either.
+        if(typeof _calAbandonLinkOnCalendarExit==='function')_calAbandonLinkOnCalendarExit(tab==='calendar');
         if(clientOnly&&_syncviewRenderClientExtrasGate(sel,tab))return;
         const existingBack=titleRow.querySelector('.back-btn');
         if(sel!=='all'&&!clientOnly){
@@ -11674,6 +11687,9 @@
             _syncviewApplyTabFavicon(nav);
             const tab=state.clientTab||'analytics';
             if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();
+            // Codex review, PR for item 176 (seventh pass): this branch never
+            // reaches navTo() either (see the comment above).
+            if(typeof _calAbandonLinkOnCalendarExit==='function')_calAbandonLinkOnCalendarExit(tab==='calendar');
             clientViewTab[state.client]=tab;
             if(state.briefSection)activeBriefSection[state.client]=state.briefSection;
             if(state.briefTab)activeBriefTab[state.client]=state.briefTab;
@@ -21152,21 +21168,17 @@
            colour guard reads a four-hex-digit token after a # as a colour
            literal, which is a fair reading and cost one CI cycle to learn.) */
         if (page !== 'calendar') calState.focusPid = null;
-        /* Codex review, PR for item 176 (fourth pass): a card link's "Opening
-         * linked card…" toast has no reason to follow the reader onto an
-         * unrelated page once they've left the calendar — it would otherwise
-         * sit there, for up to ~21s, saying something about a page that is
-         * no longer showing. Same leaving-the-calendar signal as focusPid
-         * just above, and the same "third and last way it goes stale" shape:
-         * whichever request is still pending is abandoned along with it,
-         * rather than silently applying itself if the reader wanders back. */
-        if (page !== 'calendar') {
-            if ((_calFocusRequest && _calFocusRequest.cardId) || (_calPendingDeepLink && _calPendingDeepLink.cardId)) {
-                _calHideOwnToast('Opening linked card');
-            }
-            _calSetFocusRequest(null);
-            _calSetPendingDeepLink(null);
-        }
+        /* Codex review, PR for item 176 (fourth pass, generalized on the
+         * seventh): a card link's "Opening linked card…" toast has no
+         * reason to follow the reader onto an unrelated page once they've
+         * left the calendar — it would otherwise sit there, for up to ~21s,
+         * saying something about a page that is no longer showing. Same
+         * leaving-the-calendar signal as focusPid just above. Seventh pass:
+         * navTo is not the only exit — render() and the state.client
+         * popstate branch both bypass it too (their own comments say so),
+         * so this is a shared function, not inline here, called from every
+         * route that already shares the _calV2Teardown line beside it. */
+        if (typeof _calAbandonLinkOnCalendarExit === 'function') _calAbandonLinkOnCalendarExit(page === 'calendar');
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); // SXR_LINE
         // Leaving Samples while its Notes modal is open would otherwise leave
         // the body scroll-locked; clear the lock on every navigation away.
@@ -29199,6 +29211,24 @@
         if (v && v.cardId) {
             showToast('Opening linked card…', { duration: CAL_LOAD_TIMEOUT_MS + 1000 });
         }
+    }
+    /* Codex review, PR for item 176 (seventh pass): navTo is not the only
+     * route out of the calendar. `render()` (client-profile tab switches)
+     * and the `state.client` popstate branch both explicitly bypass navTo
+     * — see their own "render() bypasses navTo()" / "never reaches navTo"
+     * comments — while still tearing down _calV2Teardown right beside where
+     * this is now called from too. One function, called from every exit
+     * route that already shares that teardown line, for the same reason
+     * _calSetClient owns every client assignment: a fourth exit path that
+     * calls _calV2Teardown without calling this would get none of it,
+     * silently — exactly how this pass's finding happened to the first two. */
+    function _calAbandonLinkOnCalendarExit(stillOnCalendar) {
+        if (stillOnCalendar) return;
+        if ((_calFocusRequest && _calFocusRequest.cardId) || (_calPendingDeepLink && _calPendingDeepLink.cardId)) {
+            _calHideOwnToast('Opening linked card');
+        }
+        _calSetFocusRequest(null);
+        _calSetPendingDeepLink(null);
     }
     /* Card ids whose next save must NOT push back to Linear — used when a
        status was just pulled FROM Linear, so we don't bounce it back. */

@@ -414,17 +414,53 @@ function harness(options) {
   ok(navToSrc.indexOf("if (page !== 'calendar') calState.focusPid = null;")
        > navToSrc.indexOf('_calV2Teardown'),
     'beside the calendar teardown, which is where leaving-the-calendar cleanup lives');
-  /* Codex review, PR for item 176 (fourth pass): a pending card link's
-     "Opening linked card…" toast has the exact same staleness shape as
-     focusPid — nothing clears it on leaving the calendar except this. */
-  ok(/_calSetFocusRequest\(null\);\s*\n\s*_calSetPendingDeepLink\(null\);/.test(navToSrc),
+  /* Codex review, PR for item 176 (fourth pass, generalized on the
+     seventh): a pending card link's "Opening linked card…" toast has the
+     exact same staleness shape as focusPid — nothing clears it on leaving
+     the calendar except this. */
+  ok(/_calAbandonLinkOnCalendarExit\(page === 'calendar'\)/.test(navToSrc),
     'navTo also abandons any outstanding card-link request (foreground and deferred) on the way out');
-  ok(navToSrc.indexOf('_calSetFocusRequest(null);') > navToSrc.indexOf("calState.focusPid = null;"),
+  ok(navToSrc.indexOf('_calAbandonLinkOnCalendarExit(') > navToSrc.indexOf("calState.focusPid = null;"),
     'placed beside the focusPid clear it mirrors, not scattered elsewhere in the function');
-  ok(/_calHideOwnToast\('Opening linked card'\)/.test(navToSrc.slice(
-      navToSrc.indexOf("if (page !== 'calendar') calState.focusPid = null;"),
-      navToSrc.indexOf('_calSetPendingDeepLink(null);') + 40)),
-    'and dismisses the toast too, so it does not follow the reader onto whatever page they went to');
+  /* Seventh pass: navTo is not the only exit. render() (client-profile tab
+     switches) and the state.client popstate branch both bypass navTo
+     entirely — by their own comments — so the abandonment logic is a
+     shared function, called from every route that already shares the
+     _calV2Teardown line beside it, not reproduced inline three times. */
+  const helper = extractFunction(INDEX, '_calAbandonLinkOnCalendarExit');
+  ok(!!helper, 'the shared exit helper is findable');
+  ok(/_calHideOwnToast\('Opening linked card'\)/.test(helper),
+    'and it is what dismisses the toast, so the reader does not carry it to wherever they went');
+  {
+    const calls = { setFocus: 0, setPending: 0, hideToast: 0 };
+    const run = new Function(
+      '_calFocusRequest', '_calPendingDeepLink', '_calSetFocusRequest', '_calSetPendingDeepLink', '_calHideOwnToast',
+      `${helper}\nreturn _calAbandonLinkOnCalendarExit;`,
+    );
+    const fn = run(
+      { client: 'A', cardId: 'p1' }, null,
+      () => { calls.setFocus++; }, () => { calls.setPending++; }, () => { calls.hideToast++; },
+    );
+    fn(true);
+    ok(calls.setFocus === 0 && calls.hideToast === 0, 'still on the calendar (stillOnCalendar=true) touches nothing');
+    fn(false);
+    ok(calls.setFocus === 1 && calls.hideToast === 1, 'leaving abandons the request and dismisses the toast');
+  }
+  {
+    const renderSrc = extractFunction(INDEX, 'render');
+    const teardownAt = renderSrc.indexOf("if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();");
+    const helperAt = renderSrc.indexOf("_calAbandonLinkOnCalendarExit(tab==='calendar')");
+    ok(teardownAt > 0 && helperAt > teardownAt && helperAt - teardownAt < 400,
+      'render() — which its own comment says bypasses navTo() — calls the shared helper beside its own _calV2Teardown line');
+  }
+  {
+    const start = INDEX.indexOf("window.addEventListener('popstate'");
+    const popstateSrc = INDEX.slice(start, start + 4000);
+    const teardownAt = popstateSrc.indexOf("if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();");
+    const helperAt = popstateSrc.indexOf("_calAbandonLinkOnCalendarExit(tab==='calendar')");
+    ok(teardownAt > 0 && helperAt > teardownAt && helperAt - teardownAt < 400,
+      'and so does the state.client popstate branch, which its own comment says never reaches navTo() either');
+  }
   ok(/if \(v !== 'organizer'\) calState\.focusPid = null;/.test(INDEX),
     'and the two older exits are still there: leaving the Sheet…');
   ok(/calState\.client !== name\)\s*\{\s*\n\s*calState\.focusPid = null;/.test(INDEX),
@@ -597,6 +633,26 @@ function harness(options) {
      to this modal saying the opposite. */
   ok(/_calHideOwnToast\('Opening linked card'\);\s*\n\s*showNotify\('Linked card not confirmed'/.test(catchBlock),
     'the pending "Opening linked card…" toast is dismissed immediately before this modal, not left to say the opposite of it');
+}
+
+/* ── Codex review, PR for item 176 (seventh pass): announce the toast to
+   assistive technology ─────────────────────────────────────────────────
+   showToast() built a plain div/span with no live-region semantics, so a
+   screen-reader user got no announcement for "Opening linked card…" or
+   "Linked to…" at all — the same silent wait this whole item exists to
+   remove, just for a different reason. Matches the role="status" +
+   aria-live="polite" convention already used throughout this file for
+   loading/status announcements (the boot skeletons, workload save
+   indicators, etc.) rather than inventing a new one. */
+{
+  const showToastSrc = extractFunction(html, 'showToast');
+  ok(!!showToastSrc, 'showToast is findable');
+  ok(/el\.setAttribute\('role', 'status'\)/.test(showToastSrc),
+    'the toast root now carries role="status"');
+  ok(/el\.setAttribute\('aria-live', 'polite'\)/.test(showToastSrc),
+    'and aria-live="polite", so assistive tech announces it without interrupting whatever the reader is doing');
+  ok(showToastSrc.indexOf("el.setAttribute('role', 'status')") < showToastSrc.indexOf('document.body.appendChild(el)'),
+    'set before the element is ever inserted, so nothing can observe it without the announcement attributes');
 }
 
 if (failures) {

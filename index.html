@@ -11726,7 +11726,7 @@
                     const slug=sl>=0?rest.slice(0,sl):rest;
                     const cardId=sl>=0?rest.slice(sl+1):'';
                     const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
-                    if(match)_calFocusRequest={client:match,cardId:cardId||null};
+                    if(match)_calSetFocusRequest({client:match,cardId:cardId||null});
                     /* A slug the seed allowlist does not know is NOT nothing: it
                        is usually a sheet-only client, and the boot router has an
                        arm for exactly this. Without it the calendar mounts on
@@ -17914,7 +17914,7 @@
     function wlOpenInContentCalendar(clientName, identifier) {
         const canon = wlCanonicalClient(clientName);
         if (!canon) return;
-        _calFocusRequest = { client: canon, identifier: String(identifier || '').toUpperCase() };
+        _calSetFocusRequest({ client: canon, identifier: String(identifier || '').toUpperCase() });
         try {
             const pins = _calGetPins();
             if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
@@ -29105,6 +29105,44 @@
     /* Set by "Open in content calendar" from the workload view — tells the
        calendar which client to open and which linked post to scroll to. */
     let _calFocusRequest = null;
+    // Whether the CURRENT _calFocusRequest has already told the reader its
+    // load failed — set true by loadCalendarPosts's catch, reset whenever a
+    // new request is set. Without this a request that survives a failed
+    // foreground load (kept alive on purpose, see below) would re-notify on
+    // every later background retry that also fails.
+    let _calFocusRequestLoadFailed = false;
+    /* OPEN_REPAIRS item 176 (2026-09-08): a card link only ever announced
+     * itself — outline, or the toast added for item 175 — from INSIDE
+     * _calApplyFocusRequest, which loadCalendarPosts calls exactly once,
+     * and only after that load's network round trip SUCCEEDS. Replicated in
+     * a real browser: with the calendar_posts read mocked to answer in 8s
+     * (an ordinary slow response, not a broken one), the reader had nothing
+     * on screen saying a card link was even recognized until the full 8s had
+     * passed; mocked to never answer at all, they saw nothing, ever, no
+     * error either, indistinguishable from a link that silently did nothing
+     * — the exact report, three times over (2026-08-26, 2026-09-03,
+     * 2026-09-08).
+     *
+     * The fix is not inside _calApplyFocusRequest — the network dependency
+     * is the bug, not that function. So: every site that sets a REAL card
+     * link (a cardId, not the identifier/search-jump shape) funnels through
+     * here, and says so immediately, before any fetch has even started.
+     * `loadCalendarPosts` still owns applying the highlight once the load
+     * lands; this only owns the reader knowing their link was heard at all.
+     *
+     * One assignment point for the same reason `_calSetClient` is one
+     * assignment point (see the deep-link focus tests, "seven assignments,
+     * one of them remembering is not a rule"): a future call site that sets
+     * `_calFocusRequest` directly gets none of this, silently, and this
+     * exact feature has already broken twice from precisely that shape of
+     * miss. */
+    function _calSetFocusRequest(req) {
+        _calFocusRequest = req;
+        _calFocusRequestLoadFailed = false;
+        if (req && req.cardId) {
+            showToast('Opening linked card…', { duration: CAL_LOAD_TIMEOUT_MS + 1000 });
+        }
+    }
     /* A #calendar/<slug> deep link (e.g. a link handed over by another SMM)
        whose client wasn't in the allowlist yet when the fast-path router ran:
        WL_CLIENT_NAMES is seed-only until fetchAll folds in the Clients Info
@@ -29886,7 +29924,7 @@
             }
             return;
         }
-        if (pending.cardId) _calFocusRequest = { client: match, cardId: pending.cardId };
+        if (pending.cardId) _calSetFocusRequest({ client: match, cardId: pending.cardId });
         _calOpenClientTab(match);
     }
 
@@ -35611,6 +35649,26 @@
                     : (e.message || String(e));
                 calState.posts = [];
             }
+            /* OPEN_REPAIRS item 176. _calApplyFocusRequest only ever runs on
+             * the SUCCESS path below (`if (... && ok)`), so a card link whose
+             * load fails or times out reaches neither the outline nor the
+             * "Opening linked card…" toast's resolution — the reader who saw
+             * that toast start would otherwise watch it expire with no
+             * follow-up, which is the "did it work or not" version of the
+             * exact silence item 175 fixed for the success path. A background
+             * poll failing is not this: it means an EARLIER foreground load
+             * already told the reader once (or already succeeded), so it
+             * says nothing and leaves the pin alone for the next attempt to
+             * try again. _calFocusRequestLoadFailed stops a slow string of
+             * background retries from re-notifying for the same pin. */
+            if (!background && _calFocusRequest && _calFocusRequest.cardId && !_calFocusRequestLoadFailed
+                && wlNormalizeClient(calState.client) === wlNormalizeClient(_calFocusRequest.client)) {
+                _calFocusRequestLoadFailed = true;
+                showNotify('Linked card not confirmed', (isAbort
+                    ? "The calendar took too long to load, so the card this link points to couldn't be confirmed."
+                    : "That calendar couldn't be loaded, so the card this link points to couldn't be confirmed.")
+                    + ' Try the link again.');
+            }
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             loadRun.timeoutId = null;
@@ -35727,7 +35785,7 @@
         const req = _calFocusRequest;
         if (!req) return;
         if (wlNormalizeClient(calState.client) !== wlNormalizeClient(req.client)) return;
-        _calFocusRequest = null;
+        _calSetFocusRequest(null);
         let post = null;
         let persistent = false;
         if (req.cardId) {
@@ -62562,7 +62620,7 @@
                     const slug = sl >= 0 ? rest.slice(0, sl) : rest;
                     const cardId = sl >= 0 ? decodeURIComponent(rest.slice(sl+1)) : '';
                     const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
-                    if (match) _calFocusRequest = { client: match, cardId: cardId || null };
+                    if (match) _calSetFocusRequest({ client: match, cardId: cardId || null });
                     // Sheet-only client (e.g. a calendar link shared by another
                     // SMM): the allowlist is still seed-only on this fast path, so
                     // the slug won't have matched above. Resolve and open it as a
@@ -62717,7 +62775,7 @@
                 // Clients Info sheet by now) over the analytics-only client list,
                 // so a calendar-only client with no analytics row still resolves.
                 const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug)||clientNames.find(n=>wlNormalizeClient(n)===slug);
-                if(match){_calFocusRequest={client:match,cardId:cardId||null};navTo('calendar',false);return;}
+                if(match){_calSetFocusRequest({client:match,cardId:cardId||null});navTo('calendar',false);return;}
                 navTo('calendar',false);return;
             }
             if(hash.startsWith('samples/')){
@@ -62894,7 +62952,7 @@
         try {
             _calLoadSeq++;
             _calSetClient(null); calState.posts = []; calState.loading = false; calState.error = null;
-            _calFocusRequest = null; _calPendingDeepLink = null;
+            _calSetFocusRequest(null); _calPendingDeepLink = null;
         } catch (e) {}
         try {
             _sxrLoadSeq++;

@@ -60,6 +60,12 @@ let currentNav = 'calendar';
 let calState = { client: null, embedded: false, posts: [] };
 let _calPendingDeepLink = null;
 let _calFocusRequest = null;
+let _calFocusRequestLoadFailed = false;
+// Real app funnels every assignment through this (item 176 — the immediate
+// "Opening linked card…" toast on the real setter). Mirrored here with the
+// same field-mutating semantics minus the toast, which this suite about
+// _calResolvePendingDeepLink's tab-opening behavior has no stake in.
+function _calSetFocusRequest(req) { _calFocusRequest = req; _calFocusRequestLoadFailed = false; }
 const calls = { loadCalendarPosts: 0, renderBody: 0, renderTabs: 0, renderShell: 0, teardown: 0 };
 // DOM-coupled deps → no-ops / counters.
 function _calRenderTabs(){ calls.renderTabs++; }

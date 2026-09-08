@@ -14532,3 +14532,75 @@ decision, not assumed here.
 Pinned by: `test/calendar-deep-link-focus.js` (toast fires exactly once per
 resolved link, names the card, appends a formatted date when the card has
 one, and omits the separator entirely when it doesn't).
+
+---
+
+## 176. [2026-09-08, FIXED — replicated in a real browser first] A pasted calendar-card link stayed silent for as long as its network read took, not just at the outline
+
+Item 175 (same day) added a toast naming the card once a `#calendar/<slug>/<cardId>`
+link resolved. The owner came back with the same report a third time anyway:
+*"I never saw that... it just opens it normally."* Told to replicate before
+touching anything again rather than reasoning further from the source.
+
+**Replicated.** Served the real `index.html` from a local static server,
+mocked only the Supabase `calendar_posts` read `loadCalendarPosts` makes, and
+opened the exact link shape in a real headless Chromium with the timing of
+that one network call as the only variable:
+
+- 400ms (fast): outline and toast both fire correctly. Item 175's fix works.
+- 8s (an ordinary slow response, not a broken one): at 2.5s in, a normal-
+  looking loading skeleton, nothing card-specific. Outline and toast do not
+  appear until 9.5s — after which most people have stopped watching.
+- Never answers (a dropped connection): 6s in, still nothing. No error
+  either. The calendar just sits there looking finished, forever.
+
+Screenshots of the 2.5s and 9.5s states matched the report exactly.
+
+**Root cause.** `_calApplyFocusRequest` (the outline, and item 175's toast)
+has exactly one call site, in `loadCalendarPosts`, gated behind that load's
+`ok` flag — which only becomes true after the network read succeeds. Nothing
+card-specific runs before that, and nothing runs at all if it fails.
+`CAL_LOAD_TIMEOUT_MS` is 20 seconds. The bug was never the outline being too
+subtle; it's that the whole "which card is this" mechanism doesn't start
+until a network round trip finishes, silently, with no acknowledgment that a
+card link was even recognized.
+
+**The fix has two halves, matched to the two things that can go wrong.**
+
+1. *Immediate acknowledgment.* `_calSetFocusRequest(req)` is now the ONLY
+   place `_calFocusRequest` is assigned (the same discipline `_calSetClient`
+   already uses for `calState.client`, for the identical reason: this exact
+   feature has now broken twice from a call site that set the field
+   directly and got none of whatever ran through the proper channel). Every
+   one of the eight assignment sites — the popstate handler, both boot-router
+   copies, the deferred sheet-only-client resolver, the workload "open in
+   calendar" jump, and the client-entry teardown — now funnels through it.
+   Setting a real card link (a `cardId`, not the identifier/search-jump
+   shape) fires `showToast('Opening linked card…')` immediately, before any
+   fetch has started.
+2. *Explicit failure.* `loadCalendarPosts`'s catch block now checks: is
+   there still a pending, not-yet-notified card link for the client this
+   load was for? If its read failed or timed out, `showNotify('Linked card
+   not confirmed', …)` says so — the same blocking-dialog channel
+   `_calApplyFocusRequest`'s own failures already use, not a toast that
+   could expire unread. Scoped to non-background loads only (a background
+   poll failing after the foreground attempt already spoke, or already
+   succeeded, says nothing) and marked with `_calFocusRequestLoadFailed` so
+   a string of retries after the first failure can't re-notify for the same
+   pin — reset the moment a NEW link is set, so a second card link right
+   after a failed first one still gets its own notice if it fails too.
+
+**Deliberately left alone.** `_calApplyFocusRequest` itself — its bounded
+frame-retry loop, the persistent outline, the instant self-correcting scroll
+— is untouched. That machinery already works once it runs; the bug was
+entirely about what happens (nothing) before and if it never gets to run.
+
+Pinned by `test/calendar-deep-link-focus.js`: the single-assignment-site
+count (mirroring the `_calSetClient` check for item 174's own pin), the
+setter announcing immediately, staying silent for the identifier/search-jump
+shape, resetting the notified flag for a new pin, and the catch block's four
+gating conditions read straight out of source. Two other suites that build
+their own hand-rolled sandbox around real extracted source
+(`popstate-hash-route.js`, `calendar-deeplink-tab.js`) needed a
+`_calSetFocusRequest` stub added to keep exercising the real code path
+instead of throwing `ReferenceError` on the new call.

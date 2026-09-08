@@ -99,6 +99,12 @@ function fire(hash, opts) {
     set _templatesActiveTab(v) {},
     set _calFocusRequest(v) { calls.focus = v; },
     get _calFocusRequest() { return calls.focus; },
+    // The listener now funnels every assignment through _calSetFocusRequest
+    // (item 176 — an immediate "Opening linked card…" toast on the real
+    // setter), not a direct property set. Mirror what the accessor above
+    // used to capture directly, so this suite's routing assertions (which
+    // are about WHERE a hash lands, not about the toast) are unaffected.
+    _calSetFocusRequest: (v) => { calls.focus = v; },
     set _calPendingDeepLink(v) { calls.pending = v; },
     get _calPendingDeepLink() { return calls.pending; },
     _calResolvePendingDeepLink: () => { calls.resolved = true; },

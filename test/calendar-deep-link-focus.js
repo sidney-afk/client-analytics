@@ -66,6 +66,7 @@ function harness(options) {
   const cleared = [];
   const renders = [];
   const toasts = [];
+  const setFocusCalls = [];
   /* calState carries a view now, because a card only paints in the Sheet and
      the deferred deep-link path arrives with whatever view the client saved. */
   const calState = {
@@ -80,7 +81,7 @@ function harness(options) {
     'requestAnimationFrame', 'document', 'window', 'setTimeout',
     '_calClearFocusHighlight', '_calFocusOutsideHandler',
     'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive', '_calRenderBody',
-    'showToast', '_calFmtDateShort',
+    'showToast', '_calFmtDateShort', '_calSetFocusRequest',
     src + '\nreturn _calApplyFocusRequest;',
   )(
     { client: 'Client', cardId: 'p_target' },
@@ -99,10 +100,11 @@ function harness(options) {
     () => { renders.push(calState.focusPid); },
     msg => toasts.push(msg),
     iso => 'DATE(' + iso + ')',
+    req => setFocusCalls.push(req),
   );
   fn();
   return {
-    log, notified, card, timers, viewChanges, cleared, calState, renders, toasts,
+    log, notified, card, timers, viewChanges, cleared, calState, renders, toasts, setFocusCalls,
     runFrames(n) { for (let i = 0; i < n; i++) { frameNo++; const queued = frames.splice(0); queued.forEach(cb => cb()); } },
     runTimers() { timers.splice(0).forEach(t => t.cb()); },
     pendingFrames: () => frames.length,
@@ -296,6 +298,83 @@ function harness(options) {
     'and the two older exits are still there: leaving the Sheet…');
   ok(/calState\.client !== name\) calState\.focusPid = null;/.test(INDEX),
     '…and changing client');
+}
+
+/* ── item 176: the reader is told the INSTANT a card link is recognized ────
+   The outline (and the toast from item 175) only ever run once
+   loadCalendarPosts's network read succeeds — replicated in a real browser,
+   with that read mocked slow, there was nothing on screen saying a card link
+   had even been recognized until the read finally landed, and mocked to
+   never land at all, nothing ever appeared and no error was shown either.
+   The fix is _calSetFocusRequest: the one place _calFocusRequest is ever
+   assigned, which announces "Opening linked card…" immediately, before any
+   fetch starts, and loadCalendarPosts's catch block, which speaks up if that
+   promise is never kept. */
+{
+  const INDEX = html;
+  const assignments = (INDEX.match(/_calFocusRequest = /g) || []).length;
+  ok(assignments === 2,
+    'and it is the ONLY place _calFocusRequest is assigned: the declaration '
+    + 'and the setter\'s own body, so a new call site gets the announcement '
+    + 'by construction (found ' + assignments + ')');
+  ok(/function _calSetFocusRequest\(req\) \{[^}]*_calFocusRequest = req;/s.test(INDEX),
+    'that one non-declaration assignment being the setter\'s own');
+
+  const setter = extractFunction(INDEX, '_calSetFocusRequest');
+  ok(!!setter, 'the setter is findable');
+  const run = new Function('showToast', 'CAL_LOAD_TIMEOUT_MS', `
+    let _calFocusRequest = null, _calFocusRequestLoadFailed = false;
+    ${setter}
+    return {
+      set: _calSetFocusRequest,
+      get: () => ({ _calFocusRequest, _calFocusRequestLoadFailed }),
+      markFailed: () => { _calFocusRequestLoadFailed = true; },
+    };
+  `);
+  {
+    const toasts = [];
+    const api = run(msg => toasts.push(msg), 20000);
+    api.set({ client: 'Client', cardId: 'p_target' });
+    ok(toasts.length === 1 && /Opening linked card/.test(toasts[0]),
+      'a real card link announces itself immediately, before any network call has even started');
+    ok(api.get()._calFocusRequest.cardId === 'p_target', 'and the request itself is still stored for loadCalendarPosts to act on');
+  }
+  {
+    const toasts = [];
+    const api = run(msg => toasts.push(msg), 20000);
+    api.set({ client: 'Client', identifier: 'SS-123' });
+    ok(toasts.length === 0,
+      'the identifier/search-jump shape (no cardId) stays silent here — its own cal-card-flash covers it, not this');
+  }
+  {
+    // A fresh link must not inherit a stale "already told them" flag from
+    // whatever the PREVIOUS pinned link's load did — a second, different
+    // card link right after a failed first one must still get its own
+    // failure notice if it fails too.
+    const api = run(() => {}, 20000);
+    api.set({ client: 'Client', cardId: 'p_target' });
+    api.markFailed(); // simulate: that link's load already failed once
+    api.set({ client: 'Client', cardId: 'p_other' }); // a second, unrelated card link
+    ok(api.get()._calFocusRequestLoadFailed === false,
+      'setting a new card link resets the already-notified flag for the new pin');
+  }
+}
+
+/* loadCalendarPosts's catch: the failure twin of the announcement above. */
+{
+  const loadFn = extractFunction(html, 'loadCalendarPosts');
+  const catchStart = loadFn.indexOf('} catch (e) {');
+  const catchEnd = loadFn.indexOf('} finally {');
+  ok(catchStart > 0 && catchEnd > catchStart, 'loadCalendarPosts still has its catch/finally shape (harness is not vacuous)');
+  const catchBlock = loadFn.slice(catchStart, catchEnd);
+  ok(/if \(!background && _calFocusRequest && _calFocusRequest\.cardId && !_calFocusRequestLoadFailed/.test(catchBlock),
+    'a failed load only speaks up for a still-pending, not-yet-notified card link');
+  ok(/wlNormalizeClient\(calState\.client\) === wlNormalizeClient\(_calFocusRequest\.client\)/.test(catchBlock),
+    'and only when the failed load was actually for the pinned link\'s client — a stale pin from a client the reader left must stay silent');
+  ok(/_calFocusRequestLoadFailed = true;/.test(catchBlock),
+    'and it marks itself told, so a string of background retries after the first foreground failure cannot re-notify for the same pin');
+  ok(/showNotify\('Linked card not confirmed'/.test(catchBlock),
+    'and it says so through the same blocking-dialog channel _calApplyFocusRequest\'s own failures use, not a toast that could expire unread');
 }
 
 if (failures) {

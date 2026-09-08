@@ -93,7 +93,7 @@ function exactKeys(value, allowed, label) {
 }
 
 function validateArtifact(value) {
-  exactKeys(value, ['schema_version', 'generated_at', 'mode', 'window', 'counts', 'authority', 'gated', 'stray_catcher', 'skipped_existing', 'planned_write_counts', 'existing_counts', 'batch_parent_adoptions', 'batch_shapes', 'event_source_counts', 'apply', 'verification'], 'root');
+  exactKeys(value, ['schema_version', 'generated_at', 'mode', 'window', 'counts', 'authority', 'gated', 'stray_catcher', 'closed_identifiers_allowed', 'skipped_existing', 'planned_write_counts', 'existing_counts', 'batch_parent_adoptions', 'batch_shapes', 'event_source_counts', 'apply', 'verification'], 'root');
   assert.strictEqual(value.schema_version, 1);
   assert(value.generated_at === '' || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value.generated_at));
   assert(['', 'incremental', 'apply', 'apply-reconciliation-only', 'plan'].includes(value.mode));
@@ -110,6 +110,11 @@ function validateArtifact(value) {
   // skip counts — the insert-only guard's public evidence. Counts only; the
   // rows themselves never reach the artifact, same rule as everything here.
   assert(typeof value.stray_catcher === 'boolean', 'stray_catcher must be a boolean');
+  // The narrow closed-issue allowlist escape hatch (native_link_required,
+  // OPEN_REPAIRS 39/89): a count of how many explicitly-named closed issues
+  // this run let through the isOpenIssue gate. Zero on every standing run.
+  assert(value.closed_identifiers_allowed === null || Number.isFinite(value.closed_identifiers_allowed),
+    'closed_identifiers_allowed must be a number or null');
   exactKeys(value.skipped_existing, ['batches', 'deliverables', 'by_team'], 'skipped_existing');
   exactKeys(value.skipped_existing.by_team, ['video', 'graphics'], 'skipped_existing.by_team');
   exactKeys(value.planned_write_counts, ['clients', 'team_members', 'team_member_link_updates', 'batches', 'deliverables', 'linear_archive'], 'planned_write_counts');

@@ -94,6 +94,7 @@ function publicB1Artifact(plan, applyResult, verification) {
       by_team: numericPick(gated.by_team, ['video', 'graphics']),
     },
     stray_catcher: !!(plan && plan.stray_catcher === true),
+    closed_identifiers_allowed: finiteNumber(plan && plan.closed_identifiers_allowed),
     skipped_existing: {
       batches: finiteNumber(plan && plan.skipped_existing && plan.skipped_existing.batches),
       deliverables: finiteNumber(plan && plan.skipped_existing && plan.skipped_existing.deliverables),

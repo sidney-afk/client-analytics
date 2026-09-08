@@ -17484,3 +17484,33 @@ credential-less after a `credentials_required` failure, where the staff path
 authenticates — so all seven could pass as staff while client submissions refuse.
 Added as **check 8, mandatory**, and carried into the Phase 3 gate row, the
 degradation table as its only client-facing row, and the #1350 runbook handoff.
+
+**The sweep that finding earned, run immediately rather than waiting for the next
+round.** If a code default had been read as a live value once, every other flag
+claim in the master sequence deserved the same check against
+`docs/truth/BRIEFING.md` and `ROLLBACK.md`. Results:
+
+- `prod_authority`, `write_ui_reroute_clients`, `linear_outbound_enabled`
+  (`{"mode":"live"}` — **not** off; the cutoff is what changes it) and
+  `linear_legacy_parity_enabled` all **match** what this document says.
+- **`production_assignee_eligibility` and `production_native_identifier_mint` appear
+  in NEITHER live-state doc.** For the mint that is consistent with its SOURCE ONLY
+  status. For the assignee flag it means **its live value is genuinely unknown to
+  this repo** — which does not change P6, since the instruction is to set the exact
+  literal either way, but nobody should claim to know what it is now.
+- **One number was removed rather than corrected.** The staff-writes row said "all
+  43 active clients are enrolled". BRIEFING gives **41** at the video flip and **38**
+  for the Track-A allowlists on 2026-08-25; item 175 measured **43** on 2026-09-07.
+  Those are not contradictions: BRIEFING says membership *"tracks the `*_ef_clients`
+  rosters by equality"* and *"the count moves with onboarding"*.
+
+**The lesson from that last one is worth more than the fix.** The number was never
+the load-bearing fact — **the equality is**. Quoting a snapshot as though it were a
+property is how three separately-true numbers come to look like a disagreement, and
+it guarantees the claim rots the next time a client onboards. The row now states the
+mechanism and cites no count.
+
+That generalises past this document: **prefer the invariant to the measurement
+whenever the invariant is what makes the claim true.** A count is evidence for a
+mechanism; publishing it in the mechanism's place trades something permanent for
+something that expires.

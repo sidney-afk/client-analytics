@@ -58,6 +58,40 @@ wrong error.
 
 ---
 
+### Every flag claim in this document, checked against the live-state docs
+
+Run after a review found that a **code default had been read as a live value** for
+`public_intake_enabled`. Live state lives in `docs/truth/BRIEFING.md`, `ROLLBACK.md`
+and `docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 — never in a source comment.
+
+| Flag | Live value | Where |
+|---|---|---|
+| `prod_authority` | `{"video":"syncview","graphics":"syncview"}` | BRIEFING |
+| `write_ui_reroute_clients` | the **full roster**, `owner-enrollment-wave-3-full-roster`, wave 3 executed 2026-08-14 | BRIEFING:124-127 |
+| `linear_outbound_enabled` | `{"mode":"live"}` — **not** off. The cutoff is what changes it | BRIEFING |
+| `linear_legacy_parity_enabled` | `{"enabled":true}` | BRIEFING |
+| `public_intake_enabled` | **`{"enabled":true}` since 2026-08-25** | BRIEFING:133-134 |
+| `production_assignee_eligibility` | **not recorded in either live-state doc** | — |
+| `production_native_identifier_mint` | **not recorded**, consistent with the mint being SOURCE ONLY | — |
+
+**A count was removed rather than corrected.** This table's staff-writes row used to
+say "all 43 active clients are enrolled". BRIEFING gives 41 at the video flip and 38
+for the Track-A allowlists on 2026-08-25; item 175 measured 43 on 2026-09-07. Those
+are **not contradictions** — BRIEFING says membership "tracks the `*_ef_clients`
+rosters by equality" and "the count moves with onboarding". **The number was never
+the load-bearing fact; the equality is.** Quoting a snapshot as though it were a
+property is how three different true numbers end up looking like a disagreement, so
+the row now states the mechanism.
+
+**The two unrecorded flags are worth their own line.** Neither
+`production_assignee_eligibility` nor `production_native_identifier_mint` appears in
+the live-state docs. For the mint that is consistent and expected. For the assignee
+flag it means **its live value is genuinely unknown to this repo** — which does not
+change P6 (set it to the exact literal either way) but does mean nobody should claim
+to know what it is now.
+
+---
+
 ## Deadline status — corrected, because the earlier wording was too strong
 
 An earlier draft of this file, and several things said to the owner, claimed
@@ -77,7 +111,7 @@ reading:
 
 | Surface | Effect | Severity |
 |---|---|---|
-| Staff writes: status, due date, description, comments, attachments | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so these go native (item 175, 2026-09-07). Verified per operation, not inferred from the group | none |
+| Staff writes: status, due date, description, comments, attachments | **Safe.** `write_ui_reroute_clients` is the **full roster** and tracks the `*_ef_clients` rosters **by equality** (`docs/truth/BRIEFING.md:124-127`), so enrolment holds regardless of the current client count; `prod_authority` is `{"video":"syncview","graphics":"syncview"}`. These go native. Verified per operation, not inferred from the group | none |
 | **Labels** — reading them and setting them | **NOT safe.** `handleLabelsRead:4947` and the `labels` write at `:5491` both call `linearLabelSnapshot` → `linearLabelCatalog`, which pages the Linear API. Unconditional, no flag | not safe |
 | **Changing a card's assignee** | **NOT safe as things stand.** `validateAssignee` → `assigneeProviderPool` needs Linear, and a **missing or malformed** `production_assignee_eligibility` flag *stays strictest* (`docs/truth/APP.md:652-653`). Loss of Linear gives `assignee_provider_unavailable` before the native assignment. **Unlike the intake reads, this one has a documented off switch** — see P6 | **fixable by one flag; unsafe until it is set** |
 | **Anyone creating a post, or filling a component** | **NOT safe. See the section below.** `intake_create` and `component_fill` both read the Linear API before writing anything, and neither read is behind a flag | **the highest severity in this table** |

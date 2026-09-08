@@ -13991,14 +13991,20 @@ existing definition working, not a gap.
 **WHAT CHANGES MEANING, AND WHAT DOES NOT.** One claim I had to correct against
 the repo's own evidence before publishing it:
 
-- **Assignee attribution is UNCHANGED.** I had this down as a meaning change —
-  that grouping by `deliverables.assignee_id` newly attributes a mid-week
-  reassignment wholly to the new editor. It is not new.
-  `docs/independence/SYSTEM_MAP.md` (F48) records that the retired endpoint
-  already did exactly this: *"past transitions are attributed to the current
-  assignee."* The native rebuild carries the caveat forward rather than
-  introducing it, so there is nothing here for the owner to weigh that was not
-  already true last week.
+- **Assignee attribution is not NEW — but that is not the same as fine, and my
+  first version of this bullet drew the wrong conclusion from a true fact.**
+  The fact stands: `docs/independence/SYSTEM_MAP.md` (F48) records the retired
+  endpoint already attributing *"past transitions … to the current assignee"*,
+  so grouping by `deliverables.assignee_id` does not introduce the behaviour.
+  What I then wrote — *"there is nothing here for the owner to weigh that was
+  not already true last week"* — **was wrong**, and is retracted. Parity with
+  the legacy reader is not a defence when the legacy reader's behaviour is the
+  thing the replacement was specified to remove: TRACK_B spec **9.11** names
+  current-assignee attribution as the legacy defect and requires event-time
+  assignee identity. This panel does not meet that clause. It is recorded as
+  **OPEN** further down this item, with the measurement showing why the
+  prescribed fix is blocked on data that does not exist rather than on effort.
+  Read that note, not this bullet, for the current position.
 - **Completeness went UP, not down.** The retired endpoint paged its issue
   connection 50 at a time and **silently stopped after 30 pages / 1,500
   issues**, with each issue history unpaged at `first:250`. The native reads

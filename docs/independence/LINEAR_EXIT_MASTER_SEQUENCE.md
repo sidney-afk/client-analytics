@@ -213,6 +213,12 @@ When Linear is unreachable, `linearRead` throws
 which is the correct choice and means nothing is corrupted. It also means the
 create is **refused**.
 
+**"Nothing is corrupted" is checked, not assumed.** Everything `handleProductionCreate`
+awaits before `productionCreateScope` is read-only: principal resolution,
+deterministic id derivation, and `productionCreateReplay`, whose every database
+call is a `.select(...)`. The 503 is therefore raised before any row is written,
+and a refused create leaves no partial state behind.
+
 ### Two orderings that make this worse than it first looks
 
 **The Linear read happens before the authority check.** `projectForIntake` runs,

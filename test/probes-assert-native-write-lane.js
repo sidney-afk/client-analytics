@@ -677,6 +677,52 @@ ok(exportedNamesAreDefined('qa/scenario_engine.js').missing.length === 0
   '  · and the check itself catches the exact shape that broke: a name exported but neither '
   + 'declared nor destructured');
 
+/* ---- 1f. WOULD THESE MODULES LOAD AT ALL? -------------------------------- */
+/* Answering my own question from the PR rather than leaving it open: what else did removing
+   the engine `require` stop exercising? It stopped exercising LOADABILITY, and the export-name
+   check above covers only one of the ways a load fails. The other two that can be checked
+   without executing anything are a parse error and a relative `require` naming a file that is
+   not there. Both are cheap, and both would take the scenario and tree lanes down exactly the
+   way the ReferenceError did.
+
+   WHAT THIS STILL DOES NOT COVER, said plainly so it is not read as equivalent to a load: a
+   module that parses, resolves and exports honestly can still THROW while executing its top
+   level. `qa/sxr_courier_lib.js` is the live example — its Playwright fallback names a path
+   that exists only in the agent container — and that is precisely the class the `unit` job
+   cannot test, because loading it is what turned CI red. A real load belongs in a job that
+   installs dependencies; these three static checks are what is available here. */
+/* Proven by injection on a file this suite only READS (`qa/probes/p68_linear_link_clear.js`):
+   a syntax error reports "Unexpected end of input" and a dangling require names the missing
+   path, both as clean failures. The first attempt at that proof injected into
+   `qa/scenario_lane.js`, which this suite REQUIRES — so the process died at the require before
+   the checks ran, and the run looked like it caught nothing. The checks were fine; the test of
+   the test was wrong, and driving it a second time is the only reason that is known.
+   For the few qa/ files this suite requires, a parse error still fails the run, just as a
+   crash rather than as a named check. Loud either way. */
+const qaFiles = walkJs(path.join(ROOT, 'qa'), []);
+const parseFailures = [];
+const danglingRequires = [];
+for (const abs of qaFiles) {
+  const rel = path.relative(ROOT, abs).split(path.sep).join('/');
+  const src = fs.readFileSync(abs, 'utf8');
+  try { new vm.Script(src, { filename: abs }); }
+  catch (e) { parseFailures.push(rel + ': ' + String(e.message).slice(0, 70)); }
+  for (const m of src.matchAll(/require\(\s*'(\.[^']+)'\s*\)/g)) {
+    const target = path.resolve(path.dirname(abs), m[1]);
+    const found = fs.existsSync(target) || fs.existsSync(target + '.js')
+      || fs.existsSync(path.join(target, 'index.js'));
+    if (!found) danglingRequires.push(rel + ' -> ' + m[1]);
+  }
+}
+ok(qaFiles.length > 100,
+  'every qa/**/*.js is scanned for loadability (' + qaFiles.length + ' files)');
+ok(parseFailures.length === 0,
+  'none of them fails to PARSE — a syntax error takes its lane down the same way the '
+  + 'ReferenceError did' + (parseFailures.length ? ': ' + parseFailures[0] : ''));
+ok(danglingRequires.length === 0,
+  'and no relative require names a file that is not there'
+  + (danglingRequires.length ? ': ' + danglingRequires[0] : ''));
+
 /* ---- 2. THE FIXTURE ACTUALLY STAMPS THE CARD ----------------------------- */
 /* Executed, not read. A stand-in for the slice of Playwright's routing API the
    fixture uses, so a handler that stopped working would fail here. */

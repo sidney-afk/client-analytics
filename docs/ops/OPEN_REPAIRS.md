@@ -14701,6 +14701,30 @@ it. Codex challenged three lanes and left these; that is the line between "about
 the legacy path" and "happens to contain a legacy assertion", and the first
 version of this wiring did not draw it.
 
+**COVERING THE BLIND SPOT THE NINTH EXPOSED.** The ninth existed because an
+earlier fix removed `qa/scenario_engine.js` from the only module graph that would
+have noticed it, so the question worth answering was not "fix this one" but "what
+else did that stop exercising". It stopped exercising LOADABILITY. Three of the
+ways a load fails can be checked without executing anything, and all three now
+are, over all 174 `qa/**/*.js` files: an undefined exported name (the ninth), a
+PARSE error, and a relative `require` naming a file that is not there.
+
+**What it still does not cover, stated in the file rather than implied:** a module
+that parses, resolves and exports honestly can still throw while executing its top
+level. `qa/sxr_courier_lib.js` is the live example — its Playwright fallback names
+a container-only path — and that is exactly the class the `unit` job cannot test,
+because loading it is what turned CI red. A real load belongs in a job that
+installs dependencies.
+
+**And a near-miss worth recording, because it nearly became a false finding.** The
+first proof of those two checks injected a syntax error into
+`qa/scenario_lane.js` — a file the suite REQUIRES — so the process died at the
+require before the checks ran, and the run looked like it caught nothing. The
+checks were fine; the test of the test was wrong. Driving it a second time
+against a file the suite only READS is the only reason that is known, and it is
+the same discipline that found the eighth: the first result of an experiment is
+not evidence until the experiment itself has been checked.
+
 **A NINTH — and the fix for the seventh is what created it.** Moving the lane
 rule out of `qa/scenario_engine.js` left its
 `module.exports = { scenarioUsesLegacyLane, runScenario }` naming an identifier

@@ -17617,3 +17617,52 @@ as the safe preamble to a risky "flip", because installs feel provisional and
 enablements feel committal. Here it is backwards, and the document was ordered on
 the feeling rather than on the undo column that was sitting in the source the whole
 time.
+
+### Addendum, 2026-09-08 — the ordering fix over-corrected, and three more on the same section
+
+Four findings, three P1. The first is the one worth leading with because it is a
+correction **to a correction made an hour earlier**.
+
+**1. I over-corrected the install order.** The first version went straight from
+"choose #1326" to "dispatch" — gateway before SQL, an outage. The fix put **runtime
+activation before the dispatch**, which is also wrong.
+`LINEAR_EXIT_BRIEF_B.md:282-290` — the authority this document delegates to — orders
+capture/upload, **the Section 4 deploy**, and *then* the intake, assignment and
+label flips. Activating while the old closure is still live leaves the caller
+without the native epoch and payload routing those flags enable.
+
+**Correct: SQL and the label CAPTURE before; all runtime activation after.** Naming
+an authority and then contradicting it in the same paragraph is a worse failure than
+the original gap, because a reader who checks the citation finds the opposite of
+what the text says.
+
+**2. A second, independent hazard on the same side, and SQL-first does not fix it.**
+Merging the browser half **publishes `index.html` immediately** via Pages, while
+`production-write` only moves on the dispatch. Brief B's own adversarial review at
+`:368-370` records it: the new browser calls `intake_editor_options`, the **old
+gateway answers `400 unknown_action`**, and the Create Post picker is broken for the
+entire capture → upload → dispatch interval. Needs a fallback in the browser hunk,
+or the browser hunk held until the gateway is live.
+
+**3. Recording the reroute conflict was not resolving it.** The previous entry noted
+that BRIEFING and ROLLBACK disagree and stopped there. **If ROLLBACK's value is
+live**, only the TEST fixture and two real clients are rerouted, every other client
+still takes the legacy Linear lane, the "staff writes are safe" row is wrong, and
+**every behavioural check passes on TEST while normal staff writes fail after
+cutoff**. It is now **row 0** of the Phase 3 entry gate: the owner reads the value
+live and confirms equality with the current writer rosters, before anything else is
+judged. Carried into the #1350 handoff.
+
+**4. I used `production_label_catalog_capability()` as proof of staging.** It reads
+**only its runtime flag** and will report `native` for an arbitrary UUID with
+nothing staged, then 503 one call later. **This document's own P1 section says
+exactly that**, contrasting it with the mint capability's self-guarding — and I used
+it as evidence two sections later. The gate now requires a staged-and-attested row
+or a successful `production_label_catalog_read_attested`.
+
+**The lesson from this round is narrower and more useful than "be careful".** Three
+of these four are *the same document contradicting itself across a few screens* —
+the delegated authority, the capability's own caveat, the conflict it had just
+recorded. **Internal consistency is not something a document has by default; it is a
+property that has to be checked for, the same way facts are.** Nothing about being
+correct in each section makes the sections agree.

@@ -103,6 +103,16 @@ correcting it needs the live value read, which is an owner action, not a documen
 one. Recorded so the conflict is visible rather than papered over by a sweep that
 claimed agreement.
 
+**But recording a conflict is not resolving it, and the first version of this
+section stopped at recording.** If `ROLLBACK.md`'s value is the live one, then only
+the TEST fixture and two real clients are rerouted and **every other client still
+takes the legacy Linear lane** — which means the "staff writes are safe" row at the
+top of this document is wrong, and every behavioural check below passes on the TEST
+client while normal staff writes fail after the cutoff. The conflict is therefore
+**row 0 of the Phase 3 entry gate**: the owner reads
+`write_ui_reroute_clients` live and confirms it equals the current writer rosters,
+before anything else is judged.
+
 **And the sweep's own lesson:** it reported "the sources match" having consulted
 **one** of the two authorities it named. Checking a claim against one source and
 reporting agreement with several is a stronger statement than the work supports —
@@ -697,43 +707,56 @@ complete, and still fail check 5 — leaving Phase 3 blocked after an F27 deploy
 already been spent. #1326's scope may or may not cover this; **that is a question
 for the review, not an assumption to carry.**
 
-### ORDER FIRST. Deploying #1326's gateway before its SQL takes Create Post DOWN.
+### ORDER. Two hazards sit on opposite sides of the dispatch.
 
-**This is a live-outage hazard and an earlier version of this section walked
-straight past it**, going from "choose #1326" to "dispatch the F27 deploy" with
-nothing in between.
+**This section has now been wrong in both directions, and the correction is
+recorded rather than smoothed over.** First it went straight from "choose #1326" to
+"dispatch", which would have deployed a gateway whose SQL was absent. Then it
+over-corrected and put the runtime activation *before* the dispatch, which is also
+wrong. `LINEAR_EXIT_BRIEF_B.md:282-290` is the authority and its order is
+unambiguous.
 
-The candidate's `production-write` calls `production_native_intake_epochs`
-**unconditionally** and **refuses `503` when the RPC is absent** (ledger entry at
-`OPEN_REPAIRS.md:16663-16666`, recorded when lane D hit exactly this). So a SHA
-carrying lane B's writers, deployed before lane B's SQL window has closed, **takes
-Create Post and Submit down immediately** — from a deploy that looks like it only
-touches an Edge Function.
+**Hazard 1, before the dispatch: SQL absent.** The candidate's `production-write`
+calls `production_native_intake_epochs` **unconditionally** and refuses `503` when
+the RPC is absent (`OPEN_REPAIRS.md:16663-16666`, from lane D hitting it). A SHA
+carrying lane B's writers dispatched before lane B's SQL has landed takes Create
+Post and Submit down.
 
-`LINEAR_EXIT_BRIEF_B.md:173-200,220-231` lists what the gateway actually depends on,
-and it is not one migration:
+**Hazard 2, before the dispatch, and it is a window rather than a state.** Merging
+the browser half **publishes `index.html` immediately** via Pages, while
+`production-write` only moves on the Section 4 dispatch. Brief B's own adversarial
+review (`:368-370`) records the consequence: the new browser calls
+`intake_editor_options` and the **old gateway answers `400 unknown_action`**, so the
+Create Post picker is broken for the whole capture → upload → dispatch interval.
+**Installing the SQL first does not help with this one.** It needs either an
+old-gateway-compatible fallback in the browser hunk, or the browser hunk shipped
+only after the gateway is live.
 
-- the three intake migrations plus the composed atomic artifact (B4, B5);
-- `2026-09-06-native-existing-assignment.sql`, which seeds
-  `native_assignment_epochs` as `mode:provider`, i.e. **disabled** (B6);
-- the two label migrations **and** a `version_id` staged in the catalog table —
-  `production_label_catalog_capability()` returns `native` only when one exists (B7);
-- the matching browser plumbing, including the new `intake_editor_options` endpoint
-  and its caller.
+**The order, from brief B:**
 
-**So the order is: migrations applied and staged → epoch/catalog activation → THEN
-the F27 dispatch.** Not the reverse, and not "deploy and let the acceptance checks
-find out". The acceptance checks in this document run **after** a deploy; if the
-deploy itself is what breaks Create Post, they discover an outage rather than
-prevent one.
+| When | What |
+|---|---|
+| **Before** | Brief B's SQL work items (B4-B7) applied. The Linear label catalog **captured** — already done, 2026-09-08 01:24Z, item 170 |
+| **Before** | Resolve hazard 2: a fallback in the browser half, or hold the browser hunk |
+| **Then** | Sealed capture → **upload to Drive** → dispatch |
+| **After** | Flip `native_intake_epochs`; flip `native_assignment_epochs`; **stage + attest** a real label catalog version via `production_label_catalog_stage_attested` and set `production_native_label_catalog` |
+| **After** | The eight behavioural checks |
 
-**This document does not attempt to specify that order.** Brief B does, per work
-item, with SHAs and file lists, and it is the authority. What belongs here is the
-constraint: **do not dispatch until brief B's B4 to B7 are done and the epoch and
-catalog capabilities report native.**
+**Runtime activation is post-deploy, all of it.** Activating while the old closure
+is still live leaves the caller without the native epoch and payload routing those
+flags enable.
 
-If the owner picks the fresh-minimal option instead, this hazard does not apply —
-but the label repair and the parent-validation repair above still do.
+### Do NOT use `production_label_catalog_capability()` as evidence of staging
+
+An earlier version of this section did. **It reads only its runtime flag** and will
+report `native` for an arbitrary UUID with nothing staged, then `503` one call
+later. That is stated in `migrations/2026-09-07-native-identifier-mint.sql:76-79`
+and in **this document's own P1 section**, which contrasts it with the mint
+capability's self-guarding — and I then used it as proof two sections later.
+
+**Require a matching staged-and-attested row, or a successful
+`production_label_catalog_read_attested`.** The capability's answer is the flag
+talking, not the data.
 
 Either way it is an Edge Function change and therefore an F27 Section 4 deploy,
 dispatched at
@@ -810,6 +833,7 @@ that must succeed:
 
 | # | Must be true | Not merely |
 |---|---|---|
+| 0 | **`write_ui_reroute_clients` read LIVE by the owner, and equal to the current writer rosters.** The two live-state docs disagree (BRIEFING: full roster; ROLLBACK: TEST + wave 1, two real clients) and **no other row here resolves it** | either document's written value |
 | 1 | The four held PRs are merged, **and #1350's runbook carries the P6/P7 preconditions** | merged with the old runbook text |
 | 2 | The naming mint's **four** steps are done, flag flip included, `video` proved before `graphics` is enabled (P1) | migration applied |
 | 3 | `production_assignee_eligibility` is exactly `{"provider_mapping_required": false}` (P6) **and row 4 check 6 has passed** | the flag readback, which proves only what the flags table holds |
@@ -843,7 +867,9 @@ the procedural runbook, which is the normal way in, never sees this file. So
 lands must contain **all eight P7 checks as behavioural successes** — Calendar
 post, Samples/SXR post, staff submission, append to an existing batch, component
 fill, label set-and-picker, the post-flag assignee change, and **a client-link
-submission** — not a shortened list and not the assignee flag literal
+submission** — **plus the live `write_ui_reroute_clients` read** (gate row 0), since
+without it every one of the eight can pass on TEST while real clients still take the
+legacy lane — not a shortened list and not the assignee flag literal
 in place of the assignee check. The first version of this handoff asked for the
 flag value, which is the very substitution this document says elsewhere does not
 prove anything. If it merges without them, the gate is unmet and the cutoff is not

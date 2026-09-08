@@ -15060,3 +15060,54 @@ session was still pushing to `claude/lx-d-feedback` at the time of this entry.
 Two sessions on one branch is how region ownership gets violated, and that
 convention is the reason six concurrent sessions never collided on a 79,418-line
 file tonight. It waits for the branch to go quiet.
+
+### Addendum, 2026-09-08 07:20 — what the night cost, and the session I stopped
+
+Recorded because the owner runs a small business and should not learn this from
+a bill, and because the coordination method in item 178 is only worth keeping if
+its price is written down beside it.
+
+**Twelve parallel sessions, measured: $557.** Not an estimate; the per-session
+figures as reported at 07:18 UTC:
+
+| Session | Cost | What it produced |
+|---|---|---|
+| LX-RESTORE | **$146.15** | PR #1352, restoring clipped brief lines. **Stopped by me.** |
+| LX-C3 | $129.64 | 6 findings fixed, 1 declined with evidence, 23 threads resolved |
+| LX-A3 | $103.14 | 22 threads resolved, CI green, 3 owner gates named |
+| LX-D4 | $95.04 | the aggregate-bound fix, 247 tests green |
+| LX-C2 | $26.38 | 5 Codex findings |
+| LX-D6 | $22.32 | the comment-count fail-open |
+| LX-D3 | $8.16 | feedback error isolation |
+| LX-D2 | $7.24 | 3 findings; correctly stopped and asked |
+| LX-HC | **$6.26** | **3 defects in code already live on `main`** |
+| LX-AON | **$5.64** | the all-or-nothing audit, 1 P1 + 3 P2s, with coverage stated |
+| LX-A2 | $5.22 | 2 P1s |
+| LX-D5 | $1.98 | root-caused the count defect and correctly refused to implement |
+
+**The distribution is the finding.** The two cheapest substantive sessions,
+LX-HC and LX-AON at **$12 combined**, produced the night's most valuable
+results: three defects in already-shipped live code, and the correction that the
+all-or-nothing surface is mostly sound rather than a field of outage-class bugs.
+Both were **read-only, single-pass, and bounded by a written deliverable.** The
+four most expensive, $474 between them, were open-ended fix-and-verify loops on
+branches, and each hit the point where it was auditing its own work rather than
+the code.
+
+**LX-RESTORE stopped at $146, for spend and not for quality.** Its brief was 49
+clipped lines in documentation. It reached round 9 of self-auditing, exhausted a
+1,000,000-token context, and resumed to keep going. Its work is pushed to PR
+#1352 and is not lost. Stopping it is a judgement that a documentation
+restoration is not worth a tenth of a thousand dollars, not a statement that it
+was doing the task badly — it was still finding real problems each round, which
+is exactly what makes this kind of loop hard to stop and worth bounding in
+advance.
+
+**The rule this earns, and it belongs beside item 178's method:** *a session
+whose deliverable is a written report costs an order of magnitude less than one
+that owns a branch, and it should be the default. Give any fix-and-verify
+session an explicit round or spend bound at dispatch time, because the natural
+stopping point of a self-auditing loop is context exhaustion, not done.*
+
+I dispatched twelve sessions and bounded none of them. The parallel model earned
+its keep in the first hours; past that it multiplied cost more than throughput.

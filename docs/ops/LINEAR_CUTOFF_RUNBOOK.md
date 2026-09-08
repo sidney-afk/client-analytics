@@ -549,6 +549,8 @@ not reference each other**:
 | read a card's labels (`handleLabelsRead` `:4947`) | **YES** — no create gate on this handler |
 | write labels on an existing card (`handleEntityOperation` `:5491`) | **YES** |
 | assignee picker (`handleAssigneeOptions` → `assigneeProviderPool`) | **YES** |
+| **component fill** (`handleComponentFill` `:6038`) | **YES** — reaches `parentRouteForAppend`, which calls `validateLinearBatchParent` → `linearRead`. That call passes **seven** positional arguments, so `validateExternal` takes its default `true`. |
+| **append into an existing batch** (`handleIntakeCreate` `:6701`, `:6721`) | **YES, and this is the COMMON CASE** — both pass **eight** arguments with `validateExternal = !exactRowRetry`, which is `true` on any normal append. Most posts join a batch that already exists, so this is the surface most staff hit most often. |
 | create a deliverable (`handleProductionCreate`) | **no** — server-closed above the Linear reach |
 | `create_options` (`handleCreateOptions` `:3345`) | **no, but only because the UI is disabled.** The handler itself has **no closure check** — it validates surface and goes straight to `linearLabelCatalog` + `mappedCreateAssignees`. It is a live endpoint behind a dead UI, and it becomes staff-visible the moment the create ruling is revisited. |
 
@@ -568,8 +570,13 @@ credential decision.
 (`linearLabelCatalog` AND `mappedCreateAssignees`), not one.
 
 **Revoking before these are removed turns reading a card's labels, writing a
-label, and the assignee picker into HTTP 503 for staff, on a day when nobody will
-connect the two events.** This sentence used to say *"create a deliverable and
+label, the assignee picker, component fill and every append into an existing
+batch into HTTP 503 for staff, on a day when nobody will connect the two
+events.** The last two matter most and were the last to be found: appends reach
+the provider through `parentRouteForAppend` by a route that touches neither the
+create path nor `projectForIntake`, so a reader tracing the create flow — or a
+repair scoped to it — misses them entirely, and **an append is what most posts
+actually are.** This sentence used to say *"create a deliverable and
 pick a label"*; creating is already closed, so naming it here inflated the
 urgency with a failure that cannot happen and understated the three that can.
 

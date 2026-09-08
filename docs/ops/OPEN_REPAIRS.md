@@ -17390,3 +17390,40 @@ itself correct** — the table, the checklist, the summary sentence. The facts h
 been right and the restatements wrong. That is the opposite of where review
 attention naturally goes, and it is concentrated in exactly what a hurried
 operator actually reads.
+
+**Addendum, 2026-09-08 — the live-surface table I had just corrected was still
+missing the common case.** One round after STEP 7's live/not-live table was
+written, PR #1360 found that appends reach the provider by a route nobody had
+traced. Verified here independently against the tree:
+
+`parentRouteForAppend` (`production-write:2359`) calls `validateLinearBatchParent`
+— a `linearRead` caller — whenever `validateExternal` is true, and it is true at
+all three append sites. `handleComponentFill:6038` passes **seven** positional
+arguments, so `validateExternal` takes its default `true`. `handleIntakeCreate`
+`:6701` and `:6721` pass **eight**, with `validateExternal = !exactRowRetry`,
+which is `true` on any normal append. Counted argument by argument rather than
+inferred from the signature, because the positional default is the whole
+mechanism.
+
+**So two more staff surfaces go 503 on revocation — component fill, and every
+append into an existing batch — and the second is the case most staff hit most
+often**, since most posts join a batch that already exists. STEP 7 now carries
+both rows and says so in the summary sentence.
+
+**Why this one is instructive rather than just another miss.** The route reaches
+Linear through neither the create path nor `projectForIntake`. Anyone tracing "how
+does a post reach the provider" from the create flow — which is the obvious place
+to start, and where I started — never arrives at it. The same blind spot produced
+a proposed repair AND the acceptance checks meant to prove that repair, because
+both were derived from the same reading. **A check derived from the same trace as
+the fix cannot catch what the trace missed.** The argument that follows, and it
+is the one worth carrying out of this lane: derive acceptance criteria from an
+inventory of the operations a person performs, not from the code path you happened
+to follow.
+
+**Running count for this lane's documents today: six.** Three of four mint steps;
+`linear-*` names counted as Linear dependencies; helpers counted as call sites; a
+warning about a failure that cannot happen; a retracted line copied forward; and
+now a live-surface table missing the commonest surface — written one round after
+the table itself was the correction. Every one a derived artefact disagreeing with
+a source that stayed correct.

@@ -7,6 +7,7 @@
 //   - caption note → NO Linear push
 //   - cross-client safety: every captured issue is SIDNEY's card's test issue, never another's
 const Q = require('./lib.js');
+const { fulfilLinearHook } = require('./linear-hook-fulfil.js');
 const TS = Math.floor(Date.now() / 1000);
 const PID = 'p_lin_' + TS;
 const VURL = 'https://linear.app/sidtest/issue/SIDV-' + TS;     // fake video issue (no real Linear)
@@ -25,11 +26,11 @@ const ADD = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
   const setCalls = [], addCalls = [];
   await ctx.route('**/webhook/linear-set-status', async (route) => {
     try { setCalls.push(JSON.parse(route.request().postData() || '{}')); } catch (e) { setCalls.push({ parseErr: true }); }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    await fulfilLinearHook(route);
   });
   await ctx.route('**/webhook/linear-add-comment', async (route) => {
     try { addCalls.push(JSON.parse(route.request().postData() || '{}')); } catch (e) { addCalls.push({ parseErr: true }); }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    await fulfilLinearHook(route);
   });
   const smm = await ctx.newPage();
   smm._errs = [];

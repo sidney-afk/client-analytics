@@ -3,6 +3,7 @@
 //   - Kasper "approve" on video → pushes video_status='Client Approval' to the video issue
 // Both must target the card's OWN video issue.
 const Q = require('./lib.js');
+const { fulfilLinearHook } = require('./linear-hook-fulfil.js');
 const TS = Math.floor(Date.now() / 1000);
 const REQ = 'p_lk_req_' + TS, APP = 'p_lk_app_' + TS;
 const vurl = (id) => 'https://linear.app/sidtest/issue/' + id;
@@ -15,8 +16,8 @@ const vurl = (id) => 'https://linear.app/sidtest/issue/' + id;
   await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const setCalls = [], addCalls = [];
-  await ctx.route('**/webhook/linear-set-status', async (r) => { try { setCalls.push(JSON.parse(r.request().postData() || '{}')); } catch (e) {} await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
-  await ctx.route('**/webhook/linear-add-comment', async (r) => { try { addCalls.push(JSON.parse(r.request().postData() || '{}')); } catch (e) {} await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
+  await ctx.route('**/webhook/linear-set-status', async (r) => { try { setCalls.push(JSON.parse(r.request().postData() || '{}')); } catch (e) {} await fulfilLinearHook(r); });
+  await ctx.route('**/webhook/linear-add-comment', async (r) => { try { addCalls.push(JSON.parse(r.request().postData() || '{}')); } catch (e) {} await fulfilLinearHook(r); });
   const kas = await ctx.newPage(); kas._errs = [];
   kas.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) kas._errs.push(m.text()); });
   kas.on('pageerror', e => kas._errs.push(String(e && e.message)));

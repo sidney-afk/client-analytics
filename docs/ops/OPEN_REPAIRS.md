@@ -14638,6 +14638,33 @@ layer down.
 Handler lane 33 → 35 checks, on a real PostgreSQL 16 instance.
 
 
+### Codex round 13 — the deadline was treated as a decision, not a floor (2026-09-08)
+
+One P2, on round 12's own race. The budget expiring made the handler commit to
+the fallback permanently and then wait for the bounded read anyway. If the
+snapshot lands at 3.1s while the paged read is still going at 5s, the enriched
+answer was **already available before anything was returned** and was discarded
+regardless — stripping provider aliases from a response that could have carried
+them. An old bundle cannot match a native-keyed override without those aliases,
+so real saved work days would vanish under nothing worse than transient latency.
+
+The budget is a floor on how long we wait for enrichment ALONE, not a verdict.
+After it expires the still-pending enrichment is raced against the bounded read
+and whichever finishes first is the answer. The deadline guarantee is unchanged:
+we never wait past it for enrichment on its own, because a completed bounded
+read always ends the race.
+
+**The lane could not express the case, again.** The shim could delay the RPC
+(round 12's `rpcHangMs`) but not the table read, so "enrichment is slow but the
+bounded read is slower" had no representation — and without it the lane cannot
+tell *the fallback was genuinely first* from *we threw away an enrichment we
+already had*. It gained `planReadHangMs`, scoped to `workload_plan` selects.
+That is the third consecutive round where the fix required widening what the
+harness can say, which is now the dominant failure mode on this branch.
+
+Handler lane 35 → 37 checks. Red against `546437d`.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

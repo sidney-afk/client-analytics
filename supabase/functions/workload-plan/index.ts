@@ -326,8 +326,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const budget = new Promise<null>((resolve) => {
         timer = setTimeout(() => resolve(null), LIST_ENRICH_BUDGET_MS);
       });
-      const snapshot = await Promise.race([enriched, budget]);
+      let snapshot = await Promise.race([enriched, budget]);
       if (timer !== undefined) clearTimeout(timer);
+      if (!snapshot) {
+        /* The budget is spent, but that does NOT mean the fallback is the best
+         * answer yet. If enrichment lands at 3.1s while the paged read is still
+         * going at 5s, committing to the fallback here would strip the provider
+         * aliases from a response we were about to be able to enrich -- and an
+         * old bundle cannot match a native-keyed override without them, so real
+         * saved work days would vanish under nothing worse than transient
+         * latency. Race what is left: whichever finishes first is the answer,
+         * and the deadline above still guarantees we never wait past it for
+         * enrichment ALONE. */
+        snapshot = await Promise.race([enriched, bounded.then(() => null)]);
+      }
       if (snapshot) {
         outcome = "ok";
         return json({ok:true,complete:true,plans:legacyPlanAliases(snapshot)});

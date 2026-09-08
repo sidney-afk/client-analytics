@@ -12,7 +12,7 @@ const sqlEnv=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^P
 if(process.env.WORKLOAD_TEST_PASSWORD!==undefined)sqlEnv.PGPASSWORD=process.env.WORKLOAD_TEST_PASSWORD;
 const quote=v=>v==null?'null':"'"+String(v).replaceAll("'","''")+"'";
 function sql(text){const r=spawnSync(psql,['-X','-w','-q','-A','-t','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',port,'-U','postgres','-d',database],{input:text,encoding:'utf8',env:sqlEnv,windowsHide:true,timeout:10000,maxBuffer:16e6});if(r.status!==0)throw Error(r.stderr);return r.stdout.trim();}
-let rpcFault=false, rpcHangMs=0, rpcCalls=0, legacyWrites=0, external=0;
+let rpcFault=false, rpcHangMs=0, planReadHangMs=0, rpcCalls=0, legacyWrites=0, external=0;
 const db={rpc:async(name,params={})=>{rpcCalls++;
  // A HANGING rpc, not a rejecting one. Codex P1 on #1344: `unavailable` is most
  // often SLOW rather than thrown, and a promise that never settles slips past
@@ -40,7 +40,14 @@ const db={rpc:async(name,params={})=>{rpcCalls++;
  not(k,op,v){if(op!=='is'||v!==null)throw Error('Unapproved SQL negation');where.push(column(k)+' is not null');return q;},
  order(k,opts){orderBy=' order by '+column(k)+((opts&&opts.ascending===false)?' desc':' asc');return q;},
  limit(n){if(!Number.isSafeInteger(n)||n<=0)throw Error('Unapproved SQL limit');limitRows=n;return q;},
- maybeSingle(){one=true;return Promise.resolve(run());},upsert(v){write=v;return q;},then(a,b){return Promise.resolve(run()).then(a,b);}};return q;}};
+ maybeSingle(){one=true;return Promise.resolve(run());},upsert(v){write=v;return q;},
+ // A SLOW bounded read, scoped to workload_plan selects. Needed to express the
+ // case where enrichment lands after the budget but still BEFORE the paged read
+ // -- without it the lane cannot tell "the fallback was genuinely first" from
+ // "we threw away an enrichment we already had".
+ then(a,b){const wait=(planReadHangMs&&table==='workload_plan'&&!write)
+  ?new Promise(r=>setTimeout(r,planReadHangMs)):Promise.resolve();
+  return wait.then(()=>run()).then(a,b);}};return q;}};
 globalThis.__workloadDb=db;
 globalThis.fetch=async()=>{external++;throw Error('External transport prohibited');};
 const secrets={SUPABASE_URL:'https://fixture.invalid',SUPABASE_SERVICE_ROLE_KEY:'fixture-service',ROLE_KEY_ADMIN:'fixture-admin',ROLE_KEY_SMM:'fixture-smm',ROLE_KEY_CREATIVE:'fixture-creative'};
@@ -96,6 +103,19 @@ try{
    'a HANGING snapshot still returns the stored work days rather than nothing');
   ok(elapsed<8000,`and answers inside the compatibility client's abort (${elapsed}ms)`);}
  rpcHangMs=0;
+
+ // LATE ENRICHMENT STILL WINS. Budget 3s, snapshot 3.5s, bounded read 5s: the
+ // enriched answer is available before the fallback, so returning unaliased
+ // rows here would drop provider aliases an old bundle needs, for nothing worse
+ // than transient latency.
+ rpcHangMs=3500;planReadHangMs=5000;
+ {const started=Date.now();
+  r=await request({action:'list'});
+  const elapsed=Date.now()-started;
+  ok(r.status===200&&r.body.plans.filter(p=>p.plan_date==='2030-03-01').length===2,
+   'enrichment that lands after the budget but before the bounded read is still used');
+  ok(elapsed<8000,`and still answers inside the client's abort (${elapsed}ms)`);}
+ rpcHangMs=0;planReadHangMs=0;
  rpcFault=true;
  before=legacyWrites;r=await request({action:'set',issue_id:'legacy-con',client:'Fixture',plan_date:'2030-03-01'});ok(r.status===503&&legacyWrites===before,'unreadable native ownership never falls through to legacy write');rpcFault=false;
  r=await request({action:'set',issue_id:'legacy-con',client:'Fixture',plan_date:'2030-03-01'});ok(r.status===200&&legacyWrites===before+1,'explicit CON compatibility writes existing sidecar path');

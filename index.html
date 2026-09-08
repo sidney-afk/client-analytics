@@ -78578,10 +78578,33 @@
 
     // PostgREST paging. The window routinely exceeds the 1000-row default,
     // and a truncated read is indistinguishable from a quiet week.
+    //
+    // THE CEILING THROWS RATHER THAN TRUNCATING (Codex, 2026-09-08). This loop
+    // used to run a fixed twenty iterations and return whatever it had, so a
+    // query matching 20,000 rows or more handed the panel the first 20,000 as
+    // if they were all of them -- the SAME silent undercount the pager exists
+    // to remove, moved from 1,000 up to 20,000 and made rarer, which is worse,
+    // not better: rare and silent is how a wrong number survives long enough to
+    // be trusted. It now runs until it OBSERVES a terminal page (a short one,
+    // or an empty one when the total is an exact multiple of PAGE), and the
+    // ceiling is an assertion rather than a stop: reaching it means the caller
+    // asked for a window no week of status events can fill, which is a bug in
+    // the query and not a big week. Throwing is right because every caller of
+    // this is a COUNT the owner reads as fact -- and the panel already renders
+    // a thrown read as an error, where it renders a short one as a quiet week.
     async function _kedRestPage(path) {
         const out = [];
         const PAGE = 1000;
-        for (let offset = 0; offset < 20000; offset += PAGE) {
+        const MAX_PAGES = 50;              // 50,000 rows; a real week is ~10^2
+        for (let page = 0; ; page++) {
+            if (page >= MAX_PAGES) {
+                // Only the table name -- `path` carries filter values, and this
+                // string can reach a console in a PUBLIC repo's CI output.
+                throw new Error('_kedRestPage: over ' + (MAX_PAGES * PAGE)
+                    + ' rows from ' + String(path).split('?')[0]
+                    + '; refusing to report a truncated count');
+            }
+            const offset = page * PAGE;
             const url = CAL_SUPABASE_URL + '/rest/v1/' + path
                 + (path.indexOf('?') === -1 ? '?' : '&') + 'limit=' + PAGE + '&offset=' + offset;
             const resp = await fetch(url, {

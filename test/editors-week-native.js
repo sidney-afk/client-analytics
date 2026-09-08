@@ -414,6 +414,40 @@ function ev(deliverable_id, ts, from_status, to_status) {
   ok(threw && /HTTP 500/.test(String(threw.message)),
     'a failed read throws so _kasperLoadEditors shows its error state instead of painting an empty week as fact');
 
+  /* ── 6b. The pager's ceiling: loud, not truncating ────────────────── */
+  /* `_kedRestPage` used to run a fixed twenty iterations, so a query matching
+     more than 20,000 rows returned the first 20,000 as if that were all of
+     them. That is the SAME defect the pager exists to remove -- a count the
+     owner reads as fact, quietly short -- just moved up two orders of
+     magnitude and made rare, which is the worse failure mode, not the better
+     one: a wrong number nobody ever sees go wrong is a wrong number that gets
+     trusted. Driven against the pager directly rather than through the shaper,
+     because the shaper's own `in.(...)` filters cap the row count long before
+     the ceiling, and the ceiling is the thing under test. Codex on bd6011e. */
+  const wideRows = (n) => Array.from({ length: n }, (_, i) => ({ id: 'r' + i }));
+
+  const past20k = makeSandbox({ widetable: wideRows(20500) });
+  const past20kOut = await past20k._kedRestPage('widetable?select=id');
+  ok(past20kOut.length === 20500,
+    'a 20,500-row read is paged in FULL, where the fixed twenty-page loop stopped at 20,000 ('
+    + past20kOut.length + ' rows)');
+
+  const exact = makeSandbox({ widetable: wideRows(3000) });
+  const exactOut = await exact._kedRestPage('widetable?select=id');
+  ok(exactOut.length === 3000,
+    'a total that is an exact multiple of the page size still terminates, on the empty page after it');
+
+  let ceiling = null;
+  try {
+    const over = makeSandbox({ widetable: wideRows(50000) });
+    await over._kedRestPage('widetable?select=id');
+  } catch (e) { ceiling = e; }
+  ok(ceiling && /refusing to report a truncated count/.test(String(ceiling.message)),
+    'and the safety ceiling THROWS rather than returning a short answer, so _kasperLoadEditors '
+    + 'paints its error state instead of a plausible wrong number');
+  ok(ceiling && !/select=/.test(String(ceiling.message)),
+    'the thrown message names the table only, never the filter values — it can reach CI output in a PUBLIC repo');
+
   /* ── 7. The endpoint is actually gone from the shipped file ───────────── */
   ok(!/webhook\/editors-week/.test(INDEX),
     'no editors-week webhook path remains anywhere in index.html');

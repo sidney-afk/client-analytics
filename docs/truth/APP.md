@@ -238,9 +238,13 @@ onboarding funnel, sales intake, filming plans, thumbnails tooling, SMM weekly r
 - The active `linear-set-status` and `linear-add-comment` bridges receive no verified caller
   identity (F91). Team authority constrains direction only; it is not authentication.
 - Status pills require a linked Linear sub-issue ("Link a Linear sub-issue first") — **legacy-lane
-  invariant**: it holds for clients NOT in `write_ui_reroute_clients`. Enrolled clients (TEST-only
-  today) route status/comments/Create Post through the authenticated `production-write` gateway,
-  which accepts native deliverable IDs without Linear URLs.
+  invariant**: it holds for clients NOT in `write_ui_reroute_clients`. Enrolled clients route
+  status/comments/Create Post through the authenticated `production-write` gateway, which accepts
+  native deliverable IDs without Linear URLs. **"TEST-only today" was stale and is corrected here
+  2026-09-08**: enrollment has been the FULL active roster since wave 3 on 2026-08-14 (the measured
+  1:1 count lives in `docs/truth/LINEAR.md`, which owns it), so the legacy-lane invariant now
+  describes almost nobody. Since 2026-09-07 an unreadable or unusable roster read also routes
+  NATIVE rather than legacy — see OPEN_REPAIRS 175.
 - `?v2=0` is **not writable rollback** (F125): it selects Sheet reads while full-roster
   upsert/reorder routing still targets Supabase-only Edge Functions. Normal Supabase-read failure
   automatically selects the same Sheet fallback. Either state must remain read-only until one

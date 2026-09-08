@@ -14128,6 +14128,22 @@ kept, exactly two removed, the read actually selects `kind`, and an all-TEST wee
 returning the empty envelope rather than an editor with a plate of zero). All
 eight fail against the shaper as it stood.
 
+**ADDENDUM 2026-09-08 — the pager was quietly short too.** Reviewing this item's
+own change, Codex found `_kedRestPage` running a FIXED twenty iterations: a query
+matching more than 20,000 rows returned the first 20,000 as though that were all
+of them. Same defect class as the two this item is about — a count the owner
+reads as fact, wrong with no error — but pre-existing, and hiding two orders of
+magnitude further out than the 1,000-row default the pager was written to fix.
+Rare and silent is the worse failure mode, not the better one: a number that
+never visibly goes wrong is the number that gets trusted. It now runs until it
+OBSERVES a terminal page, and the 50,000-row ceiling THROWS instead of returning
+short, because `_kasperLoadEditors` renders a throw as "Couldn't load editor
+stats" and renders a short read as a quiet week. Verified by reading that caller,
+not assumed. **Test:** four checks in `test/editors-week-native.js`, driven at
+`_kedRestPage` directly (the shaper's `in.(...)` filters cap the row count long
+before the ceiling); 3 of the 4 fail against the old loop, with 20,500 rows in
+and 20,000 out.
+
 ---
 
 ## 175. [2026-09-07, BUILT, live on merge with no deploy; lane LX-C] The write-UI reroute flag failed to LINEAR, and Linear is the thing that is about to stop existing
@@ -14879,6 +14895,25 @@ run, for the same reason `p30` was not: a client-entry tab needs a live review
 token, which needs `SYNCVIEW_STAFF_KEY`. `p47` and `p68` were not run; their
 change is an added zero-assertion on a second lane, which cannot turn a passing
 probe red without a real push appearing.
+
+**ADDENDUM 2026-09-08 — the flip was recorded in one truth doc out of five.**
+This item updated `docs/truth/LINEAR.md` and left `docs/truth/BRIEFING.md`,
+`docs/truth/APP.md` and two sections of `docs/independence/SYSTEM_MAP.md`
+asserting the INVERSE of the shipped routing: that a missing/malformed read
+falls to legacy, and that the cohort is TEST-only (it has been the full active
+roster since wave 3, 2026-08-14). AGENTS.md tells a new session to trust those
+files, so for a day the canonical answer to "which way does this fail" was
+backwards. Codex found it on `bd6011e`. All four corrected, each marked with the
+date and what it used to say rather than silently rewritten.
+
+This is the PR's own recurring pattern for the tenth time — **a change only as
+wide as the place its author was looking** — and it landed in the documentation
+layer, where it is least visible and most load-bearing. The guard added to
+`test/write-ui-reroute-usable-roster.js` is deliberately NARROW: it pins the four
+stale sentences so they cannot literally return, and it says in its own comment
+that it is not a general docs-agree-with-code check, because a fifth file or a
+reworded claim would pass it. The general fix wants one owning file the others
+cite, which is more than this lane should change. Recorded as owed, not as done.
 
 ---
 

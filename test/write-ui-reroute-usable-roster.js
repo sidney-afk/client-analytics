@@ -276,6 +276,47 @@ const EMPTY_CASES = [
   ok(healthy.routing('someoneelse') === false && healthy.routing('enrolledclient') === true,
     'CONTROL: an all-strings roster is still usable and still decides by enrollment');
 
+  /* ── THE TRUTH DOCS SAY THE SAME THING THE CODE DOES ─────────────────── */
+  /* Item 175 flipped the routing fail direction and the session that did it
+     updated `docs/truth/LINEAR.md` — the file it was reading — and none of the
+     four OTHER current-state sections that assert the same fact. They then said
+     the exact inverse of the shipped behaviour for a day, and AGENTS.md tells a
+     new session to TRUST them, so the next session would have reasoned from the
+     opposite of the truth. Codex found it on bd6011e. That is this PR's own
+     recurring pattern one more time: a change as wide as the place its author
+     happened to be looking.
+
+     WHAT THIS GUARD IS, EXACTLY. It is a string check for the four stale claims
+     that were actually there, so those four cannot come back. It is NOT a
+     general "the docs agree with the code" check — nothing here parses prose,
+     and a fifth file, or a reworded fifth claim, would sail past it. It is
+     worth having anyway because the observed failure was literal recurrence of
+     these sentences, and it is named narrowly here so nobody later mistakes it
+     for the general guarantee. The general one wants a single owning file that
+     the others cite, which is a bigger change than this lane should make. */
+  const docText = (rel) => fs.readFileSync(path.resolve(__dirname, '..', rel), 'utf8');
+  const STALE = [
+    ['docs/truth/BRIEFING.md', /fail direction is unchanged/,
+      'BRIEFING no longer says the reroute fail direction is unchanged'],
+    ['docs/truth/APP.md', /Enrolled clients \(TEST-only\s*\n?\s*today\)/,
+      'APP no longer calls the enrolled cohort TEST-only'],
+    ['docs/independence/SYSTEM_MAP.md', /is seeded for TEST only\./,
+      'SYSTEM_MAP no longer says the cohort is seeded for TEST only'],
+    ['docs/independence/SYSTEM_MAP.md', /it was last verified TEST-only, and missing\/malformed\/read-failed state selects the exact legacy lane/,
+      'SYSTEM_MAP flag semantics no longer send missing\/malformed reads to the legacy lane']
+  ];
+  for (const [rel, re, label] of STALE) {
+    ok(!re.test(docText(rel)), label + ' (' + rel + ')');
+  }
+  /* The self-test the rest of this PR taught me to write: a detector is worth
+     nothing until it has been driven against the thing it claims to catch. */
+  ok(STALE.every(([, re]) => re.test(
+        're-armed: fail direction is unchanged / Enrolled clients (TEST-only today) / '
+        + 'is seeded for TEST only. / it was last verified TEST-only, and missing/malformed/'
+        + 'read-failed state selects the exact legacy lane')),
+    '  · and each of the four patterns still MATCHES its stale sentence, so this is a live '
+    + 'detector rather than four regexes that can no longer fire');
+
   console.log(`\nwrite-ui-reroute-usable-roster: ${failures ? failures + ' failed ❌' : 'all checks passed ✅'}`);
   process.exit(failures ? 1 : 0);
 })();

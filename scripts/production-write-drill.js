@@ -751,12 +751,21 @@ async function verifyFixture(asset) {
         path.join(__dirname, '..', 'supabase', 'functions', 'production-write', 'index.ts'), 'utf8');
       const labelMatch = gatewaySrc.match(/const THUMBNAIL_TEXT_AI_LABEL = "([^"]*)";/);
       assert(labelMatch, 'THUMBNAIL_TEXT_AI_LABEL not found in gateway source — re-teach this drill where it moved');
-      const notePos = row.brief.indexOf(GRAPHICS_DRILL_NOTE);
-      const labelPos = row.brief.indexOf(labelMatch[1]);
-      assert(notePos >= 0,
-        'the caller-supplied graphics note did not survive alongside the generated title — the gateway must combine them, never exclude the note');
-      assert(labelPos > notePos,
-        'the generated line lost its AI label, or landed before the note instead of appended below it');
+      /*
+       * Codex round 2 on #1361: checking only relative ORDER (note appears,
+       * label appears somewhere after it) passed even for a brief that was
+       * just the note plus a bare, titleless label, or one joined by a
+       * space instead of the contract's single newline — neither of which
+       * is the shape production-write actually writes. Assert the exact
+       * `${note}\n${label}` PREFIX, and that real title text survives after
+       * the label, so this path fails if either half is silently dropped or
+       * the join format drifts.
+       */
+      const expectedPrefix = `${GRAPHICS_DRILL_NOTE}\n${labelMatch[1]}`;
+      assert(row.brief.startsWith(expectedPrefix),
+        `the note and the labelled generated title must be joined by exactly one newline, note first — got ${JSON.stringify(row.brief)}`);
+      assert(row.brief.length > expectedPrefix.length,
+        'the generated line carried only the AI label with no actual title text after it');
       assert(issue.description === row.brief, 'generated graphics title did not round-trip to Linear');
       asset.graphicGenerationVerified = true;
     } else {

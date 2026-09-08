@@ -23,8 +23,19 @@
  *      cleanly: no further image is minted, and the final POST never fires.
  *   3. A storage PUT failure on one image surfaces a specific error and
  *      likewise never reaches the final POST — no partial/corrupt submit.
+ *   4. A 200 response carrying ok:false (n8n's Wrap Response node sets this
+ *      when Post For Me rejects the post, without a non-2xx status — Respond
+ *      JSON never sets one) surfaces the real error and preserves the draft,
+ *      instead of clearing it and reporting "Upload queued".
+ *   5. Reordering or removing a photo re-renders the whole form, which used
+ *      to drop keyboard focus to <body>; focus now follows the moved image
+ *      or lands on a neighbor, so a keyboard user isn't forced to re-tab
+ *      through the form after every step.
  *
  * Run standalone:  node docs/syncview-design/tests/tiktok-carousel-browser-journey.js
+ * Wired into CI via .github/workflows/tiktok-carousel-browser-journey.yml
+ * (path-filtered, not an npm script — package.json is fingerprinted by
+ * test/leave-evidence-fingerprint-coupling.js for an unrelated feature).
  * Fully offline/hermetic — every external host is stubbed, including a
  * catch-all for anything this file doesn't explicitly expect, so a stray
  * fetch fails loudly here rather than reaching the real internet.
@@ -114,9 +125,11 @@ function ok(label, cond) {
  * transport touch, against one page, and returns the call logs the
  * scenarios assert on. `mintDelayMs` slows down every mint response (used
  * to land a cancel click mid-loop deterministically); `putFailAtIndex`
- * makes one image's storage PUT fail (1-based).
+ * makes one image's storage PUT fail (1-based); `directResponse` overrides
+ * the final tiktok-upload-direct response body (a logical-failure test needs
+ * HTTP 200 with `ok:false` in the body, not a transport-level failure).
  */
-async function mockNetwork(page, { mintDelayMs = 0, putFailAtIndex = null } = {}) {
+async function mockNetwork(page, { mintDelayMs = 0, putFailAtIndex = null, directResponse = null } = {}) {
   const calls = { mint: [], put: [], direct: [], legacy: [], list: 0 };
 
   // Lowest priority: nothing this app talks to should reach the real
@@ -170,7 +183,10 @@ async function mockNetwork(page, { mintDelayMs = 0, putFailAtIndex = null } = {}
   await page.route('**/webhook/tiktok-upload-direct', async route => {
     const headers = await route.request().allHeaders();
     calls.direct.push({ body: route.request().postData() || '', contentType: headers['content-type'] || '' });
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, id: 'row-journey-1', status: 'scheduled' }) });
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify(directResponse || { ok: true, id: 'row-journey-1', status: 'scheduled' }),
+    });
   });
 
   return calls;
@@ -286,6 +302,63 @@ async function attachThreeImagesAndCaption(page, caption) {
       ok('the failed loop never reached the final POST', calls.direct.length === 0);
       ok('Submit is enabled again so the user can retry', await page.$eval('#tkSubmit', el => !el.disabled));
       ok('no page errors during the storage failure', pageErrors.length === 0);
+      await page.close();
+    }
+
+    /* ---------------------------------------------------------------- *
+     * 4. A 200 response carrying ok:false is a failure, not a success  *
+     * ---------------------------------------------------------------- */
+    {
+      const { page, calls, pageErrors } = await bootToTiktokUpload(browser, port, {
+        directResponse: { ok: false, status: 'failed', error: 'TikTok rejected this post' },
+      });
+      await attachThreeImagesAndCaption(page, 'Logical failure journey test caption');
+
+      await Promise.all([
+        page.waitForSelector('.tk-error'),
+        page.click('#tkSubmit'),
+      ]);
+      const errorText = await page.$eval('.tk-error', el => el.textContent);
+      check('the form surfaces the backend-reported error, not "Upload queued"', errorText, 'Upload failed: TikTok rejected this post');
+      ok('exactly one tiktok-upload-direct call was made (no retry loop)', calls.direct.length === 1);
+      ok('the draft is preserved -- images are not cleared on a logical failure', await page.$$eval('.tk-photo-item', els => els.length === 3));
+      ok('the caption is preserved -- not cleared on a logical failure', await page.$eval('#tkTitle', el => el.value.length > 0));
+      ok('Submit is enabled again so the user can retry', await page.$eval('#tkSubmit', el => !el.disabled));
+      ok('no page errors on a logical failure', pageErrors.length === 0);
+      await page.close();
+    }
+
+    /* ---------------------------------------------------------------- *
+     * 5. Reorder/remove keep keyboard focus usable, not dropped to body *
+     * ---------------------------------------------------------------- */
+    {
+      const { page, pageErrors } = await bootToTiktokUpload(browser, port, {});
+      await page.setInputFiles('#tkPhotoFile', TEST_IMAGES);
+      await page.waitForFunction(() => document.querySelectorAll('.tk-photo-item').length === 3);
+      const focused = () => page.evaluate(() => {
+        const el = document.activeElement;
+        return el ? { idx: el.getAttribute('data-photo-idx'), action: el.getAttribute('data-action'), id: el.id || null } : null;
+      });
+
+      // Move image 0 later (-> index 1). Re-rendering the whole form must not
+      // drop focus to <body>; it should land on the SAME image's "move later"
+      // button at its new slot, so repeated presses keep moving it.
+      await page.click('.tk-photo-btn[data-photo-idx="0"][data-action="move-later"]');
+      check('after moving an image later, focus follows it to its new index', await focused(), { idx: '1', action: 'move-later', id: null });
+
+      // Remove the image now at index 0. Focus should land on a neighboring
+      // image's remove button (the one that slid into slot 0), not <body>.
+      await page.click('.tk-photo-btn[data-photo-idx="0"][data-action="remove"]');
+      check('after removing an image, focus lands on the neighboring remove button', await focused(), { idx: '0', action: 'remove', id: null });
+      ok('exactly 2 images remain after one removal', await page.$$eval('.tk-photo-item', els => els.length === 2));
+
+      // Remove down to the last image, then remove it too -- once the grid is
+      // empty there is no neighboring button to land on.
+      await page.click('.tk-photo-btn[data-photo-idx="1"][data-action="remove"]');
+      await page.click('.tk-photo-btn[data-photo-idx="0"][data-action="remove"]');
+      ok('the grid is empty after removing every image', await page.$$eval('.tk-photo-item', els => els.length === 0));
+      check('with no photos left, focus falls back to the file input rather than <body>', await focused(), { idx: null, action: null, id: 'tkPhotoFile' });
+      ok('no page errors during reorder/remove focus handling', pageErrors.length === 0);
       await page.close();
     }
   } finally {

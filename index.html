@@ -71236,9 +71236,9 @@
                     <img src="${_tkEscape(p.objectUrl)}" alt="Image ${i + 1}">
                     <div class="tk-photo-badge">${i + 1}</div>
                     <div class="tk-photo-actions">
-                        <button type="button" class="tk-photo-btn" onclick="_tkMovePhoto(${i},-1)" ${(i === 0 || tkState.submitting) ? 'disabled' : ''} title="Move earlier">&larr;</button>
-                        <button type="button" class="tk-photo-btn" onclick="_tkMovePhoto(${i},1)" ${(i === tkState.photos.length - 1 || tkState.submitting) ? 'disabled' : ''} title="Move later">&rarr;</button>
-                        <button type="button" class="tk-photo-btn tk-photo-btn-remove" onclick="_tkRemovePhoto(${i})" ${tkState.submitting ? 'disabled' : ''} title="Remove">&times;</button>
+                        <button type="button" class="tk-photo-btn" data-photo-idx="${i}" data-action="move-earlier" onclick="_tkMovePhoto(${i},-1)" ${(i === 0 || tkState.submitting) ? 'disabled' : ''} title="Move earlier">&larr;</button>
+                        <button type="button" class="tk-photo-btn" data-photo-idx="${i}" data-action="move-later" onclick="_tkMovePhoto(${i},1)" ${(i === tkState.photos.length - 1 || tkState.submitting) ? 'disabled' : ''} title="Move later">&rarr;</button>
+                        <button type="button" class="tk-photo-btn tk-photo-btn-remove" data-photo-idx="${i}" data-action="remove" onclick="_tkRemovePhoto(${i})" ${tkState.submitting ? 'disabled' : ''} title="Remove">&times;</button>
                     </div>
                 </div>`).join('')}
             </div>` : '';
@@ -71588,6 +71588,15 @@
         _tkSaveDraft();
         _tkRenderForm();
     }
+    // _tkRenderForm() replaces the whole form's DOM, which drops keyboard
+    // focus to <body> after every reorder/remove click — forcing a re-tab
+    // through the entire form to keep working the grid. Called right after
+    // that render with the button a keyboard user would expect to land on.
+    function _tkFocusPhotoControl(idx, action) {
+        const el = document.querySelector(`.tk-photo-btn[data-photo-idx="${idx}"][data-action="${action}"]`);
+        if (el && !el.disabled) { el.focus(); return true; }
+        return false;
+    }
     function _tkRemovePhoto(i) {
         const p = tkState.photos[i];
         if (!p) return;
@@ -71595,6 +71604,11 @@
         tkState.photos.splice(i, 1);
         _tkSaveDraft();
         _tkRenderForm();
+        // Land on the item that slid into this slot, or the new last item;
+        // once the grid is empty, fall back to the file input.
+        if (!_tkFocusPhotoControl(Math.min(i, tkState.photos.length - 1), 'remove')) {
+            document.getElementById('tkPhotoFile')?.focus();
+        }
     }
     function _tkMovePhoto(i, dir) {
         const j = i + dir;
@@ -71603,6 +71617,9 @@
         [arr[i], arr[j]] = [arr[j], arr[i]];
         _tkSaveDraft();
         _tkRenderForm();
+        // Follow the moved image to its new slot so repeated presses keep
+        // moving the same one, rather than dropping focus after each step.
+        _tkFocusPhotoControl(j, dir < 0 ? 'move-earlier' : 'move-later');
     }
     function _tkClearAllPhotos() {
         tkState.photos.forEach(p => { if (p.objectUrl) URL.revokeObjectURL(p.objectUrl); });
@@ -71673,7 +71690,7 @@
         // tkState.submitting is true, but this XHR can still take a few seconds
         // on a slow connection, and _tkOnSubmitSuccess below builds the
         // optimistic queue row from this snapshot rather than live tkState.
-        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz };
+        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at } };
         const fd = new FormData();
         fd.append('clientName', target.client);
         fd.append('socialAccountId', target.profile);          // Post For Me connected-account id (spc_…)
@@ -71704,9 +71721,19 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             if (xhr.status >= 200 && xhr.status < 300) {
-                tkState.progress = 100;
                 let resp = {};
                 try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
+                // n8n's Wrap Response node sets ok:false (status:'failed') on a 200
+                // response when Post For Me itself rejected the post — an HTTP
+                // success carrying a logical failure. Treat that as a failure too,
+                // rather than clearing the draft and telling the operator it queued.
+                if (resp.ok === false) {
+                    tkState.progress = 0;
+                    tkState.error = resp.error ? `Upload failed: ${resp.error}` : 'Post For Me rejected this post. Try again.';
+                    _tkRenderForm();
+                    return;
+                }
+                tkState.progress = 100;
                 _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
@@ -71744,8 +71771,8 @@
             client: target.client,
             profile: target.profile,
             title: target.title,
-            status: resp.status || (tkState.schedule.postNow ? 'uploading' : 'scheduled'),
-            scheduled_for: tkState.schedule.postNow ? null : (scheduledAtUTC || tkState.schedule.at),
+            status: resp.status || (target.schedule.postNow ? 'uploading' : 'scheduled'),
+            scheduled_for: target.schedule.postNow ? null : (scheduledAtUTC || target.schedule.at),
             timezone: target.tz,
             created_at: new Date().toISOString(),
             optimistic: true,
@@ -71765,7 +71792,7 @@
         _tkClearDraft();
         _tkRenderForm();
         _tkRenderQueue();
-        showNotify('Upload queued', scheduledAtWall ? `Scheduled for ${_tkFormatScheduledLong(scheduledAtWall, tkState.schedule.tz)}.` : 'The post is uploading to TikTok now.');
+        showNotify('Upload queued', scheduledAtWall ? `Scheduled for ${_tkFormatScheduledLong(scheduledAtWall, target.tz)}.` : 'The post is uploading to TikTok now.');
         Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);   // pick up the server-side row + (re)start polling
     }
 
@@ -71784,7 +71811,7 @@
         // mid-upload (e.g. switching clients) redirect an already-uploading video
         // to the wrong Post For Me account. Read once here, thread the snapshot
         // through instead.
-        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz };
+        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at } };
         tkState.submitting = true;
         tkState.error = null;
         tkState.progress = 0;
@@ -71898,6 +71925,15 @@
             if (xhr.status >= 200 && xhr.status < 300) {
                 let resp = {};
                 try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
+                // See the identical check in _tkFinishPhotoSubmit: a 200 response
+                // can still carry ok:false when Post For Me rejected the post.
+                if (resp.ok === false) {
+                    tkState.progress = 0;
+                    tkState.error = resp.error ? `Upload failed: ${resp.error}` : 'Post For Me rejected this post. Try again.';
+                    _tkRenderForm();
+                    return;
+                }
+                tkState.progress = 100;
                 _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
@@ -71937,7 +71973,7 @@
         // tkState.* lazily in _tkFinishPhotoSubmit would let an edit made mid-upload
         // (e.g. switching clients) hand these photos to the wrong Post For Me
         // account. Read once here, thread the snapshot through instead.
-        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz };
+        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz, schedule: { postNow: tkState.schedule.postNow, at: tkState.schedule.at } };
         tkState.submitting = true;
         tkState.error = null;
         tkState.progress = 0;
@@ -71994,9 +72030,19 @@
             _tkActiveXhr = null;
             tkState.submitting = false;
             if (xhr.status >= 200 && xhr.status < 300) {
-                tkState.progress = 100;
                 let resp = {};
                 try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
+                // n8n's Wrap Response node sets ok:false (status:'failed') on a 200
+                // response when Post For Me itself rejected the post — an HTTP
+                // success carrying a logical failure. Treat that as a failure too,
+                // rather than clearing the draft and telling the operator it queued.
+                if (resp.ok === false) {
+                    tkState.progress = 0;
+                    tkState.error = resp.error ? `Upload failed: ${resp.error}` : 'Post For Me rejected this post. Try again.';
+                    _tkRenderForm();
+                    return;
+                }
+                tkState.progress = 100;
                 _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;

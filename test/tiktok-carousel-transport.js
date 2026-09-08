@@ -97,6 +97,45 @@ check('_tkFinishDirectSubmit no longer reads tkState.client/profile/title live',
   /tkState\.(client|profile|title)\b/.test(finishDirect), false);
 
 /* ---------------------------------------------------------------------- */
+/* 1b. Frontend: the target snapshot also freezes schedule mode (round 3) */
+/* ---------------------------------------------------------------------- */
+// Codex round 3: client/title/options/tz were frozen into `target`, but
+// schedule.postNow/schedule.at were still read live in _tkOnSubmitSuccess —
+// the schedule controls aren't disabled during upload, so toggling "Post
+// immediately" mid-upload could mislabel the optimistic queue row (the real
+// POST body was already unaffected, since scheduledAtWall/UTC are computed
+// before the async work and passed as plain parameters, not re-read).
+
+for (const [label, fn] of [['_tkSubmitPhotoCarousel', submitCarousel], ['_tkSubmitDirect', submitDirect]]) {
+  check(`${label} freezes schedule.postNow/schedule.at into the target snapshot`,
+    /schedule:\s*\{\s*postNow:\s*tkState\.schedule\.postNow,\s*at:\s*tkState\.schedule\.at\s*\}/.test(fn), true);
+}
+
+const onSubmitSuccess = grabFunc('_tkOnSubmitSuccess');
+check('_tkOnSubmitSuccess reads the optimistic row\'s status from the frozen schedule',
+  onSubmitSuccess.includes('target.schedule.postNow ? \'uploading\' : \'scheduled\''), true);
+check('_tkOnSubmitSuccess reads scheduled_for from the frozen schedule',
+  onSubmitSuccess.includes('target.schedule.postNow ? null : (scheduledAtUTC || target.schedule.at)'), true);
+check('_tkOnSubmitSuccess no longer reads tkState.schedule live at all',
+  /tkState\.schedule\b/.test(onSubmitSuccess), false);
+
+/* ---------------------------------------------------------------------- */
+/* 1c. Frontend: a 200 response can still be a logical failure (round 3)  */
+/* ---------------------------------------------------------------------- */
+// n8n's Wrap Response node (see the n8n-backups check below) sets
+// ok:false/status:'failed' WITHOUT a non-2xx HTTP status — Respond JSON never
+// sets one. All three submit completions used to treat any 2xx as success.
+
+for (const [label, fn] of [
+  ['_tkSubmit (legacy in-band video)', tkSubmit],
+  ['_tkFinishDirectSubmit (>100MB video)', finishDirect],
+  ['_tkFinishPhotoSubmit (carousel)', finishPhoto],
+]) {
+  check(`${label} treats a 200 response with ok:false as a failure, not success`,
+    /if \(resp\.ok === false\) \{[\s\S]*?_tkRenderForm\(\);\s*return;\s*\}/.test(fn), true);
+}
+
+/* ---------------------------------------------------------------------- */
 /* 2. Frontend: the existing ≤100MB in-band video path is untouched       */
 /* ---------------------------------------------------------------------- */
 
@@ -117,6 +156,19 @@ check('.tk-radio shows a visible focus ring for keyboard users',
   /\.tk-radio:focus-within \{ outline:/.test(INDEX), true);
 check('photo carousel reorder/remove controls stay visible with no hover capability (touch)',
   /@media \(hover: none\) \{ \.tk-photo-actions \{ opacity: 1; \} \}/.test(INDEX), true);
+
+// Round 3: _tkRenderForm() rebuilds the whole form on every reorder/remove,
+// which used to drop keyboard focus to <body>. docs/syncview-design/tests/
+// tiktok-carousel-browser-journey.js proves focus actually lands correctly
+// in a real browser; these are the lightweight source-shape backstop.
+const movePhoto = grabFunc('_tkMovePhoto');
+const removePhoto = grabFunc('_tkRemovePhoto');
+check('photo grid buttons carry data-photo-idx/data-action for focus lookup after re-render',
+  INDEX.includes('data-photo-idx="${i}" data-action="move-earlier"'), true);
+check('_tkMovePhoto restores focus to the moved image\'s control at its new index',
+  movePhoto.includes("_tkFocusPhotoControl(j, dir < 0 ? 'move-earlier' : 'move-later')"), true);
+check('_tkRemovePhoto restores focus to a neighboring image (or the file input if none remain)',
+  removePhoto.includes("_tkFocusPhotoControl(Math.min(i, tkState.photos.length - 1), 'remove')"), true);
 
 /* ---------------------------------------------------------------------- */
 /* 4. n8n (tiktok-upload-direct): exercise the last backed-up Code nodes  */

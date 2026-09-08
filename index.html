@@ -18340,22 +18340,31 @@
         if (!el) return;
         const status = wlState.planStatus;
         const metadataStatus = wlState.linearMetadataStatus;
+
+        /* EVERY notice that is true right now, most urgent first.
+
+           This used to be a chain of branches that each returned, so the first
+           true one silenced the rest. The states are independent -- a board can
+           be missing saved work days, have failed its last refresh, be unable to
+           prove its labels AND be hiding excluded rows, all at once -- and
+           silencing "capacity may be understated; due-date editing is paused"
+           because a plan's client drifted makes the board read as MORE complete
+           than it is. That is the failure AGENTS.md calls the one a reader
+           cannot debug or report: an absence.
+
+           So precedence is now ORDERING, not suppression. Each note keeps the
+           rank it had; the ones below it are appended rather than dropped. */
+        const notices = [];
+
         const droppedText = wlDroppedPlanWarningText(wlState.nativePlansDropped);
-        if (droppedText || wlState.backgroundError) {
-            el.hidden = false;
-            el.className = 'workload-plan-status is-warning';
-            // Both can be true at once -- a board can be missing saved days AND
-            // have failed its last refresh -- and dropping either sentence on
-            // the floor is how the first two passes at this got lost. The
-            // dropped days lead: they are a standing fact about what is on
-            // screen, where a failed refresh is a transient one about its age.
-            const refreshText = !wlState.backgroundError ? ''
-                : wlState.backgroundError === 'Some teams still use the legacy Workload source.'
-                    ? 'Some teams still use the legacy Workload source.'
-                    : 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.';
-            el.textContent = [droppedText, refreshText].filter(Boolean).join(' ');
-            return;
+        if (droppedText) notices.push(droppedText);
+
+        if (wlState.backgroundError) {
+            notices.push(wlState.backgroundError === 'Some teams still use the legacy Workload source.'
+                ? 'Some teams still use the legacy Workload source.'
+                : 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.');
         }
+
         if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
             /*
              * Two very different situations reach this branch, and until
@@ -18375,28 +18384,30 @@
              * nothing really is editable. Keep the two apart.
              */
             const withheld = Number(wlState.linearMetadataWithheldOnly) || 0;
-            el.hidden = false;
-            el.className = 'workload-plan-status is-warning';
-            el.textContent = withheld
+            notices.push(withheld
                 ? (withheld === 1
                     ? 'One item is missing its workload label, so it is shown without a weight or a due date. Everything else here is up to date and editable.'
                     : withheld + ' items are missing their workload label, so they are shown without a weight or a due date. Everything else here is up to date and editable.')
-                : 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.';
+                : 'Workload labels could not be refreshed. Capacity may be understated; due-date editing is paused.');
+        }
+
+        /* Still the lowest rank: a real plan or metadata problem is more urgent
+           than a completeness note, so this speaks LAST. It no longer goes
+           unsaid, though -- "Nothing is shown here, but this is not an empty
+           board" is exactly the sentence a reader needs most on the day
+           something else is also wrong. */
+        if (status === 'ready') {
+            const excludedText = wlExcludedSummaryText(wlState.excluded, wlVisibleSubCount());
+            if (excludedText) notices.push(excludedText);
+        }
+
+        if (notices.length) {
+            el.hidden = false;
+            el.className = 'workload-plan-status is-warning';
+            el.textContent = notices.join(' ');
             return;
         }
         if (status === 'ready' || status === 'loading' || status === 'refreshing') {
-            /* Lowest priority by design: a real plan or metadata problem is
-               more urgent than a completeness note, and this only speaks when
-               there is nothing more important to say. */
-            const excludedText = status === 'ready'
-                ? wlExcludedSummaryText(wlState.excluded, wlVisibleSubCount())
-                : '';
-            if (excludedText) {
-                el.hidden = false;
-                el.className = 'workload-plan-status is-warning';
-                el.textContent = excludedText;
-                return;
-            }
             el.hidden = true;
             el.className = 'workload-plan-status';
             el.textContent = '';

@@ -147,11 +147,50 @@ ok(/THIS ROW'S TEAM/.test(apply),
 ok(/capacity\s+is keyed on the row team/.test(apply),
   'and names why widening the predicate is not the repair, which is the mistake the next person would make');
 
-// --- the banner speaks last -------------------------------------------------
-const status = grabFunc('renderWorkloadPlanStatus');
-ok(status.indexOf('backgroundError') < status.indexOf('wlExcludedSummaryText'),
+// --- the banner speaks last, and is no longer silenced ----------------------
+/* Both checks here used to pin the SOURCE SHAPE -- the index of a token, and a
+   literal `status === 'ready' ? wlExcludedSummaryText` ternary. Both claims are
+   about behaviour, and a shape pin cannot see the difference between "outranks"
+   meaning "is ordered first" and "outranks" meaning "silences". On 2026-09-08 a
+   Codex P1 established that the second reading was wrong -- suppressing a
+   completeness note because something else is also wrong makes the board look
+   MORE complete than it is -- and the renderer now composes every applicable
+   notice in rank order. The shape pin would have gone red for the fix while
+   staying green for the defect, so both are replaced by executed checks. */
+const statusCtx = {};
+vm.createContext(statusCtx);
+vm.runInContext(
+  grabFunc('wlExcludedSummaryText') + '\n' + grabFunc('wlVisibleSubCount') + '\n'
+  + grabFunc('wlDroppedPlanWarningText') + '\n' + grabFunc('renderWorkloadPlanStatus')
+  + '\nthis.paint = renderWorkloadPlanStatus;',
+  statusCtx,
+);
+const statusEl = { hidden: true, className: '', textContent: '' };
+statusCtx.document = { getElementById: () => statusEl };
+const EMPTY_BUCKETS = { planned: [], nowWorking: [], tweaksNeeded: [], overdue: [], undated: [], unassigned: [] };
+const paintStatus = state => {
+  statusEl.hidden = true; statusEl.className = ''; statusEl.textContent = '';
+  statusCtx.wlState = { linearMetadataStatus: 'ready', linearMetadataWithheldOnly: 0,
+    backgroundError: null, nativePlansDropped: 0, excluded: null, ...EMPTY_BUCKETS, ...state };
+  statusCtx.paint();
+  return statusEl.textContent;
+};
+const TWO_EXCLUDED = { noAssigneeNoDate: ['a', 'b'], offTeamAssignee: [] };
+
+ok(/not an empty board/.test(paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED })),
+  'harness is not vacuous: a ready board with excluded rows says so');
+
+const both = paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED,
+  backgroundError: 'Workload could not refresh. Previously loaded work is shown; retry to update it.' });
+ok(both.indexOf('could not check for newer changes') < both.indexOf('not an empty board'),
   'a real refresh failure outranks a completeness note');
-ok(/status === 'ready'\s*\n?\s*\? wlExcludedSummaryText/.test(status),
+ok(/not an empty board/.test(both),
+  'but outranking it does not SILENCE it -- both are true, so both are said');
+
+ok(!/not an empty board/.test(paintStatus({ planStatus: 'loading', excluded: TWO_EXCLUDED }))
+  && !/not an empty board/.test(paintStatus({ planStatus: 'refreshing', excluded: TWO_EXCLUDED }))
+  && !/not an empty board/.test(paintStatus({ planStatus: 'stale', excluded: TWO_EXCLUDED }))
+  && !/not an empty board/.test(paintStatus({ planStatus: 'unknown', excluded: TWO_EXCLUDED })),
   'and the note is only offered once the plan itself is ready, never over a loading or stale board');
 
 console.log(failures === 0

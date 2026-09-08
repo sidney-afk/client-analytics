@@ -153,6 +153,51 @@ function browser(response=fixture()) {
    &&/could not check for newer changes/.test(both.context.planStatusEl.textContent),
    'a stale board that is ALSO missing saved days says both things');
 
+  // 3b. AND WITH EVERY OTHER NOTICE. Codex round 3, on the fix above: the
+  //     branch chain returned on the first true notice, so a dropped plan
+  //     silenced "capacity may be understated; due-date editing is paused" and
+  //     "Nothing is shown here, but this is not an empty board". Those states
+  //     are independent of a drifted plan client, and suppressing them makes
+  //     the board read as MORE complete than it is -- the absence AGENTS.md
+  //     calls the one failure a reader cannot debug or report. Precedence is
+  //     now ordering, not suppression.
+  const withMeta=browser(projectedDrift);
+  await withMeta.context.wlLoadSnapshot(false,null);
+  withMeta.state.planStatus='ready';
+  withMeta.state.linearMetadataStatus='stale';
+  withMeta.state.linearMetadataWithheldOnly=0;
+  withMeta.context.renderWorkloadPlanStatus();
+  ok(/saved work day/i.test(withMeta.context.planStatusEl.textContent),
+   'a dropped plan alongside unprovable labels still reports the dropped day');
+  ok(/due-date editing is paused/.test(withMeta.context.planStatusEl.textContent),
+   'and no longer silences the label failure -- capacity understatement is not made invisible by a drifted plan');
+
+  const withWithheld=browser(projectedDrift);
+  await withWithheld.context.wlLoadSnapshot(false,null);
+  withWithheld.state.planStatus='ready';
+  withWithheld.state.linearMetadataStatus='stale';
+  withWithheld.state.linearMetadataWithheldOnly=2;
+  withWithheld.context.renderWorkloadPlanStatus();
+  ok(/2 items are missing their workload label/.test(withWithheld.context.planStatusEl.textContent)
+   &&/saved work day/i.test(withWithheld.context.planStatusEl.textContent),
+   'the withheld-only wording survives composition too, rather than being replaced by the read-failure sentence');
+
+  const withExcluded=browser(projectedDrift);
+  await withExcluded.context.wlLoadSnapshot(false,null);
+  withExcluded.state.planStatus='ready';
+  withExcluded.state.linearMetadataStatus='ready';
+  withExcluded.state.excluded={noAssigneeNoDate:['a','b'],offTeamAssignee:[]};
+  withExcluded.state.planned=[];withExcluded.state.nowWorking=[];withExcluded.state.tweaksNeeded=[];
+  withExcluded.state.overdue=[];withExcluded.state.undated=[];withExcluded.state.unassigned=[];
+  withExcluded.context.renderWorkloadPlanStatus();
+  ok(/not an empty board/.test(withExcluded.context.planStatusEl.textContent),
+   'an empty board with a dropped plan still says it is not actually empty -- the sentence a reader needs most');
+  ok(/saved work day/i.test(withExcluded.context.planStatusEl.textContent),
+   'and the dropped day is still named alongside it');
+  ok(withExcluded.context.planStatusEl.textContent.indexOf('saved work day')
+   < withExcluded.context.planStatusEl.textContent.indexOf('not an empty board'),
+   'the completeness note keeps its LOWEST rank -- it speaks last, not first, and not never');
+
   // 4. And it clears when the snapshot is clean -- a warning that never goes
   //    away is the next way to make it unreadable.
   const clean=browser(projectNativeSnapshot(fixture(),s=>s.toLowerCase()));

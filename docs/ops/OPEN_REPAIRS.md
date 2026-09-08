@@ -14181,6 +14181,41 @@ against the real table, or about what the deployed `workload-plan` function
 serves. Item 177 is what a green CI on a lane with no data access is worth.
 
 
+### Codex round 3 — the fix for round 2 silenced three other notices (2026-09-08)
+
+The dropped-plan branch added above returned early, exactly like the
+`backgroundError` branch it replaced. That chain is how `renderWorkloadPlanStatus`
+had always worked: the first true notice won and the rest went unsaid. Giving
+the dropped-plan condition its own branch widened the set of situations in which
+that suppression fires, so a drifted plan client could now silence **"capacity
+may be understated; due-date editing is paused"** and **"Nothing is shown here,
+but this is not an empty board"**. Those states are independent of a drifted
+plan, and hiding them makes the board read as MORE complete than it is — the
+absence `AGENTS.md` calls the one failure a reader cannot debug or report.
+
+Precedence is now **ordering, not suppression**: every applicable notice is
+collected in its existing rank and joined. Nothing changed rank. The
+completeness note is still last, because a real plan or metadata problem is more
+urgent — it just no longer goes unsaid on the day something else is also wrong,
+which is precisely the day a reader needs it.
+
+**Not a regression this lane introduced, and worth being exact about that.** The
+early return predates all of this; what the round-2 fix did was give it a new
+trigger. It was still ours to fix, because we widened it.
+
+**A source-shape pin had to be replaced, not deleted.**
+`test/workload-excluded-reported.js` asserted the literal ternary
+`status === 'ready' ? wlExcludedSummaryText` and a token-index comparison for
+"a real refresh failure outranks a completeness note". Both claims are about
+behaviour, and neither pin can tell "is ordered first" from "silences" — so they
+would have gone red for the fix while staying green for the defect. Both are now
+executed against the real renderer: the ordering check reads the rendered text,
+and the ready-guard check paints `loading` / `refreshing` / `stale` / `unknown`
+boards with excluded rows and asserts the note stays absent. Proven red against
+`07a7108` before being kept (2 checks), alongside 4 new composition checks in
+`test/workload-native-membership.js`.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

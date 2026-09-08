@@ -168,26 +168,34 @@ vm.runInContext(
 const statusEl = { hidden: true, className: '', textContent: '' };
 statusCtx.document = { getElementById: () => statusEl };
 const EMPTY_BUCKETS = { planned: [], nowWorking: [], tweaksNeeded: [], overdue: [], undated: [], unassigned: [] };
-/* `issueSnapshot` is part of the default because the notice is gated on a board
-   being ON SCREEN, not on the plan being fresh -- see the guard checks below. */
+/* A RENDERED row is part of the default because the notice is gated on a board
+   being on screen, not on the plan being fresh -- see the guard checks below.
+   `planned` rather than `issueSnapshot`: the predicate counts rows that reached
+   a bucket, because the snapshot also holds parents and completed rows that
+   render nowhere. */
 const paintStatus = state => {
   statusEl.hidden = true; statusEl.className = ''; statusEl.textContent = '';
   statusCtx.wlState = { linearMetadataStatus: 'ready', linearMetadataWithheldOnly: 0,
     backgroundError: null, nativePlansDropped: 0, excluded: null,
-    issueSnapshot: [{ id: 'painted' }], ...EMPTY_BUCKETS, ...state };
+    issueSnapshot: [{ id: 'painted' }], ...EMPTY_BUCKETS, planned: [{ id: 'painted' }], ...state };
   statusCtx.paint();
   return statusEl.textContent;
 };
 const TWO_EXCLUDED = { noAssigneeNoDate: ['a', 'b'], offTeamAssignee: [] };
+/* The lead sentence differs by whether anything rendered ("N sub-issues are not
+   shown here" vs "Nothing is shown here, but this is not an empty board"), so
+   the notice is matched on the reason clause, which both leads carry. The
+   empty-board lead gets its own dedicated check below. */
+const EXCLUSION = /no assignee and no work day/;
 
-ok(/not an empty board/.test(paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED })),
+ok(EXCLUSION.test(paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED })),
   'harness is not vacuous: a ready board with excluded rows says so');
 
 const both = paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED,
   backgroundError: 'Workload could not refresh. Previously loaded work is shown; retry to update it.' });
-ok(both.indexOf('could not check for newer changes') < both.indexOf('not an empty board'),
+ok(both.indexOf('could not check for newer changes') < both.search(EXCLUSION),
   'a real refresh failure outranks a completeness note');
-ok(/not an empty board/.test(both),
+ok(EXCLUSION.test(both),
   'but outranking it does not SILENCE it -- both are true, so both are said');
 
 /* THE GUARD MOVED, AND THE CONTRACT IT ENFORCES CHANGED WITH IT (2026-09-08).
@@ -203,14 +211,21 @@ ok(/not an empty board/.test(both),
    at all: during a first load nothing is painted and there is nothing true to
    say; once something is painted, what is excluded from it is excluded from it
    no matter how stale the plan is. Both halves are pinned below. */
-ok(/not an empty board/.test(paintStatus({ planStatus: 'stale', excluded: TWO_EXCLUDED }))
-  && /not an empty board/.test(paintStatus({ planStatus: 'unknown', excluded: TWO_EXCLUDED }))
-  && /not an empty board/.test(paintStatus({ planStatus: 'refreshing', excluded: TWO_EXCLUDED })),
+ok(EXCLUSION.test(paintStatus({ planStatus: 'stale', excluded: TWO_EXCLUDED }))
+  && EXCLUSION.test(paintStatus({ planStatus: 'unknown', excluded: TWO_EXCLUDED }))
+  && EXCLUSION.test(paintStatus({ planStatus: 'refreshing', excluded: TWO_EXCLUDED })),
   'a painted board reports its excluded rows however degraded its plan is');
-ok(!/not an empty board/.test(paintStatus({ planStatus: 'loading', excluded: TWO_EXCLUDED, issueSnapshot: [] }))
-  && !/not an empty board/.test(paintStatus({ planStatus: 'unknown', excluded: TWO_EXCLUDED, issueSnapshot: [] }))
-  && !/not an empty board/.test(paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED, issueSnapshot: [] })),
-  'and with NOTHING painted it stays silent, whatever the plan status claims');
+/* "Painted" was refined again on the same day (Codex round 7): `issueSnapshot`
+   also carries batch parents and completed rows that reach no bucket, so the
+   predicate counts RENDERED rows plus EXCLUDED ones. Excluded rows therefore
+   count as a board -- an all-excluded board is exactly the one that most needs
+   to explain itself -- and "nothing painted" means neither. */
+ok(/not an empty board/.test(paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED, planned: [] })),
+  'a board that renders NOTHING but excludes rows still explains itself');
+ok(!EXCLUSION.test(paintStatus({ planStatus: 'loading', excluded: null, planned: [] }))
+  && !EXCLUSION.test(paintStatus({ planStatus: 'unknown', excluded: null, planned: [] }))
+  && !EXCLUSION.test(paintStatus({ planStatus: 'ready', excluded: null, planned: [] })),
+  'and with NOTHING painted and nothing excluded it stays silent, whatever the plan status claims');
 
 console.log(failures === 0
   ? '\nWorkload excluded-rows reporting checks passed'

@@ -35,7 +35,13 @@ function browser(response=fixture()) {
  wlIsActiveStatus:i=>!['completed','canceled','duplicate'].includes(i.statusType),
  wlFetchForeignLinearMetadata:async()=>{throw Error('unexpected provider read');},
  _syncviewStaffIdentityClear:()=>{context.identity=null;},wlPurgePlanSensitiveState:()=>{state.planByIssueId.clear();},
- wlApplyData:(issues,time)=>{state.issueSnapshot=issues;state.fetchedAt=time;},
+ // Models the shipped wlApplyData closely enough for the status renderer: only
+ // SUB-ISSUES reach a bucket. Batch parents and completed/parked rows land in
+ // issueSnapshot and render nowhere, which is precisely why `boardShown` counts
+ // rendered rows rather than snapshot length (Codex round 7).
+ wlApplyData:(issues,time)=>{state.issueSnapshot=issues;state.fetchedAt=time;
+  state.planned=(issues||[]).filter(i=>i&&i.isSubIssue);
+  state.nowWorking=[];state.tweaksNeeded=[];state.overdue=[];state.undated=[];state.unassigned=[];},
  LINEAR_ISSUES_TTL_MS:5*60*1000,cacheWrites:[],
  wlAdoptLinearMetadata:(rows,issues,fetchedAt,options)=>{
   state.workloadByIssueId=new Map(rows.map(r=>[r.issue_id,r.workload]));state.linearMetadataStatus='ready';
@@ -246,12 +252,40 @@ function browser(response=fixture()) {
   //     linearMetadataStatus are BOTH 'unknown', so the old ready-gate hid the
   //     one notice that says capacity is understated.
   {const cached=browser(async()=>{throw Error('offline');});
-   await assert.rejects(cached.context.wlLoadSnapshot(false,{issues:[{id:'warm'}],fetchedAt:Date.now()}));checks++;
+   // A cached board of RENDERABLE rows. A cache holding only batch parents or
+   // completed rows displays nothing, and claiming its capacity is understated
+   // would be a warning about an empty screen -- pinned separately below.
+   await assert.rejects(cached.context.wlLoadSnapshot(false,{issues:[{id:'warm',isSubIssue:true}],fetchedAt:Date.now()}));checks++;
    ok(cached.state.issueSnapshot.length===1&&cached.state.linearMetadataStatus==='unknown',
     'precondition: a cached board is shown with no proven label metadata');
    cached.context.renderWorkloadPlanStatus();
    ok(/capacity may be understated/i.test(cached.context.planStatusEl.textContent),
     'a cached fallback board says its capacity is understated rather than presenting 1x weights as fact');}
+
+  // 3e2. A cached board of rows that RENDER NOTHING must not warn about the
+  //      capacity of a screen with nothing on it. Codex round 7: issueSnapshot
+  //      carries batch parents and completed/parked rows that reach no bucket.
+  {const parentsOnly=browser(async()=>{throw Error('offline');});
+   await assert.rejects(parentsOnly.context.wlLoadSnapshot(false,
+    {issues:[{id:'bat_only',isSubIssue:false}],fetchedAt:Date.now()}));checks++;
+   ok(parentsOnly.state.issueSnapshot.length===1,'precondition: the snapshot is not empty');
+   parentsOnly.context.renderWorkloadPlanStatus();
+   ok(!/capacity may be understated/i.test(parentsOnly.context.planStatusEl.textContent),
+    'a board whose only rows render nowhere does not claim its displayed capacity is understated');
+   ok(/editing is disabled/.test(parentsOnly.context.planStatusEl.textContent),
+    'while the plan-state notice, which is not about the board, still speaks');}
+
+  // 3e3. An ALL-EXCLUDED board renders no rows and is exactly the board that
+  //      most needs to say why, so it counts as shown.
+  {const allExcluded=browser(async()=>{throw Error('offline');});
+   await assert.rejects(allExcluded.context.wlLoadSnapshot(false,
+    {issues:[{id:'bat_only',isSubIssue:false}],fetchedAt:Date.now()}));checks++;
+   allExcluded.state.excluded={noAssigneeNoDate:['a','b'],offTeamAssignee:[]};
+   allExcluded.context.renderWorkloadPlanStatus();
+   ok(/not an empty board/.test(allExcluded.context.planStatusEl.textContent),
+    'an all-excluded board still says it is not actually empty');
+   ok(/capacity may be understated/i.test(allExcluded.context.planStatusEl.textContent),
+    'and its unprovable labels are reported too, because rows exist to be understated');}
 
   // 3e. And none of that leaks into a first load with nothing painted yet.
   {const cold=browser(async()=>{throw Error('offline');});

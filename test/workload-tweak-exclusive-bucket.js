@@ -1221,6 +1221,12 @@ const paintPlanStatus = compile('renderWorkloadPlanStatus', {
   // is supplied rather than a stub: this block asserts the LOADING states, and
   // a stub returning '' would hide a regression that made every state warn.
   wlDroppedPlanWarningText: compile('wlDroppedPlanWarningText', {}),
+  // The board notices are gated on rows that actually RENDER, so the renderer
+  // now reaches for the bucket counter and the exclusion summary. Real ones,
+  // not stubs: this block asserts the loading states, and a stub returning 0/''
+  // would hide a regression that made every state warn.
+  wlVisibleSubCount: compile('wlVisibleSubCount', { wlState: planStatusState }),
+  wlExcludedSummaryText: compile('wlExcludedSummaryText', {}),
 });
 paintPlanStatus();
 planStatusState.planStatus = 'refreshing';

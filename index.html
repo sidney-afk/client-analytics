@@ -14718,6 +14718,31 @@
         // explicit Refresh and forced post-create discovery share one source.
         return wlFetchNativeSnapshot();
     }
+    /* POST-CREATE DISCOVERY, WHICH IS A QUESTION ONLY LINEAR CAN ANSWER.
+
+       `_writeLinearVideoCardsToCalendar` polls for the issues n8n has just
+       created, so it can pair each calendar card to its sub-issue. Those issues
+       exist ONLY in Linear at that moment: the native snapshot's legacy rows
+       come from `workload_issues`, which the n8n reconcile populates on its own
+       schedule, far outside this poll's ~100-second window. Answering from the
+       snapshot returns "not found" on every attempt, and the writer then mints a
+       random `p_...` id with empty Linear links -- a permanently unlinked card
+       that a re-import twins instead of updating.
+
+       loadLinearIssues() used to serve this through its `force` flag, and the
+       reader below names this caller in its own comment. It cannot any more:
+       this lane made that function native-only ON PURPOSE, and honouring
+       `force` by routing back to the provider would put a forced Workload
+       refresh on Linear again, which is the dependency the whole exit exists to
+       remove. Two callers wanting two different things from one flag is what
+       broke; they get two functions.
+
+       This one keeps the direct, no-cache provider read for as long as any team
+       is Linear-authoritative -- rollback included, which is the case that most
+       needs it -- and dies with the last of them. */
+    async function wlDiscoverProviderIssues() {
+        return _wlLegacyLoadLinearIssues(true);
+    }
     async function _wlLegacyLoadLinearIssues(force) {
         const cache = wlReadCache();
         if (cache && !force && wlIsFresh(cache.fetchedAt)) {
@@ -18407,11 +18432,20 @@
            failed still shows those same rows, still excludes the same ones, and
            goes to 'stale'. The notice vanished exactly when the board got worse.
 
-           The honest gate is whether a board is being shown at all. During a
-           first load nothing is painted and `excluded` is empty, so these stay
-           silent on their own; once anything is painted, what is true about it
-           is true regardless of how fresh the plan is. */
-        const boardShown = (wlState.issueSnapshot || []).length > 0;
+           The honest gate is whether a WORKLOAD ITEM is being shown at all --
+           which is NOT the same as `issueSnapshot.length`. That array also
+           carries batch parents and completed/parked rows, every one of which
+           wlApplyData drops from every bucket, so a cached fallback holding
+           only those would have claimed a displayed capacity was understated
+           while displaying nothing. It counts the rows that actually rendered,
+           plus the ones excluded FROM rendering: an all-excluded board shows
+           nothing and is exactly the board that most needs to say why. During a
+           first load both are zero and these stay silent on their own; once
+           something renders, what is true about it is true regardless of how
+           fresh the plan is. */
+        const excludedShown = ((wlState.excluded && wlState.excluded.noAssigneeNoDate) || []).length
+            + ((wlState.excluded && wlState.excluded.offTeamAssignee) || []).length;
+        const boardShown = wlVisibleSubCount() > 0 || excludedShown > 0;
 
         const droppedText = wlDroppedPlanWarningText(wlState.nativePlansDropped);
         if (droppedText) notices.push(droppedText);
@@ -48678,7 +48712,10 @@
                 let issues = null;
                 let fetchFailed = false;
                 try {
-                    ({ issues } = await loadLinearIssues(true));
+                    // Provider-direct on purpose: see wlDiscoverProviderIssues.
+                    // The native snapshot cannot see an issue n8n created
+                    // seconds ago, so asking it here silently unlinks the card.
+                    ({ issues } = await wlDiscoverProviderIssues());
                 } catch (e) {
                     fetchFailed = true;
                     pollTrace.push({ attempt, error: 'fetch: ' + String((e && e.message) || e) });

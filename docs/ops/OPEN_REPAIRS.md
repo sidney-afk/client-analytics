@@ -14355,6 +14355,64 @@ not add a gate — it changes what the existing `workload-plan` deploy gate must
 carry.
 
 
+### Codex round 7 — this lane silently unlinked calendar cards, and a green guard helped it (2026-09-08)
+
+**1. Post-create discovery was answered by a source that cannot know the answer
+(P1).** `loadLinearIssues(force)` was repointed at the native snapshot and
+`force` was dropped. `_writeLinearVideoCardsToCalendar` still called
+`loadLinearIssues(true)` to find the issues n8n had created seconds earlier, so
+it could pair each calendar card to its sub-issue. Those issues exist ONLY in
+Linear at that moment — the snapshot's legacy rows arrive with the n8n reconcile,
+on its own schedule, far outside the poll's ~100-second window. Every attempt
+missed, and the writer then minted a random `p_...` id with **empty Linear
+links** and marked the card complete. Permanently unlinked, and twinned rather
+than updated by the next import — the exact duplicate-link bug the id scheme
+exists to prevent.
+
+This is the Linear-authoritative intake path; native intake uses
+`_writeNativeSubmissionCardsToCalendar` and its creation receipts, and needs no
+poll. So the affected population is every team still on provider authority —
+**including rollback**, which is the case that most needs it to work.
+
+Fixed by splitting the symbol rather than restoring `force`:
+`wlDiscoverProviderIssues()` keeps the direct, no-cache provider read for this
+one caller. Honouring `force` inside `loadLinearIssues` was the wrong repair —
+it would put a forced Workload *refresh* back on Linear, which is the dependency
+this whole lane exists to remove. Two callers wanting different things from one
+flag is what broke; they get two functions.
+
+**The guard that helped this happen, and how it changed.**
+`test/workload-native-provider-closure.js` claims in its header that "the
+Workload board's READ path no longer touches Linear" — true, and still fully
+enforced. What it ASSERTED was the strictly larger "no legacy loader has any
+caller anywhere", and a green check reads as permission. Its scope is now
+corrected to match its claim: the three board-path loaders must still have zero
+callers, while the provider reader gets exactly one named door, pinned from both
+sides (one caller of the reader, one caller of the door, and that caller named),
+plus a new check that none of `loadLinearIssues` / `wlLoadSnapshot` /
+`wlRefetchSilent` / `wlFetchNativeSnapshot` can reach a provider read at all.
+Widening a guard to fit a fix deserves suspicion; this one is *narrower* in the
+board dimension and only admits a door that can be counted.
+
+`test/calendar-card-write-jobs.js` stubbed `loadLinearIssues` and asserted that
+`true` was passed — which proves the flag and not the transport, and is precisely
+why the suite stayed green through this. The real function now runs against a
+recording fetch and the URL, cache mode and returned rows are read.
+
+**2. `boardShown` was too coarse (P2)** — the answer to a question this lane
+asked in the round-5 re-review. `issueSnapshot` also carries batch parents and
+completed/parked rows that `wlApplyData` drops from every bucket, so a cached
+fallback holding only those would claim a *displayed* capacity was understated
+while displaying nothing. It now counts rows that actually rendered plus rows
+excluded FROM rendering — an all-excluded board shows nothing and is exactly the
+one that most needs to say why.
+
+Proven red against `dcb6ca2`: 8 checks in `test/calendar-card-write-jobs.js`
+(including the executed transport), 1 in `test/workload-native-membership.js`,
+and the closure guard, which cannot even resolve the discovery door on the old
+tree.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

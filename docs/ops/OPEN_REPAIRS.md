@@ -14173,6 +14173,79 @@ shared error state for a collection:
   lane's diff does not touch, so it is reported rather than widened into this
   PR.
 
+### Addendum, 2026-09-08 (lane LX-D): the count fails open, and `total` is nullable
+
+The same sweep's remaining entry, now FIXED rather than reported. It is a defect
+on `main` today and not one this PR introduced; it is folded in here because this
+PR already modifies and redeploys `production-comments`, so it costs one dispatch
+of that lane instead of two. To be exact about WHICH lane, because the session
+brief called it the Section 4 one and it is not: `production-comments` deploys
+through the Track-B four-function step of
+[`deploy-onboarding-edge-functions.yml`](../../.github/workflows/deploy-onboarding-edge-functions.yml)
+(`linear-outbound production-write production-comments production-archive`,
+workflow_dispatch only, one `commit_sha` input under the pinned-SHA/main-ancestry
+guard). The Section 4 closure lane fingerprints `linear-outbound`,
+`production-write`, `deliverable-write` and `batch-write` and does not carry
+`production-comments` at all, so **no sealed rollback capture and no fingerprint
+re-pin is owed for this change** — the onboarding lane computes its fingerprint at
+deploy time and compares it to no repo-tracked expectation.
+
+`supabase/functions/production-comments/index.ts` fired both halves of a read
+together and treated them as one:
+
+```ts
+const [totalResult, pageResult] = await Promise.all([totalQuery, pageQuery]);
+if (totalResult.error || pageResult.error) throw new Error("comment_read_failed");
+```
+
+The two halves do not age alike. `pageQuery` reads a bounded `limit + 1` (26 for
+every shipped caller). `totalQuery` is `select("id", { count: "exact", head: true })`
+filtered only by `deliverable_id`, plus `audience` for a client principal, so it
+scans every comment row the deliverable has ever accumulated. It is the half that
+grows without bound and the half that can hit a statement timeout. When it did,
+the throw reached the handler's catch, the gateway answered 500 `read_failed`,
+and the browser replaced the ENTIRE feed with *"Comments could not load."* on the
+SyncLinear detail pane and on the calendar/SXR comment modals — while the rows
+themselves had been read perfectly well and were sitting in `pageResult.data`. A
+readable thread was discarded because counting it was slow.
+
+**The repair, and what it deliberately is not.** The two obvious fixes — a
+per-caller `include_total`, or deriving completeness from the page — both change
+the endpoint's contract, and an earlier session correctly declined to make that
+call unasked. So: **the count fails OPEN and the field stays nullable.** The
+count is settled on its own, so neither an error result nor a rejection can fail
+the request; on failure `total` is `null` and the page is served anyway. The page
+read stays fatal, because comments that genuinely cannot be READ must say so
+rather than render as an empty thread. `has_more`, `next_cursor` and the field
+itself are untouched.
+
+`null` means *not counted*. An empty thread still counts `0`. No shipped reader is
+affected either way: the browser never displayed `total` at all — `_prodComments`
+reads `comments` / `items`, `next_cursor` and `has_more`, and nothing else — which
+is why nulling it costs a reader nothing visible and why the field is kept rather
+than deleted.
+
+**Proof.** `node test/production-comments-total-fail-open.js`. It drives the real
+TypeScript handler through a transport that refuses ONE of the two queries by
+SHAPE (the head/count read versus the paged read of the same table), which is
+what makes the asymmetric scenario reachable at all, and then feeds the response
+the handler actually produced through the real `_prodComments` module sliced out
+of `index.html`. **27 pass**; red against `bdf365f` at **13 pass / 14 fail**,
+including the browser painting *"Comments could not load."* for a thread whose
+three rows had been read successfully. The six assertions that keep a genuine
+page failure fatal are green in BOTH runs, which is what bounds the change.
+
+A fixture where BOTH queries fail is a different scenario, is correctly still a
+500, and passes against the broken code too — so it proves nothing here and is
+carried only as an explicit guard against a later session weakening the page half.
+
+**Owner decision, still open and deliberately not taken here:** whether this
+endpoint should compute an exact `total` at all. Every shipped caller ignores it,
+so the count is currently an unbounded scan on every comment read that nothing
+reads back. Removing it, or gating it behind an opt-in parameter, is a contract
+change and is the owner's call; this addendum only stops the existing count from
+being able to take the feed down with it.
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

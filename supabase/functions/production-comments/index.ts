@@ -364,8 +364,28 @@ Deno.serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const [totalResult, pageResult] = await Promise.all([totalQuery, pageQuery]);
-    if (totalResult.error || pageResult.error) throw new Error("comment_read_failed");
+    // The count scans every comment row on this deliverable; the page reads a
+    // bounded `limit + 1`. So the count is the half that grows without bound and
+    // can hit a statement timeout, and it used to take the page down with it:
+    // either error threw the same failure, the gateway answered 500
+    // `read_failed`, and the browser replaced the entire feed with "Comments
+    // could not load." on a thread whose rows had in fact been read fine.
+    //
+    // The count now fails OPEN. It is settled on its own, so neither a rejection
+    // nor an error result can fail the request; all it can cost the caller is
+    // `total`, which becomes null. The page read stays fatal, because comments
+    // that genuinely cannot be read must say so rather than render as an empty
+    // thread.
+    //
+    // Whether this endpoint should compute an exact count at all is an open
+    // owner decision (OPEN_REPAIRS 172). Nothing here forecloses it: the field
+    // and its `has_more` / `next_cursor` neighbours are unchanged.
+    const totalCountRead = Promise.resolve(totalQuery).then(
+      (result) => (result.error ? null : Number(result.count || 0)),
+      () => null,
+    );
+    const [totalCount, pageResult] = await Promise.all([totalCountRead, pageQuery]);
+    if (pageResult.error) throw new Error("comment_read_failed");
 
     const fetched = Array.isArray(pageResult.data) ? pageResult.data : [];
     const hasMore = fetched.length > limit;
@@ -394,7 +414,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       ok: true,
       canonical_thread: true,
       audience_scope: principal.kind === "client" ? "client" : "all",
-      total: Number(totalResult.count || 0),
+      total: totalCount,
       has_more: hasMore,
       next_cursor: hasMore && tail
         ? { created_at: clean(tail.created_at), id: clean(tail.id) }

@@ -186,7 +186,13 @@ Other:
   crosswalk fields before responding, adds no SQL, and returns
   `status:'unmapped'` when the deliverable carries no verified card link. Two
   readers send it: the SyncLinear **Feedback & tweaks** panel and the Workload
-  Tweak Needed popover, both at `limit: 50`.
+  Tweak Needed popover, both at `limit: 50`. **`total` is nullable**: the exact
+  count scans every comment row on the deliverable while the page is bounded, so
+  it is settled independently and fails OPEN — a count that errors or rejects
+  yields `total: null` and the page is served anyway (`null` means *not counted*;
+  an empty thread is still `0`). A failed PAGE read is still a 500 `read_failed`.
+  No browser caller reads `total`. Whether the endpoint should compute an exact
+  count at all is an open owner decision (`OPEN_REPAIRS` 172).
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
   Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or
   the active TEST client uses the bounded override.

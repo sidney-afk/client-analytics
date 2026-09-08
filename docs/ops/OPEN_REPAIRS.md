@@ -15609,3 +15609,960 @@ of the five non-transparent tokens in the dark-theme block still carries a
 colored (non-black) value, and specifically the `rgb(174,181,242)` this fix
 lands on — so a future dark-palette regeneration can't quietly re-blacken
 this family without a test failing.
+
+---
+
+## 179. [2026-09-08, lane LX-RESTORE, DONE for the executable subset; ~284 context lines still clipped] The 49 clipped brief lines an owner actually executes are restored from source, and six of them were wrong as well as short
+
+Item 178's 03:45 addendum found that 333 lines across
+`docs/independence/LINEAR_EXIT_BRIEF_A..F.md` stop mid-sentence, and named the
+dangerous subset: the `- [migration]`, `- [edge-function-deploy]`,
+`- [runtime-flag]`, `- [other]`, `undo:` and `mitigate:` lines inside LIVE
+ACTIONS and RISKS. That subset is now restored. Number 179 taken; 168 reserved
+163-174 for the exit and 175-178 are already used.
+
+### What was restored, and how
+
+**54 lines, not 49.** A scan for those field kinds ending without terminal
+punctuation returns A=8, B=13, C=10, D=6, E=7, F=11. One of A's eight is a
+false positive (the `~~Apply 2026-09-02-workload-native-view.sql~~` line is a
+later coordinator edit that simply lacks a full stop, not a clipped field) and
+was left alone. Three of C's ten are `- [n8n-edit]` lines, which the scoping
+did not name but which an owner executes by hand, so they were restored too
+and each says so in its own marker.
+
+The generating workflow's output is gone, so nothing here is a recovery of the
+original text. Every line was re-derived from a primary source and ends with a
+marker naming it:
+
+    **[RESTORED 2026-09-08 · source: …]**
+
+A line without that marker has not been checked by this pass. Each brief now
+opens with a block explaining the marker, the per-file counts, and the fact
+that the other ~284 clipped fields are untouched, so the "not a runbook"
+warning stands.
+
+### Six places where the source contradicted the surviving fragment
+
+These are the reason the pass was worth doing, because each of them reads as a
+complete, confident instruction and is false:
+
+1. **Brief A, `workload-plan` redeploy `undo:`** claimed "the new handler is
+   backward compatible: `action:"list"` still answers". It does not. On the
+   candidate, `index.ts:266-271` routes BOTH `list` and `native_snapshot`
+   through `workload_native_snapshot_v1`; `listPlans` is defined at :137 and
+   never called. The rollback has to be PAIRED with an index.html revert, or
+   the new browser calls `native_snapshot` at a closure that answers 400
+   `invalid_action`.
+2. **Brief A, Tweak-feedback `mitigate:`** credited the candidate with honest
+   empty-state copy, quoting "No feedback is available here. Open the post …".
+   That string exists in neither tree. `wlRenderTweakComments` returns `''` for
+   an empty list on main and on the lane branch alike, so "no feedback" and
+   "could not read feedback" are the same empty box — the degraded-state gap
+   item 178's 03:30 addendum names, still unbuilt.
+3. **Brief B, composed-artifact `undo:`** listed the RPCs to restore and missed
+   `production_component_fill(text,timestamptz,text,jsonb,jsonb)`, which
+   `2026-09-05-native-only-intake.sql:633` also replaces with the same
+   signature. Reverting only the append body leaves the native component-fill
+   body live.
+4. **Brief B, B7 label `mitigate:`** is superseded by events: it told the lane
+   to write an exporter and take the capture "in the next few days" before
+   Sept 15. Item 170's addendum records the capture TAKEN 2026-09-08 01:24Z
+   (46 labels, 5,437 active cards, 5 missing all re-read), so that lane is no
+   longer deadline-bound.
+5. **Brief C, the n8n disable list** says "the four Linear-only n8n workflows"
+   and then lists more than four before clipping. There are six, ids in the
+   restored line, and one of them is `Editors - Labor Week` /
+   `webhook/editors-week` — which is F48, still OPEN, still deployed and
+   unauthenticated.
+6. **Brief F, cutoff `undo:`** drops "the four functions".
+   `2026-09-06-linear-outbound-cutoff.sql` creates SEVEN: four service-only
+   RPCs plus three trigger functions that share their triggers' names, which
+   the stated undo leaves installed. Its `mitigate:` twin repeats a
+   pre-correction claim (SQL alone leaves the old direct claimant able to take
+   a fresh lease) that the shipped guard now refuses.
+
+Two further count/citation drifts were corrected in place rather than listed
+here: brief A's membership migration creates four functions where the line says
+three (the fourth, `workload_native_label_state_absent(jsonb)`, is left behind
+by the stated drops), and brief B cites `EXECUTION_LOG.md:6270` for a house
+rule that now lives around :6333.
+
+### Four lines that say "unknown" instead of a procedure
+
+Recorded here as well as in the PR comment, because these are the ones an owner
+must resolve before the action they describe is taken:
+
+- **Brief B, the composed migration** (`- [migration]` and its `mitigate:`):
+  neither `scripts/native-intake-named-append-compose.js` nor
+  `migrations/2026-09-07-native-intake-named-append.sql` exists on any branch
+  reachable from this clone. The stated `composed_sha256` and byte length are
+  therefore unchecked and must be recomputed against the artifact actually
+  held. The ordering hazard itself IS independently confirmed: both
+  predecessors declare the same `production_intake_append` signature.
+- **Brief C, `log-linear-submission`**: the clause was cut at "The
+  log-linear-submission sheet". What the edit was supposed to do about that
+  logging webhook is not recoverable and is not guessed.
+- **Brief F, `count_unproven` / `inconclusive`**: neither identifier appears on
+  any reachable branch, so what the clipped text asserted about the continuity
+  census's behaviour under RLS filtering is unestablished. Until someone reads
+  that package's source, the honest state is that it is unverified.
+- **Brief D, `ROLLBACK.md`**: the deploy `undo:` cites a browser-only revert
+  path recorded in `ROLLBACK.md`. There is no such row — for the Feedback panel
+  or for `production-comments` — so the citation describes a document that has
+  to be written, not one to look up.
+
+### What is NOT done
+
+The other ~284 clipped lines (`why:`, `confirmed:`, `where:`, `lift:`,
+evidence and the work-item lines) are untouched, by scope. They are context
+rather than instructions, but they are the reason each brief still opens with
+its warning and is still not a runbook. Nobody has read any of the six briefs
+end to end.
+
+### CORRECTION, same day, before anyone acted on this entry — one of the six "contradictions" above was my own error
+
+Codex reviewed the PR carrying this entry (#1352) and returned two P1s. One of
+them is right and is fixed; the other is built on a mistake of mine, which is
+the more useful finding of the two because the mistake is inside a line this
+pass restored.
+
+**Contradiction 2 above is WITHDRAWN.** It said brief A credited the candidate
+with honest Tweak-popover empty-state copy — "No feedback is available here.
+Open the post in SyncView to check its review notes." — and that "that string
+exists in neither tree". The copy is real. It lives on `claude/lx-d-feedback`
+(index.html:19446-19470), where `wlRenderTweakComments` additionally
+distinguishes a FAILED read ("Couldn't load this deliverable's feedback. Retry,
+or open the post in SyncView.") from an empty one, carries an
+incomplete-source notice, and drops the "on the sub-issue in Linear" suffix on
+the native path. I searched `main` and `claude/lx-a-workload-native`, found it
+in neither, and reported the narrow true finding as the broad false one. The
+count of places where a source contradicted a surviving fragment is therefore
+**seven, not eight**.
+
+What is actually true, and is what brief A's line now says: the honest empty
+state is LANE D's work, not lane A's, so lane A must not assume it is present.
+Until lane D lands, a row with no feedback and a row whose feedback was never
+backfilled still paint the same empty box on main. Lane D's own brief already
+assigns it the body and copy of `wlRenderTweakComments` while lane A owns the
+call site, so the sequencing was already written down; this pass just misread
+which tree to look in.
+
+**The shape of the error is worth naming, because it is this programme's own
+recurring one.** "Not on the two branches I searched" is not "does not exist",
+and six lanes with six unmerged branches is exactly the estate where those come
+apart. A restored line asserting a contradiction is more dangerous than a
+clipped one, for the same reason item 178's 03:45 addendum gives: it is
+trusted. Restoring from source across a multi-branch estate means enumerating
+the branches first.
+
+**The other P1 is fixed, and it was a real hazard.** Brief B carried
+`- [migration] Apply migrations/2026-09-07-production-intake-append-v8.sql
+(still SOURCE ONLY …)` as a live action with `undo: Re-apply
+…-append-v7.sql` directly beneath it. v8 has been applied since 2026-09-07 and
+the naming gateway deployed after it as v69, so the action is a no-op — but the
+undo is not. An operator whose composed-artifact window failed would follow that
+undo, put v7's narrower title predicate in front of a gateway that composes
+named titles, and every named append would be refused with
+`invalid_intake_append_order`. The step is now struck and marked a satisfied
+prerequisite, and its undo is replaced with "NONE. DO NOT RE-APPLY v7." plus the
+reason. This pass had noted the staleness in the brief's header block and left
+the line alone because it was not truncated; the review was right that a note in
+a header does not travel with the step.
+
+### SECOND CORRECTION, same day — the withdrawn contradiction was not one mistake, it was a pattern, and it cost three of the four "gaps"
+
+Prompted by the first correction, I told the reviewer on #1352 to look for other
+restored lines asserting that something is ABSENT. Then I did the search
+properly myself: fetched all 131 remote branches shallow and grepped across
+every one. **Three of the four honest gaps this entry published were not gaps.**
+Every artifact was there; I had searched a handful of branches, or a
+`head`-limited grep, and reported the result as exhaustive.
+
+| Published as | Actually |
+|---|---|
+| The composer and the named-append migration "exist on no reachable branch", so `composed_sha256` is unchecked | Both are on `origin/integration/linear-exit-candidate-20260906` (which IS candidate `5bcc03b`) and on `origin/codex/native-urgent-dispatch-20260907`. The composer was RUN: `composed_sha256` matches the brief exactly |
+| `count_unproven` / `inconclusive` "appear on no branch reachable from this clone" | `scripts/client-continuity-monitor.js` on `origin/agent/continuity-release-package-20260906`. Both are non-ok codes; `assessRead` returns `count_unproven` on `complete !== true`, `authorityMatched !== true`, a bad `authoritativeCount`, or `renderedCount !== authoritativeCount` |
+| `ROLLBACK.md` "has no row for the Feedback panel or `production-comments`" | `ROLLBACK.md:107` on `claude/lx-d-feedback`, with the browser-only revert path spelled out. Absent from main and the coordinator branch, present on the lane that ships it |
+| Brief C's `log-linear-submission` clause "is not recoverable" | Recoverable from files in this very working tree. `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md:117` dispositions it keep-until-B5 / retain as non-Linear telemetry; `SYSTEM_MAP.md:470,540` calls it post-commit telemetry, not the acceptance receipt. My earlier grep was `head -5`-limited and I read the truncation as the answer |
+
+All four lines are now restored from those sources and each says where it was
+wrong. **One real finding survives the re-check**, and it is new: the composed
+artifact's stated size, "66659 bytes", is a CHARACTER count. Running the
+composer gives 66,659 JavaScript characters and **66,665 UTF-8 bytes** (three
+non-ASCII characters). An operator verifying with `wc -c` sees 66665, and on
+this brief's own instruction to refuse a mismatch would refuse the correct
+artifact.
+
+**The rule, and it is the one worth keeping from this whole pass.** In a
+programme with six lanes, six unmerged branches, an integration candidate and
+131 heads on the remote, "I did not find it" is a statement about the search,
+not about the estate. Before writing that something does not exist: enumerate
+the refs, grep across all of them, and never let a `head`-limited result stand
+in for a complete one. This is item 178's coordination defect wearing yet
+another costume — two views of the estate disagreeing because only one of them
+was actually looked at.
+
+And the asymmetry that makes it worth a ledger entry rather than a quiet fix: a
+line that says "unknown, establish this before acting" is safe when it is wrong,
+because it sends a reader to the source. A line that says "I checked, and the
+thing you were told to rely on does not exist" is not, because it stops them
+looking. Of the two failure modes this pass could have had, it had the second
+one four times.
+
+### THIRD CORRECTION — three more P1s, and the worst one is a rollback that would have deleted live images
+
+Codex's second pass, on `02e748b`, returned three P1s. All three are valid, all
+three are fixed, and one of them is the single most dangerous line this pass
+touched.
+
+**1. Brief E's storage rollback would have deleted ordinary staff uploads.** The
+line enumerates what to delete with
+`select public_url, storage_path from public.description_images where deliverable_id is not null`.
+That predicate does not isolate rescue objects. Every ordinary paste-into-description
+upload sends `X-Syncview-Image-Issue: <issue.id>` (`_prodDescriptionPostImage`,
+index.html:58008-58018) and `description-image-upload` stores it as
+`description_images.deliverable_id` (index.ts:257-271) — and the rescue script
+sends the identical header (`'x-syncview-image-issue': occ.id`,
+scripts/linear-media-rescue.mjs:365), so the two are indistinguishable by that
+column. Following that undo deletes live images out of real descriptions. The
+rescue-specific set is the **out-map** the upload step writes per file
+(`{new_url, mime_type, byte_length, sha256}`); the line now enumerates from it
+and forbids the `deliverable_id` fallback.
+
+That selector came from the ORIGINAL brief text. This pass extended it without
+checking what it selects, which is the "never invent a rollback step" rule
+failing in its quieter form: not inventing, but endorsing. **Extending a
+rollback means verifying its selector, not just finishing its sentence.**
+
+**2. Brief D understated a rollback's blast radius by eight functions.** The
+earlier-SHA dispatch rolls back TWELVE, not four: the workflow's first deploy
+step (`.github/workflows/deploy-onboarding-edge-functions.yml:107-121`) carries
+no `if:` guard, so on `workflow_dispatch` it ships `onboarding-list
+ai-onboarding-list legacy-onboarding-list onboarding-full client-credentials
+filming-plans smm-weekly-reports key-verify` from the chosen SHA before the
+Track-B four. Both `undo:` lines and the sequencing `mitigate:` now say so, and
+lane D's own `ROLLBACK.md:107` row needs the same correction when it merges.
+
+**3. Brief B's byte count is now the headline.** 66,665 UTF-8 bytes, with 66,659
+kept only as the character count. The instruction on that step is to refuse on a
+mismatch, so publishing a character count as bytes makes an operator refuse the
+correct artifact.
+
+**Running total for this pass: seven review findings, six of them mine.** Two
+rounds of Codex have now found more real defects in these restored lines than
+the restoration found in the originals. The through-line in every one is the
+same: a sentence completed from what it looked like it was saying rather than
+from what its referent actually does. A selector, a function count, a byte
+count, four absence claims. The clipped text was never the hard part; the
+verification was, and this entry is the record of getting that wrong repeatedly
+and only catching it under review.
+
+### SELF-AUDIT of the remaining `undo:` scope claims, prompted by the third correction
+
+Rather than wait for a third review round to find the next one, I swept every
+restored `undo:` in the six briefs against the one question the last two rounds
+kept answering: **does the scope, selector or object list this sentence asserts
+match what its referent actually does?** Prose was not the target; scope was.
+
+Verified and already correct, each against the file it names: brief B's manifest
+undo (RLS and grants as stated), its composed-artifact undo (the epoch-read and
+component-fill signatures), its reconcile undo (eight RPCs, three helpers, table,
+index, two triggers), its label undo (the 09-06 object set plus the added
+column), its assignment undo (five functions, not three); brief C's closure
+restore and both n8n version restores; brief F's cutoff undo (seven functions,
+found earlier) and its activation undo.
+
+**One real gap found and fixed: brief E's bucket-limit undo.** Two problems, both
+of the same kind the reviews have been finding.
+
+1. Its load-bearing claim — "objects already stored above the old limit stay
+   readable; the limit only gates new writes" — was inherited from the clipped
+   fragment and my marker cited the migration, `policy.mjs` and the test, none of
+   which establish it. The actual source is **item 173 point 2 of this very
+   file**, which states it in the same parenthetical that supplies the undo. Now
+   cited. A restoration that cites the wrong source is not verified, however true
+   the sentence happens to be.
+2. **Reversing E4 is three constants, not two.** Item 173 says the change is "one
+   statement plus two constants" and names `MAX_DIMENSION = 8000` as one that
+   "would have to move with it or large captures still refuse". My line carried
+   the bucket row and `MAX_BYTES` only. `test/description-image-upload.js` pins
+   `MAX_BYTES` (:169) and the migration's `file_size_limit` (:170), so CI catches
+   a half-reversal of those two and would NOT catch a stranded `MAX_DIMENSION`.
+   The line now names all three and says the test does not cover the third.
+
+The sweep's own lesson, which is narrower than the last two and more useful: **a
+citation is part of the claim.** Two of the three defects the reviews found were
+sentences whose stated source did not contain the thing being stated, and this
+one was a third. When a restored line's marker names files that do not settle its
+load-bearing sentence, that is the tell, and it is greppable in a way "is this
+sentence true" is not.
+
+### FOURTH CORRECTION — three more P1s, and the self-audit missed all three because it asked the wrong question
+
+Codex's third round, on `208b4aa`, returned three more P1s. All valid, all fixed.
+Every one of them is a defect in a line this pass wrote, and every one sits in a
+category the self-audit above did not think to check.
+
+**1. Brief A still offered `drop view if exists public.workload_issues_native_v1`
+as an undo for an ALREADY-APPLIED migration.** Its parenthetical, "nothing reads
+it until the browser cutover ships", was true when the migration was pending and
+is false now: the installed `workload_native_snapshot_v1()` selects from that
+view, so the drop breaks the RPC and blanks the board — the exact outage of item
+177. This is the SAME defect as brief B's v8 step, which the first correction
+fixed, sitting two lines from a note in the same file headed "Do not act on the
+drop instruction". I fixed one instance and did not look for its twin.
+
+**2. Brief B's composed-artifact undo published two contradictory rollback
+orders.** The numbered list said to replace RPC bodies and drop
+`production_native_intake_epochs()` first and disable the intake flag fourth;
+the closing sentence said to flip the flag off first. Following the numbers
+leaves a live interval in which the deployed gateway calls downgraded or missing
+RPCs. Renumbered so stopping admission is step 1, with the reason stated at the
+step rather than at the end.
+
+**3. Brief E's storage undo booby-trapped the retry.** After deleting the rescue
+objects, the out-map still lists them: `cmdUpload` skips every key already in it
+(`linear-media-rescue.mjs:339`) and `cmdRewrite` resolves through
+`map[...].new_url` (`:404`), so a later retry uploads nothing and then generates
+forward SQL pointing every description and comment at objects that no longer
+exist. The undo now requires deleting the matching out-map entries, or starting
+from a fresh map, in the same step.
+
+**Why the self-audit missed them.** It asked "does this sentence's scope match
+its referent?" and checked object lists, selectors and signatures. All three of
+these pass that test. What they fail is different and each is its own question:
+does this undo still apply given what is ALREADY LIVE (1); is this instruction
+internally consistent with itself (2); and does executing this undo leave the
+system in a state the NEXT step can safely run from (3). A rollback is not a list
+of inverse statements, it is a sequence with a precondition and a postcondition,
+and I had been auditing the statements.
+
+**Generalised, this time, rather than fixed one instance deep.** Brief A's OTHER
+already-applied migration (the membership functions) carried the same shape: an
+applied prerequisite with a bare list of `drop function` statements as its undo.
+Nothing in the exit needs them dropped, they are inert and service-role only, and
+`workload_native_snapshot_v1()` is the query that satisfied PR #1344's first
+gate. That undo is now "prefer none", with the drop statements and their exact
+boundary kept beneath it for the case where one is genuinely required. A sweep of
+all six briefs finds no third instance: only three action lines are marked
+already-applied, and all three now say so in their undo.
+
+**Running total: ten findings across three rounds, nine of them mine.** Each
+round has found a category the previous round's fix did not generalise to. That
+is the honest characterisation of this work: the restorations needed review more
+than the originals did, and the reviews have been the only thing catching them.
+
+### SEQUENCING SWEEP — applying round three's lesson to every remaining `undo:` instead of waiting for round four
+
+Round three's three P1s were all sequencing defects, and the self-audit before it
+had missed them because it checked whether each sentence's SCOPE matched its
+referent. So this sweep asked the three questions those findings actually failed,
+of every structural `undo:` in the set:
+
+1. Does it still apply given what is already live?
+2. Is it a coherent sequence, or a set of individually-correct inverse statements?
+3. Does executing it leave a state the next attempt can run from?
+
+**Four more lines needed the same treatment, all of them mine, none of them yet
+reported by a reviewer.** Every one was a list of correct drops with no stated
+precondition, which is exactly the shape round three flagged in brief B's
+composed undo:
+
+- **Brief F, the cutoff undo.** Added STEP 0: set `linear_outbound_enabled` to
+  `{"mode":"off"}` and/or restore the pre-cutoff closure before dropping
+  anything. The cutoff-aware worker calls `linear_outbound_claim_v1` and
+  `linear_outbound_authorize_dispatch_v1` on every drain — the doc's own
+  "deploying only the Edge Function fails closed at claim" — so dropping those
+  RPCs under a deployed cutoff-aware closure stops the drain, which is precisely
+  what this lane's flags exist to do gracefully. Also put the seven objects in
+  dependency order (view before its function, triggers before theirs, control
+  table LAST because everything reads it).
+- **Brief B, the reconcile undo.** Added the revoke-or-unwire step 0 and ordered
+  the eight RPCs so the helpers (`_iso`, `_reason`) drop after the callers that
+  use them, and `production_card_provenance_record()` after its two triggers.
+- **Brief B, the label undo.** Added step 0 (`mode` to `"hold"`, never delete the
+  flag row) and ordered `production_label_catalog_capability()` after the guard
+  and writer that call it, `_check_manifest` after the five RPCs that call it.
+- **Brief B, the assignment undo.** Added step 0 (`mode` back to `provider`) and
+  put `production_assignment_epoch(text)` last, since the other two functions and
+  step 0's own flag read depend on it.
+
+The general form, now stated once in each of these lines rather than assumed:
+**stop the callers before you drop what they call, and prefer the behavioural
+undo — with the flag off the system is already rolled back, and everything after
+that is structural tidying that can only break things if taken first.**
+
+Worth recording that this sweep exists because the previous one was scoped wrong,
+not because a reviewer asked for it. Three rounds of review each found a category
+the previous fix did not generalise to; this is the first time the generalisation
+was taken before the next round rather than after it. Whether it caught
+everything is not something I can assert — the last three attempts at that claim
+were wrong.
+
+### FIFTH CORRECTION — undos that contradict each other across a one-way boundary
+
+Codex round four, on `dab32ea`: two P1s and a P2, all valid in substance, one of
+them with a mechanism that needed correcting rather than repeating.
+
+**1. Brief F's install undo and its activation undo contradicted each other
+across the cutoff.** The activation step is one-way, and its recovery requires
+classifying every `authorized_before_cutoff` and `accepted_after_cutoff` row.
+Those dispositions are DERIVED, not stored — `linear_outbound_cutoff_debt_rows_v1()`
+computes them from `linear_outbound_cutoff_control` and
+`mirror_outbox.outbound_generation`. The install undo drops exactly those
+objects. So taking it after activation removes both the fence state and the only
+means of classifying the debt the fence created, leaving the reviewed recovery
+delta with nothing to work from. The install undo is now explicitly
+**pre-activation only**.
+
+**2. The deploy undo needed the same boundary, but not for the stated reason.**
+The finding said restoring the pre-cutoff worker after activation lets it
+"bypass the supposedly irreversible fence". It does not, while the SQL is
+installed: `linear_outbound_stale_worker_guard_v1` fires `before update on
+public.mirror_outbox` and, once `cutoff_enabled` is true, raises
+`linear_cutoff_stale_worker_refused` on any update touching `lock_token`,
+`locked_at`, `dispatch_authorization`, `dispatch_authorized_at` or `status` —
+its own comment says it exists to "cover an old worker acquiring its first lease
+after cutoff". That combination fails CLOSED. The genuine bypass is the
+COMBINATION of the two undos: drop the control table and guard, restore the old
+worker, set the flag live, and the fence is gone with nothing left to say what
+was fenced. Both ends now forbid it, and the line states the real mechanism
+instead of the plausible one.
+
+**3. E4's forward path was half-built (P2).** The forward action raises the
+bucket byte ceiling and `MAX_BYTES`; `verifyImage` still refuses at
+`MAX_DIMENSION = 8000` (`policy.mjs:20`, enforced at :381/:476/:521), so a 25 MiB
+bucket admits nothing extra in that dimension. My undo acknowledged the constant
+without the forward side ever mentioning it. **No forward value is invented
+here** — nobody has chosen one and item 173 gives none. The line now states
+E4's scope outright: it raises the byte ceiling only, over-8000px files stay on
+item 173's not-rescued list, and rescuing them is a separate change with its own
+value, its own test and its own owner window.
+
+**The category, which the sequencing sweep did not cover.** That sweep asked
+whether each undo was internally coherent. These two are internally coherent and
+mutually contradictory: each is correct in the window it was written for, and the
+set never says which window that is. **A one-way step in the middle of a list of
+reversible ones partitions every undo around it, and each one has to say which
+side it lives on.** The same question applies to any other lane
+carrying an irreversible step, so I asked it rather than filing it: **brief B has
+the same contradiction and it is now fixed.** Its composed-artifact undo drops
+`production_intake_epoch_read(text,text,text,text,text,text,jsonb,jsonb)` at step
+3 and the `native_epochs` column at step 4 — and those two ARE the pin that keeps
+an already-accepted manifest on its original epoch, which is exactly the property
+the epoch flag's own undo cites when it says in-flight work does not change
+lanes. Dropping them after any accepted admission removes the pin, not just the
+admission. That undo now carries the accepted-admission boundary explicitly and
+says to stop at steps 1-2 once anything has been accepted.
+
+Six rounds of checking, five of them mine, and the reviewer is still finding a
+category per round. The honest read is not that the work converged; it is that
+each pass fixed the shape it had just been shown.
+
+### SIXTH CORRECTION — the boundary category, applied to the lines I had not touched
+
+Codex round five, on `b71c343`: two P1s and a P2, all the same category as round
+four, and all three land on undos this pass either got half-right or never
+touched.
+
+**1. Brief B's accepted-admission boundary was one step too late.** Round four
+put it after step 2; it belongs after step 1. The reviewer's mechanism was
+imprecise and the corrected one is worse for the operator, not better: the epoch
+pin is NOT read by the intake RPC bodies calling `production_intake_epoch_read`
+— the gateway calls that (`production-write/index.ts:2680`). It is read by the
+NATIVE `production_intake_root_begin` body itself, which checks and writes
+`native_epochs` (`native-only-intake.sql:201-204, 252`), and by the receipt
+guard, which compares `coalesce(v_manifest.native_epochs->>new.team,'')` on every
+outbox row (`:112`). Step 2 replaces that root_begin with a body that has never
+heard of `native_epochs`; step 3 drops the guard. Between them, accepted work
+loses BOTH enforcement points while its manifest still carries an epoch. Keeping
+the reader and the column alive in steps 3-4 pins nothing once their enforcement
+is gone.
+
+**2. Brief F's outbound flag undo says "fully reversible" two lines above a
+one-way step that makes it false.** Post-activation, `linear_outbound_claim_v1`
+opens `if v_control.cutoff_enabled then return null; end if;` (:94), so the
+cutoff-aware worker claims nothing on every row; the pre-cutoff worker is refused
+by the stale-worker guard. Setting the flag back to `live` therefore **reads back
+as success and leaves outbound entirely dead** — a green readback over a dead
+lane, which is the worst shape a rollback can have.
+
+**3. Brief F's scheduled-workflow undo sits on the reversible side of credential
+revocation (P2).** Re-enabling those four lanes after the keys are revoked
+restores four jobs that fail every run and stale heartbeats that latch the
+alarm-fatigue incident this very section warns about. Post-2026-09-15 there is no
+re-issue, so the honest position is retirement, with the watchdog LANES entries
+retired alongside.
+
+**Both brief F lines were NOT truncated, and so were outside this pass's original
+scope.** I restored the clipped lines around them and left these alone because
+they ended in a full stop. That was the same reasoning that left brief B's
+already-applied v8 step standing in round one, and it was wrong for the same
+reason: **the defect is not in the clipping, it is in the instruction, and a
+one-way step invalidates the undos on both sides of it regardless of which ones
+happened to be truncated.** The scope that made sense for finding truncations
+does not make sense for auditing rollbacks.
+
+**So I swept every `undo:` in all six briefs, truncated or not, against the
+boundary question, and five more needed it** — none of them lines this pass had
+originally touched:
+
+- **F, `linear_inbound_enabled`**: promises a reversal that the webhook-deletion
+  step immediately below removes. Restoring the flag after the registrations are
+  gone flips green over a lane with no traffic.
+- **F, deleting the two Linear webhooks**: said re-creation needs the URL and
+  signing secret captured first. True and not sufficient — after 2026-09-15
+  there is no account to register against, captures or not.
+- **F, the n8n pager nodes**: same post-revocation problem as the scheduled
+  workflows; they dispatch the card reconcilers and B1 refresh, all of which
+  reach Linear.
+- **C, re-publishing the six Linear-bridge workflows**: the definitions survive a
+  lapse, the capability does not. With the exception that matters:
+  `webhook/editors-week` is F48, and F48 closes when that workflow stops
+  answering, not when Linear stops answering it.
+- **B, the intake epoch flag**: credited `production_intake_epoch_read` with the
+  pin. Corrected to match the composed-artifact undo above it, so the file does
+  not name two different enforcement points for one property.
+
+Six rounds, sixteen reported findings, fifteen of them mine, plus nine found in
+my own sweeps between rounds. The reviewer has found a new category in every
+single round, and the last two were categories my own sweeps had defined and then
+applied too narrowly.
+
+### SEVENTH CORRECTION — the flag literals, and writing a component out of its own mechanism
+
+Codex round six, on `ac23bb8`: a P1 and a P2, both on brief B, both against text
+this pass wrote, and the P1 is in the step whose entire purpose was to be the
+safe one.
+
+**1. Step 1 of the composed-artifact undo published a MALFORMED flag value.** It
+said to set `native_intake_epochs` to `{"enabled":false,"epoch":null}` "for both
+teams". The flag is per-team nested — `{"video":{...},"graphics":{...}}` — and
+`production_native_intake_epochs()` loops `array['video','graphics']` requiring
+each `value->team` to be an object with a boolean `enabled`, raising
+`authority_unavailable` otherwise (native-only-intake.sql:14-36). A flat document
+gives `value->'video' = NULL` and fails that test. So the instruction written
+specifically to stop admission cleanly would instead have made the gateway raise,
+leaving admission un-stopped while the operator proceeded to step 2 and replaced
+RPCs under a live gateway. The step now carries the exact `update` statement, the
+per-team literal, the reason a flat object fails, and a mandatory readback.
+
+**The sweep that followed found two more flag-shape defects, in lines this pass
+had not written:**
+
+- `native_assignment_epochs` is also per-team nested; its undo said only "set mode
+  back to provider" with no literal. Now supplied, with the same readback.
+- `production_native_label_catalog` is FLAT, and moving off `native` requires
+  `version_id` to be JSON `null`: `production_label_catalog_capability()` raises
+  `native_label_catalog_config_invalid` for any non-native mode where
+  `version_id` is not null (native-label-writes.sql:57-70). Its undo named only
+  the mode, so a mode-only edit would have broken every label write instead of
+  holding it. The full hold and provider documents are now written out.
+
+**The class: "set the flag to X" is not an instruction, it is a summary.** Three
+flags in one brief, three different document shapes, and every undo that named a
+field instead of the whole value was wrong or incomplete. A runtime-flag undo has
+to carry the literal it expects the operator to write and the readback that
+proves it took.
+
+**2. I had written the gateway out of its own mechanism (P2).** Round five's
+correction said `production_intake_epoch_read` is "the gateway's reader, not the
+enforcement point". That over-corrected. The gateway is precisely what keeps an
+accepted request's follow-up append and component-fill calls on the native lane:
+`intakeEpochs()` resolves the epoch through that RPC and the native early-returns
+in `parentRouteForAppend`, `projectForIntake` and `assigneeEligibilityContext`
+branch on the result — which this brief's own "already built" entry documents at
+index.ts:2535-2537, 2686-2736, 2807-2856. The pin has THREE roles, not two:
+gateway routing, `root_begin`'s admission-time write, and the receipt guard's
+per-row validation. Both affected lines now state all three, and the rollback
+argument is stronger for it: steps 2-3 remove all three, so no ordering of steps
+2-4 preserves the pin.
+
+Correcting a reviewer twice in a row made me confident, and the second correction
+overshot. Being right about where a mechanism ISN'T is not the same as being
+right about where it is.
+
+**The rest of the flag sweep, completed rather than promised.** The other
+runtime-flag undos in the set were checked against their readers and are sound:
+brief F's `linear_legacy_parity_enabled` and `linear_inbound_enabled` already
+carry flat literals and a readback, and the continuity vars are repo variables
+rather than JSON. Brief D's `native_comment_media` is the one worth a note: the
+reader tests `contract` before the `off` branch, so a replacement document that
+drops `contract` does NOT disable the lane — but it falls through to
+`mode:'required', complete:false`, which serves no media and signs nothing. That
+one degrades where brief B's three broke, and the line now says so rather than
+leaving the next reader to re-derive it.
+
+So the class is: three flags actually broken (all in brief B), one fail-closed
+and documented, three already correct. The distinguishing feature of the broken
+three is that their readers RAISE on a malformed document while brief D's
+returns a refusal value. An undo that writes a flag needs to know which of those
+two its reader does.
+
+Seven rounds, twenty-one reported findings, twenty of them mine, plus twelve from
+my own sweeps.
+
+### EIGHTH CORRECTION — a teardown whose end state the gateway cannot fall back from
+
+Codex round seven, on `4080b6b`: one P1, on the label-migration undo, and it has
+two halves.
+
+**1. I fixed the flag literal in one line and not its sibling.** Round six
+corrected the runtime-flag undo to write the whole document
+(`{"schema_version":1,"mode":"hold","version_id":null}`) because a mode-only edit
+that leaves an activated uuid in `version_id` is rejected as
+`native_label_catalog_config_invalid`. The migration undo's own step 0 still said
+"set `mode` to `hold`". Same defect, same file, adjacent lines, fixed once.
+That is now the third time in this pass I have repaired one instance of a defect
+and not looked for its twin.
+
+**2. The teardown ended in the one state the gateway cannot recover from.** My
+step 0 said to drop `production_label_catalog_capability()` while explicitly NOT
+deleting the flag row. The gateway's pre-install fallback is conditioned on both:
+
+    // Pre-install compatibility requires BOTH an absent RPC and an exact
+    // absent flag row. An installed/read-failed capability cannot fall back.
+
+(`production-write/index.ts:870-885`). RPC absent + row present falls through to
+`throw GatewayError(503, "native_label_catalog_config_unavailable")`, so label
+writes stay dead after the supposed rollback. The correction is that there are
+**two end states with opposite treatment of that row**, and the line now says
+which is which: containment keeps the row and MUST NOT delete it (a missing row
+makes the RPC raise), while a full teardown MUST delete it, RPC first and row
+last, because only both-absent restores provider behaviour.
+
+**The class, and it is the sharpest statement of this whole pass:** an undo's
+correctness is a property of the END STATE, not of the steps. Every step in that
+teardown was individually reversible, correctly ordered by dependency, and
+correctly stopped its callers first — and the state it landed in was one the
+system has no path out of. "Never delete the flag row" was true in one end state
+and exactly wrong in the other, and I had written it as an unconditional rule.
+
+Eight rounds, twenty-two reported findings, twenty-one of them mine, plus twelve
+from my own sweeps. The reviewer has found something in every round, and this
+one found a defect inside a fix for a defect inside a fix.
+
+### The end-state question, asked of the other two teardowns before round eight
+
+Round seven's category — an undo whose steps are each correct and whose END STATE
+the system cannot run from — is the one I had never systematically checked. I put
+it to the reviewer and then asked it myself of the two remaining structural
+teardowns. **Brief B's intake teardown fails it, in a way that is worse than the
+label lane's.**
+
+The label lane at least HAS a pre-install fallback; it just needs both halves
+absent. The intake lane has none at all:
+
+- `intakeEpochs()` calls `production_intake_epoch_read` on every intake request
+  and throws 503 `authority_unavailable` unless the result is a string per team
+  (`production-write/index.ts:2676-2690`).
+- `handleIntakeEditorOptions` calls `production_native_intake_epochs()`
+  unconditionally and throws the same (`:3678-3681`).
+- Neither has an "RPC absent" branch.
+
+**And the flag does not save you.** Turning `native_intake_epochs` off does not
+stop those calls — a disabled epoch resolves to `""` and the request takes the
+provider lane, so the RPC is still invoked on every request. So dropping either
+function while the native closure is deployed breaks intake outright, for
+PROVIDER work as much as native. My step 1 stops admission; it does not stop the
+gateway calling the objects steps 3-4 remove.
+
+The undo now states the precondition: steps 3-4 require the deployed
+production-write closure to already be the pre-native one (Section 4 restore
+first), or they are not taken at all. Brief F's cutoff teardown already carried
+the equivalent — its step 0 restores the pre-cutoff closure before any drop — so
+it passes the same question.
+
+**The general form, which is where all eight corrections converge:** a structural
+undo is safe only when nothing deployed still calls what it removes, and the
+runtime flag that stops the FEATURE is usually not the thing that stops the
+CALLS. Those are two different switches, and every one of these teardowns
+conflated them until it was asked not to.
+
+### NINTH CORRECTION — a live-action list whose ORDER is wrong, and a rewrite that skips rather than fails
+
+Codex round nine, on the current head `433eaae`, after one clean round: one P1,
+on brief E's ordering. Valid, with its mechanism half right in a way worth
+recording.
+
+**The finding.** E4's three parts (bucket `file_size_limit`, `policy.MAX_BYTES`,
+the function redeploy) are listed AFTER the upload and the forward rewrite. If
+E4 is being taken at all, they have to precede the upload: the deployed handler
+refuses an oversize file at `MAX_BYTES` and the bucket refuses it independently,
+so an upload run before the raise never creates those objects. Both live-action
+lines now say so.
+
+**Where the stated mechanism overshoots, and the truth is quieter and worse.**
+The finding says the rescue "cannot produce the complete out-map needed by the
+rewrite", implying the rewrite is blocked. It is not. `rewriteText` SKIPS an
+occurrence it cannot resolve (`if (!next) { skipped.push(occ); continue; }`,
+scripts/linear-media-rescue.mjs:146-149) rather than throwing, so the forward SQL
+still generates and still applies cleanly under its old-literal guard. A brief
+holding one rescued and one oversize image is rewritten for the first and left
+pointing at the dead `uploads.linear.app` URL for the second.
+
+So the failure is not a refusal, it is a **silent partial rescue**. The upload
+half is loud — `REFUSED 413 image_too_large` per file and a non-zero exit — and
+the rewrite half says nothing. Under item 173's standing ruling (E4 not taken,
+over-4 MiB and over-8000px files not rescued) that partial outcome is the
+INTENDED one, which is exactly why it needs stating: an operator who does not
+know it will read a clean-looking forward apply as a complete rescue. The line
+now says to count the `REFUSED` lines against the manifest before applying, and
+to record that count in the ledger so surviving dead links are a known number.
+
+**The class, which is new: the ORDER of a live-action list is itself an
+instruction.** Every prior round audited individual lines. This one is about
+their sequence on the page — a conditional step printed after the step it must
+precede. Nothing in a line-by-line review catches that, and I had not once read
+these six LIVE ACTIONS blocks as ordered procedures rather than as sets of
+independent items.
+
+Nine rounds, twenty-five reported findings, twenty-four of them mine.
+
+### The LIVE ACTIONS ordering sweep, started before round ten
+
+Round nine's class — the ORDER of a live-action list is itself an instruction —
+had never been checked, so I started the sweep rather than assert it clean. One
+hit so far, and it is the same shape as brief E's.
+
+**Brief C prints its riskiest step first.** The block leads with
+`- [runtime-flag] Set three production-write secrets`, including
+`NATIVE_URGENT_HANDOFF_ENABLED=true`. Its own C1 `mitigate:`, four lines below,
+gives the real sequence: merge, deploy production-write, install the n8n root and
+jwtAuth credential, THEN the secrets, then the drill. The list and the mitigate
+disagree, and the list is the unsafe one.
+
+**What enabling early costs.** Once the new closure is deployed the browser
+prefers the native branch. With the flag on and no receiver at
+`native-urgent-video`, the gateway signs and POSTs into nothing, and a missing or
+malformed response is specified as **HTTP 502 `delivery_unknown`,
+`delivery:"unknown"`, `retry_safe:false`** — the one shape the browser must not
+retry. So the urgent ping is LOST, not deferred. Enabled-last is the whole reason
+the window is safe, and the printed order inverts it. The line now says "printed
+first and it is not first, take it fourth" with the reason attached.
+
+Still unswept: brief B's six migrations plus three flag flips plus the Section 4
+dispatch, and brief F's twelve steps across two one-way boundaries. Both are
+larger than C's and both contain steps whose order I have only reasoned about in
+their `undo:` direction, never forward. Codex has the same question in front of
+it; whichever of us gets there first, the answer belongs here.
+
+**Why this class was invisible for nine rounds.** Every audit I ran — including
+the four self-sweeps — walked lines. A defect that lives in the RELATIVE POSITION
+of two correct lines is not visible to anything that reads one line at a time,
+and a brief that lists actions under a heading reads as a set unless something
+tells you it is a sequence. Two of these six blocks turn out to be sequences.
+
+### Ordering sweep, continued: briefs B and F
+
+**Brief B's forward order is sound.** Walked its ten steps against their real
+dependencies: root-manifest before the composed artifact (which needs
+`production_intake_manifests` and `production_intake_root_begin`); the composed
+artifact before the reconcile migration (which needs `manifest.native_epochs`,
+added by the native half); the label foundation before the label writes that
+alter its table; every migration before the Section 4 dispatch, which matches the
+house rule that a migration precedes the gateway composing against it; the sealed
+capture immediately before the dispatch; and all three flag flips after the
+deploy. Nothing needs moving.
+
+**Brief F has one gap and one open question.**
+
+The gap: its last action, `- [other] Revoke LINEAR_MIRROR_API_KEY, …`, carried
+its hard precondition only in its `undo:`. `linearLabelsRequest` throws 503
+`label_catalog_unavailable` when `LINEAR_MIRROR_API_KEY` is empty
+(production-write index.ts ~:837-839), with a paired site around :2291, so
+revoking before the closure that removes those call sites ships turns "pick a
+label" and "create a deliverable" into hard 503s — permanently, since no re-issue
+exists after the account lapses. Worse, **that removal-and-deploy is not a step in
+this list at all**: it belongs to the production-write lane, and this list's final
+irreversible act silently depends on another lane's work. The precondition is now
+on the action, where someone reading top to bottom will meet it.
+
+The open question, recorded rather than guessed: the alarm-fatigue `mitigate:`
+says "STEP 0 drains the queue to zero before STEP 2 so the pending-age alarm
+reads false", but the printed list has the census read first and
+`linear_outbound_enabled = off` third, and turning outbound off PAUSES the drain
+rather than completing it. Either there is an unlisted drain action between them,
+or "STEP 0/STEP 2" refer to a runbook numbering this brief does not carry. **I
+cannot tell which from the sources, so it is not being resolved by inference** —
+whoever owns lane F should say which, because the difference decides whether the
+pending-age alarm is silent or screaming through the cutoff window.
+
+**Standing count of the ordering class: two defects (E's E4 placement, C's
+enabled-first), one gap (F's unlisted precondition), one open question (F's
+drain), one brief clean (B), one not applicable (D has no ordered dependencies
+among its five actions).**
+
+### TENTH CORRECTION — the ordering sweep I called finished was wrong in three of its six verdicts
+
+Codex round ten landed on `6ef7108`, before my C and F ordering commits, and
+returned four findings. One (brief C's enabled-first) I had already fixed
+independently. The other three all land on the sweep I had just published, and
+two of them contradict its verdicts:
+
+**1. Brief F's drain was not an open question, it was a missing step.** I
+recorded it as unresolvable because the `mitigate:` refers to a "STEP 0" the list
+does not print, and said lane F's owner should say which. Wrong instinct: the
+answer is in the repository. `.github/workflows/linear-outbound-drain.yml`
+exists, and the step is to dispatch it repeatedly until the census returns zero
+non-terminal real-client rows, verified by re-running the census read rather than
+by the workflow's own summary — THEN set `linear_outbound_enabled` to `off`.
+Taking the flag first pauses the drain instead of finishing it, the
+`oldest_pending_age` alert pins ON for any undrained real-team row, and a later
+activation classifies those rows as debt behind a fence that cannot be lifted.
+**"I cannot tell from the sources" was itself a claim about the sources that I
+had not fully checked** — the same failure as the four wrong absence claims in
+the second correction, in a politer costume.
+
+**2. Brief D is not "not applicable".** I recorded it as having no ordered
+dependencies. It has one, on the optional path: if the lane lifts the
+media-aware `index.ts`, the `native_comment_media` migration and its `mode:'off'`
+flag row must precede the dispatch, or the deployed reader sits in
+`mode:'required', complete:false` for the length of the window. I had checked D's
+five actions for dependencies and missed that the conditional migration two lines
+below the dispatch is a prerequisite OF it.
+
+**3. The number I told the operator to record in brief E was the wrong number.**
+I wrote "count the `REFUSED` lines". `cmdUpload` iterates a `byKey` map with one
+entry per distinct file (`:326-328`), so it prints one refusal per FILE, while
+`cmdRewrite` skips every OCCURRENCE of that key. A file referenced in six briefs
+is one refusal line and six surviving dead links. The line now says to join
+refused keys back to `manifest.occurrences` and record both numbers with the
+occurrence count as the headline. This is AGENTS.md's own "measure with the key
+the shipped code uses" rule, breached in a line I wrote to prevent a later
+surprise.
+
+**The pattern in this correction is not the findings, it is the confidence.** I
+published a six-row table of sweep verdicts — two defects, one gap, one open
+question, one clean, one not applicable — and three of those six rows were wrong.
+A sweep's output is a claim like any other, and I had presented mine as a closed
+category twice in a row while the reviewer was still finding things in it.
+
+### The counting-key sweep, done properly this time
+
+Round ten's brief E finding was a count keyed on the wrong thing. Rather than
+declare the class closed again — which is what went wrong the last two times — I
+walked every restored line that tells an operator to RECORD a number, and checked
+each against the key the code uses.
+
+**One more hit, in the same file, in the sibling line.** The `deliverable_events`
+mitigate said the expected count is "one row per updated deliverable" and then
+told the operator to "write the number down from the manifest". Those are two
+different numbers. `cmdRewrite` groups occurrences by `${occ.table}:${occ.id}` and
+emits one update per row that actually changed (`if (result.replaced === 0)
+{ untouched += 1; continue; }`, scripts/linear-media-rescue.mjs:415-421). So the
+expected event count is the number of DISTINCT `deliverables` statements in the
+generated forward SQL — not manifest rows (which span two tables and include
+`production_comments`, which fires no trigger), not occurrences (a row holding
+three rescued images is one update and one event), and not rows whose every
+occurrence was skipped for an unrescued file. The line now says to count the
+statements in `linear-media-rescue-forward.sql`.
+
+**The three other counting instructions check out**, each against its own key:
+brief A's A8 census points at `wlExcludedSummaryText`'s `offTeamAssignee.length`,
+which is the same per-sub-issue key the surface renders; brief F's debt census
+reads `linear_outbound_cutoff_debt_v1`, one row per outbox row, matching the
+disposition it reports; and brief F's step-0 census is item 75's own
+`group by status, legacy_parity, test_only`, quoted verbatim from the ledger.
+
+**Same defect, three shapes now, and they are all fan-out.** Files versus
+occurrences (round ten), manifest rows versus changed rows (here), and back in
+the first correction, `nativeOnly.count ≈ 195` versus the roster-filtered 37 that
+brief A's own DONE-WHEN had conflated. AGENTS.md:153-166 exists because a
+published count was wrong by 2.5× in the scary direction; every instance in this
+pass has been wrong in the direction that UNDER-states, which is worse for a
+rollback instruction because the operator stops looking sooner.
+
+**Codex round eleven: six findings, and the pattern in them is that the
+corrections were already in the briefs — clipped.** Round eleven ran on
+`41fed36` and returned six: two P1s on lines this pass wrote (C's C1 ordering
+`mitigate:`, D's dispatch action), one P1 on a line this pass quoted (F's step-0
+census), one P2 already fixed by the commit that landed while the round was
+running (E's `deliverable_events` count), and two on ORIGINAL brief lines this
+pass had never touched (E's upload pacing `mitigate:`, F5's `WHAT IT CHECKS`).
+
+**The two P1s in my own lines were both ordering, and both had the same shape:
+a precondition stated somewhere other than on the action.**
+
+1. *C, the C1 window.* The order I restored — merge, deploy, n8n root, secrets,
+   drill — puts the browser first, and the browser is the one half that cannot
+   be staged. The native branch is chosen on the card alone
+   (`String(post.video_deliverable_id||'').trim()`, index.html:33564 and three
+   more callers on `codex/native-urgent-dispatch-20260907`); there is no flag
+   and no fallback. Worse than the "no urgent alerts" I wrote: the deployed
+   gateway answers 400 `unsupported_action` (production-write/index.ts:7202),
+   which carries no `retry_safe`, so the browser takes the delivery-UNKNOWN path
+   and KEEPS the `syncview-native-urgent:v1:…` hold it wrote before the transport
+   (:33615-33616, :33630, :33664). The hold is keyed to the card's round and
+   outlives the deploy, so a press during the window durably disables that
+   button for that round in that browser. The window is avoidable by splitting
+   the merge so index.html lands last; the line now gives that order, and gives
+   the residual cost honestly for the case where the merge cannot be split.
+2. *D, the dispatch.* "This dispatch is genuinely first" was true of lane D's own
+   artifacts and false of the run, which deploys twelve functions from one SHA.
+   The candidate's `production-write` calls `production_native_intake_epochs`
+   unconditionally (index.ts:3678 on the candidate) and refuses 503 when the RPC
+   is absent, so a SHA carrying lane B's writers before lane B's SQL window has
+   closed takes Create Post/Submit down from a lane with no SQL of its own. The
+   precondition is now on the action. **One thing I could not establish and did
+   not guess:** whether the ancestry rule offers a way round it depends on the
+   lane merge order, and I could not find a documented merge order anywhere in
+   `docs/independence/` or this ledger. The line says so and routes it to the
+   coordinator.
+
+**The P1 in the quoted line is the one worth generalising.** F's step-0 census
+passes on item 75's own SQL, and I checked it in the counting sweep two commits
+ago — but I checked the `group by` query in that line and treated the LINE as
+checked. The other query item 75 prints, `select id, kind, legacy_parity, …`,
+names a column `public.mirror_outbox` does not have: the table carries `op`
+(b1-linear-data-model.sql:111-119) and `entity`/`operation`
+(b4-linear-outbound.sql:11-32), and `kind` is a deliverables column. As printed
+it fails with `42703` and returns nothing — on the single highest-value read in
+the whole ledger, one nobody has ever run, a failure that reads like a
+permissions problem and is a typo. **A quoted source is not a verified source,
+and one verified quotation in a line does not verify the line.** The brief now
+gives the query with the columns that exist; item 75 is append-only, so this
+paragraph is its correction.
+
+**And the finding underneath the other two: the truncation clipped the
+corrections along with the instructions.** E's pacing `mitigate:` ("one upload
+per 30 seconds… ~150 files… ~75 minutes") and F5's `WHAT IT CHECKS` ("the five
+dispositions") are original, uncut lines — and each is already contradicted, by
+name, in its own brief's ADVERSARIAL REVIEW section, at E:263-265 and F:396-398.
+Both of those `truth:` lines are themselves clipped. So the scoping workflow did
+not only cut instructions; it cut the lines that say the instructions are wrong,
+while leaving the wrong instruction intact and readable. A reader who trusts what
+is legible gets the defect and not the correction. That is a property of the
+remaining ~284, not of these two, and it is the strongest argument yet for
+restoring the review sections next.
+
+Both are corrected here and both are marked `[CORRECTED …]` rather than
+`[RESTORED …]`, each saying it was not truncated and was outside this pass's
+original scope. The facts, verified rather than taken from the review lines:
+30 s spacing self-refuses because the deciding count includes the row just
+reserved (`> RATE_LIMIT_PER_HOUR`, description-image-upload/index.ts:183-206),
+and the shipped script already defaults to `40_000` ms plus jitter with that
+reason in a comment (linear-media-rescue.mjs:331-334); the corpus is 1,166 in-cap
+brief files plus 75 comment files, so ~1,200 uploads at ~42.5 s is about
+**14 hours**, not 75 minutes, and the real count is the `distinct_files=` the E1
+scan prints. `linear_outbound_cutoff_debt_rows_v1()` has SIX branches, the second
+being `when not c.cutoff_enabled then 'cutoff_inactive'`
+(2026-09-06-linear-outbound-cutoff.sql:189-206), so before activation every
+non-terminal row classifies as `cutoff_inactive` and the four pre/post-cutoff
+dispositions cannot appear at all — a watcher built from that line would go blind
+during exactly the period it exists to guard. The view also carries no client
+filter and returns only four columns, so it cannot be scoped to real clients
+without joining back to `mirror_outbox` on `id`.
+
+**Scope, stated rather than quietly widened:** this pass has now corrected four
+lines that were never truncated (C's re-publish `undo:`, F's `mode:"off"`
+`undo:`, and these two). Each is marked as such in place. The ~284 clipped
+context lines remain untouched, no brief is marked safe as a runbook, and every
+warning banner stays.
+
+**Round eleven's scorecard for this pass, since the honest one matters more than
+the tidy one:** six findings, five real, one already fixed. Two were defects in
+lines I wrote, one in a line I quoted without checking, two in lines I had
+correctly left alone but whose in-document corrections the truncation had eaten.
+Eleven rounds in, the review is still finding a category per round.

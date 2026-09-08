@@ -13920,6 +13920,260 @@ unhandled-rejection handler were added with them, because the first draft of
 that section deadlocked its own stub and exited 0 with none of the checks run,
 which is the one way a test can be worse than absent.
 
+## 170. [2026-09-07/08, BUILT AND UNRUN — the exporter exists, the capture has NOT been taken; one owner decision and one number still missing] The Linear label catalog had no exporter, and the naming mint had no mint
+
+Lane B of the Linear exit (`docs/independence/LINEAR_EXIT_BRIEF_B.md`, branch
+`claude/lx-b-write-path`, rebased onto `origin/main` `4e57e74` — main moved by
+#1342 and #1343 after the briefs were written). Number 170 was reserved for this
+lane by item 168; it was free when this was appended. This entry records what
+was built, and — more importantly — the three choices inside it that become
+permanent on 2026-09-15.
+
+### 1. There was no label exporter anywhere, and there still is no capture
+
+`production_label_catalog_stage_attested` is the only door into
+`production_label_catalog_versions`, and without a row there the whole native
+label lane is inert: staff can neither see nor change labels on any deliverable
+after Linear lapses. Nothing in the repository produced the manifest that
+function demands. Verified: `git ls-tree -r 5bcc03bd7 | grep -i label` returns
+migrations, docs, QA harnesses and tests, and no exporter.
+
+`scripts/linear-label-catalog-export.js` (+ `.cli.js`) is that exporter.
+`docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md` is the owner's runbook and carries
+the single command. It is READ-ONLY against both Linear and Postgres.
+
+**The capture has not been taken.** It needs `api.linear.app` and a credential,
+neither of which reaches a session. It is the one item in the whole programme
+that is unrecoverable after the 15th.
+
+### 2. The scope ruling, and exactly what is being left behind
+
+The owner ruled: export "only on active cards". That applies cleanly to one half
+and not the other, so the two halves have different scopes.
+
+**(a) The catalog is taken WHOLE, and that is not a widening of the ruling.**
+`production_label_catalog_check_manifest`
+(`migrations/2026-09-05-native-label-catalog-foundation.sql:40`) validates a
+closed cursor chain, a terminal page, archived-inclusive entries and an exact
+count, and refuses partial evidence by construction. A filtered catalog cannot
+satisfy its own manifest. Taking it whole is cheap: the checker itself bounds
+the capture at 50 pages × 100 rows, 5000 rows and 5 MiB. If this reading is
+wrong the exporter is wrong, and it should be said before the capture is taken.
+
+**(b) Per-card label state is `deliverables.linear_raw -> issue -> labels`, and
+that is where the ruling bites.** The predicate, exactly:
+
+```sql
+where d.status not in ('posted', 'canceled', 'duplicate')
+  and d.linear_raw ->> 'archived' is null
+```
+
+Decided at the DELIVERABLE, not at the client. The three statuses are the
+terminal ones in the `deliverables` status check
+(`migrations/2026-07-06-b1-linear-data-model.sql:38-41`); `archived` is the
+marker `linear-inbound:903` stamps onto `linear_raw`. A client-level filter
+(`clients.active`, `clients.board_status`) was considered and rejected: it would
+also drop in-flight cards belonging to a client whose flag is stale.
+
+**WHAT IS DELIBERATELY NOT CAPTURED, permanently, after 2026-09-15: the label
+state of every posted, canceled, duplicate or archived card.**
+
+**THE ROW COUNT IS NOT IN THIS ENTRY, AND IT SHOULD BE.** The brief asked for
+it; this session has no route to the live backend and will not invent one. The
+exporter prints it, and the runbook says to record it here and in the
+attestation before attesting. Until someone does, nobody knows how big the
+excluded set is.
+
+### 3. Half (b) is more than a snapshot, and this is the part nobody had noticed
+
+Most of (b) reads our own database, so it survives the 15th. One part does not.
+
+`production_labels_write` (`migrations/2026-09-06-native-label-writes.sql:163-165`)
+raises `native_label_state_incomplete` unless the stored relation has a `nodes`
+array **and** `hasNextPage` exactly `false`. A card whose stored relation is
+paginated, missing or malformed therefore **can never have its labels changed on
+the native lane**, and the only repair is a re-read from Linear.
+
+So the exporter classifies every active card `complete` / `paginated` /
+`missing` / `malformed` and re-reads from Linear only the ones the native writer
+would refuse, emitting them as `repaired_relation`. **Applying those repairs to
+`deliverables.linear_raw` is an owner decision and was deliberately not built**:
+it is a direct write to a real client column that bypasses
+`production_deliverable_write`, and it should not be a session's call. The
+counts arrive with the capture; the decision can be made then.
+
+### 4. THE TRAP, and it is not self-guarding
+
+`production_label_catalog_capability()`
+(`migrations/2026-09-06-native-label-writes.sql:57-72`) reads **only** the
+`production_native_label_catalog` runtime flag. It never queries
+`production_label_catalog_versions`. Set that flag to `mode:"native"` with any
+well-formed UUID and capability reports `native` with no version staged; the
+refusal lands one call later inside `production_label_catalog_read_attested` as
+a 503. This confirms item 165.6 by reading the function body.
+
+The generated `4-capability-flag.sql` carries the warning in its own header and
+`test/native-label-catalog-export.js` goes red if that warning is removed, or if
+`capability()` ever starts reading the versions table without this entry being
+revisited.
+
+### 5. The naming mint (folded-in lane G, item 162 and its correction)
+
+`migrations/2026-09-07-native-identifier-mint.sql` — a `before insert or update`
+trigger on `deliverables` that mints `linear_identifier` for native cards.
+Runbook: `docs/ops/NATIVE_IDENTIFIER_MINT.md`.
+
+A trigger on the table rather than a change to any write function, because both
+provider mint sites (`linear-outbound:852` into `production_issue_create_linkage`,
+`:868` into `deliverable_write`) and every native creation path all update that
+one table. It replaces no existing function, so it cannot collide with the
+composed intake artifact.
+
+Three decisions worth arguing with:
+
+- **Native ordinals start at `observed_provider_max + 100000`.** Native names
+  keep the provider's shape, so they share its namespace; a high band cannot
+  collide with anything Linear mints before the cutoff. The prefix is derived
+  from what the provider actually used, never configured, and a team with two
+  prefixes refuses to seed rather than guessing (the item-161 failure mode).
+- **The capability self-guards** — native only when the flag says native AND a
+  seed row exists. Deliberately unlike the label capability in §4 above.
+- **Name stability is NOT flag-gated.** Once a name is handed out, a later
+  provider write keeps the native name and records the one it refused. Flipping
+  back to `provider` stops minting and renames nothing.
+
+Proved against a disposable PostgreSQL 16, not asserted about: 17 cases in
+`qa/native-identifier-mint/sql-proof.js` covering the no-op install, the
+half-armed flip, minting, collision step-over, 25 concurrent allocations, the
+provider write-back, the undo and two refusals. **The first run of that proof
+found a real bug** — `production_native_identifier_capability` was declared
+`stable` and takes `for share`, which PostgreSQL refuses in a non-volatile
+function, so every insert would have failed. A source-only assertion would not
+have caught it.
+
+**Still unrun against the live database**, and still open from item 162:
+whether native naming covers every surface that shows a name. `displayId`
+(`index.html:51816`) is the resolution point for the Production list, the
+command palette and the deep links, and it needs no change because it already
+prefers `linear_identifier`. Slack alert text and the Workload row header were
+not walked.
+
+### 6. Two error strings that would have lied to staff on the 15th
+
+Fixed in `_calNativePostErrorText` and `WRITE_UI_FAILURE_CODE_TEXT`, both inside
+lane B's index.html regions.
+
+`project_mapping_validation_unavailable` (gateway `index.ts:2325`) and
+`batch_parent_validation_unavailable` (`:2348`) both matched
+`/project|mapping|parent/` and reached "This client's Video and Graphics filing
+must be configured before a post can be created" — telling an SMM to fix a
+configuration that is already correct and that no configuration can fix. Same
+class as the 2026-08-20 `batch_parent_mapping_` case eight lines above it, one
+cause over: a DEPENDENCY problem dressed as a SETUP problem.
+
+`assignee_provider_unavailable` (`:2600`) matched no branch and reached the
+catch-all's "safe to retry" — the sentence that cost a videographer eleven
+identical submissions on 2026-08-26. Create Post sends `assignee_id` whenever
+its editor dropdown resolves, so every video post hits it.
+
+All three now name the dependency, say nothing was created, and point at
+reporting rather than retrying. The assertions in
+`test/create-post-error-names-the-cause.js` are written as negatives — neither
+wrong sentence can be reached from these codes again, however the mapper is
+later rearranged — and they check that a genuine `project_mapping_missing` still
+gets the client-filing sentence, so a true message was not removed to prevent a
+false one.
+
+### 7. Confirmed and corrected from the briefs, by reading the source
+
+- **Item 165.3 is right and the brief was wrong** about `linear_team_mapping_unavailable`
+  and `status_mapping_unavailable` being on Create Post. `linearStateIdForCreate`
+  has exactly one caller, `index.ts:3604` inside `handleProductionCreate`, which
+  is dead behind the unconditional 403 `production_create_closed`. Create Post
+  and Submit never reach either code. They are Production-tab only.
+- **`linear-outbound` writes `linear_identifier` at one line, not two.** Item
+  162's correction names `:857` and `:868`; on `origin/main` `4e57e74` the two
+  minted values are `clean(completeIssue.identifier)` at **`:852`** (into
+  `production_issue_create_linkage` as `p_issue.identifier`) and `:868` (into
+  `deliverable_write` as `linear_identifier`). Both still reach the table, so
+  the correction's conclusion holds; only the line number is off by five.
+- **`production-write` copies, it never mints.** One reference,
+  `index.ts:1576`, `linear_identifier: clean(row.linear_identifier) || null`,
+  and four `identifier: null` at create. Pinned by a test so a future mint
+  there does not silently duplicate this one.
+
+### 8. Belongs to other lanes
+
+- **`WRITE_UI_FAILURE_CODE_CLASS` (index.html:26711-26855) files all three
+  codes above under `wait`.** Correct today — a dependency was unreachable and
+  nothing was committed — and a permanent lie from the 15th, when `wait` will
+  advise an SMM to keep trying something that can never succeed. That block is
+  outside lane B's assigned region (26859-27450), so it was not touched. It
+  needs an owner-visible decision about whether a fourth class exists for
+  "gone, not late". The `WRITE_UI_FAILURE_CODE_TEXT` entries added in §6 are a
+  local patch over it, not a fix for it.
+- **THE INTEGRATION CANDIDATE `5bcc03bd7` IS BEHIND MAIN, AND NOT ONLY IN
+  index.html.** Every lane brief says to lift artefacts from it. Measured on
+  this branch: `git ls-tree 5bcc03bd7 migrations/` returns 106 files and
+  `git ls-tree origin/main migrations/` returns 92, but the sets are not nested
+  — `migrations/2026-09-07-deliverable-identifier-team-move-repair.sql` is on
+  main and **absent from the candidate**. That file arrived with PR #1333
+  (`3ea7c04`, `d032cf5`), the same PR item 163 records as re-anchoring the
+  Production deep link on `linear_identifier`. `git diff origin/main 5bcc03bd7`
+  scores it `-194`, and index.html at `+3374/-`. So a wholesale lift of the
+  candidate's `migrations/` or `index.html` **reverts #1333**, and #1342 and
+  #1343 merged after that. `git merge-base` will not tell you this: the session
+  clone is shallow and the candidate was fetched at `--depth=1`, so merge-base
+  answers with main's own tip and is simply wrong. Compare trees, not history.
+  This is why lane B lifted the two label migrations FILE BY FILE and did not
+  take index.ts or index.html from the candidate at all.
+- The two label migrations are lifted onto this branch but the gateway half
+  (candidate `production-write/index.ts` + `policy.mjs`, work item B1) is **not**
+  lifted. `test/native-label-catalog-foundation.js` AND `test/native-label-writes.js`
+  both assert against that gateway, so neither is on this branch. Whoever lands
+  B1 restores both, together with `qa/native-label-catalog/` — see §9.
+
+### 9. A LIFTED TEST WITHOUT ITS HARNESS, HIDDEN BY ITS OWN SKIP — read this before lifting any candidate test
+
+This lane's first push turned CI red, and the way it did is a trap every other
+lane is currently exposed to.
+
+`test/native-label-writes.js` was lifted from the candidate without
+`qa/native-label-catalog/`, the harness it spawns. Locally it printed
+`SKIP native label writes: explicit disposable PostgreSQL required` and exited
+**0**, so a full `npm test` was green and the omission was invisible. **CI sets
+`F63_REQUIRE_POSTGRES=1`**, so there the same suite ran, could not find the
+harness, and threw `native_labels_actual_lane_failed_private_evidence_retained`
+— a message naming neither the missing file nor the reason.
+
+Two things follow, and both are general:
+
+1. **A sandbox `npm test` is NOT the CI suite.** Three suites are gated behind
+   `F63_REQUIRE_POSTGRES` (`f63-flip-runbook-sql-gate`,
+   `linear-deliverables-reconcile-bounded-postgres`, and this lane's
+   `native-identifier-mint`) and they SKIP silently without it. Run the suite
+   with a disposable PostgreSQL 16 on a loopback port and
+   `PGHOST/PGPORT/PGUSER/PGDATABASE` all set — **`PGDATABASE=postgres` included,
+   which `f63-flip-runbook-sql-gate.js:531` asserts outright** — or your green
+   run has not covered what CI covers. Measured both ways on this branch: 1 of
+   414 failed either way, but only the gated run actually executes the
+   behavioural proofs.
+2. `qa/native-label-catalog/write-proof.mjs` and `handler-proof.mjs` both LOAD
+   `supabase/functions/production-write/index.ts` and pin its contents, so they
+   are useless until B1 lands. `sql-proof.js` beside them is gateway-free and
+   could stand alone, but nothing in `test/` invokes it on the candidate either.
+
+**The guard: `test/gated-suites-have-their-harness.js`.** Every path a top-level
+suite hands to `path.join(__dirname|root, …)` must exist, whatever any gate
+would have decided — a spelling check on file paths, with no database, no
+credentials and no gate of its own. It resolves each path against the base that
+suite actually uses (the first draft resolved everything against `test/` and
+produced ~200 false alarms, because most suites join from a `root` they set to
+the repository root). Mutation-proven: restoring `test/native-label-writes.js`
+makes it exit 1 naming `qa/native-label-catalog/write-proof.mjs`, and it asserts
+it resolved 129 real paths so it cannot pass by matching nothing.
+
+Six sessions are lifting candidate tests right now. This is the shape that bites.
 ---
 
 ## 174. [2026-09-07, lane LX-F, PART 1 SHIPPED — the dead-man's switch survives the Linear cutoff; the cutoff itself is prepared separately] Four of the eight monitored lanes die with Linear, and the switch's second host dies with them
@@ -14205,3 +14459,25 @@ exercised.
   it. STEP 0 exists precisely because the mirror_outbox census is still unread.
 - **`linear-outbound-drain.yml` still has no heartbeat and no lane.** STEP 2
   leans on it. Registering it needs its post-cutoff disposition decided first.
+
+**Addendum, 2026-09-08, after lane B (PR #1349) merged.** Two corrections to
+this entry's own runbook, both made in the same push that merged `main` in:
+
+1. **P1 is "applied and seeded", not "merged".** `docs/ops/NATIVE_IDENTIFIER_MINT.md`
+   opens with *"Status: SOURCE ONLY. `migrations/2026-09-07-native-identifier-mint.sql`
+   has not been applied to the live database and no team has been seeded."* So
+   lane B landing does NOT satisfy the gate on STEP 3. Until the migration is
+   applied and each team seeded, the trigger `zzz_production_native_identifier_mint`
+   does not exist and flipping outbound off still costs every new card its name.
+   The runbook now says so and names the read-back that proves it.
+2. **The mint is at `:852`, not `:857`.** Items 162 and 163 name `:857`; the
+   runbook copied that. Verified against the source: the two minted values are
+   `clean(completeIssue.identifier)` at `:852` (into
+   `production_issue_create_linkage` as `p_issue.identifier`) and `:868` (into
+   `deliverable_write`). Lane B's item 170 records the identical correction
+   independently. The conclusion is unchanged; only the line number was off.
+
+Ledger numbering after the merge: `main` holds 160, 161, 162, 170 (lane B) and
+174 (this lane's part 1); this branch adds 175. No collision — lane C's claim on
+175 has not merged. Duplicate check after merging `main` returns only the four
+headers (`13`, `14`, `22`, `23`) item 168 records as predating this program.

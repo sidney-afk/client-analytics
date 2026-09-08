@@ -26857,6 +26857,32 @@
        the messages this notification already carried; they stay word for word,
        and only gain the code suffix every other message now carries. */
     const WRITE_UI_FAILURE_CODE_TEXT = {
+        /* THE THREE REFUSALS THAT STOP BEING TRANSIENT ON 2026-09-15.
+           WRITE_UI_FAILURE_CODE_CLASS files all three under `wait` -- correct
+           today, because each one means a dependency was unreachable and
+           nothing was committed, and the dependency usually comes back. It
+           stops being correct the day the Linear account lapses: the gateway
+           raises the identical code, and `wait` then advises an SMM to keep
+           trying something that can never succeed again. That is the exact
+           shape of the 2026-08-26 incident, where "safe to retry" cost a
+           videographer eleven identical submissions.
+           These entries do not reclassify anything -- this object exists for
+           "codes whose advice is more specific than their class" -- they add
+           the two sentences the class cannot carry: it is NOT this client's
+           setup, and if it does not clear on its own, no amount of retrying
+           will clear it. See OPEN_REPAIRS 170. */
+        project_mapping_validation_unavailable: {
+            title: 'Post not created',
+            text: 'The linked task system could not be reached, so this post was not filed. Nothing was created. This is not a problem with this client\u2019s setup and no setting will fix it \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
+        batch_parent_validation_unavailable: {
+            title: 'Post not created',
+            text: 'The linked task system could not confirm the batch this post would join, so nothing was created. This is not a problem with the batch or with this client\u2019s setup \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
+        assignee_provider_unavailable: {
+            title: 'Nothing was changed',
+            text: 'The linked task system could not confirm who is assignable, so nothing was changed. The editor list is not wrong and neither is this client\u2019s setup \u2014 if it does not clear on its own within a few minutes, report it rather than trying again.'
+        },
         invalid_intake_item_name: {
             title: 'Post name too long',
             text: 'One of the post names is longer than a sub-issue title can carry. Shorten it, then create the post again.'
@@ -41367,6 +41393,24 @@
         if (/^batch_parent_mapping_/.test(code)) {
             return 'That batch cannot hold this kind of post — it was created before we started filing Video and Thumbnail work separately, so it only has a home for one of them. Start a new batch, or pick a post shape that batch already covers.';
         }
+        /* THE CATCH-ALL BELOW BECOMES A PERMANENT LIE ON 2026-09-15.
+           `project_mapping_validation_unavailable` (gateway index.ts:2325) and
+           `batch_parent_validation_unavailable` (:2348) are raised when the
+           linked task system cannot be READ. Both match /project|mapping|parent/,
+           so both land on the client-filing sentence -- which tells an SMM to
+           configure something that is already configured correctly, and that
+           no amount of configuring can ever clear. It is the same defect as the
+           2026-08-20 batch_parent_mapping_ case eight lines above, one cause
+           over: a DEPENDENCY problem dressed as a SETUP problem.
+           Named here rather than left to the catch-all so that a partial
+           rollout, or a browser tab opened before the native lane shipped,
+           still says the true cause. See OPEN_REPAIRS 170. */
+        if (code === 'project_mapping_validation_unavailable') {
+            return 'The linked task system could not be reached, so this post was not filed. Nothing was created \u2014 and this is not a problem with this client\u2019s filing, which no setting can fix. If it does not clear on its own within a few minutes, report it rather than trying again.';
+        }
+        if (code === 'batch_parent_validation_unavailable') {
+            return 'The linked task system could not confirm the batch this post would join, so nothing was created. This is not a problem with the batch or with this client\u2019s filing. If it does not clear on its own within a few minutes, report it rather than trying again.';
+        }
         if (/project|mapping|parent/.test(code)) return "This client's Video and Graphics filing must be configured before a post can be created.";
         if (Number(error && error.status) === 401 || Number(error && error.status) === 403) return 'Admin or SMM sign-in is required to create this post.';
         /* TWO MAPPERS, ONE PATH, and the branch went into the wrong one.
@@ -41391,6 +41435,17 @@
            sends them to the place they can see it. */
         if (code === 'native_intake_checkpoint_failed') {
             return 'The batch was created, but this browser could not save its progress — so the posts may be only half made. Do NOT press Create post again; that would create a second batch. Reload the page and check the batch in Production first. If this repeats, clear this site’s browser storage.';
+        }
+        /* `assignee_provider_unavailable` (gateway index.ts:2600) matches NO
+           branch above, so it reached the reader as "The post was not created.
+           Your request is safe to retry." The Create Post dialog sends
+           `assignee_id` whenever its editor dropdown resolves, so every video
+           post hits this the moment the provider stops answering -- and the
+           advice is false forever. That sentence is the one the file's own
+           2026-08-26 note is about. Say what actually failed, and say that
+           retrying is not the fix. */
+        if (code === 'assignee_provider_unavailable') {
+            return 'The linked task system could not confirm who is assignable, so this post was not created. Nothing was created, and the editor list is not wrong. If it does not clear on its own within a few minutes, report it rather than trying again.';
         }
         /* The catch-all is the honest answer for a code nobody has mapped, and
            it is also where three separate defects have hidden -- batch_team_mismatch,

@@ -53,11 +53,58 @@ const LATCH_ACTION = 'monitoring_watchdog_latch';
  * routinely delivers ~13 runs/day, not 144). Too tight and it becomes noise;
  * too loose and an outage runs for a day before anyone hears about it.
  */
+/*
+ * LANE RETIREMENT — added 2026-09-07 for the Linear exit (OPEN_REPAIRS 174).
+ *
+ * Four of these lanes cannot outlive Linear. `reconciler_pager`,
+ * `production_write_drill`, `production_shadow_audit` and
+ * `b1_incremental_refresh` are each hosted by a workflow whose "require
+ * secrets" step demands LINEAR_API_KEY, and each writes its heartbeat under
+ * `if: always()`. On the day the credential dies they do not go quiet — they
+ * RUN, fail, beat `ok:false`, latch a `failing` incident that never clears
+ * (nothing can un-latch a lane that can never pass again), and leave a red run
+ * behind every day. That is the estate teaching its owner to ignore the one
+ * channel that would have told him about a real failure.
+ *
+ * So a lane now carries three facts it did not carry before:
+ *
+ *   hosts        — the workflow file(s) that run it and write its heartbeat.
+ *   retires_with — 'linear' if this lane is scheduled to die with the exit.
+ *                  Declarative today; it changes no behaviour on its own.
+ *   retired      — null while the lane is watched. At cutoff this becomes
+ *                  `{ at, reason }` and the lane leaves the watched set.
+ *
+ * `retired` is NOT a way to make a lane quietly disappear, which would be the
+ * exact silence this file exists to prevent. Two things stop that:
+ *
+ *   1. Every `--check` run reports its retired lanes by name in the JSON, so
+ *      what the switch is deliberately NOT watching is stated on every pass.
+ *   2. test/monitoring-watchdog.js enforces the invariant in BOTH directions
+ *      against the workflow files themselves: an active lane must have at
+ *      least one actively-scheduled host, and a retired lane must have none.
+ *      You therefore cannot disable a Linear workflow without retiring its
+ *      lane, and you cannot retire a lane while its workflow still runs. The
+ *      two halves of the cutoff are welded together by the test suite instead
+ *      of by a note in a runbook.
+ */
 const LANES = Object.freeze([
-  { key: 'reconciler_pager', label: 'reconciler drift pager', cadence: 'schedule ~10m (drifts)', max_age_minutes: 240 },
-  { key: 'monitoring_watchdog', label: 'monitoring watchdog', cadence: 'schedule 15m + reconciler', max_age_minutes: 180 },
-  { key: 'production_write_drill', label: 'production write drill', cadence: 'daily 04:17 UTC', max_age_minutes: 2160 },
-  { key: 'b1_incremental_refresh', label: 'B1 incremental refresh', cadence: 'schedule 30m + pager', max_age_minutes: 240 },
+  { key: 'reconciler_pager', label: 'reconciler drift pager', cadence: 'schedule ~10m (drifts)', max_age_minutes: 240,
+    hosts: ['linear-deliverables-reconcile.yml'], retires_with: 'linear', retired: null },
+  /*
+   * The watchdog's own lane, and the only one with more than one host. Two
+   * independent workflows run `--check`, and the check writes this beat, so
+   * either host dying is still reported by the other. `monitoring-crosscheck.yml`
+   * exists because the second host USED to be linear-deliverables-reconcile.yml,
+   * which the cutoff disables — re-homing it is what keeps "a checker cannot
+   * report its own death" true after Linear is gone.
+   */
+  { key: 'monitoring_watchdog', label: 'monitoring watchdog', cadence: 'schedule 15m + 20m crosscheck', max_age_minutes: 180,
+    hosts: ['monitoring-deadman.yml', 'monitoring-crosscheck.yml', 'linear-deliverables-reconcile.yml'],
+    heartbeat_flag: '--check', retired: null },
+  { key: 'production_write_drill', label: 'production write drill', cadence: 'daily 04:17 UTC', max_age_minutes: 2160,
+    hosts: ['production-write-drill.yml'], retires_with: 'linear', retired: null },
+  { key: 'b1_incremental_refresh', label: 'B1 incremental refresh', cadence: 'schedule 30m + pager', max_age_minutes: 240,
+    hosts: ['b1-linear-incremental-refresh.yml'], retires_with: 'linear', retired: null },
   /*
    * Added 2026-08-07 after an audit of what actually alerts.
    *
@@ -75,7 +122,8 @@ const LANES = Object.freeze([
    * 2160 minutes (36h) matches the write drill: one missed daily run is
    * tolerated for a re-run or a schedule slip, two are not.
    */
-  { key: 'production_shadow_audit', label: 'production shadow audit', cadence: 'daily 05:17 UTC', max_age_minutes: 2160 },
+  { key: 'production_shadow_audit', label: 'production shadow audit', cadence: 'daily 05:17 UTC', max_age_minutes: 2160,
+    hosts: ['production-shadow-audit.yml'], retires_with: 'linear', retired: null },
   /*
    * Added 2026-08-08, from the reset audit. Both nightlies had been red for
    * WEEKS in silence — samples 26 consecutive nights (since 2026-07-13),
@@ -84,8 +132,10 @@ const LANES = Object.freeze([
    * it was: zero pages across all 42 failures. Same 36h tolerance as the other
    * dailies; the run-and-failed page covers the red itself.
    */
-  { key: 'samples_e2e_nightly', label: 'samples E2E nightly', cadence: 'daily 06:00 UTC', max_age_minutes: 2160 },
-  { key: 'calendar_e2e_nightly', label: 'calendar E2E nightly', cadence: 'daily 08:00 UTC', max_age_minutes: 2160 },
+  { key: 'samples_e2e_nightly', label: 'samples E2E nightly', cadence: 'daily 06:00 UTC', max_age_minutes: 2160,
+    hosts: ['samples-e2e-nightly.yml'], retired: null },
+  { key: 'calendar_e2e_nightly', label: 'calendar E2E nightly', cadence: 'daily 08:00 UTC', max_age_minutes: 2160,
+    hosts: ['calendar-e2e-nightly.yml'], retired: null },
   /*
    * Added 2026-08-23, by owner request: page when the assurance ledger stops
    * being true.
@@ -106,7 +156,8 @@ const LANES = Object.freeze([
    * the whole design. 2160 minutes (36h) is the same tolerance as every other
    * daily lane: one missed run is a schedule slip, two are not.
    */
-  { key: 'assurance_ledger', label: 'assurance ledger freshness', cadence: 'daily 07:37 UTC', max_age_minutes: 2160 },
+  { key: 'assurance_ledger', label: 'assurance ledger freshness', cadence: 'daily 07:37 UTC', max_age_minutes: 2160,
+    hosts: ['assurance-ledger-freshness.yml'], retired: null },
 ]);
 
 function clean(value) {
@@ -115,6 +166,32 @@ function clean(value) {
 
 function laneByKey(key) {
   return LANES.find(lane => lane.key === clean(key)) || null;
+}
+
+/**
+ * The lanes this switch is currently responsible for. A retired lane stays in
+ * the registry — with the date and reason it stopped being watched — but is no
+ * longer read, paged on, or heartbeat-able. Keeping the row is the point: it is
+ * what lets `--check` state on every pass which lanes it is deliberately
+ * ignoring, and what lets the suite check that claim against the workflow files.
+ */
+function activeLanes(lanes = LANES) {
+  return lanes.filter(lane => !lane.retired);
+}
+
+function retiredLanes(lanes = LANES) {
+  return lanes.filter(lane => Boolean(lane.retired));
+}
+
+/**
+ * The watchdog argument that causes a lane's heartbeat to be written. Every
+ * lane but one is beaten by an explicit `--heartbeat=<key>` step in its host
+ * workflow; `monitoring_watchdog` is beaten by the `--check` pass itself, at
+ * the end of `runCheck`, so that its beat proves a COMPLETED pass rather than a
+ * started one.
+ */
+function heartbeatFlagFor(lane) {
+  return (lane && lane.heartbeat_flag) || `--heartbeat=${lane && lane.key}`;
 }
 
 function payloadOf(row) {
@@ -187,7 +264,7 @@ function latchedLanes(rows) {
  * Pure decision function: which lanes are dead, which of those are new, and
  * which previously-dead lanes have come back and should un-latch.
  */
-function watchdogDecision({ heartbeatRows, latchRows, nowMs, lanes = LANES }) {
+function watchdogDecision({ heartbeatRows, latchRows, nowMs, lanes = activeLanes() }) {
   const newest = newestHeartbeats(heartbeatRows);
   const latched = latchedLanes(latchRows);
   const stale = [];
@@ -326,6 +403,20 @@ async function insertEvent(action, payload) {
 async function writeHeartbeat(laneKey, { ok = true } = {}) {
   const lane = laneByKey(laneKey);
   if (!lane) throw new Error(`unknown monitoring lane: ${laneKey}`);
+  /*
+   * A retired lane must not be able to beat. If a workflow is still calling
+   * this after its lane was retired, the retirement and the estate disagree,
+   * and the loud version of that disagreement is a red run on the workflow
+   * that should no longer be scheduled. The silent version is a heartbeat
+   * written into a lane nobody reads — which is the failure this whole file
+   * exists to make impossible.
+   */
+  if (lane.retired) {
+    throw new Error(
+      `monitoring lane ${lane.key} was retired (${lane.retired.at || 'unknown date'}: `
+      + `${lane.retired.reason || 'no reason recorded'}) but its workflow still ran. `
+      + 'Un-retire the lane or stop scheduling its host.');
+  }
   const payload = {
     lane: lane.key,
     ok: ok !== false,
@@ -360,8 +451,9 @@ async function readState() {
    * One bounded request per lane is exact by construction and cannot rot as
    * cadences change.
    */
+  const watched = activeLanes();
   const [heartbeatRows, latchRows] = await Promise.all([
-    Promise.all(LANES.map(lane => restRows(
+    Promise.all(watched.map(lane => restRows(
       `deliverable_events?select=id,ts,payload&action=eq.${HEARTBEAT_ACTION}`
       + `&payload->>lane=eq.${encodeURIComponent(lane.key)}&order=id.desc&limit=1`,
     ))).then(perLane => perLane.flat()),
@@ -370,7 +462,7 @@ async function readState() {
     // one lane flaps far more than the rest. Too small a window silently reads
     // an absent latch as "not latched" and re-pages an incident every 15
     // minutes.
-    restRows(`deliverable_events?select=id,ts,payload&action=eq.${LATCH_ACTION}&order=id.desc&limit=${LANES.length * 20}`),
+    restRows(`deliverable_events?select=id,ts,payload&action=eq.${LATCH_ACTION}&order=id.desc&limit=${watched.length * 20}`),
   ]);
   return { heartbeatRows, latchRows };
 }
@@ -437,6 +529,14 @@ async function runCheck() {
   return {
     mode: 'check',
     dry_run: DRY_RUN || undefined,
+    /*
+     * Stated on EVERY pass, not just the pass that retired them. A reader of
+     * one run's output can see the whole watched set and the whole unwatched
+     * set without going to the source. Retirement is a decision; a decision
+     * nobody can see is indistinguishable from a gap.
+     */
+    watching: activeLanes().map(lane => lane.key),
+    retired: retiredLanes().map(lane => ({ lane: lane.key, ...lane.retired })),
     stale: decision.stale,
     recovered: decision.recovered.map(row => row.lane),
     healthy: decision.healthy.map(row => ({ lane: row.lane, age_minutes: row.age_minutes, suppressed: row.suppressed })),
@@ -515,12 +615,15 @@ module.exports = {
   LATCH_ACTION,
   FAILING_KIND,
   STALE_KIND,
+  activeLanes,
   ageMinutes,
   failingPageSpec,
+  heartbeatFlagFor,
   laneByKey,
   latchKey,
   latchedLanes,
   newestHeartbeats,
+  retiredLanes,
   stalePageSpec,
   watchdogDecision,
 };

@@ -10,10 +10,11 @@
  *
  * Root cause: `.cal-card-focused`'s box-shadow (and the sibling
  * `.cal-card-flash`/pulse/hover effects that share the same color family)
- * reads its color from the `--sv-shadow-rgba-94-106-210-*` custom
+ * reads its color from six `--sv-shadow-rgba-94-106-210-*` custom
  * properties -- the brand indigo, rgb(94,106,210). The dark-theme override
- * block flattened every one of those to plain black (rgba(0,0,0,…)), which
- * is indistinguishable from the app's near-black dark background: a ring
+ * block flattened five of those six (the sixth is fully transparent and was
+ * already untouched) to plain black (rgba(0,0,0,…)), which is
+ * indistinguishable from the app's near-black dark background: a ring
  * meant to say "this one" instead said nothing. Every OTHER brand-indigo
  * token in the file (e.g. --sv-border-9aa3f0, --sv-fg-4a54c0) is brightened
  * for dark mode instead of blackened -- this family was the one exception.
@@ -27,9 +28,17 @@
  * background; the fix produces a clearly visible indigo ring, matching the
  * light-mode version's legibility.
  *
- * This suite pins the dark-theme override block itself, since the bug was
- * entirely in those six custom-property values, not in the box-shadow rule
- * that consumes them (which was already correct and untouched here).
+ * Codex review, PR #1359: that color fix alone wasn't sufficient --
+ * `.cal-card-focused` (specificity 1) lost to `.cal-card.cal-card-posted`
+ * and `.cal-card:hover` (specificity 2-3), which each carry their own
+ * static box-shadow, so a posted or hovered linked card still showed no
+ * ring in either theme. `.cal-card-focused`'s box-shadow now carries
+ * `!important` to win regardless. Verified with a real headless-Chromium
+ * computed-style check of the posted+hovered case (done by hand, not kept
+ * as a suite here -- see the note near the bottom of this file for why).
+ *
+ * This suite pins the dark-theme override block (five non-transparent
+ * tokens) and the `!important` on the consuming rule.
  */
 const fs = require('fs');
 const path = require('path');

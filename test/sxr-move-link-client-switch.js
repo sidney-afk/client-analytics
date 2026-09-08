@@ -38,6 +38,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { stripComments } = require('./helpers/strip-comments');
 
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
@@ -286,9 +287,11 @@ function makeSandbox() {
        these statements names the very functions being ordered — `indexOf` on a
        bare call finds the explanation first and reports a false position. The
        sibling suite hit the same trap on `_sxrSyncStatusFromLinear`. */
-    const body = grabFunc('_sxrMoveLink')
-      .replace(/\/\*[\s\S]*?\*\//g, ' ')
-      .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    // The house helper, not a hand-rolled strip: `/*` inside a string is not a
+    // comment, and the raw regex silently blinded a dozen gates to ~64k
+    // characters of index.html (OPEN_REPAIRS 145). test/comment-strip-is-honest.js
+    // fails any suite that reintroduces it, and it failed this one.
+    const body = stripComments(grabFunc('_sxrMoveLink'), ' ');
     const captureAt = body.indexOf('const slug = sxrClientSlug(sxrState.client)');
     const awaitAt = body.indexOf('await _writeUiLinkSlotSealedLive');
     const compareAt = body.indexOf('sxrClientSlug(sxrState.client) !== slug');

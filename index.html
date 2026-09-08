@@ -19586,13 +19586,28 @@
                 || Number(canonical.version) !== row.covered_version
                 || String(canonical.row_updated_at || canonical.updated_at || '') !== String(row.covered_updated_at);
         });
+        // NEWEST FIRST ACROSS BOTH SOURCES. `wlRenderTweakComments` shows three
+        // rows and collapses the rest as "older comments", so the order here
+        // decides what an editor actually reads. Concatenating canonical then
+        // source put every card note behind every canonical one regardless of
+        // when it was written: a tweak a client submitted minutes ago sat behind
+        // three older canonical rows and was described as older than them. That
+        // is the same failure the covered-rows fix addressed from the other
+        // direction, and this popover exists to surface exactly that note.
+        // Ties keep canonical before source, which is the previous order; an
+        // undated row sorts last rather than jumping the queue on a NaN.
+        const at = row => {
+            const value = Date.parse(row.createdAt || '');
+            return Number.isFinite(value) ? value : -Infinity;
+        };
         const shown = [...rows, ...source]
             .filter(row => !row.deleted_at && !row.resolved_at && !row.deleted && !row.done)
             .map(row => ({
                 author: row.author_name, body: row.body,
                 createdAt: row.source_created_at || row.created_at,
                 fromCard: row.source_only === true
-            }));
+            }))
+            .sort((a, b) => at(b) - at(a));
         shown.native = true;
         // `complete` above proves the CANONICAL thread was read whole. The card
         // projection carries its own completeness and must not borrow it —

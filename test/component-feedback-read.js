@@ -211,6 +211,51 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
       assert.equal(projected, null, 'an entry with no timestamp projects an honest absence');
       assert.equal(imported, new Date(0).toISOString(), 'even though the importer defaults it to the epoch');
     });
+    await check('PARITY MATRIX: every shape the importer accepts is covered, not duplicated', async () => {
+      // Three divergences between this projection and the F42 importer have now
+      // been found ONE AT A TIME by review — is_tweak, source_created_at,
+      // resolved_at — each with the same consequence: `sameCurrentComment`
+      // compares the field strictly, the values disagree, coverage becomes
+      // impossible and the note duplicates forever. Finding the fourth the same
+      // way would be a process failure, so this drives BOTH real functions over
+      // a matrix of the raw shapes historical cards actually contain and asserts
+      // the projection is covered by exactly what the importer would have
+      // written. A new divergence fails here instead of in a review round.
+      const importScope = { productionId: 'pc-fixture', deliverableId: target.id, surface: 'calendar',
+        cardId: target.card_id, component: 'video', team: 'video', importRunId: 'fixture-run', resolvedAudience: 'internal' };
+      const base = { id: 'shape', body: 'Same text' };
+      const shapes = [
+        { label: 'author and role present', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now } },
+        { label: 'no author at all', raw: { ...base, role: 'smm', created_at: now } },
+        { label: 'no author and no role', raw: { ...base, created_at: now } },
+        { label: 'client role, no author', raw: { ...base, role: 'client', created_at: now } },
+        { label: 'upper-case role', raw: { ...base, author: 'Fixture reviewer', role: 'SMM', created_at: now } },
+        { label: 'updated_at only', raw: { ...base, author: 'Fixture reviewer', role: 'smm', updated_at: now } },
+        { label: 'ts only', raw: { ...base, author: 'Fixture reviewer', role: 'smm', ts: now } },
+        { label: 'done with no done_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true } },
+        { label: 'resolved with no resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, resolved: true } },
+        { label: 'done with done_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, done_at: now } },
+        { label: 'done with resolver name', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, done_by: 'Fixture Reviewer' } },
+        { label: 'numeric-string round', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, round: '2' } },
+        { label: 'zero round', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, round: 0 } },
+        { label: 'edited', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, edited_at: now } },
+      ];
+      const divergent = [];
+      for (const shape of shapes) {
+        const imported = importer.normalizeComment({ ...shape.raw, _source_field: 'video_tweaks' }, importScope, null);
+        reset([shape.raw]);
+        db.production_comments = [{ ...canonical(shape.raw.id),
+          author_name: imported.author_name, role: imported.role, body: imported.body,
+          audience: imported.audience, is_tweak: imported.is_tweak, round: imported.round,
+          source_created_at: imported.source_created_at, source_updated_at: imported.source_updated_at,
+          edited_at: imported.edited_at, deleted_at: imported.deleted_at,
+          resolved_at: imported.resolved_at, resolved_by_name: imported.resolved_by_name }];
+        const row = (await call()).body.feedback.rows[0];
+        if (!row || row.covered_by !== shape.raw.id) divergent.push(shape.label);
+      }
+      assert.deepEqual(divergent, [],
+        'these raw shapes project something the importer would not have written, so they duplicate forever: ' + divergent.join('; '));
+    });
     await check('an imported note carrying only updated_at is covered instead of duplicating forever', async () => {
       // The end the reader actually sees: without the fallback this row can
       // never be covered, so the same feedback shows twice and can displace a

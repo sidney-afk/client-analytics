@@ -49,10 +49,23 @@ export async function importedCommentId(scope, nativeId) {
 const tweakFlag = (raw, field) => raw.is_tweak === true || /_tweaks$/.test(field) ? true
   : typeof raw.is_tweak === 'boolean' ? raw.is_tweak : null;
 
+// Every identity field below is derived by executing the F42 importer's rule,
+// not a second rule that resembles it. `sameCurrentComment` compares these
+// strictly, so any divergence makes coverage impossible and the note duplicates
+// forever. Three such divergences were found one at a time by review before
+// `test/component-feedback-read.js` grew the parity matrix that now drives both
+// real functions over every raw shape a historical card contains.
+//
+// The importer defaults a missing role to `smm` purely to pick the author label,
+// and that default is used HERE for the same purpose only: the emitted `role`
+// stays null when the entry has none, because an unknown role is deliberately
+// non-disqualifying in the match and inventing one would start refusing
+// coverage rather than granting it.
 function sourceComment(raw, scope, field, index) {
   const id = clean(raw.id || raw.comment_id || raw.native_comment_id);
   const deleted = truthy(raw.deleted) || truthy(raw.is_deleted) || !!clean(raw.deleted_at);
   const resolved = truthy(raw.done) || truthy(raw.resolved) || !!clean(raw.resolved_at);
+  const importerRole = clean(raw.role || 'smm').toLowerCase();
   // Same shape as the tweak-flag rule above, and the same failure if it drifts:
   // the F42 importer accepts an entry that carries only `updated_at` and writes
   // that value as `source_created_at`
@@ -66,19 +79,28 @@ function sourceComment(raw, scope, field, index) {
   // absence the importer records for it.
   const created = stamp(raw.source_created_at || raw.created_at || raw.createdAt || raw.ts
     || raw.updated_at);
+  const updated = stamp(raw.source_updated_at || raw.updated_at || raw.updatedAt) || created;
+  // The importer dates a resolution it was told about but not WHEN, from the
+  // updated time. Leaving this null made the strict comparison unmeetable, so a
+  // resolved historical note showed twice for good.
+  const resolvedAt = stamp(raw.resolved_at || raw.done_at)
+    || (truthy(raw.done) || truthy(raw.resolved) ? updated : null);
   return {
     id: 'source:' + JSON.stringify([scope.surface, scope.card_id, scope.component, field, id, index]),
     native_id: id, parent_native_id: clean(raw.parent_id || raw.parentId),
-    author_name: clean(raw.author || raw.author_name) || 'Unknown author',
-    role: clean(raw.role) || null,
+    // An entry with no author is labelled by the importer from its role, not as
+    // "Unknown author" -- and the canonical twin already carries that label, so
+    // this is the value both surfaces have to agree on.
+    author_name: clean(raw.author || raw.author_name) || (importerRole === 'client' ? 'Client' : 'SyncView'),
+    role: clean(raw.role).toLowerCase() || null,
     body: deleted ? '' : String(raw.body ?? raw.text ?? ''),
     attachments: deleted ? [] : safeAttachments(raw.attachments),
     audience: 'internal', // Staff-only projection, never a grant to client readers.
     component: scope.component, is_tweak: tweakFlag(raw, field),
     round: raw.round != null && raw.round !== '' && Number.isInteger(Number(raw.round)) && Number(raw.round) > 0 ? Number(raw.round) : null,
-    source_created_at: created, source_updated_at: stamp(raw.source_updated_at || raw.updated_at || raw.updatedAt) || created,
+    source_created_at: created, source_updated_at: updated,
     edited_at: stamp(raw.edited_at), deleted, deleted_at: stamp(raw.deleted_at),
-    done: resolved, resolved_at: stamp(raw.resolved_at || raw.done_at),
+    done: resolved, resolved_at: resolvedAt,
     resolved_by_name: resolved ? clean(raw.resolved_by_name || raw.done_by) || null : null,
     source_only: true, source_surface: scope.surface, source_field: field,
     source_audience: ['client', 'internal'].includes(raw.audience) ? raw.audience : null,

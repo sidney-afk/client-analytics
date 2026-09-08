@@ -15084,3 +15084,56 @@ Proof: **164 green** on the Workload suite and **34 pass** on
 `test/component-feedback-read.js`; red against `e2fdc38` on `reopening asks again
 rather than serving the degraded answer back` and on the size refusal returning
 `source_limit` where it must now return `link_changed`.
+
+### Sixth follow-up: stop finding importer-parity divergences one at a time (two Codex P2s on `ab92bbf`, plus four the sweep found)
+
+**1. The preview showed the oldest feedback.** `wlRenderTweakComments` renders
+three rows and collapses the rest as "older comments", and the merge was
+`[...canonical, ...source]` — so every card note sat behind every canonical row
+regardless of when it was written. A tweak a client submitted minutes ago
+appeared *below* three older canonical rows and was described as older than them.
+That is precisely the note this popover exists to surface, and it is the same
+failure the covered-rows fix (item 172) addressed from the other direction. Now
+merged newest-first; ties keep canonical before source (the previous order) and
+an undated row sorts last rather than jumping the queue on a `NaN`.
+
+**2. The importer-parity family, closed as a family.** The reviewer reported the
+`resolved_at` fallback: the importer dates a resolution it was told about but not
+*when* from the updated time, the projection left it null, `sameCurrentComment`
+compares strictly, coverage becomes impossible, the note duplicates forever.
+Correct — and it was the **third** instance of that exact shape found one at a
+time by review (`is_tweak`, `source_created_at`, `resolved_at`).
+
+Finding the fourth the same way would have been a process failure, so rather than
+fix the reported field and wait, `test/component-feedback-read.js` grew a
+**parity matrix**: it drives BOTH real functions over the raw shapes historical
+cards actually contain and asserts the projection is covered by exactly what the
+importer would have written.
+
+The matrix immediately failed on **seven** shapes, of which the review had
+reported one. Three distinct root causes:
+
+- `resolved_at` — the reported one.
+- `author_name` — an entry with no author is labelled by the importer from its
+  role (`Client` / `SyncView`); the projection wrote `Unknown author`, so no
+  authorless historical note could ever be covered.
+- `role` — the importer lower-cases it; the projection did not, so any entry
+  whose card stored `SMM` rather than `smm` duplicated forever.
+
+All three fixed by executing the importer's rule rather than a rule that
+resembles it. One deliberate non-mirror, for the same reason as the epoch
+default: the emitted `role` still stays **null** when the entry has none. An
+unknown role is deliberately non-disqualifying in the match, and defaulting it to
+`smm` would start *refusing* coverage on rows the importer never touched —
+trading a duplicate for a hidden note, which is the wrong direction.
+
+**A fixture bug found on the way, worth recording because it looked like a
+product bug.** The virtual clock replaced `Date` with a bare `{ now }` object,
+silently losing `parse`, `UTC` and construction. Invisible until the sorting fix
+above called `Date.parse`, at which point five unrelated concurrency tests went
+red and looked like a regression in the product. The stub is now a real `Date`
+subclass with only `now` overridden.
+
+Proof: **170 green** on the Workload suite and **35 pass** on
+`test/component-feedback-read.js`; red against `ab92bbf` on the three preview
+ordering assertions and on the parity matrix listing all seven divergent shapes.

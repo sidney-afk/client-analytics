@@ -217,7 +217,11 @@ function build(options = {}) {
     },
   };
   if (options.clock) {
-    context.Date = { now: () => options.clock.now() };
+    // A real Date with only `now` replaced. The first version of this stub was a
+    // bare `{ now }` object, which silently lost `parse`, `UTC` and construction
+    // — invisible until the code under test reached for one of them, and then it
+    // looked like a product failure rather than a fixture one.
+    context.Date = class extends Date { static now() { return options.clock.now(); } };
     context.setTimeout = (fn, ms) => options.clock.setTimeout(fn, ms);
     context.clearTimeout = id => options.clock.clearTimeout(id);
   }
@@ -932,6 +936,59 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     const out = await context.wlFetchTweakComments(['wl-1']);
     ok(!!out['wl-1'].scope && out['wl-1'].scope.card_id === 'card-one',
       'the verified card scope travels with the answer');
+  }
+
+  // ── The three-row preview shows the NEWEST feedback (finding 9) ─────
+  {
+    // wlRenderTweakComments shows three rows and collapses the rest as "older
+    // comments", so merge order decides what an editor actually reads.
+    // Concatenating canonical then source put every card note behind every
+    // canonical one regardless of when it was written: a tweak submitted
+    // minutes ago sat behind three older canonical rows and was described as
+    // OLDER than them. This popover exists to surface exactly that note.
+    const older = t => ({ source_created_at: t, created_at: t });
+    const snapshot = nativeRows(1);
+    const { context } = build({ snapshot, byDeliverable: { 'del-1': [page(
+      [canonical('old-1', older('2026-08-01T09:00:00.000Z')),
+       canonical('old-2', older('2026-08-02T09:00:00.000Z')),
+       canonical('old-3', older('2026-08-03T09:00:00.000Z'))],
+      { feedback: { version: 1, status: 'complete', complete: true, rows: [
+        cardNote('fresh', older('2026-09-01T09:00:00.000Z'))] } },
+    )] } });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(rows.length === 4, 'all four notes reach the popover');
+    ok(rows[0] && rows[0].fromCard === true && rows[0].body === 'card fresh',
+      'the newest note leads, even though it came from the card rather than the canonical thread');
+    const rendered = context.wlRenderTweakComments(rows);
+    ok(rendered.includes('card fresh'),
+      'so a freshly submitted card tweak is IN the three-row preview, not behind the collapsed count');
+    const freshAt = rendered.indexOf('card fresh');
+    const olderAt = rendered.indexOf('older comment');
+    ok(freshAt >= 0 && olderAt > freshAt,
+      'and the genuinely older canonical row is the one described as older, below it');
+  }
+  {
+    // Ties keep the previous order, so nothing reshuffles on equal timestamps.
+    const snapshot = nativeRows(1);
+    const { context } = build({ snapshot, byDeliverable: { 'del-1': [page(
+      [canonical('c-one'), canonical('c-two')],
+      { feedback: { version: 1, status: 'complete', complete: true, rows: [cardNote('same-time')] } },
+    )] } });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(rows.map(row => row.body).join('|') === 'canonical c-one|canonical c-two|card same-time',
+      'equal timestamps keep canonical before source, the order this surface already had');
+  }
+  {
+    // An undated row must sort last rather than jumping the queue on a NaN.
+    const snapshot = nativeRows(1);
+    const { context } = build({ snapshot, byDeliverable: { 'del-1': [page(
+      [canonical('dated')],
+      { feedback: { version: 1, status: 'complete', complete: true, rows: [
+        { id: 'undated', author_name: 'Fixture client', body: 'card undated', source_only: true }] } },
+    )] } });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(rows.length === 2 && rows[0].body === 'canonical dated',
+      'a note with no usable timestamp sorts last instead of displacing a dated one');
   }
 
   // ── A degraded answer is never remembered (finding 7) ───────────────

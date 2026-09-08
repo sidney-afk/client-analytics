@@ -281,13 +281,22 @@ jobs:
       # only: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      # Re-pinned for the native write gateway lift: intake, append, component
-      # fill, assignee change and labels stop routing through Linear, and the
-      # native urgent handoff lands on top. Closure grows to SIX files -- the
-      # new import is _shared/native-brief-media.mjs. Every native lane is
-      # behind a flag that defaults off, so deploying this does not activate
-      # anything; the SQL goes in FIRST and the flags are flipped AFTER.
-      PRODUCTION_WRITE_SOURCE_SHA256: 663e7e423dfe150449f820ecb1e7aa3f2506d6c55c3770cfdc65b556d1311e14
+      # Re-pinned for the native write gateway lift, ON TOP OF #1361. Two
+      # changes are now in this closure and BOTH must be present:
+      #   1. #1361 (main, 2026-09-08): a Submit-tab note written for the video
+      #      editor no longer suppresses or stands in for AI thumbnail-title
+      #      generation; note and generated title are additive, and a title
+      #      containing \r or \n is rejected. Only a PRIOR ATTEMPT's brief wins.
+      #   2. The native write gateway lift: intake, append, component fill,
+      #      assignee change and labels stop routing through Linear, and the
+      #      native urgent handoff lands on top.
+      # Closure grows to SIX files; the new import is
+      # _shared/native-brief-media.mjs. Every native lane is behind a flag that
+      # defaults OFF, so deploying this activates nothing on its own: the SQL
+      # goes in FIRST and the flags are flipped AFTER.
+      # (Prior pins: 27d1a608... files=5, #1361 2026-09-08; ccbdd136f4...
+      # production-write v69, 2026-09-07.)
+      PRODUCTION_WRITE_SOURCE_SHA256: PENDING_RECOMPUTE
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

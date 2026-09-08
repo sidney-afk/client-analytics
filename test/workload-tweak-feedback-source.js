@@ -76,6 +76,16 @@ const DEADLINE_MS = valueOf(DEADLINE_DECL);
 // worst case nearly double the real one (AGENTS.md: measure with the key the
 // shipped code uses).
 const ROW_TIMEOUT_MS = valueOf((source.match(/^ *const WL_PLAN_READ_TIMEOUT_MS = \d+;$/m) || [''])[0]);
+// The per-deliverable read cache. Tolerant like the bounds above, so a tree
+// without it still runs and fails on the measurement.
+const NATIVE_CACHE_DECL = (source.match(/^ *const _wlNativeTweakCommentsCache = new Map\(\);/m) || [''])[0].trim();
+// The actor-wide read budget, read out of the migration that enforces it rather
+// than retyped here — the number this popover has to stay under.
+const READ_BUDGET = Number((fs.readFileSync(path.join(__dirname, '..',
+  'migrations/2026-07-23-production-comment-thread-lifecycle.sql'), 'utf8')
+  .match(/requests < (\d+)/) || [0, 0])[1]);
+const TTL_MS = valueOf((source.match(/^ *const WL_TWEAK_COMMENTS_TTL_MS = .*$/m) || [''])[0])
+  || 5 * 60 * 1000;
 
 // ── A virtual clock ──────────────────────────────────────────────────────
 // The finding is about reads that HANG, not reads that reject: a rejection is
@@ -88,6 +98,7 @@ function makeClock() {
   const timers = new Map();
   return {
     now: () => now,
+    jump(ms) { now += ms; },
     setTimeout(fn, ms) { const id = ++seq; timers.set(id, { at: now + (Number(ms) || 0), fn }); return id; },
     clearTimeout(id) { timers.delete(id); },
     fireNext() {
@@ -207,6 +218,7 @@ function build(options = {}) {
     pageSizeDeclaration(),
     POOL_DECL,
     DEADLINE_DECL,
+    NATIVE_CACHE_DECL,
     extract('wlFetchTweakComments'),
     extract('_wlNativeTweakComments'),
     extract('_wlLegacyFetchTweakComments'),
@@ -473,10 +485,16 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     // still pass if the popover ignored the channel and waited for the map.
     const block = source.slice(source.indexOf('const token = ++_wlTweakCommentsToken;'));
     const fill = block.slice(0, block.indexOf('// Position:'));
-    ok(/wlFetchTweakComments\(tweakSubs\.map\(s => s\.id\), paintRow\)/.test(fill),
+    ok(/wlFetchTweakComments\(tweakSubs\.map\(s => s\.id\), paintRow, abandoned\)/.test(fill),
       'the popover passes a per-row painter, so a settled deliverable reaches the screen before the collection finishes');
     ok(/painted\.has\(s\.id\)/.test(fill),
       'and the final pass leaves an already-painted row alone, so a comment an editor expanded mid-read is not collapsed under them');
+    // The trap in wiring the stop predicate: `pop` gets its `open` class AFTER
+    // this block runs, so a predicate that reads "not open" as "closed" abandons
+    // every read before the first one starts, and the popover loads nothing at
+    // all. `wasOpen` is what separates "not open yet" from "closed".
+    ok(/let wasOpen = false;/.test(fill) && /if \(pop\.classList\.contains\('open'\)\) \{ wasOpen = true; return false; \}/.test(fill),
+      'and the stop predicate treats a popover that is not open YET as still wanted, rather than abandoning every read before the first one starts');
   }
 
   // ── One failed row does not blank the rows that answered (finding 3) ─
@@ -698,6 +716,144 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'so a native row still renders at 0ms while the legacy lane hangs');
     ok(run.settled && !!run.value && run.value['wl-1'].failed !== true && run.value['wl-2'].failed === true,
       'and the legacy outage lands only on the legacy rows');
+  }
+
+  // ── The pool must not spend the actor-wide read budget (finding 5) ──
+  // `production_comment_read_budget_take` allows 120 requests per actor per
+  // fixed five-minute window, PRINCIPAL-wide: exhausting it here also stops
+  // SyncLinear's comment panel for the rest of that window. Bounding the wait
+  // is what made that reachable — six opens of a 20-row rollup used to take
+  // ~16 minutes across four windows and now fit inside two minutes of one.
+  {
+    ok(READ_BUDGET === 120,
+      'the read budget is read from the migration that enforces it (' + READ_BUDGET + ' per actor per window)');
+  }
+  const nativeCalls = calls => calls.filter(entry => String(entry.url).includes('production-comments')).length;
+  {
+    const snapshot = nativeRows(20);
+    const ids = snapshot.map(row => row.id);
+    const answers = () => Object.fromEntries(snapshot.map(row =>
+      [row.nativeId, [page([canonical('a')], complete([]))]]));
+    const { context, calls } = build({ snapshot, byDeliverable: answers() });
+    await context.wlFetchTweakComments(ids);
+    const first = nativeCalls(calls);
+    ok(first === 20, 'a 20-row rollup costs one request per deliverable on the first open (' + first + ')');
+    // The fixture queues exactly one page per deliverable, so a second read that
+    // reached the network at all would run out of pages and fail. It does not.
+    const again = await context.wlFetchTweakComments(ids);
+    ok(nativeCalls(calls) === first, 'reopening the same rollup costs NO further requests');
+    ok(ids.every(id => again[id] && again[id].length === 1 && again[id].failed !== true),
+      'and every row still renders its real feedback from the cache');
+    // Six opens is the number that used to exhaust the window.
+    for (let open = 0; open < 4; open++) await context.wlFetchTweakComments(ids);
+    ok(nativeCalls(calls) === 20,
+      'six opens of that rollup cost 20 requests, not 120 — the whole actor-wide budget');
+    ok(nativeCalls(calls) < READ_BUDGET,
+      'so the popover cannot lock SyncLinear out of the comment endpoint for the rest of the window');
+  }
+  {
+    // A failure must never be remembered as an answer: that would turn one
+    // aborted read into five minutes of "couldn't load" on a healthy row.
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ snapshot, byDeliverable: { 'del-1': [
+      { reject: 'The user aborted a request.' },
+      page([canonical('a')], complete([])),
+    ] } });
+    const failed = await context.wlFetchTweakComments(['wl-1']);
+    ok(!!failed['wl-1'] && failed['wl-1'].failed === true, 'a failed read is reported as failed');
+    const retried = await context.wlFetchTweakComments(['wl-1']);
+    ok(nativeCalls(calls) === 2, 'and is retried on the next open rather than served from cache');
+    ok(!!retried['wl-1'] && retried['wl-1'].failed !== true && (retried['wl-1'][0] || {}).body === 'canonical a',
+      'so the row recovers as soon as the endpoint does');
+  }
+  {
+    // A cache entry belongs to the staff identity that took it. Serving it to
+    // another one is the mid-read identity failure, deferred by up to a TTL.
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], complete([])),
+      page([canonical('b')], complete([])),
+    ] } });
+    await context.wlFetchTweakComments(['wl-1']);
+    context.setIdentity('another-staff');
+    const out = await context.wlFetchTweakComments(['wl-1']);
+    ok(nativeCalls(calls) === 2, 'a different signed-in staff does not read the previous one’s cached feedback');
+    ok(!!out['wl-1'] && (out['wl-1'][0] || {}).body === 'canonical b', 'they get their own read');
+  }
+  {
+    // The cache expires on the same TTL the legacy lane has always used here.
+    const clock = makeClock();
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ clock, snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], complete([])),
+      page([canonical('b')], complete([])),
+    ] } });
+    await runWithClock(clock, context.wlFetchTweakComments(['wl-1']));
+    clock.jump(TTL_MS - 1);
+    await runWithClock(clock, context.wlFetchTweakComments(['wl-1']));
+    ok(nativeCalls(calls) === 1, 'a read inside the TTL is still served from cache');
+    clock.jump(2);
+    const fresh = await runWithClock(clock, context.wlFetchTweakComments(['wl-1']));
+    ok(nativeCalls(calls) === 2, 'and past it the deliverable is read again rather than shown indefinitely stale');
+    ok(!!fresh.value && !!fresh.value['wl-1'] && (fresh.value['wl-1'][0] || {}).body === 'canonical b',
+      'with the newer feedback');
+  }
+  {
+    // A cached row costs no request and no wait, so it must not queue behind a
+    // neighbour that is going to hang for its whole timeout.
+    const clock = makeClock();
+    const snapshot = nativeRows(6);
+    const queues = { 'del-6': [page([canonical('f')], complete([]))] };
+    for (let i = 1; i <= 5; i++) queues['del-' + i] = [{ hang: true }];
+    const { context, calls } = build({ clock, snapshot, byDeliverable: queues });
+    // Warm the cache for one deliverable, then open a rollup where every OTHER
+    // row hangs. Same sandbox, so this is the cache the second read consults.
+    await runWithClock(clock, context.wlFetchTweakComments(['wl-6']));
+    const before = nativeCalls(calls);
+    const painted = [];
+    await runWithClock(clock, context.wlFetchTweakComments(snapshot.map(row => row.id),
+      (id) => painted.push({ id, at: clock.now() })));
+    const cachedAt = (painted.find(entry => entry.id === 'wl-6') || {}).at;
+    ok(cachedAt === 0, 'a cached deliverable paints immediately, ahead of five rows that are going to hang');
+    ok(painted[0] && painted[0].id === 'wl-6', 'it is served first rather than queued behind them');
+    ok(nativeCalls(calls) === before + 5, 'and costs no request of its own');
+  }
+  {
+    // Once the popover is closed or reopened elsewhere, the rows STILL QUEUED
+    // are the ones worth not paying for. Suppressing their paint was never
+    // enough — the request had already been sent and the budget already spent.
+    const clock = makeClock();
+    const snapshot = nativeRows(20);
+    const { context, calls } = build({ clock, snapshot, byDeliverable: allHang(snapshot) });
+    let settledCount = 0;
+    const run = await runWithClock(clock, context.wlFetchTweakComments(
+      snapshot.map(row => row.id),
+      () => { settledCount++; },
+      // The popover closed as soon as the first row came back.
+      () => settledCount >= 1));
+    ok(run.settled, 'an abandoned read still settles rather than leaking');
+    ok(nativeCalls(calls) === POOL,
+      'a popover closed after the first row costs ' + nativeCalls(calls) + ' requests — only the wave already in flight — not 20');
+    ok(!!run.value && snapshot.every(row => (run.value[row.id] || {}).failed === true),
+      'and the rows never asked for are unavailable, never an empty thread');
+  }
+  {
+    // A paging read spends one request per PAGE, so the same has to hold
+    // between pages — and the rows collected before it stopped must never be
+    // presented as this deliverable's feedback.
+    const snapshot = nativeRows(1);
+    let seen = 0;
+    const { context, calls } = build({ snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+      page([canonical('b')], { total: 2 }),
+    ] } });
+    const out = await context.wlFetchTweakComments(['wl-1'], () => { seen++; }, () => nativeCalls(calls) >= 1);
+    ok(nativeCalls(calls) === 1, 'an abandoned paging read stops after the page it was already committed to');
+    const rendered = context.wlRenderTweakComments(out['wl-1']);
+    ok(!!out['wl-1'] && out['wl-1'].failed === true && /Couldn&rsquo;t load this deliverable&rsquo;s feedback/.test(rendered),
+      'and its partial rows are discarded rather than shown as the thread');
+    ok(!/No feedback is available here/.test(rendered),
+      'never as an empty one — an abandoned read is not evidence a client said nothing');
   }
 
   // ── Progressive paint never outruns the whole-collection refusal ─────

@@ -14853,3 +14853,60 @@ The sandbox also carried a hand-typed `WL_PLAN_READ_TIMEOUT_MS: 15000` while
 `index.html` ships `8000`. Left alone it would have published a worst case nearly
 double the real one — the failure mode AGENTS.md records from 2026-09-05. It now
 reads the shipped declaration, as the page size already did.
+
+### Follow-up on the same PR: the bound bought a quota failure (Codex P2 on `ce70ceb`)
+
+Exactly the third thing the brief warned about, and worth recording because the
+trade was invisible until someone counted requests instead of seconds.
+
+`production_comment_read_budget_take`
+(`migrations/2026-07-23-production-comment-thread-lifecycle.sql`) allows **120
+requests per actor per fixed five-minute window**, and the comment on it says the
+budget is *deliberately principal-wide*. So exhausting it from this popover does
+not degrade the popover — it returns the budget denial for **every**
+`production-comments` read that principal makes for the rest of the window,
+SyncLinear's comment panel included.
+
+A 20-row rollup is 20+ requests (one per deliverable, more if a thread pages).
+Six opens is the whole budget. Before the pool, six opens of a wide rollup took
+about **sixteen minutes** and spread across four windows, so it never landed.
+After the pool they fit inside **two minutes of one window**. The row count did
+not change; the rate did, and the rate is what the budget measures.
+
+Two repairs, both named by the reviewer:
+
+1. **Cache whole, verified reads per deliverable** for `WL_TWEAK_COMMENTS_TTL_MS`
+   — the same five minutes the legacy lane has always cached on this surface, so
+   this is the behaviour the popover already had rather than a new one. Six opens
+   now cost 20 requests instead of 120. A **failure is never cached**: remembering
+   "we could not ask" as an answer would turn one aborted read into five minutes
+   of false outage on a healthy row. A hit is served **only to the staff identity
+   that took it** — serving it to another is the mid-read identity failure this
+   lane already refuses, deferred by up to a TTL. Cached rows are served first,
+   because a row that costs no request has no business queueing behind one that
+   is going to hang.
+2. **Abandon queued reads when nobody is looking.** Suppressing the *paint* of an
+   unwanted read was never enough: the request had already gone out and the budget
+   was already spent. The drain now asks before each row — and
+   `_wlNativeTweakComments` before each page — whether the answer is still wanted.
+   A popover closed after its first row answered costs 4 requests (the wave
+   already in flight) instead of 20.
+
+**The trap in wiring that predicate, since it would have shipped a dead popover.**
+`pop` gets its `open` class a few lines *below* the fetch call, so a predicate
+that reads "not open" as "closed" returns true on the very first check and
+abandons every read before one has started — the popover would load nothing, ever.
+`wasOpen` is what separates *not open yet* from *closed*, and there is a test
+pinning it in source rather than trusting the next reader to notice.
+
+**The cost, stated:** feedback posted within the TTL may not appear until it
+expires. Against that, the alternative is a budget denial that blanks feedback on
+two surfaces for up to five minutes, and the legacy lane on this same popover has
+cached for five minutes since it was built.
+
+Proof: **142 green**, **15 red against `ce70ceb`** (the tree the reviewer read),
+including `six opens of that rollup cost 20 requests, not 120 — the whole
+actor-wide budget` and `a popover closed after the first row costs 12 requests`
+against the fixed `4`. The budget number is read out of the migration that
+enforces it rather than retyped, on the same rule that caught the sandbox's
+hand-typed row timeout.

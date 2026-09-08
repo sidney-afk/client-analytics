@@ -93,6 +93,24 @@ answered in 200ms is readable while a neighbour is still hanging. The pool size
 and the deadline are product numbers about how long staff wait, not tuning
 constants; both are declared next to `WL_TWEAK_FEEDBACK_PAGE_SIZE`.
 
+Bounding the wait made a quota failure reachable, so reads are also not repeated.
+`production_comment_read_budget_take` allows 120 requests per actor per fixed
+five-minute window and is principal-wide, so exhausting it from this popover also
+stops SyncLinear's comment panel for the rest of that window; a 20-row rollup is
+20+ requests, and the pool compressed six such opens from about sixteen minutes
+across four windows into two minutes of one. A whole, verified read is therefore
+cached per deliverable for `WL_TWEAK_COMMENTS_TTL_MS` — the same TTL the legacy
+lane has always used on this surface — and a read still queued when the popover
+closes or reopens elsewhere is abandoned rather than having only its paint
+suppressed, between pages as well as between rows. A failure is never cached:
+remembering "we could not ask" as an answer would turn one aborted read into five
+minutes of false outage on a healthy row. A cache entry is served only to the
+staff identity that took it, since serving it to another is the mid-read identity
+failure deferred by up to a TTL. Rows abandoned or cut off keep the "couldn't
+load" state, never the empty-thread one. The cost of this is staleness: feedback
+posted within the TTL may not appear until it expires, which is the behaviour this
+surface already had on the legacy lane.
+
 ## Compatibility and serving dependencies
 
 The canonical `comments`, cursor, audience and lifecycle fields are unchanged.

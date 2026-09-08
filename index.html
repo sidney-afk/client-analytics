@@ -19318,6 +19318,25 @@
     // one -- the same outage in a different costume.
     const WL_TWEAK_FEEDBACK_POOL = 4;
     const WL_TWEAK_FEEDBACK_DEADLINE_MS = 20000;
+    // ONE READ PER DELIVERABLE PER WINDOW, AND NONE AT ALL ONCE NOBODY IS
+    // LOOKING. `production_comment_read_budget_take` allows 120 requests per
+    // actor per fixed five-minute window
+    // (migrations/2026-07-23-production-comment-thread-lifecycle.sql), and it is
+    // PRINCIPAL-wide by design — exhausting it here also stops SyncLinear's
+    // comment panel reading for the rest of that window. A 20-row rollup is 20+
+    // requests, so six opens spend the whole budget.
+    // The pool above is what made that reachable: the same six opens used to
+    // take about sixteen minutes across four windows and now fit inside two
+    // minutes of one. Bounding the wait bought a quota failure, so the wait is
+    // bounded AND the requests are not repeated:
+    //   * a whole, verified read is cached for the same TTL the legacy lane has
+    //     always used on this surface, so re-opening a rollup costs nothing;
+    //   * a read still queued when the popover closes or reopens elsewhere is
+    //     abandoned rather than merely having its paint suppressed.
+    // A failure is never cached — remembering "we could not ask" as an answer is
+    // the one thing this popover must not do — and a hit is served only to the
+    // staff identity that took it.
+    const _wlNativeTweakCommentsCache = new Map(); // native deliverable id -> { fetchedAt, owner, rows }
     // SETTLE PER ROW. A popover lists N deliverables and each one is its own
     // independent read; this loop used to be a single all-or-nothing await
     // chain, so the FIRST rejection — an aborted read on the timeout, the
@@ -19336,7 +19355,11 @@
     // deliverable settles, so a row that answered in 200ms paints at 200ms
     // instead of waiting on a neighbour that will hang for its whole timeout.
     // It is never called for a read the collection is about to refuse.
-    async function wlFetchTweakComments(ids, onRow) {
+    // `shouldStop()` — optional — is asked before each row and each page whether
+    // the answer is still wanted. Suppressing the PAINT of an unwanted read was
+    // never enough: the request had already been sent and the actor-wide read
+    // budget already spent on it.
+    async function wlFetchTweakComments(ids, onRow, shouldStop) {
         const owner = typeof wlSnapshotIdentity === 'function' ? wlSnapshotIdentity() : null;
         const issues = new Map((wlState.issueSnapshot || []).map(issue => [issue.id, issue]));
         const unavailable = () => { const rows = []; rows.failed = true; return rows; };
@@ -19353,21 +19376,53 @@
             out[id] = rows;
             if (typeof onRow === 'function') { try { onRow(id, rows); } catch (e) {} }
         };
+        const stale = () => typeof shouldStop === 'function' && shouldStop();
+        const cached = nativeId => {
+            const hit = _wlNativeTweakCommentsCache.get(nativeId);
+            if (!hit) return null;
+            // A cache entry belongs to the staff identity that took it. Serving
+            // it to another one is the same failure the mid-read identity check
+            // exists to prevent, just deferred by up to a TTL.
+            if (hit.owner !== owner || (Date.now() - hit.fetchedAt) >= WL_TWEAK_COMMENTS_TTL_MS) {
+                _wlNativeTweakCommentsCache.delete(nativeId);
+                return null;
+            }
+            return hit.rows;
+        };
+        const remember = (nativeId, rows) => {
+            // Expired entries are dropped on write, so the map is bounded by one
+            // TTL window rather than by how long the tab has been open.
+            for (const [key, hit] of _wlNativeTweakCommentsCache) {
+                if ((Date.now() - hit.fetchedAt) >= WL_TWEAK_COMMENTS_TTL_MS) _wlNativeTweakCommentsCache.delete(key);
+            }
+            _wlNativeTweakCommentsCache.set(nativeId, { fetchedAt: Date.now(), owner, rows });
+        };
         for (const id of ids) {
             const issue = issues.get(id);
             const nativeId = issue && typeof issue.nativeId === 'string' ? issue.nativeId : '';
             if (!owner || !issue || issue.workloadSource !== 'native' || !nativeId) { legacy.push(id); continue; }
-            native.push({ id, issue, nativeId });
+            native.push({ id, issue, nativeId, hit: cached(nativeId) });
         }
+        // Cached rows first. They cost no request and no wait, so there is no
+        // reason for one to queue behind a neighbour that is going to hang.
+        native.sort((a, b) => (a.hit ? 0 : 1) - (b.hit ? 0 : 1));
         let cursor = 0;
         const drain = async () => {
             while (cursor < native.length) {
+                // Asked BEFORE the row is started, not after it has answered:
+                // once the popover is closed or reopened elsewhere, the rows
+                // still queued are the ones worth not spending budget on.
+                if (stale()) break;
                 const row = native[cursor++];
+                if (row.hit) { settle(row.id, row.hit); continue; }
                 // Past the deadline nothing new is started: a read begun here
                 // could only report after the bound this exists to hold.
                 if (Date.now() >= deadline) { settle(row.id, unavailable()); continue; }
-                try { settle(row.id, await _wlNativeTweakComments(row.issue, row.nativeId, owner, deadline)); }
-                catch (e) { settle(row.id, unavailable()); }
+                try {
+                    const rows = await _wlNativeTweakComments(row.issue, row.nativeId, owner, deadline, shouldStop);
+                    remember(row.nativeId, rows);
+                    settle(row.id, rows);
+                } catch (e) { settle(row.id, unavailable()); }
             }
         };
         const lanes = [];
@@ -19398,7 +19453,7 @@
     // Linear used to be the union point for those two; after the exit this read
     // is. Pages at the page-wide comment page size so exactly one
     // production-comments request shape leaves this page.
-    async function _wlNativeTweakComments(issue, nativeId, owner, deadline) {
+    async function _wlNativeTweakComments(issue, nativeId, owner, deadline, shouldStop) {
         const rows = [], seen = new Set();
         let before = null, total = null, complete = false, feedback = null;
         const controller = new AbortController();
@@ -19412,6 +19467,11 @@
         const timer = setTimeout(() => controller.abort(), budget);
         try {
             for (let page = 0; page < 50; page++) {
+                // A paging read spends one budget request per page, so an
+                // abandoned popover stops costing between pages too. The partial
+                // rows collected so far are dropped rather than presented:
+                // `complete` stays false and the check below refuses them.
+                if (typeof shouldStop === 'function' && shouldStop()) throw new Error('Feedback read was abandoned.');
                 const url = CAL_SUPABASE_URL + '/functions/v1/production-comments';
                 const response = await fetch(url, {
                     method: 'POST', cache: 'no-store', signal: controller.signal,
@@ -19833,6 +19893,17 @@
         if (tweakSubs.length) {
             const token = ++_wlTweakCommentsToken;
             const live = () => token === _wlTweakCommentsToken && pop.classList.contains('open');
+            // Whether the ANSWER is still wanted, which is not the same question
+            // as whether it can be painted yet: `pop` gets its `open` class a few
+            // lines below this block, so "not open" means "not open YET" until we
+            // have seen it open once. Reading it as closed here would abandon
+            // every read before the first one was ever started.
+            let wasOpen = false;
+            const abandoned = () => {
+                if (token !== _wlTweakCommentsToken) return true;
+                if (pop.classList.contains('open')) { wasOpen = true; return false; }
+                return wasOpen;
+            };
             // PAINT EACH ROW AS IT SETTLES. Every deliverable in this popover is
             // its own independent read, so a row that answered has no reason to
             // sit on a skeleton until its slowest neighbour has finished timing
@@ -19852,7 +19923,7 @@
                 // filling in.
                 wlMarkClampedComments(box);
             };
-            wlFetchTweakComments(tweakSubs.map(s => s.id), paintRow).then(byId => {
+            wlFetchTweakComments(tweakSubs.map(s => s.id), paintRow, abandoned).then(byId => {
                 if (!live()) return;
                 // Backstop for rows the progressive call could not place — a box
                 // that had not been laid out yet. A row already painted is left

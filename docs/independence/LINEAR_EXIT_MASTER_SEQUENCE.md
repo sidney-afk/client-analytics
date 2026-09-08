@@ -557,6 +557,41 @@ Seeding a team is inert on its own — the capability needs the flag *and* the s
 row — so seeding both up front costs nothing, and the per-team caution belongs on
 the enablement, which is the step that starts handing out names.
 
+### CHECK THE SEED NUMBERS BEFORE STEP 2 OF THAT LIST, NOT AFTER
+
+**Applying this PR's own lesson to P1: the control here was on the wrong side of the
+risk, and the proof step is what closes the window.**
+
+`NATIVE_IDENTIFIER_MINT.md`'s undo column is explicit. Step 4, the flag flip, is
+**reversible** — it stops minting and renames nothing. Steps 2 and 3, the seeds, are
+undoable *"only while no name has been handed out for that team. Once one has,
+deleting the cursor and re-seeding **re-issues names**."*
+
+**So the sequence above locks the seed at exactly the moment it proves it worked.**
+Flip `video`, create the TEST post, read back the name — and that read-back *is* the
+first handed-out name. From then on the video cursor cannot be corrected without
+re-issuing names that already exist on cards.
+
+**What that makes load-bearing.** `production_native_identifier_seed` derives the
+prefix from live provider data and sets the cursor to
+`observed_provider_max + gap + 1`. The prefix has a guard — it refuses with
+`native_identifier_prefix_ambiguous` rather than guessing. **`observed_provider_max`
+has no such guard.** If the provider read were incomplete when the seed ran — a
+degraded Linear, a partial page — the maximum would come back too low, the native
+band would sit lower than it should, and nothing would say so. That is discoverable
+only once names are being handed out, which is precisely when it stops being
+fixable.
+
+**So: read the returned `prefix`, `observed_provider_max` and `next_ordinal` and
+sanity-check them against what Linear has actually minted for that team, BEFORE
+flipping the flag.** The mint runbook says to record those three values; this says
+why the recording has to be a check, and why it has to happen before step 4 rather
+than alongside it.
+
+This is not a reason to delay: the check is a look at three numbers. It is a reason
+not to treat steps 2 and 3 as the safe preamble to a risky step 4. **Step 4 is the
+recoverable one.**
+
 **Undo:** set the team back to `{"mode":"provider"}`. That stops new minting
 immediately and renames nothing, by design. Note steps 2 and 3 are safely
 undoable **only while no name has been handed out** for that team; once one has,

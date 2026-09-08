@@ -17583,3 +17583,37 @@ source-vs-live error had just been found, it named three authorities, it consult
 one, and it reported agreement. **Checking against one source and reporting
 agreement with several is a stronger claim than the work supports** — the same shape
 as every restatement defect on this PR, committed inside the correction for them.
+
+**Applying the round's lesson to P1, unprompted, and it lands.** The finding above
+was that a control sat on the wrong side of the risk. Asked of the naming mint, the
+same question gives a real answer, and it inverts which step is dangerous.
+
+`NATIVE_IDENTIFIER_MINT.md`'s undo column: **step 4, the flag flip, is reversible**
+— it stops minting and renames nothing. **Steps 2 and 3, the seeds, are undoable
+*"only while no name has been handed out for that team. Once one has, deleting the
+cursor and re-seeding re-issues names."***
+
+**So the proof step locks the seed.** The sequence is flip `video`, create a TEST
+post, read back the minted name — and that read-back *is* the first handed-out name.
+After it, the video cursor cannot be corrected without re-issuing names already
+printed on cards.
+
+**What that makes load-bearing.** `production_native_identifier_seed` derives the
+prefix from live provider data and sets the cursor to
+`observed_provider_max + gap + 1`. The **prefix** has a guard: it refuses with
+`native_identifier_prefix_ambiguous` rather than guessing. **`observed_provider_max`
+has none.** A degraded provider or a partial page during seeding returns a maximum
+that is too low, the native band sits lower than it should, nothing reports it, and
+it becomes visible only once names are being handed out — which is exactly when it
+stops being fixable.
+
+So P1 now says: **read and sanity-check the three returned values before flipping**,
+not merely record them. The mint runbook says to record them; this says why the
+recording must be a check and must precede step 4.
+
+**The general form, which is the third distinct control-placement lesson today:**
+*the reversible step is not always the later one.* Everyone treats "apply and seed"
+as the safe preamble to a risky "flip", because installs feel provisional and
+enablements feel committal. Here it is backwards, and the document was ordered on
+the feeling rather than on the undo column that was sitting in the source the whole
+time.

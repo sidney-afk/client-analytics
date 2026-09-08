@@ -132,6 +132,9 @@ const PICKER_SOURCES = [
   extract('_calNativeBatchCompatible'),
   extract('_calNativeBatchHasLinearParents'),
   extract('_calNativeBatchLists'),
+  /* The render applies the saved filter itself since 2026-09-08, so the
+     matcher is no longer only the live filter's business. */
+  extract('_calNativeBatchMatches'),
   /* 2026-08-24: the dialog renders a video-editor picker, so the render
      function now reads its disclaimer helper. Same trap as the lines above --
      a free identifier here is a ReferenceError that takes out every world in
@@ -544,6 +547,53 @@ console.log('6) the post-count read is one bounded projection query that counts 
       && /id="calNativePrevBatchRadio"[^>]*data-batch-id="bat-a"/.test(lostChoice)
       && !/id="calNativePrevBatchRadio"[^>]* checked/.test(lostChoice),
       'a chosen batch that the new mode no longer offers falls back to the new-batch default');
+  }
+
+  // -------------------------------------------------------------------------
+  console.log('8b) a saved filter still applies after a re-render');
+  {
+    /* Codex P2 on PR 1353. `state.batchFilter` outlives a re-render and is
+       painted back into the search box, but the options were rebuilt from the
+       whole compatible list. Switching to the new-batch tab and back therefore
+       showed an active query above batches it excludes AND preselected the
+       first UNFILTERED one, which the submit path would then have appended to.
+       A visible query has to mean the list under it. */
+    /* Seven, because the search box only renders above
+       CAL_NATIVE_BATCH_FILTER_MIN -- so a saved query can only exist at this
+       size, and a fixture below it would test the fix in a world where the
+       bug is unreachable. */
+    const filterOptions = [
+      batchFixture({ id: 'bat-new', name: 'September push', created_at: '2026-09-02T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-2', name: 'August wave', created_at: '2026-08-30T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-3', name: 'Launch set', created_at: '2026-08-29T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-4', name: 'Podcast cuts', created_at: '2026-08-28T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-5', name: 'Shorts batch', created_at: '2026-08-27T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-6', name: 'Reels set', created_at: '2026-08-26T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-old', name: 'Evergreen', created_at: '2026-08-24T09:00:00.000Z' }),
+    ];
+    /* The state on RETURN to the tab: while the panel was collapsed the tab
+       strip's radio still carried the id the last render computed -- the first
+       unfiltered batch -- so coming back arrives with `batch` chosen and
+       `bat-new` aimed at, under a query that excludes it. */
+    const filtered = renderPicker(filterOptions, null, 'Client A',
+      { batchFilter: 'ever', batchChoice: { value: 'batch', batchId: 'bat-new' } });
+    const shownRows = optionsOf(batchSection(filtered));
+    ok(shownRows.length === 1 && shownRows[0].startsWith('Evergreen'),
+      'the re-rendered dropdown holds only what the saved query matches');
+    ok(/id="calNativePrevBatchRadio"[^>]*data-batch-id="bat-old"/.test(filtered),
+      'and the radio aims at the first MATCH, not the first unfiltered batch the submit path would have taken');
+    ok(/id="calNativeBatchFilter"[^>]*value="ever"/.test(filtered),
+      'with the query still in the box, so what is shown and what is listed agree');
+    ok(/id="calNativePrevBatchRadio"[^>]* checked/.test(filtered),
+      'and the tab the user clicked is still the one they are on — a query that hides the remembered batch must not bounce them back to Start a new batch');
+
+    /* The other direction: a query matching nothing must say so, and must not
+       leave a live select preselecting something invisible. */
+    const noMatch = renderPicker(filterOptions, null, 'Client A',
+      { batchFilter: 'nothing matches this', batchChoice: { value: 'batch', batchId: 'bat-new' } });
+    ok(optionsOf(batchSection(noMatch)).length === 0, 'a query matching nothing renders no options');
+    ok(/cal-native-batch-select[^>]* disabled/.test(noMatch), 'and disables the dropdown');
+    ok(/calNativeBatchFilterEmpty" style="display:;"/.test(noMatch), 'and shows the no-match line');
   }
 
   // -------------------------------------------------------------------------

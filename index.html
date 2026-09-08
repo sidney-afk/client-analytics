@@ -41410,12 +41410,34 @@
         // not rendered at all, and every compatible batch lives in ONE
         // previous-batch card whose dropdown is always visible with the last
         // batch preselected. Start a new batch is first and the default.
+        /* THE SAVED FILTER APPLIES TO THIS RENDER TOO (Codex P2 on PR 1353).
+           `state.batchFilter` outlives a re-render and is painted back into
+           the search box, but the options were rebuilt from the whole
+           compatible list -- so switching to the new-batch tab and back showed
+           an active query above batches it excludes, preselected the first
+           UNFILTERED one, and would have appended to it on submit. A visible
+           query has to mean the list under it.
+
+           `compatible` stays the ALL argument: 'last batch' marks the newest of
+           every compatible batch, not the newest survivor, and the search box
+           renders on the full count so filtering down to one result cannot
+           hide the box that would undo it. */
+        const shownBatches = compatible.filter(batch => _calNativeBatchMatches(batch, state.batchFilter));
+        /* THE TAB AND THE ID ARE SEPARATE QUESTIONS, and conflating them sends
+           the user somewhere they did not ask to go. Which TAB survives still
+           reads `compatible`: a batch the new post shape no longer offers
+           really is gone, and falling back to the new-batch tab is right.
+           A batch merely hidden by a QUERY is not gone -- bouncing off the tab
+           you just clicked because your own search excluded the remembered id
+           would be worse than the bug this fixes. So the tab is kept and only
+           the id is re-aimed, at the first row the list actually shows. */
         const priorBatchSurvives = priorChoice
             && priorChoice.value === 'batch' && compatible.some(batchChecked);
         const prevBatchChecked = !!priorBatchSurvives;
-        const prevBatchId = priorBatchSurvives
+        const priorBatchShown = priorBatchSurvives && shownBatches.some(batchChecked);
+        const prevBatchId = priorBatchShown
             ? priorChoice.batchId
-            : String(compatible.length ? compatible[0].id || '' : '');
+            : String(shownBatches.length ? shownBatches[0].id || '' : '');
         _calNativeBatchOptionsHtml = (shown, all, countsMap, selectedId) => {
             const tally = new Map();
             shown.forEach(batch => {
@@ -41443,7 +41465,7 @@
                 return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
             }).join('');
         };
-        const prevBatchOptions = _calNativeBatchOptionsHtml(compatible, compatible, counts, prevBatchId);
+        const prevBatchOptions = _calNativeBatchOptionsHtml(shownBatches, compatible, counts, prevBatchId);
         /* Only the CHOSEN branch renders its controls. Both used to stay open
            at once, which spent about a third of the dialog on the option the
            user had not picked. The radios themselves live in the tab strip, so
@@ -41454,8 +41476,8 @@
                             placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
                             autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
                             oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}
-                        <span class="cal-native-batch-field"><select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select></span>
-                        <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:none;">No batch matches that name.</span>` : '';
+                        <span class="cal-native-batch-field"><select class="cal-native-batch-select" aria-label="Choose a batch"${shownBatches.length ? '' : ' disabled'} onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select></span>
+                        <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:${shownBatches.length ? 'none' : ''};">No batch matches that name.</span>` : '';
         /* THE NAME IS PREFILLED, NOT PLACEHELD (owner, 2026-09-08: "it should
            be clear that we can change the name"). A greyed placeholder reads
            as a system-generated value you are being shown, not a field you own

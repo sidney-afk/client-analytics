@@ -839,6 +839,43 @@ that must succeed:
 | 3 | `production_assignee_eligibility` is exactly `{"provider_mapping_required": false}` (P6) **and row 4 check 6 has passed** | the flag readback, which proves only what the flags table holds |
 | 4 | With Linear dead, on the TEST client, **all eight** P7 checks succeed: (1) Calendar post, (2) Samples/SXR post, (3) staff submission, (3b) **append to an EXISTING batch**, (4) component fill, (5) set a label and open the picker, (6) change an assignee, (8) **a client-link submission** | any subset of them, or any of them refusing cleanly |
 
+### Row 4 is WRITE paths only. The degradation table names four more surfaces.
+
+**Found by reading this document against itself, which is the pass the last round
+established it needs.** The eight checks are all write paths, because they were
+derived from the intake finding. The degradation table at the top lists four
+surfaces that also fail and that **no gate row verifies**:
+
+| Surface | What the gate currently requires | What it should |
+|---|---|---|
+| **Workload board** | #1344 merged | Board **read with Linear dead**, showing real dates. "Freezes rather than empties" is the failure mode, so a board that looks fine is not evidence — it must be checked against known-changed data |
+| **Kasper → Editors subtab** | #1346 merged | The native panel **rendering a real week with Linear dead** |
+| **Tweak comments** | #1346 merged | A Tweak-Needed row **showing its comment** with Linear dead |
+| **Urgent Slack alerts** | *nothing* | **See below — there is no merged replacement** |
+
+**"Merged" is the standard this document explicitly rejects for the intake repair**,
+and then applies to four surfaces three screens later. If merging were sufficient
+evidence that a surface works, P7 would not exist.
+
+**The Workload row deserves its own warning.** Its failure mode is
+**freezing, not emptying** — a stale board looks current. So "I opened it and it
+looked right" is the one form of evidence that cannot distinguish pass from fail
+here. It has to be checked against data known to have changed since the reconcile
+stopped.
+
+### `send-urgent-slack` has NO merged replacement, and that is a decision, not a check
+
+The native replacement is **PR #1341, a draft**, stacked on #1326, on the
+integration branch. Nothing on `main` replaces it. So unlike every other row above,
+this one **cannot be gated into passing** — at the cutoff, urgent editor alerts stop
+resolving their assignee and fail.
+
+**Stated as an owner decision rather than an invented gate:** either ship a
+replacement before the cutoff, or accept that urgent alerts are down and tell the
+staff who use them. A gate requiring something nobody has built is not a gate, it is
+a way of making the sequence unfinishable — and quietly omitting the surface, which
+is what this document did until now, is worse.
+
 **Row 4 lists all eight on purpose.** An earlier version named three, and the three
 it named covered one request site twice while omitting the staff submission, labels
 and the assignee proof entirely. **A summary that drops members of the list it

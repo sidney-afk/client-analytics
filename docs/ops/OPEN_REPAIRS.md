@@ -17666,3 +17666,44 @@ the delegated authority, the capability's own caveat, the conflict it had just
 recorded. **Internal consistency is not something a document has by default; it is a
 property that has to be checked for, the same way facts are.** Nothing about being
 correct in each section makes the sections agree.
+
+**The internal-consistency pass, run unprompted because the last round established
+the document needs one. It found a gap the size of four surfaces.**
+
+Reading the master sequence against itself rather than against source: **the eight
+behavioural checks are all WRITE paths**, because they were derived from the intake
+finding and grew by widening. The degradation table at the top of the same document
+lists four more surfaces that fail at the cutoff, and **no gate row verifies any of
+them**:
+
+| Surface | Gate required | Should require |
+|---|---|---|
+| Workload board | #1344 merged | board **read with Linear dead**, checked against known-changed data |
+| Kasper → Editors subtab | #1346 merged | the native panel **rendering a real week** with Linear dead |
+| Tweak comments | #1346 merged | a Tweak-Needed row **showing its comment** with Linear dead |
+| Urgent Slack alerts | **nothing at all** | see below |
+
+**"Merged" is the standard this document explicitly rejects for the intake repair**,
+and then applies to four surfaces three screens later. If merging were sufficient
+evidence that a surface works, P7 would not exist. That is the same
+one-standard-here-another-there defect as the round before, found this time by the
+pass rather than by a reviewer.
+
+**The Workload row needed its own warning.** Its failure mode is **freezing, not
+emptying**, so "I opened it and it looked right" is the single form of evidence that
+cannot distinguish pass from fail. It must be checked against data known to have
+changed since the reconcile stopped.
+
+**And one surface cannot be gated at all.** `send-urgent-slack`'s native
+replacement is **PR #1341, a draft**, on the integration branch, stacked on #1326.
+Nothing on `main` replaces it. So it is now written as an **owner decision** — ship
+a replacement before the cutoff, or accept that urgent editor alerts are down and
+tell the staff who use them. **A gate requiring something nobody has built is not a
+gate, it is a way of making the sequence unfinishable**, and quietly omitting the
+surface, which is what the document did until now, is worse than either.
+
+**Method note.** This is the first finding on this PR produced by a pass whose only
+input was the document itself. Every previous one came from checking the document
+against source, a live-state doc, or a reviewer. Both are needed, and they find
+different things: source checks catch wrong facts, self-checks catch **one section
+being held to a standard another section rejects**.

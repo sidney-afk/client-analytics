@@ -258,16 +258,18 @@ async function waitStatus(id, comp, status, ms = 20000) {
     // for a gate-less staff legacy status entry is QUARANTINE
     // ('legacy_actor_unverifiable') — the drain re-derives the lane from
     // enrollment and blocks enrolled staff writes from the legacy path.
-    // Simulate enrollment by adding the slug to the in-page roster (the
-    // harness stubs the flag dark), then assert the quarantine ledger takes
-    // the entry and nothing reaches the webhook.
+    // The harness now serves the PRODUCTION roster, so the slug arrives
+    // enrolled already (qa/write_ui_reroute_fixture.js); the add below is
+    // belt-and-braces and restores whatever membership it found. Assert the
+    // quarantine ledger takes the entry and nothing reaches the webhook.
     resetLinearCalls();
     const quar = await page.evaluate(async (slug) => {
+      const wasEnrolled = _writeUiRerouteClients.has(slug);
       _writeUiRerouteClients.add(slug);
       try {
         await _sxrLinearOutboxEnqueue('status', { issue: 'https://linear.app/x/VID-424242', status: 'Kasper Approval' }, 'probe-injected', slug);
         await _sxrLinearOutboxFlush();
-      } finally { _writeUiRerouteClients.delete(slug); }
+      } finally { if (!wasEnrolled) _writeUiRerouteClients.delete(slug); }
       const box = JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]');
       const rows = (typeof peekWriteUiLegacyQuarantine === 'function' ? peekWriteUiLegacyQuarantine() : [])
         .filter(r => r && r.surface === 'sxr' && r.item && JSON.stringify(r.item.payload || {}).includes('VID-424242'));

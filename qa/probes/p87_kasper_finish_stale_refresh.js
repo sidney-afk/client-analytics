@@ -99,7 +99,7 @@ const refresh = (page) => page.evaluate(async () => { try { await _kasperLoadRev
     env: clientEntrySafeChildEnv(),
   });
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   // Scripted backend: SMM sheet (empty), upsert (echo, no live write), calendar read (our rows).
   await ctx.route('**docs.google.com/spreadsheets/**', route =>

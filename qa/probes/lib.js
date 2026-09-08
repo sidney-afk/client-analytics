@@ -1,6 +1,7 @@
 // Extended harness for overnight calendar testing. Builds on the repo's golden_lib.
 // Scope: ONLY the `sidneylaruel` test client. Every probe must clean up (archive) what it creates.
 const G = require('../golden_lib.js');
+const REROUTE_FIXTURE = require('../write_ui_reroute_fixture.js');
 const {
   TEST_CLIENT,
   currentTestClientToken,
@@ -42,26 +43,37 @@ function capture(page) {
     page._errs.push('[reqfail] ' + u + (err ? ' (' + err + ')' : ''));
   });
 }
-// The TEST client stands in for a REAL client in these probes, but it is the
-// sole member of the live write_ui_reroute_clients allowlist — with that flag
-// loaded the page takes the #850 gateway lane, which fails the harness's
-// deliberately fake-or-absent Linear targets closed (kind='test' →
-// native_link_required) BEFORE the source save / legacy push the probes
-// assert on. Real clients run the legacy lane, so the faithful simulation is
-// flag-dark. Stub only this one flag read; every other runtime flag (Track-A
-// rosters etc.) stays live. Probes that build their OWN context must call
-// this on it too. Dark-lane guard coverage: p95_write_ui_test_guard.js.
-async function stubRerouteFlagDark(ctx) {
-  await ctx.route(u => { const s = u.toString(); return s.includes('syncview_runtime_flags') && s.includes('write_ui_reroute_clients'); }, async (route) => {
-    const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,OPTIONS', 'cache-control': 'no-store' };
+// THE TEST CLIENT ROUTES THE WAY A REAL CLIENT ROUTES: NATIVE.
+//
+// This stub used to answer `[]` and claim that was faithful because "real
+// clients run the legacy lane". They do not, and did not when that was
+// written: measured 2026-09-07 against the live flag, all 43 active clients
+// are enrolled (OPEN_REPAIRS 175). Both teams are SyncView-authoritative
+// besides. So the nightly was exercising mocked Linear writes on a lane
+// production never takes — a green suite describing a dead world, which is
+// the shape of OPEN_REPAIRS 177.
+//
+// Serving `[]` also stopped meaning "dark" at all. After the fail-closed
+// repair a SUCCESSFUL read with no usable roster routes a live write NATIVE,
+// so `[]` now buys the native lane with a comment claiming legacy. The full
+// reasoning, and the half of this that is NOT fixed (probe fixtures carry no
+// native work item, and production cards do), is in
+// `qa/write_ui_reroute_fixture.js`. Read it before changing this.
+//
+// Stub only this one flag read; every other runtime flag (Track-A rosters
+// etc.) stays live. Probes that build their OWN context must call this on it
+// too. p95_write_ui_test_guard.js opts into the genuinely live flag.
+async function stubRerouteFlagProduction(ctx) {
+  await ctx.route(u => REROUTE_FIXTURE.isRerouteFlagRequest(u.toString()), async (route) => {
+    const CORS = REROUTE_FIXTURE.WRITE_UI_REROUTE_CORS;
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
-    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '[]' });
+    return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: REROUTE_FIXTURE.productionRosterBody() });
   });
 }
 async function _ctx(browser, opts = {}) {
   const c = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true, ...opts });
   await c.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
-  await stubRerouteFlagDark(c);
+  await stubRerouteFlagProduction(c);
   return c;
 }
 async function _open(browser, url, opts) { const c = await _ctx(browser, opts); const p = await c.newPage(); capture(p);
@@ -165,7 +177,7 @@ async function clientCompActive(cli, pid, comp) {
 module.exports = Object.assign({}, G, {
   up, rawRow, pollRaw, capture, smmPage, clientPage, kasperPage, waitForPost, makeOk,
   smmResolveTweak, clientApprove, clientRequest, overallOn, clientCompActive,
-  stubRerouteFlagDark,
+  stubRerouteFlagProduction,
   ORIGIN, UPSERT, SUPA, KEY,
   TEST_CLIENT, currentTestClientToken, gotoTestClientEntry, launch: G.launch,
 });

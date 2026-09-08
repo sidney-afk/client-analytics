@@ -1,3 +1,4 @@
+const REROUTE_FIXTURE = require('../write_ui_reroute_fixture.js');
 // ============================================================================
 // qa/ef-writepath/lib.js — REAL-browser harness for validating the Supabase
 // Edge-Function (EF) write path end-to-end on the TEST client `sidneylaruel`.
@@ -293,15 +294,17 @@ async function makeCtx(browser, opts = {}) {
     if (method !== 'OPTIONS') rec.requests.push(entry);
     // CORS preflight -> answer locally
     if (method === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS, body: '' });
-    // write_ui_reroute_clients flag -> DARK for the harness: the TEST client
-    // is the sole live allowlist member, so the real flag would put it on the
-    // #850 gateway lane, which fails Linear-linkless harness cards closed
-    // before the source save. Real clients run legacy; keep the stand-in
-    // faithful. Only this one flag is stubbed — the Track-A rosters this
-    // suite exists to exercise stay live. (Rationale: qa/probes/lib.js.)
-    if (url.includes('syncview_runtime_flags') && url.includes('write_ui_reroute_clients')) {
+    // write_ui_reroute_clients flag -> the PRODUCTION roster, which enrolls
+    // the TEST client the way it enrolls every one of the 43 active clients
+    // (measured 2026-09-07, OPEN_REPAIRS 175). This served `[]` and called it
+    // faithful because "real clients run legacy" — false then, and after the
+    // fail-closed repair `[]` no longer produces a legacy lane at all.
+    // Reasoning and the fixture half still owed: qa/write_ui_reroute_fixture.js.
+    // Only this one flag is pinned — the Track-A rosters this suite exists to
+    // exercise stay live.
+    if (REROUTE_FIXTURE.isRerouteFlagRequest(url)) {
       entry.status = 200;
-      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '[]' });
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: REROUTE_FIXTURE.productionRosterBody() });
     }
     // Speed/robustness: STUB the heavy analytics Google-Sheets (Metrics/TopVideos/
     // briefs/summaries) — they are irrelevant to the write path and otherwise

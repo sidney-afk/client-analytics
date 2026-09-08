@@ -67,12 +67,25 @@ function grabFunc(name) {
   throw new Error('unclosed ' + name);
 }
 
-/* Run the two real predicates over a controlled allowlist + failure flag. */
-function evaluate(enrolledSlugs, flagFailed) {
+/* Run the two real predicates over a controlled allowlist + failure flag.
+ *
+ * 2026-09-08 (Codex finding 1): the routing predicate reads a SECOND signal,
+ * `_writeUiRerouteRosterUnusable` — "the read landed but carried no usable
+ * roster" — because item 175 covered only the read that never landed. Its
+ * default here derives from the two arguments the scenarios below already pass,
+ * so every one of them keeps meaning exactly what it meant: a failed read is
+ * unusable, and so is an empty allowlist reached any other way. Behaviour of
+ * the new signal is proved by execution in
+ * test/write-ui-reroute-usable-roster.js; this suite stays about the NARROWNESS
+ * of the flip. */
+function evaluate(enrolledSlugs, flagFailed, rosterUnusable) {
   const sandbox = {
     console, String, Array, Set, Error,
     _writeUiRerouteClients: new Set(enrolledSlugs),
     _writeUiRerouteFlagFailed: flagFailed,
+    _writeUiRerouteRosterUnusable: typeof rosterUnusable === 'boolean'
+      ? rosterUnusable
+      : (flagFailed || enrolledSlugs.length === 0),
     // The real calClientSlug is a large shared helper; the predicate falls
     // back to this exact normalisation when it throws, so force that path.
     calClientSlug: function () { throw new Error('not available in this harness'); }

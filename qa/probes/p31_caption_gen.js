@@ -17,7 +17,7 @@ const seed = (id, caption) => Q.up({ id, name: 'CG ' + id.slice(-6), platforms: 
   const S = Q.makeOk('P31 caption-gen');
   const browser = await Q.launch();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
-  await Q.stubRerouteFlagDark(ctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
+  await Q.stubRerouteFlagProduction(ctx);  // route the TEST client the way production routes a real one (see lib.js)
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   // per-pid generate response control
   let genPosts = [];

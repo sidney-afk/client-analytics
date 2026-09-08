@@ -84,8 +84,15 @@ assert(readyRoute.indexOf('const clientSlug = _writeUiSourceClientSlug') < ready
 assert(readyRoute.includes('return _writeUiRerouteUseGatewayFailClosed(clientSlug)'),
   'live-write routing must go through the fail-closed predicate');
 const failClosed = extract('_writeUiRerouteUseGatewayFailClosed');
-assert(failClosed.includes('if (_writeUiRerouteFlagFailed) return true'),
-  'an unreadable flag must route native, not to the dead Linear webhook');
+/* 2026-09-08 (Codex finding 1 on PR #1346): this pinned the failed mark ALONE,
+   which covered only the read that never landed. A read that SUCCEEDED with
+   `[]`, without the key, or with a malformed value produced an empty allowlist
+   and left the mark clear, so routing answered the factual "not enrolled" and
+   went to LINEAR_SET_STATUS_URL / LINEAR_ADD_COMMENT_URL. Both signals are
+   pinned now; the assertion is strengthened, not relaxed. Behaviour is proved
+   by execution in test/write-ui-reroute-usable-roster.js. */
+assert(failClosed.includes('if (_writeUiRerouteFlagFailed || _writeUiRerouteRosterUnusable) return true'),
+  'an unreadable flag AND a read that returned no usable roster must both route native, not to the dead Linear webhook');
 assert(failClosed.includes('return _writeUiRerouteUseGateway(clientOrSlug)'),
   'and a healthy flag read must still be answered by the allowlist itself');
 
@@ -340,6 +347,16 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     // extracts functions individually rather than slicing the whole block.
     'let _writeUiRerouteFlagGeneration = 0;',
     'let _writeUiRerouteFlagFailed = false;',
+    // Codex finding 1: the routing predicate's second signal, "the read landed
+    // but carried no usable roster". Seeded TRUE to match the shipped
+    // initialiser -- before any read there is nothing to trust -- and the real
+    // _writeUiFetchRerouteFlagOnce extracted below is what settles it.
+    'let _writeUiRerouteRosterUnusable = true;',
+    // _writeUiRerouteRosterUsable normalises through this. Extracted rather
+    // than stubbed so the usability rule is judged by the real slug rules; its
+    // own try/catch covers calClientSlug being absent from this harness.
+    extract('_calRuntimeFlagClients'),
+    extract('_writeUiRerouteRosterUsable'),
     extract('_writeUiFetchRerouteFlagOnce'),
     extract('_writeUiPrimeRerouteFlag'),
     extract('_writeUiRerouteUseGatewayFailClosed'),
@@ -402,6 +419,9 @@ for (const name of ['copyShareLink', 'calCopyShareLink', 'smCopyShareLink', '_sx
     // Healthy read in this scenario: the flip is not what is under test here,
     // so the fail-closed predicate must fall through to the allowlist stub.
     'let _writeUiRerouteFlagFailed = false;',
+    // Healthy read means a USABLE roster too, so both signals are clear and the
+    // predicate falls through to the allowlist stub (Codex finding 1).
+    'let _writeUiRerouteRosterUnusable = false;',
     extract('_writeUiRerouteUseGatewayFailClosed'),
     extract('_writeUiUseGatewayWhenReady'),
     extract('_calLegacyPushStatusToLinear'),

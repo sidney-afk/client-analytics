@@ -1002,9 +1002,20 @@ n8n in the metric read path.*
   receipt. A pre-commit failure, including a stale-route `409`, reverts and notifies; a native CAS
   conflict adopts the current authoritative row and cursor. After a confirmed Linear commit, a missed mirror update returns
   `mirror_pending`, keeps the new date, and warns instead of fabricating a rollback.
-  Editors fail → error card, older week cache still usable. **F48 is CLOSED by retirement**
-  (2026-09-07, LX-C / OPEN_REPAIRS 171): the webhook was unauthenticated and exposed confidential
-  people/client/work metadata, and it is gone. Its issue connection paged 50 at a time but silently
+  Editors fail → error card, older week cache still usable. **F48 REMAINS OPEN. The browser no
+  longer calls `editors-week`, but the exposure F48 tracks is the DEPLOYED WEBHOOK, and it is still
+  deployed** (corrected 2026-09-08, LX-C / OPEN_REPAIRS 171; an earlier revision of this line said
+  "CLOSED by retirement … and it is gone", which was false). Removing the constant and the browser
+  caller retires SyncView's *use* of the endpoint; it does not deactivate the n8n workflow behind
+  it. `webhook/editors-week` is unauthenticated, accepts an arbitrary historical range, and returns
+  confidential people/client/work metadata to anyone who calls it — exactly as it did before this
+  lane, and it will keep doing so after 2026-09-15, when it stops being *our* dependency but does
+  not stop answering. Closing F48 needs an evidenced deactivation of that workflow (owner
+  authorisation in-request, workflow JSON exported to the private Drive backup first, and a
+  public-safe status stub committed to `n8n-backups/`), not a merged diff. `B4_READINESS.md` and
+  `GO_LIVE_CHECKLIST.md` both still carry it as open and are correct.
+  On COMPLETENESS, which is the other half of F48 and is genuinely improved here: its issue
+  connection paged 50 at a time but silently
   stopped after 30 pages / 1,500 issues, with each issue history unpaged at `first:250`; the native
   replacement pages every read to exhaustion, so it is strictly MORE complete. Attribution of past
   transitions to the CURRENT assignee is unchanged — the retired endpoint did the same, so the

@@ -14029,6 +14029,46 @@ week, and a failed read (which must throw, so the panel shows its error state
 rather than painting an empty week as fact). Fixtures are synthetic: the repo is
 public.
 
+### CORRECTION, 2026-09-08 (Codex finding 5 on PR #1346): **IT DOES NOT CLOSE F48.**
+
+The paragraph above headed "AND IT CLOSES F48" is wrong, and this entry is
+appended rather than edited because the ledger is append-only. Read the two
+together: the claim stands as written, and this is what corrects it.
+
+**What the lane actually did:** removed the `editors-week` constant and the
+browser caller, so SyncView no longer *uses* the endpoint.
+
+**What F48 is about:** the DEPLOYED n8n workflow. `webhook/editors-week` is
+unauthenticated, takes an arbitrary historical range, and returns confidential
+people/client/work metadata to anyone who calls it. Not calling it from our
+browser does not deactivate it. The URL still answers today, and it will still
+answer after 2026-09-15 — that date ends our Linear *access*, not somebody
+else's ability to GET a webhook. So the exposure F48 tracks is exactly as open
+as it was before this lane, and the entry above declared a SECURITY item closed
+on the strength of a diff that cannot close it.
+
+**Why it was not closed here instead.** Deactivating that workflow is the fix,
+and `CLAUDE.md` is unambiguous: never edit an n8n workflow without the owner's
+explicit go-ahead **in that same request**. This session does not have one — the
+owner is away — and a security item is the last place to read silence as
+permission. The endpoint answering for another day is a known, pre-existing,
+unchanged exposure; a session editing production sales automation unasked is a
+new one.
+
+**What closing it needs**, when the owner does give the go-ahead in-request:
+export the workflow JSON to the private Drive backup FIRST, deactivate the
+workflow, commit only a public-safe status stub to `n8n-backups/`, and record
+the evidence here. A merged diff is not evidence.
+
+Corrected alongside this: `docs/independence/SYSTEM_MAP.md` (the "F48 is CLOSED
+by retirement … and it is gone" line) and `REPO_MAP.md`. `B4_READINESS.md` and
+`GO_LIVE_CHECKLIST.md` already carried F48 as open and needed no change — which
+is itself the tell that the closure claim was the outlier.
+
+The COMPLETENESS half of the entry above is unaffected and stands: the retired
+endpoint capped at 30 pages / 1,500 issues and the native reads page to
+exhaustion.
+
 ---
 
 ## 175. [2026-09-07, BUILT, live on merge with no deploy; lane LX-C] The write-UI reroute flag failed to LINEAR, and Linear is the thing that is about to stop existing
@@ -14107,6 +14147,108 @@ exist, and **both** outbox rings still exist — `syncview_linear_outbox_v1`
 This entry changes which lane a NEW write picks; it does not drain what is
 already queued. That is item C9 and it is unstarted.
 
+### CORRECTION AND EXTENSION, 2026-09-08 (Codex findings 1 and 4 on PR #1346)
+
+Two things above were incomplete. Appended, not edited — the ledger is
+append-only, so read them together.
+
+**FINDING 1 — the fail-closed contract covered only half the failures.** The
+entry above describes the flip as covering "any failure and the two-second
+timeout", and the code matched that: `_writeUiRerouteFlagFailed` is set in the
+catch and nowhere else. The SUCCESS path was not held to the same rule. It
+applies `rerouteRow.value` when there is one and `{clients: []}` when there is
+not, then clears the failed mark unconditionally — so three states arrived with
+an EMPTY allowlist and a flag reporting itself healthy:
+
+- a 200 carrying `[]`
+- a 200 whose rows do not include `write_ui_reroute_clients`
+- a 200 whose value is null, a scalar, or otherwise the wrong shape
+
+In every one, `_writeUiRerouteUseGatewayFailClosed` found no failure, answered
+the factual "this slug is not enrolled", and routed every status change to
+`LINEAR_SET_STATUS_URL` and every comment to `LINEAR_ADD_COMMENT_URL`. **Delete
+or corrupt that one row after 2026-09-15 and every write in every open tab goes
+silently to a dead endpoint** — the exact outcome this entry exists to prevent,
+reachable without a single network failure. A realtime DELETE reached the same
+place through `_writeUiApplyRerouteFlagFromChannel`, which had no row at all and
+read it as an empty allowlist.
+
+**The fix tracks validity separately from the allowlist**, which is the part
+that matters for everything this entry pinned:
+
+- the ALLOWLIST is untouched on every path. It stays the factual answer the
+  outbox drain and the project-source filter need. Flipping the drain is still
+  item 63 rebuilt, and still does not happen.
+- `_writeUiRerouteFlagFailed` keeps its one narrow meaning — the READ failed —
+  because `_writeUiHealRerouteFlag` keys on it to decide whether a resume
+  re-fetches. A successful empty read does NOT arm the heal, or a tab would
+  re-fetch on every resume forever.
+- a second signal, `_writeUiRerouteRosterUnusable`, gates ROUTING only. It is
+  set from the row on every apply site, including the realtime channel, and
+  starts `true` because before the first read there is nothing to trust.
+
+The one carve-out survives unchanged and is now pinned by execution: the
+`!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY` early return marks the roster
+USABLE, because without Supabase config the native gateway is unreachable too
+and legacy is the only lane that could work.
+
+**ONE OWNER DECISION THIS CREATES.** Emptying `write_ui_reroute_clients` now
+routes every live write NATIVE instead of legacy. If "empty the roster" was ever
+meant as a rollback lever, this takes it away. The judgement here is that it
+cannot be one: all 43 active clients are enrolled, both teams are
+SyncView-authoritative, and after 2026-09-15 the lane an empty roster used to
+select is a URL that accepts writes and drops them — so emptying it would roll
+back INTO SILENCE, which is the failure this entry exists to stop. If that
+reading is wrong, the veto is one condition in `_writeUiRerouteRosterUsable`.
+
+**Test:** `test/write-ui-reroute-usable-roster.js`, 42 offline checks. It lifts
+the shipped block out of `index.html` and drives the real
+`_writeUiFetchRerouteFlagOnce` through a stubbed fetch, so it exercises the read
+rather than a restatement of it. Nine checks fail on the code as it stood before
+this correction. `test/cutover-fix-pack-ui.js` was strengthened to pin both
+signals where it previously pinned one.
+
+**FINDING 4 — the nightly was green about a lane production does not take.**
+Four browser harnesses — `qa/probes/lib.js`, `qa/sxr_courier_lib.js`,
+`qa/golden_lib.js` and `qa/ef-writepath/lib.js` (the fourth was not in the
+finding; it carried the same stub) — answered the flag read with HTTP 200 and
+`[]`, each stating that this was the FAITHFUL simulation because *"real clients
+run the legacy lane"*. **The measurement in this very entry refutes that**: all
+43 active clients are enrolled, with no ghosts in either direction, and both
+teams are SyncView-authoritative (graphics 2026-08-16, video 2026-08-28). Real
+clients take the native gateway. So the probes exercised mocked Linear writes on
+a lane production does not use, and a green nightly did not cover what this PR
+ships. That is the shape of item 177, caught before it shipped rather than after.
+
+It had also stopped working mechanically: with finding 1 fixed, a successful read
+with no usable roster routes NATIVE, so `[]` buys the native lane with a comment
+above it claiming legacy. Strictly worse than either honest answer.
+
+All four harnesses now serve the production roster from one place,
+`qa/write_ui_reroute_fixture.js`. **Test:** `test/qa-harness-routes-like-production.js`,
+26 offline checks that run in `npm test` — where the nightly's own defect could
+never have been caught. Its strongest check lifts the shipped predicates and
+feeds them the bytes the harness actually serves, so it fails for any future
+body that stops describing production, not merely for the old comment.
+
+**THE HALF OF FINDING 4 THAT IS NOT DONE, and it is the larger half.** On the
+native lane a card needs a native work item: `_writeUiClassifyTargetless` refuses
+a targetless card with `native_link_required` whenever its team is
+SyncView-authoritative, which both now are. **No probe seeds
+`video_deliverable_id` or `graphic_deliverable_id`**, and 11 seed
+`linear_issue_id: ''` outright — so the fixtures are still not production-shaped,
+and probes that drive a status change or a comment on such a card will now
+refuse rather than push to a mocked webhook. 97 of the 136 probes touch those
+surfaces; how many actually trip is not knowable without running them.
+
+That is deliberate and it is the honest state, not an oversight: the harness now
+describes production and the fixtures do not yet match it. Closing it means
+minting real deliverables for the seeds against the live backend, which this
+session could not do or verify — there is no route to it from the sandbox. **Do
+not close it by putting the roster back to `[]`.** That restores the green, and
+the green was the defect. Owner decision owed on whether the fixture work lands
+in this lane or its own.
+
 ---
 
 ## 176. [2026-09-07, FIXED, live on merge with no deploy; lane LX-C] The Samples "Move it here" was the hole the calendar twin's own comment warned about
@@ -14157,6 +14299,49 @@ naive "is it gated" grep and still loses the user's link.
 from Linear and Bulk link dialogs, whose open-fetches at `index.html:33769` and
 `:34046` fire `linear-subissues` BEFORE their seal checks — the user opens the
 dialog, SyncView calls Linear, and only Apply refuses. That is unstarted.
+
+### EXTENSION, 2026-09-08 (Codex findings 2 and 3 on PR #1346)
+
+The seal above is correct and unchanged. Adding it exposed two more defects on
+the same click, both in the code the seal now sits in front of.
+
+**FINDING 2 (P1) — the move could land on the wrong client.** The seal read is
+network-bound, and `sxrState.client` / `sxrState.posts` are mutable while it is
+in flight. Staff can click **Move it here** and switch Samples clients before it
+resolves. The continuation then read the NEW client's state:
+`sxrState.posts.find(p => p.id === newPid)` matches nothing, but the code below
+still stamped `_sxrPendingEdits[newPid]` and called `_sxrFlushCardSave(newPid)`
+— which, finding no id it recognises, treats it as a NEW row and saves the
+previous client's card into the client now on screen. **A cross-client write.**
+The odds are low and they do not soften it: the client lifecycle is the one
+thing that must not break.
+
+The fix is the guard `addSxrBlankCard` already uses twenty lines further down
+the same file — freeze the initiating slug BEFORE the await, compare after,
+abort silently if it moved. Silently, like that twin: a toast about the client
+the user just left is noise. The comparison sits ahead of every write, the
+source card's clearing included, so an abort strips nothing — the same
+item-66 ordering rule the seal itself follows.
+
+**FINDING 3 (P2) — a refusal left a dead button on screen.**
+`_sxrMoveLinkConfirm` deletes `_sxrPendingLinkMove[pid]` before calling
+`_sxrMoveLink`, so on ANY refusal — the seal above, or the new client-switch
+abort — the rendered "Move it here" conflict row stayed visible with nothing
+behind it. Every further click hit the `if (!mv)` guard and did nothing. The
+user is told the move was refused and then handed a control that silently
+no-ops. Retaining the pending move instead would let a second click re-fire a
+write that was just refused, so the row is restored — `_sxrRestoreTitleRow`,
+shared with Cancel so the two cannot drift. `_sxrMoveLink` now returns true only
+when the move actually happened; every refusal answers false.
+
+**Test:** `test/sxr-move-link-client-switch.js`, 27 offline checks. Static
+checks cannot see either of these — the order of two statements around an await
+is exactly what a grep gets wrong — so it lifts the shipped functions into a
+`vm`, holds the authority read open, moves the client underneath them, and
+asserts on what was written and rendered. Proved against two surgical
+counterfactuals on the fixed tree: reverting only the client freeze fails 11
+checks (including "no card save is issued"), reverting only the row restore
+fails 2. Fixtures are synthetic slugs.
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

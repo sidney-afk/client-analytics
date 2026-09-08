@@ -4,10 +4,14 @@
 // must never persist a source row the native side can't see.
 //
 // This is the intentional behavior the 2026-07-17 nightly regression tripped
-// over: every other probe now stubs the write_ui_reroute_clients flag DARK
-// (legacy lane, what real clients run); this probe alone opts back into the
-// LIVE flag to pin the guard itself. If the owner ever empties the allowlist,
-// the guard scenario no longer applies and this probe self-skips green.
+// over. Every other probe pins the PRODUCTION roster — the TEST client
+// enrolled, the way all 43 active clients are — rather than the empty one they
+// used to serve while claiming real clients run legacy
+// (qa/write_ui_reroute_fixture.js, OPEN_REPAIRS 175). This probe alone reads
+// the genuinely LIVE flag, so it pins what the roster actually holds rather
+// than what the harness says it holds. If the owner ever empties the
+// allowlist, the guard scenario no longer applies and this probe self-skips
+// green.
 //
 // Flow (real handlers, live backend, sidneylaruel only, archives its card):
 //   seed video='Tweaks Needed' + one open client change-request, NO linear ids

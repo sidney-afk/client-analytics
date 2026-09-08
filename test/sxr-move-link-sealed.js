@@ -72,8 +72,14 @@ ok(/_writeUiLinkSlotSealedLive\(which\)/.test(sxrMove),
   '_sxrMoveLink reads live link-slot authority before moving a Linear link');
 ok(/_writeUiLinkSlotSealedNotice\(which, moveSeal\.reason\)/.test(sxrMove),
   'and refuses with the same shared seal notice its calendar twin uses');
-ok(/moveSeal\.sealed[\s\S]{0,200}?return;/.test(sxrMove),
+/* 2026-09-08 (Codex finding 3): the refusal returns FALSE now rather than bare,
+   so `_sxrMoveLinkConfirm` can tell a refusal from a completed move and put the
+   title row back. Same control flow, explicit answer. */
+ok(/moveSeal\.sealed[\s\S]{0,200}?return false;/.test(sxrMove),
   'the sealed branch returns, so nothing below it is reachable on a refusal');
+ok(/\.then\(moved => \{ if \(!moved\) _sxrRestoreTitleRow\(pid\); \}\)/.test(INDEX),
+  'and a refused move restores the title row instead of leaving a dead "Move it here" button '
+  + '(behaviour proved in test/sxr-move-link-client-switch.js)');
 
 /* ---- 2. THE TRAP: seal before the source card is stripped --------------- */
 
@@ -108,9 +114,12 @@ ok(calSeal > 0 && calClear > 0 && calSeal < calClear,
    defect is gone for a different reason and this suite should be revisited. */
 ok(/_sxrMoveLinkConfirm\('\$\{pid\}'\)/.test(INDEX) || /_sxrMoveLinkConfirm\(/.test(INDEX),
   '_sxrMoveLinkConfirm is still a rendered, staff-reachable entry point');
-ok(/function _sxrMoveLinkConfirm[\s\S]{0,400}?_sxrMoveLink\(/.test(INDEX),
+/* The window is generous because the explanation of finding 3 now sits between
+   the two, and this check is about the CALL existing, not about how much prose
+   precedes it. */
+ok(/function _sxrMoveLinkConfirm[\s\S]{0,1600}?_sxrMoveLink\(/.test(INDEX),
   'and it calls _sxrMoveLink directly, which is why _sxrLinearCommit\'s seal never covered it');
-ok(/if \(_isClientLink\) return;/.test(sxrMove),
+ok(/if \(_isClientLink\) return false;/.test(sxrMove),
   'clients still cannot reach it at all — the staff-only guard is unchanged');
 
 console.log(`\nsxr-move-link-sealed: ${failures ? failures + ' failed ❌' : 'all checks passed ✅'}`);

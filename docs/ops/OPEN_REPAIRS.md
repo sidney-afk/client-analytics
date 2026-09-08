@@ -14944,16 +14944,15 @@ PR makes untrue. The remaining G11 rows move with F12.
 
 ## 175. [2026-09-08, lane LX-D, FIXED — browser live on merge, no deploy] Settling per row bought isolation with a wait that scales by row count, and the fast rows paid for it
 
-> **Collision notice, added when `main` was merged into `claude/lx-d-feedback`
-> on 2026-09-08.** This entry and the `## 175.` immediately below it (the
-> calendar deep-link toast, merged to `main` in #1354) were written
-> concurrently and both took 175 in good faith: at the time each was written,
-> `## 174.` really was the highest header in its own tree. Neither is
-> renumbered here. Lane D's own item 172 sets the precedent for exactly this
-> situation -- *"the coordinator should settle it before merge rather than
-> either lane renumbering unilaterally"* -- and renumbering after the fact
-> would also break the commit messages and PR comments that already cite 175.
-> The next lane to append should take **177** or higher, not 176.
+> **⚠️ DUPLICATE NUMBER.** **Three** entries claim `175`. **This one is the
+> lane-LX-D bounded-aggregate-wait fix (2026-09-08, PR #1347)** and is the one
+> meant by every "item 175" reference in PR #1347's comments and commit
+> messages. The other two are the Linear-exit naming-mint finding (2026-09-07)
+> and the calendar deep-link fix (2026-09-08, PR #1354). Following the
+> convention set in the coordination set's own collision addendum: none is
+> renumbered, because all three are cited from text that cannot be edited, and
+> the ledger is append-only. Cite these by DATE **and PR**, not number alone.
+> Next free header at the time of writing: **179** (`## 178.` is the highest).
 
 
 Number: **175**, the next free header (`## 174.` is the highest in the file;
@@ -15552,7 +15551,7 @@ internal root is covered by its imported twin instead of duplicating`
 
 ## 175. [2026-09-08, FIXED — additive, no URL/parsing change] A pasted calendar-card link opened "normally," with no way to tell which card it was
 
-> **⚠️ DUPLICATE NUMBER.** Two entries claim `175`. **This one is the calendar deep-link pair (2026-09-08, PR #1354).** The other `175` is the Linear-exit naming-mint finding (2026-09-07). Concurrent branches claimed the same number and neither was renumbered, because the exit's `175` is cited 43 times across docs, PR comments and commit messages that cannot be edited. Cite these by DATE, not number alone.
+> **⚠️ DUPLICATE NUMBER.** Three entries claim `175`. **This one is the calendar deep-link pair (2026-09-08, PR #1354).** The others are the Linear-exit naming-mint finding (2026-09-07) and the lane-LX-D bounded-aggregate-wait fix (2026-09-08, PR #1347; count corrected there when that branch merged `main`). Concurrent branches claimed the same number and neither was renumbered, because the exit's `175` is cited 43 times across docs, PR comments and commit messages that cannot be edited. Cite these by DATE, not number alone.
 
 
 Third report of the same shape, after items covered by the 2026-08-26 and
@@ -15869,7 +15868,7 @@ verifying both attributes are set before `document.body.appendChild(el)`.
 
 ## 175. [2026-09-07, FOUND — the exit's own anchor stops being maintained on the day of the exit] Every human-readable task name in the estate is minted by Linear, and nothing else mints one
 
-> **⚠️ DUPLICATE NUMBER.** Two entries claim `175`. **This one is the Linear-exit naming-mint finding (2026-09-07)** and is the one meant by every "item 175" reference in `docs/independence/`, the lane briefs, the handoff, and the exit PR comments. The other `175` is a calendar deep-link fix (2026-09-08, PR #1354).
+> **⚠️ DUPLICATE NUMBER.** Three entries claim `175`. **This one is the Linear-exit naming-mint finding (2026-09-07)** and is the one meant by every "item 175" reference in `docs/independence/`, the lane briefs, the handoff, and the exit PR comments. The others are a calendar deep-link fix (2026-09-08, PR #1354) and the lane-LX-D bounded-aggregate-wait fix (2026-09-08, PR #1347).
 
 
 **Mechanism, read out of the source rather than inferred.**
@@ -16444,6 +16443,42 @@ session was still pushing to `claude/lx-d-feedback` at the time of this entry.
 Two sessions on one branch is how region ownership gets violated, and that
 convention is the reason six concurrent sessions never collided on a 79,418-line
 file tonight. It waits for the branch to go quiet.
+
+### Addendum, 2026-09-08 — CORRECTION to the 05:15 entry: the fail-open DID break a caller, and it was the one this lane had just built
+
+The decision above was implemented on `claude/lx-d-feedback` (PR #1347,
+`0d588fa`). It was the right decision and it stands. One of its supporting
+claims did not.
+
+> *"It breaks no caller that works today. Any reader of `total` must already
+> cope with a number it cannot verify."*
+
+**It broke a caller immediately.** `production-comments` has two browser
+consumers, not one. The second is `_wlNativeTweakComments`, the Workload
+"Tweaks Needed" reader that lane D added in the very PR the fix landed in. It
+never *displays* `total` — which is what "no consumer" was really measuring —
+but it **validates** it three ways: a `Number.isSafeInteger` guard, a cross-page
+stability check, and `complete = rows.length === total` as its completeness
+proof. `total: null` went straight into its malformed-response branch and
+painted *"Couldn't load this deliverable's feedback"* on a thread whose rows had
+been read perfectly well. Codex caught it as a P1 on `0d588fa`; fixed in
+`1396c7f`, and narrowed three times after that (`9ba499a`, `33f7ab9`,
+`2bedb2d`) before the completeness rule was actually sound. The endpoint also
+had to start reading its page BEFORE its count (`bc248f6`), because two
+concurrent PostgREST queries observe two different database states.
+
+**The transferable part, since this is the second time in two days this exact
+mistake has been made in this ledger** (see the 2026-09-05 note in `AGENTS.md`,
+*"measure with the key the shipped code uses"*): *"has no consumer"* was
+answered by looking for something that renders the field. A field can be
+load-bearing without ever being drawn. The question that would have got it right
+is "what would break if this were null", and it has to be asked of the branch
+the fix is destined for, not only of `main`.
+
+None of this changes the decision. Fail-open with a nullable field was still the
+smallest correct repair, and the owner decision it left open — whether the
+endpoint should compute an exact count at all — is still open and still not
+urgent.
 
 ### Addendum, 2026-09-08 07:20 — what the night cost, and the session I stopped
 

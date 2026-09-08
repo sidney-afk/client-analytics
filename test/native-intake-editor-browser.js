@@ -59,8 +59,43 @@ intakeWithoutNaming=intakeWithoutNaming.replace(titleBlock,'    const title = te
 const namedIntent='["team", "title", "name", "brief", "videoNumber", "number", "status", "assignee_id", "due_date", "priority", "card_id", "sort_key"]';
 assert.equal(intakeWithoutNaming.split(namedIntent).length,2);
 intakeWithoutNaming=intakeWithoutNaming.replace(namedIntent,namedIntent.replace('"name", ',''));
+// PR #1361 (Submit-tab notes no longer block AI thumbnail generation) is a
+// SECOND independently pinned change inside this same handler, merged into
+// main after the lane-B gateway was lifted. It gets the identical treatment
+// as the naming release above -- account for its exact two additions,
+// retaining the whole-handler equality check around them rather than waiving
+// unrelated intake drift. Both sides come from PINNED SHAs and neither is
+// hardcoded here: the release commit supplies the text to account for, and
+// its first parent supplies the text to put back. That is what keeps this
+// honest -- a literal typed into the suite would drift silently, and it would
+// also let an edit to these regions be waived by editing the suite. The two
+// regions are the retired-restore doc comment and the brief expression that
+// now combines a caller note with the labelled generated line.
+const thumbnailRelease='2c87a9430805ff74e24bccdb4ed2d04b34c6b1a0';
+const preThumbnailRelease='b42f7025189344aad1bef5acab6b91973c5ae34c';
+function pinnedIntake(sha){
+ return extractFunction(execFileSync('git',['show',sha+':supabase/functions/production-write/index.ts'],
+  {cwd:root,encoding:'utf8',maxBuffer:4*1024*1024}),'handleIntakeCreate');
+}
+const thumbnailIntake=pinnedIntake(thumbnailRelease),preThumbnailIntake=pinnedIntake(preThumbnailRelease);
+function boundedSlice(source,start,end){
+ const a=source.indexOf(start),b=source.indexOf(end,a);
+ assert(a>=0&&b>a,'block boundaries not found');
+ assert.equal(source.split(start).length,2,'block start is not unique');
+ return source.slice(a,b);
+}
+for(const [start,end] of [
+ ['   * It stays retired.','  const graphicBatchContext'],
+ ['    const existingBrief','    const priority = item.priority'],
+]) {
+ const after=boundedSlice(thumbnailIntake,start,end),before=boundedSlice(preThumbnailIntake,start,end);
+ assert.notEqual(after,before,'accounted #1361 block is not actually a change');
+ assert.equal(intakeWithoutNaming.split(after).length,2,'the lifted handler does not carry #1361 exactly once');
+ intakeWithoutNaming=intakeWithoutNaming.replace(after,before);
+}
 assert.equal(intakeWithoutNaming.replace(materializationBlock,'').replace(materializationField,'')
  .replace(legacyParameter,'').replace(legacyGuard,''),extractFunction(oldGateway,'handleIntakeCreate'));
+pass('#1361 survives the lift as an accounted block, with the whole-handler equality check intact around it');
 const intentSelector=currentIntake.slice(currentIntake.indexOf('  const intakeFields'),currentIntake.indexOf('  const rootManifest'))
  .replace('(input: JsonMap, keys: string[]): JsonMap','(input, keys)');
 function selected(input){return JSON.parse(JSON.stringify(vm.runInNewContext(intentSelector+'\nintakeFields(input,keys)',{input,keys:JSON.parse(namedIntent)})));}

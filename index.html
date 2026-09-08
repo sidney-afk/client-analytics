@@ -8603,6 +8603,13 @@
     // Cloudflare's request-body ceiling in front of n8n Cloud. Only the legacy
     // in-band transport is subject to it; the direct path above is not.
     const TIKTOK_LEGACY_MAX_BYTES  = 100 * 1024 * 1024;
+    // Photo carousel mode (TikTok "photo post"): always goes through the direct-to-storage
+    // transport above (mint one Post For Me upload URL per image, PUT each, then submit the
+    // resulting media URLs together) regardless of size — images are small, and reusing that
+    // path keeps this additive to tiktok-upload-direct only, never touching the in-band
+    // single-video tiktok-upload workflow above.
+    const TIKTOK_MAX_PHOTOS        = 35;               // TikTok photo/carousel post limit
+    const TIKTOK_PHOTO_MAX_BYTES   = 20 * 1024 * 1024;  // per-image guard
 
     // ---- TikTok Pilot (gated first-party Direct Post) — unlocked via ?ttpilot=1 ----
     // A separate, audit-compliant module that talks to FIRST-PARTY ttp-* n8n
@@ -70378,9 +70385,12 @@
         client: null,
         profile: null,
         profileSource: null,        // 'sheet' | 'missing'  (profile holds the Post For Me spc_… account id)
+        mediaType: 'video',         // 'video' | 'photo' — which TikTok post type this draft is
         file: null,
         fileMeta: null,             // {name,size,type} — persisted so we can warn after reload
         objectUrl: null,
+        photos: [],                 // photo mode only: [{file, objectUrl}], carousel order = array order
+        photosMeta: null,           // [{name,size,type}] — persisted so we can warn after reload (mirrors fileMeta)
         title: '',
         options: {
             privacy_level: 'PUBLIC_TO_EVERYONE',
@@ -70392,6 +70402,7 @@
             brand_content_toggle: false,
             brand_organic_toggle: false,
             is_aigc: false,
+            auto_add_music: true,   // photo mode only — Post For Me's own default for TikTok photo posts
         },
         schedule: { postNow: true, at: '', tz: 'America/New_York' },
         uploads: [],
@@ -70403,6 +70414,7 @@
     let _tkPollTimer = null;
     let _tkSaveTimer = null;
     let _tkActiveXhr = null;
+    let _tkActivePhotoAbort = null; // AbortController for the photo-carousel mint+PUT loop
     let _tkMounted = false;   // true while the TikTok Upload view is on screen
     let _tkVisHooked = false; // one-time guard for the visibilitychange listener
 
@@ -70587,6 +70599,15 @@
         html[data-theme="dark"] .tk-pill.scheduled { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
         html[data-theme="dark"] .tk-pill.posted { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
         html[data-theme="dark"] .tk-pill.failed { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
+        .tk-photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .tk-photo-item { position: relative; aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); }
+        .tk-photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .tk-photo-badge { position: absolute; top: 6px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); font-size: 0.64rem; font-weight: 800; display: grid; place-items: center; }
+        .tk-photo-actions { position: absolute; inset-inline: 0; bottom: 0; display: flex; gap: 4px; padding: 5px; background: linear-gradient(to top, var(--sv-bg-rgba-0-0-0-0_55), transparent); opacity: 0; transition: opacity 0.13s; }
+        .tk-photo-item:hover .tk-photo-actions, .tk-photo-item:focus-within .tk-photo-actions { opacity: 1; }
+        .tk-photo-btn { flex: 1; border: none; border-radius: 5px; background: var(--white); color: var(--text-primary); font-size: 0.76rem; font-weight: 700; padding: 3px 0; cursor: pointer; }
+        .tk-photo-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .tk-photo-btn-remove { color: var(--sv-fg-dc2626); }
         `;
         document.head.appendChild(style);
     }
@@ -70701,7 +70722,9 @@
         const handle = ttHandle ? '@' + ttHandle : (tkState.client || '@your_account');
         const caption = (tkState.title || '').trim();
         const captionHasOver = caption.length > 2200;
+        const isPhoto = tkState.mediaType === 'photo';
         const videoSrc = tkState.objectUrl || '';
+        const firstPhotoUrl = isPhoto && tkState.photos[0] ? tkState.photos[0].objectUrl : '';
         const initial = (tkState.client || '?').charAt(0).toUpperCase();
         const privacy = TK_PRIVACY_LABELS[tkState.options.privacy_level] || 'Public';
         const isPrivate = tkState.options.privacy_level === 'SELF_ONLY';
@@ -70715,9 +70738,13 @@
             <div class="tk-preview-card">
                 <h3>Preview <span style="float:right;text-transform:none;letter-spacing:0;font-weight:600;color:var(--text-secondary);font-size:0.72rem">live</span></h3>
                 <div class="tk-preview-frame">
-                    ${videoSrc
-                        ? `<video class="tk-preview-video" id="tkPreviewVideo" src="${_tkEscape(videoSrc)}" autoplay muted loop playsinline></video>`
-                        : `<div class="tk-preview-empty">Attach a video to see how this post will look on TikTok.</div>`}
+                    ${isPhoto
+                        ? (firstPhotoUrl
+                            ? `<img class="tk-preview-video" id="tkPreviewVideo" src="${_tkEscape(firstPhotoUrl)}" alt="">`
+                            : `<div class="tk-preview-empty">Attach images to see how this post will look on TikTok.</div>`)
+                        : (videoSrc
+                            ? `<video class="tk-preview-video" id="tkPreviewVideo" src="${_tkEscape(videoSrc)}" autoplay muted loop playsinline></video>`
+                            : `<div class="tk-preview-empty">Attach a video to see how this post will look on TikTok.</div>`)}
                     <div class="tk-preview-gradient"></div>
                     <div class="tk-preview-topbar">
                         <span>Following</span>
@@ -70736,11 +70763,13 @@
                         <div class="tk-preview-handle" id="tkPreviewHandle">${_tkEscape(handle)}</div>
                         <div class="tk-preview-caption ${caption ? '' : 'tk-preview-caption-empty'}" id="tkPreviewCaption">${caption ? _tkEscape(caption) : 'Caption will appear here…'}</div>
                     </div>
-                    <div class="tk-preview-music">${musicSvg}<span>Original sound · ${_tkEscape(handle)}</span></div>
+                    ${isPhoto
+                        ? (tkState.options.auto_add_music !== false ? `<div class="tk-preview-music">${musicSvg}<span>Music added automatically</span></div>` : '')
+                        : `<div class="tk-preview-music">${musicSvg}<span>Original sound · ${_tkEscape(handle)}</span></div>`}
                 </div>
                 <div class="tk-preview-meta">
                     <span>${_tkEscape(privacy)}${isPrivate ? ' <span class="tk-preview-meta-private">(only you)</span>' : ''}</span>
-                    <span>${_tkEscape(postMode)}</span>
+                    <span>${isPhoto && tkState.photos.length ? _tkEscape(`${tkState.photos.length} photo${tkState.photos.length === 1 ? '' : 's'}`) : _tkEscape(postMode)}</span>
                 </div>
                 ${captionHasOver ? `<div class="tk-error" style="margin-top:10px">Caption is over the 2200-character limit.</div>` : ''}
             </div>
@@ -70757,6 +70786,8 @@
             if (d.options && typeof d.options === 'object') Object.assign(tkState.options, d.options);
             if (d.schedule && typeof d.schedule === 'object') Object.assign(tkState.schedule, d.schedule);
             if (d.fileMeta && typeof d.fileMeta === 'object') tkState.fileMeta = d.fileMeta;
+            if (d.mediaType === 'photo' || d.mediaType === 'video') tkState.mediaType = d.mediaType;
+            if (Array.isArray(d.photosMeta)) tkState.photosMeta = d.photosMeta;
         } catch (e) { console.warn('[SyncView] TikTok draft load error:', e); }
     }
 
@@ -70766,6 +70797,8 @@
                 client: tkState.client, title: tkState.title,
                 options: tkState.options, schedule: tkState.schedule,
                 fileMeta: tkState.file ? { name: tkState.file.name, size: tkState.file.size, type: tkState.file.type } : tkState.fileMeta,
+                mediaType: tkState.mediaType,
+                photosMeta: tkState.photos.length ? tkState.photos.map(p => ({ name: p.file.name, size: p.file.size, type: p.file.type })) : tkState.photosMeta,
             };
             localStorage.setItem(TIKTOK_FORM_KEY, JSON.stringify(payload));
         } catch (e) { /* quota or private mode — ignore */ }
@@ -70779,6 +70812,7 @@
     function _tkClearDraft() {
         try { localStorage.removeItem(TIKTOK_FORM_KEY); } catch {}
         tkState.fileMeta = null;
+        tkState.photosMeta = null;
     }
 
     function _tkLoadPending() {
@@ -70844,7 +70878,8 @@
         const clientNames = [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
         const titleCount = (tkState.title || '').length;
         const titleOver = titleCount > 2200;
-        const submittable = !!(tkState.client && tkState.profile && tkState.file && tkState.title.trim() && !titleOver && !tkState.submitting);
+        const hasMedia = tkState.mediaType === 'photo' ? tkState.photos.length > 0 : !!tkState.file;
+        const submittable = !!(tkState.client && tkState.profile && hasMedia && tkState.title.trim() && !titleOver && !tkState.submitting);
 
         let profileLine = '';
         if (tkState.client) {
@@ -70886,6 +70921,33 @@
                 </div>`;
         }
 
+        const photoDropZone = `
+            <div class="tk-drop" id="tkPhotoDrop">
+                <input type="file" id="tkPhotoFile" accept="image/jpeg,image/png,image/webp" multiple>
+                <div class="tk-drop-icon">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 11V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.5 5.5L8 2L11.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5h12V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="tk-drop-title">${tkState.photos.length ? 'Drop more images, or click to add' : 'Drop images here, or click to browse'}</div>
+                <div class="tk-drop-sub">JPEG, PNG or WEBP · 1 to ${TIKTOK_MAX_PHOTOS} images, up to ${_tkFormatBytes(TIKTOK_PHOTO_MAX_BYTES)} each</div>
+            </div>`;
+        const photoReattachHint = (!tkState.photos.length && tkState.photosMeta && tkState.photosMeta.length)
+            ? `<div class="tk-drop-sub" style="color:var(--sv-fg-92400e)">Draft restored — please re-attach ${tkState.photosMeta.length} image${tkState.photosMeta.length === 1 ? '' : 's'}.</div>`
+            : '';
+        const photoGrid = tkState.photos.length ? `
+            <div class="tk-photo-grid">
+                ${tkState.photos.map((p, i) => `
+                <div class="tk-photo-item">
+                    <img src="${_tkEscape(p.objectUrl)}" alt="Image ${i + 1}">
+                    <div class="tk-photo-badge">${i + 1}</div>
+                    <div class="tk-photo-actions">
+                        <button type="button" class="tk-photo-btn" onclick="_tkMovePhoto(${i},-1)" ${i === 0 ? 'disabled' : ''} title="Move earlier">&larr;</button>
+                        <button type="button" class="tk-photo-btn" onclick="_tkMovePhoto(${i},1)" ${i === tkState.photos.length - 1 ? 'disabled' : ''} title="Move later">&rarr;</button>
+                        <button type="button" class="tk-photo-btn tk-photo-btn-remove" onclick="_tkRemovePhoto(${i})" title="Remove">&times;</button>
+                    </div>
+                </div>`).join('')}
+            </div>` : '';
+        const photoCard = `${photoGrid}${photoDropZone}${photoReattachHint}`;
+
         const opts = tkState.options;
         const errorBlock = tkState.error ? `<div class="tk-error" style="margin-bottom:12px">${_tkEscape(tkState.error)}</div>` : '';
 
@@ -70914,7 +70976,19 @@
 
             <div class="tk-card">
                 <h3>Media</h3>
-                ${mediaCard}
+                <div class="tk-row">
+                    <div class="tk-radio-row">
+                        <label class="tk-radio ${tkState.mediaType === 'video' ? 'active' : ''}">
+                            <input type="radio" name="tkMediaType" value="video" ${tkState.mediaType === 'video' ? 'checked' : ''}>
+                            Video
+                        </label>
+                        <label class="tk-radio ${tkState.mediaType === 'photo' ? 'active' : ''}">
+                            <input type="radio" name="tkMediaType" value="photo" ${tkState.mediaType === 'photo' ? 'checked' : ''}>
+                            Photo carousel
+                        </label>
+                    </div>
+                </div>
+                ${tkState.mediaType === 'photo' ? photoCard : mediaCard}
             </div>
 
             <div class="tk-card">
@@ -70950,10 +71024,17 @@
                         </div>
                     </div>
                 </div>
+                ${tkState.mediaType === 'video' ? `
                 <div class="tk-row">
                     <label for="tkCover">Cover timestamp (ms) <span class="tk-help">— which frame TikTok grabs as the thumbnail.</span></label>
                     <input class="tpl-input" id="tkCover" type="number" min="0" step="100" value="${Number(opts.cover_timestamp_ms) || 0}">
-                </div>
+                </div>` : `
+                <div class="tk-row">
+                    <label>Music</label>
+                    <div class="tk-toggles">
+                        <label class="tk-toggle"><input type="checkbox" id="tkAutoMusic" ${opts.auto_add_music !== false ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Auto-add trending music</label>
+                    </div>
+                </div>`}
                 <div class="tk-row">
                     <label>Interaction</label>
                     <div class="tk-toggles">
@@ -71043,6 +71124,12 @@
             _tkRenderForm();
         });
 
+        document.querySelectorAll('input[name=tkMediaType]').forEach(el => el.addEventListener('change', (e) => {
+            tkState.mediaType = e.target.value;
+            tkState.error = null;
+            _tkSaveDraft(); _tkRenderForm();
+        }));
+
         const drop = $('tkDrop');
         const fileInput = $('tkFile');
         if (fileInput) {
@@ -71052,6 +71139,17 @@
             ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('tk-drag'); }));
             ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('tk-drag'); }));
             drop.addEventListener('drop', (e) => _tkHandleFile(e.dataTransfer?.files?.[0]));
+        }
+
+        const photoDrop = $('tkPhotoDrop');
+        const photoInput = $('tkPhotoFile');
+        if (photoInput) {
+            photoInput.addEventListener('change', (e) => { _tkHandlePhotoFiles(e.target.files); e.target.value = ''; });
+        }
+        if (photoDrop) {
+            ['dragenter', 'dragover'].forEach(ev => photoDrop.addEventListener(ev, (e) => { e.preventDefault(); photoDrop.classList.add('tk-drag'); }));
+            ['dragleave', 'drop'].forEach(ev => photoDrop.addEventListener(ev, (e) => { e.preventDefault(); photoDrop.classList.remove('tk-drag'); }));
+            photoDrop.addEventListener('drop', (e) => _tkHandlePhotoFiles(e.dataTransfer?.files));
         }
 
         $('tkTitle')?.addEventListener('input', (e) => {
@@ -71087,6 +71185,7 @@
         tog('tkBrandContent', 'brand_content_toggle');
         tog('tkBrandOrganic', 'brand_organic_toggle');
         tog('tkAigc', 'is_aigc');
+        tog('tkAutoMusic', 'auto_add_music');
 
         $('tkPostNow')?.addEventListener('change', (e) => {
             tkState.schedule.postNow = e.target.checked;
@@ -71158,14 +71257,62 @@
         _tkRenderForm();
     }
 
+    // ---- Photo carousel mode: multi-image state, mirrors the single-file
+    // helpers above but keyed by index since order defines the carousel. ----
+    function _tkHandlePhotoFiles(fileList) {
+        if (!fileList || !fileList.length) return;
+        const room = TIKTOK_MAX_PHOTOS - tkState.photos.length;
+        const incoming = Array.from(fileList);
+        const overflow = incoming.length > room;
+        const files = incoming.slice(0, Math.max(room, 0));
+        let err = null;
+        let added = 0;
+        for (const file of files) {
+            const looksLikeImage = /^image\/(jpeg|png|webp)$/.test(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
+            if (!looksLikeImage) { err = `"${file.name}" does not look like a JPEG, PNG or WEBP image.`; continue; }
+            if (file.size > TIKTOK_PHOTO_MAX_BYTES) { err = `"${file.name}" is ${_tkFormatBytes(file.size)} — the per-image limit is ${_tkFormatBytes(TIKTOK_PHOTO_MAX_BYTES)}.`; continue; }
+            tkState.photos.push({ file, objectUrl: URL.createObjectURL(file) });
+            added++;
+        }
+        if (overflow) err = `Only added ${room} image${room === 1 ? '' : 's'} — the ${TIKTOK_MAX_PHOTOS}-image limit was reached.`;
+        tkState.error = err;
+        if (added) tkState.photosMeta = null;
+        _tkSaveDraft();
+        _tkRenderForm();
+    }
+    function _tkRemovePhoto(i) {
+        const p = tkState.photos[i];
+        if (!p) return;
+        if (p.objectUrl) URL.revokeObjectURL(p.objectUrl);
+        tkState.photos.splice(i, 1);
+        _tkSaveDraft();
+        _tkRenderForm();
+    }
+    function _tkMovePhoto(i, dir) {
+        const j = i + dir;
+        if (j < 0 || j >= tkState.photos.length) return;
+        const arr = tkState.photos;
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        _tkSaveDraft();
+        _tkRenderForm();
+    }
+    function _tkClearAllPhotos() {
+        tkState.photos.forEach(p => { if (p.objectUrl) URL.revokeObjectURL(p.objectUrl); });
+        tkState.photos = [];
+        tkState.photosMeta = null;
+    }
+
     function _tkCanSubmit() {
-        return !!(tkState.client && tkState.profile && tkState.file && tkState.title.trim() && tkState.title.length <= 2200 && !tkState.submitting);
+        const hasMedia = tkState.mediaType === 'photo' ? tkState.photos.length > 0 : !!tkState.file;
+        return !!(tkState.client && tkState.profile && hasMedia && tkState.title.trim() && tkState.title.length <= 2200 && !tkState.submitting);
     }
 
     function _tkValidate() {
         if (!tkState.client) return 'Pick a client first.';
         if (!tkState.profile) return 'This client has no Post For Me account mapping — add a postforme_account_id in the Clients Info sheet.';
-        if (!tkState.file) return 'Attach a video.';
+        if (tkState.mediaType === 'photo') {
+            if (!tkState.photos.length) return 'Attach at least one image.';
+        } else if (!tkState.file) return 'Attach a video.';
         if (!tkState.title.trim()) return 'Add a caption.';
         if (tkState.title.length > 2200) return 'Caption is over the 2200-character limit.';
         if (!tkState.schedule.postNow) {
@@ -71196,6 +71343,11 @@
         const idempotencyKey = (crypto.randomUUID && crypto.randomUUID()) || `tk-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const scheduledAtWall = tkState.schedule.postNow ? '' : tkState.schedule.at;
         const scheduledAtUTC  = scheduledAtWall ? (_tkWallClockToUTC(scheduledAtWall, tkState.schedule.tz) || '') : '';
+
+        if (tkState.mediaType === 'photo') {
+            _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC);
+            return;
+        }
 
         // n8n Cloud sits behind Cloudflare, which hard-rejects request bodies over
         // 100 MB before the request ever reaches the workflow (the browser only
@@ -71290,12 +71442,13 @@
         tkState.file = null;
         tkState.objectUrl = null;
         tkState.fileMeta = null;
+        _tkClearAllPhotos();
         tkState.title = '';
         tkState.progress = 0;
         _tkClearDraft();
         _tkRenderForm();
         _tkRenderQueue();
-        showNotify('Upload queued', scheduledAtWall ? `Scheduled for ${_tkFormatScheduledLong(scheduledAtWall, tkState.schedule.tz)}.` : 'The video is uploading to TikTok now.');
+        showNotify('Upload queued', scheduledAtWall ? `Scheduled for ${_tkFormatScheduledLong(scheduledAtWall, tkState.schedule.tz)}.` : 'The post is uploading to TikTok now.');
         Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);   // pick up the server-side row + (re)start polling
     }
 
@@ -71444,6 +71597,98 @@
         xhr.send(fd);
     }
 
+    // Photo carousel submit: mint one Post For Me upload URL per image (reusing
+    // the same tiktok-upload-url mint endpoint the video direct-path already
+    // uses — it's stateless and media-type agnostic), PUT each image straight
+    // to storage in carousel order, then hand the resulting media URLs to
+    // tiktok-upload-direct as JSON array `mediaUrls`. Always goes through this
+    // direct-to-storage transport regardless of size, so this never touches the
+    // in-band single-video tiktok-upload workflow.
+    async function _tkSubmitPhotoCarousel(idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+        const photos = tkState.photos.slice();
+        tkState.submitting = true;
+        tkState.error = null;
+        tkState.progress = 0;
+        _tkRenderForm();
+
+        const controller = new AbortController();
+        _tkActivePhotoAbort = controller;
+        const mediaUrls = [];
+        try {
+            for (let i = 0; i < photos.length; i++) {
+                const { file } = photos[i];
+                const mintResp = await fetch(TIKTOK_UPLOAD_URL_WEBHOOK, { signal: controller.signal });
+                if (!mintResp.ok) throw new Error(`Could not prepare image ${i + 1} (HTTP ${mintResp.status}).`);
+                let mint = {};
+                try { mint = await mintResp.json(); } catch {}
+                if (!mint.ok || !mint.upload_url || !mint.media_url) throw new Error(`Could not prepare image ${i + 1} — ${mint.error || 'no upload url returned'}.`);
+                const putResp = await fetch(mint.upload_url, { method: 'PUT', headers: { 'Content-Type': file.type || 'image/jpeg' }, body: file, signal: controller.signal });
+                if (!putResp.ok) throw new Error(`Image ${i + 1} upload to storage failed (HTTP ${putResp.status}).`);
+                mediaUrls.push(mint.media_url);
+                // Reserve the last 10% of the bar for the metadata/post-creation step, same convention as _tkPutDirect.
+                tkState.progress = Math.round(((i + 1) / photos.length) * 90);
+                const bar = document.getElementById('tkProgress');
+                if (bar) bar.style.width = tkState.progress + '%';
+            }
+        } catch (e) {
+            _tkActivePhotoAbort = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = e.name === 'AbortError' ? 'Upload cancelled.' : (e.message || 'Image upload failed. Try again.');
+            _tkRenderForm();
+            return;
+        }
+        _tkActivePhotoAbort = null;
+        _tkFinishPhotoSubmit(mediaUrls, idempotencyKey, scheduledAtWall, scheduledAtUTC);
+    }
+
+    function _tkFinishPhotoSubmit(mediaUrls, idempotencyKey, scheduledAtWall, scheduledAtUTC) {
+        // FormData (not JSON) for the same CORS-simple reason as _tkFinishDirectSubmit above.
+        const fd = new FormData();
+        fd.append('clientName', tkState.client);
+        fd.append('socialAccountId', tkState.profile);
+        fd.append('title', tkState.title);
+        fd.append('options', JSON.stringify(tkState.options));
+        fd.append('scheduledAt', scheduledAtWall);
+        fd.append('scheduledAtUTC', scheduledAtUTC);
+        fd.append('scheduledAtUnix', scheduledAtUTC ? String(Math.floor(Date.parse(scheduledAtUTC) / 1000)) : '');
+        fd.append('timezone', tkState.schedule.tz);
+        fd.append('idempotencyKey', idempotencyKey);
+        fd.append('mediaUrls', JSON.stringify(mediaUrls));
+        const xhr = new XMLHttpRequest();
+        _tkActiveXhr = xhr;
+        xhr.open('POST', TIKTOK_UPLOAD_DIRECT_WEBHOOK);
+        xhr.onload = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            if (xhr.status >= 200 && xhr.status < 300) {
+                tkState.progress = 100;
+                let resp = {};
+                try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
+                _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp);
+            } else {
+                tkState.progress = 0;
+                tkState.error = _tkExplainError(xhr);
+                _tkRenderForm();
+            }
+        };
+        xhr.onerror = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'The images finished uploading to storage, but n8n could not be reached to finish creating the post. Try Submit again — this re-uploads the images (that part is not saved between attempts).';
+            _tkRenderForm();
+        };
+        xhr.onabort = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'Upload cancelled.';
+            _tkRenderForm();
+        };
+        xhr.send(fd);
+    }
+
     function _tkExplainError(xhr) {
         try {
             const j = JSON.parse(xhr.responseText || '{}');
@@ -71455,6 +71700,7 @@
 
     function _tkCancelUpload() {
         if (_tkActiveXhr) _tkActiveXhr.abort();
+        if (_tkActivePhotoAbort) _tkActivePhotoAbort.abort();
     }
 
     function _tkMergeUploads(existing, incoming) {
@@ -71630,6 +71876,9 @@
         if (tkState.file) {
             tkState.objectUrl = URL.createObjectURL(tkState.file);
         }
+        // Same treatment for photo carousel mode, per-image.
+        tkState.photos.forEach(p => { if (p.objectUrl) URL.revokeObjectURL(p.objectUrl); });
+        tkState.photos.forEach(p => { p.objectUrl = URL.createObjectURL(p.file); });
     }
 
     function mountTiktokUploadView() {
@@ -71665,6 +71914,8 @@
     // Expose handlers used by inline onclick="" so they survive page rerenders.
     window._tkReplaceFile = _tkReplaceFile;
     window._tkClearFile = _tkClearFile;
+    window._tkRemovePhoto = _tkRemovePhoto;
+    window._tkMovePhoto = _tkMovePhoto;
     window._tkCancelUpload = _tkCancelUpload;
     window._tkCancelRow = _tkCancelRow;
     window._tkRetryRow = _tkRetryRow;

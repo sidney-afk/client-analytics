@@ -64,47 +64,40 @@ ok(/intake_assignee_override_conflict/.test(gateway),
     'a prior attempt still wins over a fresh choice, so a retry cannot move work someone already started');
 }
 
-// ---- 1: the default is the freest, and it is disclaimed --------------------
-const disclaimer = html.slice(
-  html.indexOf('function _calNativeEditorDisclaimer('),
-  html.indexOf('const CAL_NATIVE_MAX_INTAKE_ITEMS'),
+// ---- 1: the default is the freest, and the option says so ------------------
+/*
+ * THE EXPLANATORY PARAGRAPH IS GONE (owner, 2026-09-08). It used to sit under
+ * the picker and restate, in prose, what the option beside it already showed.
+ * `_calNativeEditorDisclaimer` went with it -- it had no other caller.
+ *
+ * What that paragraph existed to guarantee still has to hold, so it is
+ * asserted here against the OPTION LABEL, which is now the only place it
+ * lives: the suggestion is marked as a suggestion, and the number it was
+ * derived from is visible. The 2026-08-25 report -- an SMM reading
+ * "Suggested was X, but you have chosen someone else" as a refusal -- is why
+ * the paragraph must not quietly come back in another form: an override is
+ * accepted by this picker AND by the gateway, and nothing on this surface may
+ * imply otherwise.
+ */
+const editorItems = html.slice(
+  html.indexOf('const editorItems = '),
+  html.indexOf('const editorPickerHtml'),
 );
-ok(/has the least on right now/.test(disclaimer),
-  'the disclaimer names the person and why they were chosen');
-ok(/suggestion/.test(disclaimer),
-  'and calls it a suggestion in words, which is what the owner asked to be disclaimed');
-/* EXECUTED, not pattern-matched. This used to assert the literal phrase "you
-   have chosen someone else", which pinned wording rather than behaviour — and
-   that exact wording was reported on 2026-08-25 as a refusal: an SMM read
-   "Suggested was X, but you have chosen someone else" as "you may only use the
-   suggested one" and stopped, when nothing was refusing her. The requirement
-   was never that sentence; it is that an overridden pick must say what WILL
-   happen and must not keep claiming the default. */
-const disclaimerFn = new Function(
-  'return (' + disclaimer.slice(disclaimer.indexOf('function _calNativeEditorDisclaimer('))
-    .replace('function _calNativeEditorDisclaimer(', 'function (') + ')')();
-const editorState = {
-  videoEditors: [{ id: 'sug', name: 'Martin', openCount: 7 }, { id: 'other', name: 'Santi Gimelli', openCount: 56 }],
-  videoEditorSuggestedId: 'sug',
-};
-const overridden = disclaimerFn({ ...editorState, videoEditorId: 'other' });
-const followed = disclaimerFn({ ...editorState, videoEditorId: 'sug' });
-ok(overridden !== followed,
-  'the disclaimer changes once the suggestion has been overridden, rather than still claiming the default');
-ok(overridden.includes('Santi Gimelli'),
-  'and the overridden text names the editor who WILL do the work');
-ok(overridden.indexOf('Santi Gimelli') < overridden.indexOf('Martin'),
-  'naming the chosen editor before the suggestion, so it reads as confirmation and not correction');
-ok(/suggestion|Suggested/.test(overridden),
-  'while still disclosing that a suggestion existed');
-ok(followed.includes('Martin') && !followed.includes('Santi Gimelli'),
-  'and the followed text names only the suggested editor');
-ok(/Current workloads could not be read/.test(disclaimer),
-  'an unranked list says so instead of presenting an alphabetical first as if it were the freest');
+ok(editorItems.length > 0, 'the option builder is findable (harness is not vacuous)');
+ok(/open video'/.test(editorItems) && /open videos'/.test(editorItems),
+  'the option carries the open count the suggestion is based on, singular and plural');
+ok(/\(suggested\)/.test(editorItems),
+  'and marks which one is suggested, so the default is never unexplained');
+ok(/editor\.openCount == null \? '' :/.test(editorItems),
+  'an unread workload shows no number rather than a zero it did not measure');
+ok(!/_calNativeEditorDisclaimer/.test(html),
+  'and the removed paragraph left no dead builder behind');
+ok(!/cal-native-editor-hint"/.test(html),
+  'no paragraph under the picker re-explains the option above it');
 
 const pool = html.slice(
   html.indexOf('async function _calNativeVideoEditorPool('),
-  html.indexOf('function _calNativeEditorDisclaimer('),
+  html.indexOf('const CAL_NATIVE_MAX_INTAKE_ITEMS'),
 );
 /*
  * Caught in review (P1): the pool was built from the shared sign-in roster,

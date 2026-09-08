@@ -286,11 +286,13 @@ jobs:
       # A caller-supplied note and a generated title (labelled with
       # THUMBNAIL_TEXT_AI_LABEL) are additive -- joined by a newline -- rather
       # than one excluding or replacing the other; only a PRIOR ATTEMPT's
-      # brief still wins outright. See test/f27-section4-deploy-lane.js
-      # CANDIDATES for the full note. No migration, no new import, file count
-      # unchanged at 5.
+      # brief still wins outright. Amended before merge for a Codex P2: a
+      # generated title containing \r or \n is now rejected too, since only
+      # its first physical line would carry the label. See
+      # test/f27-section4-deploy-lane.js CANDIDATES for the full note. No
+      # migration, no new import, file count unchanged at 5.
       # (Previous pin: ccbdd136f4... -- production-write v69, 2026-09-07.)
-      PRODUCTION_WRITE_SOURCE_SHA256: eba247f26e6b8528229e67bf0a8c257a0c8530966d7dcbed89ac36a9e82fac6c
+      PRODUCTION_WRITE_SOURCE_SHA256: 27d1a608fd5dbf292f2079c672f26cafbbc5c84bf272811512cc84b1a7c7a432
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

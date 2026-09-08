@@ -436,8 +436,18 @@ const CANDIDATES = new Map([
     // Constant-and-expression change only: no new import, file count
     // unchanged at 5, entrypoint unchanged (it hashes the PATH, not the
     // file).
+    //
+    // Amended before merge for a Codex P2 on #1361: clean() only trims the
+    // ends, so a provider title containing \r or \n survived length and
+    // grounding untouched, and generatedLine's template literal labels only
+    // the FIRST physical line -- every line after it would land in the
+    // description looking like an unlabelled human note, defeating the
+    // whole point of THUMBNAIL_TEXT_AI_LABEL. Gate 7 now also rejects any
+    // title matching /[\r\n]/, same "drop it, stay honestly empty" shape as
+    // the existing length/grounding rejections. Comment-only elsewhere; no
+    // new import, file count unchanged at 5.
     // (Previous pin: ccbdd136f4... -- the thirty-second release, post names.)
-    source: 'eba247f26e6b8528229e67bf0a8c257a0c8530966d7dcbed89ac36a9e82fac6c',
+    source: '27d1a608fd5dbf292f2079c672f26cafbbc5c84bf272811512cc84b1a7c7a432',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
     files: 5,
   }],

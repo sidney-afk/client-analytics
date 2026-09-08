@@ -137,6 +137,9 @@ ok(/if \(clean\(planText\)\.length < MIN_PLAN_CHARS\) return empty;/.test(fn),
   'gate 5: an empty or stub filming plan refuses — the condition whose absence caused the retirement');
 ok(/!thumbnailTextGrounded\(title, plan\)/.test(fn), 'gate 6: ungrounded lines are dropped');
 ok(/title\.length > MAX_THUMBNAIL_TEXT_CHARS/.test(fn), 'gate 7: art-direction paragraphs are dropped');
+ok(fn.includes('/[\\r\\n]/.test(title)'),
+  'gate 7: a line break in the title is rejected too — clean() only trims the ends, so an embedded newline would ' +
+  'ride past length/grounding and land a SECOND unlabelled physical line under THUMBNAIL_TEXT_AI_LABEL (Codex finding on #1361)');
 
 // Gate 8 is the one that must be true STRUCTURALLY, not by inspection: a
 // generator that can throw can refuse a submission, which is exactly what the

@@ -2820,9 +2820,13 @@ async function autoAssigneeForIntake(supabase: SupabaseClient, team: string): Pr
  *     appear in the plan. "gradient", "navy" and "tones" appear in no plan, so
  *     the exact text that caused the retirement cannot survive this check even
  *     if a model produced it again.
- *  7. SHORT -- the target is the text ON the thumbnail, so anything longer than
- *     MAX_THUMBNAIL_TEXT_CHARS is dropped. The retired output was a paragraph
- *     of art direction; this is the mechanical floor under that drift.
+ *  7. SHORT AND SINGLE-LINE -- the target is the text ON the thumbnail, so
+ *     anything longer than MAX_THUMBNAIL_TEXT_CHARS is dropped, and so is a
+ *     line containing \r or \n. The retired output was a paragraph of art
+ *     direction; the length cap is the mechanical floor under that drift, and
+ *     the line-break check (added for #1361) closes a gap it left: a second
+ *     physical line would ride under THUMBNAIL_TEXT_AI_LABEL unlabelled,
+ *     indistinguishable from a human note once it landed in a description.
  *  8. NEVER FAILS A SUBMISSION -- a missing secret, transport error, bad JSON,
  *     over-long or ungrounded line yields NO text for that item and the intake
  *     proceeds exactly as it does today, with an honestly empty brief. The
@@ -3020,8 +3024,14 @@ async function submissionThumbnailText(
         || !Number.isInteger(number)
         || !requestedNumbers.has(number)
         || !title
-        // Gate 7: thumbnail TEXT, not an art-direction paragraph.
+        // Gate 7: thumbnail TEXT, not an art-direction paragraph -- one line,
+        // never several. clean() only trims the ends, so an embedded
+        // newline would survive into generatedLine with only its FIRST
+        // physical line carrying THUMBNAIL_TEXT_AI_LABEL; every line after
+        // it would land in the description looking like an unlabelled human
+        // note (Codex finding on #1361).
         || title.length > MAX_THUMBNAIL_TEXT_CHARS
+        || /[\r\n]/.test(title)
         // Gate 6: nothing the plan does not already say.
         || !thumbnailTextGrounded(title, plan)) continue;
     // The first valid line for a requested number wins, so a retry of the same

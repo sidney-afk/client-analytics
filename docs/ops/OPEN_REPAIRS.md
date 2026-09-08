@@ -15563,3 +15563,39 @@ number AND date.* "Item 176" is ambiguous; "item 176 (2026-09-07)" is not, and
 costs four characters. The reservation table in item 168 remains the right
 mechanism for avoiding collisions in the first place, but it only binds sessions
 that read it, and PR #1354 was not part of this programme.
+
+### Addendum, 2026-09-08 — the exit now has ONE ordered list, and P1 was on nobody's list
+
+`docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` is new. Every lane had a good
+runbook for its own piece; **none carried the order ACROSS lanes** — which merge
+precedes which migration, which deploy precedes which flag, and which of those
+only the owner can perform. Writing it surfaced one item that was genuinely
+nobody's task.
+
+**The naming mint migration is NOT applied, and nothing was tracking that.**
+`docs/ops/NATIVE_IDENTIFIER_MINT.md` opens "Status: SOURCE ONLY … has not been
+applied to the live database and no team has been seeded", and `EXECUTION_LOG.md`
+has no record of it either. It is precondition **P1** of the cutoff runbook.
+
+**Why it is worth its own paragraph.** `deliverables.linear_identifier` is the
+`VID-`/`GRA-` name staff say out loud, and every writer of that column is Linear.
+Flip outbound off before this is applied AND each team seeded, and every card
+created afterwards has **no name** — a raw internal id in the Production list,
+the command palette, the Workload parent header and all three deep links.
+**Nothing errors.** The estate silently stops producing names, which is the
+hardest kind of failure to notice and the easiest to cause.
+
+Merging PR #1349 was not enough and the runbook already said so; what was missing
+was anyone carrying it as an owner action. It is now the first item in Phase 2,
+with its proof: create one card on the TEST client after seeding and read back a
+non-null identifier Linear did not mint.
+
+**Also surfaced by the same pass:** lane A's corrective migration
+`2026-09-08-workload-native-label-state-shape.sql` has no application record
+either. The entry does **not** claim it is unapplied — this programme has now
+been wrong in both directions about which migrations are live, so it says
+*verify before assuming*.
+
+**The document's other job is to stop the completion figure drifting upward on
+feeling.** It states, in one line each, that building is near done and installing
+is barely started, and that no further code moves the number.

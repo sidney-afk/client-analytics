@@ -17058,3 +17058,59 @@ was true and *slightly over-general*, and checking it cost minutes and produced 
 caveat rather than a defect. Both were worth doing, and the asymmetry is the point:
 **the check is cheap and its value is not predictable in advance**, so "the source
 is trustworthy" is not a reason to skip it.
+
+### Addendum, 2026-09-08 — CORRECTION: the Create Post finding traced dead code, and component_fill is worse than recorded
+
+Three review findings on PR #1360, all correct, all against the entry above. The
+conclusion survives; the trace supporting it did not.
+
+**1. `create` never reaches a Linear read.** `production-write/index.ts:3592`
+throws `GatewayError(403, "production_create_closed")` unconditionally, before
+`productionCreateScope` on the very next line, under an owner ruling of 2026-08-23
+that *"nothing is created from the Production tab."* **Everything after that throw
+is dead code**, including both reads counted in the entry above.
+
+**I traced a path without first checking it was reachable.** On the same day this
+ledger recorded three variants of "a document correct about what it says and wrong
+about where it points", this is a fourth and worse one: **correct about what the
+code says, wrong that the code runs.** Reachability is the first question, not a
+detail, and it is cheaper to answer than any of the tracing done after it. The
+finding was reached by a method that would have produced the same confident writeup
+had the conclusion been false.
+
+**The conclusion survives** because the browser never sends `create`. The Calendar
+Create Post flow sends **`intake_create`** (`index.html:42155`), and
+`handleIntakeCreate` is not closed and calls `projectForIntake` **unconditionally,
+once per team**, in the loop the source itself labels read-only validation before
+the first native row write. So Create Post really does depend on Linear, by a path
+this ledger had not looked at.
+
+**2. `component_fill` is ALWAYS Linear-dependent, not "sometimes".**
+`handleComponentFill:6008` calls `projectForIntake` unconditionally, **before**
+`parentRouteForAppend` at `:6038`. The entry above said a native batch with an
+unwritten parent takes a graceful path; it does not, it merely avoids the extra
+parent-validation read. **The "two defects conceal each other" observation is
+withdrawn** — it was a satisfying story resting on a false premise, and satisfying
+is exactly when to check harder. The practical cost of the error would have been
+real: "sometimes" invites leaving `component_fill` out of the cutoff repair scope,
+and every fill would then fail after provider access ends.
+
+**3. The replay caveat over-generalised.** An F27 **drill** provably cannot reach
+Linear even with outbound off: `readViewer()` is skipped when `isDrill === true`,
+and the row loop calls `executeF27DrillReplay` and `continue`s before
+`currentControl` or any mutation, under a source comment saying exactly that. Only
+a **non-drill recovery replay** re-opens the provider path. Telling an incident
+operator that the drill mechanism reaches Linear is worse than saying nothing,
+because the drill is the safe thing they should feel free to run.
+
+**One thing the correction improved.** #1326's `nativeEpoch` fix is threaded into
+exactly the two **reachable** call sites, `handleComponentFill` and
+`handleIntakeCreate`, and deliberately not into the dead `create` one. A more
+precisely targeted fix than the earlier entry credited, and evidence its authors
+knew which paths run.
+
+**Unchanged:** the four held PRs still change zero lines of `production-write`, and
+the `SYNCVIEW_QA_LINEAR_DEAD` rehearsal stays the first Phase 2 action. It is now
+the *only* thing that should settle this, because this analysis has already been
+wrong once about which code runs, and a second source reading is not the remedy for
+a source reading that missed a `throw`.

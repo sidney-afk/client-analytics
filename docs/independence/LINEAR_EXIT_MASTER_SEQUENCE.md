@@ -57,7 +57,7 @@ reading:
 | Surface | Effect | Severity |
 |---|---|---|
 | Staff writes: status, comments, edits | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so these go native (item 175, 2026-09-07) | none |
-| **Staff CREATING a post** | **NOT safe. See the section below.** Every create reads the Linear API twice before it writes anything, and neither read is behind a flag | **the highest severity in this table** |
+| **Staff creating a post, or filling a component** | **NOT safe. See the section below.** `intake_create` and `component_fill` both read the Linear API before writing anything, and neither read is behind a flag | **the highest severity in this table** |
 | Workload board | The n8n reconcile stops refreshing `workload_issues`, so the board **freezes rather than empties** — silently current-looking and stale | high, because it is invisible |
 | Kasper → Editors subtab | `editors-week` fails | visible |
 | Tweak comments | `linear-tweak-comments` fails | visible |
@@ -186,134 +186,113 @@ whole point of the section is what the review needs to weigh.
 
 ## Create Post is Linear-dependent, and none of the four held PRs fixes it
 
-**This is the most consequential thing found on 2026-09-08, and it contradicts a
-line this document carried for most of the day.** The degradation table said
-"staff writes are safe". That is true of status, comment and edit writes. It is
-**false of creating a post**, which is the write staff make most.
+**The conclusion holds. The first version of this section reached it by tracing
+dead code, and is corrected below.** Three review findings, all correct, all
+against this section. Read the correction notice before the trace.
 
-### What the source says
+### Correction, 2026-09-08 — I traced an unreachable path
 
-`supabase/functions/production-write/index.ts` on today's `main`. The `create`
-operation dispatches to `handleProductionCreate`, which calls
-`productionCreateScope`, which calls `projectForIntake` **unconditionally** as its
-first substantive step. Every branch of that function that returns successfully
-goes through `readLinearProject`, which is a live `POST https://api.linear.app/graphql`:
+The first version said the `create` operation reads Linear twice. **`create` never
+reaches a Linear read.** `production-write/index.ts:3592` throws
+`GatewayError(403, "production_create_closed")` unconditionally, before
+`productionCreateScope` on the next line, under an owner ruling of 2026-08-23 that
+*"nothing is created from the Production tab."* Everything after that `throw` —
+including both reads I counted — is dead code.
 
-- a test-scope principal reads the configured test project;
-- a real client with exactly one tagged project reads that project;
-- a real client with none is refused `409 project_mapping_missing` anyway, and one
-  with several is refused `409 project_mapping_ambiguous`.
+**I traced a path without checking it was reachable**, on the day this programme
+logged three separate variants of "a document correct about what it says and wrong
+about where it points". This is a fourth: **correct about what the code says, wrong
+that the code runs.** Reachability is the first question, not a detail, and it is
+cheaper to check than any of the tracing I did after it.
 
-**There is no path to a successful create that does not read Linear.** Then
-`handleProductionCreate` reads it a second time, through
-`linearStateIdForCreate`, to resolve the status state id.
+The conclusion survives because the browser does not send `create`. The Calendar
+Create Post flow sends **`intake_create`** (`index.html:42155`), and that handler
+is not closed and does depend on Linear. So the finding is real and its trace was
+wrong, which is the least useful way to be right.
+
+### What the reachable paths actually do
+
+| Operation | Reachable? | Reads Linear? | Behind a flag? |
+|---|---|---|---|
+| `create` | **No** — 403 `production_create_closed` at `:3592` by owner ruling | Moot, the throw precedes every read | n/a |
+| **`intake_create`** — the real Create Post | **Yes** | **Yes.** `handleIntakeCreate` calls `projectForIntake` **unconditionally, once per team**, in a loop before the first native row write; each mapped client reaches `readLinearProject`. Also `parentRouteForAppend` and `assertEligibleAssignee` | **No** |
+| `component_fill` | **Yes** | **Yes, ALWAYS.** `handleComponentFill:6008` calls `projectForIntake` unconditionally, before `parentRouteForAppend` at `:6038` | **No** |
+| **Changing a card's assignee** | **Yes** | **Yes** — `validateAssignee` → `assigneeProviderPool`. An everyday action on an existing card | **Yes**, `production_assignee_eligibility` |
+| `status`, `due`, `description` | Yes | **No** | n/a |
+| `comment`, `attachment`, `labels` | Yes | **No** | n/a |
+| `batch_description`, `batch_asset` | Yes | **No** | n/a |
+
+**A withdrawn claim.** The first version called `component_fill` "sometimes"
+Linear-dependent and built a story on it: that it degrades gracefully for natively
+created batches, and that this graceful path is unreachable because `create` is
+blocked, so "the two defects conceal each other." **That was wrong in its premise.**
+`projectForIntake` runs before any parent-route logic, so a fill on a mapped client
+always reaches Linear regardless of its parent. There is no graceful path to
+conceal. The row is **Always**, and `component_fill` belongs in the cutoff repair
+scope; leaving it as "sometimes" would have let it be skipped, and every fill would
+fail after provider access ends.
+
+**The safe rows are verified forward, not by absence.** Tracing callers backwards
+shows only what reaches a provider call and can never establish that a path is
+clean. `handleEntityOperation` was read forward: `status`, `due` and `description`
+each take their own branch and none calls `validateAssignee`, which is reached only
+in the final `else`. That branch is the mutate path's entire Linear exposure.
+
+### The failure mode, unchanged by the correction
 
 When Linear is unreachable, `linearRead` throws
 `GatewayError(503, "project_mapping_validation_unavailable")`. It **fails closed**,
-which is the correct choice and means nothing is corrupted. It also means the
-create is **refused**.
+so nothing is corrupted, and the operation is **refused**.
 
-**"Nothing is corrupted" is checked, not assumed.** Everything `handleProductionCreate`
-awaits before `productionCreateScope` is read-only: principal resolution,
-deterministic id derivation, and `productionCreateReplay`, whose every database
-call is a `.select(...)`. The 503 is therefore raised before any row is written,
-and a refused create leaves no partial state behind.
-
-### The full map, because "create" is not the only affected operation
-
-Every Linear read in `production-write` traced to the operation that reaches it.
-`create` is the worst case but not the only one:
-
-| Operation | Reads Linear? | Behind a flag? |
-|---|---|---|
-| `create` | **Yes, twice** — `projectForIntake`, `linearStateIdForCreate`, plus parent validation via `productionCreateParentRoute` | **No** |
-| `intake_create` | **Yes** — `projectForIntake`, and `parentRouteForAppend` | **No** |
-| `component_fill` | **Sometimes** — `parentRouteForAppend` validates externally by default, so a batch with an existing Linear parent reads it; a native batch whose parent outbox row is not `written` does not | **No** |
-| **Changing a card's assignee** | **Yes** — `validateAssignee` → `assigneeProviderPool`. This is an everyday staff action on an existing card, not only a create-time check | **Yes**, `production_assignee_eligibility`, and its comment describes a retirement path |
-| `status`, `due`, `description` | **No** | n/a |
-| `comment`, `attachment`, `labels` | **No** | n/a |
-| `batch_description`, `batch_asset` | **No** | n/a |
-
-**The safe rows are verified forward, not merely by absence.** Tracing callers
-backwards only shows what reaches a Linear read; it cannot show that a path is
-clean, and the reassuring half of a table is the more dangerous half to get wrong.
-So `handleEntityOperation` was read forward: `status`, `due` and `description` each
-take their own branch and none calls `validateAssignee`, which is reached only in
-the final `else` — the assignee branch. That is the whole Linear exposure of the
-mutate path.
-
-**The `component_fill` row contains a trap worth naming.** It degrades gracefully
-for natively-created batches and fails for batches that already have a Linear
-parent — which is every card that exists today. So the graceful path is the one
-that only applies to cards that cannot be created, because `create` is blocked by
-the row above it. The two defects protect each other from being noticed
-separately.
-
-**The assignee row is the shape the other two should have.** Same dependency, but
-behind a flag, with an explicit comment about the pre-retirement state and a
-deliberate choice that an absent flag row means strictest rather than a 503. That
-is what a retirable provider dependency looks like, and it is why the create-path
-reads stand out: not that they read Linear, but that nothing can turn them off.
+**"Nothing is corrupted" is checked.** For `intake_create` the read sits in the
+block the source itself labels *"read-only validation ... before the first native
+row write"*, and the only earlier write is the `public_intake_log` insert. Nothing
+partial is left behind.
 
 ### Two orderings that make this worse than it first looks
 
-**The Linear read happens before the authority check.** `projectForIntake` runs,
-and only then does `productionCreateScope` call `authorityFor` and `authorityLane`.
-So a client whose authority is fully `syncview` still pays the provider read, and
-flipping authority native does not avoid it. This is the precise shape the other
-programme's release packet describes as *"legacy write fences query Linear before
-refusing mutation, so native authority alone does not eliminate their reads."*
-Confirmed here from source, and narrower and more actionable than that sentence.
+**The provider read precedes the authority check.** In `handleIntakeCreate`,
+`projectForIntake` runs before `authorityFor` in the same loop iteration, so a
+client whose authority is fully `syncview` still pays the provider read. Flipping
+authority native does not avoid it. This is the shape the other programme's release
+packet describes as *"legacy write fences query Linear before refusing mutation, so
+native authority alone does not eliminate their reads."*
 
-**Neither read is behind a runtime flag.** A third Linear-reading fence in the same
-file, the assignee eligibility pool, *is* flag-gated
-(`production_assignee_eligibility`) and has a documented retirement path. The two on
-the create path have neither. They cannot be turned off from the flags table, so
-this is not fixable in Phase 3 by a flag flip.
+**Neither read is flag-gated.** The assignee eligibility pool in the same file
+**is** gated by `production_assignee_eligibility`, and its comment names a
+retirement path. The intake and fill reads have no gate, so this cannot be fixed by
+a flag flip at cutoff time.
 
 ### What this means for 2026-09-15
 
-With `main` as it stands: **staff cannot create a post for any real client once
-Linear stops answering.** Nothing is lost or corrupted, because it fails closed.
-The surface simply stops accepting new work.
+With `main` as it stands: **staff cannot create a post, and cannot fill a
+component, for any real client once Linear stops answering.** Nothing is lost or
+corrupted. Those surfaces stop accepting new work.
 
 ### None of the four held PRs fixes it, and #1326 does
 
 Checked directly: `claude/lx-a-workload-native` (#1344), `claude/lx-c-endpoints`
 (#1346) and `claude/lx-d-feedback` (#1347) change **zero** lines of
-`production-write/index.ts`. This programme's held set does not close this gap.
+`production-write/index.ts`.
 
-The other programme's #1326 does, at `5bcc03bd`, with a `nativeEpoch` parameter
-that short-circuits both reads:
+#1326 at `5bcc03bd` threads a `nativeEpoch` through `projectForIntake` that
+short-circuits before the provider read, and **it is threaded into exactly the two
+reachable call sites** — `handleComponentFill` and `handleIntakeCreate` — while the
+dead `create` call site is left alone. That is a more precisely targeted fix than
+the first version of this section credited it with.
 
-```
--async function projectForIntake(client, team, principal)
-+async function projectForIntake(client, team, principal, nativeEpoch = "")
-     ...
-+    if (nativeEpoch) return projectId;      // test-scope branch
-     ...
-+    if (nativeEpoch) return tagged[0];      // real-client branch
-```
-
-**That is the single strongest argument in favour of the other programme's work**,
-and it is a concrete gap rather than a matter of taste: this programme's set,
-merged in full, still leaves Create Post dependent on Linear.
-
-### What has NOT been verified, and it matters
+### What has NOT been verified
 
 **This is a reading of repo source, not of the deployed function.**
 `production-write` reaches production only through the fingerprint-pinned F27
-Section 4 lane, so the live function is whatever was last deployed through it and
-could differ. Two things settle it, neither of which is a session's to run:
+Section 4 lane, so the live function may differ. Two things settle it:
 
-1. **P4, the `SYNCVIEW_QA_LINEAR_DEAD` rehearsal.** This is exactly what it exists
-   to catch, and it moves from "before the cutoff" to **the first thing to run**,
-   because it either confirms this or proves the deployed function differs.
-2. A create attempted on the TEST client `sidneylaruel` with the provider
+1. **P4, the `SYNCVIEW_QA_LINEAR_DEAD` rehearsal**, now the first Phase 2 action.
+2. An `intake_create` attempted on the TEST client `sidneylaruel` with the provider
    unreachable.
 
-Until one of those runs, treat this as a strongly-evidenced source finding and not
-as a measured fact about the live system.
+Given that this section has already been wrong once about which code runs, prefer
+the rehearsal over any further source reading.
 
 ---
 
@@ -489,13 +468,21 @@ executes a single iteration. **Nothing reaches `api.linear.app`.** The runbook i
 right and the flag really is sufficient.
 
 **One caveat the runbook's wording does not carry: that guard has THREE
-disjuncts, not two.** The third is `f27ReplayRequestValue`. An F27 replay request
-re-opens the provider path even with the flag `off`. That is a deliberate recovery
-and drill mechanism rather than a leak, and it is an explicit owner action, so it
-cannot happen by accident. It is named here because "with outbound off, nothing
-reaches Linear" is true of normal operation and not of a replay dispatch, and
-someone reading the shorter version during an incident is exactly the person who
-might issue one.
+disjuncts, not two.** The third is `f27ReplayRequestValue`, and it needs a
+qualification the first version of this section got wrong.
+
+**An F27 DRILL provably cannot reach Linear**, even with the flag off. Two
+independent guards: `readViewer()` is skipped when `f27Replay.isDrill === true`,
+and inside the row loop a drill calls `executeF27DrillReplay` and `continue`s
+before `currentControl` or any mutation. The source says so where it branches:
+*"Branch here so a drill can never resolve an entity or call Linear."*
+
+**Only a non-drill RECOVERY replay re-opens the provider path.** That is the
+caveat, and it is narrower than "any replay dispatch". It is still worth naming,
+because it needs an explicit owner action and "with outbound off, nothing reaches
+Linear" is true of normal operation but not of a recovery replay. Telling an
+incident operator that the drill mechanism reaches Linear would be worse than
+saying nothing, since the drill is the safe thing they should feel free to run.
 
 **Do not take Route B.** The runbook's reasoning for skipping it is sound and
 costed: it needs an F27 Section 4 dispatch, which needs a merge freeze across

@@ -15585,3 +15585,40 @@ and exactly wrong in the other, and I had written it as an unconditional rule.
 Eight rounds, twenty-two reported findings, twenty-one of them mine, plus twelve
 from my own sweeps. The reviewer has found something in every round, and this
 one found a defect inside a fix for a defect inside a fix.
+
+### The end-state question, asked of the other two teardowns before round eight
+
+Round seven's category — an undo whose steps are each correct and whose END STATE
+the system cannot run from — is the one I had never systematically checked. I put
+it to the reviewer and then asked it myself of the two remaining structural
+teardowns. **Brief B's intake teardown fails it, in a way that is worse than the
+label lane's.**
+
+The label lane at least HAS a pre-install fallback; it just needs both halves
+absent. The intake lane has none at all:
+
+- `intakeEpochs()` calls `production_intake_epoch_read` on every intake request
+  and throws 503 `authority_unavailable` unless the result is a string per team
+  (`production-write/index.ts:2676-2690`).
+- `handleIntakeEditorOptions` calls `production_native_intake_epochs()`
+  unconditionally and throws the same (`:3678-3681`).
+- Neither has an "RPC absent" branch.
+
+**And the flag does not save you.** Turning `native_intake_epochs` off does not
+stop those calls — a disabled epoch resolves to `""` and the request takes the
+provider lane, so the RPC is still invoked on every request. So dropping either
+function while the native closure is deployed breaks intake outright, for
+PROVIDER work as much as native. My step 1 stops admission; it does not stop the
+gateway calling the objects steps 3-4 remove.
+
+The undo now states the precondition: steps 3-4 require the deployed
+production-write closure to already be the pre-native one (Section 4 restore
+first), or they are not taken at all. Brief F's cutoff teardown already carried
+the equivalent — its step 0 restores the pre-cutoff closure before any drop — so
+it passes the same question.
+
+**The general form, which is where all eight corrections converge:** a structural
+undo is safe only when nothing deployed still calls what it removes, and the
+runtime flag that stops the FEATURE is usually not the thing that stops the
+CALLS. Those are two different switches, and every one of these teardowns
+conflated them until it was asked not to.

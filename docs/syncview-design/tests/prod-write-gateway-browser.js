@@ -1941,20 +1941,29 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     });
     await page.waitForSelector('#calNativePostOverlay input[name="calNativeBatchChoice"]');
     const latestChoice = page.locator('#calNativePostOverlay input[value="batch"][data-batch-id="batch-latest"]');
-    // Round 2 redesign (owner pick 2026-08-18, option E): Start a new batch is
-    // first and the default; every compatible batch lives in ONE
-    // previous-batch card whose always-visible dropdown preselects the LAST
-    // batch, so appending to it is one click on the card.
+    /* Round 2 (owner pick 2026-08-18, option E) put every compatible batch in
+       ONE previous-batch card behind a new-batch default, with the dropdown
+       always visible. Option A (owner pick 2026-09-08) kept the default and
+       the preselect and made the pair a segmented toggle where ONLY the chosen
+       branch renders its controls -- both used to sit open at once, spending a
+       third of the dialog on the option nobody picked.
+       What that pick changed is where the dropdown lives, not what it offers,
+       so this splits into the two halves it was always asserting:
+       first that the new-batch branch is the default and shows no batch
+       dropdown, then that choosing the other branch reveals one already
+       preselected to the LATEST batch. Appending is still one click on the
+       card, which is the invariant option E was protecting. */
+    const debugState = async () => JSON.stringify(await page.evaluate(() => ({
+      client: calState.client,
+      slug: calClientSlug(calState.client),
+      state: _calNativePostState,
+      text: document.getElementById('calNativePostOverlay')?.textContent,
+    })));
     expect(await latestChoice.count() === 1
       && await latestChoice.isChecked() === false
       && await page.locator('#calNativePostOverlay input[value="new"]').isChecked()
-      && await page.evaluate(() => document.querySelector('#calNativePostOverlay .cal-native-batch-select')?.value === 'batch-latest'),
-    'Calendar Create Post did not offer the latest active batch behind the new-batch default: ' + JSON.stringify(await page.evaluate(() => ({
-        client: calState.client,
-        slug: calClientSlug(calState.client),
-        state: _calNativePostState,
-        text: document.getElementById('calNativePostOverlay')?.textContent,
-      }))));
+      && await page.evaluate(() => !document.querySelector('#calNativePostOverlay .cal-native-batch-select')),
+    'Calendar Create Post did not default to a new batch with the previous-batch branch collapsed: ' + await debugState());
     /* The overlay has exactly two selects — the batch dropdown and (2026-08-24)
        the video-editor picker — and neither may choose the CLIENT, which still
        comes from the open calendar. Kept as an explicit allowlist rather than
@@ -1983,6 +1992,10 @@ function expect(value, message) { if (!value) throw new Error(marker() + message
     expect(calendarWrites.length === beforeAppendCalendarWrites,
       'opening Calendar Create Post wrote a local card before native intake');
     await latestChoice.check();
+    /* The half option E actually guarantees: one click on the card is enough,
+       because the revealed dropdown already points at the newest batch. */
+    expect(await page.evaluate(() => document.querySelector('#calNativePostOverlay .cal-native-batch-select')?.value === 'batch-latest'),
+    'choosing the previous-batch branch did not reveal a dropdown preselected to the latest active batch: ' + await debugState());
 
     let appendHttpResponse;
     try {

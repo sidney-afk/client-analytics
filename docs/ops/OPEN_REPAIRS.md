@@ -14464,6 +14464,49 @@ DOES, and on this branch it has been more productive to hunt that shape than to
 hunt behaviour.
 
 
+### Codex round 9 — the fifth green check, and it was in all three harnesses (2026-09-08)
+
+One P2, and it lands squarely on a claim made in round 8's own reply. That reply
+said the bucketing stub now "calls the REAL extracted predicates
+(`wlIsActiveStatus`, `wlIssueClientAllowed`)". Half of that was true.
+`wlIssueClientAllowed` really was extracted; `wlIsActiveStatus` was still the
+hand-written lambda
+
+```
+i => !['completed','canceled','duplicate'].includes(i.statusType)
+```
+
+which models three terminal types and misses `triage`, `backlog`, and every
+parked status NAME in `WL_PARKED_STATUSES` — a set the owner ruled on
+(2026-08-23) precisely because 681 of 1,073 rows were parked. So a cached
+fallback holding only a backlog or an approval-parked row bucketed in the
+harness and rendered nothing in the app, and the `boardShown` capacity
+assertions could still pass against a board that does not exist. Exactly the
+round-8 defect, one level down, in the fix for round 8.
+
+The predicate is now compiled from source together with `wlNormStatus` and the
+sliced `WL_PARKED_STATUSES` table, and the fidelity probe gained backlog, triage
+and parked rows. Proven by restoring the lambda against the new probe: red.
+
+**It was in all three Workload harnesses, and Codex only flagged one.**
+`test/workload-tweak-exclusive-bucket.js` executes the SHIPPED `wlApplyData` and
+fed it `wlIsActiveStatus: () => true`, so its bucket-partition assertions ran over
+fixtures the app would have dropped. `test/workload-linear-browser.js` carried a
+third variant (`completed`/`canceled`/`cancelled`) feeding
+`wlRenderableIssueProjection` and the business fingerprint, plus a `() => true`
+in its native block. All three now compile the real predicate; all three pass
+unchanged otherwise, so nothing was resting on the permissiveness — which is
+luck, not design.
+
+**The tally, five for five.** A state assertion (rounds 1-2), a source-shape pin
+(round 3), a stubbed transport (round 7), an unfaithful stub (round 8), and a
+predicate copy inside the fix for the unfaithful stub (round 9). Every one green
+while the defect shipped. The rule this earns, written plainly because it has now
+cost nine rounds: **a harness may not RE-IMPLEMENT a predicate the shipped code
+owns.** Extract it, or the test is asserting the behaviour you wished for rather
+than the behaviour you have.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

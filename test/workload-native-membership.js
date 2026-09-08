@@ -32,7 +32,12 @@ function browser(response=fixture()) {
  _syncviewRequireStaffIdentity:async()=>{},_syncviewEfHeaders:h=>h,
  _syncviewStaffIdentityForHeaders:()=>context.identity,
  wlIsAllowedClient:()=>false,wlIsAllowedEditor:()=>false,
- wlIsActiveStatus:i=>!['completed','canceled','duplicate'].includes(i.statusType),
+ // wlIsActiveStatus is NOT here: it is compiled from source below, with its
+ // WL_PARKED_STATUSES and wlNormStatus dependencies. The hand-written lambda
+ // that used to sit on this line modelled three terminal types and missed
+ // `triage`, `backlog` and every parked status NAME -- so a cached fallback of a
+ // single backlog or parked row bucketed here and rendered nothing in reality
+ // (Codex round 9, the same defect as round 8 one level down).
  wlFetchForeignLinearMetadata:async()=>{throw Error('unexpected provider read');},
  _syncviewStaffIdentityClear:()=>{context.identity=null;},wlPurgePlanSensitiveState:()=>{state.planByIssueId.clear();},
  // Models the shipped wlApplyData's ADMISSION rule for the status renderer:
@@ -73,7 +78,13 @@ function browser(response=fixture()) {
  fetch:async(url,init)=>{calls.push({url,body:JSON.parse(init.body)});if(typeof response==='function')return response(url,init);
  return {ok:true,status:200,json:async()=>copy(response)};}};
  vm.createContext(context);
- ['_wlV2MapRow','wlIssueClientAllowed','wlIssueEditorAllowed','wlSnapshotIdentity','wlProductionAuthorityValue',
+ // The parked-status table is a const, not a function, so it is sliced rather
+ // than extracted -- and it must land before the predicate that reads it.
+ const parkedStart=html.indexOf('const WL_PARKED_STATUSES = new Set([');
+ const parkedSrc=html.slice(parkedStart,html.indexOf(']);',parkedStart)+3);
+ if(parkedStart<0)throw Error('WL_PARKED_STATUSES seam drift');
+ vm.runInContext(parkedSrc,context);
+ ['wlNormStatus','wlIsActiveStatus','_wlV2MapRow','wlIssueClientAllowed','wlIssueEditorAllowed','wlSnapshotIdentity','wlProductionAuthorityValue',
  'wlProductionAuthorityFingerprint','wlMetadataTeamBucket','wlNativeWorkloadLabel','wlNativeDueDate','wlValidRfc3339Timestamp','wlNativeMetadataRow',
  'wlFetchNativeSnapshot','loadLinearIssues','wlAdoptPlanRows','wlLoadSnapshot','wlRefetchSilent','wlIsFresh',
  'wlExcludedSummaryText','wlVisibleSubCount','wlDroppedPlanWarningText','renderWorkloadPlanStatus','wlManualRefresh']
@@ -86,7 +97,7 @@ function browser(response=fixture()) {
    assertion the shipped bucketer would never have reached. A native row carries
    its membership on the row itself. */
 const CACHED_ROW={id:'warm',isSubIssue:true,workloadSource:'native',
- nativeClientActive:true,nativeAssigneeEligible:true,statusType:'unstarted'};
+ nativeClientActive:true,nativeAssigneeEligible:true,statusType:'unstarted',status:'Todo'};
 (async()=>{
  const {projectNativeSnapshot,legacyPlanAliases}=await import(pathToFileURL(path.join(root,'supabase/functions/workload-plan/native-snapshot.mjs')).href);
  const raw=fixture();raw.plans[0].issue_id='old-fixture';
@@ -165,15 +176,24 @@ const CACHED_ROW={id:'warm',isSubIssue:true,workloadSource:'native',
  {const apply=extract(html,'wlApplyData');
   ok(/wlIsActiveStatus\(/.test(apply)&&/wlIssueClientAllowed\(/.test(apply),
    'harness fidelity: the shipped bucketer still admits rows on active status and client membership');
+  const live=(id,extra)=>({id,isSubIssue:true,workloadSource:'native',
+   nativeClientActive:true,statusType:'unstarted',status:'Todo',...extra});
   const probe=browser();
   probe.context.wlApplyData([
-   {id:'a',isSubIssue:true,workloadSource:'native',nativeClientActive:true,statusType:'unstarted'},
-   {id:'b',isSubIssue:true,workloadSource:'native',nativeClientActive:false,statusType:'unstarted'},
-   {id:'c',isSubIssue:true,workloadSource:'native',nativeClientActive:true,statusType:'completed'},
-   {id:'d',isSubIssue:false,workloadSource:'native',nativeClientActive:true,statusType:'unstarted'},
-   {id:'e',isSubIssue:true,clientName:'Someone'}],Date.now());
+   live('a'),
+   live('b',{nativeClientActive:false}),
+   live('c',{statusType:'completed'}),
+   live('d',{isSubIssue:false}),
+   {id:'e',isSubIssue:true,clientName:'Someone'},
+   // The three the hand-written lambda used to admit. Codex round 9: a cached
+   // fallback holding only one of these bucketed in the harness and rendered
+   // nothing in the app, so the capacity assertions could pass against a board
+   // that does not exist.
+   live('f',{statusType:'backlog'}),
+   live('g',{statusType:'triage'}),
+   live('h',{status:'For SMM approval'})],Date.now());
   ok(probe.state.planned.map(r=>r.id).join(',')==='a',
-   'harness fidelity: the stub drops off-roster, completed, parent and legacy-unallowed rows exactly as the real one would');}
+   'harness fidelity: the stub drops off-roster, completed, parent, legacy-unallowed, BACKLOG, TRIAGE and PARKED rows exactly as the real one would');}
  {const drift=fixture();drift.plans[0].client='other';
   const projectedDrift=projectNativeSnapshot(drift,s=>s.toLowerCase());
   ok(projectedDrift.plans_dropped===1&&projectedDrift.legacy_teams.length===0,

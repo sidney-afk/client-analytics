@@ -11,6 +11,17 @@ const path = require('path');
 const vm = require('vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const PARKED_AT = source.indexOf('const WL_PARKED_STATUSES = new Set([');
+assert(PARKED_AT >= 0, 'WL_PARKED_STATUSES seam drift');
+const PARKED_SRC = source.slice(PARKED_AT, source.indexOf(']);', PARKED_AT) + 3);
+
+/* The shipped active-status predicate, compiled with its parked-status table.
+   The hand-written models these replaced covered three terminal types and
+   missed `duplicate`, `triage`, `backlog` and every parked status NAME, so
+   fixtures the app drops were being projected and fingerprinted here as live
+   work. Codex round 9 found this shape in test/workload-native-membership.js;
+   it was in all three Workload harnesses. */
+let realIsActiveStatus;
 
 function extract(name) {
   const prefix = ['wlFetchLinearMetadata', 'wlRenderableIssueProjection', 'wlApplyData'].includes(name) ? extract('wlIssueClientAllowed') + '\n' + extract('wlIssueEditorAllowed') + '\n' : '';
@@ -33,6 +44,9 @@ function extract(name) {
   }
   throw new Error('unclosed ' + name);
 }
+
+realIsActiveStatus = new Function(PARKED_SRC + '\n' + extract('wlNormStatus') + '\n'
+  + extract('wlIsActiveStatus') + '\nreturn wlIsActiveStatus;')();
 
 function harness(reply, role = 'admin', manualPlanDate = null, authority = 'linear') {
   const issue = {
@@ -382,7 +396,7 @@ function backgroundHarness(options = {}) {
         legacyTeams: options.legacyTeams || [] };
     },
     wlCanonicalClient: value => String(value || '').trim().toLowerCase(),
-    wlIsActiveStatus: issue => !['completed', 'canceled', 'cancelled'].includes(String(issue && issue.statusType || '').toLowerCase()),
+    wlIsActiveStatus: realIsActiveStatus,
     wlIsAllowedClient: client => String(client || '') !== 'Disallowed Client',
     wlIsAllowedEditor: editor => String(editor || '') !== 'Disallowed Editor',
     wlWorkloadTodayISO: () => '2026-07-22',
@@ -531,7 +545,7 @@ async function run() {
       },
       _syncviewRequireStaffIdentity: async () => ({ role: 'admin' }),
       _syncviewEfHeaders: headers => headers,
-      wlIsActiveStatus: () => true,
+      wlIsActiveStatus: realIsActiveStatus,
       wlIsAllowedClient: () => true,
       wlWriteCache: () => {},
       fetch: async (url, options = {}) => {

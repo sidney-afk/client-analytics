@@ -153,10 +153,23 @@ const wlComputeAutoPlacements = compile('wlComputeAutoPlacements', {
   wlSubWorkingDays,
 });
 
+/* The real predicate, not `() => true`. This file executes the SHIPPED
+   wlApplyData, so admitting every row meant its bucket-partition assertions ran
+   over fixtures the app would have dropped -- backlog, triage and parked rows
+   among them. Codex round 9 found this shape next door in
+   test/workload-native-membership.js; it was here too. */
+const realIsActiveStatus = (() => {
+  const at = INDEX.indexOf('const WL_PARKED_STATUSES = new Set([');
+  if (at < 0) throw new Error('WL_PARKED_STATUSES seam drift');
+  const parked = INDEX.slice(at, INDEX.indexOf(']);', at) + 3);
+  return new Function(parked + '\n' + grabFunc('wlNormStatus') + '\n'
+    + grabFunc('wlIsActiveStatus') + '\nreturn wlIsActiveStatus;')();
+})();
+
 const wlApplyData = compile('wlApplyData', {
   wlState,
   wlComputeAutoPlacements,
-  wlIsActiveStatus: () => true,
+  wlIsActiveStatus: realIsActiveStatus,
   wlIsAllowedClient: () => true,
   wlIssueClientAllowed: compile('wlIssueClientAllowed', { wlIsAllowedClient: () => true }),
   wlIssueEditorAllowed: compile('wlIssueEditorAllowed', { wlIsAllowedEditor: () => true }),

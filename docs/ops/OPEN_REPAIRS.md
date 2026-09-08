@@ -14092,6 +14092,87 @@ importer cannot produce. Correcting the fixture to what the importer writes
 turns the pre-existing coverage check red on the unfixed projection, which is
 the shape of item 177: a test that no longer describes production.
 
+### Codex round two: one failed row blanked every row beside it (P1) — the third instance of item 177's pattern
+
+`wlFetchTweakComments` read each native deliverable in one all-or-nothing
+`await` chain. The FIRST rejection escaped the loop, and the popover's call-site
+catch then replaced EVERY feedback box with the error state — discarding rows
+that had already been read whole. Native reads are neither cached nor
+cancelled, so a repeated or wide rollup open is exactly where the rejection
+comes from: an aborted read on the timeout, or the endpoint's per-actor rate
+limit. One unavailable deliverable made working feedback invisible on all the
+others.
+
+This is item 177 one layer out. There, `projectNativeSnapshot` discarded a
+5,000+ row snapshot because six stored plans had drifted from their owners,
+blanking every pill on every editor's Workload board. Same shape: a collection
+processed, one member fails, the failure destroys every member that succeeded.
+Third instance in this programme, second one to reach a user.
+
+**The fix settles per row.** A row that fails carries `failed` and renders its
+own notice; the rows that answered render their real feedback. The legacy lane
+stays batched because it genuinely is one request — its failure leaves every
+legacy id unknown, and only them. Refusal on an integrity violation is
+unchanged in force and narrowed in blast radius: a corrupt or incomplete read
+is still never presented as feedback, it just no longer takes its neighbours
+with it. One whole-collection fact still rejects outright — the signed-in staff
+identity moving under the read — because after that no row's answer belongs to
+the person looking at it.
+
+**The degraded state is the half that never gets designed, so it is stated
+here.** A failed row reads *"Couldn't load this deliverable's feedback. Retry,
+or open the post in SyncView."* in the amber the Frame.io warning uses, without
+the italic. A deliverable genuinely read whole with nothing on it keeps *"No
+feedback is available here. Open the post in SyncView to check its review
+notes."* in the muted italic. Those two were the same empty box before, and
+they are opposite facts: the second one an editor acts on by shipping the cut
+unchanged. A row missing from the map entirely now counts as a failure too —
+silence is never evidence that a client said nothing.
+
+**Proved by counterfactual, not asserted.** The reason this pattern survived
+two review rounds and a live incident is that an all-succeed fixture cannot see
+it. The new case injects a rejection on the middle of three native rows and
+asserts the other two still render their real feedback. Against the unfixed
+tree it is red five ways and then crashes on a null result, because the whole
+read rejects; with the fix the suite is 69 green.
+
+**Sweep of this lane's regions for the same shape** — a loop whose `await`
+rejection escapes, a `Promise.all` over per-row reads, or a catch setting one
+shared error state for a collection:
+
+- `index.html` `wlFetchTweakComments` — the reported site. **Fixed.**
+- `index.html` `_wlNativeTweakComments` — pages one deliverable. A page failure
+  failing that row is correct, not the pattern. **No change.**
+- `index.html` `_wlLegacyFetchTweakComments` — one batched request for every
+  legacy id, so the collection really does share a fate. Now caught at the
+  caller so it cannot take the native rows with it. **Fixed at the caller.**
+- `index.html` the popover's call-site catch — still paints every box, and now
+  only ever runs for the identity change, which invalidates every box. Correct
+  as it stands. **No change.**
+- `index.html` `_prodComments` (`load`/`readCanonical`/`render`) — keyed per
+  issue, and already separates `refreshError`, `moreError` and the card
+  projection from the canonical rows, so one of them failing does not blank the
+  others. `_prodFeedbackState` retains previously loaded rows on
+  `source_unavailable` rather than dropping them. **No change.**
+- `supabase/functions/production-comments/feedback.mjs` — an unparseable tweak
+  field already drops that field, records `sourcePartial`, and projects the
+  rest, which is the item 177 fix applied correctly. The `await
+  importedCommentId(...)` inside the row loop is the pattern's shape, but it
+  hashes local strings: it cannot fail for one row without failing for all, and
+  its failure surfaces honestly as `source_unavailable`. **No change; recorded
+  so the next reader does not have to re-derive it.**
+- `index.html` `_prodProjectCanonicalCardComments` (~line 55986) — **found, NOT
+  fixed, out of this PR's scope.** It stamps every deliverable group `loading`,
+  then reads them under `Promise.all`. `load()` converts every network failure
+  into a state rather than rejecting, so no reachable rejection exists today;
+  if one ever did, the surviving groups would be pinned at `loading` forever —
+  a spinner that never resolves, the absence a user cannot report. `allSettled`
+  alone would make it worse rather than better: the fix has to stamp the
+  rejected group `error` as the in-loop failure branches already do. That is a
+  change to a live projection path that writes legacy storage, on lines this
+  lane's diff does not touch, so it is reported rather than widened into this
+  PR.
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

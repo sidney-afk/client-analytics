@@ -3615,6 +3615,10 @@
         .wl-tweak-comments { display: flex; flex-direction: column; gap: 1px; margin: 2px 4px 6px 16px; }
         .wl-tweak-comments:empty { display: none; }
         .wl-tweak-comments-status { font-size: 0.64rem; color: var(--text-muted); font-style: italic; padding: 2px 4px 2px 8px; }
+        /* An unread row must not read as an empty one: the muted italic above
+           is the house's "nothing here" voice, so the couldn't-ask notice
+           drops the italic and takes the same amber the Frame.io warning uses. */
+        .wl-tweak-comments-status.is-unavailable { color: var(--sv-fg-b45309); font-style: normal; font-weight: 600; }
         .wl-tweak-comment { display: flex; align-items: baseline; gap: 8px; padding: 3px 6px 3px 8px; border-radius: 6px; }
         .wl-tweak-comment:hover { background: var(--bg); }
         .wl-tweak-comment-author { font-size: 0.64rem; font-weight: 700; color: var(--text-secondary); flex-shrink: 0; }
@@ -19294,17 +19298,42 @@
     // this page. test/workload-tweak-feedback-source.js asserts all three agree,
     // so this second declaration cannot drift from the first.
     const WL_TWEAK_FEEDBACK_PAGE_SIZE = 50;
+    // SETTLE PER ROW. A popover lists N deliverables and each one is its own
+    // independent read; this loop used to be a single all-or-nothing await
+    // chain, so the FIRST rejection — an aborted read on the timeout, the
+    // endpoint's per-actor rate limit on a wide rollup, one row whose thread
+    // moved mid-read — escaped it, and the call site's catch painted the
+    // failure over EVERY box, including rows already read whole. Native reads
+    // are neither cached nor cancelled, so a repeated or large rollup open is
+    // where that lands. It is also the shape that blanked the Workload board
+    // on 2026-09-07 (OPEN_REPAIRS 177 — six drifted rows discarded a 5,000-row
+    // snapshot) one layer out: a collection destroyed by one member of it.
+    // So a failed row carries `failed` and renders its own notice, and the
+    // rows that answered render their real feedback. Only a whole-collection
+    // fact still rejects: the signed-in staff identity moving under the read,
+    // after which no row's answer belongs to the person looking at it.
     async function wlFetchTweakComments(ids) {
         const owner = typeof wlSnapshotIdentity === 'function' ? wlSnapshotIdentity() : null;
         const issues = new Map((wlState.issueSnapshot || []).map(issue => [issue.id, issue]));
+        const unavailable = () => { const rows = []; rows.failed = true; return rows; };
         const legacy = [], out = {};
         for (const id of ids) {
             const issue = issues.get(id);
             const nativeId = issue && typeof issue.nativeId === 'string' ? issue.nativeId : '';
             if (!owner || !issue || issue.workloadSource !== 'native' || !nativeId) { legacy.push(id); continue; }
-            out[id] = await _wlNativeTweakComments(issue, nativeId, owner);
+            try { out[id] = await _wlNativeTweakComments(issue, nativeId, owner); }
+            catch (e) { out[id] = unavailable(); }
         }
-        if (legacy.length) Object.assign(out, await _wlLegacyFetchTweakComments(legacy));
+        // The legacy lane is ONE batched request covering every legacy id, so
+        // its failure genuinely leaves all of them unknown — but only them.
+        if (legacy.length) {
+            try { Object.assign(out, await _wlLegacyFetchTweakComments(legacy)); }
+            catch (e) { for (const id of legacy) out[id] = unavailable(); }
+        }
+        // Every id asked for leaves with an answer of its own, because a row
+        // missing from this map renders as an empty box — the same pixels as
+        // "no feedback" and a different fact.
+        for (const id of ids) { if (!out[id]) out[id] = unavailable(); }
         if (owner && owner !== wlSnapshotIdentity()) throw new Error('Feedback scope changed.');
         return out;
     }
@@ -19415,6 +19444,16 @@
         return out;
     }
     function wlRenderTweakComments(comments) {
+        // A row whose read FAILED is not a row with nothing to show. Both used
+        // to arrive here as the same empty box, and "this deliverable has no
+        // feedback" and "we could not ask" are identical pixels carrying
+        // opposite facts — the second one an editor acts on by shipping the
+        // cut unchanged. A row with no entry at all counts as a failure too:
+        // silence is never evidence that a client said nothing.
+        if (!comments || comments.failed) {
+            return '<div class="wl-tweak-comments-status is-unavailable" role="status">'
+                + 'Couldn&rsquo;t load this deliverable&rsquo;s feedback. Retry, or open the post in SyncView.</div>';
+        }
         const native = !!(comments && comments.native);
         // One incomplete notice, used by both the populated and the empty
         // branch. An unread card projection is exactly the case where "no

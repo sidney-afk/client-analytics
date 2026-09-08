@@ -68,6 +68,17 @@ never becomes “No feedback.” This only covers readable, mapped video/graphic
 feedback; unmapped cards, caption/title-only cells, restore and complete historical
 versions remain outside this slice.
 
+Reads settle PER DELIVERABLE. The Workload popover lists several rows and each
+one is an independent read, so one row failing — an aborted read on the
+timeout, the endpoint's per-actor rate limit — renders the failure on that row
+only; the rows that answered render their real feedback. The two degraded
+states are deliberately not alike, because they are opposite facts: a row that
+could not be read says "Couldn't load this deliverable's feedback" in amber,
+and a deliverable read whole with nothing on it says "No feedback is available
+here" in the muted italic. A row absent from the read counts as the first, not
+the second. Only the signed-in staff identity moving mid-read invalidates every
+row at once, and that still refuses outright.
+
 ## Compatibility and serving dependencies
 
 The canonical `comments`, cursor, audience and lifecycle fields are unchanged.

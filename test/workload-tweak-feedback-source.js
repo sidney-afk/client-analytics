@@ -91,7 +91,20 @@ function build(options = {}) {
       const body = JSON.parse(init.body);
       calls.push({ url, body });
       if (String(url).includes('linear-tweak-comments')) {
-        return { ok: true, json: async () => ({ ok: true, comments: { 'wl-1': [{ author: 'Legacy', body: 'legacy note', createdAt: now }] } }) };
+        if (options.legacyThrows) throw new Error('legacy lane unreachable');
+        return { ok: true, json: async () => ({ ok: true, comments: options.legacyComments
+          || { 'wl-1': [{ author: 'Legacy', body: 'legacy note', createdAt: now }] } }) };
+      }
+      // Multi-row scenarios queue pages per deliverable instead of one shared
+      // list, so a rejection can be aimed at ONE row while its neighbours
+      // answer normally. `{ reject }` is the real failure Codex named: an
+      // aborted read on the timeout, or a rate-limited retry that never lands.
+      if (options.byDeliverable) {
+        const queue = options.byDeliverable[body.deliverable_id];
+        if (!queue || !queue.length) throw new Error('fixture ran out of pages for ' + body.deliverable_id);
+        const next = queue.shift();
+        if (next.reject) throw new Error(next.reject);
+        return { ok: next.httpOk !== false, json: async () => next.value };
       }
       if (options.identityFlipsOnPage === pageIndex) identity = 'someone-else';
       const page = pages[pageIndex++];
@@ -176,7 +189,28 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     ok(calls.length === 2 && calls[1].body.before.id === 'a', 'pagination advances on the served cursor');
     ok(out['wl-1'].length === 2, 'and both pages reach the popover');
   }
+  // An integrity violation refuses on the ROW it happened to, not on the read.
+  // Refusing is still absolute — nothing partial or unverified is ever
+  // presented as feedback — but since the per-row settle (finding 3) the
+  // refusal is confined to its own deliverable, so the rows beside it that
+  // were read whole still reach the editor. What must never happen is a
+  // corrupt read arriving as comments, or as the silent "no feedback" box.
   const refuses = async (label, options) => {
+    const { context } = build(options);
+    let rows = null, threw = false;
+    try { rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1']; } catch (e) { threw = true; }
+    const refused = threw || (!!rows && rows.failed === true && rows.length === 0);
+    ok(refused, label);
+    if (!threw && rows) {
+      const rendered = context.wlRenderTweakComments(rows);
+      ok(/Couldn&rsquo;t load this deliverable&rsquo;s feedback/.test(rendered)
+        && !/No feedback is available here/.test(rendered),
+        '  ↳ and the refusal is visible on that row rather than read as an empty thread');
+    }
+  };
+  // The one whole-collection fact: the signed-in staff identity moving under
+  // the read invalidates every row at once, so this one still rejects outright.
+  const refusesEverything = async (label, options) => {
     const { context } = build(options);
     let threw = false;
     try { await context.wlFetchTweakComments(['wl-1']); } catch (e) { threw = true; }
@@ -196,7 +230,7 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
   await refuses('a non-ok body refuses', { pages: [{ value: { ok: false } }] });
   await refuses('a wrong audience_scope refuses — this popover reads the whole thread or nothing',
     { pages: [page([canonical('a')], { audience_scope: 'client' })] });
-  await refuses('a staff identity change mid-read refuses, so one signed-in staff never paints another one’s feedback',
+  await refusesEverything('a staff identity change mid-read refuses the WHOLE read, so one signed-in staff never paints another one’s feedback',
     { identityFlipsOnPage: 0, pages: [page([canonical('a')])] });
 
   // ── What the editor actually sees ────────────────────────────────────
@@ -342,6 +376,78 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     ok(!/open the sub-issue in Linear to read them/.test(catchCopy),
       'the popover’s catch branch no longer instructs staff to open the sub-issue in Linear');
     ok(/Couldn&rsquo;t load feedback/.test(catchCopy), 'and offers a retry against SyncView instead');
+  }
+
+  // ── One failed row does not blank the rows that answered (finding 3) ─
+  const complete = rows => ({ feedback: { version: 1, status: 'complete', complete: true, rows } });
+  {
+    // The bug: `wlFetchTweakComments` awaited each native row in one
+    // all-or-nothing chain, so the first rejection escaped it and the call
+    // site's catch replaced EVERY feedback box with the error state —
+    // discarding rows already read whole. Same shape as OPEN_REPAIRS 177,
+    // where six drifted rows discarded a 5,000-row Workload snapshot.
+    // A unit fixture where every row succeeds cannot see this, which is why
+    // the rejection is injected on exactly one row out of three here.
+    const snapshot = [
+      { id: 'wl-1', nativeId: 'del-one', workloadSource: 'native' },
+      { id: 'wl-2', nativeId: 'del-two', workloadSource: 'native' },
+      { id: 'wl-3', nativeId: 'del-three', workloadSource: 'native' },
+    ];
+    const { context } = build({ snapshot, byDeliverable: {
+      'del-one':   [page([canonical('a')], complete([]))],
+      'del-two':   [{ reject: 'The user aborted a request.' }],
+      'del-three': [page([canonical('c')], complete([cardNote('c1')]))],
+    } });
+    let rejected = null;
+    const out = await context.wlFetchTweakComments(['wl-1', 'wl-2', 'wl-3'])
+      .catch(error => { rejected = error; return null; });
+    ok(!rejected, 'one row rejecting no longer rejects the whole read');
+    ok(!!out && Object.keys(out).length === 3, 'every id asked for leaves with an answer of its own');
+    ok(!!out && out['wl-1'].length === 1 && out['wl-1'][0].body === 'canonical a',
+      'the row read BEFORE the failure keeps its real feedback');
+    ok(!!out && out['wl-3'].length === 2 && out['wl-3'].some(r => r.fromCard === true),
+      'and so does the row read AFTER it, card notes included');
+    ok(!!out && out['wl-2'].failed === true && out['wl-1'].failed !== true && out['wl-3'].failed !== true,
+      'only the row that actually failed is marked unavailable');
+
+    const worked = context.wlRenderTweakComments(out['wl-3']);
+    ok(worked.includes('canonical c') && worked.includes('card c1'),
+      'a working deliverable renders its feedback instead of an error state it did not earn');
+
+    // Finding 2 of the brief: the degraded state has to SAY it is degraded.
+    const failed = context.wlRenderTweakComments(out['wl-2']);
+    const emptyButRead = context.wlRenderTweakComments(Object.assign([], { native: true, sourceComplete: true }));
+    ok(failed !== emptyButRead, 'a row we could not ask does not render the same box as a row with no feedback');
+    ok(/Couldn&rsquo;t load this deliverable&rsquo;s feedback/.test(failed),
+      'the failed row says the read failed, on that row');
+    ok(!/No feedback is available here/.test(failed),
+      'and never claims there is no feedback — the claim an editor acts on by shipping the cut unchanged');
+    ok(emptyButRead.includes('No feedback is available here'),
+      'while a deliverable genuinely read whole with nothing on it still says so');
+    ok(/class="wl-tweak-comments-status is-unavailable"/.test(failed),
+      'the failed notice carries its own class, so it is not the muted italic "nothing here" voice');
+  }
+  {
+    // A native row and a legacy row in one popover, legacy lane down. The
+    // legacy read is ONE batched request, so its failure is genuinely unknown
+    // for every legacy id — and for none of the native ones.
+    const snapshot = [
+      { id: 'wl-1', nativeId: 'del-one', workloadSource: 'native' },
+      { id: 'wl-2', nativeId: '', workloadSource: 'legacy' },
+    ];
+    const { context } = build({ snapshot, legacyThrows: true,
+      byDeliverable: { 'del-one': [page([canonical('a')], complete([]))] } });
+    const out = await context.wlFetchTweakComments(['wl-1', 'wl-2']);
+    ok(out['wl-1'].length === 1 && out['wl-1'].failed !== true,
+      'a legacy lane outage does not blank the native rows beside it');
+    ok(out['wl-2'].failed === true, 'and the legacy rows say they could not be read');
+  }
+  {
+    const { context } = build({ pages: [] });
+    ok(/Couldn&rsquo;t load this deliverable&rsquo;s feedback/.test(context.wlRenderTweakComments(undefined)),
+      'a row with no entry at all renders unavailable rather than an empty box');
+    ok(context.wlRenderTweakComments([]) === '',
+      'while an empty legacy array still renders nothing, as it does today');
   }
 
   // ── Mixed board ──────────────────────────────────────────────────────

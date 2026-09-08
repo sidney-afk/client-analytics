@@ -15545,3 +15545,43 @@ two its reader does.
 
 Seven rounds, twenty-one reported findings, twenty of them mine, plus twelve from
 my own sweeps.
+
+### EIGHTH CORRECTION — a teardown whose end state the gateway cannot fall back from
+
+Codex round seven, on `4080b6b`: one P1, on the label-migration undo, and it has
+two halves.
+
+**1. I fixed the flag literal in one line and not its sibling.** Round six
+corrected the runtime-flag undo to write the whole document
+(`{"schema_version":1,"mode":"hold","version_id":null}`) because a mode-only edit
+that leaves an activated uuid in `version_id` is rejected as
+`native_label_catalog_config_invalid`. The migration undo's own step 0 still said
+"set `mode` to `hold`". Same defect, same file, adjacent lines, fixed once.
+That is now the third time in this pass I have repaired one instance of a defect
+and not looked for its twin.
+
+**2. The teardown ended in the one state the gateway cannot recover from.** My
+step 0 said to drop `production_label_catalog_capability()` while explicitly NOT
+deleting the flag row. The gateway's pre-install fallback is conditioned on both:
+
+    // Pre-install compatibility requires BOTH an absent RPC and an exact
+    // absent flag row. An installed/read-failed capability cannot fall back.
+
+(`production-write/index.ts:870-885`). RPC absent + row present falls through to
+`throw GatewayError(503, "native_label_catalog_config_unavailable")`, so label
+writes stay dead after the supposed rollback. The correction is that there are
+**two end states with opposite treatment of that row**, and the line now says
+which is which: containment keeps the row and MUST NOT delete it (a missing row
+makes the RPC raise), while a full teardown MUST delete it, RPC first and row
+last, because only both-absent restores provider behaviour.
+
+**The class, and it is the sharpest statement of this whole pass:** an undo's
+correctness is a property of the END STATE, not of the steps. Every step in that
+teardown was individually reversible, correctly ordered by dependency, and
+correctly stopped its callers first — and the state it landed in was one the
+system has no path out of. "Never delete the flag row" was true in one end state
+and exactly wrong in the other, and I had written it as an unconditional rule.
+
+Eight rounds, twenty-two reported findings, twenty-one of them mine, plus twelve
+from my own sweeps. The reviewer has found something in every round, and this
+one found a defect inside a fix for a defect inside a fix.

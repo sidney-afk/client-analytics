@@ -98,20 +98,36 @@ Then, and only if that reads correctly:
 ```powershell
 cd C:\Users\Sidney\client-analytics
 git fetch origin claude/lx-a-workload-native
-git checkout claude/lx-a-workload-native
-git pull
+git checkout <THE EXACT 40-CHAR SHA HANDED OVER, not the branch name>
 supabase functions deploy workload-plan --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
 git checkout main
 ```
 
-`workload-plan` has **no CI deploy lane**; it is deliberate-manual
-(`docs/ops/EF_DEPLOY_MANIFEST.md:58`). Deploy from the branch, on purpose: the new
+**Check out the SHA, not the branch.** `docs/ops/EF_DEPLOY_MANIFEST.md:58` records
+`workload-plan` as having **no CI deploy lane** and being deliberate-manual, and it
+requires an *exact-SHA* release with `--no-verify-jwt`. A `git checkout <branch> &&
+git pull` deploys whatever the tip happens to be at that second, which is precisely
+the ambiguity that makes an incident hard to unwind afterwards. Whoever hands this
+over must state the SHA and must not push to that branch afterwards without saying
+so. Deploying from the branch rather than `main` is deliberate and correct: the new
 function still answers the old `list` call the live board makes.
 
-**Verify the deploy from outside** by posting `{"action":"native_snapshot"}` to
-`https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/workload-plan`:
-`401 unauthorized` means the new function is live; `400 invalid_action` means the
-old one is. That probe is how the failed rollback was caught.
+**Two readbacks, and they answer different questions.**
+
+1. *Which code is live.* `docs/ops/EF_DEPLOY_MANIFEST.md:58` asks for a fingerprint
+   readback: `node scripts/ef-fingerprint.js <sha> --slugs=workload-plan`. It needs
+   `SUPABASE_ACCESS_TOKEN` with `edge_functions:read`, which the owner's machine
+   already carries in `.syncview\` and no session should ever ask about. This is
+   the authoritative answer and the one the manifest requires.
+2. *Which behaviour is live*, needing no token at all: post
+   `{"action":"native_snapshot"}` to
+   `https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/workload-plan`.
+   `401 unauthorized` means the new function is live; `400 invalid_action` means the
+   old one is, because action validation runs before auth. **This is the probe that
+   caught a rollback the owner believed had run and had not**, and it is worth
+   keeping for exactly that: it can be run by anyone, from anywhere, in one command.
+
+Run 2 always. Run 1 as well when the owner has a shell with the token loaded.
 
 **Rollback**, if the board misbehaves: the same command from `main`. The applied
 migration is additive and needs no reversal.

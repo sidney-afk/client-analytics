@@ -14492,10 +14492,12 @@ stored client no longer matches its owner's current client takes down the board
 for everyone.
 
 **The data, measured live by the owner in the SQL editor.** Exactly six rows,
-all the same shape: stored client `kasperhytonen`, owners since moved to
-`kasperads` (4) and `djkasper` (2). `workload_plan.client` is a snapshot taken
-when the day was saved; owners move between client accounts; the two drift. This
-is ordinary historical drift, not corruption — and six such rows were enough.
+all the same shape: one stored client slug, whose owners have since moved to two
+other slugs (4 rows and 2 rows). `workload_plan.client` is a snapshot taken when
+the day was saved; owners move between client accounts; the two drift. This is
+ordinary historical drift, not corruption — and six such rows were enough. The
+three slugs are deliberately not named here: this file is public, and the counts
+are what make the entry actionable.
 
 **What was ruled out first, read-only against live data, before touching code:**
 6,848 combined source rows against a 50,000 cap; 0 duplicate ids; 0 blank ids;

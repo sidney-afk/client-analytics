@@ -51,10 +51,10 @@ export function projectNativeSnapshot(value, normalizeClient) {
     // re-keyed onto that owner -- that would move a saved work day onto another
     // client's card, which is the thing this check exists to prevent. But it
     // must not take the board down for everyone either, and failing here did:
-    // on 2026-09-08 six drifted rows (saved under `kasperhytonen`, owners since
-    // moved to `kasperads` and `djkasper`) threw away a 5,241-row snapshot and
-    // every pill on every editor's board fell back to its raw due date with
-    // editing disabled. Ordinary historical drift, total outage.
+    // on 2026-09-08 six drifted rows -- saved under one client slug, owners
+    // since moved to two others -- threw away a 5,241-row snapshot, and every
+    // pill on every editor's board fell back to its raw due date with editing
+    // disabled. Ordinary historical drift, total outage. See OPEN_REPAIRS 177.
     // So: drop the row, count it, and let every other plan project. The safety
     // property is unchanged -- a mismatched plan is still never attached to an
     // owner -- and the blast radius stops at the row that actually drifted.

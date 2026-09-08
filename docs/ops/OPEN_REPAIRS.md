@@ -16669,6 +16669,15 @@ blanket catch would have hidden it too.
 nothing was touched; recorded here so the next duplicate sweep does not treat
 them as new.
 
+**Corrected the same day: the list is longer.** `## 175.` and `## 176.` are also
+duplicated. That pair collided on 2026-09-08 between the Linear exit's branch and
+PR #1354, and it is deliberately **not** renumbered: the exit's pair is cited 43
+times across the briefs, the handoff, this ledger and several PR comments, and PR
+comments cannot be edited, so renumbering would leave dozens of references
+meaning something other than what they say. All four headers carry disambiguation
+notes naming the date and originating PR instead. The rule that came out of it —
+**cite a ledger item by number AND date** — applies to this item too.
+
 ### Proof standard
 
 Every fix carries a test proved **red against `origin/main` first**, in a
@@ -16676,3 +16685,42 @@ separate worktree of `main`, before the fix existed. Nothing here writes to a
 backend, runs a migration, deploys anything, or touches an n8n workflow; all
 four changes are browser or comment only and are live on merge with no deploy.
 
+
+### Addendum, same day — the design call on citation style, ruled by the coordinator
+
+Fix 2 above asked one question rather than deciding it: cite `index.html` by line
+or by symbol. **Ruled: by symbol, and the two Edge Function citations keep their
+line numbers.** Implemented on this branch.
+
+**The evidence was already in the PR.** That `index.html` citation moved twice
+inside the PR that was correcting it, and a third time when this branch merged
+`main`. Three drifts in one day, none of them caused by anyone touching the code
+being cited.
+
+**Why the churn is the argument and not just an annoyance.** A pin on a
+65,000-line file that every browser PR moves will go red on unrelated work, and
+the repair is always "read the failure, paste the new number." A check whose only
+ever remediation is to accept the new value teaches people to accept the new
+value. That turns a drift detector into a rubber stamp, which is worse than no
+check at all, because it carries the authority of a passing test.
+
+**Why this programme in particular should not add another line pin.** Three
+distinct shapes of one defect landed on 2026-09-08: the truncated briefs, a
+reversibility quote true of its source and false in the scope it was applied to,
+and every line number in `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` being dead.
+All three are documents correct about what they say and wrong about where they
+point. A fourth pin into the file that moves most is writing the next instance.
+
+**Deliberately not uniform.** `linear-outbound/index.ts:852,868` and
+`linear-inbound/index.ts:810` stay as line numbers. Those files are ~1,500 lines
+and change rarely, so the precision is real and the churn is not. The rule is the
+ratio of churn to precision **per file**, not a house style for citations.
+
+**The symbol reference is checked harder than the line was**, because a symbol
+that still exists but no longer contains the code it was cited for is exactly as
+dead a pointer as a stale number, and quieter. `test/mint-migration-line-citations.js`
+now holds four things, each proved to fail on purpose before being trusted: the
+migration names the symbol; the symbol is defined exactly once; the line being
+described is still inside that function, computed the way a reader would by
+walking up to the nearest definition; and `index.html` carries no line citation at
+all, so the old style cannot creep back in beside the new one.

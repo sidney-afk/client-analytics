@@ -19,10 +19,25 @@
  *
  * Nothing executes a comment, so nothing said a word. This suite is what says
  * it. Every citation is resolved by CONTENT: the anchor line is found by its
- * own text, and the migration must cite that number and no other. When code
- * moves, this fails with the number to write instead — a one-line repair for
- * whoever moved it, which is the whole point of catching it here rather than
+ * own text, and the migration must match it. When code moves, this fails with
+ * the repair to make, which is the whole point of catching it here rather than
  * leaving the next reader to follow a dead pointer.
+ *
+ * TWO CITATION STYLES, ON PURPOSE, and the split is the point of this comment.
+ *
+ *   - `index.html` is cited by SYMBOL (`_prodAdapter()`). It is 65,000 lines and
+ *     every browser PR moves it. That citation drifted three times in a single
+ *     day, twice inside the PR that was correcting it. A check whose only ever
+ *     remediation is "read the failure, paste the new number" teaches people to
+ *     paste the new number, which turns a drift detector into a rubber stamp —
+ *     worse than no check, because it carries the authority of a passing test.
+ *     By symbol, an unrelated insertion above is silent and a genuine rename
+ *     fails loudly, which is the case actually worth catching.
+ *   - The two Edge Functions keep LINE numbers. They are ~1,500 lines and change
+ *     rarely, so the precision is real and the churn is not.
+ *
+ * The rule is the ratio of churn to precision PER FILE. Do not make this
+ * uniform for tidiness; uniformity here would cost one side or the other.
  */
 
 const assert = require('assert');
@@ -45,6 +60,9 @@ const ANCHORS = [
     file: 'index.html',
     marker: "displayId: linearIdent || importIdent || String(d.id || '')",
     why: 'the migration cites this as what makes an unminted card render as its raw row id',
+    /* Cited by symbol rather than by line — see the header. The line is still
+       resolved, because the containment check below needs it. */
+    symbol: '_prodAdapter',
   },
   {
     label: 'linear-outbound minting the name onto the create-linkage RPC',
@@ -75,7 +93,9 @@ for (const anchor of ANCHORS) {
     'the marker for ' + anchor.label + ' matches ' + hits.length + ' lines of ' + anchor.file
       + ' — it must match exactly one, or this suite could bless a wrong citation');
   anchor.line = hits[0];
-  (trueLines[anchor.file] || (trueLines[anchor.file] = new Set())).add(anchor.line);
+  if (!anchor.symbol) {
+    (trueLines[anchor.file] || (trueLines[anchor.file] = new Set())).add(anchor.line);
+  }
 }
 console.log('  ok  every anchor resolves to exactly one line of source');
 
@@ -86,7 +106,8 @@ console.log('  ok  every anchor resolves to exactly one line of source');
 const cited = [];   // { file, line, quoted }
 const push = (file, line, quoted) => cited.push({ file, line: Number(line), quoted });
 
-for (const m of sql.matchAll(/`index\.html:(\d+)`/g)) push('index.html', m[1], m[0]);
+/* `index.html` is deliberately NOT scanned for line citations here. A number
+   appearing for it is itself the failure — see the symbol block below. */
 for (const m of sql.matchAll(/`supabase\/functions\/(linear-outbound|linear-inbound)\/index\.ts:(\d+)`/g)) {
   push('supabase/functions/' + m[1] + '/index.ts', m[2], m[0]);
 }
@@ -103,7 +124,7 @@ for (const m of sql.matchAll(/`linear-inbound:(\d+)`/g)) {
    rather than silently attributing it to the wrong file. */
 for (const m of sql.matchAll(/`:(\d+)`/g)) push('supabase/functions/linear-outbound/index.ts', m[1], m[0]);
 
-assert(cited.length >= 5,
+assert(cited.length >= 4,
   'no line citations found in ' + MIGRATION + ' — did the header get rewritten?');
 
 for (const entry of cited) {
@@ -120,17 +141,64 @@ console.log('  ok  all ' + cited.length + ' line citations point at the code the
 /* NOT VACUOUS. The two numbers the migration carried on 2026-09-08 must be
    rejected by the check above, or it would pass over the very drift it was
    written for. */
-for (const [file, stale] of [['index.html', 51816],
-  ['supabase/functions/linear-outbound/index.ts', 857]]) {
-  assert(!trueLines[file].has(stale),
-    'line ' + stale + ' of ' + file + ' is being treated as legitimate, so this suite'
-      + ' would have passed on the stale citation it exists to catch');
-}
-/* And the stale numbers really are gone from the migration, not merely absent
+assert(!trueLines['supabase/functions/linear-outbound/index.ts'].has(857),
+  'line 857 of linear-outbound/index.ts is being treated as legitimate, so this suite'
+    + ' would have passed on the stale citation it exists to catch');
+/* And the stale number really is gone from the migration, not merely absent
    from the anchor set. */
-assert(!/`index\.html:51816`/.test(sql), 'the stale index.html citation is back');
 assert(!/:857\b/.test(sql), 'the stale linear-outbound:857 citation is back');
-console.log('  ok  the two citations that were wrong are rejected, not merely unlisted');
+console.log('  ok  the citation that was wrong is rejected, not merely unlisted');
+
+/* SYMBOL CITATIONS. `index.html` is named by function rather than by line, so
+   three separate things have to hold, and each one fails a different way:
+
+     1. the migration actually names the symbol;
+     2. the symbol is defined exactly once, or naming it is ambiguous;
+     3. the line the migration is TALKING ABOUT is inside that function — this
+        is the containment check, and it is what stops the symbol reference from
+        rotting the way the line number did. A symbol that still exists but no
+        longer contains the code being described is exactly as dead a pointer as
+        a stale line number, just quieter.
+
+   And a fourth, in the other direction: `index.html` must carry NO line
+   citation at all. Re-adding one is the drift this style change exists to
+   prevent, so it fails here rather than being tolerated alongside the symbol. */
+for (const anchor of ANCHORS.filter(a => a.symbol)) {
+  const lines = read(anchor.file);
+
+  assert(sql.includes('`' + anchor.symbol + '()`'),
+    MIGRATION + ' no longer names `' + anchor.symbol + '()`. ' + anchor.file
+      + ' is cited by symbol rather than by line; if the function was renamed,'
+      + ' update the migration comment to the new name.');
+
+  const defs = [];
+  const definition = new RegExp('function\\s+' + anchor.symbol + '\\s*\\(');
+  lines.forEach((line, index) => { if (definition.test(line)) defs.push(index + 1); });
+  assert.strictEqual(defs.length, 1,
+    '`' + anchor.symbol + '` is defined ' + defs.length + ' times in ' + anchor.file
+      + ' — a symbol citation must name exactly one function, or it points at nothing'
+      + ' in particular');
+
+  /* Containment, computed the way a reader would: the nearest function
+     definition at or above the anchor line must be this one. */
+  let enclosing = null;
+  for (let i = anchor.line - 1; i >= 0; i--) {
+    const m = /function\s+([A-Za-z_$][\w$]*)\s*\(/.exec(lines[i]);
+    if (m) { enclosing = { name: m[1], line: i + 1 }; break; }
+  }
+  assert(enclosing, 'no enclosing function found above line ' + anchor.line + ' of ' + anchor.file);
+  assert.strictEqual(enclosing.name, anchor.symbol,
+    MIGRATION + ' cites `' + anchor.symbol + '()` for ' + anchor.label + ', but that code'
+      + ' (line ' + anchor.line + ' of ' + anchor.file + ') now lives in `' + enclosing.name
+      + '()` instead. The citation is a dead pointer even though the symbol still exists.'
+      + ' Update the migration comment to `' + enclosing.name + '()`.');
+
+  assert(!new RegExp('`' + anchor.file.replace('.', '\\.') + ':\\d+`').test(sql),
+    MIGRATION + ' has grown a LINE citation for ' + anchor.file + ' again. That file is'
+      + ' cited by symbol on purpose: it moves on every browser PR, and the line drifted'
+      + ' three times in one day. Cite `' + anchor.symbol + '()` instead.');
+}
+console.log('  ok  the symbol citation names one function, and still contains the code it describes');
 
 /* The header's CLAIM, not just its numbers: three writers, all of them Linear.
    A fourth writer appearing without the header changing is the drift that makes

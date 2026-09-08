@@ -238,6 +238,27 @@ clean. `handleEntityOperation` was read forward: `status`, `due` and `descriptio
 each take their own branch and none calls `validateAssignee`, which is reached only
 in the final `else`. That branch is the mutate path's entire Linear exposure.
 
+### The load-bearing claim, verified end to end
+
+Everything above rests on one sentence: **`handleIntakeCreate` calls
+`projectForIntake` unconditionally.** Since this section has already been wrong
+once about which code runs, that sentence is proved rather than asserted:
+
+1. `teams` is built from the items and `teams.size < 1` throws
+   `invalid_intake_teams`, so it has one or two members.
+2. Any item whose team does not normalize throws the same error, so every member
+   is a normalized team.
+3. `normalizeTeam` returns **only** `"video"`, `"graphics"` or `""`, from a frozen
+   `TEAM_KEYS` map in `policy.mjs:209-216`, and the `""` case is filtered out by
+   `Boolean`.
+4. `teamList = ["video","graphics"].filter(team => teams.has(team))` is therefore
+   **non-empty**.
+5. Between `teamList` and the loop there is **no `return`** — only throws.
+
+So the loop runs at least once on every `intake_create` that passes validation, and
+`projectForIntake` is reached every time. No flag, no early exit, no empty-list
+path.
+
 ### Three surfaces reach `intake_create`, not one
 
 Verifying the borrowed citation `index.html:42155` rather than repeating it turned

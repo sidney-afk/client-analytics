@@ -382,6 +382,27 @@ function harness(options) {
     ok(h.calls.setFocus.length === 0 && h.calls.hideToast === 0,
       'a no-op client re-set does not go anywhere near the pending request or its toast');
   }
+  /* Codex review, PR for item 176 (sixth pass): mountCalendar deliberately
+     routes through _calSetClient(null) as a loader placeholder while a
+     sheet-only-client link's roster read is still in flight (`else if
+     (_calPendingDeepLink) initial = null;`) — a RETURNING staff tab already
+     had a real client in calState.client, so this transition is genuinely
+     `calState.client !== name`, and the fifth pass's own fix would have
+     read it as "switched to a different client" and abandoned the very
+     link _calResolvePendingDeepLink is about to open. null must stay
+     permissive here. */
+  {
+    const h = runSetClient({ calState: { client: 'A' }, focusRequest: { client: 'B', cardId: 'p1' } });
+    h.setClient(null);
+    ok(h.calls.setFocus.length === 0 && h.calls.hideToast === 0,
+      'mounting the loader (client -> null) does not abandon a card-link request that is still resolving');
+  }
+  {
+    const h = runSetClient({ calState: { client: 'A' }, pendingDeepLink: { slug: 'b', cardId: 'p1' } });
+    h.setClient(null);
+    ok(h.calls.setPending.length === 0,
+      'nor a deferred sheet-only-client link — the exact scenario the report named');
+  }
 
   /* THE THIRD WAY IT GOES STALE. onCalViewChange covers leaving the Sheet and
      _calSetClient covers changing client; neither fires when you navigate to

@@ -29926,12 +29926,26 @@
              * _calSetFocusRequest(...) and then _calOpenClientTab (which
              * lands here) for exactly that client, in that order, and
              * clearing on every change would cancel the very request that
-             * sequence exists to fulfil. */
-            if (_calFocusRequest && wlNormalizeClient(_calFocusRequest.client) !== wlNormalizeClient(name)) {
+             * sequence exists to fulfil.
+             *
+             * Sixth pass: `name === null` is a THIRD case, and it is not a
+             * client at all -- mountCalendar deliberately routes through
+             * _calSetClient(null) as a "still resolving, don't paint the
+             * wrong client" loader state while a sheet-only-client link's
+             * roster read is in flight (`else if (_calPendingDeepLink)
+             * initial = null;`). Clearing on that transition too meant a
+             * returning staff tab (calState.client already set from an
+             * earlier visit) that received a deferred link lost it the
+             * instant the loader mounted, before _calResolvePendingDeepLink
+             * ever ran -- silently, the exact shape this whole item exists
+             * to end. `null` must stay a permissive placeholder here, same
+             * as it does in mountCalendar's own reasoning; only an actual
+             * OTHER client name abandons the pending request. */
+            if (name !== null && _calFocusRequest && wlNormalizeClient(_calFocusRequest.client) !== wlNormalizeClient(name)) {
                 if (_calFocusRequest.cardId) _calHideOwnToast('Opening linked card');
                 _calSetFocusRequest(null);
             }
-            if (_calPendingDeepLink && _calPendingDeepLink.slug !== calClientSlug(name)) {
+            if (name !== null && _calPendingDeepLink && _calPendingDeepLink.slug !== calClientSlug(name)) {
                 if (_calPendingDeepLink.cardId) _calHideOwnToast('Opening linked card');
                 _calSetPendingDeepLink(null);
             }

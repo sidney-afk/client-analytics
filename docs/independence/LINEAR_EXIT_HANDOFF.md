@@ -77,6 +77,19 @@ they shipped. Look for its report on PR #1351 before repeating that work.
 
 ## 1. Where the programme actually is
 
+> **Morning update, 2026-09-08 08:25 UTC.** Six more sessions ran overnight and
+> every open PR is now CI-green with its review findings closed. **Nothing was
+> merged**, deliberately: merging is gated on the owner, and the two docs-only
+> PRs (#1351, #1352) are held because #1352's final commits are unreviewed by
+> Codex after its session was stopped mid-turn for spend. The completion figure
+> below has NOT moved, and that is the honest picture: engineering advanced,
+> installation did not, and installation is the half that is behind.
+>
+> **The night cost $557 across twelve sessions** (ledger addendum 07:20). The
+> two cheapest, $12 combined, produced the most: three defects in code already
+> live on `main`, and the finding that the all-or-nothing surface is mostly
+> sound rather than a field of outage-class bugs.
+
 **Roughly 55-60% complete** toward "staff and clients work without Linear and the
 account can be cancelled safely". Source work is near 80%; execution near 25%.
 That gap is the whole story: a great deal is built and reviewed, and very little

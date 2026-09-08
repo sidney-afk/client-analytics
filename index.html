@@ -4517,12 +4517,12 @@
         .cal-native-batch-field::after { content: ''; position: absolute; right: 13px; top: 50%; width: 8px; height: 8px; margin-top: -6px; border-right: 2px solid var(--text-muted); border-bottom: 2px solid var(--text-muted); transform: rotate(45deg); pointer-events: none; }
         .cal-native-batch-select { width: 100%; height: 40px; padding: 0 34px 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 600; line-height: 1.2; cursor: pointer; -webkit-appearance: none; -moz-appearance: none; appearance: none; text-overflow: ellipsis; }
         .cal-native-batch-select:hover { border-color: var(--text-muted); }
-        .cal-native-batch-select:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-batch-select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
         .cal-native-batch-select:disabled { opacity: .55; cursor: not-allowed; }
         .cal-native-batch-filter { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 500; }
         .cal-native-batch-filter::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
         .cal-native-batch-filter:hover { border-color: var(--text-muted); }
-        .cal-native-batch-filter:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-batch-filter:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
         /* margin-top: 0 -- the grid gap above owns the spacing now, and a
            margin here would double it the moment the notice appears. */
         .cal-native-batch-filter-empty { display: block; margin-top: 0; font-size: 0.72rem; color: var(--sv-fg-aaa); }
@@ -4548,21 +4548,71 @@
         .cal-native-name-row { margin-top: 14px; }
         .cal-native-name-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
         .cal-native-name-optional { margin-left: 6px; font-size: 0.72rem; font-weight: 600; color: var(--sv-fg-aaa); }
-        .cal-native-name-list { display: grid; gap: 8px; max-height: 216px; overflow-y: auto; }
+        /* THE PADDING IS THE FOCUS RING'S ROOM, not decoration (2026-09-08).
+           `overflow-y: auto` computes `overflow-x: auto` too, so this scroll
+           container clips at its PADDING box -- and the focused input's ring
+           sits 3px outside its border box (1px offset + 2px wide). With no
+           padding the ring's four straight edges were clipped away and only
+           the corner arcs survived, which read as stray marks at the corners
+           of the field. The negative margin puts the row back where it was, so
+           nothing moves. */
+        .cal-native-name-list { display: grid; gap: 8px; max-height: 216px; overflow-y: auto; padding: 4px; margin: -4px; }
         .cal-native-name-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: center; }
         .cal-native-name-item.is-numbered { grid-template-columns: 22px minmax(0, 1fr); }
         .cal-native-name-index { font-size: 0.74rem; font-weight: 700; color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
         .cal-native-name-input { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 500; box-sizing: border-box; }
         .cal-native-name-input::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
         .cal-native-name-input:hover { border-color: var(--text-muted); }
-        .cal-native-name-input:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-name-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
         .cal-native-name-hint { margin: 6px 0 0; font-size: 0.74rem; line-height: 1.45; color: var(--text-muted); }
         /* The batch name lives INSIDE the "Start a new batch" card, so the name
            and the decision to create it are one control rather than two. */
         .cal-native-batch-name { width: 100%; height: 38px; margin-top: 8px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.8rem; font-weight: 600; box-sizing: border-box; }
         .cal-native-batch-name::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
         .cal-native-batch-name:hover { border-color: var(--text-muted); }
-        .cal-native-batch-name:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        .cal-native-batch-name:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+        /* CREATE POST, OPTION A (owner pick 2026-09-08).
+           The four hint blocks are gone. Three of them described the same
+           thing in prose -- the issue tree about to be created -- so one live
+           receipt replaces all three and states it exactly, including the
+           NUMBERS an append will get, which no hint could ever say. The batch
+           pair became a segmented toggle because both branches used to sit
+           open at once, so a third of the dialog was controls for the choice
+           you had not made. */
+        .cal-native-batch-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+        .cal-native-batch-tabs label { position: relative; display: block; }
+        .cal-native-batch-tabs input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+        .cal-native-batch-tabs span { display: flex; justify-content: center; align-items: center; padding: 8px 6px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
+        .cal-native-batch-tabs input:checked + span { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+        .cal-native-batch-tabs input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        /* NARROW SCREENS STACK BOTH TOGGLES (Codex P2 on PR 1353).
+           Measured, not estimated: at 360px the batch tabs fit exactly
+           (288 = 288) and it is the three-column MODE toggle that overflows
+           (314 > 288); at 320px both do (277 and 314 against 251). The labels
+           are nowrap by design -- 'Add to a previous batch' wrapping mid-phrase
+           reads worse than a stacked tab -- so the columns collapse instead.
+           This covers the mode toggle as well as the tabs this PR added,
+           deliberately: fixing only the new half would leave the dialog
+           overflowing horizontally on the same screen, which is the whole
+           defect. */
+        @media (max-width: 420px) {
+            .cal-native-mode-toggle, .cal-native-batch-tabs { grid-template-columns: 1fr; }
+        }
+        .cal-native-batch-panel { margin-top: 10px; display: grid; gap: 8px; }
+        .cal-native-batch-panel .cal-native-sublabel { margin: 2px 0 -4px; font-size: 0.74rem; }
+        .cal-native-field-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+        .cal-native-field-label .cal-native-name-optional { margin-left: 6px; }
+        .cal-native-receipt { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); padding: 11px 13px; }
+        .cal-native-receipt-cap { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); }
+        .cal-native-receipt-cap em { font-style: normal; font-weight: 600; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+        .cal-native-receipt-parent { display: flex; align-items: center; gap: 8px; margin-top: 9px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 0.8rem; font-weight: 700; color: var(--text-primary); overflow-wrap: anywhere; }
+        .cal-native-receipt-kids { list-style: none; margin: 7px 0 0; padding: 0; display: grid; gap: 4px; max-height: 168px; overflow-y: auto; }
+        .cal-native-receipt-kids li { display: flex; align-items: center; gap: 8px; padding-left: 9px; border-left: 1px solid var(--border); font-size: 0.76rem; color: var(--text-secondary); overflow-wrap: anywhere; }
+        .cal-native-receipt-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+        .cal-native-receipt-dot.is-video { background: var(--cal-comp-video-dot); }
+        .cal-native-receipt-dot.is-graphics { background: var(--cal-comp-graphic-dot); }
+        .cal-native-receipt-name { color: var(--text-primary); font-weight: 600; }
+        .cal-native-receipt-more { padding-left: 9px; border-left: 1px solid var(--border); font-size: 0.74rem; color: var(--text-muted); }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
         .cal-import-drop svg { width: 34px; height: 34px; color: var(--text-muted); }
@@ -8439,6 +8489,15 @@
         hideToast();
         const el = document.createElement('div');
         el.className = 'sv-toast';
+        // Codex review, PR for item 176 (seventh pass): a screen-reader user
+        // gets no announcement at all when a plain div is inserted into the
+        // page — this toast (and the "Opening linked card…"/"Linked to…"
+        // messages this feature relies on it for) would otherwise leave
+        // exactly the silent wait the feature exists to remove. Matches the
+        // role="status" + aria-live="polite" convention already used
+        // throughout this file for loading/status announcements.
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
         const txt = document.createElement('span');
         txt.className = 'sv-toast-msg';
         txt.textContent = msg;
@@ -11591,6 +11650,10 @@
         // Calendar transport/realtime lease before replacing its surface with
         // Analytics, Brief, or the profile overview.
         if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();
+        // Codex review, PR for item 176 (seventh pass): render() bypasses
+        // navTo() (see the comment above), so navTo's own card-link
+        // abandonment never ran for this exit either.
+        if(typeof _calAbandonLinkOnCalendarExit==='function')_calAbandonLinkOnCalendarExit(tab==='calendar');
         if(clientOnly&&_syncviewRenderClientExtrasGate(sel,tab))return;
         const existingBack=titleRow.querySelector('.back-btn');
         if(sel!=='all'&&!clientOnly){
@@ -11674,6 +11737,9 @@
             _syncviewApplyTabFavicon(nav);
             const tab=state.clientTab||'analytics';
             if(tab!=='calendar'&&typeof _calV2Teardown==='function')_calV2Teardown();
+            // Codex review, PR for item 176 (seventh pass): this branch never
+            // reaches navTo() either (see the comment above).
+            if(typeof _calAbandonLinkOnCalendarExit==='function')_calAbandonLinkOnCalendarExit(tab==='calendar');
             clientViewTab[state.client]=tab;
             if(state.briefSection)activeBriefSection[state.client]=state.briefSection;
             if(state.briefTab)activeBriefTab[state.client]=state.briefTab;
@@ -11726,7 +11792,7 @@
                     const slug=sl>=0?rest.slice(0,sl):rest;
                     const cardId=sl>=0?rest.slice(sl+1):'';
                     const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
-                    if(match)_calFocusRequest={client:match,cardId:cardId||null};
+                    if(match)_calSetFocusRequest({client:match,cardId:cardId||null});
                     /* A slug the seed allowlist does not know is NOT nothing: it
                        is usually a sheet-only client, and the boot router has an
                        arm for exactly this. Without it the calendar mounts on
@@ -11737,7 +11803,7 @@
                        got here. The resolver runs AFTER navTo because it
                        early-returns unless currentNav is already calendar, and it
                        has its own fallback when the slug never resolves. */
-                    else if(slug)_calPendingDeepLink={slug,cardId:cardId||null};
+                    else if(slug)_calSetPendingDeepLink({slug,cardId:cardId||null});
                     navTo('calendar',false);
                     if(!match&&slug){try{_calResolvePendingDeepLink();}catch(e){console.warn('[Calendar] deep-link resolve failed',e);}}
                     return;
@@ -17914,7 +17980,7 @@
     function wlOpenInContentCalendar(clientName, identifier) {
         const canon = wlCanonicalClient(clientName);
         if (!canon) return;
-        _calFocusRequest = { client: canon, identifier: String(identifier || '').toUpperCase() };
+        _calSetFocusRequest({ client: canon, identifier: String(identifier || '').toUpperCase() });
         try {
             const pins = _calGetPins();
             if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
@@ -21152,6 +21218,17 @@
            colour guard reads a four-hex-digit token after a # as a colour
            literal, which is a fair reading and cost one CI cycle to learn.) */
         if (page !== 'calendar') calState.focusPid = null;
+        /* Codex review, PR for item 176 (fourth pass, generalized on the
+         * seventh): a card link's "Opening linked card…" toast has no
+         * reason to follow the reader onto an unrelated page once they've
+         * left the calendar — it would otherwise sit there, for up to ~21s,
+         * saying something about a page that is no longer showing. Same
+         * leaving-the-calendar signal as focusPid just above. Seventh pass:
+         * navTo is not the only exit — render() and the state.client
+         * popstate branch both bypass it too (their own comments say so),
+         * so this is a shared function, not inline here, called from every
+         * route that already shares the _calV2Teardown line beside it. */
+        if (typeof _calAbandonLinkOnCalendarExit === 'function') _calAbandonLinkOnCalendarExit(page === 'calendar');
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); // SXR_LINE
         // Leaving Samples while its Notes modal is open would otherwise leave
         // the body scroll-locked; clear the lock on every navigation away.
@@ -29105,6 +29182,65 @@
     /* Set by "Open in content calendar" from the workload view — tells the
        calendar which client to open and which linked post to scroll to. */
     let _calFocusRequest = null;
+    // Whether the CURRENT _calFocusRequest has already told the reader its
+    // load failed — set true by loadCalendarPosts's catch, reset whenever a
+    // new request is set. Without this a request that survives a failed
+    // foreground load (kept alive on purpose, see below) would re-notify on
+    // every later background retry that also fails.
+    let _calFocusRequestLoadFailed = false;
+    /* OPEN_REPAIRS item 176 (2026-09-08): a card link only ever announced
+     * itself — outline, or the toast added for item 175 — from INSIDE
+     * _calApplyFocusRequest, which loadCalendarPosts calls exactly once,
+     * and only after that load's network round trip SUCCEEDS. Replicated in
+     * a real browser: with the calendar_posts read mocked to answer in 8s
+     * (an ordinary slow response, not a broken one), the reader had nothing
+     * on screen saying a card link was even recognized until the full 8s had
+     * passed; mocked to never answer at all, they saw nothing, ever, no
+     * error either, indistinguishable from a link that silently did nothing
+     * — the exact report, three times over (2026-08-26, 2026-09-03,
+     * 2026-09-08).
+     *
+     * The fix is not inside _calApplyFocusRequest — the network dependency
+     * is the bug, not that function. So: every site that sets a REAL card
+     * link (a cardId, not the identifier/search-jump shape) funnels through
+     * here, and says so immediately, before any fetch has even started.
+     * `loadCalendarPosts` still owns applying the highlight once the load
+     * lands; this only owns the reader knowing their link was heard at all.
+     *
+     * One assignment point for the same reason `_calSetClient` is one
+     * assignment point (see the deep-link focus tests, "seven assignments,
+     * one of them remembering is not a rule"): a future call site that sets
+     * `_calFocusRequest` directly gets none of this, silently, and this
+     * exact feature has already broken twice from precisely that shape of
+     * miss. */
+    function _calSetFocusRequest(req) {
+        _calFocusRequest = req;
+        _calFocusRequestLoadFailed = false;
+        if (req && req.cardId) {
+            showToast('Opening linked card…', { duration: CAL_LOAD_TIMEOUT_MS + 1000 });
+        }
+    }
+    /* Codex review, PR for item 176 (fourth pass): showToast/hideToast are a
+     * SINGLE shared instance app-wide, so a bare hideToast() call here would
+     * just as happily dismiss an unrelated toast that legitimately replaced
+     * "Opening linked card…" in the interim — an Undo prompt, a save
+     * confirmation — if that toast is still the one on screen when this
+     * runs. Every hideToast() this feature calls goes through here instead,
+     * checking the currently-shown toast is still OURS before touching it.
+     *
+     * Fifth pass: the first version of this check queried the DOM globally
+     * (`document.querySelector('.sv-toast-msg')`), which is exactly wrong
+     * during hideToast's own 220ms fade — it clears `_toastEl` and the
+     * `show` class immediately but leaves the OLD element in the document
+     * for that setTimeout, while showToast() appends the NEW element right
+     * away with no such delay. A global query can return that dying old
+     * element instead of the live one, so this checks `_toastEl` itself —
+     * the one variable that is always the CURRENT toast, never a fading
+     * leftover — not the DOM at large. */
+    function _calHideOwnToast(expectedPrefix) {
+        const el = _toastEl && _toastEl.querySelector('.sv-toast-msg');
+        if (el && el.textContent && el.textContent.indexOf(expectedPrefix) === 0) hideToast();
+    }
     /* A #calendar/<slug> deep link (e.g. a link handed over by another SMM)
        whose client wasn't in the allowlist yet when the fast-path router ran:
        WL_CLIENT_NAMES is seed-only until fetchAll folds in the Clients Info
@@ -29113,6 +29249,37 @@
        last-used client, and _calResolvePendingDeepLink (run after fetchAll)
        opens the real client as a tab. Shape: { slug, cardId }. */
     let _calPendingDeepLink = null;
+    /* Codex review on PR for OPEN_REPAIRS item 176: a card link for a
+     * sheet-only client (not in the WL_CLIENT_NAMES seed) is recognized here,
+     * before the roster that would resolve it to _calFocusRequest has even
+     * loaded — so without its own announcement, exactly these links kept the
+     * silence item 176 was meant to end, for as long as the ESSENTIALS read
+     * takes instead of the calendar read. Same discipline as
+     * _calSetFocusRequest, and the same reason: one assignment site. */
+    function _calSetPendingDeepLink(v) {
+        _calPendingDeepLink = v;
+        if (v && v.cardId) {
+            showToast('Opening linked card…', { duration: CAL_LOAD_TIMEOUT_MS + 1000 });
+        }
+    }
+    /* Codex review, PR for item 176 (seventh pass): navTo is not the only
+     * route out of the calendar. `render()` (client-profile tab switches)
+     * and the `state.client` popstate branch both explicitly bypass navTo
+     * — see their own "render() bypasses navTo()" / "never reaches navTo"
+     * comments — while still tearing down _calV2Teardown right beside where
+     * this is now called from too. One function, called from every exit
+     * route that already shares that teardown line, for the same reason
+     * _calSetClient owns every client assignment: a fourth exit path that
+     * calls _calV2Teardown without calling this would get none of it,
+     * silently — exactly how this pass's finding happened to the first two. */
+    function _calAbandonLinkOnCalendarExit(stillOnCalendar) {
+        if (stillOnCalendar) return;
+        if ((_calFocusRequest && _calFocusRequest.cardId) || (_calPendingDeepLink && _calPendingDeepLink.cardId)) {
+            _calHideOwnToast('Opening linked card');
+        }
+        _calSetFocusRequest(null);
+        _calSetPendingDeepLink(null);
+    }
     /* Card ids whose next save must NOT push back to Linear — used when a
        status was just pulled FROM Linear, so we don't bounce it back. */
     const _calNoLinearPush = new Set();
@@ -29826,7 +29993,43 @@
      * the rule now — a new switch path gets it by construction rather than by
      * somebody remembering this comment exists. */
     function _calSetClient(name) {
-        if (calState.client !== name) calState.focusPid = null;
+        if (calState.client !== name) {
+            calState.focusPid = null;
+            /* Codex review, PR for item 176 (fifth pass): a pending card-link
+             * request (and its toast) belongs to whichever client it names.
+             * Switching to a DIFFERENT client abandons it, the exact same
+             * staleness shape as focusPid just above -- otherwise the toast
+             * keeps showing on the new client's calendar, and switching back
+             * to the original client later could apply a focus request from
+             * however long ago. But switching TO the client it was actually
+             * for must NOT cancel it: _calResolvePendingDeepLink calls
+             * _calSetFocusRequest(...) and then _calOpenClientTab (which
+             * lands here) for exactly that client, in that order, and
+             * clearing on every change would cancel the very request that
+             * sequence exists to fulfil.
+             *
+             * Sixth pass: `name === null` is a THIRD case, and it is not a
+             * client at all -- mountCalendar deliberately routes through
+             * _calSetClient(null) as a "still resolving, don't paint the
+             * wrong client" loader state while a sheet-only-client link's
+             * roster read is in flight (`else if (_calPendingDeepLink)
+             * initial = null;`). Clearing on that transition too meant a
+             * returning staff tab (calState.client already set from an
+             * earlier visit) that received a deferred link lost it the
+             * instant the loader mounted, before _calResolvePendingDeepLink
+             * ever ran -- silently, the exact shape this whole item exists
+             * to end. `null` must stay a permissive placeholder here, same
+             * as it does in mountCalendar's own reasoning; only an actual
+             * OTHER client name abandons the pending request. */
+            if (name !== null && _calFocusRequest && wlNormalizeClient(_calFocusRequest.client) !== wlNormalizeClient(name)) {
+                if (_calFocusRequest.cardId) _calHideOwnToast('Opening linked card');
+                _calSetFocusRequest(null);
+            }
+            if (name !== null && _calPendingDeepLink && _calPendingDeepLink.slug !== calClientSlug(name)) {
+                if (_calPendingDeepLink.cardId) _calHideOwnToast('Opening linked card');
+                _calSetPendingDeepLink(null);
+            }
+        }
         calState.client = name;
     }
     function _calOpenClientTab(name) {
@@ -29862,7 +30065,14 @@
     function _calResolvePendingDeepLink() {
         const pending = _calPendingDeepLink;
         if (!pending) return;
-        _calPendingDeepLink = null;
+        _calSetPendingDeepLink(null);
+        // Codex review, PR for item 176: the "Opening linked card…" toast
+        // _calSetPendingDeepLink fired belongs to THIS pin, not to whatever
+        // happens next — an unresolved slug's "Calendar link not opened"
+        // modal below would otherwise sit next to a toast still claiming the
+        // card is opening, and a reader who navigated away before the sheet
+        // merged would carry it to an unrelated page.
+        if (pending.cardId) _calHideOwnToast('Opening linked card');
         // The user may have navigated away (or into a client profile) while data
         // was loading — don't yank them back to the calendar.
         if (currentNav !== 'calendar' || calState.embedded) return;
@@ -29886,7 +30096,7 @@
             }
             return;
         }
-        if (pending.cardId) _calFocusRequest = { client: match, cardId: pending.cardId };
+        if (pending.cardId) _calSetFocusRequest({ client: match, cardId: pending.cardId });
         _calOpenClientTab(match);
     }
 
@@ -35611,6 +35821,43 @@
                     : (e.message || String(e));
                 calState.posts = [];
             }
+            /* OPEN_REPAIRS item 176. _calApplyFocusRequest only ever runs on
+             * the SUCCESS path below (`if (... && ok)`), so a card link whose
+             * load fails or times out reaches neither the outline nor the
+             * "Opening linked card…" toast's resolution — the reader who saw
+             * that toast start would otherwise watch it expire with no
+             * follow-up, which is the "did it work or not" version of the
+             * exact silence item 175 fixed for the success path. A background
+             * poll failing is not this: it means an EARLIER foreground load
+             * already told the reader once (or already succeeded), so it
+             * says nothing and leaves the pin alone for the next attempt to
+             * try again. _calFocusRequestLoadFailed stops a slow string of
+             * background retries from re-notifying for the same pin.
+             *
+             * Gated on opts.background (the CALLER's intent), not the local
+             * `background` above — Codex review, PR for this item. `background`
+             * also turns true whenever cache-priming left posts on screen
+             * (`calState.posts.length > 0 && haveCache`), which is exactly the
+             * cold, first-ever deep-link load of a RETURNING user: cache paints
+             * something instantly, but the network read this notice exists for
+             * is still the initial, deliberate one. Gating on that flag would
+             * have re-silenced precisely the returning-user case the toast was
+             * built to fix. */
+            if (!opts.background && _calFocusRequest && _calFocusRequest.cardId && !_calFocusRequestLoadFailed
+                && wlNormalizeClient(calState.client) === wlNormalizeClient(_calFocusRequest.client)) {
+                _calFocusRequestLoadFailed = true;
+                // Codex review, PR for item 176: _calApplyFocusRequest is
+                // never reached on this failure path (ok never became true),
+                // so its own hideToast() never runs either — a fetch that
+                // rejects quickly (well short of the toast's ~21s duration)
+                // left "Opening linked card…" on screen right next to this
+                // modal saying the opposite.
+                _calHideOwnToast('Opening linked card');
+                showNotify('Linked card not confirmed', (isAbort
+                    ? "The calendar took too long to load, so the card this link points to couldn't be confirmed."
+                    : "That calendar couldn't be loaded, so the card this link points to couldn't be confirmed.")
+                    + ' Try the link again.');
+            }
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             loadRun.timeoutId = null;
@@ -35727,7 +35974,13 @@
         const req = _calFocusRequest;
         if (!req) return;
         if (wlNormalizeClient(calState.client) !== wlNormalizeClient(req.client)) return;
-        _calFocusRequest = null;
+        _calSetFocusRequest(null);
+        // Codex review, PR for item 176: _calSetFocusRequest(null) clears the
+        // PIN, not the "Opening linked card…" TOAST it fired earlier — so a
+        // card that resolves fast into "Card not found"/"Card not shown"
+        // below left that toast on screen contradicting the modal that
+        // follows it. Only a cardId request could have shown it.
+        if (req.cardId) _calHideOwnToast('Opening linked card');
         let post = null;
         let persistent = false;
         if (req.cardId) {
@@ -35838,6 +36091,12 @@
                 _calClearFocusHighlight();
                 card.classList.add('cal-card-focused');
                 setTimeout(() => document.addEventListener('mousedown', _calFocusOutsideHandler, true), 0);
+                // The outline alone wasn't enough — both prior reports said "I can't
+                // tell which card this is," even after the outline shipped. Say it
+                // in words too: a toast naming the card is unmissable in a way a
+                // border color isn't, especially in a dense strip of similar cards.
+                const _focusDate = post.scheduled_date ? _calFmtDateShort(post.scheduled_date) : '';
+                showToast('Linked to “' + (post.name || 'Untitled post').trim() + '”' + (_focusDate ? ' · ' + _focusDate : ''));
             } else {
                 card.classList.add('cal-card-flash');
                 setTimeout(() => card.classList.remove('cal-card-flash'), 2200);
@@ -40632,39 +40891,6 @@
         });
         return withLoad;
     }
-    function _calNativeEditorDisclaimer(state) {
-        const editors = (state && state.videoEditors) || [];
-        if (state && state.videoEditorStatus === 'loading') return 'Checking who has the most room...';
-        if (!editors.length) return 'No video editor could be loaded, so this post will be assigned automatically.';
-        const suggested = editors.find(editor => editor.id === (state && state.videoEditorSuggestedId));
-        if (!suggested) return 'Pick who edits this post.';
-        if (suggested.openCount == null) {
-            return 'Current workloads could not be read, so this is just the first editor alphabetically — please check it.';
-        }
-        const open = suggested.openCount === 1 ? '1 open video' : suggested.openCount + ' open videos';
-        const chosen = (state && state.videoEditorId) || '';
-        const followed = chosen === suggested.id;
-        /* LEAD WITH WHAT WILL HAPPEN, not with what the picker would have done.
-           The previous copy opened "Suggested was <X>, but you have chosen
-           someone else", and an SMM read that as a refusal -- reported
-           2026-08-25 as "no me deja, me dice que solo puedo poner al
-           suggested" (it will not let me, it says I can only use the suggested
-           one). Nothing was refusing her: a video assignee override is accepted
-           by the picker AND by the gateway, which rejects one only for
-           graphics. The sentence just described her choice as a deviation
-           before it confirmed it, so it read like a correction.
-           Now the chosen editor is the subject and the suggestion is an aside. */
-        const chosenEditor = editors.find(editor => editor.id === chosen);
-        if (!followed && chosenEditor) {
-            return chosenEditor.name + ' will edit this post. (Suggested was ' + suggested.name
-                + ', who has the least on right now — ' + open
-                + ' — but that is open work only, not a schedule.)';
-        }
-        return (followed
-            ? 'Suggested: ' + suggested.name + ' has the least on right now (' + open + ').'
-            : 'Suggested was ' + suggested.name + ' (' + open + ').')
-            + ' This is a suggestion from open work only, not a schedule — change it if you know better.';
-    }
     /* One Create Post submission can mint several posts (owner request
        2026-08-20: "if it's 12 posts, it would be 12 sub-issues. But if it's
        video plus thumbnail, it would be 24").
@@ -40768,6 +40994,132 @@
         if (surface === 'sxr' && !/sample/i.test(typed)) return typed + ' · Samples';
         return typed;
     }
+    /*
+     * WHAT THIS SUBMISSION WILL CREATE (owner pick 2026-09-08, option A).
+     *
+     * Three of the dialog's four hint blocks were prose renderings of one
+     * thing: the issue tree about to be written. The count hint said how many
+     * sub-issues, the name hint gave a worked example of a composed title, and
+     * the new-batch meta quoted the parent's name. A receipt states all three
+     * at once, from the real state, and answers the question none of them
+     * could: on an APPEND, which ordinals this post actually gets. Until now
+     * that was invisible until the issues existed in Linear.
+     *
+     * The ordinal is mirrored from the gateway rather than counted. A batch's
+     * post COUNT is not its highest ordinal -- delete a card and they diverge
+     * for good -- and the number lives only in the title, so it is read the
+     * way `production_intake_append` reads it. This is a PREVIEW: the server
+     * still allocates, and it still fails closed if the two ever disagree.
+     */
+    const CAL_NATIVE_ORDINAL_RE = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)(?: \u2014 .+)?$/;
+    const CAL_NATIVE_RECEIPT_ROWS = 8;
+    function _calNativeTitleOrdinal(title) {
+        const found = CAL_NATIVE_ORDINAL_RE.exec(String(title == null ? '' : title).trim());
+        return found ? Number(found[1]) : null;
+    }
+    /* null means UNKNOWN -- the bounded read never landed, or never covered
+       this batch -- and only that renders as an ellipsis. A measured zero is a
+       real answer and must stay zero, or an empty batch previews `Video …`
+       while the RPC allocates `Video 1`. */
+    function _calNativeBatchMaxOrdinal(state, batchId) {
+        const map = state && state.batchMaxOrdinals;
+        if (!(map instanceof Map)) return null;
+        const found = map.get(String(batchId || ''));
+        return Number.isFinite(found) && found >= 0 ? found : null;
+    }
+    function _calNativeBatchById(state, batchId) {
+        const wanted = String(batchId || '');
+        return ((state && state.batchOptions) || []).find(batch => String(batch && batch.id || '') === wanted) || null;
+    }
+    /* Prefers the live radio over the captured one, so a receipt redrawn on a
+       keystroke reflects the tab the user is actually on. */
+    function _calNativeCurrentBatchChoice(state) {
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        if (selected) return { value: selected.value, batchId: String(selected.dataset.batchId || '') };
+        const prior = state && state.batchChoice;
+        return prior ? { value: prior.value, batchId: prior.batchId } : { value: 'new', batchId: '' };
+    }
+    function _calNativeReceiptHtml(state, choice) {
+        const mode = ['video', 'thumbnail', 'both'].includes(state && state.mode) ? state.mode : 'both';
+        const teams = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
+        const count = _calNativePostCount(state);
+        const names = _calNativePostNamesFor(state, count);
+        const prefix = state && state.surface === 'sxr' ? 'Sample ' : '';
+        const appending = !!(choice && choice.value === 'batch');
+        /* null means the bounded count read did not land, which is the same
+           degraded path the batch subtext already tolerates. An unknown
+           ordinal renders as an ellipsis rather than a guess -- a wrong number
+           here would be worse than the hint this replaces. */
+        const max = appending ? _calNativeBatchMaxOrdinal(state, choice.batchId) : 0;
+        const base = appending ? (max === null ? null : max + 1) : 1;
+        const batch = appending ? _calNativeBatchById(state, choice.batchId) : null;
+        const parent = appending
+            ? (batch ? _calNativeBatchDisplayName(batch) : 'the batch you picked')
+            : _calNativeBatchNameFor(state);
+        const rows = [];
+        for (let index = 0; index < count; index++) {
+            for (let slot = 0; slot < teams.length; slot++) {
+                if (rows.length >= CAL_NATIVE_RECEIPT_ROWS) break;
+                const team = teams[slot];
+                const kind = team === 'graphics' ? 'Thumbnail' : 'Video';
+                const ordinal = base === null ? '\u2026' : String(base + index);
+                const name = names[index];
+                rows.push('<li><span class="cal-native-receipt-dot is-' + team + '"></span>'
+                    + _calEsc(prefix + kind + ' ' + ordinal)
+                    + (name ? '<span class="cal-native-receipt-name">'
+                        + _calEsc(CAL_NATIVE_TITLE_SEPARATOR + name) + '</span>' : '')
+                    + '</li>');
+            }
+        }
+        const total = count * teams.length;
+        const hidden = total - rows.length;
+        if (hidden > 0) rows.push('<li class="cal-native-receipt-more">+ ' + hidden + ' more</li>');
+        return '<div class="cal-native-receipt-cap">Creates<em>'
+            + (total === 1 ? '1 sub-issue' : total + ' sub-issues') + '</em></div>'
+            + '<div class="cal-native-receipt-parent">' + _calEsc(parent)
+            + (appending ? ' \u00b7 existing batch' : '') + '</div>'
+            + '<ul class="cal-native-receipt-kids">' + rows.join('') + '</ul>';
+    }
+    /* ONE LINE, AFTER TYPING STOPS. The receipt itself is NOT a live region
+       (Codex P1 on PR 1353): it is rewritten on every keystroke of every name,
+       so announcing it would queue the whole tree per character and leave a
+       screen-reader user behind their own typing. The visual preview still
+       updates instantly; what is spoken is this summary, once the field
+       settles, and it says the shape rather than reciting six titles. */
+    const CAL_NATIVE_RECEIPT_SPEAK_MS = 700;
+    let _calNativeReceiptSpeakTimer = null;
+    function _calNativeReceiptSummary(state, choice) {
+        const mode = ['video', 'thumbnail', 'both'].includes(state && state.mode) ? state.mode : 'both';
+        const teams = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
+        const count = _calNativePostCount(state);
+        const total = count * teams.length;
+        const appending = !!(choice && choice.value === 'batch');
+        const max = appending ? _calNativeBatchMaxOrdinal(state, choice.batchId) : 0;
+        const base = appending ? (max === null ? null : max + 1) : 1;
+        const where = appending
+            ? 'in ' + (_calNativeBatchDisplayName(_calNativeBatchById(state, choice.batchId)) || 'the batch you picked')
+            : 'in a new batch';
+        const numbers = base === null
+            ? ''
+            : ', numbered ' + base + (count > 1 ? ' to ' + (base + count - 1) : '');
+        return 'Creates ' + (total === 1 ? '1 sub-issue' : total + ' sub-issues') + ' ' + where + numbers + '.';
+    }
+    /* Surgical, like the names list: every keystroke reaches this, and a full
+       re-render would take the caret with it. */
+    function _calNativeSyncReceipt() {
+        const state = _calNativePostState;
+        const host = document.getElementById('calNativeReceipt');
+        if (!state || !host) return;
+        const choice = _calNativeCurrentBatchChoice(state);
+        host.innerHTML = _calNativeReceiptHtml(state, choice);
+        if (_calNativeReceiptSpeakTimer) clearTimeout(_calNativeReceiptSpeakTimer);
+        _calNativeReceiptSpeakTimer = setTimeout(() => {
+            const live = document.getElementById('calNativeReceiptStatus');
+            if (!live || !_calNativePostState) return;
+            live.textContent = _calNativeReceiptSummary(_calNativePostState,
+                _calNativeCurrentBatchChoice(_calNativePostState));
+        }, CAL_NATIVE_RECEIPT_SPEAK_MS);
+    }
     function _calNativePostNamesHtml(state, count, mode) {
         const names = _calNativePostNamesFor(state, count);
         const numbered = count > 1;
@@ -40779,8 +41131,7 @@
                                 aria-label="${_calEscAttr('Optional name for post ' + (index + 1))}" autocomplete="off"
                                 oninput="_calSetNativePostName(${index}, this.value)">
                         </div>`).join('');
-        return `<div class="cal-native-name-list">${rows}</div>
-                    <p class="cal-native-name-hint">${_calEsc(_calNativePostNameHint(mode))}</p>`;
+        return `<div class="cal-native-name-list">${rows}</div>`;
     }
     function _calNativePostNameHint(mode) {
         const example = mode === 'thumbnail' ? 'Thumbnail 4' : 'Video 4';
@@ -40797,13 +41148,35 @@
         if (!state || !Number.isFinite(slot) || slot < 0) return;
         if (!Array.isArray(state.postNames)) state.postNames = [];
         state.postNames[slot] = String(value == null ? '' : value);
+        _calNativeSyncReceipt();
     }
     function _calSetNativeBatchName(value) {
         const state = _calNativePostState;
         if (!state) return;
         state.batchName = String(value == null ? '' : value);
-        const meta = document.getElementById('calNativeNewBatchMeta');
-        if (meta) meta.textContent = '"' + _calNativeBatchNameFor(state) + '" · adds this post to it';
+        _calNativeSyncReceipt();
+    }
+    /* Switching tab re-renders, exactly as the mode toggle does, and captures
+       the radio first so the re-render restores the branch just chosen. */
+    function _calSetNativeBatchChoice() {
+        const state = _calNativePostState;
+        if (!state) return;
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        state.batchChoice = selected
+            ? { value: selected.value, batchId: String(selected.dataset.batchId || '') }
+            : null;
+        /* The re-render destroys the radio that is currently focused, and
+           focus would land on the body -- so a keyboard user loses the
+           segmented control mid-choice and cannot arrow back (Codex P1 on
+           PR 1353). Re-aim it at the replacement of the same tab. */
+        const wasFocused = document.activeElement
+            && document.activeElement.name === 'calNativeBatchChoice';
+        _calRenderNativePostChoice();
+        if (!wasFocused) return;
+        const again = document.getElementById(
+            state.batchChoice && state.batchChoice.value === 'batch'
+                ? 'calNativePrevBatchRadio' : 'calNativeNewBatchRadio');
+        if (again) again.focus();
     }
     /* A label does not forward a click on an interactive descendant to its
        radio, so typing a batch name would otherwise leave "Add to a previous
@@ -40977,8 +41350,6 @@
         const max = _calNativePostCountMax(mode);
         const parsed = Math.floor(Number(raw));
         state.postCount = (!Number.isFinite(parsed) || parsed < 1) ? 1 : Math.min(parsed, max);
-        const hint = document.getElementById('calNativePostCountHint');
-        if (hint) hint.textContent = _calNativePostCountHint(mode, state.postCount);
         /* One field per post, so the list has to follow the count. This is a
            surgical rebuild rather than _calRenderNativePostChoice() because the
            stepper can be held down: a full re-render per repeat would throw the
@@ -40999,6 +41370,7 @@
         // here -- after the clamp above may have rewritten the value -- so the
         // disabled state can never describe a value that is no longer there.
         if (typeof _svSyncStepper === 'function') _svSyncStepper('calNativePostCount');
+        _calNativeSyncReceipt();
     }
     function _calSetNativePostMode(mode) {
         const state = _calNativePostState;
@@ -41037,6 +41409,18 @@
         if (!radio || !sel) return;
         radio.dataset.batchId = String(sel.value || '');
         if (check) radio.checked = true;
+        /* A REFUSAL OUTLIVES THE THING IT REFUSED (Codex P2 on PR 1353).
+           Nothing hid this box again except a full re-render, so after Create
+           said the search matched no batches, clearing the query re-aimed the
+           radio and left the dialog showing a chosen batch above a message
+           insisting none was chosen. Every complaint the box can hold here is
+           about the batch that WAS aimed at -- no target, or one this post
+           shape cannot use -- so re-aiming is exactly the moment it stops
+           being true. The tab switch already clears it: the render emits this
+           element hidden. */
+        const errorBox = document.getElementById('calNativePostError');
+        if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
+        _calNativeSyncReceipt();
     }
     /*
      * FILTER THE BATCH LIST BY NAME (owner request 2026-08-26: "could we make
@@ -41077,7 +41461,16 @@
         if (empty) empty.style.display = shown.length ? 'none' : '';
         // Keep the radio pointing at whatever the select now shows, so a
         // filtered-then-submitted post cannot append to a batch nobody sees.
-        if (shown.length) _calNativePrevBatchPick(select, false);
+        if (shown.length) { _calNativePrevBatchPick(select, false); _calNativeSyncReceipt(); return; }
+        /* ZERO MATCHES LEFT A LIVE TARGET (Codex P1 on PR 1353). Disabling the
+           select was not enough: the radio kept the id of the last batch the
+           list showed and stayed checked, so Create still appended the post to
+           a batch the no-match line said was not there. Clearing the id is the
+           safety half -- the submit path's own guard then refuses, because it
+           resolves the batch by that id before it writes anything. */
+        const stale = document.getElementById('calNativePrevBatchRadio');
+        if (stale) stale.dataset.batchId = '';
+        _calNativeSyncReceipt();
     }
     /* Below this many batches the list is short enough to read at a glance and
        a search box is just another control in the way. Above it, scanning is
@@ -41128,15 +41521,38 @@
         // Id quoting matches _prodFetchCrosswalkRows; comments here avoid
         // quote characters because some extractor tests track quotes only.
         const list = wanted.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
+        /* `title` rides along for the receipt's append preview. The ordinal is
+           recorded NOWHERE ELSE -- there is no column for it -- so it is read
+           back out of the title with the gateway's own rule. No extra round
+           trip: these are the rows this read already fetches. */
         const rows = await _prodRestRows(
-            'production_deliverables_browser_v1', 'batch_id,card_id,id,linear_issue_uuid',
+            'production_deliverables_browser_v1', 'batch_id,card_id,id,linear_issue_uuid,title',
             'batch_id=in.(' + encodeURIComponent(list) + ')',
             1000, 1
         );
         const cards = new Map();
+        const ordinals = new Map();
         (Array.isArray(rows) ? rows : []).forEach(row => {
             const batchId = String(row && row.batch_id || '').trim();
             if (!batchId) return;
+            /* ORDINAL FIRST, BEFORE THE PARENT EXCLUSION -- the two measure
+               different things and must not share a filter (Codex P2 on
+               PR 1353). The count excludes a batch's own imported parent row
+               because a parent is not a post in its own batch. The ordinal
+               must NOT: `production_intake_append` scans every row in the
+               batch whose title matches the child syntax, parents included,
+               so a parent row titled like a child has consumed that number as
+               far as the RPC is concerned. Batch names are typed by hand now,
+               which is exactly what makes a parent called `Video 50` reachable
+               -- and previewing 2 while the RPC allocates 51 is the kind of
+               wrong number this receipt exists to stop.
+
+               Highest ordinal, not the count: delete one card and the two part
+               company permanently. */
+            const ordinal = _calNativeTitleOrdinal(row && row.title);
+            if (Number.isFinite(ordinal) && ordinal > (ordinals.get(batchId) || 0)) {
+                ordinals.set(batchId, ordinal);
+            }
             if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
             if (!cards.has(batchId)) cards.set(batchId, new Set());
             // The Video and Graphics halves of one post share a card_id, so
@@ -41144,7 +41560,13 @@
             cards.get(batchId).add(String(row && row.card_id || '') || 'row:' + String(row && row.id || ''));
         });
         wanted.forEach(id => counts.set(id, cards.has(id) ? cards.get(id).size : 0));
-        return counts;
+        /* Every batch this read covered gets an entry, so PRESENT means
+           measured and ABSENT means never read. A batch with no numbered
+           children measures 0, and the RPC coalesces the same scan to 0 and
+           allocates 1 -- so the receipt must say `Video 1`, not an ellipsis
+           (Codex P2 on PR 1353). */
+        wanted.forEach(id => ordinals.set(id, ordinals.get(id) || 0));
+        return { counts, ordinals };
     }
     /* Which view is currently open for a given surface. The dialog re-checks
        this at every await, because the user can switch client or tab while a
@@ -41217,12 +41639,51 @@
         // not rendered at all, and every compatible batch lives in ONE
         // previous-batch card whose dropdown is always visible with the last
         // batch preselected. Start a new batch is first and the default.
-        const priorBatchSurvives = priorChoice
-            && priorChoice.value === 'batch' && compatible.some(batchChecked);
+        /* THE SAVED FILTER APPLIES TO THIS RENDER TOO (Codex P2 on PR 1353).
+           `state.batchFilter` outlives a re-render and is painted back into
+           the search box, but the options were rebuilt from the whole
+           compatible list -- so switching to the new-batch tab and back showed
+           an active query above batches it excludes, preselected the first
+           UNFILTERED one, and would have appended to it on submit. A visible
+           query has to mean the list under it.
+
+           `compatible` stays the ALL argument: 'last batch' marks the newest of
+           every compatible batch, not the newest survivor, and the search box
+           renders on the full count so filtering down to one result cannot
+           hide the box that would undo it. */
+        const shownBatches = compatible.filter(batch => _calNativeBatchMatches(batch, state.batchFilter));
+        /* THE TAB AND THE ID ARE SEPARATE QUESTIONS, and conflating them sends
+           the user somewhere they did not ask to go. Which TAB survives still
+           reads `compatible`: a batch the new post shape no longer offers
+           really is gone, and falling back to the new-batch tab is right.
+           A batch merely hidden by a QUERY is not gone -- bouncing off the tab
+           you just clicked because your own search excluded the remembered id
+           would be worse than the bug this fixes. So the tab is kept and only
+           the id is re-aimed, at the first row the list actually shows. */
+        /* AN EMPTY ID IS NOT A MISSING BATCH (Codex P2 on PR 1353, cascading
+           from the previous round's fix). A zero-match search clears the
+           radio's id on purpose; leaving the tab to `compatible.some(...)`
+           then read that empty id as "your batch is gone" and bounced the user
+           to Start a new batch -- taking the search box with it, which is the
+           only way to clear the query that caused it. Closing and reopening
+           the dialog was the sole escape.
+
+           The two cases are told apart by the id itself. A NON-EMPTY id that
+           no longer appears means the post shape really did drop that batch,
+           and falling back is right. An EMPTY id means only that nothing is
+           aimed at yet, so the tab is kept whenever any compatible batch
+           exists; the panel then renders the filter box to clear, the
+           no-match line, and a disabled select, and submit still refuses
+           until a target returns. */
+        const priorBatchSurvives = priorChoice && priorChoice.value === 'batch'
+            && (String(priorChoice.batchId || '')
+                ? compatible.some(batchChecked)
+                : compatible.length > 0);
         const prevBatchChecked = !!priorBatchSurvives;
-        const prevBatchId = priorBatchSurvives
+        const priorBatchShown = priorBatchSurvives && shownBatches.some(batchChecked);
+        const prevBatchId = priorBatchShown
             ? priorChoice.batchId
-            : String(compatible.length ? compatible[0].id || '' : '');
+            : String(shownBatches.length ? shownBatches[0].id || '' : '');
         _calNativeBatchOptionsHtml = (shown, all, countsMap, selectedId) => {
             const tally = new Map();
             shown.forEach(batch => {
@@ -41250,22 +41711,41 @@
                 return `<option value="${_calEscAttr(value)}"${selectedAttr}>${_calEsc(_calNativeBatchDisplayName(batch))}${meta ? ' — ' + _calEsc(meta) : ''}</option>`;
             }).join('');
         };
-        const prevBatchOptions = _calNativeBatchOptionsHtml(compatible, compatible, counts, prevBatchId);
+        const prevBatchOptions = _calNativeBatchOptionsHtml(shownBatches, compatible, counts, prevBatchId);
+        /* Only the CHOSEN branch renders its controls. Both used to stay open
+           at once, which spent about a third of the dialog on the option the
+           user had not picked. The radios themselves live in the tab strip, so
+           every read of `calNativeBatchChoice` -- submit included -- is
+           untouched by this. */
+        /* THE BOX RENDERS WHENEVER A QUERY EXISTS, not only when the list is
+           long (Codex P2 on PR 1353). The threshold decides when a search is
+           WORTH offering; it must not decide whether an existing search can be
+           UNDONE. A mode change that drops the compatible count below it left
+           a persisted query filtering the list with nothing on screen able to
+           clear it -- the same dead end as the previous round, reached by a
+           different door. The query is the user's, so it is kept and made
+           editable rather than silently discarded. */
+        const showBatchFilter = compatible.length > CAL_NATIVE_BATCH_FILTER_MIN
+            || !!String(state.batchFilter || '').trim();
         const prevBatchHtml = compatible.length ? `
-                    <label class="cal-native-batch-option">
-                        <input type="radio" name="calNativeBatchChoice" value="batch" id="calNativePrevBatchRadio" data-batch-id="${_calEscAttr(prevBatchId)}"${prevBatchChecked ? ' checked' : ''}>
-                        <span class="cal-native-batch-copy">
-                            <span class="cal-native-batch-title">Add to a previous batch</span>
-                            <span class="cal-native-batch-controls">
-                                ${compatible.length > CAL_NATIVE_BATCH_FILTER_MIN ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
-                                    placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
-                                    autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
-                                    oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}
-                                <span class="cal-native-batch-field"><select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select></span>
-                                <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:none;">No batch matches that name.</span>
-                            </span>
-                        </span>
-                    </label>` : '';
+                        ${showBatchFilter ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
+                            placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
+                            autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
+                            oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}
+                        <span class="cal-native-batch-field"><select class="cal-native-batch-select" aria-label="Choose a batch"${shownBatches.length ? '' : ' disabled'} onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select></span>
+                        <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:${shownBatches.length ? 'none' : ''};">No batch matches that name.</span>` : '';
+        /* THE NAME IS PREFILLED, NOT PLACEHELD (owner, 2026-09-08: "it should
+           be clear that we can change the name"). A greyed placeholder reads
+           as a system-generated value you are being shown, not a field you own
+           -- so the generated title is now real, selectable, editable text.
+           Clearing it still falls back to the same default, because
+           `_calNativeBatchNameFor` treats empty as untouched. */
+        const newBatchHtml = `
+                        <label class="cal-native-field-label cal-native-sublabel" for="calNativeBatchName">Batch name<span class="cal-native-name-optional">optional</span></label>
+                        <input type="text" class="cal-native-batch-name" id="calNativeBatchName" maxlength="${CAL_NATIVE_NAME_MAX}"
+                            value="${_calEscAttr(_calNativeBatchNameFor(state))}" placeholder="${_calEscAttr(_linearIntakeBatchTitle(state.clientName, state.surface))}"
+                            aria-label="Name for the new batch" autocomplete="off"
+                            oninput="_calSetNativeBatchName(this.value)" onfocus="_calNativeNewBatchPick()" onmousedown="_calNativeNewBatchPick(); event.stopPropagation();">`;
         /* Shown only when this post actually makes video work. In Thumbnail-only
            mode there is no video sub-issue to assign, and offering a picker
            that changes nothing is worse than not offering one. */
@@ -41292,7 +41772,6 @@
                         state.videoEditorStatus === 'loading' ? 'Checking workloads…' : 'Assigned automatically',
                         { disabled: state.videoEditorStatus === 'loading' || !editorItems.length,
                           onchange: '_calSetNativePostEditor()' })}
-                    <p class="cal-native-editor-hint" id="calNativeEditorHint">${_calEsc(_calNativeEditorDisclaimer(state))}</p>
                 </div>` : '';
         modal.innerHTML = `
             <div class="cal-import-head">
@@ -41312,24 +41791,22 @@
                         onchange: '_calSetNativePostCount(this.value)',
                         downTip: 'One post fewer', upTip: 'One post more',
                     })}
-                    <span class="cal-native-count-hint" id="calNativePostCountHint">${_calEsc(_calNativePostCountHint(mode, postCount))}</span>
                 </div>
                 <div class="cal-native-name-row" role="group" aria-labelledby="calNativePostNamesLabel">
                     <div class="cal-native-name-label" id="calNativePostNamesLabel">${postCount === 1 ? 'Post name' : 'Post names'}<span class="cal-native-name-optional">optional</span></div>
                     <div id="calNativePostNames">${_calNativePostNamesHtml(state, postCount, mode)}</div>
                 </div>
                 ${editorPickerHtml}
-                <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch" style="margin-top: 14px;">
-                    <label class="cal-native-batch-option">
-                        <input type="radio" id="calNativeNewBatchRadio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'}>
-                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta" id="calNativeNewBatchMeta">"${_calEsc(_calNativeBatchNameFor(state))}" · adds this post to it</span>
-                            <input type="text" class="cal-native-batch-name" id="calNativeBatchName" maxlength="${CAL_NATIVE_NAME_MAX}"
-                                value="${_calEscAttr(_calNativeCleanName(state.batchName))}" placeholder="${_calEscAttr(_linearIntakeBatchTitle(state.clientName, state.surface))}"
-                                aria-label="Name for the new batch" autocomplete="off"
-                                oninput="_calSetNativeBatchName(this.value)" onfocus="_calNativeNewBatchPick()" onmousedown="_calNativeNewBatchPick(); event.stopPropagation();">
-                        </span>
-                    </label>${prevBatchHtml}
+                <div class="cal-native-batch-block" style="margin-top: 14px;">
+                    <span class="cal-native-field-label">Batch</span>
+                    <div class="cal-native-batch-tabs" role="radiogroup" aria-label="Choose a batch">
+                        <label><input type="radio" id="calNativeNewBatchRadio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'} onchange="_calSetNativeBatchChoice()"><span class="cal-native-batch-title">Start a new batch</span></label>
+                        ${compatible.length ? `<label><input type="radio" id="calNativePrevBatchRadio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(prevBatchId)}"${prevBatchChecked ? ' checked' : ''} onchange="_calSetNativeBatchChoice()"><span class="cal-native-batch-title">Add to a previous batch</span></label>` : ''}
+                    </div>
+                    <div class="cal-native-batch-panel">${prevBatchChecked ? prevBatchHtml : newBatchHtml}</div>
                 </div>
+                <div class="cal-native-receipt" id="calNativeReceipt" role="group" aria-label="What this creates">${_calNativeReceiptHtml(state, { value: prevBatchChecked ? 'batch' : 'new', batchId: prevBatchId })}</div>
+                <p class="sr-only" id="calNativeReceiptStatus" aria-live="polite"></p>
                 <div class="cal-native-batch-error" id="calNativePostError" hidden></div>
             </div>
             <div class="cal-import-foot">
@@ -41486,7 +41963,7 @@
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
         _calNativePostState = {
-            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null, batchFilter: '',
+            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, batchMaxOrdinals: null, mode: 'both', batchChoice: null, batchFilter: '',
             batchName: '', postNames: [],
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
         };
@@ -41545,7 +42022,11 @@
             } catch (countError) { postCounts = null; }
             if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
             if (_nativePostViewSlug(surface) !== clientSlug) { _calCloseNativePost(true); return; }
-            _calNativePostState.batchPostCounts = postCounts;
+            /* Shape kept apart on purpose: `batchPostCounts` stays the plain
+               Map every existing caller reads, and the ordinals ride beside it
+               rather than inside it. */
+            _calNativePostState.batchPostCounts = postCounts ? postCounts.counts : null;
+            _calNativePostState.batchMaxOrdinals = postCounts ? postCounts.ordinals : null;
             _calRenderNativePostChoice();
         } catch (error) {
             const modal = overlay.querySelector('.cal-import-modal');
@@ -41576,6 +42057,18 @@
         const latest = selected.value === 'batch'
             ? (state.batchOptions || []).find(batch => String(batch && batch.id || '') === String(selected.dataset.batchId || ''))
             : null;
+        /* NO BATCH AIMED AT is not the same as an incompatible one, and the
+           message below would have said "that batch" about a batch that does
+           not exist. Reached when a search matched nothing and cleared the
+           target (Codex P1 on PR 1353); it names the way out rather than
+           leaving Create looking broken. */
+        if (selected.value === 'batch' && !String(selected.dataset.batchId || '')) {
+            if (errorBox) {
+                errorBox.hidden = false;
+                errorBox.textContent = 'No batch is chosen — your search matches none of them. Clear the search to pick a batch, or start a new batch instead.';
+            }
+            return;
+        }
         if (selected.value === 'batch' && (!_calNativeBatchCompatible(latest, mode))) {
             if (errorBox) { errorBox.hidden = false; errorBox.textContent = 'That batch cannot accept this post. Choose another batch or create a new one.'; }
             return;
@@ -62556,13 +63049,13 @@
                     const slug = sl >= 0 ? rest.slice(0, sl) : rest;
                     const cardId = sl >= 0 ? decodeURIComponent(rest.slice(sl+1)) : '';
                     const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
-                    if (match) _calFocusRequest = { client: match, cardId: cardId || null };
+                    if (match) _calSetFocusRequest({ client: match, cardId: cardId || null });
                     // Sheet-only client (e.g. a calendar link shared by another
                     // SMM): the allowlist is still seed-only on this fast path, so
                     // the slug won't have matched above. Resolve and open it as a
                     // tab once fetchAll folds in the Clients Info sheet.
                     else if (slug) {
-                        _calPendingDeepLink = { slug, cardId: cardId || null };
+                        _calSetPendingDeepLink({ slug, cardId: cardId || null });
                         // Listen to essentials itself, not the full analytics
                         // bundle: once the sheet roster is merged this route can
                         // resolve even if extras are still pending or fail. A
@@ -62711,7 +63204,7 @@
                 // Clients Info sheet by now) over the analytics-only client list,
                 // so a calendar-only client with no analytics row still resolves.
                 const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug)||clientNames.find(n=>wlNormalizeClient(n)===slug);
-                if(match){_calFocusRequest={client:match,cardId:cardId||null};navTo('calendar',false);return;}
+                if(match){_calSetFocusRequest({client:match,cardId:cardId||null});navTo('calendar',false);return;}
                 navTo('calendar',false);return;
             }
             if(hash.startsWith('samples/')){
@@ -62888,7 +63381,7 @@
         try {
             _calLoadSeq++;
             _calSetClient(null); calState.posts = []; calState.loading = false; calState.error = null;
-            _calFocusRequest = null; _calPendingDeepLink = null;
+            _calSetFocusRequest(null); _calSetPendingDeepLink(null);
         } catch (e) {}
         try {
             _sxrLoadSeq++;

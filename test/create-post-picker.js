@@ -132,6 +132,9 @@ const PICKER_SOURCES = [
   extract('_calNativeBatchCompatible'),
   extract('_calNativeBatchHasLinearParents'),
   extract('_calNativeBatchLists'),
+  /* The render applies the saved filter itself since 2026-09-08, so the
+     matcher is no longer only the live filter's business. */
+  extract('_calNativeBatchMatches'),
   /* 2026-08-24: the dialog renders a video-editor picker, so the render
      function now reads its disclaimer helper. Same trap as the lines above --
      a free identifier here is a ReferenceError that takes out every world in
@@ -153,7 +156,6 @@ const PICKER_SOURCES = [
   'function _svSelectToggle(){}',
   extract('_svTone'),
   extract('_svSelectHtml'),
-  extract('_calNativeEditorDisclaimer'),
   // Post/batch naming (2026-09-07). The renderer calls all four, so the vm
   // needs them or every picker assertion fails on a ReferenceError instead of
   // on what it is actually checking.
@@ -162,6 +164,15 @@ const PICKER_SOURCES = [
   extract('_calNativeBatchNameFor'),
   extract('_calNativePostNameHint'),
   extract('_calNativePostNamesHtml'),
+  /* The receipt (2026-09-08, option A). The renderer calls it inline, so every
+     helper it reaches has to be here too or the ReferenceError lands before a
+     single batch assertion runs -- the same trap the notes above describe. */
+  "const CAL_NATIVE_RECEIPT_ROWS = 8;",
+  extract('_calNativeTitleOrdinal'),
+  extract('_calNativeBatchMaxOrdinal'),
+  extract('_calNativeBatchById'),
+  extract('_calNativeReceiptHtml'),
+  extract('_calNativeSyncReceipt'),
   extract('_calRenderNativePostChoice'),
   extract('_calNativePrevBatchPick'),
 ].join('\n');
@@ -218,13 +229,25 @@ function batchSection(html) {
 function titlesOf(html) {
   return [...html.matchAll(/cal-native-batch-title">([^<]*)</g)].map(m => m[1]);
 }
-function metasOf(html) {
-  return [...html.matchAll(/cal-native-batch-meta">([^<]*)</g)].map(m => m[1]);
-}
 /* Scoped to the BATCH select since 2026-08-24: the dialog gained a second
    select (the video-editor picker), and an unscoped sweep silently started
    returning that one's options first — every batch assertion below would have
    been reading the wrong control while still looking like it passed. */
+/* ONLY THE CHOSEN BRANCH RENDERS ITS CONTROLS since 2026-09-08 (option A), so
+   any assertion about the batch DROPDOWN must render with that tab selected.
+   The id is discovered rather than assumed: which batch is compatible depends
+   on the post shape, so a hard-coded one would silently fall back to the
+   new-batch tab and take the dropdown with it. */
+function renderPrev(options, countEntries, clientName = 'Client A', stateExtra = null) {
+  const ids = (options || []).map(batch => String(batch && batch.id || ''));
+  for (const id of ids) {
+    const html = renderPicker(options, countEntries, clientName,
+      Object.assign({ batchChoice: { value: 'batch', batchId: id } }, stateExtra || {}));
+    if (/cal-native-batch-select/.test(html)) return html;
+  }
+  return renderPicker(options, countEntries, clientName, stateExtra);
+}
+
 function optionsOf(html) {
   const start = html.indexOf('cal-native-batch-select');
   const scope = start < 0 ? '' : html.slice(start, html.indexOf('</select>', start));
@@ -267,16 +290,37 @@ console.log('1) toggle first; new batch is the first, default card; the dropdown
   ok(titlesOf(batches)[0] === 'Start a new batch' && /value="new" checked/.test(batches),
     'Start a new batch is the first card and the default choice');
   const generated = 'Client A · ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  ok(html.includes('"' + generated + '" · adds this post to it'), 'the new-batch subtext keeps the generated batch name');
-  ok(titlesOf(batches)[1] === 'Add to a previous batch', 'the second card is the previous-batch card');
+  /* THE GENERATED NAME IS THE FIELD'S VALUE, NOT ITS PLACEHOLDER (owner,
+     2026-09-08: "it should be clear that we can change the name"). A greyed
+     placeholder read as a system-issued value rather than an editable one, so
+     the default is now real text you can select and type over. The placeholder
+     stays as the fallback for a field somebody empties. */
+  ok(new RegExp('id="calNativeBatchName"[^>]*value="' + generated + '"').test(html),
+    'the generated batch name is PREFILLED as the value, so it reads as editable');
+  ok(new RegExp('id="calNativeBatchName"[^>]*placeholder="' + generated + '"').test(html),
+    'and remains the placeholder, so clearing the field still lands on the default');
+  ok(!/adds this post to it/.test(html),
+    'the old quoted subtext is gone — the receipt below states the parent instead');
+  ok(titlesOf(batches)[1] === 'Add to a previous batch', 'the second tab is the previous-batch tab');
   ok(/id="calNativePrevBatchRadio"[^>]*data-batch-id="bat-a"/.test(batches)
     && !/id="calNativePrevBatchRadio"[^>]* checked/.test(batches),
     'the previous-batch radio carries the last batch id but starts unchecked');
-  ok(optionsOf(batches).join('|') === 'Client A · 7 Aug 2026 — last batch · 4 posts · started 7 Aug',
+  /* ONLY THE CHOSEN BRANCH RENDERS ITS CONTROLS (2026-09-08, option A). Both
+     used to sit open at once. So the dropdown assertions below need the
+     previous-batch tab actually selected -- and the check that it is ABSENT
+     under the other tab is the point of the change. */
+  ok(!/cal-native-batch-select/.test(batches),
+    'the batch dropdown is not rendered while Start a new batch is the chosen tab');
+  const prevHtml = batchSection(renderPicker([
+    batchFixture({ id: 'bat-a', name: 'Client A · 7 Aug 2026' }),
+  ], [['bat-a', 4]], 'Client A', { batchChoice: { value: 'batch', batchId: 'bat-a' } }));
+  ok(optionsOf(prevHtml).join('|') === 'Client A · 7 Aug 2026 — last batch · 4 posts · started 7 Aug',
     'the dropdown row is the batch name plus last-batch label, count, and short start date');
-  ok(/onmousedown="_calNativePrevBatchPick\(this, true\)"/.test(batches)
-    && /onchange="_calNativePrevBatchPick\(this, true\)"/.test(batches),
-    'touching the dropdown selects the previous-batch card');
+  ok(/onmousedown="_calNativePrevBatchPick\(this, true\)"/.test(prevHtml)
+    && /onchange="_calNativePrevBatchPick\(this, true\)"/.test(prevHtml),
+    'touching the dropdown selects the previous-batch tab');
+  ok(!/id="calNativeBatchName"/.test(prevHtml),
+    'and the new-batch name field is not rendered under that tab');
   ok(!/started 7 Aug,/.test(html), 'a unique display name carries no time of day');
   ok(!/VID-\d|GRA-\d/.test(html), 'Linear identifier ranges never reach the HTML despite tempting fixture identifiers');
   ok(!html.includes('bat-orphan') && !html.includes('Client A · 1 Aug 2026'),
@@ -291,7 +335,7 @@ console.log('1) toggle first; new batch is the first, default card; the dropdown
 // ---------------------------------------------------------------------------
 console.log('2) empty compatible batch reads Empty batch');
 {
-  const html = renderPicker([batchFixture({ id: 'bat-a' })], [['bat-a', 0]]);
+  const html = renderPrev([batchFixture({ id: 'bat-a' })], [['bat-a', 0]]);
   ok(optionsOf(html)[0] === 'Client A · 7 Aug 2026 — last batch · Empty batch · started 7 Aug',
     'zero posts renders the Empty batch wording');
   ok(!html.includes('0 posts'), 'zero is never spelled as a count');
@@ -300,7 +344,7 @@ console.log('2) empty compatible batch reads Empty batch');
 // ---------------------------------------------------------------------------
 console.log('3) duplicate display names pull the created time into every twin');
 {
-  const html = renderPicker([
+  const html = renderPrev([
     batchFixture({ id: 'bat-a', name: 'Client A · 7 Aug 2026', created_at: '2026-08-07T09:30:00.000Z' }),
     batchFixture({ id: 'bat-b', name: 'Client A · 7 Aug 2026', created_at: '2026-08-07T14:05:00.000Z' }),
     batchFixture({ id: 'bat-c', name: 'Client A extras', created_at: '2026-08-06T10:00:00.000Z' }),
@@ -314,7 +358,7 @@ console.log('3) duplicate display names pull the created time into every twin');
 // ---------------------------------------------------------------------------
 console.log('4) counts-fetch failure degrades the subtext to the start date only');
 {
-  const html = renderPicker([batchFixture({ id: 'bat-a' })], null);
+  const html = renderPrev([batchFixture({ id: 'bat-a' })], null);
   ok(optionsOf(html)[0] === 'Client A · 7 Aug 2026 — last batch · started 7 Aug', 'no counts map -> date-only subtext');
   ok(!/\d posts/.test(optionsOf(html)[0]) && !html.includes('Empty batch'), 'no invented counts when the read failed');
 }
@@ -345,6 +389,10 @@ console.log('6) the post-count read is one bounded projection query that counts 
      know which uuids each batch records as a parent, and those rows already
      carry the map -- passing ids would force a second read to learn it. */
   vm.runInContext(extract('_calNativeParentUuids'), context);
+  /* The counter also reads each batch's highest ordinal now (2026-09-08), for
+     the Create Post receipt's append preview. */
+  vm.runInContext((source.match(/const CAL_NATIVE_ORDINAL_RE = [^;]+;/) || [''])[0], context);
+  vm.runInContext(extract('_calNativeTitleOrdinal'), context);
   vm.runInContext(extract('_calFetchNativeBatchPostCounts'), context);
   vm.runInContext([
     'restCalls = [];',
@@ -363,7 +411,7 @@ console.log('6) the post-count read is one bounded projection query that counts 
     '  ];',
     '}',
   ].join('\n'), context);
-  const counts = await vm.runInContext(
+  const { counts } = await vm.runInContext(
     "_calFetchNativeBatchPostCounts(["
     + "{ id: 'bat-a' }, { id: 'bat-b' },"
     + " { id: 'bat-c', linear_parent_ids: { video: { uuid: 'parent-c' }, graphics: { uuid: 'parent-c' } } },"
@@ -371,7 +419,13 @@ console.log('6) the post-count read is one bounded projection query that counts 
   const calls = context.restCalls;
   ok(calls.length === 1, 'exactly one extra REST query fetches every shown count');
   ok(calls[0].table === 'production_deliverables_browser_v1', 'counts come from the browser-safe deliverables projection');
-  ok(calls[0].select === 'batch_id,card_id,id,linear_issue_uuid', 'the projection reads only what counting needs, plus the uuid that tells a parent apart');
+  /* `title` joined the projection on 2026-09-08 and is the ONE addition: the
+     ordinal an append allocates from is recorded nowhere else -- there is no
+     column for it -- so the Create Post receipt reads it back out of the title
+     on rows this query already fetches, rather than paying a second round
+     trip. Still no brief, no status, no assignee. */
+  ok(calls[0].select === 'batch_id,card_id,id,linear_issue_uuid,title',
+    'the projection reads only what counting and the ordinal preview need, plus the uuid that tells a parent apart');
   ok(/^batch_id=in\.\(/.test(calls[0].params) && decodeURIComponent(calls[0].params).includes('"bat-a","bat-b","bat-c"'),
     'the query filters to the deduplicated shown batches');
   ok(calls[0].maxPages === 1 && calls[0].pageSize === 1000, 'the read is bounded to one page');
@@ -422,8 +476,15 @@ console.log('6) the post-count read is one bounded projection query that counts 
        deliberately the disabled "checking workloads" state. */
     await new Promise(resolve => setTimeout(resolve, 0));
     await new Promise(resolve => setTimeout(resolve, 0));
-    ok(optionsOf(modal.innerHTML)[0] === 'Client A · 7 Aug 2026 — last batch · started 7 Aug',
-      (stall ? 'a stalled' : 'a failing') + ' counts read still renders the picker with a date-only subtext');
+    /* The dropdown now lives behind the previous-batch tab (2026-09-08), and
+       this world opens on the new-batch one, so the check is what it was
+       always really about: a counts read that fails or stalls must still
+       produce a working dialog, and must never invent a count. */
+    ok(/cal-native-batch-tabs/.test(modal.innerHTML)
+      && /Add to a previous batch/.test(modal.innerHTML),
+      (stall ? 'a stalled' : 'a failing') + ' counts read still renders the whole picker');
+    ok(!/\d+ posts/.test(modal.innerHTML) && !/Empty batch/.test(modal.innerHTML),
+      'and no count is invented for a read that never landed');
     ok(/value="new" checked/.test(modal.innerHTML), 'the degraded dialog still defaults to Start a new batch');
     if (stall) {
       ok(/assigned automatically/i.test(modal.innerHTML),
@@ -433,10 +494,16 @@ console.log('6) the post-count read is one bounded projection query that counts 
         'the editor with the fewest open videos is the suggested default');
       ok(modal.innerHTML.indexOf('Free Editor') < modal.innerHTML.indexOf('Busy Editor'),
         'and the pool is ordered freest-first');
-      ok(/has the least on right now \(1 open video\)/.test(modal.innerHTML),
-        'the disclaimer names the person and the number it is based on, singular for one');
-      ok(/suggestion/.test(modal.innerHTML),
-        'and says plainly that it is a suggestion, which is what the owner asked to be disclaimed');
+      /* The explanatory paragraph under the picker was removed on 2026-09-08
+         at the owner's request. What it carried is not lost: the OPTION itself
+         still names the open count and marks the suggestion, which is where
+         these two now assert it. */
+      ok(!/cal-native-editor-hint/.test(modal.innerHTML),
+        'no explanatory paragraph under the picker');
+      ok(/1 open video/.test(modal.innerHTML),
+        'the option itself still carries the number the suggestion is based on, singular for one');
+      ok(/\(suggested\)/.test(modal.innerHTML),
+        'and still marks which one is suggested, so the default is never unexplained');
     }
   }
 
@@ -454,14 +521,14 @@ console.log('6) the post-count read is one bounded projection query that counts 
       batchFixture({ id: 'bat-gra', name: 'Client A graphics work', team: 'graphics', created_at: '2026-08-03T08:00:00.000Z',
         linear_parent_ids: { graphics: TEMPTING_PARENTS.graphics } }),
     ];
-    const thumbHtml = renderPicker(options, [['bat-a', 4]], 'Client A', { mode: 'thumbnail' });
+    const thumbHtml = renderPrev(options, [['bat-a', 4]], 'Client A', { mode: 'thumbnail' });
     ok(/value="thumbnail" checked/.test(thumbHtml.slice(0, thumbHtml.indexOf('aria-label="Choose a batch"'))),
       'the saved mode stays checked across a re-render');
     ok(optionsOf(thumbHtml).some(text => text.startsWith('Client A graphics work')),
       'a graphics-only batch becomes offerable for a Thumbnail-only post');
     ok(!thumbHtml.includes('Client A video work'),
       'the video-only batch is not rendered anywhere for a Thumbnail-only post');
-    const videoHtml = renderPicker(options, [['bat-a', 4]], 'Client A', { mode: 'video' });
+    const videoHtml = renderPrev(options, [['bat-a', 4]], 'Client A', { mode: 'video' });
     ok(optionsOf(videoHtml).some(text => text.startsWith('Client A video work'))
       && !videoHtml.includes('Client A graphics work'),
       'a Video-only post flips the compatibility the other way');
@@ -483,6 +550,156 @@ console.log('6) the post-count read is one bounded projection query that counts 
   }
 
   // -------------------------------------------------------------------------
+  console.log('8b) a saved filter still applies after a re-render');
+  {
+    /* Codex P2 on PR 1353. `state.batchFilter` outlives a re-render and is
+       painted back into the search box, but the options were rebuilt from the
+       whole compatible list. Switching to the new-batch tab and back therefore
+       showed an active query above batches it excludes AND preselected the
+       first UNFILTERED one, which the submit path would then have appended to.
+       A visible query has to mean the list under it. */
+    /* Seven, because the search box only renders above
+       CAL_NATIVE_BATCH_FILTER_MIN -- so a saved query can only exist at this
+       size, and a fixture below it would test the fix in a world where the
+       bug is unreachable. */
+    const filterOptions = [
+      batchFixture({ id: 'bat-new', name: 'September push', created_at: '2026-09-02T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-2', name: 'August wave', created_at: '2026-08-30T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-3', name: 'Launch set', created_at: '2026-08-29T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-4', name: 'Podcast cuts', created_at: '2026-08-28T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-5', name: 'Shorts batch', created_at: '2026-08-27T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-6', name: 'Reels set', created_at: '2026-08-26T09:00:00.000Z' }),
+      batchFixture({ id: 'bat-old', name: 'Evergreen', created_at: '2026-08-24T09:00:00.000Z' }),
+    ];
+    /* The state on RETURN to the tab: while the panel was collapsed the tab
+       strip's radio still carried the id the last render computed -- the first
+       unfiltered batch -- so coming back arrives with `batch` chosen and
+       `bat-new` aimed at, under a query that excludes it. */
+    const filtered = renderPicker(filterOptions, null, 'Client A',
+      { batchFilter: 'ever', batchChoice: { value: 'batch', batchId: 'bat-new' } });
+    const shownRows = optionsOf(batchSection(filtered));
+    ok(shownRows.length === 1 && shownRows[0].startsWith('Evergreen'),
+      'the re-rendered dropdown holds only what the saved query matches');
+    ok(/id="calNativePrevBatchRadio"[^>]*data-batch-id="bat-old"/.test(filtered),
+      'and the radio aims at the first MATCH, not the first unfiltered batch the submit path would have taken');
+    ok(/id="calNativeBatchFilter"[^>]*value="ever"/.test(filtered),
+      'with the query still in the box, so what is shown and what is listed agree');
+    ok(/id="calNativePrevBatchRadio"[^>]* checked/.test(filtered),
+      'and the tab the user clicked is still the one they are on — a query that hides the remembered batch must not bounce them back to Start a new batch');
+
+    /* The other direction: a query matching nothing must say so, and must not
+       leave a live select preselecting something invisible. */
+    const noMatch = renderPicker(filterOptions, null, 'Client A',
+      { batchFilter: 'nothing matches this', batchChoice: { value: 'batch', batchId: 'bat-new' } });
+    ok(optionsOf(batchSection(noMatch)).length === 0, 'a query matching nothing renders no options');
+    ok(/cal-native-batch-select[^>]* disabled/.test(noMatch), 'and disables the dropdown');
+    ok(/calNativeBatchFilterEmpty" style="display:;"/.test(noMatch), 'and shows the no-match line');
+  }
+
+  // -------------------------------------------------------------------------
+  console.log('8c) a live search matching nothing leaves no batch aimed at');
+  {
+    /* Codex P1 on PR 1353, the live twin of 8b. Disabling the select was not
+       enough: the radio kept the id of the last batch the list showed and
+       stayed checked, so Create appended the post to a batch the no-match line
+       said was not there. */
+    const radio = { id: 'calNativePrevBatchRadio', dataset: { batchId: 'bat-visible' }, checked: true };
+    const select = { value: 'bat-visible', innerHTML: '', disabled: false };
+    const emptyLine = { style: { display: 'none' } };
+    /* Create's refusal from the no-match branch, still on screen. */
+    const errorBox = { hidden: false, textContent: 'No batch is chosen — your search matches none of them.' };
+    let receiptSyncs = 0;
+    const ctx = {
+      console,
+      document: {
+        querySelector: sel => sel === '.cal-native-batch-select' ? select : null,
+        getElementById: id => id === 'calNativeBatchFilterEmpty' ? emptyLine
+          : id === 'calNativePrevBatchRadio' ? radio
+          : id === 'calNativePostError' ? errorBox : null,
+      },
+    };
+    vm.createContext(ctx);
+    vm.runInContext(PICKER_SOURCES, ctx);
+    /* Not in PICKER_SOURCES: that list is what the RENDER needs, and the live
+       filter is a different entry point. Pulled in by name here. */
+    vm.runInContext(extract('_calNativeBatchFilter'), ctx);
+    vm.runInContext('function _calNativeSyncReceipt(){ receiptSyncs++; }', ctx);
+    /* The render assigns this; nothing renders in this world, and the option
+       MARKUP is not what is under test here — the radio, the select and the
+       no-match line are. */
+    vm.runInContext('var _calNativeBatchOptionsHtml = function () { return ""; };', ctx);
+    ctx.receiptSyncs = 0;
+    ctx.__options = [batchFixture({ id: 'bat-visible', name: 'Evergreen' })];
+    vm.runInContext('_calNativePostState = { mode: "both", batchFilter: "", batchPostCounts: null, batchOptions: __options };', ctx);
+
+    vm.runInContext('_calNativeBatchFilter({ value: "nothing matches this" })', ctx);
+    ok(select.disabled === true, 'a zero-match query disables the dropdown');
+    ok(emptyLine.style.display === '', 'and shows the no-match line');
+    ok(radio.dataset.batchId === '',
+      'and clears the batch the radio was aiming at, so Create cannot append to a batch the list no longer shows');
+    ok(errorBox.hidden === false,
+      'and leaves Create\'s refusal on screen while there is still nothing to append to');
+
+    /* Inversion: a query that DOES match must leave a live target, or the
+       assertion above would pass on a function that always cleared it. */
+    radio.dataset.batchId = 'stale';
+    vm.runInContext('_calNativeBatchFilter({ value: "ever" })', ctx);
+    ok(radio.dataset.batchId === 'bat-visible',
+      'while a query that matches re-aims the radio at the match rather than clearing it');
+    ok(errorBox.hidden === true && errorBox.textContent === '',
+      'and clears the refusal, so the dialog cannot show a chosen batch above a message saying none is chosen');
+    ok(select.disabled === false, 'and re-enables the dropdown');
+  }
+
+  // -------------------------------------------------------------------------
+  console.log('8d) an empty batch id keeps the tab instead of trapping the user');
+  {
+    /* Codex P2 on PR 1353, cascading from 8c's fix. A zero-match search clears
+       the radio's id deliberately. Reading that empty id as "your batch is
+       gone" bounced the user to Start a new batch and took the search box with
+       it -- the only control that could clear the query that caused it. The
+       dialog had to be closed and reopened to recover. */
+    const trapped = renderPicker([batchFixture({ id: 'bat-a' })], null, 'Client A',
+      { batchFilter: 'nothing matches this', batchChoice: { value: 'batch', batchId: '' } });
+    ok(/id="calNativePrevBatchRadio"[^>]* checked/.test(trapped),
+      'an empty id keeps the previous-batch tab, because nothing is aimed at yet is not the same as the batch being gone');
+    ok(/id="calNativeBatchName"/.test(trapped) === false,
+      'so the new-batch panel is NOT what renders');
+    ok(/cal-native-batch-select[^>]* disabled/.test(trapped),
+      'the select is disabled while nothing matches');
+
+    /* The distinction being kept: a NON-EMPTY id that no longer appears means
+       the post shape really did drop that batch, and falling back is right.
+       Without this the fix above would swallow world 8's mode-change case. */
+    const genuinelyGone = renderPicker([batchFixture({ id: 'bat-a' })], null, 'Client A',
+      { batchChoice: { value: 'batch', batchId: 'bat-vanished' } });
+    ok(/value="new" checked/.test(genuinelyGone)
+      && !/id="calNativePrevBatchRadio"[^>]* checked/.test(genuinelyGone),
+      'while a batch the post shape no longer offers still falls back to Start a new batch');
+  }
+
+  // -------------------------------------------------------------------------
+  console.log('8e) an active query always renders the box that can clear it');
+  {
+    /* Codex P2 on PR 1353, the fourth in this chain. CAL_NATIVE_BATCH_FILTER_MIN
+       decides when a search is WORTH offering; it must not decide whether an
+       existing search can be UNDONE. A mode change dropping the compatible
+       count below the threshold left a persisted query filtering the list with
+       nothing on screen able to clear it. */
+    const oneBatch = [batchFixture({ id: 'bat-a', name: 'Evergreen' })];
+    const belowThreshold = renderPrev(oneBatch, null, 'Client A', { batchFilter: 'nothing matches this' });
+    ok(/id="calNativeBatchFilter"/.test(belowThreshold),
+      'a short list still renders the search box while a query is active, so the query can be cleared');
+    ok(/id="calNativeBatchFilter"[^>]*value="nothing matches this"/.test(belowThreshold),
+      'with the query kept rather than silently discarded — it is the user\'s text');
+
+    /* The threshold still does its own job: no query, short list, no box. */
+    const quiet = renderPrev(oneBatch, null, 'Client A', {});
+    ok(!/id="calNativeBatchFilter"/.test(quiet),
+      'while a short list with no query renders no box, which is what the threshold is for');
+  }
+
+  // -------------------------------------------------------------------------
   console.log('9) picking from the dropdown selects the card and re-aims the radio');
   {
     const radio = { dataset: {}, checked: false };
@@ -491,11 +708,18 @@ console.log('6) the post-count read is one bounded projection query that counts 
       document: { getElementById: id => id === 'calNativePrevBatchRadio' ? radio : null },
     };
     vm.createContext(context3);
+    /* The pick also refreshes the receipt now (2026-09-08) so the append
+       preview follows the dropdown. Counted here, because "the numbers must
+       track the batch you just chose" is the whole point of the receipt. */
+    context3.receiptSyncs = 0;
+    vm.runInContext('function _calNativeSyncReceipt(){ receiptSyncs++; }', context3);
     vm.runInContext(extract('_calNativePrevBatchPick'), context3);
     context3.__sel = { value: 'bat-b' };
     vm.runInContext('_calNativePrevBatchPick(__sel, true)', context3);
     ok(radio.dataset.batchId === 'bat-b' && radio.checked === true,
       'a dropdown pick aims the radio at that batch and checks the card');
+    ok(context3.receiptSyncs === 1,
+      'and refreshes the receipt, so the previewed ordinals follow the batch just picked');
     radio.checked = false;
     context3.__sel = { value: 'bat-c' };
     vm.runInContext('_calNativePrevBatchPick(__sel, false)', context3);

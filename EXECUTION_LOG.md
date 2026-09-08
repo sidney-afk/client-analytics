@@ -2,6 +2,46 @@
 
 All times are UTC unless noted.
 
+## 2026-09-08 — Deployed: workload-plan native snapshot, verified live
+
+**The redeploy that yesterday's outage earned.** `workload-plan` deployed by the
+owner from the exact SHA `d4b2365eab03302b88953a63a610399643fc71ec` on branch
+`claude/lx-a-workload-native`, with `--no-verify-jwt`, per
+`docs/ops/EF_DEPLOY_MANIFEST.md:58` (NO CI DEPLOY PATH, deliberate-manual).
+Five assets uploaded including `native-snapshot.mjs`.
+
+**Verified two ways, which is the whole point of this entry.**
+
+1. *Which code is live.* POST `{"action":"native_snapshot"}` returned **401**.
+   Action validation runs before auth, so a 401 proves the isolate recognises
+   the action; the pre-incident function answered `400 invalid_action`.
+2. *Whether it works.* The owner opened the Workload board and read it. Every
+   pill carries a real date and a real editor. No "Deadline fallback" anywhere,
+   across five day columns and every team on screen.
+
+**The second check is the one that matters and it is the one that was skipped
+before.** Yesterday CI was green on nine checks and the board was blank for
+every editor. A person looking at the surface is not a formality here; it is
+the only evidence that has ever caught this class of failure.
+
+**Preconditions, both met before the deploy rather than after.**
+`workload_native_snapshot_v1()` had already answered whole (`ok`, `complete`,
+`count` = `rows_len` = 6450, both teams `syncview`), and the drifted-plan census
+was re-run and returned the same six rows as 2026-09-07 — unchanged, so nothing
+regressed in the interval. Those six saved work days are now DROPPED rather than
+fatal: the board paints, and six days are missing instead of all of them.
+
+**One process note worth keeping.** Three deploys ran in sequence. The middle
+one was issued from `main`, which does not carry `native-snapshot.mjs`, and it
+briefly restored the pre-incident function (visible in the CLI output as four
+assets uploaded instead of five). The third deploy, from the exact SHA, is the
+one that stands. Net state is correct and the intermediate state was simply the
+previously working code, but it is a reminder that **the SHA in the checkout is
+the whole safety property** of a deliberate-manual lane.
+
+**Rollback**, unchanged and unused: the same command run from `main`. The applied
+migrations are additive and were not reversed.
+
 ## 2026-09-08 — Applied, recorded late: the two Workload native migrations
 
 **Recorded after the fact, which is the whole point of this entry.** Both
@@ -39,6 +79,62 @@ than truncated.
 already existed. The outage of 2026-09-07 was caused by the `workload-plan` Edge
 Function deployed alongside these, not by either migration; both are additive and
 neither was rolled back when that function was. OPEN_REPAIRS 176, 177 and 178.
+
+## 2026-09-08 — Built: Create Post explains itself once, in a receipt, instead of four times
+
+Owner, on the dialog as it stood: *"I just want to make this create post menu more UI
+friendly... I would remove all the hint things. It's too much text."* Three mockups went
+back; he picked the conservative one and then trimmed it further over two rounds.
+
+**The diagnosis, because it decided the shape.** Every hint block in the dialog described
+an OUTCOME, not a control, and three of them described the same outcome in three
+registers: the sub-issue total, a worked example of a composed title, and the parent's
+name in quotes. One live receipt states all three from real state, so all three
+paragraphs are gone. The fourth, under the video-editor picker, was removed outright at
+the owner's request in the second round, and `_calNativeEditorDisclaimer` went with it --
+it had no other caller. What it guaranteed is not lost: the option itself still carries
+the open count and the `(suggested)` marker, and `test/native-post-editor-picker.js` now
+pins those against the option builder, including that no paragraph returns to re-explain
+the control above it.
+
+**The receipt answers something no hint could.** On an APPEND it shows the ordinals the
+post will actually get -- invisible until now, and only discoverable in Linear after the
+fact. The number is mirrored from the gateway, never counted: a batch's post COUNT is not
+its highest ordinal (delete one card and they part company permanently), and the ordinal
+is recorded nowhere but the title. So `_calFetchNativeBatchPostCounts` now also selects
+`title` on rows it was already fetching and reads the max back with the RPC's own rule,
+returning `{ counts, ordinals }`. One column, no extra round trip. A read that fails or
+stalls renders the ordinal as an ellipsis rather than a guess. **This is a preview**: the
+server still allocates, and `production_intake_append` still fails closed if the two ever
+disagree.
+
+**The batch name is prefilled, not placeheld** (owner: *"it should be clear that we can
+change the name"*). A greyed placeholder read as a system-issued value rather than a
+field you own, so the generated title is now real, selectable text, and the field gained
+a `Batch name` label of its own. Clearing it still lands on the same default --
+`_calNativeBatchNameFor` already treats empty as untouched -- so the fallback is
+unchanged.
+
+**The batch pair became a segmented toggle** and only the chosen branch renders its
+controls; both used to sit open at once, spending about a third of the dialog on the
+option nobody picked. The radios move into the tab strip, so every read of
+`calNativeBatchChoice` -- the submit path included -- is untouched by this.
+
+**Two focus-ring bugs, both real, found from one owner note** (*"there's like white
+corners on the post name field"*). First, `--sv-focus` is defined NOWHERE in `index.html`,
+so all four Create Post fields fell through to `--text-primary` -- near-white in dark mode
+-- while the app's other 22 rings use `--focus-ring`. Second, and the actual "corners":
+`.cal-native-name-list` is a scroll container, `overflow-y: auto` computes `overflow-x:
+auto` with it, and the clip happens at the padding box -- so the ring, which sits 3px
+outside the input's border box, lost all four straight edges and kept only its corner
+arcs. 4px of padding gives it room; a matching negative margin keeps the row in place.
+Isolated before it was fixed: with `overflow: visible` the ring drew complete.
+
+**Browser only.** No migration, no Edge Function, no gateway change -- the payload shape
+is byte-identical. It goes live with the Pages deploy on merge, and the rollback is
+reverting the commit. Verified in the real app under a headless browser (both themes, one
+and three posts, and an append to a batch holding three previewing Video 4/5/6), plus
+415/415 under CI-equivalent conditions.
 
 ## 2026-09-07 — Built: a SAMPLE card can be completed from the card, like a calendar post
 

@@ -14489,7 +14489,327 @@ PR makes untrue. The remaining G11 rows move with F12.
 
 ---
 
+## 175. [2026-09-08, FIXED — additive, no URL/parsing change] A pasted calendar-card link opened "normally," with no way to tell which card it was
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `175`. **This one is the calendar deep-link pair (2026-09-08, PR #1354).** The other `175` is the Linear-exit naming-mint finding (2026-09-07). Concurrent branches claimed the same number and neither was renumbered, because the exit's `175` is cited 43 times across docs, PR comments and commit messages that cannot be edited. Cite these by DATE, not number alone.
+
+
+Third report of the same shape, after items covered by the 2026-08-26 and
+2026-09-03 owner reports already re-told in `_calApplyFocusRequest`'s own
+comments: a `#calendar/<slug>/<cardId>` link, copied via the per-card
+"Copy a link to this card" button and pasted elsewhere, "just opens it
+normally" — no visible confirmation of which card was meant.
+
+Both earlier fixes were real and are still doing their job (see
+`test/calendar-deep-link-focus.js`, `test/calendar-card-deep-link.js`): the
+matched card gets a persistent outline (`cal-card-focused`) and an instant,
+self-correcting scroll into view. What was still missing is that an outline
+color is a weak signal in a horizontal strip of similarly-shaped cards — it
+requires the reader to already be looking at the right part of the screen and
+to notice a border change. Nothing said the card's identity out loud.
+
+**The fix.** `_calApplyFocusRequest` now fires one `showToast` alongside the
+existing outline, naming the resolved card and its scheduled date if it has
+one (`Linked to "<name>" · <date>`), the same non-blocking bottom-center toast
+already used for `calCopyShareLink`'s "Client link copied to clipboard." Fires
+once, only on the persistent (cardId) deep-link path — not on the separate
+identifier/search-jump flash — and only after the card is actually found and
+about to be focused, so it never fires on a link that silently failed (that
+path is still `showNotify`, unchanged).
+
+**Deliberately not done.** Considered baking a human-readable slug (card
+title) into the copied URL itself, so the pasted text alone — before anyone
+clicks it — would hint at the card. Rejected: every one of the three hash
+parsers (`decodeURIComponent(rest.slice(sl+1))`, unchanged since the
+2026-09-03 fix, still treats everything after the slug as the literal cardId
+with no further split) would need a coordinated second change to strip a
+suffix, which is exactly the kind of multi-site, easy-to-miss edit that caused
+the 2026-08-26 report in the first place — and a slug baked in at copy time
+would go stale the moment the card is renamed, while the toast reads the
+live title at open time and is never wrong. If the owner wants the raw pasted
+text itself to be identifiable (e.g. for a Slack preview with no click at
+all), that is a separate, larger piece of work — no server-rendered
+per-link previews exist for this static site today — and is an open owner
+decision, not assumed here.
+
+Pinned by: `test/calendar-deep-link-focus.js` (toast fires exactly once per
+resolved link, names the card, appends a formatted date when the card has
+one, and omits the separator entirely when it doesn't).
+
+---
+
+## 176. [2026-09-08, FIXED — replicated in a real browser first] A pasted calendar-card link stayed silent for as long as its network read took, not just at the outline
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `176`. **This one is the calendar deep-link silence fix (2026-09-08, PR #1354).** The other `176` is the lane-A live acceptance measurement (2026-09-07). See the note on `175` above; cite by DATE.
+
+
+Item 175 (same day) added a toast naming the card once a `#calendar/<slug>/<cardId>`
+link resolved. The owner came back with the same report a third time anyway:
+*"I never saw that... it just opens it normally."* Told to replicate before
+touching anything again rather than reasoning further from the source.
+
+**Replicated.** Served the real `index.html` from a local static server,
+mocked only the Supabase `calendar_posts` read `loadCalendarPosts` makes, and
+opened the exact link shape in a real headless Chromium with the timing of
+that one network call as the only variable:
+
+- 400ms (fast): outline and toast both fire correctly. Item 175's fix works.
+- 8s (an ordinary slow response, not a broken one): at 2.5s in, a normal-
+  looking loading skeleton, nothing card-specific. Outline and toast do not
+  appear until 9.5s — after which most people have stopped watching.
+- Never answers (a dropped connection): 6s in, still nothing. No error
+  either. The calendar just sits there looking finished, forever.
+
+Screenshots of the 2.5s and 9.5s states matched the report exactly.
+
+**Root cause.** `_calApplyFocusRequest` (the outline, and item 175's toast)
+has exactly one call site, in `loadCalendarPosts`, gated behind that load's
+`ok` flag — which only becomes true after the network read succeeds. Nothing
+card-specific runs before that, and nothing runs at all if it fails.
+`CAL_LOAD_TIMEOUT_MS` is 20 seconds. The bug was never the outline being too
+subtle; it's that the whole "which card is this" mechanism doesn't start
+until a network round trip finishes, silently, with no acknowledgment that a
+card link was even recognized.
+
+**The fix has two halves, matched to the two things that can go wrong.**
+
+1. *Immediate acknowledgment.* `_calSetFocusRequest(req)` is now the ONLY
+   place `_calFocusRequest` is assigned (the same discipline `_calSetClient`
+   already uses for `calState.client`, for the identical reason: this exact
+   feature has now broken twice from a call site that set the field
+   directly and got none of whatever ran through the proper channel). Every
+   one of the eight assignment sites — the popstate handler, both boot-router
+   copies, the deferred sheet-only-client resolver, the workload "open in
+   calendar" jump, and the client-entry teardown — now funnels through it.
+   Setting a real card link (a `cardId`, not the identifier/search-jump
+   shape) fires `showToast('Opening linked card…')` immediately, before any
+   fetch has started.
+2. *Explicit failure.* `loadCalendarPosts`'s catch block now checks: is
+   there still a pending, not-yet-notified card link for the client this
+   load was for? If its read failed or timed out, `showNotify('Linked card
+   not confirmed', …)` says so — the same blocking-dialog channel
+   `_calApplyFocusRequest`'s own failures already use, not a toast that
+   could expire unread. Scoped to non-background loads only (a background
+   poll failing after the foreground attempt already spoke, or already
+   succeeded, says nothing) and marked with `_calFocusRequestLoadFailed` so
+   a string of retries after the first failure can't re-notify for the same
+   pin — reset the moment a NEW link is set, so a second card link right
+   after a failed first one still gets its own notice if it fails too.
+
+**Deliberately left alone.** `_calApplyFocusRequest` itself — its bounded
+frame-retry loop, the persistent outline, the instant self-correcting scroll
+— is untouched. That machinery already works once it runs; the bug was
+entirely about what happens (nothing) before and if it never gets to run.
+
+Pinned by `test/calendar-deep-link-focus.js`: the single-assignment-site
+count (mirroring the `_calSetClient` check for item 174's own pin), the
+setter announcing immediately, staying silent for the identifier/search-jump
+shape, resetting the notified flag for a new pin, and the catch block's four
+gating conditions read straight out of source. Two other suites that build
+their own hand-rolled sandbox around real extracted source
+(`popstate-hash-route.js`, `calendar-deeplink-tab.js`) needed a
+`_calSetFocusRequest` stub added to keep exercising the real code path
+instead of throwing `ReferenceError` on the new call.
+
+**Codex review round, same PR, before merge.** Four findings, three real:
+
+1. *(P1)* The failure notice was gated on the local `background` flag, which
+   also turns true whenever cache-priming left posts on screen
+   (`calState.posts.length > 0 && haveCache`) — exactly the shape of a
+   RETURNING user's first, deliberate deep-link load, the case this item
+   exists to fix. Re-gated on `opts.background` (the caller's own intent)
+   instead.
+2. *(P1)* A card link for a client outside the `WL_CLIENT_NAMES` seed is
+   recognized into `_calPendingDeepLink`, before the roster read that
+   resolves it to a real `_calFocusRequest` even starts — so the immediate
+   announcement never covered that read's own wait. Same fix, same shape:
+   `_calSetPendingDeepLink(v)` is now the one place `_calPendingDeepLink` is
+   assigned, and announces immediately when a `cardId` is present.
+3. *(P2)* `_calSetFocusRequest(null)` cleared the PIN but not the
+   "Opening linked card…" TOAST it had fired earlier, so a card that
+   resolved fast into `_calApplyFocusRequest`'s own "Card not found"/"Card
+   not shown" paths left that toast on screen contradicting the modal that
+   followed it. `_calApplyFocusRequest` now calls `hideToast()` itself right
+   after consuming a `cardId` request, before deciding what happened next.
+4. *(not a bug, verified rather than argued)* A fourth finding claimed an
+   aborted, superseded load's catch could still fire the failure notice for
+   a NEWER, still-succeeding request. Traced the exact ordering with a real
+   `AbortController` + `fetch` in Node: `_calAbortActiveLoad()` sets
+   `run.retired = true` SYNCHRONOUSLY, before the `controller.abort()` call
+   that is what eventually rejects the old fetch — so by the time that
+   catch's own pre-existing `if (!_calLoadRunCurrent(loadRun)) return;`
+   (first line, untouched by this PR) runs, the superseded load is already
+   `retired` and returns before reaching any of this item's code. Replied on
+   the thread with the traced ordering rather than adding a redundant check.
+
+**Second Codex pass, same PR, on the fixes above.** Requested explicitly
+(`@codex review`) since re-review isn't automatic on a push. Two more real
+findings, both the same shape as #3 above — a toast this PR added surviving
+past the point where the reader was told something conclusive:
+
+5. *(P2)* `_calResolvePendingDeepLink`'s own `_calSetPendingDeepLink(null)`
+   cleared the pin but not the toast it had fired — so an unresolvable slug's
+   `showNotify('Calendar link not opened', …)` modal could show next to a
+   toast still saying the card was opening, and a reader who navigated away
+   before the roster read settled carried that toast to wherever they went.
+   Now calls `hideToast()` itself, right after clearing, whenever the pin
+   had a `cardId`.
+6. *(P2)* The `loadCalendarPosts` catch-block failure notice from the first
+   round (finding 3 there) only ever dismissed the toast from inside
+   `_calApplyFocusRequest` — which this failure path never reaches, since
+   `ok` never became `true`. A fetch that rejected quickly (well under the
+   toast's ~21s duration) left both on screen at once, saying opposite
+   things. Now calls `hideToast()` itself immediately before its own
+   `showNotify(...)`.
+
+Both pinned: `test/calendar-deeplink-tab.js` now asserts `hideToast` fires
+exactly once on the resolve-success, unresolved-slug, and navigated-away
+paths whenever the pending link carried a `cardId` (and not when it didn't —
+nothing to dismiss); `test/calendar-deep-link-focus.js` asserts the ordering
+of `hideToast()` immediately before the catch block's own `showNotify(...)`.
+
+**Unrelated CI catch on the same push.** `repo-identity-exposure-check.js`
+failed on `test/calendar-deeplink-tab.js` — two of the new test lines above
+reused fixture values (a client slug, a display name) that already sit
+unchanged elsewhere in the same file, but a diff-only scanner reading only
+ADDED lines has no way to know that; a genuinely new line reusing an old
+value still reads as new exposure. Swapped both to `'whoisthis'`, the slug
+this file already uses specifically as its non-resolving placeholder — the
+new tests don't need a real, resolvable client either. Verified locally with
+the same command CI runs before pushing.
+
+**Fourth Codex pass, same PR, on the fixes above.** Three more findings, two
+real, one deferred:
+
+7. *(P2)* `showToast`/`hideToast` are ONE shared instance app-wide. Every
+   `hideToast()` this PR's fixes call (three sites: `_calApplyFocusRequest`,
+   `_calResolvePendingDeepLink`, `loadCalendarPosts`'s catch) was calling it
+   blind — if some OTHER toast (an Undo prompt, a save confirmation)
+   legitimately replaced "Opening linked card…" in the interim, dismissing
+   "whatever toast is current" would silently drop that unrelated toast
+   instead. `_calHideOwnToast(expectedPrefix)` checks the toast actually on
+   screen (`.sv-toast-msg` textContent) still starts with ours before
+   touching it; all three sites route through it now.
+8. *(P2)* Leaving the calendar entirely (`navTo` to another top-level page)
+   left a pending card-link request AND its toast dangling — the exact same
+   staleness shape `calState.focusPid` already has a dedicated guard against,
+   on the very next line, for a bug closed as "the third and last way it
+   goes stale." `_calFocusRequest`/`_calPendingDeepLink` had a fourth,
+   unguarded way: this PR's own toast made it visible for the first time.
+   `navTo` now abandons both request types and dismisses their toast
+   (through the ownership check above) beside the existing `focusPid` clear.
+9. *(P2, DEFERRED — open item)* `fetchEssentials()`, which the deferred
+   (sheet-only-client) resolution path waits on, has no timeout of its own.
+   If it hangs, the pending-link toast still expires on its own ~21s timer,
+   but no terminal failure notice ever fires — indefinite silence, the same
+   shape as the original report, just one layer further out. Real, but ruled
+   out of scope for this PR: fixing it means picking a timeout and a failure
+   behavior for a shared fetch pipeline used well beyond calendar deep
+   links, un-audited here. Replied on the thread with that reasoning and
+   left it UNRESOLVED (the other three findings that round were fixed and
+   are marked resolved) rather than close it out. **Open follow-up:** give
+   `fetchEssentials()` (or `_calResolvePendingDeepLink`'s wait on it) its own
+   bounded timeout with a terminal notice, scoped and reviewed as its own
+   change.
+
+Pinned: `test/calendar-deep-link-focus.js` gained a dedicated
+`_calHideOwnToast` unit test (dismisses when still ours, leaves an unrelated
+toast alone, no-ops when nothing is showing) and source assertions that
+`navTo` clears both request types and dismisses the toast beside the
+`focusPid` clear it mirrors.
+
+**Fifth Codex pass, same PR, on the fixes above.** Two more real findings:
+
+10. *(P2)* Switching CLIENT TABS within the calendar (not leaving the page)
+    is a fourth way a pending card-link request goes stale — the exact
+    shape `calState.focusPid` already has a dedicated fix for, on the
+    fourth pass's own precedent, but specific to
+    `_calFocusRequest`/`_calPendingDeepLink`, which nothing else touched.
+    `_calSetClient` now abandons a pending request (and its toast, through
+    the ownership check) whenever the client actually changes to something
+    the request does NOT name. Critically, NOT when switching TO the client
+    a request already names: `_calResolvePendingDeepLink` calls
+    `_calSetFocusRequest(...)` and then `_calOpenClientTab(...)` (which
+    lands in `_calSetClient`) for exactly that client, in that order, and a
+    blanket clear-on-any-change would have cancelled the very request that
+    sequence exists to fulfil.
+11. *(P2)* `_calHideOwnToast` itself had a real bug, not a theoretical one:
+    its first version queried the DOM globally
+    (`document.querySelector('.sv-toast-msg')`). `hideToast()` clears its
+    own tracked `_toastEl` and removes the `show` class immediately but
+    leaves the OLD element in the document for a 220ms fade-out; `showToast()`
+    appends the replacement element right away with no such delay. A global
+    query during that overlap can return the dying old element instead of
+    the live one — reading stale "Opening linked card…" text while a
+    genuinely different toast (an Undo prompt) is actually current, and
+    then calling the real `hideToast()`, which acts on `_toastEl` (the live
+    one) regardless of which element the query happened to match. Fixed by
+    checking `_toastEl` directly — it is in the same top-level scope as
+    `_calHideOwnToast`, so no DOM query is needed at all, and it is never a
+    fading leftover.
+
+Pinned: `test/calendar-deep-link-focus.js` gained a full `_calSetClient`
+runtime harness (abandon-on-different-client and survive-on-matching-client,
+for both request shapes, plus the no-op-reset case untouched) and rewrote
+the `_calHideOwnToast` unit test to pass `_toastEl` instead of a `document`
+mock, since there is no longer a DOM query to mock.
+
+**Sixth Codex pass, same PR, on the fix above.** One finding, and it was a
+real regression from the fifth pass's own fix, caught within minutes:
+
+12. *(P2)* `_calSetClient`'s fifth-pass fix treated ANY `calState.client`
+    change — including the transition to `null` — as abandoning a pending
+    card-link request. But `mountCalendar()` deliberately routes through
+    `_calSetClient(null)` as a "still resolving, don't paint the wrong
+    client" loader placeholder while a sheet-only-client link's roster read
+    is in flight (`else if (_calPendingDeepLink) initial = null;`). A
+    RETURNING staff tab — `calState.client` already set from an earlier
+    visit — that received a deferred link to a different client lost that
+    link the instant the loader mounted, before `_calResolvePendingDeepLink`
+    ever ran. Silently: the exact failure shape this whole item exists to
+    end, self-inflicted by the fifth pass. Fixed by excluding `name ===
+    null` from both clearing checks — `null` stays a permissive placeholder,
+    consistent with `mountCalendar`'s own reasoning for using it, and with
+    the owner's standing "when a guard could go either way, choose
+    permissive" directive (AGENTS.md) that Codex's finding cited.
+
+Pinned: two new `test/calendar-deep-link-focus.js` cases (one per request
+shape) construct exactly the returning-staff-tab scenario and assert the
+`null` mount transition touches neither `_calFocusRequest` nor
+`_calPendingDeepLink`.
+
+**Seventh Codex pass, same PR, on the fix above.** Two more real findings,
+both the same "a fix covered one exit route but not all of them" shape as
+finding 8:
+
+13. *(P2)* The fifth pass's `_calSetClient` fix only fires when
+    `calState.client` actually changes to a DIFFERENT client. Leaving the
+    calendar entirely by a route OTHER than `navTo` — `render()` (whose own
+    comment already notes it "bypasses `navTo()`") and the popstate
+    handler's `state.client` branch — repaints over the calendar without
+    ever changing `calState.client`, so neither existing guard fires and a
+    pending card-link request (and its toast) survives the exit. Extracted
+    the inline `navTo` logic into a shared `_calAbandonLinkOnCalendarExit
+    (stillOnCalendar)` helper and wired it into both routes, beside each
+    one's own pre-existing `_calV2Teardown()` call.
+14. *(P2)* The "Opening linked card…" toast had no `role`/`aria-live`
+    attribute, so a screen-reader user got none of the acknowledgment this
+    item exists to add — same gap the visual fix was built to close, just
+    for a different reader. `showToast()` now sets `role="status"` and
+    `aria-live="polite"` on the toast element before it's appended, which
+    covers this and every other toast in the app since it's the one shared
+    utility.
+
+Fixed in commit `7c9f614`. Pinned: `test/calendar-deep-link-focus.js` gained
+source assertions that `render()` and the popstate handler's `state.client`
+branch both call `_calAbandonLinkOnCalendarExit` within 400 characters of
+their own `_calV2Teardown()` call, and a `showToast` accessibility test
+verifying both attributes are set before `document.body.appendChild(el)`.
+
 ## 175. [2026-09-07, FOUND — the exit's own anchor stops being maintained on the day of the exit] Every human-readable task name in the estate is minted by Linear, and nothing else mints one
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `175`. **This one is the Linear-exit naming-mint finding (2026-09-07)** and is the one meant by every "item 175" reference in `docs/independence/`, the lane briefs, the handoff, and the exit PR comments. The other `175` is a calendar deep-link fix (2026-09-08, PR #1354).
+
 
 **Mechanism, read out of the source rather than inferred.**
 `deliverables.linear_identifier` (the `VID-13553` / `GRA-7197` name a human reads)
@@ -14682,6 +15002,9 @@ Items 95, 160, 72, 63, 75, 76, 78 and 79 close as part of this program; each get
 
 
 ## 176. [2026-09-07, MEASURED LIVE — the lane-A acceptance number, and two things the exit scoping had wrong] 37 live tasks exist natively and are invisible on today's Workload board; the native view was already applied
+
+> **⚠️ DUPLICATE NUMBER.** Two entries claim `176`. **This one is the lane-A live acceptance measurement (2026-09-07)** and is the one meant by every "item 176" reference in the Linear-exit documents, including the handoff's census query. The other `176` is a calendar deep-link fix (2026-09-08, PR #1354).
+
 
 **Taken read-only against the live backend** with the browser publishable key, at
 2026-09-07 late evening UTC, while the n8n Workload reconcile is still running.
@@ -14952,6 +15275,294 @@ be restored before any brief is used for production work.
 costume:** a document that is *partly* right is more dangerous than one that is
 missing, because it is trusted. A missing brief got reported by a session within
 hours. A truncated brief was read by six sessions and reported by none.
+
+### Addendum, 2026-09-08 04:15 — two audits reported, and the all-or-nothing surface is SOUNDER than feared
+
+Two read-only audits ran overnight against the pattern named in the 03:30
+addendum and against the four PRs that merged to `main` during the night. Both
+reported. Recording the results here because the reports live on PR #1351 and a
+PR comment is not a durable record.
+
+#### The all-or-nothing sweep found ONE clean P1, not a field of them
+
+The 03:30 addendum implied a large latent surface: ~57 `Promise.all` sites across
+`index.html` and the edge functions. **The honest finding is that most of them
+are correct.** The large majority are prerequisites of one indivisible operation,
+where failing closed is the right design, or are already guarded per member with
+`.catch(...)`. One site uses a settled-per-member worker pool that names the
+failed member (item 86's shape). Somebody has swept this pattern here before, and
+the sweep did NOT find a second instance capable of taking a live surface down
+the way `projectNativeSnapshot` did.
+
+**That correction matters more than the findings.** A ledger entry that leaves
+"57 instances of the defect that caused an outage" standing would send the next
+reader hunting a field of bugs that is not there.
+
+**The one P1: `supabase/functions/production-comments/index.ts:366`.**
+`Promise.all([totalQuery, pageQuery])` pairs an **exact head count over an
+unbounded table** with a fixed 26-row page read. Either erroring throws
+`500 read_failed`, which the browser turns into "Comments could not load." across
+the SyncLinear detail pane and the calendar/SXR comment modals. The asymmetry is
+the whole bug: the count is the half that grows without bound and can hit a
+statement timeout, while the page is fixed.
+
+**And `total` has no consumer.** No `json.total` or `state.total` read exists in
+`index.html`, `qa/`, `test/`, `scripts/` or `docs/syncview-design/tests/`.
+Pagination does not use it: `has_more` comes from `fetched.length > limit` and
+`next_cursor` from the page's tail. **A number nothing has ever displayed can
+currently take down the thread** — and `index.html:55475` already records why
+that costs something real: the Frame.io link arrives AS a comment, so a thread
+that never loads is also a link the editor cannot see. Reachable today, on every
+SyncLinear issue open.
+
+Three P2s, each with the trigger honestly narrowed rather than inflated: the
+asset-panel evidence write (`production-write/index.ts:4235`, where the common
+failure is correlated across all four slots and therefore destroys nothing), the
+cold-boot board load (`index.html:60315`, warm cache degrades to a banner
+instead), and the Linear import (`index.html:33767`, which tolerates the optional
+graphics half answering `ok:false` but not rejecting).
+
+**Coverage, stated so nobody reads this as complete:** `batch-write` and
+`deliverable-write` were not examined at all, and they are two of the four F27
+Section 4 closure functions. Nine other edge functions, 8 `production-write`
+sites and 14 `index.html` sites are untraced. **The hand-rolled serial-loop axis
+is effectively unaudited, and that is where the third known instance lived.**
+
+#### The health check on already-merged, already-live code found three
+
+Nobody had re-read the four PRs that merged during the night, all of which
+auto-deployed to the live site. All 17 behavioural proofs pass, and three defects
+surfaced: a retry-lie fallback gap in `_writeUiFailureText`, stale line
+references in the naming-mint migration, and a silent parked-edit path at
+`index.html:64516`. The 1.3k-line exporter and two migrations were deferred to a
+second pass and remain unread.
+
+**Neither audit changed a line.** Both were scoped read-only precisely so they
+could not collide with the four branches being actively pushed to, and that was
+the right call: five sessions were pushing while these ran.
+
+### Addendum, 2026-09-08 05:15 — the comment-count P1 is real but its fix is a CONTRACT decision, not a deletion
+
+The 04:15 addendum recorded the audit's P1 at
+`supabase/functions/production-comments/index.ts:366` and said the fix looked
+easy because `total` has no consumer. A session was dispatched to delete or
+guard it. **It root-caused the defect, declined to implement, and it was right
+to stop.**
+
+The defect is confirmed and unchanged: an unbounded exact count is paired
+all-or-nothing with a fixed 26-row page read, so a count timeout blanks the
+comment thread. What is not simple is the repair. Both directions that session
+identified change the endpoint's contract:
+
+- **`include_total` per caller** — callers that want a count opt in; everyone
+  else stops paying for a full-table scan.
+- **Derive completeness from the page** — drop the count entirely and let
+  `has_more` carry the meaning it already carries.
+
+**The decision taken here, so the defect does not sit open waiting for a
+contract argument: make the count FAIL OPEN and keep the field nullable.** On a
+count error return `total: null` and serve the page anyway. This is deliberately
+the smallest possible change:
+
+- It removes the failure mode completely. The page read stays fatal, which is
+  correct, because comments that cannot be read should say so.
+- It breaks no caller that works today. Any reader of `total` must already cope
+  with a number it cannot verify; `null` is an honest answer where a 500 was a
+  lie about the whole thread.
+- It does **not** settle whether the endpoint should offer an exact count at
+  all. That is a real question about cost on a hot path and it belongs to the
+  owner, not to a 5am session.
+
+**Owner decision owed, and it is not urgent:** should `production-comments` keep
+an exact count? It scans every comment row on a deliverable, on every open, to
+produce a number nothing currently displays. Removing it is a latency win. Left
+open rather than taken.
+
+**Not dispatched yet, and the reason is discipline, not capacity.** Another
+session was still pushing to `claude/lx-d-feedback` at the time of this entry.
+Two sessions on one branch is how region ownership gets violated, and that
+convention is the reason six concurrent sessions never collided on a 79,418-line
+file tonight. It waits for the branch to go quiet.
+
+### Addendum, 2026-09-08 07:20 — what the night cost, and the session I stopped
+
+Recorded because the owner runs a small business and should not learn this from
+a bill, and because the coordination method in item 178 is only worth keeping if
+its price is written down beside it.
+
+**Twelve parallel sessions, measured: $557.** Not an estimate; the per-session
+figures as reported at 07:18 UTC:
+
+| Session | Cost | What it produced |
+|---|---|---|
+| LX-RESTORE | **$146.15** | PR #1352, restoring clipped brief lines. **Stopped by me.** |
+| LX-C3 | $129.64 | 6 findings fixed, 1 declined with evidence, 23 threads resolved |
+| LX-A3 | $103.14 | 22 threads resolved, CI green, 3 owner gates named |
+| LX-D4 | $95.04 | the aggregate-bound fix, 247 tests green |
+| LX-C2 | $26.38 | 5 Codex findings |
+| LX-D6 | $22.32 | the comment-count fail-open |
+| LX-D3 | $8.16 | feedback error isolation |
+| LX-D2 | $7.24 | 3 findings; correctly stopped and asked |
+| LX-HC | **$6.26** | **3 defects in code already live on `main`** |
+| LX-AON | **$5.64** | the all-or-nothing audit, 1 P1 + 3 P2s, with coverage stated |
+| LX-A2 | $5.22 | 2 P1s |
+| LX-D5 | $1.98 | root-caused the count defect and correctly refused to implement |
+
+**The distribution is the finding.** The two cheapest substantive sessions,
+LX-HC and LX-AON at **$12 combined**, produced the night's most valuable
+results: three defects in already-shipped live code, and the correction that the
+all-or-nothing surface is mostly sound rather than a field of outage-class bugs.
+Both were **read-only, single-pass, and bounded by a written deliverable.** The
+four most expensive, $474 between them, were open-ended fix-and-verify loops on
+branches, and each hit the point where it was auditing its own work rather than
+the code.
+
+**LX-RESTORE stopped at $146, for spend and not for quality.** Its brief was 49
+clipped lines in documentation. It reached round 9 of self-auditing, exhausted a
+1,000,000-token context, and resumed to keep going. Its work is pushed to PR
+#1352 and is not lost. Stopping it is a judgement that a documentation
+restoration is not worth a tenth of a thousand dollars, not a statement that it
+was doing the task badly — it was still finding real problems each round, which
+is exactly what makes this kind of loop hard to stop and worth bounding in
+advance.
+
+**The rule this earns, and it belongs beside item 178's method:** *a session
+whose deliverable is a written report costs an order of magnitude less than one
+that owns a branch, and it should be the default. Give any fix-and-verify
+session an explicit round or spend bound at dispatch time, because the natural
+stopping point of a self-auditing loop is context exhaustion, not done.*
+
+I dispatched twelve sessions and bounded none of them. The parallel model earned
+its keep in the first hours; past that it multiplied cost more than throughput.
+
+### Addendum, 2026-09-08 — the deploy landed and is verified; PR #1344 is now blocked on a NEW regression
+
+**Two gates closed, one opened.** Full deploy record in `EXECUTION_LOG.md`.
+
+**Done and verified.** The owner deployed `workload-plan` from the exact SHA
+`d4b2365eab03302b88953a63a610399643fc71ec`, and it is confirmed live two ways:
+`POST {"action":"native_snapshot"}` returns **401** where the pre-incident
+function answered `400 invalid_action`, and **the owner opened the Workload
+board and read it** — every pill carrying a real date and editor, no "Deadline
+fallback" across five day columns. The second check is the one that matters:
+yesterday nine CI checks were green while the board was blank for every editor.
+
+The drifted-plan census re-ran and returned **the same six rows** as
+2026-09-07, so nothing regressed in between. Those six saved work days are now
+dropped rather than fatal.
+
+**The new blocker, and how it was nearly missed.** A session reported PR #1344
+as "CI green (1 known)". The failing check is `production-polish`, and it is
+**not** the known baseline:
+
+- On `main` the FAST `production-polish` lane **passes**. What fails there is
+  `production-polish-heavy` and `production-polish-interaction`, which only run
+  post-merge.
+- On PR #1344 the FAST lane **fails**, at `Production structure subset` with
+  code `page_error_pending_read`.
+
+`CLAUDE.md`'s warning that prod-polish "cannot pass in a sandbox" is true and is
+about the other lanes. **Comparing the failure SET rather than the colour is the
+whole difference between "known" and "regression"** — the same rule this
+programme wrote down after getting it wrong twice, applied here in time.
+
+**Likely mechanism, recorded as inference and not proof.**
+`page_error_pending_read` maps to the browser error `pending read requests:`
+(`docs/syncview-design/tests/prod-polish-gate.js:103`). The branch's last two
+commits made `action:'list'` race the enriched snapshot against a time budget.
+**A `Promise.race` settles the race; it does not stop the loser.** When the
+budget wins, the enrichment read is still open. The design is right and the
+board is proof of it, but an abandoned read has to be accounted for rather than
+merely un-awaited. Confirm before changing anything.
+
+**This is the third instance in two days of a fix creating its own defect next
+door**, after the dropped-plan counter and the per-row feedback settle that
+multiplied the worst-case wait. The pattern is worth more than any of the three:
+*a fix that changes control flow needs its new failure mode named before it
+ships, not after a test finds it.*
+
+### Addendum, 2026-09-08 — CORRECTION: the #1344 prod-polish failure is NOT a regression
+
+The addendum above called the failing `production-polish` check on PR #1344 "a
+new regression" and offered a mechanism. **The mechanism was wrong and the
+conclusion was wrong.** Corrected here rather than edited, because the reasoning
+error is the useful part.
+
+**The evidence.** The check passed at `546437d0` and failed at `d4b2365e`, the
+very next commit. That commit changes three files: `docs/ops/OPEN_REPAIRS.md`,
+`qa/workload-native/handler.mjs`, and `supabase/functions/workload-plan/index.ts`.
+**It does not touch `index.html`.** And `production-polish-gate.yml` has no
+supabase, deploy or functions step: it drives a browser against the live site and
+the live gateway, so **the Edge Function SOURCE in the repository is never
+executed by that gate** — the deployed isolate is. A commit touching only
+function source, a QA harness and a ledger entry cannot change what that browser
+test sees. The transition is therefore not attributable to the diff.
+
+`Production structure subset` also has this exact history on the record:
+`docs/syncview-design/tests/prod-test-utils.js:240-253` documents it going red
+"on every run once the snapshot first fit in the quota, with no product defect
+behind it".
+
+**What survives.** The earlier session's report of "CI green (1 known)" was still
+wrong, and finding that out was still correct: the FAST lane passes on `main`,
+and what fails there is the heavy and interaction lanes, which only run
+post-merge. **"Not the known baseline" and "a regression from this diff" are
+different claims and I ran the first into the second.** That is the whole error.
+
+**The mechanism error, named because it is instructive.** I proposed that
+`Promise.race` leaves the losing read open and that this surfaced as
+`pending read requests`. The abandoned read is **server-side inside the Edge
+Function**; the audit counts **browser** requests (`prod-test-utils.js:329`).
+Different sides of the wire. And the 3s budget cannot collide with a 30s
+`drainCeilingMs`. Neither half of the story held, and both were checkable in
+about two minutes.
+
+**Why it is only cheap to be wrong here.** The claim was published as inference
+rather than proof, on the PR and in the ledger, and the correction cost one
+comment. **The fourth instance in two days of a plausible story surviving until
+someone checked it, and the only one that was mine.** The rule the others earned
+applies to reasoning as much as to code: *state the mechanism as a hypothesis and
+name the check that would falsify it, before acting on it.*
+
+**Open:** the failed job needs a re-run, which this session cannot do
+(`403 Resource not accessible by integration`). Owner or a branch push. The
+pairing has since improved: that run executed at 06:42 UTC against the
+pre-incident gateway, and `workload-plan` has now been deployed from this exact
+SHA and verified live.
+
+### Addendum, 2026-09-08 — TWO ledger numbers collided, and why neither was renumbered
+
+Merging `main` into the coordination branch surfaced duplicate `## 175.` and
+`## 176.` headers. `CLAUDE.md` warns about exactly this ("concurrent branches
+routinely claim the same number") and item 168 records four pre-existing
+duplicates (13, 14, 22, 23) that predate this programme and are deliberately
+left alone.
+
+**What collided.** PR #1354 (calendar deep-link work) claimed 175 and 176 on
+`main` on 2026-09-08. The Linear exit claimed the same two on its branch on
+2026-09-07 — the naming-mint finding and the lane-A live acceptance
+measurement.
+
+**Neither was renumbered, and that is a deliberate call rather than laziness.**
+The exit's 175 and 176 are cited **43 times** across `docs/independence/`, the
+six lane briefs, the handoff, this ledger and several PR comments. PR comments
+and commit messages are immutable. Renumbering would therefore leave dozens of
+references pointing at a number that no longer means what they say — which is
+precisely the "two documents disagreeing because someone changed one of them"
+defect this programme spent a night cataloguing. Renumbering the calendar pair
+instead would rewrite entries already merged to `main`, and this ledger is
+append-only.
+
+**What was done instead.** All four headers now carry a disambiguation note
+naming which entry is which, by date and by originating PR, and stating which
+one every existing reference means. A reader cannot now follow a citation to
+the wrong entry.
+
+**The rule this earns, and it is cheap to follow:** *cite a ledger item by
+number AND date.* "Item 176" is ambiguous; "item 176 (2026-09-07)" is not, and
+costs four characters. The reservation table in item 168 remains the right
+mechanism for avoiding collisions in the first place, but it only binds sessions
+that read it, and PR #1354 was not part of this programme.
 
 ---
 

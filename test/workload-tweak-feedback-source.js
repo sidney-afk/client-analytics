@@ -991,6 +991,50 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'a note with no usable timestamp sorts last instead of displacing a dated one');
   }
 
+  // ── A refreshed row must not join a stale flight (finding 11) ───────
+  {
+    // Sharing in-flight reads is keyed on owner + deliverable, which says
+    // nothing about WHICH snapshot row the read was started for. A refresh
+    // mid-flight hands the next popover a new row object while the in-flight
+    // read still holds the old one — and that read rejects at its own
+    // snapshot-identity check, so joining it would give the new popover an
+    // unavailable row instead of a real read of the refreshed binding.
+    const clock = makeClock();
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ clock, snapshot, byDeliverable: { 'del-1': [
+      { hang: true },
+      page([canonical('after-refresh')], complete([])),
+    ] } });
+    // First popover starts a read that will hang until its abort fires.
+    const first = context.wlFetchTweakComments(['wl-1']);
+    await drainMicrotasks();
+    ok(nativeCalls(calls) === 1, 'the first popover has a read in flight');
+    // The board refreshes: same id, new row object, as wlApplyData leaves it.
+    context.wlState.issueSnapshot = snapshot.map(row => ({ ...row }));
+    const second = context.wlFetchTweakComments(['wl-1']);
+    const [, secondRun] = await Promise.all([runWithClock(clock, first), runWithClock(clock, second)]);
+    ok(nativeCalls(calls) === 2,
+      'the popover opened after the refresh issues its own read rather than joining the stale flight');
+    ok(!!secondRun.value && secondRun.value['wl-1'] && secondRun.value['wl-1'].failed !== true,
+      'so it gets a real answer instead of the stale flight’s refusal');
+    ok(!!secondRun.value && (secondRun.value['wl-1'][0] || {}).body === 'canonical after-refresh',
+      'and it is the feedback for the row the board holds NOW');
+  }
+  {
+    // Sharing still happens when the row really is the same object.
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], complete([])),
+      page([canonical('second-request')], complete([])),
+    ] } });
+    const both = await Promise.all([
+      context.wlFetchTweakComments(['wl-1']),
+      context.wlFetchTweakComments(['wl-1']),
+    ]);
+    ok(nativeCalls(calls) === 1, 'two opens on the SAME snapshot row still share one request');
+    ok(both.every(out => (out['wl-1'][0] || {}).body === 'canonical a'), 'and both get that answer');
+  }
+
   // ── A degraded answer is never remembered (finding 7) ───────────────
   {
     // The endpoint answers 200 with an INCOMPLETE projection for

@@ -146,7 +146,10 @@ at all, which is exactly when the abandon protection has to work. In-flight read
 are shared rather than raced, so two popovers overlapping on the same deliverable
 cost one request; a shared read is abandoned only once every generation waiting on
 it has given up, so one popover walking away never fails the row for the popover
-that replaced it.
+that replaced it. A flight belongs to the snapshot row it was started for, like a
+cache entry: after a refresh the next popover starts its own read rather than
+joining a flight that will reject at its own identity check and hand back an
+unavailable row.
 
 Source-row identity fields are derived by mirroring the F42 importer's rules
 exactly rather than re-deriving them, because `sameCurrentComment` compares them
@@ -174,11 +177,15 @@ printing a 1970 date beside a tweak note invents a fact. And an entry whose dele
 and `is_deleted`. The importer counts only a literal `true`, so mirroring would
 make the projection strict, and the identical predicate governs `deleted`, so it
 would start showing the body of a note the card marked deleted. The matrix
-decides that set by EXECUTING the shipped predicate against a candidate pool, not
-by reading its source: `truthy` trims and lower-cases, so `" TRUE "` and `"Yes"`
-are accepted too and a set scraped from its literals named neither. Values the
-predicate rejects are asserted to stay covered, which is what confines the
-exception to the accepting branch rather than to flag fields in general. Both keep a visible duplicate rather than trade it for a
+GENERATES that set from the predicate's declared vocabulary — every
+`value === <literal>` comparison and every member of its token list — expands each
+string token into the normalisation forms its own `clean(...).toLowerCase()` makes
+equivalent, and then verifies every generated form against the executed
+predicate. A token added to `truthy` therefore enters the matrix automatically,
+and a change to its normalisation fails the verification rather than quietly
+under-generating the family. Values the predicate rejects are asserted to stay
+covered, which confines the exception to the accepting branch rather than to flag
+fields in general. Both keep a visible duplicate rather than trade it for a
 note hidden by a loosened match or for content that should stay suppressed.
 
 The popover's three-row preview is ordered newest-first across both sources.

@@ -19456,8 +19456,17 @@
                 if (Date.now() >= deadline) { settle(row.id, unavailable()); continue; }
                 const key = owner + '\u0000' + row.nativeId;
                 let flight = _wlNativeTweakCommentsInFlight.get(key);
+                // A shared read belongs to the snapshot row it was STARTED for,
+                // exactly as a cached one does. A refresh mid-flight gives this
+                // popover a new row object, and the in-flight read is still
+                // holding the old one — it will reject at its own
+                // snapshot-identity check, so joining it would hand the newly
+                // opened popover an unavailable row instead of a real read of
+                // the refreshed binding. Start a fresh flight instead; the old
+                // one's cleanup only removes the entry if it is still its own.
+                if (flight && flight.issue !== row.issue) flight = null;
                 if (!flight) {
-                    flight = { promise: null, wanted: new Set() };
+                    flight = { promise: null, wanted: new Set(), issue: row.issue };
                     _wlNativeTweakCommentsInFlight.set(key, flight);
                     flight.wanted.add(stale);
                     // The shared read inherits the FIRST waiter's deadline, so a

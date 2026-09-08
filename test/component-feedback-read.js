@@ -21,15 +21,46 @@ const target = { id: 'feedback-deliverable', client_slug: 'fixture-feedback', te
 const note = (id, extra = {}) => ({ id, author: 'Fixture reviewer', role: 'smm', body: 'Same text', created_at: now, updated_at: now, ...extra });
 // The flag fields whose predicate diverges from the importer.
 const FLAG_FIELDS = ['done', 'resolved', 'deleted', 'is_deleted'];
-// Candidate values a historical card could plausibly hold in one of them. The
-// pool is deliberately wider than what `truthy` accepts: which of these are
-// divergent is decided by EXECUTING the shipped predicate, not by reading it.
-// Scraping its source literals was the previous version of this and it missed
-// every normalised form — `truthy` trims and lower-cases, so " TRUE " and "Yes"
-// are accepted too and were silently outside the "exact" set.
-const FLAG_CANDIDATES = [true, 1, '1', 'true', 'TRUE', ' true ', ' TRUE ', 'yes', 'Yes', 'YES', ' yes ',
-  false, 0, '0', 'false', 'no', '', null, undefined];
+// The candidate pool is GENERATED from the predicate's declared vocabulary, not
+// hand-written. Two earlier versions of this were a fixed list and then a scrape
+// of the source literals; both were samples wearing the word "exact", and a
+// token added to `truthy` would have been silently untested by either. Here the
+// vocabulary is read out of the shipped expression — every `value === <literal>`
+// comparison and every member of its token list — and each string token is
+// expanded into the normalisation forms the predicate's own `clean(...)
+// .toLowerCase()` makes equivalent. Every generated form is then VERIFIED
+// against the executed predicate below, so if the normalisation ever changes the
+// generation is caught rather than quietly diverging.
+// Full enumeration of an arbitrary predicate's input space is impossible; what
+// is achievable, and what this does, is enumerate the declared vocabulary,
+// generate its normalisation forms, and prove by execution that the generation
+// still matches the predicate.
 const label = value => value === undefined ? 'undefined' : JSON.stringify(value);
+const TRUTHY_VOCABULARY = (() => {
+  const helper = fs.readFileSync(path.join(root, 'supabase/functions/production-comments/feedback.mjs'), 'utf8')
+    .match(/^const truthy = (.*);$/m);
+  if (!helper) throw new Error('missing truthy helper');
+  const compared = [...helper[1].matchAll(/value === (true|false|-?\d+|'[^']*')/g)]
+    .map(match => match[1]).map(raw => raw === 'true' ? true : raw === 'false' ? false
+      : raw.startsWith("'") ? raw.slice(1, -1) : Number(raw));
+  const listed = (helper[1].match(/\[([^\]]*)\]/) || [, ''])[1]
+    .split(',').map(part => part.trim().replace(/^'|'$/g, '')).filter(Boolean);
+  return [...new Set([...compared, ...listed])];
+})();
+// Normalisation forms of one token: case permutations plus the whitespace
+// `clean` strips. Non-strings pass through unchanged.
+const normalisationForms = token => typeof token !== 'string' ? [token] : [...new Set([
+  token, token.toUpperCase(), token.toLowerCase(),
+  token.charAt(0).toUpperCase() + token.slice(1).toLowerCase(),
+  token.split('').map((ch, i) => i % 2 ? ch.toUpperCase() : ch.toLowerCase()).join(''),
+  ' ' + token + ' ', '\t' + token + '\n', '  ' + token.toUpperCase() + '  ',
+])];
+const FLAG_CANDIDATES = [
+  ...TRUTHY_VOCABULARY.flatMap(normalisationForms),
+  // Values the predicate must NOT accept, so the exception is proven confined to
+  // the accepting branch rather than to flag fields in general.
+  false, 0, '0', 'false', 'no', 'off', '', '   ', null, undefined,
+];
 const canonical = (id, extra = {}) => ({ id, deliverable_id: target.id, native_comment_id: id, author_name: 'Fixture reviewer', role: 'smm', body: 'Same text', component: 'video', is_tweak: true, round: null, source_created_at: now, source_updated_at: now, created_at: now, updated_at: now, version: 1, audience: 'internal', ...extra });
 let db, reads, handler, hook, failures, auditAllowed;
 function reset(notes = [note('source-one')]) {
@@ -288,9 +319,20 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
         .match(/^const truthy = (.*);$/m);
       assert(helperSource, 'the truthy helper must be readable so this matrix can execute it');
       const truthy = new Function('clean', 'return (' + helperSource[1] + ');')(policy.clean);
+      // The generation is only trustworthy if the predicate still agrees with
+      // it: every normalisation form of a declared token must actually be
+      // accepted. If `truthy` stops trimming or lower-casing, this fires here
+      // rather than leaving the family quietly under-generated.
+      for (const token of TRUTHY_VOCABULARY) {
+        for (const form of normalisationForms(token)) {
+          assert(truthy(form), 'the predicate no longer accepts ' + label(form)
+            + ', so the generated normalisation forms no longer match it');
+        }
+      }
       // Accepted by the projection, rejected by the importer's literal `true`.
       const divergentValues = FLAG_CANDIDATES.filter(value => truthy(value) && value !== true);
-      assert(divergentValues.length >= 4, 'the candidate pool must actually exercise the accepting branch');
+      assert(divergentValues.length >= TRUTHY_VOCABULARY.length,
+        'the candidate pool must exercise the accepting branch for every declared token');
       assert(FLAG_CANDIDATES.some(value => !truthy(value)),
         'and the rejecting branch too, so a benign value is proven to stay covered');
       const deliberate = FLAG_FIELDS.flatMap(field =>

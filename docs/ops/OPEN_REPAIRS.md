@@ -15247,3 +15247,46 @@ rejected values × 4 fields = 32 shapes proven still covered, where the previous
 version pinned 16 and proved none of the rejecting branch.
 
 Proof: **35 pass**.
+
+### Tenth follow-up: a flight that outlived its row, and a pool that was still hand-drawn (two Codex P2s on `4d745bf`)
+
+**1. A refreshed row joined a stale flight.** In-flight sharing keyed on
+`owner + deliverable`, which says nothing about WHICH snapshot row the read was
+started for. When a Workload refresh replaced `issueSnapshot` mid-flight, the next
+popover found that key and joined a read created with the OLD row object — a read
+that then rejects at its own snapshot-identity check. The newly opened popover
+therefore got an unavailable row instead of a real read of the refreshed binding.
+
+This is the same rule the cache already followed (an answer belongs to the row it
+was read for) applied to the flight map, which the earlier commit added without
+carrying the rule across. A flight is now scoped to `row.issue`; a refreshed row
+starts its own, and the old flight's cleanup only removes the map entry if it is
+still its own.
+
+**2. The candidate pool was still hand-drawn.** The previous follow-up executed
+the predicate instead of reading it, which was the right direction, but applied it
+to a fixed list of examples. `"TrUe"` and `"\ttrue\n"` are accepted and were not in
+it, and adding a token such as `"on"` to `truthy` would have left the matrix green
+without testing it once. Third refinement of the same idea, and the honest
+statement of what is achievable: **full enumeration of an arbitrary predicate's
+input space is impossible.** What is achievable, and what this now does:
+
+- read the predicate's declared **vocabulary** — every `value === <literal>`
+  comparison and every member of its token list;
+- **generate** each string token's normalisation forms (case permutations, the
+  whitespace `clean` strips);
+- **verify** every generated form against the executed predicate, so a change to
+  the normalisation fails here instead of silently under-generating;
+- keep a reject pool and assert those stay covered.
+
+Counterfactuals run, not argued. Adding `'on'` to `truthy`: the vocabulary picks
+it up and its eight forms enter the matrix automatically (green, having actually
+exercised it — it is a deliberate divergence). Removing `.toLowerCase()` from
+`truthy`: the verification fails with *"the predicate no longer accepts
+\"TRUE\""*.
+
+Coverage: 20 generated forms from 5 declared vocabulary entries, 19 divergent ×
+4 flag fields = **76** deliberate shapes, up from 40, plus the reject pool.
+
+Proof: **176 green** on the Workload suite (6 new, covering the flight/row
+scoping) and **35 pass** on `test/component-feedback-read.js`.

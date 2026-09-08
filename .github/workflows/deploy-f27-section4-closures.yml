@@ -281,7 +281,16 @@ jobs:
       # only: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      PRODUCTION_WRITE_SOURCE_SHA256: ccbdd136f488c1e948ca49b429ff50e5c850057b3bd3eabb97c5cb47f1a3d164
+      # Re-pinned 2026-09-08: a Submit-tab note written for the video editor
+      # can no longer suppress or stand in for AI thumbnail-title generation
+      # (previously any non-empty note forwarded as the graphics child's
+      # brief made Gate 3 in submissionThumbnailText skip generation
+      # outright), and a generated title is now prefixed with
+      # THUMBNAIL_TEXT_AI_LABEL so it cannot be mistaken for a human-authored
+      # brief. See test/f27-section4-deploy-lane.js CANDIDATES for the full
+      # note. No migration, no new import, file count unchanged at 5.
+      # (Previous pin: ccbdd136f4... -- production-write v69, 2026-09-07.)
+      PRODUCTION_WRITE_SOURCE_SHA256: c3d88287db059c0e6a5d0fb26c87e6f327fc74bc3b30d95fc29dd1ae0d3be760
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

@@ -7,9 +7,17 @@
  *    to say what the video actually IS -- the titles in his filming doc had no
  *    home, and the only free-text box on the page was batch-level, so sixteen
  *    videos shared one note. The fourth field is a real textarea and its text
- *    becomes the Linear description of BOTH children: the video sub-issue
- *    (above the footage lines, because the editor reads the ask first) and the
- *    thumbnail sub-issue (alone -- a designer is not briefed by camera files).
+ *    becomes the Linear description of the video sub-issue (above the footage
+ *    lines, because the editor reads the ask first).
+ *
+ *    IT NO LONGER REACHES THE THUMBNAIL SUB-ISSUE (fixed 2026-09-08). It used
+ *    to land there too, alone, on the theory that a designer is briefed by the
+ *    ask rather than by camera files -- but the server treats any non-empty
+ *    caller-supplied graphics brief as a human override and skips AI
+ *    thumbnail-title generation for that card, so an ordinary editing note
+ *    silently blocked the generator. The Submit tab only ever offered one note
+ *    box per video, labelled as that video's own description, so a note
+ *    written for the editor should not be able to pass as a graphics brief.
  *
  *    The legacy n8n lane deliberately does NOT carry it per video: its payload
  *    is frozen by a deployed receipt contract that recomputes a hash over
@@ -92,11 +100,12 @@ ok(/first date p2\n\nMain camera/.test(vb), 'note and assets are separated by a 
 ok(videoBrief({ main_cam: 'https://x/1' }) === 'Main camera: https://x/1',
   'with no note the video brief is byte-identical to the pre-change shape');
 ok(videoBrief({}) === '', 'an empty card still yields an empty brief, never a stray separator');
-ok(thumbBrief(FULL) === 'Ranking things guys do on a first date p2',
-  'the thumbnail brief is the note ALONE — no camera or audio links reach the designer');
+ok(thumbBrief(FULL) === '',
+  'the thumbnail brief is always empty — a note written for the editor no longer reaches the designer or blocks AI generation');
 ok(thumbBrief({ main_cam: 'https://x/1', audio: 'https://x/2' }) === '',
-  'a card with links but no note gives the thumbnail nothing, so the server may still generate');
-ok(thumbBrief({ notes: '   padded   ' }) === 'padded', 'the thumbnail brief is trimmed');
+  'a card with links but no note still gives the thumbnail nothing, so the server may generate');
+ok(thumbBrief({ notes: '   padded   ' }) === '',
+  'a note is never forwarded to the thumbnail brief however it is formatted — this is what keeps it from silently overriding a generated title');
 
 /* ---- 2. both children are planned with those briefs ---------------------- */
 const itemsBox = { PROD_CREATED_STATUS: 'todo' };
@@ -113,10 +122,10 @@ const graphic2 = items.find(i => i.team === 'graphics' && i.videoNumber === 2);
 ok(items.length === 4, 'video + thumbnail mode plans one pair per video');
 ok(video1.brief.includes(FULL.notes) && video1.brief.includes('Main camera'),
   'the planned VIDEO item carries the note and the footage');
-ok(graphic1.brief === FULL.notes,
-  'the planned THUMBNAIL item carries the note — this is what puts it on the GRA sub-issue');
+ok(graphic1.brief === '',
+  'the planned THUMBNAIL item never carries the note — the server-side AI generator is free to run instead of being pre-empted');
 ok(graphic2.brief === '',
-  'a note-less video plans an empty thumbnail brief instead of inheriting its neighbour');
+  'a note-less video plans an empty thumbnail brief too, same as its neighbour');
 ok(video1.card_id === graphic1.card_id && video1.card_id !== items.find(i => i.videoNumber === 2).card_id,
   'the pair still shares one card id and does not collide with the next video');
 

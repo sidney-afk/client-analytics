@@ -15781,3 +15781,38 @@ published a six-row table of sweep verdicts — two defects, one gap, one open
 question, one clean, one not applicable — and three of those six rows were wrong.
 A sweep's output is a claim like any other, and I had presented mine as a closed
 category twice in a row while the reviewer was still finding things in it.
+
+### The counting-key sweep, done properly this time
+
+Round ten's brief E finding was a count keyed on the wrong thing. Rather than
+declare the class closed again — which is what went wrong the last two times — I
+walked every restored line that tells an operator to RECORD a number, and checked
+each against the key the code uses.
+
+**One more hit, in the same file, in the sibling line.** The `deliverable_events`
+mitigate said the expected count is "one row per updated deliverable" and then
+told the operator to "write the number down from the manifest". Those are two
+different numbers. `cmdRewrite` groups occurrences by `${occ.table}:${occ.id}` and
+emits one update per row that actually changed (`if (result.replaced === 0)
+{ untouched += 1; continue; }`, scripts/linear-media-rescue.mjs:415-421). So the
+expected event count is the number of DISTINCT `deliverables` statements in the
+generated forward SQL — not manifest rows (which span two tables and include
+`production_comments`, which fires no trigger), not occurrences (a row holding
+three rescued images is one update and one event), and not rows whose every
+occurrence was skipped for an unrescued file. The line now says to count the
+statements in `linear-media-rescue-forward.sql`.
+
+**The three other counting instructions check out**, each against its own key:
+brief A's A8 census points at `wlExcludedSummaryText`'s `offTeamAssignee.length`,
+which is the same per-sub-issue key the surface renders; brief F's debt census
+reads `linear_outbound_cutoff_debt_v1`, one row per outbox row, matching the
+disposition it reports; and brief F's step-0 census is item 75's own
+`group by status, legacy_parity, test_only`, quoted verbatim from the ledger.
+
+**Same defect, three shapes now, and they are all fan-out.** Files versus
+occurrences (round ten), manifest rows versus changed rows (here), and back in
+the first correction, `nativeOnly.count ≈ 195` versus the roster-filtered 37 that
+brief A's own DONE-WHEN had conflated. AGENTS.md:153-166 exists because a
+published count was wrong by 2.5× in the scary direction; every instance in this
+pass has been wrong in the direction that UNDER-states, which is worse for a
+rollback instruction because the operator stops looking sooner.

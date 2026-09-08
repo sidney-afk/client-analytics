@@ -136,6 +136,66 @@ reverting the commit. Verified in the real app under a headless browser (both th
 and three posts, and an append to a batch holding three previewing Video 4/5/6), plus
 415/415 under CI-equivalent conditions.
 
+## 2026-09-08 — n8n change: tiktok-upload-direct learns photo carousels
+
+**n8n workflow edit, live, additive.** `SyncView TikTok Upload — Submit (Direct)`
+(`qGJ7mUjml98DSiGo`) now accepts an optional `mediaUrls` JSON array in its POST body
+alongside the existing singular `mediaUrl`. Three Code nodes changed: Build Upload Row
+parses `mediaUrls` when present (falling back to the single `mediaUrl` exactly as
+before when it isn't) and threads an `auto_add_music` flag through TikTok's
+per-account configuration (default `true`, matching Post For Me's own prior default,
+so a request that never sends it is unaffected); Build Post Body maps `mediaUrls`
+into a multi-item Post For Me `media[]` array (a photo/carousel post) instead of the
+single-item array, and skips the video-only `thumbnail_timestamp_ms` field on that
+branch; Merge Upload Response strips the new `_mediaUrls` internal field so it never
+leaks into the TikTokUploads sheet row or the API response.
+
+**Why.** SyncView's TikTok Upload tab gained a Photo carousel mode (same PR as this
+entry). TikTok photo posts (1-35 images) always route through this direct-to-storage
+lane regardless of size — one mint+PUT per image via the unchanged `tiktok-upload-url`
+endpoint, then one `tiktok-upload-direct` call carrying all the resulting URLs —
+rather than adding a second multipart code path to the in-band `tiktok-upload`
+workflow, which stays completely untouched by this change.
+
+**Verified before publishing.** Local dry run of the new Code node logic against both
+an old-style single-`mediaUrl` payload and a new `mediaUrls`-array payload, asserting
+the old payload's output is byte-for-byte unaffected. Then, on the live workflow
+itself, ran both payloads through `test_workflow` with the HTTP/Sheets nodes pinned
+(no real network calls, nothing posted, nothing written to the sheet) — old shape
+produced the exact same `postBody` as before this change; new shape produced a
+correct multi-item `media[]` array. The edit initially landed on the workflow's
+draft only; caught that `activeVersionId` still pointed at the pre-edit version
+before merging the frontend PR, and published the draft so the live webhook actually
+serves this code (versionId `007328e6-1fb2-4e26-b025-78ac49491812`).
+
+**Rollback.** Per ROLLBACK.md rule 2, exported to
+`n8n-backups/tiktok-upload-direct.2026-09-08.json` (public-safe — only opaque n8n
+credential-reference IDs, no secret values, same as the existing files in that
+directory). The prior snapshot, `n8n-backups/tiktok-upload-direct.2026-08-18.json`,
+still restores a working single-video path if this needs to be undone; it would just
+drop carousel support (a carousel attempted against that older graph fails closed
+with a "mediaUrl or mediaUrls required"-style validation error, not a silent
+misdirect). No kill flag needed — this is additive and backward compatible, not a
+migration phase.
+
+**CORRECTED 2026-09-08 (same-day second review pass).** The paragraph above says
+`auto_add_music` was threaded through unconditionally and that "a request that never
+sends it is unaffected" — that claim was only checked against this workflow's own
+request-building logic (via `test_workflow`), never against Post For Me's real API,
+so it was not actually established for the video-only lane. Codex's second review
+round on PR #1355 flagged this correctly: attaching a field TikTok's video posts
+never carried before, to every request including legacy video-only ones, is exactly
+the kind of change the "don't break the existing pipeline" mandate for this feature
+was meant to rule out. Fixed by scoping `auto_add_music` to attach only when
+`mediaUrls` (the carousel branch) is present — a plain `mediaUrl` video request now
+builds the identical configuration object it always has, proven with a full-object
+comparison in `test/tiktok-carousel-transport.js` (not just field-presence checks,
+which the original bug would have passed). Republished; live `activeVersionId` is now
+`264ea658-39c2-449c-b215-d7daa08e53ac` (supersedes `007328e6-1fb2-4e26-b025-78ac49491812`
+above). `n8n-backups/tiktok-upload-direct.2026-09-08.json` was updated in place to
+match — it is a point-in-time backup of the current live graph, not a history of every
+draft.
+
 ## 2026-09-07 — Built: a SAMPLE card can be completed from the card, like a calendar post
 
 Owner: *"when there's a calendar that has a post that is just a thumbnail, there's a

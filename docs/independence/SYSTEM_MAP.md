@@ -1193,11 +1193,14 @@ separate hidden first-party Direct-Post surface.*
   `ttp-accounts-list`, `ttp-creator-info` (drives privacy options), `ttp-list` (queue + sole status
   source; 5 s poll while processing).
 - **Writes.** Upload: n8n `tiktok-upload` (multipart XHR → Post-For-Me; legacy lane, files ≤ the
-  Cloudflare body ceiling), and since #1085 the direct-to-storage lane for large files:
-  `tiktok-upload-url` (GET; mints a one-time Post-For-Me upload URL) → browser PUTs the video
-  straight to Post-For-Me storage → `tiktok-upload-direct` (POST; metadata + media URL only). This
-  exists because n8n Cloud sits behind Cloudflare, which rejects request bodies over 100 MB before
-  they reach the workflow. Also `tiktok-upload-cancel`,
+  Cloudflare body ceiling, video only), and since #1085 the direct-to-storage lane for large
+  files: `tiktok-upload-url` (GET; mints a one-time Post-For-Me upload URL) → browser PUTs the
+  video straight to Post-For-Me storage → `tiktok-upload-direct` (POST; metadata + media URL
+  only). This exists because n8n Cloud sits behind Cloudflare, which rejects request bodies over
+  100 MB before they reach the workflow. Since 2026-09-08, photo carousel posts (1-35 images)
+  always use this same direct lane regardless of size — one mint+PUT per image, then a single
+  `tiktok-upload-direct` call with `mediaUrls` (a JSON array) instead of the singular `mediaUrl`,
+  which the workflow maps to a multi-item Post For Me `media[]` array. Also `tiktok-upload-cancel`,
   `tiktok-upload-status` (**used only for the failed-row Retry** — `?id&retry=1`, not polling). Pilot:
   n8n `ttp-auth-init` (full-page OAuth redirect), `ttp-submit` (Direct Post). Current unaudited
   compose source automatically assigns `SELF_ONLY` and disables its selector; it also lacks the

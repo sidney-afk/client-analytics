@@ -132,7 +132,7 @@ six sessions will be finished.
 
 | # | gate | why | who confirms |
 |---|---|---|---|
-| P1 | **Lane B's native naming mint is APPLIED AND SEEDED, not merely merged** | `linear-outbound:852` (into `production_issue_create_linkage` as `p_issue.identifier`) and `:868` (into `deliverable_write` as `linear_identifier`) mint `deliverables.linear_identifier` for SyncView-native cards. *(Item 162/163 cite `:857`; verified against the source, it is `:852` — lane B's item 170 records the same correction. The conclusion is unchanged; only the line number was off by five.)* Flip outbound off before the mint lands and every card created afterwards renders as `b1_d_188ba4ad…` in the Production list, the command palette, the Workload parent header and all three deep links merged this week. Nothing errors; the estate just stops producing names. (OPEN_REPAIRS 162, 163) **Merging lane B is NOT enough.** PR #1349 merged on 2026-09-08 and `docs/ops/NATIVE_IDENTIFIER_MINT.md` opens with *"Status: SOURCE ONLY. `migrations/2026-09-07-native-identifier-mint.sql` has not been applied to the live database and no team has been seeded."* **And applying and seeding is not enough either — there are FOUR steps and the fourth is the gate.** This row said "applied AND seeded" until 2026-09-08, which names only steps 1-3; `docs/ops/NATIVE_IDENTIFIER_MINT.md:82-91` is explicit that **step 4 — flipping `syncview_runtime_flags.production_native_identifier_mint` to `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}` — "is what lane F's outbound-off step waits on"**, because `production_native_identifier_capability(team)` returns `native` only when the flag says native AND a seed row exists. Stop after step 3 and the allocator is installed and refusing: the mint is inert, the TEST card still takes its name from Linear, and STEP 3 produces the exact nameless-card failure this row exists to prevent. Do step 4 **per team, video first.** *(A premature flip is inert rather than half-armed — the capability self-guards, deliberately unlike `production_label_catalog_capability()`, which reports `native` with nothing staged and 503s one call later.)* **Undo for step 4:** set the team back to `{"mode":"provider"}` — stops new minting immediately, renames nothing by design. Steps 2 and 3 are safely undoable only while no name has been handed out for that team; once one has, deleting the cursor and re-seeding re-issues names. Verify by creating one card on the TEST client `sidneylaruel` after step 4 and reading back a non-null `deliverables.linear_identifier` that Linear did not mint — **before** seeding the second team. That readback is the one check that cannot be satisfied by a half-done gate. | coordinator |
+| P1 | **Lane B's native naming mint is APPLIED AND SEEDED, not merely merged** | `linear-outbound:852` (into `production_issue_create_linkage` as `p_issue.identifier`) and `:868` (into `deliverable_write` as `linear_identifier`) mint `deliverables.linear_identifier` for SyncView-native cards. *(Item 162/163 cite `:857`; verified against the source, it is `:852` — lane B's item 170 records the same correction. The conclusion is unchanged; only the line number was off by five.)* Flip outbound off before the mint lands and every card created afterwards renders as `b1_d_188ba4ad…` in the Production list, the command palette, the Workload parent header and all three deep links merged this week. Nothing errors; the estate just stops producing names. (OPEN_REPAIRS 162, 163) **Merging lane B is NOT enough.** PR #1349 merged on 2026-09-08 and `docs/ops/NATIVE_IDENTIFIER_MINT.md` opens with *"Status: SOURCE ONLY. `migrations/2026-09-07-native-identifier-mint.sql` has not been applied to the live database and no team has been seeded."* **And applying and seeding is not enough either — there are FOUR steps and the fourth is the gate.** This row said "applied AND seeded" until 2026-09-08, which names only steps 1-3; `docs/ops/NATIVE_IDENTIFIER_MINT.md:82-91` is explicit that **step 4 — flipping `syncview_runtime_flags.production_native_identifier_mint` to `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}` — "is what lane F's outbound-off step waits on"**, because `production_native_identifier_capability(team)` returns `native` only when the flag says native AND a seed row exists. Stop after step 3 and the allocator is installed and refusing: the mint is inert, the TEST card still takes its name from Linear, and STEP 3 produces the exact nameless-card failure this row exists to prevent. Do step 4 **per team, video first.** *(A premature flip is inert rather than half-armed — the capability self-guards, deliberately unlike `production_label_catalog_capability()`, which reports `native` with nothing staged and 503s one call later.)* **Undo for step 4:** set the team back to `{"mode":"provider"}` — stops new minting immediately, renames nothing by design. Steps 2 and 3 are safely undoable only while no name has been handed out for that team; once one has, deleting the cursor and re-seeding re-issues names. Verify by creating one card on the TEST client `sidneylaruel` after step 4 and reading back a non-null `deliverables.linear_identifier` that Linear did not mint — **before flipping the SECOND TEAM'S FLAG**, not before seeding it. *(Corrected 2026-09-08: this row said "before seeding the second team", copying a line the source document has since corrected against its own table. Steps 2 and 3 seed both teams; a seed row is inert until the flag moves, so the per-team caution belongs on the step-4 flag transition, which is the only step that changes behaviour.)* That readback is the one check that cannot be satisfied by a half-done gate. | coordinator |
 | P2 | **Lane A is live AND has taken its acceptance measurement** | That measurement compares against `public.workload_issues`, and STEP 6 is what stops that table being rebuilt. After STEP 6 the measurement is unrunnable. | coordinator |
 | P3 | **Lanes C and D are live** | They own the browser's Linear surfaces and the comment reader. Turning the endpoints off underneath them strands the UI. | coordinator |
 | P4 | **STEP 0's census has been read by a human** | You cannot classify debt you have not counted. | owner |
@@ -528,9 +528,35 @@ and this row used to give one figure for both:
 | Linear-reaching helper | direct call sites | code | staff-visible failure |
 |---|---|---|---|
 | `linearLabelsRequest` `:832` (throws `:834`/`:843`/`:847`) | 3 — `:871`, `:918`, `:946` | 503 `label_catalog_unavailable` | cannot pick a label **on create** (`handleCreateOptions` `:3345`), cannot **read** a card's labels (`handleLabelsRead` `:4947`), and cannot **write** one on an existing card (`handleEntityOperation` `:5491`) — three surfaces, one helper. This row previously named only the first. |
-| `linearRead` (throws `:2325`, code default `:2285`) | 4 — `:2326`, `:2345`, `:2540`, `:2587` | 503 `project_mapping_validation_unavailable` | cannot create a deliverable; also reaches through `readLinearProject` and `validateLinearBatchParent` |
-| `linearStateIdForCreate` (throws `:2539`, `:2548`, `:2556`) | 1 — `:3604` | 503 `linear_team_mapping_unavailable` / 409 `linear_team_mapping_unavailable` / 409 `status_mapping_unavailable` | status mapping dead |
-| `assigneeProviderPool` (throws `:2600`, code `:2592`) | 1 — `:2619` | 503 `assignee_provider_unavailable` | assignee picker dead |
+| `linearRead` (throws `:2325`, code default `:2285`) | 4 — `:2326`, `:2345`, `:2540`, `:2587` | 503 `project_mapping_validation_unavailable` | reaches via `readLinearProject` and `validateLinearBatchParent`. **The create path that used to head this row is CLOSED — see below.** |
+| `linearStateIdForCreate` (throws `:2539`, `:2548`, `:2556`) | 1 — `:3604` | 503 `linear_team_mapping_unavailable` / 409 / 409 `status_mapping_unavailable` | **not staff-visible today**: its only call site is inside `handleProductionCreate`, below the `production_create_closed` throw — see below |
+| `assigneeProviderPool` (throws `:2600`, code `:2592`) | 1 — `:2619` | 503 `assignee_provider_unavailable` | assignee picker dead — **live**, reached from `handleAssigneeOptions` (`index.html:50116`), which is not behind the create gate |
+
+**WHICH OF THESE IS ACTUALLY STAFF-VISIBLE TODAY — corrected 2026-09-08, because
+this row overstated it.** Production create has been closed since the owner's
+2026-08-23 ruling, and the closure is enforced in **two independent places that do
+not reference each other**:
+
+- **Server:** `handleProductionCreate` throws `403 production_create_closed` at
+  `:3592`, which is **above** its Linear reaches at `:3604`/`:3605`. So that
+  handler never touches Linear.
+- **Browser:** `_prodCreateGateText` returns `PROD_CREATE_CLOSED_TEXT` as its
+  *first statement* (`index.html:53854`), above code the source labels *"kept,
+  unreachable, as the exact undo if the ruling is ever revisited"*.
+
+| surface | live today? |
+|---|---|
+| read a card's labels (`handleLabelsRead` `:4947`) | **YES** — no create gate on this handler |
+| write labels on an existing card (`handleEntityOperation` `:5491`) | **YES** |
+| assignee picker (`handleAssigneeOptions` → `assigneeProviderPool`) | **YES** |
+| create a deliverable (`handleProductionCreate`) | **no** — server-closed above the Linear reach |
+| `create_options` (`handleCreateOptions` `:3345`) | **no, but only because the UI is disabled.** The handler itself has **no closure check** — it validates surface and goes straight to `linearLabelCatalog` + `mappedCreateAssignees`. It is a live endpoint behind a dead UI, and it becomes staff-visible the moment the create ruling is revisited. |
+
+**So anyone assessing reachability in this repo must check both halves.** One
+handler is unreachable because the *server* refuses; the other because the
+*browser* refuses. Tracing either one teaches you nothing about the other. (Lane
+LX-N8N's session was caught by each separately, hours apart, having already
+learned it from the first.)
 
 Also note `production_assignee_eligibility` (`:2566`): `assigneeEligibilityPolicyFor()`
 returns `{ providerMappingRequired: true }` when the flag row is absent or
@@ -541,8 +567,11 @@ credential decision.
 `handleCreateOptions` has **two** ungated reaches in one `Promise.all`
 (`linearLabelCatalog` AND `mappedCreateAssignees`), not one.
 
-**Revoking before these are removed turns "create a deliverable" and "pick a label"
-into HTTP 503 for staff, on a day when nobody will connect the two events.**
+**Revoking before these are removed turns reading a card's labels, writing a
+label, and the assignee picker into HTTP 503 for staff, on a day when nobody will
+connect the two events.** This sentence used to say *"create a deliverable and
+pick a label"*; creating is already closed, so naming it here inflated the
+urgency with a failure that cannot happen and understated the three that can.
 
 **Undo: NONE after 2026-09-15.** The account is gone. Before that date the undo is
 to re-issue keys from Linear's settings, which requires Linear to still answer.

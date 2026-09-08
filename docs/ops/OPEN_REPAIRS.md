@@ -17344,3 +17344,49 @@ enumeration that replaced a vaguer statement and was never itself checked agains
 the tree — and each read as *more* authoritative than what it replaced, which is
 the actual harm. **An enumeration is a claim about completeness; it needs the same
 verification as any other claim, and more than the generalisation it improves on.**
+
+**Addendum, 2026-09-08 — STEP 7 named a failure that cannot happen, and P1 copied
+a line its own source has since retracted.** Two more from PR #1360's later
+rounds, both verified against the tree here rather than accepted from the report.
+
+**1. "Revoking turns *create a deliverable* and *pick a label* into 503 for
+staff" was half wrong, in the direction that inflates urgency.** Production
+create has been closed since the owner's 2026-08-23 ruling, and the closure is
+enforced in **two independent places that do not reference each other**:
+`handleProductionCreate` throws `403 production_create_closed` at
+`production-write:3592`, which is **above** its Linear reaches at `:3604`/`:3605`;
+and `_prodCreateGateText` returns `PROD_CREATE_CLOSED_TEXT` as its *first
+statement* at `index.html:53854`, above code the source labels *"kept,
+unreachable, as the exact undo if the ruling is ever revisited"*. So the create
+path never touches Linear from either side.
+
+The surfaces that ARE live on revocation are label **read** (`handleLabelsRead`
+`:4947`), label **write** on an existing card (`handleEntityOperation` `:5491`),
+and the **assignee picker** (`handleAssigneeOptions`, reached from
+`index.html:50116`, not behind the create gate). STEP 7 now names those three and
+says why creating is not among them. Naming a failure that cannot happen is not a
+harmless over-warning: it spends the reader's attention on the wrong row and
+makes the other three look like part of a list they can discount.
+
+**One that is neither live nor safe, and needs its own row:** `handleCreateOptions`
+has **no closure check at all** — it validates surface and goes straight to
+`linearLabelCatalog` + `mappedCreateAssignees`. It is unreachable only because both
+browser entry points render disabled. **A live endpoint behind a dead UI**, which
+becomes staff-visible the moment the create ruling is revisited. The transferable
+fact about this codebase: **reachability here has two halves that do not cite each
+other, and tracing one teaches you nothing about the other.**
+
+**2. P1's proof step said "before seeding the second team". Its own source
+retracted that.** Steps 2 and 3 seed both teams; a seed row is inert until the
+flag moves, so the per-team caution belongs on the **step-4 flag transition**, the
+only step that changes behaviour. I had copied the source's sentence at the same
+time as correcting the source's omission of step 4 — reading it closely enough to
+find one defect and not closely enough to notice it contradicted its own table
+four lines above. Now reads *"before flipping the second team's flag"*.
+
+**The through-line for whoever reads this ledger later.** Every defect in this
+lane's docs today has been a **derived artefact disagreeing with a source that was
+itself correct** — the table, the checklist, the summary sentence. The facts have
+been right and the restatements wrong. That is the opposite of where review
+attention naturally goes, and it is concentrated in exactly what a hurried
+operator actually reads.

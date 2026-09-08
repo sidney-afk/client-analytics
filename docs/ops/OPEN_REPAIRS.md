@@ -15575,9 +15575,12 @@ mode, it doesn't show up... it appears as like a black thing."*
 linked card (`.cal-card-focused`, and its non-persistent sibling
 `.cal-card-flash` for the identifier/search-jump case) reads its ring color
 from `--sv-shadow-rgba-94-106-210-*` — the brand indigo, rgb(94,106,210).
-The dark-theme override block flattened every one of those tokens to plain
-black (`rgba(0,0,0,…)`), which is close to indistinguishable from the app's
-own near-black dark background: a ring built to say "this one" said nothing.
+The dark-theme override block flattened five of those six tokens to plain
+black (`rgba(0,0,0,…)`) — the sixth, the fully-transparent `-0` variant, was
+already `rgba(94,106,210,0)` and untouched, since a zero alpha carries no
+visible color either way. The five non-transparent ones are close to
+indistinguishable from the app's own near-black dark background: a ring
+built to say "this one" said nothing.
 Every OTHER brand-indigo token in the file (`--sv-border-9aa3f0`,
 `--sv-fg-4a54c0`, …) is brightened for dark mode instead of blackened — this
 shadow-token family was the one place the pattern wasn't followed, almost
@@ -15598,8 +15601,9 @@ the same value `--sv-border-9aa3f0` already uses for its own dark-mode
 counterpart, so this now follows the same convention as every other
 brand-indigo token instead of being the exception. Re-rendered the same
 Chromium check after the change: dark mode now shows a clearly visible
-indigo ring, matching light mode's legibility. Six tokens changed, all in
-the same `html[data-theme="dark"]` override block; the `.cal-card-focused` /
+indigo ring, matching light mode's legibility. Five tokens changed (the
+transparent sixth was already correct and left alone), all in the same
+`html[data-theme="dark"]` override block; the `.cal-card-focused` /
 `.cal-card-flash` rules that consume them were untouched, since the box-shadow
 rules themselves were never the problem — only the color they were told to
 use.

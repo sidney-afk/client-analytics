@@ -14799,3 +14799,89 @@ source assertions that `render()` and the popstate handler's `state.client`
 branch both call `_calAbandonLinkOnCalendarExit` within 400 characters of
 their own `_calV2Teardown()` call, and a `showToast` accessibility test
 verifying both attributes are set before `document.body.appendChild(el)`.
+
+## 181. [2026-09-08, lane LX-N8N, WRITTEN — a plan, nothing executed] The seven n8n webhooks that die with Linear, and the three source documents that each get the list wrong differently
+
+`181` was verified free before writing: the ledger's numbers run 1–129, 134–162,
+170, 173, 174, and item 174 records the lane reservations (A took `169`, C took
+`171`/`175`/`176`, D took `172`, E took `173`, F took `174`). Nothing claims
+`177`–`180` on `main`; this lane takes `181` rather than the next free number so
+a concurrent lane landing in the gap does not collide.
+
+**Deliverable.** `docs/independence/N8N_REPLACEMENT_PLAN.md`. Read-only lane: no
+n8n workflow was created, edited, activated, deactivated, or run; no migration,
+deploy, or write of any kind.
+
+**The list, re-derived from `main@d8866d9` rather than a July snapshot.** Seven
+browser-called n8n webhooks reach Linear and fail when the account lapses:
+`editors-week`, `linear-issues`, `linear-issue-statuses`, `linear-subissues`,
+`linear-tweak-comments`, `linear-projects`, and — the one no reader list carries
+— **`send-urgent-slack`**, which is shaped like a Slack write but resolves the
+issue's current Linear assignee to pick the mention. Four more write Linear and
+die with it (`linear-set-status`, `linear-add-comment`, `video-form`,
+`graphic-form`). Two that look Linear-bound survive untouched:
+`log-linear-submission` appends a Google Sheet, and `kasper-queue` reads Sheets.
+
+**The three sources disagree seven ways**, each verified on `main@d8866d9` and
+tabled in §2 of the plan. The two most likely to cost someone a day:
+
+- **Every line number in `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` is dead.** It
+  was verified at `e3961b6` on 2026-07-14 and says so, but nothing warns that its
+  anchors have since moved by tens of thousands of lines. Not one range still
+  points at its code — `editors-week` is cited at `index.html:43879-43925`; today
+  its constant is at `22419` and its single fetch at `78774`. The dispositions in
+  that document remain the best thinking available; only its coordinates are
+  gone.
+- **`docs/truth/ENDPOINTS.md` says "n8n webhooks (54)"; the real count is 56.**
+  The *set* it enumerates is right and `test/truth-sync.js` proves it — but the
+  parenthetical in the heading is not machine-checked, so it drifted two behind
+  when `tiktok-upload-url` and `tiktok-upload-direct` landed on 2026-08-18.
+  `SYSTEM_MAP.md:1537` is the correct one.
+
+**One finding that is not a documentation problem.** The native replacement for
+`editors-week` (PR #1346) reads `public.deliverable_events`. That table is
+granted `select` to `anon` and `authenticated` under a permissive `using(true)`
+policy (`migrations/2026-07-06-b1-linear-data-model.sql:682-688`, `:698`), and
+**no migration in this repo revokes it.** The F53 migration
+(`2026-07-23-f34-f53-production-attachments.sql:280,296`) revoked table-level
+SELECT on `batches` and `deliverables` from `public, anon, authenticated` and did
+not include `deliverable_events`; the only carve-out since is one restrictive
+policy covering comment-body snapshots
+(`2026-07-12-production-comments.sql:158-161`), which leaves the ordinary
+activity rows — `client_slug`, `actor`, `role`, `from_status`, `to_status`, `ts`
+— anon-readable. That is F48's exposure shape reproduced natively. **This is a
+source-level reading; the live grant was NOT checked** and several tables here
+were created by hand-run SQL that never reached the repo. Verify live before
+relying on the finding or on its absence.
+
+**The parity gap the replacement does not close.** `deliverable_events` has no
+event-time assignee column, so attribution must join through
+`deliverables.assignee_id` — the *current* assignee — which is exactly the defect
+F48 records in the legacy endpoint. `CUTOVER_AUDIT_2026-07-13.md` already
+measured what that costs (of 401 source transitions for the same production
+videos, 27 absent natively and 239 unmatched or duplicative). Closing it needs a
+schema change that is outside this lane and, as far as the PR description shows,
+outside #1346. Until it lands the native Editors tab has delivery-count parity,
+not report parity, and `GO_LIVE_CHECKLIST.md:999` is right to gate retirement on
+full §9.11 parity.
+
+**Ordering, stated because getting it backwards is a live outage.** `main`
+today still calls `editors-week` at `index.html:78774`, so **PR #1346 must merge
+before the endpoint is deactivated** or Kasper's Editors subtab dies with no
+fallback beyond a one-week cache. The full order for all eleven endpoints is §5
+of the plan. Two more that are easy to get wrong: `linear-issues` has a second,
+undocumented caller (the Calendar bulk-create link poll shares its feeder and
+cache), so merging the Workload half alone is not sufficient; and
+`linear-projects`' legacy half must not be deleted until every client is enrolled
+in `write_ui_reroute_clients`, because the native branch is cohort-gated and
+un-enrolled clients would get an empty Submit dropdown — the "absence a user
+cannot debug" failure the owner's permissive rule exists to prevent.
+
+**What could not be established** is named specifically in §6 of the plan, eight
+items: no live n8n workflow was inspected (the readbacks this leans on are eight
+weeks old), the `deliverable_events` grant is source-level only, response shapes
+are inferred from what the browser consumes rather than from a captured response,
+#1346's diff was not read, `LINEAR_EXIT_LANES.md` is on #1351's branch and not on
+`main` so the authoritative lane order could not be consulted, and no row counts
+are published at all — deriving them needed a live read this lane did not take,
+and `AGENTS.md`'s 2026-09-05 rule says an unmeasured number is worse than none.

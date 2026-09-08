@@ -13755,7 +13755,7 @@ Six sessions will edit `index.html` on separate branches and merge one at a time
 
 Also: `.github/workflows/deploy-onboarding-edge-functions.yml:138` deploys `linear-outbound production-write production-comments production-archive` from ONE `commit_sha` in that order. Lane D's reader deploy is therefore also a production-write deploy. There is no per-function rollback in that lane.
 
-## 168. [2026-09-07, BASELINE — so nobody 'fixes' the ledger] Four duplicate `## N.` headers already exist on main; the exit reserves 163-172
+## 168. [2026-09-07, BASELINE — so nobody 'fixes' the ledger] Four duplicate `## N.` headers already exist on main; the exit reserves 163-174
 
 CLAUDE.md says to check for duplicate `## N.` headers after any merge because concurrent branches routinely claim the same number, and to append to this file, never rewrite it. Both instructions are about to collide with seven parallel sessions, so the baseline is recorded here.
 
@@ -13770,6 +13770,23 @@ CLAUDE.md says to check for duplicate `## N.` headers after any merge because co
 - 167 — the fingerprint pin single-writer rule
 - 168 — this entry
 - 169 — lane A: item 95/160 acceptance measurement, and the assignee/client eligibility census
+
+**CORRECTED the same night, because it blocked a session.** This heading said the
+exit reserved **163-172** while `docs/independence/LINEAR_EXIT_LANES.md` reserved
+**A=169 … F=174**. Both are mine and they disagreed: the lane reservations moved
+when ledger 162 was renumbered to 175, and this heading did not move with them.
+Lane D's session read the two, could not tell whether 172 was its own number or
+lane F's, and stopped to ask rather than guess — which was the right call and cost
+it a turn.
+
+The authoritative list is the lane map's: **A=169, B=170, C=171, D=172, E=173,
+F=174**, with 175 taken (see that entry) and spares from 176 up. Nothing else in
+this entry changes.
+
+The lesson is not about numbering. Two coordination documents written by the same
+author, minutes apart, drifted the moment one of them was edited — the same decay
+`ROLLBACK.md`'s Live State table has been caught in twice, at a smaller scale and
+with a faster blast radius, because six sessions were reading them concurrently.
 - 170 — lane B: the label-catalog capture and what freezes without it
 - 171 — lane C: the endpoints retired and the two outboxes drained
 - 172 — lane F: the cutoff order actually executed, with each flag's captured prior value

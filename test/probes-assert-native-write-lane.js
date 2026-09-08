@@ -542,20 +542,49 @@ ok(legacyScenarios.length > 0 && legacyScenarios.length < allScenarios.length / 
    So the engine asks `scenarioLaneIsLegacy`, which is the rule OR the harness limit, and the
    limit is a named constant rather than something baked into the predicate — a predicate
    that returned "legacy" for both reasons would quietly lie about which one applied. */
-ok(ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE === false,
-  'the scenario harness still cannot drive the native lane, and says so in one named constant');
-ok(allScenarios.every(scn => ENGINE.scenarioLaneIsLegacy(scn)) === true,
-  '  · so while that holds, EVERY scenario runs legacy — the pre-existing state, not a '
-  + 'regression, and not a nightly turned red by a premature switch');
-ok(ENGINE.scenarioLaneIsLegacy !== ENGINE.scenarioUsesLegacyLane,
-  '  · but the RULE stays separate from the LIMIT, so flipping the constant is the whole '
-  + 'migration switch and nothing has to be re-derived');
+/* ASSERT THE PAIRING, NOT TODAY'S VALUE.
+   The first version of this block pinned the current state — constant `false`, every scenario
+   legacy, engine carrying no seeding — and I described it in the PR as "flipping the constant
+   is the whole migration switch". That was FALSE: flipping it would have turned three of
+   these red, so the migration would have had to rewrite the guard, and a guard that goes red
+   on the change it exists to enable is one somebody deletes rather than fixes.
+
+   Eighth instance of this PR's pattern, and a different flavour of it: not a guard too narrow
+   in where it looked, but a guard asserting a STATE where the invariant was the thing worth
+   holding. Found by driving it rather than trusting it, in the check I had just told the
+   reviewer was the one most worth challenging.
+
+   The invariant, in both directions: the constant may be `true` ONLY if the engine really has
+   the three capabilities, and while it is `false` every scenario runs legacy. Now the flip is
+   legal exactly when it is honest, and this block goes green on the migration instead of
+   standing in front of it. */
 const engineSrc = fs.readFileSync(path.join(ROOT, 'qa', 'scenario_engine.js'), 'utf8');
+const engineHasNativeSeeding = /stubNativeWorkItems/.test(engineSrc)
+  && /stubNativeGateway/.test(engineSrc)
+  && /seedVerifiedProbeStaff/.test(engineSrc);
+
+ok(typeof ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE === 'boolean',
+  'the harness limit is a single named constant, so the migration switch is one edit');
+ok(!ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE || engineHasNativeSeeding,
+  'THE HONESTY INVARIANT: the constant may claim native capability only if the engine really '
+  + 'installs native work items, a gateway capture and a verified staff identity — so it '
+  + 'cannot be flipped ahead of the work it describes');
+ok(ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE || allScenarios.every(scn => ENGINE.scenarioLaneIsLegacy(scn)),
+  '  · and while it is false, EVERY scenario runs legacy — the pre-existing state, not a '
+  + 'nightly turned red by a premature switch');
+ok(!ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE
+  || allScenarios.filter(scn => ENGINE.scenarioLaneIsLegacy(scn)).length === legacyScenarios.length,
+  '  · and once it is true the RULE governs, putting exactly the scenarios that assert on the '
+  + 'retired lane there and no others');
+ok(ENGINE.scenarioLaneIsLegacy !== ENGINE.scenarioUsesLegacyLane,
+  '  · the RULE stays separate from the LIMIT, so which of the two put a scenario on the '
+  + 'legacy lane is never ambiguous');
 ok(/scenarioLaneIsLegacy\(scn\)/.test(engineSrc),
   '  · and the engine asks the combined question, not the rule alone');
-ok(!/stubNativeWorkItems|stubNativeGateway|seedVerifiedProbeStaff/.test(engineSrc),
-  '  · the constant is HONEST: the engine really does install no native seeding, so this is '
-  + 'a measured limit rather than a claimed one');
+/* Reported, not asserted: the current value is context for whoever reads a failure here, and
+   pinning it is what made the guard block its own migration. */
+console.log('      (today: harness native capability = ' + engineHasNativeSeeding
+  + ', constant = ' + ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE + ')');
 for (const scn of legacyScenarios) {
   ok(/expectLinear|expectNoLinear/.test(JSON.stringify(scn.steps || scn)),
     '  · every scenario it puts on the legacy lane really does carry a Linear assertion');

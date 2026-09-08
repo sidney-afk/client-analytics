@@ -14701,6 +14701,28 @@ it. Codex challenged three lanes and left these; that is the line between "about
 the legacy path" and "happens to contain a legacy assertion", and the first
 version of this wiring did not draw it.
 
+**AN EIGHTH, and a different flavour: a guard that pinned a STATE where the
+invariant was the thing worth holding.** The first version of the honesty check
+on `SCENARIO_HARNESS_CAN_DRIVE_NATIVE` asserted the current value — constant
+`false`, every scenario legacy, engine carrying no seeding — while the PR comment
+described it as "flipping the constant is the whole migration switch". That was
+FALSE: flipping it would have turned three of those checks red, so the migration
+would have had to rewrite the guard, and a guard that goes red on the change it
+exists to enable is one somebody deletes rather than fixes.
+
+Found by driving it rather than trusting it, in the very check the PR comment had
+just named as the one most worth challenging.
+
+It asserts the PAIRING now, in both directions: the constant may be `true` ONLY
+if the engine really installs native work items, a gateway capture and a verified
+staff identity; and while it is `false`, every scenario runs legacy. The current
+value is REPORTED, not asserted — pinning it is what made the guard block its own
+migration.
+
+Driven both ways before being believed: a dishonest flip (constant `true`, engine
+unchanged) fails on the honesty invariant, and a simulated honest migration
+(constant `true` with the three capabilities present) passes.
+
 **A SEVENTH, and this one turned CI RED — the first red on this PR.**
 `test/probes-assert-native-write-lane.js` required `qa/scenario_engine.js` to
 drive the lane selector. That pulls `qa/sxr_courier_lib.js`, whose Playwright

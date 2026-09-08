@@ -99,6 +99,15 @@ and the watchers. No migration, no deploy, no capture bundle, no merge freeze.
 the schedule. Doing it then costs one dispatch and no merge freeze, because the
 six sessions will be finished.
 
+> **Do not reuse this lane brief's stated undo if you take that path later.**
+> `docs/independence/LINEAR_EXIT_BRIEF_F.md`'s cutoff `undo:` drops "the four
+> functions"; `migrations/2026-09-06-linear-outbound-cutoff.sql` creates **seven**
+> — four service-only RPCs plus three trigger functions that share their triggers'
+> names — so that undo leaves three functions installed (OPEN_REPAIRS 179, point
+> 6). Cost item 5 above already counts them correctly; the brief does not. The
+> migration is also not re-runnable (plain `create function` / `create trigger`
+> inside one transaction), so a partial undo cannot be repaired by re-applying it.
+
 ---
 
 ## 1. Preconditions — do not start until every one is true

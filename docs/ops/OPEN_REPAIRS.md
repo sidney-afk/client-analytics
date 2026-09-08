@@ -16859,3 +16859,33 @@ now a detector blind to string concatenation. Every one was found by an
 adversarial reader or a mutation, never by reading the code again. That is the
 transferable lesson from this lane, and it is worth more than any single fix in
 it: **write the mutation and watch it fail to go red.**
+
+**Addendum, 2026-09-08, after merging main (`81a7b55`) — the LX-RESTORE
+correction that lands on this lane, and the one it does not.** Item 179 point 6
+reports that brief F's cutoff `undo:` drops "the four functions" where
+`migrations/2026-09-06-linear-outbound-cutoff.sql` creates **seven** — four
+service-only RPCs plus three trigger functions sharing their triggers' names.
+Checked against the runbook rather than assumed: cost item 5 of §0 already counts
+"7 functions, 3 triggers, 1 view, 1 table, 4 columns, 1 check constraint", so the
+runbook was independently right and needs no correction. The brief is the wrong
+document, and this lane does not execute it — §0's whole argument is that the
+migration is not installed at all, so its undo is never taken on the prepared
+path. **What did change:** the "if the owner wants the fence anyway" pointer at
+the end of §0 now carries an explicit warning not to reuse the brief's undo for
+that later lift, plus the fact that the migration is not re-runnable, so a partial
+undo cannot be repaired by re-applying it. That pointer was the one place a reader
+could have left this runbook holding a defective procedure.
+
+**Ledger numbering, same merge.** This entry moved 175 → 180 (see **Number.**
+above). Item 168's "spares from 176 up" rule is spent: on `81a7b55` the numbers
+175 and 176 are each claimed twice and 178/179 are taken. The next free spare is
+**181**. The four pre-existing duplicate headers item 168 baselines (13, 14, 22,
+23) are still four; this merge added no new duplicate.
+
+**Proof bar on the merge.** `npm test` on the merge commit: 1 of 419 suites
+failed, `test/truth-sync.js`, at **515 passed / 14 failed** — the documented
+shallow-clone baseline, no delta. `node test/f27-reconciler-closure.js` passes 37
+assertions, so the `scripts/monitoring-watchdog.js` closure pin still verifies
+after main absorbed part 1 (PR #1348, `e797444`). The merge brought main's
+`index.html` changes into the branch, as merges do; `git diff origin/main...HEAD`
+lists no `index.html`, so this lane still touches none of it.

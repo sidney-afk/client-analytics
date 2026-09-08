@@ -14237,24 +14237,52 @@ the calendar/SXR modals and left the popover exactly as broken, on a thread whos
 rows had been read fine. A repair that reaches one of two consumers is not the
 repair.
 
-The reader now accepts a null count and keeps every other guard. With a count the
-walk is still proved by `rows.length === total`; without one, the terminating
-`has_more === false` is the proof the cursor walk reached the end of the thread —
-the same authority that issues `next_cursor`, which this loop already trusts to
-decide whether to page again. **What that costs, stated plainly:** the count was a
-second, independent cross-check, so a server wrongly reporting `has_more: false`
-mid-thread used to be caught and, while the count is down, would not be. Partial
-pagination is still refused outright: the 50-page cap, an abort, an abandoned
-popover, a repeated cursor and a missing cursor all leave `complete` false. And
-`null` is the *only* new acceptance — `undefined`, a string, a float, a negative
-and `NaN` all stay refusals, because a reader that has lost the field is not a
-reader that could not count (the same distinction as this PR's earlier P1 about
-treating a missing feedback projection as complete).
+The reader now accepts a null count and keeps every other guard. `null` is the
+*only* new acceptance — `undefined`, a string, a float, a negative and `NaN` all
+stay refusals, because a reader that has lost the field is not a reader that
+could not count (the same distinction as this PR's earlier P1 about treating a
+missing feedback projection as complete).
 
-`test/workload-tweak-feedback-source.js` grew 28 assertions for this and runs
-**204 pass**; red against `0d588fa` on exactly the **4** acceptance assertions,
-with all **24** refusal assertions green in BOTH runs — which is the measurement
-that shows the change only widened what is accepted and weakened no refusal.
+**Second correction, and it narrows the fix.** The first version accepted ANY
+uncounted walk on the strength of its terminating `has_more === false`, and
+described the cost as losing a cross-check against a server that wrongly reported
+`has_more`. Codex found the real hazard on `1396c7f` and it is not hypothetical.
+The endpoint orders newest-first and the cursor filters strictly OLDER
+(`created_at.lt`), so **a comment posted after page 1 is invisible to every later
+page**, and the terminating `has_more === false` proves only that nothing older
+remains below the cursor — not that the head of the thread stayed put. A walk
+like that would have been marked complete and, since `ab92bbf`, *cached*, hiding
+a just-submitted note for the cache TTL. That is precisely the unreportable
+absence this lane exists to prevent.
+
+Sharper than the finding as filed: what catches this when counts are present is
+the **cross-page agreement**, not `rows.length === total`. Page 1's count predates
+the insert and the walk collects exactly that many older rows, so the subtraction
+still balances. The protection therefore requires every page after the first to be
+counted, which means a walk with a GAP in its counts has no proof either.
+
+So an uncounted walk is now accepted **only when it never paged**. A single page
+returning `has_more === false` is the whole thread as of that one query, with no
+cursor window for anything to hide in: airtight, and the common case, since it
+covers every deliverable at or under the 50-row page size. An uncounted or
+partly-counted PAGED walk refuses, which is exactly what it did before the count
+began failing open — nothing is made worse, the fail-open simply does not extend
+to the case it cannot prove. Refusing is also the legible failure here: it paints
+*"Couldn't load this deliverable's feedback"*, which an editor can see and report,
+against silently omitting a note that was just posted.
+
+**Open upgrade, not taken:** covering the paged case during a count outage means
+a head watermark — re-reading page 1 after the walk and proving the newest row
+did not move. It costs one extra request against the 120-per-actor budget in a
+degraded path, and it still would not catch a *backdated* insert the way
+cross-page count agreement does. Recorded rather than built.
+
+`test/workload-tweak-feedback-source.js` grew 33 assertions across the two
+commits and runs **209 pass**. Against `0d588fa`, red on the 4 acceptance
+assertions with all refusals green. Against `1396c7f`, red on exactly the 3 new
+refusals (paged-uncounted, and a count gap on either page) with the single-page
+acceptance and the fully-counted paged walk green in both — the split that shows
+each round changed only what it claimed to.
 
 **Proof.** `node test/production-comments-total-fail-open.js`. It drives the real
 TypeScript handler through a transport that refuses ONE of the two queries by

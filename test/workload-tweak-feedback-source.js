@@ -365,26 +365,39 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
     ok(!/Couldn&rsquo;t load this deliverable&rsquo;s feedback/.test(context.wlRenderTweakComments(rows)),
       '  \u21b3 and renders as feedback rather than as the refusal the fail-open exists to prevent');
   }
+  // THE LINE AN UNCOUNTED WALK MAY NOT CROSS, and it is narrower than it first
+  // looks. The endpoint orders newest-first and the cursor filters strictly
+  // OLDER (`created_at.lt`), so a comment posted after page 1 is invisible to
+  // every later page and the terminating `has_more === false` proves only that
+  // nothing older remains below the cursor. What catches that when counts are
+  // present is the cross-page AGREEMENT, not `rows.length === total`: page 1's
+  // count predates the insert and the walk collects exactly that many older
+  // rows, so the subtraction still balances. The protection therefore needs
+  // every page after the first to be counted, and a walk with a gap in its
+  // counts has no proof at all — so it refuses, exactly as it did before the
+  // count began failing open.
+  await refuses('an uncounted walk that PAGED refuses — has_more only proves nothing older remains below the cursor, not that the head stayed put', { pages: [
+    page([canonical('a')], { total: null, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+    page([canonical('b')], { total: null }),
+  ] });
+  await refuses('a paged walk with a GAP in its counts refuses too — the surviving count cannot vouch for the page that has none', { pages: [
+    page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+    page([canonical('b')], { total: null }),
+  ] });
+  await refuses('and the gap refuses whichever page it falls on', { pages: [
+    page([canonical('a')], { total: null, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+    page([canonical('b')], { total: 2 }),
+  ] });
   {
+    // The counted paged walk is untouched: this is the path the fail-open never
+    // needed to change, and it must keep working.
     const { context, calls } = build({ pages: [
-      page([canonical('a')], { total: null, has_more: true, next_cursor: { id: 'a', created_at: now } }),
-      page([canonical('b')], { total: null }),
-    ] });
-    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
-    ok(calls.length === 2 && rows.length === 2,
-      'an uncounted read still pages to the end on the served cursor and keeps every row');
-  }
-  {
-    // A count that succeeds on one page and fails open on another is not a
-    // thread that moved: the rows never changed, only the count did. The
-    // counted page still governs the completeness check.
-    const { context } = build({ pages: [
       page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
-      page([canonical('b')], { total: null }),
+      page([canonical('b')], { total: 2 }),
     ] });
     const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
-    ok(rows.length === 2 && rows.failed !== true,
-      'a count that fails open on only ONE page does not refuse — the rows did not move, the count did');
+    ok(calls.length === 2 && rows.length === 2 && rows.failed !== true,
+      'a fully counted paged walk still succeeds — the strict path is unchanged');
   }
   await refuses('a counted page still has to agree with every other counted page, null pages notwithstanding', { pages: [
     page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),

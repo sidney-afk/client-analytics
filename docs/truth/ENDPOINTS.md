@@ -193,9 +193,11 @@ Other:
   an empty thread is still `0`). A failed PAGE read is still a 500 `read_failed`.
   Neither browser consumer DISPLAYS `total`, but the Workload Tweak Needed reader
   (`_wlNativeTweakComments`) validates it and uses it as its completeness proof,
-  so both consumers must be checked when this field changes; it accepts a null
-  count and falls back to the terminating `has_more === false`, while every other
-  non-integer (`undefined` included) stays a refusal. Whether the endpoint should
+  so both consumers must be checked when this field changes. It accepts a null
+  count only on a walk that never paged; an uncounted or partly-counted PAGED
+  walk refuses, because the cursor filters strictly older and so `has_more:false`
+  cannot prove the thread head stayed put. Every other non-integer (`undefined`
+  included) stays a refusal. Whether the endpoint should
   compute an exact count at all is an open owner decision (`OPEN_REPAIRS` 172).
 - `functions/v1/production-write` — authenticated native status/comment/due/assignee gateway for the
   Linear mirror; browser controls fail closed unless the target team is SyncView-authoritative or

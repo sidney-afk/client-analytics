@@ -27121,23 +27121,33 @@
            the honest answer is that the outcome is unknown and the next action
            is to look, not to repeat. A 4xx keeps its wording: an unknown code
            with a client-error status is still a decision the service made rather
-           than a write it half-did, and it never claimed otherwise. */
+           than a write it half-did, and it never claimed otherwise.
+           THE NOTE BOX IS NAMED FIRST, for the reason every other
+           reload-advising entry in these tables names it first (the `reload`
+           class, the `repair` class, and both `comment_parent_*` codes): an
+           EDIT draft lives only in memory -- a root note and a reply each
+           mirror to `sessionStorage`, an edit has no such key -- so telling
+           someone to reload without that warning makes the advice itself
+           destroy the text the failed write was carrying. Codex P1 on this PR,
+           and it is OPEN_REPAIRS 13 arriving through the fix for OPEN_REPAIRS
+           180: exactly the trap the older entries were written to stop. */
+        const CHECK_AFTER_RELOAD = 'Copy anything still in the note box first — an edit draft lives'
+            + ' only in this tab. Then reload and check before doing it again: repeating a write that'
+            + ' did go through makes a second copy of it. If it is not there after the reload, send'
+            + ' this code to the owner.';
         const numeric = Number(status || 0);
         if (!numeric) {
             return {
                 title: 'Write may not be saved',
-                text: 'The native ' + operation + ' never got an answer, so whether it saved is not known.'
-                    + ' Reload and check before doing it again — repeating a write that did go through'
-                    + ' makes a second copy of it. If it is not there after a reload, send this code to the owner.'
+                text: 'The native ' + operation + ' never got an answer, so whether it saved is not known. '
+                    + CHECK_AFTER_RELOAD
             };
         }
         if (numeric >= 500) {
             return {
                 title: 'Write may not be saved',
                 text: 'The native ' + operation + ' failed inside the write service with a code this app does not'
-                    + ' recognise, so whether it saved is not known. Reload and check before doing it again'
-                    + ' — repeating a write that did go through makes a second copy of it. If it is not'
-                    + ' there after a reload, send this code to the owner.'
+                    + ' recognise, so whether it saved is not known. ' + CHECK_AFTER_RELOAD
             };
         }
         return {

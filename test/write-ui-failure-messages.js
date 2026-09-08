@@ -197,7 +197,25 @@ for (const [label, status] of [['a 5xx', 503], ['a 500', 500],
     label + ' must name the cost of repeating it, which is the whole incident: ' + entry.text);
   assert(/may not be saved/i.test(entry.title),
     label + ' must not title itself as a settled failure: ' + entry.title);
+  /* THE RELOAD ADVICE MUST NOT EAT THE DRAFT (Codex P1 on this PR). Every
+     other reload-advising entry in these tables names the note box FIRST --
+     the `reload` class, the `repair` class, both `comment_parent_*` codes --
+     because an EDIT draft lives only in memory: a root note and a reply each
+     mirror to sessionStorage (`sv_noteDraft_<pid>`, `sv_replyDrafts_<pid>`),
+     an edit has no such key. A fallback that says "reload" without that
+     warning makes its own advice destroy the text the failed write was
+     carrying, which is OPEN_REPAIRS 13 arriving through the fix for 180. */
+  assert(/copy anything still in the note box/i.test(entry.text),
+    label + ' advises a reload without telling the reader to copy the draft first: ' + entry.text);
+  assert(entry.text.toLowerCase().indexOf('note box') < entry.text.toLowerCase().indexOf('reload'),
+    label + ' names the note box AFTER the reload, which is too late to save the draft: ' + entry.text);
+  assert(/only in this tab/i.test(entry.text),
+    label + ' must say why copying first matters, or it reads as boilerplate: ' + entry.text);
 }
+/* Not vacuous: the 4xx branch advises no reload at all, so it needs no such
+   warning and must not grow a spurious one. */
+assert(!/reload/i.test(resolve('comment', 'a_code_invented_in_2027', 409).text),
+  'the 4xx fallback advises no reload, so it should not be talking about the note box either');
 /* Not vacuous in either direction: a 4xx with an unknown code IS a decision the
    service made rather than a write it half-did, so it keeps saying so, and a
    MAPPED transient still carries the gateway's own promise. */

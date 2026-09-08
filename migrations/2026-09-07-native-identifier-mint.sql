@@ -10,7 +10,7 @@
 -- goes to `mirror_outbox`, the outbound worker creates the Linear issue and
 -- writes the minted name straight back.
 --
--- `index.html:52241` resolves `displayId: linear_identifier || identifier || id`,
+-- `index.html:52251` resolves `displayId: linear_identifier || identifier || id`,
 -- so a card created with no mint displays as its raw row id (`b1_d_188ba4ad…`)
 -- in the Production list, the command palette, the Workload loose-strip header
 -- and every deep link. Nothing errors. The estate simply stops producing names.

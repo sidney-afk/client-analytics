@@ -16,6 +16,10 @@ function ok(value, label) {
   else { failures++; console.error('FAIL  ' + label); }
 }
 
+// It also pins the SyncLinear panel's side of finding 1, because that defect is
+// a property of the PAIR: an absent card projection must be incomplete on both
+// readers, and only the popover ever got it wrong.
+
 // Same comment-aware brace walk the sibling suites use, but anchored on the
 // `async` keyword so the extracted text stays awaitable.
 function extract(name) {
@@ -216,6 +220,104 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'an unreadable card projection does NOT borrow the canonical thread’s completeness');
     ok(context.wlRenderTweakComments(rows).includes('may be incomplete'),
       'and the popover says so rather than presenting a partial list as the whole record');
+  }
+
+  // ── An absent projection is incomplete, never complete (finding 1) ───
+  {
+    // This lane's merge order is FORCED to be merge-then-deploy: the Section 4
+    // deploy lane only accepts a `commit_sha` already on `main`. So the window
+    // where this browser is live and the dispatch-only `production-comments`
+    // update is not is guaranteed, not hypothetical — and an older reader
+    // answers with no `feedback` key at all. Reading that as complete presented
+    // the canonical comments as the whole record and silently dropped every
+    // card-only note. The SyncLinear panel already refused to do that
+    // (`_prodFeedbackState` maps a missing projection to `unavailable`); this
+    // popover did not, so the honest banner staff were promised for that window
+    // only ever appeared on one of the two surfaces.
+    const { context } = build({ pages: [page([canonical('a')])] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(rows.sourceComplete === false,
+      'a response carrying NO feedback projection at all is incomplete, not complete');
+    ok(context.wlRenderTweakComments(rows).includes('may be incomplete'),
+      'and the popover warns until the matching reader is deployed');
+  }
+  {
+    // The same window with an empty canonical thread reaches the OTHER branch,
+    // where "No feedback is available here" is the identical silent claim.
+    const { context } = build({ pages: [page([])] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    const rendered = context.wlRenderTweakComments(rows);
+    ok(!rendered.includes('No feedback is available here'),
+      'an empty thread whose card projection could not be read never claims there is no feedback');
+    ok(rendered.includes('may be incomplete'), 'it says the record could not be read whole');
+  }
+
+  // ── Covered source rows are not shown twice (finding 2) ──────────────
+  const COVERED_AT = '2026-09-02T09:00:00.000Z';
+  const coveredNote = (id, canonicalId, extra = {}) => cardNote(id, { covered_by: canonicalId,
+    covered_version: 3, covered_updated_at: COVERED_AT, ...extra });
+  {
+    // `covered_by` means the endpoint proved this source row's exact canonical
+    // counterpart is already in `rows`. Concatenating every source row
+    // unconditionally showed imported feedback twice, and on a thread with two
+    // canonical comments the duplicates filled the three-row preview and pushed
+    // the genuinely source-only tweak behind the collapsed older count — the
+    // one row an editor actually opens this popover to read.
+    const { context } = build({ pages: [page(
+      [canonical('c-one', { version: 3, updated_at: COVERED_AT }), canonical('c-two', { version: 3, updated_at: COVERED_AT })],
+      { feedback: { version: 1, status: 'complete', complete: true, rows: [
+        coveredNote('dup-one', 'c-one'), coveredNote('dup-two', 'c-two'), cardNote('only')] } },
+    )] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(rows.length === 3, 'a source row already covered by a loaded canonical row is not shown a second time');
+    ok(rows.filter(r => r.fromCard).length === 1 && rows.find(r => r.fromCard).body === 'card only',
+      'the genuinely source-only tweak is the one card row that survives');
+    ok(context.wlRenderTweakComments(rows).includes('card only'),
+      'and it reaches the three-row preview instead of the collapsed older count');
+  }
+  {
+    // Coverage is believed only once THIS browser holds the canonical row at
+    // the proven version and update clock — the same check the panel applies.
+    const { context } = build({ pages: [page([canonical('c-one', { version: 4, updated_at: COVERED_AT })],
+      { feedback: { version: 1, status: 'complete', complete: true, rows: [coveredNote('dup-one', 'c-one')] } })] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(rows.filter(r => r.fromCard).length === 1,
+      'a canonical row loaded at a different version does not cover its source note');
+  }
+  {
+    const { context } = build({ pages: [page([canonical('other', { version: 3, updated_at: COVERED_AT })],
+      { feedback: { version: 1, status: 'complete', complete: true, rows: [coveredNote('dup-one', 'c-one')] } })] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(rows.filter(r => r.fromCard).length === 1,
+      'a covered_by naming a canonical row this browser never loaded does not hide the note');
+  }
+
+  // ── The sibling surface: the SyncLinear panel (finding 1) ────────────
+  {
+    // The panel already mapped a missing `feedback` key to `unavailable`, so it
+    // did show the honest banner the owner was promised — but the existing
+    // Chromium case proves that with `has_more: true`, which makes the row
+    // incomplete on the CANONICAL side regardless of what the projection says.
+    // Pin the projection side on its own, with a fully-read canonical thread
+    // beside it, so this surface cannot quietly regress into the popover's bug.
+    const panel = { console, JSON, Map, Number, String, Array, Object, Boolean,
+      _calEsc: value => String(value == null ? '' : value),
+      _calEscAttr: value => String(value == null ? '' : value),
+      _jsAttrArg: value => JSON.stringify(String(value)),
+      _prodCommentHTML: row => '<div data-prod-comment-id="' + row.id + '"></div>',
+      _prodComments: { refresh: () => {} } };
+    panel.globalThis = panel;
+    vm.createContext(panel);
+    vm.runInContext([extract('_prodFeedbackState'), extract('_prodFeedbackHTML')].join('\n'), panel);
+
+    const state = panel._prodFeedbackState(undefined, null);
+    ok(state.status === 'unavailable' && state.complete === false,
+      'the panel reads a response carrying no feedback projection as unavailable, not complete');
+    const html = panel._prodFeedbackHTML(state, [{ id: 'a' }], 'issue-1', false);
+    ok(html.includes('data-prod-feedback-state="incomplete"'),
+      'and marks the view incomplete even when the canonical thread was read whole');
+    ok(html.includes('unavailable'),
+      'so both readers now say the card notes are missing instead of presenting the thread as the whole record');
   }
 
   // ── Copy: no surviving instruction to open Linear on a native row ────

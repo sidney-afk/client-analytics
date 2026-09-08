@@ -14046,6 +14046,52 @@ samples/video)` — verified by reverting it.
   resolved tweak notes from the popover is acceptable, or they should render
   dimmed, is an owner decision and is left open.
 
+### 2026-09-08 — three Codex findings on PR #1347, all three fixed on `claude/lx-d-feedback`
+
+Appended to 172 rather than opened as new numbers: each finding corrects
+something this entry or `COMPONENT_FEEDBACK.md` already claimed.
+
+- **An absent feedback projection was read as COMPLETE (P1).** `index.html`
+  marked the Workload popover's card projection complete whenever the response
+  carried no `feedback` key at all, so the popover presented the canonical
+  comments as the whole record and silently dropped every card-only note.
+  **This corrects what the coordinator told the owner.** The promise was that
+  during the mixed-version window staff would see an honest "feedback
+  unavailable" banner. That was true only on the SyncLinear panel, where
+  `_prodFeedbackState` already maps a missing projection to `unavailable`; on
+  the popover it was false. The window is not hypothetical: the deploy lane
+  only accepts a `commit_sha` already on `main`, so this lane's merge order is
+  FORCED to be merge-then-deploy and a live browser against an older reader is
+  guaranteed. Both of the popover's branches lied — the populated one by
+  omission, the empty one by rendering "No feedback is available here". Both
+  now show the existing incomplete notice until the matching reader is
+  deployed. The panel needed no change and was verified, not assumed.
+- **Source rows already covered by canonical comments were shown twice (P2).**
+  The popover concatenated every source row unconditionally. On a thread with
+  two canonical comments the duplicates filled the three-row preview and pushed
+  the genuinely source-only tweak behind the collapsed "older comments" count —
+  the one row an editor opens the popover to read. It now applies the same
+  coverage/version check `_prodFeedbackHTML` uses, so coverage is believed only
+  once this browser holds the canonical row at the proven version and update
+  clock.
+- **The importer's tweak default was not applied when matching source rows
+  (P2).** `feedback.mjs` recorded a historical entry that omitted `is_tweak` as
+  `null`, while the F42 importer (`scripts/f42-card-comment-import.js`) reads
+  the same entry out of a `*_tweaks` cell as a tweak. `sameCurrentComment`
+  requires strict equality with the canonical row's imported `true`, so an
+  otherwise exact imported comment could never receive `covered_by` and its
+  duplicate in Feedback & tweaks was PERMANENT. The projection now derives the
+  flag with the importer's own rule; `calendar_posts.tweaks` is the one cell the
+  importer never reads, so it stays honestly unknown and unknown is now
+  non-disqualifying during identity matching, exactly as unknown role and
+  unknown audience already were.
+
+The old `component-feedback-read.js` fixture asserted a canonical row with
+`is_tweak: false` alongside a `video_tweaks` source note — a pairing the
+importer cannot produce. Correcting the fixture to what the importer writes
+turns the pre-existing coverage check red on the unfixed projection, which is
+the shape of item 177: a test that no longer describes production.
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

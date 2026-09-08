@@ -39,8 +39,15 @@ writers continue to own changes; no discussion store, import or sub-issue is mad
 
 Coverage requires an exact existing import crosswalk, F42 composite identity, or
 native comment identity in the same deliverable/component, followed by matching
-current body, author/role, known audience, timestamps, attachments and lifecycle
-metadata. Equal text or names alone never deduplicate. Alias reconciliation uses
+current body, author/role, known audience, known tweak provenance, timestamps,
+attachments and lifecycle metadata. Tweak provenance follows the F42 importer's
+rule exactly — an entry read out of a `*_tweaks` cell is a tweak even when the
+historical row omitted the flag — because a projection that recorded it as
+unknown could never match an imported canonical `true`, making that duplicate
+permanent. The shared `calendar_posts.tweaks` cell is outside the importer's
+vocabulary, so its tweak metadata stays unknown and, like unknown role and
+unknown audience, does not disqualify an otherwise exact identity match.
+Equal text or names alone never deduplicate. Alias reconciliation uses
 maximum multiplicity of identical stable-ID records; one canonical row covers at
 most one source occurrence. A covered source row stays visible until the browser
 has actually loaded its canonical row at the proven version and database update
@@ -68,7 +75,11 @@ Staff-only optional `feedback_origin` and `resolved_by_name` display fields are
 added by the reader; old writer receipts still work and missing metadata stays
 unknown. Old browsers ignore the extension. A new browser with an old reader
 preserves canonical comments and explicitly marks source feedback unavailable.
-Card prewrite/canonical projection reads remain canonical-only.
+That held on the SyncLinear panel but NOT on the Workload popover, which read a
+missing `feedback` key as proof the record was whole; because the deploy lane
+only accepts a `commit_sha` already on `main`, that mixed-version window is
+forced rather than hypothetical. An absent projection is now incomplete on both
+surfaces. Card prewrite/canonical projection reads remain canonical-only.
 
 Exact runtime changes: `index.html` plus the `production-comments` closure
 (`index.ts`, `policy.mjs`, new `feedback.mjs`, unchanged shared staff-role auth).
@@ -90,7 +101,7 @@ part of rollback. A browser-only revert hides the new view, not its stored notes
 
 ## Finite proof
 
-Local result: 26 actual-handler checks, 13 Chromium scenarios, and 15 focused
+Local result: 31 actual-handler checks, 13 Chromium scenarios, and 15 focused
 existing compatibility/registration suites passed. These are synthetic/local
 results, separate from hosted checks and live serving proof.
 

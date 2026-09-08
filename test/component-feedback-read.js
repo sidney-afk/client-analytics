@@ -14,8 +14,12 @@ if (!process.execArgv.includes('--experimental-strip-types')) {
 const root = path.resolve(__dirname, '..');
 const now = '2026-09-01T12:00:00.000Z';
 const target = { id: 'feedback-deliverable', client_slug: 'fixture-feedback', team: 'video', origin: 'calendar', card_id: 'feedback-card' };
-const note = (id, extra = {}) => ({ id, author: 'Fixture reviewer', role: 'smm', body: 'Same text', created_at: now, updated_at: now, is_tweak: false, ...extra });
-const canonical = (id, extra = {}) => ({ id, deliverable_id: target.id, native_comment_id: id, author_name: 'Fixture reviewer', role: 'smm', body: 'Same text', component: 'video', is_tweak: false, round: null, source_created_at: now, source_updated_at: now, created_at: now, updated_at: now, version: 1, audience: 'internal', ...extra });
+// Historical tweak entries commonly omit the redundant `is_tweak` flag, so the
+// fixture omits it too. The canonical twin carries `is_tweak: true` because
+// that is what the F42 importer WRITES for anything it read out of a `*_tweaks`
+// cell — a canonical row imported from `video_tweaks` cannot be `false`.
+const note = (id, extra = {}) => ({ id, author: 'Fixture reviewer', role: 'smm', body: 'Same text', created_at: now, updated_at: now, ...extra });
+const canonical = (id, extra = {}) => ({ id, deliverable_id: target.id, native_comment_id: id, author_name: 'Fixture reviewer', role: 'smm', body: 'Same text', component: 'video', is_tweak: true, round: null, source_created_at: now, source_updated_at: now, created_at: now, updated_at: now, version: 1, audience: 'internal', ...extra });
 let db, reads, handler, hook, failures, auditAllowed;
 function reset(notes = [note('source-one')]) {
   reads = []; hook = null; failures = new Set(); auditAllowed = true;
@@ -138,9 +142,61 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
       const r = await call(); assert.equal(r.body.feedback.complete, false); assert.equal(r.body.feedback.rows.length, 1);
       assert(!JSON.stringify(r.body).includes('suppressed'));
     });
-    await check('missing tweak metadata remains unknown and plain notes remain plain', async () => {
-      reset([note('plain'), note('unknown', { is_tweak: undefined })]);
-      const r = await call(); assert.equal(r.body.feedback.rows[0].is_tweak, false); assert.equal(r.body.feedback.rows[1].is_tweak, null);
+    await check('the source field carries tweak provenance exactly as the F42 importer reads it', async () => {
+      // This check previously asserted that a flagless entry projects `null`,
+      // which described the DEFECT rather than production: the importer records
+      // an entry read out of a `*_tweaks` cell as a tweak whether or not the
+      // historical row repeated the flag, so `sameCurrentComment`'s strict
+      // equality could never meet the imported canonical `true` and an exact
+      // imported comment kept a PERMANENT duplicate in Feedback & tweaks.
+      reset([note('flagless'), note('flagged-false', { is_tweak: false })]);
+      db.calendar_posts[0].tweaks = JSON.stringify([note('shared')]);
+      const rows = (await call()).body.feedback.rows;
+      assert.equal(rows[0].is_tweak, true, 'a flagless video_tweaks entry is a tweak');
+      assert.equal(rows[1].is_tweak, true, 'and the durable source field outranks a stale explicit false, as the importer does');
+      assert.equal(rows[2].is_tweak, null, 'the shared `tweaks` cell is outside the importer\'s vocabulary, so it stays unknown');
+    });
+    await check('the projection derives is_tweak by executing the same rule the importer writes', async () => {
+      // Not a restatement of the rule: both REAL functions run and their
+      // answers are compared, so the two cannot drift apart again.
+      const importScope = { productionId: 'pc-fixture', deliverableId: target.id, surface: 'calendar',
+        cardId: target.card_id, component: 'video', team: 'video', importRunId: 'fixture-run', resolvedAudience: 'internal' };
+      for (const flag of [true, false, undefined]) {
+        reset([note('parity', { is_tweak: flag })]);
+        const projected = (await call()).body.feedback.rows[0].is_tweak;
+        const imported = importer.normalizeComment({ ...note('parity', { is_tweak: flag }), _source_field: 'video_tweaks' }, importScope, null).is_tweak;
+        assert.equal(projected, imported, 'video_tweaks with is_tweak=' + String(flag));
+      }
+      reset([]);
+      db.deliverables[0] = { ...target, team: 'graphics' };
+      db.calendar_posts[0] = { id: target.card_id, client: target.client_slug,
+        graphic_deliverable_id: target.id, graphic_tweaks: JSON.stringify([note('parity')]) };
+      const projected = (await call()).body.feedback.rows[0].is_tweak;
+      const imported = importer.normalizeComment({ ...note('parity'), _source_field: 'graphic_tweaks' },
+        { ...importScope, component: 'graphic', team: 'graphics' }, null).is_tweak;
+      assert.equal(projected, imported, 'graphic_tweaks with no flag');
+    });
+    await check('an imported note that omitted is_tweak is covered instead of duplicating forever', async () => {
+      reset([note('imported')]);
+      db.production_comments = [canonical('imported')];
+      const rows = (await call()).body.feedback.rows;
+      assert.equal(rows[0].covered_by, 'imported');
+      assert.equal(rows[0].covered_version, 1);
+    });
+    await check('unknown tweak metadata never blocks an exact identity match, and a known one still must agree', async () => {
+      // The shared `tweaks` cell projects `null`. Unknown metadata is
+      // non-disqualifying here exactly as unknown role and unknown audience
+      // already are; a value that IS known still has to match.
+      reset([]);
+      db.calendar_posts[0].video_tweaks = '[]';
+      db.calendar_posts[0].tweaks = JSON.stringify([note('shared')]);
+      db.production_comments = [canonical('shared')];
+      assert.equal((await call()).body.feedback.rows[0].covered_by, 'shared');
+
+      reset([note('flagless')]);
+      db.production_comments = [canonical('flagless', { is_tweak: false })];
+      assert.equal((await call()).body.feedback.rows[0].covered_by, undefined,
+        'a canonical row that disagrees on a KNOWN tweak flag still covers nothing');
     });
     await check('failed source read preserves canonical response with incomplete status', async () => {
       failures.add('calendar_posts'); db.production_comments = [canonical('retained')];

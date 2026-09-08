@@ -36,6 +36,19 @@ export async function importedCommentId(scope, nativeId) {
   return 'pc_card_' + await digest([scope.surface, scope.card_id, scope.component, nativeId].join(':'));
 }
 
+// The F42 importer (`scripts/f42-card-comment-import.js`) treats the source
+// field as durable tweak provenance: an entry read out of a `*_tweaks` cell is
+// imported as a tweak even when the historical row omitted the redundant flag,
+// and an explicit `true` wins anywhere. Match that rule EXACTLY rather than
+// inventing a second one — recording such an entry as `null` here meant
+// `sameCurrentComment`'s strict equality could never meet the imported
+// canonical row's `true`, so an otherwise exact imported comment kept a
+// permanent duplicate in Feedback & tweaks. `calendar_posts.tweaks` is the one
+// cell the importer never reads, so it has no importer rule to match and its
+// tweak metadata stays honestly unknown.
+const tweakFlag = (raw, field) => raw.is_tweak === true || /_tweaks$/.test(field) ? true
+  : typeof raw.is_tweak === 'boolean' ? raw.is_tweak : null;
+
 function sourceComment(raw, scope, field, index) {
   const id = clean(raw.id || raw.comment_id || raw.native_comment_id);
   const deleted = truthy(raw.deleted) || truthy(raw.is_deleted) || !!clean(raw.deleted_at);
@@ -49,7 +62,7 @@ function sourceComment(raw, scope, field, index) {
     body: deleted ? '' : String(raw.body ?? raw.text ?? ''),
     attachments: deleted ? [] : safeAttachments(raw.attachments),
     audience: 'internal', // Staff-only projection, never a grant to client readers.
-    component: scope.component, is_tweak: typeof raw.is_tweak === 'boolean' ? raw.is_tweak : null,
+    component: scope.component, is_tweak: tweakFlag(raw, field),
     round: raw.round != null && raw.round !== '' && Number.isInteger(Number(raw.round)) && Number(raw.round) > 0 ? Number(raw.round) : null,
     source_created_at: created, source_updated_at: stamp(raw.source_updated_at || raw.updated_at || raw.updatedAt) || created,
     edited_at: stamp(raw.edited_at), deleted, deleted_at: stamp(raw.deleted_at),
@@ -70,7 +83,9 @@ function sameCurrentComment(source, canonical) {
     && (!source.source_audience || source.source_audience === canonical.audience)
     && source.body === (deleted ? '' : String(canonical.body ?? ''))
     && source.deleted === deleted && source.done === resolved
-    && source.is_tweak === canonical.is_tweak
+    // Unknown tweak metadata is non-disqualifying, exactly as unknown role and
+    // unknown audience already are above; a known value must still agree.
+    && (source.is_tweak === null || source.is_tweak === canonical.is_tweak)
     && source.round === (canonical.round == null ? null : Number(canonical.round))
     && source.source_created_at === stamp(canonical.source_created_at || canonical.created_at)
     && source.source_updated_at === stamp(canonical.source_updated_at || canonical.source_created_at || canonical.created_at)

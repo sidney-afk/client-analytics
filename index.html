@@ -19356,7 +19356,22 @@
         // reason this reads `include_feedback`: a tweak that took the legacy
         // write lane exists ONLY in the card cell, and Linear was the only
         // place staff could previously see it next to the canonical thread.
-        const source = feedback && Array.isArray(feedback.rows) ? feedback.rows : [];
+        // A source row the endpoint marked covered is the SAME note as a
+        // canonical row already in `rows`. Concatenating every source row
+        // unconditionally shows imported feedback twice, and on a thread with
+        // two canonical comments those duplicates fill this popover's three-row
+        // preview and push the genuinely source-only tweak — the one row an
+        // editor needs — behind the collapsed older count. Same coverage and
+        // version check `_prodFeedbackHTML` applies on the SyncLinear panel:
+        // coverage is only believed once THIS browser holds the canonical row
+        // at the proven version and update clock.
+        const canonicalById = new Map(rows.map(row => [String(row.id), row]));
+        const source = (feedback && Array.isArray(feedback.rows) ? feedback.rows : []).filter(row => {
+            const canonical = row.covered_by && canonicalById.get(String(row.covered_by));
+            return !canonical || !Number.isInteger(row.covered_version) || !row.covered_updated_at
+                || Number(canonical.version) !== row.covered_version
+                || String(canonical.row_updated_at || canonical.updated_at || '') !== String(row.covered_updated_at);
+        });
         const shown = [...rows, ...source]
             .filter(row => !row.deleted_at && !row.resolved_at && !row.deleted && !row.done)
             .map(row => ({
@@ -19366,8 +19381,14 @@
             }));
         shown.native = true;
         // `complete` above proves the CANONICAL thread was read whole. The card
-        // projection carries its own completeness and must not borrow it.
-        shown.sourceComplete = !feedback || feedback.complete === true;
+        // projection carries its own completeness and must not borrow it —
+        // INCLUDING when it is absent entirely. A reader without `feedback.mjs`
+        // omits the key, and this lane's merge-then-deploy order (the deploy
+        // lane only accepts a `commit_sha` already on `main`) GUARANTEES a
+        // window where this browser is live and that reader is not. Reading a
+        // missing projection as complete presents the canonical comments as the
+        // whole record and silently drops every card-only note.
+        shown.sourceComplete = !!feedback && feedback.complete === true;
         return shown;
     }
     async function _wlLegacyFetchTweakComments(ids) {
@@ -19395,13 +19416,19 @@
     }
     function wlRenderTweakComments(comments) {
         const native = !!(comments && comments.native);
+        // One incomplete notice, used by both the populated and the empty
+        // branch. An unread card projection is exactly the case where "no
+        // feedback" would be a claim this browser cannot make.
+        const incomplete = native && comments.sourceComplete === false
+            ? '<div class="wl-tweak-comments-status">Some notes on the original card could not be read, so this list may be incomplete.</div>'
+            : '';
         // A native read that found nothing says so, because after the Linear
         // exit this popover is the only reader and silence would be
         // indistinguishable from a broken one. A legacy read keeps rendering
         // nothing, which is this function's existing behaviour.
         if (!comments || !comments.length) {
             return native
-                ? '<div class="wl-tweak-comments-status">No feedback is available here. Open the post in SyncView to check its review notes.</div>'
+                ? incomplete || '<div class="wl-tweak-comments-status">No feedback is available here. Open the post in SyncView to check its review notes.</div>'
                 : '';
         }
         const shown = comments.slice(0, 3);
@@ -19414,9 +19441,7 @@
             <span class="wl-tweak-comment-time">${wlEscape(_calFmtCommentTime(c.createdAt))}</span>
         </div>`).join('') + (more > 0
             ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'}${native ? '' : ' on the sub-issue in Linear'}</div>`
-            : '') + (native && comments.sourceComplete === false
-            ? '<div class="wl-tweak-comments-status">Some notes on the original card could not be read, so this list may be incomplete.</div>'
-            : '');
+            : '') + incomplete;
     }
     // Expand/collapse is only offered on comments whose body genuinely
     // overflows its single row — a short comment that already fits has

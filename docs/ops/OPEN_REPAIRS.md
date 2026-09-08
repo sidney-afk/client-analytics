@@ -17876,3 +17876,41 @@ Which text of `2026-09-05-workload-native-membership.sql` is actually live (two 
 exist under one filename and it is already applied); whether P2 is applied; whether the
 deployed `production-write` matches repo source. All three need a live read, and all
 three are owner actions.
+
+### Addendum, 2026-09-08 — BINDING CONSTRAINT on any lane-B lift, recorded at the owner's instruction
+
+The owner's words: *"for the things you said about don't take that file, I'm not gonna
+do anything, you're gonna do it, so put it on a ledger or fix it now or whatever, but
+this needs to be addressed by you."* So it is both recorded here and acted on.
+
+**DO NOT take `index.html` from `5bcc03bd` (#1326).** Not in whole, not by
+`git checkout`, not by letting a merge resolve it.
+
+**Why, and it is the opposite of what the tooling will tell you.** That file
+**auto-merges onto `main` with ZERO conflict markers.** Main added 1,660/-155 across
+119 hunks since 1326's base; 1326 adds 2,348/-400 across 361 hunks; the merged file is
+82,785 lines and git flags **nothing**. Two independently-designed rewrites of the same
+80,000-line file interleave silently, and the clean result is evidence of nothing except
+that git could not tell they disagree. This is precisely the failure
+`docs/independence/LINEAR_EXIT_LANES.md:36-38` exists to prevent, and a clean merge is
+the shape it takes.
+
+**Take instead, and only these:**
+
+| Take | How | Why it is safe |
+|---|---|---|
+| `supabase/functions/production-write/index.ts` | **whole-file swap** from `5bcc03bd` | `main`'s copy is **byte-identical** to 1326's base — zero drift since, so this is a swap and not a merge |
+| `supabase/functions/production-write/policy.mjs` | same | same |
+| the composed intake SQL | via `scripts/native-intake-named-append-compose.js`, per `LINEAR_EXIT_BRIEF_B.md:274` | one outer transaction, byte-exact artifact, never the standalone `2026-09-05-native-only-intake.sql` |
+| the editor-picker call site | **ported BY HAND**, a few lines | and while porting, treat the old gateway's `400` as the provider lane rather than a throw, which closes the browser-before-gateway window outright |
+
+**Do NOT take** `feedback.mjs`, `workload-plan/*`, or
+`2026-09-05-workload-native-membership.sql` from 1326. In each case programme A's
+version is a **strict superset with the same exported API** — they are two revisions of
+one thing and 1326's is the earlier. Taking them silently reverts A's corrections in
+files git will not flag. The membership migration is the sharpest: it is **already
+applied live** under that filename, so two texts exist for one applied migration.
+
+**The general rule this earns:** *when two long-lived branches both rewrite one large
+file, a clean auto-merge is a red flag rather than a green light.* Conflicts are what
+you get when git can see the disagreement. Silence is what you get when it cannot.

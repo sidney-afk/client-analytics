@@ -18531,3 +18531,38 @@ rather than a commit note:** the runbook will be read on a day when `main` has
 moved again, by an operator following it literally, on the surfaces that break
 clients. **Every `production-write` citation in it must be re-verified by symbol at
 cutoff time.** That instruction is now in the document rather than only here.
+
+**Addendum, 2026-09-08, after merging main (`709b79c`) — two lanes moved the same
+pinned file, and neither side's pin described the result.** PR #1363 changed
+`scripts/monitoring-watchdog.js`, which this lane's brief reserves to it, while
+this branch was also changing it. Both sides therefore re-pinned the same closure
+member, and **the merge produced content that neither recorded hash matched** —
+mine (`4a884593…`) described a file with two lanes registered and the old
+threshold; main's (`c1a773a3…`) described one with the new threshold and no new
+lanes. The merged file has both.
+
+Resolved by recomputing against the merged content (`c2cc93ab…`) and writing **one
+note covering both changes**, since a pin whose note explains only half of what
+moved is a pin nobody can review. The note keeps main's distinction between the
+**threshold** (180 → 360 for `monitoring_watchdog`) and the **detection time**
+(threshold plus the observation interval, near 634 minutes, an estimate from the
+worst observed host gap rather than a bound) — that separation is the error main's
+lane had to correct twice, and flattening it back on merge would have undone their
+work silently.
+
+`MONITORING.md` conflicted the same way: my three new coverage rows against main's
+rewritten dead-man row. Kept all three of mine plus **main's** version of the row
+they changed, rather than mine.
+
+**Worth noting for the coordinator, without complaint:** the brief assigned
+`scripts/monitoring-watchdog.js` to this lane exclusively, and another lane changed
+it anyway — correctly, as it happens, since the switch was paging about itself on
+five of its last eight runs and that is worth fixing immediately. **The exclusivity
+rule did its job even when broken**, because the collision surfaced as a merge
+conflict on a pinned hash rather than as two silently diverging thresholds. The
+lesson is not "enforce the rule harder": it is that **a content pin catches a
+coordination failure that a file-ownership rule only discourages.**
+
+Verified after committing, because this suite reads from git HEAD: closure 37
+assertions, `monitoring-watchdog` passes with all ten lanes present and the new
+threshold, `repo-map-sync` 316, `repo-identity-exposure` clean.

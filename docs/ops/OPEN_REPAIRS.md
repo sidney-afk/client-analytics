@@ -14216,6 +14216,43 @@ boards with excluded rows and asserts the note stays absent. Proven red against
 `test/workload-native-membership.js`.
 
 
+### Codex round 4 — the sentence that could never run in the case it existed for (2026-09-08)
+
+The round-3 fix composed the four notices above the terminal branch and left
+that branch a fall-through, on the reasoning that `backgroundError` had always
+suppressed it so it was not a regression. Codex found the sharper fact, and it
+is worth recording because the reasoning was wrong in an instructive way.
+
+`wlLoadSnapshot`'s failure path sets `backgroundError` and
+`planStatus = 'stale' | 'unknown'` on **adjacent lines**. The terminal branch
+only ran when nothing above it had spoken. So in the one situation the sentence
+exists for, it was **always** suppressed — not sometimes, not as a corner case.
+A notice that can never fire is worse than an absent one, because the code reads
+as though the case is covered.
+
+And the loss is not cosmetic: `wlPlanEditingEnabled()` requires `'ready'`, so
+after a failed refresh saved-work-day editing really is off. "Workload could not
+check for newer changes" does not say that. Staff were told the board might be
+slightly stale, when in fact they could no longer drag anything.
+
+Both sentences now join `notices`, ranked directly after the dropped-plan note,
+because "you cannot edit" is the most operationally urgent thing on that line.
+`'stale'` and `'unknown'` can no longer reach the fall-through, which now only
+handles ready/loading/refreshing-with-nothing-to-say.
+
+**The lesson, which is the same one three times over.** "It was already
+suppressed before my change, so it is not my regression" is true and
+insufficient. The question is whether the notice can EVER reach a person, and
+for this one the answer was no — a fact available by reading two adjacent lines
+of the failure path. Four rounds on one function, each closing a variant of
+"a true thing the code computes and never says".
+
+Proven red against `2b107e4`: 4 checks, driven through the real failure path
+rather than hand-set state — `wlLoadSnapshot` is made to reject, and the
+renderer is then read for `editing is paused` (warm board) and
+`editing is disabled` (cold board).
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

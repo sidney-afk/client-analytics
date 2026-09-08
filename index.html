@@ -18359,6 +18359,23 @@
         const droppedText = wlDroppedPlanWarningText(wlState.nativePlansDropped);
         if (droppedText) notices.push(droppedText);
 
+        /* The plan's OWN degraded state, which used to sit in a terminal branch
+           that only ran when nothing above had spoken.
+
+           It therefore never ran in the one situation it exists for:
+           wlLoadSnapshot's failure path sets `backgroundError` and
+           `planStatus = 'stale' | 'unknown'` on adjacent lines, so the notice
+           above it always won. That is not a cosmetic loss --
+           wlPlanEditingEnabled() requires 'ready', so saved-work-day editing
+           really is off, and the generic freshness sentence does not say so.
+           Ranked high because "you cannot edit" is the most operationally
+           urgent thing on this line. */
+        if (status === 'stale') {
+            notices.push('Saved work days could not be refreshed. The last good plan is shown; editing is paused.');
+        } else if (status === 'unknown') {
+            notices.push('Saved work days are unavailable. Deadlines are shown as a clearly marked fallback; editing is disabled.');
+        }
+
         if (wlState.backgroundError) {
             notices.push(wlState.backgroundError === 'Some teams still use the legacy Workload source.'
                 ? 'Some teams still use the legacy Workload source.'
@@ -18407,19 +18424,14 @@
             el.textContent = notices.join(' ');
             return;
         }
-        if (status === 'ready' || status === 'loading' || status === 'refreshing') {
-            el.hidden = true;
-            el.className = 'workload-plan-status';
-            el.textContent = '';
-            return;
-        }
-        el.hidden = false;
-        el.className = 'workload-plan-status ' + ((status === 'unknown' || status === 'stale') ? 'is-warning' : 'is-loading');
-        if (status === 'stale') {
-            el.textContent = 'Saved work days could not be refreshed. The last good plan is shown; editing is paused.';
-        } else {
-            el.textContent = 'Saved work days are unavailable. Deadlines are shown as a clearly marked fallback; editing is disabled.';
-        }
+        /* Nothing is wrong: ready, loading or refreshing with no notice to
+           give. 'stale' and 'unknown' can no longer reach here -- each always
+           contributes a notice above -- which is the point: the sentence that
+           used to live down here is now said even when something else is also
+           true. */
+        el.hidden = true;
+        el.className = 'workload-plan-status';
+        el.textContent = '';
     }
 
     function wlVisibleSubCount() {

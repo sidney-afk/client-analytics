@@ -232,7 +232,27 @@ function browser(response=fixture()) {
  const value=fixture();mutate(value);const h=browser(value);h.state.issueSnapshot=[{id:'previous'}];h.state.planHasSnapshot=true;
  await assert.rejects(h.context.wlLoadSnapshot(true,null));checks++;
  ok(h.state.issueSnapshot[0].id==='previous'&&h.state.planStatus==='stale'&&h.state.backgroundError,'failed native read preserves visible old work and warns');
- ok(h.calls.length===1,'native failure never retries through a provider');}
+ ok(h.calls.length===1,'native failure never retries through a provider');
+ // Codex round 4. wlLoadSnapshot's failure path sets backgroundError and
+ // planStatus='stale' on adjacent lines, so the terminal stale sentence lived in
+ // a branch that could never run in the one case it exists for. That is not
+ // cosmetic: wlPlanEditingEnabled() requires 'ready', so editing really is off
+ // and the generic freshness sentence never says so. Asserted through the real
+ // renderer on the state the real failure path produced -- not a hand-set one.
+ h.context.renderWorkloadPlanStatus();
+ ok(/editing is paused/.test(h.context.planStatusEl.textContent),
+  'a failed refresh SAYS that saved-work-day editing is paused, which is what actually happened');
+ ok(/could not check for newer changes/.test(h.context.planStatusEl.textContent),
+  'and still reports the failed refresh alongside it');}
+ // The cold-start shape of the same thing: nothing was ever loaded, so the plan
+ // is 'unknown' and editing is DISABLED rather than paused. Different sentence,
+ // same suppression before this fix.
+ {const cold=browser(async()=>{throw Error('offline');});
+  await assert.rejects(cold.context.wlLoadSnapshot(true,null));checks++;
+  ok(cold.state.planStatus==='unknown','precondition: no prior snapshot leaves the plan unknown');
+  cold.context.renderWorkloadPlanStatus();
+  ok(/editing is disabled/.test(cold.context.planStatusEl.textContent),
+   'a cold failed load says editing is disabled, not merely that a refresh failed');}
  const fail=browser(async()=>{throw Error('offline');});fail.state.issueSnapshot=[{id:'previous'}];
  ok(await fail.context.wlRefetchSilent()===false&&fail.state.issueSnapshot[0].id==='previous','background refusal keeps prior board');
  let release;const late=browser(async()=>{await new Promise(r=>release=r);return {ok:true,status:200,json:async()=>fixture()};});

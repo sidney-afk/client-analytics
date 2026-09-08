@@ -15564,6 +15564,125 @@ costs four characters. The reservation table in item 168 remains the right
 mechanism for avoiding collisions in the first place, but it only binds sessions
 that read it, and PR #1354 was not part of this programme.
 
+### Addendum, 2026-09-08 — the exit now has ONE ordered list, and P1 was on nobody's list
+
+`docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` is new. Every lane had a good
+runbook for its own piece; **none carried the order ACROSS lanes** — which merge
+precedes which migration, which deploy precedes which flag, and which of those
+only the owner can perform. Writing it surfaced one item that was genuinely
+nobody's task.
+
+**The naming mint migration is NOT applied, and nothing was tracking that.**
+`docs/ops/NATIVE_IDENTIFIER_MINT.md` opens "Status: SOURCE ONLY … has not been
+applied to the live database and no team has been seeded", and `EXECUTION_LOG.md`
+has no record of it either. It is precondition **P1** of the cutoff runbook.
+
+**Why it is worth its own paragraph.** `deliverables.linear_identifier` is the
+`VID-`/`GRA-` name staff say out loud, and every writer of that column is Linear.
+Flip outbound off before this is applied AND each team seeded, and every card
+created afterwards has **no name** — a raw internal id in the Production list,
+the command palette, the Workload parent header and all three deep links.
+**Nothing errors.** The estate silently stops producing names, which is the
+hardest kind of failure to notice and the easiest to cause.
+
+Merging PR #1349 was not enough and the runbook already said so; what was missing
+was anyone carrying it as an owner action. It is now the first item in Phase 2,
+with its proof: create one card on the TEST client after seeding and read back a
+non-null identifier Linear did not mint.
+
+**Also surfaced by the same pass:** lane A's corrective migration
+`2026-09-08-workload-native-label-state-shape.sql` has no application record
+either. The entry does **not** claim it is unapplied — this programme has now
+been wrong in both directions about which migrations are live, so it says
+*verify before assuming*.
+
+**The document's other job is to stop the completion figure drifting upward on
+feeling.** It states, in one line each, that building is near done and installing
+is barely started, and that no further code moves the number.
+
+### Addendum, 2026-09-08 — CORRECTION: "nothing is time-critical" was too strong, and the mint needs FOUR steps
+
+Two P1s from Codex on PR #1357, both against text I wrote in the master
+sequence, and both correct.
+
+**1. The naming mint has four live steps, not three, and the fourth is the
+gate.** The addendum above and the first draft of the master sequence said
+"applied AND seeded". `docs/ops/NATIVE_IDENTIFIER_MINT.md` §"Live actions, in
+order" lists a fourth: flip
+`syncview_runtime_flags.production_native_identifier_mint` to `native`, per team.
+`production_native_identifier_capability(team)` returns `native` only when the
+flag says native **and** a seed row exists, so stopping after seeding leaves the
+allocator installed and refusing — the TEST card still gets its name from Linear
+and the nameless-card failure happens anyway. **Naming the precondition and then
+under-specifying it by one step is the same defect as not naming it**, because a
+reader who does 1 to 3 believes they are done. Corrected with the full table, the
+per-team order, and the note that the capability self-guards so a premature flip
+is inert rather than half-armed.
+
+**2. "Nothing left is time-critical" conflates irrecoverable with
+undamaged.** Said repeatedly to the owner and written into the master sequence.
+Nothing left is *irrecoverable*: the only artefact needing the live API is
+captured. But n8n webhooks that read Linear will fail when the account lapses,
+and SyncView calls them, so **surfaces degrade on their own if the cutover has
+not happened by 2026-09-15**.
+
+Best current reading of that date with nothing merged: staff **writes are safe**
+(all 43 active clients enrolled, both teams SyncView-authoritative, so writes
+already go native — item 175); the **Workload board freezes rather than empties**
+when the reconcile stops, which is the dangerous one because a frozen board looks
+current; Kasper's Editors subtab and tweak comments fail visibly; Linear import
+fails and is moot.
+
+**So the four held PRs merging before 2026-09-15 converts an uncontrolled
+degradation into a controlled cutover.** That is a deadline on the owner's
+review, not on the engineering, and it is one week out. The distinction is worth
+keeping: it is a reason to *schedule* the review, not to rush it.
+
+Both corrections were caught by review, not by me, on a document whose entire
+purpose is to be the one place the sequence is right.
+
+### Addendum, 2026-09-08 — a reversibility reassurance that covered the wrong route
+
+Third P1 from review on PR #1357, and the most dangerous of the three because it
+concerns a one-way action.
+
+**What I wrote.** "Steps 0 through 6 are fully reversible. Only STEP 7 is
+one-way." Quoted in good faith from `LINEAR_CUTOFF_RUNBOOK.md`, where it is true.
+
+**Why it was unsafe anyway.** Two routes to the outbound cutoff are described in
+documents on `main`, and the reassurance only holds for one:
+
+- **Route A**, what the runbook does: flags only. `2026-09-06-linear-outbound-cutoff.sql`
+  is never installed, so there is genuinely no irreversible database step and
+  every flag step has a restore block. The runbook's §0 computes this rather than
+  assuming it: with outbound `off` and parity `false`, `linear-outbound:1355`
+  skips the whole provider block, so nothing reaches `api.linear.app`.
+- **Route B**, which `LINEAR_EXIT_BRIEF_F.md` still describes as live actions:
+  install that migration and call `linear_outbound_cutoff_activate_v1`. Its own
+  entry says *"NOT REVERSIBLE by design — there is deliberately no re-enable RPC"*,
+  and the install's undo says *"VALID ONLY BEFORE THE CUTOFF IS ACTIVATED. AFTER
+  ACTIVATION IT DESTROYS THE EVIDENCE THE RECOVERY NEEDS."*
+
+An operator who followed brief F's live-action list and then read my blanket
+reassurance would have taken a one-way step believing a restore block existed.
+**A true sentence, quoted from the right document, made false by being applied to
+a scope its source did not have.** That is a new variant of this programme's
+recurring defect and worth logging as such: the previous instances were two
+documents disagreeing; this is one document being repeated correctly into a
+context where it stops being true.
+
+**Corrected** by naming both routes, marking Route B one-way with its source
+quoted, and saying plainly: do not take Route B. The runbook's reasoning for
+skipping it is costed — it needs an F27 Section 4 dispatch and therefore a merge
+freeze across every exit branch, and dispatches were rejected on 2026-09-02 and
+2026-08-08 for exactly that. A flag at `off` stops the traffic equally well and
+reverses.
+
+**The briefs describe Route B because they were written when it was the plan.**
+They are a map of what exists, not an instruction to install it. That sentence is
+now in the master sequence, because the briefs cannot be trusted to carry their
+own obsolescence.
+
 ## 177. [2026-09-08, FIXED] The pasted-card-link highlight was invisible in dark mode
 
 Item 176 (same day, merged as PR #1354) fixed the timing problem — the toast
@@ -16981,6 +17100,80 @@ after main absorbed part 1 (PR #1348, `e797444`). The merge brought main's
 lists no `index.html`, so this lane still touches none of it.
 
 
+**Addendum, 2026-09-08, after merging main (`7291b55`) — a fifth guard that
+looked checked and was not, found by another lane.** OPEN_REPAIRS 181 (lane
+LX-N8N) names four webhooks that reach Linear through their n8n workflow while
+carrying no `linear-` prefix: `editors-week`, `send-urgent-slack` (shaped like a
+Slack write, but it resolves the issue's *current Linear assignee* to pick the
+mention), `video-form` and `graphic-form`. Verified against this tree —
+`index.html` calls all four, and `LINEAR_HOOK`'s prefix match sees none of them.
+
+**Why this mattered more than a missed pattern.** The rehearsal's whole purpose
+is to answer "does the app survive Linear being unreachable". Counting `linear-*`
+names answers a different question — "which Linear-NAMED webhooks are
+intercepted" — and the two look identical until something reaches Linear without
+the name. Left as it was, a dead-Linear run would have sent these four to real
+n8n and a **healthy** Linear, then reported four Linear-dependent flows as
+surviving Linear's death on the strength of them having used a live one. That is
+this mode's own founding polarity error, one layer further out, and **it would
+have passed every assertion already in the suite.**
+
+**The fix is dead-mode only.** `LINEAR_BACKED_HOOK` intercepts the four under
+`if (LINEAR_DEAD)` and nowhere else. Healthy mode is untouched deliberately: the
+courier has never mocked these four (one probe,
+`ot4_t1_submit_intake_guards.js`, mocks `video-form`/`graphic-form` itself), so
+mocking them in normal mode would silently change every existing probe rather
+than only the rehearsal. `kasper-queue` is excluded alongside
+`log-linear-submission` — it reads Sheets and survives Linear untouched.
+
+Six mutations, each confirmed red before the fix was called done: dropping
+`send-urgent-slack` from the pattern; widening it until it swallows
+`log-linear-submission`; unanchoring the path boundary so it matches by prefix;
+pinning the backed branch to one fixed fault instead of the rotating sequence;
+firing the branch in healthy mode; and swallowing the `refused` shape with a 200
+instead of aborting.
+
+**The count for this lane is now five**, and the fifth is the one worth keeping:
+the four before it were found by an adversarial reader or a mutation of my own
+code. This one was found by **another lane's inventory of a system I had not
+inventoried** — I had counted the webhooks whose names contained the word I was
+looking for. No amount of re-reading my own regex would have surfaced it, and no
+mutation of my own file would either, because the missing names were never in it.
+
+**Addendum, 2026-09-08, after merging main (`8ea7809`) — my STEP 3 precondition
+was one step short, and the missing step is the whole gate.** The coordination
+lane's `docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` landed on `main` and
+flagged that an earlier draft of its own P1 named only three of the mint's four
+live actions. This runbook's P1 had the same defect: it said the mint must be
+"APPLIED AND SEEDED", which is steps 1-3.
+
+Verified against the primary source rather than the summary —
+`docs/ops/NATIVE_IDENTIFIER_MINT.md:82-91` lists four actions and says of the
+fourth, in its own words, *"Step 4 is what lane F's outbound-off step waits on."*
+Step 4 flips `syncview_runtime_flags.production_native_identifier_mint` to
+`{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}`,
+and `production_native_identifier_capability(team)` returns `native` only when
+the flag says native **and** a seed row exists. Stop after step 3 and the
+allocator is installed and refusing: the mint is inert, a new card still takes
+its name from Linear, and STEP 3 produces the precise nameless-card failure P1
+exists to prevent.
+
+**Why this one is worth recording rather than just fixing.** A precondition that
+is three-quarters right is more dangerous than one that is absent, because it
+gets ticked. An operator who applied the migration and seeded both teams would
+have read P1, found it satisfied, and run STEP 3 into an inert mint. P1 and STEP
+3 now both name all four steps and mark step 4 as the gate, with its undo
+(`{"mode":"provider"}` per team) beside it.
+
+**The check that already covered this, and why it stays.** P1 has always ended
+with an empirical readback — create one card on `sidneylaruel` and read back a
+non-null `deliverables.linear_identifier` that Linear did not mint. That test
+fails correctly against a half-done gate no matter how the prose is worded, which
+is the argument for ending every precondition in an observation rather than a
+checklist. It is now stated as the check that cannot be satisfied by a half-done
+gate, and ordered before the second team is seeded.
+
+
 ## 181. [2026-09-08, lane LX-N8N, WRITTEN — a plan, nothing executed] The seven n8n webhooks that die with Linear, and the three source documents that each get the list wrong differently
 
 `181` was verified free before writing: the ledger's numbers run 1–129, 134–162,
@@ -17067,43 +17260,44 @@ are inferred from what the browser consumes rather than from a captured response
 are published at all — deriving them needed a live read this lane did not take,
 and `AGENTS.md`'s 2026-09-05 rule says an unmeasured number is worse than none.
 
-**Addendum, 2026-09-08, after merging main (`7291b55`) — a fifth guard that
-looked checked and was not, found by another lane.** OPEN_REPAIRS 181 (lane
-LX-N8N) names four webhooks that reach Linear through their n8n workflow while
-carrying no `linear-` prefix: `editors-week`, `send-urgent-slack` (shaped like a
-Slack write, but it resolves the issue's *current Linear assignee* to pick the
-mention), `video-form` and `graphic-form`. Verified against this tree —
-`index.html` calls all four, and `LINEAR_HOOK`'s prefix match sees none of them.
+### Addendum, 2026-09-08 — the n8n plan is merged, and one of its findings changes the degradation table
 
-**Why this mattered more than a missed pattern.** The rehearsal's whole purpose
-is to answer "does the app survive Linear being unreachable". Counting `linear-*`
-names answers a different question — "which Linear-NAMED webhooks are
-intercepted" — and the two look identical until something reaches Linear without
-the name. Left as it was, a dead-Linear run would have sent these four to real
-n8n and a **healthy** Linear, then reported four Linear-dependent flows as
-surviving Linear's death on the strength of them having used a live one. That is
-this mode's own founding polarity error, one layer further out, and **it would
-have passed every assertion already in the suite.**
+PR #1356 merged. `docs/independence/N8N_REPLACEMENT_PLAN.md` is now on `main`,
+and three of its findings are folded into
+`docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` rather than left to be
+discovered by whoever reads the two documents in the right order.
 
-**The fix is dead-mode only.** `LINEAR_BACKED_HOOK` intercepts the four under
-`if (LINEAR_DEAD)` and nowhere else. Healthy mode is untouched deliberately: the
-courier has never mocked these four (one probe,
-`ot4_t1_submit_intake_guards.js`, mocks `video-form`/`graphic-form` itself), so
-mocking them in normal mode would silently change every existing probe rather
-than only the rehearsal. `kasper-queue` is excluded alongside
-`log-linear-submission` — it reads Sheets and survives Linear untouched.
+**1. `send-urgent-slack` is a Linear reader and no previous list carried it.**
+Added to the 2026-09-15 degradation table. It is shaped like a pure Slack write,
+and it is, except that it resolves the issue's **current Linear assignee** to
+decide who to mention. It fails with the account. The method point is worth more
+than the row: **an endpoint's dependencies are not inferable from its name or its
+effect.** The mirror image is in the same finding — `log-linear-submission` only
+appends a Google Sheet and `kasper-queue` only reads Sheets, so two endpoints
+that read as Linear-bound survive untouched. The list was re-derived on `main`
+instead of carried forward from the July audit, which is the only reason any of
+this was caught.
 
-Six mutations, each confirmed red before the fix was called done: dropping
-`send-urgent-slack` from the pattern; widening it until it swallows
-`log-linear-submission`; unanchoring the path boundary so it matches by prefix;
-pinning the backed branch to one fixed fault instead of the rotating sequence;
-firing the branch in healthy mode; and swallowing the `refused` shape with a 200
-instead of aborting.
+**2. The `deliverable_events` anon grant is an independent, mandatory revoke.**
+PR #1346's native `editors-week` reads `public.deliverable_events`, granted
+`select` to `anon` under `using(true)` in
+`migrations/2026-07-06-b1-linear-data-model.sql:682-688,698`, with no revoke
+anywhere in this repo — F53 covered `batches` and `deliverables` and not this
+table. That is F48's exposure shape reproduced natively. **Serving it through an
+authenticated Edge Function does not satisfy the requirement**, because the
+publishable key is committed and reaches the table through PostgREST regardless.
+The master sequence's held-PR table now says #1346 carries this as an attached
+obligation, so that merging it is not mistaken for closing F48's shape.
 
-**The count for this lane is now five**, and the fifth is the one worth keeping:
-the four before it were found by an adversarial reader or a mutation of my own
-code. This one was found by **another lane's inventory of a system I had not
-inventoried** — I had counted the webhooks whose names contained the word I was
-looking for. No amount of re-reading my own regex would have surfaced it, and no
-mutation of my own file would either, because the missing names were never in it.
+Recorded with the limit the lane stated and did not smooth away: this is a
+**source-level reading and the live grant was not checked**, and tables here have
+been created by hand-run SQL that never reached the repo. Verify live before
+relying on the finding *or* on its absence.
 
+**3. Every line number in `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` is dead.**
+Verified at `e3961b6` on 2026-07-14, and nothing in it warns that its anchors
+have since moved by tens of thousands of lines. Not one range still points at its
+code. Its dispositions remain the best thinking available; only the coordinates
+are gone. This is the same defect class as the truncated briefs and the
+mis-scoped reversibility quote, in its third distinct shape: **a document that is
+correct about what it says and wrong about where it points.**

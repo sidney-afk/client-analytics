@@ -406,9 +406,13 @@ const CANDIDATES = new Map([
     // no new import, file count 5, entrypoint unchanged. Requires
     // `migrations/2026-09-07-production-intake-append-v8.sql` to be applied
     // FIRST -- the deployed RPC refuses a named title until it is.
-    source: 'ccbdd136f488c1e948ca49b429ff50e5c850057b3bd3eabb97c5cb47f1a3d164',
+    // Re-pinned for the native write gateway lift: the native intake, append,
+    // component-fill, assignee and label lanes arrive together with the native
+    // urgent handoff. Six files now -- _shared/native-brief-media.mjs is the
+    // new import. Regenerated with scripts/ef-fingerprint.js, never by hand.
+    source: '663e7e423dfe150449f820ecb1e7aa3f2506d6c55c3770cfdc65b556d1311e14',
     entrypoint: '7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5',
-    files: 5,
+    files: 6,
   }],
 ]);
 

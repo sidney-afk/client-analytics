@@ -72,7 +72,7 @@ jobs:
       OPERATION: ${{ inputs.operation }}
       OPERATION_CONFIRMATION: ${{ inputs.confirm }}
       PRODUCTION_WRITE_ENTRYPOINT_SHA256: 7a3136a65709c21c4b07d9b18873f8eb6732766fdd9b5c5c0677a4f69f849de5
-      PRODUCTION_WRITE_FILE_COUNT: '5'
+      PRODUCTION_WRITE_FILE_COUNT: '6'
       # Re-pinned 2026-08-14 (fifth release): production-write gains the client
       # comment FRONT DOOR — clientCommentFrontDoorTargetAllowed admits
       # calendar-surface and unlinked-samples client comments under the
@@ -281,7 +281,13 @@ jobs:
       # only: no migration, no schema, no new import -- file count unchanged
       # at 5. Ships with index.html's guidance for the new code in the same
       # commit, which test/write-ui-failure-messages.js requires.
-      PRODUCTION_WRITE_SOURCE_SHA256: ccbdd136f488c1e948ca49b429ff50e5c850057b3bd3eabb97c5cb47f1a3d164
+      # Re-pinned for the native write gateway lift: intake, append, component
+      # fill, assignee change and labels stop routing through Linear, and the
+      # native urgent handoff lands on top. Closure grows to SIX files -- the
+      # new import is _shared/native-brief-media.mjs. Every native lane is
+      # behind a flag that defaults off, so deploying this does not activate
+      # anything; the SQL goes in FIRST and the flags are flipped AFTER.
+      PRODUCTION_WRITE_SOURCE_SHA256: 663e7e423dfe150449f820ecb1e7aa3f2506d6c55c3770cfdc65b556d1311e14
       ROLLBACK_BUNDLE_BYTE_LENGTH: ${{ inputs.rollback_bundle_byte_length }}
       ROLLBACK_BUNDLE_SHA256: ${{ inputs.rollback_bundle_sha256 }}
     steps:

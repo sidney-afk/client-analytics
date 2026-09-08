@@ -17331,3 +17331,48 @@ live-looking code that is deliberately retained as the undo.
 
 Anyone assessing "is this surface reachable" in this repo needs to check both
 halves. That belongs in the record as a navigation hazard, not as a confession.
+
+### Addendum, 2026-09-08 — the summary-drops-the-list defect, third instance, this time in the gate
+
+Five more findings on PR #1360, two P1. One (`create_options` unreachable) had
+already been fixed independently. The rest:
+
+**1. The Phase 3 entry gate named three of the six P7 checks**, and the three it
+named covered one request site twice while omitting the staff submission, labels
+and the assignee proof. Its row 3 also accepted the assignee **flag readback**,
+which the same document says four screens earlier is not proof of effect.
+
+**This is the third instance of one defect: a summary that drops members of the
+list it summarises.** First the word "edits" absorbing assignee changes; then the
+enumeration written to fix that, which included `labels` without checking; now a
+four-row gate compressing six criteria. **A summary that drops members is not a
+summary, it is a second and weaker specification**, and a reader working a checklist
+uses the short one. The gate now repeats all six in full, which costs four lines.
+
+**2. The minimal-repair option could not satisfy the gate it was offered under.**
+P7 lets the owner choose a fresh minimal change instead of #1326's approach.
+Short-circuiting `projectForIntake` fixes intake and component fill and does
+**nothing** for labels, which reach the provider through `linearLabelSnapshot` →
+`linearLabelCatalog` and never touch `projectForIntake`. That repair would deploy,
+look complete, and still fail check 5 — **after an F27 Section 4 deploy had already
+been spent**, which is the expensive kind of wrong. Now stated as a separate
+required repair.
+
+**3. The mint's step order contradicted its own table.** The proof said to enable
+`video`, prove it, and do this "before seeding the second team" — but the numbered
+table seeds **both** teams at steps 2 and 3. Anyone following the order had already
+seeded graphics. The per-team caution belongs on the **flag transition**, not the
+seeding, since a seed row is inert without the flag. Rewritten as four ordered
+sub-steps.
+
+**4. The F27 Section 4 deploy lane was named without its direct Actions URL**,
+which `AGENTS.md:18-23` requires and which this programme has now been corrected on
+four separate times.
+
+**The pattern, and it is not the same as "I make mistakes".** Every one of these is
+a *derived* artefact disagreeing with the source it was derived from, in the same
+file, with the source still correct: the gate against P7's criteria, the repair
+option against the operations table, the mint proof against the mint table. **The
+facts have been right and the restatements wrong**, consistently, which means the
+risk in this document is concentrated in exactly the places a hurried reader will
+use: the tables, the checklists, the summaries.

@@ -446,10 +446,20 @@ premature flip is inert rather than half-armed. This is deliberately unlike
 `production_label_catalog_capability()`, which reports `native` with nothing
 staged and 503s one call later.
 
-**How to prove it worked:** do step 4 **per team, video first**, then create one
-post on the TEST client `sidneylaruel` and read back a non-null
-`deliverables.linear_identifier` that Linear did not mint — **before** seeding
-the second team.
+**How to prove it worked, with the ordering stated so it stops contradicting the
+table above.** Steps 1 to 3 seed **both** teams, so "before seeding the second
+team" was impossible for anyone following the numbered order. It is the **flag
+transition** that is per-team, not the seeding:
+
+1. Steps 1 to 3 as listed: apply, seed `video`, seed `graphics`.
+2. Flip the flag for **`video` only**, leaving `graphics` at `provider`.
+3. Create one post on the TEST client `sidneylaruel` and read back a non-null
+   `deliverables.linear_identifier` that Linear did not mint.
+4. Only then flip `graphics`.
+
+Seeding a team is inert on its own — the capability needs the flag *and* the seed
+row — so seeding both up front costs nothing, and the per-team caution belongs on
+the enablement, which is the step that starts handing out names.
 
 **Undo:** set the team back to `{"mode":"provider"}`. That stops new minting
 immediately and renames nothing, by design. Note steps 2 and 3 are safely
@@ -526,8 +536,20 @@ The repair is the owner's choice, and this document deliberately does not pick:
 - **a fresh minimal change** to `production-write` doing the equivalent, if #1326's
   wider scope is unwanted.
 
+**If the minimal option is chosen, it must cover labels as well, and that is a
+SEPARATE repair.** Short-circuiting `projectForIntake` fixes intake and component
+fill and does nothing for labels: `handleLabelsRead` and the `labels` write reach
+the provider through `linearLabelSnapshot` → `linearLabelCatalog`, which never
+touches `projectForIntake`. A repair scoped to the intake reads would deploy, look
+complete, and still fail check 5 — leaving Phase 3 blocked after an F27 deploy has
+already been spent. #1326's scope may or may not cover this; **that is a question
+for the review, not an assumption to carry.**
+
 Either way it is an Edge Function change and therefore an F27 Section 4 deploy,
-with everything that implies: the sealed capture, the merge freeze, the exact SHA.
+dispatched at
+https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml
+with everything that implies: the sealed capture **before** the dispatch, the merge
+freeze, and `commit_sha` equal to main's tip at dispatch time.
 
 **The acceptance criterion is behavioural, not a green check.** With
 `SYNCVIEW_QA_LINEAR_DEAD` active, on the TEST client `sidneylaruel`, all of these
@@ -579,9 +601,17 @@ that must succeed:
 | # | Must be true | Not merely |
 |---|---|---|
 | 1 | The four held PRs are merged, **and #1350's runbook carries the P6/P7 preconditions** | merged with the old runbook text |
-| 2 | The naming mint's **four** steps are done, flag flip included (P1) | migration applied |
-| 3 | `production_assignee_eligibility` is exactly `{"provider_mapping_required": false}` (P6) | left absent |
-| 4 | With Linear dead: a Calendar post, a Samples/SXR post, and a component fill all **succeed** on the TEST client (P7) | refuse cleanly |
+| 2 | The naming mint's **four** steps are done, flag flip included, `video` proved before `graphics` is enabled (P1) | migration applied |
+| 3 | `production_assignee_eligibility` is exactly `{"provider_mapping_required": false}` (P6) **and row 4 check 6 has passed** | the flag readback, which proves only what the flags table holds |
+| 4 | With Linear dead, on the TEST client, **all six** P7 checks succeed: (1) Calendar post, (2) Samples/SXR post, (3) **staff submission**, (4) component fill, (5) **set a label and open the picker**, (6) **change an assignee** | any subset of them, or any of them refusing cleanly |
+
+**Row 4 lists all six on purpose.** An earlier version named three, and the three
+it named covered one request site twice while omitting the staff submission, labels
+and the assignee proof entirely. **A summary that drops members of the list it
+summarises is not a summary, it is a second and weaker specification** — and this
+document has now produced that same defect three times (the "edits" row, the
+enumeration that included `labels`, and this gate). Repeating the full list costs
+four lines and removes the failure mode.
 
 **Any one of these unmet means Phase 3 is not reachable.** Item 4 is the one this
 document previously permitted a reader to walk straight past.
@@ -600,8 +630,12 @@ handed to that lane as a comment on #1350, phrased in its existing P-numbered st
 gate unless its runbook carries these preconditions.** An operator entering through
 the procedural runbook, which is the normal way in, never sees this file. So
 "#1350 is merged" is **not** sufficient for row 1 of the entry gate; the runbook it
-lands must contain the intake and label success criteria and the assignee flag
-literal. If it merges without them, the gate is unmet and the cutoff is not
+lands must contain **all six P7 checks as behavioural successes** — Calendar post,
+Samples/SXR post, staff submission, component fill, label set-and-picker, and the
+post-flag assignee change — not a shortened list and not the assignee flag literal
+in place of the assignee check. The first version of this handoff asked for the
+flag value, which is the very substitution this document says elsewhere does not
+prove anything. If it merges without them, the gate is unmet and the cutoff is not
 reachable, however green everything looks.
 
 Until that happens, the entry gate above is a note in a coordination document rather

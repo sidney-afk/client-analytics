@@ -15816,3 +15816,96 @@ brief A's own DONE-WHEN had conflated. AGENTS.md:153-166 exists because a
 published count was wrong by 2.5× in the scary direction; every instance in this
 pass has been wrong in the direction that UNDER-states, which is worse for a
 rollback instruction because the operator stops looking sooner.
+
+**Codex round eleven: six findings, and the pattern in them is that the
+corrections were already in the briefs — clipped.** Round eleven ran on
+`41fed36` and returned six: two P1s on lines this pass wrote (C's C1 ordering
+`mitigate:`, D's dispatch action), one P1 on a line this pass quoted (F's step-0
+census), one P2 already fixed by the commit that landed while the round was
+running (E's `deliverable_events` count), and two on ORIGINAL brief lines this
+pass had never touched (E's upload pacing `mitigate:`, F5's `WHAT IT CHECKS`).
+
+**The two P1s in my own lines were both ordering, and both had the same shape:
+a precondition stated somewhere other than on the action.**
+
+1. *C, the C1 window.* The order I restored — merge, deploy, n8n root, secrets,
+   drill — puts the browser first, and the browser is the one half that cannot
+   be staged. The native branch is chosen on the card alone
+   (`String(post.video_deliverable_id||'').trim()`, index.html:33564 and three
+   more callers on `codex/native-urgent-dispatch-20260907`); there is no flag
+   and no fallback. Worse than the "no urgent alerts" I wrote: the deployed
+   gateway answers 400 `unsupported_action` (production-write/index.ts:7202),
+   which carries no `retry_safe`, so the browser takes the delivery-UNKNOWN path
+   and KEEPS the `syncview-native-urgent:v1:…` hold it wrote before the transport
+   (:33615-33616, :33630, :33664). The hold is keyed to the card's round and
+   outlives the deploy, so a press during the window durably disables that
+   button for that round in that browser. The window is avoidable by splitting
+   the merge so index.html lands last; the line now gives that order, and gives
+   the residual cost honestly for the case where the merge cannot be split.
+2. *D, the dispatch.* "This dispatch is genuinely first" was true of lane D's own
+   artifacts and false of the run, which deploys twelve functions from one SHA.
+   The candidate's `production-write` calls `production_native_intake_epochs`
+   unconditionally (index.ts:3678 on the candidate) and refuses 503 when the RPC
+   is absent, so a SHA carrying lane B's writers before lane B's SQL window has
+   closed takes Create Post/Submit down from a lane with no SQL of its own. The
+   precondition is now on the action. **One thing I could not establish and did
+   not guess:** whether the ancestry rule offers a way round it depends on the
+   lane merge order, and I could not find a documented merge order anywhere in
+   `docs/independence/` or this ledger. The line says so and routes it to the
+   coordinator.
+
+**The P1 in the quoted line is the one worth generalising.** F's step-0 census
+passes on item 75's own SQL, and I checked it in the counting sweep two commits
+ago — but I checked the `group by` query in that line and treated the LINE as
+checked. The other query item 75 prints, `select id, kind, legacy_parity, …`,
+names a column `public.mirror_outbox` does not have: the table carries `op`
+(b1-linear-data-model.sql:111-119) and `entity`/`operation`
+(b4-linear-outbound.sql:11-32), and `kind` is a deliverables column. As printed
+it fails with `42703` and returns nothing — on the single highest-value read in
+the whole ledger, one nobody has ever run, a failure that reads like a
+permissions problem and is a typo. **A quoted source is not a verified source,
+and one verified quotation in a line does not verify the line.** The brief now
+gives the query with the columns that exist; item 75 is append-only, so this
+paragraph is its correction.
+
+**And the finding underneath the other two: the truncation clipped the
+corrections along with the instructions.** E's pacing `mitigate:` ("one upload
+per 30 seconds… ~150 files… ~75 minutes") and F5's `WHAT IT CHECKS` ("the five
+dispositions") are original, uncut lines — and each is already contradicted, by
+name, in its own brief's ADVERSARIAL REVIEW section, at E:263-265 and F:396-398.
+Both of those `truth:` lines are themselves clipped. So the scoping workflow did
+not only cut instructions; it cut the lines that say the instructions are wrong,
+while leaving the wrong instruction intact and readable. A reader who trusts what
+is legible gets the defect and not the correction. That is a property of the
+remaining ~284, not of these two, and it is the strongest argument yet for
+restoring the review sections next.
+
+Both are corrected here and both are marked `[CORRECTED …]` rather than
+`[RESTORED …]`, each saying it was not truncated and was outside this pass's
+original scope. The facts, verified rather than taken from the review lines:
+30 s spacing self-refuses because the deciding count includes the row just
+reserved (`> RATE_LIMIT_PER_HOUR`, description-image-upload/index.ts:183-206),
+and the shipped script already defaults to `40_000` ms plus jitter with that
+reason in a comment (linear-media-rescue.mjs:331-334); the corpus is 1,166 in-cap
+brief files plus 75 comment files, so ~1,200 uploads at ~42.5 s is about
+**14 hours**, not 75 minutes, and the real count is the `distinct_files=` the E1
+scan prints. `linear_outbound_cutoff_debt_rows_v1()` has SIX branches, the second
+being `when not c.cutoff_enabled then 'cutoff_inactive'`
+(2026-09-06-linear-outbound-cutoff.sql:189-206), so before activation every
+non-terminal row classifies as `cutoff_inactive` and the four pre/post-cutoff
+dispositions cannot appear at all — a watcher built from that line would go blind
+during exactly the period it exists to guard. The view also carries no client
+filter and returns only four columns, so it cannot be scoped to real clients
+without joining back to `mirror_outbox` on `id`.
+
+**Scope, stated rather than quietly widened:** this pass has now corrected four
+lines that were never truncated (C's re-publish `undo:`, F's `mode:"off"`
+`undo:`, and these two). Each is marked as such in place. The ~284 clipped
+context lines remain untouched, no brief is marked safe as a runbook, and every
+warning banner stays.
+
+**Round eleven's scorecard for this pass, since the honest one matters more than
+the tidy one:** six findings, five real, one already fixed. Two were defects in
+lines I wrote, one in a line I quoted without checking, two in lines I had
+correctly left alone but whose in-document corrections the truncation had eaten.
+Eleven rounds in, the review is still finding a category per round.

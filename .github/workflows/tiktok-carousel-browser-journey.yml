@@ -1,0 +1,49 @@
+name: TikTok carousel browser journey
+
+# Runs the hermetic Playwright journey for the TikTok Upload photo-carousel
+# transport (docs/syncview-design/tests/tiktok-carousel-browser-journey.js).
+# It is a standalone `node <path>` invocation, not an npm script, on purpose:
+# package.json is fingerprinted by the leave-lifecycle evidence packet
+# (test/leave-evidence-fingerprint-coupling.js), so this workflow reads the
+# ALREADY-declared `playwright` devDependency rather than adding a script
+# entry there. Scoped to a dedicated workflow (mirroring pto-ui-tests.yml)
+# rather than folded into calendar-unit-tests.yml's `unit` job, which is
+# documented there as reaching no live backend or browser.
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'docs/syncview-design/tests/tiktok-carousel-browser-journey.js'
+      - '.github/workflows/tiktok-carousel-browser-journey.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'docs/syncview-design/tests/tiktok-carousel-browser-journey.js'
+      - '.github/workflows/tiktok-carousel-browser-journey.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tiktok-carousel-browser-journey-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-journey:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser-test dependencies
+        run: npm install --no-package-lock
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run the TikTok carousel browser journey
+        run: node docs/syncview-design/tests/tiktok-carousel-browser-journey.js

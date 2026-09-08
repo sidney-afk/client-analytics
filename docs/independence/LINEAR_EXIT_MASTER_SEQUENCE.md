@@ -67,7 +67,7 @@ and `docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 — never in a source comment.
 | Flag | Live value | Where |
 |---|---|---|
 | `prod_authority` | `{"video":"syncview","graphics":"syncview"}` | BRIEFING |
-| `write_ui_reroute_clients` | the **full roster**, `owner-enrollment-wave-3-full-roster`, wave 3 executed 2026-08-14 | BRIEFING:124-127 |
+| `write_ui_reroute_clients` | the **full roster**, `owner-enrollment-wave-3-full-roster`, wave 3 executed 2026-08-14 | BRIEFING:124-127. **`ROLLBACK.md:146` disagrees** — see below |
 | `linear_outbound_enabled` | `{"mode":"live"}` — **not** off. The cutoff is what changes it | BRIEFING |
 | `linear_legacy_parity_enabled` | `{"enabled":true}` | BRIEFING |
 | `public_intake_enabled` | **`{"enabled":true}` since 2026-08-25** | BRIEFING:133-134 |
@@ -82,6 +82,32 @@ rosters by equality" and "the count moves with onboarding". **The number was nev
 the load-bearing fact; the equality is.** Quoting a snapshot as though it were a
 property is how three different true numbers end up looking like a disagreement, so
 the row now states the mechanism.
+
+**The two live-state authorities DISAGREE about the reroute cohort, and the first
+version of this sweep reported them as matching because it only read one.**
+
+- `BRIEFING.md:124-127`: the **full roster**, `owner-enrollment-wave-3-full-roster`,
+  wave 3 executed **2026-08-14**.
+- `ROLLBACK.md:146`: *"cohort UPDATED 2026-08-07: the TEST fixture plus enrollment
+  wave 1 — **two real clients**, owner-executed"*.
+
+BRIEFING is a week newer and is almost certainly the current truth. **But
+`ROLLBACK.md` is the rollback law**, and its row names the wave-1 cohort as the
+captured prior value to restore. An operator rolling back from that row would
+restore a **two-client** cohort onto a full-roster estate. The row does carry
+*"always read the live value fresh"*, which is the mitigation, and it is the only
+reason this is not worse.
+
+**Not fixed here, deliberately.** `ROLLBACK.md` is the repository's rollback law and
+correcting it needs the live value read, which is an owner action, not a documentary
+one. Recorded so the conflict is visible rather than papered over by a sweep that
+claimed agreement.
+
+**And the sweep's own lesson:** it reported "the sources match" having consulted
+**one** of the two authorities it named. Checking a claim against one source and
+reporting agreement with several is a stronger statement than the work supports —
+the same shape as everything else corrected on this PR, committed inside the
+correction for it.
 
 **One thing the non-flag sweep turned up, stated as a check rather than a defect.**
 Today's `workload-plan` deploy from `d4b2365e` is properly recorded in
@@ -635,6 +661,44 @@ touches `projectForIntake`. A repair scoped to the intake reads would deploy, lo
 complete, and still fail check 5 — leaving Phase 3 blocked after an F27 deploy has
 already been spent. #1326's scope may or may not cover this; **that is a question
 for the review, not an assumption to carry.**
+
+### ORDER FIRST. Deploying #1326's gateway before its SQL takes Create Post DOWN.
+
+**This is a live-outage hazard and an earlier version of this section walked
+straight past it**, going from "choose #1326" to "dispatch the F27 deploy" with
+nothing in between.
+
+The candidate's `production-write` calls `production_native_intake_epochs`
+**unconditionally** and **refuses `503` when the RPC is absent** (ledger entry at
+`OPEN_REPAIRS.md:16663-16666`, recorded when lane D hit exactly this). So a SHA
+carrying lane B's writers, deployed before lane B's SQL window has closed, **takes
+Create Post and Submit down immediately** — from a deploy that looks like it only
+touches an Edge Function.
+
+`LINEAR_EXIT_BRIEF_B.md:173-200,220-231` lists what the gateway actually depends on,
+and it is not one migration:
+
+- the three intake migrations plus the composed atomic artifact (B4, B5);
+- `2026-09-06-native-existing-assignment.sql`, which seeds
+  `native_assignment_epochs` as `mode:provider`, i.e. **disabled** (B6);
+- the two label migrations **and** a `version_id` staged in the catalog table —
+  `production_label_catalog_capability()` returns `native` only when one exists (B7);
+- the matching browser plumbing, including the new `intake_editor_options` endpoint
+  and its caller.
+
+**So the order is: migrations applied and staged → epoch/catalog activation → THEN
+the F27 dispatch.** Not the reverse, and not "deploy and let the acceptance checks
+find out". The acceptance checks in this document run **after** a deploy; if the
+deploy itself is what breaks Create Post, they discover an outage rather than
+prevent one.
+
+**This document does not attempt to specify that order.** Brief B does, per work
+item, with SHAs and file lists, and it is the authority. What belongs here is the
+constraint: **do not dispatch until brief B's B4 to B7 are done and the epoch and
+catalog capabilities report native.**
+
+If the owner picks the fresh-minimal option instead, this hazard does not apply —
+but the label repair and the parent-validation repair above still do.
 
 Either way it is an Edge Function change and therefore an F27 Section 4 deploy,
 dispatched at

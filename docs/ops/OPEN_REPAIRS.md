@@ -17533,3 +17533,53 @@ who has no time to verify it. The PR template asks whether `ROLLBACK.md` needs
 updating when rollback scope changes; a deploy changes rollback scope by definition,
 and today's deploy did not come with that check. **A minute of the owner's time
 before the cutoff, not a blocker.**
+
+### Addendum, 2026-09-08 — P7 would have caused a live outage, and the sweep that "found agreement" read one source
+
+Two findings, one P1, and the P1 is the worst instruction defect on this PR because
+following it would have taken a live surface down.
+
+**1. Deploying #1326's gateway before its SQL takes Create Post DOWN.** The
+candidate's `production-write` calls `production_native_intake_epochs`
+**unconditionally** and refuses `503` when the RPC is absent — recorded in this
+ledger at `16663-16666`, from lane D hitting exactly this. So a SHA carrying lane
+B's writers, dispatched before lane B's SQL window has closed, takes Create Post and
+Submit down immediately, from a deploy that looks like it only touches an Edge
+Function.
+
+**P7 went from "choose #1326" straight to "F27 dispatch" with nothing in between.**
+`LINEAR_EXIT_BRIEF_B.md:173-200,220-231` lists the real dependency set: three intake
+migrations plus the composed atomic artifact, the existing-assignment migration
+(which seeds `native_assignment_epochs` **disabled**), two label migrations **plus** a
+staged `version_id` without which `production_label_catalog_capability()` never
+reports native, and the matching browser plumbing including a new
+`intake_editor_options` endpoint.
+
+**The structural point.** This document's acceptance checks run **after** a deploy.
+That is fine when the risk is "the fix did not work" and useless when the risk is
+"the deploy itself is the outage". **A post-deploy check cannot protect a
+pre-deploy hazard**, and P7 was relying on it to. The constraint is now stated as an
+ordering precondition — migrations applied and staged, capabilities reporting
+native, *then* dispatch — with brief B named as the authority on the per-item order,
+since it has the SHAs and file lists and this document does not.
+
+**2. The live-state sweep reported "the sources match" having read one of the two
+authorities it named.** `BRIEFING.md:124-127` says the reroute cohort is the **full
+roster**, wave 3, 2026-08-14. `ROLLBACK.md:146` still says *"cohort UPDATED
+2026-08-07: the TEST fixture plus enrollment wave 1 — two real clients"*.
+
+BRIEFING is a week newer and is almost certainly current. **But `ROLLBACK.md` is the
+rollback law**, and its row names the wave-1 cohort as the captured prior value to
+restore — so an operator rolling back from it would restore a **two-client** cohort
+onto a full-roster estate. Its own *"always read the live value fresh"* is the
+mitigation and the only reason this is not worse.
+
+**Not corrected here**: fixing the rollback law needs the live value read, which is
+an owner action. Recorded so the conflict is visible rather than hidden behind a
+sweep that claimed agreement.
+
+**The sweep's own defect is the one worth keeping.** It was run *because* a
+source-vs-live error had just been found, it named three authorities, it consulted
+one, and it reported agreement. **Checking against one source and reporting
+agreement with several is a stronger claim than the work supports** — the same shape
+as every restatement defect on this PR, committed inside the correction for them.

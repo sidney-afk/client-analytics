@@ -18184,10 +18184,31 @@
 
     /* Workload → content calendar deep link. Opens the calendar page on the
        given client and scrolls to the card linked to that Linear sub-issue. */
+    /* "Open in the content calendar", from a Workload popover row.
+
+       The calendar locates a card by matching the identifier against
+       `linear_issue_id`, so a deliverable with no Linear identifier has nothing
+       to match on and _calApplyFocusRequest returns silently -- the reader lands
+       on the right client's calendar with nothing focused and no explanation,
+       having pressed a button that promised a card.
+
+       The button is NOT hidden: the calendar itself is still the right place to
+       go, and hiding a working destination because one part of it cannot be
+       fulfilled is the over-strict failure AGENTS.md rules against. What changes
+       is that the shortfall is SAID. Carrying a native card target through the
+       snapshot would remove the need for the message; that is a projection
+       change in the calendar's own region and is recorded in OPEN_REPAIRS 169
+       rather than done here. */
     function wlOpenInContentCalendar(clientName, identifier) {
         const canon = wlCanonicalClient(clientName);
         if (!canon) return;
-        _calFocusRequest = { client: canon, identifier: String(identifier || '').toUpperCase() };
+        const ident = String(identifier || '').toUpperCase();
+        if (!ident) {
+            showNotify('Opening the calendar, not the card',
+                'This deliverable has no Linear identifier, so it cannot be matched to a calendar card yet. '
+                + canon + "'s calendar is opening; find the card by title.");
+        }
+        _calFocusRequest = { client: canon, identifier: ident };
         try {
             const pins = _calGetPins();
             if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
@@ -18202,12 +18223,35 @@
         return true;
     }
 
-    // URL for the parent issue if we have it; else fall back to the sub-issue URL.
+    /* Where a rollup chip actually POINTS.
+
+       A left-click on these chips is intercepted and opens the popover, so this
+       href is what a right-click, middle-click or "open in new tab" follows. It
+       used to be Linear-only at both ends -- the parent's url, else the sub's --
+       which was right while the board was a Linear mirror.
+
+       It is not right now, and this was a LIVE hole rather than a post-cutover
+       one: _wlV2MapRow clears `url` on EVERY native row, not only the rows
+       created after outbound stops, so with both teams on syncview authority
+       this resolved to '' across the whole board and the chip opened nothing.
+       (I swept this in the previous round and called it a latent post-flip
+       degradation of a secondary affordance. That was wrong on both counts.)
+
+       SyncLinear is also the correct destination now (owner, 2026-08-21), so a
+       native row routes there -- the batch parent when the group has one, else
+       the deliverable itself. Linear stays the fallback for legacy rows, which
+       still carry real provider urls. */
     function wlParentUrl(sub) {
-        if (sub.parentId && wlState.parentById.has(sub.parentId)) {
-            return wlState.parentById.get(sub.parentId).url || sub.url;
+        if (sub && sub.workloadSource === 'native') {
+            const batchId = String(sub.parentId || '');
+            if (batchId) return location.pathname + '?prod=1&batch=' + encodeURIComponent(batchId);
+            const nativeId = String(sub.nativeId || '');
+            if (nativeId) return wlSyncLinearUrl(nativeId);
         }
-        return sub.url;
+        if (sub && sub.parentId && wlState.parentById.has(sub.parentId)) {
+            return wlState.parentById.get(sub.parentId).url || sub.url || '';
+        }
+        return (sub && sub.url) || '';
     }
 
     function wlWeekendExceptions(mondayISO) {
@@ -18356,6 +18400,19 @@
            rank it had; the ones below it are appended rather than dropped. */
         const notices = [];
 
+        /* Two of the notices below describe WHAT IS ON SCREEN -- rows whose
+           weight could not be proven, and rows excluded from every panel. Both
+           used to be gated on `planStatus === 'ready'`, which couples them to a
+           state they have nothing to do with: a warm board whose refresh just
+           failed still shows those same rows, still excludes the same ones, and
+           goes to 'stale'. The notice vanished exactly when the board got worse.
+
+           The honest gate is whether a board is being shown at all. During a
+           first load nothing is painted and `excluded` is empty, so these stay
+           silent on their own; once anything is painted, what is true about it
+           is true regardless of how fresh the plan is. */
+        const boardShown = (wlState.issueSnapshot || []).length > 0;
+
         const droppedText = wlDroppedPlanWarningText(wlState.nativePlansDropped);
         if (droppedText) notices.push(droppedText);
 
@@ -18382,7 +18439,7 @@
                 : 'Workload could not check for newer changes. The last good calendar is still shown; use Refresh if needed.');
         }
 
-        if (status === 'ready' && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
+        if (boardShown && (metadataStatus === 'unknown' || metadataStatus === 'stale')) {
             /*
              * Two very different situations reach this branch, and until
              * 2026-08-24 both got the sentence below.
@@ -18413,7 +18470,7 @@
            unsaid, though -- "Nothing is shown here, but this is not an empty
            board" is exactly the sentence a reader needs most on the day
            something else is also wrong. */
-        if (status === 'ready') {
+        if (boardShown) {
             const excludedText = wlExcludedSummaryText(wlState.excluded, wlVisibleSubCount());
             if (excludedText) notices.push(excludedText);
         }

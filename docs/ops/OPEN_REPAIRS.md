@@ -14253,6 +14253,76 @@ renderer is then read for `editing is paused` (warm board) and
 `editing is disabled` (cold board).
 
 
+### Codex round 5 — three more, one of which I had swept and dismissed (2026-09-08)
+
+**1. The rollup chip's href was empty across the whole live board, and my own
+sweep said otherwise.** Round 2 found `wlParentUrl` (`index.html:18206`) and left
+it, on the reasoning that it was a post-flip degradation of a Linear-only escape
+hatch that only a modifier-click follows. Both halves were wrong.
+`_wlV2MapRow` sets `issue.url = ''` on **every** native row, not only rows
+created after outbound stops — so with both teams on syncview authority this
+resolves to `''` for the entire board *today*, and a right-click / middle-click /
+open-in-new-tab on the primary Workload rollups opens nothing. And Linear stopped
+being the right destination in August (owner, 2026-08-21). Native rows now route
+to SyncLinear: `?prod=1&batch=` when the group has a batch parent, else
+`?prod=1&d=` for the deliverable. Legacy rows keep the provider url.
+
+**The sweep lesson, which is the expensive one here.** The sweep read the call
+site and reasoned about which rows would lack a `url`. It never read
+`_wlV2MapRow`, which clears the field unconditionally two thousand lines away.
+Judging a field "usually populated" from its consumers is how a live defect got
+filed as latent. Read the producer.
+
+**2 and 3. Two notices about the BOARD were gated on the PLAN's freshness.**
+`renderWorkloadPlanStatus` gated both the metadata-degradation notice and the
+exclusion completeness note on `planStatus === 'ready'`. Neither has anything to
+do with plan freshness:
+
+- a warm board whose refresh fails RETAINS `issueSnapshot` and `excluded` and
+  moves to `'stale'`, so the same rows are on screen, the same ones are still
+  excluded, and the note vanished exactly when the board got worse;
+- a cold start that falls back to a cached snapshot paints issues with an empty
+  workload map — 2×/3× work counted as 1× — with `planStatus` and
+  `linearMetadataStatus` both `'unknown'`, so the one sentence that says
+  "capacity may be understated" was suppressed.
+
+Both are now gated on `boardShown` — whether anything is painted at all — which
+is the condition they were always about. During a first load nothing is painted
+and `excluded` is empty, so they stay silent on their own.
+
+`test/workload-excluded-reported.js` had to change its CLAIM, not just its
+harness: it asserted the note is "only offered once the plan itself is ready,
+never over a loading or stale board", and the stale half of that was the defect.
+It now pins both halves of the real rule — a painted board reports its exclusions
+however degraded its plan is, and nothing painted stays silent whatever the plan
+status claims.
+
+**4. The content-calendar button (P2).** Kept, not hidden — the calendar is still
+the right destination, and hiding a working one because part of it cannot be
+fulfilled is the over-strict failure `AGENTS.md` rules against. What changed is
+that the shortfall is now SAID rather than being a silent no-op. Carrying a
+native card target through the snapshot would remove the need for the message
+entirely; that is a projection change in the calendar's region and stays open.
+
+**5. `workload_native_label_state_absent` certified the wrong SHAPE as absent
+(P2), and this one is PROVEN.** `jsonb_typeof(p_raw) is distinct from 'object'`
+is true for a JSON array, string, number or boolean as well as for absence — so a
+malformed `linear_raw` was answered as provably-unlabelled (weight 1×,
+`production_workload_label_projection` skipped) rather than refused, inverting the
+rule the migration states for itself. Repaired in a NEW migration,
+`2026-09-08-workload-native-label-state-shape.sql`, because
+`2026-09-05-workload-native-membership.sql` is already applied live and editing
+an applied migration makes the file lie about the database.
+
+**This one was executed against real SQL.** `test/workload-native-postgres.js`
+normally SKIPs (it demands an explicit disposable instance), which is exactly the
+condition item 177 warns about — so a PostgreSQL 16 instance was started on
+loopback and the lane run for real: 45 checks pass with the corrective migration,
+and the first new check fails without it. **It needs applying**, and it is a third
+owner gate on this branch alongside the live snapshot read and the
+`workload-plan` deploy.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

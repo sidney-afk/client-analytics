@@ -168,10 +168,13 @@ vm.runInContext(
 const statusEl = { hidden: true, className: '', textContent: '' };
 statusCtx.document = { getElementById: () => statusEl };
 const EMPTY_BUCKETS = { planned: [], nowWorking: [], tweaksNeeded: [], overdue: [], undated: [], unassigned: [] };
+/* `issueSnapshot` is part of the default because the notice is gated on a board
+   being ON SCREEN, not on the plan being fresh -- see the guard checks below. */
 const paintStatus = state => {
   statusEl.hidden = true; statusEl.className = ''; statusEl.textContent = '';
   statusCtx.wlState = { linearMetadataStatus: 'ready', linearMetadataWithheldOnly: 0,
-    backgroundError: null, nativePlansDropped: 0, excluded: null, ...EMPTY_BUCKETS, ...state };
+    backgroundError: null, nativePlansDropped: 0, excluded: null,
+    issueSnapshot: [{ id: 'painted' }], ...EMPTY_BUCKETS, ...state };
   statusCtx.paint();
   return statusEl.textContent;
 };
@@ -187,11 +190,27 @@ ok(both.indexOf('could not check for newer changes') < both.indexOf('not an empt
 ok(/not an empty board/.test(both),
   'but outranking it does not SILENCE it -- both are true, so both are said');
 
-ok(!/not an empty board/.test(paintStatus({ planStatus: 'loading', excluded: TWO_EXCLUDED }))
-  && !/not an empty board/.test(paintStatus({ planStatus: 'refreshing', excluded: TWO_EXCLUDED }))
-  && !/not an empty board/.test(paintStatus({ planStatus: 'stale', excluded: TWO_EXCLUDED }))
-  && !/not an empty board/.test(paintStatus({ planStatus: 'unknown', excluded: TWO_EXCLUDED })),
-  'and the note is only offered once the plan itself is ready, never over a loading or stale board');
+/* THE GUARD MOVED, AND THE CONTRACT IT ENFORCES CHANGED WITH IT (2026-09-08).
+
+   It used to read `planStatus === 'ready'`, and the check here asserted the note
+   was never offered "over a loading or stale board". A second Codex P1 showed
+   that reading was wrong for the stale half: when a warm board's refresh fails,
+   wlLoadSnapshot RETAINS `issueSnapshot` and `excluded` and moves planStatus to
+   'stale' -- so the very same rows are still on screen, still excluded, and the
+   note disappeared exactly when the board got worse.
+
+   The real condition was never freshness. It is whether a board is being shown
+   at all: during a first load nothing is painted and there is nothing true to
+   say; once something is painted, what is excluded from it is excluded from it
+   no matter how stale the plan is. Both halves are pinned below. */
+ok(/not an empty board/.test(paintStatus({ planStatus: 'stale', excluded: TWO_EXCLUDED }))
+  && /not an empty board/.test(paintStatus({ planStatus: 'unknown', excluded: TWO_EXCLUDED }))
+  && /not an empty board/.test(paintStatus({ planStatus: 'refreshing', excluded: TWO_EXCLUDED })),
+  'a painted board reports its excluded rows however degraded its plan is');
+ok(!/not an empty board/.test(paintStatus({ planStatus: 'loading', excluded: TWO_EXCLUDED, issueSnapshot: [] }))
+  && !/not an empty board/.test(paintStatus({ planStatus: 'unknown', excluded: TWO_EXCLUDED, issueSnapshot: [] }))
+  && !/not an empty board/.test(paintStatus({ planStatus: 'ready', excluded: TWO_EXCLUDED, issueSnapshot: [] })),
+  'and with NOTHING painted it stays silent, whatever the plan status claims');
 
 console.log(failures === 0
   ? '\nWorkload excluded-rows reporting checks passed'

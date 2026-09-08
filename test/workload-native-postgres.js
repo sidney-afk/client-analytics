@@ -44,6 +44,7 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
  from deliverables d cross join lateral(select production_workload_label_projection(d.linear_raw) value) p;`);
  sql(read('migrations/2026-09-02-workload-native-view.sql'));
  sql(read('migrations/2026-09-05-workload-native-membership.sql'));
+ sql(read('migrations/2026-09-08-workload-native-label-state-shape.sql'));
  checks++;
  sql(`insert into clients(slug,display_name)values('fixture','Fixture'),('other','Other');
  insert into team_members(id,name,role,team,active)values
@@ -84,6 +85,18 @@ const ok=(v,m)=>{assert.ok(v,m);checks++;};
   ok(Array.isArray(a3row(id).workload_labels)&&a3row(id).workload_labels.length===0,`A3: ${id} carries an empty label array, so it weighs 1x`);}
  ok(a3row('del_a3_broken').workload_labels_complete===false,
   'A3: a paginated/malformed label relation is still refused -- only the ABSENT case is opened');
+ // ABSENT vs WRONG-TYPE. `is distinct from 'object'` was true for a scalar or an
+ // array as well as for absence, so a linear_raw of the wrong SHAPE was
+ // certified provably-unlabelled -- weight 1x, projection skipped -- instead of
+ // refused. That inverts the rule the migration states for itself. Only real
+ // absence may answer true; a present-but-wrong type is unprovable.
+ for(const raw of ['\'"a string"\'','\'[]\'','\'42\'','\'true\'','\'{"issue":[]}\'','\'{"issue":"x"}\''])
+  ok(sql(`select workload_native_label_state_absent(${raw}::jsonb);`)==='f',
+   `a malformed label state stays unprovable, not absent: ${raw}`);
+ ok(sql(`select workload_native_label_state_absent(null::jsonb);`)===''
+  ||sql(`select workload_native_label_state_absent('null'::jsonb);`)==='t','a genuinely absent raw is still absent');
+ ok(sql(`select workload_native_label_state_absent('{}'::jsonb);`)==='t','an object with no issue is still the post-cutoff absent shape');
+ ok(sql(`select workload_native_label_state_absent('{"issue":{}}'::jsonb);`)==='t','an issue with no labels relation is still absent');
  ok(sql(`select workload_native_label_state_absent('{"attribution":{}}'::jsonb);`)==='t'
   &&sql(`select workload_native_label_state_absent('{"issue":{"labels":{"nodes":[],"pageInfo":{"hasNextPage":false}}}}'::jsonb);`)==='f',
   'A3: the predicate separates absent label state from a present one');

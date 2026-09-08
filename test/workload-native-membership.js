@@ -198,6 +198,54 @@ function browser(response=fixture()) {
    < withExcluded.context.planStatusEl.textContent.indexOf('not an empty board'),
    'the completeness note keeps its LOWEST rank -- it speaks last, not first, and not never');
 
+  // 3c. NOTICES ABOUT THE BOARD SURVIVE A DEGRADED PLAN. Codex round 5. Both
+  //     the metadata and exclusion notices were gated on planStatus==='ready',
+  //     which couples them to a state they have nothing to do with: a warm board
+  //     whose refresh just failed shows the SAME rows with the SAME exclusions
+  //     and goes to 'stale', so the notice vanished exactly when the board got
+  //     worse. Driven through the real failure path, not hand-set status.
+  {const warm=browser();
+   await warm.context.wlLoadSnapshot(false,null);
+   warm.state.excluded={noAssigneeNoDate:['a','b'],offTeamAssignee:[]};
+   warm.state.planned=[];warm.state.nowWorking=[];warm.state.tweaksNeeded=[];
+   warm.state.overdue=[];warm.state.undated=[];warm.state.unassigned=[];
+   ok(warm.state.issueSnapshot.length&&warm.state.planStatus==='ready','precondition: a warm, ready board with excluded rows');
+   warm.context.renderWorkloadPlanStatus();
+   ok(/not an empty board/.test(warm.context.planStatusEl.textContent),'precondition: it reports them while ready');
+   // Now the next refresh rejects. wlLoadSnapshot retains issueSnapshot and
+   // excluded, and moves planStatus to 'stale'.
+   warm.context.fetch=async()=>{throw Error('offline');};
+   await assert.rejects(warm.context.wlLoadSnapshot(false,null));checks++;
+   ok(warm.state.planStatus==='stale'&&warm.state.issueSnapshot.length,'the retained board is still displayed after the failure');
+   warm.context.renderWorkloadPlanStatus();
+   ok(/not an empty board/.test(warm.context.planStatusEl.textContent),
+    'a stale board still says it was already incomplete -- staff must not read missing work as absence');
+   ok(/editing is paused/.test(warm.context.planStatusEl.textContent),
+    'and still says editing is paused, so the two notices coexist');}
+
+  // 3d. The cached cold-start board: issues render from cache but the workload
+  //     map is empty, so 2x/3x work counts as 1x. planStatus and
+  //     linearMetadataStatus are BOTH 'unknown', so the old ready-gate hid the
+  //     one notice that says capacity is understated.
+  {const cached=browser(async()=>{throw Error('offline');});
+   await assert.rejects(cached.context.wlLoadSnapshot(false,{issues:[{id:'warm'}],fetchedAt:Date.now()}));checks++;
+   ok(cached.state.issueSnapshot.length===1&&cached.state.linearMetadataStatus==='unknown',
+    'precondition: a cached board is shown with no proven label metadata');
+   cached.context.renderWorkloadPlanStatus();
+   ok(/capacity may be understated/i.test(cached.context.planStatusEl.textContent),
+    'a cached fallback board says its capacity is understated rather than presenting 1x weights as fact');}
+
+  // 3e. And none of that leaks into a first load with nothing painted yet.
+  {const cold=browser(async()=>{throw Error('offline');});
+   await assert.rejects(cold.context.wlLoadSnapshot(false,null));checks++;
+   ok(cold.state.issueSnapshot.length===0,'precondition: nothing is painted');
+   cold.context.renderWorkloadPlanStatus();
+   ok(!/capacity may be understated/i.test(cold.context.planStatusEl.textContent)
+    &&!/not an empty board/.test(cold.context.planStatusEl.textContent),
+    'with no board on screen, notices ABOUT the board stay silent');
+   ok(/editing is disabled/.test(cold.context.planStatusEl.textContent),
+    'while the plan-state notice, which is not about the board, still speaks');}
+
   // 4. And it clears when the snapshot is clean -- a warning that never goes
   //    away is the next way to make it unreadable.
   const clean=browser(projectNativeSnapshot(fixture(),s=>s.toLowerCase()));

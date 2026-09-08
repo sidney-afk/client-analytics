@@ -264,6 +264,43 @@ ok(orphan.parentIdent === '' && orphan.parentSyncUrl === '',
 ok(!/subs\[0\]\?\.identifier/.test(resolveBlock) && !/subs\[0\]\?\.url/.test(resolveBlock),
   'the first-child fallback is gone from the parent resolution, in source');
 
+// ---- 4. the rollup chip's href leads somewhere real -------------------------
+/*
+ * Codex P1 on #1344, round 5, and a correction to my own sweep in round 2.
+ *
+ * A left-click on a rollup chip is intercepted and opens the popover, so
+ * `wlParentUrl` is what a RIGHT-click / middle-click / "open in new tab"
+ * follows. I swept this and left it, reasoning it was a post-flip degradation
+ * of a Linear-only escape hatch. Both halves were wrong: `_wlV2MapRow` clears
+ * `url` on EVERY native row, not only rows created after outbound stops, so
+ * with both teams on syncview authority this is empty across the whole board
+ * TODAY -- and SyncLinear, not Linear, is the correct destination now.
+ */
+const parentUrlSrc = source.slice(source.indexOf('function wlParentUrl(sub)'));
+const parentUrl = new Function('wlState', 'location', 'wlSyncLinearUrl',
+  parentUrlSrc.slice(0, parentUrlSrc.indexOf('\n    }') + 6) + '\nreturn wlParentUrl;')(
+  withParent, loc, syncUrl);
+ok(typeof parentUrl === 'function', 'the rollup href resolver extracts and executes (harness is not vacuous)');
+
+const NATIVE_BATCH_ID = 'bat_0000000000000000000000000001';
+ok(parentUrl({ workloadSource: 'native', parentId: NATIVE_BATCH_ID, nativeId: NATIVE_ROW_ID, url: '' })
+     === '/?prod=1&batch=' + encodeURIComponent(NATIVE_BATCH_ID),
+  'a native row in a batch opens that batch in SyncLinear');
+ok(parentUrl({ workloadSource: 'native', parentId: '', nativeId: NATIVE_ROW_ID, url: '' })
+     === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a native row with no batch parent opens the deliverable itself');
+ok(parentUrl({ workloadSource: 'native', parentId: NATIVE_BATCH_ID, nativeId: NATIVE_ROW_ID, url: '' }) !== ''
+  && parentUrl({ workloadSource: 'native', parentId: '', nativeId: NATIVE_ROW_ID, url: '' }) !== '',
+  'neither renders the empty href that made right-click open nothing -- the reported defect');
+ok(parentUrl({ workloadSource: 'legacy', parentId: PARENT_ID, url: 'https://linear.app/x/issue/VID-9001' })
+     === 'https://linear.app/x/issue/VID-9000',
+  "a legacy row still resolves to its PARENT's Linear url -- the mirror path is unchanged");
+ok(parentUrl({ workloadSource: 'legacy', parentId: 'absent-parent', url: 'https://linear.app/x/issue/VID-9001' })
+     === 'https://linear.app/x/issue/VID-9001',
+  'and falls back to the sub-issue url when the parent is not in this snapshot, exactly as before');
+ok(parentUrl({ workloadSource: 'legacy', parentId: '', url: '' }) === '',
+  'and a legacy row with nothing to point at yields an empty string rather than a bogus route');
+
 // A per-editor total badge spans clients, so it claims no parent and no video.
 const noClient = resolveLinks(withParent, PARENT_ID, '', [CHILD], loc);
 ok(noClient.parentIdent === '' && noClient.parentUrl === '',

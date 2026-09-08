@@ -17528,3 +17528,31 @@ an interaction between two documents I had *both* written and *both* read the sa
 day. Reading a document for correctness and reading it against every other
 document that constrains it are different activities, and only the second one finds
 this class.
+
+**Addendum, 2026-09-08 — the sweep's last pass, and a gap measured rather than
+filled.** Comparing `docs/ops/MONITORING.md` against `LANES` in
+`scripts/monitoring-watchdog.js` line by line: **three registered lanes appear
+nowhere in the coverage document** — `monitoring_watchdog`, `samples_e2e_nightly`
+and `calendar_e2e_nightly`. All three latch and page exactly like the lanes the
+document does list. An operator reading MONITORING.md to answer *"what will wake
+me, and why"* gets an answer short by three, **including the watchdog's own lane**
+— the mechanism that reports every other lane's silence is itself absent from the
+file that catalogues what reports what.
+
+This is pre-existing and not created by this PR. Two of the three, though, became
+load-bearing for this lane an hour ago: STEP 6's nightly flip acts on precisely
+`samples_e2e_nightly` and `calendar_e2e_nightly`, which is finding 7 above, and P6
+now gates it.
+
+**Recorded, not fixed, and the distinction is deliberate.** Writing coverage rows
+for three lanes this lane did not build would mean inventing detail about other
+people's work — what each proves, what its failure means, what an operator should
+do about it. **A confidently wrong row in a coverage document is worse than an
+acknowledged absence**, because the absence at least prompts someone to look. The
+measurement is the deliverable; the rows belong to whoever owns those lanes.
+
+**Final count for the day: six findings from other lanes reading my documents,
+nine from reading them myself against the documents that constrain them.** The
+method is written up in this ledger and in the runbook's own handover section
+rather than left as a habit, because the next session will not have watched it
+work.

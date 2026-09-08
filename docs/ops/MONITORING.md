@@ -43,6 +43,21 @@ authority recovery and exact Edge Function rollback require additional evidence.
 These are not covered by the green watchers above. A green pager or reconciler therefore cannot
 waive them.
 
+**THREE REGISTERED LANES ARE ABSENT FROM THIS DOCUMENT** *(measured 2026-09-08 by comparing this
+file against `LANES` in `scripts/monitoring-watchdog.js`)*: `monitoring_watchdog`,
+`samples_e2e_nightly` and `calendar_e2e_nightly`. All three latch and page like every lane listed
+above; none appears anywhere in this file. An operator reading this document to answer *"what will
+wake me, and why"* gets an answer that is short by three — including **the watchdog's own lane**,
+so the mechanism that reports every other lane's silence is itself undocumented here.
+
+Two of the three are now load-bearing for the Linear cutoff: `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`
+STEP 6 flips both nightly suites into `SYNCVIEW_QA_LINEAR_DEAD=1`, and because they carry lanes
+(`max_age_minutes: 2160`), doing that before the rehearsal proves the app survives a dead Linear
+turns both into daily red runs and latched `failing` incidents. That runbook's **P6** exists to
+prevent it. **Recorded here rather than fixed**: writing coverage rows for three lanes this lane
+did not build would be inventing detail about work that is not mine, and a wrong row is worse than
+an acknowledged absence. The measurement is the deliverable.
+
 **EVERY PAGE IN THIS ESTATE GOES THROUGH ONE n8n WORKFLOW, and the Linear cutoff does not change
 that.** `SLACK_ALERT_WEBHOOK` does not point at a Slack incoming webhook; it points at the n8n relay
 `Tfhc3vebZyG6obOg` (`scripts/monitoring-alert-relay.js:53`), and `confirmRelayDelivery` correlates

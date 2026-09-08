@@ -17448,3 +17448,39 @@ it from Drive by content-addressed name, so skipping the upload fails in about 2
 seconds with `OBJECT_MISSING` and deploys nothing. **This is the exact abbreviation
 that failed run #37 on 2026-09-05**, and it is written out in `CLAUDE.md` in
 capitals. I had the file in front of me and compressed three steps to two.
+
+### Addendum, 2026-09-08 — the client link is LIVE, so the cutoff is client-facing, and I read a code default as a live value
+
+One finding, P1, and unlike the last several rounds it is **not** a restatement
+defect. It changes what breaks on 2026-09-15 and who sees it.
+
+**`public_intake_enabled` = `{"enabled":true}` since 2026-08-25 03:22Z**, turned on
+by the owner after the `production-write` deploy that made the path safe to admit.
+It is written in `docs/truth/BRIEFING.md:133-134`, this repo's designated
+current-truth file.
+
+I described the client-link intake as *"behind a default-off runtime flag"* and
+then as *"conditional on a flag whose live value this lane has not read"*. **The
+first is the CODE's default; the second was false — the live value is recorded in
+the repo and I did not look.** I read a source comment describing a default and
+carried it as a statement about production.
+
+**That is a distinct error class from the day's others**, and worth separating from
+them. The rest have been restatements drifting from a source that stayed correct.
+This one is **a code default read as a live value**, when the live value was
+written down in the one file whose entire job is to hold live values. The remedy is
+specific: *a flag's default in code is never evidence about its live state; the
+live state lives in `docs/truth/BRIEFING.md` and `ROLLBACK.md`, and
+`docs/ops/PRE_FLIP_HEALTH_CHECK.md` item 4 is the authority on expected values.*
+
+**Consequence, which is the reason this is the most important finding since the
+intake dependency itself:** at the cutoff, **clients** submitting through
+`?intake=1` fail, not only staff. Every other surface in this document is internal.
+This one is the one a client sees.
+
+It also could not have been caught by the seven existing checks: the client link
+takes a **distinct authentication branch** — `production-write` admits it
+credential-less after a `credentials_required` failure, where the staff path
+authenticates — so all seven could pass as staff while client submissions refuse.
+Added as **check 8, mandatory**, and carried into the Phase 3 gate row, the
+degradation table as its only client-facing row, and the #1350 runbook handoff.

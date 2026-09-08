@@ -80,7 +80,8 @@ reading:
 | Staff writes: status, due date, description, comments, attachments | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so these go native (item 175, 2026-09-07). Verified per operation, not inferred from the group | none |
 | **Labels** — reading them and setting them | **NOT safe.** `handleLabelsRead:4947` and the `labels` write at `:5491` both call `linearLabelSnapshot` → `linearLabelCatalog`, which pages the Linear API. Unconditional, no flag | not safe |
 | **Changing a card's assignee** | **NOT safe as things stand.** `validateAssignee` → `assigneeProviderPool` needs Linear, and a **missing or malformed** `production_assignee_eligibility` flag *stays strictest* (`docs/truth/APP.md:652-653`). Loss of Linear gives `assignee_provider_unavailable` before the native assignment. **Unlike the intake reads, this one has a documented off switch** — see P6 | **fixable by one flag; unsafe until it is set** |
-| **Staff creating a post, or filling a component** | **NOT safe. See the section below.** `intake_create` and `component_fill` both read the Linear API before writing anything, and neither read is behind a flag | **the highest severity in this table** |
+| **Anyone creating a post, or filling a component** | **NOT safe. See the section below.** `intake_create` and `component_fill` both read the Linear API before writing anything, and neither read is behind a flag | **the highest severity in this table** |
+| **CLIENTS submitting through the client link** | **NOT safe, and this is the only CLIENT-FACING row here.** `public_intake_enabled` has been `{"enabled":true}` since 2026-08-25, so `?intake=1` is live. It reaches the same `intake_create` handler by a distinct credential-less branch | **client-visible** |
 | Workload board | The n8n reconcile stops refreshing `workload_issues`, so the board **freezes rather than empties** — silently current-looking and stale | high, because it is invisible |
 | Kasper → Editors subtab | `editors-week` fails | visible |
 | Tweak comments | `linear-tweak-comments` fails | visible |
@@ -314,7 +315,7 @@ whole surface.** There are exactly **two** places the browser builds an
 | Built at | Surface | Flows it serves |
 |---|---|---|
 | `index.html:42155` | Derived at `:42056` — `state.surface === 'sxr' ? 'sxr' : 'calendar'` | **Calendar** Create Post, **and Samples/SXR**, whose entry point calls `_calOpenNativePost(..., 'sxr')` at `:66086` |
-| `index.html:48263` | `'submission'` | **Staff submission** from the normal tab, authenticated; **and the client link** — `production-write` admits a credential-less caller for `intake_create` on the `submission` surface only, behind a **default-off** runtime flag, rate-limited and marked `public-intake` |
+| `index.html:48263` | `'submission'` | **Staff submission** from the normal tab, authenticated; **and the client link**, which is **LIVE** — `public_intake_enabled = {"enabled":true}` since 2026-08-25 03:22Z, turned on by the owner (`docs/truth/BRIEFING.md:133-134`). `production-write` admits a credential-less caller for `intake_create` on the `submission` surface only, rate-limited and marked `public-intake`, on a **distinct authentication branch** from the staff path |
 
 **`index.html:47372` is NOT a sender**, and the first version of this section wrongly
 listed it as one. It is inside `_linearIntakeRecoveryCopy`, which builds a scrubbed
@@ -329,8 +330,11 @@ errors do not cancel, and only one of them would have been caught by anyone
 sanity-checking the total.
 
 All four flows reach `handleIntakeCreate` and therefore the same unflagged
-`projectForIntake`. The client-link flow is **conditional** on a default-off flag
-whose live value this lane has not read.
+`projectForIntake`. **The client-link flow is LIVE**, not conditional: an earlier
+version of this section called it "behind a default-off runtime flag", which is the
+**code's** default and not the **live** value. `public_intake_enabled` has been
+`{"enabled":true}` since 2026-08-25, recorded in this repo's own current-truth file.
+So **real clients' submissions break at the cutoff**, not just staff ones.
 
 ### The failure mode, unchanged by the correction
 
@@ -362,8 +366,8 @@ a flag flip at cutoff time.
 With `main` as it stands, once Linear stops answering, **for any real client:**
 
 - **no post can be created** — from the Calendar, from **Samples/SXR**, from a staff
-  submission, or from the client link (that last one conditional on its default-off
-  flag);
+  submission, or **from the client link — which is live, so this is client-facing,
+  not internal**;
 - **no component can be filled.**
 
 Nothing is lost or corrupted; every one of those fails closed. Those surfaces
@@ -619,6 +623,7 @@ must **succeed**, not merely fail cleanly:
 | 2 | Create a post from **Samples/SXR** | **same** request site as 1, different surface value — it proves the surface branch, not a second site |
 | 3 | A **staff submission** from the normal tab | the **other** request site, `index.html:48263`. A surface-scoped repair could pass 1 and 2 and still refuse this |
 | 3b | **Append a post to an EXISTING batch** | `parentRouteForAppend` → `validateLinearBatchParent`, which checks 1 to 3 never reach if they create a new batch. This is the common case in daily use |
+| 8 | **A submission through the CLIENT LINK** (`?intake=1`) | A **distinct authentication branch** — `production-write` admits it credential-less after a `credentials_required` failure, where the staff path authenticates. Checks 1 to 3b all run as staff and never exercise it. **This is the only client-facing check in the list** |
 | 4 | **Fill a component** | `handleComponentFill`, a different handler again |
 | 5 | Set a **label**, and open the label picker | `linearLabelSnapshot` → `linearLabelCatalog`, a different provider dependency from the intake reads |
 | 6 | **Change an assignee**, after P6 | proves the flag actually took effect on the *deployed* function |
@@ -629,7 +634,9 @@ site works. The staff submission is built somewhere else entirely. An owner-chos
 repair scoped to one surface could satisfy 1, 2 and 4 while normal staff submissions
 still refuse after the cutoff.
 
-If the client-link flow's default-off flag is enabled, add it as check 7.
+**Check 8 is mandatory, not conditional.** An earlier version said "if the
+client-link flow's default-off flag is enabled, add it as check 7", which was wrong
+twice: the flag is **on**, and the check is not optional.
 
 Until every one of these passes, Phase 3 is not reachable, no matter what else is
 done.
@@ -662,9 +669,9 @@ that must succeed:
 | 1 | The four held PRs are merged, **and #1350's runbook carries the P6/P7 preconditions** | merged with the old runbook text |
 | 2 | The naming mint's **four** steps are done, flag flip included, `video` proved before `graphics` is enabled (P1) | migration applied |
 | 3 | `production_assignee_eligibility` is exactly `{"provider_mapping_required": false}` (P6) **and row 4 check 6 has passed** | the flag readback, which proves only what the flags table holds |
-| 4 | With Linear dead, on the TEST client, **all seven** P7 checks succeed: (1) Calendar post, (2) Samples/SXR post, (3) staff submission, (3b) **append to an EXISTING batch**, (4) component fill, (5) set a label and open the picker, (6) change an assignee | any subset of them, or any of them refusing cleanly |
+| 4 | With Linear dead, on the TEST client, **all eight** P7 checks succeed: (1) Calendar post, (2) Samples/SXR post, (3) staff submission, (3b) **append to an EXISTING batch**, (4) component fill, (5) set a label and open the picker, (6) change an assignee, (8) **a client-link submission** | any subset of them, or any of them refusing cleanly |
 
-**Row 4 lists all seven on purpose.** An earlier version named three, and the three
+**Row 4 lists all eight on purpose.** An earlier version named three, and the three
 it named covered one request site twice while omitting the staff submission, labels
 and the assignee proof entirely. **A summary that drops members of the list it
 summarises is not a summary, it is a second and weaker specification** — and this
@@ -689,9 +696,10 @@ handed to that lane as a comment on #1350, phrased in its existing P-numbered st
 gate unless its runbook carries these preconditions.** An operator entering through
 the procedural runbook, which is the normal way in, never sees this file. So
 "#1350 is merged" is **not** sufficient for row 1 of the entry gate; the runbook it
-lands must contain **all seven P7 checks as behavioural successes** — Calendar
-post, Samples/SXR post, staff submission, **append to an existing batch**, component
-fill, label set-and-picker, and the post-flag assignee change — not a shortened list and not the assignee flag literal
+lands must contain **all eight P7 checks as behavioural successes** — Calendar
+post, Samples/SXR post, staff submission, append to an existing batch, component
+fill, label set-and-picker, the post-flag assignee change, and **a client-link
+submission** — not a shortened list and not the assignee flag literal
 in place of the assignee check. The first version of this handoff asked for the
 flag value, which is the very substitution this document says elsewhere does not
 prove anything. If it merges without them, the gate is unmet and the cutoff is not

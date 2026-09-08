@@ -380,12 +380,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Whether this endpoint should compute an exact count at all is an open
     // owner decision (OPEN_REPAIRS 172). Nothing here forecloses it: the field
     // and its `has_more` / `next_cursor` neighbours are unchanged.
-    const totalCountRead = Promise.resolve(totalQuery).then(
+    // ORDER MATTERS, and it is not an optimisation. These are two independent
+    // PostgREST requests in two transactions, so run concurrently they observe
+    // two different database states. A reader that validates a page against this
+    // count is then checking it against a number that may have been taken
+    // BEFORE the page: delete an older row in that window and the count comes
+    // back one too high for a page that is perfectly current, and the reader
+    // refuses a thread nothing is wrong with.
+    //
+    // Reading the page first and the count strictly after it makes the count
+    // observe a state at or after the page it certifies, which is what a caller
+    // paging to `has_more === false` needs in order to treat the final count as
+    // a statement about the walk it just finished. It costs the page's own
+    // latency, which is bounded at `limit + 1` rows and small beside the count's
+    // unbounded scan, and it saves the scan entirely when the page read fails.
+    //
+    // This does NOT make a multi-page walk exact, and no ordering here could:
+    // the caller's rows come from several requests at several moments, so the
+    // count can only ever be current with the LAST of them. Rows served early
+    // and deleted later still leave a legitimate mismatch. The check is a strong
+    // consistency test, not a transaction.
+    const pageResult = await pageQuery;
+    if (pageResult.error) throw new Error("comment_read_failed");
+    const totalCount = await Promise.resolve(totalQuery).then(
       (result) => (result.error ? null : Number(result.count || 0)),
       () => null,
     );
-    const [totalCount, pageResult] = await Promise.all([totalCountRead, pageQuery]);
-    if (pageResult.error) throw new Error("comment_read_failed");
 
     const fetched = Array.isArray(pageResult.data) ? pageResult.data : [];
     const hasMore = fetched.length > limit;

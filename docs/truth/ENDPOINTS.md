@@ -193,9 +193,12 @@ Other:
   an empty thread is still `0`). A failed PAGE read is still a 500 `read_failed`.
   Neither browser consumer DISPLAYS `total`, but the Workload Tweak Needed reader
   (`_wlNativeTweakComments`) validates it and uses it as its completeness proof,
-  so both consumers must be checked when this field changes. Note that `before`
-  is applied to the PAGE query only, never to the count, so every `total` is a
-  whole-thread count at the moment its page was served: the reader proves a paged
+  so both consumers must be checked when this field changes. The page is read
+  BEFORE its count, deliberately: they are separate transactions, so run
+  concurrently the count can predate the page it certifies and a legitimate
+  mid-walk deletion then reads as a mismatch. Note also that `before` is applied
+  to the PAGE query only, never to the count, so every `total` is a whole-thread
+  count at the moment its page was served: the reader proves a paged
   walk against its TERMINAL count alone: intermediate counts are neither retained
   nor compared, because counts taken at different moments differ legitimately (an
   older unserved row deleted mid-walk) and catch nothing the terminal count does

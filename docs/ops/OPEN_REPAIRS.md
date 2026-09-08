@@ -14318,14 +14318,41 @@ hole. Against `9ba499a`, red on exactly 1, the over-strict case. Against
 refusal green in both runs, which is what proves those refusals were already
 resting on the terminal count and not on the comparison being removed.
 
-**Worth recording as a working note, not just as four fixes.** Rounds two, three
-and four were all repairs to this lane's own previous round, and the sequence went
-unsound → over-strict → still carrying the over-strict remnant. Each time the
-error was reasoning about a component from its call site instead of reading it:
-the browser reader was never checked for `total` use, the endpoint's `totalQuery`
-was never checked for cursor filtering, and the leftover comparison was never
-re-examined once the proof beneath it had changed. A finding fixed at the wrong
-altitude produces the next finding.
+**Fifth correction, and this one is in the Edge Function.** The reasoning above
+says the terminal count is taken after the walk. The implementation did not do
+that: `totalQuery` and `pageQuery` ran under one `Promise.all`, and they are two
+independent PostgREST requests in two transactions, so they observe two different
+database states. The count could therefore be taken BEFORE the page it certifies
+— delete an older row in that window and the count returns one too high for a
+page that is perfectly current, and the Workload reader refuses a thread nothing
+is wrong with. Found by Codex on `2bedb2d`. The race predates this PR (the same
+`Promise.all` shipped on `main`), but the completeness proof documented here
+depends on it not being there.
+
+The page is now read first and the count strictly after it, so the count observes
+a state at or after the page. It costs the page's own latency, bounded at
+`limit + 1` rows and small beside the count's unbounded scan, and it saves the
+scan entirely when the page read fails.
+
+**Stated so it is not over-claimed:** this does not make a multi-page walk exact,
+and no ordering could. The caller's rows come from several requests at several
+moments, so the count can only ever be current with the last of them; a row served
+early and deleted later still leaves a legitimate mismatch, which the reader
+refuses. It is a strong consistency test, not a transaction. Closing that properly
+means serving page and count from one snapshot (an RPC and a migration), which is
+a larger change than this lane should make unasked and is recorded here rather
+than taken.
+
+**Worth recording as a working note, not just as five fixes.** Rounds two through
+five were all repairs to this lane's own previous round, and the sequence went
+unsound → over-strict → still carrying the over-strict remnant → resting on an
+ordering the code never had. Each time the error was reasoning about a component
+from its call site instead of reading it: the browser reader was never checked for
+`total` use, the endpoint's `totalQuery` was never checked for cursor filtering,
+the leftover comparison was never re-examined once the proof beneath it had
+changed, and the two queries were assumed to be ordered because the prose said so.
+A finding fixed at the wrong altitude produces the next finding, and a proof
+written in a comment is not a proof until the code is read against it.
 
 **Proof.** `node test/production-comments-total-fail-open.js`. It drives the real
 TypeScript handler through a transport that refuses ONE of the two queries by

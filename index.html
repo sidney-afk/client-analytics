@@ -19601,10 +19601,18 @@
                     // `totalQuery` is filtered by `deliverable_id` (plus audience
                     // for a client) and never by `before`, so every count it
                     // returns is a whole-thread count at the moment that page was
-                    // served. A count on the terminal page is therefore taken
-                    // AFTER the whole walk, and `rows.length === counted` proves
-                    // the walk holds exactly as many rows as the thread contains
-                    // now. That is what catches the one hazard here: rows are
+                    // served, and the endpoint reads the page BEFORE its count
+                    // (they are separate transactions, so run concurrently the
+                    // count could predate the page it certifies). A count on the
+                    // terminal page is therefore taken after every request this
+                    // walk made, and `rows.length === counted` tests the walk
+                    // against the thread as it stands at the end of it.
+                    //
+                    // A strong consistency test, not a transaction: the rows
+                    // come from several requests at several moments, so one
+                    // served early and deleted later still leaves a legitimate
+                    // mismatch, and this refuses it. Erring toward the visible,
+                    // reportable failure is the intended direction. That is what catches the one hazard here: rows are
                     // ordered newest-first and the cursor filters strictly OLDER,
                     // so a comment posted after page 1 is invisible to every
                     // later page -- but it IS in the terminal count, which then

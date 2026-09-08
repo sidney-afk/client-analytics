@@ -242,7 +242,28 @@ async function call(extra = {}) {
       'pagination still works with no count at all: has_more and the cursor come from the fetched page');
     ok(paged.body.total === null, 'and total stays null rather than being back-filled from the page length');
 
-    /* ---- 1g. An empty thread is still 0, not null ------------------------ */
+    /* ---- 1g. The count is taken strictly AFTER the page it certifies ----- */
+    /* The two queries are independent PostgREST requests in independent
+       transactions. Fired concurrently they observe two different database
+       states, so a count could be taken BEFORE the page it is meant to
+       validate: delete an older row in that window and the count returns one
+       too high for a page that is perfectly current, and a caller checking
+       `rows.length === total` refuses a thread nothing is wrong with. The
+       Workload reader does exactly that check, so the ordering is load-bearing
+       rather than cosmetic. It also means a failed page never pays for the
+       count's unbounded scan. */
+    reset();
+    await call();
+    ok(seen.join(',') === 'page,count',
+      'the page is read first and the count strictly after it (' + seen.join(',') + ')');
+
+    reset();
+    refuse.add('page');
+    await call();
+    ok(seen.join(',') === 'page' && !seen.includes('count'),
+      'and a failed page skips the count entirely rather than paying for a scan whose answer is about to be thrown away');
+
+    /* ---- 1h. An empty thread is still 0, not null ------------------------ */
     reset([]);
     const empty = await call();
     ok(empty.status === 200 && empty.body.total === 0,

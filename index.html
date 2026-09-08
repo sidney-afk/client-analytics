@@ -19466,7 +19466,17 @@
                     // every time.
                     flight.promise = _wlNativeTweakComments(row.issue, row.nativeId, owner, deadline,
                         () => flight.wanted.size === 0 || [...flight.wanted].every(want => want()));
-                    flight.promise.then(rows => { remember(row.nativeId, row.issue, rows); }, () => {}).then(() => {
+                    // ONLY A COMPLETE ANSWER IS WORTH REMEMBERING. The endpoint
+                    // answers 200 with `sourceComplete: false` for a projection
+                    // it could not read whole — `source_unavailable`,
+                    // `link_changed`, `source_limit`. Storing that would hold the
+                    // degraded view for the rest of the TTL even after the source
+                    // recovered or its link was repaired, keeping card-only notes
+                    // invisible: caching an outage extends it, and an absence is
+                    // the failure an editor cannot report (AGENTS.md).
+                    flight.promise.then(rows => {
+                        if (rows && rows.sourceComplete === true) remember(row.nativeId, row.issue, rows);
+                    }, () => {}).then(() => {
                         if (_wlNativeTweakCommentsInFlight.get(key) === flight) _wlNativeTweakCommentsInFlight.delete(key);
                     });
                 } else {

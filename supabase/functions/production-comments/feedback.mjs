@@ -123,12 +123,28 @@ export async function readLegacyFeedback(supabase, target, principal) {
     : scope.surface === 'calendar' ? ['video_tweaks', 'tweaks'] : ['video_tweaks'];
   const columns = ['id', 'client', scope.component + '_deliverable_id', ...fields].join(',');
   const readCard = () => supabase.from(table).select(columns).eq('client', scope.client_slug).eq('id', scope.card_id).maybeSingle();
+  // Binding columns only. `feedbackCardMatches` needs the reciprocal link and
+  // nothing else, so the size refusal below can revalidate the link without
+  // pulling the oversized payload a second time.
+  const readBinding = () => supabase.from(table).select(['id', 'client', scope.component + '_deliverable_id'].join(','))
+    .eq('client', scope.client_slug).eq('id', scope.card_id).maybeSingle();
   try {
     const first = await readCard();
     if (first.error) return state('source_unavailable', [], scope);
     if (!feedbackCardMatches(first.data, scope)) return state('link_changed', [], scope);
     const card = first.data;
-    if (new TextEncoder().encode(JSON.stringify(card)).length > BYTE_LIMIT) return { ...state('source_limit', [], scope), retain_previous: true };
+    if (new TextEncoder().encode(JSON.stringify(card)).length > BYTE_LIMIT) {
+      // `retain_previous` tells the reader to KEEP what it is already showing,
+      // so it may only be granted on a binding this response has revalidated —
+      // exactly what the second `readCard()` does for every other outcome. This
+      // path used to return on the first read alone, so a card detached after
+      // that read still authorised retention of its notes, and the popover's
+      // one-minute cache was resting on a guarantee this branch did not make.
+      const recheck = await readBinding();
+      if (recheck.error) return state('source_unavailable', [], scope);
+      if (!feedbackCardMatches(recheck.data, scope)) return state('link_changed', [], scope);
+      return { ...state('source_limit', [], scope), retain_previous: true };
+    }
     let complete = true;
     let sourcePartial = false, suppressionObserved = false;
     const rows = [];

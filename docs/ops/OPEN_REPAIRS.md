@@ -15046,3 +15046,41 @@ Proof: **159 green**, **6 red against `4baa587`**, including `once the board
 refreshes, the cached answer is no longer one this browser can vouch for and the
 deliverable is read again` and `so a re-linked deliverable shows the feedback of
 the card it is bound to NOW`.
+
+### Fifth follow-up: caching an outage extends it, and one refusal path never rechecked its binding (two Codex P2s on `e2fdc38`)
+
+**1. A degraded answer was remembered.** `production-comments` answers HTTP 200
+with an *incomplete* projection for `source_unavailable`, `link_changed` and
+`source_limit`; `_wlNativeTweakComments` resolves normally in all three cases with
+`sourceComplete === false`, and `remember` stored them unconditionally. Reopening
+the popover then served the degraded view for the rest of the TTL **even after the
+source recovered or the link was repaired**, keeping card-only notes invisible.
+Caching an outage extends it, and the thing it hides is the absence an editor
+cannot report. Only a projection read whole is stored now. The complete case is
+still cached, so the budget fix stands — asserted, not assumed.
+
+One consequence worth stating: during the merge-then-deploy window, where this
+browser is live and the reader that supplies `feedback` is not, the projection is
+absent and therefore incomplete, so **nothing native caches at all in that
+window** and the budget pressure returns to what it was. That is the right way
+round — a knowingly incomplete answer must not be held — but it is a real,
+temporary cost and not a free improvement.
+
+**2. The size refusal authorised retention on a binding it had not rechecked.**
+Every other outcome performs a second `readCard()` and can return `link_changed`;
+the `source_limit` early return did not, yet it returns `retain_previous: true`,
+which tells `_prodFeedbackState` (`index.html`) to KEEP the notes already on
+screen. A card detached between the first read and the response therefore still
+authorised retention of its notes.
+
+That one matters beyond its own blast radius: **the previous follow-up's cache
+reasoning leaned on "the endpoint reads the card before and after".** For this
+branch that was not true, so the guarantee published one commit earlier was
+weaker than stated. It now rechecks the reciprocal link before granting
+retention, reading the **binding columns only** so an already-oversized card is
+not pulled through the transport twice.
+
+Proof: **164 green** on the Workload suite and **34 pass** on
+`test/component-feedback-read.js`; red against `e2fdc38` on `reopening asks again
+rather than serving the degraded answer back` and on the size refusal returning
+`source_limit` where it must now return `link_changed`.

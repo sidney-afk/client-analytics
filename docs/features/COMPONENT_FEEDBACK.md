@@ -115,8 +115,19 @@ that short life, and the exact snapshot row the read was made for — `wlApplyDa
 replaces `issueSnapshot` with fresh row objects on every refresh, so a hit dies
 the moment the board learns anything new about that deliverable. The verified
 scope travels with the answer, so a stored response always states which binding
-it was true for. Residual, stated rather than hidden: a re-link the browser has
-not yet refreshed into can still be served for up to that minute. A failure is never cached:
+it was true for. Only a projection read WHOLE is stored: the endpoint answers 200
+with an incomplete projection for `source_unavailable`, `link_changed` and
+`source_limit`, and remembering one of those would hold the degraded view for the
+rest of the TTL after the source recovered or the link was repaired — caching an
+outage extends it, and what it keeps invisible is card-only notes. Residual,
+stated rather than hidden: a re-link the browser has not yet refreshed into can
+still be served for up to that minute.
+
+`retain_previous` is granted only on a binding the same response revalidated. The
+size refusal (`source_limit`) used to return on the first card read alone, so a
+card detached after that read still authorised the reader to keep its notes; it
+now rechecks the reciprocal link first, reading the binding columns only so an
+already-oversized card is not pulled twice. A failure is never cached:
 remembering "we could not ask" as an answer would turn one aborted read into five
 minutes of false outage on a healthy row. A cache entry is served only to the
 staff identity that took it, since serving it to another is the mid-read identity

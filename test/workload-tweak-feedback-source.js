@@ -934,6 +934,39 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
       'the verified card scope travels with the answer');
   }
 
+  // ── A degraded answer is never remembered (finding 7) ───────────────
+  {
+    // The endpoint answers 200 with an INCOMPLETE projection for
+    // `source_unavailable`, `link_changed` and `source_limit`. Caching that
+    // holds the degraded view for the rest of the TTL even once the source has
+    // recovered or the link has been repaired — caching an outage extends it,
+    // and the thing it keeps invisible is card-only notes.
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], { feedback: { version: 1, status: 'source_unavailable', complete: false, rows: [] } }),
+      page([canonical('a')], complete([cardNote('recovered')])),
+    ] } });
+    const degraded = await context.wlFetchTweakComments(['wl-1']);
+    ok(degraded['wl-1'].sourceComplete === false, 'an unreadable card projection reports itself incomplete');
+    ok(context.wlRenderTweakComments(degraded['wl-1']).includes('may be incomplete'),
+      'and says so on the row');
+    const after = await context.wlFetchTweakComments(['wl-1']);
+    ok(nativeCalls(calls) === 2, 'reopening asks again rather than serving the degraded answer back');
+    ok(!!after['wl-1'] && after['wl-1'].sourceComplete === true
+      && after['wl-1'].some(row => row.fromCard === true),
+      'so the card notes appear as soon as the source recovers, not a minute later');
+  }
+  {
+    // The complete case is still cached — the budget fix must survive this.
+    const snapshot = nativeRows(1);
+    const { context, calls } = build({ snapshot, byDeliverable: { 'del-1': [
+      page([canonical('a')], complete([])),
+    ] } });
+    await context.wlFetchTweakComments(['wl-1']);
+    await context.wlFetchTweakComments(['wl-1']);
+    ok(nativeCalls(calls) === 1, 'a projection read whole is still remembered, so the budget fix stands');
+  }
+
   // ── Overlapping popovers share a read rather than racing it ─────────
   {
     // The completed-value cache cannot help two popovers that overlap: reopening

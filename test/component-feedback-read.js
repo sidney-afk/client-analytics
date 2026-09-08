@@ -280,6 +280,25 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
       const r = await call(); assert(!JSON.stringify(r.body).includes('LATE HIDDEN CANARY'));
       assert.equal(r.body.feedback.complete, false); assert.equal(r.body.feedback.retain_previous, false);
     });
+    await check('the size refusal revalidates the binding before authorising retention', async () => {
+      // `retain_previous` tells the reader to KEEP what it is already showing,
+      // so it may only be granted on a binding this response revalidated. This
+      // path used to return on the first read alone, so a card detached after
+      // that read still authorised retention of its notes — and the Workload
+      // popover's read cache was resting on a guarantee this branch did not make.
+      db.calendar_posts[0].video_tweaks = 'x'.repeat(1024 * 1024);
+      hook = (table, n) => { if (table === 'calendar_posts' && n === 2) db.calendar_posts[0].video_deliverable_id = 'other'; };
+      const detached = (await call()).body.feedback;
+      assert.equal(detached.status, 'link_changed', 'a card detached mid-read refuses instead of permitting retention');
+      assert.equal(detached.retain_previous, undefined, 'and never authorises keeping the detached card notes');
+      // The hook's mutation is durable, so the binding is restored explicitly
+      // before proving the intact case still behaves.
+      hook = null;
+      db.calendar_posts[0].video_deliverable_id = target.id;
+      const intact = (await call()).body.feedback;
+      assert.equal(intact.status, 'source_limit', 'an intact binding still gets the size refusal');
+      assert.equal(intact.retain_previous, true, 'with retention still permitted');
+    });
     await check('size refusal marks incomplete and permits only an already-scoped stale snapshot', async () => {
       db.calendar_posts[0].video_tweaks = 'x'.repeat(1024 * 1024);
       const r = await call(); assert.equal(r.body.feedback.status, 'source_limit'); assert.equal(r.body.feedback.retain_previous, true);

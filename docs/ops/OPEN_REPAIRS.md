@@ -15736,3 +15736,48 @@ pending-age alarm is silent or screaming through the cutoff window.
 enabled-first), one gap (F's unlisted precondition), one open question (F's
 drain), one brief clean (B), one not applicable (D has no ordered dependencies
 among its five actions).**
+
+### TENTH CORRECTION — the ordering sweep I called finished was wrong in three of its six verdicts
+
+Codex round ten landed on `6ef7108`, before my C and F ordering commits, and
+returned four findings. One (brief C's enabled-first) I had already fixed
+independently. The other three all land on the sweep I had just published, and
+two of them contradict its verdicts:
+
+**1. Brief F's drain was not an open question, it was a missing step.** I
+recorded it as unresolvable because the `mitigate:` refers to a "STEP 0" the list
+does not print, and said lane F's owner should say which. Wrong instinct: the
+answer is in the repository. `.github/workflows/linear-outbound-drain.yml`
+exists, and the step is to dispatch it repeatedly until the census returns zero
+non-terminal real-client rows, verified by re-running the census read rather than
+by the workflow's own summary — THEN set `linear_outbound_enabled` to `off`.
+Taking the flag first pauses the drain instead of finishing it, the
+`oldest_pending_age` alert pins ON for any undrained real-team row, and a later
+activation classifies those rows as debt behind a fence that cannot be lifted.
+**"I cannot tell from the sources" was itself a claim about the sources that I
+had not fully checked** — the same failure as the four wrong absence claims in
+the second correction, in a politer costume.
+
+**2. Brief D is not "not applicable".** I recorded it as having no ordered
+dependencies. It has one, on the optional path: if the lane lifts the
+media-aware `index.ts`, the `native_comment_media` migration and its `mode:'off'`
+flag row must precede the dispatch, or the deployed reader sits in
+`mode:'required', complete:false` for the length of the window. I had checked D's
+five actions for dependencies and missed that the conditional migration two lines
+below the dispatch is a prerequisite OF it.
+
+**3. The number I told the operator to record in brief E was the wrong number.**
+I wrote "count the `REFUSED` lines". `cmdUpload` iterates a `byKey` map with one
+entry per distinct file (`:326-328`), so it prints one refusal per FILE, while
+`cmdRewrite` skips every OCCURRENCE of that key. A file referenced in six briefs
+is one refusal line and six surviving dead links. The line now says to join
+refused keys back to `manifest.occurrences` and record both numbers with the
+occurrence count as the headline. This is AGENTS.md's own "measure with the key
+the shipped code uses" rule, breached in a line I wrote to prevent a later
+surprise.
+
+**The pattern in this correction is not the findings, it is the confidence.** I
+published a six-row table of sweep verdicts — two defects, one gap, one open
+question, one clean, one not applicable — and three of those six rows were wrong.
+A sweep's output is a claim like any other, and I had presented mine as a closed
+category twice in a row while the reviewer was still finding things in it.

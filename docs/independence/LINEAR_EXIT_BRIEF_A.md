@@ -49,11 +49,18 @@ supplying a plausible one — an honest gap is safe and a guess is not.
 **This file: 7 executable lines restored, 0 left unrestored.** Two of them
 carry corrections rather than continuations: the `workload-plan` redeploy
 `undo:` (the candidate's `action:"list"` is NOT independent of the snapshot
-RPC) and the Tweak-feedback `mitigate:` (the "honest empty-state copy" it
-credits the candidate with does not exist in either tree). One line flagged by
-the scanner was deliberately left alone: the `- [migration] ~~Apply
-2026-09-02-workload-native-view.sql~~` line ends without a full stop but is a
-later coordinator edit, not a clipped field.
+RPC) and the membership-migration `undo:` (it drops three functions where the
+file creates four). One line flagged by the scanner was deliberately left
+alone: the `- [migration] ~~Apply 2026-09-02-workload-native-view.sql~~` line
+ends without a full stop but is a later coordinator edit, not a clipped field.
+
+**One correction to this pass itself, made the same day.** The Tweak-feedback
+`mitigate:` first said the honest empty-state copy it credits "does not exist
+in either tree". That was wrong: the copy is real and lives on
+`claude/lx-d-feedback`, which this session had not searched. The line now says
+where it is and that lane A cannot assume it. Recorded here rather than
+silently amended, because a restored line that was itself wrong is exactly the
+failure this pass exists to prevent.
 
 
 ---
@@ -279,7 +286,7 @@ RISKS
   - index.html collision. Every lane edits this one file, and lane A touches roughly 500 lines across eight regions of it.
     mitigate: Lift by named function, not by file or by whole hunk range. Merge lane A before or after the other index.html lanes, never concurrently. Do not merge anything between handing the owner a deploy SHA and their dispatch.
   - Tweak feedback may be empty for rows whose Linear comments were never ingested. `linear-inbound` writes Linear comments into `production_comments` (index.ts:548, 1186), but I have not verified backfill completeness for the currently-tweak rows.
-    mitigate: Before cutover, spot-check `production_comments` for the live Tweak Needed deliverables against what the `linear-tweak-comments` webhook returns today — it can only be done while Linear still answers. **THE REST OF THE SURVIVING FRAGMENT IS FALSE AND IS NOT CONTINUED HERE.** It claimed the candidate's empty-state copy is "already honest (\"No feedback is available here. Open the post …\")". No such string exists in either tree: on main and on `claude/lx-a-workload-native` alike, `wlRenderTweakComments` returns `''` for an empty list, under the comment "No comment on the sub-issue → render nothing" (index.html:19293-19298 on main, 19601-19606 on the candidate). So a row with genuinely no feedback and a row whose feedback was never backfilled paint the same empty box. That is exactly the degraded-state gap named in OPEN_REPAIRS item 178's 03:30 addendum, and it is unbuilt. Two things are therefore owed, not one: run the spot-check while it is still possible, and build an empty state that distinguishes "there is no feedback here" from "we could not read it" before this popover is the only place staff can see tweak notes. **[RESTORED 2026-09-08 · sources: index.html @main lines 19293-19310 and @claude/lx-a-workload-native lines 19601-19618 (string absent in both, verified by grep); docs/ops/OPEN_REPAIRS.md item 178 addendum 2026-09-08 03:30]**
+    mitigate: Before cutover, spot-check `production_comments` for the live Tweak Needed deliverables against what the `linear-tweak-comments` webhook returns today — it can only be done while Linear still answers, so it is the half of this with a deadline. ONE CLARIFICATION, because an earlier pass of this restoration got it wrong in the dangerous direction and said the copy did not exist: the empty-state copy the fragment credits ("No feedback is available here. Open the post in SyncView to check its review notes.") IS real, but it is **lane D's work, not lane A's**. It is on `claude/lx-d-feedback` (index.html:19446-19470), where `wlRenderTweakComments` also distinguishes a FAILED read ("Couldn't load this deliverable's feedback. Retry, or open the post in SyncView.") from an empty one, carries an incomplete-source notice, and drops the "on the sub-issue in Linear" suffix on the native path. It is NOT on `main` and NOT on `claude/lx-a-workload-native`: both still `return ''` for an empty list, under the comment "No comment on the sub-issue → render nothing" (index.html:19293-19298 and 19601-19606). So lane A must not assume the honest empty state is present — it arrives with lane D, and until lane D lands, a row with no feedback and a row whose feedback was never backfilled paint the same empty box (the degraded-state gap named in OPEN_REPAIRS item 178's 03:30 addendum). Sequence accordingly, and note that lane D's brief assigns it the body and copy of `wlRenderTweakComments` while lane A owns the call site. **[RESTORED 2026-09-08 · sources: index.html @claude/lx-d-feedback lines 19446-19484; @main lines 19293-19310; @claude/lx-a-workload-native lines 19601-19618; docs/ops/OPEN_REPAIRS.md item 178 addendum 2026-09-08 03:30. Corrected the same day after Codex review on #1352 surfaced the branch this session had failed to search.]**
 
 TESTS
   EXISTING, lift as-is: `qa/workload-native/handler.mjs` + `qa/workload-native/integrated-handler.mjs` — runs the REAL workload-plan request handler against a disposable loopback PG16 with only the Deno/Supabase transports replaced, and hard-fails on any RPC outside `workload_native_snapshot_v1` / `workload_native_plan_target_v1` / `workload_native_plan_set_v1` (`throw Error('unapproved_rpc')`).

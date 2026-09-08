@@ -15062,3 +15062,53 @@ evidence and the work-item lines) are untouched, by scope. They are context
 rather than instructions, but they are the reason each brief still opens with
 its warning and is still not a runbook. Nobody has read any of the six briefs
 end to end.
+
+### CORRECTION, same day, before anyone acted on this entry — one of the six "contradictions" above was my own error
+
+Codex reviewed the PR carrying this entry (#1352) and returned two P1s. One of
+them is right and is fixed; the other is built on a mistake of mine, which is
+the more useful finding of the two because the mistake is inside a line this
+pass restored.
+
+**Contradiction 2 above is WITHDRAWN.** It said brief A credited the candidate
+with honest Tweak-popover empty-state copy — "No feedback is available here.
+Open the post in SyncView to check its review notes." — and that "that string
+exists in neither tree". The copy is real. It lives on `claude/lx-d-feedback`
+(index.html:19446-19470), where `wlRenderTweakComments` additionally
+distinguishes a FAILED read ("Couldn't load this deliverable's feedback. Retry,
+or open the post in SyncView.") from an empty one, carries an
+incomplete-source notice, and drops the "on the sub-issue in Linear" suffix on
+the native path. I searched `main` and `claude/lx-a-workload-native`, found it
+in neither, and reported the narrow true finding as the broad false one. The
+count of places where a source contradicted a surviving fragment is therefore
+**seven, not eight**.
+
+What is actually true, and is what brief A's line now says: the honest empty
+state is LANE D's work, not lane A's, so lane A must not assume it is present.
+Until lane D lands, a row with no feedback and a row whose feedback was never
+backfilled still paint the same empty box on main. Lane D's own brief already
+assigns it the body and copy of `wlRenderTweakComments` while lane A owns the
+call site, so the sequencing was already written down; this pass just misread
+which tree to look in.
+
+**The shape of the error is worth naming, because it is this programme's own
+recurring one.** "Not on the two branches I searched" is not "does not exist",
+and six lanes with six unmerged branches is exactly the estate where those come
+apart. A restored line asserting a contradiction is more dangerous than a
+clipped one, for the same reason item 178's 03:45 addendum gives: it is
+trusted. Restoring from source across a multi-branch estate means enumerating
+the branches first.
+
+**The other P1 is fixed, and it was a real hazard.** Brief B carried
+`- [migration] Apply migrations/2026-09-07-production-intake-append-v8.sql
+(still SOURCE ONLY …)` as a live action with `undo: Re-apply
+…-append-v7.sql` directly beneath it. v8 has been applied since 2026-09-07 and
+the naming gateway deployed after it as v69, so the action is a no-op — but the
+undo is not. An operator whose composed-artifact window failed would follow that
+undo, put v7's narrower title predicate in front of a gateway that composes
+named titles, and every named append would be refused with
+`invalid_intake_append_order`. The step is now struck and marked a satisfied
+prerequisite, and its undo is replaced with "NONE. DO NOT RE-APPLY v7." plus the
+reason. This pass had noted the staleness in the brief's header block and left
+the line alone because it was not truncated; the review was right that a note in
+a header does not travel with the step.

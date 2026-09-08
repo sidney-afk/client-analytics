@@ -15472,3 +15472,59 @@ Six rounds, sixteen reported findings, fifteen of them mine, plus nine found in
 my own sweeps between rounds. The reviewer has found a new category in every
 single round, and the last two were categories my own sweeps had defined and then
 applied too narrowly.
+
+### SEVENTH CORRECTION — the flag literals, and writing a component out of its own mechanism
+
+Codex round six, on `ac23bb8`: a P1 and a P2, both on brief B, both against text
+this pass wrote, and the P1 is in the step whose entire purpose was to be the
+safe one.
+
+**1. Step 1 of the composed-artifact undo published a MALFORMED flag value.** It
+said to set `native_intake_epochs` to `{"enabled":false,"epoch":null}` "for both
+teams". The flag is per-team nested — `{"video":{...},"graphics":{...}}` — and
+`production_native_intake_epochs()` loops `array['video','graphics']` requiring
+each `value->team` to be an object with a boolean `enabled`, raising
+`authority_unavailable` otherwise (native-only-intake.sql:14-36). A flat document
+gives `value->'video' = NULL` and fails that test. So the instruction written
+specifically to stop admission cleanly would instead have made the gateway raise,
+leaving admission un-stopped while the operator proceeded to step 2 and replaced
+RPCs under a live gateway. The step now carries the exact `update` statement, the
+per-team literal, the reason a flat object fails, and a mandatory readback.
+
+**The sweep that followed found two more flag-shape defects, in lines this pass
+had not written:**
+
+- `native_assignment_epochs` is also per-team nested; its undo said only "set mode
+  back to provider" with no literal. Now supplied, with the same readback.
+- `production_native_label_catalog` is FLAT, and moving off `native` requires
+  `version_id` to be JSON `null`: `production_label_catalog_capability()` raises
+  `native_label_catalog_config_invalid` for any non-native mode where
+  `version_id` is not null (native-label-writes.sql:57-70). Its undo named only
+  the mode, so a mode-only edit would have broken every label write instead of
+  holding it. The full hold and provider documents are now written out.
+
+**The class: "set the flag to X" is not an instruction, it is a summary.** Three
+flags in one brief, three different document shapes, and every undo that named a
+field instead of the whole value was wrong or incomplete. A runtime-flag undo has
+to carry the literal it expects the operator to write and the readback that
+proves it took.
+
+**2. I had written the gateway out of its own mechanism (P2).** Round five's
+correction said `production_intake_epoch_read` is "the gateway's reader, not the
+enforcement point". That over-corrected. The gateway is precisely what keeps an
+accepted request's follow-up append and component-fill calls on the native lane:
+`intakeEpochs()` resolves the epoch through that RPC and the native early-returns
+in `parentRouteForAppend`, `projectForIntake` and `assigneeEligibilityContext`
+branch on the result — which this brief's own "already built" entry documents at
+index.ts:2535-2537, 2686-2736, 2807-2856. The pin has THREE roles, not two:
+gateway routing, `root_begin`'s admission-time write, and the receipt guard's
+per-row validation. Both affected lines now state all three, and the rollback
+argument is stronger for it: steps 2-3 remove all three, so no ordering of steps
+2-4 preserves the pin.
+
+Correcting a reviewer twice in a row made me confident, and the second correction
+overshot. Being right about where a mechanism ISN'T is not the same as being
+right about where it is.
+
+Seven rounds, twenty-one reported findings, twenty of them mine, plus eleven from
+my own sweeps.

@@ -48008,11 +48008,17 @@
         ].filter(Boolean).join('\n');
         return [notes, assets].filter(Boolean).join('\n\n');
     }
-    /* The thumbnail child gets the SAME note and none of the footage links --
-       a designer is briefed by the ask, not by the camera files an editor needs.
-       Supplying it here also outranks the server's generated thumbnail text
-       (the brief precedence is existing -> caller-supplied -> generated), so a
-       note the owner actually wrote always wins over a generated one. */
+    /* The thumbnail child gets the SAME note as the video (restored
+       2026-09-08). It briefly returned nothing at all, because forwarding it
+       used to outrank the server's generated thumbnail text outright (the
+       note alone became the whole description, and the generator was never
+       even asked to run) -- but the owner does not want the note dropped
+       either; he wants BOTH, the note as a baseline the designer always sees,
+       with a generated title appended below it when one is available. The
+       server now owns combining the two (see THUMBNAIL_TEXT_AI_LABEL and the
+       brief expression in handleIntakeCreate): a caller-supplied note no
+       longer blocks generation, it is joined with a labelled generated line
+       instead of being replaced by or replacing it. */
     function _linearThumbnailBrief(video) {
         return String(video && video.notes || '').trim();
     }

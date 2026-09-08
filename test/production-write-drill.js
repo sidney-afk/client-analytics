@@ -102,6 +102,15 @@ ok(source.includes('PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION')
   && source.includes("row.brief !== 'Video 1'")
   && source.includes('issue.description === row.brief'),
 'one-shot mode omits the skip path and proves the generated graphics title round-trips');
+ok(source.includes("brief: team === 'video'")
+  && source.includes('REAL_GRAPHIC_GENERATION ? GRAPHICS_DRILL_NOTE : undefined')
+  && source.includes('THUMBNAIL_TEXT_AI_LABEL'),
+'real generation also exercises a caller-supplied graphics note (Codex round 1 on #1361)');
+ok(source.includes('const expectedPrefix = `${GRAPHICS_DRILL_NOTE}\\n${labelMatch[1]}`')
+  && source.includes('row.brief.startsWith(expectedPrefix)')
+  && source.includes('row.brief.length > expectedPrefix.length'),
+'the E2E drill asserts the EXACT note-newline-label prefix plus real title text after it, not just relative ' +
+  'ordering — a bare label with no title, or a space-joined note, must fail this path (Codex round 2 on #1361)');
 ok(source.includes("if (team === 'graphics' && !REAL_GRAPHIC_GENERATION) request.skip_graphic_generation = true"),
   'real generation request omits the skip flag instead of sending false');
 ok(source.includes('PRODUCTION_WRITE_DRILL_TEAMS') && source.includes('for (const team of DRILL_TEAMS)'),

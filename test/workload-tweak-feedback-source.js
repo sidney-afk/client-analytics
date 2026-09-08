@@ -345,6 +345,78 @@ const page = (comments, extra = {}) => ({ value: { ok: true, canonical_thread: t
   await refuses('a repeated next_cursor refuses instead of looping', { pages: Array.from({ length: 3 }, () =>
     page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'same', created_at: now } })) });
   await refuses('a served count that disagrees with total refuses', { pages: [page([canonical('a')], { total: 5 })] });
+
+  // ── The nullable count, and the line it must not cross ───────────────
+  // The endpoint's exact count fails OPEN: it scans every comment row on the
+  // deliverable while the page is bounded, so it is the half that can hit a
+  // statement timeout, and when it does the response carries `total: null`
+  // beside a page that was read perfectly well. This reader is one of the two
+  // consumers of that endpoint, and it proved completeness with
+  // `rows.length === total` -- so a null used to land in the malformed-response
+  // branch and paint "Couldn't load this deliverable's feedback" on a thread
+  // nothing was wrong with. What must NOT come out of accepting the null is a
+  // partial thread presented as whole, so each case below pairs the acceptance
+  // with the refusal that still has to hold.
+  {
+    const { context } = build({ pages: [page([canonical('a')], { total: null })] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(Array.isArray(rows) && rows.length === 1 && rows.failed !== true,
+      'a single page whose count failed open still reaches the popover');
+    ok(!/Couldn&rsquo;t load this deliverable&rsquo;s feedback/.test(context.wlRenderTweakComments(rows)),
+      '  \u21b3 and renders as feedback rather than as the refusal the fail-open exists to prevent');
+  }
+  {
+    const { context, calls } = build({ pages: [
+      page([canonical('a')], { total: null, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+      page([canonical('b')], { total: null }),
+    ] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(calls.length === 2 && rows.length === 2,
+      'an uncounted read still pages to the end on the served cursor and keeps every row');
+  }
+  {
+    // A count that succeeds on one page and fails open on another is not a
+    // thread that moved: the rows never changed, only the count did. The
+    // counted page still governs the completeness check.
+    const { context } = build({ pages: [
+      page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+      page([canonical('b')], { total: null }),
+    ] });
+    const rows = (await context.wlFetchTweakComments(['wl-1']))['wl-1'];
+    ok(rows.length === 2 && rows.failed !== true,
+      'a count that fails open on only ONE page does not refuse — the rows did not move, the count did');
+  }
+  await refuses('a counted page still has to agree with every other counted page, null pages notwithstanding', { pages: [
+    page([canonical('a')], { total: 2, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+    page([canonical('b')], { total: null, has_more: true, next_cursor: { id: 'b', created_at: now } }),
+    page([canonical('c')], { total: 9 }),
+  ] });
+  await refuses('a counted page that disagrees with the rows served still refuses when a later count is null', { pages: [
+    page([canonical('a')], { total: 5, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+    page([canonical('b')], { total: null }),
+  ] });
+  await refuses('an uncounted read that never terminates refuses rather than presenting a partial thread as whole',
+    { pages: Array.from({ length: 60 }, (_, i) =>
+      page([canonical('n' + i)], { total: null, has_more: true, next_cursor: { id: 'n' + i, created_at: now } })) });
+  await refuses('an uncounted read with a repeated cursor still refuses instead of looping', { pages: Array.from({ length: 3 }, () =>
+    page([canonical('a')], { total: null, has_more: true, next_cursor: { id: 'same', created_at: now } })) });
+  await refuses('an uncounted read with a duplicate id across pages still refuses', { pages: [
+    page([canonical('a')], { total: null, has_more: true, next_cursor: { id: 'a', created_at: now } }),
+    page([canonical('a')], { total: null }),
+  ] });
+  await refuses('an uncounted read that claims more pages but serves no cursor still refuses', { pages: [
+    page([canonical('a')], { total: null, has_more: true, next_cursor: null }),
+  ] });
+  // `null` is the count failing open. Every OTHER non-integer is a malformed
+  // response and has to stay refused, `undefined` above all: a reader that has
+  // lost the field entirely is not a reader that could not count, and this PR
+  // already carries one P1 about treating a missing projection as complete.
+  for (const [label, total] of [['undefined', undefined], ['a string', '3'], ['a float', 1.5],
+    ['a negative', -1], ['NaN', Number.NaN], ['an object', {}]]) {
+    await refuses('a total that is ' + label + ' is malformed, not a failed-open count, and still refuses',
+      { pages: [{ value: { ok: true, canonical_thread: true, audience_scope: 'all',
+        comments: [canonical('a')], total, has_more: false } }] });
+  }
   await refuses('a non-ok body refuses', { pages: [{ value: { ok: false } }] });
   await refuses('a wrong audience_scope refuses — this popover reads the whole thread or nothing',
     { pages: [page([canonical('a')], { audience_scope: 'client' })] });

@@ -14219,11 +14219,42 @@ read stays fatal, because comments that genuinely cannot be READ must say so
 rather than render as an empty thread. `has_more`, `next_cursor` and the field
 itself are untouched.
 
-`null` means *not counted*. An empty thread still counts `0`. No shipped reader is
-affected either way: the browser never displayed `total` at all — `_prodComments`
-reads `comments` / `items`, `next_cursor` and `has_more`, and nothing else — which
-is why nulling it costs a reader nothing visible and why the field is kept rather
-than deleted.
+`null` means *not counted*. An empty thread still counts `0`.
+
+**Correction, same day, found by the Codex pass on `0d588fa` and fixed in
+`ce1bc25`.** The first version of this entry said no shipped reader was affected
+because the browser never displayed `total`. That was measured against
+`_prodComments` only, which reads `comments`/`items`, `next_cursor` and
+`has_more` and nothing else. It is the wrong key: this endpoint has **two**
+browser consumers, and the other one is the Workload *Tweaks Needed* popover
+reader (`_wlNativeTweakComments`) that lane D added in this same PR. It never
+displays `total` either, but it *validates* it, three times over: a
+`Number.isSafeInteger` guard, a cross-page stability check, and
+`complete = rows.length === total` as its completeness proof. So `total: null`
+went straight into its malformed-response branch and painted *"Couldn't load this
+deliverable's feedback"* — the fail-open would have fixed the SyncLinear pane and
+the calendar/SXR modals and left the popover exactly as broken, on a thread whose
+rows had been read fine. A repair that reaches one of two consumers is not the
+repair.
+
+The reader now accepts a null count and keeps every other guard. With a count the
+walk is still proved by `rows.length === total`; without one, the terminating
+`has_more === false` is the proof the cursor walk reached the end of the thread —
+the same authority that issues `next_cursor`, which this loop already trusts to
+decide whether to page again. **What that costs, stated plainly:** the count was a
+second, independent cross-check, so a server wrongly reporting `has_more: false`
+mid-thread used to be caught and, while the count is down, would not be. Partial
+pagination is still refused outright: the 50-page cap, an abort, an abandoned
+popover, a repeated cursor and a missing cursor all leave `complete` false. And
+`null` is the *only* new acceptance — `undefined`, a string, a float, a negative
+and `NaN` all stay refusals, because a reader that has lost the field is not a
+reader that could not count (the same distinction as this PR's earlier P1 about
+treating a missing feedback projection as complete).
+
+`test/workload-tweak-feedback-source.js` grew 28 assertions for this and runs
+**204 pass**; red against `0d588fa` on exactly the **4** acceptance assertions,
+with all **24** refusal assertions green in BOTH runs — which is the measurement
+that shows the change only widened what is accepted and weakened no refusal.
 
 **Proof.** `node test/production-comments-total-fail-open.js`. It drives the real
 TypeScript handler through a transport that refuses ONE of the two queries by

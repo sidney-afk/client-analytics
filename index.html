@@ -19550,13 +19550,31 @@
                     body: JSON.stringify({ deliverable_id: nativeId, include_feedback: true, limit: WL_TWEAK_FEEDBACK_PAGE_SIZE, before })
                 });
                 const value = await response.json();
+                // `total` is NULLABLE. The endpoint's exact count scans every
+                // comment row on the deliverable while the page is bounded, so
+                // the count is the half that can hit a statement timeout, and it
+                // now fails open: a count that errored or rejected reports null
+                // beside a page that was read perfectly well. Refusing a null
+                // here would hand this popover the same "Couldn't load this
+                // deliverable's feedback" the fail-open exists to prevent, so
+                // this reader would be the one consumer the repair did not
+                // reach. A null is accepted; anything OTHER than null or a safe
+                // non-negative integer is still a malformed response and still
+                // refuses, `undefined` included -- an older reader that has lost
+                // the field entirely is not the same thing as one that could not
+                // count.
+                const counted = value.total === null ? null : value.total;
                 if (!response.ok || !value || value.ok !== true || value.canonical_thread !== true
                     || value.audience_scope !== 'all' || !Array.isArray(value.comments)
-                    || !Number.isSafeInteger(value.total) || value.total < 0
-                    || typeof value.has_more !== 'boolean' || (total !== null && total !== value.total)) {
+                    || (counted !== null && (!Number.isSafeInteger(counted) || counted < 0))
+                    || typeof value.has_more !== 'boolean'
+                    || (counted !== null && total !== null && total !== counted)) {
                     throw new Error('Feedback is incomplete.');
                 }
-                total = value.total;
+                // A page whose count failed open does not get a vote on the
+                // cross-page stability check; a counted page still has to agree
+                // with every other counted page.
+                if (counted !== null) total = counted;
                 feedback = value.feedback || null;
                 for (const row of value.comments) {
                     if (!row || !row.id || seen.has(row.id) || typeof row.body !== 'string') {
@@ -19564,7 +19582,26 @@
                     }
                     seen.add(row.id); rows.push(row);
                 }
-                if (!value.has_more) { complete = rows.length === total; break; }
+                if (!value.has_more) {
+                    // WITH a count, the walk is proved against it exactly as
+                    // before. WITHOUT one, the terminating `has_more === false`
+                    // is the proof the cursor walk reached the end of the
+                    // thread -- it is the same authority that issues
+                    // `next_cursor`, and this loop already trusts it to decide
+                    // whether to keep paging. Be plain about what that costs:
+                    // the count was a second, independent cross-check, and a
+                    // server that wrongly reported `has_more: false` mid-thread
+                    // was caught by `rows.length === total` and now would not
+                    // be, for as long as the count is failing. Every other
+                    // guard is untouched, and what is NEVER accepted is a walk
+                    // that did not terminate: the 50-page cap, an abort, an
+                    // abandoned popover and a repeated cursor all leave
+                    // `complete` false and refuse below. Partial pagination is
+                    // still refused; only the redundant proof is degraded, and
+                    // only while the count is down.
+                    complete = total === null ? true : rows.length === total;
+                    break;
+                }
                 if (!value.next_cursor || !value.next_cursor.id || !value.next_cursor.created_at
                     || JSON.stringify(value.next_cursor) === JSON.stringify(before)) {
                     throw new Error('Feedback pagination is incomplete.');

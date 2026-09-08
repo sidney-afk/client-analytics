@@ -335,11 +335,17 @@ ok(!/loadLinearIssues\(true\)/.test(INDEX),
 
 {
   const calls = [];
+  const cacheWrites = [];
   const ctx = {
     console, Date, Array, JSON, Error,
     LINEAR_ISSUES_WEBHOOK: 'https://fixture.invalid/webhook/linear-issues',
     wlReadCache: () => ({ issues: [{ id: 'stale-cached' }], fetchedAt: Date.now() }),
-    wlWriteCache: () => {},
+    // Recorded, not stubbed away: the reader writes every success into the
+    // SHARED board cache that wlLoadSnapshot falls back to on a cold start, so
+    // a discovery poll that seeded it would let a later cold load paint
+    // provider rows -- including a still-SyncView-authoritative team's
+    // discarded state during a partial rollback -- as the board.
+    wlWriteCache: payload => { cacheWrites.push(payload); },
     wlIsFresh: () => true,
     _wlV2Ready: () => true,
     _wlV2FetchIssues: async () => { throw new Error('the mirror must not answer a forced discovery'); },
@@ -361,6 +367,27 @@ ok(!/loadLinearIssues\(true\)/.test(INDEX),
     'with no-store, so a previous 304 cannot replay a snapshot taken before the issues existed');
   ok(out.issues[0].id === 'from-provider' && out.fromCache !== true,
     'and it returns provider rows rather than the warm cache the poll would outrun');
+  ok(cacheWrites.length === 0,
+    'and it writes NOTHING to the shared board cache -- discovery may not seed the cold-start fallback');
+}
+{
+  // The negative control for the check above: the same reader WITHOUT the
+  // skip flag does write, so the assertion is about the flag and not about a
+  // stub that never calls through.
+  const cacheWrites = [];
+  const ctx = {
+    console, Date, Array, JSON, Error,
+    LINEAR_ISSUES_WEBHOOK: 'https://fixture.invalid/webhook/linear-issues',
+    wlReadCache: () => null, wlIsFresh: () => false, _wlV2Ready: () => false,
+    wlWriteCache: payload => { cacheWrites.push(payload); },
+    fetch: async () => ({ ok: true, json: async () => ({ issues: [{ id: 'x' }] }) }),
+  };
+  vm.createContext(ctx);
+  const src = extractFunction(INDEX, '_wlLegacyLoadLinearIssues');
+  vm.runInContext((INDEX.includes('async function _wlLegacyLoadLinearIssues(') ? 'async ' : '') + src, ctx);
+  await ctx._wlLegacyLoadLinearIssues(true);
+  ok(cacheWrites.length === 1,
+    'negative control: the same reader without the skip flag DOES write the board cache');
 }
 
 console.log('\n' + '='.repeat(60));

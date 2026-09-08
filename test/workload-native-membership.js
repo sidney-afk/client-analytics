@@ -35,12 +35,21 @@ function browser(response=fixture()) {
  wlIsActiveStatus:i=>!['completed','canceled','duplicate'].includes(i.statusType),
  wlFetchForeignLinearMetadata:async()=>{throw Error('unexpected provider read');},
  _syncviewStaffIdentityClear:()=>{context.identity=null;},wlPurgePlanSensitiveState:()=>{state.planByIssueId.clear();},
- // Models the shipped wlApplyData closely enough for the status renderer: only
- // SUB-ISSUES reach a bucket. Batch parents and completed/parked rows land in
- // issueSnapshot and render nowhere, which is precisely why `boardShown` counts
+ // Models the shipped wlApplyData's ADMISSION rule for the status renderer:
+ // a row reaches a bucket only if it is a sub-issue, active, and its client is
+ // allowed. Batch parents, completed/parked rows and rows off the roster land
+ // in issueSnapshot and render nowhere, which is why `boardShown` counts
  // rendered rows rather than snapshot length (Codex round 7).
+ //
+ // The predicates are the REAL extracted ones, not hand-written copies. Codex
+ // round 8 caught the copy: the first version admitted every sub-issue, so a
+ // fixture that the shipped bucketer would have dropped on the floor still made
+ // a capacity assertion pass. Reproducing a predicate is how a harness starts
+ // lying; calling it is how it stops. The source pin below fails if wlApplyData
+ // ever gates on something else.
  wlApplyData:(issues,time)=>{state.issueSnapshot=issues;state.fetchedAt=time;
-  state.planned=(issues||[]).filter(i=>i&&i.isSubIssue);
+  state.planned=(issues||[]).filter(i=>i&&i.isSubIssue
+   &&context.wlIsActiveStatus(i)&&context.wlIssueClientAllowed(i));
   state.nowWorking=[];state.tweaksNeeded=[];state.overdue=[];state.undated=[];state.unassigned=[];},
  LINEAR_ISSUES_TTL_MS:5*60*1000,cacheWrites:[],
  wlAdoptLinearMetadata:(rows,issues,fetchedAt,options)=>{
@@ -71,6 +80,13 @@ function browser(response=fixture()) {
  .forEach(name=>vm.runInContext(extract(html,name),context));
  return {context,state,calls};
 }
+/* A cached row that the REAL admission predicates accept. The harness sets
+   wlIsAllowedClient to false, so a legacy-shaped row is refused -- which is
+   exactly how the round-7 fixture ({id, isSubIssue:true}) passed a capacity
+   assertion the shipped bucketer would never have reached. A native row carries
+   its membership on the row itself. */
+const CACHED_ROW={id:'warm',isSubIssue:true,workloadSource:'native',
+ nativeClientActive:true,nativeAssigneeEligible:true,statusType:'unstarted'};
 (async()=>{
  const {projectNativeSnapshot,legacyPlanAliases}=await import(pathToFileURL(path.join(root,'supabase/functions/workload-plan/native-snapshot.mjs')).href);
  const raw=fixture();raw.plans[0].issue_id='old-fixture';
@@ -143,6 +159,21 @@ function browser(response=fixture()) {
  // renderWorkloadPlanStatus -- and reads the RENDERED TEXT off the element.
  ok(/renderWorkloadPlanStatus\(\);/.test(extract(html,'renderWorkloadAll')),
   'harness fidelity: the shipped renderWorkloadAll really does call renderWorkloadPlanStatus');
+ // The bucketing stub admits a row on exactly these two predicates plus
+ // isSubIssue. If wlApplyData ever gates on something else, the stub is lying
+ // again and this goes red rather than the assertions quietly passing.
+ {const apply=extract(html,'wlApplyData');
+  ok(/wlIsActiveStatus\(/.test(apply)&&/wlIssueClientAllowed\(/.test(apply),
+   'harness fidelity: the shipped bucketer still admits rows on active status and client membership');
+  const probe=browser();
+  probe.context.wlApplyData([
+   {id:'a',isSubIssue:true,workloadSource:'native',nativeClientActive:true,statusType:'unstarted'},
+   {id:'b',isSubIssue:true,workloadSource:'native',nativeClientActive:false,statusType:'unstarted'},
+   {id:'c',isSubIssue:true,workloadSource:'native',nativeClientActive:true,statusType:'completed'},
+   {id:'d',isSubIssue:false,workloadSource:'native',nativeClientActive:true,statusType:'unstarted'},
+   {id:'e',isSubIssue:true,clientName:'Someone'}],Date.now());
+  ok(probe.state.planned.map(r=>r.id).join(',')==='a',
+   'harness fidelity: the stub drops off-roster, completed, parent and legacy-unallowed rows exactly as the real one would');}
  {const drift=fixture();drift.plans[0].client='other';
   const projectedDrift=projectNativeSnapshot(drift,s=>s.toLowerCase());
   ok(projectedDrift.plans_dropped===1&&projectedDrift.legacy_teams.length===0,
@@ -255,7 +286,7 @@ function browser(response=fixture()) {
    // A cached board of RENDERABLE rows. A cache holding only batch parents or
    // completed rows displays nothing, and claiming its capacity is understated
    // would be a warning about an empty screen -- pinned separately below.
-   await assert.rejects(cached.context.wlLoadSnapshot(false,{issues:[{id:'warm',isSubIssue:true}],fetchedAt:Date.now()}));checks++;
+   await assert.rejects(cached.context.wlLoadSnapshot(false,{issues:[CACHED_ROW],fetchedAt:Date.now()}));checks++;
    ok(cached.state.issueSnapshot.length===1&&cached.state.linearMetadataStatus==='unknown',
     'precondition: a cached board is shown with no proven label metadata');
    cached.context.renderWorkloadPlanStatus();
@@ -267,7 +298,7 @@ function browser(response=fixture()) {
   //      carries batch parents and completed/parked rows that reach no bucket.
   {const parentsOnly=browser(async()=>{throw Error('offline');});
    await assert.rejects(parentsOnly.context.wlLoadSnapshot(false,
-    {issues:[{id:'bat_only',isSubIssue:false}],fetchedAt:Date.now()}));checks++;
+    {issues:[{...CACHED_ROW,id:'bat_only',isSubIssue:false}],fetchedAt:Date.now()}));checks++;
    ok(parentsOnly.state.issueSnapshot.length===1,'precondition: the snapshot is not empty');
    parentsOnly.context.renderWorkloadPlanStatus();
    ok(!/capacity may be understated/i.test(parentsOnly.context.planStatusEl.textContent),
@@ -279,7 +310,7 @@ function browser(response=fixture()) {
   //      most needs to say why, so it counts as shown.
   {const allExcluded=browser(async()=>{throw Error('offline');});
    await assert.rejects(allExcluded.context.wlLoadSnapshot(false,
-    {issues:[{id:'bat_only',isSubIssue:false}],fetchedAt:Date.now()}));checks++;
+    {issues:[{...CACHED_ROW,id:'bat_only',isSubIssue:false}],fetchedAt:Date.now()}));checks++;
    allExcluded.state.excluded={noAssigneeNoDate:['a','b'],offTeamAssignee:[]};
    allExcluded.context.renderWorkloadPlanStatus();
    ok(/not an empty board/.test(allExcluded.context.planStatusEl.textContent),

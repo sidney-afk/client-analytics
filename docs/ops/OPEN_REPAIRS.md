@@ -14413,6 +14413,57 @@ and the closure guard, which cannot even resolve the discovery door on the old
 tree.
 
 
+### Codex round 8 — the round-7 fix seeded the board's safety net, and the harness was still lying (2026-09-08)
+
+Both findings are consequences of round 7's own repairs. The second is the
+FOURTH time on this PR that a green check licensed a defect, and it was found
+because the re-review request asked for exactly that shape.
+
+**1. Discovery wrote the board's cold-start fallback cache (P1).**
+`wlDiscoverProviderIssues` delegates to `_wlLegacyLoadLinearIssues`, whose every
+success path calls `wlWriteCache` into the shared `syncview_linearIssuesCache_v1`.
+`wlLoadSnapshot` uses that cache as its cold-start fallback, so a post-create
+poll seeded the board's safety net with provider rows. During a partial rollback
+that same response also carries the still-SyncView-authoritative team's stale
+Linear state — so a later cold load whose native snapshot was briefly
+unavailable could paint discarded statuses and obsolete membership as the board,
+and look entirely current doing it.
+
+The read is now side-effect-free: `_wlLegacyLoadLinearIssues(force, {skipCacheWrite})`,
+set only by discovery. Discovery answers one question for one caller; it does not
+get to seed the board. The transport harness asserts zero cache writes, with a
+negative control proving the same reader without the flag DOES write — so the
+check is about the flag, not about a stub that never calls through.
+
+**2. The bucketing stub was still reproducing predicates rather than calling
+them (P2).** Round 7 made `wlApplyData`'s stub admit every sub-issue.
+The shipped function admits a row only if it is active AND
+`wlIssueClientAllowed`. This harness sets `wlIsAllowedClient` to false, and the
+cached-fallback fixture was `{id, isSubIssue:true}` — a legacy-shaped row the real
+bucketer would drop on the floor. So the capacity-warning assertion passed
+against a board that would have rendered nothing.
+
+The stub now calls the REAL extracted predicates instead of copying them, the
+fixture is a native row carrying its own membership, and two fidelity checks were
+added: a source pin that `wlApplyData` still gates on those two predicates, and a
+behavioural probe that the stub drops off-roster, completed, parent and
+legacy-unallowed rows. Reproducing a predicate is how a harness starts lying;
+calling it is how it stops.
+
+**Proof.** The P1 is red against `b1abd7d` (the cache-write check). The P2 cannot
+be shown by swapping `index.html` — it lived entirely in the test — so it was
+demonstrated directly: putting round 7's fixture back while keeping the faithful
+stub turns the capacity assertion red, which is the assertion that had been
+passing on a fixture the shipped code would never have bucketed.
+
+**The pattern, now four for four.** A state assertion (rounds 1-2), a
+source-shape pin (round 3), a stubbed transport (round 7), an unfaithful stub
+(round 8). Every one of them was green while the defect shipped. The common
+shape is a test that asserts what the code was ASKED to do rather than what it
+DOES, and on this branch it has been more productive to hunt that shape than to
+hunt behaviour.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

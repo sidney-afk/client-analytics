@@ -14741,9 +14741,18 @@
        is Linear-authoritative -- rollback included, which is the case that most
        needs it -- and dies with the last of them. */
     async function wlDiscoverProviderIssues() {
-        return _wlLegacyLoadLinearIssues(true);
+        // SIDE-EFFECT-FREE. The reader below writes every successful response
+        // into the shared board cache, which wlLoadSnapshot uses as its
+        // cold-start fallback -- so a post-create poll would quietly replace the
+        // native safety net with provider rows. During a partial rollback that
+        // response also carries the still-SyncView-authoritative team's stale
+        // Linear state, so a later cold load could paint discarded statuses and
+        // obsolete membership as if they were current. Discovery answers one
+        // question for one caller; it does not get to seed the board.
+        return _wlLegacyLoadLinearIssues(true, { skipCacheWrite: true });
     }
-    async function _wlLegacyLoadLinearIssues(force) {
+    async function _wlLegacyLoadLinearIssues(force, options) {
+        const skipCacheWrite = !!(options && options.skipCacheWrite);
         const cache = wlReadCache();
         if (cache && !force && wlIsFresh(cache.fetchedAt)) {
             return { issues: cache.issues, fetchedAt: cache.fetchedAt, fromCache: true };
@@ -14760,7 +14769,7 @@
                 const issues = await _wlV2FetchIssues();
                 if (Array.isArray(issues) && issues.length) {
                     const fetchedAt = Date.now();
-                    wlWriteCache({ issues, fetchedAt });
+                    if (!skipCacheWrite) wlWriteCache({ issues, fetchedAt });
                     return { issues, fetchedAt, fromCache: false };
                 }
                 console.warn('[Workload v2] Supabase returned 0 active rows — falling back to linear-issues');
@@ -14781,7 +14790,7 @@
         const data = await resp.json();
         const issues = Array.isArray(data) ? data : (data.issues || []);
         const fetchedAt = Date.now();
-        wlWriteCache({ issues, fetchedAt });
+        if (!skipCacheWrite) wlWriteCache({ issues, fetchedAt });
         return { issues, fetchedAt, fromCache: false };
     }
 

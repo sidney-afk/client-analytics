@@ -14129,6 +14129,48 @@ false one.
   take index.ts or index.html from the candidate at all.
 - The two label migrations are lifted onto this branch but the gateway half
   (candidate `production-write/index.ts` + `policy.mjs`, work item B1) is **not**
-  lifted. `test/native-label-catalog-foundation.js` asserts against that
-  gateway, so it was deliberately left off this branch rather than shipped red.
-  Whoever lands B1 restores it in the same commit.
+  lifted. `test/native-label-catalog-foundation.js` AND `test/native-label-writes.js`
+  both assert against that gateway, so neither is on this branch. Whoever lands
+  B1 restores both, together with `qa/native-label-catalog/` — see §9.
+
+### 9. A LIFTED TEST WITHOUT ITS HARNESS, HIDDEN BY ITS OWN SKIP — read this before lifting any candidate test
+
+This lane's first push turned CI red, and the way it did is a trap every other
+lane is currently exposed to.
+
+`test/native-label-writes.js` was lifted from the candidate without
+`qa/native-label-catalog/`, the harness it spawns. Locally it printed
+`SKIP native label writes: explicit disposable PostgreSQL required` and exited
+**0**, so a full `npm test` was green and the omission was invisible. **CI sets
+`F63_REQUIRE_POSTGRES=1`**, so there the same suite ran, could not find the
+harness, and threw `native_labels_actual_lane_failed_private_evidence_retained`
+— a message naming neither the missing file nor the reason.
+
+Two things follow, and both are general:
+
+1. **A sandbox `npm test` is NOT the CI suite.** Three suites are gated behind
+   `F63_REQUIRE_POSTGRES` (`f63-flip-runbook-sql-gate`,
+   `linear-deliverables-reconcile-bounded-postgres`, and this lane's
+   `native-identifier-mint`) and they SKIP silently without it. Run the suite
+   with a disposable PostgreSQL 16 on a loopback port and
+   `PGHOST/PGPORT/PGUSER/PGDATABASE` all set — **`PGDATABASE=postgres` included,
+   which `f63-flip-runbook-sql-gate.js:531` asserts outright** — or your green
+   run has not covered what CI covers. Measured both ways on this branch: 1 of
+   414 failed either way, but only the gated run actually executes the
+   behavioural proofs.
+2. `qa/native-label-catalog/write-proof.mjs` and `handler-proof.mjs` both LOAD
+   `supabase/functions/production-write/index.ts` and pin its contents, so they
+   are useless until B1 lands. `sql-proof.js` beside them is gateway-free and
+   could stand alone, but nothing in `test/` invokes it on the candidate either.
+
+**The guard: `test/gated-suites-have-their-harness.js`.** Every path a top-level
+suite hands to `path.join(__dirname|root, …)` must exist, whatever any gate
+would have decided — a spelling check on file paths, with no database, no
+credentials and no gate of its own. It resolves each path against the base that
+suite actually uses (the first draft resolved everything against `test/` and
+produced ~200 false alarms, because most suites join from a `root` they set to
+the repository root). Mutation-proven: restoring `test/native-label-writes.js`
+makes it exit 1 naming `qa/native-label-catalog/write-proof.mjs`, and it asserts
+it resolved 129 real paths so it cannot pass by matching nothing.
+
+Six sessions are lifting candidate tests right now. This is the shape that bites.

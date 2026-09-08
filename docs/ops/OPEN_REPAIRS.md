@@ -14711,3 +14711,39 @@ Pinned: `test/calendar-deep-link-focus.js` gained a dedicated
 toast alone, no-ops when nothing is showing) and source assertions that
 `navTo` clears both request types and dismisses the toast beside the
 `focusPid` clear it mirrors.
+
+**Fifth Codex pass, same PR, on the fixes above.** Two more real findings:
+
+10. *(P2)* Switching CLIENT TABS within the calendar (not leaving the page)
+    is a fourth way a pending card-link request goes stale — the exact
+    shape `calState.focusPid` already has a dedicated fix for, on the
+    fourth pass's own precedent, but specific to
+    `_calFocusRequest`/`_calPendingDeepLink`, which nothing else touched.
+    `_calSetClient` now abandons a pending request (and its toast, through
+    the ownership check) whenever the client actually changes to something
+    the request does NOT name. Critically, NOT when switching TO the client
+    a request already names: `_calResolvePendingDeepLink` calls
+    `_calSetFocusRequest(...)` and then `_calOpenClientTab(...)` (which
+    lands in `_calSetClient`) for exactly that client, in that order, and a
+    blanket clear-on-any-change would have cancelled the very request that
+    sequence exists to fulfil.
+11. *(P2)* `_calHideOwnToast` itself had a real bug, not a theoretical one:
+    its first version queried the DOM globally
+    (`document.querySelector('.sv-toast-msg')`). `hideToast()` clears its
+    own tracked `_toastEl` and removes the `show` class immediately but
+    leaves the OLD element in the document for a 220ms fade-out; `showToast()`
+    appends the replacement element right away with no such delay. A global
+    query during that overlap can return the dying old element instead of
+    the live one — reading stale "Opening linked card…" text while a
+    genuinely different toast (an Undo prompt) is actually current, and
+    then calling the real `hideToast()`, which acts on `_toastEl` (the live
+    one) regardless of which element the query happened to match. Fixed by
+    checking `_toastEl` directly — it is in the same top-level scope as
+    `_calHideOwnToast`, so no DOM query is needed at all, and it is never a
+    fading leftover.
+
+Pinned: `test/calendar-deep-link-focus.js` gained a full `_calSetClient`
+runtime harness (abandon-on-different-client and survive-on-matching-client,
+for both request shapes, plus the no-op-reset case untouched) and rewrote
+the `_calHideOwnToast` unit test to pass `_toastEl` instead of a `document`
+mock, since there is no longer a DOM query to mock.

@@ -2,6 +2,46 @@
 
 All times are UTC unless noted.
 
+## 2026-09-08 — Deployed: workload-plan native snapshot, verified live
+
+**The redeploy that yesterday's outage earned.** `workload-plan` deployed by the
+owner from the exact SHA `d4b2365eab03302b88953a63a610399643fc71ec` on branch
+`claude/lx-a-workload-native`, with `--no-verify-jwt`, per
+`docs/ops/EF_DEPLOY_MANIFEST.md:58` (NO CI DEPLOY PATH, deliberate-manual).
+Five assets uploaded including `native-snapshot.mjs`.
+
+**Verified two ways, which is the whole point of this entry.**
+
+1. *Which code is live.* POST `{"action":"native_snapshot"}` returned **401**.
+   Action validation runs before auth, so a 401 proves the isolate recognises
+   the action; the pre-incident function answered `400 invalid_action`.
+2. *Whether it works.* The owner opened the Workload board and read it. Every
+   pill carries a real date and a real editor. No "Deadline fallback" anywhere,
+   across five day columns and every team on screen.
+
+**The second check is the one that matters and it is the one that was skipped
+before.** Yesterday CI was green on nine checks and the board was blank for
+every editor. A person looking at the surface is not a formality here; it is
+the only evidence that has ever caught this class of failure.
+
+**Preconditions, both met before the deploy rather than after.**
+`workload_native_snapshot_v1()` had already answered whole (`ok`, `complete`,
+`count` = `rows_len` = 6450, both teams `syncview`), and the drifted-plan census
+was re-run and returned the same six rows as 2026-09-07 — unchanged, so nothing
+regressed in the interval. Those six saved work days are now DROPPED rather than
+fatal: the board paints, and six days are missing instead of all of them.
+
+**One process note worth keeping.** Three deploys ran in sequence. The middle
+one was issued from `main`, which does not carry `native-snapshot.mjs`, and it
+briefly restored the pre-incident function (visible in the CLI output as four
+assets uploaded instead of five). The third deploy, from the exact SHA, is the
+one that stands. Net state is correct and the intermediate state was simply the
+previously working code, but it is a reminder that **the SHA in the checkout is
+the whole safety property** of a deliberate-manual lane.
+
+**Rollback**, unchanged and unused: the same command run from `main`. The applied
+migrations are additive and were not reversed.
+
 ## 2026-09-08 — Applied, recorded late: the two Workload native migrations
 
 **Recorded after the fact, which is the whole point of this entry.** Both

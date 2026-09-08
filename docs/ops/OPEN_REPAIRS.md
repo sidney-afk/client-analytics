@@ -15111,3 +15111,49 @@ stopping point of a self-auditing loop is context exhaustion, not done.*
 
 I dispatched twelve sessions and bounded none of them. The parallel model earned
 its keep in the first hours; past that it multiplied cost more than throughput.
+
+### Addendum, 2026-09-08 — the deploy landed and is verified; PR #1344 is now blocked on a NEW regression
+
+**Two gates closed, one opened.** Full deploy record in `EXECUTION_LOG.md`.
+
+**Done and verified.** The owner deployed `workload-plan` from the exact SHA
+`d4b2365eab03302b88953a63a610399643fc71ec`, and it is confirmed live two ways:
+`POST {"action":"native_snapshot"}` returns **401** where the pre-incident
+function answered `400 invalid_action`, and **the owner opened the Workload
+board and read it** — every pill carrying a real date and editor, no "Deadline
+fallback" across five day columns. The second check is the one that matters:
+yesterday nine CI checks were green while the board was blank for every editor.
+
+The drifted-plan census re-ran and returned **the same six rows** as
+2026-09-07, so nothing regressed in between. Those six saved work days are now
+dropped rather than fatal.
+
+**The new blocker, and how it was nearly missed.** A session reported PR #1344
+as "CI green (1 known)". The failing check is `production-polish`, and it is
+**not** the known baseline:
+
+- On `main` the FAST `production-polish` lane **passes**. What fails there is
+  `production-polish-heavy` and `production-polish-interaction`, which only run
+  post-merge.
+- On PR #1344 the FAST lane **fails**, at `Production structure subset` with
+  code `page_error_pending_read`.
+
+`CLAUDE.md`'s warning that prod-polish "cannot pass in a sandbox" is true and is
+about the other lanes. **Comparing the failure SET rather than the colour is the
+whole difference between "known" and "regression"** — the same rule this
+programme wrote down after getting it wrong twice, applied here in time.
+
+**Likely mechanism, recorded as inference and not proof.**
+`page_error_pending_read` maps to the browser error `pending read requests:`
+(`docs/syncview-design/tests/prod-polish-gate.js:103`). The branch's last two
+commits made `action:'list'` race the enriched snapshot against a time budget.
+**A `Promise.race` settles the race; it does not stop the loser.** When the
+budget wins, the enrichment read is still open. The design is right and the
+board is proof of it, but an abandoned read has to be accounted for rather than
+merely un-awaited. Confirm before changing anything.
+
+**This is the third instance in two days of a fix creating its own defect next
+door**, after the dropped-plan counter and the per-row feedback settle that
+multiplied the worst-case wait. The pattern is worth more than any of the three:
+*a fix that changes control flow needs its new failure mode named before it
+ships, not after a test finds it.*

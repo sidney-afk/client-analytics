@@ -15175,3 +15175,39 @@ forces the list to be updated:
 
 Proof: **35 pass**; red against `6c0c665` with the matrix naming all four shapes
 that were divergent there.
+
+### Eighth follow-up: the resolver-name order, and an exception set that named a sample of itself (two Codex P2s on `6e799b2`)
+
+**1. `resolved_by_name` precedence.** The importer takes
+`clean(raw.done_by || raw.resolved_by_name)`; the projection had the operands
+reversed. Invisible except on a row carrying BOTH with different values — which
+is exactly the row the strict comparison then refuses to cover. Mirrored.
+
+Worth noting where this one came from: a previous session in this lane looked at
+this line during the parity sweep, wrote it off as "order differs but the `||`
+result is the same set unless both are present and different. Minor," and moved
+on. The whole point of that sweep was that "minor" divergences here are not
+minor — they are permanent duplicates. The matrix now carries the both-present
+shape.
+
+**2. The deliberate-exception set named a sample of itself.** The previous
+follow-up asserted an *exact* divergence set and called that tight. It listed two
+shapes, both `done: "true"`. But the projection's `truthy` helper also accepts
+`1`, `"1"` and `"yes"`, and the same predicate governs `resolved`, `deleted` and
+`is_deleted` — sixteen divergent shapes in total, of which the list named two. A
+matrix that pins two members of a sixteen-member family does not detect changes
+to that family, so the assertion was weaker than the commit claimed.
+
+The set is now **derived from the shipped `truthy` helper** rather than
+hand-listed: the test parses the accepted representations out of `feedback.mjs`
+and generates one shape per (flag field × accepted value). Widening `truthy`
+therefore widens the matrix instead of silently widening the exception it names.
+
+The exception itself is unchanged and still deliberate: mirroring the importer
+means making the projection strict, the identical predicate governs `deleted`,
+and that would start showing the body of a note the card marked deleted. The
+duplicate is accepted; the suppression is kept.
+
+Proof: **35 pass**; red against `6e799b2` with the matrix naming all seventeen
+shapes divergent there — the resolver-name row plus the full sixteen-member
+truthy family it had not been enumerating.

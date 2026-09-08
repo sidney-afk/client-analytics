@@ -158,7 +158,8 @@ preview. That now covers `is_tweak`, `source_created_at`
 `done_at || updated` and never consults `resolved_at`, which only dates an entry
 carrying no boolean at all),
 `author_name` (labelled from the role, never "Unknown author", because the
-canonical twin already carries that label) and `role` (lower-cased). The emitted
+canonical twin already carries that label), `role` (lower-cased) and
+`resolved_by_name` (`done_by` first, as the importer has it). The emitted
 `role` still stays null when the entry has none: an unknown role is deliberately
 non-disqualifying in the match, and inventing one would start refusing coverage
 rather than granting it. `test/component-feedback-read.js` holds a parity matrix
@@ -168,11 +169,14 @@ so a new divergence fails there rather than being found one at a time.
 Two places the mirror deliberately stops, both named in the matrix so they are
 visible rather than assumed. An entry with no timestamp at all, where the importer
 defaults to the epoch: the projection reports an honest absence instead, because
-printing a 1970 date beside a tweak note invents a fact. And an entry whose
-deleted/resolved flag is the STRING `"true"`: the importer counts only a real
-`true`, so mirroring would make the projection strict — and the identical
+printing a 1970 date beside a tweak note invents a fact. And an entry whose deleted/resolved flag is any value
+`truthy` accepts but the importer does not — `1`, `"1"`, `"true"`, `"yes"`,
+across `done`, `resolved`, `deleted` and `is_deleted`. The importer counts only a
+literal `true`, so mirroring would make the projection strict, and the identical
 predicate governs `deleted`, so it would start showing the body of a note the
-card marked deleted. Both keep a visible duplicate rather than trade it for a
+card marked deleted. The matrix DERIVES that set from the shipped `truthy`
+helper, so widening the helper widens the matrix rather than quietly widening the
+exception. Both keep a visible duplicate rather than trade it for a
 note hidden by a loosened match or for content that should stay suppressed.
 
 The popover's three-row preview is ordered newest-first across both sources.

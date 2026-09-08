@@ -19,6 +19,20 @@ const target = { id: 'feedback-deliverable', client_slug: 'fixture-feedback', te
 // that is what the F42 importer WRITES for anything it read out of a `*_tweaks`
 // cell — a canonical row imported from `video_tweaks` cannot be `false`.
 const note = (id, extra = {}) => ({ id, author: 'Fixture reviewer', role: 'smm', body: 'Same text', created_at: now, updated_at: now, ...extra });
+// The flag fields whose predicate diverges from the importer, and every value
+// the shipped `truthy` helper accepts beyond the literal `true` the importer
+// requires. Read out of feedback.mjs so widening `truthy` widens the parity
+// matrix with it instead of silently widening the exception it names.
+const FLAG_FIELDS = ['done', 'resolved', 'deleted', 'is_deleted'];
+const TRUTHY_VALUES = (() => {
+  const helper = fs.readFileSync(path.join(root, 'supabase/functions/production-comments/feedback.mjs'), 'utf8')
+    .match(/^const truthy = .*$/m);
+  if (!helper) throw new Error('missing truthy helper');
+  const numeric = [...helper[0].matchAll(/value === (\d+)/g)].map(match => Number(match[1]));
+  const listed = (helper[0].match(/\[([^\]]*)\]/) || [, ''])[1]
+    .split(',').map(part => part.trim().replace(/^'|'$/g, '')).filter(Boolean);
+  return [...numeric, ...listed];
+})();
 const canonical = (id, extra = {}) => ({ id, deliverable_id: target.id, native_comment_id: id, author_name: 'Fixture reviewer', role: 'smm', body: 'Same text', component: 'video', is_tweak: true, round: null, source_created_at: now, source_updated_at: now, created_at: now, updated_at: now, version: 1, audience: 'internal', ...extra });
 let db, reads, handler, hook, failures, auditAllowed;
 function reset(notes = [note('source-one')]) {
@@ -245,8 +259,17 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
         { label: 'resolved true with a differing explicit resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, resolved: true, resolved_at: '2026-08-11T09:00:00.000Z' } },
         { label: 'done true with both done_at and resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, done_at: now, resolved_at: '2026-08-11T09:00:00.000Z' } },
         { label: 'resolved_at alone, no boolean', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, resolved_at: '2026-08-11T09:00:00.000Z' } },
-        { label: 'string "true" done flag', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: 'true' } },
-        { label: 'string "true" done flag with resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: 'true', resolved_at: '2026-08-11T09:00:00.000Z' } },
+        { label: 'both done_by and resolved_by_name', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, done_by: 'Fixture Reviewer', resolved_by_name: 'Someone Else' } },
+        // EVERY representation `truthy` accepts, read out of the shipped helper
+        // rather than hand-listed, for every flag it governs. The importer
+        // recognises only a literal `true`, so each of these is a deliberate
+        // divergence — and naming only `done: "true"` left the exception family
+        // unpinned, which is the same half-done job as leaving a shape out of
+        // the matrix entirely.
+        ...FLAG_FIELDS.flatMap(field => TRUTHY_VALUES.map(value => ({
+          label: 'truthy ' + field + ' = ' + JSON.stringify(value),
+          raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, [field]: value },
+        }))),
         { label: 'author_name rather than author', raw: { ...base, author_name: 'Fixture reviewer', role: 'smm', created_at: now } },
         { label: 'deleted', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, deleted: true } },
         { label: 'is_deleted', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, is_deleted: true } },
@@ -254,16 +277,20 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
         { label: 'zero round', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, round: 0 } },
         { label: 'edited', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, edited_at: now } },
       ];
-      // Two shapes diverge DELIBERATELY, and the matrix names them rather than
-      // hiding them. The importer treats only a real `true` as deleted/resolved
-      // (`raw.done === true`), while this projection uses `truthy`, so a card
-      // storing the string "true" is suppressed here and was imported as
-      // unresolved. Mirroring the importer would make the projection strict —
-      // and the identical predicate governs `deleted`, so it would start
-      // SHOWING the body of a note the card marked deleted. That trades a
-      // duplicate for exposed content, which is the one direction this lane
-      // never goes. The duplicate is accepted; the suppression is kept.
-      const deliberate = ['string "true" done flag', 'string "true" done flag with resolved_at'];
+      // One family diverges DELIBERATELY, and the matrix enumerates it rather
+      // than naming a sample of it. The importer treats only a literal `true` as
+      // deleted/resolved (`raw.done === true`), while this projection uses
+      // `truthy`, which also accepts 1, "1", "true" and "yes". Every one of
+      // those is suppressed here and was imported as unresolved/undeleted.
+      // Mirroring the importer would mean making the projection strict — and the
+      // identical predicate governs `deleted`, so it would start SHOWING the
+      // body of a note the card marked deleted. That trades a duplicate for
+      // exposed content, the one direction this lane never goes. The duplicate
+      // is accepted; the suppression is kept. The set is DERIVED from the
+      // shipped helper below, so widening `truthy` cannot quietly widen the
+      // exception.
+      const deliberate = FLAG_FIELDS.flatMap(field =>
+        TRUTHY_VALUES.map(value => 'truthy ' + field + ' = ' + JSON.stringify(value)));
       const divergent = [];
       for (const shape of shapes) {
         const imported = importer.normalizeComment({ ...shape.raw, _source_field: 'video_tweaks' }, importScope, null);

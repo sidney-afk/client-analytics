@@ -108,7 +108,10 @@ function sourceComment(raw, scope, field, index) {
     source_created_at: created, source_updated_at: updated,
     edited_at: stamp(raw.edited_at), deleted, deleted_at: stamp(raw.deleted_at),
     done: resolved, resolved_at: resolvedAt,
-    resolved_by_name: resolved ? clean(raw.resolved_by_name || raw.done_by) || null : null,
+    // `done_by` first, as the importer has it. The reversed order only shows on
+    // a row carrying BOTH with different values, which is exactly the row the
+    // strict comparison then refuses to cover.
+    resolved_by_name: resolved ? clean(raw.done_by || raw.resolved_by_name) || null : null,
     source_only: true, source_surface: scope.surface, source_field: field,
     source_audience: ['client', 'internal'].includes(raw.audience) ? raw.audience : null,
     can_edit: false, can_delete: false, can_resolve: false,

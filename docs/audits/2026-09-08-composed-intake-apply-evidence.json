@@ -1,0 +1,51 @@
+{
+  "status": "PASS",
+  "classification": "EXECUTED_REAL_POSTGRES16",
+  "what_this_closes": "The composed native-intake artifact had never been applied to a database. docs/audits/2026-09-07-native-named-append-evidence.json records the composition with executed:false, and test/native-intake-named-append.js reports the same, because nothing ran it. This is that run.",
+  "postgres": "16.13, disposable, created and dropped by scripts/f42-apply-rehearsal.js Cluster via scripts/native-intake-manifest/harness.js; check_function_bodies on for the artifact",
+  "composed_artifact": {
+    "built_by": "scripts/native-intake-named-append-compose.js fromRepository()",
+    "composed_sha256": "2571a909971f2bc52ef270400b7666c2b529d36ab4f6a56044f00d1b2ecf61ec",
+    "bytes": 66665,
+    "characters": 66659,
+    "outer_transactions": 1,
+    "unchanged_by": "migrations/2026-09-08-native-intake-receipt-retention.sql, which is a separate file for exactly this reason"
+  },
+  "suites": [
+    {
+      "file": "test/native-intake-composed-apply.js",
+      "passed": 11,
+      "classification": "EXECUTED_REAL_POSTGRES16_COMPOSED_ARTIFACT",
+      "proves": [
+        "the composer still returns the published digest, byte length and character count",
+        "the artifact applies in one transaction with function bodies compiled",
+        "exactly one production_intake_append survives the two create-or-replace statements",
+        "the surviving body carries BOTH the named-title tolerance and the native routing, so the last replacement did not drop the first",
+        "zz_native_intake_receipt_guard is installed and enabled",
+        "admission is off for both teams on a fresh install",
+        "the hybrid half applied ALONE is refused by its own prerequisite guard, on a database holding the real mirror_outbox but not the native half",
+        "that refusal leaves the append body the migration chain already had"
+      ]
+    },
+    {
+      "file": "test/native-intake-receipt-retention.js",
+      "passed": 9,
+      "classification": "EXECUTED_REAL_POSTGRES16_REAL_MIRROR_OUTBOX",
+      "proves": [
+        "a marked native intake receipt still inserts terminal (skipped, native_only)",
+        "deleting it and truncating mirror_outbox are both refused with native_intake_receipt_retained",
+        "neither refusal changed the table",
+        "an unmarked provider receipt stays deletable",
+        "a replay holds its own accepted epoch while the receipt survives",
+        "with the trigger dropped the same replay silently re-resolves onto the current flag, which is the harm the guard exists to stop"
+      ]
+    }
+  ],
+  "provider_attempts": 0,
+  "limits": [
+    "Fresh install only. Neither suite rehearses applying over an older native install.",
+    "Schema and RPC level. The gateway and its authenticated path are not exercised against the applied schema here; the other native lanes cover that.",
+    "Rows are inserted directly in the retention suite rather than through the gateway, so it proves the trigger contract, not the gateway's use of it.",
+    "Synthetic throughout: every slug, request id, batch id and epoch is invented and names no real client, colleague or work."
+  ]
+}

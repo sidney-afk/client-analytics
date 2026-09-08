@@ -1,0 +1,363 @@
+⚠️ ⚠️  READ THIS BEFORE EXECUTING ANYTHING FROM THIS FILE  ⚠️ ⚠️
+
+**333 lines across the six briefs are TRUNCATED MID-SENTENCE, and some of them are
+owner-executable migration and rollback steps.** This is a defect in how the briefs
+were generated: the scoping workflow that produced them capped each field at a fixed
+character budget (clusters at 254, 264, 315, 329, 331 and 705 characters), and the
+clipped text was never restored. Codex found it on 2026-09-08; nobody had noticed.
+
+Real examples from this set: a prohibition that ends at `Never apply
+2026-09-05-native-only-intake.sql ` without saying what to do instead, and a rollback
+that ends at the incomplete identifier `dropping production_`.
+
+**The rule, and it is not optional: if a line stops mid-sentence, DO NOT EXECUTE IT
+and do not guess the rest.** Go to the source it names — the migration file, the
+workflow, `docs/ops/`, `EXECUTION_LOG.md`, `ROLLBACK.md` — and re-derive the full
+instruction there. A truncated `undo:` is the worst case, because it reads like a
+complete recovery procedure and is not one.
+
+These briefs remain useful as a map of what each lane covers and where to look. They
+are NOT safe as a runbook until the clipped fields are restored.
+
+### RESTORATION PASS, 2026-09-08 (lane LX-RESTORE) — read this before you trust a line below
+
+The **executable** clipped lines in this file have been restored: the
+`- [migration]`, `- [edge-function-deploy]`, `- [runtime-flag]`, `- [other]`,
+`- [n8n-edit]`, `undo:` and `mitigate:` lines inside LIVE ACTIONS and RISKS.
+Nothing else has been. The other clipped fields (`why:`, `confirmed:`,
+`where:`, `lift:`, evidence, and the `[A1]`/`[B1]`-style work-item lines) are still
+truncated, so the warning above stands and this file is still NOT a runbook.
+
+**How to tell a restored line from an original one.** Every restored line ends
+with a bracketed marker naming the date and the primary source it was
+re-derived from:
+
+> `**[RESTORED 2026-09-08 · source: …]**`
+
+A line with that marker has been checked against the source it names. A line
+without one has not been checked by this pass at all — it is either untouched
+original text or one of the ~284 clipped fields still owed.
+
+**Restored does not mean the original text was right.** The generating
+workflow's output is gone, so nothing here is a recovery of what was written;
+each line was re-derived from the repository. Where a source CONTRADICTED the
+surviving fragment, the restored line says so in bold and does not smoothly
+continue the false sentence. Where a procedure could not be established from
+any primary source, the line says that too, in those words, instead of
+supplying a plausible one — an honest gap is safe and a guess is not.
+
+**This file: 7 executable lines restored, 0 left unrestored.** Two of them
+carry corrections rather than continuations: the `workload-plan` redeploy
+`undo:` (the candidate's `action:"list"` is NOT independent of the snapshot
+RPC) and the membership-migration `undo:` (it drops three functions where the
+file creates four). One line flagged by the scanner was deliberately left
+alone: the `- [migration] ~~Apply 2026-09-02-workload-native-view.sql~~` line
+ends without a full stop but is a later coordinator edit, not a clipped field.
+
+**One correction to this pass itself, made the same day.** The Tweak-feedback
+`mitigate:` first said the honest empty-state copy it credits "does not exist
+in either tree". That was wrong: the copy is real and lives on
+`claude/lx-d-feedback`, which this session had not searched. The line now says
+where it is and that lane A cannot assume it. Recorded here rather than
+silently amended, because a restored line that was itself wrong is exactly the
+failure this pass exists to prevent.
+
+
+---
+
+SESSION NAME: LX-A Workload native
+KEEP THIS EXACT SESSION TITLE. Do not rename it. The owner tracks six parallel sessions by title.
+
+SESSION NAME: LX-A Workload native
+Keep this exact session title. Do not rename it. The owner tracks parallel sessions by title.
+
+You are ONE of six parallel sessions removing Linear from SyncView before Linear
+access ends on 2026-09-15. Today is 2026-09-07. A coordinator session owns merge
+order and the ledger; you own exactly one lane and nothing else.
+
+YOUR BRANCH: claude/lx-a-workload-native   (create it from origin/main, push there, never elsewhere)
+
+READ FIRST, IN THIS ORDER:
+1. AGENTS.md (house standard, outranks CLAUDE.md)
+2. CLAUDE.md
+3. docs/independence/LINEAR_EXIT_LANES.md  <-- the lane map. Your lane, your files, your boundaries.
+4. The lane brief below.
+
+THE OWNER'S ONE RULE, above everything: do not break the client lifecycle.
+Clients approve posts and request changes through anonymous tokenless links.
+Those must keep working, unchanged, at every point in your work.
+
+HARD BOUNDARIES
+- Touch ONLY the files listed as yours in LINEAR_EXIT_LANES.md. If you need a file
+  another lane owns, STOP and write the need into the ledger instead of editing it.
+- index.html is one 79k-line file that every lane touches. Stay inside your named
+  functions. Never reformat, never reflow, never "clean up while you are here".
+- Merging to main deploys the live site instantly. You do not merge. You open a PR
+  and stop. The coordinator merges.
+- calendar-upsert and sample-review-upsert must stay tokenless. Never deploy the
+  repository copies of those writers as-is.
+- Never edit an n8n workflow unless your brief explicitly authorizes that specific
+  workflow. Export its JSON to the private Drive backup first and commit only a
+  public-safe status stub to n8n-backups/.
+- The repo is PUBLIC. No secrets, tokens, client display names, share-link tokens,
+  or private file URLs in code, comments, commits, tests or CI output. Client slugs
+  are fine. Prefer counts over names.
+- Mutate only the test client `sidneylaruel` unless the owner names another.
+- Additive-only SQL. No DROP, no RENAME, no type changes.
+
+THE LEDGER IS NOT OPTIONAL
+docs/ops/OPEN_REPAIRS.md is the ledger. Append, never rewrite. Before you push,
+add an entry for anything you learned, deferred, or deliberately did not do,
+including work you decided was out of scope. The owner reads this file. A thing
+that is not in the ledger did not happen. Check for duplicate `## N.` headers
+after any merge; concurrent branches routinely claim the same number, so take the
+next free number at the moment you write, and if you collide, renumber yours.
+
+PROOF BAR
+- `npm test` is the full offline suite and takes several minutes. Run it before you push.
+- `npm run test:prod-polish` CANNOT pass in this sandbox (no route to the live
+  backend); all 8 lanes fail identically on origin/main. Verify against main before
+  calling anything a regression.
+- Add a test for every behavior you change. A change with no test does not land.
+- Do not claim a live system state you did not read. If you could not verify it,
+  say so in the PR body.
+
+WHEN YOU FINISH, OR WHEN YOU ARE BLOCKED
+Push, open a DRAFT PR titled `LX-A: <what it does>`, and in the body state:
+  - what is done and proven, with the test names
+  - what is NOT done
+  - every live action the owner must take (migration, deploy, flag, n8n edit),
+    each with its exact undo
+  - anything you found that belongs to another lane
+Then stop. Do not merge. Do not start another lane's work.
+
+
+=== YOUR LANE: A ===
+BRANCH: claude/lx-a-workload-native
+MERGE POSITION: 3rd. You must be live AND your acceptance measured BEFORE lane F stops the n8n Workload reconcile, because your acceptance check compares against workload_issues and becomes unrunnable once that table stops being rebuilt.
+
+GOAL
+The Workload board's entire population, status, assignee, weight, deadline, plan-day and Tweak-feedback surface is served from native SyncView data (deliverables/batches/team_members/clients/production_comments/workload_plan) with zero request to Linear or to any n8n Linear webhook, and it keeps working when `workload_issues` stops being rebuilt.
+
+DONE WHEN
+  - `node -e` / grep proof: no code path reachable from `initWorkloadView` fetches `LINEAR_ISSUES_WEBHOOK`, `LINEAR_TWEAK_COMMENTS_WEBHOOK`, or `WORKLOAD_LINEAR_URL` while `prod_authority = {video:syncview, graphics:syncview}` — the only Workload network calls are POST `/functions/v1/workload-plan` and POST `/functions/v1/production-comments`.
+  - `migrations/2026-09-02-workload-native-view.sql` and `migrations/2026-09-05-workload-native-membership.sql` are both applied and read back; `select count(*) from public.workload_issues_native_v1` returns a number and `workload_native_snapshot_v1()` returns `complete:true` under service_role.
+  - A `deliverables` row created natively AFTER outbound is off (so `linear_issue_uuid is null` and `linear_raw` carries no `issue.labels`) appears on the board at weight 1x. Today that row makes `wlFetchNativeSnapshot` throw `Native Workload deadlines or weights are incomplete.` and blanks the WHOLE board — this is the release gate.
+  - A plan day saved BEFORE the cutover (keyed on the Linear uuid in `workload_plan.issue_id`) still renders on its row after the cutover, and re-dragging it updates the same storage row rather than creating a second one. `workload_native_plan_set_v1` returns `plan.issue_id = <native del_ id>` with `storage_issue_id = <linear uuid>`.
+  - A plan-day write on a never-mirrored native deliverable (no `linear_issue_uuid`) succeeds and returns `updated:1` — the case that made a swap unsafe before.
+  - OPEN_REPAIRS item 95's rows are visible on the board after the cutover. **Two different numbers, and this gate used to conflate them, so a CORRECT harness result would have failed it.** `window.wlNativeDiff()` has no client or status filter, so its `nativeOnly.count` is the unfiltered population, roughly **195** (see this brief's own adversarial verification below). The roster-filtered actionable census is a different measurement and it MOVES: item 95 measured 40 active-roster rows on 2026-09-01; item 176 measured **37** live tasks across 11 active-roster clients on 2026-09-07, of which 33 are active-roster client work and 4 are the TEST client. Assert `nativeOnly.count` against the unfiltered figure, and take the census separately with item 176's query rather than expecting the harness to produce it.
+  - OPEN_REPAIRS item 160's 12 status-drift rows show the NATIVE status on Workload, matching SyncLinear — the two surfaces stop disagreeing.
+  - Tweak Needed popover renders feedback from `production-comments` for a native row with comments, and renders the explicit empty state (not a Linear error) for one without. Zero requests to `…/webhook/linear-tweak-comments`.
+  - `WL_V2_REALTIME = true` with the channel bound to `public.deliverables` + `public.batches`, and an edit made in another browser appears on an open board within ~2s without a manual Refresh.
+  - `sort_order` is not reintroduced: `_wlV2MapRow` still reads `r.sort_order`, the snapshot still publishes `native_sort_key`, and `wlSortSubIssues`'s `nativeOrder` branch stays false on live data.
+  - Full `npm test` green except known-environment failures (`test/truth-sync.js` in a shallow clone; `npm run test:prod-polish` fails identically on origin/main in a sandbox).
+
+ALREADY BUILT — LIFT THESE, DO NOT REBUILD
+  * `public.workload_issues_native_v1` — the native replacement view, answering all 20 `_wlV2MapRow` fields as two `union all` arms (one per deliverable, one per batch carrying at least one). Total status map with a fail-the-transaction guard, `security_barrier`, anon+authenticated select. It is on ORIGIN/MAIN, not on the candidate.
+    where: origin/main, `migrations/2026-09-02-workload-native-view.sql` (376 lines)
+    confirmed: `cat migrations/2026-09-02-workload-native-view.sql` — read in full. Status CASE covers exactly the 13 values in the `deliverables.status` CHECK at `migrations/2026-07-06-b1-linear-data-model.sql:39-41`. Publishes `native_sort_key`, not `sort_order`. ~~Not in EXECUTION_LOG → NOT APPLIED.~~ **THAT INFERENCE WAS WRONG AND IT IS APPLIED.** Absence from a log is absence of a record, not of the change; `EXECUTION_LOG.md` now carries both applications, recorded late. See A1.
+    lift: Nothing to lift and nothing to apply — it is in the tree AND already live. Zero code change needed to `_wlV2MapRow` because the view was shaped to that mapper.
+  * `workload_native_snapshot_v1()`, `workload_native_plan_target_v1(text)`, `workload_native_plan_set_v1(...)` — the SECURITY DEFINER RPCs that serve one complete staff snapshot (native rows + explicit-legacy rows + every `workload_plan` row) and perform the alias-safe plan write under row locks.
+    where: candidate 5bcc03bd, `migrations/2026-09-05-workload-native-membership.sql`
+    confirmed: `git show 5bcc03bd…:migrations/2026-09-05-workload-native-membership.sql` — read in full. `workload_native_snapshot_v1` reads `workload_issues_native_v1` under one snapshot, refuses on duplicate/blank ids or >50000 rows with `workload_population_incomplete`, and joins `production_deliverables_browse
+    lift: Cherry-pick the file verbatim, then apply ONE fix (work item A3) before applying it: the `native_metadata` object must not hand the browser `workload_labels_complete = false` for a row that legitimately has no provider labels.
+  * `workload-plan` Edge Function gains `action:"native_snapshot"`, routes plan writes through `workload_native_plan_target_v1` + `workload_native_plan_set_v1`, and keeps `requireWritableIssue` only for the explicit provider-authority branch (now gated on reading `prod_authority` and refusing `native_issue_unavailable` for a syncview team).
+    where: candidate 5bcc03bd, `supabase/functions/workload-plan/index.ts` (+62/-8) and new `supabase/functions/workload-plan/native-snapshot.mjs` (67 lines)
+    confirmed: `git diff origin/main...5bcc03bd -- supabase/functions/workload-plan/index.ts` read in full; `git show 5bcc03bd…:supabase/functions/workload-plan/native-snapshot.mjs` read in full. `projectNativeSnapshot()` re-validates the envelope, builds an identity+alias map, refuses a plan whose owner's client 
+    lift: Cherry-pick both files. On main the old code is `supabase/functions/workload-plan/index.ts:162-183` (`requireWritableIssue` selecting from `workload_issues`) — that is the exact function the scope doc names as blocking, and the candidate keeps it as the legacy-only branch rather than deleting it.
+  * Browser: `wlFetchNativeSnapshot()` replaces `loadLinearIssues` (which now just delegates to it), plus `wlIssueClientAllowed` / `wlIssueEditorAllowed` swapping the hardcoded `WL_ALLOWED_EDITORS` / `WL_CLIENT_NAMES` allowlists for server-computed `native_client_active` / `native_assignee_eligible`, native metadata projection, `?prod=1&d=<del_…>` and `?prod=1&batch=<bat_…>` deep links, and `issue.url = ''` so the Linear ↗ chip disappears on native rows.
+    where: candidate 5bcc03bd, `index.html` hunks `@@ -14074`, `@@ -14155`, `@@ -14530,7 +14545,120 @@`, `@@ -15321`, `@@ -16398`, `@@ -16658`, `@@ -18793`, `@@ -19472`
+    confirmed: `git diff origin/main...5bcc03bd -- index.html | sed -n '19,540p'` read in full. `loadLinearIssues` body is now `return wlFetchNativeSnapshot();` with the whole old body preserved as `_wlLegacyLoadLinearIssues`. `?prod=1&batch=` is already handled on main at `index.html:59594-59606`, so the parent d
+    lift: Cherry-pick the Workload hunks. HIGH collision risk: index.html is one file and every lane edits it. Take these hunks by line range, not the whole file.
+  * Tweak Needed popover native path: `wlFetchTweakComments` pages `production-comments` by `deliverable_id`, refuses on an incomplete page/total/cursor, filters `deleted_at`/`resolved_at`, and `wlRenderTweakComments(comments, native)` renders an explicit empty state instead of "open the sub-issue in Linear".
+    where: candidate 5bcc03bd, `index.html` hunk `@@ -19268,6 +19462,66 @@` and `@@ -19290`, `@@ -19305`
+    confirmed: Read the hunk. The request body is exactly `{deliverable_id, limit:100, before}` — no `include_feedback`, no `media_comment_id`. `supabase/functions/production-comments/index.ts:383-388` on ORIGIN/MAIN already returns `canonical_thread`, `audience_scope`, `has_more`, `next_cursor`, and `production-c
+    lift: Lift the two functions. It runs against the production-comments contract main ALREADY deploys, so it does not wait on lane D.
+  * Test coverage: `test/workload-native-membership.js` (browser readers in an isolated vm realm, five mutation-rejection cases, exact-baseline negative control against `99d31c81`), `test/workload-native-postgres.js` (opt-in disposable loopback PG16 applying the real migrations), `qa/workload-native/handler.mjs` + `integrated-handler.mjs` (real workload-plan handler over disposable SQL, `unapproved_rpc` guard), `qa/workload-native/browser.js` (full index.html in Chromium).
+    where: candidate 5bcc03bd, `test/workload-native-membership.js`, `test/workload-native-postgres.js`, `qa/workload-native/*`
+    confirmed: `git show 5bcc03bd…:test/workload-native-membership.js | tail -30` — it asserts `wlLoadSnapshot` REJECTS when `native_metadata.workload_labels_complete = false`, that a native feedback read makes exactly one call and it ends `/production-comments`, and that an unknown old-cache row cannot fall back 
+    lift: Lift all four. Then AMEND the `workload_labels_complete=false` rejection case (work item A3) — as pinned today it locks in the outage.
+  * `?wlnative=1` / `window.wlNativeDiff()` diff harness: reads `workload_issues` and `workload_issues_native_v1` side by side, reports `nativeOnly` / `linearOnly` / `neverMirrored` / `differing` / `statusSpellingOnly`, names its excluded fields in its own output, and reports truncation.
+    where: origin/main `index.html:14243-14428`; survives unchanged on the candidate at `index.html:14251-14428`
+    confirmed: Read `index.html:14300-14428`. Comment at the `nativeOnly` field states item 95's 40 rows are expected there and are the acceptance test.
+    lift: Already present. This is the tool for the item-95 acceptance measurement (work item A7); it only works while `workload_issues` is still being rebuilt, so run it BEFORE the outbound cutoff.
+
+WORK ITEMS
+  [A1] (DONE — do not re-run) Apply the two migrations (owner window)
+     **BOTH MIGRATIONS ARE APPLIED. This item is closed and its original text was wrong.** It said
+     `migrations/2026-09-02-workload-native-view.sql` was "on main and NOT installed", inferring that from its absence
+     from `EXECUTION_LOG.md`. Absence from the log is absence of a RECORD, not of the change: an owner migration window
+     had already been spent without being logged. Item 176 disproved the claim with a live REST read, and on 2026-09-08
+     the owner ran `public.workload_native_snapshot_v1()` in the SQL editor and it answered
+     `ok=true complete=true contract=workload-native-snapshot-v1 count=6450 rows_len=6450 plans_len=262
+     authority={"video":"syncview","graphics":"syncview"}`. A function that answers completely cannot be uninstalled.
+     `migrations/2026-09-05-workload-native-membership.sql` was applied by the owner the same night.
+     **Do not act on the drop instruction.** This item also claimed the view file's header tells the operator to
+     `drop view if exists public.workload_issues_native_v1;`. It does not, unconditionally. The header states at :28-29
+     that "Nothing is dropped, no table is touched, no row is written, and re-running it is a no-op", and the drop line
+     at :153 is conditional on an EARLIER REVISION having been applied — a case the file itself describes as never
+     having happened in production, which is the same false premise corrected above. Dropping a view that production
+     now reads, on the strength of a stale parenthetical, is a live risk for no gain.
+     files: EXECUTION_LOG.md only, and only to RECORD the two applications that already happened. Do not re-apply either migration.
+  [A2] (medium risk, lift) Lift the workload-plan handler + native-snapshot.mjs onto main
+     Cherry-pick `supabase/functions/workload-plan/index.ts` and `supabase/functions/workload-plan/native-snapshot.mjs` from 5bcc03bd. This is the row-identity + plan-key half of question 2: `requireWritableIssue` stops being the validator for syncview teams (it stays only for the explicit provider branch, now preceded by a `prod_authority` read that returns 409 `native_issue_unavailable` for a syncview team), and every write goes through `workload_native_plan_target_v1` → `workload_native_plan_set_v1`.
+     files: supabase/functions/workload-plan/index.ts, supabase/functions/workload-plan/native-snapshot.mjs
+  [A3] (high risk, mixed) FIX THE RELEASE-BLOCKING DEFECT: a row with no Linear labels must not blank the board
+     `workload_native_snapshot_v1` puts `pv.workload_labels_complete` (from `production_deliverables_browser_v1`) into `native_metadata`. That column is `(production_workload_label_projection(d.linear_raw)->>'complete')::boolean` — and `production_workload_label_projection` (migrations/2026-07-23-f34-f53-production-attachments.sql:64-165) returns `complete:false` for ANY `linear_raw` that lacks a well-formed `issue.labels` relation with `pageInfo.hasNextPage = false`. Native intake writes `linear_raw: { attribution: … }` only (production-write index.ts:6069, 6657); the labels relation is stamped ONLY by `linear-outbound` (index.ts:870 `linear_raw: {…raw, issue: completeIssue}`). So after outbound
+     files: migrations/2026-09-05-workload-native-membership.sql, index.html, test/workload-native-membership.js
+  [A4] (high risk, lift) Lift the Workload browser hunks (source swap + identity + deep links + tweak popover)
+     Take these index.html hunks from 5bcc03bd by line range, not the whole file: `_wlV2Ready` (drop the sticky ?wl2=0 kill switch — it could reopen a provider read path); `wlRenderableIssueProjection` → `wlIssueClientAllowed`/`wlIssueEditorAllowed`; `wlFetchNativeSnapshot` + `loadLinearIssues` delegation; `wlLoadSnapshot`; `wlRefetchSilent`; `wlManualRefresh`; `wlApplyData` filter/logging changes (client names and editor names are removed from console output — the repo is public and these logs were naming clients); `wlLooseParentInfo.nativeBatchId`; `wlSyncLinearUrl(s.nativeId || s.identifier)`; the popover header `?prod=1&batch=`; `wlFetchTweakComments` + `wlRenderTweakComments(comments, native
+     files: index.html
+  [A5] (medium risk, mixed) Turn realtime on, and repoint it
+     `WL_V2_REALTIME = false` at index.html:14058 and the channel subscribes to `table: 'workload_issues'` (index.html:14452-14453). The stated reason for the gate — "the reconcile re-writes every row each run" — dies with the reconcile. Repoint the channel to `public.deliverables` and `public.batches` and set the constant true. The data layer is already ready: both tables are `replica identity full` and in the `supabase_realtime` publication (migrations/2026-07-06-b1-linear-data-model.sql:725-746) and anon has `grant select` + a `using (true)` RLS policy (same file, :674-680, :694-695), so no new exposure and no migration. ALSO: the candidate replaced `_wlV2CheckWatermark`'s cheap one-row `synce
+     files: index.html
+  [A6] (medium risk, new) Decide and implement the post-exit fallback story (there is none today)
+     `loadLinearIssues`'s n8n `linear-issues` fallback is the board's whole "v2 can never blank the board" rollback story and it dies with Linear. The candidate replaces it with: a fail-closed completeness contract in SQL (`workload_population_incomplete`), re-validation in `projectNativeSnapshot` and again in `wlFetchNativeSnapshot`, and `wlLoadSnapshot`'s catch which RETAINS the last good in-memory snapshot, sets `planStatus='stale'` and shows a banner. That is a warm-path net only. The cold path regressed: `wlAdoptLinearMetadata` is now called with `{skipIssueCacheWrite:true}` and `wlFetchNativeSnapshot` never calls `wlWriteCache`, so the `syncview_linearIssuesCache_v1` localStorage warm start
+     files: index.html
+  [A7] (low risk, lift) Run the item-95 acceptance measurement BEFORE the outbound cutoff
+     Open the board with `?wlnative=1` (or call `window.wlNativeDiff()`) once the view is applied. Expect item 95's 40 rows under `nativeOnly` and item 160's status drift under `differing[].field='status'` (spelling-only differences are counted separately and are not drift). Record the numbers in OPEN_REPAIRS items 95 and 160. This harness compares against `workload_issues`, so it stops being meaningful the moment the reconcile stops — it must run while Linear is still connected. Note `scripts/f40-workload-readiness.js` is NOT the tool: the candidate deliberately downgrades it to `population: 'unsupported'` → UNPROVEN under the native loader, so there is no native population census.
+     files: docs/ops/OPEN_REPAIRS.md
+  [A8] (medium risk, new) Measure what the native assignee-eligibility rule hides
+     `native_assignee_eligible` is computed in SQL as `tm.active and tm.team = d.team and tm.role = (video→'editor' | graphics→'designer')`, and `wlRenderableIssueProjection` drops any assigned row that fails it. That REPLACES `wlIsAllowedEditor`, a hardcoded name allowlist under which (per index.html's own log line) graphics designers passed through with no allowlist at all. `team_members.role` is CHECK-constrained to `('admin','smm','editor','designer')` (migrations/2026-07-05-b0-linear-auth-scaffold.sql:10), so a graphics deliverable assigned to someone whose role is `smm` or `admin`, or whose `team` column disagrees with the deliverable's team, silently leaves the board. Count those rows agai
+     files: docs/ops/OPEN_REPAIRS.md
+  [A9] (medium risk, new) Delete the legacy Workload code once legacy_teams is empty
+     After the cutover, remove `_wlLegacyLoadLinearIssues`, `_wlLegacyLoadSnapshot`, `_wlLegacyRefetchSilent`, `_wlLegacyFetchTweakComments`, `_wlLegacyCheckWatermark`, `LINEAR_ISSUES_WEBHOOK`, `LINEAR_TWEAK_COMMENTS_WEBHOOK`, `LINEAR_ISSUES_TTL_MS`, `wlIsAllowedEditor`/`WL_ALLOWED_EDITORS`/`WL_ALLOWED_GRAPHICS`, and the browser's `wlFetchForeignLinearMetadata` → `WORKLOAD_LINEAR_URL` calls. BLOCKED ON A DECISION (see open questions): the snapshot's legacy `union all` arm still emits `workload_issues` rows whose `team_key` is not VID/GRA — the view's own header records 8 such parent rows on Linear teams CON (Content Research) and STR (Strategy/Filming Plans). While that arm returns anything, `leg
+     files: index.html, migrations/2026-09-05-workload-native-membership.sql
+  [A10] (high risk, lift) Deploy workload-plan (owner, deliberate-manual)
+     `docs/ops/EF_DEPLOY_MANIFEST.md:58` — `workload-plan` has **NO CI DEPLOY PATH, DELIBERATE-MANUAL**. Live v2 was deployed by the operator from `fd3e0eaa` on 2026-07-20; a redeploy requires `--no-verify-jwt` and an exact-SHA fingerprint readback. Capture the current deployed closure first so the prior version can be restored. Deploy AFTER A1 (the RPCs must exist, or `native_snapshot` answers 503 `workload_snapshot_unavailable`) and BEFORE the browser cutover ships to `main` (GitHub Pages auto-deploys index.html on push, so a merged browser change is live immediately and will call an action the deployed function does not know).
+     files: docs/ops/EF_DEPLOY_MANIFEST.md, EXECUTION_LOG.md
+  [A11] (low risk, new) Update the docs the owner reads
+     `docs/ops/WORKLOAD_NATIVE_SOURCE.md` §3b and §5 step 2 both state that a swap needs a `workload_plan` KEY MIGRATION. The built solution deliberately does not migrate keys — it resolves aliases. Correct §3b, mark §6.1 (row identity → native `del_…`) and §6.2 (`url` → SyncView deep link, Linear chip removed) as DECIDED by the shipped code, and record steps 1-5 as done. Append (never rewrite) to `docs/ops/OPEN_REPAIRS.md`: item 95 closed by measurement, item 160 closed via option 3 (the full cutover), item 72 closed (status/assignee/population now native). Check for duplicate `## N.` headers after the merge.
+     files: docs/ops/WORKLOAD_NATIVE_SOURCE.md, docs/ops/OPEN_REPAIRS.md, migrations/README.md
+
+FILES YOU OWN (touch nothing else)
+  index.html — the Workload block only: main lines ~13960-14600 (constants, wlState, `_wlV2*`, `_wlV2MapRow`, the `?wlnative=1` diff harness, realtime, `loadLinearIssues`), ~14580-15400 (`_wlPendingNativeDueReceipt*`, metadata readers, `wlNativeMetadataRow`, `wlMetadataTeamBucket`), ~15300-16800 (`wlLoadSnapshot`, `initWorkloadView`, `wlRefetchSilent`, `wlManualRefresh`, `wlApplyData`), ~17770-18500 (`wlSortSubIssues`, editor roster, `renderEditorWorkload`), ~18700-19900 (`wlLooseParentInfo`, loose strips, popover, `wlFetchTweakComments`, `wlRenderTweakComments`). NOT lines 22300-22600 (staff identity/capability), NOT 40000+ (calendar), NOT 48600+ (Production tab).
+  migrations/2026-09-02-workload-native-view.sql (apply only; no edit expected)
+  migrations/2026-09-05-workload-native-membership.sql (lift + the A3 label-completeness fix)
+  supabase/functions/workload-plan/index.ts
+  supabase/functions/workload-plan/native-snapshot.mjs
+  test/workload-native-membership.js
+  test/workload-native-postgres.js
+  test/workload-native-view-contract.js
+  test/workload-native-source-diff.js
+  test/workload-native-visibility.js
+  test/workload-plan-source.js
+  test/workload-plan-failclosed.js
+  test/workload-syncview-links.js
+  test/workload-tweak-exclusive-bucket.js
+  test/workload-loose-strip-grouping.js
+  test/workload-overdue-ruling.js
+  test/workload-history-integrated.js
+  test/workload-capacity-placement.js
+  test/workload-duplicate-not-active.js
+  test/workload-excluded-reported.js
+  test/f40-workload-readiness-source.js
+  scripts/f40-workload-readiness.js
+  qa/workload-native/browser.js
+  qa/workload-native/handler.mjs
+  qa/workload-native/integrated-handler.mjs
+  docs/ops/WORKLOAD_NATIVE_SOURCE.md
+
+LIVE ACTIONS THE OWNER MUST TAKE (prepare them exactly; never execute them)
+  - [migration] ~~Apply `migrations/2026-09-02-workload-native-view.sql`~~ **ALREADY APPLIED. DO NOTHING.** The struck text claimed it "has never been applied", inferring that from its absence in `EXECUTION_LOG.md`; that inference was wrong and cost this brief its credibility on the point. Item 176 disproved it with a live REST read, and on 2026-09-08 `workload_native_snapshot_v1()` answered completely over the view. See A1
+    undo: **NONE. DO NOT DROP THE VIEW.** ~~`drop view if exists public.workload_issues_native_v1;` — nothing reads it until the browser cutover ships.~~ The struck text was true when the migration was pending and is false now, for two independent reasons. (a) The step above is marked ALREADY APPLIED / DO NOTHING, so it is a satisfied prerequisite and a satisfied prerequisite has no undo. (b) "Nothing reads it" no longer holds: the INSTALLED `workload_native_snapshot_v1()` selects `from public.workload_issues_native_v1 n` in its native arm, so dropping the view breaks the RPC — the deployed native handler answers 503 `workload_snapshot_unavailable` and the board goes blank, which is the outage this brief exists to avoid. On 2026-09-08 that RPC answered `ok=true complete=true count=6450`, so the dependency is live, not theoretical. See also this brief's own "Do not act on the drop instruction" note above: the drop line in the view file's header (:153) is conditional on an EARLIER REVISION having been applied, a case the file says never happened in production, and the header otherwise states at :28-29 that the migration drops nothing. If the view genuinely has to go one day, it goes AFTER the membership functions that read it, not before, and that is a reviewed change rather than a rollback step. **[RESTORED 2026-09-08 · sources: migrations/2026-09-05-workload-native-membership.sql (native arm of `workload_native_snapshot_v1`) @claude/lx-a-workload-native; migrations/2026-09-02-workload-native-view.sql:28-29,153; docs/ops/OPEN_REPAIRS.md item 178 addendum 2026-09-08 03:40. Struck after Codex review on #1352 (P1): an applied prerequisite was still carrying an executable drop.]**
+  - [migration] ~~Apply the amended `migrations/2026-09-05-workload-native-membership.sql`~~ **ALREADY APPLIED by the owner on 2026-09-07. DO NOTHING.** Creates three SECURITY DEFINER functions, service_role execute only, revoked from public/anon/authenticated; no table, row, flag or grant on existing objects changed. Proof it is live: `workload_native_snapshot_v1()` is one of those three and it answers. See A1.
+    undo: **PREFER NONE — this is an applied prerequisite, and nothing in the exit needs it dropped.** The step above is marked ALREADY APPLIED / DO NOTHING, and the same reasoning that struck the view drop on the line above applies here: an applied prerequisite's undo is normally "leave it". The functions are inert while nothing calls them, they are service_role-execute-only with all grants revoked from public/anon/authenticated, and `workload_native_snapshot_v1()` is what the owner ran on 2026-09-08 to satisfy the first gate on PR #1344 — dropping it removes that check for no benefit. IF a drop is nevertheless required, the statements are `drop function if exists public.workload_native_snapshot_v1(); drop function if exists public.workload_native_plan_target_v1(text); drop function if exists public.workload_native_plan_set_v1(text,text,text,date,text,text);` and the boundary is exact: safe ONLY while the deployed workload-plan closure is still the PRE-NATIVE one (live v2 from `fd3e0eaa`, 2026-07-20, `docs/ops/EF_DEPLOY_MANIFEST.md:58`), which answers `action:"list"` straight out of `public.workload_plan` (`supabase/functions/workload-plan/index.ts:236-239` on main) and calls none of them. NOT safe once the native closure is deployed: that one routes both `list` and `native_snapshot` through `workload_native_snapshot_v1` and answers 503 `workload_snapshot_unavailable` if the RPC is gone, i.e. a blank board for every editor. TWO CORRECTIONS FROM THE SOURCE. (a) The migration creates FOUR functions, not three: these drops leave `public.workload_native_label_state_absent(jsonb)` installed. Add `drop function if exists public.workload_native_label_state_absent(jsonb);` LAST (the three definer functions call it) if the migration is to be fully reversed; note it is `language sql immutable`, so the previous line's "three SECURITY DEFINER functions" is right about the definer count and short of the file's total. (b) `migrations/2026-09-05-workload-native-membership.sql` is NOT on main or on the coordinator branch — it exists only on `claude/lx-a-workload-native`, while the functions are live in the database. Read the installed bodies (`\\df+`) against that branch before dropping anything. **[RESTORED 2026-09-08 · sources: migrations/2026-09-05-workload-native-membership.sql @claude/lx-a-workload-native lines 21-29/31-97/101-125/127-191; supabase/functions/workload-plan/index.ts @main; docs/ops/EF_DEPLOY_MANIFEST.md:58; docs/ops/OPEN_REPAIRS.md item 178 addendum 2026-09-08 03:40. Demoted from an executable undo to a conditional one in the same sweep that struck the view drop on the line above (Codex P1 on #1352).]**
+  - [edge-function-deploy] Deploy the `workload-plan` Edge Function from an exact reviewed SHA with `--no-verify-jwt` and a fingerprint readback. EF_DEPLOY_MANIFEST.md:58 records NO CI DEPLOY PATH — DELIBERATE-MANUAL. Capture the currently deployed closure before deploying.
+    undo: Redeploy the captured prior closure (live v2 was deployed from `fd3e0eaa` on 2026-07-20) with `--no-verify-jwt` and a fingerprint readback, the same way the forward deploy is done. **THE SURVIVING FRAGMENT IS WRONG, NOT MERELY SHORT, AND IS NOT CONTINUED HERE.** It claimed "the new handler is backward compatible: `action:\"list\"` still answers". On the candidate it does not answer independently: `supabase/functions/workload-plan/index.ts:266-271` routes BOTH `list` and `native_snapshot` into `nativeSnapshot()`, which calls `workload_native_snapshot_v1` and throws 503 `workload_snapshot_unavailable` / `workload_snapshot_incomplete`; `listPlans` is still defined at line 137 and is never called. `legacyPlanAliases` (native-snapshot.mjs:75-83) does emit both the native and the Linear key, but only for plans inside a snapshot that already projected, so it is not a fallback either. What that means for the rollback: it must be PAIRED. Restoring the old closure while the new browser is live leaves the browser calling `native_snapshot`, which the old closure rejects with 400 `invalid_action` (index.ts:232) — so revert index.html in the same window, and remember GitHub Pages publishes index.html on push to main, which is the faster of the two halves. **[RESTORED 2026-09-08 · sources: supabase/functions/workload-plan/index.ts @main and @claude/lx-a-workload-native; supabase/functions/workload-plan/native-snapshot.mjs @claude/lx-a-workload-native; docs/ops/EF_DEPLOY_MANIFEST.md:58]**
+  - [n8n-edit] NONE required in n8n for this lane. `linear-issues` and `linear-tweak-comments` simply stop being called by the browser; leaving both workflows running costs nothing and preserves a manual read while the cutover is observed. Retiring them is a separate, later, owner-authorized action.
+    undo: N/A — no edit is made. Do not disable either workflow before the board has been observed native for a full working day.
+  - [runtime-flag] Flip `WL_V2_REALTIME` to true and repoint the channel. This ships in index.html, so a push to `main` auto-deploys it to syncview.synchrosocial.com.
+    undo: One-line revert and push; the 60s poll (or its longer replacement) keeps the board fresh with realtime off.
+
+RISKS
+  - THE BOARD FAILS TOTALLY ON THE FIRST POST CREATED AFTER THE CUTOFF. `wlFetchNativeSnapshot` throws `Native Workload deadlines or weights are incomplete.` if any live native sub-issue has `workload_labels_complete !== true`, and that flag is `producti
+    mitigate: Work item A3, and treat it as the release gate: emit `workload_labels_complete: true` with an empty label array when the row provably has no provider label state, AND degrade the single row through the existing `unavailableIssueIds`/`partialFailure` path rather than throwing for the whole snapshot. That path is already on main and is what the fix should reuse: `wlFetchNativeMetadata` collects unprovable ids into `unavailableIssueIds` (index.html:14884-14898); `wlFetchLinearMetadata` folds them into a `partialFailure` value carrying `{message, partitionFailed, issueIds, nativeIssueIds}` (index.html:15099-15121); `wlAdoptLinearMetadata` blanks the due date for exactly those ids, sets `linearMetadataStatus='stale'` and counts them into `linearMetadataWithheldOnly` (index.html:15125-15184) while every other row stays rendered and editable. The SQL half already exists on the lane branch: `workload_native_label_state_absent(jsonb)` separates "no provider label state was ever stamped" (answer complete, labels `'[]'`) from "a labels relation exists but is malformed or paginated" (still refused), applied per row inside the snapshot's native arm. The accepted cost, stated in that migration's own header, is that such a row weighs 1x, because `2x Workload`/`3x Workload` are provider labels and nothing native mints them yet — see the brief's own "2x/3x stops being settable" finding before treating this as free. **[RESTORED 2026-09-08 · sources: index.html @main lines 14884-14898, 15099-15121, 15125-15184; migrations/2026-09-05-workload-native-membership.sql @claude/lx-a-workload-native lines 6-29, 44-57]**
+  - There is no fallback after the cutover, and the cold-start cache silently stopped being written. `wlAdoptLinearMetadata` is called with `{skipIssueCacheWrite:true}` on the native path and `wlFetchNativeSnapshot` never calls `wlWriteCache`, yet `wlRea
+    mitigate: A6 — decide explicitly: re-enable the cache write on the native path, or delete the read and make the empty state honest. Do not ship it half-wired. Independently, deploy workload-plan before the browser change and canary it with one staff account.
+  - Native assignee eligibility silently hides work. `native_assignee_eligible = tm.active and tm.team = d.team and tm.role = 'editor'|'designer'` replaces a name allowlist under which graphics designers previously passed with no allowlist at all. An ass
+    mitigate: A8 — count the affected rows against live data before cutover and get an owner ruling. The candidate also removed the console lines that named the dropped clients and editors (correctly, for a public repo) — replace them with counts that are still actionable, and do not reintroduce the names. The two lines are `console.info('[workload] graphic designers passing through (no graphics allowlist yet):', …)` at index.html:16692 and `console.warn('[workload] dropped sub-issues from non-allowlisted video editors:', …)` at index.html:16696, both of which print people's display names into a browser console. The count surface already exists on the candidate and is where the replacement belongs: `wlExcludedSummaryText(excluded, visibleCount)` (candidate index.html:18292-18314) renders "<n> sub-issues are not shown here: … <n> are assigned to someone who is not on that issue team", and switches to "Nothing is shown here, but this is not an empty board" when nothing rendered. Extend that one sentence; do not add a second channel. **[RESTORED 2026-09-08 · sources: index.html @main lines 16688-16699; index.html @claude/lx-a-workload-native lines 16998-17022, 18292-18314]**
+  - A permanent, unclearable warning banner. The snapshot's legacy arm still emits `workload_issues` rows with `team_key` not in (VID, GRA) — the view header records 8 such parent rows on Linear teams CON and STR — so `legacy_teams` is never empty and `w
+    mitigate: A9 plus an owner decision: those 8 are parents with no sub-issues and render nothing today. Drop the legacy arm's `team_key not in ('VID','GRA')` clause once `workload_issues` stops refreshing, or scope the banner to teams that actually carry sub-issues. The exact clause is the `union all` legacy arm of `workload_native_snapshot_v1`: `where w.active is true and (coalesce(w.team_key,'') not in ('VID','GRA') or v_authority->>case w.team_key when 'VID' then 'video' when 'GRA' then 'graphics' end='linear')`. Deleting the first disjunct also drops rows whose `team_key` is NULL — a second population the brief does not count, so rule on both. The banner it feeds is one sentence: `wlState.backgroundError = value.legacyTeams.length ? 'Some teams still use the legacy Workload source.' : null` (candidate index.html:15539-15540), fed by `legacy_teams`, which is `jsonb_agg(distinct r->>'team_key')` over rows whose `source` is `legacy`. Both options are a database or browser edit and neither is reversible by flipping a flag, so get the ruling before the cutover, not after. **[RESTORED 2026-09-08 · sources: migrations/2026-09-05-workload-native-membership.sql @claude/lx-a-workload-native lines 68-73, 92-94; index.html @claude/lx-a-workload-native lines 15531-15540]**
+  - A Linear column stays load-bearing after the exit. The view answers `assignee_id = coalesce(tm.linear_user_id, d.assignee_id::text)` on purpose, because `WL_VIDEO_EDITORS` (index.html:15861-15865) seeds the freest-first roster with three ids the view
+    mitigate: Verify the three ids against `team_members` before cutover (I could not — read-only, no DB). If they are `linear_user_id`, either re-seed `WL_VIDEO_EDITORS` with `team_members.id` and drop the coalesce, or accept `linear_user_id` as an opaque grouping key that outlives the exit — it is a stored text column on `team_members`, not a call to Linear, so nothing about 2026-09-15 stops it grouping. READ WHAT THE SOURCE ALREADY CLAIMS BEFORE RE-DERIVING IT: `migrations/2026-09-02-workload-native-view.sql:132-141` and :210-224 record this as raised by review on #1222 and VERIFIED — "all three WL_VIDEO_EDITORS ids are `linear_user_id` values and none is a `team_members.id`" — and the coalesce exists because 7 of 13 active members have no Linear id recorded, so a bare `tm.linear_user_id` would drop their work into "Needs assignment". The brief's open question says the opposite ("I could not verify"); if a fresh check disagrees with the migration header, correct the header first, because the view ships that claim. Either way the ids are load-bearing past the roster panel — grouping, capacity keys, the rollup map and group drag all key on the assignee id — so re-seeding is an all-at-once change, not a display tweak. **[RESTORED 2026-09-08 · sources: migrations/2026-09-02-workload-native-view.sql lines 132-141 and 210-224; index.html @main lines 15856-15865]**
+  - Full-snapshot polling cost. The candidate replaced the cheap one-row `synced_at` watermark with an unconditional `wlRefetchSilent()` every 60s, and each of those is a workload-plan POST that reads ~2000 view rows plus every `workload_plan` row under 
+    mitigate: A5 — turn realtime on and lengthen the poll to a 5-10 minute safety net. Measure the snapshot response time on live data before the cutover; `WL_PLAN_READ_TIMEOUT_MS` is 8000ms and the whole board fails if the snapshot exceeds it.
+  - index.html collision. Every lane edits this one file, and lane A touches roughly 500 lines across eight regions of it.
+    mitigate: Lift by named function, not by file or by whole hunk range. Merge lane A before or after the other index.html lanes, never concurrently. Do not merge anything between handing the owner a deploy SHA and their dispatch.
+  - Tweak feedback may be empty for rows whose Linear comments were never ingested. `linear-inbound` writes Linear comments into `production_comments` (index.ts:548, 1186), but I have not verified backfill completeness for the currently-tweak rows.
+    mitigate: Before cutover, spot-check `production_comments` for the live Tweak Needed deliverables against what the `linear-tweak-comments` webhook returns today — it can only be done while Linear still answers, so it is the half of this with a deadline. ONE CLARIFICATION, because an earlier pass of this restoration got it wrong in the dangerous direction and said the copy did not exist: the empty-state copy the fragment credits ("No feedback is available here. Open the post in SyncView to check its review notes.") IS real, but it is **lane D's work, not lane A's**. It is on `claude/lx-d-feedback` (index.html:19446-19470), where `wlRenderTweakComments` also distinguishes a FAILED read ("Couldn't load this deliverable's feedback. Retry, or open the post in SyncView.") from an empty one, carries an incomplete-source notice, and drops the "on the sub-issue in Linear" suffix on the native path. It is NOT on `main` and NOT on `claude/lx-a-workload-native`: both still `return ''` for an empty list, under the comment "No comment on the sub-issue → render nothing" (index.html:19293-19298 and 19601-19606). So lane A must not assume the honest empty state is present — it arrives with lane D, and until lane D lands, a row with no feedback and a row whose feedback was never backfilled paint the same empty box (the degraded-state gap named in OPEN_REPAIRS item 178's 03:30 addendum). Sequence accordingly, and note that lane D's brief assigns it the body and copy of `wlRenderTweakComments` while lane A owns the call site. **[RESTORED 2026-09-08 · sources: index.html @claude/lx-d-feedback lines 19446-19484; @main lines 19293-19310; @claude/lx-a-workload-native lines 19601-19618; docs/ops/OPEN_REPAIRS.md item 178 addendum 2026-09-08 03:30. Corrected the same day after Codex review on #1352 surfaced the branch this session had failed to search.]**
+
+TESTS
+  EXISTING, lift as-is: `qa/workload-native/handler.mjs` + `qa/workload-native/integrated-handler.mjs` — runs the REAL workload-plan request handler against a disposable loopback PG16 with only the Deno/Supabase transports replaced, and hard-fails on any RPC outside `workload_native_snapshot_v1` / `workload_native_plan_target_v1` / `workload_native_plan_set_v1` (`throw Error('unapproved_rpc')`).
+  EXISTING, lift as-is: `qa/workload-native/browser.js` — full unmodified index.html in Chromium via Playwright, only network/storage/time fixtured.
+  EXISTING, lift then AMEND: `test/workload-native-membership.js` — extracts the real `wlFetchNativeSnapshot` / `wlLoadSnapshot` / `wlRefetchSilent` / `wlFetchTweakComments` into an isolated vm realm, asserts a failed native read preserves the visible old board and never retries through a provider, asserts native feedback makes exactly one call ending `/production-comments`, and carries an exact-baseline negative control (`git show 99d31c81…:index.html`) proving the OLD `loadLinearIssues(true)` entered the n8n transport. AMEND: its mutation list pins `workload_labels_complete=false` → whole-snapshot rejection, which is the A3 outage. Replace with: that row degrades and every other row still renders.
+  EXISTING, opt-in: `test/workload-native-postgres.js` — applies `2026-07-05-b0`, `2026-07-06-b1`, `2026-07-19-workload-plan.sql`, the native view and the membership migration to a fresh disposable database. Gated on `WORKLOAD_TEST_CONFIRM=LOCAL_DISPOSABLE_ONLY` + absolute `WORKLOAD_TEST_PSQL` + a loopback port. Run it in this lane rather than skipping — it is the only thing that executes the plan-alias SQL.
+  EXISTING on main, keep green: `test/workload-native-view-contract.js` — pins the view's status display names against `STATUS_NAMES` in `supabase/functions/linear-outbound/mapping.mjs`, the workflow types against the 2026-09-02 live census, the `native_sort_key` naming, `security_barrier`, and that the migration writes/drops nothing. Source-pattern only, not a DB run.
+  EXISTING, re-pin: `test/workload-syncview-links.js` (it EXECUTES the header-link resolution across single-video / multi-video / parent-missing / nothing-resolves; the candidate adds the `?prod=1&batch=` and `nativeId` cases), `test/workload-tweak-exclusive-bucket.js`, `test/workload-loose-strip-grouping.js`, `test/workload-overdue-ruling.js`, `test/workload-plan-source.js`, `test/workload-plan-failclosed.js`.
+  NEW NEEDED 1 — the A3 regression guard: a snapshot fixture containing a live native sub-issue with `linear_issue_uuid: null` and `linear_raw: {attribution:{}}` must render at weight 1x and must NOT reject the snapshot. This is the exact shape of every deliverable created after 15 Sept.
+  NEW NEEDED 2 — realtime: `WL_V2_REALTIME === true` and the channel's `postgres_changes` table set is exactly `{deliverables, batches}`; a synthetic change event triggers one debounced `wlRefetchSilent` and no `workload_issues` read.
+  NEW NEEDED 3 — no-provider closure sweep: assert that the Workload block of index.html contains no reachable reference to `LINEAR_ISSUES_WEBHOOK`, `LINEAR_TWEAK_COMMENTS_WEBHOOK` or `WORKLOAD_LINEAR_URL` after A9. A grep-style source guard, in the style `test/workload-linear-source.js` already uses.
+  NEW NEEDED 4 — plan-key continuity: a `workload_plan` row keyed on a Linear uuid, whose deliverable is now identified natively, projects as `issue_id = del_…` / `storage_issue_id = <uuid>` and a re-drag updates that same storage row. Partly covered by `workload_native_plan_set_v1`'s own `workload_plan_alias_conflict` path in `test/workload-native-postgres.js`; needs the browser half.
+  CONTEXT: `npm test` is the full suite and takes several minutes. `npm run test:prod-polish` cannot pass in this sandbox — all 8 lanes fail identically on origin/main — so verify against main before calling anything a regression.
+
+
+=== ADVERSARIAL REVIEW OF YOUR OWN BRIEF — READ THIS TWICE ===
+A second agent tried to prove the brief above wrong. It found the following. Where the review disagrees with the brief, THE REVIEW WINS.
+
+CLAIMS THAT ARE WRONG:
+  ! already_built #1: `migrations/2026-09-02-workload-native-view.sql` ... 'It is on ORIGIN/MAIN, not on the candidate.'
+    why: `git ls-tree origin/main migrations/2026-09-02-workload-native-view.sql` and `git ls-tree 5bcc03bd7d... migrations/2026-09-02-workload-native-view.sql` both return blob `386b9b8f079684e7a129128082f1ef4e834671e0`. It is byte-identical on BOTH refs. Everything else in that entry is confirmed: 376 lines, status CASE cover
+    truth: The file is on origin/main AND on the candidate, same blob. Still unapplied (no EXECUTION_LOG entry; migrations/README.md:614 describes it as pending). The A1 sequencing conclusion is unaffected.
+  ! done_when #6 and A7: "OPEN_REPAIRS item 95's 40 rows: `window.wlNativeDiff()` reports them under `nativeOnly`" / "Expect item 95's 40 rows under `nativeOnly`."
+    why: docs/ops/OPEN_REPAIRS.md:6733-6741 measures 195 live deliverables absent from `workload_issues`, decomposed as 116 TEST client (`sidneylaruel`), 39 on one former off-roster client, and 40 active-roster. `_wlNativeDiffReport` (index.html:14329-14392) applies NO client filter — it keys purely on `linear_id` presence — so
+    truth: Acceptance is `nativeOnly.count ≈ 195`, of which the 40 active-roster rows are the actionable subset; the harness cannot separate them, so the 40 must be re-derived by joining against the client roster. A session told to expect 40 will read ~195 and treat a working harness as broken.
+  ! A3 detail: "Native intake writes `linear_raw: { attribution: … }` only (production-write index.ts:6069, 6657) ... So after outbound stops, EVERY new deliverable has `workload_labels_complete = false`."
+    why: `handleProductionCreate` (supabase/functions/production-write/index.ts:3523) builds `linearIssue.labels = { nodes: selectedLabels, pageInfo: { hasNextPage: false, endCursor: null } }` at index.ts:3663-3667 and writes `linear_raw: { issue: linearIssue, attribution }` at index.ts:3689. `production_workload_label_projecti
+    truth: The rows that are attribution-only are the INTAKE paths: `handleIntakeCreate` (index.ts:6160, write at 6657, with the comment "No Linear issue exists yet; `linear-outbound` adds `issue` alongside this on drain") and `handleComponentFill` (index.ts:5949, write at 6069). Those are the volume path for new posts, so A3 is 
+  ! corrections_to_context #5: "Workload's only remaining Linear-touching server call is the `workload-linear` LABEL METADATA read — and the candidate replaces that with `native_metadata.workload_labels`."
+    why: On origin/main, `wlFetchLinearMetadata` (index.html:14998-15040) reads `wlFetchProductionAuthority()` and partitions active ids: `if (authority[team] === 'syncview') nativeIds.push(...)` else `linearIds.push(...)`, then `Promise.allSettled([wlFetchForeignLinearMetadata(linearIds), wlFetchNativeMetadata(nativeIds)])`. W
+    truth: The label/deadline metadata read is ALREADY native on main. What the candidate actually changes is (a) it folds that read into the snapshot RPC, and (b) it replaces main's per-row degradation with a hard throw. That reframes A3: it is not a defect the candidate inherits, it is a REGRESSION the candidate introduces agai
+  ! live_actions_needed (workload-plan deploy) reversible_how: "The new handler is backward compatible: `action:\"list\"` still answers."
+    why: On the candidate, `listPlans` is defined at supabase/functions/workload-plan/index.ts:137 and is never called — `grep -n "listPlans"` on the candidate blob returns only the definition. The dispatcher is `if (action === "list" || action === "native_snapshot") { requireListStaff(req); const snapshot = await nativeSnapsho
+    truth: `action:"list"` is NOT independent any more. Deploying the new function before A1 makes the CURRENTLY-SHIPPED browser lose its plan days (503 `workload_snapshot_unavailable`), and after A1 any single condition that fails the snapshot — `workload_population_incomplete` on a duplicate/blank id, `workload_plan_alias_ambig
+  ! corrections_to_context #2: "`docs/ops/WORKLOAD_NATIVE_SOURCE.md` §3b says the identity change 'needs a key migration (or a compatibility mapping) AND a validation-source change in the gateway'. The built solution takes the compatibility-mapping branch..." — pr
+    why: docs/ops/WORKLOAD_NATIVE_SOURCE.md:117 reads "So the identity change needs a key migration (or a compatibility mapping) **and** a validation-source change in the gateway." The doc already sanctions the compatibility-mapping branch; there is nothing to correct there. Line 236 (§5 step 2) is the one that asserts "repair 
+    truth: Only §5 step 2 (line 236) needs correcting. §3b (line 117) is already right and should be left alone; A11's instruction to "Correct §3b" will produce a wrong edit to a correct doc.
+
+WORK THE BRIEF MISSED:
+  + The TEST client and the off-roster client flood the live board at cutover — the client half of A8 is missing
+    why: `wlIsAllowedClient` (index.html:15952) tests membership in `WL_CLIENT_NAMES` (index.html:15913-15935). The candidate replaces it with `wlIssueClientAllowed` → `native_client_active`, computed in the RPC as `c.active` from `left join public.clients c on c.slug=n.client_slug`. That is the ONLY client gate on the native p
+    files: index.html, migrations/2026-09-05-workload-native-membership.sql, docs/ops/OPEN_REPAIRS.md
+  + OPEN_REPAIRS item 162 — every readable task name is minted by Linear, and it names Workload rows as an open surface
+    why: Item 162 is the HEAD commit of this repo (`8483498 Ledger 162`) and the brief never cites it. `deliverables.linear_identifier` has exactly one writer, `supabase/functions/linear-inbound/index.ts:810`, reachable only from a Linear webhook. The native view answers `coalesce(d.linear_identifier, d.identifier) as identifie
+    files: docs/ops/OPEN_REPAIRS.md, migrations/2026-09-02-workload-native-view.sql, migrations/2026-09-07-native-intake-named-append.sql, index.html
+  + `test/workload-linear-browser.js` and `test/workload-linear-source.js` are lane-A files and appear nowhere in the brief
+    why: `git diff --stat origin/main...5bcc03bd -- test/` shows `test/workload-linear-browser.js | 290 +++---` and `test/workload-linear-source.js | 10 +-`. workload-linear-browser.js is the largest Workload browser suite: it `extract()`s real functions out of index.html (its extractor at line 15-16 was changed on the candidat
+    files: test/workload-linear-browser.js, test/workload-linear-source.js, test/workload-native-adapter.js, test/workload-native-capture.js, test/workload-today-formatter-hoisted.js, qa/workload-consistency/compare.js
+  + 2x/3x Workload weighting stops being settable at the cutover, and A3(a) silently makes that permanent
+    why: A3(a) proposes emitting `workload_labels_complete: true` with `workload_labels = '[]'` for rows with no provider label state. That is the right fix for the outage, but it means every post-cutoff deliverable is pinned at weight 1x forever — `wlNativeWorkloadLabel` (cand index.html:14886-14900) only ever returns a weight
+    files: migrations/2026-09-05-workload-native-membership.sql, migrations/2026-09-06-native-label-writes.sql, supabase/functions/production-write/index.ts, index.html
+  + The Tweak popover loses its cache and adds a durable audit write per read
+    why: The candidate's `wlFetchTweakComments` (cand index.html:19464-19521) never reads or writes `_wlTweakCommentsCache` — that Map is now used only by `_wlLegacyFetchTweakComments`. So every popover open re-pages the full comment thread for every Tweak Needed sub-issue in that parent group, sequentially, with no TTL. Each c
+    files: index.html, supabase/functions/production-comments/index.ts
+  + `window.wlDebug` reads a cache the native path never fills
+    why: A6 correctly identifies that `wlWriteCache` is only called from `_wlLegacyLoadLinearIssues` (cand index.html:14678, 14699) and from `wlAdoptLinearMetadata` behind `!options.skipIssueCacheWrite` (cand index.html:15314-15316), while the native path always passes `{skipIssueCacheWrite:true}` (cand index.html:15457). It na
+    files: index.html
+
+OPEN QUESTIONS — answer from the code if you can; escalate to the coordinator only if a wrong guess is expensive
+  ? Confirm on live data that `production_deliverables_browser_v1.workload_labels_complete` is false for a deliverable whose `linear_raw` carries only `{attribution:…}`. I read the SQL (production_workload_label_projection returns complete:false for a non-object `
+  ? Are the three ids in `WL_VIDEO_EDITORS` (index.html:15861-15865) `team_members.linear_user_id` values or `team_members.id` values? The view's header asserts the former, "raised by review on #1222 and verified". I could not verify. The whole capacity/grouping k
+  ? How many rows currently visible on the board would `native_assignee_eligible` drop? Not measured anywhere I could find, including `docs/audits/2026-09-05-native-assignee-eligibility.md`, which reports only local disposable-Postgres journeys.
+  ? Are the Linear comments behind today's Tweak Needed popovers all present in `production_comments`? If linear-inbound only ingested from the day it went live, older tweak feedback may be missing and the popover will render its empty state.
+  ? Owner: should the snapshot's legacy `union all` arm (CON/STR and null-team `workload_issues` rows) be deleted outright at cutover? Keeping it means a permanent banner and a dependency on a table nobody rebuilds.
+  ? Owner: §6.2 (`url` after Linear) — the candidate answers it by setting `issue.url = ''` on native rows, which removes the Linear ↗ chip everywhere on the board and leaves `?prod=1&d=<del_…>` / `?prod=1&batch=<bat_…>` as the only link out. Confirm that is what 
+  ? Does `production-comments` need a redeploy for lane A? I believe not — origin/main's deployed version already returns the exact contract the popover consumes — but if lane D redeploys it with `feedback.mjs` / media projection, lane A's call site must be re-ver
+  ? `native_sort_key`: for a never-mirrored native deliverable both `linear_identifier` and `identifier` can be null (native creation writes `identifier` null per OPEN_REPAIRS item 161), so `wlSortSubIssues` falls all the way through to `id.localeCompare` for sub-
+
+
+IF THIS LANE IS NOT FINISHED BY 2026-09-15, THIS BREAKS:
+"On 15 September the Workload board goes blank and stays blank. `public.workload_issues` is rebuilt entirely from a Linear query by an n8n reconcile — nothing else writes it — so the moment Linear access ends the table stops refreshing and then decays: every editor's day and week view, the freest-editor capacity panel, the Overdue / In progress / Tweaks-needed queues, the team workload matrix, the plan-day drag, and the Tweak Needed feedback popover all read from it or from the `linear-tweak-comments` webhook. Staff lose the single page they use to know what they owe today; SMM/Admin lose the ability to plan work days at all. It also freezes two known live defects permanently: OPEN_REPAIRS item 95's 40 deliverables across 10 active-roster clients stay invisible, and item 160's 12 rows keep showing a different status on Workload than on SyncLinear. Clients are not directly affected — Workload is a staff surface — but the work that does not get scheduled is client work."
+
+
+START BY: reading docs/independence/LINEAR_EXIT_LANES.md on origin/main (the lane map and the index.html region ownership table), then OPEN_REPAIRS items 162-168. Then confirm for yourself that the 'already built' artifacts above really exist before you plan anything around them.

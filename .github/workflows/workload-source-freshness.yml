@@ -46,14 +46,31 @@ jobs:
       SLACK_ALERT_WEBHOOK: ${{ secrets.SLACK_ALERT_WEBHOOK }}
       N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
       N8N_BASE_URL: ${{ vars.N8N_BASE_URL || 'https://synchrosocial.app.n8n.cloud' }}
-      # THE EPOCH SWITCH. Today the board reads the Linear-derived mirror. When
-      # lane A repoints it at the native source, change these two in the SAME
-      # change that repoints it — the cutoff deliberately stops the reconcile
-      # that advances `workload_issues`, so an unchanged watcher would page
-      # forever about a table nobody reads. It is not a date and not automatic:
-      # an automatic switch would stop watching the old source before the new
-      # one carried traffic, which is a gap, not a handover.
+      # AT HANDOVER, RETIRE THIS LANE. DO NOT REPOINT IT.
+      #
+      # An earlier draft said to change WORKLOAD_SOURCE_TABLE to the native
+      # source when lane A repoints the board. That instruction was WRONG and
+      # would have produced a permanent incident: both arms of
+      # `migrations/2026-09-02-workload-native-view.sql` return
+      # `null::timestamptz as synced_at` (`:177`, `:294`), and the migration
+      # says why at `:147` — "`synced_at` IS NULL. Native IS the source; there
+      # is no sync to stamp." Every run would fail `no_timestamp` forever.
+      #
+      # The deeper reason is that FRESHNESS IS THE WRONG QUESTION for a native
+      # source. This lane exists because `workload_issues` is a MIRROR, and a
+      # mirror can silently stop being refreshed while still looking full. A
+      # native table cannot go stale that way — it IS the data. So when the
+      # board no longer reads a mirror, the correct action is to RETIRE the
+      # `workload_source_freshness` lane (set `retired: {at, reason}` in
+      # scripts/monitoring-watchdog.js) and unschedule this workflow IN THE
+      # SAME COMMIT. test/monitoring-watchdog.js enforces that pairing in both
+      # directions, so it cannot be half-done.
+      #
+      # The variables stay configurable only so a DIFFERENT mirror, if one is
+      # ever introduced, can be watched without a code change. Repointing at a
+      # source with no watermark is not a supported use.
       WORKLOAD_SOURCE_TABLE: ${{ vars.WORKLOAD_SOURCE_TABLE || 'workload_issues' }}
+      WORKLOAD_SOURCE_TIMESTAMP_COLUMN: ${{ vars.WORKLOAD_SOURCE_TIMESTAMP_COLUMN || 'synced_at' }}
       WORKLOAD_SOURCE_MAX_AGE_MINUTES: ${{ vars.WORKLOAD_SOURCE_MAX_AGE_MINUTES || '180' }}
     steps:
       - uses: actions/checkout@v4

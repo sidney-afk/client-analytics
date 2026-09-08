@@ -14481,3 +14481,61 @@ Ledger numbering after the merge: `main` holds 160, 161, 162, 170 (lane B) and
 174 (this lane's part 1); this branch adds 175. No collision — lane C's claim on
 175 has not merged. Duplicate check after merging `main` returns only the four
 headers (`13`, `14`, `22`, `23`) item 168 records as predating this program.
+
+**Addendum 2, 2026-09-08 — three P1 findings from the Codex review of PR #1350,
+all verified against the tree and all fixed in the same push.** Recorded because
+one of them is a real gap that is NOT closed here and belongs to someone else.
+
+**F1. Four probes bypass the dead-Linear interceptor entirely (NOT FIXED — needs
+an owner for `qa/probes/**`).** `SYNCVIEW_QA_LINEAR_DEAD` is honoured by
+`qa/sxr_courier_lib.js`. `p28_linear_sync.js`, `p29_linear_kasper.js`,
+`p30_linear_client.js` and `p36_full_sync.js` each register their own
+`ctx.route('**/webhook/linear-…')` fulfilling `200 {"ok":true}` unconditionally,
+and a later-registered Playwright route wins. **So a full-manifest run with dead
+mode on exercises HEALTHY Linear for exactly the status-and-comment write flows
+the rehearsal most needs to see die.** This is the same defect one layer out from
+the wrong-polarity mock this lane was created to correct, which is itself the
+lesson: the correction has to be checked, not assumed.
+
+Not fixed here because `qa/probes/**` is not among this lane's files and the
+house rule is to write the need into the ledger rather than edit another lane's
+file. **The fix is small and mechanical: four files, roughly four lines each —
+each probe's `route.fulfill` becomes a call that honours the mode.** Until then
+the audit names all four as unrehearsed and
+`test/linear-dead-rehearsal.js` enforces the exclusion list against the probe
+directory in both directions: a fifth self-mocking probe fails the suite until
+it is converted or listed, and removing a probe from the list while it still
+self-mocks fails too. Both mutations confirmed red.
+
+**F2. The runbook named workflows without their direct Actions URL.**
+`AGENTS.md` carries an explicit owner directive (2026-09-01, "after being asked
+twice in one session"): when telling the owner to run a workflow, always give
+`https://github.com/sidney-afk/client-analytics/actions/workflows/<file>.yml`,
+never the display name in prose, because he runs these by hand from the Actions
+UI. STEP 2's drain dispatch and STEP 6's disable list now carry direct links.
+`CLAUDE.md` says the same thing; the runbook simply did not follow it.
+
+**F3. The documented epoch switch was impossible, and the design behind it was
+wrong.** The watcher exposed `WORKLOAD_SOURCE_TABLE` and told lane A to repoint
+it at the native source at handover. Both arms of
+`migrations/2026-09-02-workload-native-view.sql` return
+`null::timestamptz as synced_at` (`:177`, `:294`), and the migration says why at
+`:147` — *"`synced_at` IS NULL. Native IS the source; there is no sync to
+stamp."* Repointing would have failed `no_timestamp` on **every** run and
+latched a permanent incident on the day of the handover.
+
+That null is correct, and it exposes the deeper error: **freshness is the wrong
+question for a native source.** This lane exists because `workload_issues` is a
+MIRROR, and a mirror can stop being refreshed while still looking full. A native
+table cannot go stale that way — it IS the data. So the handover is a
+RETIREMENT, not a repoint: `retired: {at, reason}` on the lane plus unscheduling
+its workflow, in one commit, with `test/monitoring-watchdog.js` enforcing the
+pairing both ways. The workflow, the script and the MONITORING.md row now all
+say so, and `WORKLOAD_SOURCE_TIMESTAMP_COLUMN` is exposed alongside the table so
+the variables remain usable for a genuinely different mirror if one ever exists.
+
+**Worth noting for the program:** all three were caught by an automated reviewer
+reading a PR whose own subject is "monitors that lie about what they cover".
+F1 and F3 are both instances of that same shape. The estate's habit of checking
+its claims with a test rather than a sentence is what turned two of them into
+one-line enforcement instead of a note nobody re-reads.

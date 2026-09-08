@@ -214,6 +214,54 @@ const {
     'the healthy mock must still return an empty meta for linear-issue-statuses (OPEN_REPAIRS 68 point 2)');
 }
 
+/*
+ * THE EXCLUSION LIST MUST MATCH REALITY, IN BOTH DIRECTIONS.
+ *
+ * `SYNCVIEW_QA_LINEAR_DEAD` reaches only what the centralized interceptor sees.
+ * A probe that registers its OWN `ctx.route('**​/webhook/linear-…')` handler
+ * bypasses it entirely — a later-registered Playwright route wins — so that
+ * probe rehearses a HEALTHY Linear no matter what the environment says.
+ *
+ * Four probes do this today. They are named in the audit document as
+ * unrehearsed. The danger is not those four; it is the FIFTH, added later by
+ * someone who never reads this file, silently widening the gap between what the
+ * rehearsal claims and what it exercises. That is precisely the failure this
+ * whole lane exists to prevent, so it is checked rather than trusted.
+ *
+ * Adding a self-mocking probe now fails this suite until it is either converted
+ * to honour the mode or added to the document's exclusion table.
+ */
+{
+  const probeDir = path.join(__dirname, '..', 'qa', 'probes');
+  const audit = fs.readFileSync(
+    path.join(__dirname, '..', 'docs', 'audits', '2026-09-15-linear-dead-rehearsal.md'), 'utf8');
+
+  // A probe self-mocks when it registers a route whose pattern names a Linear
+  // webhook. Deliberately loose on quoting/spacing so a stylistic rewrite of a
+  // probe cannot slip past the check.
+  const selfMocks = fs.readdirSync(probeDir)
+    .filter(name => name.endsWith('.js'))
+    .filter(name => /\.route\((['"`/]).{0,40}webhook.{0,3}linear/i
+      .test(fs.readFileSync(path.join(probeDir, name), 'utf8')))
+    .sort();
+
+  ok(selfMocks.length > 0,
+    'the detector must actually find the known self-mocking probes — if this goes to zero, '
+    + 'the pattern stopped matching and the check silently became a no-op');
+
+  for (const probe of selfMocks) {
+    ok(audit.includes(probe),
+      `${probe} installs its own healthy Linear mock and bypasses SYNCVIEW_QA_LINEAR_DEAD, `
+      + 'so it must be named in docs/audits/2026-09-15-linear-dead-rehearsal.md as unrehearsed '
+      + '— otherwise the rehearsal claims coverage it does not have');
+  }
+
+  ok(/not fixed here, deliberately/i.test(audit),
+    'the audit must say plainly that the exclusion is a known gap, not a design choice that is fine');
+  ok(/OPEN_REPAIRS 175/.test(audit),
+    'the gap must point at the ledger entry that carries it, so it is somebody\'s work and not folklore');
+}
+
 console.log(failures
   ? `linear-dead-rehearsal: ${failures} check(s) failed`
   : 'linear-dead-rehearsal checks passed');

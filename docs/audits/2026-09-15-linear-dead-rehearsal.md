@@ -96,6 +96,41 @@ Pin one shape when chasing a single defect:
 SYNCVIEW_QA_LINEAR_DEAD=ok_lie node qa/master.js --profile=full
 ```
 
+### FOUR PROBES ARE NOT REHEARSED BY THIS, AND THE COMMAND ABOVE DOES NOT COVER THEM
+
+Found by the Codex review of this PR, verified against the tree, and it is the
+same defect one layer out from the one this whole document exists to correct.
+
+`SYNCVIEW_QA_LINEAR_DEAD` is honoured by the centralized interceptor in
+`qa/sxr_courier_lib.js`. Four probes never reach it — they register their own
+`ctx.route('**/webhook/linear-…')` handlers that fulfil `200 {"ok":true}`
+unconditionally, and a later-registered Playwright route wins:
+
+| probe | what it self-mocks |
+|---|---|
+| `qa/probes/p28_linear_sync.js` | `linear-set-status`, `linear-add-comment` |
+| `qa/probes/p29_linear_kasper.js` | `linear-set-status`, `linear-add-comment` |
+| `qa/probes/p30_linear_client.js` | `linear-set-status`, `linear-add-comment` |
+| `qa/probes/p36_full_sync.js` | `linear-set-status`, `linear-add-comment` |
+
+**So a full-manifest run with dead mode on exercises HEALTHY Linear for exactly
+the status-and-comment write flows the rehearsal most needs to see die.** A pass
+on those four is not evidence about the cutoff. Read them as unrehearsed, not as
+green.
+
+**This is not fixed here, deliberately.** `qa/probes/**` is not among the files
+this lane owns, and the house rule is to write the need into the ledger rather
+than edit another lane's file. The fix is small and mechanical — each probe's
+`route.fulfill` becomes a call that honours the mode, four files, roughly four
+lines each — and it is recorded in OPEN_REPAIRS 175 for whoever owns those
+probes.
+
+**Until then, R9 and R10 below are scoped to the seven webhooks the interceptor
+sees, and these four probes are excluded from every claim this document makes.**
+`test/linear-dead-rehearsal.js` enforces the exclusion list against the probe
+directory, so a new self-mocking probe fails the suite until it is either
+converted or listed here — the list cannot silently rot.
+
 **Run it BEFORE the cutoff's STEP 3, not after.** The point is to find the
 breakage while the flags can still be put back.
 

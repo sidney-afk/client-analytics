@@ -239,8 +239,13 @@ read the moment the flag returns.
 
 ## STEP 2 — Drain to zero, with outbound still `live`
 
-No flag changes. Dispatch `.github/workflows/linear-outbound-drain.yml` repeatedly
-until STEP 0's second query returns no rows.
+No flag changes. Dispatch the drain repeatedly until STEP 0's second query
+returns no rows:
+
+**https://github.com/sidney-afk/client-analytics/actions/workflows/linear-outbound-drain.yml**
+
+(Run workflow → default inputs. The direct link is here rather than the
+filename because you run these from the Actions UI by hand, per `AGENTS.md`.)
 
 **Mode matters here.** `normalStatuses` is
 `["pending","failed","shadow_ok"]` only when `mode === "live"` (`:1050`); in
@@ -404,9 +409,15 @@ Disable in this order, each one reversible by re-enabling:
 
 1. **n8n pager nodes** on workflow `qllIDZPkdNAPRj0b` that dispatch the two card
    reconcilers (every 15 min) and gate B1 refresh (every 30 min).
-2. **The GitHub scheduled workflows:** `sample-linear-reconcile.yml`,
-   `linear-deliverables-reconcile.yml`, `b1-linear-incremental-refresh.yml`,
-   `production-shadow-audit.yml`, `production-write-drill.yml`.
+2. **The GitHub scheduled workflows.** Each link opens the workflow's page;
+   disable from the `…` menu, or land the commented-out cron (preferred — see
+   below).
+
+   - https://github.com/sidney-afk/client-analytics/actions/workflows/sample-linear-reconcile.yml
+   - https://github.com/sidney-afk/client-analytics/actions/workflows/linear-deliverables-reconcile.yml
+   - https://github.com/sidney-afk/client-analytics/actions/workflows/b1-linear-incremental-refresh.yml
+   - https://github.com/sidney-afk/client-analytics/actions/workflows/production-shadow-audit.yml
+   - https://github.com/sidney-afk/client-analytics/actions/workflows/production-write-drill.yml
 3. **The n8n `SyncView Workload — Reconcile` workflow** (every 10 min) — LAST, and
    only once the Workload board no longer depends on `workload_issues` freshness.
 

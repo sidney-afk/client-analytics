@@ -53,19 +53,26 @@ const SUPA_URL = String(process.env.SUPABASE_URL || 'https://uzltbbrjidmjwwfakwv
 const SUPA_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 
 /*
- * THE SOURCE IS A VARIABLE BECAUSE THE SOURCE CHANGES, AND THE SWITCH MUST BE
- * DELIBERATE.
+ * THE SOURCE IS A VARIABLE, BUT THE HANDOVER IS A RETIREMENT, NOT A REPOINT.
  *
- * Today the Workload board reads `workload_issues`, the Linear-derived mirror,
- * and its freshness is the thing that matters. When lane A repoints the board at
- * the native source, THIS TABLE'S FRESHNESS STOPS MEANING ANYTHING — the cutoff
- * deliberately stops the reconcile that advances it, so an unchanged watcher
- * would page forever about a table nobody reads.
+ * Today the Workload board reads `workload_issues`, the Linear-derived MIRROR,
+ * and its freshness is the thing that matters: a mirror can silently stop being
+ * refreshed while still looking full.
  *
- * So the epoch is one environment variable in the workflow, changed by whoever
- * repoints the board, in the same change. It is NOT a date and NOT automatic:
- * an automatic switch would silently stop watching the old source before the new
- * one was carrying traffic, which is a gap, not a handover.
+ * When lane A repoints the board at the native source, do NOT point this
+ * watcher there. `migrations/2026-09-02-workload-native-view.sql` returns
+ * `null::timestamptz as synced_at` in both arms (`:177`, `:294`) and says why
+ * at `:147` — "`synced_at` IS NULL. Native IS the source; there is no sync to
+ * stamp." Repointing would fail `no_timestamp` on every run, forever.
+ *
+ * That null is correct, not an oversight: FRESHNESS IS THE WRONG QUESTION for a
+ * native source. It cannot go stale the way a mirror can, because it IS the
+ * data. So at handover this lane is RETIRED — `retired: {at, reason}` in
+ * scripts/monitoring-watchdog.js plus unscheduling its workflow, in one commit,
+ * with test/monitoring-watchdog.js enforcing the pairing in both directions.
+ *
+ * The variables below stay configurable only so a DIFFERENT mirror, if one is
+ * ever introduced, can be watched without a code change.
  */
 const SOURCE_TABLE = String(process.env.WORKLOAD_SOURCE_TABLE || 'workload_issues').trim();
 const SOURCE_TIMESTAMP_COLUMN = String(process.env.WORKLOAD_SOURCE_TIMESTAMP_COLUMN || 'synced_at').trim();

@@ -664,7 +664,7 @@ async function exerciseCommittedLostAck(opts) {
 
     // ---- P1: token link ----------------------------------------------------
     {
-      const p = await client(browser);
+      const p = await client(browser, undefined, undefined, { writeUiRerouteLegacy: true });
       const a = await H.clientAct(p, NAMES.tok, 'video', 'approve');
       t(a === 'ok', 'P1: token link loads; approve clickable', a);
       const r = await H.pollRow(() => H.rowSxr(IDS.tok, 'video_status'), x => x.video_status === 'Approved', POLL);
@@ -675,7 +675,7 @@ async function exerciseCommittedLostAck(opts) {
 
     // ---- P2: mobile viewport ----------------------------------------------
     {
-      const p = await client(browser, undefined, undefined, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+      const p = await client(browser, undefined, undefined, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, writeUiRerouteLegacy: true });
       await H.expandReview(p, NAMES.mob);
       const fit = await p.evaluate((n) => {
         const card = [...document.querySelectorAll('.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n);
@@ -696,7 +696,7 @@ async function exerciseCommittedLostAck(opts) {
 
     // ---- P3: slow network --------------------------------------------------
     {
-      const p = await client(browser);
+      const p = await client(browser, undefined, undefined, { writeUiRerouteLegacy: true });
       await p.route('**/sample-review-upsert*', async (route) => {
         await new Promise(r => setTimeout(r, 4000));
         await route.fallback();

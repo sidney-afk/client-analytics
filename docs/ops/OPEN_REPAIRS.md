@@ -14616,6 +14616,20 @@ turn: three checks go red against the code without this fix.
 assumed, and pinned as a self-test because the review asked for it and because
 the next edit to that matcher should have to keep it working.
 
+**A SIXTH, in the wiring for the fix above, found by applying the rule instead
+of trusting it.** The `legacyOptIn` check asked whether the opt-in token appeared
+ANYWHERE in the file. `ot4_t0_client_edge_conditions.js` opens seven client
+surfaces; four were wired and three were not, and the check passed. A
+token-exists check is precisely "a guard as wide as the place its author looked",
+written one commit after saying so.
+
+Every page-open site's balanced call span must now carry the option, and the
+opener scanner is driven against a bare `client(browser)`, a wired one, and a
+multiline options object with nested braces before it is trusted. Verified by
+un-wiring a single opener — the exact state that passed before — and watching the
+suite name it: `1 without it, first: " client(browser)"`. The three missed sites
+are wired.
+
 **FIVE INSTANCES OF ONE PATTERN IS THE FINDING.** Not five separate mistakes: a
 guard is only as wide as the place its author remembered to look, and every one
 of these was written by someone (me) who had just been burned by the previous

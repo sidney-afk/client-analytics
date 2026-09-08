@@ -351,6 +351,51 @@ function assertionSpans(src, onUnclosed) {
   return spans;
 }
 
+/* The page-open helpers every courier-backed lane uses. An enumeration again — so it is
+   exercised below against the files it is applied to rather than assumed complete, and a
+   lane that opens pages some other way simply has no sites to check rather than silently
+   passing a check that looked at nothing. */
+const PAGE_OPENER = /(?:^|[^\w$.])(?:smmCal|smm|kasperCal|kasper|clientCal|client)\s*\(\s*(?:browser|b)\b/g;
+
+function openerSpans(src) {
+  const code = stripComments(src);
+  const out = [];
+  PAGE_OPENER.lastIndex = 0;
+  let m;
+  while ((m = PAGE_OPENER.exec(code)) !== null) {
+    const open = code.indexOf('(', m.index);
+    if (open < 0) continue;
+    let depth = 0, quote = '', escaped = false, end = -1;
+    for (let j = open; j < code.length; j++) {
+      const c = code[j];
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (c === '\\') escaped = true;
+        else if (c === quote) quote = '';
+        continue;
+      }
+      if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
+      if (c === '(') depth++;
+      else if (c === ')') { depth--; if (!depth) { end = j; break; } }
+    }
+    if (end < 0) continue;
+    out.push({ text: code.slice(m.index, end + 1) });
+    PAGE_OPENER.lastIndex = end;
+  }
+  return out;
+}
+
+/* Driven before it is trusted, like the assertion scanner. */
+ok(openerSpans("const p = await client(browser);").length === 1,
+  'the opener scanner sees a bare client(browser) call — the shape that slipped through the '
+  + 'token-exists check');
+ok(openerSpans("const p = await client(browser, undefined, undefined, { writeUiRerouteLegacy: true });")
+  .every(sp => /writeUiRerouteLegacy/.test(sp.text)),
+  '  · and reads the options object of a wired one, across its whole balanced span');
+ok(openerSpans("const p = await client(browser, undefined, undefined, {\n  viewport: { width: 390 },\n  writeUiRerouteLegacy: true\n});")
+  .every(sp => /writeUiRerouteLegacy/.test(sp.text)),
+  '  · including a multiline options object with nested braces');
+
 const RETIRED_REF = /linear-set-status|linear-add-comment|linearCalls\s*\(/;
 
 /* The scanner is proved on the two shapes the old one missed BEFORE it is trusted on a real
@@ -409,6 +454,18 @@ for (const [rel, entry] of Object.entries(OUTSIDE_MANIFEST).sort()) {
       '  · and it OPTS IN to the explicit legacy roster (`' + entry.legacyOptIn + '`) — the '
       + 'shared route serves production by default, and a lane asserting a retired push is not '
       + 'written for that');
+    /* EVERY page-open site, not just one somewhere in the file.
+       The sixth instance of this PR's pattern, and I found it in my own wiring by applying
+       the rule rather than trusting it: the check above only asked whether the token appears
+       ANYWHERE, so `ot4_t0_client_edge_conditions.js` passed with four of its seven client
+       openers wired and three left on the production roster. A token-exists check is exactly
+       "a guard as wide as the place its author looked". Each opener's balanced call span must
+       carry the option. */
+    const openers = openerSpans(src).filter(sp => !/writeUiRerouteLegacy/.test(sp.text));
+    ok(openers.length === 0,
+      '  · and EVERY page-open site in it carries the option, not merely one'
+      + (openers.length ? ' — ' + openers.length + ' without it, first: '
+        + JSON.stringify(openers[0].text.replace(/\s+/g, ' ').slice(0, 90)) : ''));
   }
   if (entry.polarity === 'deliberate-legacy') {
     ok(!/write_ui_reroute_fixture/.test(src),

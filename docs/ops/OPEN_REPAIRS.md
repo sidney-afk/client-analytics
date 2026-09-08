@@ -14321,6 +14321,55 @@ makes it exit 1 naming `qa/native-label-catalog/write-proof.mjs`, and it asserts
 it resolved 129 real paths so it cannot pass by matching nothing.
 
 Six sessions are lifting candidate tests right now. This is the shape that bites.
+
+### CAPTURE TAKEN 2026-09-08 01:24Z — this entry's "has NOT been taken" is superseded
+
+The owner ran the exporter twice from his own machine. Both runs were read-only:
+no mutation reached Linear and nothing was written to Postgres.
+
+**Run 1, 01:22:28Z** (`--skip-card-state`), capture `5a4bda94`: catalog half only.
+Superseded by run 2 and retained here because it is the run that proved the
+catalog half stands alone.
+
+**Run 2, 01:24:19Z, the one to attest**, capture `2697f5cd-3000-46f7-a063-aa4657a57678`:
+
+| | |
+|---|---|
+| labels captured | **46**, 1 page, archived included |
+| of which archived / label groups | 0 / 0 |
+| workspace-scoped | 3 |
+| independent walk at page size 50 | **RECONCILED** — only-primary 0, only-verify 0, changed 0 |
+| active cards | **5,437** |
+| complete / paginated / missing / malformed | **5,432 / 0 / 5 / 0** |
+| re-read from Linear / failed | **5 / 0** |
+
+`source_sha256` `00886fb83491e3de810c36c3ce776fa5f9f7c8e2dd8e1068d966082f52c81c7f`
+`export_package_sha256` `258945c38faa2fa28fe3acb4a19efa07c503aae5ffd0a1de310388b4210ee0f4`
+`review_evidence_sha256` `0a5ed7742adcde1fc608a61dfb472d3b82f637ac0b475643f5aed2965a4f44b9`
+
+The package is private, outside the repository, under `%USERPROFILE%\.syncview\`.
+It is never committed, pasted into an issue, or attached to a PR. Only counts and
+hashes appear above; no label name, client identity or card id.
+
+**The number this entry demanded, recorded before attesting:** 5,437 active cards
+were in scope and **none were excluded** — `paginated 0, malformed 0`. So the
+owner's "only active cards" ruling cost nothing here: there is no silently
+dropped population to remember later. The five `missing` rows were exactly the
+genuinely one-way case this entry describes (a stored relation the native writer
+would refuse forever), and all five were re-read from Linear successfully. Had
+those five not been re-read before the account lapses, those cards could never
+have had their labels changed on the native lane, by any means.
+
+**A correction to what the coordinator told the owner.** He was first told
+`--skip-card-state` was safe because half (b) reads our own database. That is
+true of most of half (b) and false of the part above, which is why run 2 exists.
+The instruction was wrong for about two minutes and the error was self-caught;
+recorded because a session repeating it after 2026-09-15 could not recover.
+
+**Still not done, and NOT deadline-bound:** the attest step, then the two
+migrations, then `3-stage-attested.sql`, then `4-capability-flag.sql`. Step 4
+does not guard itself — see this entry's own warning. None of that needs Linear
+alive, so it can happen at any time.
 ---
 
 ## 174. [2026-09-07, lane LX-F, PART 1 SHIPPED — the dead-man's switch survives the Linear cutoff; the cutoff itself is prepared separately] Four of the eight monitored lanes die with Linear, and the switch's second host dies with them

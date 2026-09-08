@@ -91,54 +91,22 @@ ok(dark.includes('--sv-shadow-rgba-94-106-210-0: rgba(94,106,210,0);'),
 ok(/\.cal-card-focused\s*\{\s*box-shadow:\s*0 0 0 3px var\(--sv-shadow-rgba-94-106-210-0_55\), 0 6px 22px var\(--sv-shadow-rgba-94-106-210-0_18\) !important;\s*\}/.test(source),
   '.cal-card-focused still reads its ring color from the two pinned tokens above, and !important makes it win the card-state cascade');
 
+// Codex review, PR #1359: .cal-card.cal-card-posted (specificity 2) and
+// .cal-card:hover / .cal-card.cal-card-posted:hover (2 and 3) each carry
+// their own static box-shadow, higher than .cal-card-focused alone (1) --
+// so without !important a posted or hovered linked card still shows no
+// ring. A real headless-Chromium render (a card carrying all three
+// classes, hovered) confirmed !important is both necessary and sufficient:
+// computed box-shadow was the indigo ring with the green fully replaced.
+// That check is NOT pinned here as a running test: this file lives in
+// test/, which test/run-all.js sweeps unconditionally into the
+// dependency-free `unit` CI job (no `npm install`, no browser
+// provisioning -- see .github/workflows/calendar-unit-tests.yml's own
+// "Fast, dependency-free... No test in this job reaches a live backend or
+// browser"), so a `require('playwright')` here would fail CI outright, not
+// just this suite. The regex assertion above is what a suite in this
+// directory can safely pin; the browser verification was done once, by
+// hand, and is recorded in docs/ops/OPEN_REPAIRS.md item 177 instead.
+
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\ncalendar focus-highlight dark-mode checks passed');
-
-/* ── Real-browser check: the ring actually wins the cascade ──────────────
- * A regex can pin the source text, but not what the browser actually
- * computes once .cal-card-posted and :hover are ALSO in play. Render the
- * real rules (this file's .cal-card, :hover, .cal-card-posted variants,
- * and .cal-card-focused) against a card carrying all three classes, in
- * dark mode, hovered -- the highest-specificity competing case
- * (.cal-card.cal-card-posted:hover, specificity 3) -- and read back the
- * COMPUTED box-shadow rather than trusting the source alone. */
-(async () => {
-  const { chromium } = require('playwright');
-
-  function grabRule(marker) {
-    const at = source.indexOf(marker);
-    if (at < 0) throw new Error('rule not found: ' + marker);
-    const end = source.indexOf('}', at) + 1;
-    return source.slice(at, end);
-  }
-  const lines = source.split('\n');
-  const lightVars = lines.slice(807, 813).join('\n');   // the --sv-shadow-rgba-94-106-210-* family, light
-  const darkVars = lines.slice(1368, 1374).join('\n');  // ...and their dark-theme overrides (this fix)
-
-  const html = `<!doctype html><html data-theme="dark"><head><style>
-    :root { ${lightVars} --sv-shadow-15803d: rgba(21,128,61,.5); --sv-border-15803d:#15803d; --sv-shadow-rgba-0-0-0-0_07: rgba(0,0,0,.07); }
-    html[data-theme="dark"] { ${darkVars} }
-    ${grabRule('.cal-card { position')}
-    ${grabRule('.cal-card:hover {')}
-    ${grabRule('.cal-card.cal-card-posted {')}
-    ${grabRule('.cal-card.cal-card-posted:hover {')}
-    ${grabRule('.cal-card-focused {')}
-  </style></head><body><div id="card" class="cal-card cal-card-posted cal-card-focused" style="width:200px;height:110px;"></div></body></html>`;
-
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html);
-    await page.hover('#card');
-    const boxShadow = await page.$eval('#card', el => getComputedStyle(el).boxShadow);
-    ok(/174,\s*181,\s*242/.test(boxShadow),
-      'a posted AND hovered card (the highest-specificity competing state) still computes the indigo ring: ' + boxShadow);
-    ok(!/21,\s*128,\s*61/.test(boxShadow),
-      'and the posted-state green shadow is fully replaced, not blended in behind it');
-  } finally {
-    await browser.close();
-  }
-
-  if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
-  console.log('calendar focus-highlight cascade-priority checks passed');
-})();

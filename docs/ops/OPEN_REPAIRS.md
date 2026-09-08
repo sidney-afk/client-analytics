@@ -15630,8 +15630,21 @@ card carrying `cal-card cal-card-posted cal-card-focused` in dark mode,
 hovered — the highest-specificity competing case — and read back
 `getComputedStyle(...).boxShadow`: the indigo ring is present and the
 posted-state green shadow is fully replaced rather than blended in behind
-it. Pinned as a new async section in the same test file, using this repo's
-existing `playwright`-in-`test/` convention rather than a browser-only lane.
+it.
+
+**Same review, second finding.** That verification was first committed as a
+`require('playwright')` section inside `test/calendar-focus-highlight-dark-
+mode.js` itself — which `test/run-all.js` sweeps unconditionally into the
+dependency-free `unit` CI job (`.github/workflows/calendar-unit-tests.yml`,
+no `npm install`, no browser provisioning, by design: "No test in this job
+reaches a live backend or browser"). That would have failed the job outright
+on the next push with `MODULE_NOT_FOUND`, not just this one suite — this
+repo has no lightweight lane between "dependency-free source regex" and the
+heavy, explicitly-registered `production-polish` browser lanes (themselves
+scoped to the `_prod`/write-gateway surface, not general Calendar CSS).
+Removed the async section; the regex assertion pinning `!important` is what
+a `test/` suite can safely check, and the browser verification itself is
+recorded here rather than kept as a suite that can't run where it lives.
 
 ---
 

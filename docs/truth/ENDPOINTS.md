@@ -64,6 +64,14 @@ TikTok pilot (uploads + TTP auth):
   `n8n-backups/tiktok-upload-direct.2026-08-18.json` is kept only as the point-in-time backup
   copy, same convention as the other files in that directory — the live n8n copy is authoritative
   going forward.
+  **2026-09-08 — photo carousel mode.** TikTok photo/carousel posts (1-35 images) always take
+  this same direct-to-storage lane, regardless of size: the browser mints and PUTs each image
+  individually, then calls `tiktok-upload-direct` once with `mediaUrls` (a JSON array of the
+  resulting URLs) instead of the singular `mediaUrl`. `tiktok-upload-direct`'s Build Upload
+  Row/Build Post Body nodes now accept either field — `mediaUrls` present builds a multi-item
+  Post For Me `media[]` array (photo post); `mediaUrl` alone is unchanged from the description
+  above (video post). `n8n-backups/tiktok-upload-direct.2026-09-08.json` is the matching
+  point-in-time backup.
 - `webhook/ttp-auth-init`, `webhook/ttp-accounts-list`, `webhook/ttp-creator-info`,
   `webhook/ttp-list`, `webhook/ttp-status`, `webhook/ttp-submit`
 

@@ -16660,6 +16660,211 @@ costs four characters. The reservation table in item 168 remains the right
 mechanism for avoiding collisions in the first place, but it only binds sessions
 that read it, and PR #1354 was not part of this programme.
 
+### Addendum, 2026-09-08 — the exit now has ONE ordered list, and P1 was on nobody's list
+
+`docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` is new. Every lane had a good
+runbook for its own piece; **none carried the order ACROSS lanes** — which merge
+precedes which migration, which deploy precedes which flag, and which of those
+only the owner can perform. Writing it surfaced one item that was genuinely
+nobody's task.
+
+**The naming mint migration is NOT applied, and nothing was tracking that.**
+`docs/ops/NATIVE_IDENTIFIER_MINT.md` opens "Status: SOURCE ONLY … has not been
+applied to the live database and no team has been seeded", and `EXECUTION_LOG.md`
+has no record of it either. It is precondition **P1** of the cutoff runbook.
+
+**Why it is worth its own paragraph.** `deliverables.linear_identifier` is the
+`VID-`/`GRA-` name staff say out loud, and every writer of that column is Linear.
+Flip outbound off before this is applied AND each team seeded, and every card
+created afterwards has **no name** — a raw internal id in the Production list,
+the command palette, the Workload parent header and all three deep links.
+**Nothing errors.** The estate silently stops producing names, which is the
+hardest kind of failure to notice and the easiest to cause.
+
+Merging PR #1349 was not enough and the runbook already said so; what was missing
+was anyone carrying it as an owner action. It is now the first item in Phase 2,
+with its proof: create one card on the TEST client after seeding and read back a
+non-null identifier Linear did not mint.
+
+**Also surfaced by the same pass:** lane A's corrective migration
+`2026-09-08-workload-native-label-state-shape.sql` has no application record
+either. The entry does **not** claim it is unapplied — this programme has now
+been wrong in both directions about which migrations are live, so it says
+*verify before assuming*.
+
+**The document's other job is to stop the completion figure drifting upward on
+feeling.** It states, in one line each, that building is near done and installing
+is barely started, and that no further code moves the number.
+
+### Addendum, 2026-09-08 — CORRECTION: "nothing is time-critical" was too strong, and the mint needs FOUR steps
+
+Two P1s from Codex on PR #1357, both against text I wrote in the master
+sequence, and both correct.
+
+**1. The naming mint has four live steps, not three, and the fourth is the
+gate.** The addendum above and the first draft of the master sequence said
+"applied AND seeded". `docs/ops/NATIVE_IDENTIFIER_MINT.md` §"Live actions, in
+order" lists a fourth: flip
+`syncview_runtime_flags.production_native_identifier_mint` to `native`, per team.
+`production_native_identifier_capability(team)` returns `native` only when the
+flag says native **and** a seed row exists, so stopping after seeding leaves the
+allocator installed and refusing — the TEST card still gets its name from Linear
+and the nameless-card failure happens anyway. **Naming the precondition and then
+under-specifying it by one step is the same defect as not naming it**, because a
+reader who does 1 to 3 believes they are done. Corrected with the full table, the
+per-team order, and the note that the capability self-guards so a premature flip
+is inert rather than half-armed.
+
+**2. "Nothing left is time-critical" conflates irrecoverable with
+undamaged.** Said repeatedly to the owner and written into the master sequence.
+Nothing left is *irrecoverable*: the only artefact needing the live API is
+captured. But n8n webhooks that read Linear will fail when the account lapses,
+and SyncView calls them, so **surfaces degrade on their own if the cutover has
+not happened by 2026-09-15**.
+
+Best current reading of that date with nothing merged: staff **writes are safe**
+(all 43 active clients enrolled, both teams SyncView-authoritative, so writes
+already go native — item 175); the **Workload board freezes rather than empties**
+when the reconcile stops, which is the dangerous one because a frozen board looks
+current; Kasper's Editors subtab and tweak comments fail visibly; Linear import
+fails and is moot.
+
+**So the four held PRs merging before 2026-09-15 converts an uncontrolled
+degradation into a controlled cutover.** That is a deadline on the owner's
+review, not on the engineering, and it is one week out. The distinction is worth
+keeping: it is a reason to *schedule* the review, not to rush it.
+
+Both corrections were caught by review, not by me, on a document whose entire
+purpose is to be the one place the sequence is right.
+
+### Addendum, 2026-09-08 — a reversibility reassurance that covered the wrong route
+
+Third P1 from review on PR #1357, and the most dangerous of the three because it
+concerns a one-way action.
+
+**What I wrote.** "Steps 0 through 6 are fully reversible. Only STEP 7 is
+one-way." Quoted in good faith from `LINEAR_CUTOFF_RUNBOOK.md`, where it is true.
+
+**Why it was unsafe anyway.** Two routes to the outbound cutoff are described in
+documents on `main`, and the reassurance only holds for one:
+
+- **Route A**, what the runbook does: flags only. `2026-09-06-linear-outbound-cutoff.sql`
+  is never installed, so there is genuinely no irreversible database step and
+  every flag step has a restore block. The runbook's §0 computes this rather than
+  assuming it: with outbound `off` and parity `false`, `linear-outbound:1355`
+  skips the whole provider block, so nothing reaches `api.linear.app`.
+- **Route B**, which `LINEAR_EXIT_BRIEF_F.md` still describes as live actions:
+  install that migration and call `linear_outbound_cutoff_activate_v1`. Its own
+  entry says *"NOT REVERSIBLE by design — there is deliberately no re-enable RPC"*,
+  and the install's undo says *"VALID ONLY BEFORE THE CUTOFF IS ACTIVATED. AFTER
+  ACTIVATION IT DESTROYS THE EVIDENCE THE RECOVERY NEEDS."*
+
+An operator who followed brief F's live-action list and then read my blanket
+reassurance would have taken a one-way step believing a restore block existed.
+**A true sentence, quoted from the right document, made false by being applied to
+a scope its source did not have.** That is a new variant of this programme's
+recurring defect and worth logging as such: the previous instances were two
+documents disagreeing; this is one document being repeated correctly into a
+context where it stops being true.
+
+**Corrected** by naming both routes, marking Route B one-way with its source
+quoted, and saying plainly: do not take Route B. The runbook's reasoning for
+skipping it is costed — it needs an F27 Section 4 dispatch and therefore a merge
+freeze across every exit branch, and dispatches were rejected on 2026-09-02 and
+2026-08-08 for exactly that. A flag at `off` stops the traffic equally well and
+reverses.
+
+**The briefs describe Route B because they were written when it was the plan.**
+They are a map of what exists, not an instruction to install it. That sentence is
+now in the master sequence, because the briefs cannot be trusted to carry their
+own obsolescence.
+
+## 177. [2026-09-08, FIXED] The pasted-card-link highlight was invisible in dark mode
+
+Item 176 (same day, merged as PR #1354) fixed the timing problem — the toast
+now appears immediately. The owner came back after checking it out: *"I
+never saw the border color... it's because of the dark mode. On the dark
+mode, it doesn't show up... it appears as like a black thing."*
+
+**Root cause.** The persistent outline `_calApplyFocusRequest` puts on a
+linked card (`.cal-card-focused`, and its non-persistent sibling
+`.cal-card-flash` for the identifier/search-jump case) reads its ring color
+from `--sv-shadow-rgba-94-106-210-*` — the brand indigo, rgb(94,106,210).
+The dark-theme override block flattened five of those six tokens to plain
+black (`rgba(0,0,0,…)`) — the sixth, the fully-transparent `-0` variant, was
+already `rgba(94,106,210,0)` and untouched, since a zero alpha carries no
+visible color either way. The five non-transparent ones are close to
+indistinguishable from the app's own near-black dark background: a ring
+built to say "this one" said nothing.
+Every OTHER brand-indigo token in the file (`--sv-border-9aa3f0`,
+`--sv-fg-4a54c0`, …) is brightened for dark mode instead of blackened — this
+shadow-token family was the one place the pattern wasn't followed, almost
+certainly because whatever produced the dark palette treated every
+`--sv-shadow-*` variable as a generic elevation shadow (where black is the
+right call) rather than checking which ones are actually colored accent
+rings.
+
+**Verified, not just reasoned.** Rendered the real, extracted
+`.cal-card-focused` rule in a headless Chromium against both themes' actual
+variable values, before touching anything: the light-mode ring was clearly
+visible; the dark-mode one was there, technically, but barely
+distinguishable from the card and page behind it — exactly the "black
+thing" the report described.
+
+**Fix.** Kept the same hue in dark mode, brightened to `rgb(174,181,242)` —
+the same value `--sv-border-9aa3f0` already uses for its own dark-mode
+counterpart, so this now follows the same convention as every other
+brand-indigo token instead of being the exception. Re-rendered the same
+Chromium check after the change: dark mode now shows a clearly visible
+indigo ring, matching light mode's legibility. Five tokens changed (the
+transparent sixth was already correct and left alone), all in the same
+`html[data-theme="dark"]` override block; the `.cal-card-focused` /
+`.cal-card-flash` rules that consume them were untouched, since the box-shadow
+rules themselves were never the problem — only the color they were told to
+use.
+
+Pinned by a new `test/calendar-focus-highlight-dark-mode.js`: asserts each
+of the five non-transparent tokens in the dark-theme block still carries a
+colored (non-black) value, and specifically the `rgb(174,181,242)` this fix
+lands on — so a future dark-palette regeneration can't quietly re-blacken
+this family without a test failing.
+
+**Codex review, PR #1359.** One real finding: the color fix above made the
+ring visible, but not necessarily PRESENT. `.cal-card-focused` is a single
+class (specificity 1). `.cal-card.cal-card-posted` (2) and `.cal-card:hover`
+/ `.cal-card.cal-card-posted:hover` (2 and 3) each carry their own static
+`box-shadow`, all at equal or higher specificity — so a linked card that was
+posted, or simply sat under the pointer, showed no ring at all, in EITHER
+theme. Not new in this PR; the underlying rule predates it. Added
+`!important` to `.cal-card-focused`'s `box-shadow` so it wins regardless of
+what other card-state classes are present, matching this file's existing
+convention for "this state must win" indicators (e.g.
+`.workload-rollup.in-progress`'s `border-left-color !important`).
+`.cal-card-flash` (the identifier/search-jump sibling) needed no such fix:
+its color comes from a CSS animation, which the cascade already places above
+any static rule regardless of specificity.
+
+Verified with a real headless-Chromium render (not just source regex) of a
+card carrying `cal-card cal-card-posted cal-card-focused` in dark mode,
+hovered — the highest-specificity competing case — and read back
+`getComputedStyle(...).boxShadow`: the indigo ring is present and the
+posted-state green shadow is fully replaced rather than blended in behind
+it.
+
+**Same review, second finding.** That verification was first committed as a
+`require('playwright')` section inside `test/calendar-focus-highlight-dark-
+mode.js` itself — which `test/run-all.js` sweeps unconditionally into the
+dependency-free `unit` CI job (`.github/workflows/calendar-unit-tests.yml`,
+no `npm install`, no browser provisioning, by design: "No test in this job
+reaches a live backend or browser"). That would have failed the job outright
+on the next push with `MODULE_NOT_FOUND`, not just this one suite — this
+repo has no lightweight lane between "dependency-free source regex" and the
+heavy, explicitly-registered `production-polish` browser lanes (themselves
+scoped to the `_prod`/write-gateway surface, not general Calendar CSS).
+Removed the async section; the regex assertion pinning `!important` is what
+a `test/` suite can safely check, and the browser verification itself is
+recorded here rather than kept as a suite that can't run where it lives.
+
 ---
 
 ## 179. [2026-09-08, lane LX-RESTORE, DONE for the executable subset; ~284 context lines still clipped] The 49 clipped brief lines an owner actually executes are restored from source, and six of them were wrong as well as short
@@ -17616,3 +17821,130 @@ the tidy one:** six findings, five real, one already fixed. Two were defects in
 lines I wrote, one in a line I quoted without checking, two in lines I had
 correctly left alone but whose in-document corrections the truncation had eaten.
 Eleven rounds in, the review is still finding a category per round.
+## 181. [2026-09-08, lane LX-N8N, WRITTEN — a plan, nothing executed] The seven n8n webhooks that die with Linear, and the three source documents that each get the list wrong differently
+
+`181` was verified free before writing: the ledger's numbers run 1–129, 134–162,
+170, 173, 174, and item 174 records the lane reservations (A took `169`, C took
+`171`/`175`/`176`, D took `172`, E took `173`, F took `174`). Nothing claims
+`177`–`180` on `main`; this lane takes `181` rather than the next free number so
+a concurrent lane landing in the gap does not collide.
+
+**Deliverable.** `docs/independence/N8N_REPLACEMENT_PLAN.md`. Read-only lane: no
+n8n workflow was created, edited, activated, deactivated, or run; no migration,
+deploy, or write of any kind.
+
+**The list, re-derived from `main@d8866d9` rather than a July snapshot.** Seven
+browser-called n8n webhooks reach Linear and fail when the account lapses:
+`editors-week`, `linear-issues`, `linear-issue-statuses`, `linear-subissues`,
+`linear-tweak-comments`, `linear-projects`, and — the one no reader list carries
+— **`send-urgent-slack`**, which is shaped like a Slack write but resolves the
+issue's current Linear assignee to pick the mention. Four more write Linear and
+die with it (`linear-set-status`, `linear-add-comment`, `video-form`,
+`graphic-form`). Two that look Linear-bound survive untouched:
+`log-linear-submission` appends a Google Sheet, and `kasper-queue` reads Sheets.
+
+**The three sources disagree seven ways**, each verified on `main@d8866d9` and
+tabled in §2 of the plan. The two most likely to cost someone a day:
+
+- **Every line number in `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` is dead.** It
+  was verified at `e3961b6` on 2026-07-14 and says so, but nothing warns that its
+  anchors have since moved by tens of thousands of lines. Not one range still
+  points at its code — `editors-week` is cited at `index.html:43879-43925`; today
+  its constant is at `22419` and its single fetch at `78774`. The dispositions in
+  that document remain the best thinking available; only its coordinates are
+  gone.
+- **`docs/truth/ENDPOINTS.md` says "n8n webhooks (54)"; the real count is 56.**
+  The *set* it enumerates is right and `test/truth-sync.js` proves it — but the
+  parenthetical in the heading is not machine-checked, so it drifted two behind
+  when `tiktok-upload-url` and `tiktok-upload-direct` landed on 2026-08-18.
+  `SYSTEM_MAP.md:1537` is the correct one.
+
+**One finding that is not a documentation problem.** The native replacement for
+`editors-week` (PR #1346) reads `public.deliverable_events`. That table is
+granted `select` to `anon` and `authenticated` under a permissive `using(true)`
+policy (`migrations/2026-07-06-b1-linear-data-model.sql:682-688`, `:698`), and
+**no migration in this repo revokes it.** The F53 migration
+(`2026-07-23-f34-f53-production-attachments.sql:280,296`) revoked table-level
+SELECT on `batches` and `deliverables` from `public, anon, authenticated` and did
+not include `deliverable_events`; the only carve-out since is one restrictive
+policy covering comment-body snapshots
+(`2026-07-12-production-comments.sql:158-161`), which leaves the ordinary
+activity rows — `client_slug`, `actor`, `role`, `from_status`, `to_status`, `ts`
+— anon-readable. That is F48's exposure shape reproduced natively. **This is a
+source-level reading; the live grant was NOT checked** and several tables here
+were created by hand-run SQL that never reached the repo. Verify live before
+relying on the finding or on its absence.
+
+**The parity gap the replacement does not close.** `deliverable_events` has no
+event-time assignee column, so attribution must join through
+`deliverables.assignee_id` — the *current* assignee — which is exactly the defect
+F48 records in the legacy endpoint. `CUTOVER_AUDIT_2026-07-13.md` already
+measured what that costs (of 401 source transitions for the same production
+videos, 27 absent natively and 239 unmatched or duplicative). Closing it needs a
+schema change that is outside this lane and, as far as the PR description shows,
+outside #1346. Until it lands the native Editors tab has delivery-count parity,
+not report parity, and `GO_LIVE_CHECKLIST.md:999` is right to gate retirement on
+full §9.11 parity.
+
+**Ordering, stated because getting it backwards is a live outage.** `main`
+today still calls `editors-week` at `index.html:78774`, so **PR #1346 must merge
+before the endpoint is deactivated** or Kasper's Editors subtab dies with no
+fallback beyond a one-week cache. The full order for all eleven endpoints is §5
+of the plan. Two more that are easy to get wrong: `linear-issues` has a second,
+undocumented caller (the Calendar bulk-create link poll shares its feeder and
+cache), so merging the Workload half alone is not sufficient; and
+`linear-projects`' legacy half must not be deleted until every client is enrolled
+in `write_ui_reroute_clients`, because the native branch is cohort-gated and
+un-enrolled clients would get an empty Submit dropdown — the "absence a user
+cannot debug" failure the owner's permissive rule exists to prevent.
+
+**What could not be established** is named specifically in §6 of the plan, eight
+items: no live n8n workflow was inspected (the readbacks this leans on are eight
+weeks old), the `deliverable_events` grant is source-level only, response shapes
+are inferred from what the browser consumes rather than from a captured response,
+#1346's diff was not read, `LINEAR_EXIT_LANES.md` is on #1351's branch and not on
+`main` so the authoritative lane order could not be consulted, and no row counts
+are published at all — deriving them needed a live read this lane did not take,
+and `AGENTS.md`'s 2026-09-05 rule says an unmeasured number is worse than none.
+
+### Addendum, 2026-09-08 — the n8n plan is merged, and one of its findings changes the degradation table
+
+PR #1356 merged. `docs/independence/N8N_REPLACEMENT_PLAN.md` is now on `main`,
+and three of its findings are folded into
+`docs/independence/LINEAR_EXIT_MASTER_SEQUENCE.md` rather than left to be
+discovered by whoever reads the two documents in the right order.
+
+**1. `send-urgent-slack` is a Linear reader and no previous list carried it.**
+Added to the 2026-09-15 degradation table. It is shaped like a pure Slack write,
+and it is, except that it resolves the issue's **current Linear assignee** to
+decide who to mention. It fails with the account. The method point is worth more
+than the row: **an endpoint's dependencies are not inferable from its name or its
+effect.** The mirror image is in the same finding — `log-linear-submission` only
+appends a Google Sheet and `kasper-queue` only reads Sheets, so two endpoints
+that read as Linear-bound survive untouched. The list was re-derived on `main`
+instead of carried forward from the July audit, which is the only reason any of
+this was caught.
+
+**2. The `deliverable_events` anon grant is an independent, mandatory revoke.**
+PR #1346's native `editors-week` reads `public.deliverable_events`, granted
+`select` to `anon` under `using(true)` in
+`migrations/2026-07-06-b1-linear-data-model.sql:682-688,698`, with no revoke
+anywhere in this repo — F53 covered `batches` and `deliverables` and not this
+table. That is F48's exposure shape reproduced natively. **Serving it through an
+authenticated Edge Function does not satisfy the requirement**, because the
+publishable key is committed and reaches the table through PostgREST regardless.
+The master sequence's held-PR table now says #1346 carries this as an attached
+obligation, so that merging it is not mistaken for closing F48's shape.
+
+Recorded with the limit the lane stated and did not smooth away: this is a
+**source-level reading and the live grant was not checked**, and tables here have
+been created by hand-run SQL that never reached the repo. Verify live before
+relying on the finding *or* on its absence.
+
+**3. Every line number in `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` is dead.**
+Verified at `e3961b6` on 2026-07-14, and nothing in it warns that its anchors
+have since moved by tens of thousands of lines. Not one range still points at its
+code. Its dispositions remain the best thinking available; only the coordinates
+are gone. This is the same defect class as the truncated briefs and the
+mis-scoped reversibility quote, in its third distinct shape: **a document that is
+correct about what it says and wrong about where it points.**

@@ -15402,3 +15402,73 @@ says to stop at steps 1-2 once anything has been accepted.
 Six rounds of checking, five of them mine, and the reviewer is still finding a
 category per round. The honest read is not that the work converged; it is that
 each pass fixed the shape it had just been shown.
+
+### SIXTH CORRECTION — the boundary category, applied to the lines I had not touched
+
+Codex round five, on `b71c343`: two P1s and a P2, all the same category as round
+four, and all three land on undos this pass either got half-right or never
+touched.
+
+**1. Brief B's accepted-admission boundary was one step too late.** Round four
+put it after step 2; it belongs after step 1. The reviewer's mechanism was
+imprecise and the corrected one is worse for the operator, not better: the epoch
+pin is NOT read by the intake RPC bodies calling `production_intake_epoch_read`
+— the gateway calls that (`production-write/index.ts:2680`). It is read by the
+NATIVE `production_intake_root_begin` body itself, which checks and writes
+`native_epochs` (`native-only-intake.sql:201-204, 252`), and by the receipt
+guard, which compares `coalesce(v_manifest.native_epochs->>new.team,'')` on every
+outbox row (`:112`). Step 2 replaces that root_begin with a body that has never
+heard of `native_epochs`; step 3 drops the guard. Between them, accepted work
+loses BOTH enforcement points while its manifest still carries an epoch. Keeping
+the reader and the column alive in steps 3-4 pins nothing once their enforcement
+is gone.
+
+**2. Brief F's outbound flag undo says "fully reversible" two lines above a
+one-way step that makes it false.** Post-activation, `linear_outbound_claim_v1`
+opens `if v_control.cutoff_enabled then return null; end if;` (:94), so the
+cutoff-aware worker claims nothing on every row; the pre-cutoff worker is refused
+by the stale-worker guard. Setting the flag back to `live` therefore **reads back
+as success and leaves outbound entirely dead** — a green readback over a dead
+lane, which is the worst shape a rollback can have.
+
+**3. Brief F's scheduled-workflow undo sits on the reversible side of credential
+revocation (P2).** Re-enabling those four lanes after the keys are revoked
+restores four jobs that fail every run and stale heartbeats that latch the
+alarm-fatigue incident this very section warns about. Post-2026-09-15 there is no
+re-issue, so the honest position is retirement, with the watchdog LANES entries
+retired alongside.
+
+**Both brief F lines were NOT truncated, and so were outside this pass's original
+scope.** I restored the clipped lines around them and left these alone because
+they ended in a full stop. That was the same reasoning that left brief B's
+already-applied v8 step standing in round one, and it was wrong for the same
+reason: **the defect is not in the clipping, it is in the instruction, and a
+one-way step invalidates the undos on both sides of it regardless of which ones
+happened to be truncated.** The scope that made sense for finding truncations
+does not make sense for auditing rollbacks.
+
+**So I swept every `undo:` in all six briefs, truncated or not, against the
+boundary question, and five more needed it** — none of them lines this pass had
+originally touched:
+
+- **F, `linear_inbound_enabled`**: promises a reversal that the webhook-deletion
+  step immediately below removes. Restoring the flag after the registrations are
+  gone flips green over a lane with no traffic.
+- **F, deleting the two Linear webhooks**: said re-creation needs the URL and
+  signing secret captured first. True and not sufficient — after 2026-09-15
+  there is no account to register against, captures or not.
+- **F, the n8n pager nodes**: same post-revocation problem as the scheduled
+  workflows; they dispatch the card reconcilers and B1 refresh, all of which
+  reach Linear.
+- **C, re-publishing the six Linear-bridge workflows**: the definitions survive a
+  lapse, the capability does not. With the exception that matters:
+  `webhook/editors-week` is F48, and F48 closes when that workflow stops
+  answering, not when Linear stops answering it.
+- **B, the intake epoch flag**: credited `production_intake_epoch_read` with the
+  pin. Corrected to match the composed-artifact undo above it, so the file does
+  not name two different enforcement points for one property.
+
+Six rounds, sixteen reported findings, fifteen of them mine, plus nine found in
+my own sweeps between rounds. The reviewer has found a new category in every
+single round, and the last two were categories my own sweeps had defined and then
+applied too narrowly.

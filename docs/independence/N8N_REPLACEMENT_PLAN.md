@@ -299,16 +299,27 @@ Function or the `production_deliverables_browser_v1` view.
 
 **Failure mode.**
 
-- *What a user sees.* Today: an empty or stale Workload board. The v2 read
-  failing falls through to `linear-issues`, and if that also fails the cached
-  `wlWriteCache` payload renders with its `fetchedAt` age.
-- *Fail open or closed?* **Fail visible, never fail empty.** Workload's whole
-  job is "what is outstanding". A zero-row render is a claim that nothing is
-  outstanding, and an editor who believes it stops working. The current code
-  already treats zero active rows as a *fallback trigger* rather than an answer
-  (`loadLinearIssues` :14599, fallback trigger :14606-14607) — that instinct is correct and must survive the replacement.
-  The native reader must return an explicit error the board can render as
-  "couldn't load", not an empty set.
+- *What a user sees.* **Not an empty board — a frozen one.** This is the one
+  place my own first analysis had the failure backwards, and
+  `LINEAR_EXIT_LANES.md` (now on `main`) states the real shape: when Linear
+  dies the reconcile returns `[]` on a bad read and its safety gate keeps the
+  old rows, so roughly 2,000 `workload_issues` rows stay `active=true` with a
+  `synced_at` that stops advancing. The board renders normally and is wrong.
+  Separately, in the browser, a failed v2 read falls through to
+  `linear-issues`, and if that also fails the cached `wlWriteCache` payload
+  renders with its `fetchedAt` age.
+- *Fail open or closed?* **Fail visible — and "visible" has to cover staleness,
+  not just emptiness.** Both directions are wrong here and they are not
+  symmetric. A zero-row render claims nothing is outstanding, and an editor who
+  believes it stops working; the current code already treats zero active rows as
+  a *fallback trigger* rather than an answer (`loadLinearIssues` :14599,
+  fallback trigger :14606-14607), which is the right instinct and must survive
+  the replacement. But stale-and-plausible is the worse of the two, because a
+  blank board is at least legible as broken and a frozen one is not. So the
+  native reader owes **both**: an explicit error the board can render as
+  "couldn't load" instead of an empty set, **and** a freshness signal the board
+  surfaces when the data stops advancing. `LINEAR_EXIT_LANES.md` is why lane A
+  must be live *and observed* before lane F stops the reconcile.
 - *On the write side there is nothing to fail:* the board is read-only in the
   browser; plan and due writes go through `workload-plan` / `workload-linear`
   and already have their own receipt semantics.
@@ -509,7 +520,7 @@ Nothing in this list may be deactivated in n8n before the row above it is on
 | 5 | **`send-urgent-slack` assignee lookup repointed** | The URGENT gate is repointed off `linear_issue_id` (§4.5). Ordering matters in the unusual direction here: repointing the *gate* before the *lookup* leaves a button that is visible and silently misdelivers; repointing the *lookup* first leaves a correct button that is hidden. **Do the lookup and the gate in one change.** | §4.5 |
 | 6 | **`linear-projects` legacy half deleted** | Every client is enrolled in `write_ui_reroute_clients`. Before that, deleting it empties the Submit dropdown for un-enrolled clients. | §4.6 |
 | 7 | **`linear-subissues` deactivated** | The native deliverable picker exists (new UI, not in any open lane PR) AND both point-adoption call sites are deleted. | §4.6 |
-| 8 | **`linear-set-status` / `linear-add-comment` deactivated** | All three browser outboxes are drained and neutralized — `syncview_linear_outbox_v1`, `syncview_sxr_linear_outbox_v1`, `syncview_calCardJobs_v1` — including startup, focus, timer, page-hide, resume and reassert paths. A queued item in a tab someone left open replays after deactivation. | `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` epoch checklist |
+| 8 | **`linear-set-status` / `linear-add-comment` deactivated** | All three browser outboxes are drained and neutralized — `syncview_linear_outbox_v1`, `syncview_sxr_linear_outbox_v1`, `syncview_calCardJobs_v1` — including startup, focus, timer, page-hide, resume and reassert paths. A queued item in a tab someone left open replays after deactivation. **And separately, per `LINEAR_EXIT_LANES.md`: the `linear_outbound_enabled` flip is gated on lane B's native naming mint** — `linear-outbound` is what mints `linear_identifier` for native cards, so flipping it off first leaves every new card without a readable name. That gate is lane B's and lane F's, not this document's, but it sits in the same window. | `LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` epoch checklist; `LINEAR_EXIT_LANES.md` |
 | 9 | **`video-form` / `graphic-form` deactivated** | `production-write` `intake_create` serves every enrolled client on both the Submit and Calendar surfaces, and F101 closes for Advanced single-team intake. | `ENDPOINTS.md`, `production-write` entry |
 | — | **`log-linear-submission`** | **Never deactivate.** It is not a Linear endpoint. See §1.3 and §2(2). | PR #1346 body |
 | — | **`kasper-queue`** | **Never deactivate for Linear reasons**, and nothing else is owed here. The `graphic_linear_issue_id` predicate repoint that the July inventory lists as epoch work is already done (F04); re-listing it as a blocker would send someone to re-fix a closed issue. | §3 |
@@ -555,13 +566,21 @@ plan that was never true.
    #1346 actually implemented. If that PR carries a migration adding an
    event-time member, §4.1's gap is already closed and this document is wrong
    about it.
-5. **Lane B and lane E have no open PR I could identify.** Open lane PRs are
-   #1344 (A), #1346 (C), #1347 (D), #1350 (F), plus #1351 (coordination set) and
-   #1352 (brief restore). `docs/independence/LINEAR_EXIT_LANES.md` — the lane
-   map — is on #1351's branch and **not on `main`**, so I could not read the
-   authoritative lane definitions or their intended merge order. The ordering in
-   §5 is derived from code dependencies, not from the coordinator's plan, and may
-   conflict with it.
+5. **RESOLVED after the first draft — the lane map landed on `main` while this
+   PR was open** (#1351, then #1352). `docs/independence/LINEAR_EXIT_LANES.md`
+   is now readable and §5 has been reconciled against it. Two of its facts
+   corrected claims of mine and are folded in above: `workload_issues`
+   **freezes** rather than empties when Linear dies (§4.2, where my first
+   analysis had the failure backwards), and the outbound flip is gated on lane
+   B's native naming mint (§5 row 8). The coordinator's merge order is
+   F-monitoring → **B** → **A** → **D** → **C** → **E** → F-rest; nothing in §5
+   contradicts it, and §5 remains a *code-dependency* ordering — where the two
+   differ, the lane map is authoritative and this document is the companion.
+   **Note the scope overlap:** lane **C** (`claude/lx-c-endpoints`, PR #1346)
+   owns "the n8n Linear webhooks, Submit routing, urgent alerts, editors-week"
+   — this document's exact subject. It is a planning companion to lane C, not a
+   competing lane, and it changes no code lane C owns.
+   Still unestablished: lane B and lane E have no open PR I could identify.
 6. **Client-facing exposure of `linear-issue-statuses` is asserted, not
    measured.** Calendar renders for client links (`?c=&v=calendar`), and
    `_calRefreshParentLinkFlags` is on the Calendar load path. I did not trace

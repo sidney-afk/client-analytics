@@ -99,9 +99,23 @@ function fire(hash, opts) {
     set _templatesActiveTab(v) {},
     set _calFocusRequest(v) { calls.focus = v; },
     get _calFocusRequest() { return calls.focus; },
+    // The listener now funnels every assignment through _calSetFocusRequest
+    // (item 176 — an immediate "Opening linked card…" toast on the real
+    // setter), not a direct property set. Mirror what the accessor above
+    // used to capture directly, so this suite's routing assertions (which
+    // are about WHERE a hash lands, not about the toast) are unaffected.
+    _calSetFocusRequest: (v) => { calls.focus = v; },
     set _calPendingDeepLink(v) { calls.pending = v; },
     get _calPendingDeepLink() { return calls.pending; },
+    // Same as _calSetFocusRequest above, for the deferred (sheet-only-client)
+    // deep-link path's own setter (Codex review, item 176 PR).
+    _calSetPendingDeepLink: (v) => { calls.pending = v; },
     _calResolvePendingDeepLink: () => { calls.resolved = true; },
+    // Referenced by the state.client branch (item 176, seventh pass); no
+    // current fixture drives that branch (it needs far more of the DOM/
+    // client-profile surface mocked than this suite's routing focus
+    // attempts), so this is a defensive stub, not exercised here.
+    _calAbandonLinkOnCalendarExit: () => {},
     set _smFocusRequest(v) { calls.smFocus = v; },
     get _smFocusRequest() { return calls.smFocus; },
   };

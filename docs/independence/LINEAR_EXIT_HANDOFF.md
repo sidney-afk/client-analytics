@@ -129,6 +129,44 @@ these rows and is covered only by unit fixtures. So the remaining unknown is how
 many of the 262 plans that projection drops, which is answered by the step-1
 SELECT of the repair in item 177 rather than by this query.
 
+#### The second query, which answers that. Also read only.
+
+`workload_native_snapshot_v1()` is `revoke all ... from public,anon,authenticated`
+and granted only to `service_role`, so no session can take this measurement
+itself. It needs the owner, in the SQL editor, and it is worth about thirty
+seconds:
+
+```sql
+create or replace function pg_temp.nc(v text) returns text language sql immutable as $$
+  select regexp_replace(
+           regexp_replace(
+             regexp_replace(lower(coalesce(v,'')), '^dr\.?\s+', ''),
+             '\s+(and|&)\s+', '&', 'g'),
+           '[^a-z0-9&]+', '', 'g');
+$$;
+
+select p.issue_id, p.client as stored, pg_temp.nc(n.client_name) as expected,
+       p.plan_date, p.updated_at
+from public.workload_plan p
+join public.workload_issues_native_v1 n
+  on n.is_sub_issue and (n.id = p.issue_id or n.linear_id = p.issue_id)
+where p.client is distinct from pg_temp.nc(n.client_name)
+order by p.issue_id;
+```
+
+**Every row it returns is a saved work day the board will silently drop.** Six
+were seen on 2026-09-07. If it returns six again, nothing has moved. If it
+returns more, drift is ongoing and the repair matters more than it did.
+
+`pg_temp.nc` replicates `normalizeWriteClient`
+(`supabase/functions/_shared/browser-write-auth-policy.mjs:9`) closely enough for
+the rows seen so far. It does **not** strip accents, which none of them needed;
+check that assumption against the `expected` column before trusting it for a row
+you have not seen before.
+
+**This result is also the only undo for the repair in item 177.** Save it before
+running any UPDATE.
+
 Then, and only if that reads correctly:
 
 ```powershell

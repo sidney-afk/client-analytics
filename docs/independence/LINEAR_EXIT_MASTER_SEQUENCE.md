@@ -557,9 +557,30 @@ The repair is the owner's choice, and this document deliberately does not pick:
 - **a fresh minimal change** to `production-write` doing the equivalent, if #1326's
   wider scope is unwanted.
 
+**Short-circuiting `projectForIntake` is NOT enough on its own, and this is the
+second thing that turned out to be true of it.** `parentRouteForAppend` reaches
+`validateLinearBatchParent` — a live provider read — independently of
+`projectForIntake`:
+
+- **`handleComponentFill:6038`** passes seven arguments, so `validateExternal`
+  takes its default of `true`. (This finally settles the positional-argument
+  question left open twice above: seven at the fill, eight at the appends.)
+- **`handleIntakeCreate:6701` and `:6721`**, the append-to-an-existing-batch paths,
+  pass `validateExternal = !exactRowRetry`, which is `true` on any normal append.
+
+So a repair scoped to `projectForIntake` leaves **component fill** and **every
+append into an existing batch** still reading Linear. **The repair must also bypass
+parent-provider validation**, as #1326's full epoch mechanism does.
+
+**And the acceptance checks had the matching hole:** they said "create a post"
+without distinguishing a **new** batch from an **append to an existing** one. Only
+the append reaches `parentRouteForAppend`. A minimal repair could therefore have
+passed every check while appends stayed broken — and appends are the common case,
+since most posts join a batch that already exists.
+
 **If the minimal option is chosen, it must cover labels as well, and that is a
-SEPARATE repair.** Short-circuiting `projectForIntake` fixes intake and component
-fill and does nothing for labels: `handleLabelsRead` and the `labels` write reach
+THIRD separate repair.** Short-circuiting `projectForIntake` fixes new-batch intake
+and does nothing for labels: `handleLabelsRead` and the `labels` write reach
 the provider through `linearLabelSnapshot` → `linearLabelCatalog`, which never
 touches `projectForIntake`. A repair scoped to the intake reads would deploy, look
 complete, and still fail check 5 — leaving Phase 3 blocked after an F27 deploy has
@@ -569,8 +590,24 @@ for the review, not an assumption to carry.**
 Either way it is an Edge Function change and therefore an F27 Section 4 deploy,
 dispatched at
 https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml
-with everything that implies: the sealed capture **before** the dispatch, the merge
-freeze, and `commit_sha` equal to main's tip at dispatch time.
+
+**The order is load-bearing and an abbreviated version of it fails the run.** Per
+`CLAUDE.md`, three steps, in this order:
+
+1. Run the capture script.
+2. **Upload** the named `.sourcebundle` into the `SyncView Backups/` Shared Drive
+   root. The lane does not receive the bundle — it **fetches** it from Drive by
+   content-addressed name during the run.
+3. **Then** dispatch, pasting `sealed_bundle_sha256` and
+   `sealed_bundle_byte_length` from the receipt.
+
+Skipping step 2 fails in about 20 seconds with `OBJECT_MISSING`, deploying nothing.
+An earlier version of this section said "the sealed capture before the dispatch",
+which omits the upload and is exactly the abbreviation that failed run #37 on
+2026-09-05.
+
+Plus `commit_sha` equal to main's tip **at dispatch time**, which means no merges
+between handing over the SHA and the owner dispatching.
 
 **The acceptance criterion is behavioural, not a green check.** With
 `SYNCVIEW_QA_LINEAR_DEAD` active, on the TEST client `sidneylaruel`, all of these
@@ -581,6 +618,7 @@ must **succeed**, not merely fail cleanly:
 | 1 | Create a post from the **Calendar** | request site `index.html:42155` |
 | 2 | Create a post from **Samples/SXR** | **same** request site as 1, different surface value — it proves the surface branch, not a second site |
 | 3 | A **staff submission** from the normal tab | the **other** request site, `index.html:48263`. A surface-scoped repair could pass 1 and 2 and still refuse this |
+| 3b | **Append a post to an EXISTING batch** | `parentRouteForAppend` → `validateLinearBatchParent`, which checks 1 to 3 never reach if they create a new batch. This is the common case in daily use |
 | 4 | **Fill a component** | `handleComponentFill`, a different handler again |
 | 5 | Set a **label**, and open the label picker | `linearLabelSnapshot` → `linearLabelCatalog`, a different provider dependency from the intake reads |
 | 6 | **Change an assignee**, after P6 | proves the flag actually took effect on the *deployed* function |
@@ -624,9 +662,9 @@ that must succeed:
 | 1 | The four held PRs are merged, **and #1350's runbook carries the P6/P7 preconditions** | merged with the old runbook text |
 | 2 | The naming mint's **four** steps are done, flag flip included, `video` proved before `graphics` is enabled (P1) | migration applied |
 | 3 | `production_assignee_eligibility` is exactly `{"provider_mapping_required": false}` (P6) **and row 4 check 6 has passed** | the flag readback, which proves only what the flags table holds |
-| 4 | With Linear dead, on the TEST client, **all six** P7 checks succeed: (1) Calendar post, (2) Samples/SXR post, (3) **staff submission**, (4) component fill, (5) **set a label and open the picker**, (6) **change an assignee** | any subset of them, or any of them refusing cleanly |
+| 4 | With Linear dead, on the TEST client, **all seven** P7 checks succeed: (1) Calendar post, (2) Samples/SXR post, (3) staff submission, (3b) **append to an EXISTING batch**, (4) component fill, (5) set a label and open the picker, (6) change an assignee | any subset of them, or any of them refusing cleanly |
 
-**Row 4 lists all six on purpose.** An earlier version named three, and the three
+**Row 4 lists all seven on purpose.** An earlier version named three, and the three
 it named covered one request site twice while omitting the staff submission, labels
 and the assignee proof entirely. **A summary that drops members of the list it
 summarises is not a summary, it is a second and weaker specification** — and this
@@ -651,9 +689,9 @@ handed to that lane as a comment on #1350, phrased in its existing P-numbered st
 gate unless its runbook carries these preconditions.** An operator entering through
 the procedural runbook, which is the normal way in, never sees this file. So
 "#1350 is merged" is **not** sufficient for row 1 of the entry gate; the runbook it
-lands must contain **all six P7 checks as behavioural successes** — Calendar post,
-Samples/SXR post, staff submission, component fill, label set-and-picker, and the
-post-flag assignee change — not a shortened list and not the assignee flag literal
+lands must contain **all seven P7 checks as behavioural successes** — Calendar
+post, Samples/SXR post, staff submission, **append to an existing batch**, component
+fill, label set-and-picker, and the post-flag assignee change — not a shortened list and not the assignee flag literal
 in place of the assignee check. The first version of this handoff asked for the
 flag value, which is the very substitution this document says elsewhere does not
 prove anything. If it merges without them, the gate is unmet and the cutoff is not

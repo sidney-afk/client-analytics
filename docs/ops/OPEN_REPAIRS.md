@@ -17408,3 +17408,43 @@ the flag transition rather than the seeding.
 **Two of three self-flagged uncertainties held; one did not.** That ratio is the
 argument for sweeping rather than for confidence: the sweep is cheap, and which
 items fail is not predictable in advance.
+
+### Addendum, 2026-09-08 — the minimal repair had a second hole, and the acceptance checks had the matching one
+
+Two findings, one P1, and the P1 also settles a question left open twice above.
+
+**1. Short-circuiting `projectForIntake` does not fix component fill or appends.**
+`parentRouteForAppend` reaches `validateLinearBatchParent`, a live provider read,
+by a path that never touches `projectForIntake`:
+
+- `handleComponentFill:6038` passes **seven** arguments, so `validateExternal`
+  takes its default `true`.
+- `handleIntakeCreate:6701` and `:6721`, the append-into-an-existing-batch paths,
+  pass `validateExternal = !exactRowRetry` — **true on any normal append**.
+
+That also closes the `validateExternal` positional-argument question this ledger
+flagged twice and never resolved: seven at the fill, eight at the appends.
+
+**2. The acceptance checks had the matching hole.** They said "create a post"
+without distinguishing a **new** batch from an **append to an existing** one, and
+**only the append reaches `parentRouteForAppend`**. So the minimal repair could have
+passed all six checks while every append stayed broken — and **appends are the
+common case**, since most posts join a batch that already exists. Added as check
+3b; the gate is now seven checks.
+
+**The shape, again, and it is getting specific enough to be actionable.** A repair
+option and an acceptance criterion, both derived by me from the same finding, shared
+one blind spot: I had traced *one* provider read on the intake path and then wrote
+both the fix and the test for that read. **A test derived from the same reading as
+the fix cannot catch what the reading missed.** That is a structural reason my
+acceptance criteria keep needing widening, and it argues for deriving the checks
+from the *surface inventory* — every operation a person performs — rather than from
+the code path I happened to trace.
+
+**3. The F27 order was abbreviated in the failing direction.** I wrote "the sealed
+capture before the dispatch", which omits the **upload to the `SyncView Backups/`
+Shared Drive root** between them. The lane does not receive the bundle, it fetches
+it from Drive by content-addressed name, so skipping the upload fails in about 20
+seconds with `OBJECT_MISSING` and deploys nothing. **This is the exact abbreviation
+that failed run #37 on 2026-09-05**, and it is written out in `CLAUDE.md` in
+capitals. I had the file in front of me and compressed three steps to two.

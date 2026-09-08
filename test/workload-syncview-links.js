@@ -82,8 +82,49 @@ ok(/Open SyncView →/.test(pop), 'the primary header action now reads Open Sync
 ok(/workload-popover-parent-linear[^>]*href="\$\{wlEscape\(openLinearUrl\)\}/.test(pop)
   && /Linear ↗/.test(pop),
 'Linear stays reachable from the header as a secondary link, aimed at whatever the primary button opens');
-ok(/const rowSyncUrl = s\.identifier\s*\?\s*\(location\.pathname \+ '\?prod=1&d=' \+ encodeURIComponent\(s\.identifier\)\)\s*:\s*\(s\.url \|\| ''\);/.test(pop),
-  'each sub-issue row links to its own SyncView detail, falling back to Linear only when no identifier exists');
+/*
+ * 2b. THE ROW LINK IS BUILT FROM THE NATIVE ID FIRST. Codex P1 on #1344.
+ *
+ * The pin that used to live here asserted the `s.identifier ? … : (s.url || '')`
+ * expression verbatim, which was true and is now WRONG: a deliverable created
+ * after the outbound flip has neither `linear_identifier` nor
+ * `linear_issue_url`, so that expression renders href="" and clicking the row
+ * reloads the Workload page instead of opening the deliverable. The loose
+ * strips already route by `nativeId`; the popover now does too.
+ *
+ * OPEN_REPAIRS 177 is the reason this is a REPLACEMENT and not an addition: a
+ * lane shipped a test asserting the old behaviour was correct, and a green
+ * suite is exactly how that survives review. Executed, not pattern-matched —
+ * every behavioural check below was seen to go red against the pre-fix source.
+ */
+const rowLinkStmt = pop.slice(pop.indexOf('const rowSyncUrl'),
+  pop.indexOf(';', pop.indexOf('const rowSyncUrl')) + 1);
+ok(/wlSyncLinearUrl/.test(rowLinkStmt), 'the row-link statement extracts (harness is not vacuous)');
+const rowLink = new Function('s', 'wlSyncLinearUrl', 'location',
+  rowLinkStmt + '\nreturn rowSyncUrl;');
+const syncUrl = ident => { const t = String(ident || '').trim();
+  return t ? ('/?prod=1&d=' + encodeURIComponent(t)) : ''; };
+
+/* Synthetic ids. `?prod=1&d=` resolves a native id because _prodIssue() matches
+   on `id` OR `displayId` — the same route the loose strips use. */
+const NATIVE_ROW_ID = 'del_0000000000000000000000000001';
+ok(rowLink({ nativeId: NATIVE_ROW_ID, identifier: '', url: '' }, syncUrl, { pathname: '/' })
+     === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a post-flip row with no identifier and no Linear url still links to its SyncLinear detail');
+ok(rowLink({ nativeId: NATIVE_ROW_ID, identifier: '', url: '' }, syncUrl, { pathname: '/' }) !== '',
+  'it does NOT render an empty href that reopens the Workload page -- the exact reported defect');
+ok(rowLink({ nativeId: NATIVE_ROW_ID, identifier: 'VID-9001', url: 'https://linear.app/x/issue/VID-9001' }, syncUrl, { pathname: '/' })
+     === '/?prod=1&d=' + encodeURIComponent(NATIVE_ROW_ID),
+  'a native row that still carries an identifier routes by the NATIVE id, matching the loose strips');
+ok(rowLink({ identifier: 'VID-9001', url: 'https://linear.app/x/issue/VID-9001' }, syncUrl, { pathname: '/' })
+     === '/?prod=1&d=VID-9001',
+  'a legacy row keeps its identifier deep link -- the path in use today is unchanged');
+ok(rowLink({ identifier: '', url: 'https://linear.app/x/issue/VID-9001' }, syncUrl, { pathname: '/' })
+     === 'https://linear.app/x/issue/VID-9001',
+  'with neither a native id nor an identifier, Linear is still the fallback');
+ok(rowLink({ identifier: '', url: '' }, syncUrl, { pathname: '/' }) === '',
+  'and a row with nothing to point at yields an empty string rather than a bogus route');
+
 ok(/workload-popover-item-main" href="\$\{wlEscape\(rowSyncUrl\)\}/.test(pop),
   'the row MAIN click goes to SyncView');
 ok(!/workload-popover-item-main" href="\$\{wlEscape\(s\.url\)\}/.test(pop),

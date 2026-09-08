@@ -14235,6 +14235,87 @@ rewrite, no migration, no deploy — every live action is written up with its un
 in `docs/ops/LINEAR_MEDIA_RESCUE.md` and none was executed. The comment half is
 sequenced after the inbound webhook is off and that sequencing is lane F's call,
 not this lane's.
+### Two Codex P1s closed on #1344 — both are post-flip-only, which is why they needed tests, not eyes (2026-09-08)
+
+Neither finding is reachable on today's board: both concern rows that exist only
+AFTER the outbound flip. That is the whole argument for fixing them now. Item 177
+is the shape of the alternative — ship it green, break it on the day the flip
+happens, discover it with attention elsewhere and rollback harder.
+
+**1. The tweak popover asked Linear for `del_…` ids.** This lane gives every
+native row a `del_…` `id` and keeps the Linear uuid beside it in `linearId`.
+`wlFetchTweakComments` POSTs to a webhook that looks issues up BY LINEAR ID, and
+`wlOpenRollupPopover` was still sending `tweakSubs.map(s => s.id)`. It does not
+error — it answers an empty list, which renders as an empty box, which reads as
+"no tweak comment on this sub-issue". The feedback that sent the work back is the
+single thing an editor opens that popover for, so the failure mode was invisible
+by construction.
+
+Fixed at the CALL SITE only. `wlFetchTweakComments` and `wlRenderTweakComments`
+sit at `index.html:19535` and `:19558` — inside the 19270-19600 block owned
+exclusively by lane D (#1347), which rewrites the fetch to read native comments
+from `production-comments`. **Not touched.** #1347 is unmerged and may land after
+this PR, so this PR must not depend on it: the call site sends the Linear key and
+paints the answer back under the native row key, which works whether or not lane
+D has merged. A legacy row still goes over the wire by its own `id`, because on
+the Linear-derived path that id IS the Linear uuid and `_wlV2MapRow` mints no
+`linearId`.
+
+**A row with NO `linearId` is never sent, and says so.** A deliverable created
+after outbound stops has no Linear issue at all; asking the webhook about it is
+pointless. Its box gets an explicit `wl-tweak-comments-status` row — "No Linear
+sub-issue for this deliverable, so its tweak comments can't be shown here yet" —
+rather than a blank, because a blank asserts the opposite of the truth. The
+failure branch was also narrowed from `querySelectorAll('.wl-tweak-comments')` to
+the rows the fetch actually covered, so a row with no Linear issue is never told
+to "open the sub-issue in Linear".
+
+**2. The popover row link ignored the native id.** `rowSyncUrl` was built from
+`s.identifier` with `s.url` as the fallback. A post-flip row has neither, and
+native rows now serve `url` as `''`, so those rows rendered `href=""` and a click
+reopened the Workload page. Now `wlSyncLinearUrl(s.nativeId || s.identifier) ||
+s.url || ''` — the same route the loose strips already use, and `?prod=1&d=` does
+resolve a `del_…` id because `_prodIssue()` matches on `id` OR `displayId`.
+
+**This corrects an earlier note in this entry.** The bullet above says the native
+row links are "stranded in lane D's region" at `index.html:19472` and `:19540`.
+That was true against the lane map's `d2495eb` anchor and is not true on this
+head: the loose strips are at `:19076` and the popover row link at `:19807`, both
+squarely in lane A. The stranding was a line-number artefact, exactly as this
+entry's own warning about re-checking the region table predicted.
+
+**Both tests were proven RED before being kept**, per this lane's standing rule
+and item 177's lesson:
+
+- `test/workload-tweak-comment-transport.js` (new) slices the real fill block out
+  of `index.html` and executes it against a fake popover, asserting which ids go
+  over the wire, that the answer lands under the native key, and that a row with
+  no Linear issue gets an honest state. **9 of its 17 checks fail against the
+  pre-fix source**, including every core one. `wlRenderTweakComments` is stubbed
+  rather than compiled, deliberately — binding this suite to lane D's current
+  function body would collide on merge.
+- `test/workload-syncview-links.js` had a pin asserting the OLD `rowSyncUrl`
+  expression verbatim. **That pin was the item-177 defect in miniature**: a test
+  asserting the brittle behaviour was correct, keeping the suite green over the
+  bug. It is REPLACED by six executed checks on the sliced statement, four of
+  which (three behavioural) fail against the pre-fix source.
+
+**Suite.** `npm test` → **422 of 423 suites pass**. The one failure is
+`test/truth-sync.js`, which is the shallow-clone baseline in this container
+(`git rev-parse --is-shallow-repository` → true, 332 commits): all 14 of its
+failures are `docs/truth/*` freshness commits not resolving, and the identical
+14 fail on the unmodified tree. Zero new failures.
+`node scripts/repo-identity-exposure-check.js` → at or under baseline.
+
+**One thing a later session should not re-derive.** The two documents the brief
+for this work named as required reading —
+`docs/independence/LINEAR_EXIT_LANES.md` (the lane map) and
+`docs/independence/LINEAR_EXIT_BRIEF_A.md` — **do not exist on any branch in this
+clone**, and `git log --all --diff-filter=A` finds no commit that ever added
+them. The lane boundary honoured here is the 19270-19600 range as recorded in
+this entry's own bullet above, not a map that could be read. Whoever holds the
+map should either commit it or stop citing its path.
+
 ## 170. [2026-09-07/08, BUILT AND UNRUN — the exporter exists, the capture has NOT been taken; one owner decision and one number still missing] The Linear label catalog had no exporter, and the naming mint had no mint
 
 Lane B of the Linear exit (`docs/independence/LINEAR_EXIT_BRIEF_B.md`, branch

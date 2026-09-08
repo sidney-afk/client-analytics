@@ -19805,9 +19805,13 @@
             const tweakBox = wlIsTweaksNeeded(s)
                 ? `<div class="wl-tweak-comments" data-wl-comments-for="${wlEscape(s.id)}"><div class="wl-tweak-comments-status" role="status" aria-label="Loading">${_svSkel('sv-skeleton-line', 'width:72%;height:10px;')}</div></div>`
                 : '';
-            const rowSyncUrl = s.identifier
-                ? (location.pathname + '?prod=1&d=' + encodeURIComponent(s.identifier))
-                : (s.url || '');
+            // Route by the NATIVE id first, exactly as the loose strips do. A
+            // deliverable created after the outbound flip carries neither
+            // `identifier` nor `url`, so keying on the identifier renders
+            // href="" and the click reloads the Workload page instead of
+            // opening the deliverable. `?prod=1&d=` resolves a `del_…` id
+            // because _prodIssue() matches on `id` OR `displayId`.
+            const rowSyncUrl = wlSyncLinearUrl(s.nativeId || s.identifier) || s.url || '';
             const linearBtn = s.url
                 ? `<a class="workload-popover-item-cal workload-popover-item-linear" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="Open in Linear" data-tip="Open in Linear"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 9.8 9.8 6.2M7 4.6h4.4V9"/><rect x="2.2" y="2.2" width="11.6" height="11.6" rx="2.6"/></svg></a>`
                 : '';
@@ -19847,20 +19851,58 @@
 
         if (tweakSubs.length) {
             const token = ++_wlTweakCommentsToken;
-            wlFetchTweakComments(tweakSubs.map(s => s.id)).then(byId => {
-                if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
-                for (const s of tweakSubs) {
-                    const sel = (window.CSS && CSS.escape) ? CSS.escape(s.id) : String(s.id).replace(/"/g, '');
-                    const box = pop.querySelector('[data-wl-comments-for="' + sel + '"]');
-                    if (box) box.innerHTML = wlRenderTweakComments(byId[s.id]);
-                }
-                wlMarkClampedComments(pop);
-            }).catch(() => {
-                if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
-                pop.querySelectorAll('.wl-tweak-comments').forEach(box => {
-                    box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load the comments — open the sub-issue in Linear to read them.</div>';
+            /* THE ROW KEY AND THE LOOKUP KEY ARE NO LONGER THE SAME STRING.
+
+               A native row's `id` is its `del_…` identifier and the Linear uuid
+               sits beside it in `linearId`; `wlFetchTweakComments` POSTs to a
+               webhook that looks issues up BY LINEAR ID. Sending `s.id` matches
+               nothing for every native row, and an empty comment list renders as
+               an empty box — so the review feedback that sent the work back
+               disappears silently, which is the one thing this popover exists to
+               show. So: send the Linear key, paint back under the row key.
+
+               A legacy row has no `linearId` (its own `id` IS the Linear uuid),
+               hence the non-native fallback rather than a bare `s.linearId`.
+
+               A deliverable created after outbound stops has no Linear issue at
+               all. It is not sent — the webhook would match nothing — and its box
+               says so, because a blank box reads as "no tweak comment", the
+               opposite of the truth. Lane D moves this source to native comments
+               (`production-comments`); until then this CALL SITE is the only
+               thing that has to know the difference, so `wlFetchTweakComments`
+               itself is left alone and the popover works either way. */
+            const wlTweakLinearKey = s => (s && s.workloadSource === 'native')
+                ? String((s && s.linearId) || '').trim()
+                : String((s && (s.linearId || s.id)) || '').trim();
+            const wlTweakBox = id => {
+                const sel = (window.CSS && CSS.escape) ? CSS.escape(id) : String(id).replace(/"/g, '');
+                return pop.querySelector('[data-wl-comments-for="' + sel + '"]');
+            };
+            const linkable = tweakSubs.filter(s => wlTweakLinearKey(s));
+            for (const s of tweakSubs) {
+                if (wlTweakLinearKey(s)) continue;
+                const box = wlTweakBox(s.id);
+                if (box) box.innerHTML = '<div class="wl-tweak-comments-status">No Linear sub-issue for this deliverable, so its tweak comments can&rsquo;t be shown here yet.</div>';
+            }
+            if (linkable.length) {
+                wlFetchTweakComments(linkable.map(wlTweakLinearKey)).then(byId => {
+                    if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
+                    for (const s of linkable) {
+                        const box = wlTweakBox(s.id);
+                        if (box) box.innerHTML = wlRenderTweakComments(byId[wlTweakLinearKey(s)]);
+                    }
+                    wlMarkClampedComments(pop);
+                }).catch(() => {
+                    if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
+                    // Scoped to the rows this fetch actually covered: a row with
+                    // no Linear issue already carries its own true message and
+                    // must not be told to "open the sub-issue in Linear".
+                    for (const s of linkable) {
+                        const box = wlTweakBox(s.id);
+                        if (box) box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load the comments — open the sub-issue in Linear to read them.</div>';
+                    }
                 });
-            });
+            }
         }
 
         // Position: anchored below the clicked rollup, clamped to viewport.

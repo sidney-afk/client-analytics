@@ -4585,6 +4585,19 @@
         .cal-native-batch-tabs span { display: flex; justify-content: center; align-items: center; padding: 8px 6px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
         .cal-native-batch-tabs input:checked + span { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
         .cal-native-batch-tabs input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        /* NARROW SCREENS STACK BOTH TOGGLES (Codex P2 on PR 1353).
+           Measured, not estimated: at 360px the batch tabs fit exactly
+           (288 = 288) and it is the three-column MODE toggle that overflows
+           (314 > 288); at 320px both do (277 and 314 against 251). The labels
+           are nowrap by design -- 'Add to a previous batch' wrapping mid-phrase
+           reads worse than a stacked tab -- so the columns collapse instead.
+           This covers the mode toggle as well as the tabs this PR added,
+           deliberately: fixing only the new half would leave the dialog
+           overflowing horizontally on the same screen, which is the whole
+           defect. */
+        @media (max-width: 420px) {
+            .cal-native-mode-toggle, .cal-native-batch-tabs { grid-template-columns: 1fr; }
+        }
         .cal-native-batch-panel { margin-top: 10px; display: grid; gap: 8px; }
         .cal-native-batch-panel .cal-native-sublabel { margin: 2px 0 -4px; font-size: 0.74rem; }
         .cal-native-field-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }

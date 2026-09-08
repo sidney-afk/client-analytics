@@ -14066,3 +14066,395 @@ confirmed to FAIL against the candidate's throw before the fix went in.
 `test/workload-native-realtime.js` pins the channel's table set and executes the
 debounce. Nothing here is deployment, live-population or serving proof, and the
 PR body says so.
+
+**MEASUREMENT TAKEN, 2026-09-07 late evening UTC — this entry's "NOT MEASURED" is
+superseded.** Read-only against the live backend with the browser publishable key,
+while the n8n Workload reconcile was still running (the only window in which the
+comparison is possible). **37 live tasks are present natively and absent from the
+board; 33 are active-roster client work across 11 clients**; 4 are the TEST client.
+27 VID / 10 GRA, 21 video / 16 thumbnail; statuses 30 `Todo`, 5 `In Progress`,
+1 `For SMM approval`, 1 `Tweak Needed`. **Every one carries a `linear_id`**, so
+none is a native row the mirror never reached: each was created, mirrored out, and
+lost provider-side. Item 95 read 40 active-roster rows on 2026-09-01; this reads 33
+on 2026-09-07, so the population is persistent rather than a one-off.
+
+Two things this measurement corrected. **`migrations/2026-09-02-workload-native-view.sql`
+was already applied** — this lane was told to verify the opposite because it appears
+nowhere in `EXECUTION_LOG.md`, and absence from the log is absence of a record, not
+of the change. And the predicted ~195 answers a different question: it comes from
+`_wlNativeDiffReport`, which keys purely on `linear_id` presence with no status or
+client filter. A trap worth naming: the native view's batch arm emits `native_kind`,
+`status` and `status_type` as NULL by design, so a naive live-status test admits all
+1,366 batch rows and reports 1,403 instead of 37. Filter `native_kind is not null`
+first. Full detail and receipts in the coordinator's own ledger entry.
+
+## 170. [2026-09-07/08, BUILT AND UNRUN — the exporter exists, the capture has NOT been taken; one owner decision and one number still missing] The Linear label catalog had no exporter, and the naming mint had no mint
+
+Lane B of the Linear exit (`docs/independence/LINEAR_EXIT_BRIEF_B.md`, branch
+`claude/lx-b-write-path`, rebased onto `origin/main` `4e57e74` — main moved by
+#1342 and #1343 after the briefs were written). Number 170 was reserved for this
+lane by item 168; it was free when this was appended. This entry records what
+was built, and — more importantly — the three choices inside it that become
+permanent on 2026-09-15.
+
+### 1. There was no label exporter anywhere, and there still is no capture
+
+`production_label_catalog_stage_attested` is the only door into
+`production_label_catalog_versions`, and without a row there the whole native
+label lane is inert: staff can neither see nor change labels on any deliverable
+after Linear lapses. Nothing in the repository produced the manifest that
+function demands. Verified: `git ls-tree -r 5bcc03bd7 | grep -i label` returns
+migrations, docs, QA harnesses and tests, and no exporter.
+
+`scripts/linear-label-catalog-export.js` (+ `.cli.js`) is that exporter.
+`docs/ops/NATIVE_LABEL_CATALOG_CAPTURE.md` is the owner's runbook and carries
+the single command. It is READ-ONLY against both Linear and Postgres.
+
+**The capture has not been taken.** It needs `api.linear.app` and a credential,
+neither of which reaches a session. It is the one item in the whole programme
+that is unrecoverable after the 15th.
+
+### 2. The scope ruling, and exactly what is being left behind
+
+The owner ruled: export "only on active cards". That applies cleanly to one half
+and not the other, so the two halves have different scopes.
+
+**(a) The catalog is taken WHOLE, and that is not a widening of the ruling.**
+`production_label_catalog_check_manifest`
+(`migrations/2026-09-05-native-label-catalog-foundation.sql:40`) validates a
+closed cursor chain, a terminal page, archived-inclusive entries and an exact
+count, and refuses partial evidence by construction. A filtered catalog cannot
+satisfy its own manifest. Taking it whole is cheap: the checker itself bounds
+the capture at 50 pages × 100 rows, 5000 rows and 5 MiB. If this reading is
+wrong the exporter is wrong, and it should be said before the capture is taken.
+
+**(b) Per-card label state is `deliverables.linear_raw -> issue -> labels`, and
+that is where the ruling bites.** The predicate, exactly:
+
+```sql
+where d.status not in ('posted', 'canceled', 'duplicate')
+  and d.linear_raw ->> 'archived' is null
+```
+
+Decided at the DELIVERABLE, not at the client. The three statuses are the
+terminal ones in the `deliverables` status check
+(`migrations/2026-07-06-b1-linear-data-model.sql:38-41`); `archived` is the
+marker `linear-inbound:903` stamps onto `linear_raw`. A client-level filter
+(`clients.active`, `clients.board_status`) was considered and rejected: it would
+also drop in-flight cards belonging to a client whose flag is stale.
+
+**WHAT IS DELIBERATELY NOT CAPTURED, permanently, after 2026-09-15: the label
+state of every posted, canceled, duplicate or archived card.**
+
+**THE ROW COUNT IS NOT IN THIS ENTRY, AND IT SHOULD BE.** The brief asked for
+it; this session has no route to the live backend and will not invent one. The
+exporter prints it, and the runbook says to record it here and in the
+attestation before attesting. Until someone does, nobody knows how big the
+excluded set is.
+
+### 3. Half (b) is more than a snapshot, and this is the part nobody had noticed
+
+Most of (b) reads our own database, so it survives the 15th. One part does not.
+
+`production_labels_write` (`migrations/2026-09-06-native-label-writes.sql:163-165`)
+raises `native_label_state_incomplete` unless the stored relation has a `nodes`
+array **and** `hasNextPage` exactly `false`. A card whose stored relation is
+paginated, missing or malformed therefore **can never have its labels changed on
+the native lane**, and the only repair is a re-read from Linear.
+
+So the exporter classifies every active card `complete` / `paginated` /
+`missing` / `malformed` and re-reads from Linear only the ones the native writer
+would refuse, emitting them as `repaired_relation`. **Applying those repairs to
+`deliverables.linear_raw` is an owner decision and was deliberately not built**:
+it is a direct write to a real client column that bypasses
+`production_deliverable_write`, and it should not be a session's call. The
+counts arrive with the capture; the decision can be made then.
+
+### 4. THE TRAP, and it is not self-guarding
+
+`production_label_catalog_capability()`
+(`migrations/2026-09-06-native-label-writes.sql:57-72`) reads **only** the
+`production_native_label_catalog` runtime flag. It never queries
+`production_label_catalog_versions`. Set that flag to `mode:"native"` with any
+well-formed UUID and capability reports `native` with no version staged; the
+refusal lands one call later inside `production_label_catalog_read_attested` as
+a 503. This confirms item 165.6 by reading the function body.
+
+The generated `4-capability-flag.sql` carries the warning in its own header and
+`test/native-label-catalog-export.js` goes red if that warning is removed, or if
+`capability()` ever starts reading the versions table without this entry being
+revisited.
+
+### 5. The naming mint (folded-in lane G, item 162 and its correction)
+
+`migrations/2026-09-07-native-identifier-mint.sql` — a `before insert or update`
+trigger on `deliverables` that mints `linear_identifier` for native cards.
+Runbook: `docs/ops/NATIVE_IDENTIFIER_MINT.md`.
+
+A trigger on the table rather than a change to any write function, because both
+provider mint sites (`linear-outbound:852` into `production_issue_create_linkage`,
+`:868` into `deliverable_write`) and every native creation path all update that
+one table. It replaces no existing function, so it cannot collide with the
+composed intake artifact.
+
+Three decisions worth arguing with:
+
+- **Native ordinals start at `observed_provider_max + 100000`.** Native names
+  keep the provider's shape, so they share its namespace; a high band cannot
+  collide with anything Linear mints before the cutoff. The prefix is derived
+  from what the provider actually used, never configured, and a team with two
+  prefixes refuses to seed rather than guessing (the item-161 failure mode).
+- **The capability self-guards** — native only when the flag says native AND a
+  seed row exists. Deliberately unlike the label capability in §4 above.
+- **Name stability is NOT flag-gated.** Once a name is handed out, a later
+  provider write keeps the native name and records the one it refused. Flipping
+  back to `provider` stops minting and renames nothing.
+
+Proved against a disposable PostgreSQL 16, not asserted about: 17 cases in
+`qa/native-identifier-mint/sql-proof.js` covering the no-op install, the
+half-armed flip, minting, collision step-over, 25 concurrent allocations, the
+provider write-back, the undo and two refusals. **The first run of that proof
+found a real bug** — `production_native_identifier_capability` was declared
+`stable` and takes `for share`, which PostgreSQL refuses in a non-volatile
+function, so every insert would have failed. A source-only assertion would not
+have caught it.
+
+**Still unrun against the live database**, and still open from item 162:
+whether native naming covers every surface that shows a name. `displayId`
+(`index.html:51816`) is the resolution point for the Production list, the
+command palette and the deep links, and it needs no change because it already
+prefers `linear_identifier`. Slack alert text and the Workload row header were
+not walked.
+
+### 6. Two error strings that would have lied to staff on the 15th
+
+Fixed in `_calNativePostErrorText` and `WRITE_UI_FAILURE_CODE_TEXT`, both inside
+lane B's index.html regions.
+
+`project_mapping_validation_unavailable` (gateway `index.ts:2325`) and
+`batch_parent_validation_unavailable` (`:2348`) both matched
+`/project|mapping|parent/` and reached "This client's Video and Graphics filing
+must be configured before a post can be created" — telling an SMM to fix a
+configuration that is already correct and that no configuration can fix. Same
+class as the 2026-08-20 `batch_parent_mapping_` case eight lines above it, one
+cause over: a DEPENDENCY problem dressed as a SETUP problem.
+
+`assignee_provider_unavailable` (`:2600`) matched no branch and reached the
+catch-all's "safe to retry" — the sentence that cost a videographer eleven
+identical submissions on 2026-08-26. Create Post sends `assignee_id` whenever
+its editor dropdown resolves, so every video post hits it.
+
+All three now name the dependency, say nothing was created, and point at
+reporting rather than retrying. The assertions in
+`test/create-post-error-names-the-cause.js` are written as negatives — neither
+wrong sentence can be reached from these codes again, however the mapper is
+later rearranged — and they check that a genuine `project_mapping_missing` still
+gets the client-filing sentence, so a true message was not removed to prevent a
+false one.
+
+### 7. Confirmed and corrected from the briefs, by reading the source
+
+- **Item 165.3 is right and the brief was wrong** about `linear_team_mapping_unavailable`
+  and `status_mapping_unavailable` being on Create Post. `linearStateIdForCreate`
+  has exactly one caller, `index.ts:3604` inside `handleProductionCreate`, which
+  is dead behind the unconditional 403 `production_create_closed`. Create Post
+  and Submit never reach either code. They are Production-tab only.
+- **`linear-outbound` writes `linear_identifier` at one line, not two.** Item
+  162's correction names `:857` and `:868`; on `origin/main` `4e57e74` the two
+  minted values are `clean(completeIssue.identifier)` at **`:852`** (into
+  `production_issue_create_linkage` as `p_issue.identifier`) and `:868` (into
+  `deliverable_write` as `linear_identifier`). Both still reach the table, so
+  the correction's conclusion holds; only the line number is off by five.
+- **`production-write` copies, it never mints.** One reference,
+  `index.ts:1576`, `linear_identifier: clean(row.linear_identifier) || null`,
+  and four `identifier: null` at create. Pinned by a test so a future mint
+  there does not silently duplicate this one.
+
+### 8. Belongs to other lanes
+
+- **`WRITE_UI_FAILURE_CODE_CLASS` (index.html:26711-26855) files all three
+  codes above under `wait`.** Correct today — a dependency was unreachable and
+  nothing was committed — and a permanent lie from the 15th, when `wait` will
+  advise an SMM to keep trying something that can never succeed. That block is
+  outside lane B's assigned region (26859-27450), so it was not touched. It
+  needs an owner-visible decision about whether a fourth class exists for
+  "gone, not late". The `WRITE_UI_FAILURE_CODE_TEXT` entries added in §6 are a
+  local patch over it, not a fix for it.
+- **THE INTEGRATION CANDIDATE `5bcc03bd7` IS BEHIND MAIN, AND NOT ONLY IN
+  index.html.** Every lane brief says to lift artefacts from it. Measured on
+  this branch: `git ls-tree 5bcc03bd7 migrations/` returns 106 files and
+  `git ls-tree origin/main migrations/` returns 92, but the sets are not nested
+  — `migrations/2026-09-07-deliverable-identifier-team-move-repair.sql` is on
+  main and **absent from the candidate**. That file arrived with PR #1333
+  (`3ea7c04`, `d032cf5`), the same PR item 163 records as re-anchoring the
+  Production deep link on `linear_identifier`. `git diff origin/main 5bcc03bd7`
+  scores it `-194`, and index.html at `+3374/-`. So a wholesale lift of the
+  candidate's `migrations/` or `index.html` **reverts #1333**, and #1342 and
+  #1343 merged after that. `git merge-base` will not tell you this: the session
+  clone is shallow and the candidate was fetched at `--depth=1`, so merge-base
+  answers with main's own tip and is simply wrong. Compare trees, not history.
+  This is why lane B lifted the two label migrations FILE BY FILE and did not
+  take index.ts or index.html from the candidate at all.
+- The two label migrations are lifted onto this branch but the gateway half
+  (candidate `production-write/index.ts` + `policy.mjs`, work item B1) is **not**
+  lifted. `test/native-label-catalog-foundation.js` AND `test/native-label-writes.js`
+  both assert against that gateway, so neither is on this branch. Whoever lands
+  B1 restores both, together with `qa/native-label-catalog/` — see §9.
+
+### 9. A LIFTED TEST WITHOUT ITS HARNESS, HIDDEN BY ITS OWN SKIP — read this before lifting any candidate test
+
+This lane's first push turned CI red, and the way it did is a trap every other
+lane is currently exposed to.
+
+`test/native-label-writes.js` was lifted from the candidate without
+`qa/native-label-catalog/`, the harness it spawns. Locally it printed
+`SKIP native label writes: explicit disposable PostgreSQL required` and exited
+**0**, so a full `npm test` was green and the omission was invisible. **CI sets
+`F63_REQUIRE_POSTGRES=1`**, so there the same suite ran, could not find the
+harness, and threw `native_labels_actual_lane_failed_private_evidence_retained`
+— a message naming neither the missing file nor the reason.
+
+Two things follow, and both are general:
+
+1. **A sandbox `npm test` is NOT the CI suite.** Three suites are gated behind
+   `F63_REQUIRE_POSTGRES` (`f63-flip-runbook-sql-gate`,
+   `linear-deliverables-reconcile-bounded-postgres`, and this lane's
+   `native-identifier-mint`) and they SKIP silently without it. Run the suite
+   with a disposable PostgreSQL 16 on a loopback port and
+   `PGHOST/PGPORT/PGUSER/PGDATABASE` all set — **`PGDATABASE=postgres` included,
+   which `f63-flip-runbook-sql-gate.js:531` asserts outright** — or your green
+   run has not covered what CI covers. Measured both ways on this branch: 1 of
+   414 failed either way, but only the gated run actually executes the
+   behavioural proofs.
+2. `qa/native-label-catalog/write-proof.mjs` and `handler-proof.mjs` both LOAD
+   `supabase/functions/production-write/index.ts` and pin its contents, so they
+   are useless until B1 lands. `sql-proof.js` beside them is gateway-free and
+   could stand alone, but nothing in `test/` invokes it on the candidate either.
+
+**The guard: `test/gated-suites-have-their-harness.js`.** Every path a top-level
+suite hands to `path.join(__dirname|root, …)` must exist, whatever any gate
+would have decided — a spelling check on file paths, with no database, no
+credentials and no gate of its own. It resolves each path against the base that
+suite actually uses (the first draft resolved everything against `test/` and
+produced ~200 false alarms, because most suites join from a `root` they set to
+the repository root). Mutation-proven: restoring `test/native-label-writes.js`
+makes it exit 1 naming `qa/native-label-catalog/write-proof.mjs`, and it asserts
+it resolved 129 real paths so it cannot pass by matching nothing.
+
+Six sessions are lifting candidate tests right now. This is the shape that bites.
+---
+
+## 174. [2026-09-07, lane LX-F, PART 1 SHIPPED — the dead-man's switch survives the Linear cutoff; the cutoff itself is prepared separately] Four of the eight monitored lanes die with Linear, and the switch's second host dies with them
+
+`174` is the number the exit reserved for lane F. Item 168 on the coordinator
+branch says `172`; `docs/independence/LINEAR_EXIT_LANES.md` on the same branch
+says `174` and is the later of the two. Verified free before writing: A took
+`169`, C took `171`/`175`/`176`, D took `172`, E took `173`.
+
+**The finding.** `scripts/monitoring-watchdog.js` registered eight lanes. Four
+of them — `reconciler_pager`, `production_write_drill`, `production_shadow_audit`
+and `b1_incremental_refresh` — are hosted by workflows whose "require secrets"
+step demands `LINEAR_API_KEY` (`linear-deliverables-reconcile.yml:72`,
+`production-write-drill.yml:73`, `production-shadow-audit.yml:37`,
+`b1-linear-incremental-refresh.yml:61`). Each writes its heartbeat under
+`if: always()`. So on the day the credential dies they do not go quiet, which
+the switch is built to catch — they RUN, fail at the secrets gate, beat
+`ok:false`, latch a `failing` incident that can never clear because nothing can
+un-latch a lane that can never pass again, and leave a red run behind every day.
+That is the estate training its owner to ignore the one channel that would have
+told him about a real failure.
+
+**The finding underneath the finding, which is worse.** The dead-man's switch is
+a two-host design — "a checker cannot report its own death", so `--check` runs
+from two independent workflows that read each other's `monitoring_watchdog`
+heartbeat. The second host was `linear-deliverables-reconcile.yml`
+(`:124-126`), one of the four. Disabling it as part of the cutoff would have
+silently reduced the switch to a single host, at which point a dead
+`monitoring-deadman.yml` becomes undetectable — on the exact day the estate
+needs it most. Nothing anywhere asserted the host count, so nothing would have
+said a word.
+
+**Shipped in this PR.**
+
+1. The second host is re-homed to `.github/workflows/monitoring-crosscheck.yml`
+   (`*/20`), which holds no Linear credential and survives 2026-09-15 untouched.
+   Until the reconciler is disabled there are three hosts, not two; that is
+   harmless (a stale lane latches once regardless of how many hosts observe it)
+   and it is why the re-home could merge well ahead of the cutoff instead of
+   racing it.
+2. Every lane now declares `hosts`, and the four doomed ones declare
+   `retires_with: 'linear'`. Retirement is `retired: {at, reason}`; the lane
+   stays in the registry and every `--check` reports its watched and its retired
+   set by name, so a retirement is never a lane quietly vanishing.
+3. `test/monitoring-watchdog.js` enforces the registry against the workflow
+   files in **both** directions: an active lane must have at least one
+   actively-scheduled host, and a retired lane must have none. **Disabling a
+   Linear workflow and retiring its lane are therefore one change, welded
+   together by the suite, instead of two that can drift** — which is what the
+   lane brief asked for as a note and is now a machine check. It also asserts
+   that at least two actively-scheduled Linear-free hosts run `--check`, and
+   that every scheduled workflow needing a `LINEAR_*` secret is on the cutoff
+   inventory (after the cutoff that assertion becomes "there are none", checked
+   rather than grepped once).
+
+Mutation-verified, five ways, each confirmed to go red against the shipped code:
+retiring a lane whose host still runs; unscheduling the four Linear workflows
+without retiring their lanes; removing the crosscheck host's schedule; adding a
+new scheduled Linear-credentialed workflow that no lane claims; and moving a
+heartbeat step out from under `if: always()`. The positive control — retire all
+four lanes AND comment out their crons, i.e. the actual cutoff — passes and
+leaves four watched lanes and four dated, reasoned retirements.
+
+**What this PR deliberately does NOT do.** It does not disable a single
+workflow, retire a single lane, or change any runtime flag. Every lane is still
+watched and every cron still runs; the behaviour on merge day is identical to
+the behaviour before it. The cutoff is prepared, not executed — F turns things
+off only after A/B/C/D are live and observed, and the outbound-off flip is gated
+on lane B's native naming mint (item 163). The rest of lane F —
+`docs/ops/LINEAR_CUTOFF_RUNBOOK.md`, the outbox-debt census, the native write
+drill, the workload-source freshness watcher, the client-continuity lift, the
+alarm-proof lane, the Linear-dead rehearsal, and the `ROLLBACK.md` Live State
+rows — ships in a later PR that merges LAST of the six lanes.
+
+**Correction to the lane brief, for whoever reads it next.** The brief warns
+that `test/monitoring-watchdog.js` "will pin the current 8-lane LANES list" and
+that changing LANES is a build break. It does not pin a count — it derives
+everything from the imported `LANES`. What actually broke was four fixtures that
+named `reconciler_pager` as a literal, and the wiring block that named three
+retiring workflow files by hand. Both are now derived (`WATCHED[0]`,
+`WATCHED[1]`, and the registry's own `hosts`), so no future retirement can
+force an assertion to be deleted to get the suite green — which is precisely how
+a lane would stop being watched without anyone deciding that it should.
+
+**Found while shipping this, and it is a trap for the later PR.**
+`scripts/monitoring-watchdog.js` is a **pinned member of the F27 reconciler
+closure** (`scripts/f27-reconciler-closure.js`: `EXPECTED_CLOSURE_PATHS` and
+`REVIEWED_BLOB_SHA256`, entered 2026-08-04 when the reconcile workflow gained
+the heartbeat and `--check` steps). Editing it drifts the pin and
+`test/f27-reconciler-closure.js` fails `REVIEWED_CLOSURE_BLOB_DRIFT` — but ONLY
+after the edit is committed, because that suite reads closure files from git
+HEAD, not the working tree. A pre-commit `npm test` reports green and the
+failure appears on the push. That is exactly how it surfaced here: the baseline
+and the first post-edit run were both clean, and the confirming run on the
+committed tree was not. The suite says so in a comment at
+`test/f27-reconciler-closure.js:77-90`; nothing in the exit briefs does.
+
+Re-pinned in this PR to `cc2b4324…` (previous `5df8340c…`) with the review note
+the file's own discipline requires. Only one pin site exists — verified by
+grepping the old digest across the tree.
+
+**The trap:** `WORKFLOW_PATH` for that closure is
+`.github/workflows/linear-deliverables-reconcile.yml`, which F4 **unschedules**.
+So the cutoff PR drifts this pin twice — once for its own edit to
+`monitoring-watchdog.js` (retiring the four lanes) and once for the workflow
+blob — and it must re-pin both. More than a chore: the entire F27
+reconciler-closure capture/rollback apparatus is defined over a workflow the
+cutoff turns off. Whether that apparatus should be retired with it, kept as a
+frozen historical capture, or re-pointed is an owner decision this PR does not
+take and the exit briefs never raise. Flagged for the coordinator.
+
+**Lane G fold-in.** G6 is the same rewrite with the same intent and is covered
+here in full. G11 (the `docs/ops/MONITORING.md` and `docs/CLIENT_LIFECYCLE_MAP.md`
+rows that overlap F12) is not: only the dead-man's-switch row of
+`docs/ops/MONITORING.md` is touched in this PR, because it is the only row this
+PR makes untrue. The remaining G11 rows move with F12.

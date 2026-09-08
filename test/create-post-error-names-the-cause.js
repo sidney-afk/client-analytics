@@ -146,6 +146,76 @@ const clientText = build(false, true);
     '...and is not swallowed by the new staff code suffix, which sits after it');
 }
 
+/* ---- 5. The three that stop being transient on 2026-09-15 ---------------
+ *
+ * Linear access ends 2026-09-15. On that day these three gateway codes start
+ * arriving permanently instead of occasionally, and the two sentences they
+ * currently reach are both false:
+ *
+ *   project_mapping_validation_unavailable (gateway index.ts:2325) and
+ *   batch_parent_validation_unavailable (:2348) match /project|mapping|parent/
+ *   and land on "This client's Video and Graphics filing must be configured",
+ *   telling an SMM to fix a configuration that is already correct and that no
+ *   configuration can fix.
+ *
+ *   assignee_provider_unavailable (:2600) matches no branch at all and lands on
+ *   the catch-all's "safe to retry" — the same sentence that cost a
+ *   videographer eleven identical submissions on 2026-08-26. Create Post sends
+ *   assignee_id whenever its editor dropdown resolves, so every video post
+ *   hits it.
+ *
+ * The point of these assertions is the NEGATIVE half: not that the new copy is
+ * good prose, but that neither wrong sentence can be reached from these codes
+ * again, however the mapper is later rearranged.
+ */
+{
+  const CONFIG_LIE = /filing must be configured/;
+  const RETRY_LIE = /safe to retry/;
+
+  for (const code of ['project_mapping_validation_unavailable', 'batch_parent_validation_unavailable']) {
+    const t = staffText(code);
+    ok(!CONFIG_LIE.test(t),
+      code + ' no longer says the client\'s filing must be configured -- no configuration clears a '
+      + 'dependency that cannot be read');
+    ok(!RETRY_LIE.test(t), code + ' does not fall through to "safe to retry" either');
+    ok(/linked task system/.test(t), code + ' names the real cause: the dependency, not the setup');
+    ok(/Nothing was created|nothing was created/.test(t),
+      code + ' answers the question a failed create actually raises');
+    ok(/report it rather than trying again/.test(t),
+      code + ' points at the action that can help, once retrying has stopped being one');
+  }
+
+  {
+    const t = staffText('assignee_provider_unavailable');
+    ok(!RETRY_LIE.test(t),
+      'assignee_provider_unavailable no longer reaches the catch-all -- it is the code every video '
+      + 'post hits the moment the provider stops answering');
+    ok(!CONFIG_LIE.test(t), '...and it does not borrow the client-filing sentence either');
+    ok(/who is assignable/.test(t), '...it says what could not be confirmed');
+    ok(/the editor list is not wrong/.test(t),
+      '...and rules out the thing an SMM would otherwise go and check first');
+  }
+
+  /* The catch-all branch these three now sit in front of must still be reached
+     by a code that genuinely IS a client-filing problem, or this fix has
+     removed a true message to prevent a false one. */
+  ok(CONFIG_LIE.test(staffText('project_mapping_missing')),
+    'a genuine mapping problem still gets the client-filing sentence, which is true for it');
+  ok(/created before we started filing/.test(staffText('batch_parent_mapping_absent')),
+    'and the 2026-08-20 batch_parent_mapping_ branch is untouched');
+
+  /* The other mapper has to agree. Two mappers serve this one path and a fix
+     that lands in only one of them is the exact defect section 2 above exists
+     for. */
+  const textMap = INDEX.slice(INDEX.indexOf('const WRITE_UI_FAILURE_CODE_TEXT = {'));
+  for (const code of ['project_mapping_validation_unavailable', 'batch_parent_validation_unavailable',
+    'assignee_provider_unavailable']) {
+    ok(new RegExp('\\n\\s{8}' + code + ': \\{').test(textMap),
+      code + ' is mapped in WRITE_UI_FAILURE_CODE_TEXT too, so the write-UI notification says the '
+      + 'same thing as the Create Post dialog');
+  }
+}
+
 console.log(failures === 0
   ? '\nCreate Post error-naming checks passed'
   : '\n' + failures + ' error-naming check(s) failed');

@@ -56,7 +56,8 @@ reading:
 
 | Surface | Effect | Severity |
 |---|---|---|
-| Staff writes: status, comments, edits | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so these go native (item 175, 2026-09-07) | none |
+| Staff writes: status, due date, description, comments, attachments, labels | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so these go native (item 175, 2026-09-07) | none |
+| **Changing a card's assignee** | **NOT safe as things stand.** `validateAssignee` → `assigneeProviderPool` needs Linear, and a **missing or malformed** `production_assignee_eligibility` flag *stays strictest* (`docs/truth/APP.md:652-653`). Loss of Linear gives `assignee_provider_unavailable` before the native assignment. **Unlike the intake reads, this one has a documented off switch** — see P6 | **fixable by one flag; unsafe until it is set** |
 | **Staff creating a post, or filling a component** | **NOT safe. See the section below.** `intake_create` and `component_fill` both read the Linear API before writing anything, and neither read is behind a flag | **the highest severity in this table** |
 | Workload board | The n8n reconcile stops refreshing `workload_issues`, so the board **freezes rather than empties** — silently current-looking and stale | high, because it is invisible |
 | Kasper → Editors subtab | `editors-week` fails | visible |
@@ -64,8 +65,12 @@ reading:
 | Urgent Slack alerts | `send-urgent-slack` **also reads Linear** — it looks shaped like a pure Slack write, but it resolves the issue's current Linear assignee to pick who to mention. It fails with the account | high, and it was on no existing reader list |
 | Import from Linear | Fails, and is moot after the exit anyway | none |
 
-**So the four held PRs merging before 2026-09-15 is what converts an
-uncontrolled degradation into a controlled cutover.** That is a real deadline on
+**Merging the four held PRs is necessary and NOT sufficient.** An earlier version
+of this line said those four merges convert an uncontrolled degradation into a
+controlled cutover. That is false as stated, and the section below on intake says
+why: none of the four touches `production-write`, so post creation and component
+filling stay Linear-dependent after all four land. **A controlled cutover needs the
+four merges, the intake repair (P7), and the assignee flag (P6).** That is a real deadline on
 the review, not on the engineering. It does not make anything unrecoverable, and
 it is not a reason to rush the review — it is a reason to schedule it.
 
@@ -463,6 +468,44 @@ own always-succeeds Linear — covering exactly the write flows the rehearsal
 exists to watch fail. Fixed; dead mode now returns a mix of abort, 502, 504 and
 a 200-with-a-lie where it previously returned a flat 200.
 
+### P6. Set the assignee provider-mapping flag — a one-value fix, easy to miss
+
+`syncview_runtime_flags.production_assignee_eligibility` must be set to **exactly**
+`{"provider_mapping_required": false}`. `docs/truth/APP.md:652-653` is explicit that
+a missing or malformed flag **stays strictest**, so doing nothing is not neutral
+here: it leaves every assignee change dependent on a provider that is about to stop
+answering.
+
+This is the **only** Linear-dependent write path with a documented off switch. Its
+author built the retirement in. Use it.
+
+Order it **after** the dead-Linear rehearsal, so the rehearsal observes the strict
+behaviour first and the flag's effect is proved rather than assumed.
+
+### P7. Repair intake, and prove it — REQUIRED BEFORE PHASE 3
+
+**This is a gate, not a recommendation.** Post creation, Samples/SXR intake, staff
+submission and component fill all read Linear through `production-write`, and
+**none of the four held PRs changes that file**. Without a repair, following this
+sequence to Phase 3 turns the cutoff on while every one of those surfaces is
+already refusing.
+
+The repair is the owner's choice, and this document deliberately does not pick:
+
+- **Adopt #1326's approach** — its `nativeEpoch` short-circuits `projectForIntake`
+  before the provider read, threaded into exactly the two reachable call sites; or
+- **a fresh minimal change** to `production-write` doing the equivalent, if #1326's
+  wider scope is unwanted.
+
+Either way it is an Edge Function change and therefore an F27 Section 4 deploy,
+with everything that implies: the sealed capture, the merge freeze, the exact SHA.
+
+**The acceptance criterion is behavioural, not a green check.** With
+`SYNCVIEW_QA_LINEAR_DEAD` active, on the TEST client `sidneylaruel`: create a post
+from the Calendar, create one from Samples/SXR, and fill a component. All three must
+**succeed**, not merely fail cleanly. Until they do, Phase 3 is not reachable, no
+matter what else is done.
+
 ### P5. Schedule the watchers and fire each one on purpose once
 
 `docs/ops/MONITORING.md`. A watcher that has never fired is a watcher nobody
@@ -476,6 +519,25 @@ workflow run does, because it emails through GitHub and touches no n8n.
 
 Follow `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`. STEP 0 is read-only and can be run
 today. STEP 3 onward is gated on Phase 1 and Phase 2.
+
+### Entry gate — check these before STEP 3, not after
+
+An earlier version of this document let a reader arrive here having done everything
+listed and still turn the cutoff on while post creation was already broken. The
+rehearsal would have *confirmed* the refusal and been read as a pass, because
+"fails cleanly" is what a rehearsal is usually looking for. **On the intake paths,
+failing cleanly is the defect, not the proof.** So the gate is stated as behaviour
+that must succeed:
+
+| # | Must be true | Not merely |
+|---|---|---|
+| 1 | The four held PRs are merged | reviewed |
+| 2 | The naming mint's **four** steps are done, flag flip included (P1) | migration applied |
+| 3 | `production_assignee_eligibility` is exactly `{"provider_mapping_required": false}` (P6) | left absent |
+| 4 | With Linear dead: a Calendar post, a Samples/SXR post, and a component fill all **succeed** on the TEST client (P7) | refuse cleanly |
+
+**Any one of these unmet means Phase 3 is not reachable.** Item 4 is the one this
+document previously permitted a reader to walk straight past.
 
 ### There are TWO possible routes here, and only one of them is reversible
 

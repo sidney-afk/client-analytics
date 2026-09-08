@@ -17186,3 +17186,52 @@ not a correction; it is a contradiction with a timestamp.
 
 Three rounds of review on this entry have now each found the same shape: the fix
 landed where the reviewer pointed and not where the claim also lived.
+
+### Addendum, 2026-09-08 — the sequence permitted reaching the cutoff with intake broken
+
+Two P1s on PR #1360, both correct, and the second is the sharpest finding of the
+day because it is about the document's **function** rather than its facts.
+
+**1. Assignee changes were in the "safe writes" row and do not belong there.**
+Changing a card's assignee runs `validateAssignee` → `assigneeProviderPool`, and
+`docs/truth/APP.md:652-653` is explicit that a **missing or malformed**
+`production_assignee_eligibility` flag *stays strictest* — only the exact
+`{"provider_mapping_required": false}` value drops the provider requirement. So
+doing nothing is not neutral: it leaves every assignee change dependent on a
+provider about to stop answering, and the blanket word "edits" in that row hid it.
+The row is now split, and **the flag is a numbered owner action (P6)** rather than a
+detail inside a table. It is the only Linear-dependent write path whose author built
+in an off switch; not using it would be the avoidable kind of failure.
+
+**2. The sequence let a reader reach Phase 3 with every intake path refusing.**
+#1326 was described only as an alternative programme's work. It appeared in no Phase
+1 merge and no Phase 2 action. So a reader could do everything this document listed,
+have the dead-Linear rehearsal **confirm** the refusals, read that as a pass —
+because "fails cleanly" is what a rehearsal normally looks for — and turn the cutoff
+on with post creation, Samples/SXR intake, staff submission and component fill all
+already broken.
+
+**On the intake paths, failing cleanly is the defect, not the proof.** That
+sentence is now in the document, because the whole trap depends on the reader
+applying the usual reading of a rehearsal result to a case where it is inverted.
+
+Added: **P7, an explicit gate** requiring an owner-chosen `production-write` repair
+(adopt #1326's `nativeEpoch` approach, or an equivalent minimal change) with a
+**behavioural** acceptance criterion — with Linear dead, a Calendar post, a
+Samples/SXR post and a component fill must all **succeed** on the TEST client, not
+merely refuse cleanly. Plus a four-row **entry gate** at the head of Phase 3.
+
+**And a claim of mine is retracted.** This document said merging the four held PRs
+"converts an uncontrolled degradation into a controlled cutover". **False as
+stated.** None of the four touches `production-write`. The four merges are
+necessary and not sufficient; a controlled cutover needs them **plus** P6 **plus**
+P7.
+
+**The lesson, and it is different from the day's earlier ones.** Those were errors
+of fact: a wrong line, an unreachable path, a stale count. This was an error of
+**structure** — every individual statement in the sequence was true, and the order
+they were written in still permitted an outcome the document elsewhere calls
+unacceptable. A document that is the ordered list has a second correctness property
+beyond its facts: **following it must not be able to produce a state it forbids.**
+Nothing in a fact-check catches that. It is caught by asking what a reader who obeys
+every line ends up doing.

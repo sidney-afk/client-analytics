@@ -80,11 +80,18 @@ function sourceComment(raw, scope, field, index) {
   const created = stamp(raw.source_created_at || raw.created_at || raw.createdAt || raw.ts
     || raw.updated_at);
   const updated = stamp(raw.source_updated_at || raw.updated_at || raw.updatedAt) || created;
-  // The importer dates a resolution it was told about but not WHEN, from the
-  // updated time. Leaving this null made the strict comparison unmeetable, so a
-  // resolved historical note showed twice for good.
-  const resolvedAt = stamp(raw.resolved_at || raw.done_at)
-    || (truthy(raw.done) || truthy(raw.resolved) ? updated : null);
+  // BRANCH ORDER, not just the fallback. When either boolean says resolved the
+  // importer takes `done_at || sourceUpdatedAt` and never consults
+  // `resolved_at`; only an entry with no boolean at all is dated from
+  // `resolved_at`. Preferring the explicit `resolved_at` here looked more
+  // accurate and was wrong twice over: `sameCurrentComment` rejected the twin,
+  // so the note duplicated forever, and the "accuracy" bought nothing because a
+  // source row's resolved_at is consumed as a BOOLEAN and never rendered as a
+  // time (the popover filters resolved rows out entirely; the panel reads it as
+  // `done`). This field's job is matching, not reporting.
+  const resolvedAt = truthy(raw.done) || truthy(raw.resolved)
+    ? stamp(raw.done_at) || updated
+    : stamp(raw.resolved_at);
   return {
     id: 'source:' + JSON.stringify([scope.surface, scope.card_id, scope.component, field, id, index]),
     native_id: id, parent_native_id: clean(raw.parent_id || raw.parentId),

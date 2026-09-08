@@ -236,10 +236,34 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
         { label: 'resolved with no resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, resolved: true } },
         { label: 'done with done_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, done_at: now } },
         { label: 'done with resolver name', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, done_by: 'Fixture Reviewer' } },
+        // The importer picks `done_at || sourceUpdatedAt` whenever either
+        // boolean is true and never consults `resolved_at` on that branch, so a
+        // row carrying BOTH is the shape most likely to disagree. It was missing
+        // from the first version of this matrix, which is exactly the kind of
+        // gap the matrix exists to prevent.
+        { label: 'done true with a differing explicit resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, resolved_at: '2026-08-11T09:00:00.000Z' } },
+        { label: 'resolved true with a differing explicit resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, resolved: true, resolved_at: '2026-08-11T09:00:00.000Z' } },
+        { label: 'done true with both done_at and resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: true, done_at: now, resolved_at: '2026-08-11T09:00:00.000Z' } },
+        { label: 'resolved_at alone, no boolean', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, resolved_at: '2026-08-11T09:00:00.000Z' } },
+        { label: 'string "true" done flag', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: 'true' } },
+        { label: 'string "true" done flag with resolved_at', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, done: 'true', resolved_at: '2026-08-11T09:00:00.000Z' } },
+        { label: 'author_name rather than author', raw: { ...base, author_name: 'Fixture reviewer', role: 'smm', created_at: now } },
+        { label: 'deleted', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, deleted: true } },
+        { label: 'is_deleted', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, updated_at: now, is_deleted: true } },
         { label: 'numeric-string round', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, round: '2' } },
         { label: 'zero round', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, round: 0 } },
         { label: 'edited', raw: { ...base, author: 'Fixture reviewer', role: 'smm', created_at: now, edited_at: now } },
       ];
+      // Two shapes diverge DELIBERATELY, and the matrix names them rather than
+      // hiding them. The importer treats only a real `true` as deleted/resolved
+      // (`raw.done === true`), while this projection uses `truthy`, so a card
+      // storing the string "true" is suppressed here and was imported as
+      // unresolved. Mirroring the importer would make the projection strict —
+      // and the identical predicate governs `deleted`, so it would start
+      // SHOWING the body of a note the card marked deleted. That trades a
+      // duplicate for exposed content, which is the one direction this lane
+      // never goes. The duplicate is accepted; the suppression is kept.
+      const deliberate = ['string "true" done flag', 'string "true" done flag with resolved_at'];
       const divergent = [];
       for (const shape of shapes) {
         const imported = importer.normalizeComment({ ...shape.raw, _source_field: 'video_tweaks' }, importScope, null);
@@ -253,8 +277,9 @@ async function check(label, run) { reset(); await run(); count++; console.log(' 
         const row = (await call()).body.feedback.rows[0];
         if (!row || row.covered_by !== shape.raw.id) divergent.push(shape.label);
       }
-      assert.deepEqual(divergent, [],
-        'these raw shapes project something the importer would not have written, so they duplicate forever: ' + divergent.join('; '));
+      assert.deepEqual(divergent, deliberate,
+        'divergence set changed. Unexpectedly divergent shapes duplicate forever; a shape that '
+        + 'disappeared from the deliberate list should be removed from it. Got: ' + divergent.join('; '));
     });
     await check('an imported note carrying only updated_at is covered instead of duplicating forever', async () => {
       // The end the reader actually sees: without the fallback this row can

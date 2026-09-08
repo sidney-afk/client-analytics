@@ -154,7 +154,9 @@ strictly and any divergence makes coverage impossible — the note then duplicat
 forever and can displace a source-only tweak from the popover's three-row
 preview. That now covers `is_tweak`, `source_created_at`
 (fallback list ending at `updated_at`, as the importer's does), `resolved_at`
-(dated from the updated time when an entry says it is resolved but not when),
+(the importer's whole branch: when either boolean says resolved it takes
+`done_at || updated` and never consults `resolved_at`, which only dates an entry
+carrying no boolean at all),
 `author_name` (labelled from the role, never "Unknown author", because the
 canonical twin already carries that label) and `role` (lower-cased). The emitted
 `role` still stays null when the entry has none: an unknown role is deliberately
@@ -163,10 +165,15 @@ rather than granting it. `test/component-feedback-read.js` holds a parity matrix
 that drives both real functions over every raw shape a historical card contains,
 so a new divergence fails there rather than being found one at a time.
 
-The one place the mirror stops is an entry with no timestamp at all, where the
-importer defaults to the epoch: the projection reports an honest absence instead,
-because printing a 1970 date beside a tweak note invents a fact, and a visible
-duplicate is a milder failure than a note hidden by a loosened identity match.
+Two places the mirror deliberately stops, both named in the matrix so they are
+visible rather than assumed. An entry with no timestamp at all, where the importer
+defaults to the epoch: the projection reports an honest absence instead, because
+printing a 1970 date beside a tweak note invents a fact. And an entry whose
+deleted/resolved flag is the STRING `"true"`: the importer counts only a real
+`true`, so mirroring would make the projection strict — and the identical
+predicate governs `deleted`, so it would start showing the body of a note the
+card marked deleted. Both keep a visible duplicate rather than trade it for a
+note hidden by a loosened match or for content that should stay suppressed.
 
 The popover's three-row preview is ordered newest-first across both sources.
 Concatenating canonical then source put every card note behind every canonical

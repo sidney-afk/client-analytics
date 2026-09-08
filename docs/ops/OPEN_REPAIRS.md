@@ -15137,3 +15137,41 @@ subclass with only `now` overridden.
 Proof: **170 green** on the Workload suite and **35 pass** on
 `test/component-feedback-read.js`; red against `ab92bbf` on the three preview
 ordering assertions and on the parity matrix listing all seven divergent shapes.
+
+### Seventh follow-up: the resolution branch order, and a gap in the matrix built to prevent exactly this (Codex P2 on `6c0c665`)
+
+The parity matrix added one commit earlier was supposed to end this family. It
+did not, and the reason is worth recording: **the previous session considered
+this exact case, decided against mirroring it, and then left the shape out of the
+matrix.** A deliberate exception that is not written down as a test case is
+indistinguishable from an oversight, and the next reader has no way to tell which
+it was.
+
+The importer takes `done_at || sourceUpdatedAt` whenever either boolean says
+resolved and **never consults `resolved_at`** on that branch; only an entry with
+no boolean at all is dated from `resolved_at`. The projection preferred the
+explicit `resolved_at`, so three shapes diverged and duplicated forever.
+
+The earlier reasoning for keeping the explicit value was that mirroring would
+change a displayed resolution time. **That was wrong on the facts.** A source
+row's `resolved_at` is consumed as a boolean and never rendered as a time: the
+popover filters resolved rows out entirely, and the panel reads it as `done`
+(`index.html` — the normaliser keeps `resolved_at` "only as a boolean"). So the
+accuracy being protected did not exist, and the cost — a permanent duplicate —
+was real. Mirrored now, and the missing shapes added to the matrix.
+
+**Two divergences are now deliberate, and the matrix asserts the exact set rather
+than an empty one**, so a new divergence still fails and removing one of these
+forces the list to be updated:
+
+1. An entry with no timestamp anywhere (the importer defaults to the epoch;
+   projecting a 1970 date beside a tweak note invents a fact).
+2. An entry whose deleted/resolved flag is the **string** `"true"`. The importer
+   counts only a real `true`, so mirroring means making the projection strict —
+   and the identical predicate governs `deleted`, so it would start **showing the
+   body of a note the card marked deleted**. The duplicate is accepted; the
+   suppression is kept. Trading a duplicate for exposed content is the one
+   direction this lane never goes.
+
+Proof: **35 pass**; red against `6c0c665` with the matrix naming all four shapes
+that were divergent there.

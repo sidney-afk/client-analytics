@@ -132,10 +132,10 @@ six sessions will be finished.
 
 | # | gate | why | who confirms |
 |---|---|---|---|
-| P1 | **Lane B's native naming mint is APPLIED AND SEEDED, not merely merged** | `linear-outbound:852` (into `production_issue_create_linkage` as `p_issue.identifier`) and `:868` (into `deliverable_write` as `linear_identifier`) mint `deliverables.linear_identifier` for SyncView-native cards. *(Item 162/163 cite `:857`; verified against the source, it is `:852` — lane B's item 170 records the same correction. The conclusion is unchanged; only the line number was off by five.)* Flip outbound off before the mint lands and every card created afterwards renders as `b1_d_188ba4ad…` in the Production list, the command palette, the Workload parent header and all three deep links merged this week. Nothing errors; the estate just stops producing names. (OPEN_REPAIRS 162, 163) **Merging lane B is NOT enough.** PR #1349 merged on 2026-09-08 and `docs/ops/NATIVE_IDENTIFIER_MINT.md` opens with *"Status: SOURCE ONLY. `migrations/2026-09-07-native-identifier-mint.sql` has not been applied to the live database and no team has been seeded."* **And applying and seeding is not enough either — there are FOUR steps and the fourth is the gate.** This row said "applied AND seeded" until 2026-09-08, which names only steps 1-3; `docs/ops/NATIVE_IDENTIFIER_MINT.md:82-91` is explicit that **step 4 — flipping `syncview_runtime_flags.production_native_identifier_mint` to `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}` — "is what lane F's outbound-off step waits on"**, because `production_native_identifier_capability(team)` returns `native` only when the flag says native AND a seed row exists. Stop after step 3 and the allocator is installed and refusing: the mint is inert, the TEST card still takes its name from Linear, and STEP 3 produces the exact nameless-card failure this row exists to prevent. Do step 4 **per team, video first.** *(A premature flip is inert rather than half-armed — the capability self-guards, deliberately unlike `production_label_catalog_capability()`, which reports `native` with nothing staged and 503s one call later.)* **Undo for step 4:** set the team back to `{"mode":"provider"}` — stops new minting immediately, renames nothing by design. Steps 2 and 3 are safely undoable only while no name has been handed out for that team; once one has, deleting the cursor and re-seeding re-issues names. Verify by creating one card on the TEST client `sidneylaruel` after step 4 and reading back a non-null `deliverables.linear_identifier` that Linear did not mint — **before flipping the SECOND TEAM'S FLAG**, not before seeding it. *(Corrected 2026-09-08: this row said "before seeding the second team", copying a line the source document has since corrected against its own table. Steps 2 and 3 seed both teams; a seed row is inert until the flag moves, so the per-team caution belongs on the step-4 flag transition, which is the only step that changes behaviour.)* That readback is the one check that cannot be satisfied by a half-done gate. | coordinator |
+| P1 | **Lane B's native naming mint is APPLIED, SEEDED AND FLIPPED — all four steps, not merely merged** | `linear-outbound:852` (into `production_issue_create_linkage` as `p_issue.identifier`) and `:868` (into `deliverable_write` as `linear_identifier`) mint `deliverables.linear_identifier` for SyncView-native cards. *(Item 162/163 cite `:857`; verified against the source, it is `:852` — lane B's item 170 records the same correction. The conclusion is unchanged; only the line number was off by five.)* Flip outbound off before the mint lands and every card created afterwards renders as `b1_d_188ba4ad…` in the Production list, the command palette, the Workload parent header and all three deep links merged this week. Nothing errors; the estate just stops producing names. (OPEN_REPAIRS 162, 163) **Merging lane B is NOT enough.** PR #1349 merged on 2026-09-08 and `docs/ops/NATIVE_IDENTIFIER_MINT.md` opens with *"Status: SOURCE ONLY. `migrations/2026-09-07-native-identifier-mint.sql` has not been applied to the live database and no team has been seeded."* **And applying and seeding is not enough either — there are FOUR steps and the fourth is the gate.** This row said "applied AND seeded" until 2026-09-08, which names only steps 1-3; `docs/ops/NATIVE_IDENTIFIER_MINT.md:82-91` is explicit that **step 4 — flipping `syncview_runtime_flags.production_native_identifier_mint` to `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}` — "is what lane F's outbound-off step waits on"**, because `production_native_identifier_capability(team)` returns `native` only when the flag says native AND a seed row exists. Stop after step 3 and the allocator is installed and refusing: the mint is inert, the TEST card still takes its name from Linear, and STEP 3 produces the exact nameless-card failure this row exists to prevent. Do step 4 **per team, video first.** *(A premature flip is inert rather than half-armed — the capability self-guards, deliberately unlike `production_label_catalog_capability()`, which reports `native` with nothing staged and 503s one call later.)* **Undo for step 4:** set the team back to `{"mode":"provider"}` — stops new minting immediately, renames nothing by design. Steps 2 and 3 are safely undoable only while no name has been handed out for that team; once one has, deleting the cursor and re-seeding re-issues names. Verify by creating one card on the TEST client `sidneylaruel` after step 4 and reading back a non-null `deliverables.linear_identifier` that Linear did not mint — **before flipping the SECOND TEAM'S FLAG**, not before seeding it. *(Corrected 2026-09-08: this row said "before seeding the second team", copying a line the source document has since corrected against its own table. Steps 2 and 3 seed both teams; a seed row is inert until the flag moves, so the per-team caution belongs on the step-4 flag transition, which is the only step that changes behaviour.)* That readback is the one check that cannot be satisfied by a half-done gate. | coordinator |
 | P2 | **Lane A is live AND has taken its acceptance measurement** | That measurement compares against `public.workload_issues`, and STEP 6 is what stops that table being rebuilt. After STEP 6 the measurement is unrunnable. | coordinator |
 | P3 | **Lanes C and D are live** | They own the browser's Linear surfaces and the comment reader. Turning the endpoints off underneath them strands the UI. | coordinator |
-| P4 | **STEP 0's census has been read by a human** | You cannot classify debt you have not counted. | owner |
+| P4 | **STEP 0's census has been read by a human** | You cannot classify debt you have not counted. **Gates STEP 3**: after outbound goes off the queue stops being consumed, so whatever the census would have shown you is what you are freezing in place. *(Added 2026-09-08 — this row named no step, the only precondition in the table that gated nothing. A precondition no step references is decoration, and the reader who notices that is entitled to conclude the same about its neighbours.)* | owner |
 | P5 | Lane B has removed production-write's Linear call sites | Only gates STEP 7, not the earlier steps. See STEP 7. | coordinator |
 
 **P1, P2 and P3 gate STEP 3 onward. Nothing gates STEP 0 — run it today.**
@@ -293,7 +293,7 @@ Undo: none needed. Draining delivers work that was already queued to be delivere
 
 ---
 
-## STEP 3 — Outbound off  *(GATED ON P1, P2, P3)*
+## STEP 3 — Outbound off  *(GATED ON P1, P2, P3, P4)*
 
 **Do not run this before lane B's naming mint is live — all FOUR steps, not
 three.** See P1: the migration applied, both teams seeded, **and**
@@ -603,6 +603,43 @@ Also: `.github/workflows/linear-outbound-drain.yml` (cron `*/10`) has **no
 heartbeat step and no watchdog lane**, so nothing reports it stopping. STEP 2 leans
 on it. Registering it is worth doing while its disposition is being decided.
 
+**And STEP 6 must DECIDE that disposition rather than leave it running by
+omission** *(added 2026-09-08 by a sweep of this step's own list against the
+scheduled workflows on disk)*. After STEP 3, the drain invokes `linear-outbound`
+every ten minutes forever with `mode:"off"`, so `readRows` returns `[]` and it does
+nothing. **Harmless, and therefore easy to leave behind:** it holds no Linear
+credential, so the cutoff inventory never flags it, and it has no lane, so the
+dead-man's switch never mentions it. Either disable it in the Actions UI at STEP 6
+or register it as a retired lane in the same commit — but make it a decision that
+appears in this list, not a leftover.
+
+### The nightlies keep proving the app survives a Linear that no longer exists
+
+**Found by the same sweep, and it is the polarity error of this whole lane
+repeated one level up.** `grep -l SYNCVIEW_QA_LINEAR_DEAD .github/workflows/`
+returns **nothing**. `samples-e2e-nightly.yml` and `calendar-e2e-nightly.yml` run
+the probe manifest on a schedule with Linear mocked **healthy** — that is what
+`samples-e2e-nightly.yml:8` means by *"Linear is ALWAYS mocked+captured by the
+harness"* — and nothing flips them after the cutoff.
+
+So from 2026-09-16 onward both suites go on asserting, green, every night, that
+the app works against a Linear that has been switched off. **A green run that
+cannot fail for the reason you care about is worse than no run**, because it
+occupies the slot where the check would have been. This is the same defect the
+rehearsal exists to correct, at the schedule level instead of the harness level.
+
+**Do this at STEP 6, not before.** Set `SYNCVIEW_QA_LINEAR_DEAD=1` in the `env:`
+of both nightly workflows. **Not earlier:** before the cutoff the app is *supposed*
+to talk to a live Linear, so flipping these today turns both nightlies red for a
+condition that is not yet true, and a red nightly that everyone learns to ignore
+costs more than the gap it announces.
+
+| | |
+|---|---|
+| **undo** | remove the `env:` line from each workflow — one line per file, no other change |
+| **verify** | one nightly run after the flip whose `linear_calls.jsonl` carries `dead` values; a run with none did not enter dead mode |
+| **not done here** | this runbook does not edit those two workflows. They belong to the nightly suites, and changing them now would alter behaviour before the cutoff — see above. It is an operator step with an exact undo, which is what this document is for. |
+
 ---
 
 ## 4. Abort — the whole cutoff, in reverse
@@ -612,7 +649,7 @@ Run in reverse order. Everything up to and including STEP 6 is reversible.
 | step | undo | reversible? |
 |---|---|---|
 | 7 | re-issue keys in Linear settings | **only before 2026-09-15** |
-| 6 | re-enable workflows/nodes; un-retire the lanes in the same commit | yes |
+| 6 | re-enable workflows/nodes; un-retire the lanes in the same commit; **re-enable `linear-outbound-drain.yml` if it was disabled**; **remove the `SYNCVIEW_QA_LINEAR_DEAD=1` line from both nightly workflows** | yes |
 | 5 | re-create webhooks from captured URL + secret | **only before 2026-09-15, and only if captured** |
 | 4 | restore `{"enabled":true}` | yes — but missed events are **not** replayed |
 | 3 | restore `{"mode":"live"}` | yes, fully — nothing was terminalized |

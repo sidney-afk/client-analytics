@@ -17427,3 +17427,57 @@ warning about a failure that cannot happen; a retracted line copied forward; and
 now a live-surface table missing the commonest surface — written one round after
 the table itself was the correction. Every one a derived artefact disagreeing with
 a source that stayed correct.
+
+**Addendum, 2026-09-08 — a DELIBERATE sweep of this runbook's own derived
+artefacts, run instead of waiting for the seventh finding.** Six corrections
+today had all arrived the same way: another lane found a restatement of mine that
+had drifted from a source that stayed correct. Rather than wait, I swept the
+runbook's tables and preconditions against their sources. Four findings, all mine,
+none reported by anyone.
+
+**1. STEP 6's list omitted a scheduled job it should have decided about.**
+`linear-outbound-drain.yml` (cron `*/10`) keeps invoking `linear-outbound` every
+ten minutes forever after STEP 3. It is genuinely harmless — `mode:"off"` makes
+`readRows` return `[]` — and that is exactly why it survives: it holds no Linear
+credential so the cutoff inventory never flags it, and it has no lane so the
+dead-man's switch never mentions it. STEP 6 now requires a decision (disable, or
+register as retired) rather than leaving it running by omission.
+
+**2. The nightlies will keep proving the app survives a Linear that is gone.**
+`grep -l SYNCVIEW_QA_LINEAR_DEAD .github/workflows/` returns **nothing**.
+`samples-e2e-nightly.yml` and `calendar-e2e-nightly.yml` run the probe manifest on
+a schedule with Linear mocked HEALTHY, and nothing flips them at the cutoff. From
+2026-09-16 both go on passing, green, every night, against a Linear that has been
+switched off. **This is this lane's founding polarity error at the schedule level
+rather than the harness level** — and it would have shipped inside the very PR that
+exists to correct that error. STEP 6 now carries the flip, with its one-line undo,
+its verification (a run whose `linear_calls.jsonl` has `dead` values), and the
+reason it must happen AT the cutoff and not before: flipping today turns both
+nightlies red for a condition that is not yet true, and a red nightly everyone
+learns to ignore costs more than the gap it announces. **The runbook does not edit
+those workflows** — they are not this lane's, and the change would alter behaviour
+before the cutoff.
+
+**3. Extending STEP 6 silently invalidated its own abort row.** §4 row 6 said
+"re-enable workflows/nodes; un-retire the lanes". Two paragraphs after adding two
+new actions to STEP 6 I had left its undo describing the old step. Caught in the
+same pass that created it, which is the argument for sweeping a change against the
+table that summarises it *in the same edit* rather than trusting the next reader.
+
+**4. P4 gated nothing.** `P4` appeared exactly once in the document: its own row.
+P1/P2/P3 name STEP 3, P2 names STEP 6, P5 names STEP 7 — and the census
+precondition named no step at all. It now gates STEP 3, which is where it belongs:
+after outbound goes off the queue stops being consumed, so whatever the census
+would have shown is what you freeze in place. **A precondition no step references
+is decoration, and a reader who notices that is entitled to conclude the same
+about its neighbours.** Also corrected in the same table: P1's row TITLE still read
+"APPLIED AND SEEDED", the exact three-of-four formulation whose correction is
+spelled out inside the cell — the stale summary sitting directly above its own fix,
+which is the one line a hurried reader actually scans.
+
+**What the sweep is worth as a method.** Six findings came from other lanes reading
+my documents; four came from reading my own with the specific question *"which
+sentence here is a restatement, and have I checked it against what it restates?"*
+That question is cheap, it is answerable without any live access, and it found
+things in twenty minutes that six rounds of review had not. It belongs in this
+lane's handover as the standing check, not as a one-off.

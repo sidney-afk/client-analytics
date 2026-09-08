@@ -390,6 +390,18 @@ function rowFrom(response) {
   return response.row || (response.items && (response.items[0].row || response.items[0])) || null;
 }
 
+/*
+ * Codex P1 on #1361: with skip_graphic_generation (the default), the
+ * graphics fixture below never carried a `brief` either, so this drill only
+ * ever proved "generated title alone" or "nothing at all" — never the
+ * combined shape #1361 introduced, where a caller-supplied note and a
+ * labelled generated line are ADDITIVE. A future edit that dropped either
+ * half back to exclusive-or could stay green here. Under
+ * REAL_GRAPHIC_GENERATION the fixture now carries a note too, and
+ * verifyFixture asserts both halves survive, in order.
+ */
+const GRAPHICS_DRILL_NOTE = 'Disposable TEST write-path drill note.';
+
 async function createFixture(team) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const request = {
@@ -401,7 +413,9 @@ async function createFixture(team) {
       team,
       number: 1,
       title: team === 'video' ? `Write UI ${team} drill ${stamp}` : undefined,
-      brief: team === 'video' ? 'Disposable TEST write-path drill.' : undefined,
+      brief: team === 'video'
+        ? 'Disposable TEST write-path drill.'
+        : (REAL_GRAPHIC_GENERATION ? GRAPHICS_DRILL_NOTE : undefined),
     }],
   };
   if (team === 'graphics' && !REAL_GRAPHIC_GENERATION) request.skip_graphic_generation = true;
@@ -724,6 +738,25 @@ async function verifyFixture(asset) {
   if (asset.team === 'graphics') {
     if (REAL_GRAPHIC_GENERATION) {
       assert(clean(row.brief) && row.brief !== 'Video 1', 'graphics title provider did not return a generated title');
+      /*
+       * The note and the generated line are ADDITIVE (#1361), not a
+       * fallback pair — a caller-supplied note must never suppress
+       * generation, and a generated title must never crowd the note out.
+       * Read THUMBNAIL_TEXT_AI_LABEL from the live gateway source rather
+       * than re-typing it, so a renamed or reworded label fails loudly here
+       * instead of this drill silently checking for a string nobody emits
+       * anymore.
+       */
+      const gatewaySrc = fs.readFileSync(
+        path.join(__dirname, '..', 'supabase', 'functions', 'production-write', 'index.ts'), 'utf8');
+      const labelMatch = gatewaySrc.match(/const THUMBNAIL_TEXT_AI_LABEL = "([^"]*)";/);
+      assert(labelMatch, 'THUMBNAIL_TEXT_AI_LABEL not found in gateway source — re-teach this drill where it moved');
+      const notePos = row.brief.indexOf(GRAPHICS_DRILL_NOTE);
+      const labelPos = row.brief.indexOf(labelMatch[1]);
+      assert(notePos >= 0,
+        'the caller-supplied graphics note did not survive alongside the generated title — the gateway must combine them, never exclude the note');
+      assert(labelPos > notePos,
+        'the generated line lost its AI label, or landed before the note instead of appended below it');
       assert(issue.description === row.brief, 'generated graphics title did not round-trip to Linear');
       asset.graphicGenerationVerified = true;
     } else {

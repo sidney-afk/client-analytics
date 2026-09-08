@@ -102,6 +102,12 @@ ok(source.includes('PRODUCTION_WRITE_DRILL_REAL_GRAPHIC_GENERATION')
   && source.includes("row.brief !== 'Video 1'")
   && source.includes('issue.description === row.brief'),
 'one-shot mode omits the skip path and proves the generated graphics title round-trips');
+ok(source.includes("brief: team === 'video'")
+  && source.includes('REAL_GRAPHIC_GENERATION ? GRAPHICS_DRILL_NOTE : undefined')
+  && source.includes('THUMBNAIL_TEXT_AI_LABEL')
+  && source.includes('labelPos > notePos'),
+'real generation also exercises a caller-supplied graphics note, and asserts it survives ' +
+  'ALONGSIDE the labelled generated title (additive, in order) — not just generated text alone (Codex #1361)');
 ok(source.includes("if (team === 'graphics' && !REAL_GRAPHIC_GENERATION) request.skip_graphic_generation = true"),
   'real generation request omits the skip flag instead of sending false');
 ok(source.includes('PRODUCTION_WRITE_DRILL_TEAMS') && source.includes('for (const team of DRILL_TEAMS)'),

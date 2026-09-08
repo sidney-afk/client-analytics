@@ -14952,3 +14952,68 @@ be restored before any brief is used for production work.
 costume:** a document that is *partly* right is more dangerous than one that is
 missing, because it is trusted. A missing brief got reported by a session within
 hours. A truncated brief was read by six sessions and reported by none.
+
+### Addendum, 2026-09-08 04:15 — two audits reported, and the all-or-nothing surface is SOUNDER than feared
+
+Two read-only audits ran overnight against the pattern named in the 03:30
+addendum and against the four PRs that merged to `main` during the night. Both
+reported. Recording the results here because the reports live on PR #1351 and a
+PR comment is not a durable record.
+
+#### The all-or-nothing sweep found ONE clean P1, not a field of them
+
+The 03:30 addendum implied a large latent surface: ~57 `Promise.all` sites across
+`index.html` and the edge functions. **The honest finding is that most of them
+are correct.** The large majority are prerequisites of one indivisible operation,
+where failing closed is the right design, or are already guarded per member with
+`.catch(...)`. One site uses a settled-per-member worker pool that names the
+failed member (item 86's shape). Somebody has swept this pattern here before, and
+the sweep did NOT find a second instance capable of taking a live surface down
+the way `projectNativeSnapshot` did.
+
+**That correction matters more than the findings.** A ledger entry that leaves
+"57 instances of the defect that caused an outage" standing would send the next
+reader hunting a field of bugs that is not there.
+
+**The one P1: `supabase/functions/production-comments/index.ts:366`.**
+`Promise.all([totalQuery, pageQuery])` pairs an **exact head count over an
+unbounded table** with a fixed 26-row page read. Either erroring throws
+`500 read_failed`, which the browser turns into "Comments could not load." across
+the SyncLinear detail pane and the calendar/SXR comment modals. The asymmetry is
+the whole bug: the count is the half that grows without bound and can hit a
+statement timeout, while the page is fixed.
+
+**And `total` has no consumer.** No `json.total` or `state.total` read exists in
+`index.html`, `qa/`, `test/`, `scripts/` or `docs/syncview-design/tests/`.
+Pagination does not use it: `has_more` comes from `fetched.length > limit` and
+`next_cursor` from the page's tail. **A number nothing has ever displayed can
+currently take down the thread** — and `index.html:55475` already records why
+that costs something real: the Frame.io link arrives AS a comment, so a thread
+that never loads is also a link the editor cannot see. Reachable today, on every
+SyncLinear issue open.
+
+Three P2s, each with the trigger honestly narrowed rather than inflated: the
+asset-panel evidence write (`production-write/index.ts:4235`, where the common
+failure is correlated across all four slots and therefore destroys nothing), the
+cold-boot board load (`index.html:60315`, warm cache degrades to a banner
+instead), and the Linear import (`index.html:33767`, which tolerates the optional
+graphics half answering `ok:false` but not rejecting).
+
+**Coverage, stated so nobody reads this as complete:** `batch-write` and
+`deliverable-write` were not examined at all, and they are two of the four F27
+Section 4 closure functions. Nine other edge functions, 8 `production-write`
+sites and 14 `index.html` sites are untraced. **The hand-rolled serial-loop axis
+is effectively unaudited, and that is where the third known instance lived.**
+
+#### The health check on already-merged, already-live code found three
+
+Nobody had re-read the four PRs that merged during the night, all of which
+auto-deployed to the live site. All 17 behavioural proofs pass, and three defects
+surfaced: a retry-lie fallback gap in `_writeUiFailureText`, stale line
+references in the naming-mint migration, and a silent parked-edit path at
+`index.html:64516`. The 1.3k-line exporter and two migrations were deferred to a
+second pass and remain unread.
+
+**Neither audit changed a line.** Both were scoped read-only precisely so they
+could not collide with the four branches being actively pushed to, and that was
+the right call: five sessions were pushing while these ran.

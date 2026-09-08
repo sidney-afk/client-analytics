@@ -49,8 +49,17 @@ ok(from > -1 && to > from, 'the count helpers are findable (harness is not vacuo
 /* The real function, with only its network read stubbed — the rows it would
    have fetched are handed in instead, shaped exactly as the live view returns
    them. */
+/* The counter also reads each row's highest ordinal now (2026-09-08), and
+   that reader is declared ABOVE this slice, so it is pulled in by name rather
+   than by widening the slice into unrelated code. */
+const ordinalFrom = html.indexOf('function _calNativeTitleOrdinal(');
+const ordinalSrc = html.slice(ordinalFrom, html.indexOf('\n    }', ordinalFrom) + 6);
+const ordinalRe = html.match(/const CAL_NATIVE_ORDINAL_RE = [^;]+;/)[0];
+ok(ordinalFrom > -1 && ordinalSrc && ordinalRe, 'the ordinal reader is findable too');
+
 const makeCounter = rows => new Function('_prodRestRows',
-  html.slice(from, to) + '\nreturn { _calFetchNativeBatchPostCounts, _calNativeParentUuids };')(
+  ordinalRe + '\n' + ordinalSrc + '\n' + html.slice(from, to)
+    + '\nreturn { _calFetchNativeBatchPostCounts, _calNativeParentUuids };')(
   async () => rows);
 
 /* The measured shape: one batch whose only deliverable row IS its own parent,
@@ -68,7 +77,10 @@ const rows = [
 
 (async () => {
   const scope = makeCounter(rows);
-  const counts = await scope._calFetchNativeBatchPostCounts(batches);
+  /* Two maps since 2026-09-08: the post COUNT the picker ranks on, and each
+     batch's highest ORDINAL, which the Create Post receipt previews an append
+     from. They are deliberately not the same number. */
+  const { counts, ordinals } = await scope._calFetchNativeBatchPostCounts(batches);
 
   ok(counts.get('b-empty') === 0,
     'a batch holding only its own parent row counts ZERO posts — 60 live batches were counting 1');
@@ -79,7 +91,7 @@ const rows = [
      is precisely how it escaped the empty-ranking for months. */
   const naive = makeCounter(rows);
   const parentless = batches.map(b => ({ id: b.id }));
-  const naiveCounts = await naive._calFetchNativeBatchPostCounts(parentless);
+  const naiveCounts = (await naive._calFetchNativeBatchPostCounts(parentless)).counts;
   ok(naiveCounts.get('b-empty') === 1,
     'strip the parent map and the same batch reads as populated again — the assertion above is doing work');
 

@@ -4563,6 +4563,34 @@
         .cal-native-batch-name::placeholder { color: var(--sv-fg-aaa); font-weight: 500; }
         .cal-native-batch-name:hover { border-color: var(--text-muted); }
         .cal-native-batch-name:focus-visible { outline: 2px solid var(--sv-focus, var(--text-primary)); outline-offset: 1px; }
+        /* CREATE POST, OPTION A (owner pick 2026-09-08).
+           The four hint blocks are gone. Three of them described the same
+           thing in prose -- the issue tree about to be created -- so one live
+           receipt replaces all three and states it exactly, including the
+           NUMBERS an append will get, which no hint could ever say. The batch
+           pair became a segmented toggle because both branches used to sit
+           open at once, so a third of the dialog was controls for the choice
+           you had not made. */
+        .cal-native-batch-tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; }
+        .cal-native-batch-tabs label { position: relative; display: block; }
+        .cal-native-batch-tabs input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+        .cal-native-batch-tabs span { display: flex; justify-content: center; align-items: center; padding: 8px 6px; border-radius: 7px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
+        .cal-native-batch-tabs input:checked + span { background: var(--white); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+        .cal-native-batch-tabs input:focus-visible + span { outline: 2px solid var(--text-primary); outline-offset: 1px; }
+        .cal-native-batch-panel { margin-top: 10px; display: grid; gap: 8px; }
+        .cal-native-field-label { display: block; margin-bottom: 6px; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+        .cal-native-field-label .cal-native-name-optional { margin-left: 6px; }
+        .cal-native-receipt { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); padding: 11px 13px; }
+        .cal-native-receipt-cap { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); }
+        .cal-native-receipt-cap em { font-style: normal; font-weight: 600; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+        .cal-native-receipt-parent { display: flex; align-items: center; gap: 8px; margin-top: 9px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 0.8rem; font-weight: 700; color: var(--text-primary); overflow-wrap: anywhere; }
+        .cal-native-receipt-kids { list-style: none; margin: 7px 0 0; padding: 0; display: grid; gap: 4px; max-height: 168px; overflow-y: auto; }
+        .cal-native-receipt-kids li { display: flex; align-items: center; gap: 8px; padding-left: 9px; border-left: 1px solid var(--border); font-size: 0.76rem; color: var(--text-secondary); overflow-wrap: anywhere; }
+        .cal-native-receipt-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+        .cal-native-receipt-dot.is-video { background: var(--cal-comp-video-dot); }
+        .cal-native-receipt-dot.is-graphics { background: var(--cal-comp-graphic-dot); }
+        .cal-native-receipt-name { color: var(--text-primary); font-weight: 600; }
+        .cal-native-receipt-more { padding-left: 9px; border-left: 1px solid var(--border); font-size: 0.74rem; color: var(--text-muted); }
         .cal-import-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1.5px dashed var(--sv-border-c7c7c4); border-radius: 12px; padding: 34px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
         .cal-import-drop:hover { border-color: var(--text-primary); background: var(--sv-bg-fafaf9); }
         .cal-import-drop svg { width: 34px; height: 34px; color: var(--text-muted); }
@@ -40660,6 +40688,11 @@
                 + ', who has the least on right now — ' + open
                 + ' — but that is open work only, not a schedule.)';
         }
+        /* NOT shortened by option A, deliberately. Every other hint in this
+           dialog went; this one stays because its exact wording is the repair
+           for an SMM reading the picker as a refusal (2026-08-25), and three
+           suites pin the tokens that carry it. Trading a support round trip
+           for one line of dialog height is not a trade worth making. */
         return (followed
             ? 'Suggested: ' + suggested.name + ' has the least on right now (' + open + ').'
             : 'Suggested was ' + suggested.name + ' (' + open + ').')
@@ -40768,6 +40801,96 @@
         if (surface === 'sxr' && !/sample/i.test(typed)) return typed + ' · Samples';
         return typed;
     }
+    /*
+     * WHAT THIS SUBMISSION WILL CREATE (owner pick 2026-09-08, option A).
+     *
+     * Three of the dialog's four hint blocks were prose renderings of one
+     * thing: the issue tree about to be written. The count hint said how many
+     * sub-issues, the name hint gave a worked example of a composed title, and
+     * the new-batch meta quoted the parent's name. A receipt states all three
+     * at once, from the real state, and answers the question none of them
+     * could: on an APPEND, which ordinals this post actually gets. Until now
+     * that was invisible until the issues existed in Linear.
+     *
+     * The ordinal is mirrored from the gateway rather than counted. A batch's
+     * post COUNT is not its highest ordinal -- delete a card and they diverge
+     * for good -- and the number lives only in the title, so it is read the
+     * way `production_intake_append` reads it. This is a PREVIEW: the server
+     * still allocates, and it still fails closed if the two ever disagree.
+     */
+    const CAL_NATIVE_ORDINAL_RE = /^(?:Sample )?(?:Video|Thumbnail) ([1-9][0-9]*)(?: \u2014 .+)?$/;
+    const CAL_NATIVE_RECEIPT_ROWS = 8;
+    function _calNativeTitleOrdinal(title) {
+        const found = CAL_NATIVE_ORDINAL_RE.exec(String(title == null ? '' : title).trim());
+        return found ? Number(found[1]) : null;
+    }
+    function _calNativeBatchMaxOrdinal(state, batchId) {
+        const map = state && state.batchMaxOrdinals;
+        if (!(map instanceof Map)) return null;
+        const found = map.get(String(batchId || ''));
+        return Number.isFinite(found) && found > 0 ? found : null;
+    }
+    function _calNativeBatchById(state, batchId) {
+        const wanted = String(batchId || '');
+        return ((state && state.batchOptions) || []).find(batch => String(batch && batch.id || '') === wanted) || null;
+    }
+    /* Prefers the live radio over the captured one, so a receipt redrawn on a
+       keystroke reflects the tab the user is actually on. */
+    function _calNativeCurrentBatchChoice(state) {
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        if (selected) return { value: selected.value, batchId: String(selected.dataset.batchId || '') };
+        const prior = state && state.batchChoice;
+        return prior ? { value: prior.value, batchId: prior.batchId } : { value: 'new', batchId: '' };
+    }
+    function _calNativeReceiptHtml(state, choice) {
+        const mode = ['video', 'thumbnail', 'both'].includes(state && state.mode) ? state.mode : 'both';
+        const teams = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
+        const count = _calNativePostCount(state);
+        const names = _calNativePostNamesFor(state, count);
+        const prefix = state && state.surface === 'sxr' ? 'Sample ' : '';
+        const appending = !!(choice && choice.value === 'batch');
+        /* null means the bounded count read did not land, which is the same
+           degraded path the batch subtext already tolerates. An unknown
+           ordinal renders as an ellipsis rather than a guess -- a wrong number
+           here would be worse than the hint this replaces. */
+        const max = appending ? _calNativeBatchMaxOrdinal(state, choice.batchId) : 0;
+        const base = appending ? (max === null ? null : max + 1) : 1;
+        const batch = appending ? _calNativeBatchById(state, choice.batchId) : null;
+        const parent = appending
+            ? (batch ? _calNativeBatchDisplayName(batch) : 'the batch you picked')
+            : _calNativeBatchNameFor(state);
+        const rows = [];
+        for (let index = 0; index < count; index++) {
+            for (let slot = 0; slot < teams.length; slot++) {
+                if (rows.length >= CAL_NATIVE_RECEIPT_ROWS) break;
+                const team = teams[slot];
+                const kind = team === 'graphics' ? 'Thumbnail' : 'Video';
+                const ordinal = base === null ? '\u2026' : String(base + index);
+                const name = names[index];
+                rows.push('<li><span class="cal-native-receipt-dot is-' + team + '"></span>'
+                    + _calEsc(prefix + kind + ' ' + ordinal)
+                    + (name ? '<span class="cal-native-receipt-name">'
+                        + _calEsc(CAL_NATIVE_TITLE_SEPARATOR + name) + '</span>' : '')
+                    + '</li>');
+            }
+        }
+        const total = count * teams.length;
+        const hidden = total - rows.length;
+        if (hidden > 0) rows.push('<li class="cal-native-receipt-more">+ ' + hidden + ' more</li>');
+        return '<div class="cal-native-receipt-cap">Creates<em>'
+            + (total === 1 ? '1 sub-issue' : total + ' sub-issues') + '</em></div>'
+            + '<div class="cal-native-receipt-parent">' + _calEsc(parent)
+            + (appending ? ' \u00b7 existing batch' : '') + '</div>'
+            + '<ul class="cal-native-receipt-kids">' + rows.join('') + '</ul>';
+    }
+    /* Surgical, like the names list: every keystroke reaches this, and a full
+       re-render would take the caret with it. */
+    function _calNativeSyncReceipt() {
+        const state = _calNativePostState;
+        const host = document.getElementById('calNativeReceipt');
+        if (!state || !host) return;
+        host.innerHTML = _calNativeReceiptHtml(state, _calNativeCurrentBatchChoice(state));
+    }
     function _calNativePostNamesHtml(state, count, mode) {
         const names = _calNativePostNamesFor(state, count);
         const numbered = count > 1;
@@ -40779,8 +40902,7 @@
                                 aria-label="${_calEscAttr('Optional name for post ' + (index + 1))}" autocomplete="off"
                                 oninput="_calSetNativePostName(${index}, this.value)">
                         </div>`).join('');
-        return `<div class="cal-native-name-list">${rows}</div>
-                    <p class="cal-native-name-hint">${_calEsc(_calNativePostNameHint(mode))}</p>`;
+        return `<div class="cal-native-name-list">${rows}</div>`;
     }
     function _calNativePostNameHint(mode) {
         const example = mode === 'thumbnail' ? 'Thumbnail 4' : 'Video 4';
@@ -40797,13 +40919,24 @@
         if (!state || !Number.isFinite(slot) || slot < 0) return;
         if (!Array.isArray(state.postNames)) state.postNames = [];
         state.postNames[slot] = String(value == null ? '' : value);
+        _calNativeSyncReceipt();
     }
     function _calSetNativeBatchName(value) {
         const state = _calNativePostState;
         if (!state) return;
         state.batchName = String(value == null ? '' : value);
-        const meta = document.getElementById('calNativeNewBatchMeta');
-        if (meta) meta.textContent = '"' + _calNativeBatchNameFor(state) + '" · adds this post to it';
+        _calNativeSyncReceipt();
+    }
+    /* Switching tab re-renders, exactly as the mode toggle does, and captures
+       the radio first so the re-render restores the branch just chosen. */
+    function _calSetNativeBatchChoice() {
+        const state = _calNativePostState;
+        if (!state) return;
+        const selected = document.querySelector('input[name="calNativeBatchChoice"]:checked');
+        state.batchChoice = selected
+            ? { value: selected.value, batchId: String(selected.dataset.batchId || '') }
+            : null;
+        _calRenderNativePostChoice();
     }
     /* A label does not forward a click on an interactive descendant to its
        radio, so typing a batch name would otherwise leave "Add to a previous
@@ -40977,8 +41110,6 @@
         const max = _calNativePostCountMax(mode);
         const parsed = Math.floor(Number(raw));
         state.postCount = (!Number.isFinite(parsed) || parsed < 1) ? 1 : Math.min(parsed, max);
-        const hint = document.getElementById('calNativePostCountHint');
-        if (hint) hint.textContent = _calNativePostCountHint(mode, state.postCount);
         /* One field per post, so the list has to follow the count. This is a
            surgical rebuild rather than _calRenderNativePostChoice() because the
            stepper can be held down: a full re-render per repeat would throw the
@@ -40999,6 +41130,7 @@
         // here -- after the clamp above may have rewritten the value -- so the
         // disabled state can never describe a value that is no longer there.
         if (typeof _svSyncStepper === 'function') _svSyncStepper('calNativePostCount');
+        _calNativeSyncReceipt();
     }
     function _calSetNativePostMode(mode) {
         const state = _calNativePostState;
@@ -41037,6 +41169,7 @@
         if (!radio || !sel) return;
         radio.dataset.batchId = String(sel.value || '');
         if (check) radio.checked = true;
+        _calNativeSyncReceipt();
     }
     /*
      * FILTER THE BATCH LIST BY NAME (owner request 2026-08-26: "could we make
@@ -41128,23 +41261,36 @@
         // Id quoting matches _prodFetchCrosswalkRows; comments here avoid
         // quote characters because some extractor tests track quotes only.
         const list = wanted.map(id => '"' + String(id).split('"').join('\\"') + '"').join(',');
+        /* `title` rides along for the receipt's append preview. The ordinal is
+           recorded NOWHERE ELSE -- there is no column for it -- so it is read
+           back out of the title with the gateway's own rule. No extra round
+           trip: these are the rows this read already fetches. */
         const rows = await _prodRestRows(
-            'production_deliverables_browser_v1', 'batch_id,card_id,id,linear_issue_uuid',
+            'production_deliverables_browser_v1', 'batch_id,card_id,id,linear_issue_uuid,title',
             'batch_id=in.(' + encodeURIComponent(list) + ')',
             1000, 1
         );
         const cards = new Map();
+        const ordinals = new Map();
         (Array.isArray(rows) ? rows : []).forEach(row => {
             const batchId = String(row && row.batch_id || '').trim();
             if (!batchId) return;
             if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
+            /* Highest ordinal, not the count. Delete one card and the two part
+               company permanently, and it is the MAX the append allocates
+               from -- so a count here would preview a number the RPC would
+               then refuse. */
+            const ordinal = _calNativeTitleOrdinal(row && row.title);
+            if (Number.isFinite(ordinal) && ordinal > (ordinals.get(batchId) || 0)) {
+                ordinals.set(batchId, ordinal);
+            }
             if (!cards.has(batchId)) cards.set(batchId, new Set());
             // The Video and Graphics halves of one post share a card_id, so
             // a paired post counts once; a row without a card counts alone.
             cards.get(batchId).add(String(row && row.card_id || '') || 'row:' + String(row && row.id || ''));
         });
         wanted.forEach(id => counts.set(id, cards.has(id) ? cards.get(id).size : 0));
-        return counts;
+        return { counts, ordinals };
     }
     /* Which view is currently open for a given surface. The dialog re-checks
        this at every await, because the user can switch client or tab while a
@@ -41251,21 +41397,29 @@
             }).join('');
         };
         const prevBatchOptions = _calNativeBatchOptionsHtml(compatible, compatible, counts, prevBatchId);
+        /* Only the CHOSEN branch renders its controls. Both used to stay open
+           at once, which spent about a third of the dialog on the option the
+           user had not picked. The radios themselves live in the tab strip, so
+           every read of `calNativeBatchChoice` -- submit included -- is
+           untouched by this. */
         const prevBatchHtml = compatible.length ? `
-                    <label class="cal-native-batch-option">
-                        <input type="radio" name="calNativeBatchChoice" value="batch" id="calNativePrevBatchRadio" data-batch-id="${_calEscAttr(prevBatchId)}"${prevBatchChecked ? ' checked' : ''}>
-                        <span class="cal-native-batch-copy">
-                            <span class="cal-native-batch-title">Add to a previous batch</span>
-                            <span class="cal-native-batch-controls">
-                                ${compatible.length > CAL_NATIVE_BATCH_FILTER_MIN ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
-                                    placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
-                                    autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
-                                    oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}
-                                <span class="cal-native-batch-field"><select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select></span>
-                                <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:none;">No batch matches that name.</span>
-                            </span>
-                        </span>
-                    </label>` : '';
+                        ${compatible.length > CAL_NATIVE_BATCH_FILTER_MIN ? `<input type="search" class="cal-native-batch-filter" id="calNativeBatchFilter"
+                            placeholder="Search ${_calEscAttr(String(compatible.length))} batches by name…" aria-label="Search batches by name"
+                            autocomplete="off" value="${_calEscAttr(String(state.batchFilter || ''))}"
+                            oninput="_calNativeBatchFilter(this)" onmousedown="event.stopPropagation()">` : ''}
+                        <span class="cal-native-batch-field"><select class="cal-native-batch-select" aria-label="Choose a batch" onmousedown="_calNativePrevBatchPick(this, true)" onchange="_calNativePrevBatchPick(this, true)">${prevBatchOptions}</select></span>
+                        <span class="cal-native-batch-filter-empty" id="calNativeBatchFilterEmpty" style="display:none;">No batch matches that name.</span>` : '';
+        /* THE NAME IS PREFILLED, NOT PLACEHELD (owner, 2026-09-08: "it should
+           be clear that we can change the name"). A greyed placeholder reads
+           as a system-generated value you are being shown, not a field you own
+           -- so the generated title is now real, selectable, editable text.
+           Clearing it still falls back to the same default, because
+           `_calNativeBatchNameFor` treats empty as untouched. */
+        const newBatchHtml = `
+                        <input type="text" class="cal-native-batch-name" id="calNativeBatchName" maxlength="${CAL_NATIVE_NAME_MAX}"
+                            value="${_calEscAttr(_calNativeBatchNameFor(state))}" placeholder="${_calEscAttr(_linearIntakeBatchTitle(state.clientName, state.surface))}"
+                            aria-label="Name for the new batch" autocomplete="off"
+                            oninput="_calSetNativeBatchName(this.value)" onfocus="_calNativeNewBatchPick()" onmousedown="_calNativeNewBatchPick(); event.stopPropagation();">`;
         /* Shown only when this post actually makes video work. In Thumbnail-only
            mode there is no video sub-issue to assign, and offering a picker
            that changes nothing is worse than not offering one. */
@@ -41312,24 +41466,21 @@
                         onchange: '_calSetNativePostCount(this.value)',
                         downTip: 'One post fewer', upTip: 'One post more',
                     })}
-                    <span class="cal-native-count-hint" id="calNativePostCountHint">${_calEsc(_calNativePostCountHint(mode, postCount))}</span>
                 </div>
                 <div class="cal-native-name-row" role="group" aria-labelledby="calNativePostNamesLabel">
                     <div class="cal-native-name-label" id="calNativePostNamesLabel">${postCount === 1 ? 'Post name' : 'Post names'}<span class="cal-native-name-optional">optional</span></div>
                     <div id="calNativePostNames">${_calNativePostNamesHtml(state, postCount, mode)}</div>
                 </div>
                 ${editorPickerHtml}
-                <div class="cal-native-batch-options" role="radiogroup" aria-label="Choose a batch" style="margin-top: 14px;">
-                    <label class="cal-native-batch-option">
-                        <input type="radio" id="calNativeNewBatchRadio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'}>
-                        <span class="cal-native-batch-copy"><span class="cal-native-batch-title">Start a new batch</span><span class="cal-native-batch-meta" id="calNativeNewBatchMeta">"${_calEsc(_calNativeBatchNameFor(state))}" · adds this post to it</span>
-                            <input type="text" class="cal-native-batch-name" id="calNativeBatchName" maxlength="${CAL_NATIVE_NAME_MAX}"
-                                value="${_calEscAttr(_calNativeCleanName(state.batchName))}" placeholder="${_calEscAttr(_linearIntakeBatchTitle(state.clientName, state.surface))}"
-                                aria-label="Name for the new batch" autocomplete="off"
-                                oninput="_calSetNativeBatchName(this.value)" onfocus="_calNativeNewBatchPick()" onmousedown="_calNativeNewBatchPick(); event.stopPropagation();">
-                        </span>
-                    </label>${prevBatchHtml}
+                <div class="cal-native-batch-block" style="margin-top: 14px;">
+                    <span class="cal-native-field-label">Batch</span>
+                    <div class="cal-native-batch-tabs" role="radiogroup" aria-label="Choose a batch">
+                        <label><input type="radio" id="calNativeNewBatchRadio" name="calNativeBatchChoice" value="new"${prevBatchChecked ? '' : ' checked'} onchange="_calSetNativeBatchChoice()"><span class="cal-native-batch-title">Start a new batch</span></label>
+                        ${compatible.length ? `<label><input type="radio" id="calNativePrevBatchRadio" name="calNativeBatchChoice" value="batch" data-batch-id="${_calEscAttr(prevBatchId)}"${prevBatchChecked ? ' checked' : ''} onchange="_calSetNativeBatchChoice()"><span class="cal-native-batch-title">Add to a previous batch</span></label>` : ''}
+                    </div>
+                    <div class="cal-native-batch-panel">${prevBatchChecked ? prevBatchHtml : newBatchHtml}</div>
                 </div>
+                <div class="cal-native-receipt" id="calNativeReceipt" aria-live="polite">${_calNativeReceiptHtml(state, { value: prevBatchChecked ? 'batch' : 'new', batchId: prevBatchId })}</div>
                 <div class="cal-native-batch-error" id="calNativePostError" hidden></div>
             </div>
             <div class="cal-import-foot">
@@ -41486,7 +41637,7 @@
         document.body.appendChild(overlay);
         document.body.classList.add('cal-modal-open');
         _calNativePostState = {
-            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, mode: 'both', batchChoice: null, batchFilter: '',
+            clientName, clientSlug, surface, batchOptions: [], batchPostCounts: null, batchMaxOrdinals: null, mode: 'both', batchChoice: null, batchFilter: '',
             batchName: '', postNames: [],
             videoEditors: [], videoEditorId: '', videoEditorSuggestedId: '', videoEditorStatus: 'loading',
         };
@@ -41545,7 +41696,11 @@
             } catch (countError) { postCounts = null; }
             if (!_calNativePostState || _calNativePostState.clientSlug !== clientSlug) return;
             if (_nativePostViewSlug(surface) !== clientSlug) { _calCloseNativePost(true); return; }
-            _calNativePostState.batchPostCounts = postCounts;
+            /* Shape kept apart on purpose: `batchPostCounts` stays the plain
+               Map every existing caller reads, and the ordinals ride beside it
+               rather than inside it. */
+            _calNativePostState.batchPostCounts = postCounts ? postCounts.counts : null;
+            _calNativePostState.batchMaxOrdinals = postCounts ? postCounts.ordinals : null;
             _calRenderNativePostChoice();
         } catch (error) {
             const modal = overlay.querySelector('.cal-import-modal');

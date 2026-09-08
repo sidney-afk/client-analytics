@@ -15640,3 +15640,45 @@ keeping: it is a reason to *schedule* the review, not to rush it.
 
 Both corrections were caught by review, not by me, on a document whose entire
 purpose is to be the one place the sequence is right.
+
+### Addendum, 2026-09-08 — a reversibility reassurance that covered the wrong route
+
+Third P1 from review on PR #1357, and the most dangerous of the three because it
+concerns a one-way action.
+
+**What I wrote.** "Steps 0 through 6 are fully reversible. Only STEP 7 is
+one-way." Quoted in good faith from `LINEAR_CUTOFF_RUNBOOK.md`, where it is true.
+
+**Why it was unsafe anyway.** Two routes to the outbound cutoff are described in
+documents on `main`, and the reassurance only holds for one:
+
+- **Route A**, what the runbook does: flags only. `2026-09-06-linear-outbound-cutoff.sql`
+  is never installed, so there is genuinely no irreversible database step and
+  every flag step has a restore block. The runbook's §0 computes this rather than
+  assuming it: with outbound `off` and parity `false`, `linear-outbound:1355`
+  skips the whole provider block, so nothing reaches `api.linear.app`.
+- **Route B**, which `LINEAR_EXIT_BRIEF_F.md` still describes as live actions:
+  install that migration and call `linear_outbound_cutoff_activate_v1`. Its own
+  entry says *"NOT REVERSIBLE by design — there is deliberately no re-enable RPC"*,
+  and the install's undo says *"VALID ONLY BEFORE THE CUTOFF IS ACTIVATED. AFTER
+  ACTIVATION IT DESTROYS THE EVIDENCE THE RECOVERY NEEDS."*
+
+An operator who followed brief F's live-action list and then read my blanket
+reassurance would have taken a one-way step believing a restore block existed.
+**A true sentence, quoted from the right document, made false by being applied to
+a scope its source did not have.** That is a new variant of this programme's
+recurring defect and worth logging as such: the previous instances were two
+documents disagreeing; this is one document being repeated correctly into a
+context where it stops being true.
+
+**Corrected** by naming both routes, marking Route B one-way with its source
+quoted, and saying plainly: do not take Route B. The runbook's reasoning for
+skipping it is costed — it needs an F27 Section 4 dispatch and therefore a merge
+freeze across every exit branch, and dispatches were rejected on 2026-09-02 and
+2026-08-08 for exactly that. A flag at `off` stops the traffic equally well and
+reverses.
+
+**The briefs describe Route B because they were written when it was the plan.**
+They are a map of what exists, not an instruction to install it. That sentence is
+now in the master sequence, because the briefs cannot be trusted to carry their
+own obsolescence.

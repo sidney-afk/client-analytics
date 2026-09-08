@@ -189,11 +189,46 @@ workflow run does, because it emails through GitHub and touches no n8n.
 Follow `docs/ops/LINEAR_CUTOFF_RUNBOOK.md`. STEP 0 is read-only and can be run
 today. STEP 3 onward is gated on Phase 1 and Phase 2.
 
-The runbook's own shape is worth stating here because it is the reassuring part:
-**there is deliberately no irreversible database step.** Every flag step names its
-exact expected prior value, refuses if reality disagrees, and has a restore block
-of the same shape. Steps 0 through 6 are fully reversible. Only STEP 7, revoking
-the credentials, is one-way, and only after 2026-09-15.
+### There are TWO possible routes here, and only one of them is reversible
+
+An earlier draft of this section said flatly "steps 0 through 6 are fully
+reversible". That is true of the route the runbook takes and **dangerously untrue
+of the other one**, and both are described in documents on `main`. Stating it
+without the condition could induce a one-way action under a reassurance that does
+not cover it.
+
+**Route A — what `LINEAR_CUTOFF_RUNBOOK.md` actually does. Take this one.**
+Flags only. The runbook's §0 computes, rather than assumes, that no Edge Function
+deploy is needed: with `linear_outbound_enabled = {"mode":"off"}` and
+`linear_legacy_parity_enabled = {"enabled":false}`, `linear-outbound/index.ts:1355`
+skips the entire provider block — no rows read, no `readViewer()`, nothing reaches
+`api.linear.app`. Both flags fail closed. On this route
+`migrations/2026-09-06-linear-outbound-cutoff.sql` is **never installed**, so
+**there is deliberately no irreversible database step**, every flag step names its
+exact expected prior value and refuses if reality disagrees, and **steps 0 through
+6 are fully reversible.** Only STEP 7, revoking the credentials, is one-way.
+
+**Route B — installing the server fence. One-way. NOT part of the runbook.**
+`LINEAR_EXIT_BRIEF_F.md` describes installing that migration (seven functions, a
+control table, four `mirror_outbox` columns) and then activating the fence with
+`select public.linear_outbound_cutoff_activate_v1(<generation>, '<operator>')`.
+Its own live-action entry says of that step: *"NOT REVERSIBLE by design — there
+is deliberately no re-enable RPC, public or automatic. Recovery requires a
+reviewed migration delta issued only after every `authorized_before_cutoff` row is
+reconciled against provider truth and every `accepted_after_cutoff` receipt is
+classified."* And the install step's own undo carries: *"THIS UNDO IS VALID ONLY
+BEFORE THE CUTOFF IS ACTIVATED. AFTER ACTIVATION IT DESTROYS THE EVIDENCE THE
+RECOVERY NEEDS — DO NOT TAKE IT."*
+
+**Do not take Route B.** The runbook's reasoning for skipping it is sound and
+costed: it needs an F27 Section 4 dispatch, which needs a merge freeze across
+every exit branch, and dispatches were rejected on 2026-09-02 and 2026-08-08 for
+exactly that. A flag at `off` stops the traffic equally well and is fully
+reversible. If 2026-09-15 arrives with a real-client row still non-terminal, that
+is an argument **for** the flag shape, not against it.
+
+The briefs describe Route B because they were written when it was the plan. They
+are a map of what exists, not an instruction to install it.
 
 ---
 

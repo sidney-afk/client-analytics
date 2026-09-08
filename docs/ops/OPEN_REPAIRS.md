@@ -15662,3 +15662,37 @@ these six LIVE ACTIONS blocks as ordered procedures rather than as sets of
 independent items.
 
 Nine rounds, twenty-five reported findings, twenty-four of them mine.
+
+### The LIVE ACTIONS ordering sweep, started before round ten
+
+Round nine's class — the ORDER of a live-action list is itself an instruction —
+had never been checked, so I started the sweep rather than assert it clean. One
+hit so far, and it is the same shape as brief E's.
+
+**Brief C prints its riskiest step first.** The block leads with
+`- [runtime-flag] Set three production-write secrets`, including
+`NATIVE_URGENT_HANDOFF_ENABLED=true`. Its own C1 `mitigate:`, four lines below,
+gives the real sequence: merge, deploy production-write, install the n8n root and
+jwtAuth credential, THEN the secrets, then the drill. The list and the mitigate
+disagree, and the list is the unsafe one.
+
+**What enabling early costs.** Once the new closure is deployed the browser
+prefers the native branch. With the flag on and no receiver at
+`native-urgent-video`, the gateway signs and POSTs into nothing, and a missing or
+malformed response is specified as **HTTP 502 `delivery_unknown`,
+`delivery:"unknown"`, `retry_safe:false`** — the one shape the browser must not
+retry. So the urgent ping is LOST, not deferred. Enabled-last is the whole reason
+the window is safe, and the printed order inverts it. The line now says "printed
+first and it is not first, take it fourth" with the reason attached.
+
+Still unswept: brief B's six migrations plus three flag flips plus the Section 4
+dispatch, and brief F's twelve steps across two one-way boundaries. Both are
+larger than C's and both contain steps whose order I have only reasoned about in
+their `undo:` direction, never forward. Codex has the same question in front of
+it; whichever of us gets there first, the answer belongs here.
+
+**Why this class was invisible for nine rounds.** Every audit I ran — including
+the four self-sweeps — walked lines. A defect that lives in the RELATIVE POSITION
+of two correct lines is not visible to anything that reads one line at a time,
+and a brief that lists actions under a heading reads as a set unless something
+tells you it is a sequence. Two of these six blocks turn out to be sequences.

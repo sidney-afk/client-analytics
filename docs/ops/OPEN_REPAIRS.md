@@ -14771,3 +14771,31 @@ Pinned: two new `test/calendar-deep-link-focus.js` cases (one per request
 shape) construct exactly the returning-staff-tab scenario and assert the
 `null` mount transition touches neither `_calFocusRequest` nor
 `_calPendingDeepLink`.
+
+**Seventh Codex pass, same PR, on the fix above.** Two more real findings,
+both the same "a fix covered one exit route but not all of them" shape as
+finding 8:
+
+13. *(P2)* The fifth pass's `_calSetClient` fix only fires when
+    `calState.client` actually changes to a DIFFERENT client. Leaving the
+    calendar entirely by a route OTHER than `navTo` — `render()` (whose own
+    comment already notes it "bypasses `navTo()`") and the popstate
+    handler's `state.client` branch — repaints over the calendar without
+    ever changing `calState.client`, so neither existing guard fires and a
+    pending card-link request (and its toast) survives the exit. Extracted
+    the inline `navTo` logic into a shared `_calAbandonLinkOnCalendarExit
+    (stillOnCalendar)` helper and wired it into both routes, beside each
+    one's own pre-existing `_calV2Teardown()` call.
+14. *(P2)* The "Opening linked card…" toast had no `role`/`aria-live`
+    attribute, so a screen-reader user got none of the acknowledgment this
+    item exists to add — same gap the visual fix was built to close, just
+    for a different reader. `showToast()` now sets `role="status"` and
+    `aria-live="polite"` on the toast element before it's appended, which
+    covers this and every other toast in the app since it's the one shared
+    utility.
+
+Fixed in commit `7c9f614`. Pinned: `test/calendar-deep-link-focus.js` gained
+source assertions that `render()` and the popstate handler's `state.client`
+branch both call `_calAbandonLinkOnCalendarExit` within 400 characters of
+their own `_calV2Teardown()` call, and a `showToast` accessibility test
+verifying both attributes are set before `document.body.appendChild(el)`.

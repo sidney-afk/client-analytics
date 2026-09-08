@@ -14777,3 +14777,47 @@ lane:** the wrong-polarity mock, the freshness watcher pointed at a source with
 no watermark, and now a guard that passed while the thing it guarded was broken.
 Each was a claim that looked checked and was not. The only thing that caught any
 of them was running the mutation and watching it fail to go red.
+
+**Addendum 4, 2026-09-08 — a second Codex pass, and the guard had a hole from the
+start.** Three more P1 findings on PR #1350, all verified, all fixed.
+
+**G1. A rotating dead-mode run proves the fault DISTRIBUTION, not that any given
+write flow met any given fault.** The rotation hands each intercepted call
+whichever shape is next on a shared counter; probes record payloads but not the
+shape they were given; `p30` starts several actions before settling and `p36`
+shares one counter across three contexts. A probe making only two calls (`p29`
+typically) can never see all four shapes in one run — so R10 read as satisfied
+while a flow might never have met `ok_lie`, the one shape `resp.ok` cannot catch.
+The audit now requires FOUR PINNED RUNS, one per shape, and adds R11 (the four
+runs happened) and R12 (the write flows survived `ok_lie` specifically, judged by
+a person).
+
+**G2. The detector this lane wrote to make F1 un-rottable was itself rotten, and
+this is the fourth instance of the same shape in this lane.** It matched only
+route patterns that spelled a Linear webhook LITERALLY. Three more probes build
+theirs by concatenation —
+`for (const wh of ['linear-set-status', …]) ctx.route('**/webhook/' + wh, …)` —
+so `p47_title_review.js`, `p60_modal_smm.js` and `p68_linear_link_clear.js` were
+never seen, and the offline test passed while all three still exercised a healthy
+Linear during the documented full-manifest dead run. **There were seven, not
+four.** All three are now converted to the shared helper, and the detector keys on
+the WEBHOOK NAMES near the registration — pattern plus a 250-character lookback
+that reaches the loop header — rather than on the shape of the pattern string.
+
+One deliberate exclusion, recorded so nobody "fixes" it:
+`ot4_t1_submit_intake_guards.js` has a `route('**/*')` catch-all naming two Linear
+paths, but it is a sealed fixture whose default is `route.abort` — it refuses
+everything it does not name and is not pretending Linear is healthy. Classifying
+on the PATTERN rather than the whole handler body keeps it out without loosening
+the check, which matters: the alternative was a false alarm that someone would
+eventually silence by weakening the rule.
+
+**G3.** `qa/probes/linear-hook-fulfil.js` was missing from `REPO_MAP.md`. Added.
+
+**The count for this lane is now four guards that looked checked and were not:**
+the wrong-polarity mock, the freshness watcher aimed at a source with no
+watermark, a per-file assertion that survived reverting one of two handlers, and
+now a detector blind to string concatenation. Every one was found by an
+adversarial reader or a mutation, never by reading the code again. That is the
+transferable lesson from this lane, and it is worth more than any single fix in
+it: **write the mutation and watch it fail to go red.**

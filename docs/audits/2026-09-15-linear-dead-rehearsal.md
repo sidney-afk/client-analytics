@@ -90,11 +90,29 @@ SYNCVIEW_QA_LINEAR_DEAD=1 node qa/master.js --profile=full
 SYNCVIEW_QA_LINEAR_DEAD=1 node qa/run-probes.js
 ```
 
-Pin one shape when chasing a single defect:
+**Run it PINNED, once per shape. The rotating run is not sufficient on its own.**
 
 ```
-SYNCVIEW_QA_LINEAR_DEAD=ok_lie node qa/master.js --profile=full
+for shape in refused gateway timeout ok_lie; do
+  SYNCVIEW_QA_LINEAR_DEAD=$shape node qa/run-probes.js
+done
 ```
+
+Why this matters, and it is the difference between a rehearsal and a ritual: the
+rotation hands each intercepted call whichever fault is next on a shared counter.
+The probes record the payloads they were sent but not the SHAPE they were given,
+`p30` starts several actions before settling, and `p36` shares one counter across
+three browser contexts. So call ordering decides which flow meets which fault, and
+a probe that makes only two calls (`p29` typically does) can never see all four in
+a single run.
+
+**A rotating run therefore proves the overall fault distribution, not that any
+particular write flow survived a particular fault.** R10 below reads as satisfied
+either way, which is exactly the kind of aggregate that looks like evidence and is
+not. Four pinned runs give every flow every shape, and `ok_lie` — the one that
+cannot be caught by checking `resp.ok` — is the one worth being certain about.
+
+Found by Codex on PR #1350.
 
 ### The four probes that used to escape the interceptor — now fixed
 
@@ -108,12 +126,26 @@ unconditionally, and a later-registered route wins. **So a full-manifest run wit
 dead mode on exercised a HEALTHY Linear for exactly the status-and-comment write
 flows this rehearsal exists to watch die.**
 
-| probe | status |
-|---|---|
-| `qa/probes/p28_linear_sync.js` | fixed — answers through the shared helper |
-| `qa/probes/p29_linear_kasper.js` | fixed — answers through the shared helper |
-| `qa/probes/p30_linear_client.js` | fixed — answers through the shared helper |
-| `qa/probes/p36_full_sync.js` | fixed — answers through the shared helper |
+**There were SEVEN, not four.** The first sweep matched only patterns that spelled
+a Linear webhook literally. Three more build theirs by concatenation —
+`for (const wh of ['linear-set-status', …]) ctx.route('**/webhook/' + wh, …)` —
+and sailed past a check that reported itself green. All seven now answer through
+the shared helper.
+
+| probe | pattern | status |
+|---|---|---|
+| `qa/probes/p28_linear_sync.js` | literal | answers through the shared helper |
+| `qa/probes/p29_linear_kasper.js` | literal | answers through the shared helper |
+| `qa/probes/p30_linear_client.js` | literal | answers through the shared helper |
+| `qa/probes/p36_full_sync.js` | literal | answers through the shared helper |
+| `qa/probes/p47_title_review.js` | **concatenated** | answers through the shared helper |
+| `qa/probes/p60_modal_smm.js` | **concatenated** | answers through the shared helper |
+| `qa/probes/p68_linear_link_clear.js` | **concatenated** | answers through the shared helper |
+
+`ot4_t1_submit_intake_guards.js` is deliberately NOT in this table. Its
+`route('**/*')` catch-all names two Linear paths, but it is a sealed fixture whose
+default is `route.abort` — it refuses everything it does not name, so it is not
+pretending Linear is healthy.
 
 They cannot simply drop their routes and inherit the library's, because they need
 to RECORD the calls they intercept. So they share one answer:
@@ -159,8 +191,10 @@ Fill in `observed` and `verdict`. **A blank row is not a pass.**
 | R8 | No request reached `api.linear.app` | `linear_calls.jsonl` contains no row whose `path` is `api.linear.app` with a non-`refused` outcome | | |
 | R9 | Every one of the seven webhooks was exercised at least once | distinct `path` values in `linear_calls.jsonl` | | |
 | R10 | All four fault shapes were injected | distinct `dead` values in `linear_calls.jsonl` | | |
+| R11 | **Each shape was run PINNED across the probe manifest** — four runs, not one rotating run | four separate `SYNCVIEW_QA_LINEAR_DEAD=<shape>` invocations, each recorded here | | |
+| R12 | The status-and-comment write flows survived `ok_lie` specifically | the pinned `ok_lie` run, read as a person: a 200 that carried nothing must not be reported anywhere as success | | |
 
-**R7 is the one that matters and it is the one a machine cannot judge.** Every
+**R7 and R12 are the ones that matter, and they are the ones a machine cannot judge.** Every
 other row can be asserted. "The board looked normal and was a photograph" is
 exactly the failure this exit is about, and a person has to look. Take the
 screenshots.

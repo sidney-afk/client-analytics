@@ -6,6 +6,7 @@
 //   • a VIDEO note → routes to Linear (intercepted; real Linear untouched)
 // Verifies role=smm, audience tagging, threading (parent_id), and cross-surface visibility.
 const Q = require('./lib.js');
+const { fulfilLinearHook } = require('./linear-hook-fulfil.js');
 const TS = Math.floor(Date.now() / 1000);
 const PID = 'p_m60_' + TS;
 const INT = 'SMM-INTERNAL-' + TS, CLI = 'SMM-CLIENT-' + TS, REP = 'SMM-REPLY-' + TS, VID = 'SMM-VIDEO-' + TS;
@@ -33,7 +34,7 @@ const rootIdByBody = async (pid, comp, needle) => { const r = await Q.rawRow(pid
   await Q.stubRerouteFlagDark(sctx);  // keep the TEST client on the legacy lane real clients run (see lib.js)
   await sctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const linear = [];
-  for (const wh of ['linear-add-comment', 'linear-set-status']) await sctx.route('**/webhook/' + wh, async (r) => { let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {} linear.push({ wh, b }); await r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
+  for (const wh of ['linear-add-comment', 'linear-set-status']) await sctx.route('**/webhook/' + wh, async (r) => { let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {} linear.push({ wh, b }); await fulfilLinearHook(r); });
   const smm = await sctx.newPage(); smm._errs = [];
   smm.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/i.test(m.text())) smm._errs.push(m.text()); });
   smm.on('pageerror', e => smm._errs.push(String(e && e.message)));

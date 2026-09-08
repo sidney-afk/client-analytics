@@ -241,35 +241,25 @@ const {
   const probeDir = path.join(__dirname, '..', 'qa', 'probes');
   const HELPER = 'linear-hook-fulfil.js';
 
-  const intercepts = fs.readdirSync(probeDir)
-    .filter(name => name.endsWith('.js') && name !== HELPER)
-    .filter(name => /\.route\((['"`/]).{0,40}webhook.{0,3}linear/i
-      .test(fs.readFileSync(path.join(probeDir, name), 'utf8')))
-    .sort();
-
-  ok(intercepts.length > 0,
-    'the detector must still find the probes that intercept a Linear webhook — if this goes to '
-    + 'zero the pattern stopped matching and the check silently became a no-op');
-
   /*
-   * EVERY Linear route handler is checked, not merely the file.
+   * DETECTING THE INTERCEPTS. The first version of this matched a route pattern
+   * that spelled a Linear webhook LITERALLY, and Codex found the hole: three more
+   * probes build the pattern by concatenation —
+   * `for (const wh of ['linear-set-status', …]) ctx.route('**​/webhook/' + wh, …)`
+   * — so p47/p60/p68 sailed straight past a check that reported itself green.
+   * That was the fourth time in this lane a guard passed while the thing it
+   * guarded was broken, which is why the rule below keys on the WEBHOOK NAMES
+   * near the registration rather than on the shape of the pattern string.
    *
-   * An earlier version of this asserted `fulfilLinearHook` appeared SOMEWHERE in
-   * the probe. Each of these probes registers TWO Linear routes, so reverting one
-   * of them to a hard-coded fulfil left the other reference behind and the check
-   * passed — the mutation proved the assertion, not the code. Slice each handler
-   * out and judge it on its own.
+   * The lookback is what makes concatenation visible: the loop header carrying
+   * the names sits on a line above the `.route(` call.
    */
-  /*
-   * Slice each handler by BALANCING PARENS from its `.route(`, not by matching a
-   * closing brace pattern. The probes are written both ways — p28 puts the body
-   * on its own lines, p29/p30/p36 keep it on one — and a regex tuned to one shape
-   * silently found nothing in the other, which is a check that passes because it
-   * looked at nothing.
-   */
+  const HOOK_NAMES = /linear-(set-status|add-comment|subissues|issue-statuses|issues|projects|tweak-comments)/;
+  const LOOKBACK = 250;
+
   function linearRouteHandlers(source) {
     const handlers = [];
-    const opener = /\.route\(\s*(['"`])[^'"`]*webhook[^'"`]*linear[^'"`]*\1/gi;
+    const opener = /\.route\(/g;
     let match;
     while ((match = opener.exec(source)) !== null) {
       const open = source.indexOf('(', match.index);
@@ -278,18 +268,45 @@ const {
         if (source[i] === '(') depth += 1;
         else if (source[i] === ')') {
           depth -= 1;
-          if (depth === 0) { handlers.push(source.slice(open, i + 1)); break; }
+          if (depth === 0) {
+            const body = source.slice(open, i + 1);
+            /*
+             * Judge the PATTERN, not the whole handler.
+             *
+             * Matching anywhere in the body swept in `ot4_t1_submit_intake_guards.js`,
+             * whose `route('**​/*')` catch-all mentions two Linear paths inside a
+             * fully sealed fixture that ABORTS everything it does not name. That
+             * probe is not pretending Linear is healthy — its default is refusal —
+             * and flagging it would have meant either a false alarm or, worse,
+             * someone loosening this check to silence it.
+             */
+            const comma = body.indexOf(',');
+            const pattern = comma === -1 ? body : body.slice(0, comma);
+            const context = source.slice(Math.max(0, match.index - LOOKBACK), match.index);
+            // Linear-targeted if the pattern names a webhook, or the loop header
+            // immediately above supplies the names by concatenation.
+            if (HOOK_NAMES.test(pattern) || HOOK_NAMES.test(context)) handlers.push(body);
+            break;
+          }
         }
       }
     }
     return handlers;
   }
 
+  const intercepts = fs.readdirSync(probeDir)
+    .filter(name => name.endsWith('.js') && name !== HELPER)
+    .filter(name => linearRouteHandlers(fs.readFileSync(path.join(probeDir, name), 'utf8')).length > 0)
+    .sort();
+
+  ok(intercepts.length >= 7,
+    `expected at least the seven known Linear-intercepting probes, found ${intercepts.length} `
+    + `(${intercepts.join(', ') || 'none'}) — if this drops, the detector stopped matching and `
+    + 'the check silently became a no-op');
+
   for (const probe of intercepts) {
     const source = fs.readFileSync(path.join(probeDir, probe), 'utf8');
-    const handlers = linearRouteHandlers(source);
-    ok(handlers.length > 0, `${probe} matched the interceptor scan but no handler body could be sliced`);
-    for (const [index, handler] of handlers.entries()) {
+    for (const [index, handler] of linearRouteHandlers(source).entries()) {
       ok(/fulfilLinearHook/.test(handler),
         `${probe} Linear route #${index + 1} does not answer through ${HELPER}, so it ignores `
         + 'SYNCVIEW_QA_LINEAR_DEAD and rehearses a HEALTHY Linear whatever the environment says');
@@ -299,10 +316,8 @@ const {
     }
   }
 
-  // The helper itself must genuinely branch on the mode and must treat a refusal
-  // as an abort. A probe that reported an aborted request as a 200 would say the
-  // opposite of what happened.
   const helper = fs.readFileSync(path.join(probeDir, HELPER), 'utf8');
+
   // The helper must BRANCH on the mode. Asserting the token `LINEAR_DEAD` merely
   // appears is not enough — it also appears in the import and the exports, so
   // deleting the branch itself left the old assertion green.

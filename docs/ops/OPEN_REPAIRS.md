@@ -17752,3 +17752,127 @@ an open PostgREST read.
 **A wrong report that renders is worse than an endpoint that fails**, because
 failure is legible and a confident wrong number is not. That is the same reason the
 Workload board's freeze is rated above the surfaces that die visibly.
+
+## 182. [2026-09-08, OWNER DECISIONS + THE PROGRAMME COMPARISON — the ledger entry the owner asked for by name] What Sidney decided on 2026-09-08 evening, and which exit programme wins
+
+Recorded because the owner said, in these words: *"Remember to write everything on the
+ledger, everything I'm telling you … because I'm not going to remember."* Everything
+below is his instruction or his measurement, not a session's inference.
+
+### A. The reroute conflict is RESOLVED, by an owner-read live value
+
+`select key, value from syncview_runtime_flags where key = 'write_ui_reroute_clients';`
+returned **43 client slugs — the full active roster** (slugs withheld here; the repo
+is public and the house rule prefers counts).
+
+**So `docs/truth/BRIEFING.md:124-127` was right and `ROLLBACK.md:146` was stale.**
+The rollback row described the 2026-08-07 cohort ("TEST fixture plus wave 1, two real
+clients") and had been wrong since wave 3 executed 2026-08-14. **An operator rolling
+back from it would have dropped 41 clients onto the legacy Linear lane.** Corrected in
+`ROLLBACK.md` in this commit, citing the owner read.
+
+**Consequence: the "staff writes are safe at the cutoff" row is now MEASURED, not
+assumed.** It was the largest open uncertainty in the master sequence and it closed in
+the good direction.
+
+### B. OWNER DECISION — fix the urgent Slack alert
+
+*"We need to fix the Slack alert."* Requirement in his words: when an SMM clicks
+**URGENT TWEAKS NEEDED**, it must reach the sub-issue, resolve the editor, and do that
+**through SyncView rather than Linear**.
+
+**What the button does today** (`index.html:33398-33410`, `:22450`): the browser sends
+only `{ issue, client, name }` where `issue = post.linear_issue_id`, and the n8n
+`send-urgent-slack` workflow resolves the editor **from Linear**, maps them through the
+Video Editors sheet, and posts to `#video-editing` as the SyncView Bot. The editor is
+deliberately never trusted from the client.
+
+**Owner clarification, and it matters.** He changed something here "a couple of days
+ago", and on being asked, clarified: *"what changed is the message that appears in
+Slack now shows the sync linear link instead of the linear one. That's it."* So the
+change was **cosmetic, in the message body**. The app still sends `linear_issue_id`,
+and the editor lookup is still a Linear read. **The fix is still required.**
+
+**It breaks TWO ways at the cutoff, not one**, and only the second was previously
+recorded: (1) the calendar caller refuses before sending at all —
+`if (!issue) showNotify('No Linear link', …)` at `index.html:33383` — so a native card
+with no Linear id never even reaches the webhook; (2) the workflow's editor lookup
+fails. A fix addressing only the n8n side leaves (1) live.
+
+### C. OWNER DECISION — the dead-Linear rehearsal runs AFTER the Fable 5.1 review
+
+*"Yes, we will do the linear test, but after I run all of the building we've done
+through Fable 5.1."* This **reverses the order the master sequence recommends** (it
+made P4 the first Phase 2 action). Recorded as the owner's call, not as an error:
+the rehearsal's value is unchanged by running it later, and the review may change what
+is being rehearsed.
+
+### D. The naming mint is an INSTALL to-do, and the owner has it
+
+*"For the naming thing, well I guess it's just on the to-do list when we install all
+of the changes, right?"* — correct, and confirmed. Four steps, nothing to build:
+apply the migration, seed `video`, seed `graphics`, **flip the flag**. Check the seed's
+returned `prefix` / `observed_provider_max` / `next_ordinal` **before** flipping,
+because the flip's proof step is what makes the seed irreversible (see the addendum
+above).
+
+### E. THE PROGRAMME COMPARISON — verdict: HYBRID, take A now and lift B's gateway
+
+The owner asked for the call to be made rather than handed to him: *"I don't know which
+version to use, you should look at both of them and see which is better."* A read-only
+comparison was run against both trees.
+
+**They are close to COMPLEMENTARY, not competing.** Programme A (#1344/#1346/#1347/
+#1350) owns the read surfaces and the cutoff discipline. Programme B (#1326/#1341) owns
+the **write gateway** and **urgent alerts**. Overlap is three files, and in all three
+A's version is a strict superset of B's with the same exported API — they are two
+revisions, not two designs, and B's is the earlier one.
+
+**The fact that decides it: the `workload-plan` Edge Function deployed in production
+right now is programme A's code.** The deployed SHA `d4b2365e` is an ancestor of
+#1344 and of **neither `main` nor `5bcc03bd`**, and its `workload-plan/index.ts` and
+`native-snapshot.mjs` are byte-identical to #1344's. B's are different and older.
+**Choosing B would strand the deployed function with no source on `main`, and restoring
+coherence would mean re-deploying `workload-plan` with an older implementation — after
+the 2026-09-07 outage that a `workload-plan` deploy caused.**
+
+**Two things the comparison settled that this ledger had left open:**
+
+- **#1326 DOES cover labels.** The master sequence said "may or may not — a question
+  for the review". It threads the native epoch through `projectForIntake`,
+  `parentRouteForAppend`, `handleComponentFill`, the assignee lane **and** labels
+  (`production_labels_write` RPC). It covers every write row.
+- **#1341 is the ONLY thing that fixes urgent alerts.** Zero native-urgent references
+  exist in any programme-A branch. So decision B above should **start from #1341 rather
+  than from scratch** — which is precisely the duplicate-work trap the owner asked
+  about in the same message.
+
+**Two corrections to claims this ledger and the master sequence made:**
+
+1. **Hazard 1's symptom is wrong in our docs.** A genuinely absent
+   `production_native_intake_epochs` RPC yields PostgREST `PGRST202`, which matches no
+   branch of the gateway's `rpc()` handler and falls through to **`500
+   native_write_failed`**, not the `503` both `LINEAR_EXIT_BRIEF_B.md:275` and the
+   master sequence state. `503` is what an RPC that *exists but returns the wrong shape*
+   produces. Same operational conclusion, different symptom to look for.
+2. **Hazard 2 is smaller than written.** The browser-before-gateway window degrades the
+   **editor picker only** — the call site wraps it in a `Promise.race` with a `.catch`
+   that sets `videoEditorStatus = 'unavailable'` and re-renders, so Create Post keeps
+   working with server-side assignment. Our text said Create Post was down for the
+   window. It is not.
+
+**The real risk of the hybrid, and it is not the one anyone was watching.** `#1326`'s
+`index.html` **auto-merges onto main with no conflict at all** — 480 hunks from two
+independent rewrites of an 80,000-line file interleaving with no marker anywhere. That
+is exactly the silent-drop failure `LINEAR_EXIT_LANES.md:36-38` was written to prevent,
+and nothing flags it for review. **Therefore: do NOT take #1326's `index.html`.** Take
+`production-write/index.ts` and `policy.mjs` (a clean whole-file swap — main's copy is
+byte-identical to 1326's base, zero drift) plus its composed SQL, and port only the
+small editor-picker hunk by hand.
+
+### F. What the comparison could NOT establish, flagged rather than guessed
+
+Which text of `2026-09-05-workload-native-membership.sql` is actually live (two versions
+exist under one filename and it is already applied); whether P2 is applied; whether the
+deployed `production-write` matches repo source. All three need a live read, and all
+three are owner actions.

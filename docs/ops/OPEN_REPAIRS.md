@@ -14616,6 +14616,58 @@ turn: three checks go red against the code without this fix.
 assumed, and pinned as a self-test because the review asked for it and because
 the next edit to that matcher should have to keep it working.
 
+### CODEX ON `638ff37`: THE LEGACY PINNING WAS TOO BROAD
+
+Three P1s, all against the fix from the round before, and all correct. This is
+the classification error the PR comment explicitly asked to have challenged, so
+it is worth recording that asking for it is what surfaced it.
+
+**The scenario DSL: 4 of 84, not 84 of 84.** Opening every actor on the legacy
+roster because the DSL *has* an `expectLinear` verb put all 84 base scenarios —
+and every compiled tree path — on the retired lane. Measured before fixing: only
+**4** of the 84 carry a Linear assertion. The other 80 are ordinary approve,
+request and comment journeys, and they stopped exercising the route production
+clients take. Green coverage that no longer covers the shipped lane is this
+change set's own defect, inverted.
+
+`scenarioUsesLegacyLane(scn)` now decides per SCENARIO from that scenario's own
+steps, and an undeclared scenario defaults to PRODUCTION — a lane that forgets to
+declare itself gets the one real clients take, and its Linear assertion fails
+loudly rather than a native regression hiding behind a green legacy run. Driven
+against the real `qa/scenarios.js` output in the suite, not asserted about:
+4 of 84 select legacy, every one of them genuinely carries the verb, and every
+scenario left on production carries none.
+
+**AND TWO LANES SHOULD NOT HAVE BEEN PINNED AT ALL.** `ot4_t0_client_edge_conditions`
+(the Tier-0 P4 real-client failure/lost-ack recovery contract) and
+`sxr_kasper_audit_holes` (approve/undo persistence and `kasper_approved_at`) are
+production-behaviour contracts, not rollback-transport tests. Pinning them to
+legacy would let a regression in the native path ship while the scheduled probe
+stayed green — the same "green about a lane production does not take" defect,
+pointed the other way.
+
+Both are back on the production roster and are **EXPECTED RED until migrated**.
+That is the deliberate choice: between a probe that passes wrongly and one that
+fails loudly, the loud one is correct, and `AGENTS.md` permits a red nightly when
+the PR says why and what clears it.
+
+**What migration needs**, recorded in both files and here so nobody re-derives it:
+`stubNativeWorkItems` extended to stamp `/rest/v1/sample_reviews` as well as
+`/rest/v1/calendar_posts`; gateway capture added to `qa/sxr_courier_lib.js`,
+which records LINEAR_HOOK calls and has no equivalent for
+`functions/v1/production-write`; then the assertions rewritten onto native
+intents. None of it is in this PR because none of it can be RUN from this
+sandbox, and an unverified rewrite of a Tier-0 probe is how this PR earned six
+findings already.
+
+**What stays legacy-pinned, and why it survived the challenge:**
+`cal_linear_deep` and `sxr_linear_deep` (the outbox drain and its quarantine,
+which item 175 pinned as deliberately NOT flipped), the two `qa/ef-writepath`
+Pipe B lanes (the n8n push IS their subject), and the 4 scenarios that assert on
+it. Codex challenged three lanes and left these; that is the line between "about
+the legacy path" and "happens to contain a legacy assertion", and the first
+version of this wiring did not draw it.
+
 **A SIXTH, in the wiring for the fix above, found by applying the rule instead
 of trusting it.** The `legacyOptIn` check asked whether the opt-in token appeared
 ANYWHERE in the file. `ot4_t0_client_edge_conditions.js` opens seven client

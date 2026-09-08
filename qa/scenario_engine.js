@@ -91,18 +91,34 @@ async function eventMatch(id, action, want, ms = 15000) {
 }
 
 // ---------- tab manager ----------
+/* DOES THIS SCENARIO ASSERT ON THE RETIRED LANE?
+   Per SCENARIO, not per file. The first version of this wiring opened every actor with the
+   legacy roster because the DSL *has* an `expectLinear` verb — but only 4 of the 84 base
+   scenarios use it, so the other 80 (ordinary approve, request and comment journeys, plus
+   every compiled tree path) stopped exercising the native route production clients take.
+   Green coverage that no longer covers the shipped lane is the same defect this whole repair
+   is about, one level up. Codex finding on 638ff37; measured 4/84 before fixing.
+   `expectNoLinear` counts too: on the native lane it would pass vacuously, so a scenario
+   using it keeps the world its assertion was written against. */
+function scenarioUsesLegacyLane(scn) {
+  let text = '';
+  try { text = JSON.stringify(scn && scn.steps ? scn.steps : scn); } catch (e) { return false; }
+  return /expectLinear|expectNoLinear/.test(text || '');
+}
+
 class Actors {
-  constructor(browser) { this.browser = browser; this._smm = null; this._kasper = null; this._client = null; }
-  /* The DSL's `expectLinear` verb asserts that a RETIRED webhook was called, so every
-     scenario built on it describes the legacy write path. It therefore opens its surfaces
-     with the explicit legacy roster rather than the production one: before this PR they
-     received `[]`, which meant legacy, and after the item-175 fail-closed repair `[]` routes
-     NATIVE — the opposite. Codex finding on d6e26c3. Migrating the verb (and every scenario
-     that uses it) to native intents is tracked as owed in
-     test/probes-assert-native-write-lane.js; this keeps the engine honest until then. */
-  async smm() { if (!this._smm) this._smm = await smm(this.browser, 'sidneylaruel', { writeUiRerouteLegacy: true }); return this._smm; }
-  async kasper() { if (!this._kasper) this._kasper = await kasper(this.browser, { writeUiRerouteLegacy: true }); return this._kasper; }
-  async client() { if (!this._client) this._client = await client(this.browser, undefined, undefined, { writeUiRerouteLegacy: true }); return this._client; }
+  constructor(browser, legacyLane) {
+    this.browser = browser;
+    this._smm = null; this._kasper = null; this._client = null;
+    /* Undefined means "not told", and the safe default there is PRODUCTION: a scenario that
+       forgets to declare itself gets the lane real clients take, and its Linear assertion
+       fails loudly rather than a native regression hiding behind a green legacy run. */
+    this.legacyLane = legacyLane === true;
+  }
+  get _rosterOpts() { return this.legacyLane ? { writeUiRerouteLegacy: true } : undefined; }
+  async smm() { if (!this._smm) this._smm = await smm(this.browser, 'sidneylaruel', this._rosterOpts); return this._smm; }
+  async kasper() { if (!this._kasper) this._kasper = await kasper(this.browser, this._rosterOpts); return this._kasper; }
+  async client() { if (!this._client) this._client = await client(this.browser, undefined, undefined, this._rosterOpts); return this._client; }
   async closeAll() { for (const p of [this._smm, this._kasper, this._client]) { if (p) { try { await p.context().close(); } catch {} } } this._smm = this._kasper = this._client = null; }
 }
 
@@ -734,7 +750,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
   const fs = require('fs');
   const id = scn.id, name = scn.name;
   const log = []; let nstep = 0; let okCount = 0, failCount = 0;
-  const actors = new Actors(browser);
+  const actors = new Actors(browser, scenarioUsesLegacyLane(scn));
   const extraIds = new Set();   // rows minted BY THE UI during this scenario (no seeded id) — archived in finally
   const uiNames = new Map();    // logical scenario names → per-run unique names (noSeed UI-born rows)
   const uniqueUiName = (label) => {
@@ -1091,4 +1107,4 @@ async function runScenario(browser, scn, shotDir, doShots) {
   return { key: scn.key, name: scn.title || scn.name, ok: okCount, fail: failCount, log };
 }
 
-module.exports = { runScenario };
+module.exports = { scenarioUsesLegacyLane, runScenario };

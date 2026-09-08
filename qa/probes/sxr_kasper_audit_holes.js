@@ -4,6 +4,21 @@
 // the reverted status to (mocked) Linear so the issue isn't left stale.
 'use strict';
 const L = require('../sxr_courier_lib.js');
+/* EXPECTED RED UNTIL MIGRATED, and deliberately not pinned to the legacy lane.
+   Codex on 638ff37: this probe's contract is production behaviour, so putting it on the
+   explicit legacy roster would let a regression in the native path ship while the scheduled
+   probe stayed green — the exact "green about a lane production does not take" defect this
+   whole change set exists to remove, inverted. Between a probe that passes wrongly and one
+   that fails loudly, the loud one is correct.
+   WHAT MIGRATION NEEDS, so the next session does not have to re-derive it:
+     1. `stubNativeWorkItems` extended to stamp `/rest/v1/sample_reviews` rows, not only
+        `/rest/v1/calendar_posts`;
+     2. gateway capture inside `qa/sxr_courier_lib.js` — it records LINEAR_HOOK calls and has
+        no equivalent for `functions/v1/production-write`;
+     3. the assertions here rewritten onto native intents.
+   None of it was done in this PR because none of it can be RUN from this sandbox, and an
+   unverified rewrite of a Tier-0 probe is how this PR earned six findings already.
+   Tracked in OPEN_REPAIRS 175 and in test/probes-assert-native-write-lane.js. */
 const { launch, kasper, up, supa, archiveSafe, linearCalls, resetLinearCalls } = L;
 
 let ok = 0, fail = 0;
@@ -23,13 +38,7 @@ const row = (id, cols) => { const r = supa('id=eq.' + id + '&select=' + cols); r
     await sleep(1500);
     resetLinearCalls();
 
-  // THIS LANE'S SUBJECT IS THE LEGACY WRITE PATH, so it asks for the explicit
-  // legacy roster rather than the production one. Before this PR it received
-  // `[]`, which meant legacy; after the item-175 fail-closed repair `[]` routes
-  // NATIVE, so an explicit usable-roster-without-this-client is now the only
-  // honest way to ask. Codex finding on d6e26c3. It stays on the owed-migration
-  // list in test/probes-assert-native-write-lane.js.
-    const kp = await kasper(browser, { writeUiRerouteLegacy: true });
+    const kp = await kasper(browser);
     await kp.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
     await kp.waitForFunction((cid) => (typeof _sxrKasperFindItem === 'function') && !!_sxrKasperFindItem(cid), id, { timeout: 20000 });
 

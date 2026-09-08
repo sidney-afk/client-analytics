@@ -19,6 +19,21 @@
 //      intents. Same-page verification reconciles the stale retry surface before
 //      draining that pair once; reload cannot replay either side.
 'use strict';
+/* EXPECTED RED UNTIL MIGRATED, and deliberately not pinned to the legacy lane.
+   Codex on 638ff37: the Tier-0 P4 failure/lost-ack recovery contract here is production behaviour, so putting it on the
+   explicit legacy roster would let a regression in the native path ship while the scheduled
+   probe stayed green — the exact "green about a lane production does not take" defect this
+   whole change set exists to remove, inverted. Between a probe that passes wrongly and one
+   that fails loudly, the loud one is correct.
+   WHAT MIGRATION NEEDS, so the next session does not have to re-derive it:
+     1. `stubNativeWorkItems` extended to stamp `/rest/v1/sample_reviews` rows, not only
+        `/rest/v1/calendar_posts`;
+     2. gateway capture inside `qa/sxr_courier_lib.js` — it records LINEAR_HOOK calls and has
+        no equivalent for `functions/v1/production-write`;
+     3. the assertions here rewritten onto native intents.
+   None of it was done in this PR because none of it can be RUN from this sandbox, and an
+   unverified rewrite of a Tier-0 probe is how this PR earned six findings already.
+   Tracked in OPEN_REPAIRS 175 and in test/probes-assert-native-write-lane.js. */
 const H = require('./ot4_lib.js');
 const { launch, client, clientCal, up, upCal, archiveSafe, archiveCalSafe, appErrs } = H;
 
@@ -664,7 +679,7 @@ async function exerciseCommittedLostAck(opts) {
 
     // ---- P1: token link ----------------------------------------------------
     {
-      const p = await client(browser, undefined, undefined, { writeUiRerouteLegacy: true });
+      const p = await client(browser);
       const a = await H.clientAct(p, NAMES.tok, 'video', 'approve');
       t(a === 'ok', 'P1: token link loads; approve clickable', a);
       const r = await H.pollRow(() => H.rowSxr(IDS.tok, 'video_status'), x => x.video_status === 'Approved', POLL);
@@ -675,7 +690,7 @@ async function exerciseCommittedLostAck(opts) {
 
     // ---- P2: mobile viewport ----------------------------------------------
     {
-      const p = await client(browser, undefined, undefined, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, writeUiRerouteLegacy: true });
+      const p = await client(browser, undefined, undefined, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
       await H.expandReview(p, NAMES.mob);
       const fit = await p.evaluate((n) => {
         const card = [...document.querySelectorAll('.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n);
@@ -696,7 +711,7 @@ async function exerciseCommittedLostAck(opts) {
 
     // ---- P3: slow network --------------------------------------------------
     {
-      const p = await client(browser, undefined, undefined, { writeUiRerouteLegacy: true });
+      const p = await client(browser);
       await p.route('**/sample-review-upsert*', async (route) => {
         await new Promise(r => setTimeout(r, 4000));
         await route.fallback();
@@ -732,9 +747,7 @@ async function exerciseCommittedLostAck(opts) {
     await exerciseRequestFailure({
       browser,
       label: 'samples',
-      // Legacy roster on purpose: this lane asserts a retired webhook was called.
-      // See test/probes-assert-native-write-lane.js (Codex, d6e26c3).
-      openPage: b => client(b, undefined, undefined, { writeUiRerouteLegacy: true }),
+      openPage: client,
       routePattern: '**/sample-review-upsert*',
       id: IDS.fail,
       name: NAMES.fail,
@@ -745,7 +758,7 @@ async function exerciseCommittedLostAck(opts) {
     await exerciseRequestFailure({
       browser,
       label: 'calendar',
-      openPage: b => clientCal(b, undefined, undefined, { writeUiRerouteLegacy: true }),
+      openPage: clientCal,
       routePattern: '**/calendar-upsert*',
       id: IDS.failCal,
       name: NAMES.failCal,
@@ -760,7 +773,7 @@ async function exerciseCommittedLostAck(opts) {
       gateSurface: 'sxr',
       outboxKey: 'syncview_sxr_linear_outbox_v1',
       openPage: b => client(b, undefined, undefined, {
-        courierCommitThenFail: 'sample-review-upsert', writeUiRerouteLegacy: true
+        courierCommitThenFail: 'sample-review-upsert'
       }),
       endpoint: 'sample-review-upsert',
       sourceReadRoutes: [
@@ -779,7 +792,7 @@ async function exerciseCommittedLostAck(opts) {
       gateSurface: 'calendar',
       outboxKey: 'syncview_linear_outbox_v1',
       openPage: b => clientCal(b, undefined, undefined, {
-        courierCommitThenFail: 'calendar-upsert', writeUiRerouteLegacy: true
+        courierCommitThenFail: 'calendar-upsert'
       }),
       endpoint: 'calendar-upsert',
       sourceReadRoutes: [

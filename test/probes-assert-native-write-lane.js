@@ -185,17 +185,25 @@ const OUTSIDE_MANIFEST = {
   'qa/scenario_engine.js': {
     polarity: 'present',
     witness: "if (verb === 'expectLinear') {",
-    legacyOptIn: "writeUiRerouteLegacy: true"
+    // Per SCENARIO, not per file: only the 4 of 84 that assert on the retired lane.
+    // Section 1d drives the selector over the real scenario data.
+    legacyOptIn: 'scenarioUsesLegacyLane(scn)'
   },
   'qa/probes/ot4_t0_client_edge_conditions.js': {
     polarity: 'present',
     witness: 'matchingNotifications(issueUrl, submittedBody).length > 0',
-    legacyOptIn: 'writeUiRerouteLegacy: true'
+    // NOT legacy-pinned. Codex on 638ff37: the Tier-0 P4 block is a production-behaviour
+    // contract, so pinning it to legacy would let a native regression ship behind a green
+    // probe. It stays on the production roster and is EXPECTED RED until migrated — loud
+    // beats wrong. The marker below has to be present so the state is declared in the file.
+    expectedRed: 'EXPECTED RED UNTIL MIGRATED'
   },
   'qa/probes/sxr_kasper_audit_holes.js': {
     polarity: 'present',
     witness: "pushed = linearCalls().some(c => c.path === 'linear-set-status'",
-    legacyOptIn: "writeUiRerouteLegacy: true"
+    // NOT legacy-pinned, same reason: its contract is approve/undo persistence, which is
+    // production behaviour. EXPECTED RED until migrated.
+    expectedRed: 'EXPECTED RED UNTIL MIGRATED'
   },
   'qa/probes/cal_linear_deep.js': {
     polarity: 'present',
@@ -467,12 +475,53 @@ for (const [rel, entry] of Object.entries(OUTSIDE_MANIFEST).sort()) {
       + (openers.length ? ' — ' + openers.length + ' without it, first: '
         + JSON.stringify(openers[0].text.replace(/\s+/g, ' ').slice(0, 90)) : ''));
   }
+  if (entry.expectedRed) {
+    ok(src.includes(entry.expectedRed),
+      '  · and it DECLARES itself expected-red pending migration, in the file, so the next '
+      + 'reader is not left to infer why a scheduled probe fails');
+    ok(!/writeUiRerouteLegacy/.test(src),
+      '  · and it is NOT pinned to the legacy roster — a production-behaviour contract pinned '
+      + 'to legacy passes wrongly, which is worse than failing loudly');
+  }
   if (entry.polarity === 'deliberate-legacy') {
     ok(!/write_ui_reroute_fixture/.test(src),
       '  · and it is legacy DELIBERATELY: it serves its own flag rows and never the shared '
       + 'production roster fixture, which is what keeps it out of the affected set');
   }
 }
+
+/* ---- 1d. THE SCENARIO DSL PICKS ITS LANE PER SCENARIO -------------------- */
+/* Codex on 638ff37: the first version of the legacy wiring opened every scenario's actors
+   on the legacy roster because the DSL HAS an `expectLinear` verb. Only 4 of the 84 base
+   scenarios use it, so 80 ordinary approve/request/comment journeys — and every compiled
+   tree path — stopped exercising the route production clients take. Green coverage that no
+   longer covers the shipped lane is this PR's own defect, one level up.
+
+   Driven against the REAL scenario data rather than asserted about: the selector is imported
+   and run over `qa/scenarios.js`'s actual output, so a future scenario that starts asserting
+   on the retired lane is counted, and one that stops is too. */
+const ENGINE = require(path.join(ROOT, 'qa', 'scenario_engine.js'));
+const SCENARIOS = require(path.join(ROOT, 'qa', 'scenarios.js'));
+
+const allScenarios = SCENARIOS.base();
+const legacyScenarios = allScenarios.filter(ENGINE.scenarioUsesLegacyLane);
+ok(allScenarios.length > 50,
+  'the scenario set loads and is the real one (' + allScenarios.length + ' base scenarios)');
+ok(legacyScenarios.length > 0 && legacyScenarios.length < allScenarios.length / 4,
+  'only the scenarios that actually assert on the retired lane select it — '
+  + legacyScenarios.length + ' of ' + allScenarios.length + ', not all of them');
+for (const scn of legacyScenarios) {
+  ok(/expectLinear|expectNoLinear/.test(JSON.stringify(scn.steps || scn)),
+    '  · every scenario it puts on the legacy lane really does carry a Linear assertion');
+}
+const nativeScenarios = allScenarios.filter(scn => !ENGINE.scenarioUsesLegacyLane(scn));
+ok(nativeScenarios.every(scn => !/expectLinear|expectNoLinear/.test(JSON.stringify(scn.steps || scn))),
+  '  · and every scenario left on the PRODUCTION lane carries none, so no Linear assertion is '
+  + 'silently run against the native route');
+ok(ENGINE.scenarioUsesLegacyLane({ steps: [] }) === false
+  && ENGINE.scenarioUsesLegacyLane(undefined) === false,
+  '  · CONTROL: a scenario with no steps, and no scenario at all, default to PRODUCTION — a '
+  + 'lane that forgets to declare itself gets the one real clients take');
 
 /* ---- 2. THE FIXTURE ACTUALLY STAMPS THE CARD ----------------------------- */
 /* Executed, not read. A stand-in for the slice of Playwright's routing API the

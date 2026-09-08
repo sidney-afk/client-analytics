@@ -14515,7 +14515,10 @@ swallowed, because a dropped plan is a work day the board stops showing and
 somebody has to be able to see that it happened.
 
 **The test was the actual defect.** `test/workload-native-membership.js:64`
-listed `v=>v.plans[0].client='other'` among the mutations that MUST throw. The
+listed a "drift the plan's client" mutation among those that MUST throw (the
+snippet is deliberately not backticked here: `test/repo-map-sync.js` reads a
+backticked token as a repository path and fails on one that does not exist,
+which is exactly what it did to this entry's first draft). The
 lane wrote a test asserting the brittleness was correct, and CI was green on
 this PR the whole time — 9/9 checks, including `production-polish` and
 `synthetic-browser`. Unit fixtures cannot find this class of bug; only real data

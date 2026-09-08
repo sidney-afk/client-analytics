@@ -14952,3 +14952,113 @@ be restored before any brief is used for production work.
 costume:** a document that is *partly* right is more dangerous than one that is
 missing, because it is trusted. A missing brief got reported by a session within
 hours. A truncated brief was read by six sessions and reported by none.
+
+---
+
+## 179. [2026-09-08, lane LX-RESTORE, DONE for the executable subset; ~284 context lines still clipped] The 49 clipped brief lines an owner actually executes are restored from source, and six of them were wrong as well as short
+
+Item 178's 03:45 addendum found that 333 lines across
+`docs/independence/LINEAR_EXIT_BRIEF_A..F.md` stop mid-sentence, and named the
+dangerous subset: the `- [migration]`, `- [edge-function-deploy]`,
+`- [runtime-flag]`, `- [other]`, `undo:` and `mitigate:` lines inside LIVE
+ACTIONS and RISKS. That subset is now restored. Number 179 taken; 168 reserved
+163-174 for the exit and 175-178 are already used.
+
+### What was restored, and how
+
+**54 lines, not 49.** A scan for those field kinds ending without terminal
+punctuation returns A=8, B=13, C=10, D=6, E=7, F=11. One of A's eight is a
+false positive (the `~~Apply 2026-09-02-workload-native-view.sql~~` line is a
+later coordinator edit that simply lacks a full stop, not a clipped field) and
+was left alone. Three of C's ten are `- [n8n-edit]` lines, which the scoping
+did not name but which an owner executes by hand, so they were restored too
+and each says so in its own marker.
+
+The generating workflow's output is gone, so nothing here is a recovery of the
+original text. Every line was re-derived from a primary source and ends with a
+marker naming it:
+
+    **[RESTORED 2026-09-08 · source: …]**
+
+A line without that marker has not been checked by this pass. Each brief now
+opens with a block explaining the marker, the per-file counts, and the fact
+that the other ~284 clipped fields are untouched, so the "not a runbook"
+warning stands.
+
+### Six places where the source contradicted the surviving fragment
+
+These are the reason the pass was worth doing, because each of them reads as a
+complete, confident instruction and is false:
+
+1. **Brief A, `workload-plan` redeploy `undo:`** claimed "the new handler is
+   backward compatible: `action:"list"` still answers". It does not. On the
+   candidate, `index.ts:266-271` routes BOTH `list` and `native_snapshot`
+   through `workload_native_snapshot_v1`; `listPlans` is defined at :137 and
+   never called. The rollback has to be PAIRED with an index.html revert, or
+   the new browser calls `native_snapshot` at a closure that answers 400
+   `invalid_action`.
+2. **Brief A, Tweak-feedback `mitigate:`** credited the candidate with honest
+   empty-state copy, quoting "No feedback is available here. Open the post …".
+   That string exists in neither tree. `wlRenderTweakComments` returns `''` for
+   an empty list on main and on the lane branch alike, so "no feedback" and
+   "could not read feedback" are the same empty box — the degraded-state gap
+   item 178's 03:30 addendum names, still unbuilt.
+3. **Brief B, composed-artifact `undo:`** listed the RPCs to restore and missed
+   `production_component_fill(text,timestamptz,text,jsonb,jsonb)`, which
+   `2026-09-05-native-only-intake.sql:633` also replaces with the same
+   signature. Reverting only the append body leaves the native component-fill
+   body live.
+4. **Brief B, B7 label `mitigate:`** is superseded by events: it told the lane
+   to write an exporter and take the capture "in the next few days" before
+   Sept 15. Item 170's addendum records the capture TAKEN 2026-09-08 01:24Z
+   (46 labels, 5,437 active cards, 5 missing all re-read), so that lane is no
+   longer deadline-bound.
+5. **Brief C, the n8n disable list** says "the four Linear-only n8n workflows"
+   and then lists more than four before clipping. There are six, ids in the
+   restored line, and one of them is `Editors - Labor Week` /
+   `webhook/editors-week` — which is F48, still OPEN, still deployed and
+   unauthenticated.
+6. **Brief F, cutoff `undo:`** drops "the four functions".
+   `2026-09-06-linear-outbound-cutoff.sql` creates SEVEN: four service-only
+   RPCs plus three trigger functions that share their triggers' names, which
+   the stated undo leaves installed. Its `mitigate:` twin repeats a
+   pre-correction claim (SQL alone leaves the old direct claimant able to take
+   a fresh lease) that the shipped guard now refuses.
+
+Two further count/citation drifts were corrected in place rather than listed
+here: brief A's membership migration creates four functions where the line says
+three (the fourth, `workload_native_label_state_absent(jsonb)`, is left behind
+by the stated drops), and brief B cites `EXECUTION_LOG.md:6270` for a house
+rule that now lives around :6333.
+
+### Four lines that say "unknown" instead of a procedure
+
+Recorded here as well as in the PR comment, because these are the ones an owner
+must resolve before the action they describe is taken:
+
+- **Brief B, the composed migration** (`- [migration]` and its `mitigate:`):
+  neither `scripts/native-intake-named-append-compose.js` nor
+  `migrations/2026-09-07-native-intake-named-append.sql` exists on any branch
+  reachable from this clone. The stated `composed_sha256` and byte length are
+  therefore unchecked and must be recomputed against the artifact actually
+  held. The ordering hazard itself IS independently confirmed: both
+  predecessors declare the same `production_intake_append` signature.
+- **Brief C, `log-linear-submission`**: the clause was cut at "The
+  log-linear-submission sheet". What the edit was supposed to do about that
+  logging webhook is not recoverable and is not guessed.
+- **Brief F, `count_unproven` / `inconclusive`**: neither identifier appears on
+  any reachable branch, so what the clipped text asserted about the continuity
+  census's behaviour under RLS filtering is unestablished. Until someone reads
+  that package's source, the honest state is that it is unverified.
+- **Brief D, `ROLLBACK.md`**: the deploy `undo:` cites a browser-only revert
+  path recorded in `ROLLBACK.md`. There is no such row — for the Feedback panel
+  or for `production-comments` — so the citation describes a document that has
+  to be written, not one to look up.
+
+### What is NOT done
+
+The other ~284 clipped lines (`why:`, `confirmed:`, `where:`, `lift:`,
+evidence and the work-item lines) are untouched, by scope. They are context
+rather than instructions, but they are the reason each brief still opens with
+its warning and is still not a runbook. Nobody has read any of the six briefs
+end to end.

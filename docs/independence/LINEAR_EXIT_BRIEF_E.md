@@ -19,6 +19,39 @@ complete recovery procedure and is not one.
 These briefs remain useful as a map of what each lane covers and where to look. They
 are NOT safe as a runbook until the clipped fields are restored.
 
+### RESTORATION PASS, 2026-09-08 (lane LX-RESTORE) — read this before you trust a line below
+
+The **executable** clipped lines in this file have been restored: the
+`- [migration]`, `- [edge-function-deploy]`, `- [runtime-flag]`, `- [other]`,
+`- [n8n-edit]`, `undo:` and `mitigate:` lines inside LIVE ACTIONS and RISKS.
+Nothing else has been. The other clipped fields (`why:`, `confirmed:`,
+`where:`, `lift:`, evidence, and the `[A1]`/`[B1]`-style work-item lines) are still
+truncated, so the warning above stands and this file is still NOT a runbook.
+
+**How to tell a restored line from an original one.** Every restored line ends
+with a bracketed marker naming the date and the primary source it was
+re-derived from:
+
+> `**[RESTORED 2026-09-08 · source: …]**`
+
+A line with that marker has been checked against the source it names. A line
+without one has not been checked by this pass at all — it is either untouched
+original text or one of the ~284 clipped fields still owed.
+
+**Restored does not mean the original text was right.** The generating
+workflow's output is gone, so nothing here is a recovery of what was written;
+each line was re-derived from the repository. Where a source CONTRADICTED the
+surviving fragment, the restored line says so in bold and does not smoothly
+continue the false sentence. Where a procedure could not be established from
+any primary source, the line says that too, in those words, instead of
+supplying a plausible one — an honest gap is safe and a guess is not.
+
+**This file: 7 executable lines restored, 0 left unrestored.** No source
+contradicted a surviving fragment in this file; every restoration is a
+continuation grounded in `docs/ops/LINEAR_MEDIA_RESCUE.md`, the description-images
+migration, or the deploy workflow.
+
+
 ---
 
 SESSION NAME: LX-E Media rescue
@@ -167,13 +200,13 @@ FILES YOU OWN (touch nothing else)
 
 LIVE ACTIONS THE OWNER MUST TAKE (prepare them exactly; never execute them)
   - [storage] Run `scripts/linear-media-rescue.mjs upload` — it POSTs the already-captured file bytes to the LIVE `description-image-upload` Edge Function with the owner's admin staff key, creating durable public objects in `syncview-description-images` and rows in `public.description_images`.
-    undo: Every object is enumerable from the ledger (`select public_url, storage_path from public.description_images where deliverable_id is not null`). Deleting them is a Storage action. Until the rewrite in the next step lands, nothing in the product points
+    undo: Every object is enumerable from the ledger (`select public_url, storage_path from public.description_images where deliverable_id is not null`). Deleting them is a Storage action. Until the rewrite in the next step lands, nothing in the product points at them — no `brief` and no `production_comments.body` contains the new URL yet — so deleting the objects at that point is a clean, consequence-free undo. AFTER the rewrite lands it stops being an undo: every rewritten brief and comment then references those exact URLs, so deleting an object turns a working image into a broken one and the `linear-media-rescue-rollback.sql` in the next step must be run FIRST, in that order (rollback the text, then delete the objects). Note the ledger row is the only enumeration you get: `public.description_images` is service-role only (`revoke all … from anon, authenticated`), so plan to run that select with the service key. **[RESTORED 2026-09-08 · sources: docs/ops/LINEAR_MEDIA_RESCUE.md §3 (forward/rollback pairing, lines 240-262); migrations/2026-09-05-description-images.sql lines 36-64]**
   - [migration] Apply the generated `linear-media-rescue-forward.sql` in the Supabase SQL Editor: one transaction of `update public.deliverables set brief = … where id = … and brief = <exact old literal>` plus the same shape against `public.production_comments`.
-    undo: Run the matched `linear-media-rescue-rollback.sql`, generated in the same pass and guarded by the NEW literal, which restores every original string exactly. Both files are committed alongside the manifest. The forward file is all-or-nothing: any row 
+    undo: Run the matched `linear-media-rescue-rollback.sql`, generated in the same pass and guarded by the NEW literal, which restores every original string exactly. Both files are committed alongside the manifest. The forward file is all-or-nothing: any row whose stored text no longer matches its captured old literal simply does not update, a single guard at the foot of the transaction raises when ANY row failed to match, and the whole transaction rolls back naming the offending keys — so an editor, another lane or the inbound webhook changing a brief between census and apply makes the apply fail loudly and change nothing. That is the intended outcome, and the doc says so in as many words: "a failed rescue that leaves every brief intact is a good result." Two properties of the pair worth knowing before you rely on it: the rollback is guarded on the NEW literal, so it cannot fire twice and cannot clobber an edit made after the rescue; and `scripts/linear-media-rescue.mjs` verifies the two files are an exact inverse as it writes them, with `test/linear-media-rescue.js` proving that property on fixtures. Never widen either WHERE to `where id = …` alone. **[RESTORED 2026-09-08 · source: docs/ops/LINEAR_MEDIA_RESCUE.md lines 240-262]**
   - [storage] CONDITIONAL (E4 only): `update storage.buckets set file_size_limit = 26214400 where id = 'syncview-description-images';`
-    undo: `update storage.buckets set file_size_limit = 4194304 where id = 'syncview-description-images';` — objects already stored above the old limit stay readable; the limit only gates new writes. This is a BUCKET setting, not the project-wide Storage ceili
+    undo: `update storage.buckets set file_size_limit = 4194304 where id = 'syncview-description-images';` — objects already stored above the old limit stay readable; the limit only gates new writes. This is a BUCKET setting, not the project-wide Storage ceiling: the two are separate controls, this statement touches only the one row in `storage.buckets`, and it neither raises nor lowers the project-level ceiling (which is a Supabase project setting and is what a separate approval covers elsewhere in this programme). Reverting the bucket alone is therefore NOT the whole undo for E4: `supabase/functions/description-image-upload/policy.mjs` carries `MAX_BYTES` and `test/description-image-upload.js` asserts both `policy.MAX_BYTES === 4*1024*1024` (line 169) and `file_size_limit === 4194304` (line 170), so the two numbers must move together in both directions or CI fails. Reverse the code change and the bucket in the same window. **[RESTORED 2026-09-08 · sources: migrations/2026-09-05-description-images.sql lines 19-30; supabase/functions/description-image-upload/policy.mjs; test/description-image-upload.js lines 169-170; docs/ops/LINEAR_MEDIA_RESCUE.md §4]**
   - [edge-function-deploy] CONDITIONAL (E4 only): redeploy `description-image-upload` after the `MAX_BYTES` change.
-    undo: Auto-triggers on merge to main via `.github/workflows/deploy-description-image-upload.yml`. NOT an F27 Section 4 closure (the workflow's own header says so), so NO sealed four-function capture bundle and NO Drive upload are owed. Rollback is revertin
+    undo: Auto-triggers on merge to main via `.github/workflows/deploy-description-image-upload.yml`. NOT an F27 Section 4 closure (the workflow's own header says so), so NO sealed four-function capture bundle and NO Drive upload are owed. Rollback is reverting the `MAX_BYTES` change in `supabase/functions/description-image-upload/policy.mjs` on main and letting the same workflow redeploy on that merge — there is no separate rollback dispatch and no prior-closure restore in this lane. The workflow fires on push to main for `supabase/functions/description-image-upload/**`, `_shared/staff-role-auth.ts`, `supabase/config.toml` or the workflow file itself, and also accepts `workflow_dispatch`; its `concurrency` group is `deploy-description-image-upload` with `cancel-in-progress: false`, so an older run cannot finish after and overwrite a newer deploy. Revert the bucket `file_size_limit` in the same window (see the step above) — code and bucket must not be left disagreeing. **[RESTORED 2026-09-08 · source: .github/workflows/deploy-description-image-upload.yml lines 1-28]**
 
 RISKS
   - A card is edited between the E1 manifest snapshot and the E3 apply, so the stored brief no longer matches the captured literal.
@@ -181,11 +214,11 @@ RISKS
   - The rewrite bumps `deliverables.updated_at` (the `track_b_deliverable_touch_timestamps_before` trigger sets `new.updated_at := now()` unconditionally, migrations/2026-07-06-b1-linear-data-model.sql:219-237), so an editor with the description panel op
     mitigate: Run the apply outside working hours and announce it. The refusal is loud and preserves the draft ('Description changed elsewhere. Your draft is preserved…', index.html) — it loses nothing. Comments have NO such trigger, so their rewrite is invisible.
   - Every UPDATE on `deliverables` fires `track_b_deliverable_ledger_guard_after` (migrations/2026-07-06-b1-linear-data-model.sql:239-290), writing a `deliverable_events` row with `action='update'`, `source='system'`, `payload={"op":"UPDATE","reason":"rp
-    mitigate: Accept it — it is an audit trail, not damage, and it is the trigger's designed behavior for a direct write. It does NOT enqueue `mirror_outbox`, so nothing is pushed to Linear. State the expected row count in the OPEN_REPAIRS entry so a later reader 
+    mitigate: Accept it — it is an audit trail, not damage, and it is the trigger's designed behavior for a direct write. It does NOT enqueue `mirror_outbox`, so nothing is pushed to Linear. State the expected row count in the OPEN_REPAIRS entry so a later reader finds the number already explained instead of reading a burst of `source='system'` / `reason='rpc_bypass_guard'` events as an incident. The count is exactly one `deliverable_events` row per updated deliverable (`track_b_deliverable_ledger_guard_after`, migrations/2026-07-06-b1-linear-data-model.sql:239-290), so it is knowable before the run: write the number down from the manifest, then check the two agree afterwards. Comments produce no such rows — `production_comments` has no equivalent trigger — so the deliverables count is the whole of it. **[RESTORED 2026-09-08 · sources: docs/ops/LINEAR_MEDIA_RESCUE.md §3 "Expected side effects of the apply"; migrations/2026-07-06-b1-linear-data-model.sql:219-237 and :239-290]**
   - The rescued objects land in a PUBLIC bucket. A client-audience comment rewritten to a public URL moves that file from 'dead link the client cannot open' to 'working link the client can open', and anyone holding the URL can fetch it.
-    mitigate: This is the one genuine widening and it needs a one-line owner ruling, not a silent choice. The estate already accepts exactly this property for every Drive and Frame.io link in the same fields, and the path is an unguessable UUID in a bucket that do
+    mitigate: This is the one genuine widening and it needs a one-line owner ruling, not a silent choice. The estate already accepts exactly this property for every Drive and Frame.io link in the same fields, and the path is an unguessable UUID in a bucket that does not list its contents publicly — the migration says it outright: "the URL cannot be enumerated or guessed. A public bucket does not list its objects publicly; only a direct object GET is open." So the honest framing for the ruling is: the exposure is not "the bucket is browsable", it is "anyone who is given one of these URLs can fetch that one file, forever, without signing in" — the same bargain the fields already make for Drive and Frame.io. Put THAT sentence to the owner and record his answer in `docs/ops/OPEN_REPAIRS.md`; do not proceed on the reasoning above as if it were the decision. Attribution is retained either way: `public.description_images` records actor key and role per object. **[RESTORED 2026-09-08 · source: migrations/2026-09-05-description-images.sql lines 11-12, 35-59]**
   - A Linear-side comment edit between the rewrite and the webhook shutdown overwrites `production_comments.body` back to the Linear URL.
-    mitigate: Sequence comments after the inbound webhook is off. If that is not possible, the detection is trivial and cheap: re-run the E1 comment count after the rewrite; any non-zero result is a clobber, and re-running the forward SQL for those rows fixes it (
+    mitigate: Sequence comments after the inbound webhook is off. If that is not possible, the detection is trivial and cheap: re-run the E1 comment count after the rewrite; any non-zero result is a clobber, and re-running the forward SQL for those rows fixes it (**for THOSE ROWS ONLY — re-running the whole forward file will abort**, because every row that was not clobbered no longer matches its old literal and the all-or-nothing guard at the foot raises on it). So the repair is: identify the clobbered ids from the re-run count, regenerate a forward file scoped to exactly those, and apply that. The mechanism being defended against, stated so it is recognisable: on a Linear comment `update` event that is neither an echo nor a tombstone, `body` survives into `production_comment_upsert` and overwrites the rewritten text back to the dead `uploads.linear.app` URL. **[RESTORED 2026-09-08 · source: docs/ops/LINEAR_MEDIA_RESCUE.md lines 240-262 and the comment-sequencing bullet in §3]**
   - `RATE_LIMIT_PER_HOUR = 120` per actor with a reserve-then-count design means a burst upload refuses ITSELF at the boundary (policy.mjs:24, index.ts:257-277).
     mitigate: Pace the script at one upload per 30 seconds. For a rescue set of ~150 files that is ~75 minutes, unattended. Do not raise the constant — that is a code change and a deploy for no benefit.
   - The lane assumes the owner's private capture actually holds the bytes. If it does not, the files must come out of Linear before 2026-09-15 and the lane becomes time-critical.

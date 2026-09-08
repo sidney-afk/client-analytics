@@ -14533,12 +14533,30 @@ multiline assertion into `qa/sxr_courier_lib.js` — the suite went red naming t
 file and quoting the span — then restoring it. A guard whose own detector is
 untested is what produced this finding in the first place.
 
-**FOUR INSTANCES OF ONE PATTERN IS THE FINDING.** Not four separate mistakes: a
+**A FIFTH, found by applying that rule to the fix itself.** The PR comment for
+the fourth said a mis-sliced span "produces a false POSITIVE, which is loud".
+**That was wrong.** Driven adversarially rather than reasoned about, the span
+matcher counted the parens inside a regex literal — `ok(/\(/.test(linearCalls()), 'x')`
+— so the span never closed, and the scanner then **dropped it without a word**:
+a silent miss, in the very check written to end silent misses, with a published
+reassurance saying the opposite.
+
+Both halves are repaired. Regex literals are inert to the matcher (a `/` opens
+one only where a value may begin), and an undelimitable span is now REPORTED
+rather than skipped — so if the regex rule is ever wrong, the failure is loud in
+both directions. Seven adversarial shapes are pinned as self-tests, including
+the two that were missed, and the end-to-end injection was re-run with a
+regex-literal assertion: red, naming the file and quoting the span.
+
+**FIVE INSTANCES OF ONE PATTERN IS THE FINDING.** Not five separate mistakes: a
 guard is only as wide as the place its author remembered to look, and every one
 of these was written by someone (me) who had just been burned by the previous
-one. The durable defence is not vigilance, it is that a detector must be run
-against the case it claims to catch before it is believed — which is now true of
-this one, and was not true of any of the four. The point is not that
+one. The durable defence is not vigilance — vigilance is exactly what produced
+the fifth, one commit after naming the pattern. It is that **a detector must be
+DRIVEN against the cases it claims to catch, and its author's reassurance about
+its failure direction is worth nothing until it has been.** The fifth was found
+by doing that instead of arguing about it, and the difference between the fourth
+fix and the fifth is the difference between a claim and a run. The point is not that
 the list is long — it is that it can no longer be forgotten, which is what
 actually went wrong twice here.
 

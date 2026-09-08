@@ -273,7 +273,20 @@ ok(JSON.stringify(found) === JSON.stringify(tracked),
    loud and forces a human to look, rather than the silent pass this replaces. */
 const ASSERT_OPENER = /(?:^|[^\w$.])(?:assert(?:\.[A-Za-z_$][\w$]*)?|expect|(?:[A-Za-z_$][\w$]*\.)?(?:ok|t|note))\s*\(/g;
 
-function assertionSpans(src) {
+/* A `/` starts a REGEX LITERAL only where a value may begin. Without this the paren matcher
+   counts the parens inside `/\(/` and the span never closes — which the first version of this
+   scanner then SKIPPED, silently. I claimed on the PR that a mis-sliced span "fails loud";
+   it did not, it failed silent, and that was the fifth instance on this PR of the same
+   pattern. Both halves are fixed: regex literals are inert here, and an unclosed span is
+   REPORTED rather than dropped (see `assertionSpans`).
+
+   The rule is deliberately conservative and, per the house lesson in
+   `test/helpers/strip-comments.js`, it does not have to be perfect — it has to fail in the
+   loud direction. Anything it gets wrong now surfaces as an unclosed span or an over-wide
+   span, both of which a human sees. */
+const VALUE_MAY_BEGIN = /[([{,;:=!&|?+\-*%~^<>]|\b(?:return|typeof|instanceof|in|of|new|delete|void|case|do|else|yield|await)$/;
+
+function assertionSpans(src, onUnclosed) {
   const code = stripComments(src);
   const spans = [];
   ASSERT_OPENER.lastIndex = 0;
@@ -291,10 +304,34 @@ function assertionSpans(src) {
         continue;
       }
       if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
+      if (c === '/') {
+        // Regex literal, or a division? Look back at the last significant character.
+        const before = code.slice(Math.max(0, j - 24), j).replace(/\s+$/, '');
+        if (VALUE_MAY_BEGIN.test(before) || before === '') {
+          let k = j + 1, esc = false, cls = false;
+          for (; k < code.length; k++) {
+            const r = code[k];
+            if (esc) { esc = false; continue; }
+            if (r === '\\') { esc = true; continue; }
+            if (r === '[') { cls = true; continue; }
+            if (r === ']') { cls = false; continue; }
+            if (r === '\n') break;              // not a regex after all
+            if (r === '/' && !cls) { j = k; break; }
+          }
+          continue;
+        }
+      }
       if (c === '(') depth++;
       else if (c === ')') { depth--; if (!depth) { end = j; break; } }
     }
-    if (end < 0) continue;
+    if (end < 0) {
+      // NEVER a silent skip. An assertion this scanner cannot delimit is exactly the case it
+      // would otherwise miss, so it is surfaced to the caller and counted as suspect.
+      if (typeof onUnclosed === 'function') onUnclosed(code.slice(open, Math.min(code.length, open + 160)));
+      spans.push(code.slice(open, Math.min(code.length, open + 400)));
+      ASSERT_OPENER.lastIndex = open + 1;
+      continue;
+    }
     spans.push(code.slice(open, end + 1));
     ASSERT_OPENER.lastIndex = end;
   }
@@ -313,12 +350,27 @@ ok(!assertionSpans('const calls = linearCalls();\nok(calls.length >= 0, "unrelat
   .some(x => RETIRED_REF.test(x)),
   '  · CONTROL: a bare linearCalls() OUTSIDE any assertion is not flagged, so the scanner is '
   + 'not simply matching the whole file');
+/* The fifth instance, pinned. A regex literal holding an unbalanced paren used to make the
+   span never close, and the scanner then dropped it without a word — a silent miss in the
+   very check written to end silent misses. */
+ok(assertionSpans("ok(/\\(/.test(linearCalls()), 'x');").some(x => RETIRED_REF.test(x)),
+  'a regex literal with an unbalanced OPEN paren inside an assertion is still seen');
+ok(assertionSpans("ok(/\\)/.test(linearCalls()), 'x');").some(x => RETIRED_REF.test(x)),
+  'and one with an unbalanced CLOSE paren');
+ok(assertionSpans("t.ok(linearCalls().length === 0, 'x');").some(x => RETIRED_REF.test(x))
+  && assertionSpans('expect(linearCalls().length).to.equal(0);').some(x => RETIRED_REF.test(x)),
+  'receiver-form and expect() assertions are seen too — the opener list is an enumeration, '
+  + 'so it is exercised rather than assumed');
 for (const [rel, entry] of Object.entries(OUTSIDE_MANIFEST).sort()) {
   const abs = path.join(ROOT, rel);
   if (!fs.existsSync(abs)) { ok(false, rel + ' is tracked but does not exist'); continue; }
   const src = fs.readFileSync(abs, 'utf8');
   if (entry.polarity === 'plumbing') {
-    const asserts = assertionSpans(src).filter(span => RETIRED_REF.test(span));
+    const unclosed = [];
+    const asserts = assertionSpans(src, x => unclosed.push(x)).filter(span => RETIRED_REF.test(span));
+    ok(unclosed.length === 0,
+      rel + ' has no assertion this scanner cannot delimit — an undelimitable one is reported '
+      + 'rather than skipped' + (unclosed.length ? ': ' + JSON.stringify(unclosed[0].slice(0, 100)) : ''));
     ok(asserts.length === 0,
       rel + ' is still plumbing: it routes or records the retired webhooks and asserts nothing '
       + 'about them' + (asserts.length ? ' — found ' + asserts.length + ', first: '

@@ -13854,3 +13854,100 @@ browser render, so it does not prove the board paints these 37 rows, nor that
 `wlFetchNativeSnapshot` survives them. Lane A's own suite covers that; this
 answers only the population question the merge gate asked.
 
+
+## 178. [2026-09-08, NIGHT SUMMARY — six parallel lanes, one live outage, eleven review findings, and the coordination defect underneath most of it] What the Linear exit actually did between 20:30 and 03:15
+
+Written as the durable record of one working night, because the next session
+inherits the state and not the conversation. Ledger discipline is the owner's
+standing ask; this is the entry that makes the night reconstructable.
+
+### What was actually finished
+
+- **The B7 label-catalog capture is TAKEN.** It was the only item in the entire
+  programme that could not be done later, because it needs `api.linear.app` to
+  answer. 46 labels, reconciled against an independent second walk at a different
+  page size. 5,437 active cards classified: 5,432 complete, 0 paginated, 0
+  malformed, **5 missing — the genuinely one-way case — all five re-read from
+  Linear successfully.** Receipts against item 170. Nothing in the programme is
+  unrecoverable any more.
+- **Four merges:** #1348 monitoring, #1349 exporter + native naming mint, #1345
+  media rescue preparation, and (pending) the coordination docs this entry sits in.
+- **The media lane got SMALLER on evidence**, which is the outcome to want.
+  `uploads.linear.app` images have been broken for months: Linear signs each URL
+  with a 300-second JWT and every URL in a brief is months old. Measured at 31
+  seconds (200) and 45 seconds past expiry (401). So that lane is an improvement,
+  not a rescue, and it came off the deadline entirely. Item 173.
+
+### The outage, in one paragraph
+
+The owner applied a migration and deployed `workload-plan` from an unmerged
+branch on the coordinator's instruction — backend-first, deliberately, so the old
+browser would keep working. It did not. Every pill on every editor's Workload
+board read "Deadline fallback", saved work days invisible, editing disabled.
+Cause: `projectNativeSnapshot` discarded the ENTIRE 5,241-row snapshot when any
+single stored plan's client no longer matched its owner's. Six drifted rows did
+it. Rolled back in one command; fixed in source so the row drops instead of the
+board. Full account, mechanism and prepared repair in **item 177** (lane A's
+branch). The rule it earned: *a deliberate-manual Edge Function that changes how
+an EXISTING action is served must be proven against production data before it is
+deployed.* A green CI on a lane with no database access is not evidence about
+the database.
+
+### Eleven review findings, on code the coordinator had already approved
+
+Codex reviews every PR marked ready. Across #1346, #1347, #1344 and #1350 it
+returned **eleven findings, eight of them P1**, on four PRs this session had
+judged ready to merge. #1346 was minutes from being merged when the first five
+landed. The ones worth remembering:
+
+- The reroute fail-closed change **covered only half its own contract**: a read
+  that SUCCEEDED with an empty or malformed value left the flag healthy and
+  routed every write to the Linear webhooks. Deleting one flag row after the
+  cutoff would have sent every staff write to a dead endpoint.
+- A **cross-client write** in the Samples link move: switch clients mid-await and
+  the previous client's card saves into the one now on screen.
+- **The nightly was green about a lane production does not take.** Four harnesses
+  answered the flag read with `[]` and asserted real clients use the legacy lane;
+  the measurement in item 175 refutes that for all 43 active clients.
+- **F48 was declared closed on a diff that cannot close it.** Removing the browser
+  caller does not deactivate the `editors-week` n8n workflow, which stays
+  unauthenticated and still returns the confidential metadata F48 tracks.
+  2026-09-15 ends our Linear access; it does not stop a webhook answering.
+- The **dead-Linear rehearsal was quietly passing**: four probes overrode the
+  dead-mode switch with their own always-succeeds Linear, covering exactly the
+  write flows the rehearsal exists to watch fail. Fixed and measured: dead mode
+  now returns `ABORT / 502 / 504 / 200-lie` where it returned a flat `200`.
+
+**Three of the eleven were against this session's own work**, including a fix
+that counted a dropped work day into a field nothing read while its comment
+claimed it was surfaced.
+
+### The coordination defect underneath much of it
+
+`docs/independence/LINEAR_EXIT_LANES.md` and the six `LINEAR_EXIT_BRIEF_*.md`
+files — the lane map, the region-ownership table, and every lane's brief — were
+written to a working branch and **never merged**. Every session was instructed to
+read them. A later session reported plainly that they *"do not exist on any branch
+in this repository"* and reconstructed its region scope from the ledger instead.
+Merged with this entry. Two further instances of the same shape the same night:
+item 168's heading reserved `163-172` while the lane map reserved `169-174`
+(both this session's, drifted when one was renumbered), and a background test run
+was trusted while branches were checked out underneath it, producing six phantom
+failures. **The recurring defect of the night was not code. It was two documents,
+or a document and a process, disagreeing because the author changed one of them.**
+
+### What held
+
+Six sessions edited one 79,418-line file concurrently and **no region boundary
+was violated once**. Where a session needed a function another lane owned, it
+fixed the call site instead and said so. The collision map in item 166 is the
+reason, and it is the part of this method worth keeping.
+
+### Honest state at handoff
+
+Engineering is largely done and largely unmerged. Installation, the n8n
+replacements, the cutoff sequence and observation are barely started. The
+programme is roughly **55-60% complete** toward "staff and clients work without
+Linear, and the account can be cancelled safely"; the source work is near 80%
+and the execution work near 25%. The next session's first job is a health check,
+not more building — see `docs/independence/LINEAR_EXIT_HANDOFF.md`.

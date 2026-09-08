@@ -1,0 +1,204 @@
+# Linear exit — handoff to the next session
+
+**Written 2026-09-08 ~03:15 UTC, at the end of a long working night.**
+Read this before anything else. It replaces re-reading the whole conversation.
+
+---
+
+## 0. First, the two things the owner asked for by name
+
+**The owner has switched to Fable 5.1. Be careful with tokens.** Do not re-audit
+what is already recorded here and in the ledger. Read this file, read
+`docs/ops/OPEN_REPAIRS.md` items **163-178**, and start from what they say. If a
+claim here is load-bearing for what you are about to do, verify that ONE claim
+rather than re-deriving the programme.
+
+**Your first job is a health check, not more building.** The owner's words:
+*"do a quick checkup on everything we've done to make sure this makes sense …
+this is important to make sure that we always do a checkup on what we're doing."*
+
+That is not a formality. On the night this was written, an independent reviewer
+returned **eleven findings, eight of them P1, on four pull requests the previous
+session had already judged ready to merge** — three of them against that
+session's own fixes. The single most valuable thing you can do first is look hard
+at work that has already been called done.
+
+### Where to point the health check
+
+1. **Read `docs/ops/OPEN_REPAIRS.md` item 178** (the night summary) and **item
+   177** (the live outage, on branch `claude/lx-a-workload-native`). 177 carries
+   the rule the night earned; check the open PRs actually honour it.
+2. **The four open PRs are all green and all unmerged.** Do not take a session's
+   own "all tests pass" at face value — one reported green while its own run
+   contained a real failure it had misread as the known baseline. Run the suite
+   yourself and compare the FAILURE SET, not the count.
+3. **Look specifically for changes that only affect rows created AFTER the
+   outbound flip.** Two P1s of that shape were found on #1344. They cannot be
+   hit today, so they ship invisibly and break on cutover day when attention is
+   elsewhere and rollback is hardest. If more exist, they matter most.
+4. **Question whether the lane split still makes sense.** It was chosen when the
+   scope was believed larger. The media lane shrank to almost nothing on
+   evidence; others may too.
+
+---
+
+## 1. Where the programme actually is
+
+**Roughly 55-60% complete** toward "staff and clients work without Linear and the
+account can be cancelled safely". Source work is near 80%; execution near 25%.
+That gap is the whole story: a great deal is built and reviewed, and very little
+is installed.
+
+| | State |
+|---|---|
+| Authority flip (both teams native) | **Done before this programme began** |
+| B7 label-catalog capture | **DONE.** The only unrecoverable item in the whole exit |
+| Monitoring survives the cutoff | **MERGED** (#1348) |
+| Label exporter + native naming mint | **MERGED** (#1349) |
+| Media rescue preparation | **MERGED** (#1345), and the lane shrank on evidence |
+| Workload native source | Built, reviewed, **held on the owner** (#1344) |
+| Endpoints / Submit / editors-week | Built, reviewed, **held** (#1346) |
+| Native comment + feedback UI | Built, reviewed, **held** (#1347) |
+| Cutoff sequence + watchers | Built, reviewed, **merges last** (#1350) |
+| n8n workflow replacements | **Barely started.** Needs owner go-ahead per workflow |
+| Probe fixtures for the native lane | **Not done.** New finding, see §4 |
+| F48 deactivation | **Not done.** Security item, still open |
+| The cutoff itself, then observation | **Not started** |
+
+**Nothing is time-critical any more.** September 15 ends Linear *access*; the one
+thing that needed Linear alive is captured. Everything else can be redone.
+
+---
+
+## 2. The two things blocked on the owner, exactly
+
+### (a) Prove the Workload backend, then deploy it
+
+Read-only, ~20 seconds, in the Supabase SQL editor:
+
+```sql
+with s as (select public.workload_native_snapshot_v1() as v)
+select v->>'ok' as ok, v->>'complete' as complete, v->>'contract' as contract,
+       (v->>'count')::int as count,
+       jsonb_array_length(v->'rows')  as rows_len,
+       jsonb_array_length(v->'plans') as plans_len,
+       v->'authority' as authority
+from s;
+```
+
+`count` must equal `rows_len` and the contract must read
+`workload-native-snapshot-v1`. **This is the step that was skipped and caused the
+outage in item 177.** Do not merge #1344 without it.
+
+Then, and only if that reads correctly:
+
+```powershell
+cd C:\Users\Sidney\client-analytics
+git fetch origin claude/lx-a-workload-native
+git checkout claude/lx-a-workload-native
+git pull
+supabase functions deploy workload-plan --project-ref uzltbbrjidmjwwfakwve --no-verify-jwt
+git checkout main
+```
+
+`workload-plan` has **no CI deploy lane**; it is deliberate-manual
+(`docs/ops/EF_DEPLOY_MANIFEST.md:58`). Deploy from the branch, on purpose: the new
+function still answers the old `list` call the live board makes.
+
+**Verify the deploy from outside** by posting `{"action":"native_snapshot"}` to
+`https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/workload-plan`:
+`401 unauthorized` means the new function is live; `400 invalid_action` means the
+old one is. That probe is how the failed rollback was caught.
+
+**Rollback**, if the board misbehaves: the same command from `main`. The applied
+migration is additive and needs no reversal.
+
+### (b) Deploy the comment reader, after merging #1347
+
+Order is forced and reversed here: the deploy lane only accepts a `commit_sha`
+already on `main`, so #1347 must merge first. Between merge and deploy, staff see
+an honest "feedback unavailable" banner; clients see nothing different.
+
+**Link:** https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml
+→ **Run workflow** → paste the 40-character `main` SHA into `commit_sha`.
+
+**That lane redeploys FOUR functions** from that one SHA — `linear-outbound`,
+`production-write`, `production-comments`, `production-archive` — not just the
+comments one. The other three go out byte-identical, but it is a bigger action
+than its name suggests.
+
+---
+
+## 3. The open pull requests
+
+All four are green and rebased onto current `main`. **The previous session merged
+nothing after the review findings landed**, deliberately.
+
+| PR | Lane | Merge order | Gate |
+|---|---|---|---|
+| [#1344](https://github.com/sidney-afk/client-analytics/pull/1344) | Workload native | after B | owner query **and** deploy (§2a) |
+| [#1346](https://github.com/sidney-afk/client-analytics/pull/1346) | Endpoints, Submit, editors-week | after A/D | Codex re-review in flight |
+| [#1347](https://github.com/sidney-afk/client-analytics/pull/1347) | Comments + feedback UI | after A | merge then deploy immediately (§2b) |
+| [#1350](https://github.com/sidney-afk/client-analytics/pull/1350) | Cutoff + watchers | **last** | every flag step presumes A/B/C/D live |
+
+A Codex re-review was requested on #1344 and #1346 after their fixes. **Read the
+verdicts before merging either.**
+
+---
+
+## 4. Open items nobody owns yet
+
+1. **The probe fixtures are not production-shaped.** The harnesses now describe
+   production, but no probe seeds `video_deliverable_id` / `graphic_deliverable_id`,
+   and 11 seed `linear_issue_id: ''`. On the native lane a targetless card is
+   refused with `native_link_required`. 97 of 136 probes touch those surfaces.
+   **Do not close this by putting the roster fixture back to `[]` — that restores
+   the green, and the green was the defect.** Owner decision owed: does this land
+   in lane C or its own lane?
+2. **F48 is open and is a security item.** `webhook/editors-week` is still a
+   deployed, unauthenticated n8n workflow returning confidential metadata.
+   Closing it needs an evidenced deactivation with the owner's go-ahead in the
+   same request: export the JSON to the private Drive backup first, deactivate,
+   commit only a public-safe stub to `n8n-backups/`.
+3. **Six drifted `workload_plan` rows.** After #1344 they are dropped rather than
+   fatal, which stops the outage and does not give back six work days someone
+   dragged. A guarded repair is prepared in item 177 and **not run**. Its SELECT
+   is the only undo — save it before the UPDATE.
+4. **The n8n replacements** for the remaining Linear-reading webhooks. Each needs
+   the owner's go-ahead in the moment, a private Drive JSON export first, and a
+   public-safe stub in `n8n-backups/`.
+
+---
+
+## 5. How to work here
+
+- **The lane map is `docs/independence/LINEAR_EXIT_LANES.md`** and the per-lane
+  briefs are `LINEAR_EXIT_BRIEF_A..F.md`, both in `docs/independence/`. They were
+  stranded on an unmerged branch for the whole night and merged with this file;
+  that is why a session reported them missing.
+- **`index.html` region ownership (item 166) is the reason six sessions never
+  collided.** If you spawn sessions, keep it.
+- **Do not merge to `main` casually.** It deploys the live site instantly.
+- **A browser half without its backend half is the trap.** Before merging any PR,
+  check whether its `index.html` calls a gateway action the DEPLOYED function does
+  not know, and whether it needs a migration applied first.
+- **`npm test`** baseline in a session sandbox: `truth-sync` fails on shallow-clone
+  freshness stamps. Compare failure SETS, not counts. `npm run test:prod-polish`
+  cannot pass without a route to the live backend.
+- **The ledger is `docs/ops/OPEN_REPAIRS.md`, append-only.** The owner reads it and
+  asked explicitly that it stay current. Reserved numbers and the four pre-existing
+  duplicate headers are recorded in item 168.
+
+---
+
+## 6. The one thing to carry from the night
+
+The recurring defect was not code. It was **two documents, or a document and a
+process, disagreeing because someone changed one of them**: a lane map stranded
+off `main`, a ledger heading reserving different numbers from the map beside it,
+a test asserting the old behaviour was correct, a rehearsal passing because it
+never killed the thing it claimed to kill, a counter surfaced nowhere while its
+comment said it was surfaced.
+
+Every one of those passed CI. Most were caught by an independent reader looking
+at work that had already been called done. **Do that first.**

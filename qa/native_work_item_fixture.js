@@ -240,6 +240,23 @@ async function seedVerifiedProbeStaff(page, options) {
   });
 }
 
+/*
+ * How many calls reached the retired webhooks, across one or more captures.
+ *
+ * ONE shape for this assertion in every probe, on purpose. p36 watches three browser
+ * contexts and the others watch one, and before this each spelled the zero-check its own
+ * way — which is how `test/probes-assert-native-write-lane.js` ends up pattern-matching
+ * prose instead of a contract. Every probe on the production roster now asserts
+ * `NW.retiredCallCount(...) === 0`, and that guard checks for exactly that.
+ */
+function retiredCallCount(...captures) {
+  return captures.flat()
+    .filter(Boolean)
+    .reduce((n, cap) => n
+      + ((cap.setStatus && cap.setStatus.length) || 0)
+      + ((cap.addComment && cap.addComment.length) || 0), 0);
+}
+
 /* Small readers the probes share, so three probes cannot drift into three
    different ideas of what "a status intent for this card" means. */
 function statusCalls(calls, deliverableId) {
@@ -258,6 +275,7 @@ module.exports = {
   stubNativeWorkItems,
   stubNativeGateway,
   captureRetiredWebhooks,
+  retiredCallCount,
   seedVerifiedProbeStaff,
   statusCalls,
   commentCalls

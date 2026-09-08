@@ -75,9 +75,8 @@ const APP_VID = NW.nativeDeliverableId(APP, 'video');
       + JSON.stringify(NW.statusCalls(gateway, APP_VID).map(c => c.status)) + ')');
 
     // The assertion the old probe inverted.
-    S.ok(retired.setStatus.length === 0 && retired.addComment.length === 0,
-      'NOTHING reached the retired Linear webhooks (set-status=' + retired.setStatus.length
-      + ', add-comment=' + retired.addComment.length + ')');
+    S.ok(NW.retiredCallCount(retired) === 0,
+      'NOTHING reached the retired Linear webhooks (' + NW.retiredCallCount(retired) + ' calls)');
 
     // cross-client safety, re-expressed for native ids
     const targets = gateway.map(c => String((c && c.id) || (c && c.issue) || ''));

@@ -138,9 +138,8 @@ const GID = NW.nativeDeliverableId(PID, 'graphic');
     // 6) THE ASSERTION THE OLD PROBE INVERTED. Nothing reached the retiring
     //    webhooks. After 2026-09-15 those URLs accept a write and drop it, so a
     //    single call here is a silent data loss in production.
-    S.ok(retired.setStatus.length === 0 && retired.addComment.length === 0,
-      'NOTHING reached the retired Linear webhooks (set-status=' + retired.setStatus.length
-      + ', add-comment=' + retired.addComment.length + ')');
+    S.ok(NW.retiredCallCount(retired) === 0,
+      'NOTHING reached the retired Linear webhooks (' + NW.retiredCallCount(retired) + ' calls)');
 
     // 7) cross-client safety, re-expressed for native ids: every intent this
     //    run produced names one of THIS card's two work items.

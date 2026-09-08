@@ -95,9 +95,8 @@ const APP_VID = NW.nativeDeliverableId(APP, 'video');
 
     // The assertion the old probe inverted. After 2026-09-15 those URLs accept
     // a write and drop it, so one call here is a silent loss in production.
-    S.ok(retired.setStatus.length === 0 && retired.addComment.length === 0,
-      'NOTHING reached the retired Linear webhooks (set-status=' + retired.setStatus.length
-      + ', add-comment=' + retired.addComment.length + ')');
+    S.ok(NW.retiredCallCount(retired) === 0,
+      'NOTHING reached the retired Linear webhooks (' + NW.retiredCallCount(retired) + ' calls)');
 
     const targets = gateway.map(c => String((c && c.id) || (c && c.issue) || ''));
     S.ok(targets.length > 0 && targets.every(id => id === REQ_VID || id === APP_VID),

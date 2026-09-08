@@ -68,8 +68,16 @@ function grabFunc(name) {
   throw new Error('unbalanced function: ' + name);
 }
 
-const PROBES = ['p28_linear_sync.js', 'p29_linear_kasper.js', 'p30_linear_client.js'];
+const PROBES = ['p28_linear_sync.js', 'p29_linear_kasper.js', 'p30_linear_client.js', 'p36_full_sync.js', 'p60_modal_smm.js'];
 const PROBE_SRC = PROBES.map(name => [name, fs.readFileSync(path.join(ROOT, 'qa', 'probes', name), 'utf8')]);
+
+/* Every probe the nightly actually gates on. The manifest is the list whose red stops the
+   run, so it is the list this suite polices. */
+const MANIFEST = fs.readFileSync(path.join(ROOT, 'qa', 'probes', 'nightly-manifest.txt'), 'utf8')
+  .split('\n').map(l => l.replace(/#.*$/, '').trim()).filter(Boolean)
+  .map(n => (n.endsWith('.js') ? n : n + '.js'))
+  .filter(n => fs.existsSync(path.join(ROOT, 'qa', 'probes', n)));
+const MANIFEST_SRC = MANIFEST.map(name => [name, fs.readFileSync(path.join(ROOT, 'qa', 'probes', name), 'utf8')]);
 
 /* ---- 1. NO PROBE STILL WAITS FOR THE RETIRED WEBHOOKS -------------------- */
 /* The captures may still EXIST — a probe that does not watch those URLs cannot
@@ -78,13 +86,110 @@ const PROBE_SRC = PROBES.map(name => [name, fs.readFileSync(path.join(ROOT, 'qa'
 for (const [name, src] of PROBE_SRC) {
   ok(/captureRetiredWebhooks/.test(src),
     name + ' still watches the retired webhooks, which is how it can prove nothing reached them');
-  ok(/retired\.setStatus\.length === 0 && retired\.addComment\.length === 0/.test(src),
+  ok(/NW\.retiredCallCount\([^)]*\) === 0/.test(src),
     name + ' asserts ZERO traffic to linear-set-status and linear-add-comment');
   ok(/native_work_item_fixture/.test(src),
     name + ' seeds a native work item, so its cards are shaped like production cards');
   ok(/statusCalls\(|commentCalls\(/.test(src),
     name + ' asserts on native gateway intents');
 }
+
+/* ---- 1b. NO MANIFEST PROBE MAY HAND-ROLL THE RETIRED WEBHOOKS ------------ */
+/* THE ROOT-CAUSE GUARD, and the reason this section exists at all.
+
+   Fixing p28/p29/p30 was not enough: `p36_full_sync.js` and `p60_modal_smm.js` had been
+   given the production roster by the same change and still waited for `linear-set-status` /
+   `linear-add-comment`, so two more manifest-gated nightlies were left asserting a lane the
+   product does not take. Caught by review, not by a test — twice on this PR, which is once
+   too many for the same class.
+
+   So the rule is structural rather than per-probe: ONE module owns those two URLs
+   (`qa/native_work_item_fixture.js`), and the only thing it lets a probe do with them is
+   COUNT them. A probe that wants to assert one received something has to hand-roll a route,
+   and hand-rolled routes are what this checks for. Same shape as the house rule that a test
+   may not hand-roll a comment stripper (OPEN_REPAIRS 145).
+
+   Prose that NAMES the webhooks is fine and wanted — every migrated probe explains what it
+   used to assert. What is forbidden is registering a route for one. */
+
+const RETIRED_URLS = /linear-(?:set-status|add-comment)/;
+for (const [name, src] of MANIFEST_SRC) {
+  const routed = src.split('\n')
+    .map((line, i) => [i + 1, line])
+    .filter(([, line]) => /\broute\s*\(/.test(line) && RETIRED_URLS.test(line));
+  ok(routed.length === 0,
+    name + ' registers no route of its own for the retired webhooks'
+    + (routed.length ? ' (line ' + routed.map(([i]) => i).join(', ') + ')' : ''));
+}
+
+/* And any manifest probe that watches them at all asserts the SAME zero, in the same shape,
+   so this guard checks a contract rather than pattern-matching each probe's prose. */
+for (const [name, src] of MANIFEST_SRC) {
+  if (!/captureRetiredWebhooks/.test(src)) continue;
+  ok(/NW\.retiredCallCount\([^)]*\) === 0/.test(src),
+    name + ' asserts NW.retiredCallCount(...) === 0 — the one shape every probe on the '
+    + 'production roster uses for "nothing reached the retired lane"');
+}
+
+/* The counter itself, executed: a guard that trusted a helper it never ran would be the
+   same mistake one level up. */
+ok(NW.retiredCallCount({ setStatus: [], addComment: [] }) === 0
+  && NW.retiredCallCount({ setStatus: [{}], addComment: [] }) === 1
+  && NW.retiredCallCount([{ setStatus: [{}], addComment: [{}] }, { setStatus: [{}], addComment: [] }]) === 3
+  && NW.retiredCallCount([]) === 0,
+  'NW.retiredCallCount counts one capture, an array of captures, and an empty list correctly');
+
+/* ---- 1c. THE LANES OUTSIDE THE MANIFEST, NAMED RATHER THAN GUESSED ------- */
+/* Section 1b polices the probes whose red stops the nightly. It is not the whole
+   population: other harnesses reach the same production roster (through
+   `qa/sxr_courier_lib.js` and `qa/golden_lib.js`) and still assert that a retired webhook
+   RECEIVED something. Those are affected by the same change and are NOT migrated in this
+   PR — several drive client surfaces that need a live review token, or the ef-writepath
+   harness, neither of which this work could run or verify.
+
+   Saying "94 probes are unaudited" was the honest answer before the audit and is the lazy
+   one after it. This is the audited list, and the test fails if it changes in either
+   direction: a new file joining it must be a deliberate act, and a file leaving it (because
+   somebody migrated it) must delete its line here. That is what stops this from being
+   forgotten, which is the actual risk — not that the list is long.
+
+   Polarity is recorded per entry: `present` asserts a webhook was called (affected, owed),
+   `zero` asserts none was (already correct under the native lane, and strengthened by it).
+   Only `present` entries are work. Tracked in OPEN_REPAIRS 175. */
+
+const OUTSIDE_MANIFEST = {
+  'qa/scenarios.js': 'present',                              // expectLinear steps in the scenario DSL
+  'qa/scenario_engine.js': 'present',                        // the DSL verb that executes them
+  'qa/probes/ot4_t0_client_edge_conditions.js': 'present',   // client surface; needs a live review token
+  'qa/probes/sxr_kasper_audit_holes.js': 'present',
+  'qa/probes/cal_linear_deep.js': 'present',
+  'qa/probes/sxr_linear_deep.js': 'present',
+  'qa/ef-writepath/10-status-linear.js': 'present',
+  'qa/ef-writepath/12-samples.js': 'present',
+  'qa/ef-writepath/13-settings.js': 'zero',                  // already asserts no push; correct as-is
+  'qa/ef-writepath/lib.js': 'zero',                          // harness plumbing, asserts nothing
+  'qa/sxr_courier_lib.js': 'zero'                            // harness plumbing, asserts nothing
+};
+
+const scanned = [];
+for (const dir of ['qa', 'qa/probes', 'qa/ef-writepath']) {
+  const abs = path.join(ROOT, dir);
+  if (!fs.existsSync(abs)) continue;
+  for (const file of fs.readdirSync(abs)) {
+    if (!file.endsWith('.js')) continue;
+    const rel = dir + '/' + file;
+    if (rel === 'qa/native_work_item_fixture.js' || rel === 'qa/write_ui_reroute_fixture.js') continue;
+    if (MANIFEST.includes(file) && dir === 'qa/probes') continue;
+    const src = fs.readFileSync(path.join(abs, file), 'utf8');
+    if (/linear-set-status|linear-add-comment|linearCalls\s*\(/.test(src)) scanned.push(rel);
+  }
+}
+const tracked = Object.keys(OUTSIDE_MANIFEST).sort();
+const found = scanned.sort();
+ok(JSON.stringify(found) === JSON.stringify(tracked),
+  'the audited set of non-manifest lanes still touching the retired webhooks is exactly the '
+  + 'tracked list — untracked: ' + JSON.stringify(found.filter(f => !tracked.includes(f)))
+  + ', gone: ' + JSON.stringify(tracked.filter(f => !found.includes(f))));
 
 /* ---- 2. THE FIXTURE ACTUALLY STAMPS THE CARD ----------------------------- */
 /* Executed, not read. A stand-in for the slice of Playwright's routing API the

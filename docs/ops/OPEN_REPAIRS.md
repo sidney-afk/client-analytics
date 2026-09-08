@@ -14423,6 +14423,63 @@ assert are the shapes the shipped code produces. It exists because the probes
 need a browser and a backend, and a claim about what the nightly asserts should
 be checkable on every pull request.
 
+### EXTENSION, 2026-09-08 (Codex finding on `189de4a`): **p28-p30 WAS NOT THE WHOLE MANIFEST.**
+
+Migrating three probes was not enough, and the miss is the same shape as the one
+above: `p36_full_sync.js` and `p60_modal_smm.js` had been handed the production
+roster by the same change, still waited for `linear-set-status` /
+`linear-add-comment`, and are both in `qa/probes/nightly-manifest.txt`. Two more
+manifest-gated nightlies left asserting a lane the product does not take —
+caught by review rather than by a test, twice on this PR, which is once too many
+for one class of defect.
+
+**The whole manifest, audited rather than sampled.** Exactly seven manifest
+probes touch those webhooks: p28, p29, p30 (already migrated), p36 and p60
+(migrated here), and p47/p68, which assert ZERO pushes and were therefore
+already correct — both are now strengthened to assert zero on the NATIVE lane
+too, which is the lane their clients actually take and the one their old
+Linear-only check was blind to.
+
+**THE ROOT-CAUSE FIX IS STRUCTURAL, NOT FIVE MORE EDITS.** One module owns the
+two retired URLs (`qa/native_work_item_fixture.js`), and the only thing it lets a
+probe do with them is COUNT them, through `NW.retiredCallCount(...)`. A probe
+that wants to assert one received something has to hand-roll a route, and
+`test/probes-assert-native-write-lane.js` now fails on any hand-rolled route for
+those URLs anywhere in the manifest, and on any manifest probe watching them that
+does not assert `NW.retiredCallCount(...) === 0`. Same shape as the house rule
+that a suite may not hand-roll a comment stripper (OPEN_REPAIRS 145). Prose
+naming the webhooks stays legal and is wanted — every migrated probe explains
+what it used to assert.
+
+**THE LANES OUTSIDE THE MANIFEST, NAMED.** The previous entry said "the other 94
+probes are not run and not audited". That was honest then and lazy now, so they
+were audited. Nine files outside the manifest still reference the retired
+webhooks; **seven of them assert a webhook WAS called** and are therefore
+affected and owed:
+
+| file | why not migrated here |
+|---|---|
+| `qa/scenarios.js` + `qa/scenario_engine.js` | the `expectLinear` verb of the scenario DSL; migrating it changes every scenario that uses it |
+| `qa/probes/ot4_t0_client_edge_conditions.js` | client surface; needs a live review token this session does not hold |
+| `qa/probes/sxr_kasper_audit_holes.js` | samples surface, waits for a status push |
+| `qa/probes/cal_linear_deep.js`, `qa/probes/sxr_linear_deep.js` | one present-assertion each; the rest of both files already asserts zero |
+| `qa/ef-writepath/10-status-linear.js`, `qa/ef-writepath/12-samples.js` | the ef-writepath harness, which this session could not run |
+
+`qa/ef-writepath/13-settings.js` asserts NO push and is correct as it stands.
+
+That list is pinned in the suite as a tracked set: the test fails if a new file
+joins it OR if one leaves without its line being deleted. The point is not that
+the list is long — it is that it can no longer be forgotten, which is what
+actually went wrong twice here.
+
+**WHAT WAS RUN THIS ROUND.** `p60`'s migrated assertions executed green (5/5,
+0 JS errors) and `p36`'s two STAFF legs executed green (5/5) through the
+read-only backend bridge. `p36`'s steps 3 and 5 are client-driven and were NOT
+run, for the same reason `p30` was not: a client-entry tab needs a live review
+token, which needs `SYNCVIEW_STAFF_KEY`. `p47` and `p68` were not run; their
+change is an added zero-assertion on a second lane, which cannot turn a passing
+probe red without a real push appearing.
+
 ---
 
 ## 176. [2026-09-07, FIXED, live on merge with no deploy; lane LX-C] The Samples "Move it here" was the hole the calendar twin's own comment warned about

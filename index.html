@@ -1366,12 +1366,12 @@
             --sv-shadow-rgba-37-99-235-0_42: rgba(0,0,0,0.6);
             --sv-shadow-rgba-6-78-59-0_28: rgba(0,0,0,0.46);
             --sv-shadow-rgba-92-68-38-0_10: rgba(0,0,0,0.28);
-            --sv-shadow-rgba-94-106-210-_12: rgba(0,0,0,0.3);
+            --sv-shadow-rgba-94-106-210-_12: rgba(174,181,242,.12);
             --sv-shadow-rgba-94-106-210-0: rgba(94,106,210,0);
-            --sv-shadow-rgba-94-106-210-0_18: rgba(0,0,0,0.36);
-            --sv-shadow-rgba-94-106-210-0_45: rgba(0,0,0,0.63);
-            --sv-shadow-rgba-94-106-210-0_55: rgba(0,0,0,0.68);
-            --sv-shadow-rgba-94-106-210-0_6: rgba(0,0,0,0.68);
+            --sv-shadow-rgba-94-106-210-0_18: rgba(174,181,242,0.18);
+            --sv-shadow-rgba-94-106-210-0_45: rgba(174,181,242,0.45);
+            --sv-shadow-rgba-94-106-210-0_55: rgba(174,181,242,0.55);
+            --sv-shadow-rgba-94-106-210-0_6: rgba(174,181,242,0.6);
             --sv-shadow-rgba-99-102-241-0_22: rgba(0,0,0,0.4);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -5019,7 +5019,13 @@
         .cal-card-link.copied { background: var(--sv-bg-dcfce7); color: var(--sv-fg-15803d); opacity: 1; }
         .cal-card-link svg { width: 13px; height: 13px; display: block; }
         /* Persistent focus highlight after opening a per-card deep link */
-        .cal-card-focused { box-shadow: 0 0 0 3px var(--sv-shadow-rgba-94-106-210-0_55), 0 6px 22px var(--sv-shadow-rgba-94-106-210-0_18); }
+        /* !important: a posted card (.cal-card.cal-card-posted, specificity 2) and
+           a hovered card (.cal-card:hover, and .cal-card.cal-card-posted:hover at
+           specificity 3) both carry their own static box-shadow at equal-or-higher
+           specificity than this single-class rule, so without it a linked card
+           that is posted, or simply under the pointer, shows no ring at all --
+           the exact silence this whole feature exists to end. Codex review, same PR. */
+        .cal-card-focused { box-shadow: 0 0 0 3px var(--sv-shadow-rgba-94-106-210-0_55), 0 6px 22px var(--sv-shadow-rgba-94-106-210-0_18) !important; }
         /* Full-screen thumbnail lightbox */
         .cal-lightbox { display: none; position: fixed; inset: 0; background: var(--sv-bg-rgba-0-0-0-0_88); z-index: 300; align-items: center; justify-content: center; cursor: zoom-out; }
         .cal-lightbox.open { display: flex; }

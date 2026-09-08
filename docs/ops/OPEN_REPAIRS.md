@@ -15564,6 +15564,92 @@ costs four characters. The reservation table in item 168 remains the right
 mechanism for avoiding collisions in the first place, but it only binds sessions
 that read it, and PR #1354 was not part of this programme.
 
+## 177. [2026-09-08, FIXED] The pasted-card-link highlight was invisible in dark mode
+
+Item 176 (same day, merged as PR #1354) fixed the timing problem — the toast
+now appears immediately. The owner came back after checking it out: *"I
+never saw the border color... it's because of the dark mode. On the dark
+mode, it doesn't show up... it appears as like a black thing."*
+
+**Root cause.** The persistent outline `_calApplyFocusRequest` puts on a
+linked card (`.cal-card-focused`, and its non-persistent sibling
+`.cal-card-flash` for the identifier/search-jump case) reads its ring color
+from `--sv-shadow-rgba-94-106-210-*` — the brand indigo, rgb(94,106,210).
+The dark-theme override block flattened five of those six tokens to plain
+black (`rgba(0,0,0,…)`) — the sixth, the fully-transparent `-0` variant, was
+already `rgba(94,106,210,0)` and untouched, since a zero alpha carries no
+visible color either way. The five non-transparent ones are close to
+indistinguishable from the app's own near-black dark background: a ring
+built to say "this one" said nothing.
+Every OTHER brand-indigo token in the file (`--sv-border-9aa3f0`,
+`--sv-fg-4a54c0`, …) is brightened for dark mode instead of blackened — this
+shadow-token family was the one place the pattern wasn't followed, almost
+certainly because whatever produced the dark palette treated every
+`--sv-shadow-*` variable as a generic elevation shadow (where black is the
+right call) rather than checking which ones are actually colored accent
+rings.
+
+**Verified, not just reasoned.** Rendered the real, extracted
+`.cal-card-focused` rule in a headless Chromium against both themes' actual
+variable values, before touching anything: the light-mode ring was clearly
+visible; the dark-mode one was there, technically, but barely
+distinguishable from the card and page behind it — exactly the "black
+thing" the report described.
+
+**Fix.** Kept the same hue in dark mode, brightened to `rgb(174,181,242)` —
+the same value `--sv-border-9aa3f0` already uses for its own dark-mode
+counterpart, so this now follows the same convention as every other
+brand-indigo token instead of being the exception. Re-rendered the same
+Chromium check after the change: dark mode now shows a clearly visible
+indigo ring, matching light mode's legibility. Five tokens changed (the
+transparent sixth was already correct and left alone), all in the same
+`html[data-theme="dark"]` override block; the `.cal-card-focused` /
+`.cal-card-flash` rules that consume them were untouched, since the box-shadow
+rules themselves were never the problem — only the color they were told to
+use.
+
+Pinned by a new `test/calendar-focus-highlight-dark-mode.js`: asserts each
+of the five non-transparent tokens in the dark-theme block still carries a
+colored (non-black) value, and specifically the `rgb(174,181,242)` this fix
+lands on — so a future dark-palette regeneration can't quietly re-blacken
+this family without a test failing.
+
+**Codex review, PR #1359.** One real finding: the color fix above made the
+ring visible, but not necessarily PRESENT. `.cal-card-focused` is a single
+class (specificity 1). `.cal-card.cal-card-posted` (2) and `.cal-card:hover`
+/ `.cal-card.cal-card-posted:hover` (2 and 3) each carry their own static
+`box-shadow`, all at equal or higher specificity — so a linked card that was
+posted, or simply sat under the pointer, showed no ring at all, in EITHER
+theme. Not new in this PR; the underlying rule predates it. Added
+`!important` to `.cal-card-focused`'s `box-shadow` so it wins regardless of
+what other card-state classes are present, matching this file's existing
+convention for "this state must win" indicators (e.g.
+`.workload-rollup.in-progress`'s `border-left-color !important`).
+`.cal-card-flash` (the identifier/search-jump sibling) needed no such fix:
+its color comes from a CSS animation, which the cascade already places above
+any static rule regardless of specificity.
+
+Verified with a real headless-Chromium render (not just source regex) of a
+card carrying `cal-card cal-card-posted cal-card-focused` in dark mode,
+hovered — the highest-specificity competing case — and read back
+`getComputedStyle(...).boxShadow`: the indigo ring is present and the
+posted-state green shadow is fully replaced rather than blended in behind
+it.
+
+**Same review, second finding.** That verification was first committed as a
+`require('playwright')` section inside `test/calendar-focus-highlight-dark-
+mode.js` itself — which `test/run-all.js` sweeps unconditionally into the
+dependency-free `unit` CI job (`.github/workflows/calendar-unit-tests.yml`,
+no `npm install`, no browser provisioning, by design: "No test in this job
+reaches a live backend or browser"). That would have failed the job outright
+on the next push with `MODULE_NOT_FOUND`, not just this one suite — this
+repo has no lightweight lane between "dependency-free source regex" and the
+heavy, explicitly-registered `production-polish` browser lanes (themselves
+scoped to the `_prod`/write-gateway surface, not general Calendar CSS).
+Removed the async section; the regex assertion pinning `!important` is what
+a `test/` suite can safely check, and the browser verification itself is
+recorded here rather than kept as a suite that can't run where it lives.
+
 ---
 
 ## 179. [2026-09-08, lane LX-RESTORE, DONE for the executable subset; ~284 context lines still clipped] The 49 clipped brief lines an owner actually executes are restored from source, and six of them were wrong as well as short

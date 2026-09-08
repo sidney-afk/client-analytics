@@ -11737,7 +11737,7 @@
                        got here. The resolver runs AFTER navTo because it
                        early-returns unless currentNav is already calendar, and it
                        has its own fallback when the slug never resolves. */
-                    else if(slug)_calPendingDeepLink={slug,cardId:cardId||null};
+                    else if(slug)_calSetPendingDeepLink({slug,cardId:cardId||null});
                     navTo('calendar',false);
                     if(!match&&slug){try{_calResolvePendingDeepLink();}catch(e){console.warn('[Calendar] deep-link resolve failed',e);}}
                     return;
@@ -29151,6 +29151,19 @@
        last-used client, and _calResolvePendingDeepLink (run after fetchAll)
        opens the real client as a tab. Shape: { slug, cardId }. */
     let _calPendingDeepLink = null;
+    /* Codex review on PR for OPEN_REPAIRS item 176: a card link for a
+     * sheet-only client (not in the WL_CLIENT_NAMES seed) is recognized here,
+     * before the roster that would resolve it to _calFocusRequest has even
+     * loaded — so without its own announcement, exactly these links kept the
+     * silence item 176 was meant to end, for as long as the ESSENTIALS read
+     * takes instead of the calendar read. Same discipline as
+     * _calSetFocusRequest, and the same reason: one assignment site. */
+    function _calSetPendingDeepLink(v) {
+        _calPendingDeepLink = v;
+        if (v && v.cardId) {
+            showToast('Opening linked card…', { duration: CAL_LOAD_TIMEOUT_MS + 1000 });
+        }
+    }
     /* Card ids whose next save must NOT push back to Linear — used when a
        status was just pulled FROM Linear, so we don't bounce it back. */
     const _calNoLinearPush = new Set();
@@ -29900,7 +29913,7 @@
     function _calResolvePendingDeepLink() {
         const pending = _calPendingDeepLink;
         if (!pending) return;
-        _calPendingDeepLink = null;
+        _calSetPendingDeepLink(null);
         // The user may have navigated away (or into a client profile) while data
         // was loading — don't yank them back to the calendar.
         if (currentNav !== 'calendar' || calState.embedded) return;
@@ -35660,8 +35673,18 @@
              * already told the reader once (or already succeeded), so it
              * says nothing and leaves the pin alone for the next attempt to
              * try again. _calFocusRequestLoadFailed stops a slow string of
-             * background retries from re-notifying for the same pin. */
-            if (!background && _calFocusRequest && _calFocusRequest.cardId && !_calFocusRequestLoadFailed
+             * background retries from re-notifying for the same pin.
+             *
+             * Gated on opts.background (the CALLER's intent), not the local
+             * `background` above — Codex review, PR for this item. `background`
+             * also turns true whenever cache-priming left posts on screen
+             * (`calState.posts.length > 0 && haveCache`), which is exactly the
+             * cold, first-ever deep-link load of a RETURNING user: cache paints
+             * something instantly, but the network read this notice exists for
+             * is still the initial, deliberate one. Gating on that flag would
+             * have re-silenced precisely the returning-user case the toast was
+             * built to fix. */
+            if (!opts.background && _calFocusRequest && _calFocusRequest.cardId && !_calFocusRequestLoadFailed
                 && wlNormalizeClient(calState.client) === wlNormalizeClient(_calFocusRequest.client)) {
                 _calFocusRequestLoadFailed = true;
                 showNotify('Linked card not confirmed', (isAbort
@@ -35786,6 +35809,12 @@
         if (!req) return;
         if (wlNormalizeClient(calState.client) !== wlNormalizeClient(req.client)) return;
         _calSetFocusRequest(null);
+        // Codex review, PR for item 176: _calSetFocusRequest(null) clears the
+        // PIN, not the "Opening linked card…" TOAST it fired earlier — so a
+        // card that resolves fast into "Card not found"/"Card not shown"
+        // below left that toast on screen contradicting the modal that
+        // follows it. Only a cardId request could have shown it.
+        if (req.cardId) hideToast();
         let post = null;
         let persistent = false;
         if (req.cardId) {
@@ -62626,7 +62655,7 @@
                     // the slug won't have matched above. Resolve and open it as a
                     // tab once fetchAll folds in the Clients Info sheet.
                     else if (slug) {
-                        _calPendingDeepLink = { slug, cardId: cardId || null };
+                        _calSetPendingDeepLink({ slug, cardId: cardId || null });
                         // Listen to essentials itself, not the full analytics
                         // bundle: once the sheet roster is merged this route can
                         // resolve even if extras are still pending or fail. A
@@ -62952,7 +62981,7 @@
         try {
             _calLoadSeq++;
             _calSetClient(null); calState.posts = []; calState.loading = false; calState.error = null;
-            _calSetFocusRequest(null); _calPendingDeepLink = null;
+            _calSetFocusRequest(null); _calSetPendingDeepLink(null);
         } catch (e) {}
         try {
             _sxrLoadSeq++;

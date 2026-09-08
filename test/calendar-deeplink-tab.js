@@ -66,6 +66,9 @@ let _calFocusRequestLoadFailed = false;
 // same field-mutating semantics minus the toast, which this suite about
 // _calResolvePendingDeepLink's tab-opening behavior has no stake in.
 function _calSetFocusRequest(req) { _calFocusRequest = req; _calFocusRequestLoadFailed = false; }
+// Same mirroring for the deferred (sheet-only-client) path's own setter
+// (Codex review, item 176 PR).
+function _calSetPendingDeepLink(v) { _calPendingDeepLink = v; }
 const calls = { loadCalendarPosts: 0, renderBody: 0, renderTabs: 0, renderShell: 0, teardown: 0 };
 // DOM-coupled deps → no-ops / counters.
 function _calRenderTabs(){ calls.renderTabs++; }

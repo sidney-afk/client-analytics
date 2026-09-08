@@ -67,6 +67,7 @@ function harness(options) {
   const renders = [];
   const toasts = [];
   const setFocusCalls = [];
+  let hideToastCalls = 0;
   /* calState carries a view now, because a card only paints in the Sheet and
      the deferred deep-link path arrives with whatever view the client saved. */
   const calState = {
@@ -81,7 +82,7 @@ function harness(options) {
     'requestAnimationFrame', 'document', 'window', 'setTimeout',
     '_calClearFocusHighlight', '_calFocusOutsideHandler',
     'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive', '_calRenderBody',
-    'showToast', '_calFmtDateShort', '_calSetFocusRequest',
+    'showToast', '_calFmtDateShort', '_calSetFocusRequest', 'hideToast',
     src + '\nreturn _calApplyFocusRequest;',
   )(
     { client: 'Client', cardId: 'p_target' },
@@ -101,10 +102,12 @@ function harness(options) {
     msg => toasts.push(msg),
     iso => 'DATE(' + iso + ')',
     req => setFocusCalls.push(req),
+    () => { hideToastCalls++; },
   );
   fn();
   return {
     log, notified, card, timers, viewChanges, cleared, calState, renders, toasts, setFocusCalls,
+    get hideToastCalls() { return hideToastCalls; },
     runFrames(n) { for (let i = 0; i < n; i++) { frameNo++; const queued = frames.splice(0); queued.forEach(cb => cb()); } },
     runTimers() { timers.splice(0).forEach(t => t.cb()); },
     pendingFrames: () => frames.length,
@@ -129,6 +132,18 @@ function harness(options) {
      after the outline shipped. A toast says the card's name out loud. */
   ok(h.toasts.length === 1, 'arriving via a card link also announces which card, in words, via a toast');
   ok(/April 8th - Reel 14/.test(h.toasts[0]), 'and the toast names the exact card that was focused');
+}
+/* ---- 1b. the linked card does not exist on this calendar (Codex review, item 176) --- */
+{
+  // Nothing named 'p_target' in posts, so the lookup fails immediately —
+  // still on the FIRST frame, well before the outline/toast success path.
+  const h = harness({ posts: [{ id: 'p_other', name: 'Other' }] });
+  h.runFrames(1);
+  ok(h.notified.length === 1 && /Card not found/.test(h.notified[0]),
+    'the blocking "Card not found" dialog still fires as before');
+  ok(h.hideToastCalls === 1,
+    'and the "Opening linked card…" toast the setter fired earlier is dismissed — without this it would sit on screen '
+    + 'contradicting the modal that just told the reader the opposite');
 }
 {
   // A card with a scheduled date gets it appended, so the toast disambiguates
@@ -360,6 +375,37 @@ function harness(options) {
   }
 }
 
+/* ── Codex review on the item 176 PR: the SAME silence, one step earlier ───
+   A card link for a client outside the WL_CLIENT_NAMES seed is recognized as
+   _calPendingDeepLink before the roster read that would resolve it to a real
+   _calFocusRequest even starts — so without its own announcement, exactly
+   these deferred/sheet-only-client links kept the reported silence for as
+   long as THAT read takes, unfixed by _calSetFocusRequest alone. */
+{
+  const INDEX = html;
+  const assignments = (INDEX.match(/_calPendingDeepLink = /g) || []).length;
+  ok(assignments === 2,
+    'and it is the ONLY place _calPendingDeepLink is assigned: the declaration '
+    + 'and the setter\'s own body (found ' + assignments + ')');
+  ok(/function _calSetPendingDeepLink\(v\) \{[^}]*_calPendingDeepLink = v;/s.test(INDEX),
+    'that one non-declaration assignment being the setter\'s own');
+
+  const setter = extractFunction(INDEX, '_calSetPendingDeepLink');
+  ok(!!setter, 'the setter is findable');
+  const toasts = [];
+  const run = new Function('showToast', 'CAL_LOAD_TIMEOUT_MS', `
+    let _calPendingDeepLink = null;
+    ${setter}
+    return { set: _calSetPendingDeepLink, get: () => _calPendingDeepLink };
+  `)(msg => toasts.push(msg), 20000);
+  run.set({ slug: 'somenewclient', cardId: 'p_abc' });
+  ok(toasts.length === 1 && /Opening linked card/.test(toasts[0]),
+    'a sheet-only client\'s card link announces itself the moment it\'s queued, not once the roster resolves it');
+  ok(run.get().cardId === 'p_abc', 'and the pending link itself is still stored for _calResolvePendingDeepLink');
+  run.set({ slug: 'somenewclient', cardId: null });
+  ok(toasts.length === 1, 'a bare client-slug link (no card) stays silent — nothing to announce yet');
+}
+
 /* loadCalendarPosts's catch: the failure twin of the announcement above. */
 {
   const loadFn = extractFunction(html, 'loadCalendarPosts');
@@ -367,8 +413,15 @@ function harness(options) {
   const catchEnd = loadFn.indexOf('} finally {');
   ok(catchStart > 0 && catchEnd > catchStart, 'loadCalendarPosts still has its catch/finally shape (harness is not vacuous)');
   const catchBlock = loadFn.slice(catchStart, catchEnd);
-  ok(/if \(!background && _calFocusRequest && _calFocusRequest\.cardId && !_calFocusRequestLoadFailed/.test(catchBlock),
+  ok(/if \(!opts\.background && _calFocusRequest && _calFocusRequest\.cardId && !_calFocusRequestLoadFailed/.test(catchBlock),
     'a failed load only speaks up for a still-pending, not-yet-notified card link');
+  /* Codex review, PR for item 176: gating on the local `background` (which
+     also turns true whenever cache-priming left posts on screen) would
+     re-silence a RETURNING user's first, deliberate deep-link load — the
+     exact case this item exists to fix. Must be opts.background, the
+     caller's own intent, not the render-mode derivation. */
+  ok(!/if \(!background && _calFocusRequest/.test(catchBlock),
+    'and specifically not the cache-derived `background` — that flag also covers a returning user\'s cache-primed FIRST load');
   ok(/wlNormalizeClient\(calState\.client\) === wlNormalizeClient\(_calFocusRequest\.client\)/.test(catchBlock),
     'and only when the failed load was actually for the pinned link\'s client — a stale pin from a client the reader left must stay silent');
   ok(/_calFocusRequestLoadFailed = true;/.test(catchBlock),

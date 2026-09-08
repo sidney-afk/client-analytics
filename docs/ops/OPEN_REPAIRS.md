@@ -14604,3 +14604,34 @@ their own hand-rolled sandbox around real extracted source
 (`popstate-hash-route.js`, `calendar-deeplink-tab.js`) needed a
 `_calSetFocusRequest` stub added to keep exercising the real code path
 instead of throwing `ReferenceError` on the new call.
+
+**Codex review round, same PR, before merge.** Four findings, three real:
+
+1. *(P1)* The failure notice was gated on the local `background` flag, which
+   also turns true whenever cache-priming left posts on screen
+   (`calState.posts.length > 0 && haveCache`) — exactly the shape of a
+   RETURNING user's first, deliberate deep-link load, the case this item
+   exists to fix. Re-gated on `opts.background` (the caller's own intent)
+   instead.
+2. *(P1)* A card link for a client outside the `WL_CLIENT_NAMES` seed is
+   recognized into `_calPendingDeepLink`, before the roster read that
+   resolves it to a real `_calFocusRequest` even starts — so the immediate
+   announcement never covered that read's own wait. Same fix, same shape:
+   `_calSetPendingDeepLink(v)` is now the one place `_calPendingDeepLink` is
+   assigned, and announces immediately when a `cardId` is present.
+3. *(P2)* `_calSetFocusRequest(null)` cleared the PIN but not the
+   "Opening linked card…" TOAST it had fired earlier, so a card that
+   resolved fast into `_calApplyFocusRequest`'s own "Card not found"/"Card
+   not shown" paths left that toast on screen contradicting the modal that
+   followed it. `_calApplyFocusRequest` now calls `hideToast()` itself right
+   after consuming a `cardId` request, before deciding what happened next.
+4. *(not a bug, verified rather than argued)* A fourth finding claimed an
+   aborted, superseded load's catch could still fire the failure notice for
+   a NEWER, still-succeeding request. Traced the exact ordering with a real
+   `AbortController` + `fetch` in Node: `_calAbortActiveLoad()` sets
+   `run.retired = true` SYNCHRONOUSLY, before the `controller.abort()` call
+   that is what eventually rejects the old fetch — so by the time that
+   catch's own pre-existing `if (!_calLoadRunCurrent(loadRun)) return;`
+   (first line, untouched by this PR) runs, the superseded load is already
+   `retired` and returns before reaching any of this item's code. Replied on
+   the thread with the traced ordering rather than adding a redundant check.

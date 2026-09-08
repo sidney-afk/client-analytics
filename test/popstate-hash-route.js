@@ -107,6 +107,9 @@ function fire(hash, opts) {
     _calSetFocusRequest: (v) => { calls.focus = v; },
     set _calPendingDeepLink(v) { calls.pending = v; },
     get _calPendingDeepLink() { return calls.pending; },
+    // Same as _calSetFocusRequest above, for the deferred (sheet-only-client)
+    // deep-link path's own setter (Codex review, item 176 PR).
+    _calSetPendingDeepLink: (v) => { calls.pending = v; },
     _calResolvePendingDeepLink: () => { calls.resolved = true; },
     set _smFocusRequest(v) { calls.smFocus = v; },
     get _smFocusRequest() { return calls.smFocus; },

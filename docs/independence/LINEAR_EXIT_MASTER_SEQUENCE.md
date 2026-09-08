@@ -37,9 +37,37 @@ Nothing below is "in progress". If it is not DONE it is not relied upon.
 | Media rescue preparation | PR #1345, merged. The lane shrank on evidence: `uploads.linear.app` URLs carry 300-second signatures and have rendered broken for months |
 | The coordination set | PR #1351, merged 2026-09-08 |
 
-**Deadline status: nothing left is time-critical.** 2026-09-15 removes the
-ability to *mint* a fresh Linear signature and to read the API. The one artefact
-that needed the API is captured. Everything remaining can be done at any pace.
+## Deadline status — corrected, because the earlier wording was too strong
+
+An earlier draft of this file, and several things said to the owner, claimed
+**"nothing left is time-critical."** That conflates two different things and the
+distinction matters for planning:
+
+- **Nothing left is IRRECOVERABLE.** True. 2026-09-15 removes the ability to read
+  the Linear API and to mint a fresh signature. The one artefact that needed the
+  API — the label catalog — is captured. Nothing else must be *obtained* from
+  Linear before that date.
+- **Several surfaces DEGRADE ON THEIR OWN if the cutover has not happened.** Not
+  true that this can wait. n8n webhooks that read Linear start failing when the
+  account lapses, and SyncView calls them.
+
+**What actually happens on 2026-09-15 with nothing merged**, best current
+reading:
+
+| Surface | Effect | Severity |
+|---|---|---|
+| Staff writes (status, comments) | **Safe.** All 43 active clients are enrolled in the reroute and both teams are SyncView-authoritative, so writes already go native (item 175, 2026-09-07) | none |
+| Workload board | The n8n reconcile stops refreshing `workload_issues`, so the board **freezes rather than empties** — silently current-looking and stale | high, because it is invisible |
+| Kasper → Editors subtab | `editors-week` fails | visible |
+| Tweak comments | `linear-tweak-comments` fails | visible |
+| Import from Linear | Fails, and is moot after the exit anyway | none |
+
+**So the four held PRs merging before 2026-09-15 is what converts an
+uncontrolled degradation into a controlled cutover.** That is a real deadline on
+the review, not on the engineering. It does not make anything unrecoverable, and
+it is not a reason to rush the review — it is a reason to schedule it.
+
+Today is 2026-09-08. That is one week.
 
 ---
 
@@ -89,9 +117,38 @@ quietly stops producing names.
 **Merging PR #1349 was not enough** and the runbook says so explicitly. The
 trigger does not exist until the migration is applied and each team seeded.
 
-**How to prove it worked:** create one card on the TEST client `sidneylaruel`
-after seeding, then read back a non-null `deliverables.linear_identifier` that
-Linear did not mint.
+**Applying and seeding is NOT enough — there are four steps and the fourth is the
+gate.** `docs/ops/NATIVE_IDENTIFIER_MINT.md` §"Live actions, in order" is
+explicit, and an earlier draft of this file named only the first three:
+
+| # | Action |
+|---|---|
+| 1 | Apply `migrations/2026-09-07-native-identifier-mint.sql` |
+| 2 | `select public.production_native_identifier_seed('video');` — record the returned `prefix`, `observed_provider_max` and `next_ordinal` |
+| 3 | Same for `'graphics'` |
+| 4 | **Flip `syncview_runtime_flags.production_native_identifier_mint` to `{"schema_version":1,"video":{"mode":"native"},"graphics":{"mode":"native"}}`** |
+
+**Step 4 is what lane F's outbound-off step actually waits on.** Steps 1 to 3
+leave the allocator installed and refusing: `production_native_identifier_capability(team)`
+returns `native` only when the flag says native **and** a seed row exists. Stop
+after step 3 and the mint is inert, the TEST card still gets its name from
+Linear, and turning outbound off produces the exact nameless-card failure this
+section exists to prevent.
+
+**One reassurance, from the same document:** the capability self-guards, so a
+premature flip is inert rather than half-armed. This is deliberately unlike
+`production_label_catalog_capability()`, which reports `native` with nothing
+staged and 503s one call later.
+
+**How to prove it worked:** do step 4 **per team, video first**, then create one
+post on the TEST client `sidneylaruel` and read back a non-null
+`deliverables.linear_identifier` that Linear did not mint — **before** seeding
+the second team.
+
+**Undo:** set the team back to `{"mode":"provider"}`. That stops new minting
+immediately and renames nothing, by design. Note steps 2 and 3 are safely
+undoable **only while no name has been handed out** for that team; once one has,
+deleting the cursor and re-seeding re-issues names.
 
 ### P2. Apply `2026-09-08-workload-native-label-state-shape.sql` — OPEN
 
@@ -104,7 +161,7 @@ directions about which migrations are live.
 
 ### P3. Deploy the comment reader — after #1347 merges
 
-`deploy-onboarding-edge-functions.yml`, `commit_sha` = the exact `main` tip.
+Dispatch https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml with `commit_sha` = the exact `main` tip.
 **That one dispatch redeploys four functions**, not one: `linear-outbound`,
 `production-write`, `production-comments`, `production-archive`. The other three
 go out byte-identical, but it is a larger action than its name suggests.

@@ -15599,3 +15599,44 @@ been wrong in both directions about which migrations are live, so it says
 **The document's other job is to stop the completion figure drifting upward on
 feeling.** It states, in one line each, that building is near done and installing
 is barely started, and that no further code moves the number.
+
+### Addendum, 2026-09-08 — CORRECTION: "nothing is time-critical" was too strong, and the mint needs FOUR steps
+
+Two P1s from Codex on PR #1357, both against text I wrote in the master
+sequence, and both correct.
+
+**1. The naming mint has four live steps, not three, and the fourth is the
+gate.** The addendum above and the first draft of the master sequence said
+"applied AND seeded". `docs/ops/NATIVE_IDENTIFIER_MINT.md` §"Live actions, in
+order" lists a fourth: flip
+`syncview_runtime_flags.production_native_identifier_mint` to `native`, per team.
+`production_native_identifier_capability(team)` returns `native` only when the
+flag says native **and** a seed row exists, so stopping after seeding leaves the
+allocator installed and refusing — the TEST card still gets its name from Linear
+and the nameless-card failure happens anyway. **Naming the precondition and then
+under-specifying it by one step is the same defect as not naming it**, because a
+reader who does 1 to 3 believes they are done. Corrected with the full table, the
+per-team order, and the note that the capability self-guards so a premature flip
+is inert rather than half-armed.
+
+**2. "Nothing left is time-critical" conflates irrecoverable with
+undamaged.** Said repeatedly to the owner and written into the master sequence.
+Nothing left is *irrecoverable*: the only artefact needing the live API is
+captured. But n8n webhooks that read Linear will fail when the account lapses,
+and SyncView calls them, so **surfaces degrade on their own if the cutover has
+not happened by 2026-09-15**.
+
+Best current reading of that date with nothing merged: staff **writes are safe**
+(all 43 active clients enrolled, both teams SyncView-authoritative, so writes
+already go native — item 175); the **Workload board freezes rather than empties**
+when the reconcile stops, which is the dangerous one because a frozen board looks
+current; Kasper's Editors subtab and tweak comments fail visibly; Linear import
+fails and is moot.
+
+**So the four held PRs merging before 2026-09-15 converts an uncontrolled
+degradation into a controlled cutover.** That is a deadline on the owner's
+review, not on the engineering, and it is one week out. The distinction is worth
+keeping: it is a reason to *schedule* the review, not to rush it.
+
+Both corrections were caught by review, not by me, on a document whose entire
+purpose is to be the one place the sequence is right.

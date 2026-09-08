@@ -15342,3 +15342,63 @@ the previous fix did not generalise to; this is the first time the generalisatio
 was taken before the next round rather than after it. Whether it caught
 everything is not something I can assert — the last three attempts at that claim
 were wrong.
+
+### FIFTH CORRECTION — undos that contradict each other across a one-way boundary
+
+Codex round four, on `dab32ea`: two P1s and a P2, all valid in substance, one of
+them with a mechanism that needed correcting rather than repeating.
+
+**1. Brief F's install undo and its activation undo contradicted each other
+across the cutoff.** The activation step is one-way, and its recovery requires
+classifying every `authorized_before_cutoff` and `accepted_after_cutoff` row.
+Those dispositions are DERIVED, not stored — `linear_outbound_cutoff_debt_rows_v1()`
+computes them from `linear_outbound_cutoff_control` and
+`mirror_outbox.outbound_generation`. The install undo drops exactly those
+objects. So taking it after activation removes both the fence state and the only
+means of classifying the debt the fence created, leaving the reviewed recovery
+delta with nothing to work from. The install undo is now explicitly
+**pre-activation only**.
+
+**2. The deploy undo needed the same boundary, but not for the stated reason.**
+The finding said restoring the pre-cutoff worker after activation lets it
+"bypass the supposedly irreversible fence". It does not, while the SQL is
+installed: `linear_outbound_stale_worker_guard_v1` fires `before update on
+public.mirror_outbox` and, once `cutoff_enabled` is true, raises
+`linear_cutoff_stale_worker_refused` on any update touching `lock_token`,
+`locked_at`, `dispatch_authorization`, `dispatch_authorized_at` or `status` —
+its own comment says it exists to "cover an old worker acquiring its first lease
+after cutoff". That combination fails CLOSED. The genuine bypass is the
+COMBINATION of the two undos: drop the control table and guard, restore the old
+worker, set the flag live, and the fence is gone with nothing left to say what
+was fenced. Both ends now forbid it, and the line states the real mechanism
+instead of the plausible one.
+
+**3. E4's forward path was half-built (P2).** The forward action raises the
+bucket byte ceiling and `MAX_BYTES`; `verifyImage` still refuses at
+`MAX_DIMENSION = 8000` (`policy.mjs:20`, enforced at :381/:476/:521), so a 25 MiB
+bucket admits nothing extra in that dimension. My undo acknowledged the constant
+without the forward side ever mentioning it. **No forward value is invented
+here** — nobody has chosen one and item 173 gives none. The line now states
+E4's scope outright: it raises the byte ceiling only, over-8000px files stay on
+item 173's not-rescued list, and rescuing them is a separate change with its own
+value, its own test and its own owner window.
+
+**The category, which the sequencing sweep did not cover.** That sweep asked
+whether each undo was internally coherent. These two are internally coherent and
+mutually contradictory: each is correct in the window it was written for, and the
+set never says which window that is. **A one-way step in the middle of a list of
+reversible ones partitions every undo around it, and each one has to say which
+side it lives on.** The same question applies to any other lane
+carrying an irreversible step, so I asked it rather than filing it: **brief B has
+the same contradiction and it is now fixed.** Its composed-artifact undo drops
+`production_intake_epoch_read(text,text,text,text,text,text,jsonb,jsonb)` at step
+3 and the `native_epochs` column at step 4 — and those two ARE the pin that keeps
+an already-accepted manifest on its original epoch, which is exactly the property
+the epoch flag's own undo cites when it says in-flight work does not change
+lanes. Dropping them after any accepted admission removes the pin, not just the
+admission. That undo now carries the accepted-admission boundary explicitly and
+says to stop at steps 1-2 once anything has been accepted.
+
+Six rounds of checking, five of them mine, and the reviewer is still finding a
+category per round. The honest read is not that the work converged; it is that
+each pass fixed the shape it had just been shown.

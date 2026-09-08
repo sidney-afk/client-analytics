@@ -34,6 +34,8 @@ const vm = require('vm');
 const ROOT = path.resolve(__dirname, '..');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const NW = require(path.join(ROOT, 'qa', 'native_work_item_fixture.js'));
+// The house stripper, never a hand-rolled one (OPEN_REPAIRS 145).
+const { stripComments } = require(path.join(ROOT, 'test', 'helpers', 'strip-comments.js'));
 
 let failures = 0;
 function ok(condition, message) {
@@ -251,18 +253,76 @@ ok(JSON.stringify(found) === JSON.stringify(tracked),
   + ', gone: ' + JSON.stringify(tracked.filter(f => !found.includes(f))));
 
 /* And each entry's DECLARED POLARITY is checked against the file, not merely recorded. */
-const ASSERTION_CALL = /(?:^|[^\w.])(?:s\.ok|S\.ok|ok|t|note|assert)\s*\(/;
+
+/* WHOLE ASSERTION CALLS, NOT SINGLE LINES.
+   Codex finding on 279222a, and the FOURTH instance on this PR of one pattern: a guard that
+   only looks where its author looked. The first version of the plumbing check required the
+   assertion opener and the webhook reference to sit on the SAME physical line, and its
+   `assert` alternative did not match `assert.equal(...)`. So
+
+       s.ok(
+         linearCalls().length === 0, 'no push');
+
+   satisfied neither regex on any one line, and the file kept its assertion-free label — the
+   exact drift the polarity guard exists to catch, reintroduced inside the guard itself.
+
+   So: strip comments with the house stripper (never a hand-rolled one, OPEN_REPAIRS 145),
+   find every assertion opener including receiver forms and `assert.<method>`, and take the
+   BALANCED parenthesised argument span across line boundaries. A regex literal holding an
+   unbalanced paren could mis-slice a span; that direction produces a false POSITIVE, which is
+   loud and forces a human to look, rather than the silent pass this replaces. */
+const ASSERT_OPENER = /(?:^|[^\w$.])(?:assert(?:\.[A-Za-z_$][\w$]*)?|expect|(?:[A-Za-z_$][\w$]*\.)?(?:ok|t|note))\s*\(/g;
+
+function assertionSpans(src) {
+  const code = stripComments(src);
+  const spans = [];
+  ASSERT_OPENER.lastIndex = 0;
+  let m;
+  while ((m = ASSERT_OPENER.exec(code)) !== null) {
+    const open = code.indexOf('(', m.index + (m[0].startsWith('(') ? 0 : m[0].length - 1));
+    if (open < 0) continue;
+    let depth = 0, quote = '', escaped = false, end = -1;
+    for (let j = open; j < code.length; j++) {
+      const c = code[j];
+      if (quote) {
+        if (escaped) escaped = false;
+        else if (c === '\\') escaped = true;
+        else if (c === quote) quote = '';
+        continue;
+      }
+      if (c === '"' || c === "'" || c === '`') { quote = c; continue; }
+      if (c === '(') depth++;
+      else if (c === ')') { depth--; if (!depth) { end = j; break; } }
+    }
+    if (end < 0) continue;
+    spans.push(code.slice(open, end + 1));
+    ASSERT_OPENER.lastIndex = end;
+  }
+  return spans;
+}
+
+const RETIRED_REF = /linear-set-status|linear-add-comment|linearCalls\s*\(/;
+
+/* The scanner is proved on the two shapes the old one missed BEFORE it is trusted on a real
+   file. A guard whose own detector is untested is what produced this finding. */
+ok(assertionSpans("s.ok(\n  linearCalls().length === 0,\n  'no push');").some(x => RETIRED_REF.test(x)),
+  'the plumbing scanner sees a MULTILINE assertion (the shape the line-based check missed)');
+ok(assertionSpans('assert.equal(linearCalls().length, 0);').some(x => RETIRED_REF.test(x)),
+  'and an assert.<method>() form (the other shape it missed)');
+ok(!assertionSpans('const calls = linearCalls();\nok(calls.length >= 0, "unrelated");')
+  .some(x => RETIRED_REF.test(x)),
+  '  · CONTROL: a bare linearCalls() OUTSIDE any assertion is not flagged, so the scanner is '
+  + 'not simply matching the whole file');
 for (const [rel, entry] of Object.entries(OUTSIDE_MANIFEST).sort()) {
   const abs = path.join(ROOT, rel);
   if (!fs.existsSync(abs)) { ok(false, rel + ' is tracked but does not exist'); continue; }
   const src = fs.readFileSync(abs, 'utf8');
   if (entry.polarity === 'plumbing') {
-    const asserts = src.split('\n')
-      .map((line, i) => [i + 1, line])
-      .filter(([, line]) => ASSERTION_CALL.test(line) && /linear-set-status|linear-add-comment|linearCalls\s*\(/.test(line));
+    const asserts = assertionSpans(src).filter(span => RETIRED_REF.test(span));
     ok(asserts.length === 0,
       rel + ' is still plumbing: it routes or records the retired webhooks and asserts nothing '
-      + 'about them' + (asserts.length ? ' (line ' + asserts.map(([i]) => i).join(', ') + ')' : ''));
+      + 'about them' + (asserts.length ? ' — found ' + asserts.length + ', first: '
+        + JSON.stringify(asserts[0].replace(/\s+/g, ' ').slice(0, 120)) : ''));
     continue;
   }
   ok(src.includes(entry.witness),

@@ -14500,7 +14500,45 @@ instances on this PR of one pattern — a guard that only looks where its author
 looked — which is worth naming as the lesson rather than the individual fixes:
 `qa/boot` missed by a directory list, the polarity values missed by
 `Object.keys`, and the client contexts missed by watching only the convenient
-one. The point is not that
+one.
+
+**A FOURTH, inside the fix for the second.** The plumbing check — "no assertion
+in this file may mention the retired webhooks" — was written per LINE, so it
+only fired when the assertion opener and the webhook reference sat on the same
+physical line, and its `assert` alternative did not match `assert.equal(...)`.
+A perfectly ordinary
+
+```js
+s.ok(
+  linearCalls().length === 0, 'no push');
+```
+
+satisfied neither regex on any one line, and the file kept its assertion-free
+label: the exact drift the polarity guard exists to catch, reintroduced inside
+the guard itself (Codex, `279222a`).
+
+It now strips comments with the house stripper (`test/helpers/strip-comments.js`
+— never a hand-rolled one, OPEN_REPAIRS 145), finds every assertion opener
+including receiver forms and `assert.<method>`, and takes the BALANCED
+parenthesised argument span across line boundaries. A regex literal holding an
+unbalanced paren could mis-slice a span; that direction yields a false POSITIVE,
+which is loud and forces a human to look, rather than the silent pass it
+replaces.
+
+**The scanner is proved before it is trusted**, which is the part that was
+missing: three self-tests run the detector on the two shapes the old check
+missed plus a control (a bare `linearCalls()` outside any assertion must NOT be
+flagged), and the whole guard was verified end-to-end by injecting that exact
+multiline assertion into `qa/sxr_courier_lib.js` — the suite went red naming the
+file and quoting the span — then restoring it. A guard whose own detector is
+untested is what produced this finding in the first place.
+
+**FOUR INSTANCES OF ONE PATTERN IS THE FINDING.** Not four separate mistakes: a
+guard is only as wide as the place its author remembered to look, and every one
+of these was written by someone (me) who had just been burned by the previous
+one. The durable defence is not vigilance, it is that a detector must be run
+against the case it claims to catch before it is believed — which is now true of
+this one, and was not true of any of the four. The point is not that
 the list is long — it is that it can no longer be forgotten, which is what
 actually went wrong twice here.
 

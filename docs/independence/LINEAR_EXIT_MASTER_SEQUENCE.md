@@ -259,22 +259,32 @@ So the loop runs at least once on every `intake_create` that passes validation, 
 `projectForIntake` is reached every time. No flag, no early exit, no empty-list
 path.
 
-### Three surfaces reach `intake_create`, not one
+### Two request-construction sites, four flows
 
-Verifying the borrowed citation `index.html:42155` rather than repeating it turned
-up two more senders of the same operation. All three reach `handleIntakeCreate` and
-therefore the same unflagged provider read:
+**Corrected twice. The first version of this table invented a sender and omitted a
+whole surface.** There are exactly **two** places the browser builds an
+`intake_create` request, and between them they serve **four** flows:
 
-| Sender | Surface | Who |
+| Built at | Surface | Flows it serves |
 |---|---|---|
-| `index.html:42155` | Calendar | Staff Create Post |
-| `index.html:47372` | `submission` | Staff submission from the normal tab, authenticated |
-| `index.html:48263` | `submission` | **The client link.** `production-write` admits a credential-less caller for `intake_create` on the `submission` surface only, behind a **default-off** runtime flag, rate-limited and marked `public-intake` |
+| `index.html:42155` | Derived at `:42056` — `state.surface === 'sxr' ? 'sxr' : 'calendar'` | **Calendar** Create Post, **and Samples/SXR**, whose entry point calls `_calOpenNativePost(..., 'sxr')` at `:66086` |
+| `index.html:48263` | `'submission'` | **Staff submission** from the normal tab, authenticated; **and the client link** — `production-write` admits a credential-less caller for `intake_create` on the `submission` surface only, behind a **default-off** runtime flag, rate-limited and marked `public-intake` |
 
-**So the blast radius is every intake path, not just the Calendar dialog.** The
-client-facing one is behind a default-off flag, so whether it is exposed depends on
-that flag's live value, which this lane has not read — state it as conditional, not
-as fact.
+**`index.html:47372` is NOT a sender**, and the first version of this section wrongly
+listed it as one. It is inside `_linearIntakeRecoveryCopy`, which builds a scrubbed
+`recovery_only: true, suspended: true` copy of an **already-committed** job;
+`_runNativeIntakeJob` skips its gateway fetch whenever `job.result` exists.
+
+**The omission mattered more than the invention.** Missing Samples/SXR left a live
+surface out of the cutoff blast radius, and Samples is where a client's first
+deliverables come from. Counting a recovery copy as a sender only inflated a number.
+**A table that invents a row and drops a real one is not "roughly right"** — the two
+errors do not cancel, and only one of them would have been caught by anyone
+sanity-checking the total.
+
+All four flows reach `handleIntakeCreate` and therefore the same unflagged
+`projectForIntake`. The client-link flow is **conditional** on a default-off flag
+whose live value this lane has not read.
 
 ### The failure mode, unchanged by the correction
 

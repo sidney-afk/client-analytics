@@ -16917,9 +16917,20 @@ genuinely foreclosed, that belongs written down, because that packet is currentl
 planning around an availability it may not have.
 
 **Why it was missed, which matters more than the miss.** Every lane was scoped
-from `main` and from documents on `main`. All three PRs are drafts and two are
-based on an integration branch, so nothing any lane read could have named them.
-The open-PR list would have. No lane read it, this coordinator included.
+from `main` and from documents on `main`. **All three PRs are unmerged drafts, so
+none of their content is on `main`** — that is the whole shared reason, and it is
+the same for all three. (#1268 and #1326 target `main`; only #1341 is on the
+integration branch. The base branch had nothing to do with why they were missed.)
+The open-PR list would have named them. No lane read it, this coordinator included.
+
+**Corrected within the hour, and the correction is itself an instance.** The first
+version of this paragraph said "two are based on an integration branch". That count
+was fixed in the master sequence and left standing here, which is exactly the
+"you fixed the line I cited and left its siblings" defect that took three review
+rounds on PR #1351 to stamp out. Doing it again, in the entry recording the
+programme's coordination failures, while claiming to have learned it. **A wrong
+count is bad; a wrong count inside a causal explanation is worse**, because it
+teaches the next reader the wrong lesson about how the miss happened.
 
 **The rule earned:** *a document claiming to span every lane must enumerate the
 lanes from the PR list, not from the branch it is standing on.* Sibling to the
@@ -17115,18 +17126,25 @@ the *only* thing that should settle this, because this analysis has already been
 wrong once about which code runs, and a second source reading is not the remedy for
 a source reading that missed a `throw`.
 
-**Widened while verifying the correction: three surfaces send `intake_create`.**
-Checking the borrowed citation `index.html:42155` instead of repeating it found two
-more senders of the same operation, all reaching `handleIntakeCreate` and its
-unflagged provider read: `:42155` (Calendar, staff Create Post), `:47372`
-(`submission` surface, authenticated staff submission) and `:48263` (**the client
-link** — `production-write` admits a credential-less caller for `intake_create` on
-the `submission` surface only, behind a **default-off** runtime flag, rate-limited
-and marked `public-intake`).
+**Corrected twice: TWO request-construction sites, FOUR flows.** The first attempt
+at this claimed three senders; it invented one and omitted a whole surface.
 
-So the affected scope is every intake path rather than the Calendar dialog alone.
-The client-facing one is conditional on a flag whose live value this lane has not
-read, and is recorded as conditional rather than as fact.
+| Built at | Surface | Flows |
+|---|---|---|
+| `index.html:42155` | derived at `:42056`, `state.surface === 'sxr' ? 'sxr' : 'calendar'` | Calendar Create Post **and Samples/SXR**, whose entry calls `_calOpenNativePost(..., 'sxr')` at `:66086` |
+| `index.html:48263` | `'submission'` | staff submission from the normal tab, and **the client link** (credential-less caller admitted for `intake_create` on `submission` only, behind a default-off flag, rate-limited, `public-intake`) |
+
+`index.html:47372` is **not** a sender. It is inside `_linearIntakeRecoveryCopy`,
+which builds a scrubbed `recovery_only`/`suspended` copy of an already-committed
+job, and `_runNativeIntakeJob` skips its gateway fetch whenever `job.result`
+exists.
+
+**The omission mattered more than the invention.** Missing Samples/SXR left a live
+surface out of the cutoff blast radius, and Samples is where a client's first
+deliverables come from. Counting a recovery copy as a sender merely inflated a
+number. The two errors do not cancel, and only the inflated count would have been
+caught by anyone checking the total, which is the argument against treating a
+table as "roughly right".
 
 **Third borrowed claim checked today, third time it paid.** The other programme's
 write-fence sentence understated its subject; this programme's runbook sentence

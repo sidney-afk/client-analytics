@@ -17707,3 +17707,48 @@ input was the document itself. Every previous one came from checking the documen
 against source, a live-state doc, or a reviewer. Both are needed, and they find
 different things: source checks catch wrong facts, self-checks catch **one section
 being held to a standard another section rejects**.
+
+### Addendum, 2026-09-08 — the read checks could PASS FROM CACHE, and the handoff dropped them
+
+Three findings, two P1. The first invalidates checks written one round earlier.
+
+**1. Both new read checks were unsound.** In a browser that opened either surface
+before the rehearsal:
+
+- **`_kasperLoadEditors(false)`** hits `_kedLoadEditorsCache()` first and, on a hit,
+  paints and **returns with no network call at all** — its own comment says *"Last
+  week's data never changes — hit localStorage first unless the user explicitly hit
+  Refresh."*
+- **`wlFetchTweakComments`** skips the fetch for any issue id cached inside a
+  **five-minute TTL**.
+
+So "I set dead mode and the panel rendered a real week" proves **nothing**. It
+replays pre-rehearsal Linear data while the native path is broken, and it looks
+exactly like a pass. Each check now requires an explicit Refresh or a cold cache
+**plus a correlated successful native request** — the render is not the evidence,
+the request is.
+
+**This is the mirror of "failing cleanly is the defect, not the proof".** There the
+trap was reading a clean refusal as a pass; here it is reading a successful render
+as one. Both come from **checking the surface instead of the path**, and this
+document has now produced one in each direction. The generalisation worth keeping:
+*a check that observes the UI can be satisfied by anything that paints the UI,
+including a cache, a stale store, or a fixture.*
+
+**2. The #1350 handoff dropped the read checks** one screen after they were added to
+the gate — the same summary-drops-members defect, again, inside the same commit that
+fixed an instance of it. The handoff now carries the three read checks and the
+`send-urgent-slack` decision alongside the eight write checks and the reroute read.
+
+**3. The F48 order was two steps short.** It read merge #1346 → confirm the panel →
+deactivate. `N8N_REPLACEMENT_PLAN.md:260-273,515-516` adds two prerequisites: the
+**event-time-assignee migration** (without it the panel attributes historical
+transitions to the *current* assignee, so the report renders convincingly and is
+wrong) and the **`deliverable_events` anon revoke** before the replacement is
+served. Following the old order would have deactivated the legacy endpoint with both
+problems live — trading a known-broken surface for a plausible-looking wrong one and
+an open PostgREST read.
+
+**A wrong report that renders is worse than an endpoint that fails**, because
+failure is legible and a confident wrong number is not. That is the same reason the
+Workload board's freeze is rated above the surfaces that die visibly.

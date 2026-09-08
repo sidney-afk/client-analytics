@@ -849,13 +849,40 @@ surfaces that also fail and that **no gate row verifies**:
 | Surface | What the gate currently requires | What it should |
 |---|---|---|
 | **Workload board** | #1344 merged | Board **read with Linear dead**, showing real dates. "Freezes rather than empties" is the failure mode, so a board that looks fine is not evidence — it must be checked against known-changed data |
-| **Kasper → Editors subtab** | #1346 merged | The native panel **rendering a real week with Linear dead** |
-| **Tweak comments** | #1346 merged | A Tweak-Needed row **showing its comment** with Linear dead |
+| **Kasper → Editors subtab** | #1346 merged | The native panel rendering a real week with Linear dead — **after an explicit Refresh**, see the cache warning below |
+| **Tweak comments** | #1346 merged | A Tweak-Needed row showing its comment with Linear dead — **in a browser where that row's comments were not fetched in the last five minutes** |
 | **Urgent Slack alerts** | *nothing* | **See below — there is no merged replacement** |
 
 **"Merged" is the standard this document explicitly rejects for the intake repair**,
 and then applies to four surfaces three screens later. If merging were sufficient
 evidence that a surface works, P7 would not exist.
+
+### BOTH read checks can PASS FROM CACHE while the native path is broken
+
+**The checks added one round ago were unsound as written**, and the mechanism is
+worth stating because it is invisible from the surface:
+
+- **`_kasperLoadEditors(false)`** hits `_kedLoadEditorsCache()` first and, on a hit,
+  paints and **returns with no network call at all**. Its own comment says so:
+  *"Last week's data never changes — hit localStorage first unless the user
+  explicitly hit Refresh."*
+- **`wlFetchTweakComments`** skips the fetch for any issue id whose cached entry is
+  inside a **five-minute TTL**.
+
+So in a browser that opened either surface before the rehearsal, "I set dead mode
+and the panel rendered a real week" proves **nothing**. It replays pre-rehearsal
+Linear data while the native request path is broken, and it looks exactly like a
+pass.
+
+**Therefore each read check requires:** an explicit **Refresh** (Editors) or a
+browser where those comments were not fetched in the last five minutes (tweak), or a
+cleared cache — **and** a correlated successful native request observed in the
+network panel. Rendering is not evidence; the request is.
+
+**This is the same shape as "failing cleanly is the defect, not the proof",
+inverted.** There the trap was reading a clean refusal as a pass. Here it is reading
+a successful render as a pass. Both come from checking the surface instead of the
+path, and this document has now produced one of each.
 
 **The Workload row deserves its own warning.** Its failure mode is
 **freezing, not emptying** — a stale board looks current. So "I opened it and it
@@ -906,7 +933,9 @@ post, Samples/SXR post, staff submission, append to an existing batch, component
 fill, label set-and-picker, the post-flag assignee change, and **a client-link
 submission** — **plus the live `write_ui_reroute_clients` read** (gate row 0), since
 without it every one of the eight can pass on TEST while real clients still take the
-legacy lane — not a shortened list and not the assignee flag literal
+legacy lane — **plus the three READ checks** (Workload board against known-changed
+data, Editors subtab after an explicit Refresh, tweak comments past the five-minute
+cache) **and the `send-urgent-slack` owner decision recorded either way** — not a shortened list and not the assignee flag literal
 in place of the assignee check. The first version of this handoff asked for the
 flag value, which is the very substitution this document says elsewhere does not
 prove anything. If it merges without them, the gate is unmet and the cutoff is not
@@ -1047,9 +1076,25 @@ Last week it returned 131 delivery keys to anyone who asked.
 
 **It cannot be switched off yet.** `index.html:22342` still calls it on `main`
 today, and it draws Kasper's Editors subtab. The native replacement is in
-PR #1346. So the order is: merge #1346 → confirm the native panel works →
-**then** export the workflow JSON to the private Drive backup, deactivate, and
-commit only a public-safe stub to `n8n-backups/`.
+PR #1346. **The order has four steps, not three**, and the two added ones come from
+`N8N_REPLACEMENT_PLAN.md:260-273,515-516`:
+
+1. **Merge #1346.**
+2. **Apply the event-time-assignee migration.** Without it the native panel
+   attributes historical transitions to the deliverable's **current** assignee, so
+   the report renders convincingly and is wrong — which is worse than the endpoint
+   being down, because nobody checks a report that looks fine.
+3. **Revoke the anonymous `deliverable_events` grant**, before the replacement is
+   served. Otherwise the direct PostgREST exposure stays open and the swap trades
+   one unauthenticated read for another.
+4. **Then** export the workflow JSON to the private Drive backup, deactivate, and
+   commit only a public-safe stub to `n8n-backups/`.
+
+**An earlier version of this section listed only 1 and 4**, so following it would
+have deactivated the legacy endpoint while leaving both problems live. The
+`deliverable_events` revoke is already recorded above as an attached obligation on
+#1346; this is the second place it has to appear, because this is the ordered list
+someone actually executes.
 
 Open since July. The exposure is unchanged by this programme; what changed is
 that it is now written down with its dependency instead of being claimed closed.

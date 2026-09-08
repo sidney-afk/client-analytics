@@ -15295,3 +15295,50 @@ already-applied, and all three now say so in their undo.
 round has found a category the previous round's fix did not generalise to. That
 is the honest characterisation of this work: the restorations needed review more
 than the originals did, and the reviews have been the only thing catching them.
+
+### SEQUENCING SWEEP — applying round three's lesson to every remaining `undo:` instead of waiting for round four
+
+Round three's three P1s were all sequencing defects, and the self-audit before it
+had missed them because it checked whether each sentence's SCOPE matched its
+referent. So this sweep asked the three questions those findings actually failed,
+of every structural `undo:` in the set:
+
+1. Does it still apply given what is already live?
+2. Is it a coherent sequence, or a set of individually-correct inverse statements?
+3. Does executing it leave a state the next attempt can run from?
+
+**Four more lines needed the same treatment, all of them mine, none of them yet
+reported by a reviewer.** Every one was a list of correct drops with no stated
+precondition, which is exactly the shape round three flagged in brief B's
+composed undo:
+
+- **Brief F, the cutoff undo.** Added STEP 0: set `linear_outbound_enabled` to
+  `{"mode":"off"}` and/or restore the pre-cutoff closure before dropping
+  anything. The cutoff-aware worker calls `linear_outbound_claim_v1` and
+  `linear_outbound_authorize_dispatch_v1` on every drain — the doc's own
+  "deploying only the Edge Function fails closed at claim" — so dropping those
+  RPCs under a deployed cutoff-aware closure stops the drain, which is precisely
+  what this lane's flags exist to do gracefully. Also put the seven objects in
+  dependency order (view before its function, triggers before theirs, control
+  table LAST because everything reads it).
+- **Brief B, the reconcile undo.** Added the revoke-or-unwire step 0 and ordered
+  the eight RPCs so the helpers (`_iso`, `_reason`) drop after the callers that
+  use them, and `production_card_provenance_record()` after its two triggers.
+- **Brief B, the label undo.** Added step 0 (`mode` to `"hold"`, never delete the
+  flag row) and ordered `production_label_catalog_capability()` after the guard
+  and writer that call it, `_check_manifest` after the five RPCs that call it.
+- **Brief B, the assignment undo.** Added step 0 (`mode` back to `provider`) and
+  put `production_assignment_epoch(text)` last, since the other two functions and
+  step 0's own flag read depend on it.
+
+The general form, now stated once in each of these lines rather than assumed:
+**stop the callers before you drop what they call, and prefer the behavioural
+undo — with the flag off the system is already rolled back, and everything after
+that is structural tidying that can only break things if taken first.**
+
+Worth recording that this sweep exists because the previous one was scoped wrong,
+not because a reviewer asked for it. Three rounds of review each found a category
+the previous fix did not generalise to; this is the first time the generalisation
+was taken before the next round rather than after it. Whether it caught
+everything is not something I can assert — the last three attempts at that claim
+were wrong.

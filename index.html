@@ -41200,6 +41200,17 @@
         if (!radio || !sel) return;
         radio.dataset.batchId = String(sel.value || '');
         if (check) radio.checked = true;
+        /* A REFUSAL OUTLIVES THE THING IT REFUSED (Codex P2 on PR 1353).
+           Nothing hid this box again except a full re-render, so after Create
+           said the search matched no batches, clearing the query re-aimed the
+           radio and left the dialog showing a chosen batch above a message
+           insisting none was chosen. Every complaint the box can hold here is
+           about the batch that WAS aimed at -- no target, or one this post
+           shape cannot use -- so re-aiming is exactly the moment it stops
+           being true. The tab switch already clears it: the render emits this
+           element hidden. */
+        const errorBox = document.getElementById('calNativePostError');
+        if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
         _calNativeSyncReceipt();
     }
     /*

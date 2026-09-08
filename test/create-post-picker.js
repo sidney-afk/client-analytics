@@ -606,13 +606,16 @@ console.log('6) the post-count read is one bounded projection query that counts 
     const radio = { id: 'calNativePrevBatchRadio', dataset: { batchId: 'bat-visible' }, checked: true };
     const select = { value: 'bat-visible', innerHTML: '', disabled: false };
     const emptyLine = { style: { display: 'none' } };
+    /* Create's refusal from the no-match branch, still on screen. */
+    const errorBox = { hidden: false, textContent: 'No batch is chosen — your search matches none of them.' };
     let receiptSyncs = 0;
     const ctx = {
       console,
       document: {
         querySelector: sel => sel === '.cal-native-batch-select' ? select : null,
         getElementById: id => id === 'calNativeBatchFilterEmpty' ? emptyLine
-          : id === 'calNativePrevBatchRadio' ? radio : null,
+          : id === 'calNativePrevBatchRadio' ? radio
+          : id === 'calNativePostError' ? errorBox : null,
       },
     };
     vm.createContext(ctx);
@@ -634,6 +637,8 @@ console.log('6) the post-count read is one bounded projection query that counts 
     ok(emptyLine.style.display === '', 'and shows the no-match line');
     ok(radio.dataset.batchId === '',
       'and clears the batch the radio was aiming at, so Create cannot append to a batch the list no longer shows');
+    ok(errorBox.hidden === false,
+      'and leaves Create\'s refusal on screen while there is still nothing to append to');
 
     /* Inversion: a query that DOES match must leave a live target, or the
        assertion above would pass on a function that always cleared it. */
@@ -641,6 +646,8 @@ console.log('6) the post-count read is one bounded projection query that counts 
     vm.runInContext('_calNativeBatchFilter({ value: "ever" })', ctx);
     ok(radio.dataset.batchId === 'bat-visible',
       'while a query that matches re-aims the radio at the match rather than clearing it');
+    ok(errorBox.hidden === true && errorBox.textContent === '',
+      'and clears the refusal, so the dialog cannot show a chosen batch above a message saying none is chosen');
     ok(select.disabled === false, 'and re-enables the dropdown');
   }
 

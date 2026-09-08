@@ -15240,3 +15240,58 @@ sentences whose stated source did not contain the thing being stated, and this
 one was a third. When a restored line's marker names files that do not settle its
 load-bearing sentence, that is the tell, and it is greppable in a way "is this
 sentence true" is not.
+
+### FOURTH CORRECTION — three more P1s, and the self-audit missed all three because it asked the wrong question
+
+Codex's third round, on `208b4aa`, returned three more P1s. All valid, all fixed.
+Every one of them is a defect in a line this pass wrote, and every one sits in a
+category the self-audit above did not think to check.
+
+**1. Brief A still offered `drop view if exists public.workload_issues_native_v1`
+as an undo for an ALREADY-APPLIED migration.** Its parenthetical, "nothing reads
+it until the browser cutover ships", was true when the migration was pending and
+is false now: the installed `workload_native_snapshot_v1()` selects from that
+view, so the drop breaks the RPC and blanks the board — the exact outage of item
+177. This is the SAME defect as brief B's v8 step, which the first correction
+fixed, sitting two lines from a note in the same file headed "Do not act on the
+drop instruction". I fixed one instance and did not look for its twin.
+
+**2. Brief B's composed-artifact undo published two contradictory rollback
+orders.** The numbered list said to replace RPC bodies and drop
+`production_native_intake_epochs()` first and disable the intake flag fourth;
+the closing sentence said to flip the flag off first. Following the numbers
+leaves a live interval in which the deployed gateway calls downgraded or missing
+RPCs. Renumbered so stopping admission is step 1, with the reason stated at the
+step rather than at the end.
+
+**3. Brief E's storage undo booby-trapped the retry.** After deleting the rescue
+objects, the out-map still lists them: `cmdUpload` skips every key already in it
+(`linear-media-rescue.mjs:339`) and `cmdRewrite` resolves through
+`map[...].new_url` (`:404`), so a later retry uploads nothing and then generates
+forward SQL pointing every description and comment at objects that no longer
+exist. The undo now requires deleting the matching out-map entries, or starting
+from a fresh map, in the same step.
+
+**Why the self-audit missed them.** It asked "does this sentence's scope match
+its referent?" and checked object lists, selectors and signatures. All three of
+these pass that test. What they fail is different and each is its own question:
+does this undo still apply given what is ALREADY LIVE (1); is this instruction
+internally consistent with itself (2); and does executing this undo leave the
+system in a state the NEXT step can safely run from (3). A rollback is not a list
+of inverse statements, it is a sequence with a precondition and a postcondition,
+and I had been auditing the statements.
+
+**Generalised, this time, rather than fixed one instance deep.** Brief A's OTHER
+already-applied migration (the membership functions) carried the same shape: an
+applied prerequisite with a bare list of `drop function` statements as its undo.
+Nothing in the exit needs them dropped, they are inert and service-role only, and
+`workload_native_snapshot_v1()` is the query that satisfied PR #1344's first
+gate. That undo is now "prefer none", with the drop statements and their exact
+boundary kept beneath it for the case where one is genuinely required. A sweep of
+all six briefs finds no third instance: only three action lines are marked
+already-applied, and all three now say so in their undo.
+
+**Running total: ten findings across three rounds, nine of them mine.** Each
+round has found a category the previous round's fix did not generalise to. That
+is the honest characterisation of this work: the restorations needed review more
+than the originals did, and the reviews have been the only thing catching them.

@@ -14036,3 +14036,172 @@ here in full. G11 (the `docs/ops/MONITORING.md` and `docs/CLIENT_LIFECYCLE_MAP.m
 rows that overlap F12) is not: only the dead-man's-switch row of
 `docs/ops/MONITORING.md` is touched in this PR, because it is the only row this
 PR makes untrue. The remaining G11 rows move with F12.
+
+---
+
+## 175. [2026-09-08, lane LX-F, PART 2 PREPARED AND UNEXECUTED — the cutoff order, three watchers, and the rehearsal that turns the deadline into a test] Linear is switched off with runtime flags, no deploy, and no merge freeze
+
+**Number.** 174 is this lane's reserved number and holds part 1 (the dead-man's
+switch repair, merged separately). Lane C has already claimed 175 and 176 on
+`claude/lx-c-endpoints`. **If 175 collides at merge, the coordinator should
+renumber this to the next free number** — the content is self-contained and
+nothing references it by number.
+
+---
+
+### 1. The schedule cut: this cutoff needs no Edge Function deploy
+
+The lane was scoped to install `migrations/2026-09-06-linear-outbound-cutoff.sql`
+and deploy a cutoff-aware `linear-outbound`. That costs an **F27 Section 4
+dispatch**, which costs a **merge freeze for all six exit sessions** — the lane
+requires `commit_sha` to equal main's tip at dispatch time, and dispatches were
+rejected on 2026-09-02 and 2026-08-08 for exactly that.
+
+**It is not needed. Computed, not assumed:**
+
+- `linear-outbound/index.ts:1355` gates EVERY provider request:
+  `if (initialMode !== "off" || parityEnabled || f27ReplayRequestValue)`. With
+  `mode:"off"` and parity false and no replay, no rows are read, `readViewer()`
+  (`:1371`) never fires, and nothing reaches `api.linear.app`.
+- `readRows` agrees independently: `mode === "off"` resolves the normal lane to
+  `[]` (`:1083`) and `parityEnabled === false` resolves the parity lane to `[]`
+  (`:1084`).
+- Both flags **fail closed**. `modeFrom` (`:164-167`) returns `off` for any
+  value outside `off`/`shadow`/`live`, so a typo stops traffic and cannot start
+  it. `readFlag` (`:183-194`) **throws** on a missing or malformed row, so a
+  deleted flag errors the drain loudly rather than falling through to live.
+  `parityEnabled` requires `.enabled === true` exactly.
+- **The deployed isolate is this code.** Live `linear-outbound` is v47 /
+  `1489a4c2…` (EXECUTION_LOG; ROLLBACK §4 deploy #28, run `34151869293`), and
+  `node scripts/ef-fingerprint.js <branch HEAD> --slugs=linear-outbound --expected-only`
+  returns the same `1489a4c2…`. There is no flag caching — `readFlag` runs per
+  invocation — so an old isolate obeys a new flag on its next request. **This
+  closes the candidate doc's "old-isolate quiescence" RED HOLD by evidence
+  rather than by a deploy.**
+
+**Recommendation: drop F1 and F2 from the exit.** Ship flags, schedulers and
+watchers. What it costs is stated in full in the runbook §0 and is not waved
+past: no server-side one-way fence, the read path stays unauthorized at the
+transport boundary, one in-flight invocation can still finish (window: one
+drain, once), no `cutoff_disposition` census, and no F27 recovery-contract
+extension. The first three are bounded; the last two are savings. F1+F2 stay
+lift-ready on `5bcc03bd` for a calm day after the exit.
+
+---
+
+### 2. What ships
+
+- **`docs/ops/LINEAR_CUTOFF_RUNBOOK.md`** — STEP 0 census through STEP 7
+  revocation, each with the fenced exact-prior-value UPDATE from
+  `FLIP_RUNBOOK.md:893-916`, what it stops, and its restore statement. Ordered
+  so the cheapest-to-reverse comes first; **there is deliberately no
+  irreversible database step.**
+- **Two watchers**, both Linear-free, both registered dead-man lanes:
+  `scripts/workload-source-freshness.js` (the board freeze nobody would see) and
+  `scripts/outbox-debt-census.js` (the debt that never reaches `failed`).
+- **The rehearsal**: `SYNCVIEW_QA_LINEAR_DEAD` in `qa/sxr_courier_lib.js`, with
+  `docs/audits/2026-09-15-linear-dead-rehearsal.md` as protocol and result form.
+
+**Neither watcher pages.** Each exits non-zero on a finding *and* on a census it
+could not take, and beats under `if: always()`; the dead-man's switch owns the
+paging, latching and dedup. Every watcher in this repository that grew its own
+alarm grew the same defect — both nightlies sat red for WEEKS because their only
+alarm was a Slack webhook step that degrades to a log warning when its secret is
+unset, and it was.
+
+---
+
+### 3. Findings, each verified against the tree
+
+**a. Ordering, and why parity must go off BEFORE the drain.** `normalStatuses`
+is `["pending","failed","shadow_ok"]` only when `mode === "live"` (`:1050`); in
+`shadow` it drops `shadow_ok`, which is never consumed. **So the drain must run
+while the mode is still `live`, and `shadow` must never be used as an
+intermediate.** And because the parity lane is dead across the stack with a
+silent-infinite-retry failure mode (item 75), draining with it on can spin on
+rows that can never leave. Order: parity off, drain, outbound off.
+
+**b. The Workload freeze has a second half the exit scoping missed.** Freeze is
+the happy path. `index.html:14553` (zero active rows) and `:14555` (read failed)
+both fall through to `LINEAR_ISSUES_WEBHOOK` — the n8n endpoint that reads
+Linear. Post-cutoff that is a dead endpoint. So the two outcomes are a silently
+frozen board or a board reaching for a corpse, and neither announces itself:
+`_wlV2CheckWatermark` (`:14485-14505`) refreshes only when the watermark moves
+FORWARD (`:14501`), and on no watermark at all it CLEARS the failure banner and
+returns (`:14491-14494`).
+
+**c. EVERY page in this estate goes through ONE n8n workflow.**
+`SLACK_ALERT_WEBHOOK` is not a Slack incoming webhook — it points at the n8n
+relay `Tfhc3vebZyG6obOg` (`monitoring-alert-relay.js:53`), and
+`confirmRelayDelivery` correlates through the same n8n API. **No Slack page in
+this repository survives an n8n outage.** The alarm and the thing it watches
+share a dependency, which is the same shape as the documented Actions-outage
+residual. What survives is the **red run**: a non-zero exit leaves the GitHub run
+failed and GitHub emails the owner, touching no n8n. That is the whole reason
+the new watchers' exit codes are load-bearing. Recorded in MONITORING.md's gaps
+section rather than fixed — a non-n8n alert path is real work and out of this
+exit's scope, and pretending the exit closed it would be worse than naming it.
+
+**d. The QA harness had the wrong polarity AND was incomplete.** It fulfilled
+`200 {ok:true}` for four hand-named webhooks, i.e. it simulated Linear WORKING,
+with no failure-injection path anywhere in the file. So every "Linear-mocked"
+result here is evidence the app survives a HEALTHY Linear. **And the browser
+calls seven, not four** — `linear-issues`, `linear-projects` and
+`linear-tweak-comments` were never intercepted, so in an open-egress environment
+a probe could reach live n8n on those three. Now a prefix match covers every
+`/webhook/linear-*`, and `api.linear.app`/`uploads.linear.app` are aborted in
+every mode.
+
+**e. Webhook count correction.** The brief says ten Linear webhooks; the review
+says "four of the ten". The tree holds **eight** distinct `/webhook/linear-*`
+names; **seven** are called by `index.html`; the eighth (`linear-status-sync`)
+is an inbound receiver Linear posts to, on a workflow MONITORING.md records as
+inactive. Honest figure: **four of seven intercepted before, seven of seven
+after.**
+
+**f. `log-linear-submission` stays untouched, and the suite enforces it.**
+Despite the name it appends to a Google Sheet and touches no Linear API. The new
+prefix regex cannot match it, and `test/linear-dead-rehearsal.js` asserts that
+directly, so the 2026-08-26 incident (the only copy of a videographer's submitted
+work living in his own browser) cannot be re-opened by a future widening.
+
+**g. The rehearsal must inject a 200.** OPEN_REPAIRS 78 records twenty legacy
+webhook calls that were silent 409s which n8n logged as `success`. A dead lane
+that still answers 200 is an OBSERVED shape here and the only one `resp.ok`
+cannot catch. The `ok_lie` fault carries `{"ok":true}` and nothing else.
+
+**h. STEP 7 gates on FOUR call sites, not two.** Confirmed against
+`production-write/index.ts`: `linearLabelsRequest` `:832` (throws `:834`/`:843`/
+`:847`), `linearRead` (`:2325`), `linearStateIdForCreate` (`:2539`/`:2548`/
+`:2556`), `assigneeProviderPool` (`:2600`). This corroborates item 165 point 3
+against the brief's "two". A rehearsal observing only two codes would be
+recorded complete while status mapping and the assignee picker were never
+exercised.
+
+---
+
+### 4. What is NOT done, and deliberately
+
+- **Nothing is executed.** No flag written, no workflow disabled, no lane
+  retired, no credential revoked, no migration installed, no n8n workflow
+  touched. The runbook is prepared and sits until the coordinator says A/B/C/D
+  are live and observed.
+- **`ROLLBACK.md` is untouched.** Its Live State table describes live behaviour,
+  and this PR changes none. Rewriting those rows now would be claiming a
+  post-cutoff state that has not happened. They move in the PR that executes the
+  cutoff. *(Separately: the `App -> Linear pushes` row still reads "current
+  Linear/Linear authority" while both teams are syncview. That looks stale, but
+  it is a claim about live state this lane did not read, so it is flagged here
+  rather than edited.)*
+- **F7 (native write drill), F9 (client-continuity lift), F10 (alarm-proof
+  lane)** are not built. F7 writes to the live backend and belongs with the
+  execution PR. F9 is a ~1,000-line lift from `5bcc03bd` whose cost is entirely
+  configuration — ~12 `CONTINUITY_*` secrets plus a read credential with proven
+  unfiltered visibility of the client scope — and it is an owner decision, not a
+  code one. F10 is small and should be done, but its whole value is a page
+  actually arriving in the SyncViewbot DM, which cannot be proven from here.
+- **No live state was read.** Not the database, not n8n's live inventory, not an
+  Actions run. Every number above is from the tree or from a computation over
+  it. STEP 0 exists precisely because the mirror_outbox census is still unread.
+- **`linear-outbound-drain.yml` still has no heartbeat and no lane.** STEP 2
+  leans on it. Registering it needs its post-cutoff disposition decided first.

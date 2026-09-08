@@ -73,10 +73,115 @@ try { fs.mkdirSync(TMP, { recursive: true }); } catch {}
 // {ok:true} — independently of the courier (which still tunnels the sample-
 // review-* webhooks to the LIVE backend on the same host). linear-subissues
 // (point-adoption) returns a probe-configurable parent status.
-const LINEAR_HOOK = /\/webhook\/(linear-set-status|linear-add-comment|linear-subissues|linear-issue-statuses)\b/;
+/*
+ * WIDENED 2026-09-08 for the Linear-dead rehearsal (OPEN_REPAIRS 174).
+ *
+ * This used to name four webhooks by hand: linear-set-status, linear-add-comment,
+ * linear-subissues, linear-issue-statuses. The browser actually calls SEVEN --
+ * those four plus linear-issues, linear-projects and linear-tweak-comments -- so
+ * three of them were reaching the courier and, in an open-egress environment,
+ * live n8n. A prefix match covers every `/webhook/linear-*` the app has or will
+ * have, which is the only version of this that cannot rot: a new Linear webhook
+ * is intercepted the day it is added rather than the day someone remembers.
+ *
+ * `log-linear-submission` deliberately does NOT match. Despite the name it is
+ * not a Linear endpoint -- it appends to a Google Sheet and touches no Linear
+ * API -- and deleting or blocking it re-opens the 2026-08-26 incident where the
+ * only copy of a videographer's submitted work lived in his own browser. The
+ * pattern requires `/webhook/linear-` at the start of the path segment, so
+ * `log-linear-submission` cannot match it.
+ *
+ * (For the record, because two documents get this wrong: the tree contains
+ * EIGHT distinct `/webhook/linear-*` names, not ten. The eighth,
+ * `linear-status-sync`, is an INBOUND receiver Linear posts to -- the browser
+ * never calls it, and MONITORING.md records its workflow as inactive.)
+ */
+const LINEAR_HOOK = /\/webhook\/(linear-[a-z0-9-]+)\b/;
 const FILMING_TABS_HOOK = /\/webhook\/filming-plan-tabs\b/;
 const LIVE_FILMING_TABS = process.env.SYNCVIEW_QA_LIVE_FILMING_TABS === '1';
 const LINEAR_CALLS_FILE = `${TMP}/linear_calls.jsonl`;
+
+/* ---- LINEAR IS DEAD mode (F11) --------------------------------------------
+ *
+ * THE CORRECTION THIS EXISTS FOR. The mock above simulates Linear WORKING: it
+ * always fulfils 200 with `{ok:true}`. Every "Linear-mocked overnight testing"
+ * result in this repository was therefore evidence that the app survives Linear
+ * being HEALTHY AND UNREACHABLE-BUT-ANSWERING -- which is not the question. The
+ * question on 2026-09-15 is whether the app survives Linear being DEAD, and
+ * running the harness unchanged answers it with a confident yes that means
+ * nothing.
+ *
+ * SYNCVIEW_QA_LINEAR_DEAD=1 inverts the polarity. Every `/webhook/linear-*`
+ * call is answered as a dead upstream instead of a healthy one.
+ *
+ * THE FAULTS ARE MIXED, NOT UNIFORM, AND THAT IS THE POINT.
+ * A single failure shape proves the app handles that shape. Real death is
+ * ragged, and two of these shapes are already documented as things that
+ * actually happen here:
+ *
+ *   refused   connection refused (route.abort). The n8n host itself gone.
+ *   gateway   502 with an HTML error body. A proxy answering for a dead
+ *             upstream -- NOT JSON, so any caller that assumes a JSON body
+ *             breaks differently from one that checks status.
+ *   timeout   504 with an HTML error body. The upstream accepted and never
+ *             answered.
+ *   ok_lie    200 with `{"ok":true}` and NOTHING ELSE -- no data, no meta.
+ *             This is the nastiest and it is not invented: OPEN_REPAIRS 78
+ *             records twenty legacy webhook calls that were silent 409s which
+ *             n8n logged as `success`. A dead lane that still answers 200 is an
+ *             observed shape in this estate, and it is the one shape that
+ *             cannot be caught by checking `resp.ok`.
+ *
+ * DETERMINISTIC, NOT RANDOM. The fault rotates by call index so a probe failure
+ * reproduces exactly. SYNCVIEW_QA_LINEAR_DEAD may also name ONE shape
+ * (`refused`, `gateway`, `timeout`, `ok_lie`) to pin every call to it while
+ * isolating a single defect.
+ *
+ * EVERY INJECTED FAULT IS RECORDED alongside the request in linear_calls.jsonl,
+ * so an assertion can state which shape the app was given rather than guessing.
+ */
+const LINEAR_DEAD_SHAPES = Object.freeze(['refused', 'gateway', 'timeout', 'ok_lie']);
+const LINEAR_DEAD_RAW = String(process.env.SYNCVIEW_QA_LINEAR_DEAD || '').trim().toLowerCase();
+const LINEAR_DEAD = LINEAR_DEAD_RAW !== '' && LINEAR_DEAD_RAW !== '0' && LINEAR_DEAD_RAW !== 'false';
+const LINEAR_DEAD_PINNED = LINEAR_DEAD_SHAPES.includes(LINEAR_DEAD_RAW) ? LINEAR_DEAD_RAW : '';
+let _linearDeadCallIndex = 0;
+
+function resetLinearDeadRotation() { _linearDeadCallIndex = 0; }
+
+/** Which fault the Nth dead-Linear call gets. Pure, so the rotation is testable. */
+function linearDeadShapeFor(index, pinned = LINEAR_DEAD_PINNED) {
+  if (pinned) return pinned;
+  return LINEAR_DEAD_SHAPES[Math.abs(Number(index) || 0) % LINEAR_DEAD_SHAPES.length];
+}
+
+/*
+ * The response for one dead-Linear call. `null` means abort the request
+ * (connection refused) rather than fulfil it.
+ *
+ * The HTML bodies are deliberately HTML: a caller that does `await resp.json()`
+ * on a 502 gets a parse error, not a tidy `{error}` object, and that difference
+ * is exactly what a rehearsal needs to surface before the date rather than after.
+ */
+function linearDeadResponseFor(shape) {
+  if (shape === 'refused') return null;
+  if (shape === 'gateway') {
+    return { status: 502, contentType: 'text/html', body: '<html><head><title>502 Bad Gateway</title></head><body><h1>502 Bad Gateway</h1></body></html>' };
+  }
+  if (shape === 'timeout') {
+    return { status: 504, contentType: 'text/html', body: '<html><head><title>504 Gateway Time-out</title></head><body><h1>504 Gateway Time-out</h1></body></html>' };
+  }
+  // ok_lie — the 200 that carries nothing. See OPEN_REPAIRS 78.
+  return { status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) };
+}
+
+/*
+ * api.linear.app is aborted at page level in EVERY mode, dead or healthy.
+ * Nothing the browser does should ever reach Linear's own API directly, and a
+ * probe that silently did would be mutating a real editor's issue. This is a
+ * belt on top of the webhook interception, not a substitute for it.
+ */
+const LINEAR_API_HOST = /^https?:\/\/(api|uploads)\.linear\.app\b/i;
+
 const SUBISSUES_RESP_FILE = `${TMP}/linear_subissues_resp.json`;
 let _courierCommitThenFailEvents = [];
 function resetLinearCalls() { try { fs.unlinkSync(LINEAR_CALLS_FILE); } catch {} }
@@ -448,6 +553,13 @@ async function _ctx(browser, opts) {
         } : { ok: false, valid: false, reason: 'invalid_link' }),
       });
     }
+    // 0b) api.linear.app / uploads.linear.app → ALWAYS refused, in every mode.
+    //     A real-browser probe must never reach Linear's own API: that would
+    //     mutate a real editor's issue. Belt on top of the webhook interception.
+    if (LINEAR_API_HOST.test(url)) {
+      try { fs.appendFileSync(LINEAR_CALLS_FILE, JSON.stringify({ path: 'api.linear.app', dead: 'refused', at: Date.now() }) + '\n'); } catch {}
+      return route.abort('connectionrefused');
+    }
     // 1) Linear webhooks → MOCK + capture (never reach real Linear).
     const lh = url.match(LINEAR_HOOK);
     if (lh) {
@@ -463,6 +575,20 @@ async function _ctx(browser, opts) {
       // An empty meta object is a safe, honest stand-in: the consumer's loop
       // finds no per-id entries and no-ops, same as a real backend reporting
       // nothing yet -- it just no longer looks like an unsupported backend.
+      if (LINEAR_DEAD) {
+        // LINEAR IS DEAD. Answer as a dead upstream, record which shape the app
+        // was handed, and let the page cope or fail visibly. See LINEAR_DEAD_SHAPES.
+        const shape = linearDeadShapeFor(_linearDeadCallIndex++);
+        try { fs.appendFileSync(LINEAR_CALLS_FILE, JSON.stringify({ path: lh[1], dead: shape, at: Date.now() }) + '\n'); } catch {}
+        const response = linearDeadResponseFor(shape);
+        if (!response) return route.abort('connectionrefused');
+        return route.fulfill({
+          status: response.status,
+          contentType: response.contentType,
+          headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
+          body: response.body,
+        });
+      }
       const body = (lh[1] === 'linear-subissues') ? _subissuesResp()
         : (lh[1] === 'linear-issue-statuses') ? { ok: true, meta: {} }
         : { ok: true };
@@ -674,6 +800,10 @@ module.exports = {
   poll, appErrs, ORIGIN, SUPA, KEY, COURIER, filelessHttpRequest: _curlRequestSync,
   linearCalls, resetLinearCalls,
   courierCommitThenFailEvents, resetCourierCommitThenFailEvents, setSubissuesResp,
+  // Linear-dead rehearsal (F11). Exported so the offline suite can exercise the
+  // fault rotation and the interception surface with no browser and no network.
+  LINEAR_API_HOST, LINEAR_DEAD, LINEAR_DEAD_SHAPES, LINEAR_HOOK,
+  linearDeadResponseFor, linearDeadShapeFor, resetLinearDeadRotation,
   __test: Object.freeze({
     courierFetch: _courierFetch,
     courierFetchAsync: _courierFetchAsync,

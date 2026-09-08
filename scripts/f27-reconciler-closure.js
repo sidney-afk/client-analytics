@@ -241,8 +241,21 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // WORKFLOW_PATH itself, which moves the workflow blob and drifts this pin a
   // second time. Both re-pins are this lane's, not a surprise. (Previous pin:
   // 5df8340c...)
+  //
+  // Re-pinned again 2026-09-08 (OPEN_REPAIRS 175), exactly as the note above
+  // predicted. Two lanes were REGISTERED - `workload_source_freshness` and
+  // `outbox_debt_census` - both Linear-free, both hosted by new scheduled
+  // workflows that exit non-zero and beat under `if: always()`.
+  //
+  // Reviewed effect on THIS lane: none. Registration adds two entries to the
+  // LANES array; the reconciler's own `--heartbeat=reconciler_pager` and
+  // `--check` steps are untouched, and the two new lanes are read by the check
+  // exactly as the existing eight are. The blob adds no filesystem, process,
+  // child-process or network path. Closure membership UNCHANGED: no file
+  // entered or left, no new dependency, no new entrypoint.
+  // (Previous pin: cc2b4324...)
   'scripts/monitoring-watchdog.js':
-    'cc2b4324c92adfb68e9ab929f8aacd7974a82379413578949f849a4b7bfb3551',
+    '4a884593579cbbd9fb87a77393a77755e454fc64d3887528c13fcec39471dd89',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

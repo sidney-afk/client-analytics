@@ -86,6 +86,21 @@ function browser(response=fixture()) {
  ok(b.context.wlIssueClientAllowed(result.issues[1])&&b.context.wlIssueEditorAllowed(result.issues[1]),'native membership ignores obsolete name allowlists');}
  const b=browser();await b.context.wlLoadSnapshot(false,null);
  ok(b.state.planByIssueId.get('del_fixture')==='2030-01-08'&&b.state.planStatus==='ready','actual plan adoption retains historical pin');
+ // A dropped plan is a work day somebody dragged and can no longer see: the card
+ // reverts to automatic placement. Counting it in the gateway and reading it
+ // nowhere is the same silence in a new place, which is what Codex caught here.
+ // A board that painted fine must still SAY it is missing saved days.
+ // Fed through the gateway's OWN projection rather than a hand-written body, so
+ // this proves the composition that was broken: the gateway counted a drop and
+ // the browser read nothing.
+ {const drift=fixture();drift.plans[0].client='other';
+  const d=browser(projectNativeSnapshot(drift,s=>s.toLowerCase()));
+  await d.context.wlLoadSnapshot(false,null);
+  ok(d.state.backgroundError&&/saved work days/i.test(d.state.backgroundError),'a dropped plan warns on a board that otherwise painted');
+  ok(d.state.issueSnapshot.length,'the dropped-plan warning never blanks the board');
+  const clean=browser(projectNativeSnapshot(fixture(),s=>s.toLowerCase()));
+  await clean.context.wlLoadSnapshot(false,null);
+  ok(!clean.state.backgroundError,'a clean snapshot raises no dropped-plan warning');}
  b.context._wlPlanWriteGeneration=2;b.context._wlPlanLastWriteGeneration.set('del_fixture',2);b.state.planByIssueId.set('del_fixture','2030-01-09');
  b.context.wlAdoptPlanRows({rows:[],readGeneration:1});ok(b.state.planByIssueId.get('del_fixture')==='2030-01-09','late snapshot cannot erase newer saved pin');
  for(const mutate of [v=>v.count--,

@@ -14691,7 +14691,17 @@
                 throw new Error('Staff session changed while Workload was loading.');
             }
             return { issues, metadata, plans: { rows: value.plans, readGeneration },
-                fetchedAt: Date.now(), fromCache: false, legacyTeams: value.legacy_teams };
+                fetchedAt: Date.now(), fromCache: false, legacyTeams: value.legacy_teams,
+                // A dropped plan is a work day somebody DRAGGED and can no longer
+                // see; the card silently reverts to automatic placement, so staff
+                // can plan against the wrong day believing it is current. The
+                // gateway counts them because refusing the whole snapshot over one
+                // drifted row is what took the board down (OPEN_REPAIRS 177) --
+                // but a count nothing reads is the same silence in a new place,
+                // which is what Codex caught on this PR. Carried here so
+                // wlLoadSnapshot can say it out loud.
+                plansDropped: Number.isSafeInteger(value.plans_dropped) && value.plans_dropped > 0
+                    ? value.plans_dropped : 0 };
         } finally { clearTimeout(timer); }
     }
     async function loadLinearIssues(force) {
@@ -15507,8 +15517,14 @@
             wlAdoptLinearMetadata(value.metadata, value.issues, value.fetchedAt);
             wlApplyData(value.issues, value.fetchedAt);
             wlState.nativeLegacyTeams = value.legacyTeams;
-            wlState.backgroundError = value.legacyTeams.length
-                ? 'Some teams still use the legacy Workload source.' : null;
+            // Both are non-destructive warnings over a board that painted fine.
+            // The dropped-plan one names a COUNT rather than the cards, because
+            // the gateway drops the plan without telling the browser which row
+            // owned it; a number a person can act on beats a silence they cannot.
+            wlState.backgroundError = value.plansDropped
+                ? 'Some saved work days could not be shown because their client no longer matches the card. Those cards are placed automatically; check them before planning around them.'
+                : value.legacyTeams.length
+                    ? 'Some teams still use the legacy Workload source.' : null;
             wlState.planLoading = false;
             return value;
         } catch (error) {

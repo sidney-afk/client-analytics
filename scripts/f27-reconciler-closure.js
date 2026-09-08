@@ -221,8 +221,28 @@ const REVIEWED_BLOB_SHA256 = Object.freeze({
   // reported "never checked in" — which also suppressed the ran-and-FAILED
   // page for two nightly lanes for three consecutive nights. Closure
   // membership is UNCHANGED: no file entered or left, no new dependency.
+  // Re-pinned 2026-09-07 for the Linear exit (OPEN_REPAIRS 174). Four of the
+  // eight monitored lanes — this one's `reconciler_pager` among them — are
+  // hosted by workflows that require LINEAR_API_KEY and would beat `ok:false`
+  // forever once the credential dies. Lanes now declare their host workflows
+  // and whether they retire with Linear, `--check` reports its watched and
+  // retired sets, and a retired lane can no longer write a heartbeat.
+  //
+  // Reviewed effect on THIS lane: none today. Nothing is retired in this
+  // change, so `activeLanes()` returns all eight and every read, page, latch
+  // and heartbeat behaves exactly as before; the reconciler's own
+  // `--heartbeat=reconciler_pager` and `--check` steps are untouched. The blob
+  // adds no filesystem, process, child-process or network path — the new code
+  // is two array filters, a string helper, and two extra keys in the JSON the
+  // check already printed. Closure membership UNCHANGED: no file entered or
+  // left, no new dependency, no new entrypoint.
+  //
+  // NOTE for whoever retires `reconciler_pager`: the cutoff also unschedules
+  // WORKFLOW_PATH itself, which moves the workflow blob and drifts this pin a
+  // second time. Both re-pins are this lane's, not a surprise. (Previous pin:
+  // 5df8340c...)
   'scripts/monitoring-watchdog.js':
-    '5df8340c1ab402a3ebef02033d7d5bf3888c611c0aa8cd86923ebf3cae8242cc',
+    'cc2b4324c92adfb68e9ab929f8aacd7974a82379413578949f849a4b7bfb3551',
   'scripts/prod-authority-guard.js':
     '29c52944d4a88c0c7714c59e9cf1bb1781ad476129150512724a48a99a6cbaf6',
 });

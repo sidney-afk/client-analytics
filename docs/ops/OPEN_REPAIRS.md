@@ -14671,3 +14671,43 @@ value still reads as new exposure. Swapped both to `'whoisthis'`, the slug
 this file already uses specifically as its non-resolving placeholder — the
 new tests don't need a real, resolvable client either. Verified locally with
 the same command CI runs before pushing.
+
+**Fourth Codex pass, same PR, on the fixes above.** Three more findings, two
+real, one deferred:
+
+7. *(P2)* `showToast`/`hideToast` are ONE shared instance app-wide. Every
+   `hideToast()` this PR's fixes call (three sites: `_calApplyFocusRequest`,
+   `_calResolvePendingDeepLink`, `loadCalendarPosts`'s catch) was calling it
+   blind — if some OTHER toast (an Undo prompt, a save confirmation)
+   legitimately replaced "Opening linked card…" in the interim, dismissing
+   "whatever toast is current" would silently drop that unrelated toast
+   instead. `_calHideOwnToast(expectedPrefix)` checks the toast actually on
+   screen (`.sv-toast-msg` textContent) still starts with ours before
+   touching it; all three sites route through it now.
+8. *(P2)* Leaving the calendar entirely (`navTo` to another top-level page)
+   left a pending card-link request AND its toast dangling — the exact same
+   staleness shape `calState.focusPid` already has a dedicated guard against,
+   on the very next line, for a bug closed as "the third and last way it
+   goes stale." `_calFocusRequest`/`_calPendingDeepLink` had a fourth,
+   unguarded way: this PR's own toast made it visible for the first time.
+   `navTo` now abandons both request types and dismisses their toast
+   (through the ownership check above) beside the existing `focusPid` clear.
+9. *(P2, DEFERRED — open item)* `fetchEssentials()`, which the deferred
+   (sheet-only-client) resolution path waits on, has no timeout of its own.
+   If it hangs, the pending-link toast still expires on its own ~21s timer,
+   but no terminal failure notice ever fires — indefinite silence, the same
+   shape as the original report, just one layer further out. Real, but ruled
+   out of scope for this PR: fixing it means picking a timeout and a failure
+   behavior for a shared fetch pipeline used well beyond calendar deep
+   links, un-audited here. Replied on the thread with that reasoning and
+   left it UNRESOLVED (the other three findings that round were fixed and
+   are marked resolved) rather than close it out. **Open follow-up:** give
+   `fetchEssentials()` (or `_calResolvePendingDeepLink`'s wait on it) its own
+   bounded timeout with a terminal notice, scoped and reviewed as its own
+   change.
+
+Pinned: `test/calendar-deep-link-focus.js` gained a dedicated
+`_calHideOwnToast` unit test (dismisses when still ours, leaves an unrelated
+toast alone, no-ops when nothing is showing) and source assertions that
+`navTo` clears both request types and dismisses the toast beside the
+`focusPid` clear it mirrors.

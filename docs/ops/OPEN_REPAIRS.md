@@ -15563,3 +15563,49 @@ number AND date.* "Item 176" is ambiguous; "item 176 (2026-09-07)" is not, and
 costs four characters. The reservation table in item 168 remains the right
 mechanism for avoiding collisions in the first place, but it only binds sessions
 that read it, and PR #1354 was not part of this programme.
+
+## 177. [2026-09-08, FIXED] The pasted-card-link highlight was invisible in dark mode
+
+Item 176 (same day, merged as PR #1354) fixed the timing problem — the toast
+now appears immediately. The owner came back after checking it out: *"I
+never saw the border color... it's because of the dark mode. On the dark
+mode, it doesn't show up... it appears as like a black thing."*
+
+**Root cause.** The persistent outline `_calApplyFocusRequest` puts on a
+linked card (`.cal-card-focused`, and its non-persistent sibling
+`.cal-card-flash` for the identifier/search-jump case) reads its ring color
+from `--sv-shadow-rgba-94-106-210-*` — the brand indigo, rgb(94,106,210).
+The dark-theme override block flattened every one of those tokens to plain
+black (`rgba(0,0,0,…)`), which is close to indistinguishable from the app's
+own near-black dark background: a ring built to say "this one" said nothing.
+Every OTHER brand-indigo token in the file (`--sv-border-9aa3f0`,
+`--sv-fg-4a54c0`, …) is brightened for dark mode instead of blackened — this
+shadow-token family was the one place the pattern wasn't followed, almost
+certainly because whatever produced the dark palette treated every
+`--sv-shadow-*` variable as a generic elevation shadow (where black is the
+right call) rather than checking which ones are actually colored accent
+rings.
+
+**Verified, not just reasoned.** Rendered the real, extracted
+`.cal-card-focused` rule in a headless Chromium against both themes' actual
+variable values, before touching anything: the light-mode ring was clearly
+visible; the dark-mode one was there, technically, but barely
+distinguishable from the card and page behind it — exactly the "black
+thing" the report described.
+
+**Fix.** Kept the same hue in dark mode, brightened to `rgb(174,181,242)` —
+the same value `--sv-border-9aa3f0` already uses for its own dark-mode
+counterpart, so this now follows the same convention as every other
+brand-indigo token instead of being the exception. Re-rendered the same
+Chromium check after the change: dark mode now shows a clearly visible
+indigo ring, matching light mode's legibility. Six tokens changed, all in
+the same `html[data-theme="dark"]` override block; the `.cal-card-focused` /
+`.cal-card-flash` rules that consume them were untouched, since the box-shadow
+rules themselves were never the problem — only the color they were told to
+use.
+
+Pinned by a new `test/calendar-focus-highlight-dark-mode.js`: asserts each
+of the five non-transparent tokens in the dark-theme block still carries a
+colored (non-black) value, and specifically the `rgb(174,181,242)` this fix
+lands on — so a future dark-palette regeneration can't quietly re-blacken
+this family without a test failing.

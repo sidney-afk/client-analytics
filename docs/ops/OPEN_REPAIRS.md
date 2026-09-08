@@ -17481,3 +17481,50 @@ sentence here is a restatement, and have I checked it against what it restates?"
 That question is cheap, it is answerable without any live access, and it found
 things in twenty minutes that six rounds of review had not. It belongs in this
 lane's handover as the standing check, not as a one-off.
+
+**Addendum, 2026-09-08 — the sweep continued, and its first catch was the sweep's
+own newest sentence.** Four more, all mine, all found by the same question.
+
+**5. `dead` in the log does not mean dead mode ran, and I had just written a
+verification that assumed it did.** The `api.linear.app` guard writes
+`{path:"api.linear.app", dead:"refused"}` **in every mode, healthy included** —
+deliberately, as a belt so a real-browser probe can never mutate a real editor's
+issue (`sxr_courier_lib.js:595-600`, comment: *"ALWAYS refused, in every mode"*).
+So any check of the form *"the log contains `dead` values"* passes on an ordinary
+healthy run. STEP 6's nightly-flip verification said exactly that, written **hours
+earlier in the same sitting that established sweeping restatements as this lane's
+standing check**, and the rehearsal's R10 row was loose in the same direction.
+Both now require `dead` values on rows whose `path` is a webhook name, or a
+`backed:true` row, which exists only in dead mode. The check caught its own
+author's newest sentence, which is the most useful thing it could have done.
+
+**6. The rehearsal gated nothing — the same defect as P4, in this lane's
+headline deliverable.** The session brief called the Linear-dead rehearsal the
+thing that converts the deadline from a hope into a test. It was mentioned in §0's
+argument and in the "what this runbook does not cover" list, and **no step
+required it.** Now **P6**, gating STEP 3 and STEP 6's nightly flip.
+
+**7. And P6 turned out to be load-bearing for the monitoring estate, not just for
+confidence.** `samples_e2e_nightly` and `calendar_e2e_nightly` are REGISTERED
+dead-man lanes (`monitoring-watchdog.js:135-138`, `max_age_minutes: 2160`). The
+STEP 6 nightly flip I had added 30 minutes earlier would, if done before the app
+actually survives a dead Linear, fail both nightly — latching `failing` and
+emailing a red run every day. **That is precisely the harm this lane's part 1
+(#1348) existed to remove for the four Linear-credentialed lanes, re-created with
+two different lanes by my own newest instruction.** I had checked the flip against
+the nightlies and not against the watchdog's lane list. Both documents were mine
+and I had read both today.
+
+**8. A placeholder path in the one line telling a reader where the rehearsal is.**
+§5 cited `docs/audits/2026-09-XX-linear-dead-rehearsal.md`. The file is
+`2026-09-15-...`. `XX` resolves to nothing; the citation had never been followed by
+anyone, including me. Same class as LX-N8N's finding that every line number in
+`LINEAR_CUTOVER_TOUCHPOINT_INVENTORY.md` is dead — a reference that was correct
+when written as a placeholder and never became real.
+
+**Where the count stands: six from other lanes, eight from sweeping my own.** The
+sweep is now clearly the higher-yield of the two, and finding 7 says why: it caught
+an interaction between two documents I had *both* written and *both* read the same
+day. Reading a document for correctness and reading it against every other
+document that constrains it are different activities, and only the second one finds
+this class.

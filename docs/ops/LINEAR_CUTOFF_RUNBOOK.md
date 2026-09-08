@@ -137,6 +137,7 @@ six sessions will be finished.
 | P3 | **Lanes C and D are live** | They own the browser's Linear surfaces and the comment reader. Turning the endpoints off underneath them strands the UI. | coordinator |
 | P4 | **STEP 0's census has been read by a human** | You cannot classify debt you have not counted. **Gates STEP 3**: after outbound goes off the queue stops being consumed, so whatever the census would have shown you is what you are freezing in place. *(Added 2026-09-08 — this row named no step, the only precondition in the table that gated nothing. A precondition no step references is decoration, and the reader who notices that is entitled to conclude the same about its neighbours.)* | owner |
 | P5 | Lane B has removed production-write's Linear call sites | Only gates STEP 7, not the earlier steps. See STEP 7. | coordinator |
+| P6 | **The Linear-dead rehearsal has been RUN and its result form completed** | `docs/audits/2026-09-15-linear-dead-rehearsal.md`, four pinned runs (R11). **Gates STEP 3 and the nightly flip in STEP 6.** *(Added 2026-09-08: the rehearsal was this lane's answer to "does the app survive Linear being unreachable" and no step required it — the same defect as P4, in the deliverable the session brief called the thing that converts the deadline from a hope into a test.)* **It also protects the monitoring estate:** `samples_e2e_nightly` and `calendar_e2e_nightly` are REGISTERED dead-man lanes (`monitoring-watchdog.js:135-138`, `max_age_minutes: 2160`). Flip them to dead mode before the rehearsal has proven the app survives it and they fail nightly — latching `failing` and emailing a red run every day, which is precisely the harm this lane's part 1 (#1348) existed to remove for the four Linear-credentialed lanes. Doing it in the wrong order re-creates it with two different lanes. | owner |
 
 **P1, P2 and P3 gate STEP 3 onward. Nothing gates STEP 0 — run it today.**
 
@@ -293,7 +294,7 @@ Undo: none needed. Draining delivers work that was already queued to be delivere
 
 ---
 
-## STEP 3 — Outbound off  *(GATED ON P1, P2, P3, P4)*
+## STEP 3 — Outbound off  *(GATED ON P1, P2, P3, P4, P6)*
 
 **Do not run this before lane B's naming mint is live — all FOUR steps, not
 three.** See P1: the migration applied, both teams seeded, **and**
@@ -628,16 +629,27 @@ cannot fail for the reason you care about is worse than no run**, because it
 occupies the slot where the check would have been. This is the same defect the
 rehearsal exists to correct, at the schedule level instead of the harness level.
 
-**Do this at STEP 6, not before.** Set `SYNCVIEW_QA_LINEAR_DEAD=1` in the `env:`
-of both nightly workflows. **Not earlier:** before the cutoff the app is *supposed*
-to talk to a live Linear, so flipping these today turns both nightlies red for a
-condition that is not yet true, and a red nightly that everyone learns to ignore
-costs more than the gap it announces.
+**Do this at STEP 6, not before, and only once P6 holds.** Set
+`SYNCVIEW_QA_LINEAR_DEAD=1` in the `env:` of both nightly workflows. **Not
+earlier:** before the cutoff the app is *supposed* to talk to a live Linear, so
+flipping these today turns both nightlies red for a condition that is not yet
+true, and a red nightly that everyone learns to ignore costs more than the gap it
+announces.
+
+**And not before the rehearsal has passed, because these two are REGISTERED
+dead-man lanes.** `samples_e2e_nightly` and `calendar_e2e_nightly`
+(`scripts/monitoring-watchdog.js:135-138`, `max_age_minutes: 2160`) latch and page
+like any other lane. Flip them to dead mode while the app still fails under a dead
+Linear and they fail nightly — a latched `failing` incident and a red run in the
+owner's inbox every day. **That is exactly the harm this lane's part 1 (#1348)
+existed to remove**, and doing this step out of order re-creates it with two
+different lanes. The rehearsal is what turns "we hope it survives" into "it does",
+and P6 is what makes that a precondition rather than an intention.
 
 | | |
 |---|---|
 | **undo** | remove the `env:` line from each workflow — one line per file, no other change |
-| **verify** | one nightly run after the flip whose `linear_calls.jsonl` carries `dead` values; a run with none did not enter dead mode |
+| **verify** | one nightly run after the flip whose `linear_calls.jsonl` carries `dead` values **on rows whose `path` is a webhook name**, or any `backed:true` row. **NOT simply "contains `dead`"** — the `api.linear.app` guard writes `{path:"api.linear.app", dead:"refused"}` in *every* mode including healthy, so that weaker check passes on a run that never entered dead mode. *(This row said exactly that weaker thing when it was written, hours earlier in the same sitting.)* |
 | **not done here** | this runbook does not edit those two workflows. They belong to the nightly suites, and changing them now would alter behaviour before the cutoff — see above. It is an operator step with an exact undo, which is what this document is for. |
 
 ---
@@ -667,9 +679,13 @@ traffic and is fully reversible.
 
 ## 5. What this runbook does not cover
 
-- **The rehearsal.** Proving the app works with Linear unreachable is
-  `docs/audits/2026-09-XX-linear-dead-rehearsal.md` and the
+- **The rehearsal's EXECUTION**, though no longer its requirement — see **P6**,
+  added 2026-09-08 when a sweep found it gated nothing. Proving the app works with
+  Linear unreachable is `docs/audits/2026-09-15-linear-dead-rehearsal.md` and the
   `SYNCVIEW_QA_LINEAR_DEAD` harness mode. Run it before STEP 3, not after.
+  *(That path said `2026-09-XX` until this sweep — a placeholder filename that
+  resolves to nothing, in the one line telling a reader where to find the
+  rehearsal.)*
 - **The watchers.** `docs/ops/MONITORING.md` carries the post-cutoff coverage
   table. Every watcher this cutoff depends on must be scheduled and must have
   fired once on purpose before STEP 3.

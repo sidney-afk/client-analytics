@@ -217,10 +217,26 @@ Fill in `observed` and `verdict`. **A blank row is not a pass.**
 | R7 | **Zero silent empties.** No surface renders an empty or partial state without saying why | screenshot every surface in R1-R6 and read it as a person would | | |
 | R8 | No request reached `api.linear.app` | `linear_calls.jsonl` contains no row whose `path` is `api.linear.app` with a non-`refused` outcome | | |
 | R9 | Every one of the seven webhooks was exercised at least once | distinct `path` values in `linear_calls.jsonl` | | |
-| R10 | All four fault shapes were injected | distinct `dead` values in `linear_calls.jsonl` | | |
+| R10 | All four fault shapes were injected | **all four of** `refused`/`gateway`/`timeout`/`ok_lie` present as `dead` values in `linear_calls.jsonl` **on rows whose `path` is a webhook name — `path:"api.linear.app"` rows do NOT count** (see the warning below) | | |
 | R10b | **The four Linear-backed webhooks were intercepted too, not just the `linear-*` ones** | `linear_calls.jsonl` carries `"backed":true` rows for every one of `editors-week`, `send-urgent-slack`, `video-form`, `graphic-form` that the run exercised — and a run that exercised none of them does not satisfy this row, it fails to test them | | |
 | R11 | **Each shape was run PINNED across the probe manifest** — four runs, not one rotating run | four separate `SYNCVIEW_QA_LINEAR_DEAD=<shape>` invocations, each recorded here | | |
 | R12 | The status-and-comment write flows survived `ok_lie` specifically | the pinned `ok_lie` run, read as a person: a 200 that carried nothing must not be reported anywhere as success | | |
+
+> **⚠️ `dead` in the log does not by itself mean dead mode ran.** The
+> `api.linear.app` / `uploads.linear.app` guard writes
+> `{path:"api.linear.app", dead:"refused"}` **in every mode, healthy included** —
+> it is a belt-and-braces abort so a real-browser probe can never mutate a real
+> editor's issue, and it is deliberately not conditional on
+> `SYNCVIEW_QA_LINEAR_DEAD`. So a perfectly ordinary healthy run produces `dead`
+> rows, and any check of the form *"the log contains `dead` values"* passes
+> without dead mode ever being entered.
+>
+> **Read only the rows whose `path` is a webhook name**, or the `backed:true`
+> rows, which exist only in dead mode. *(Found 2026-09-08 by sweeping this form
+> against what the harness actually writes — after a verification line in
+> `LINEAR_CUTOFF_RUNBOOK.md` STEP 6 had already been written with exactly this
+> defect, in the same sitting that established sweeping restatements as this
+> lane's standing check. The check found its own author's newest sentence.)*
 
 **R7 and R12 are the ones that matter, and they are the ones a machine cannot judge.** Every
 other row can be asserted. "The board looked normal and was a photograph" is

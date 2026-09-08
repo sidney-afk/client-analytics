@@ -559,32 +559,59 @@ ok(legacyScenarios.length > 0 && legacyScenarios.length < allScenarios.length / 
    legal exactly when it is honest, and this block goes green on the migration instead of
    standing in front of it. */
 const engineSrc = fs.readFileSync(path.join(ROOT, 'qa', 'scenario_engine.js'), 'utf8');
-const engineHasNativeSeeding = /stubNativeWorkItems/.test(engineSrc)
-  && /stubNativeGateway/.test(engineSrc)
-  && /seedVerifiedProbeStaff/.test(engineSrc);
+/* THE CAPABILITY GREP IS GONE, AND THAT IS THE POINT.
+ *
+ * It read `engineHasNativeSeeding` off three raw token matches in the engine source. Codex
+ * named two holes (a token in a comment, an import, or dead code satisfies it; and the
+ * implication ran only one way, so a migration that added the capability and forgot the flip
+ * left every scenario silently on the retired lane). Both are correct, and the first one I had
+ * already DEMONSTRATED without noticing: the "honest migration passes" proof I published for
+ * this check added the three names in a COMMENT. I offered prose as evidence that the check
+ * could not be satisfied by prose.
+ *
+ * This is the fifth finding in this file about a source-scanning guard, and sharpening the
+ * scanner a fifth time is the wrong move — the class of claim is what is wrong. Whether the
+ * scenario harness can drive the native lane is a property of RUNNING it: it depends on the
+ * fixtures being installed on the right contexts, the gateway answering, and a staff identity
+ * being verified at the moment of the write. No amount of reading the file decides that, and a
+ * check that pretends otherwise is worse than none, because the next person trusts it.
+ *
+ * So the suite no longer claims to police the flip. What it still checks is what it can
+ * DECIDE, and those checks are executed rather than scanned:
+ *   · while the constant is false, every scenario really does route legacy;
+ *   · once it is true, the rule really does govern, and exactly the scenarios asserting on the
+ *     retired lane go there;
+ *   · the rule and the limit stay separate predicates, so which one applied is never
+ *     ambiguous.
+ * The FLIP is gated by running the scenario lane and recording the result in OPEN_REPAIRS 175
+ * — by evidence from an execution, which is the only thing that can establish it. */
 
 ok(typeof ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE === 'boolean',
   'the harness limit is a single named constant, so the migration switch is one edit');
-ok(!ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE || engineHasNativeSeeding,
-  'THE HONESTY INVARIANT: the constant may claim native capability only if the engine really '
-  + 'installs native work items, a gateway capture and a verified staff identity — so it '
-  + 'cannot be flipped ahead of the work it describes');
 ok(ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE || allScenarios.every(scn => ENGINE.scenarioLaneIsLegacy(scn)),
-  '  · and while it is false, EVERY scenario runs legacy — the pre-existing state, not a '
-  + 'nightly turned red by a premature switch');
+  'while the limit stands, EVERY scenario routes legacy — decided by running the predicate '
+  + 'over the real scenario set, not by reading the engine');
 ok(!ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE
   || allScenarios.filter(scn => ENGINE.scenarioLaneIsLegacy(scn)).length === legacyScenarios.length,
-  '  · and once it is true the RULE governs, putting exactly the scenarios that assert on the '
-  + 'retired lane there and no others');
+  '  · and once it is lifted the RULE governs, putting exactly the scenarios that assert on '
+  + 'the retired lane there and no others');
+/* Comment-stripped AND spelled in halves, because this line kept matching itself: first the
+   paragraph above that names the deleted grep (a check fooled by its own prose is the very
+   hole this deletion is about — it happened on the first run), and then its own regex literal,
+   which contained the identifier it was searching for. Both were caught by running it. */
+const DELETED_GREP = 'engineHas' + 'NativeSeeding';
+ok(!stripComments(SELF).includes(DELETED_GREP),
+  '  · and this suite makes NO claim about whether the harness can drive native — that is a '
+  + 'property of running it, and the grep that pretended to decide it is deliberately gone');
 ok(ENGINE.scenarioLaneIsLegacy !== ENGINE.scenarioUsesLegacyLane,
   '  · the RULE stays separate from the LIMIT, so which of the two put a scenario on the '
   + 'legacy lane is never ambiguous');
 ok(/scenarioLaneIsLegacy\(scn\)/.test(engineSrc),
   '  · and the engine asks the combined question, not the rule alone');
-/* Reported, not asserted: the current value is context for whoever reads a failure here, and
-   pinning it is what made the guard block its own migration. */
-console.log('      (today: harness native capability = ' + engineHasNativeSeeding
-  + ', constant = ' + ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE + ')');
+/* Reported, not asserted: context for whoever reads a failure here. Only the constant is
+   printed now — the capability half was a grep that could not tell code from prose. */
+console.log('      (today: SCENARIO_HARNESS_CAN_DRIVE_NATIVE = '
+  + ENGINE.SCENARIO_HARNESS_CAN_DRIVE_NATIVE + ')');
 for (const scn of legacyScenarios) {
   ok(/expectLinear|expectNoLinear/.test(JSON.stringify(scn.steps || scn)),
     '  · every scenario it puts on the legacy lane really does carry a Linear assertion');
@@ -663,19 +690,24 @@ for (const rel of ['qa/scenario_engine.js', 'qa/scenario_lane.js', 'qa/native_wo
     + (r.missing.length ? ' — missing: ' + r.missing.join(', ') : ''));
 }
 
-/* Driven before trusted, on the exact broken shape. */
-ok(exportedNamesAreDefined('qa/scenario_engine.js').missing.length === 0
-  && (() => {
-    const probe = "const { a } = require('./x.js');\nmodule.exports = { a, b };";
-    const src = probe;
-    const m = src.match(/module\.exports\s*=\s*\{([\s\S]*?)\}/);
-    const names = m[1].split(',').map(x => x.trim()).filter(Boolean);
-    const missing = names.filter(n => !new RegExp('(?:function|const|let|var|class)\\s+' + n + '\\b').test(src)
+/* Driven before trusted on the exact broken shape — AND on the shape it admits it misses, so
+   the limit named above is demonstrated rather than claimed.
+   The probe re-implements the predicate over a literal rather than calling
+   `exportedNamesAreDefined`, which takes a repo path; keeping them in step is the point of
+   running both against the real files just above. */
+function probeMissingExports(src) {
+  const m = src.match(/module\.exports\s*=\s*\{([\s\S]*?)\}/);
+  if (!m) return [];
+  return m[1].split(',').map(x => x.split(':')[0].trim())
+    .filter(n => /^[A-Za-z_$][\w$]*$/.test(n))
+    .filter(n => !new RegExp('(?:function|const|let|var|class)\\s+' + n + '\\b').test(src)
       && !new RegExp('\\{[^}]*\\b' + n + '\\b[^}]*\\}\\s*=\\s*require').test(src));
-    return missing.length === 1 && missing[0] === 'b';
-  })(),
-  '  · and the check itself catches the exact shape that broke: a name exported but neither '
-  + 'declared nor destructured');
+}
+ok(probeMissingExports("const { a } = require('./x.js');\nmodule.exports = { a, b };").join() === 'b',
+  '  · CAUGHT: a name exported but declared nowhere — the shape that broke the engine');
+ok(probeMissingExports("function outer(){ function inner(){} }\nmodule.exports = { inner };").length === 0,
+  '  · MISSED, and admitted in the comment above: a name declared only in an INNER scope '
+  + 'passes while the real module would throw. Naming the limit beats a sixth source scanner');
 
 /* ---- 1f. WOULD THESE MODULES LOAD AT ALL? -------------------------------- */
 /* Answering my own question from the PR rather than leaving it open: what else did removing

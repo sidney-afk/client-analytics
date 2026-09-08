@@ -14701,6 +14701,46 @@ it. Codex challenged three lanes and left these; that is the line between "about
 the legacy path" and "happens to contain a legacy assertion", and the first
 version of this wiring did not draw it.
 
+### THE STOPPING CONDITION, REACHED AND ACTED ON (Codex on `cdd9547`)
+
+Three P2s, all about source-scanning guards in
+`test/probes-assert-native-write-lane.js` — the fourth, fifth, sixth, eighth and
+now these. The rule this session set for itself was that a recurrence in that one
+file means questioning the INSTRUMENT rather than sharpening it again. That point
+is here, and the answer differs per claim.
+
+**The capability grep is DELETED, not fixed.** It decided `engineHasNativeSeeding`
+from three raw token matches. Codex named two holes — a token in a comment, an
+import or dead code satisfies it, and the implication ran one way so a migration
+that added the capability and forgot the flip would silently leave all 84
+scenarios and 24 tree paths on the retired lane. Both correct, and the first was
+already DEMONSTRATED here without being noticed: the published "honest migration
+passes" proof for that check added the three names **in a comment**. Prose was
+offered as evidence that prose could not satisfy the check.
+
+Whether the harness can drive the native lane is a property of RUNNING it —
+fixtures installed on the right contexts, a gateway answering, an identity
+verified at the moment of the write. Reading the file cannot decide it, and a
+check that pretends to is worse than none because the next reader trusts it. The
+suite now claims only what it can decide, by execution: while the constant
+stands, every scenario really does route legacy; once lifted, the rule really
+does govern. **The flip is gated by running the scenario lane and recording the
+evidence here**, which is the only thing that can establish it.
+
+Deleting that grep took three attempts, each caught by running it: the check that
+asserts the grep is gone first matched the paragraph explaining the deletion,
+then matched its own regex literal, and a leftover `console.log` still referenced
+the dead identifier. The hole Codex described, reproduced three times in the act
+of removing it.
+
+**The export check KEEPS its limit and names it.** It is not scope-aware: a name
+declared only inside a function satisfies it while the module-level
+`module.exports` would still throw. Making it scope-aware means writing another
+source scanner, and this file's history is five findings about exactly that. A
+smaller true claim beats a larger one needing a sixth. Both behaviours are now
+driven — the shape it CATCHES (declared nowhere, the engine bug) and the shape it
+MISSES (inner scope) — so the limit is demonstrated rather than asserted.
+
 **COVERING THE BLIND SPOT THE NINTH EXPOSED.** The ninth existed because an
 earlier fix removed `qa/scenario_engine.js` from the only module graph that would
 have noticed it, so the question worth answering was not "fix this one" but "what

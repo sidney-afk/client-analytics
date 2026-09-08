@@ -229,9 +229,18 @@ Every Linear read in `production-write` traced to the operation that reaches it.
 | `create` | **Yes, twice** — `projectForIntake`, `linearStateIdForCreate`, plus parent validation via `productionCreateParentRoute` | **No** |
 | `intake_create` | **Yes** — `projectForIntake`, and `parentRouteForAppend` | **No** |
 | `component_fill` | **Sometimes** — `parentRouteForAppend` validates externally by default, so a batch with an existing Linear parent reads it; a native batch whose parent outbox row is not `written` does not | **No** |
-| Assignee eligibility | **Yes** — `assigneeProviderPool` | **Yes**, `production_assignee_eligibility`, and its comment describes a retirement path |
-| `status`, `description`, `comment`, `attachment`, `due`, `labels` | **No** | n/a |
+| **Changing a card's assignee** | **Yes** — `validateAssignee` → `assigneeProviderPool`. This is an everyday staff action on an existing card, not only a create-time check | **Yes**, `production_assignee_eligibility`, and its comment describes a retirement path |
+| `status`, `due`, `description` | **No** | n/a |
+| `comment`, `attachment`, `labels` | **No** | n/a |
 | `batch_description`, `batch_asset` | **No** | n/a |
+
+**The safe rows are verified forward, not merely by absence.** Tracing callers
+backwards only shows what reaches a Linear read; it cannot show that a path is
+clean, and the reassuring half of a table is the more dangerous half to get wrong.
+So `handleEntityOperation` was read forward: `status`, `due` and `description` each
+take their own branch and none calls `validateAssignee`, which is reached only in
+the final `else` — the assignee branch. That is the whole Linear exposure of the
+mutate path.
 
 **The `component_fill` row contains a trap worth naming.** It degrades gracefully
 for natively-created batches and fails for batches that already have a Linear

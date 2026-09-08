@@ -15610,6 +15610,29 @@ colored (non-black) value, and specifically the `rgb(174,181,242)` this fix
 lands on — so a future dark-palette regeneration can't quietly re-blacken
 this family without a test failing.
 
+**Codex review, PR #1359.** One real finding: the color fix above made the
+ring visible, but not necessarily PRESENT. `.cal-card-focused` is a single
+class (specificity 1). `.cal-card.cal-card-posted` (2) and `.cal-card:hover`
+/ `.cal-card.cal-card-posted:hover` (2 and 3) each carry their own static
+`box-shadow`, all at equal or higher specificity — so a linked card that was
+posted, or simply sat under the pointer, showed no ring at all, in EITHER
+theme. Not new in this PR; the underlying rule predates it. Added
+`!important` to `.cal-card-focused`'s `box-shadow` so it wins regardless of
+what other card-state classes are present, matching this file's existing
+convention for "this state must win" indicators (e.g.
+`.workload-rollup.in-progress`'s `border-left-color !important`).
+`.cal-card-flash` (the identifier/search-jump sibling) needed no such fix:
+its color comes from a CSS animation, which the cascade already places above
+any static rule regardless of specificity.
+
+Verified with a real headless-Chromium render (not just source regex) of a
+card carrying `cal-card cal-card-posted cal-card-focused` in dark mode,
+hovered — the highest-specificity competing case — and read back
+`getComputedStyle(...).boxShadow`: the indigo ring is present and the
+posted-state green shadow is fully replaced rather than blended in behind
+it. Pinned as a new async section in the same test file, using this repo's
+existing `playwright`-in-`test/` convention rather than a browser-only lane.
+
 ---
 
 ## 179. [2026-09-08, lane LX-RESTORE, DONE for the executable subset; ~284 context lines still clipped] The 49 clipped brief lines an owner actually executes are restored from source, and six of them were wrong as well as short

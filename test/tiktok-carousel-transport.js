@@ -26,6 +26,14 @@
  *    is edited again without updating both the backup and this test, this
  *    suite will not see the new live behavior. It is not a substitute for
  *    re-running test_workflow against the live graph after any further edit.
+ *
+ * Neither check above ever runs the browser transport itself — both extract
+ * and exercise source, but never call _tkSubmitPhotoCarousel against a real
+ * page. docs/syncview-design/tests/tiktok-carousel-browser-journey.js is the
+ * sibling suite that does: a real headless browser against a fully mocked
+ * network, proving mint/PUT ordering, the emitted FormData, cancellation and
+ * a storage-failure path. Run it directly:
+ * node docs/syncview-design/tests/tiktok-carousel-browser-journey.js
  */
 const fs = require('fs');
 const path = require('path');
@@ -143,6 +151,14 @@ check('old-style single mediaUrl still builds a single-item media[] array',
   oldPost.postBody.media.length, 1);
 check('...with the video-only thumbnail_timestamp_ms preserved',
   oldPost.postBody.media[0].thumbnail_timestamp_ms, 1500);
+// Full-object comparison, not just presence checks: a field like auto_add_music
+// added unconditionally would pass every check above while still changing the
+// exact configuration object Post For Me receives for a plain video post. This
+// is the "compare the complete old postBody" guard Codex asked for after that
+// exact bug (2026-09-08, second review round).
+check('...and the video configuration object is exactly the pre-carousel shape (no auto_add_music)',
+  JSON.stringify(oldPost.postBody.account_configurations[0].configuration),
+  JSON.stringify({ privacy_status: 'public', allow_comment: true, allow_duet: true, allow_stitch: true, disclose_your_brand: false, disclose_branded_content: false, is_ai_generated: false, is_draft: false, localizations: null }));
 
 const newBody = {
   clientName: 'sidneylaruel', socialAccountId: 'spc_test', title: 'a carousel post',
@@ -156,6 +172,8 @@ check('new-style mediaUrls array builds a matching multi-item media[] array',
   newPost.postBody.media.length, 3);
 check('...with no thumbnail_timestamp_ms attached to photo media',
   newPost.postBody.media.some(m => 'thumbnail_timestamp_ms' in m), false);
+check('...and auto_add_music IS present for the carousel branch (defaults true)',
+  newPost.postBody.account_configurations[0].configuration.auto_add_music, true);
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll tiktok-carousel-transport checks passed.');

@@ -70898,10 +70898,10 @@
            unseen button in one gesture — so keep the strip visible whenever the device has
            no real hover capability, per UI_DESIGN_STANDARDS.md's keyboard/mobile-states rule. */
         @media (hover: none) { .tk-photo-actions { opacity: 1; } }
-        .tk-photo-btn { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 36px; border: none; border-radius: 5px; background: var(--white); color: var(--text-primary); font-size: 0.76rem; font-weight: 700; padding: 3px 0; cursor: pointer; }
-        /* 36px, not the full 44px UI_DESIGN_STANDARDS.md default: three controls share one
-           thumbnail's width, which is the "where space permits" exception the standard itself
-           carves out — this is the tallest they can go without shrinking the image preview. */
+        /* Full 44px per UI_DESIGN_STANDARDS.md: width is what three controls must share in one
+           thumbnail, but height has no such constraint — making the strip taller only covers
+           more of the image vertically, so there's no reason to fall short of the target here. */
+        .tk-photo-btn { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 44px; border: none; border-radius: 5px; background: var(--white); color: var(--text-primary); font-size: 0.76rem; font-weight: 700; padding: 3px 0; cursor: pointer; }
         .tk-photo-btn:disabled { opacity: 0.35; cursor: not-allowed; }
         .tk-photo-btn-remove { color: var(--sv-fg-dc2626); }
         `;
@@ -71197,8 +71197,8 @@
                             <div class="tk-file-size">${_tkFormatBytes(tkState.file.size)} · ${_tkEscape(tkState.file.type || 'video')}</div>
                         </div>
                         <div class="tk-file-actions">
-                            <button class="tk-mini-btn" onclick="_tkReplaceFile()">Replace</button>
-                            <button class="tk-mini-btn" onclick="_tkClearFile()">Remove</button>
+                            <button class="tk-mini-btn" onclick="_tkReplaceFile()" ${tkState.submitting ? 'disabled' : ''}>Replace</button>
+                            <button class="tk-mini-btn" onclick="_tkClearFile()" ${tkState.submitting ? 'disabled' : ''}>Remove</button>
                         </div>
                     </div>
                 </div>`;
@@ -71208,7 +71208,7 @@
                 : `<div class="tk-drop-sub">MP4, MOV or WebM · up to ${_tkFormatBytes(TIKTOK_MAX_BYTES)}</div>`;
             mediaCard = `
                 <div class="tk-drop" id="tkDrop">
-                    <input type="file" id="tkFile" accept="video/mp4,video/quicktime,video/webm,video/*">
+                    <input type="file" id="tkFile" accept="video/mp4,video/quicktime,video/webm,video/*" ${tkState.submitting ? 'disabled' : ''}>
                     <div class="tk-drop-icon">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 11V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.5 5.5L8 2L11.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5h12V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </div>
@@ -71219,7 +71219,7 @@
 
         const photoDropZone = `
             <div class="tk-drop" id="tkPhotoDrop">
-                <input type="file" id="tkPhotoFile" accept="image/jpeg,image/png,image/webp" multiple>
+                <input type="file" id="tkPhotoFile" accept="image/jpeg,image/png,image/webp" multiple ${tkState.submitting ? 'disabled' : ''}>
                 <div class="tk-drop-icon">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 11V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.5 5.5L8 2L11.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5h12V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
@@ -71236,9 +71236,9 @@
                     <img src="${_tkEscape(p.objectUrl)}" alt="Image ${i + 1}">
                     <div class="tk-photo-badge">${i + 1}</div>
                     <div class="tk-photo-actions">
-                        <button type="button" class="tk-photo-btn" onclick="_tkMovePhoto(${i},-1)" ${i === 0 ? 'disabled' : ''} title="Move earlier">&larr;</button>
-                        <button type="button" class="tk-photo-btn" onclick="_tkMovePhoto(${i},1)" ${i === tkState.photos.length - 1 ? 'disabled' : ''} title="Move later">&rarr;</button>
-                        <button type="button" class="tk-photo-btn tk-photo-btn-remove" onclick="_tkRemovePhoto(${i})" title="Remove">&times;</button>
+                        <button type="button" class="tk-photo-btn" onclick="_tkMovePhoto(${i},-1)" ${(i === 0 || tkState.submitting) ? 'disabled' : ''} title="Move earlier">&larr;</button>
+                        <button type="button" class="tk-photo-btn" onclick="_tkMovePhoto(${i},1)" ${(i === tkState.photos.length - 1 || tkState.submitting) ? 'disabled' : ''} title="Move later">&rarr;</button>
+                        <button type="button" class="tk-photo-btn tk-photo-btn-remove" onclick="_tkRemovePhoto(${i})" ${tkState.submitting ? 'disabled' : ''} title="Remove">&times;</button>
                     </div>
                 </div>`).join('')}
             </div>` : '';
@@ -71262,7 +71262,7 @@
             <div class="tk-card">
                 <h3>Client <span class="tk-card-hint">${clientNames.length} clients</span></h3>
                 <div class="tk-row">
-                    <select class="tk-select" id="tkClient">
+                    <select class="tk-select" id="tkClient" ${tkState.submitting ? 'disabled' : ''}>
                         <option value="">Select a client…</option>
                         ${clientNames.map(n => `<option value="${_tkEscape(n)}" ${n === tkState.client ? 'selected' : ''}>${_tkEscape(n)}</option>`).join('')}
                     </select>
@@ -71275,11 +71275,11 @@
                 <div class="tk-row">
                     <div class="tk-radio-row">
                         <label class="tk-radio ${tkState.mediaType === 'video' ? 'active' : ''}">
-                            <input type="radio" name="tkMediaType" value="video" ${tkState.mediaType === 'video' ? 'checked' : ''}>
+                            <input type="radio" name="tkMediaType" value="video" ${tkState.mediaType === 'video' ? 'checked' : ''} ${tkState.submitting ? 'disabled' : ''}>
                             Video
                         </label>
                         <label class="tk-radio ${tkState.mediaType === 'photo' ? 'active' : ''}">
-                            <input type="radio" name="tkMediaType" value="photo" ${tkState.mediaType === 'photo' ? 'checked' : ''}>
+                            <input type="radio" name="tkMediaType" value="photo" ${tkState.mediaType === 'photo' ? 'checked' : ''} ${tkState.submitting ? 'disabled' : ''}>
                             Photo carousel
                         </label>
                     </div>
@@ -71291,7 +71291,7 @@
                 <h3>Caption</h3>
                 <div class="tk-row">
                     <label for="tkTitle">Title / caption</label>
-                    <textarea class="tpl-textarea" id="tkTitle" placeholder="What this post is about — include hashtags here." rows="4">${_tkEscape(tkState.title)}</textarea>
+                    <textarea class="tpl-textarea" id="tkTitle" placeholder="What this post is about — include hashtags here." rows="4" ${tkState.submitting ? 'disabled' : ''}>${_tkEscape(tkState.title)}</textarea>
                     <div class="tk-counter ${titleOver ? 'over' : ''}">${titleCount} / 2200</div>
                 </div>
             </div>
@@ -71553,6 +71553,18 @@
         _tkRenderForm();
     }
 
+    // Some browsers/OSes leave File.type empty for a file _tkHandlePhotoFiles
+    // still accepted by extension — falling back to a hardcoded 'image/jpeg'
+    // Content-Type in that case would mislabel an actual PNG/WEBP's bytes when
+    // PUTting to storage. Infer from the (already-validated) extension instead.
+    function _tkImageMimeFor(file) {
+        if (/^image\/(jpeg|png|webp)$/.test(file.type)) return file.type;
+        const ext = (/\.([a-z0-9]+)$/i.exec(file.name) || [])[1]?.toLowerCase();
+        if (ext === 'png') return 'image/png';
+        if (ext === 'webp') return 'image/webp';
+        return 'image/jpeg';
+    }
+
     // ---- Photo carousel mode: multi-image state, mirrors the single-file
     // helpers above but keyed by index since order defines the carousel. ----
     function _tkHandlePhotoFiles(fileList) {
@@ -71656,15 +71668,21 @@
             return;
         }
 
+        // Snapshotted for the same reason _tkSubmitDirect/_tkSubmitPhotoCarousel
+        // snapshot it: the client/title/media controls are now disabled while
+        // tkState.submitting is true, but this XHR can still take a few seconds
+        // on a slow connection, and _tkOnSubmitSuccess below builds the
+        // optimistic queue row from this snapshot rather than live tkState.
+        const target = { client: tkState.client, profile: tkState.profile, title: tkState.title, options: { ...tkState.options }, tz: tkState.schedule.tz };
         const fd = new FormData();
-        fd.append('clientName', tkState.client);
-        fd.append('socialAccountId', tkState.profile);          // Post For Me connected-account id (spc_…)
-        fd.append('title', tkState.title);
-        fd.append('options', JSON.stringify(tkState.options));
+        fd.append('clientName', target.client);
+        fd.append('socialAccountId', target.profile);          // Post For Me connected-account id (spc_…)
+        fd.append('title', target.title);
+        fd.append('options', JSON.stringify(target.options));
         fd.append('scheduledAt', scheduledAtWall);              // wall-clock "YYYY-MM-DDTHH:MM"
         fd.append('scheduledAtUTC', scheduledAtUTC);            // unambiguous UTC ISO instant — use this in n8n
         fd.append('scheduledAtUnix', scheduledAtUTC ? String(Math.floor(Date.parse(scheduledAtUTC) / 1000)) : '');
-        fd.append('timezone', tkState.schedule.tz);
+        fd.append('timezone', target.tz);
         fd.append('idempotencyKey', idempotencyKey);
         fd.append('media', tkState.file, tkState.file.name);
 
@@ -71689,7 +71707,7 @@
                 tkState.progress = 100;
                 let resp = {};
                 try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
-                _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp);
+                _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
                 tkState.error = _tkExplainError(xhr);
@@ -71713,19 +71731,22 @@
         xhr.send(fd);
     }
 
-    // Shared "upload accepted" handler for both the legacy in-band submit and
-    // the direct-to-storage submit below — same optimistic row, same queue
-    // refresh, same notification, regardless of which transport got it there.
-    function _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp) {
+    // Shared "upload accepted" handler for all three submit paths (legacy
+    // in-band video, direct-to-storage video, photo carousel) — same optimistic
+    // row, same queue refresh, same notification, regardless of which transport
+    // got it there. Takes the same frozen `target` each path snapshotted before
+    // its async work, rather than tkState live, so an edit that lands between
+    // the final response and this handler running can't mislabel the queue row.
+    function _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target) {
         tkState.progress = 100;
         const row = {
             id: resp.id || idempotencyKey,
-            client: tkState.client,
-            profile: tkState.profile,
-            title: tkState.title,
+            client: target.client,
+            profile: target.profile,
+            title: target.title,
             status: resp.status || (tkState.schedule.postNow ? 'uploading' : 'scheduled'),
             scheduled_for: tkState.schedule.postNow ? null : (scheduledAtUTC || tkState.schedule.at),
-            timezone: tkState.schedule.tz,
+            timezone: target.tz,
             created_at: new Date().toISOString(),
             optimistic: true,
         };
@@ -71877,7 +71898,7 @@
             if (xhr.status >= 200 && xhr.status < 300) {
                 let resp = {};
                 try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
-                _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp);
+                _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
                 tkState.error = _tkExplainError(xhr);
@@ -71933,7 +71954,7 @@
                 let mint = {};
                 try { mint = await mintResp.json(); } catch {}
                 if (!mint.ok || !mint.upload_url || !mint.media_url) throw new Error(`Could not prepare image ${i + 1} — ${mint.error || 'no upload url returned'}.`);
-                const putResp = await fetch(mint.upload_url, { method: 'PUT', headers: { 'Content-Type': file.type || 'image/jpeg' }, body: file, signal: controller.signal });
+                const putResp = await fetch(mint.upload_url, { method: 'PUT', headers: { 'Content-Type': _tkImageMimeFor(file) }, body: file, signal: controller.signal });
                 if (!putResp.ok) throw new Error(`Image ${i + 1} upload to storage failed (HTTP ${putResp.status}).`);
                 mediaUrls.push(mint.media_url);
                 // Reserve the last 10% of the bar for the metadata/post-creation step, same convention as _tkPutDirect.
@@ -71976,7 +71997,7 @@
                 tkState.progress = 100;
                 let resp = {};
                 try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
-                _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp);
+                _tkOnSubmitSuccess(idempotencyKey, scheduledAtWall, scheduledAtUTC, resp, target);
             } else {
                 tkState.progress = 0;
                 tkState.error = _tkExplainError(xhr);

@@ -100,6 +100,24 @@ with a "mediaUrl or mediaUrls required"-style validation error, not a silent
 misdirect). No kill flag needed — this is additive and backward compatible, not a
 migration phase.
 
+**CORRECTED 2026-09-08 (same-day second review pass).** The paragraph above says
+`auto_add_music` was threaded through unconditionally and that "a request that never
+sends it is unaffected" — that claim was only checked against this workflow's own
+request-building logic (via `test_workflow`), never against Post For Me's real API,
+so it was not actually established for the video-only lane. Codex's second review
+round on PR #1355 flagged this correctly: attaching a field TikTok's video posts
+never carried before, to every request including legacy video-only ones, is exactly
+the kind of change the "don't break the existing pipeline" mandate for this feature
+was meant to rule out. Fixed by scoping `auto_add_music` to attach only when
+`mediaUrls` (the carousel branch) is present — a plain `mediaUrl` video request now
+builds the identical configuration object it always has, proven with a full-object
+comparison in `test/tiktok-carousel-transport.js` (not just field-presence checks,
+which the original bug would have passed). Republished; live `activeVersionId` is now
+`264ea658-39c2-449c-b215-d7daa08e53ac` (supersedes `007328e6-1fb2-4e26-b025-78ac49491812`
+above). `n8n-backups/tiktok-upload-direct.2026-09-08.json` was updated in place to
+match — it is a point-in-time backup of the current live graph, not a history of every
+draft.
+
 ## 2026-09-07 — Built: a SAMPLE card can be completed from the card, like a calendar post
 
 Owner: *"when there's a calendar that has a post that is just a thumbnail, there's a

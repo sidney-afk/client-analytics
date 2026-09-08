@@ -21152,6 +21152,21 @@
            colour guard reads a four-hex-digit token after a # as a colour
            literal, which is a fair reading and cost one CI cycle to learn.) */
         if (page !== 'calendar') calState.focusPid = null;
+        /* Codex review, PR for item 176 (fourth pass): a card link's "Opening
+         * linked card…" toast has no reason to follow the reader onto an
+         * unrelated page once they've left the calendar — it would otherwise
+         * sit there, for up to ~21s, saying something about a page that is
+         * no longer showing. Same leaving-the-calendar signal as focusPid
+         * just above, and the same "third and last way it goes stale" shape:
+         * whichever request is still pending is abandoned along with it,
+         * rather than silently applying itself if the reader wanders back. */
+        if (page !== 'calendar') {
+            if ((_calFocusRequest && _calFocusRequest.cardId) || (_calPendingDeepLink && _calPendingDeepLink.cardId)) {
+                _calHideOwnToast('Opening linked card');
+            }
+            _calSetFocusRequest(null);
+            _calSetPendingDeepLink(null);
+        }
         if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); // SXR_LINE
         // Leaving Samples while its Notes modal is open would otherwise leave
         // the body scroll-locked; clear the lock on every navigation away.
@@ -29143,6 +29158,17 @@
             showToast('Opening linked card…', { duration: CAL_LOAD_TIMEOUT_MS + 1000 });
         }
     }
+    /* Codex review, PR for item 176 (fourth pass): showToast/hideToast are a
+     * SINGLE shared instance app-wide, so a bare hideToast() call here would
+     * just as happily dismiss an unrelated toast that legitimately replaced
+     * "Opening linked card…" in the interim — an Undo prompt, a save
+     * confirmation — if that toast is still the one on screen when this
+     * runs. Every hideToast() this feature calls goes through here instead,
+     * checking the currently-shown toast is still OURS before touching it. */
+    function _calHideOwnToast(expectedPrefix) {
+        const el = document.querySelector('.sv-toast-msg');
+        if (el && el.textContent && el.textContent.indexOf(expectedPrefix) === 0) hideToast();
+    }
     /* A #calendar/<slug> deep link (e.g. a link handed over by another SMM)
        whose client wasn't in the allowlist yet when the fast-path router ran:
        WL_CLIENT_NAMES is seed-only until fetchAll folds in the Clients Info
@@ -29920,7 +29946,7 @@
         // modal below would otherwise sit next to a toast still claiming the
         // card is opening, and a reader who navigated away before the sheet
         // merged would carry it to an unrelated page.
-        if (pending.cardId) hideToast();
+        if (pending.cardId) _calHideOwnToast('Opening linked card');
         // The user may have navigated away (or into a client profile) while data
         // was loading — don't yank them back to the calendar.
         if (currentNav !== 'calendar' || calState.embedded) return;
@@ -35700,7 +35726,7 @@
                 // rejects quickly (well short of the toast's ~21s duration)
                 // left "Opening linked card…" on screen right next to this
                 // modal saying the opposite.
-                hideToast();
+                _calHideOwnToast('Opening linked card');
                 showNotify('Linked card not confirmed', (isAbort
                     ? "The calendar took too long to load, so the card this link points to couldn't be confirmed."
                     : "That calendar couldn't be loaded, so the card this link points to couldn't be confirmed.")
@@ -35828,7 +35854,7 @@
         // card that resolves fast into "Card not found"/"Card not shown"
         // below left that toast on screen contradicting the modal that
         // follows it. Only a cardId request could have shown it.
-        if (req.cardId) hideToast();
+        if (req.cardId) _calHideOwnToast('Opening linked card');
         let post = null;
         let persistent = false;
         if (req.cardId) {

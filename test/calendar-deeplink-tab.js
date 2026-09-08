@@ -70,6 +70,11 @@ function _calSetFocusRequest(req) { _calFocusRequest = req; _calFocusRequestLoad
 // (Codex review, item 176 PR).
 function _calSetPendingDeepLink(v) { _calPendingDeepLink = v; }
 function hideToast() { calls.hideToast = (calls.hideToast || 0) + 1; }
+// Real app checks toast ownership before dismissing (Codex review, item 176
+// PR, fourth pass); this suite about _calResolvePendingDeepLink's own logic
+// isn't exercising the ownership check itself (that's covered directly in
+// calendar-deep-link-focus.js), so just count the call.
+function _calHideOwnToast() { calls.hideToast = (calls.hideToast || 0) + 1; }
 const calls = { loadCalendarPosts: 0, renderBody: 0, renderTabs: 0, renderShell: 0, teardown: 0 };
 // DOM-coupled deps → no-ops / counters.
 function _calRenderTabs(){ calls.renderTabs++; }

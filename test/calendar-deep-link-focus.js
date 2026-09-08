@@ -82,7 +82,7 @@ function harness(options) {
     'requestAnimationFrame', 'document', 'window', 'setTimeout',
     '_calClearFocusHighlight', '_calFocusOutsideHandler',
     'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive', '_calRenderBody',
-    'showToast', '_calFmtDateShort', '_calSetFocusRequest', 'hideToast',
+    'showToast', '_calFmtDateShort', '_calSetFocusRequest', 'hideToast', '_calHideOwnToast',
     src + '\nreturn _calApplyFocusRequest;',
   )(
     { client: 'Client', cardId: 'p_target' },
@@ -102,6 +102,7 @@ function harness(options) {
     msg => toasts.push(msg),
     iso => 'DATE(' + iso + ')',
     req => setFocusCalls.push(req),
+    () => { hideToastCalls++; },
     () => { hideToastCalls++; },
   );
   fn();
@@ -309,6 +310,17 @@ function harness(options) {
   ok(navToSrc.indexOf("if (page !== 'calendar') calState.focusPid = null;")
        > navToSrc.indexOf('_calV2Teardown'),
     'beside the calendar teardown, which is where leaving-the-calendar cleanup lives');
+  /* Codex review, PR for item 176 (fourth pass): a pending card link's
+     "Opening linked card…" toast has the exact same staleness shape as
+     focusPid — nothing clears it on leaving the calendar except this. */
+  ok(/_calSetFocusRequest\(null\);\s*\n\s*_calSetPendingDeepLink\(null\);/.test(navToSrc),
+    'navTo also abandons any outstanding card-link request (foreground and deferred) on the way out');
+  ok(navToSrc.indexOf('_calSetFocusRequest(null);') > navToSrc.indexOf("calState.focusPid = null;"),
+    'placed beside the focusPid clear it mirrors, not scattered elsewhere in the function');
+  ok(/_calHideOwnToast\('Opening linked card'\)/.test(navToSrc.slice(
+      navToSrc.indexOf("if (page !== 'calendar') calState.focusPid = null;"),
+      navToSrc.indexOf('_calSetPendingDeepLink(null);') + 40)),
+    'and dismisses the toast too, so it does not follow the reader onto whatever page they went to');
   ok(/if \(v !== 'organizer'\) calState\.focusPid = null;/.test(INDEX),
     'and the two older exits are still there: leaving the Sheet…');
   ok(/calState\.client !== name\) calState\.focusPid = null;/.test(INDEX),
@@ -406,6 +418,39 @@ function harness(options) {
   ok(toasts.length === 1, 'a bare client-slug link (no card) stays silent — nothing to announce yet');
 }
 
+/* ── Codex review, PR for item 176 (fourth pass): dismiss OUR toast only ───
+   showToast/hideToast are one shared instance app-wide. Every hideToast()
+   this feature calls now goes through _calHideOwnToast, which checks the
+   toast actually on screen is still "Opening linked card…" before touching
+   it — otherwise dismissing it after the fact could just as easily clobber
+   an unrelated toast (an Undo prompt, a save confirmation) that legitimately
+   replaced it in the interim. */
+{
+  const INDEX = html;
+  const helper = extractFunction(INDEX, '_calHideOwnToast');
+  ok(!!helper, 'the ownership-checking helper is findable');
+  const run = new Function('document', 'hideToast', `${helper}\nreturn _calHideOwnToast;`);
+  {
+    let hidden = 0;
+    const doc = { querySelector: () => ({ textContent: 'Opening linked card… · Mon 09/08/26' }) };
+    run(doc, () => { hidden++; })('Opening linked card');
+    ok(hidden === 1, 'dismisses the toast when it is still the one this feature fired');
+  }
+  {
+    let hidden = 0;
+    // Some OTHER toast — an Undo prompt — has replaced ours by the time this runs.
+    const doc = { querySelector: () => ({ textContent: 'Card archived · Undo' }) };
+    run(doc, () => { hidden++; })('Opening linked card');
+    ok(hidden === 0, 'and leaves an unrelated toast alone — dismissing it would silently drop someone else\'s Undo');
+  }
+  {
+    let hidden = 0;
+    const doc = { querySelector: () => null };  // nothing showing at all
+    run(doc, () => { hidden++; })('Opening linked card');
+    ok(hidden === 0, 'and does nothing when no toast is showing at all');
+  }
+}
+
 /* loadCalendarPosts's catch: the failure twin of the announcement above. */
 {
   const loadFn = extractFunction(html, 'loadCalendarPosts');
@@ -433,7 +478,7 @@ function harness(options) {
      hideToast() call never runs either. A quick rejection — nowhere near the
      toast's ~21s duration — left "Opening linked card…" on screen right next
      to this modal saying the opposite. */
-  ok(/hideToast\(\);\s*\n\s*showNotify\('Linked card not confirmed'/.test(catchBlock),
+  ok(/_calHideOwnToast\('Opening linked card'\);\s*\n\s*showNotify\('Linked card not confirmed'/.test(catchBlock),
     'the pending "Opening linked card…" toast is dismissed immediately before this modal, not left to say the opposite of it');
 }
 

@@ -193,7 +193,12 @@ function rootBody(mode, rid, overrides = {}) {
 // This lane is a NEW manifest proof. Loader and synthetic fixture originated in
 // PR1274 at 7d2812ac; its historical reliability/readiness results are not rerun
 // or promoted by this package. Reports contain only check labels and totals.
-function ok(label, pass) { check(label, 'manifest', label, pass); }
+/* `check` prints and stores evidence on a failure, and this wrapper used to
+   drop it, so every failing manifest check reported `evidence: undefined` and
+   said nothing about why. That cost two instrumented re-runs on one stale
+   assertion. Evidence is forwarded now; supply it wherever the reason for a
+   failure is not obvious from the label alone. */
+function ok(label, pass, evidence) { check(label, 'manifest', label, pass, evidence); }
 const q = value => "'" + String(value).replace(/'/g, "''") + "'";
 async function manifests(rid) { return rows('select * from public.production_intake_manifests where request_id=' + q(rid)); }
 async function inventory() {
@@ -238,7 +243,9 @@ try {
   ok(negativeControl ? 'negative-control-retry-valid-but-loses-first-generated-brief' : 'same-original-request-changed-enrichment-retains-first-brief',
     firstEnriched.status >= 500 && generationRan && enrichedRetry.status === 201
     && (negativeControl ? !enrichedRows[0]?.brief
-      : !!aiLabel && enrichedRows[0]?.brief === aiLabel + 'Bright Future'));
+      : !!aiLabel && enrichedRows[0]?.brief === aiLabel + 'Bright Future'),
+    { first_status: firstEnriched.status, generation_ran: generationRan, retry_status: enrichedRetry.status,
+      ai_label_found: !!aiLabel, briefs: enrichedRows.map(r => r.brief) });
   delete process.env.GRAPHIC_TITLE_API_KEY;
   delete process.env.GRAPHIC_TITLE_MODEL;
   await sql("delete from public.filming_plans where client_slug='fixture-client'");

@@ -14661,3 +14661,13 @@ exactly once on the resolve-success, unresolved-slug, and navigated-away
 paths whenever the pending link carried a `cardId` (and not when it didn't —
 nothing to dismiss); `test/calendar-deep-link-focus.js` asserts the ordering
 of `hideToast()` immediately before the catch block's own `showNotify(...)`.
+
+**Unrelated CI catch on the same push.** `repo-identity-exposure-check.js`
+failed on `test/calendar-deeplink-tab.js` — two of the new test lines above
+reused fixture values (a client slug, a display name) that already sit
+unchanged elsewhere in the same file, but a diff-only scanner reading only
+ADDED lines has no way to know that; a genuinely new line reusing an old
+value still reads as new exposure. Swapped both to `'whoisthis'`, the slug
+this file already uses specifically as its non-resolving placeholder — the
+new tests don't need a real, resolvable client either. Verified locally with
+the same command CI runs before pushing.

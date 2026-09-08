@@ -42,6 +42,11 @@ const SAFE_ISSUE_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,159}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LIST_PAGE_SIZE = 1000;
 const MAX_LIST_PAGES = 50;
+// How long `action:'list'` will wait for the enriched snapshot before answering
+// from the bounded read instead. Deliberately well inside the compatibility
+// client's 8s abort (WL_PLAN_READ_TIMEOUT_MS, index.html) so the direct read
+// still has room to finish and reach the browser.
+const LIST_ENRICH_BUDGET_MS = 3000;
 
 type JsonMap = Record<string, unknown>;
 type PlanRow = {
@@ -293,22 +298,48 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (action === "list") {
       requireListStaff(req);
       const db = serviceClient();
-      try {
-        const snapshot = await nativeSnapshot(db);
+      /* Both reads start together, and the BOUNDED one is the answer unless the
+       * enriched one arrives in time.
+       *
+       * A try/catch around the snapshot was not enough, and the reason is worth
+       * keeping: the failure that matters is "unavailable", and its commonest
+       * form is SLOW, not thrown. A `workload_native_snapshot_v1()` that hangs
+       * on one of its joined relations never rejects, so a catch never fires --
+       * and the compatibility client aborts at WL_PLAN_READ_TIMEOUT_MS (8s,
+       * index.html), losing every saved day and disabling editing exactly as if
+       * we had refused it. Racing a deadline covers both shapes with one
+       * mechanism.
+       *
+       * The budget leaves the bounded read most of the client's window. Its
+       * rejection is captured rather than left floating: an unawaited rejected
+       * promise takes the isolate down, and the enriched path routinely leaves
+       * one behind. */
+      const bounded = listPlans(db).then(
+        (plans) => ({ plans, error: null as unknown }),
+        (error) => ({ plans: null, error }),
+      );
+      const enriched = nativeSnapshot(db).then(
+        (snapshot) => snapshot,
+        () => null,
+      );
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const budget = new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), LIST_ENRICH_BUDGET_MS);
+      });
+      const snapshot = await Promise.race([enriched, budget]);
+      if (timer !== undefined) clearTimeout(timer);
+      if (snapshot) {
         outcome = "ok";
         return json({ok:true,complete:true,plans:legacyPlanAliases(snapshot)});
-      } catch (snapshotError) {
-        if (!(snapshotError instanceof WorkloadPlanError) || snapshotError.status !== 503) {
-          throw snapshotError;
-        }
-        // Degraded, not refused: every stored work day, keyed as stored. A row
-        // saved under a native id loses its provider alias here, so an old
-        // browser may not find that one -- losing some plans is strictly better
-        // than losing all of them plus the ability to edit any.
-        const plans = await listPlans(db);
-        outcome = "ok_unaliased";
-        return json({ok:true,complete:true,plans});
       }
+      // Degraded, not refused: every stored work day, keyed as stored. A row
+      // saved under a native id loses its provider alias here, so an old
+      // browser may not find that one -- losing some plans is strictly better
+      // than losing all of them plus the ability to edit any.
+      const settled = await bounded;
+      if (settled.error) throw settled.error;
+      outcome = "ok_unaliased";
+      return json({ok:true,complete:true,plans:settled.plans});
     }
 
     const client = normalizeBrowserWriteClient(body.client);

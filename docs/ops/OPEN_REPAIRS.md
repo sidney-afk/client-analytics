@@ -14598,6 +14598,46 @@ path, and the second is harder to see: nothing looks stubbed, the lane is real,
 and the missing coverage is a method that was never called.
 
 
+### Codex round 12 — "unavailable" is usually SLOW, and a try/catch cannot see it (2026-09-08)
+
+One P1. Round 11 asked Codex to review a deliberate deviation from its own
+prescription — it said make the bounded read PRIMARY for `list`, and this lane
+made it a fallback instead, so the healthy payload would stay byte-identical.
+Codex overruled it with a failure this lane had not considered.
+
+**A `workload_native_snapshot_v1()` that HANGS never rejects.** The try/catch
+therefore never fires, and the compatibility client aborts at
+`WL_PLAN_READ_TIMEOUT_MS` (8s, `index.html:14798`) having received nothing —
+every saved day gone, editing disabled, which is the identical board-wide loss
+the round-11 fix existed to remove. The deviation was not a smaller change than
+the prescription; it was a change that only covered the *thrown* half of
+"unavailable", and slow is the commoner half.
+
+Both reads now start together and the enriched one is raced against
+`LIST_ENRICH_BUDGET_MS` (3s), leaving the bounded read most of the client's
+window. That covers the thrown and the slow shapes with one mechanism and still
+keeps the healthy payload identical, which is what the deviation was for. The
+bounded promise's rejection is captured at creation rather than left floating —
+the enriched path routinely abandons one, and an unawaited rejected promise
+takes the isolate down.
+
+**The counterfactual was vacuous on the first attempt, and that is the part
+worth recording.** The new fixture hung the RPC for 6s. Against the PRE-race
+handler that still answered at ~6s, inside the browser's 8s abort, so the check
+passed against the very code it was written to catch. Only a hang LONGER than
+the client deadline discriminates. At 9s the pre-race handler answers in 9128ms
+and the check goes red; the raced handler answers from the bounded read well
+inside the window. A counterfactual that passes against the old code is not a
+counterfactual, and this one had to be run in both directions to notice.
+
+The shim gained `rpcHangMs` alongside `rpcFault`: a rejecting fixture cannot
+express a promise that never settles, so the lane could not previously see this
+class at all — the same "harness narrower than the code" shape as round 11, one
+layer down.
+
+Handler lane 33 → 35 checks, on a real PostgreSQL 16 instance.
+
+
 ## 173. [2026-09-07, MEASURED AND RESIZED — the images this lane exists to save have been broken for months] Linear media in briefs already renders broken, so LX-E is an improvement and not a rescue
 
 **The check that settles it, and it changes the lane's priority.** Item 164 ended

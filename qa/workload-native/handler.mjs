@@ -12,8 +12,15 @@ const sqlEnv=Object.fromEntries(Object.entries(process.env).filter(([key])=>!/^P
 if(process.env.WORKLOAD_TEST_PASSWORD!==undefined)sqlEnv.PGPASSWORD=process.env.WORKLOAD_TEST_PASSWORD;
 const quote=v=>v==null?'null':"'"+String(v).replaceAll("'","''")+"'";
 function sql(text){const r=spawnSync(psql,['-X','-w','-q','-A','-t','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p',port,'-U','postgres','-d',database],{input:text,encoding:'utf8',env:sqlEnv,windowsHide:true,timeout:10000,maxBuffer:16e6});if(r.status!==0)throw Error(r.stderr);return r.stdout.trim();}
-let rpcFault=false, rpcCalls=0, legacyWrites=0, external=0;
-const db={rpc:async(name,params={})=>{rpcCalls++;if(rpcFault)return {data:null,error:{code:'fixture-refusal'}};
+let rpcFault=false, rpcHangMs=0, rpcCalls=0, legacyWrites=0, external=0;
+const db={rpc:async(name,params={})=>{rpcCalls++;
+ // A HANGING rpc, not a rejecting one. Codex P1 on #1344: `unavailable` is most
+ // often SLOW rather than thrown, and a promise that never settles slips past
+ // any try/catch -- the compatibility client then aborts at 8s having received
+ // nothing, which is the same board-wide loss as a refusal. rpcFault alone
+ // could not express that, so the lane could not see it.
+ if(rpcHangMs)await new Promise(r=>setTimeout(r,rpcHangMs));
+ if(rpcFault)return {data:null,error:{code:'fixture-refusal'}};
  if(!['workload_native_snapshot_v1','workload_native_plan_target_v1','workload_native_plan_set_v1'].includes(name))throw Error('Unapproved SQL RPC');
  try {return {data:JSON.parse(sql(`select public.${name}(${Object.entries(params).map(([k,v])=>k+'=>'+quote(v)).join(',')});`)||'null'),error:null};}
  catch {return {data:null,error:{code:'sql_refused'}};}},
@@ -74,6 +81,21 @@ try{
  ok(r.body.ok===true&&r.body.complete===true,'and keeps the response shape the old bundle parses');
  rpcFault=false;
  r=await request({action:'list'});ok(r.status===200,'and the healthy list is unchanged');
+
+ // THE SLOW SNAPSHOT, which a rejecting fixture cannot represent. The enriched
+ // read is raced against a budget well inside the client's 8s abort, so the
+ // bounded read still reaches the browser.
+ // 9s: LONGER than the client's 8s abort. A shorter hang proves nothing -- the
+ // pre-race handler also answered before the browser gave up, so a 6s fixture
+ // passed against the very code it was meant to catch.
+ rpcHangMs=9000;
+ {const started=Date.now();
+  r=await request({action:'list'});
+  const elapsed=Date.now()-started;
+  ok(r.status===200&&Array.isArray(r.body.plans)&&r.body.plans.length>0,
+   'a HANGING snapshot still returns the stored work days rather than nothing');
+  ok(elapsed<8000,`and answers inside the compatibility client's abort (${elapsed}ms)`);}
+ rpcHangMs=0;
  rpcFault=true;
  before=legacyWrites;r=await request({action:'set',issue_id:'legacy-con',client:'Fixture',plan_date:'2030-03-01'});ok(r.status===503&&legacyWrites===before,'unreadable native ownership never falls through to legacy write');rpcFault=false;
  r=await request({action:'set',issue_id:'legacy-con',client:'Fixture',plan_date:'2030-03-01'});ok(r.status===200&&legacyWrites===before+1,'explicit CON compatibility writes existing sidecar path');

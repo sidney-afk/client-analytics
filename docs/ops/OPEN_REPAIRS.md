@@ -15696,3 +15696,43 @@ the four self-sweeps — walked lines. A defect that lives in the RELATIVE POSIT
 of two correct lines is not visible to anything that reads one line at a time,
 and a brief that lists actions under a heading reads as a set unless something
 tells you it is a sequence. Two of these six blocks turn out to be sequences.
+
+### Ordering sweep, continued: briefs B and F
+
+**Brief B's forward order is sound.** Walked its ten steps against their real
+dependencies: root-manifest before the composed artifact (which needs
+`production_intake_manifests` and `production_intake_root_begin`); the composed
+artifact before the reconcile migration (which needs `manifest.native_epochs`,
+added by the native half); the label foundation before the label writes that
+alter its table; every migration before the Section 4 dispatch, which matches the
+house rule that a migration precedes the gateway composing against it; the sealed
+capture immediately before the dispatch; and all three flag flips after the
+deploy. Nothing needs moving.
+
+**Brief F has one gap and one open question.**
+
+The gap: its last action, `- [other] Revoke LINEAR_MIRROR_API_KEY, …`, carried
+its hard precondition only in its `undo:`. `linearLabelsRequest` throws 503
+`label_catalog_unavailable` when `LINEAR_MIRROR_API_KEY` is empty
+(production-write index.ts ~:837-839), with a paired site around :2291, so
+revoking before the closure that removes those call sites ships turns "pick a
+label" and "create a deliverable" into hard 503s — permanently, since no re-issue
+exists after the account lapses. Worse, **that removal-and-deploy is not a step in
+this list at all**: it belongs to the production-write lane, and this list's final
+irreversible act silently depends on another lane's work. The precondition is now
+on the action, where someone reading top to bottom will meet it.
+
+The open question, recorded rather than guessed: the alarm-fatigue `mitigate:`
+says "STEP 0 drains the queue to zero before STEP 2 so the pending-age alarm
+reads false", but the printed list has the census read first and
+`linear_outbound_enabled = off` third, and turning outbound off PAUSES the drain
+rather than completing it. Either there is an unlisted drain action between them,
+or "STEP 0/STEP 2" refer to a runbook numbering this brief does not carry. **I
+cannot tell which from the sources, so it is not being resolved by inference** —
+whoever owns lane F should say which, because the difference decides whether the
+pending-age alarm is silent or screaming through the cutoff window.
+
+**Standing count of the ordering class: two defects (E's E4 placement, C's
+enabled-first), one gap (F's unlisted precondition), one open question (F's
+drain), one brief clean (B), one not applicable (D has no ordered dependencies
+among its five actions).**

@@ -122,7 +122,7 @@ WORK ITEMS
 
 THE ORDER (each step's rollback is the captured prior value; the order is chosen so the cheapest-to-reverse steps come first and the irreversible one comes last):
 
-STEP 0 (no flag) — DRAIN TO ZERO. With outbound still `live`, dispatch `linear-outbound-drain.yml` repeatedly until the summary reports `oldest_
+STEP 0 (no flag) — DRAIN TO ZERO. With outbound still `live`, dispatch https://github.com/sidney-afk/client-analytics/actions/workflows/linear-outbound-drain.yml repeatedly until the summary reports `oldest_
      files: docs/ops/LINEAR_CUTOFF_RUNBOOK.md
   [F1] (high risk, mixed) Lift the cutoff migration and reconcile it with the F27 recovery contract before installing
      Cherry-pick migrations/2026-09-06-linear-outbound-cutoff.sql verbatim from 5bcc03bd. It is additive and inactive-by-default.
@@ -132,7 +132,7 @@ The blocker is stated by the candidate's own doc and must not be waved past: doc
   [F2] (high risk, lift) Lift the cutoff-aware linear-outbound worker (only if F1 installs)
      Take supabase/functions/linear-outbound/index.ts wholesale from 5bcc03bd plus test/linear-outbound-cutoff.js and test/linear-outbound-read-cutoff.js. Two independently valuable changes even before any cutoff is activated: (a) every provider READ is now authorized at the single transport boundary, closing the read-path gap the audit names; (b) the unconditional `readViewer()` that ran once per drain regardless of whether there was anything to send is gone — an empty queue no longer touches Linear at all.
 
-Deploy path: `deploy-f27-section4-closures.yml`, which is the four-function lane (`linear-outbound`, `production-write`, `deliverable-write`, `batch-write`) and therefore requires the sealed
+Deploy path: https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-f27-section4-closures.yml , which is the four-function lane (`linear-outbound`, `production-write`, `deliverable-write`, `batch-write`) and therefore requires the sealed
      files: supabase/functions/linear-outbound/index.ts, test/linear-outbound-cutoff.js, test/linear-outbound-read-cutoff.js, scripts/linear-outbound-cutoff-rehearsal.js, scripts/linear-outbound-cutoff-lane.mjs, scripts/linear-outbound-read-lane.mjs, scripts/linear-outbound-read-seam.mjs
   [F3] (medium risk, new) Inventory and close every remaining path to api.linear.app
      Grounded inventory as of origin/main.

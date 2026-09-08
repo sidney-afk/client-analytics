@@ -80,7 +80,7 @@ DONE WHEN
   - `wlFetchTweakComments` returns native comments from `functions/v1/production-comments` for every issue whose `workloadSource === 'native'` and makes no request to `LINEAR_TWEAK_COMMENTS_WEBHOOK` for those ids; the popover shows `No feedback is available here. Open the post in SyncView to check its review notes.` instead of `+ N older comments on the sub-issue in Linear`.
   - `grep -n 'linear-tweak-comments' index.html` returns nothing, or returns only a dead-code path unreachable because every Workload row is `workloadSource === 'native'` (Lane A's ruling).
   - `npm test` (test/run-all.js auto-discovers every top-level `test/*.js`) is green with `test/component-feedback-read.js` and the updated `test/production-comments-ui-source.js` included.
-  - `production-comments` is deployed from an exact main SHA via `deploy-onboarding-edge-functions.yml` and a staff read of a mapped Calendar deliverable returns a `feedback` object in the live response.
+  - `production-comments` is deployed from an exact main SHA via https://github.com/sidney-afk/client-analytics/actions/workflows/deploy-onboarding-edge-functions.yml and a staff read of a mapped Calendar deliverable returns a `feedback` object in the live response.
 
 ALREADY BUILT — LIFT THESE, DO NOT REBUILD
   * The whole server side of the source-feedback projection: `feedbackScope`, `feedbackCardMatches`, `importedCommentId`, `sourceComment`, `sameCurrentComment`, `readLegacyFeedback` — 214 lines, no Linear reference anywhere in the file.

@@ -2,6 +2,44 @@
 
 All times are UTC unless noted.
 
+## 2026-09-08 — Applied, recorded late: the two Workload native migrations
+
+**Recorded after the fact, which is the whole point of this entry.** Both
+migrations below were applied to production and neither was logged here. The
+omission had a real cost: `docs/independence/LINEAR_EXIT_BRIEF_A.md` inferred
+from their absence in this file that the view had never been applied, and told
+lane A and the owner to apply it, which would have spent an owner migration
+window re-doing installed work. **Absence from this log is absence of a record,
+not absence of the change**, and this file is the deployment ledger a future
+session will consult first.
+
+- **`migrations/2026-09-02-workload-native-view.sql`** — applied on an unrecorded
+  date before 2026-09-07. Creates the read-only view
+  `public.workload_issues_native_v1` and grants select to anon and authenticated.
+  Writes nothing, drops nothing, re-running is a no-op (the file says so at
+  :28-29). Discovered applied by measurement, not by record: OPEN_REPAIRS 176
+  read it live over REST while the n8n Workload reconcile was still running.
+- **`migrations/2026-09-05-workload-native-membership.sql`** — applied by the
+  owner on 2026-09-07, in the window before the `workload-plan` deploy that
+  caused that night's outage. Creates three SECURITY DEFINER functions
+  (`workload_native_snapshot_v1`, `workload_native_plan_target_v1`,
+  `workload_native_plan_set_v1`), `service_role` execute only, revoked from
+  public/anon/authenticated. No table, row, flag, or grant on an existing object
+  changed.
+
+**Proof both are live, taken 2026-09-08 in the SQL editor.** `select
+public.workload_native_snapshot_v1()` returned `ok=true`, `complete=true`,
+`contract=workload-native-snapshot-v1`, `count=6450`, `rows_len=6450`,
+`plans_len=262`, `authority={"video":"syncview","graphics":"syncview"}`. The
+function is from the membership migration and it reads the view, so one answer
+establishes both. `count` equalling `rows_len` says the snapshot is whole rather
+than truncated.
+
+**Nothing was deployed or reverted by this entry.** It is a record of state that
+already existed. The outage of 2026-09-07 was caused by the `workload-plan` Edge
+Function deployed alongside these, not by either migration; both are additive and
+neither was rolled back when that function was. OPEN_REPAIRS 176, 177 and 178.
+
 ## 2026-09-07 — Built: a SAMPLE card can be completed from the card, like a calendar post
 
 Owner: *"when there's a calendar that has a post that is just a thumbnail, there's a

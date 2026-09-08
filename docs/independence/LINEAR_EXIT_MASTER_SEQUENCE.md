@@ -60,6 +60,7 @@ reading:
 | Workload board | The n8n reconcile stops refreshing `workload_issues`, so the board **freezes rather than empties** — silently current-looking and stale | high, because it is invisible |
 | Kasper → Editors subtab | `editors-week` fails | visible |
 | Tweak comments | `linear-tweak-comments` fails | visible |
+| Urgent Slack alerts | `send-urgent-slack` **also reads Linear** — it looks shaped like a pure Slack write, but it resolves the issue's current Linear assignee to pick who to mention. It fails with the account | high, and it was on no existing reader list |
 | Import from Linear | Fails, and is moot after the exit anyway | none |
 
 **So the four held PRs merging before 2026-09-15 is what converts an
@@ -68,6 +69,15 @@ the review, not on the engineering. It does not make anything unrecoverable, and
 it is not a reason to rush the review — it is a reason to schedule it.
 
 Today is 2026-09-08. That is one week.
+
+**`send-urgent-slack` was added to this table on 2026-09-08 from PR #1356**, which
+re-derived the endpoint list from `main` rather than carrying forward the July
+audit. It is the one Linear reader that no previous list carried, precisely
+because its name and its output are both about Slack. Worth stating as a method
+point and not just a row: **an endpoint's dependencies are not inferable from
+its name or its effect.** Two endpoints that look Linear-bound survive untouched
+for the mirror-image reason — `log-linear-submission` only appends a Google
+Sheet and `kasper-queue` only reads Sheets.
 
 ---
 
@@ -81,7 +91,7 @@ reviewed them with a second model.
 |---|---|---|
 | [#1344](https://github.com/sidney-afk/client-analytics/pull/1344) | The Workload board reads native data instead of the Linear mirror | **None.** Its backend is already deployed; `production-polish` went green on re-run |
 | [#1347](https://github.com/sidney-afk/client-analytics/pull/1347) | Staff can read every piece of feedback on a deliverable without Linear | None known |
-| [#1346](https://github.com/sidney-afk/client-analytics/pull/1346) | editors-week rebuilt natively; live writes fail closed instead of reaching Linear | None known |
+| [#1346](https://github.com/sidney-afk/client-analytics/pull/1346) | editors-week rebuilt natively; live writes fail closed instead of reaching Linear | None merge-blocking. **But it carries an attached obligation:** its native reader depends on `deliverable_events`, whose `anon` grant must be revoked separately (Phase 4). Merging without that trades one unauthenticated exposure for another |
 | [#1350](https://github.com/sidney-afk/client-analytics/pull/1350) | The cutoff runbook and the watchers. **Merges last** | None known |
 
 **Merge order is forced: A, then D, then C, then F.** Lane F's every step
@@ -235,8 +245,35 @@ are a map of what exists, not an instruction to install it.
 ## Phase 4 — the n8n replacements
 
 Several n8n webhooks read Linear and will fail when the account lapses. The full
-inventory, classification and per-endpoint plan is being prepared as
-`docs/independence/N8N_REPLACEMENT_PLAN.md`.
+inventory, classification and per-endpoint plan is
+**`docs/independence/N8N_REPLACEMENT_PLAN.md`**, merged 2026-09-08 as PR #1356.
+Read it before touching any of them; only the parts that change this sequence are
+repeated here.
+
+**Seven browser-called webhooks read Linear and die with it:** `editors-week`,
+`linear-issues`, `linear-issue-statuses`, `linear-subissues`,
+`linear-tweak-comments`, `linear-projects`, and `send-urgent-slack`. Four more
+write Linear and die with it. That list was re-derived on `main` rather than
+carried forward, and it corrected two things: `send-urgent-slack` belongs on it
+(see the degradation table above) and `log-linear-submission` / `kasper-queue` do
+not, despite their names.
+
+**A blocker that belongs to lane C and is easy to lose.** The native
+`editors-week` replacement in PR #1346 reads `public.deliverable_events`, which
+`migrations/2026-07-06-b1-linear-data-model.sql:682-688,698` grants `select` to
+`anon` under a permissive `using(true)` policy, and **no migration in this repo
+revokes it** — the F53 revoke covered `batches` and `deliverables` and not this
+table. That is F48's exposure shape reproduced natively.
+
+**Revoking that grant is an independent, mandatory requirement, not an
+alternative.** Serving the data through an authenticated Edge Function does not
+satisfy it: the publishable key is committed, and it reaches the table through
+PostgREST regardless of what any Edge Function does. Both are needed.
+
+Two honest limits on that finding, carried over rather than smoothed away: it is
+a **source-level reading and the live grant was not checked**, and tables in this
+estate have been created by hand-run SQL that never reached the repo. Verify
+against the live database before relying on either the finding or its absence.
 
 **Every one of these needs the owner's explicit go-ahead in the moment.** They
 are production sales automation. The house rule is in `CLAUDE.md` and it is not

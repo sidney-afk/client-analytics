@@ -40795,11 +40795,15 @@
         const found = CAL_NATIVE_ORDINAL_RE.exec(String(title == null ? '' : title).trim());
         return found ? Number(found[1]) : null;
     }
+    /* null means UNKNOWN -- the bounded read never landed, or never covered
+       this batch -- and only that renders as an ellipsis. A measured zero is a
+       real answer and must stay zero, or an empty batch previews `Video …`
+       while the RPC allocates `Video 1`. */
     function _calNativeBatchMaxOrdinal(state, batchId) {
         const map = state && state.batchMaxOrdinals;
         if (!(map instanceof Map)) return null;
         const found = map.get(String(batchId || ''));
-        return Number.isFinite(found) && found > 0 ? found : null;
+        return Number.isFinite(found) && found >= 0 ? found : null;
     }
     function _calNativeBatchById(state, batchId) {
         const wanted = String(batchId || '');
@@ -40854,13 +40858,45 @@
             + (appending ? ' \u00b7 existing batch' : '') + '</div>'
             + '<ul class="cal-native-receipt-kids">' + rows.join('') + '</ul>';
     }
+    /* ONE LINE, AFTER TYPING STOPS. The receipt itself is NOT a live region
+       (Codex P1 on PR 1353): it is rewritten on every keystroke of every name,
+       so announcing it would queue the whole tree per character and leave a
+       screen-reader user behind their own typing. The visual preview still
+       updates instantly; what is spoken is this summary, once the field
+       settles, and it says the shape rather than reciting six titles. */
+    const CAL_NATIVE_RECEIPT_SPEAK_MS = 700;
+    let _calNativeReceiptSpeakTimer = null;
+    function _calNativeReceiptSummary(state, choice) {
+        const mode = ['video', 'thumbnail', 'both'].includes(state && state.mode) ? state.mode : 'both';
+        const teams = CAL_NATIVE_MODE_TEAMS[mode] || CAL_NATIVE_MODE_TEAMS.both;
+        const count = _calNativePostCount(state);
+        const total = count * teams.length;
+        const appending = !!(choice && choice.value === 'batch');
+        const max = appending ? _calNativeBatchMaxOrdinal(state, choice.batchId) : 0;
+        const base = appending ? (max === null ? null : max + 1) : 1;
+        const where = appending
+            ? 'in ' + (_calNativeBatchDisplayName(_calNativeBatchById(state, choice.batchId)) || 'the batch you picked')
+            : 'in a new batch';
+        const numbers = base === null
+            ? ''
+            : ', numbered ' + base + (count > 1 ? ' to ' + (base + count - 1) : '');
+        return 'Creates ' + (total === 1 ? '1 sub-issue' : total + ' sub-issues') + ' ' + where + numbers + '.';
+    }
     /* Surgical, like the names list: every keystroke reaches this, and a full
        re-render would take the caret with it. */
     function _calNativeSyncReceipt() {
         const state = _calNativePostState;
         const host = document.getElementById('calNativeReceipt');
         if (!state || !host) return;
-        host.innerHTML = _calNativeReceiptHtml(state, _calNativeCurrentBatchChoice(state));
+        const choice = _calNativeCurrentBatchChoice(state);
+        host.innerHTML = _calNativeReceiptHtml(state, choice);
+        if (_calNativeReceiptSpeakTimer) clearTimeout(_calNativeReceiptSpeakTimer);
+        _calNativeReceiptSpeakTimer = setTimeout(() => {
+            const live = document.getElementById('calNativeReceiptStatus');
+            if (!live || !_calNativePostState) return;
+            live.textContent = _calNativeReceiptSummary(_calNativePostState,
+                _calNativeCurrentBatchChoice(_calNativePostState));
+        }, CAL_NATIVE_RECEIPT_SPEAK_MS);
     }
     function _calNativePostNamesHtml(state, count, mode) {
         const names = _calNativePostNamesFor(state, count);
@@ -40907,7 +40943,18 @@
         state.batchChoice = selected
             ? { value: selected.value, batchId: String(selected.dataset.batchId || '') }
             : null;
+        /* The re-render destroys the radio that is currently focused, and
+           focus would land on the body -- so a keyboard user loses the
+           segmented control mid-choice and cannot arrow back (Codex P1 on
+           PR 1353). Re-aim it at the replacement of the same tab. */
+        const wasFocused = document.activeElement
+            && document.activeElement.name === 'calNativeBatchChoice';
         _calRenderNativePostChoice();
+        if (!wasFocused) return;
+        const again = document.getElementById(
+            state.batchChoice && state.batchChoice.value === 'batch'
+                ? 'calNativePrevBatchRadio' : 'calNativeNewBatchRadio');
+        if (again) again.focus();
     }
     /* A label does not forward a click on an interactive descendant to its
        radio, so typing a batch name would otherwise leave "Add to a previous
@@ -41246,21 +41293,37 @@
         (Array.isArray(rows) ? rows : []).forEach(row => {
             const batchId = String(row && row.batch_id || '').trim();
             if (!batchId) return;
-            if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
-            /* Highest ordinal, not the count. Delete one card and the two part
-               company permanently, and it is the MAX the append allocates
-               from -- so a count here would preview a number the RPC would
-               then refuse. */
+            /* ORDINAL FIRST, BEFORE THE PARENT EXCLUSION -- the two measure
+               different things and must not share a filter (Codex P2 on
+               PR 1353). The count excludes a batch's own imported parent row
+               because a parent is not a post in its own batch. The ordinal
+               must NOT: `production_intake_append` scans every row in the
+               batch whose title matches the child syntax, parents included,
+               so a parent row titled like a child has consumed that number as
+               far as the RPC is concerned. Batch names are typed by hand now,
+               which is exactly what makes a parent called `Video 50` reachable
+               -- and previewing 2 while the RPC allocates 51 is the kind of
+               wrong number this receipt exists to stop.
+
+               Highest ordinal, not the count: delete one card and the two part
+               company permanently. */
             const ordinal = _calNativeTitleOrdinal(row && row.title);
             if (Number.isFinite(ordinal) && ordinal > (ordinals.get(batchId) || 0)) {
                 ordinals.set(batchId, ordinal);
             }
+            if (parentUuids.has(String(row && row.linear_issue_uuid || '').trim())) return;
             if (!cards.has(batchId)) cards.set(batchId, new Set());
             // The Video and Graphics halves of one post share a card_id, so
             // a paired post counts once; a row without a card counts alone.
             cards.get(batchId).add(String(row && row.card_id || '') || 'row:' + String(row && row.id || ''));
         });
         wanted.forEach(id => counts.set(id, cards.has(id) ? cards.get(id).size : 0));
+        /* Every batch this read covered gets an entry, so PRESENT means
+           measured and ABSENT means never read. A batch with no numbered
+           children measures 0, and the RPC coalesces the same scan to 0 and
+           allocates 1 -- so the receipt must say `Video 1`, not an ellipsis
+           (Codex P2 on PR 1353). */
+        wanted.forEach(id => ordinals.set(id, ordinals.get(id) || 0));
         return { counts, ordinals };
     }
     /* Which view is currently open for a given surface. The dialog re-checks
@@ -41451,7 +41514,8 @@
                     </div>
                     <div class="cal-native-batch-panel">${prevBatchChecked ? prevBatchHtml : newBatchHtml}</div>
                 </div>
-                <div class="cal-native-receipt" id="calNativeReceipt" aria-live="polite">${_calNativeReceiptHtml(state, { value: prevBatchChecked ? 'batch' : 'new', batchId: prevBatchId })}</div>
+                <div class="cal-native-receipt" id="calNativeReceipt" role="group" aria-label="What this creates">${_calNativeReceiptHtml(state, { value: prevBatchChecked ? 'batch' : 'new', batchId: prevBatchId })}</div>
+                <p class="sr-only" id="calNativeReceiptStatus" aria-live="polite"></p>
                 <div class="cal-native-batch-error" id="calNativePostError" hidden></div>
             </div>
             <div class="cal-import-foot">

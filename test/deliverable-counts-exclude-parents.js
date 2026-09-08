@@ -67,12 +67,19 @@ const makeCounter = rows => new Function('_prodRestRows',
 const batches = [
   { id: 'b-empty', linear_parent_ids: { video: { uuid: 'p-empty' }, graphics: { uuid: 'p-empty' } } },
   { id: 'b-real', linear_parent_ids: { video: { uuid: 'p-real' }, graphics: { uuid: 'p-real' } } },
+  { id: 'b-numbered', linear_parent_ids: { video: { uuid: 'p-num' }, graphics: { uuid: 'p-num' } } },
 ];
+/* Titles matter since 2026-09-08: the ordinal is read back out of them.
+   `b-empty` holds ONLY its parent, and that parent is titled like a child --
+   the shape Codex raised on #1353, and a reachable one now that batch names
+   are typed by hand. `b-numbered` has no numbered children at all, which is a
+   measured ZERO and not an unknown. */
 const rows = [
-  { batch_id: 'b-empty', card_id: '', id: 'd1', linear_issue_uuid: 'p-empty' },
-  { batch_id: 'b-real', card_id: '', id: 'd2', linear_issue_uuid: 'p-real' },
-  { batch_id: 'b-real', card_id: 'card-9', id: 'd3', linear_issue_uuid: 'vid-1' },
-  { batch_id: 'b-real', card_id: 'card-9', id: 'd4', linear_issue_uuid: 'gra-1' },
+  { batch_id: 'b-empty', card_id: '', id: 'd1', linear_issue_uuid: 'p-empty', title: 'Video 50' },
+  { batch_id: 'b-real', card_id: '', id: 'd2', linear_issue_uuid: 'p-real', title: 'Client A · 7 Aug 2026' },
+  { batch_id: 'b-real', card_id: 'card-9', id: 'd3', linear_issue_uuid: 'vid-1', title: 'Video 4 — Launch hook' },
+  { batch_id: 'b-real', card_id: 'card-9', id: 'd4', linear_issue_uuid: 'gra-1', title: 'Thumbnail 4 — Launch hook' },
+  { batch_id: 'b-numbered', card_id: 'card-3', id: 'd5', linear_issue_uuid: 'x-1', title: 'Some free-form row' },
 ];
 
 (async () => {
@@ -95,7 +102,27 @@ const rows = [
   ok(naiveCounts.get('b-empty') === 1,
     'strip the parent map and the same batch reads as populated again — the assertion above is doing work');
 
-  ok(scope._calNativeParentUuids(batches).size === 2,
+  /* THE TWO MEASURES MUST NOT SHARE A FILTER (Codex P2 on #1353).
+     `production_intake_append` scans every row in the batch whose title
+     matches the child syntax, parents included -- it has no parent exclusion
+     at all -- so a parent titled `Video 50` has consumed 50 as far as the RPC
+     is concerned, and a receipt that skipped it would preview 1 while the RPC
+     allocated 51. The COUNT still excludes that same row, because a parent is
+     not a post in its own batch. Same row, opposite treatment, on purpose. */
+  ok(ordinals.get('b-empty') === 50,
+    'a parent row titled like a child still advances the ORDINAL, matching the RPC scan that never excluded it');
+  ok(counts.get('b-empty') === 0,
+    'while that same row is still excluded from the post COUNT');
+  ok(ordinals.get('b-real') === 4,
+    'a named child counts its number, and the pair sharing a card counts it once');
+  /* A measured zero is an answer. Absent means the read never covered it, and
+     only that renders as an ellipsis in the receipt. */
+  ok(ordinals.get('b-numbered') === 0,
+    'a batch with no numbered children measures ZERO, so the receipt previews Video 1 as the RPC would');
+  ok(ordinals.has('b-numbered') && ordinals.has('b-empty') && ordinals.has('b-real'),
+    'every batch the read covered gets an entry, so PRESENT means measured and ABSENT means never read');
+
+  ok(scope._calNativeParentUuids(batches).size === 3,
     'the parent set is derived from the batch rows already in hand — no second network read to be correct');
   ok(scope._calNativeParentUuids([{ id: 'x' }, null, { id: 'y', linear_parent_ids: 'not an object' }]).size === 0,
     'and a batch with no parent map, or a malformed one, contributes nothing rather than throwing');

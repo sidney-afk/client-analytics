@@ -598,11 +598,18 @@ ok(nativeScenarios.every(scn => !/expectLinear|expectNoLinear/.test(JSON.stringi
    `{ key, title, seed, steps, shots }` shape `runScenario` takes, and Codex's finding named
    "every compiled tree path" explicitly. Driven over the real compiled output. */
 const TREE = require(path.join(ROOT, 'qa', 'scenario_tree.js'));
-const treePaths = TREE.compile(TREE.samplesReviewTree());
+/* `base()`, NOT `compile(samplesReviewTree())`. Codex on eab1eef: the `--tree` runner consumes
+   `scenario_tree.base()`, which expands the video AND graphic trees into 24 real paths, while
+   `compile(samplesReviewTree())` returns 12 synthetic ones with no component. I had printed
+   "24" from `base()` earlier in this same work and then wrote the check against the other
+   function — a guard driven over a population of its author's choosing rather than the one
+   the runner uses, which is this PR's pattern with a different hat on. */
+const treePaths = TREE.base();
 const treeLegacy = treePaths.filter(ENGINE.scenarioUsesLegacyLane);
 const treeWithVerb = treePaths.filter(p => /expectLinear|expectNoLinear/.test(JSON.stringify(p.steps || [])));
 ok(treePaths.length > 0,
-  'the compiled scenario tree loads and is the real one (' + treePaths.length + ' paths)');
+  'the compiled scenario tree is the population the --tree runner consumes ('
+  + treePaths.length + ' paths, video and graphic)');
 ok(treeLegacy.length === treeWithVerb.length,
   'the selector agrees with reality on every compiled TREE path too — ' + treeLegacy.length
   + ' selected, ' + treeWithVerb.length + ' actually carrying a Linear verb');
@@ -617,6 +624,58 @@ ok(ENGINE.scenarioUsesLegacyLane({ steps: [] }) === false
   && ENGINE.scenarioUsesLegacyLane(undefined) === false,
   '  · CONTROL: a scenario with no steps, and no scenario at all, default to PRODUCTION — a '
   + 'lane that forgets to declare itself gets the one real clients take');
+
+/* ---- 1e. A MODULE MUST EXPORT WHAT IT ACTUALLY HAS ----------------------- */
+/* Codex P1 on eab1eef, and the ninth instance: fixing #7 created it. Moving the lane rule out
+   of `qa/scenario_engine.js` left its `module.exports = { scenarioUsesLegacyLane, runScenario }`
+   naming an identifier the file no longer had in scope, so requiring it threw
+   `ReferenceError: scenarioUsesLegacyLane is not defined` — the scenario and tree nightly
+   lanes could not start at all. This suite did not catch it because #7's fix was to stop
+   requiring the engine, which removed it from the only module graph that would have noticed.
+   One coupling traded for one blind spot.
+
+   It cannot be caught by LOADING the engine here: that is exactly what turned CI red, since
+   the `unit` job has no `node_modules` and the harness underneath resolves Playwright through
+   a container-only path. So the contract is checked STATICALLY — every shorthand name in a
+   `module.exports` object must be declared or destructured somewhere in that same file. That
+   is weaker than a load, and it is what is available; it would have caught this exact bug. */
+function exportedNamesAreDefined(rel) {
+  const src = stripComments(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+  const m = src.match(/module\.exports\s*=\s*\{([\s\S]*?)\}/);
+  if (!m) return { rel, missing: [], names: [] };
+  const names = m[1].split(',')
+    .map(part => part.split(':')[0].trim())
+    .filter(n => /^[A-Za-z_$][\w$]*$/.test(n));
+  const missing = names.filter(n => {
+    const decl = new RegExp('(?:function|const|let|var|class)\\s+' + n + '\\b');
+    const destructured = new RegExp('\\{[^}]*\\b' + n + '\\b[^}]*\\}\\s*=\\s*require');
+    return !decl.test(src) && !destructured.test(src);
+  });
+  return { rel, missing, names };
+}
+
+for (const rel of ['qa/scenario_engine.js', 'qa/scenario_lane.js', 'qa/native_work_item_fixture.js',
+  'qa/write_ui_reroute_fixture.js']) {
+  const r = exportedNamesAreDefined(rel);
+  ok(r.names.length > 0, rel + ' declares a module.exports this check can read');
+  ok(r.missing.length === 0,
+    rel + ' exports only names it actually has'
+    + (r.missing.length ? ' — missing: ' + r.missing.join(', ') : ''));
+}
+
+/* Driven before trusted, on the exact broken shape. */
+ok(exportedNamesAreDefined('qa/scenario_engine.js').missing.length === 0
+  && (() => {
+    const probe = "const { a } = require('./x.js');\nmodule.exports = { a, b };";
+    const src = probe;
+    const m = src.match(/module\.exports\s*=\s*\{([\s\S]*?)\}/);
+    const names = m[1].split(',').map(x => x.trim()).filter(Boolean);
+    const missing = names.filter(n => !new RegExp('(?:function|const|let|var|class)\\s+' + n + '\\b').test(src)
+      && !new RegExp('\\{[^}]*\\b' + n + '\\b[^}]*\\}\\s*=\\s*require').test(src));
+    return missing.length === 1 && missing[0] === 'b';
+  })(),
+  '  · and the check itself catches the exact shape that broke: a name exported but neither '
+  + 'declared nor destructured');
 
 /* ---- 2. THE FIXTURE ACTUALLY STAMPS THE CARD ----------------------------- */
 /* Executed, not read. A stand-in for the slice of Playwright's routing API the

@@ -14701,6 +14701,34 @@ it. Codex challenged three lanes and left these; that is the line between "about
 the legacy path" and "happens to contain a legacy assertion", and the first
 version of this wiring did not draw it.
 
+**A NINTH — and the fix for the seventh is what created it.** Moving the lane
+rule out of `qa/scenario_engine.js` left its
+`module.exports = { scenarioUsesLegacyLane, runScenario }` naming an identifier
+the file no longer had in scope. Requiring the engine threw
+`ReferenceError: scenarioUsesLegacyLane is not defined`, so the scenario and tree
+nightly lanes **could not start at all** (Codex P1 on `eab1eef`).
+
+The unit suite did not catch it because the seventh fix was to STOP requiring the
+engine — which removed it from the only module graph that would have noticed. One
+coupling traded for one blind spot, and the blind spot was larger than the
+coupling.
+
+It cannot be caught by loading the engine in that suite: doing so is exactly what
+turned CI red, since the `unit` job has no `node_modules` and the harness beneath
+resolves Playwright through a container-only path. So the contract is checked
+STATICALLY — every shorthand name in a `module.exports` object must be declared
+or destructured somewhere in the same file, applied to the engine, the lane
+module and both fixtures. Weaker than a load, and it is what is available; it
+catches this exact bug, proven by restoring the broken import and watching the
+guard name the missing identifier.
+
+**And a P2 in the same review, same pattern:** the tree check drove
+`compile(samplesReviewTree())` — 12 synthetic paths with no component — while the
+`--tree` runner consumes `scenario_tree.base()`, which expands video AND graphic
+into 24 real ones. The 24 had been printed during this very session and the check
+was then written against the other function. A guard driven over a population of
+its author's choosing rather than the one the runner uses.
+
 **AN EIGHTH, and a different flavour: a guard that pinned a STATE where the
 invariant was the thing worth holding.** The first version of the honesty check
 on `SCENARIO_HARNESS_CAN_DRIVE_NATIVE` asserted the current value — constant

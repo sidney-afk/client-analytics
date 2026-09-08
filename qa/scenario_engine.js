@@ -94,7 +94,7 @@ async function eventMatch(id, action, want, ms = 15000) {
 /* Which lane a scenario needs lives in `qa/scenario_lane.js` — a module with no
    dependencies — so the offline suite can check the rule without loading this file and the
    browser harness underneath it. Re-exported below for callers that already import it here. */
-const { scenarioLaneIsLegacy } = require('./scenario_lane.js');
+const { scenarioLaneIsLegacy, scenarioUsesLegacyLane } = require('./scenario_lane.js');
 
 class Actors {
   constructor(browser, legacyLane) {

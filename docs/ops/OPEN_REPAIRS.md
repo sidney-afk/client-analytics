@@ -14486,3 +14486,49 @@ here in full. G11 (the `docs/ops/MONITORING.md` and `docs/CLIENT_LIFECYCLE_MAP.m
 rows that overlap F12) is not: only the dead-man's-switch row of
 `docs/ops/MONITORING.md` is touched in this PR, because it is the only row this
 PR makes untrue. The remaining G11 rows move with F12.
+
+---
+
+## 175. [2026-09-08, FIXED — additive, no URL/parsing change] A pasted calendar-card link opened "normally," with no way to tell which card it was
+
+Third report of the same shape, after items covered by the 2026-08-26 and
+2026-09-03 owner reports already re-told in `_calApplyFocusRequest`'s own
+comments: a `#calendar/<slug>/<cardId>` link, copied via the per-card
+"Copy a link to this card" button and pasted elsewhere, "just opens it
+normally" — no visible confirmation of which card was meant.
+
+Both earlier fixes were real and are still doing their job (see
+`test/calendar-deep-link-focus.js`, `test/calendar-card-deep-link.js`): the
+matched card gets a persistent outline (`cal-card-focused`) and an instant,
+self-correcting scroll into view. What was still missing is that an outline
+color is a weak signal in a horizontal strip of similarly-shaped cards — it
+requires the reader to already be looking at the right part of the screen and
+to notice a border change. Nothing said the card's identity out loud.
+
+**The fix.** `_calApplyFocusRequest` now fires one `showToast` alongside the
+existing outline, naming the resolved card and its scheduled date if it has
+one (`Linked to "<name>" · <date>`), the same non-blocking bottom-center toast
+already used for `calCopyShareLink`'s "Client link copied to clipboard." Fires
+once, only on the persistent (cardId) deep-link path — not on the separate
+identifier/search-jump flash — and only after the card is actually found and
+about to be focused, so it never fires on a link that silently failed (that
+path is still `showNotify`, unchanged).
+
+**Deliberately not done.** Considered baking a human-readable slug (card
+title) into the copied URL itself, so the pasted text alone — before anyone
+clicks it — would hint at the card. Rejected: every one of the three hash
+parsers (`decodeURIComponent(rest.slice(sl+1))`, unchanged since the
+2026-09-03 fix, still treats everything after the slug as the literal cardId
+with no further split) would need a coordinated second change to strip a
+suffix, which is exactly the kind of multi-site, easy-to-miss edit that caused
+the 2026-08-26 report in the first place — and a slug baked in at copy time
+would go stale the moment the card is renamed, while the toast reads the
+live title at open time and is never wrong. If the owner wants the raw pasted
+text itself to be identifiable (e.g. for a Slack preview with no click at
+all), that is a separate, larger piece of work — no server-rendered
+per-link previews exist for this static site today — and is an open owner
+decision, not assumed here.
+
+Pinned by: `test/calendar-deep-link-focus.js` (toast fires exactly once per
+resolved link, names the card, appends a formatted date when the card has
+one, and omits the separator entirely when it doesn't).

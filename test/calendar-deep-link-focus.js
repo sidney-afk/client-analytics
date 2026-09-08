@@ -65,6 +65,7 @@ function harness(options) {
   const viewChanges = [];
   const cleared = [];
   const renders = [];
+  const toasts = [];
   /* calState carries a view now, because a card only paints in the Sheet and
      the deferred deep-link path arrives with whatever view the client saved. */
   const calState = {
@@ -72,13 +73,14 @@ function harness(options) {
     view: opts.view === undefined ? 'organizer' : opts.view,
     monthFilter: opts.monthFilter === undefined ? 'all' : opts.monthFilter,
     statusFilter: 'all',
-    posts: [{ id: 'p_other', name: 'Other' }, { id: 'p_target', name: 'April 8th - Reel 14' }],
+    posts: opts.posts || [{ id: 'p_other', name: 'Other' }, { id: 'p_target', name: 'April 8th - Reel 14' }],
   };
   const fn = new Function(
     '_calFocusRequest', 'calState', 'wlNormalizeClient', 'showNotify',
     'requestAnimationFrame', 'document', 'window', 'setTimeout',
     '_calClearFocusHighlight', '_calFocusOutsideHandler',
     'onCalViewChange', 'onCalClearFilters', '_calOrganizeIsActive', '_calRenderBody',
+    'showToast', '_calFmtDateShort',
     src + '\nreturn _calApplyFocusRequest;',
   )(
     { client: 'Client', cardId: 'p_target' },
@@ -95,10 +97,12 @@ function harness(options) {
     () => { cleared.push(calState.client); calState.monthFilter = 'all'; },
     () => calState.monthFilter !== 'all' || calState.statusFilter !== 'all',
     () => { renders.push(calState.focusPid); },
+    msg => toasts.push(msg),
+    iso => 'DATE(' + iso + ')',
   );
   fn();
   return {
-    log, notified, card, timers, viewChanges, cleared, calState, renders,
+    log, notified, card, timers, viewChanges, cleared, calState, renders, toasts,
     runFrames(n) { for (let i = 0; i < n; i++) { frameNo++; const queued = frames.splice(0); queued.forEach(cb => cb()); } },
     runTimers() { timers.splice(0).forEach(t => t.cb()); },
     pendingFrames: () => frames.length,
@@ -110,7 +114,7 @@ function harness(options) {
   const h = harness();
   h.runFrames(1);
   ok(h.log.includes('class+cal-card-focused'), 'a card that is already painted gets the persistent outline');
-  ok(h.notified.length === 0, 'and nothing is announced, because nothing went wrong');
+  ok(h.notified.length === 0, 'and nothing is announced via the blocking dialog, because nothing went wrong');
   ok(h.log.indexOf('class+cal-card-focused') < h.log.findIndex(e => e.startsWith('scroll:')),
     'the outline goes on BEFORE anything scrolls — if the scroll misbehaves the reader can still see which card was meant');
   ok(h.log.some(e => e.startsWith('scroll:auto:')),
@@ -118,6 +122,27 @@ function harness(options) {
   ok(!h.log.some(e => e.startsWith('scroll:smooth')), 'and is never smooth');
   ok(h.log.some(e => e === 'scroll:auto:center:nearest'),
     'centred horizontally, nearest vertically — block:center used to yank the whole page down');
+  /* An outline color is easy to miss in a dense strip of near-identical cards —
+     which is exactly what "I don't know which card it is" kept meaning even
+     after the outline shipped. A toast says the card's name out loud. */
+  ok(h.toasts.length === 1, 'arriving via a card link also announces which card, in words, via a toast');
+  ok(/April 8th - Reel 14/.test(h.toasts[0]), 'and the toast names the exact card that was focused');
+}
+{
+  // A card with a scheduled date gets it appended, so the toast disambiguates
+  // same-named drafts too, not just cards with distinct titles.
+  const h = harness({ posts: [{ id: 'p_target', name: 'Reel', scheduled_date: '2026-09-08' }] });
+  h.runFrames(1);
+  ok(h.toasts.length === 1 && /DATE\(2026-09-08\)/.test(h.toasts[0]),
+    'a scheduled card\'s toast includes its formatted date alongside its name');
+}
+{
+  // No scheduled date yet (an unscheduled draft) must not print a bare "· " or
+  // call the date formatter with nothing to format.
+  const h = harness({ posts: [{ id: 'p_target', name: 'Draft' }] });
+  h.runFrames(1);
+  ok(h.toasts[0] === 'Linked to “Draft”',
+    'an unscheduled card\'s toast has no trailing date separator');
 }
 
 /* ---- 2. the element paints a few frames late ---------------------------- */

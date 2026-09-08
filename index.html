@@ -35838,6 +35838,12 @@
                 _calClearFocusHighlight();
                 card.classList.add('cal-card-focused');
                 setTimeout(() => document.addEventListener('mousedown', _calFocusOutsideHandler, true), 0);
+                // The outline alone wasn't enough — both prior reports said "I can't
+                // tell which card this is," even after the outline shipped. Say it
+                // in words too: a toast naming the card is unmissable in a way a
+                // border color isn't, especially in a dense strip of similar cards.
+                const _focusDate = post.scheduled_date ? _calFmtDateShort(post.scheduled_date) : '';
+                showToast('Linked to “' + (post.name || 'Untitled post').trim() + '”' + (_focusDate ? ' · ' + _focusDate : ''));
             } else {
                 card.classList.add('cal-card-flash');
                 setTimeout(() => card.classList.remove('cal-card-flash'), 2200);
